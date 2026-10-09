@@ -17,6 +17,7 @@ import {
   shortId,
   summaryOf,
   svgPreviewDimensions,
+  withdrawnByCurator,
 } from "./gallery-store";
 import { snapshotEntry } from "./gallery-store-versions";
 import { sweepRecycledRows } from "./gallery-store-moderation";
@@ -294,6 +295,7 @@ export function entry(
     submitterEmail: row.submitter_email,
     submitterProvider: row.submitter_provider,
     rejectReason: row.reject_reason,
+    withdrawnByCurator: withdrawnByCurator(row),
     projectText: row.project_text,
     svgText: row.svg_text,
   });
@@ -465,7 +467,9 @@ function submissionsOn(
 }
 
 /** Entries as their owner sees them: hidden ones too, and why. */
-function ownedEntries(rows: readonly EntryRow[]): Response {
+function ownedEntries(
+  rows: readonly (EntryRow & { likes: number })[],
+): Response {
   return Response.json({
     entries: rows.map((row) => ({
       ...summaryOf(row),
@@ -473,16 +477,23 @@ function ownedEntries(rows: readonly EntryRow[]): Response {
       rejectReason: row.reject_reason,
       // When it was withdrawn. Not a deadline: nothing expires by time.
       recycledAt: row.recycled_at,
+      // Only a curator puts it back, as after a rejection (#1540).
+      ...(withdrawnByCurator(row) ? { withdrawnByCurator: true } : {}),
     })),
   });
 }
 
+/** Owned rows with the likes they hold, as the wall counts them. */
+const OWNED_ROWS = `SELECT e.*,
+    (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes
+  FROM gallery_entries e`;
+
 export function mine(sql: SqlStorage, ownerUserId: string): Response {
   return ownedEntries(
     sql
-      .exec<EntryRow>(
-        `SELECT * FROM gallery_entries WHERE owner_user_id = ?
-         ORDER BY created_at DESC, id DESC`,
+      .exec<EntryRow & { likes: number }>(
+        `${OWNED_ROWS} WHERE e.owner_user_id = ?
+         ORDER BY e.created_at DESC, e.id DESC`,
         ownerUserId,
       )
       .toArray(),
@@ -497,10 +508,10 @@ export function aiSeatEntries(sql: SqlStorage): Response {
   const ids = AI_SEATS.map((seat) => seat.userId);
   return ownedEntries(
     sql
-      .exec<EntryRow>(
-        `SELECT * FROM gallery_entries
-         WHERE owner_user_id IN (${ids.map(() => "?").join(", ")})
-         ORDER BY created_at DESC, id DESC`,
+      .exec<EntryRow & { likes: number }>(
+        `${OWNED_ROWS}
+         WHERE e.owner_user_id IN (${ids.map(() => "?").join(", ")})
+         ORDER BY e.created_at DESC, e.id DESC`,
         ...ids,
       )
       .toArray()

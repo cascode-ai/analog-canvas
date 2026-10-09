@@ -29,6 +29,8 @@ export interface MineEntry {
   status: string;
   rejectReason: string | null;
   recycledAt?: string | null;
+  /** The Owner withdrew it: only the Owner restores it (#1540). */
+  withdrawnByCurator?: boolean;
 }
 
 /**
@@ -43,8 +45,14 @@ export const RECYCLED_KEEP_COUNT = 25;
  * answer is not a date, so the sentence names the rule that decides it: newer
  * withdrawals are what push an entry out, and nothing else does.
  */
-export function recycledRetentionNote(wasRejected: boolean): string {
-  const lead = wasRejected
+export function recycledRetentionNote(
+  entry: Pick<MineEntry, "rejectReason" | "withdrawnByCurator">,
+): string {
+  // The Owner's withdrawal is the Owner's to undo, and the bin keeps it
+  // apart from the author's own withdrawals.
+  if (!entry.rejectReason && entry.withdrawnByCurator)
+    return "Withdrawn by the Owner. Only the Owner can restore it.";
+  const lead = entry.rejectReason
     ? "Removed after rejection. Only the Owner can restore it."
     : "Not shown in the Gallery. Restore republishes it.";
   return `${lead} Kept while it is among your ${RECYCLED_KEEP_COUNT} most recent withdrawals.`;
@@ -232,7 +240,8 @@ export function MySubmissionsContent() {
                         ) : (
                           <>
                             {entry.status === "recycled" &&
-                            !entry.rejectReason ? (
+                            !entry.rejectReason &&
+                            !entry.withdrawnByCurator ? (
                               <button
                                 type="button"
                                 className="entry-action"
@@ -275,7 +284,7 @@ export function MySubmissionsContent() {
                         ) : null}
                         {entry.status === "recycled" ? (
                           <p className="entry-card-note">
-                            {recycledRetentionNote(Boolean(entry.rejectReason))}
+                            {recycledRetentionNote(entry)}
                           </p>
                         ) : null}
                       </>

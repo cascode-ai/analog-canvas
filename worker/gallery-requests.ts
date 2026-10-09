@@ -122,12 +122,14 @@ export async function entryManager(
   reads: boolean;
   status: string | null;
   rejectReason: string | null;
+  withdrawnByCurator: boolean;
 }> {
   const existing = await callGallery<{
     entry?: { author?: string };
     ownerUserId?: string | null;
     status?: string;
     rejectReason?: string | null;
+    withdrawnByCurator?: boolean;
   }>(env, "any-entry", { id });
   if (existing.status !== 200) {
     return {
@@ -137,6 +139,7 @@ export async function entryManager(
       reads: false,
       status: null,
       rejectReason: null,
+      withdrawnByCurator: false,
     };
   }
   const reviewer = await canReview(request, env);
@@ -155,6 +158,7 @@ export async function entryManager(
     }),
     status: existing.payload.status ?? null,
     rejectReason: existing.payload.rejectReason ?? null,
+    withdrawnByCurator: existing.payload.withdrawnByCurator === true,
   };
 }
 

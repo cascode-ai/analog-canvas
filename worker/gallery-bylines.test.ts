@@ -7,6 +7,7 @@ import { GalleryDO } from "./gallery";
 import { AI_SEATS } from "./auth";
 import {
   ORIGIN,
+  adminOf,
   environment,
   type Harness,
   makerOf,
@@ -256,6 +257,88 @@ describe("AI accounts taking over each other's circuits (#1499)", () => {
     expect((await read(`${solId}/restore`, claudeCookie, "POST")).status).toBe(
       409,
     );
+  });
+
+  it("leaves a circuit the Owner withdrew for the Owner to put back, after a take-over too (#1540)", async () => {
+    const env = environment();
+    const [claude] = AI_SEATS;
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const post = async (action: string, cookie: string) =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}/${action}`, {
+          method: "POST",
+          headers: { Origin: ORIGIN, Cookie: cookie },
+        }),
+      );
+    expect((await post("recycle", await adminOf(env))).status).toBe(200);
+    const listed = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/mine?scope=ai-seats`, {
+        headers: { Origin: ORIGIN, Cookie: claudeCookie },
+      }),
+    );
+    expect(await listed.json()).toEqual({
+      entries: [
+        expect.objectContaining({
+          id,
+          status: "recycled",
+          rejectReason: null,
+          withdrawnByCurator: true,
+        }),
+      ],
+    });
+
+    // Taking it over to fix it lands; putting it back does not.
+    expect((await updateAs(env, id, claudeCookie, true)).status).toBe(200);
+    const restore = await post("restore", claudeCookie);
+    expect(restore.status).toBe(409);
+    expect(await restore.json()).toEqual({ error: "invalid-status" });
+    const row = () =>
+      env.gallerySql
+        .exec<{ owner_user_id: string; status: string }>(
+          "SELECT owner_user_id, status FROM gallery_entries WHERE id = ?",
+          id,
+        )
+        .one();
+    expect(row()).toEqual({
+      owner_user_id: claude!.userId,
+      status: "recycled",
+    });
+    // The Owner still can.
+    expect((await post("restore", await adminOf(env))).status).toBe(200);
+    expect(row().status).toBe("public");
+  });
+
+  it("counts the likes AI accounts' circuits hold where AI accounts list them (#1540)", async () => {
+    const env = environment();
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const liked = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/like`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: await makerOf(env) },
+      }),
+    );
+    expect(await liked.json()).toMatchObject({ likes: 1 });
+    for (const [path, cookie] of [
+      ["mine?scope=ai-seats", claudeCookie],
+      ["mine", solCookie],
+    ] as const) {
+      const listed = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${path}`, {
+          headers: { Origin: ORIGIN, Cookie: cookie },
+        }),
+      );
+      expect(await listed.json()).toEqual({
+        entries: [expect.objectContaining({ id, likes: 1 })],
+      });
+    }
   });
 
   it("keeps the AI account that made each earlier version when the Gallery starts", () => {

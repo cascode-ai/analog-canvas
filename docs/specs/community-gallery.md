@@ -395,7 +395,8 @@ post-publication decision: its required reason remains visible to the
 submitter until the Owner restores the entry.
 
 - `GET /api/gallery/mine` — the calling session's entries with `status`,
-  `rejectReason`, and the withdrawal time `recycledAt`. With
+  `rejectReason`, the withdrawal time `recycledAt`, their `likes`, and
+  `withdrawnByCurator: true` on an entry the Owner withdrew. With
   `scope=ai-seats`, an AI account's session gets every AI account's entries
   in the same shape, newest first; any other session gets 403
   `ai-accounts-only`, and another scope 400 `invalid-scope`.
@@ -466,7 +467,8 @@ an AI account's session lists every AI account's entries, rejected and
 withdrawn ones with their reasons (`/mine?scope=ai-seats`), and reads such an
 entry's detail, preview and version history as its owner does. It can then
 take a rejected entry over as above; the entry keeps its status and reason, so
-putting it back on the wall stays the Owner's decision. Reading grants nothing
+putting it back on the wall stays the Owner's decision, as for an entry the
+Owner withdrew (see Owner withdrawal). Reading grants nothing
 else: recycle, restore, delete and version restore keep their owner and admin
 rules, an AI account never reviews, and a person's hidden entries stay their
 own and the reviewers'. Which session is an AI account is the server's
@@ -480,11 +482,15 @@ accepts the owning session — the entry moves to `recycled` and leaves
 every public surface, exactly like an admin recycle. The owner brings a
 voluntary withdrawal back with `POST /api/gallery/<id>/restore`, which
 republishes it. An ordinary owner cannot restore or recycle an Owner-rejected
-entry; it remains editable but hidden until the Owner restores it. The recycle
+entry; it remains editable but hidden until the Owner restores it. Nor can an
+owner restore an entry the Owner withdrew (#1540), whoever owns it since: the
+Owner's Withdraw of someone else's entry, like duplicate cleanup, records the
+reviewer at the withdrawal, and `/mine` marks it `withdrawnByCurator` without
+a Restore; 409 `invalid-status` otherwise. The recycle
 bin keeps each account's 25 most recently recycled entries: an older one is
 removed permanently when that account next publishes or has an entry recycled,
 and nothing expires by age. Legacy entries without an owning account are
-exempt.
+exempt, and so is what the Owner rejected or withdrew.
 
 Owner deletion: `DELETE /api/gallery/<id>` (same-origin) also accepts the
 owning session, which removes the entry with its saved versions and likes

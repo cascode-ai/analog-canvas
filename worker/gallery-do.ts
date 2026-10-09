@@ -467,6 +467,7 @@ export class GalleryDO {
           String(body.id),
           String(body.status),
           String(body.at),
+          typeof body.reviewerId === "string" ? body.reviewerId : null,
         );
       case "reject":
         return reject(this.sql, body);

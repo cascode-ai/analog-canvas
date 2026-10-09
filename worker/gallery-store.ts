@@ -269,6 +269,27 @@ export interface EntryRow {
   preview_height: number | null;
 }
 
+/**
+ * Whether a curator withdrew the entry, a rejection apart (which says so with
+ * its reason): the withdrawal recorded its reviewer at that moment, as the
+ * Owner's Withdraw and duplicate cleanup do. Only a curator puts it back, not
+ * its owner (#1540). A legacy approval's reviewer predates the withdrawal
+ * and does not count.
+ */
+export function withdrawnByCurator(
+  row: Pick<
+    EntryRow,
+    "status" | "reject_reason" | "reviewed_by" | "reviewed_at" | "recycled_at"
+  >,
+): boolean {
+  return (
+    row.status === "recycled" &&
+    row.reject_reason === null &&
+    row.reviewed_by !== null &&
+    row.reviewed_at === row.recycled_at
+  );
+}
+
 export type EntrySummaryRow = Pick<
   EntryRow,
   | "id"
