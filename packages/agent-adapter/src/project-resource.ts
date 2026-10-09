@@ -1,3 +1,7 @@
+import {
+  AgentComponentLibraryActionSchema,
+  AgentComponentLibraryResultSchema,
+} from "./component-resource.js";
 import { z } from "zod";
 
 import { lazyJsonSchema } from "./lazy-json-schema.js";
@@ -97,6 +101,10 @@ export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
 export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
   "operation",
   [
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("components"),
+      request: AgentComponentLibraryActionSchema,
+    }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("workspace"),
       request: AgentWorkspaceActionSchema,
@@ -284,6 +292,11 @@ const ProjectResponseBaseSchema = z.strictObject({
 
 export const AgentProjectResourceResponseSchema = z.union([
   ProjectResponseBaseSchema.extend({
+    operation: z.literal("components"),
+    ok: z.literal(true),
+    result: AgentComponentLibraryResultSchema,
+  }),
+  ProjectResponseBaseSchema.extend({
     operation: z.literal("workspace"),
     ok: z.literal(true),
     result: z.union([
@@ -408,6 +421,7 @@ export const AgentProjectResourceResponseSchema = z.union([
   }),
   ProjectResponseBaseSchema.extend({
     operation: z.enum([
+      "components",
       "workspace",
       "list-projects",
       "list-cells",

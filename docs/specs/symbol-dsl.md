@@ -120,6 +120,35 @@ occurrence parameter overrides. Source, interface, artwork and wiring changes
 are validated together before any new applied revision becomes visible to
 copy, export or simulation preparation.
 
+## Component authoring
+
+Create Component defaults to Circuit. Circuit, Symbol and Pins are views of one
+candidate: native source owns the formal interface, JSON owns artwork, and
+`circuitBinding` alone maps graphical/property contacts to stable native
+terminal IDs. Automatic layout, Custom JSON and the Pins table edit that same
+candidate. Unknown, duplicate or missing correspondences refuse Apply.
+
+Save draft retains the complete candidate, including invalid source or artwork
+text, separately from executable applied facts. Local Apply and Place require
+no account and never publish. Place first applies pending changes; placing or
+publishing a previous applied version requires explicitly selecting that view.
+Primitive, artwork-only and interface-only definitions remain available through
+the advanced type choice. Interface-only definitions still refuse execution.
+
+Applying one shared-source entry consumes only its own authoring candidate;
+other entries retain their raw artwork and mapping drafts at the new source
+revision. `apply_model_source.authoringDefinitionIds` distinguishes applied
+authoring candidates from additional shared interface migrations; omitted IDs
+default to the explicitly supplied definition targets, not auto-discovered
+owners. Public-library editing uses an isolated snapshot. Save draft and
+local Apply persist that snapshot in the active Project's non-executable draft
+collection, including its fixed library revision; they do not replace drawing
+captures. Project drafts can reopen it offline. Successful publication advances
+the snapshot's library baseline; the server remains the permission authority.
+Primitive/artwork library drafts retain the same fixed public baseline and
+their raw candidate text. Their locally applied candidate is private draft
+state, with Place capturing it through the ordinary definition path.
+
 ## Public circuit snapshots
 
 User Components publishes the same native facts as a Project. A complete public
@@ -127,8 +156,9 @@ payload contains `definition` (raw artwork and checked `circuitBinding`) and
 `circuit: { version: 1, externalDefinition, source }`. The external definition
 selects an applied `ProjectModelSource` entry. Native text remains the authority
 for the target, formal port order and defaults; the package adds no library-only
-electrical declaration. Source drafts and pending artwork must be applied before
-public Save. Only reachable owned files are packaged; declared third-party
+electrical declaration. Publish accepts the applied version; pending source or
+artwork must first be applied or explicitly excluded through the Applied view.
+Only reachable owned files are packaged; declared third-party
 dependencies retain their explicit IDs, relative mount paths and SHA-256 digests.
 
 The public Component Library Durable Object stores one current record per entry
@@ -140,7 +170,7 @@ revision rules apply to both forms.
 
 Opening a public native record edits an isolated Project snapshot through the
 ordinary model Apply transaction. It cannot modify the active drawing. Public
-Save is distinct from Apply and explicitly states that everyone can insert a
+Publish is distinct from Apply and explicitly states that everyone can insert a
 copy. Insertion captures the selected applied source, external owner and checked
 artwork into the destination Project through ordinary dependency-copy planning;
 the placed instance has an external-subcircuit binding, not a cloud lookup.
@@ -180,7 +210,11 @@ complete one-to-one correspondence and captures the selected applied resources
 through ordinary copy planning; destination drafts and existing callers remain
 unchanged. No ownership is inferred from a target name.
 
-Only occurrences of the explicitly selected captured class are migrated.
+The repair scope defaults to the explicitly selected captured class. The user
+may instead capture only the selected occurrence, leaving its legacy peers
+unchanged. Editing a shared native source still affects all that owner's calls;
+an independent implementation requires an explicit source fork. Removed connected
+contacts require an explicit disconnect-and-keep-wires decision.
 Ordinary symbol/binding transactions preserve compatible contacts, routes, Nets,
 references, parameters and selected symbol variants. The new capture has
 `circuitBinding` without a competing legacy `subcircuit` declaration. Preview
@@ -189,7 +223,7 @@ Project. Apply commits the source, owner, artwork and callers atomically; stale
 or invalid repairs refuse, and Project Undo restores the pre-repair evidence.
 
 Public legacy repair runs in an isolated Project snapshot and uses the same
-versioned package as native creation. Public Save is a separate deliberate
+versioned package as native creation. Publish is a separate deliberate
 author/admin update or another contributor's fork. The Durable Object retains
 one current row with a numeric revision; earlier embedded Project captures are
 independent, not floating references or an archived public revision history.

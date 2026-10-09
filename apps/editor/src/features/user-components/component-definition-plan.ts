@@ -5,6 +5,7 @@ import {
   sharedComponentNetlist,
 } from "./component-library-contract";
 import { planProjectCodeCommit } from "../project-code/project-code";
+import { serializeProject } from "@icm/project-protocol";
 
 /** Change one class reference, preserving placement, electrical identity and all peers. */
 export function planComponentDefinitionEdit(
@@ -78,7 +79,7 @@ export function planComponentDefinitionEdit(
     ];
     return planProjectCodeCommit(
       current,
-      JSON.stringify(candidate),
+      serializeProject(candidate),
       documentId,
     );
   } catch (error) {

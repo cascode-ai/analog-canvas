@@ -201,6 +201,24 @@ export function tryParseProjectWithMetadata(
   let current: Record<string, unknown>;
   try {
     if (
+      sourceSchemaVersion < 68 &&
+      (Object.hasOwn(parsed, "componentAuthoringDrafts") ||
+        (Array.isArray(parsed.modelSources) &&
+          parsed.modelSources.some(
+            (source) =>
+              isRecord(source) &&
+              isRecord(source.draft) &&
+              Object.hasOwn(source.draft, "authoring"),
+          )))
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "Component authoring drafts require Project schema 68",
+          path: ["schemaVersion"],
+        },
+      ]);
+    if (
       sourceSchemaVersion < 67 &&
       Array.isArray(parsed.modelSources) &&
       parsed.modelSources.some(

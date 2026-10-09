@@ -1,11 +1,15 @@
 import {
   CircuitProjectSchema,
   ComponentDefinitionSchema,
+  ComponentAuthoringDraftSchema,
   ExternalSubcircuitDefinitionSchema,
   SourceFileRecordSchema,
   SchematicDocumentSchema,
   ProjectSimulationFolderSchema,
   ProjectModelSourceSchema,
+  ModelSourceAuthoringDraftsSchema,
+  ModelSourceDraftSchema,
+  CellSymbolPresentationSchema,
   SimulationInputPathSchema,
   SimulationRawFileSchema,
   SimulationRawDependencySchema,
@@ -60,12 +64,30 @@ import type {
 
 export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
   z.strictObject({
+    kind: z.literal("discard_model_source_draft"),
+    sourceId: z.string().min(1),
+    expectedRevision: z.number().int().nonnegative(),
+    expectedDraft: ModelSourceDraftSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("save_component_authoring_draft"),
+    draft: ComponentAuthoringDraftSchema,
+    expectedText: z.string().nullable(),
+  }),
+  z.strictObject({
+    kind: z.literal("remove_component_authoring_draft"),
+    draftId: z.string().min(1),
+    expectedText: z.string(),
+  }),
+  z.strictObject({
     kind: z.literal("capture_component_definition"),
     definition: ComponentDefinitionSchema,
   }),
   z.strictObject({
     kind: z.literal("apply_model_source"),
     source: ProjectModelSourceSchema,
+    // Interface synchronization can include siblings whose authoring is unapplied.
+    authoringDefinitionIds: z.array(z.string().min(1)).max(256).optional(),
     transform: z
       .strictObject({
         language: z.enum(["spice", "spectre"]).optional(),
@@ -83,6 +105,13 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
             .record(z.string().min(1), z.string().min(1).nullable())
             .optional(),
           symbol: ComponentDefinitionSchema.nullable().optional(),
+          terminalDirections: z
+            .record(
+              z.string().min(1),
+              z.enum(["input", "output", "inout", "passive"]),
+            )
+            .optional(),
+          presentation: CellSymbolPresentationSchema.optional(),
           callers: z
             .array(
               z.strictObject({
@@ -110,6 +139,7 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     entry: SimulationInputPathSchema,
     files: z.array(SimulationRawFileSchema).min(1).max(256),
     dependencies: z.array(SimulationRawDependencySchema).max(256),
+    authoring: ModelSourceAuthoringDraftsSchema.optional(),
   }),
   z.strictObject({
     kind: z.literal("reorder_documents"),
@@ -616,6 +646,49 @@ function applyProjectTransaction(
     editIndex += 1
   ) {
     const edit = transaction.edits[editIndex]!;
+    if (
+      edit.kind === "save_component_authoring_draft" ||
+      edit.kind === "remove_component_authoring_draft"
+    ) {
+      const id =
+        edit.kind === "save_component_authoring_draft"
+          ? edit.draft.id
+          : edit.draftId;
+      const current = candidate.componentAuthoringDrafts?.find(
+        (draft) => draft.id === id,
+      );
+      if ((current?.text ?? null) !== edit.expectedText)
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          "The authoring draft changed; reopen it before saving.",
+        );
+      candidate.componentAuthoringDrafts = (
+        candidate.componentAuthoringDrafts ?? []
+      ).filter((draft) => draft.id !== id);
+      if (edit.kind === "save_component_authoring_draft")
+        candidate.componentAuthoringDrafts.push(structuredClone(edit.draft));
+      structuralChange = true;
+      continue;
+    }
+    if (edit.kind === "discard_model_source_draft") {
+      const source = candidate.modelSources?.find(
+        (source) => source.id === edit.sourceId,
+      );
+      if (
+        !source ||
+        source.revision !== edit.expectedRevision ||
+        JSON.stringify(source.draft) !== JSON.stringify(edit.expectedDraft)
+      )
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          "The model draft changed; reread before discarding.",
+        );
+      delete source.draft;
+      structuralChange = true;
+      continue;
+    }
     if (edit.kind === "save_model_source_draft") {
       const source = candidate.modelSources?.find(
         (s) => s.id === edit.sourceId,
@@ -632,6 +705,9 @@ function applyProjectTransaction(
         files: structuredClone(edit.files),
         dependencies: structuredClone(edit.dependencies),
         baseRevision: edit.expectedRevision,
+        ...(edit.authoring
+          ? { authoring: structuredClone(edit.authoring) }
+          : {}),
       };
       structuralChange = true;
       continue;

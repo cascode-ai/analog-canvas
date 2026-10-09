@@ -112,6 +112,7 @@ describe("mcp tool surface", () => {
       "disconnect",
       "connection_status",
       "project_cells",
+      "user_components",
       "gallery_circuits",
       "project_code",
       "netlist_code",

@@ -120,9 +120,12 @@ export class EditorDocumentController {
   /** An insertion candidate is not Project content until a real instance is placed. */
   offerComponentDefinition(value: ComponentDefinition): void {
     const definition = ComponentDefinitionSchema.parse(structuredClone(value));
-    if (!definition.symbol.id.startsWith("user-"))
+    if (
+      !definition.symbol.id.startsWith("user-") &&
+      !definition.symbol.id.startsWith("component-")
+    )
       throw new Error(
-        "Shared component IDs must be versioned user definitions",
+        "Insertion candidates need a versioned user or independent local component identity",
       );
     const existing =
       this.projectValue.componentDefinitions?.find(

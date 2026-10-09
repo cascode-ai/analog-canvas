@@ -38,10 +38,35 @@ function fixture() {
   return project;
 }
 describe("Model source persistence", () => {
+  it("preserves authoring candidates without executable changes and requires their portable schema", () => {
+    const project = fixture();
+    project.modelSources![0]!.draft!.authoring = [
+      {
+        definitionId: "amp",
+        entry: "unfinished",
+        symbolMode: "custom",
+        artworkText: "{ unfinished JSON",
+        portMaps: { amp: { A: "IN" } },
+      },
+    ];
+    project.componentAuthoringDrafts = [
+      { id: "artwork-draft", text: "{ unfinished artwork" },
+    ];
+    const saved = serializeProject(project);
+    expect(JSON.parse(saved).schemaVersion).toBe(68);
+    const reopened = parseProject(saved);
+    expect(reopened.modelSources).toEqual(project.modelSources);
+    expect(reopened.componentAuthoringDrafts).toEqual(
+      project.componentAuthoringDrafts,
+    );
+    const old = JSON.parse(saved);
+    old.schemaVersion = 67;
+    expect(() => parseProject(JSON.stringify(old))).toThrow(/schema 68/);
+  });
   it("round trips applied and unfinished bytes in the current schema and rejects competing interface facts", () => {
     const project = fixture();
     const text = serializeProject(project);
-    expect(JSON.parse(text).schemaVersion).toBe(67);
+    expect(JSON.parse(text).schemaVersion).toBe(68);
     expect(parseProject(text).modelSources).toEqual(project.modelSources);
     expect(serializeProject(parseProject(text))).toBe(text);
     const old = JSON.parse(text);

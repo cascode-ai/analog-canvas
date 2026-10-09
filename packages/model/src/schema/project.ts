@@ -10,6 +10,28 @@ import { ProjectModelSourceSchema } from "./model-source.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 import { circuitComponentIssues } from "../circuit-component.js";
+export const ComponentAuthoringDraftSchema = z.strictObject({
+  id: StableIdSchema,
+  text: z.string().max(1_048_576),
+  baselineSymbolId: StableIdSchema.optional(),
+  // A public-library authoring snapshot is private, non-executable Project state.
+  library: z
+    .strictObject({
+      componentId: StableIdSchema,
+      revision: z.number().int().positive(),
+    })
+    .optional(),
+  target: z
+    .strictObject({
+      documentId: StableIdSchema,
+      instanceId: StableIdSchema,
+      expectedSymbolId: StableIdSchema,
+    })
+    .optional(),
+});
+export type ComponentAuthoringDraft = z.infer<
+  typeof ComponentAuthoringDraftSchema
+>;
 
 const ExternalSubcircuitTerminalSchema = z.strictObject({
   /** Stable interface identity. Name and presentation may change independently. */
@@ -59,6 +81,10 @@ export const CircuitProjectSchema = z
       .array(ComponentDefinitionSchema)
       .max(4096)
       .optional(),
+    componentAuthoringDrafts: z
+      .array(ComponentAuthoringDraftSchema)
+      .max(256)
+      .optional(),
     structureRevision: z.number().int().nonnegative(),
     topDocumentId: StableIdSchema,
     documents: z.array(SchematicDocumentSchema).min(1),
@@ -73,6 +99,11 @@ export const CircuitProjectSchema = z
   })
   .superRefine((project, context) => {
     reportDuplicateIds(project.modelSources ?? [], "modelSources", context);
+    reportDuplicateIds(
+      project.componentAuthoringDrafts ?? [],
+      "componentAuthoringDrafts",
+      context,
+    );
     for (const [
       index,
       definition,

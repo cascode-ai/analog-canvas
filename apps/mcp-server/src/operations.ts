@@ -28,6 +28,7 @@ import {
   AgentFileDownloadOptionsSchema,
   AgentGalleryEntryFields,
   AgentWorkspaceActionSchema,
+  AgentComponentLibraryActionSchema,
 } from "@icm/agent-adapter";
 import {
   AgentAuthoringCommandSchema,
@@ -151,6 +152,17 @@ const ProjectCellsArgs = z.discriminatedUnion("action", [
     expectedStructureRevision: z.number().int().nonnegative().optional(),
   }),
 ]);
+const UserComponentsArgs = z.strictObject({
+  request: AgentComponentLibraryActionSchema,
+  requestId: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe(
+      "Reuse this ID and identical inputs after an uncertain insertion. Publication also requires a stable idempotencyKey.",
+    ),
+});
 const GalleryCircuitsArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("insert"),
@@ -862,6 +874,24 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         cloudProjectId: parsed.cloudProjectId,
         sourceDocumentId: parsed.sourceDocumentId,
         expectedStructureRevision,
+      });
+    },
+  },
+  {
+    definition: {
+      name: "user_components",
+      description: agentToolHelp["user_components"],
+      get inputSchema() {
+        return lazyContract(UserComponentsArgs, true);
+      },
+    },
+    handle: async (args, session) => {
+      const parsed = UserComponentsArgs.parse(args);
+      return session.client.projectResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: parsed.requestId ?? crypto.randomUUID(),
+        operation: "components",
+        request: parsed.request,
       });
     },
   },

@@ -74,6 +74,8 @@ export const agentToolHelp = {
     "Legacy config v1 only: manage scalar measurement rules. Native VACASK uses authored Python and report_measurement; obtain helpers with simulation authoring-help. See analog-canvas://reference/mcp-simulation.",
   simulation_device_operating_point:
     "Legacy config v1 only: select terminal-derived MOS operating-point quantities. Native Code uses module-supported saves and native OP analysis; never guess i(pin). See analog-canvas://reference/mcp-simulation.",
+  user_components:
+    "User Components public library: list/read/publish/update/fork/insert. Separate from Gallery. Publish an applied Project circuit by definitionId, symbolId and sourceRevision, or a captured primitive/artwork by symbolId; use explicit Project and library revisions. Writes use the signed-in Editor principal and components.publish scope, never caller-supplied author. A draft must be applied first, unless appliedVersion:true explicitly chooses applied facts. Preserve idempotencyKey for an unknown publication outcome; reuse requestId for an uncertain insertion. Insert captures the selected current library revision atomically; later library updates never change placed instances. Read returns the complete package and SHA-256 digest. Details: analog-canvas://reference/mcp-tools.",
 };
 export const agentServerInstructions =
   "Analog Canvas MCP adapter over the four-operation Agent API. Connect returns context; read analog-canvas://reference/quickstart and follow only the guidance for the current task. Inspect objects when needed. Do not guess symbol IDs, pin names, or revisions.";

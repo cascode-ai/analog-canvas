@@ -1,4 +1,5 @@
 import type { ComponentDefinition } from "@icm/model";
+import { ComponentDefinitionSchema } from "@icm/model";
 import {
   sharedComponentNetlist,
   type SharedComponent,
@@ -6,6 +7,25 @@ import {
 import type { SymbolInsertRequest } from "../component-insert/component-insert-request";
 
 export { sharedComponentNetlist } from "./component-library-contract";
+
+/** Local captures have independent identities without claiming a public revision. */
+export function localComponentDefinition(
+  definition: ComponentDefinition,
+  identity: string,
+): ComponentDefinition {
+  const copy = structuredClone(definition);
+  const symbolId = "component-" + identity;
+  copy.symbol.id = symbolId;
+  if (copy.electrical) {
+    copy.electrical.id = symbolId + "-electrical";
+    copy.electrical.symbolId = symbolId;
+  }
+  if (copy.subcircuit) {
+    copy.subcircuit.id = symbolId + "-interface";
+    copy.subcircuit.symbolId = symbolId;
+  }
+  return ComponentDefinitionSchema.parse(copy);
+}
 
 export function newComponentDefinition(): ComponentDefinition {
   return {
@@ -71,12 +91,17 @@ export function newComponentDefinition(): ComponentDefinition {
 export function sharedComponentInsertRequest(
   entry: SharedComponent,
 ): SymbolInsertRequest {
+  return componentDefinitionInsertRequest(entry.definition);
+}
+export function componentDefinitionInsertRequest(
+  definition: ComponentDefinition,
+): SymbolInsertRequest {
   return {
     kind: "symbol",
-    symbolId: entry.definition.symbol.id,
-    symbolName: entry.definition.symbol.name,
-    componentDefinition: entry.definition,
-    parameters: sharedComponentNetlist(entry.definition)?.parameters ?? {},
+    symbolId: definition.symbol.id,
+    symbolName: definition.symbol.name,
+    componentDefinition: definition,
+    parameters: sharedComponentNetlist(definition)?.parameters ?? {},
     initialRotation: 0,
     showReference: true,
     referenceText: null,

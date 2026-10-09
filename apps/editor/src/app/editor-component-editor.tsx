@@ -29,9 +29,11 @@ import {
 import {
   newComponentDefinition,
   sharedComponentInsertRequest,
+  componentDefinitionInsertRequest,
 } from "../features/user-components/component-definition-edit";
 import type { EditorServices } from "../services/editor-services";
 import type { ComponentEditorSession } from "./component-editor-session";
+import { readLibraryAuthoringDraft } from "../features/user-components/library-circuit-authoring";
 import { LazyComponentDefinitionEditor as ComponentDefinitionEditor } from "./lazy-editor-dialogs";
 
 const UserComponentsLibrary = lazy(
@@ -293,6 +295,15 @@ export function EditorComponentEditor({
             key={componentEditor.key}
             definition={componentEditor.definition}
             mode={componentEditor.mode}
+            {...(componentEditor.target
+              ? {
+                  repairTarget: {
+                    documentId: componentEditor.target.documentId,
+                    instanceId: componentEditor.target.instance.id,
+                  },
+                }
+              : {})}
+            {...(componentEditor.draft ? { draft: componentEditor.draft } : {})}
             circuit={{
               project,
               definitionId: componentEditor.externalDefinitionId,
@@ -394,13 +405,22 @@ export function EditorComponentEditor({
                   );
                 }),
               onSaveDraft: (edits, definitionId) =>
-                withComponentSession(() =>
-                  commitModelEdits(
+                withComponentSession(() => {
+                  if (
+                    definitionProjectRef.current.project.structureRevision !==
+                    project.structureRevision
+                  )
+                    return {
+                      ok: false,
+                      message:
+                        "The Project changed. Reopen the draft before saving.",
+                    };
+                  return commitModelEdits(
                     edits,
                     definitionId,
                     "Saved draft. Applied model bytes are unchanged.",
-                  ),
-                ),
+                  );
+                }),
               onSetDefinition: (definition) =>
                 withComponentSession(() =>
                   setExternalSubcircuitDefinition(definition),
@@ -429,24 +449,105 @@ export function EditorComponentEditor({
               );
               return plan.ok ? null : plan.message;
             }}
-            onSaved={(entry, planner) => {
-              setComponentLibraryRefresh((value) => value + 1);
+            onApplyDefinition={(definition, planner) => {
               if (componentEditor.target) {
-                const plan = componentEditPlan(entry.definition, planner);
+                const plan = componentEditPlan(definition, planner);
                 if (!plan.ok) return plan.message;
                 try {
                   commitProjectStructure(plan.project, plan.activeDocumentId);
                   selectOnly("instance", [componentEditor.target.instance.id]);
-                  setStatus(
-                    "Saved publicly and applied to the selected component",
-                  );
+                  const instance = plan.project.documents
+                    .find(
+                      (document) =>
+                        document.id === componentEditor.target!.documentId,
+                    )
+                    ?.instances.find(
+                      (item) => item.id === componentEditor.target!.instance.id,
+                    );
+                  if (instance)
+                    setComponentEditor({
+                      ...componentEditor,
+                      target: { ...componentEditor.target, instance },
+                    });
+                  setStatus("Applied component definition locally");
                 } catch (error) {
                   return error instanceof Error ? error.message : String(error);
                 }
-              } else if (componentEditor.mode === "new")
-                insertSharedComponent(entry);
-              if (componentEditor.mode !== "library") setComponentEditor(null);
+              }
               return null;
+            }}
+            onPlaceDefinition={(definition) => {
+              if (!componentSessionIsCurrent())
+                return "The Project changed. Reopen the component before placing.";
+              try {
+                editorDocumentController.offerComponentDefinition(definition);
+                synchronizeExternalCommit();
+                onBeforePlace();
+                editorCommands.execute({
+                  id: "insert.start",
+                  launch: {
+                    kind: "quick",
+                    request: componentDefinitionInsertRequest(definition),
+                  },
+                });
+                return null;
+              } catch (error) {
+                return error instanceof Error ? error.message : String(error);
+              }
+            }}
+            onSaveDefinitionDraft={(text) => {
+              if (!componentSessionIsCurrent())
+                return "The Project changed. Reopen before saving.";
+              const draft = {
+                id: componentEditor.draft?.id ?? componentEditor.key,
+                text,
+                ...(componentEditor.target
+                  ? {
+                      baselineSymbolId: componentEditor.definition.symbol.id,
+                      target: {
+                        documentId: componentEditor.target.documentId,
+                        instanceId: componentEditor.target.instance.id,
+                        expectedSymbolId:
+                          componentEditor.target.instance.symbolId,
+                      },
+                    }
+                  : {}),
+              };
+              const outcome = commitModelEdits(
+                [
+                  {
+                    kind: "save_component_authoring_draft",
+                    draft,
+                    expectedText: componentEditor.draft?.text ?? null,
+                  },
+                ],
+                draft.id,
+                "Saved component authoring draft",
+              );
+              if (outcome.ok) setComponentEditor({ ...componentEditor, draft });
+              return outcome.ok ? null : outcome.message;
+            }}
+            onSaveLibraryDraft={(text, entry) => {
+              if (!componentSessionIsCurrent())
+                return "The Project changed. Reopen before saving.";
+              const draft = {
+                id: componentEditor.draft?.id ?? componentEditor.key,
+                text,
+                library: { componentId: entry.id, revision: entry.revision },
+              };
+              const outcome = commitModelEdits(
+                [
+                  {
+                    kind: "save_component_authoring_draft",
+                    draft,
+                    expectedText: componentEditor.draft?.text ?? null,
+                  },
+                ],
+                draft.id,
+                "Saved library authoring snapshot",
+              );
+              if (outcome.ok) setComponentEditor({ ...componentEditor, draft });
+              return outcome.ok ? null : outcome.message;
             }}
             onManaged={() => setComponentLibraryRefresh((value) => value + 1)}
             onPlaceCircuit={(packaged) =>
@@ -464,6 +565,136 @@ export function EditorComponentEditor({
           <UserComponentsLibrary
             open={userComponentsOpen}
             refresh={componentLibraryRefresh}
+            drafts={[
+              ...(project.componentAuthoringDrafts ?? []).map((draft) => ({
+                id: draft.id,
+                label: draft.library
+                  ? (() => {
+                      try {
+                        return (
+                          "Library draft " +
+                          readLibraryAuthoringDraft(draft).entry.definition
+                            .symbol.name
+                        );
+                      } catch {
+                        return "Invalid library draft " + draft.id.slice(0, 8);
+                      }
+                    })()
+                  : "Artwork draft " + draft.id.slice(0, 8),
+              })),
+              ...(project.modelSources ?? []).flatMap(
+                (source) =>
+                  source.draft?.authoring?.map((draft) => ({
+                    id: draft.definitionId,
+                    label: "Circuit draft " + (draft.entry || source.entry),
+                  })) ?? [],
+              ),
+            ]}
+            onOpenDraft={(id) => {
+              const current = definitionProjectRef.current.project;
+              const draft = current.componentAuthoringDrafts?.find(
+                (draft) => draft.id === id,
+              );
+              if (!draft) {
+                const candidate = current.modelSources
+                  ?.flatMap((source) => source.draft?.authoring ?? [])
+                  .find((candidate) => candidate.definitionId === id);
+                const legacy = candidate?.legacyRepair;
+                const document =
+                  legacy &&
+                  current.documents.find((document) =>
+                    document.instances.some(
+                      (instance) =>
+                        instance.symbolId === legacy.baseline.symbol.id &&
+                        (!legacy.selected ||
+                          (document.id === legacy.selected.documentId &&
+                            instance.id === legacy.selected.instanceId)),
+                    ),
+                  );
+                const instance = document?.instances.find(
+                  (instance) =>
+                    instance.symbolId === legacy?.baseline.symbol.id &&
+                    (!legacy.selected ||
+                      instance.id === legacy.selected.instanceId),
+                );
+                if (legacy && !instance) {
+                  setStatus(
+                    "The repair draft's original captured class changed. Reopen its current definition.",
+                  );
+                  return;
+                }
+                setComponentEditor({
+                  key: crypto.randomUUID(),
+                  projectSessionId,
+                  mode: legacy ? "instance" : "new",
+                  definition: legacy?.baseline ?? newComponentDefinition(),
+                  externalDefinitionId: id,
+                  ...(instance && document
+                    ? {
+                        target: {
+                          projectSessionId,
+                          documentId: document.id,
+                          instance,
+                        },
+                      }
+                    : {}),
+                });
+                return;
+              }
+              if (draft.library) {
+                try {
+                  const snapshot = readLibraryAuthoringDraft(draft);
+                  setComponentEditor({
+                    key: crypto.randomUUID(),
+                    projectSessionId,
+                    mode: "library",
+                    definition: snapshot.entry.definition,
+                    entry: snapshot.entry,
+                    draft,
+                  });
+                } catch (error) {
+                  setStatus(
+                    error instanceof Error ? error.message : String(error),
+                  );
+                }
+                return;
+              }
+              const document = current.documents.find(
+                (d) => d.id === draft.target?.documentId,
+              );
+              const instance = document?.instances.find(
+                (i) => i.id === draft.target?.instanceId,
+              );
+              if (
+                draft.target &&
+                instance?.symbolId !== draft.target.expectedSymbolId
+              ) {
+                setStatus(
+                  "The draft's original component changed. Open its current definition before applying.",
+                );
+                return;
+              }
+              const definition =
+                current.componentDefinitions?.find(
+                  (d) => d.symbol.id === instance?.symbolId,
+                ) ?? newComponentDefinition();
+              setComponentEditor({
+                key: crypto.randomUUID(),
+                projectSessionId,
+                mode: instance ? "instance" : "new",
+                definition,
+                draft,
+                ...(instance && document
+                  ? {
+                      target: {
+                        projectSessionId,
+                        documentId: document.id,
+                        instance,
+                      },
+                    }
+                  : {}),
+              });
+            }}
             onClose={() => setUserComponentsOpen(false)}
             onCreate={() => {
               cancelAllTransientInteraction();
@@ -476,6 +707,28 @@ export function EditorComponentEditor({
             }}
             onEdit={(entry) => {
               cancelAllTransientInteraction();
+              const draft =
+                definitionProjectRef.current.project.componentAuthoringDrafts?.find(
+                  (d) => d.library?.componentId === entry.id,
+                );
+              if (draft) {
+                try {
+                  const saved = readLibraryAuthoringDraft(draft);
+                  setComponentEditor({
+                    key: crypto.randomUUID(),
+                    projectSessionId,
+                    mode: "library",
+                    definition: saved.entry.definition,
+                    entry: saved.entry,
+                    draft,
+                  });
+                } catch (error) {
+                  setStatus(
+                    error instanceof Error ? error.message : String(error),
+                  );
+                }
+                return;
+              }
               setComponentEditor({
                 key: crypto.randomUUID(),
                 projectSessionId,
