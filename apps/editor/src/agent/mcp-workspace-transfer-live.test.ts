@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -31,8 +31,8 @@ afterEach(async () => {
 });
 
 /** The live editor, connected, with the relay's artifact transfers attached. */
-async function connected() {
-  const editor = liveEditorWithRelay();
+async function connected(leasedDownloads = false) {
+  const editor = liveEditorWithRelay({}, { leasedDownloads });
   editors.push(editor);
   await editor.client.connect("session-1.code");
   return editor;
@@ -58,10 +58,27 @@ async function evidence(
 
 const fileId = (ref: ArtifactRef) => ref.fileId ?? ref.id;
 
+/** A previous user request has prepared these remote replicas, not local files. */
+async function requestReplicas(
+  editor: LiveEditor,
+  refs: readonly ArtifactRef[],
+) {
+  for (const ref of refs)
+    await editor.fileHost.simulationFiles.handle({
+      action: "download",
+      artifactId: ref.id,
+    });
+}
+
 /** The download descriptor requests that reached the editor. */
 function descriptorRequests(editor: LiveEditor) {
   return editor.http.fileCalls.flatMap((request) =>
-    request.operation === "simulation-input" ? [request.input] : [],
+    request.operation === "simulation-input" &&
+    ["download", "downloads", "download-v2", "downloads-v2"].includes(
+      request.input.action,
+    )
+      ? [request.input]
+      : [],
   );
 }
 
@@ -95,6 +112,32 @@ async function localWorkspace(editor: LiveEditor) {
 }
 
 describe("workspace transfers from the live editor", () => {
+  it("renews an expired leased descriptor and ACKs through the actual SDK only after verified local publication", async () => {
+    const editor = await connected(true);
+    const [ref] = await evidence(
+      editor,
+      ["out.raw"],
+      () => "original中文bytes",
+    );
+    if (!ref) throw new Error("missing evidence");
+    const workspace = await localWorkspace(editor);
+    const transfer = workspaceTransfer(editor.client);
+    expect(await (await transfer(ref, 0)).text()).toBe("original中文bytes");
+    expect(
+      await editor.http.artifactUsage("session-1", "test-token"),
+    ).toMatchObject({ protectedBytes: ref.byteLength });
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 10 * 60_000 + 1);
+    const saved = await workspace.download(ref, transfer);
+    expect(await readFile(saved.outputPath, "utf8")).toBe("original中文bytes");
+    expect(editor.relay.uploaded).toEqual([fileId(ref), fileId(ref)]);
+    expect(
+      await editor.http.artifactUsage("session-1", "test-token"),
+    ).toMatchObject({ usedBytes: ref.byteLength, protectedBytes: 0 });
+    const count = editor.relay.uploaded.length;
+    await workspace.download(ref, transfer);
+    expect(editor.relay.uploaded).toHaveLength(count);
+  });
   it("keeps publication retries batched and omits already-ready descriptors", async () => {
     const editor = await connected();
     // The relay has f0; every other upload is still in flight.
@@ -104,6 +147,7 @@ describe("workspace transfers from the live editor", () => {
       Array.from({ length: 17 }, (_, i) => `f${i}`),
       (_, i) => String(i),
     );
+    await requestReplicas(editor, refs);
     await vi.waitFor(() =>
       expect(editor.relay.uploaded).toEqual([fileId(refs[0]!)]),
     );
@@ -163,11 +207,10 @@ describe("workspace transfers from the live editor", () => {
     expect(editor.relay.served).toEqual([]);
   });
 
-  it("reports the relay's authorization refusal of a batch without falling back to single descriptors", async () => {
+  it("reports the relay's authorization refusal before preparation without falling back to single descriptors", async () => {
     const editor = await connected();
     const refs = await evidence(editor, ["a", "b"]);
-    await vi.waitFor(() => expect(editor.relay.uploaded).toHaveLength(2));
-    // The relay refuses the batch before it reaches the editor.
+    // The relay refuses capability negotiation before file preparation.
     const refused = vi
       .spyOn(editor.http, "files")
       .mockRejectedValueOnce(
@@ -190,6 +233,42 @@ describe("workspace transfers from the live editor", () => {
     expect(editor.relay.served).toEqual([]);
   });
 
+  it.each([false, true])(
+    "preserves a batch authorization refusal after successful protocol negotiation (leased=%s)",
+    async (leased) => {
+      const editor = await connected(leased);
+      const refs = await evidence(editor, ["a", "b"]);
+      const files = editor.http.files.bind(editor.http);
+      const refused = vi
+        .spyOn(editor.http, "files")
+        .mockImplementationOnce(files)
+        .mockRejectedValueOnce(
+          transportFailure(
+            "TOKEN_SCOPE_INSUFFICIENT",
+            "The token does not grant this operation",
+            403,
+          ),
+        );
+      const single = vi.spyOn(editor.client, "prepareArtifactDownload");
+      const transfer = workspaceTransfer(editor.client);
+      transfer.select!(refs);
+      await expect(transfer(refs[0]!, 0)).rejects.toMatchObject({
+        code: "TOKEN_SCOPE_INSUFFICIENT",
+        httpStatus: 403,
+      });
+      expect(refused).toHaveBeenCalledTimes(2);
+      expect(refused.mock.calls[1]?.[2]).toMatchObject({
+        input: {
+          action: leased ? "downloads-v2" : "downloads",
+          artifactIds: refs.map((ref) => ref.id),
+        },
+      });
+      expect(single).not.toHaveBeenCalled();
+      expect(editor.relay.uploaded).toEqual([]);
+      expect(editor.relay.served).toEqual([]);
+    },
+  );
+
   it("prepares sixteen files in one metadata request and reuses every local file without network", async () => {
     const editor = await connected();
     const refs = await evidence(
@@ -197,6 +276,7 @@ describe("workspace transfers from the live editor", () => {
       Array.from({ length: 16 }, (_, i) => `f${i}.txt`),
       (_, i) => `${i}`,
     );
+    await requestReplicas(editor, refs);
     await vi.waitFor(() => expect(editor.relay.uploaded).toHaveLength(16));
     const workspace = await localWorkspace(editor);
     const catalog = runDirectory(refs);
@@ -221,6 +301,7 @@ describe("workspace transfers from the live editor", () => {
       Array.from({ length: 16 }, (_, i) => `f${i}`),
       (_, i) => `${i}`,
     );
+    await requestReplicas(editor, refs);
     await vi.waitFor(() => expect(editor.relay.uploaded).toHaveLength(16));
     const workspace = await localWorkspace(editor);
     const catalog = runDirectory(refs);
@@ -257,6 +338,7 @@ describe("workspace transfers from the live editor", () => {
       "ready-c",
       "ready-d",
     ]);
+    await requestReplicas(editor, refs);
     await vi.waitFor(() => expect(editor.relay.uploaded).toHaveLength(2));
     const served = () =>
       editor.relay.served
@@ -288,6 +370,7 @@ describe("workspace transfers from the live editor", () => {
     const refs = await evidence(editor, ["ready", "pending"]);
     // A file of another session's run: this editor never held it.
     refs.push(await new SimulationFiles().put("bad", "text/plain", "bad"));
+    await requestReplicas(editor, refs.slice(0, 2));
     await vi.waitFor(() =>
       expect(editor.relay.uploaded).toEqual([fileId(refs[0]!)]),
     );

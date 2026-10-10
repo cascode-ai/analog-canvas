@@ -4,7 +4,10 @@ import {
   type SimulationRunArchiveSummary,
   type SimulationRunArchiveV1,
 } from "./simulation-run-archive";
-import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
+import {
+  createBrowserSimulationArtifactStore,
+  type BrowserSimulationArtifactStore,
+} from "./browser-simulation-artifact-store";
 import type { ArtifactRef } from "@icm/simulation-service/contract";
 import {
   ProjectEvidenceLease,
@@ -62,7 +65,10 @@ export interface BrowserSimulationArchiveStore {
   save(
     archive: SimulationRunArchiveV1,
   ): Promise<SimulationArchiveStoreResult<SimulationRunArchiveSummary>>;
-  delete(id: string): Promise<SimulationArchiveStoreResult<boolean>>;
+  delete(
+    id: string,
+    options?: { cacheOnly: true },
+  ): Promise<SimulationArchiveStoreResult<boolean>>;
   /** Metadata-only Run ownership lookup; no evidence bodies are loaded. */
   runEntries(
     projectId: string,
@@ -77,6 +83,12 @@ export interface BrowserSimulationArchiveStore {
   /** Only archives explicitly marked as generated cache are eligible. */
   pruneCache(
     projectId: string,
+    admission?: {
+      bytes: number;
+      files: number;
+      byteLimit: number;
+      fileLimit: number;
+    },
   ): Promise<SimulationArchiveStoreResult<readonly string[]>>;
   /** Explicit saves are bounded separately; unmarked legacy records are not evicted. */
   pruneSaved(
@@ -100,6 +112,7 @@ export interface BrowserSimulationArchiveStoreOptions {
   readonly idbFactory?: IDBFactory;
   readonly databaseName?: string;
   readonly locks?: LockManager;
+  readonly artifactLimits?: { bytes: number; files: number };
 }
 
 function requestValue<T>(request: IDBRequest<T>): Promise<T> {
@@ -141,10 +154,16 @@ export function createBrowserSimulationArchiveStore(
   let database: IDBDatabase | null = null;
   let opening: Promise<IDBDatabase> | null = null;
 
-  function evidenceStore(projectId: string) {
+  function evidenceStore(projectId: string, retainSession = false) {
     const store = createBrowserSimulationArtifactStore(
       projectId,
       options.idbFactory ?? globalThis.indexedDB,
+      {
+        retainSession,
+        cleanupOnStart: false,
+        ...(options.locks ? { locks: options.locks } : {}),
+        ...(options.artifactLimits ? { limits: options.artifactLimits } : {}),
+      },
     );
     if (!store)
       throw new DOMException("IndexedDB is unavailable", "SecurityError");
@@ -164,8 +183,8 @@ export function createBrowserSimulationArchiveStore(
 
   async function retain(
     archive: SimulationRunArchiveV1,
+    store: BrowserSimulationArtifactStore,
   ): Promise<StoredArchive> {
-    const store = evidenceStore(archive.projectId);
     const artifacts: StoredArchive["artifacts"][number][] = [];
     for (const { text, originalId, ...metadata } of archive.artifacts) {
       const ref = { ...metadata, id: originalId };
@@ -180,10 +199,6 @@ export function createBrowserSimulationArchiveStore(
       });
     }
     const retentionKey = `archive:${archive.id}:${crypto.randomUUID()}`;
-    await store.retainReferences(
-      retentionKey,
-      artifacts.map((file) => file.storageId),
-    );
     return {
       ...archive,
       storageFormat: "artifact-references-v1",
@@ -329,6 +344,8 @@ export function createBrowserSimulationArchiveStore(
                 .map(({ record, retentionKey }) => ({
                   owner: retentionKey,
                   artifactIds: record.artifacts.map((file) => file.storageId),
+                  runId: record.run.id,
+                  retention: record.retention ?? "saved",
                 })),
             );
         } catch (error) {
@@ -425,18 +442,19 @@ export function createBrowserSimulationArchiveStore(
             for (const removal of removals)
               await evidence.queueRunRemoval(removal.runId);
             const reclaimed = await evidence.reclaim(keys, runIds);
+            const resource = await evidence.resourceUsage!();
             const finish = db.transaction(PENDING_REMOVALS, "readwrite");
             for (const key of removalKeys)
               finish.objectStore(PENDING_REMOVALS).delete(key);
             await transactionDone(finish);
-            return reclaimed;
+            return { ...reclaimed, deferred: resource.pendingReclaimBytes > 0 };
           },
           options.locks,
         );
         return {
           ok: true,
           value: result.available
-            ? { deferred: false, ...result.value }
+            ? result.value
             : { deferred: true, files: 0, bytes: 0 },
         };
       } catch (error) {
@@ -526,7 +544,7 @@ export function createBrowserSimulationArchiveStore(
         return failure(error);
       }
     },
-    async pruneCache(projectId) {
+    async pruneCache(projectId, admission) {
       try {
         const listed = await api.list(projectId);
         if (!listed.ok) return listed;
@@ -535,11 +553,12 @@ export function createBrowserSimulationArchiveStore(
         // Even counting duplicate representations, nothing can be evicted.
         // Avoid loading archive ownership on the normal under-cap path.
         if (
+          !admission &&
           listed.value.filter((entry) => entry.retention === "cache").length +
             catalogs.filter(
               ({ catalog }) => catalog.retentionPolicy === "cache",
             ).length <=
-          RETAINED_CACHE_RUNS
+            RETAINED_CACHE_RUNS
         )
           return { ok: true, value: [] };
         const owners = await api.runEntries(projectId);
@@ -586,20 +605,58 @@ export function createBrowserSimulationArchiveStore(
               catalog: locator,
             });
         }
-        const excess = [...candidates.entries()]
-          .sort((a, b) => b[1].at - a[1].at || a[0].localeCompare(b[0]))
-          .slice(RETAINED_CACHE_RUNS);
-        const removedIds: string[] = [];
-        for (const [, entry] of excess) {
-          for (const id of entry.archiveIds) {
-            const removed = await api.delete(id);
-            if (!removed.ok) return removed;
-            removedIds.push(id);
-          }
-        }
-        await evidence.removeCachedCatalogs(
-          excess.flatMap(([, entry]) => (entry.catalog ? [entry.catalog] : [])),
+        const ordered = [...candidates.entries()].sort(
+          (a, b) => b[1].at - a[1].at || a[0].localeCompare(b[0]),
         );
+        const marker = await evidence.latestPersistedRun();
+        const latest = catalogs.some(({ catalog }) => catalog.runId === marker)
+          ? marker
+          : ([...catalogs]
+              .filter(
+                ({ catalog }) =>
+                  catalog.collection === "complete" &&
+                  catalog.execution === "completed",
+              )
+              .sort((a, b) => b.storedAt - a.storedAt)[0]?.catalog.runId ??
+            ordered[0]?.[0]);
+        const excess = admission
+          ? ordered.filter(([runId]) => runId !== latest).reverse()
+          : ordered.slice(RETAINED_CACHE_RUNS);
+        const removedIds: string[] = [];
+        for (const [runId, entry] of excess) {
+          if (admission) {
+            const usage = await evidence.usage!();
+            if (
+              usage.byteLength <=
+                Math.min(
+                  admission.byteLimit * 0.625,
+                  admission.byteLimit - admission.bytes,
+                ) &&
+              usage.fileCount + admission.files <= admission.fileLimit
+            )
+              break;
+          }
+          await withExclusiveEvidence(
+            projectId,
+            async () => {
+              if ((await evidence.latestPersistedRun()) === runId) return;
+              for (const id of entry.archiveIds) {
+                const removed = await api.delete(id, { cacheOnly: true });
+                if (!removed.ok) throw new Error(removed.message);
+                if (!removed.value) return;
+                removedIds.push(id);
+              }
+              if (entry.catalog)
+                await evidence.removeCachedCatalogs([entry.catalog]);
+              if (admission) {
+                const reclaimed = await api.cleanup(projectId);
+                if (!reclaimed.ok) throw new Error(reclaimed.message);
+              }
+            },
+            options.locks,
+            `run:${runId}`,
+          );
+        }
         return { ok: true, value: removedIds };
       } catch (error) {
         return failure(error);
@@ -638,6 +695,7 @@ export function createBrowserSimulationArchiveStore(
       }
     },
     async read(id) {
+      let release: (() => void | Promise<void>) | undefined;
       try {
         const db = await open();
         const transaction = db.transaction(STORE_NAME, "readonly");
@@ -645,23 +703,39 @@ export function createBrowserSimulationArchiveStore(
           transaction.objectStore(STORE_NAME).get(id),
         );
         await transactionDone(transaction);
+        if (value?.storageFormat === "artifact-references-v1")
+          release = await evidenceStore(value.projectId).pinRun!(
+            value.run.id,
+            value.artifacts.map(
+              (file: StoredArchive["artifacts"][number]) => file.storageId,
+            ),
+          );
         return {
           ok: true,
           value: await hydrate(value),
         };
       } catch (error) {
         return failure(error);
+      } finally {
+        await release?.();
       }
     },
     async save(archive) {
       let stored: StoredArchive | undefined;
+      let publication: BrowserSimulationArtifactStore | undefined;
       const evicted: StoredArchive[] = [];
       const lease = new ProjectEvidenceLease(archive.projectId, options.locks);
       try {
-        await lease.acquire();
         // Commit the directory only after every referenced body is durable.
         // Existing records remain usable if any evidence write fails.
-        stored = await retain(archive);
+        publication = evidenceStore(archive.projectId, true);
+        stored = await retain(archive, publication);
+        await lease.acquire();
+        await publication.retainReferences(
+          stored.retentionKey!,
+          stored.artifacts.map((file) => file.storageId),
+          { runId: stored.run.id, retention: stored.retention ?? "saved" },
+        );
         const db = await open();
         const transaction = db.transaction(
           [STORE_NAME, DIRECTORY_NAME, PENDING_REMOVALS],
@@ -734,10 +808,11 @@ export function createBrowserSimulationArchiveStore(
         await release(stored);
         return failure(error);
       } finally {
-        lease.release();
+        await publication?.releaseSession?.();
+        await lease.release();
       }
     },
-    async delete(id) {
+    async delete(id, deletion) {
       let lease: ProjectEvidenceLease | undefined;
       try {
         const db = await open();
@@ -762,6 +837,10 @@ export function createBrowserSimulationArchiveStore(
           await done.catch(() => {});
           throw new Error("ARCHIVE_PROJECT_CHANGED");
         }
+        if (deletion?.cacheOnly && previous?.retention !== "cache") {
+          await done;
+          return { ok: true, value: false };
+        }
         if (previous)
           transaction
             .objectStore(PENDING_REMOVALS)
@@ -777,7 +856,7 @@ export function createBrowserSimulationArchiveStore(
       } catch (error) {
         return failure(error);
       } finally {
-        lease?.release();
+        await lease?.release();
       }
     },
     close() {

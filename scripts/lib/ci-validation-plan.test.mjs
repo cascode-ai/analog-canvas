@@ -165,6 +165,7 @@ describe("CI validation planning", () => {
         "apps/editor/e2e/mcp-native-simulation.spec.ts",
         "apps/editor/e2e/simulation-batch.spec.ts",
         "apps/editor/e2e/simulation-code-editor.spec.ts",
+        "apps/editor/e2e/simulation-evidence-benchmark.spec.ts",
         "apps/editor/e2e/simulation-profile-probes.spec.ts",
         "apps/editor/e2e/simulation-setup.spec.ts",
         "apps/editor/e2e/simulation-spec-results.spec.ts",

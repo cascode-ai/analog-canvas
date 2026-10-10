@@ -229,6 +229,7 @@
                           "catalog",
                           "history",
                           "history-usage",
+                          "resource-usage",
                           "history-delete",
                           "cancel",
                           "prepare-batch",

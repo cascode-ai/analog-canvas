@@ -8,9 +8,90 @@ import {
   sha256,
   type StoredResultCatalog,
 } from "./files.js";
-import { SimulationFileResultSchema } from "./file-contract.js";
+import {
+  ArtifactDownloadResultSchema,
+  ArtifactDownloadV2ResultSchema,
+  SimulationFileResultSchema,
+} from "./file-contract.js";
 import { SimulationOperationSchema, type ArtifactRef } from "./contract.js";
 describe("simulation File Resource evidence", () => {
+  it("negotiates leased descriptors per consumer without changing the legacy strict response", async () => {
+    let now = 1000;
+    const files = new SimulationFiles(() => now);
+    const ref = await files.put("out.raw", "text/plain", "original");
+    const publisher = vi.fn(
+      async (
+        artifact: ArtifactRef,
+        _text: string,
+        options?: { protocol: 2; consumerId: string },
+      ) =>
+        options
+          ? {
+              path: `/api/agent/sessions/s/artifacts/${artifact.id}`,
+              leaseId: crypto.randomUUID(),
+              expiresAt: now + 1000,
+            }
+          : `/api/agent/sessions/s/artifacts/${artifact.id}`,
+    );
+    files.setArtifactPublisher(publisher, { leasedDownloads: true });
+    expect(await files.handle({ action: "transfer-capabilities" })).toEqual({
+      ok: true,
+      artifactTransfer: { protocols: [1, 2] },
+    });
+    const request = {
+      action: "download-v2",
+      artifactId: ref.id,
+      consumerId: crypto.randomUUID(),
+    };
+    let first: unknown;
+    await vi.waitFor(async () => {
+      first = await files.handle(request);
+      expect(ArtifactDownloadV2ResultSchema.safeParse(first).success).toBe(
+        true,
+      );
+    });
+    expect(await files.handle(request)).toEqual(first);
+    expect(publisher).toHaveBeenCalledTimes(1);
+    const second = { ...request, consumerId: crypto.randomUUID() };
+    await vi.waitFor(async () =>
+      expect(
+        ArtifactDownloadV2ResultSchema.safeParse(await files.handle(second))
+          .success,
+      ).toBe(true),
+    );
+    expect(publisher).toHaveBeenCalledTimes(2);
+    now += 1001;
+    await vi.waitFor(async () =>
+      expect(
+        ArtifactDownloadV2ResultSchema.safeParse(await files.handle(request))
+          .success,
+      ).toBe(true),
+    );
+    expect(publisher).toHaveBeenCalledTimes(3);
+    let legacy: unknown;
+    await vi.waitFor(async () => {
+      legacy = await files.handle({ action: "download", artifactId: ref.id });
+      expect(ArtifactDownloadResultSchema.safeParse(legacy).success).toBe(true);
+    });
+    expect(ArtifactDownloadResultSchema.safeParse(first).success).toBe(false);
+    expect(publisher).toHaveBeenCalledTimes(4);
+  });
+  it("publishes only requested files, even when the transport is registered before results", async () => {
+    const files = new SimulationFiles();
+    const publisher = vi.fn(
+      async (ref: ArtifactRef) => `/api/agent/sessions/s/artifacts/${ref.id}`,
+    );
+    const raw = await files.put("raw", "text/plain", "raw");
+    files.setArtifactPublisher(publisher);
+    const [csv] = await files.putMany([
+      { name: "table", mediaType: "text/csv", text: "table" },
+    ]);
+    expect(publisher).not.toHaveBeenCalled();
+    await files.handle({ action: "download", artifactId: csv!.id });
+    await Promise.resolve();
+    expect(publisher).toHaveBeenCalledExactlyOnceWith(csv, "table");
+    expect(publisher.mock.calls.some(([ref]) => ref.id === raw.id)).toBe(false);
+  });
   it("keeps history paging small unless the caller requests more", () => {
     expect(
       SimulationOperationSchema.parse({ operation: "history" }),
@@ -291,11 +372,21 @@ describe("simulation File Resource evidence", () => {
     files.setArtifactPublisher(
       () => new Promise((resolve) => old.push(resolve)),
     );
+    const refs = [];
     for (const name of Array.from({ length: 10 }, (_, index) => `${index}`))
-      await files.put(name, "text/plain", name);
+      refs.push(await files.put(name, "text/plain", name));
+    await files.handle({
+      action: "downloads",
+      artifactIds: refs.map((ref) => ref.id),
+    });
     files.setArtifactPublisher(
       () => new Promise((resolve) => current.push(resolve)),
     );
+    expect(current).toHaveLength(0);
+    await files.handle({
+      action: "downloads",
+      artifactIds: refs.map((ref) => ref.id),
+    });
     expect(current).toHaveLength(8);
     for (const resolve of old) resolve("/old");
     await Promise.resolve();
@@ -318,6 +409,11 @@ describe("simulation File Resource evidence", () => {
       refs.push(await files.put(`${index}.raw`, "text/plain", String(index)));
     const one = refs[0]!;
     const last = refs.at(-1)!;
+    expect(pending).toHaveLength(0);
+    await files.handle({
+      action: "downloads",
+      artifactIds: refs.map((ref) => ref.id),
+    });
     expect(pending).toHaveLength(8);
     for (let i = 0; i < 3; i++)
       expect(

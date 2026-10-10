@@ -16,7 +16,12 @@ import {
   type SimulationBatchSignal,
   type SimulationOperation,
 } from "./contract.js";
-import { SimulationFiles } from "./files.js";
+import {
+  ArtifactCapacityError,
+  SimulationFiles,
+  type EvidenceEntry,
+  type ReleaseEvidence,
+} from "./files.js";
 import { executionSpecReport, simulationSpecsToCsv } from "./spec-results.js";
 import { executionArtifactEntries } from "./execution-artifacts.js";
 import { resultCatalog } from "./result-catalog.js";
@@ -29,7 +34,37 @@ import {
 } from "./executor.js";
 import { runReceipt, releaseRunData } from "./run-receipt.js";
 import { ProjectInputIdentity } from "./input-identity.js";
-import { type Run, type SimulationReply } from "./contract.js";
+import { type Run, type SimulationReply, type Problem } from "./contract.js";
+const EVIDENCE_STORAGE_DIAGNOSTIC = "RUN_EVIDENCE_STORAGE_UNAVAILABLE";
+function withoutEvidenceProblem(
+  error: Problem | undefined,
+): Problem | undefined {
+  if (!error || error.stage === "export") return undefined;
+  const { diagnostics, ...execution } = error;
+  const retained = diagnostics?.filter(
+    (item) => item.code !== EVIDENCE_STORAGE_DIAGNOSTIC,
+  );
+  return {
+    ...execution,
+    ...(retained?.length ? { diagnostics: retained } : {}),
+  };
+}
+function recordEvidenceProblem(run: Run, problem: Problem) {
+  const execution = withoutEvidenceProblem(run.error);
+  run.error = execution
+    ? {
+        ...execution,
+        diagnostics: [
+          ...(execution.diagnostics ?? []),
+          {
+            code: EVIDENCE_STORAGE_DIAGNOSTIC,
+            severity: "warning",
+            message: problem.message,
+          },
+        ],
+      }
+    : problem;
+}
 type PrepareSource = Extract<
   SimulationOperation,
   { operation: "prepare" }
@@ -58,6 +93,7 @@ type StoredPrepared = {
   input: ExecutionInput;
   source: PrepareSource;
   inputArtifacts?: InputArtifact[];
+  releaseEvidence?: ReleaseEvidence;
 };
 type BatchPrepareItem = {
   id: string;
@@ -118,6 +154,8 @@ export class SimulationService {
     const active = [...this.runs.values()].filter(
       (r) => r.view.state === "running" || r.view.state === "cancelling",
     );
+    for (const prepared of this.prepared.values())
+      void prepared.releaseEvidence?.();
     this.prepared.clear();
     this.runs.clear();
     this.starts.clear();
@@ -212,8 +250,13 @@ export class SimulationService {
           );
         }
       }
-      if (op.operation === "history-usage") {
+      if (
+        op.operation === "history-usage" ||
+        op.operation === "resource-usage"
+      ) {
         try {
+          if (op.operation === "resource-usage")
+            return { ok: true, resources: [await this.files.resourceUsage()] };
           return { ok: true, usage: await this.files.usage() };
         } catch {
           return problem(
@@ -515,6 +558,7 @@ export class SimulationService {
             op.operation === "authoring-help" ||
             op.operation === "history" ||
             op.operation === "history-usage" ||
+            op.operation === "resource-usage" ||
             op.operation === "catalog"
               ? "read"
               : op.operation === "history-delete"
@@ -584,7 +628,10 @@ export class SimulationService {
         .flatMap((batch) => batch.view.items.map((item) => item.prepared.id)),
     );
     for (const [id, p] of this.prepared)
-      if (p.view.expiresAt <= now && !pinned.has(id)) this.prepared.delete(id);
+      if (p.view.expiresAt <= now && !pinned.has(id)) {
+        void p.releaseEvidence?.();
+        this.prepared.delete(id);
+      }
     for (const [id, batch] of this.batches)
       if (
         batch.view.expiresAt !== null &&
@@ -774,7 +821,10 @@ export class SimulationService {
         source: item.source,
       });
       if (!reply.ok || !("prepared" in reply)) {
-        for (const preparedId of preparedIds) this.prepared.delete(preparedId);
+        for (const preparedId of preparedIds) {
+          void this.prepared.get(preparedId)?.releaseEvidence?.();
+          this.prepared.delete(preparedId);
+        }
         return reply;
       }
       preparedIds.push(reply.prepared.id);
@@ -1129,6 +1179,7 @@ export class SimulationService {
         },
         requestId,
       );
+      void this.prepared.get(prepared.prepared.id)?.releaseEvidence?.();
       this.prepared.delete(prepared.prepared.id);
       return result;
     });
@@ -1245,11 +1296,22 @@ export class SimulationService {
     if (publish)
       artifacts.push(...(await this.publishArtifacts(epoch, [summary])));
     else inputArtifacts.push(summary);
+    const releaseEvidence = publish
+      ? await this.files.pinRun(
+          `prepared:${view.id}`,
+          artifacts.map((ref) => ref.id),
+        )
+      : undefined;
+    if (epoch !== this.epoch) {
+      await releaseEvidence?.();
+      throw new Error("SESSION_CHANGED");
+    }
     this.prepared.set(view.id, {
       input: structuredClone(input),
       view,
       source: structuredClone(op.source),
       ...(publish ? {} : { inputArtifacts }),
+      ...(releaseEvidence ? { releaseEvidence } : {}),
     });
     return { ok: true, prepared: structuredClone(view) };
   }
@@ -1355,314 +1417,351 @@ export class SimulationService {
       | Awaited<ReturnType<Executor["execute"]>>
       | (() => ReturnType<Executor["execute"]>),
   ) {
-    const totalStarted = performance.now();
-    let executionWaitMs = 0;
-    let resultMaterializationMs = 0;
-    let managedTiming:
-      Awaited<ReturnType<Executor["execute"]>>["timing"] | undefined;
-    let materializationStarted: number | undefined;
-    let collectionStatus: "complete" | "partial" = "complete";
-    let terminalState: Run["state"] = "finished";
+    let releaseEvidence: ReleaseEvidence | undefined;
     try {
-      const executionOutput =
-        (typeof acceptedOutput === "function"
-          ? await acceptedOutput()
-          : acceptedOutput) ??
-        (await this.executor.execute(input, run.token, timeoutMs, {
-          preparedId: run.prepared.id,
-          preparedDigest: run.prepared.digest,
-        }));
-      executionWaitMs = performance.now() - totalStarted;
-      const output = validateExecutionOutput(input, executionOutput);
-      managedTiming = output.timing;
-      if (epoch !== this.epoch) return;
-      if (acceptedOutput) delete run.view.error;
-      run.retryEvidence = () =>
-        this.execute(run, input, timeoutMs, epoch, output);
-      run.view.result = output.result;
-      materializationStarted = performance.now();
-      // These are browsing/evidence representations. The executor persists the
-      // immutable execution input before admission; publication need not delay it.
-      if (run.inputArtifacts) {
-        await this.publishArtifacts(
-          epoch,
-          run.inputArtifacts,
-          run.view.artifacts,
-        );
-        delete run.inputArtifacts;
-      }
-      collectionStatus = output.collectionStatus ?? "complete";
-      const { specs, diagnostics } = executionSpecReport(input, output, {
-        runId: run.view.id,
-        preparedId: run.prepared.id,
-        inputDigest: run.prepared.digest,
-      });
-      // Raw numeric data lives in result.data. Keep legacy output fields readable
-      // for archives, but never produce a second waveform or automatic metrics.
-      run.view.outputData = {
-        schemaVersion: 1,
-        analyses: [],
-        diagnostics,
-        specs,
-      };
-      const pendingArtifacts: Array<{
-        name: string;
-        mediaType: string;
-        text: string;
-        metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">;
-      }> = [
-        {
-          name: "log.txt",
-          mediaType: "text/plain",
-          text: output.result.log,
-          metadata: { role: "log" },
-        },
-        {
-          name: "specs.json",
-          mediaType: "application/json",
-          text: JSON.stringify(specs),
-          metadata: { role: "specs" },
-        },
-        {
-          name: "specs.csv",
-          mediaType: "text/csv",
-          text: simulationSpecsToCsv(specs),
-          metadata: { role: "specs" },
-        },
-      ];
-      if (diagnostics.length)
-        pendingArtifacts.push({
-          name: "outputs.json",
-          mediaType: "application/json",
-          text: JSON.stringify(run.view.outputData),
-          metadata: { role: "diagnostics" },
-        });
-      if (output.rawfile !== undefined)
-        pendingArtifacts.push({
-          name: "out.raw",
-          mediaType: "text/plain",
-          text: output.rawfile,
-          metadata: { role: "raw" },
-        });
-      if (output.executedDeck !== undefined)
-        pendingArtifacts.push({
-          name: "executed.cir",
-          mediaType: "text/plain",
-          text: output.executedDeck,
-          metadata: { role: "executed" },
-        });
-      const executionEntries = executionArtifactEntries(output);
-      pendingArtifacts.push(
-        ...executionEntries.map((item) => ({
-          name: item.name,
-          mediaType: "text/plain",
-          text: item.text,
-          metadata: {
-            role: item.kind,
-            sourcePath: item.path,
-          },
-        })),
-        {
-          name: "result.json",
-          mediaType: "application/json",
-          text: JSON.stringify(output.result),
-          metadata: { role: "result" },
-        },
-        ...(output.result.data?.analyses ?? []).map((analysis, index) => ({
-          name: analysis.analysis + "-" + index + ".csv",
-          mediaType: "text/csv",
-          text: simulationAnalysisToCsv(analysis),
-          metadata: { role: "table" as const, analysisIndex: index },
-        })),
-      );
-      const published = await this.publishArtifacts(
-        epoch,
-        pendingArtifacts,
-        run.view.artifacts,
-      );
-      const nativeArtifacts: {
-        kind: "raw" | "executed";
-        path: string;
-        artifact: ArtifactRef;
-      }[] = [];
-      for (const item of executionEntries) {
-        const artifact = published.find(
-          (ref) => ref.name === item.name && ref.role === item.kind,
-        );
-        if (!artifact) throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
-        nativeArtifacts.push({
-          kind: item.kind,
-          path: item.path,
-          artifact,
-        });
-      }
-      const catalog = resultCatalog(
-        { ...run.view, state: output.cancelled ? "cancelled" : "finished" },
-        collectionStatus,
-        run.prepared.signalTargets,
-        run.source,
-      );
-      const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
-      await this.publishArtifacts(
-        epoch,
-        [
-          {
-            name: "evidence-manifest.json",
-            mediaType: "application/json",
-            text: JSON.stringify(
-              {
-                schemaVersion: 1,
-                run: {
-                  id: run.view.id,
-                  preparedId: run.view.preparedId,
-                  inputRevision: run.view.inputRevision,
-                },
-                prepared: {
-                  digest: run.prepared.digest,
-                  mode: run.prepared.mode,
-                  environment: run.prepared.environment,
-                  vectors: run.prepared.vectors,
-                  signalNames: run.prepared.signalNames,
-                  signalTargets: run.prepared.signalTargets,
-                  outputs: run.prepared.outputs,
-                  deviceOperatingPoints: run.prepared.deviceOperatingPoints,
-                  measurements: run.prepared.measurements ?? [],
-                },
-                environment: output.result.metadata.environment,
-                ...(nativeArtifacts.length ? { nativeArtifacts } : {}),
-                artifacts: evidenceArtifacts,
-                catalog,
-              },
-              null,
-              2,
-            ),
-            metadata: { role: "manifest" },
-          },
-        ],
-        run.view.artifacts,
-      );
-      resultMaterializationMs = performance.now() - materializationStarted;
-      if (epoch === this.epoch)
-        terminalState = output.cancelled ? "cancelled" : "finished";
-    } catch (error) {
-      if (executionWaitMs === 0)
-        executionWaitMs = performance.now() - totalStarted;
-      if (materializationStarted !== undefined && resultMaterializationMs === 0)
-        resultMaterializationMs = performance.now() - materializationStarted;
-      if (epoch !== this.epoch) return;
-      if (error instanceof ExecutionFailure) {
-        if (error.readResult) {
-          const readResult = error.readResult;
-          run.retryResult = () =>
-            this.execute(run, input, timeoutMs, epoch, readResult);
-        }
-        terminalState =
-          error.problem.code === "run-cancelled"
-            ? "cancelled"
-            : error.acceptedUnknown
-              ? "lost"
-              : "finished";
-        run.view.error = error.problem;
-      } else {
-        terminalState = run.view.result ? "finished" : "lost";
-        run.view.error = {
-          code:
-            error instanceof Error && error.message === "ARTIFACT_CAPACITY"
-              ? "ARTIFACT_CAPACITY"
-              : error instanceof Error &&
-                  error.message === "ARTIFACT_STORAGE_UNAVAILABLE"
-                ? "ARTIFACT_STORAGE_UNAVAILABLE"
-                : "INTERNAL_ERROR",
-          message:
-            "Run evidence could not be fully saved. Existing files remain available; export this run to retry saving retained results without executing again.",
-          stage: "read",
-          recovery: "retry-after",
-          correlationId: crypto.randomUUID(),
-        };
-      }
-    }
-    // A refused/lost execution still needs its captured input evidence. Retrying
-    // this publication must never call the executor again.
-    if (!run.view.result && run.inputArtifacts) {
-      const saveInput = async () => {
-        await this.publishArtifacts(
-          epoch,
-          run.inputArtifacts ?? [],
-          run.view.artifacts,
-        );
-        delete run.inputArtifacts;
-      };
+      const totalStarted = performance.now();
+      let executionWaitMs = 0;
+      let resultMaterializationMs = 0;
+      let managedTiming:
+        Awaited<ReturnType<Executor["execute"]>>["timing"] | undefined;
+      let materializationStarted: number | undefined;
+      let collectionStatus: "complete" | "partial" = "complete";
+      let terminalState: Run["state"] = "finished";
       try {
-        await saveInput();
-      } catch {
-        run.retryEvidence = async () => {
-          await saveInput();
-          run.view.catalog = resultCatalog(
-            run.view,
-            "partial",
+        releaseEvidence = await this.files.pinRun(
+          run.view.id,
+          run.view.artifacts.map((ref) => ref.id),
+        );
+        const executionOutput =
+          (typeof acceptedOutput === "function"
+            ? await acceptedOutput()
+            : acceptedOutput) ??
+          (await this.executor.execute(input, run.token, timeoutMs, {
+            preparedId: run.prepared.id,
+            preparedDigest: run.prepared.digest,
+          }));
+        executionWaitMs = performance.now() - totalStarted;
+        const output = validateExecutionOutput(input, executionOutput);
+        managedTiming = output.timing;
+        if (epoch !== this.epoch) return;
+        if (acceptedOutput) delete run.view.error;
+        run.retryEvidence = () =>
+          this.execute(run, input, timeoutMs, epoch, output);
+        run.view.result = output.result;
+        collectionStatus = output.collectionStatus ?? "complete";
+        const { specs, diagnostics } = executionSpecReport(input, output, {
+          runId: run.view.id,
+          preparedId: run.prepared.id,
+          inputDigest: run.prepared.digest,
+        });
+        // Raw numeric data lives in result.data. Keep legacy output fields readable
+        // for archives, but never produce a second waveform or automatic metrics.
+        run.view.outputData = {
+          schemaVersion: 1,
+          analyses: [],
+          diagnostics,
+          specs,
+        };
+        materializationStarted = performance.now();
+        // Preserve acquired data and Specs before any evidence persistence await.
+        // The executor has already captured its immutable execution input.
+        if (run.inputArtifacts) {
+          await this.publishArtifacts(
+            epoch,
+            run.inputArtifacts,
+            run.view.artifacts,
+          );
+          delete run.inputArtifacts;
+        }
+        const pendingArtifacts: EvidenceEntry[] = [
+          {
+            name: "log.txt",
+            mediaType: "text/plain",
+            text: output.result.log,
+            metadata: { role: "log" },
+          },
+          {
+            name: "specs.json",
+            mediaType: "application/json",
+            text: JSON.stringify(specs),
+            metadata: { role: "specs" },
+          },
+          {
+            name: "specs.csv",
+            mediaType: "text/csv",
+            text: simulationSpecsToCsv(specs),
+            metadata: { role: "specs" },
+          },
+        ];
+        if (diagnostics.length)
+          pendingArtifacts.push({
+            name: "outputs.json",
+            mediaType: "application/json",
+            text: JSON.stringify(run.view.outputData),
+            metadata: { role: "diagnostics" },
+          });
+        if (output.rawfile !== undefined)
+          pendingArtifacts.push({
+            name: "out.raw",
+            mediaType: "text/plain",
+            text: output.rawfile,
+            metadata: { role: "raw" },
+          });
+        if (output.executedDeck !== undefined)
+          pendingArtifacts.push({
+            name: "executed.cir",
+            mediaType: "text/plain",
+            text: output.executedDeck,
+            metadata: { role: "executed" },
+          });
+        const executionEntries = executionArtifactEntries(output);
+        pendingArtifacts.push(
+          ...executionEntries.map((item) => ({
+            name: item.name,
+            mediaType: "text/plain",
+            text: item.text,
+            metadata: {
+              role: item.kind,
+              sourcePath: item.path,
+            },
+          })),
+          {
+            name: "result.json",
+            mediaType: "application/json",
+            text: () => JSON.stringify(output.result),
+            metadata: { role: "result" },
+          },
+          ...(output.result.data?.analyses ?? []).map((analysis, index) => ({
+            name: analysis.analysis + "-" + index + ".csv",
+            mediaType: "text/csv",
+            text: () => simulationAnalysisToCsv(analysis),
+            metadata: { role: "table" as const, analysisIndex: index },
+          })),
+        );
+        const makeCatalog = (refs: readonly ArtifactRef[]) =>
+          resultCatalog(
+            {
+              ...run.view,
+              artifacts: [...refs],
+              state: output.cancelled ? "cancelled" : "finished",
+            },
+            collectionStatus,
             run.prepared.signalTargets,
             run.source,
           );
-          if (!(await this.files.saveCatalog(run.view.catalog)))
+        const published = await this.files.publishEvidence(
+          run.view.id,
+          pendingArtifacts,
+          (refs) => {
+            const nativeArtifacts = executionEntries.map((item) => {
+              const artifact = refs.find(
+                (ref) => ref.name === item.name && ref.role === item.kind,
+              );
+              if (!artifact) throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+              return { kind: item.kind, path: item.path, artifact };
+            });
+            return {
+              name: "evidence-manifest.json",
+              mediaType: "application/json",
+              text: JSON.stringify(
+                {
+                  schemaVersion: 1,
+                  run: {
+                    id: run.view.id,
+                    preparedId: run.view.preparedId,
+                    inputRevision: run.view.inputRevision,
+                  },
+                  prepared: {
+                    digest: run.prepared.digest,
+                    mode: run.prepared.mode,
+                    environment: run.prepared.environment,
+                    vectors: run.prepared.vectors,
+                    signalNames: run.prepared.signalNames,
+                    signalTargets: run.prepared.signalTargets,
+                    outputs: run.prepared.outputs,
+                    deviceOperatingPoints: run.prepared.deviceOperatingPoints,
+                    measurements: run.prepared.measurements ?? [],
+                  },
+                  environment: output.result.metadata.environment,
+                  ...(nativeArtifacts.length ? { nativeArtifacts } : {}),
+                  artifacts: refs.map((ref) => ({ ...ref })),
+                  catalog: makeCatalog(refs),
+                },
+                null,
+                2,
+              ),
+              metadata: { role: "manifest" },
+            };
+          },
+          makeCatalog,
+          run.view.artifacts,
+        );
+        if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
+        run.view.artifacts = published;
+        run.retryEvidence = undefined;
+        resultMaterializationMs = performance.now() - materializationStarted;
+        if (epoch === this.epoch)
+          terminalState = output.cancelled ? "cancelled" : "finished";
+      } catch (error) {
+        if (executionWaitMs === 0)
+          executionWaitMs = performance.now() - totalStarted;
+        if (
+          materializationStarted !== undefined &&
+          resultMaterializationMs === 0
+        )
+          resultMaterializationMs = performance.now() - materializationStarted;
+        if (epoch !== this.epoch) return;
+        if (error instanceof ExecutionFailure) {
+          if (error.readResult) {
+            const readResult = error.readResult;
+            run.retryResult = () =>
+              this.execute(run, input, timeoutMs, epoch, readResult);
+          }
+          terminalState =
+            error.problem.code === "run-cancelled"
+              ? "cancelled"
+              : error.acceptedUnknown
+                ? "lost"
+                : "finished";
+          run.view.error = error.problem;
+        } else {
+          terminalState = run.view.result ? "finished" : "lost";
+          run.view.error = {
+            code:
+              error instanceof Error && error.name === "QuotaExceededError"
+                ? "ARTIFACT_BROWSER_QUOTA"
+                : error instanceof Error &&
+                    error.message === "ARTIFACT_STORAGE_UPGRADE_BLOCKED"
+                  ? "ARTIFACT_STORAGE_UPGRADE_BLOCKED"
+                  : error instanceof Error &&
+                      error.message === "ARTIFACT_CAPACITY"
+                    ? "ARTIFACT_CAPACITY"
+                    : error instanceof Error &&
+                        error.message === "ARTIFACT_STORAGE_UNAVAILABLE"
+                      ? "ARTIFACT_STORAGE_UNAVAILABLE"
+                      : "INTERNAL_ERROR",
+            message: `${error instanceof ArtifactCapacityError ? error.detail + " " : error instanceof Error && error.name === "QuotaExceededError" ? "The browser origin's actual storage quota rejected the write. " : error instanceof Error && error.message === "ARTIFACT_STORAGE_UPGRADE_BLOCKED" ? "An older Editor window is blocking the evidence database upgrade; update or close that window. " : ""}Run evidence could not be fully saved. Existing files remain available; export this run to retry saving retained results without executing again.`,
+            stage: "export",
+            recovery: "retry-after",
+            correlationId: crypto.randomUUID(),
+          };
+        }
+      }
+      // A refused/lost execution still needs its captured input evidence. Retrying
+      // this publication must never call the executor again.
+      if (!run.view.result && run.inputArtifacts) {
+        const saveInput = async () => {
+          await this.publishArtifacts(
+            epoch,
+            run.inputArtifacts ?? [],
+            run.view.artifacts,
+          );
+          delete run.inputArtifacts;
+        };
+        try {
+          await saveInput();
+        } catch {
+          recordEvidenceProblem(run.view, {
+            code: EVIDENCE_STORAGE_DIAGNOSTIC,
+            message:
+              "Captured input evidence could not be saved. Retry saving this Run; execution will not be repeated.",
+            stage: "export",
+            recovery: "retry-after",
+          });
+          run.retryEvidence = async () => {
+            await saveInput();
+            const recovered = withoutEvidenceProblem(run.view.error);
+            const catalog = resultCatalog(
+              { ...run.view, error: recovered },
+              "partial",
+              run.prepared.signalTargets,
+              run.source,
+            );
+            if (!(await this.files.saveCatalog(catalog)))
+              throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+            run.view.catalog = catalog;
+            if (recovered) run.view.error = recovered;
+            else delete run.view.error;
+            run.retryEvidence = undefined;
+          };
+        }
+      }
+      run.view.catalog = resultCatalog(
+        { ...run.view, state: terminalState },
+        run.view.result ? collectionStatus : "partial",
+        run.prepared.signalTargets,
+        run.source,
+      );
+      const catalogSaveStarted = performance.now();
+      if (
+        !run.retryEvidence &&
+        !(await this.files.saveCatalog(run.view.catalog))
+      ) {
+        recordEvidenceProblem(run.view, {
+          code: "RUN_CATALOG_STORAGE_UNAVAILABLE",
+          message:
+            "Files were collected, but the durable run directory could not be saved. Keep this run ID and download its evidence before closing the host.",
+          stage: "export",
+          recovery: "retry-after",
+        });
+        run.retryEvidence = async () => {
+          const catalog = run.view.catalog!;
+          const { error, ...saved } = catalog;
+          const recovered = withoutEvidenceProblem(error);
+          const recoveredCatalog = {
+            ...saved,
+            ...(recovered ? { error: recovered } : {}),
+          };
+          if (!(await this.files.saveCatalog(recoveredCatalog)))
             throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+          run.view.catalog = recoveredCatalog;
+          if (recovered) run.view.error = recovered;
+          else delete run.view.error;
+          if (!run.retainResultData) run.view = releaseRunData(run.view);
           run.retryEvidence = undefined;
         };
       }
-    }
-    run.view.catalog = resultCatalog(
-      { ...run.view, state: terminalState },
-      run.view.error ? "partial" : collectionStatus,
-      run.prepared.signalTargets,
-      run.source,
-    );
-    const catalogSaveStarted = performance.now();
-    if (!(await this.files.saveCatalog(run.view.catalog))) {
-      run.view.error ??= {
-        code: "RUN_CATALOG_STORAGE_UNAVAILABLE",
-        message:
-          "Files were collected, but the durable run directory could not be saved. Keep this run ID and download its evidence before closing the host.",
-        stage: "export",
-        recovery: "retry-after",
+      const catalogSaveMs = performance.now() - catalogSaveStarted;
+      run.view.details = {
+        operation: "catalog",
+        runId: run.view.id,
+        timing: {
+          executionWaitMs,
+          resultMaterializationMs,
+          catalogSaveMs,
+          totalMs: performance.now() - totalStarted,
+          ...(managedTiming?.managed.queueMs === undefined
+            ? {}
+            : { serverQueueMs: managedTiming.managed.queueMs }),
+          ...(managedTiming?.managed.executionMs === undefined
+            ? {}
+            : { serverExecutionMs: managedTiming.managed.executionMs }),
+          ...(managedTiming?.managed.runTotalMs === undefined
+            ? {}
+            : { serverRunTotalMs: managedTiming.managed.runTotalMs }),
+          ...(managedTiming
+            ? {
+                serverInputReadMs: managedTiming.managed.inputReadMs,
+                serverUpstreamMs: managedTiming.managed.upstreamMs,
+                serverResultCommitMs: managedTiming.managed.resultCommitMs,
+                resultFetchMs: managedTiming.managed.resultFetchMs,
+                clientWaitMs: managedTiming.managed.clientWaitMs,
+                pollCount: managedTiming.managed.pollCount,
+                pollSleepMs: managedTiming.managed.pollSleepMs,
+              }
+            : {}),
+        },
       };
-    }
-    const catalogSaveMs = performance.now() - catalogSaveStarted;
-    run.view.details = {
-      operation: "catalog",
-      runId: run.view.id,
-      timing: {
-        executionWaitMs,
-        resultMaterializationMs,
-        catalogSaveMs,
-        totalMs: performance.now() - totalStarted,
-        ...(managedTiming?.managed.queueMs === undefined
-          ? {}
-          : { serverQueueMs: managedTiming.managed.queueMs }),
-        ...(managedTiming?.managed.executionMs === undefined
-          ? {}
-          : { serverExecutionMs: managedTiming.managed.executionMs }),
-        ...(managedTiming?.managed.runTotalMs === undefined
-          ? {}
-          : { serverRunTotalMs: managedTiming.managed.runTotalMs }),
-        ...(managedTiming
-          ? {
-              serverInputReadMs: managedTiming.managed.inputReadMs,
-              serverUpstreamMs: managedTiming.managed.upstreamMs,
-              serverResultCommitMs: managedTiming.managed.resultCommitMs,
-              resultFetchMs: managedTiming.managed.resultFetchMs,
-              clientWaitMs: managedTiming.managed.clientWaitMs,
-              pollCount: managedTiming.managed.pollCount,
-              pollSleepMs: managedTiming.managed.pollSleepMs,
-            }
-          : {}),
-      },
-    };
-    if (epoch !== this.epoch) return;
-    run.view.state = terminalState;
-    // Do not retain full numeric arrays in memory after complete artifact
-    // publication. On publication failure, preserve any otherwise unsaved data.
-    if (!run.view.error && !run.retainResultData) {
-      run.view = releaseRunData(run.view);
-      run.retryEvidence = undefined;
+      if (epoch !== this.epoch) return;
+      run.view.state = terminalState;
+      // Do not retain full numeric arrays in memory after complete artifact
+      // publication. On publication failure, preserve any otherwise unsaved data.
+      if (!run.view.error && !run.retainResultData) {
+        run.view = releaseRunData(run.view);
+        run.retryEvidence = undefined;
+      }
+    } finally {
+      await releaseEvidence?.();
     }
   }
   private async publishArtifacts(

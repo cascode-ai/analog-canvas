@@ -53,6 +53,7 @@ export const FOCUSED_TOOLS = [
       "catalog",
       "history",
       "history-usage",
+      "resource-usage",
       "history-delete",
       "export",
     ],

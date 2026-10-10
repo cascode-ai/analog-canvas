@@ -240,7 +240,11 @@ export class ArtifactRelay {
   }
 
   /** The editor's upload of one file, as the session hook sends it. */
-  readonly publish = async (ref: ArtifactRef, text: string) => {
+  readonly publish = async (
+    ref: ArtifactRef,
+    text: string,
+    options?: { protocol: 2; consumerId: string },
+  ) => {
     if (this.held(ref)) await this.gate;
     const fileId = ref.fileId ?? ref.id;
     const path = `/api/agent/sessions/session-1/artifacts/${encodeURIComponent(fileId)}`;
@@ -251,6 +255,7 @@ export class ArtifactRelay {
         headers: {
           "content-length": String(body.byteLength),
           "x-artifact-ref": encodeURIComponent(JSON.stringify(ref)),
+          ...(options ? { "x-artifact-protocol": "2" } : {}),
         },
         body,
       }),
@@ -264,17 +269,33 @@ export class ArtifactRelay {
         `Artifact transfer rejected (HTTP ${response.status})`,
       );
     this.uploaded.push(fileId);
+    if (options) {
+      const descriptor = (await response.json()) as {
+        leaseId: string;
+        expiresAt: number;
+      };
+      return {
+        path,
+        leaseId: descriptor.leaseId,
+        expiresAt: descriptor.expiresAt,
+      };
+    }
     return path;
   };
 
   /** The network an Agent's HTTP client reaches for artifact bytes. */
   readonly fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
+    if (
+      request.method === "GET" &&
+      new URL(request.url).pathname.endsWith("/artifact-status")
+    )
+      return Response.json({ ok: true, usage: await this.route.usage() });
     const match = ARTIFACT_PATH.exec(new URL(request.url).pathname);
-    if (!match || request.method !== "GET")
+    if (!match || !["GET", "DELETE"].includes(request.method))
       throw new TypeError(`No route for ${request.method} ${request.url}`);
     const response = await this.route.handle(request, match[1]!, match[2]!);
-    if (response.ok) this.served.push(match[2]!);
+    if (response.ok && request.method === "GET") this.served.push(match[2]!);
     return response;
   }) as typeof fetch;
 }
@@ -285,12 +306,13 @@ export class ArtifactRelay {
  */
 export function liveEditorWithRelay(
   options: LiveAgentEditorOptions = {},
+  transfer: { leasedDownloads?: boolean } = {},
 ): ReturnType<typeof liveAgentEditor> & { relay: ArtifactRelay } {
   const relay = new ArtifactRelay();
   // The Agent's HTTP client takes the network it is built with.
   vi.stubGlobal("fetch", relay.fetch);
   const editor = liveAgentEditor(options);
-  editor.fileHost.setArtifactPublisher(relay.publish);
+  editor.fileHost.setArtifactPublisher(relay.publish, transfer);
   return { ...editor, relay };
 }
 

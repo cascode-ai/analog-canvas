@@ -17,7 +17,9 @@ export function isReadOnlyFileRequest(
   return (
     request.operation === "inspect" ||
     (request.operation === "simulation-input" &&
-      ["list", "read", "artifact"].includes(request.input.action))
+      ["list", "read", "artifact", "transfer-capabilities"].includes(
+        request.input.action,
+      ))
   );
 }
 
@@ -31,6 +33,7 @@ export function isReadOnlySimulationRequest(
     "catalog",
     "history",
     "history-usage",
+    "resource-usage",
     "read-batch",
   ].includes(request.operation);
 }

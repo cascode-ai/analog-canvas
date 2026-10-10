@@ -1,4 +1,7 @@
 import { agentApiHelp } from "./agent-api-help.generated.js";
+import { z } from "zod";
+import { EvidenceResourceUsageSchema } from "@icm/simulation-service/contract";
+import { lazyJsonSchema } from "./lazy-json-schema.js";
 import {
   AGENT_API_VERSION,
   agentCircuitRequestJsonSchema,
@@ -396,6 +399,11 @@ export const agentCircuitOpenApi = {
             schema: { type: "string", pattern: "^bytes=[0-9]+-[0-9]*$" },
           },
           { name: "If-Range", in: "header", schema: { type: "string" } },
+          {
+            name: "x-artifact-lease",
+            in: "header",
+            schema: { type: "string", format: "uuid" },
+          },
         ],
         responses: {
           "200": {
@@ -421,6 +429,72 @@ export const agentCircuitOpenApi = {
             description: "No registered transfer for this file and session",
           },
           "416": { description: "Invalid or unavailable byte range" },
+          "410": {
+            description: "Download lease expired; prepare the same file again",
+          },
+        },
+      },
+      delete: {
+        operationId: "agentSessionArtifactAcknowledge",
+        description: agentApiHelp.agentSessionArtifactAcknowledge,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: { type: "string", minLength: 1 },
+          },
+          {
+            name: "fileId",
+            in: "path",
+            required: true,
+            schema: { type: "string", pattern: "^[a-zA-Z0-9_-]{1,128}$" },
+          },
+          {
+            name: "x-artifact-lease",
+            in: "header",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "This lease released" },
+          "401": transportErrorResponse(agentTransportErrorExamples["401"]),
+          "403": { description: "Session is paused or lacks simulation.run" },
+          "404": { description: "Lease already absent" },
+        },
+      },
+    },
+    "/api/agent/sessions/{sessionId}/artifact-status": {
+      get: {
+        operationId: "agentSessionArtifactUsage",
+        description: agentApiHelp.agentSessionArtifactUsage,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: { type: "string", minLength: 1 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Transfer usage",
+            content: {
+              "application/json": {
+                schema: lazyJsonSchema(
+                  z.strictObject({
+                    ok: z.literal(true),
+                    usage: EvidenceResourceUsageSchema,
+                  }),
+                ),
+              },
+            },
+          },
+          "401": transportErrorResponse(agentTransportErrorExamples["401"]),
+          "403": { description: "Session is paused or lacks simulation.run" },
         },
       },
     },

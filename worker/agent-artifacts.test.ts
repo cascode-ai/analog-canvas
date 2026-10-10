@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AgentSessionMachine } from "@icm/agent-adapter";
 import {
   AgentArtifacts,
@@ -12,7 +12,7 @@ import {
   SESSION_STATE_KEY,
 } from "./agent-session-runtime";
 
-function fixture() {
+function fixture(limits?: { bytes: number; files: number }) {
   const values = new Map<string, unknown>();
   const objects = new Map<string, { bytes: Uint8Array; contentType: string }>();
   const storage = {
@@ -53,7 +53,7 @@ function fixture() {
         objects.delete(key);
     },
   };
-  const files = new AgentArtifacts(storage, bucket);
+  const files = new AgentArtifacts(storage, bucket, limits ? { limits } : {});
   return { values, storage, bucket, files, objects };
 }
 function put(
@@ -80,6 +80,504 @@ function put(
   });
 }
 describe("authorized streaming artifact transfer", () => {
+  it("refuses new metadata below the SQLite row limit while existing downloads and ACK remain usable", async () => {
+    const f = fixture();
+    const descriptor = (await (
+      await f.files.handle(
+        put("abcdefgh", "retained", { "x-artifact-protocol": "2" }),
+        "session",
+        "retained",
+      )
+    ).json()) as { leaseId: string };
+    const index = structuredClone(
+      f.values.get("agent-artifact-index"),
+    ) as Record<
+      string,
+      {
+        key: string;
+        bytes: number;
+        digest: string;
+        complete: boolean;
+        resident?: boolean;
+      }
+    >;
+    // Reopen a durable index with tombstones near the documented 1 MiB budget.
+    // Each body's identity survives eviction; no R2 body is needed for these.
+    let last = "";
+    let size = Buffer.byteLength(JSON.stringify(index));
+    for (let i = 0; ; i++) {
+      const id = `evicted-${i}`;
+      const entry = {
+        key: `agent-transfers/session/${id}`,
+        bytes: 8,
+        digest: "0".repeat(64),
+        complete: false,
+        resident: false,
+      };
+      const added = Buffer.byteLength(JSON.stringify({ [id]: entry })) - 1;
+      if (size + added > 1024 * 1024 - 64) break;
+      index[id] = entry;
+      size += added;
+      last = id;
+    }
+    index[last]!.key += "a".repeat(
+      1024 * 1024 - 64 - Buffer.byteLength(JSON.stringify(index)),
+    );
+    f.values.set("agent-artifact-index", index);
+    const write = f.storage.put;
+    f.storage.put = async (key, value) => {
+      // Cloudflare SQLite-backed DO key/value records are limited to 2 MB.
+      expect(
+        Buffer.byteLength(key) + Buffer.byteLength(JSON.stringify(value)),
+      ).toBeLessThan(2_000_000);
+      await write(key, value);
+    };
+    const reopened = new AgentArtifacts(f.storage, f.bucket);
+    const count = Object.keys(index).length;
+    const response = await reopened.handle(
+      put("new", "next"),
+      "session",
+      "next",
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      error: { code: "ARTIFACT_METADATA_QUOTA_EXCEEDED" },
+    });
+    expect((await reopened.usage()).identityCount).toBe(count);
+    const read = await reopened.handle(
+      new Request("https://internal/artifacts/retained", {
+        headers: { "x-artifact-lease": descriptor.leaseId },
+      }),
+      "session",
+      "retained",
+    );
+    expect(await read.text()).toBe("abcdefgh");
+    expect(
+      (
+        await reopened.handle(
+          new Request("https://internal/artifacts/retained", {
+            method: "DELETE",
+            headers: { "x-artifact-lease": descriptor.leaseId },
+          }),
+          "session",
+          "retained",
+        )
+      ).status,
+    ).toBe(200);
+    expect((await reopened.usage()).protectedBytes).toBe(0);
+  });
+  it("rejects a reupload when another admission starts deleting that identity during reclamation", async () => {
+    const f = fixture();
+    let now = 1000;
+    const files = new AgentArtifacts(f.storage, f.bucket, {
+      limits: { bytes: 16, files: 2 },
+      now: () => now,
+    });
+    const upload = f.bucket.put;
+    f.bucket.put = async () => {
+      throw new Error("R2 unavailable");
+    };
+    for (const id of ["older", "retry"]) {
+      expect(
+        (await files.handle(put("abcdefgh", id), "session", id)).status,
+      ).toBe(502);
+      now++;
+    }
+    now += 10 * 60_000 + 1;
+    f.bucket.put = upload;
+    const remove = f.bucket.delete;
+    const releases = new Map<string, () => void>();
+    f.bucket.delete = async (keys) => {
+      const key = typeof keys === "string" ? keys : keys[0]!;
+      await new Promise<void>((resolve) => releases.set(key, resolve));
+      await remove(keys);
+    };
+    const retry = files.handle(put("abcdefgh", "retry"), "session", "retry");
+    await vi.waitFor(() =>
+      expect(releases.has("agent-transfers/session/older")).toBe(true),
+    );
+    const next = files.handle(put("12345678", "next"), "session", "next");
+    await vi.waitFor(() =>
+      expect(releases.has("agent-transfers/session/retry")).toBe(true),
+    );
+    releases.get("agent-transfers/session/older")!();
+    const response = await retry;
+    // Always release the blocked deletion, including on the failing candidate.
+    releases.get("agent-transfers/session/retry")!();
+    expect((await next).status).toBe(200);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      error: { code: "ARTIFACT_RECLAIM_PENDING" },
+    });
+    expect(
+      (await files.handle(put("abcdefgh", "retry"), "session", "retry")).status,
+    ).toBe(200);
+    expect(
+      await (
+        await files.handle(
+          new Request("https://internal/artifacts/retry"),
+          "session",
+          "retry",
+        )
+      ).text(),
+    ).toBe("abcdefgh");
+    f.bucket.delete = remove;
+    await files.clear();
+  });
+  it("lets only one admission physically delete an idle identity at a time", async () => {
+    const f = fixture({ bytes: 8, files: 1 });
+    const descriptor = (await (
+      await f.files.handle(
+        put("abcdefgh", "first", { "x-artifact-protocol": "2" }),
+        "session",
+        "first",
+      )
+    ).json()) as { leaseId: string };
+    await f.files.handle(
+      new Request("https://internal/artifacts/first", {
+        method: "DELETE",
+        headers: { "x-artifact-lease": descriptor.leaseId },
+      }),
+      "session",
+      "first",
+    );
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const remove = f.bucket.delete;
+    let deletions = 0;
+    f.bucket.delete = async (keys) => {
+      deletions++;
+      await gate;
+      return remove(keys);
+    };
+    const one = f.files.handle(
+      put("12345678", "second", { "x-artifact-protocol": "2" }),
+      "session",
+      "second",
+    );
+    await vi.waitFor(() => expect(deletions).toBe(1));
+    const two = f.files.handle(
+      put("87654321", "third", { "x-artifact-protocol": "2" }),
+      "session",
+      "third",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(deletions).toBe(1);
+    release();
+    expect((await one).status).toBe(200);
+    expect((await two).status).toBe(413);
+    expect(f.objects.size).toBe(1);
+    f.bucket.delete = remove;
+    await f.files.clear();
+  });
+  it("keeps a failed physical deletion charged and retries it before admitting another upload", async () => {
+    const f = fixture({ bytes: 8, files: 1 });
+    const descriptor = (await (
+      await f.files.handle(
+        put("abcdefgh", "first", { "x-artifact-protocol": "2" }),
+        "session",
+        "first",
+      )
+    ).json()) as { leaseId: string };
+    await f.files.handle(
+      new Request("https://internal/artifacts/first", {
+        method: "DELETE",
+        headers: { "x-artifact-lease": descriptor.leaseId },
+      }),
+      "session",
+      "first",
+    );
+    const remove = f.bucket.delete;
+    f.bucket.delete = async () => {
+      throw new Error("R2 unavailable");
+    };
+    expect(
+      (
+        await f.files.handle(
+          put("12345678", "second", { "x-artifact-protocol": "2" }),
+          "session",
+          "second",
+        )
+      ).status,
+    ).toBe(413);
+    expect(await f.files.usage()).toMatchObject({
+      usedBytes: 8,
+      pendingReclaimBytes: 8,
+      fileCount: 1,
+    });
+    expect(f.objects.size).toBe(1);
+    f.bucket.delete = remove;
+    expect(
+      (
+        await f.files.handle(
+          put("12345678", "second", { "x-artifact-protocol": "2" }),
+          "session",
+          "second",
+        )
+      ).status,
+    ).toBe(200);
+    expect(await f.files.usage()).toMatchObject({
+      usedBytes: 8,
+      pendingReclaimBytes: 0,
+      fileCount: 1,
+    });
+    await f.files.clear();
+  });
+  it("releases only the acknowledged consumer and protects a stream after both consumers acknowledge", async () => {
+    const f = fixture({ bytes: 8, files: 1 });
+    const one = (await (
+      await f.files.handle(
+        put("abcdefgh", "first", { "x-artifact-protocol": "2" }),
+        "session",
+        "first",
+      )
+    ).json()) as { leaseId: string };
+    const two = (await (
+      await f.files.handle(
+        put("abcdefgh", "first", { "x-artifact-protocol": "2" }),
+        "session",
+        "first",
+      )
+    ).json()) as { leaseId: string };
+    const acknowledge = (leaseId: string) =>
+      f.files.handle(
+        new Request("https://internal/artifacts/first", {
+          method: "DELETE",
+          headers: { "x-artifact-lease": leaseId },
+        }),
+        "session",
+        "first",
+      );
+    await acknowledge(one.leaseId);
+    expect(
+      (
+        await f.files.handle(
+          put("12345678", "second", { "x-artifact-protocol": "2" }),
+          "session",
+          "second",
+        )
+      ).status,
+    ).toBe(413);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const get = f.bucket.get;
+    f.bucket.get = async (...args) => {
+      const object = await get(...args);
+      return (
+        object && {
+          ...object,
+          body: new ReadableStream<Uint8Array>({
+            async pull(controller) {
+              await gate;
+              controller.enqueue(new TextEncoder().encode("abcdefgh"));
+              controller.close();
+            },
+          }),
+        }
+      );
+    };
+    const response = await f.files.handle(
+      new Request("https://internal/artifacts/first", {
+        headers: { "x-artifact-lease": two.leaseId },
+      }),
+      "session",
+      "first",
+    );
+    await acknowledge(two.leaseId);
+    expect(
+      (
+        await f.files.handle(
+          put("12345678", "second", { "x-artifact-protocol": "2" }),
+          "session",
+          "second",
+        )
+      ).status,
+    ).toBe(413);
+    release();
+    expect(await response.text()).toBe("abcdefgh");
+    expect(
+      (
+        await f.files.handle(
+          put("12345678", "second", { "x-artifact-protocol": "2" }),
+          "session",
+          "second",
+        )
+      ).status,
+    ).toBe(200);
+    await f.files.clear();
+  });
+  it.each(["1", "2"])(
+    "recovers a failed upload reservation after reconstruction and its retry deadline (protocol=%s)",
+    async (protocol) => {
+      const f = fixture();
+      let now = 1000;
+      const files = new AgentArtifacts(f.storage, f.bucket, {
+        limits: { bytes: 8, files: 1 },
+        now: () => now,
+      });
+      const upload = f.bucket.put;
+      f.bucket.put = async () => {
+        throw new Error("R2 unavailable");
+      };
+      expect(
+        (
+          await files.handle(
+            put("abcdefgh", "first", { "x-artifact-protocol": protocol }),
+            "session",
+            "first",
+          )
+        ).status,
+      ).toBe(502);
+      const restored = new AgentArtifacts(f.storage, f.bucket, {
+        limits: { bytes: 8, files: 1 },
+        now: () => now,
+      });
+      expect(await restored.usage()).toMatchObject({
+        reservedBytes: 8,
+        protectedBytes: 8,
+      });
+      f.bucket.put = upload;
+      expect(
+        (
+          await restored.handle(
+            put("12345678", "second", { "x-artifact-protocol": "2" }),
+            "session",
+            "second",
+          )
+        ).status,
+      ).toBe(413);
+      now += 10 * 60_000 + 1;
+      expect(await restored.usage()).toMatchObject({
+        reservedBytes: 8,
+        protectedBytes: 0,
+        reclaimableBytes: 8,
+      });
+      await restored.maintenance();
+      expect(await restored.usage()).toMatchObject({
+        reservedBytes: 0,
+        fileCount: 0,
+        identityCount: 1,
+      });
+      expect(
+        (
+          await restored.handle(
+            put("changed!", "first", { "x-artifact-protocol": "2" }),
+            "session",
+            "first",
+          )
+        ).status,
+      ).toBe(409);
+      expect(
+        (
+          await restored.handle(
+            put("12345678", "second", { "x-artifact-protocol": "2" }),
+            "session",
+            "second",
+          )
+        ).status,
+      ).toBe(200);
+      await restored.clear();
+    },
+  );
+  it("serializes identity and capacity reservations before concurrent R2 uploads", async () => {
+    const f = fixture({ bytes: 12, files: 3 });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const original = f.bucket.put;
+    let writes = 0;
+    f.bucket.put = async (...args) => {
+      writes++;
+      await gate;
+      return original(...args);
+    };
+    const first = f.files.handle(put("aaaa", "same"), "session", "same");
+    const conflict = f.files.handle(put("bbbb", "same"), "session", "same");
+    await vi.waitFor(() => expect(writes).toBeGreaterThan(0));
+    release();
+    expect(
+      (await Promise.all([first, conflict])).map((response) => response.status),
+    ).toEqual([200, 409]);
+    expect(writes).toBe(1);
+    expect(
+      await (
+        await f.files.handle(
+          new Request("https://internal/artifacts/same"),
+          "session",
+          "same",
+        )
+      ).text(),
+    ).toBe("aaaa");
+    await f.files.clear();
+  });
+  it("protects a v2 descriptor until ACK, then reclaims its replica while retaining immutable identity", async () => {
+    const f = fixture({ bytes: 12, files: 3 });
+    const uploaded = await f.files.handle(
+      put("abcdefgh", "first", { "x-artifact-protocol": "2" }),
+      "session",
+      "first",
+    );
+    const descriptor = (await uploaded.json()) as {
+      leaseId: string;
+      expiresAt: number;
+    };
+    expect(descriptor.leaseId).toEqual(expect.any(String));
+    expect(
+      (
+        await f.files.handle(
+          put("12345678", "second", { "x-artifact-protocol": "2" }),
+          "session",
+          "second",
+        )
+      ).status,
+    ).toBe(413);
+    expect(
+      (
+        await f.files.handle(
+          new Request("https://internal/artifacts/first", {
+            method: "DELETE",
+            headers: { "x-artifact-lease": descriptor.leaseId },
+          }),
+          "session",
+          "first",
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await f.files.handle(
+          put("12345678", "second", { "x-artifact-protocol": "2" }),
+          "session",
+          "second",
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await f.files.handle(
+          new Request("https://internal/artifacts/first"),
+          "session",
+          "first",
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await f.files.handle(
+          put("changed!", "first", { "x-artifact-protocol": "2" }),
+          "session",
+          "first",
+        )
+      ).status,
+    ).toBe(409);
+    expect(f.objects.size).toBe(1);
+    await f.files.clear();
+  });
   it("stores immutable bytes, resumes by byte range, and survives service reconstruction", async () => {
     const f = fixture();
     expect(
@@ -240,6 +738,53 @@ describe("authorized streaming artifact transfer", () => {
     );
     expect(get.status).toBe(200);
     expect(await get.text()).toBe("data");
+    const replica = (await (
+      await object.fetch(
+        put("leased", "leased", {
+          "x-editor-secret": session.editorSecret,
+          "x-artifact-protocol": "2",
+        }),
+      )
+    ).json()) as { leaseId: string };
+    const acknowledgement = () =>
+      new Request("https://internal/files", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${claim.claim.agentToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          apiVersion: "3.0",
+          requestId: "ack",
+          operation: "simulation-input",
+          input: {
+            action: "release-download",
+            fileId: "leased",
+            leaseId: replica.leaseId,
+          },
+        }),
+      });
+    expect(await (await object.fetch(acknowledgement())).json()).toMatchObject({
+      ok: true,
+      result: { ok: true, released: true },
+    });
+    expect(await (await object.fetch(acknowledgement())).json()).toMatchObject({
+      ok: true,
+      result: { ok: true, released: true },
+    }); // exact request replay
+    expect(
+      (
+        await object.fetch(
+          new Request("https://internal/artifacts/leased", {
+            method: "DELETE",
+            headers: {
+              "x-editor-secret": session.editorSecret,
+              "x-artifact-lease": replica.leaseId,
+            },
+          }),
+        )
+      ).status,
+    ).toBe(401);
     await object.fetch(
       new Request("https://internal/control", {
         method: "POST",

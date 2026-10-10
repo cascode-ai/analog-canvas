@@ -168,7 +168,7 @@ export async function routeAgentSessionRequest(
     );
     headers.set(
       "access-control-allow-headers",
-      "authorization, content-type, x-editor-secret, x-artifact-ref, x-agent-context, x-agent-workspace, range, if-range",
+      "authorization, content-type, x-editor-secret, x-artifact-ref, x-artifact-protocol, x-artifact-lease, x-agent-context, x-agent-workspace, range, if-range",
     );
     return new Response(null, { status: 204, headers });
   }
@@ -312,7 +312,7 @@ export async function routeAgentSessionRequest(
   }
 
   const match =
-    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control|status|activity|artifacts\/[a-zA-Z0-9_-]{1,128}))?$/u.exec(
+    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control|status|activity|artifact-status|artifacts\/[a-zA-Z0-9_-]{1,128}))?$/u.exec(
       url.pathname,
     );
   if (!match) return jsonResponse({ error: "Not found" }, 404, allowedOrigin);
@@ -485,6 +485,7 @@ export function simulationOperationScopes(
     case "read-batch":
     case "history":
     case "history-usage":
+    case "resource-usage":
     case "history-delete":
     case "cancel-batch":
     case "prepare-sweep":

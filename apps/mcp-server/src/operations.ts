@@ -1270,6 +1270,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ? await session.client.prepareArtifactDownload(
               request.artifactId,
               requestId,
+              (await session.client.artifactTransferVersion()) === 2
+                ? { consumerId: crypto.randomUUID() }
+                : {},
             )
           : await session.client.fileResource({
               apiVersion: AGENT_API_VERSION,
@@ -1280,14 +1283,15 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       if (!response.ok || response.operation !== "simulation-input")
         return response;
       if (outputPath && response.result.ok && "download" in response.result) {
-        const { artifact, download } = response.result;
-        return downloadSimulationArtifact(artifact, outputPath, (offset) =>
-          session.client.downloadArtifact(
-            download.path,
-            offset,
-            artifact.sha256,
-          ),
+        const { artifact } = response.result;
+        const transfer = workspaceTransfer(session.client, response);
+        const saved = await downloadSimulationArtifact(
+          artifact,
+          outputPath,
+          (offset) => transfer(artifact, offset),
         );
+        await transfer.completed?.(artifact).catch(() => {});
+        return saved;
       }
       if (
         !outputPath &&
@@ -1295,11 +1299,12 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         response.result.ok &&
         "download" in response.result
       ) {
-        const { artifact, download } = response.result;
+        const { artifact } = response.result;
         const workspace = await localWorkspace(session, basePath);
         return {
-          ...(await workspace.download(artifact, (ref, offset) =>
-            session.client.downloadArtifact(download.path, offset, ref.sha256),
+          ...(await workspace.download(
+            artifact,
+            workspaceTransfer(session.client, response),
           )),
           basePath: workspace.basePath,
           indexPath: workspace.indexPath,

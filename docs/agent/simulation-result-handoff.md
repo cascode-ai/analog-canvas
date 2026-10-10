@@ -69,7 +69,9 @@ Project folder to attach to.
 
 Archives are local to this browser/origin, not Cloud Save. New automatically
 captured results are explicitly marked as cache; the newest 30 cache runs
-are retained per Project across archived and catalog-only results. Manual
+are retained per Project across archived and catalog-only results, subject to
+byte/file capacity: eligible older caches may be removed sooner. The latest
+durably published run remains protected. Manual
 Save has a separate 30-result rolling limit: saving the 31st evicts the
 oldest explicitly saved run in that Project. Older records without a retention
 marker remain protected until explicitly deleted, and do not count toward
@@ -81,16 +83,27 @@ can recover successful archives under **Saved results**; deleting one removes
 that browser history entry. Old results are saved input snapshots, not a fresh validation
 of the current source files.
 
-Deleting an archive records pending cleanup durably. At the next file-session
-startup, cleanup first reconciles all remaining archives and run catalogs, then
+Deleting an archive records pending cleanup durably. Admission, startup and
+reader release trigger cleanup. It reconciles remaining archives and catalogs, then
 reclaims unreferenced evidence. Shared files stay until their last reference is
-gone. Active Project consumers in any tab hold shared browser locks; cleanup
-skips a busy Project instead of waiting or interrupting it. Logical removal
+gone. Active producers and readers hold scoped locks in each tab, so unrelated
+idle evidence can be reclaimed while an Editor stays open. Older clients with
+a whole-Project lock still defer cleanup. Logical removal
 can precede physical reclamation; Agent deletion reports which happened.
 Hosts without Web
-Locks also defer physical cleanup. Failed cleanup can retry on a later startup;
+Locks also defer physical cleanup. Failed cleanup retries on later admission/startup;
 it does not block ordinary simulation access. Storage quota failures remain
 explicit. Downloaded local files are never deleted by browser cleanup.
+
+File transfer is on demand. v2 descriptors carry independent consumer leases;
+MCP acknowledges them only after local byte/hash verification and atomic
+publication. Worker replicas have a separate 1 GiB/1,024-file budget and idle
+LRU reclamation; deletion failures remain charged. Legacy descriptors retain
+session-lifetime protection. `Simulation.resource-usage` distinguishes browser
+evidence, transfer replicas and session memory; missing measurements are unknown.
+Private gzip changes stored bytes, never public ArtifactRef length/hash or
+exported RAW/JSON/CSV. [Evidence storage](simulation-evidence-storage.md)
+defines accounting, migration, retry and release behavior.
 
 Normal `.icproj.json` exports remain source-only. A restored run with a captured
 Project offers **Download project + results…**, a ZIP containing

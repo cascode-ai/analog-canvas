@@ -11,7 +11,11 @@ import {
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { LocalWorkspace, defaultWorkspacePath } from "./local-workspace.js";
+import {
+  LocalWorkspace,
+  defaultWorkspacePath,
+  type FetchArtifact,
+} from "./local-workspace.js";
 import type {
   ArtifactRef,
   ResultCatalog,
@@ -42,6 +46,36 @@ const catalog = (files: ArtifactRef[]): ResultCatalog => ({
   datasets: [],
 });
 describe("local simulation workspace", () => {
+  it("acknowledges only after verified atomic publication and keeps the file when ACK fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-lease-ack-"));
+    try {
+      const base = await LocalWorkspace.open(scope, root);
+      const ref = file("acknowledged", "data");
+      const transfer: FetchArtifact = async () => new Response("data");
+      let acknowledgements = 0;
+      let namesAtAck: string[] = [];
+      transfer.completed = async () => {
+        acknowledgements++;
+        namesAtAck = await readdir(base.basePath, { recursive: true });
+        throw new Error("ACK unavailable");
+      };
+      const result = await base.download(ref, transfer, "run");
+      expect(await readFile(result.outputPath, "utf8")).toBe("data");
+      expect(acknowledgements).toBe(1);
+      expect(namesAtAck).toContain(relative(base.basePath, result.outputPath));
+      expect(namesAtAck.some((name) => name.endsWith(".part"))).toBe(false);
+      const invalid: FetchArtifact = async () => new Response("evil");
+      invalid.completed = async () => {
+        acknowledgements++;
+      };
+      await expect(
+        base.download(file("invalid", "good"), invalid, "run"),
+      ).rejects.toThrow();
+      expect(acknowledgements).toBe(1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("retries a failed index persistence before accepting a reused no-op", async () => {
     const root = await mkdtemp(join(tmpdir(), "icm-index-retry-"));
     try {

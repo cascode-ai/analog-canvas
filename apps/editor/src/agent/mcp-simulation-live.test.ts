@@ -374,13 +374,11 @@ describe.each(["compatibility", "focused", "cli"] as const)(
       expect(summary.run.artifacts).toBeUndefined();
       expect(summary.run.artifactCount).toBe(finished.run.artifacts.length);
       expect(summary.run.details).toEqual(finished.run.details);
-      // Every file of the run has reached the relay before the Agent asks.
+      // Publishing evidence does not upload anything before a download request.
       const fileIds = finished.run.artifacts.map(
         (item: { id: string; fileId?: string }) => item.fileId ?? item.id,
       );
-      await vi.waitFor(() =>
-        expect(relay.uploaded).toEqual(expect.arrayContaining(fileIds)),
-      );
+      expect(relay.uploaded).toEqual([]);
       const csv = finished.run.artifacts.find(
         (item: { name: string }) => item.name === "op-0.csv",
       );
@@ -391,6 +389,7 @@ describe.each(["compatibility", "focused", "cli"] as const)(
           outputPath: path,
         }),
       ).toMatchObject({ ok: true });
+      expect(relay.uploaded).toEqual([csv.id]);
       // The captured raw record declares "notype"; the unit stays unknown.
       expect((await readFile(path, "utf8")).split("\n")).toContain("output,2,");
       const basePath = join(directory, "workspace");
@@ -404,6 +403,7 @@ describe.each(["compatibility", "focused", "cli"] as const)(
         workspaceFileCount: finished.run.artifacts.length,
       });
       expect(synced.files).toHaveLength(finished.run.artifacts.length);
+      expect(relay.uploaded).toEqual(expect.arrayContaining(fileIds));
       expect(relay.served).toEqual(expect.arrayContaining(fileIds));
       expect(synced.projection).toBe("summary");
       expect(synced.runs).toBeUndefined();

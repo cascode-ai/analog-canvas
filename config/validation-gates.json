@@ -251,6 +251,7 @@
       "apps/editor/e2e/simulation-spec-results.spec.ts",
       "apps/editor/e2e/simulation-setup.spec.ts",
       "apps/editor/e2e/simulation-storage.spec.ts",
+      "apps/editor/e2e/simulation-evidence-benchmark.spec.ts",
       "apps/editor/e2e/simulation-workspace.spec.ts",
       "packages/simulation-service/**",
       "packages/spice/src/simulation-language.ts",
@@ -525,6 +526,7 @@
         "apps/editor/e2e/simulation-spec-results.spec.ts",
         "apps/editor/e2e/simulation-setup.spec.ts",
         "apps/editor/e2e/simulation-storage.spec.ts",
+        "apps/editor/e2e/simulation-evidence-benchmark.spec.ts",
         "apps/editor/e2e/simulation-workspace.spec.ts"
       ],
       "ci": {
@@ -538,6 +540,7 @@
           "apps/editor/e2e/simulation-spec-results.spec.ts",
           "apps/editor/e2e/simulation-setup.spec.ts",
           "apps/editor/e2e/simulation-storage.spec.ts",
+          "apps/editor/e2e/simulation-evidence-benchmark.spec.ts",
           "apps/editor/e2e/simulation-workspace.spec.ts"
         ]
       }

@@ -6,6 +6,7 @@ import {
 import {
   SimulationFileOperationSchema,
   ArtifactDownloadResultSchema,
+  ArtifactDownloadV2ResultSchema,
   type SimulationFileResult,
   type Workspace,
   type SimulationFileOwner,
@@ -30,6 +31,7 @@ import {
   type Problem,
   type ResultCatalog,
   type SimulationHistoryEntry,
+  type EvidenceResourceUsage,
 } from "./contract.js";
 
 export { MAX_SIMULATION_INPUT_BYTES };
@@ -40,6 +42,11 @@ export class ArtifactDownloadError extends Error {
     message: string,
   ) {
     super(message);
+  }
+}
+export class ArtifactCapacityError extends Error {
+  constructor(readonly detail: string) {
+    super("ARTIFACT_CAPACITY");
   }
 }
 export const MAX_ARTIFACT_BYTES = 256 * 1024 * 1024;
@@ -66,13 +73,27 @@ export function artifactTransferConcurrency(
   );
 }
 const CACHE_BYTES = 16 * 1024 * 1024;
+export type ReleaseEvidence = () => void | Promise<void>;
 export interface SimulationArtifactStore {
   /** Release this consumer's lifetime protection; persisted evidence remains. */
-  releaseSession?(): void;
+  releaseSession?(): void | Promise<void>;
+  /** Protect one viewed/exported Run without preventing unrelated reclamation. */
+  pinRun?(
+    runId: string,
+    artifactIds?: readonly string[],
+  ): Promise<ReleaseEvidence>;
   put(ref: ArtifactRef, text: string): Promise<void>;
+  digest?(text: string): Promise<string>;
   /** Persist one generated result set in a single store transaction when supported. */
   putMany?(
     entries: readonly { ref: ArtifactRef; text: string }[],
+  ): Promise<void>;
+  /** Encode sequentially, then admit and atomically commit a complete Run. */
+  publishEvidence?(
+    entries:
+      | AsyncIterable<{ ref: ArtifactRef; text: string }>
+      | Iterable<{ ref: ArtifactRef; text: string }>,
+    catalog: () => StoredResultCatalog,
   ): Promise<void>;
   get(id: string): Promise<{ ref: ArtifactRef; text: string } | null>;
   find?(fileId: string): Promise<ArtifactRef | null>;
@@ -89,6 +110,7 @@ export interface SimulationArtifactStore {
     catalogCount: number;
     cleanupDeferred: boolean;
   }>;
+  resourceUsage?(): Promise<EvidenceResourceUsage>;
   runArchives?(): Promise<
     readonly { runId: string; retention: "saved" | "cache" }[]
   >;
@@ -108,6 +130,22 @@ export interface StoredResultCatalog {
   storedAt: number;
 }
 type CachedArtifact = { ref: ArtifactRef; text?: string };
+export interface EvidenceEntry {
+  name: string;
+  mediaType: string;
+  text: string | (() => string);
+  metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">;
+}
+export interface ArtifactReplica {
+  path: string;
+  leaseId: string;
+  expiresAt: number;
+}
+export type ArtifactPublisher = (
+  ref: ArtifactRef,
+  text: string,
+  options?: { protocol: 2; consumerId: string },
+) => Promise<string | ArtifactReplica>;
 export { sha256 } from "./content-digest.js";
 export function safeInputPath(path: string): boolean {
   return isSimulationInputPath(path);
@@ -115,26 +153,31 @@ export function safeInputPath(path: string): boolean {
 
 /** One File Resource; session storage is local, Project edits use host transactions. */
 export class SimulationFiles {
-  private publisher?:
-    ((ref: ArtifactRef, text: string) => Promise<string>) | undefined;
+  private publisher?: ArtifactPublisher | undefined;
+  private leasedDownloads = false;
   private downloads = new Map<
     string,
-    { result?: { path: string } | { error: unknown } }
+    {
+      result?:
+        | { path: string; leaseId?: string; expiresAt?: number }
+        | { error: unknown };
+    }
   >();
   private uploadQueue: Array<{ bytes: number; run: () => void }> = [];
   private uploading = 0;
   private uploadingBytes = 0;
   private publicationEpoch = 0;
   setArtifactPublisher(
-    publisher: (ref: ArtifactRef, text: string) => Promise<string>,
+    publisher: ArtifactPublisher,
+    options: { leasedDownloads?: boolean } = {},
   ) {
     this.publisher = publisher;
+    this.leasedDownloads = options.leasedDownloads === true;
     this.publicationEpoch++;
     this.uploading = 0;
     this.uploadingBytes = 0;
     this.downloads.clear();
     this.uploadQueue = [];
-    for (const item of this.artifacts.values()) this.startDownload(item);
   }
   private epoch = 0;
   private workspaces = new Map<string, Workspace>();
@@ -145,6 +188,7 @@ export class SimulationFiles {
     string,
     StoredResultCatalog & { storage: "persistent" | "memory" }
   >();
+  private evidencePlans = new Map<string, ArtifactRef[]>();
   constructor(
     private now: () => number = Date.now,
     private projectHost?: ProjectSimulationFileHost,
@@ -155,7 +199,7 @@ export class SimulationFiles {
   ) {}
   clear() {
     this.epoch++;
-    this.artifactStore?.releaseSession?.();
+    void this.artifactStore?.releaseSession?.();
     this.publicationEpoch++;
     this.uploading = 0;
     this.uploadingBytes = 0;
@@ -163,12 +207,150 @@ export class SimulationFiles {
     this.artifacts.clear();
     this.revokedArtifactIds.clear();
     this.catalogs.clear();
+    this.evidencePlans.clear();
     this.downloads.clear();
     this.uploadQueue = [];
     this.publisher = undefined;
   }
+  async pinRun(
+    runId: string,
+    artifactIds?: readonly string[],
+  ): Promise<ReleaseEvidence> {
+    return (
+      (await this.artifactStore?.pinRun?.(runId, artifactIds)) ?? (() => {})
+    );
+  }
+  async resourceUsage(): Promise<EvidenceResourceUsage> {
+    if (this.artifactStore?.resourceUsage)
+      return this.artifactStore.resourceUsage();
+    const usage = await this.usage();
+    return {
+      scope: "session-memory",
+      usedBytes: usage.byteLength,
+      logicalBytes: usage.byteLength,
+      reservedBytes: 0,
+      protectedBytes: usage.byteLength - usage.unreferencedBytes,
+      reclaimableBytes: usage.unreferencedBytes,
+      pendingReclaimBytes: 0,
+      fileCount: usage.fileCount,
+      catalogCount: usage.catalogCount,
+      byteLimit: this.artifactStore ? MAX_ARTIFACT_STORE_BYTES : CACHE_BYTES,
+      fileLimit: MAX_ARTIFACT_FILES,
+    };
+  }
+  /** Keep identities stable across storage retries; only the store owns admission. */
+  async publishEvidence(
+    runId: string,
+    entries: Iterable<EvidenceEntry>,
+    finish: (refs: readonly ArtifactRef[]) => EvidenceEntry,
+    catalog: (refs: readonly ArtifactRef[]) => ResultCatalog,
+    retained: readonly ArtifactRef[] = [],
+  ): Promise<ArtifactRef[]> {
+    const epoch = this.epoch;
+    const plan = this.evidencePlans.get(runId) ?? [];
+    this.evidencePlans.set(runId, plan);
+    const refs = [...retained];
+    const prepare = async (entry: EvidenceEntry) => {
+      const text = typeof entry.text === "function" ? entry.text() : entry.text;
+      const byteLength = new Blob([text]).size;
+      if (byteLength > MAX_ARTIFACT_BYTES) throw new Error("ARTIFACT_CAPACITY");
+      const digest = await (this.artifactStore?.digest?.(text) ?? sha256(text));
+      if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
+      const previous = [...retained, ...plan].find(
+        (ref) =>
+          ref.name === entry.name &&
+          ref.role === entry.metadata.role &&
+          ref.analysisIndex === entry.metadata.analysisIndex &&
+          ref.sourcePath === entry.metadata.sourcePath,
+      );
+      if (
+        previous &&
+        (previous.sha256 !== digest ||
+          previous.byteLength !== byteLength ||
+          previous.mediaType !== entry.mediaType)
+      )
+        throw new Error("ARTIFACT_ID_CONFLICT");
+      const id = previous?.id ?? crypto.randomUUID();
+      const ref = previous ?? {
+        id,
+        fileId: id,
+        name: entry.name,
+        mediaType: entry.mediaType,
+        byteLength,
+        sha256: digest,
+        ...entry.metadata,
+      };
+      if (!previous) plan.push(ref);
+      if (!refs.some((item) => item.id === ref.id)) refs.push(ref);
+      return { ref, text };
+    };
+    async function* produce() {
+      for (const entry of entries) yield await prepare(entry);
+      yield await prepare(finish(refs));
+    }
+    const record = () => ({ catalog: catalog(refs), storedAt: this.now() });
+    if (this.artifactStore?.publishEvidence) {
+      try {
+        await this.artifactStore.publishEvidence(produce(), record);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.message === "ARTIFACT_CAPACITY" ||
+            error.message === "SESSION_CHANGED" ||
+            error.message === "ARTIFACT_STORAGE_UPGRADE_BLOCKED" ||
+            error.name === "QuotaExceededError")
+        )
+          throw error;
+        throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+      }
+      for (const ref of refs) this.artifacts.set(ref.id, { ref });
+    } else {
+      const items = [];
+      for await (const entry of produce()) items.push(entry);
+      if (this.artifactStore) {
+        if (this.artifactStore.putMany) await this.artifactStore.putMany(items);
+        else
+          for (const item of items)
+            await this.artifactStore.put(item.ref, item.text);
+      } else {
+        const combined = new Map(
+          [...this.artifacts.values()].map((item) => [item.ref.id, item.ref]),
+        );
+        for (const item of items) combined.set(item.ref.id, item.ref);
+        if (
+          combined.size > MAX_ARTIFACT_FILES ||
+          [...combined.values()].reduce((sum, ref) => sum + ref.byteLength, 0) >
+            CACHE_BYTES
+        )
+          throw new Error("ARTIFACT_CAPACITY");
+      }
+      for (const item of items) this.artifacts.set(item.ref.id, item);
+      if (this.artifactStore?.saveCatalog)
+        await this.artifactStore.saveCatalog(record());
+    }
+    if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
+    this.catalogs.set(runId, {
+      ...record(),
+      storage:
+        this.artifactStore?.saveCatalog || this.artifactStore?.publishEvidence
+          ? "persistent"
+          : "memory",
+    });
+    this.evidencePlans.delete(runId);
+    this.trimCache();
+    await this.retainedCatalogs();
+    return refs;
+  }
   private prune() {
     const now = this.now();
+    for (const [key, transfer] of this.downloads)
+      if (
+        transfer.result &&
+        "expiresAt" in transfer.result &&
+        transfer.result.expiresAt !== undefined &&
+        transfer.result.expiresAt <= now
+      )
+        this.downloads.delete(key);
     for (const [id, w] of this.workspaces)
       if (w.expiresAt !== null && w.expiresAt <= now)
         this.workspaces.delete(id);
@@ -185,18 +367,37 @@ export class SimulationFiles {
         "input",
       );
     const op = parsed.data;
-    if (op.action === "downloads") {
+    if (op.action === "release-download")
+      return problem(
+        "ARTIFACT_TRANSPORT_REQUIRED",
+        "Download acknowledgement belongs to the authorized session transport",
+        "export",
+        "not-retryable",
+      );
+    if (op.action === "transfer-capabilities")
+      return {
+        ok: true,
+        artifactTransfer: { protocols: this.leasedDownloads ? [1, 2] : [1] },
+      };
+    if (op.action === "downloads" || op.action === "downloads-v2") {
       const epoch = this.epoch;
       const publicationEpoch = this.publicationEpoch;
       const downloads = [];
       // Restoring cold evidence can read large bodies. Do not materialize 32
       // files concurrently merely to obtain their small descriptors.
       for (const artifactId of op.artifactIds) {
-        const result = await this.handle({ action: "download", artifactId });
+        const result = await this.handle(
+          op.action === "downloads-v2"
+            ? { action: "download-v2", artifactId, consumerId: op.consumerId }
+            : { action: "download", artifactId },
+        );
         downloads.push({
           artifactId,
           result: result.ok
-            ? ArtifactDownloadResultSchema.parse(result)
+            ? (op.action === "downloads-v2"
+                ? ArtifactDownloadV2ResultSchema
+                : ArtifactDownloadResultSchema
+              ).parse(result)
             : result,
         });
       }
@@ -256,7 +457,11 @@ export class SimulationFiles {
       this.workspaces.set(workspace.id, workspace);
       return { ok: true as const, workspace: structuredClone(workspace) };
     }
-    if (op.action === "artifact" || op.action === "download") {
+    if (
+      op.action === "artifact" ||
+      op.action === "download" ||
+      op.action === "download-v2"
+    ) {
       if (this.revokedArtifactIds.has(op.artifactId))
         return problem(
           "ARTIFACT_UNAVAILABLE",
@@ -297,7 +502,14 @@ export class SimulationFiles {
           "export",
           "not-retryable",
         );
-      if (op.action === "download") {
+      if (op.action === "download" || op.action === "download-v2") {
+        if (op.action === "download-v2" && !this.leasedDownloads)
+          return problem(
+            "ARTIFACT_PROTOCOL_UNAVAILABLE",
+            "This host supports legacy downloads",
+            "export",
+            "not-retryable",
+          );
         if (!this.publisher)
           return problem(
             "ARTIFACT_DOWNLOAD_UNAVAILABLE",
@@ -307,8 +519,25 @@ export class SimulationFiles {
           );
         const publisher = this.publisher;
         const epoch = this.epoch;
+        const key =
+          op.action === "download-v2"
+            ? `${item.ref.id}:${op.consumerId}`
+            : item.ref.id;
+        const previous = this.downloads.get(key);
+        if (
+          previous?.result &&
+          "expiresAt" in previous.result &&
+          (previous.result.expiresAt ?? 0) <= this.now()
+        )
+          this.downloads.delete(key);
         const upload =
-          this.downloads.get(item.ref.id) ?? this.startDownload(item);
+          this.downloads.get(key) ??
+          this.startDownload(
+            item,
+            op.action === "download-v2"
+              ? { protocol: 2, consumerId: op.consumerId }
+              : undefined,
+          );
         // Let already-settled publishers report immediately, but never wait for
         // network I/O inside the relay's short control-request deadline.
         await Promise.resolve();
@@ -336,11 +565,10 @@ export class SimulationFiles {
           return {
             ok: true,
             artifact: item.ref,
-            download: { path: upload.result.path },
+            download: { ...upload.result },
           };
         } catch (error) {
-          if (this.downloads.get(item.ref.id) === upload)
-            this.downloads.delete(item.ref.id);
+          if (this.downloads.get(key) === upload) this.downloads.delete(key);
           if (error instanceof ArtifactDownloadError)
             return problem(error.code, error.message, "export", error.recovery);
           return problem(
@@ -560,6 +788,14 @@ export class SimulationFiles {
         { ...record, storage: "persistent" as "persistent" | "memory" },
       ]),
     );
+    const retainedIds = new Set(
+      [...records.values()].flatMap((record) =>
+        record.catalog.files.map((file) => file.id),
+      ),
+    );
+    for (const record of this.catalogs.values())
+      if (record.storage === "memory" || !this.artifactStore?.catalogs)
+        for (const file of record.catalog.files) retainedIds.add(file.id);
     for (const [id, record] of this.catalogs) {
       if (record.storage === "memory" || !this.artifactStore?.catalogs) {
         records.set(id, record);
@@ -570,8 +806,9 @@ export class SimulationFiles {
         // process was open. Do not resurrect it from the hot cache.
         this.catalogs.delete(id);
         for (const file of record.catalog.files) {
+          if (retainedIds.has(file.id)) continue;
           this.artifacts.delete(file.id);
-          this.downloads.delete(file.id);
+          this.forgetDownloads(file.id);
         }
       }
     }
@@ -749,7 +986,7 @@ export class SimulationFiles {
     for (const file of record.catalog.files) {
       if (retainedIds?.has(file.id)) continue;
       this.artifacts.delete(file.id);
-      this.downloads.delete(file.id);
+      this.forgetDownloads(file.id);
       if (retainedIds) this.revokedArtifactIds.add(file.id);
     }
     return {
@@ -762,6 +999,11 @@ export class SimulationFiles {
     };
   }
   /** Host-local whole-file access. Never embed this body in the relay RPC. */
+  private forgetDownloads(id: string) {
+    for (const key of this.downloads.keys())
+      if (key === id || key.slice(0, key.lastIndexOf(":")) === id)
+        this.downloads.delete(key);
+  }
   async readArtifact(
     id: string,
   ): Promise<
@@ -795,7 +1037,20 @@ export class SimulationFiles {
           "reauthorize",
         );
       return { ok: true, artifact: item.ref, text };
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.startsWith("ARTIFACT_CODEC_") ||
+          error.message === "ARTIFACT_STORAGE_UPGRADE_BLOCKED")
+      )
+        return problem(
+          error.message,
+          error.message === "ARTIFACT_STORAGE_UPGRADE_BLOCKED"
+            ? "An older Editor window is blocking the evidence database upgrade; update or close that window and retry"
+            : "Stored evidence failed lossless decoding; its bytes are preserved for recovery",
+          "export",
+          "retry-after",
+        );
       return problem(
         "ARTIFACT_STORAGE_UNAVAILABLE",
         "Persistent evidence could not be read",
@@ -804,9 +1059,19 @@ export class SimulationFiles {
       );
     }
   }
-  private startDownload(item: CachedArtifact) {
-    const upload: { result?: { path: string } | { error: unknown } } = {};
-    this.downloads.set(item.ref.id, upload);
+  private startDownload(
+    item: CachedArtifact,
+    options?: { protocol: 2; consumerId: string },
+  ) {
+    const upload: {
+      result?:
+        | { path: string; leaseId?: string; expiresAt?: number }
+        | { error: unknown };
+    } = {};
+    this.downloads.set(
+      options ? `${item.ref.id}:${options.consumerId}` : item.ref.id,
+      upload,
+    );
     const publisher = this.publisher!;
     const epoch = this.publicationEpoch;
     const bytes = item.ref.byteLength;
@@ -815,23 +1080,37 @@ export class SimulationFiles {
         return;
       this.uploading++;
       this.uploadingBytes += bytes;
-      let promise: Promise<string>;
+      let promise: Promise<string | ArtifactReplica>;
+      const publish = (text: string) =>
+        options
+          ? publisher(item.ref, text, options)
+          : publisher(item.ref, text);
       try {
         promise =
           item.text !== undefined
-            ? publisher(item.ref, item.text)
+            ? publish(item.text)
             : this.artifactText(item).then((text) => {
                 if (epoch !== this.publicationEpoch)
                   throw new Error("SESSION_CHANGED");
-                return publisher(item.ref, text);
+                return publish(text);
               });
       } catch (error) {
         promise = Promise.reject(error);
       }
       void promise
         .then(
-          (path) => {
-            upload.result = { path };
+          (replica) => {
+            if (options && typeof replica === "string")
+              upload.result = {
+                error: new ArtifactDownloadError(
+                  "ARTIFACT_PROTOCOL_UNAVAILABLE",
+                  "not-retryable",
+                  "The transport does not support leased downloads",
+                ),
+              };
+            else
+              upload.result =
+                typeof replica === "string" ? { path: replica } : replica;
           },
           (error: unknown) => {
             upload.result = { error };
@@ -914,10 +1193,10 @@ export class SimulationFiles {
     > = {},
   ): Promise<ArtifactRef> {
     const epoch = this.epoch;
-    const digest = await sha256(text);
+    const digest = await (this.artifactStore?.digest?.(text) ?? sha256(text));
     if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
     this.prune();
-    const byteLength = new TextEncoder().encode(text).byteLength;
+    const byteLength = new Blob([text]).size;
     if (metadata.fileId) {
       let existing: ArtifactRef | null | undefined = [
         ...this.artifacts.values(),
@@ -947,14 +1226,12 @@ export class SimulationFiles {
         this.revokedArtifactIds.delete(existing.id);
         this.artifacts.set(existing.id, item);
         this.trimCache();
-        if (this.publisher && !this.downloads.has(existing.id))
-          this.startDownload(item);
         return existing;
       }
     }
     if (
       byteLength > MAX_ARTIFACT_BYTES ||
-      this.artifacts.size >= MAX_ARTIFACT_FILES ||
+      (!this.artifactStore && this.artifacts.size >= MAX_ARTIFACT_FILES) ||
       (!this.artifactStore &&
         [...this.artifacts.values()].reduce((n, a) => n + a.ref.byteLength, 0) +
           byteLength >
@@ -975,7 +1252,11 @@ export class SimulationFiles {
       try {
         await this.artifactStore.put(ref, text);
       } catch (error) {
-        if (error instanceof Error && error.message === "ARTIFACT_CAPACITY")
+        if (
+          error instanceof Error &&
+          (error.message === "ARTIFACT_CAPACITY" ||
+            error.name === "QuotaExceededError")
+        )
           throw error;
         throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
       }
@@ -985,7 +1266,6 @@ export class SimulationFiles {
     this.revokedArtifactIds.delete(ref.id);
     this.artifacts.set(ref.id, item);
     this.trimCache();
-    if (this.publisher) this.startDownload(item);
     return ref;
   }
   /** Generated run evidence without stable caller-supplied file identities. */
@@ -1006,7 +1286,8 @@ export class SimulationFiles {
         return {
           ...entry,
           byteLength,
-          digest: await sha256(entry.text),
+          digest: await (this.artifactStore?.digest?.(entry.text) ??
+            sha256(entry.text)),
         };
       }),
     );
@@ -1014,7 +1295,8 @@ export class SimulationFiles {
     const totalBytes = prepared.reduce((sum, item) => sum + item.byteLength, 0);
     if (
       prepared.some((item) => item.byteLength > MAX_ARTIFACT_BYTES) ||
-      this.artifacts.size + prepared.length > MAX_ARTIFACT_FILES ||
+      (!this.artifactStore &&
+        this.artifacts.size + prepared.length > MAX_ARTIFACT_FILES) ||
       (!this.artifactStore &&
         [...this.artifacts.values()].reduce(
           (sum, item) => sum + item.ref.byteLength,
@@ -1044,7 +1326,11 @@ export class SimulationFiles {
           for (const item of items)
             await this.artifactStore.put(item.ref, item.text);
       } catch (error) {
-        if (error instanceof Error && error.message === "ARTIFACT_CAPACITY")
+        if (
+          error instanceof Error &&
+          (error.message === "ARTIFACT_CAPACITY" ||
+            error.name === "QuotaExceededError")
+        )
           throw error;
         throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
       }
@@ -1052,7 +1338,6 @@ export class SimulationFiles {
     if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
     for (const item of items) {
       this.artifacts.set(item.ref.id, item);
-      if (this.publisher) this.startDownload(item);
     }
     this.trimCache();
     return items.map((item) => item.ref);

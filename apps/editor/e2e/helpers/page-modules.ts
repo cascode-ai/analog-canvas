@@ -6,6 +6,7 @@
  * /e2e-harness/<name>.js. Use harness-url.ts for the URL.
  */
 export const pageModules = {
+  "simulation-files": "e2e/helpers/simulation-files.ts",
   "simulation-code-harness": "e2e/helpers/simulation-code-harness.tsx",
   "simulation-output-harness": "e2e/helpers/simulation-output-harness.tsx",
   "browser-simulation-archive-store":

@@ -82,6 +82,22 @@ export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
     action: z.literal("downloads"),
     artifactIds: z.array(Id).min(1).max(32),
   }),
+  z.strictObject({ action: z.literal("transfer-capabilities") }),
+  z.strictObject({
+    action: z.literal("download-v2"),
+    artifactId: Id,
+    consumerId: z.uuid(),
+  }),
+  z.strictObject({
+    action: z.literal("downloads-v2"),
+    artifactIds: z.array(Id).min(1).max(32),
+    consumerId: z.uuid(),
+  }),
+  z.strictObject({
+    action: z.literal("release-download"),
+    fileId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/u),
+    leaseId: z.uuid(),
+  }),
   z.strictObject({
     action: z.literal("artifact"),
     artifactId: Id,
@@ -118,8 +134,23 @@ export const ArtifactDownloadResultSchema = z.strictObject({
       ),
   }),
 });
+export const ArtifactDownloadV2ResultSchema =
+  ArtifactDownloadResultSchema.extend({
+    download: ArtifactDownloadResultSchema.shape.download.extend({
+      leaseId: z.uuid(),
+      expiresAt: z.number().int().positive(),
+    }),
+  });
 export const SimulationFileResultSchema = z.union([
+  z.strictObject({ ok: z.literal(true), released: z.boolean() }),
+  ArtifactDownloadV2ResultSchema,
   ArtifactDownloadResultSchema,
+  z.strictObject({
+    ok: z.literal(true),
+    artifactTransfer: z.strictObject({
+      protocols: z.array(z.union([z.literal(1), z.literal(2)])).max(2),
+    }),
+  }),
   z.strictObject({
     ok: z.literal(true),
     downloads: z
@@ -127,6 +158,7 @@ export const SimulationFileResultSchema = z.union([
         z.strictObject({
           artifactId: Id,
           result: z.union([
+            ArtifactDownloadV2ResultSchema,
             ArtifactDownloadResultSchema,
             z.strictObject({ ok: z.literal(false), error: ProblemSchema }),
           ]),

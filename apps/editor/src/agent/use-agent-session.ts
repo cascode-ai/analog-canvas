@@ -28,7 +28,6 @@ import {
 } from "@icm/agent-adapter";
 import { sha256Hex } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
-import type { ArtifactRef } from "@icm/simulation-service/contract";
 import { ArtifactDownloadError } from "@icm/simulation-service/files";
 
 import type { AgentConnectionStatus } from "./connect-agent-panel";
@@ -102,7 +101,7 @@ type LiveSession = {
   allowReconnect: boolean;
   transport?: SessionTransport;
   acknowledgedContext?: string | undefined;
-  publishArtifact?: (ref: ArtifactRef, text: string) => Promise<string>;
+  publishArtifact?: import("@icm/simulation-service/files").ArtifactPublisher;
   requestCache: Map<
     string,
     { payloadHash: string; response: unknown; byteLength: number }
@@ -194,7 +193,8 @@ export interface UseAgentSessionOptions {
   > | null;
   fileHost?: {
     setArtifactPublisher?: (
-      publisher: (ref: ArtifactRef, text: string) => Promise<string>,
+      publisher: import("@icm/simulation-service/files").ArtifactPublisher,
+      options?: { leasedDownloads?: boolean },
     ) => void;
     handle: (
       request: AgentFileResourceRequest,
@@ -237,7 +237,9 @@ function attachArtifactPublisher(
     live.attachedFileHosts.has(fileHost)
   )
     return;
-  fileHost.setArtifactPublisher(live.publishArtifact);
+  fileHost.setArtifactPublisher(live.publishArtifact, {
+    leasedDownloads: true,
+  });
   live.attachedFileHosts.add(fileHost);
 }
 
@@ -503,7 +505,7 @@ export function useAgentSession(
           attachedFileHosts: new WeakSet(),
         };
         liveRef.current = live;
-        live.publishArtifact = async (ref, text) => {
+        live.publishArtifact = async (ref, text, transfer) => {
           if (liveRef.current !== live) throw new Error("Session changed");
           const path = `/api/agent/sessions/${encodeURIComponent(live.sessionId)}/artifacts/${encodeURIComponent(ref.fileId ?? ref.id)}`;
           const response = await fetch(path, {
@@ -511,6 +513,7 @@ export function useAgentSession(
             headers: {
               "x-editor-secret": live.editorSecret,
               "x-artifact-ref": encodeURIComponent(JSON.stringify(ref)),
+              ...(transfer ? { "x-artifact-protocol": "2" } : {}),
             },
             body: new Blob([text], { type: ref.mediaType }),
             signal: AbortSignal.timeout(120_000),
@@ -525,9 +528,11 @@ export function useAgentSession(
                 : "ARTIFACT_UPLOAD_FAILED",
               response.status === 401
                 ? "reauthorize"
-                : response.status === 413 || response.status === 409
-                  ? "not-retryable"
-                  : "retry-after",
+                : body?.error?.code === "ARTIFACT_QUOTA_EXCEEDED"
+                  ? "retry-after"
+                  : response.status === 413 || response.status === 409
+                    ? "not-retryable"
+                    : "retry-after",
               `Artifact transfer rejected (HTTP ${response.status}); original browser evidence is unchanged`,
             );
           }
@@ -537,7 +542,25 @@ export function useAgentSession(
               "reauthorize",
               "The download session changed",
             );
-          return path;
+          if (!transfer) return path;
+          const descriptor = (await response.json()) as {
+            leaseId?: unknown;
+            expiresAt?: unknown;
+          };
+          if (
+            typeof descriptor.leaseId !== "string" ||
+            typeof descriptor.expiresAt !== "number"
+          )
+            throw new ArtifactDownloadError(
+              "ARTIFACT_PROTOCOL_UNAVAILABLE",
+              "retry-after",
+              "Worker has not enabled leased downloads",
+            );
+          return {
+            path,
+            leaseId: descriptor.leaseId,
+            expiresAt: descriptor.expiresAt,
+          };
         };
         attachArtifactPublisher(live, options.fileHost);
 

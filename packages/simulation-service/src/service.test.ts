@@ -22,7 +22,7 @@ import {
   type Executor,
   type ExecutionInput,
 } from "./executor.js";
-import type { Capabilities, SimulationReply } from "./contract.js";
+import type { ArtifactRef, Capabilities, SimulationReply } from "./contract.js";
 
 const caps: Capabilities = {
   configured: true,
@@ -128,20 +128,138 @@ it("coalesces read-only recovery of known runs without another execution", async
   ).toBeUndefined();
 });
 
+it("retains actual partial collection and Specs when direct-run input persistence fails", async () => {
+  const f = fixture();
+  saveSource(f.project, {
+    entry: "run.sim",
+    files: [{ path: "run.sim", text: deck }],
+    dependencies: [],
+  });
+  vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
+    ...(await result(input)),
+    collectionStatus: "partial",
+  }));
+  vi.spyOn(f.files, "putMany").mockRejectedValue(
+    new Error("ARTIFACT_STORAGE_UNAVAILABLE"),
+  );
+  const run = unwrap(
+    await f.service.handle(
+      {
+        operation: "run",
+        source: {
+          kind: "project-folder",
+          folderId: SETUP_ID,
+          expectedStructureRevision: f.project.structureRevision,
+        },
+      },
+      "direct-partial",
+    ),
+    "run",
+  );
+  const receipt = unwrap(
+    await f.service.handle({ operation: "read", runId: run.id }, "read", {
+      waitMs: 1000,
+    }),
+    "run",
+  );
+  expect(receipt.error?.stage).toBe("export");
+  expect(receipt.details).toMatchObject({
+    collection: "partial",
+    specs: { available: true },
+  });
+  expect(await f.files.catalog(run.id)).toBeUndefined();
+  expect(f.executor.execute).toHaveBeenCalledOnce();
+});
+
+it("recovers failed input persistence without hiding an execution failure or running it again", async () => {
+  const f = fixture();
+  saveSource(f.project, {
+    entry: "run.sim",
+    files: [{ path: "run.sim", text: deck }],
+    dependencies: [],
+  });
+  vi.mocked(f.executor.execute).mockRejectedValue(
+    new ExecutionFailure({
+      code: "EXECUTOR_UNAVAILABLE",
+      message: "Executor stopped before collecting output",
+      stage: "start",
+      recovery: "not-retryable",
+    }),
+  );
+  const publish = vi
+    .spyOn(f.files, "putMany")
+    .mockRejectedValue(new Error("ARTIFACT_STORAGE_UNAVAILABLE"));
+  const run = unwrap(
+    await f.service.handle(
+      {
+        operation: "run",
+        source: {
+          kind: "project-folder",
+          folderId: SETUP_ID,
+          expectedStructureRevision: f.project.structureRevision,
+        },
+      },
+      "direct-failed",
+    ),
+    "run",
+  );
+  const failed = unwrap(
+    await f.service.handle({ operation: "read", runId: run.id }, "read", {
+      waitMs: 1000,
+    }),
+    "run",
+  );
+  expect(failed.error).toMatchObject({
+    code: "EXECUTOR_UNAVAILABLE",
+    stage: "start",
+    diagnostics: [
+      { code: "RUN_EVIDENCE_STORAGE_UNAVAILABLE", severity: "warning" },
+    ],
+  });
+  expect(failed.details).toMatchObject({
+    execution: "failed",
+    collection: "partial",
+  });
+  expect(await f.files.catalog(run.id)).toBeUndefined();
+  publish.mockRestore();
+  const recovered = await f.service.handle(
+    { operation: "export", runId: run.id },
+    "retry-input",
+  );
+  expect(recovered).toMatchObject({ ok: true, artifacts: expect.any(Array) });
+  const receipt = unwrap(
+    await f.service.handle({ operation: "read", runId: run.id }, "after"),
+    "run",
+  );
+  expect(receipt.error).toEqual({
+    code: "EXECUTOR_UNAVAILABLE",
+    message: "Executor stopped before collecting output",
+    stage: "start",
+    recovery: "not-retryable",
+  });
+  expect(await f.files.catalog(run.id)).toMatchObject({
+    execution: "failed",
+    collection: "partial",
+  });
+  expect(f.executor.execute).toHaveBeenCalledOnce();
+});
+
 it("retries failed evidence storage through export without executing or duplicating files", async () => {
-  const f = fixture("ngspice");
+  let unavailable = true;
+  const bodies = new Map<string, { ref: ArtifactRef; text: string }>();
+  const f = fixture("ngspice", Date.now, {
+    put: async (ref, text) => {
+      if (ref.name === "result.json" && unavailable)
+        throw Error("ARTIFACT_STORAGE_UNAVAILABLE");
+      bodies.set(ref.id, { ref, text });
+    },
+    get: async (id) => bodies.get(id) ?? null,
+  });
   vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
     result: await ngspiceResult(input),
     rawfile: "retained raw",
   }));
   const { prepared } = await prepareRaw(f);
-  const originalPutMany = f.files.putMany.bind(f.files);
-  let unavailable = true;
-  vi.spyOn(f.files, "putMany").mockImplementation(async (entries) => {
-    if (entries.some((entry) => entry.name === "result.json") && unavailable)
-      throw Error("ARTIFACT_STORAGE_UNAVAILABLE");
-    return originalPutMany(entries);
-  });
   const run = unwrap(
     await f.service.handle(
       { operation: "start", preparedId: prepared.id, digest: prepared.digest },
@@ -156,6 +274,11 @@ it("retries failed evidence storage through export without executing or duplicat
     );
     expect(receipt.state).toBe("finished");
     expect(receipt.error?.code).toBe("ARTIFACT_STORAGE_UNAVAILABLE");
+    expect(receipt.error?.stage).toBe("export");
+    expect(receipt.details).toMatchObject({
+      execution: "completed",
+      collection: "complete",
+    });
     expect(receipt.result?.data).toBeUndefined();
     expect(receipt.details?.timing).toMatchObject({
       executionWaitMs: expect.any(Number),
@@ -328,8 +451,12 @@ function unwrap<T extends "prepared" | "run">(reply: SimulationReply, key: T) {
   if (!reply.ok || !(key in reply)) throw Error(JSON.stringify(reply));
   return (reply as Extract<SimulationReply, Record<T, unknown>>)[key];
 }
-function fixture(engine: "ngspice" | "vacask" = "vacask", now = Date.now) {
-  const files = new SimulationFiles(now);
+function fixture(
+  engine: "ngspice" | "vacask" = "vacask",
+  now = Date.now,
+  store?: import("./files.js").SimulationArtifactStore,
+) {
+  const files = new SimulationFiles(now, undefined, undefined, store);
   let release: () => void = () => {};
   const wait = new Promise<void>((r) => (release = r));
   const executor: Executor = {
@@ -1824,11 +1951,13 @@ describe("shared simulation lifecycle", () => {
       ),
       "run",
     );
-    expect(f.executor.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ testbench: "B deck\ncontrol\nendc\n" }),
-      expect.any(String),
-      undefined,
-      { preparedId: prepared.id, preparedDigest: prepared.digest },
+    await vi.waitFor(() =>
+      expect(f.executor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ testbench: "B deck\ncontrol\nendc\n" }),
+        expect.any(String),
+        undefined,
+        { preparedId: prepared.id, preparedDigest: prepared.digest },
+      ),
     );
     f.release();
   });
@@ -1986,19 +2115,21 @@ describe("shared simulation lifecycle", () => {
       ),
       "run",
     );
-    expect(f.executor.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dependencies: [
-          {
-            id: "device-models",
-            mountPath: "models/device.lib",
-            sha256: modelDigest,
-          },
-        ],
-      }),
-      expect.any(String),
-      undefined,
-      { preparedId: prepared.id, preparedDigest: prepared.digest },
+    await vi.waitFor(() =>
+      expect(f.executor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dependencies: [
+            {
+              id: "device-models",
+              mountPath: "models/device.lib",
+              sha256: modelDigest,
+            },
+          ],
+        }),
+        expect.any(String),
+        undefined,
+        { preparedId: prepared.id, preparedDigest: prepared.digest },
+      ),
     );
     f.release();
     await vi.waitFor(async () =>
@@ -2073,7 +2204,6 @@ describe("shared simulation lifecycle", () => {
   it("start returns immediately; exact retries never execute twice, and another run can follow completion", async () => {
     const f = fixture(),
       { prepared } = await prepareRaw(f);
-    const resultBatches = vi.spyOn(f.files, "putMany");
     const op = {
       operation: "start",
       preparedId: prepared.id,
@@ -2108,11 +2238,6 @@ describe("shared simulation lifecycle", () => {
       await f.service.handle({ operation: "read", runId: run.id }, "read"),
       "run",
     );
-    expect(resultBatches).toHaveBeenCalledTimes(2);
-    expect(resultBatches.mock.calls[0]![0].length).toBeGreaterThan(1);
-    expect(resultBatches.mock.calls[1]![0]).toEqual([
-      expect.objectContaining({ name: "evidence-manifest.json" }),
-    ]);
     expect(finished.artifacts.map((a) => a.name)).toEqual(
       expect.arrayContaining([
         "raw/divider_op.raw",
