@@ -335,8 +335,11 @@ export function useRestoredTabLinks({
   }, []);
 }
 
-/** Leaves the editor for the Gallery wall, keeping a recovery copy. */
-export function createLeaveForGallery({
+/**
+ * Leaves the editor for the Gallery wall or AnalogArena, keeping a recovery
+ * copy.
+ */
+export function createLeaveEditor({
   project,
   stageRecovery,
   flushRecovery,
@@ -357,10 +360,10 @@ export function createLeaveForGallery({
   dropDiscardedWork: ProjectTabSessions["dropDiscardedWork"];
   allowNextBrowserUnload: ReturnType<typeof useUnsavedWorkGuard>;
 }) {
-  // The header's Gallery link and the daily-limit card leave the same way:
-  // through the guard for unsaved work, with a recovery copy kept.
-  return (): void => {
-    void guardDirtyReplacement("Go to Gallery", async (discarded) => {
+  // The header's Gallery and Arena links and the daily-limit card leave the
+  // same way: through the guard for unsaved work, with a recovery copy kept.
+  const leaveFor = (intent: string, path: string) => (): void => {
+    void guardDirtyReplacement(intent, async (discarded) => {
       if (discarded) await dropDiscardedWork();
       else {
         const snapshot = await captureAuthoredProject();
@@ -372,7 +375,11 @@ export function createLeaveForGallery({
         await flushRecovery();
       }
       allowNextBrowserUnload();
-      window.location.assign("/");
+      window.location.assign(path);
     });
+  };
+  return {
+    toGallery: leaveFor("Go to Gallery", "/"),
+    toArena: leaveFor("Go to Arena", "/arena"),
   };
 }

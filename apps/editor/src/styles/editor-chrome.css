@@ -1601,7 +1601,8 @@
   }
 }
 
-/* The logo opens the Gallery too, so its own button goes first. */
+/* The logo opens the Gallery too, so its own button goes first, and Arena's
+   with it: the Gallery header keeps the way to Arena. */
 @media (max-width: 420px) {
   .app-chrome-main .header-gallery-link {
     display: none;
