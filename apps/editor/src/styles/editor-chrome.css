@@ -1363,19 +1363,22 @@
   height: 14px;
 }
 
+/* Publish to Gallery rests in the header links' soft blue and turns solid
+   under the pointer, or while its dialog is open. */
 .app-action-primary {
-  border-color: var(--icm-accent);
-  color: #fff;
-  background: var(--icm-accent);
+  border-color: transparent;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
   font-weight: 600;
 }
 
 /* Outranks the app-wide button:hover:not(:disabled), which would turn the
-   filled button grey under its white label. */
-.app-action-primary:hover:not(:disabled) {
+   button grey. */
+.app-action-primary:hover:not(:disabled),
+.app-action-primary[aria-expanded="true"] {
   border-color: var(--icm-accent);
+  color: #fff;
   background: var(--icm-accent);
-  filter: brightness(0.93);
 }
 
 /* The site links stay in view, compact: Report bug is its icon. */
