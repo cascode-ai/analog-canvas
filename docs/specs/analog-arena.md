@@ -3,16 +3,17 @@
 Status: `accepted`
 
 Primary owner: `worker/arena.ts` (forwarding and identity), with
-`worker/arena-paths.ts` (the `/arena` path rule), `worker/auth-do.ts`
-(sign-in return) and `wrangler.jsonc` (the binding)
+`worker/arena-account.ts` (the vouched account and the account deletion's
+call), `worker/arena-paths.ts` (the `/arena` path rule), `worker/auth-do.ts`
+(sign-in return and account deletion) and `wrangler.jsonc` (the binding)
 
 ## Scope
 
 AnalogArena is its own Worker, `analog-arena`, deployed from the private
 repository Arcadia-1/analog-arena. It has no route of its own: it is reached
 only through Analog Canvas, on Analog Canvas's domain and sign-in. This
-specification owns the forwarded identity, the routing and the sign-in return
-between the two sides; the Arena repository keeps its half in its
+specification owns the forwarded identity, the routing, the sign-in return and
+the account deletion's call between the two sides; the Arena repository keeps its half in its
 `docs/contracts.md`. A change starts here, and each side tests its own half.
 What Arena does with a forwarded request is Arena's.
 
@@ -76,6 +77,39 @@ Every other answer of Arena, its own `404` among them, passes through. A
 visitor never meets a crash, and Arena keeps 5xx for failures, not for answers
 it designed.
 
+## Account deletion
+
+Deleting an Analog Canvas account
+([Accounts and sessions](community-gallery.md#accounts-and-sessions)) asks
+Arena to unlink the account from its Voter. Arena then removes the account
+from its records and keeps the Voter's Votes, Battles, Voter Profile answers
+and measurements as anonymous data under the Voter id alone; the same
+account, if it signs in and agrees again, becomes a new Voter.
+
+- The step runs in the account store after the Gallery and the component
+  library and before the account itself goes. It sends
+  `POST /api/canvas/account-deletion` on the Analog Canvas origin over the
+  `ARENA` binding, with no body, no cookie and no `Authorization`, and the
+  account being deleted in `x-arena-account`, built as for forwarding.
+- Only this Worker can send it. The path lies outside `/arena`, `/arena/…`
+  and `/api/arena/…`, so a browser's request for it is Analog Canvas's own and
+  never forwarded; and the entry deletes a client's `x-arena-account`, so the
+  account named is always the session's, the one being deleted.
+- Arena answers `200 { "unlinked": true }` whether or not the account had a
+  Voter, and the same when asked again, so the step is idempotent like the
+  other deletion steps. When the call throws or Arena answers anything but
+  success, a 404 from an Arena without this call included, the deletion
+  answers `503 { "error": "arena-unlink-failed" }`
+  with `cache-control: no-store`, and the account stays signed in to retry.
+- Where the binding is absent, every Worker but Production, the step is
+  skipped and the deletion goes on, as the Gallery and component steps are
+  skipped where their bindings are absent. Such a Worker never forwarded an
+  account to Arena, so no Voter there names it.
+
+What Arena does with the call is Arena's (its `docs/contracts.md`,
+Account deletion). The privacy notice at `/privacy` describes it in its
+AnalogArena section, which follows Arena's Consent text.
+
 ## Sign-in return
 
 Sign-in stays Analog Canvas's.
@@ -96,8 +130,12 @@ that asked for it and takes no return path.
 - [`worker/arena.test.ts`](../../worker/arena.test.ts) drives the Worker's
   fetch handler with the real account store and a stand-in Arena at the
   binding: the vouched account and its facts, a forged header dropped, the
-  credentials kept from Arena, other paths left alone, the failure answers
-  and the sign-in return.
+  credentials kept from Arena, other paths left alone (the account
+  deletion's path among them), the failure answers, the sign-in return, and
+  account deletion's call to Arena with its failures, retry and absent
+  binding.
+- [`apps/editor/src/components/privacy-page.test.tsx`](../../apps/editor/src/components/privacy-page.test.tsx)
+  checks that the privacy notice describes AnalogArena.
 - [`worker/index.test.ts`](../../worker/index.test.ts) pins the binding and the
   Worker-first paths;
   [`worker/preview-config.test.ts`](../../worker/preview-config.test.ts) pins

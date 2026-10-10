@@ -15,6 +15,7 @@
 // Provider HTTP calls go through an injectable fetch seam so
 // tests never touch the network.
 
+import { unlinkArenaVoter, type ArenaService } from "./arena-account";
 import { isArenaPagePath } from "./arena-paths";
 
 export const AUTH_SESSION_COOKIE = "icm_session";
@@ -119,6 +120,12 @@ export type AuthEnv = {
   GALLERY?: GalleryBylineNamespaceLike;
   /** The shared component library, which account deletion also clears. */
   COMPONENT_LIBRARY?: GalleryBylineNamespaceLike;
+  /**
+   * The service binding to AnalogArena (`analog-arena`), which Production
+   * alone holds: the Worker forwards Arena's paths to it, and account
+   * deletion asks it to unlink the account from its Voter.
+   */
+  ARENA?: ArenaService;
   GH_OAUTH_CLIENT_ID?: string;
   GH_OAUTH_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -1058,9 +1065,10 @@ export class AuthDO {
 
   /**
    * Delete the signed-in account and everything kept for it. The Gallery
-   * (published circuits, likes, Cloud Projects) and the shared component
-   * library go first and the account last: if a step fails, the person is
-   * still signed in to try again, and every step is safe to repeat.
+   * (published circuits, likes, Cloud Projects), the shared component
+   * library and AnalogArena's link to the account's Voter go first and the
+   * account last: if a step fails, the person is still signed in to try
+   * again, and every step is safe to repeat.
    */
   private async deleteAccount(request: Request, url: URL): Promise<Response> {
     if (!sameOrigin(request)) {
@@ -1116,6 +1124,8 @@ export class AuthDO {
     if (!components)
       return noStoreJson({ error: "components-delete-failed" }, 503);
     deleted.components = components.deleted ?? 0;
+    if (!(await unlinkArenaVoter(this.env.ARENA, user, url.origin)))
+      return noStoreJson({ error: "arena-unlink-failed" }, 503);
     this.sql.exec("DELETE FROM sessions WHERE user_id = ?", user.id);
     if (user.email) {
       this.sql.exec("DELETE FROM login_codes WHERE email = ?", user.email);
