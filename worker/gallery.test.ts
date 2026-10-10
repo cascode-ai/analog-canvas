@@ -119,6 +119,16 @@ describe("Gallery readers", () => {
     expect(shown.nextCursor).toBeNull();
     expect(shown.signedOut).toBe(true);
     expect(shown).not.toHaveProperty("total");
+    // The wall asks in its order, shuffled by default (#1615); signed out,
+    // the answer is the same twelve, and any filter still asks to sign in.
+    for (const order of ["?order=random&seed=abc123", "?order=parts"]) {
+      const ordered = await direct(env, `/api/gallery${order}`);
+      expect(ordered.status, order).toBe(200);
+      expect(await ordered.json(), order).toEqual(shown);
+    }
+    expect(
+      (await direct(env, "/api/gallery?order=parts&q=Circuit")).status,
+    ).toBe(401);
     // Only what the dimmed tile draws: no byline, description, tags or counts.
     for (const entry of shown.entries)
       expect(Object.keys(entry).sort()).toEqual([
