@@ -495,7 +495,22 @@ export async function loadGalleryFeed(
     if (payload.signedOut === true && !options.signedOutWall)
       return GALLERY_SIGN_IN_REQUIRED;
     return {
-      entries: payload.entries ?? [],
+      // A signed-out visitor's circuits carry only id, name and preview: the
+      // rest of an entry reads as empty, so nothing that reads the wall's
+      // entries meets a missing field.
+      entries:
+        payload.signedOut === true
+          ? ((payload.entries ?? []) as Partial<GalleryFeedEntry>[]).map(
+              (entry) =>
+                ({
+                  author: "",
+                  description: "",
+                  createdAt: "",
+                  schemaVersion: 0,
+                  ...entry,
+                }) as GalleryFeedEntry,
+            )
+          : (payload.entries ?? []),
       nextCursor:
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       total: typeof payload.total === "number" ? payload.total : null,
