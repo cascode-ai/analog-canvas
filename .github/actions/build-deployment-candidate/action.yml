@@ -30,6 +30,8 @@ runs:
         VITE_ICM_SIMULATION_UI: enabled
         VITE_ICM_AGENT_UI: enabled
         VITE_ICM_SIMULATION_TRANSPORT: managed
+        # The accepted v4 reader supports both original identity and private gzip.
+        VITE_SIMULATION_GZIP: "1"
     # Bundle the Worker once. The channel deploys these exact bytes with
     # --no-bundle, and a successful Preview run preserves them for promotion.
     - name: Package the candidate
