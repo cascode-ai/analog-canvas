@@ -230,10 +230,9 @@ import {
 import { createEditorTransactionCommands } from "./editor-transaction-commands";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import type { ComponentEditorSession } from "./component-editor-session";
-import {
-  browserWorkspaceStore,
-  useProjectTabSessions,
-} from "./use-project-tab-sessions";
+import { useProjectTabSessions } from "./use-project-tab-sessions";
+import { clearDeletedCloudProjects } from "../document/cloud-project-session";
+import { readWindowWorkspace } from "../document/workspace-reopen";
 import { useNativeProjectTabs } from "./use-native-project-tabs";
 import {
   createAgentWorkspaceHandler,
@@ -462,6 +461,7 @@ export function App(props: AppProps) {
   const [boot, setBoot] = useState<{
     workspace: ProjectWorkspace | null;
     error?: string;
+    notice?: string;
   } | null>(() =>
     typeof window === "undefined" || props.project ? { workspace: null } : null,
   );
@@ -473,24 +473,24 @@ export function App(props: AppProps) {
         const windowId = workspaceWindowId();
         // Marks this window open, so a fresh window never offers its tabs.
         holdWorkspaceWindow(windowId);
-        return browserWorkspaceStore().read(
+        return readWindowWorkspace(
           windowId,
           window.location.pathname + window.location.search,
-          {
-            // An open request brings this window's tabs back and opens its
-            // target beside them: a Gallery entry, a Cloud Project, or a new
-            // circuit. Returning from the account resumes this window's
-            // workspace without selecting its former deep-link target.
-            allowRouteChange:
-              Boolean(props.initialGalleryEntryId) ||
-              new URLSearchParams(window.location.search).has("project") ||
-              new URLSearchParams(window.location.search).get("new") === "1" ||
-              new URLSearchParams(window.location.search).get("resume") === "1",
-          },
+          // An open request brings this window's tabs back and opens its
+          // target beside them: a Gallery entry, a Cloud Project, or a new
+          // circuit. Returning from the account resumes this window's
+          // workspace without selecting its former deep-link target.
+          Boolean(props.initialGalleryEntryId) ||
+            new URLSearchParams(window.location.search).has("project") ||
+            new URLSearchParams(window.location.search).get("new") === "1" ||
+            new URLSearchParams(window.location.search).get("resume") === "1",
         );
       })
-      .then((workspace) => {
-        if (mounted) setBoot({ workspace });
+      .then((read) => {
+        if (!mounted) return;
+        // Taken in by the tabs just read, or by none this window keeps.
+        clearDeletedCloudProjects();
+        setBoot(read);
       })
       .catch(() => {
         if (mounted)
@@ -517,6 +517,7 @@ export function App(props: AppProps) {
           {...props}
           restoredWorkspace={boot.workspace}
           workspaceError={boot.error ?? null}
+          workspaceNotice={boot.notice ?? null}
         />
       </WorkspaceAgentProvider>
     </EditorServicesProvider>
@@ -547,9 +548,11 @@ function WorkspaceEditor({
   initialGalleryEntryId = null,
   restoredWorkspace,
   workspaceError,
+  workspaceNotice,
 }: AppProps & {
   restoredWorkspace: ProjectWorkspace | null;
   workspaceError: string | null;
+  workspaceNotice: string | null;
 }) {
   const {
     identity,
@@ -579,7 +582,9 @@ function WorkspaceEditor({
           createEmptyProject(createId("project"), "New Circuit"),
       ).project,
   );
-  const [status, setStatus] = useState(workspaceError ?? "Ready");
+  const [status, setStatus] = useState(
+    workspaceError ?? workspaceNotice ?? "Ready",
+  );
   const [componentEditor, setComponentEditor] =
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);

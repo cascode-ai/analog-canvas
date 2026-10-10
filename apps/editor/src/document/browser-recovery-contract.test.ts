@@ -552,6 +552,45 @@ describe("planBrowserRecoveryRetention", () => {
     expect(plan.deleteRecordIds).toEqual([]);
   });
 
+  it("keeps a closed copy's unsaved edits when the same Project opens again saved (#1599)", () => {
+    // A tab closed with unsaved edits, then its Cloud Project opened again
+    // from the Shelf: the newer copy holds the saved version, not the edits.
+    const at = (
+      workingCopyId: string,
+      updatedAt: string,
+      unsavedAtSnapshot: boolean,
+    ) =>
+      session(workingCopyId, {
+        latest: finalizeBrowserRecoveryRecord(
+          draft({
+            recordId: `${workingCopyId}-latest`,
+            workingCopyId,
+            updatedAt,
+            projectId: "project-p",
+            unsavedAtSnapshot,
+          }),
+        ),
+      });
+    const plan = planBrowserRecoveryRetention(
+      [
+        at("opened-again", "2026-10-10T12:00:00.000Z", false),
+        at("closed-edits", "2026-10-10T11:00:00.000Z", true),
+        at("older-edits", "2026-10-10T10:00:00.000Z", true),
+        at("older-saved", "2026-10-10T09:00:00.000Z", false),
+      ],
+      new Set(),
+    );
+    expect(plan.sessions.map((entry) => entry.workingCopyId)).toEqual([
+      "opened-again",
+      "closed-edits",
+    ]);
+    // Newer edits still replace older ones, as before.
+    expect(plan.deleteRecordIds).toEqual([
+      "older-edits-latest",
+      "older-saved-latest",
+    ]);
+  });
+
   it("keeps at most the newest closed sessions", () => {
     const closed = Array.from(
       { length: BROWSER_RECOVERY_MAX_CLOSED_SESSIONS + 2 },

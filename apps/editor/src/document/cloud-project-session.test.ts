@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clearDeletedCloudProjects,
   forgetRecentCloudProject,
+  noteCloudProjectDeleted,
+  readDeletedCloudProjects,
   readRecentCloudProjectId,
   rememberRecentCloudProject,
   type CloudProjectSessionStorage,
@@ -45,5 +48,23 @@ describe("Cloud Project tab session", () => {
       rememberRecentCloudProject("cloud-1", unavailable),
     ).not.toThrow();
     expect(() => forgetRecentCloudProject(unavailable)).not.toThrow();
+    expect(readDeletedCloudProjects(unavailable)).toEqual(new Set());
+    expect(() => noteCloudProjectDeleted("cloud-1", unavailable)).not.toThrow();
+    expect(() => clearDeletedCloudProjects(unavailable)).not.toThrow();
+  });
+
+  it("carries Cloud Projects deleted away from the editor back to it (#1599)", () => {
+    const storage = memoryStorage();
+    expect(readDeletedCloudProjects(storage)).toEqual(new Set());
+    noteCloudProjectDeleted("cloud-1", storage);
+    noteCloudProjectDeleted("cloud-2", storage);
+    noteCloudProjectDeleted("cloud-1", storage);
+    expect(readDeletedCloudProjects(storage)).toEqual(
+      new Set(["cloud-1", "cloud-2"]),
+    );
+    clearDeletedCloudProjects(storage);
+    expect(readDeletedCloudProjects(storage)).toEqual(new Set());
+    storage.setItem("analog-canvas.deleted-cloud-projects.v1", "{broken");
+    expect(readDeletedCloudProjects(storage)).toEqual(new Set());
   });
 });

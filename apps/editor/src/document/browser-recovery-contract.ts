@@ -515,6 +515,10 @@ function sessionProjectId(session: BrowserRecoverySession): string {
   return session.latest?.projectId ?? session.previous?.projectId ?? "";
 }
 
+function sessionUnsaved(session: BrowserRecoverySession): boolean {
+  return (session.latest ?? session.previous)?.unsavedAtSnapshot === true;
+}
+
 /**
  * Plan retention over all owned records, by three rules in order:
  *
@@ -523,7 +527,10 @@ function sessionProjectId(session: BrowserRecoverySession): string {
  *   unsaved work that is still open is never evicted to make room.
  * - One copy per Project: a session no tab has open is dropped once a more
  *   recent session holds the same Project, so restoring or reloading one
- *   Project cannot push another Project's only copy out. At most
+ *   Project cannot push another Project's only copy out. A copy with unsaved
+ *   work stays until a more recent copy with unsaved work replaces it: a
+ *   newer saved copy, such as the same Cloud Project opened again, holds
+ *   none of its edits (#1599). At most
  *   {@link BROWSER_RECOVERY_MAX_CLOSED_SESSIONS} closed sessions stay.
  * - Bytes bound the rest. Over the total cap, `previous` generations go
  *   first (closed sessions, then open ones, oldest first), then whole closed
@@ -554,15 +561,18 @@ export function planBrowserRecoveryRetention(
           : 0;
     });
 
-  // Newest first: the first session seen for a Project is its copy.
+  // Newest first: the first session seen for a Project is its copy, and the
+  // first one with unsaved work is its unsaved copy.
   const seenProjects = new Set<string>();
+  const seenUnsaved = new Set<string>();
   let closedKept = 0;
   const survivors: BrowserRecoverySession[] = [];
   for (const session of ordered) {
     const projectId = sessionProjectId(session);
+    const unsaved = sessionUnsaved(session);
     if (!isProtected(session)) {
       if (
-        seenProjects.has(projectId) ||
+        (unsaved ? seenUnsaved : seenProjects).has(projectId) ||
         closedKept >= BROWSER_RECOVERY_MAX_CLOSED_SESSIONS
       ) {
         drop(session);
@@ -571,6 +581,7 @@ export function planBrowserRecoveryRetention(
       closedKept += 1;
     }
     seenProjects.add(projectId);
+    if (unsaved) seenUnsaved.add(projectId);
     survivors.push({ ...session });
   }
 

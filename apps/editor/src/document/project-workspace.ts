@@ -70,6 +70,36 @@ export async function openWorkspaceWindows(
   }
 }
 
+/** Requests an editor address carries only until the editor has opened them:
+ * resume a window, open a Cloud Project, start a New Circuit. */
+const OPEN_REQUESTS = ["resume", "project", "new"];
+
+/**
+ * The editor address a window's tabs are kept under: the address without
+ * the open requests the editor consumes, a Gallery entry link `/g/<id>`
+ * counting as the editor itself. Leaving for the account, the Privacy page
+ * or the Gallery and coming back to plain `/editor` then finds the tabs this
+ * window left, whichever link opened them (#1599).
+ */
+export function workspaceRoute(url: string): string {
+  const address = new URL(url, "https://editor.invalid");
+  for (const key of OPEN_REQUESTS) address.searchParams.delete(key);
+  const path = /^\/g\/[A-Za-z0-9-]{1,64}\/?$/.test(address.pathname)
+    ? "/editor"
+    : address.pathname.replace(/(.)\/+$/, "$1");
+  return path + address.search;
+}
+
+/** A window's saved record exists but cannot be brought back. */
+export class UnreadableWorkspaceError extends Error {
+  constructor() {
+    super(
+      "Saved project tabs could not be read. The original workspace is retained.",
+    );
+    this.name = "UnreadableWorkspaceError";
+  }
+}
+
 function decode(
   value: unknown,
   id: string,
@@ -81,7 +111,9 @@ function decode(
   if (
     record.version !== 1 ||
     record.windowId !== id ||
-    (!allowRouteChange && record.url !== url)
+    (!allowRouteChange &&
+      (typeof record.url !== "string" ||
+        workspaceRoute(record.url) !== workspaceRoute(url)))
   )
     return null;
   if (
@@ -92,9 +124,7 @@ function decode(
     new Set(record.tabs.map((tab) => tab.id)).size !== record.tabs.length ||
     !record.tabs.some((tab) => tab.id === record.activeId)
   )
-    throw new Error(
-      "Saved project tabs could not be read. The original workspace is retained.",
-    );
+    throw new UnreadableWorkspaceError();
   return record;
 }
 
@@ -205,6 +235,12 @@ export function createProjectWorkspaceStore(factory: IDBFactory = indexedDB) {
       database = undefined;
     },
   };
+}
+
+let browserStore: ReturnType<typeof createProjectWorkspaceStore> | undefined;
+/** The workspace store this page shares. */
+export function browserWorkspaceStore() {
+  return (browserStore ??= createProjectWorkspaceStore());
 }
 
 /** Synchronous final snapshot covers immediate refresh, before IDB can commit.

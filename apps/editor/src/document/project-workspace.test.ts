@@ -5,6 +5,7 @@ import {
   holdWorkspaceWindow,
   journalProjectWorkspace,
   openWorkspaceWindows,
+  workspaceRoute,
   type ProjectWorkspace,
 } from "./project-workspace";
 
@@ -34,12 +35,40 @@ describe("browser project workspace", () => {
     expect(await reopened.read("second", "/editor")).toEqual(
       workspace("second", 2),
     );
-    expect(await reopened.read("first", "/g/other")).toBeNull();
+    expect(await reopened.read("first", "/editor?example=other")).toBeNull();
     expect(
-      await reopened.read("first", "/g/other", { allowRouteChange: true }),
+      await reopened.read("first", "/editor?example=other", {
+        allowRouteChange: true,
+      }),
     ).toEqual(workspace());
     expect(await reopened.read("new-window", "/editor")).toBeNull();
     reopened.close();
+  });
+  it("brings a window's tabs back at plain /editor whichever link opened them (#1599)", async () => {
+    // Account, Privacy and the Gallery all link back to /editor; the tabs
+    // were saved while the address still carried the link that opened them.
+    for (const url of [
+      "/editor?project=cloud-1",
+      "/editor?resume=1",
+      "/editor?new=1",
+      "/g/entry-1",
+      "/editor/",
+    ]) {
+      const store = createProjectWorkspaceStore(new IDBFactory());
+      await store.write({ ...workspace(), url });
+      expect(await store.read("first", "/editor")).toEqual({
+        ...workspace(),
+        url,
+      });
+      store.close();
+    }
+    // What the editor saves under is that plain address.
+    expect(workspaceRoute("/editor?project=cloud-1&resume=1")).toBe("/editor");
+    expect(workspaceRoute("/g/entry-1")).toBe("/editor");
+    // A link that starts the window afresh is still another address.
+    expect(workspaceRoute("/editor?project=cloud-1&example=bandgap")).toBe(
+      "/editor?example=bandgap",
+    );
   });
   it("finds the newest workspace another window left and forgets it once taken over (#1250)", async () => {
     const factory = new IDBFactory();

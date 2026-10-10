@@ -26,9 +26,10 @@ import {
 import { projectChangeToken } from "../document/project-session-lifecycle";
 import type { createProjectSnapshotSerializer } from "../document/project-snapshot-serializer";
 import {
-  createProjectWorkspaceStore,
+  browserWorkspaceStore,
   journalProjectWorkspace,
   openWorkspaceWindows,
+  workspaceRoute,
   workspaceWindowId,
   type ProjectWorkspace,
 } from "../document/project-workspace";
@@ -40,6 +41,7 @@ import type {
 import { useProjectTabs } from "../document/use-project-tabs";
 import {
   findWorkspaceReopenOffer,
+  planWorkspaceReopen,
   type WorkspaceReopenSummary,
 } from "../document/workspace-reopen";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
@@ -77,11 +79,6 @@ type AgentProjectResources = ReturnType<typeof useAgentProjectResources>;
 type AgentProjectResourcesOptions = Parameters<
   typeof useAgentProjectResources
 >[0];
-
-let workspaceStore: ReturnType<typeof createProjectWorkspaceStore> | undefined;
-export function browserWorkspaceStore() {
-  return (workspaceStore ??= createProjectWorkspaceStore());
-}
 
 interface ProjectTabSessionsOptions {
   projectStore: CloudProjectStore | null;
@@ -542,7 +539,9 @@ export function useProjectTabSessions({
         const record: ProjectWorkspace = {
           version: 1,
           windowId: workspaceWindowId(),
-          url: window.location.pathname + window.location.search,
+          url: workspaceRoute(
+            window.location.pathname + window.location.search,
+          ),
           savedAt: Date.now(),
           activeId: workspace.activeId,
           tabs,
@@ -728,22 +727,13 @@ export function useProjectTabSessions({
           session.file.cloudBinding ? [session.file.cloudBinding.id] : [],
         ),
     );
-    let incoming: {
-      session: TabSession;
-      cloudId: string | null;
-      active: boolean;
-    }[];
+    let incoming: { session: TabSession; active: boolean; copy: boolean }[];
     try {
-      incoming = offer.record.tabs
-        .map((tab) => {
-          const saved = tab.session as PortableTab;
-          return {
-            session: tabSessionFromPortable(saved),
-            cloudId: saved.file.cloudBinding?.id ?? null,
-            active: tab.id === offer.record.activeId,
-          };
-        })
-        .filter(({ cloudId }) => !cloudId || !openCloudIds.has(cloudId));
+      incoming = planWorkspaceReopen(offer.record, openCloudIds).map((tab) => ({
+        session: tabSessionFromPortable(tab.session as PortableTab),
+        active: tab.id === offer.record.activeId,
+        copy: tab.copy,
+      }));
     } catch {
       setWorkspaceReopen(null);
       setStatus(
@@ -752,7 +742,7 @@ export function useProjectTabSessions({
       return;
     }
     if (!incoming.length) {
-      // Every one of them is open here already.
+      // Every one of them is open here already, none with unsaved edits.
       setWorkspaceReopen(null);
       void browserWorkspaceStore()
         .remove(offer.record.windowId)
@@ -775,10 +765,16 @@ export function useProjectTabSessions({
       ),
     };
     setWorkspaceReopen(null);
+    const copies = incoming.filter(({ copy }) => copy).length;
     setStatus(
-      incoming.length === 1
+      (incoming.length === 1
         ? "Reopened 1 tab from your last window"
-        : `Reopened ${incoming.length} tabs from your last window`,
+        : `Reopened ${incoming.length} tabs from your last window`) +
+        (copies === 0
+          ? ""
+          : copies === 1
+            ? "; unsaved edits to a Project open here came back as an unsaved copy"
+            : "; unsaved edits to Projects open here came back as unsaved copies"),
     );
   }
   useEffect(() => {

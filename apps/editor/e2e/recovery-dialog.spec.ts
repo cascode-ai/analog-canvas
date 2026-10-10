@@ -178,10 +178,12 @@ test("a damaged latest copy restores the previous generation", async ({
   await clickCommand(page, "File", "Recover Unsaved Work…");
   const dialog = page.getByRole("dialog", { name: "Recover recent work" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId("recovery-session-card")).toContainText(
-    "Damaged",
-  );
-  await dialog
+  // The tab this address left behind has a copy of its own beside it (#1599).
+  const cards = dialog.getByTestId("recovery-session-card");
+  await expect(cards).toHaveCount(2);
+  const damaged = cards.filter({ hasText: "Damaged" });
+  await expect(damaged).toHaveCount(1);
+  await damaged
     .getByRole("button", { name: "Restore previous copy of New Circuit" })
     .click();
   await expect(dialog).toBeHidden();
