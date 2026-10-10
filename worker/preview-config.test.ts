@@ -85,8 +85,10 @@ describe("the retired Preview storage authority", () => {
   });
 
   it("does not weaken the active Production configuration", () => {
+    // Analog Canvas's host, and AnalogArena's (docs/specs/analog-arena.md#hosts).
     expect(production.routes).toEqual([
       { pattern: "analog-canvas.tokenzhang.com", custom_domain: true },
+      { pattern: "chip-arena.com", custom_domain: true },
     ]);
     expect(production.assets).toBeDefined();
     expect(production.queues).toBeDefined();

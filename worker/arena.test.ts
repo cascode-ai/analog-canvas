@@ -79,7 +79,10 @@ function canvas(arena: ArenaService | null = arenaPage) {
   } as unknown as Parameters<typeof workerEntry.fetch>[1];
   const visit = (path: string, init: RequestInit = {}) =>
     workerEntry.fetch(new Request(`${ORIGIN}${path}`, init), env);
-  return { accounts, forwarded, served, visit };
+  /** A request to a full address, for the hosts' own rules. */
+  const at = (address: string, init: RequestInit = {}) =>
+    workerEntry.fetch(new Request(address, init), env);
+  return { accounts, forwarded, served, visit, at };
 }
 
 /** The account Analog Canvas vouched for, as Arena reads it. */
@@ -97,11 +100,11 @@ async function accountId(
 }
 
 describe("Arena forwarding", () => {
-  it("forwards a signed-in visit to /arena with the account Analog Canvas vouches for", async () => {
+  it("forwards a signed-in visit to /schematic with the account Analog Canvas vouches for", async () => {
     const { accounts, forwarded, visit } = canvas();
     const cookie = await makerOf(accounts);
 
-    const response = await visit("/arena", { headers: { Cookie: cookie } });
+    const response = await visit("/schematic", { headers: { Cookie: cookie } });
 
     expect(await response.text()).toBe("<h1>AnalogArena</h1>");
     expect(forwardedAccount(forwarded[0])).toEqual({
@@ -170,7 +173,7 @@ describe("Arena forwarding", () => {
     });
     expect(renamed.status).toBe(200);
 
-    const response = await visit("/arena", { headers: { Cookie: cookie } });
+    const response = await visit("/schematic", { headers: { Cookie: cookie } });
 
     expect(response.status).toBe(200);
     expect(forwardedAccount(forwarded[0])).toMatchObject({
@@ -181,7 +184,7 @@ describe("Arena forwarding", () => {
   it("forwards a signed-out visit with no account", async () => {
     const { forwarded, visit } = canvas();
 
-    await visit("/arena");
+    await visit("/schematic");
 
     expect(forwarded).toHaveLength(1);
     expect(forwardedAccount(forwarded[0])).toBeNull();
@@ -199,7 +202,7 @@ describe("Arena forwarding", () => {
       seat: null,
     });
 
-    await visit("/arena", { headers: { "x-arena-account": forged } });
+    await visit("/schematic", { headers: { "x-arena-account": forged } });
     await visit("/api/arena/session", {
       headers: { "x-arena-account": forged, Cookie: cookie },
     });
@@ -238,7 +241,7 @@ describe("Arena forwarding", () => {
     const cookie = await makerOf(accounts);
     expect(cookie).toMatch(/^icm_session=/u);
 
-    await visit("/arena", {
+    await visit("/schematic", {
       headers: { Cookie: `theme=dark; ${cookie}; arena_seen=1` },
     });
     await visit("/api/arena/session", { headers: { Cookie: cookie } });
@@ -273,15 +276,15 @@ describe("Arena forwarding", () => {
           "set-cookie",
           "icm_owner_session=arena; Path=/api/auth; HttpOnly",
         );
-        headers.append("set-cookie", "arena_seen=1; Path=/arena");
+        headers.append("set-cookie", "arena_seen=1; Path=/schematic");
         return new Response("<h1>AnalogArena</h1>", { status, headers });
       });
 
-      const response = await visit("/arena");
+      const response = await visit("/schematic");
 
       expect(response.status).toBe(status);
       expect(response.headers.getSetCookie()).toEqual([
-        "arena_seen=1; Path=/arena",
+        "arena_seen=1; Path=/schematic",
       ]);
       expect(await response.text()).toBe("<h1>AnalogArena</h1>");
     },
@@ -290,9 +293,9 @@ describe("Arena forwarding", () => {
   it.each([
     "/",
     "/editor",
-    "/arenas",
-    "/arena-results",
-    "/g/arena",
+    "/schematics",
+    "/schematic-results",
+    "/g/schematic",
     "/api/arena",
     "/api/arenas/session",
     "/api/auth/providers",
@@ -336,7 +339,7 @@ describe("when Arena cannot answer", () => {
     async (_case, arena) => {
       const { visit } = canvas(arena);
 
-      const response = await visit("/arena");
+      const response = await visit("/schematic");
 
       expect(response.status).toBe(503);
       expect(response.headers.get("content-type")).toContain("text/html");
@@ -370,30 +373,30 @@ describe("when Arena cannot answer", () => {
   });
 });
 
-describe("signing in from Arena", () => {
-  /** GitHub's and Google's side of a successful sign-in. */
-  const providers = (async (input: RequestInfo | URL) => {
-    const url = String(input);
-    if (url.startsWith("https://github.com/login/oauth/access_token"))
-      return Response.json({ access_token: "gh-token" });
-    if (url === "https://api.github.com/user")
-      return Response.json({ id: 4242, login: "voter", name: "A Voter" });
-    if (url === "https://api.github.com/user/emails")
-      return Response.json([
-        { email: "voter@example.com", primary: true, verified: true },
-      ]);
-    if (url === "https://oauth2.googleapis.com/token")
-      return Response.json({ access_token: "g-token" });
-    if (url === "https://openidconnect.googleapis.com/v1/userinfo")
-      return Response.json({
-        sub: "sub-1",
-        email: "voter@example.com",
-        email_verified: true,
-        name: "A Voter",
-      });
-    throw new Error(`unexpected provider call: ${url}`);
-  }) as typeof fetch;
+/** GitHub's and Google's side of a successful sign-in. */
+const providers = (async (input: RequestInfo | URL) => {
+  const url = String(input);
+  if (url.startsWith("https://github.com/login/oauth/access_token"))
+    return Response.json({ access_token: "gh-token" });
+  if (url === "https://api.github.com/user")
+    return Response.json({ id: 4242, login: "voter", name: "A Voter" });
+  if (url === "https://api.github.com/user/emails")
+    return Response.json([
+      { email: "voter@example.com", primary: true, verified: true },
+    ]);
+  if (url === "https://oauth2.googleapis.com/token")
+    return Response.json({ access_token: "g-token" });
+  if (url === "https://openidconnect.googleapis.com/v1/userinfo")
+    return Response.json({
+      sub: "sub-1",
+      email: "voter@example.com",
+      email_verified: true,
+      name: "A Voter",
+    });
+  throw new Error(`unexpected provider call: ${url}`);
+}) as typeof fetch;
 
+describe("signing in from Arena", () => {
   /** Where the browser lands after signing in through `start`. */
   async function landing(
     provider: "github" | "google",
@@ -427,10 +430,10 @@ describe("signing in from Arena", () => {
   }
 
   it.each([
-    ["github", "/arena"],
-    ["google", "/arena"],
-    ["github", "/arena/my-votes"],
-    ["google", "/arena/battle?season=1&round=2"],
+    ["github", "/schematic"],
+    ["google", "/schematic"],
+    ["github", "/schematic/my-votes"],
+    ["google", "/schematic/battle?season=1&round=2"],
   ] as const)(
     "%s sign-in started at %s comes back there",
     async (provider, path) => {
@@ -440,19 +443,401 @@ describe("signing in from Arena", () => {
 
   it.each([
     "https://evil.example",
-    "https://evil.example/arena",
-    "//evil.example/arena",
-    "/\\evil.example/arena",
+    "https://evil.example/schematic",
+    "//evil.example/schematic",
+    "/\\evil.example/schematic",
+    "https://chip-arena.com.evil.example/schematic",
+    "https://chip-arena.com/editor",
+    "http://chip-arena.com/schematic",
     "/editor",
-    "/arenas",
-    "/arena/../editor",
-    "arena",
+    "/schematics",
+    "/schematic/../editor",
+    "schematic",
   ])("sign-in asked to return to %s comes back to /", async (path) => {
     expect(await landing("github", path)).toBe(`${ORIGIN}/`);
   });
 
   it("sign-in started anywhere else still comes back to /", async () => {
     expect(await landing("google")).toBe(`${ORIGIN}/`);
+  });
+});
+
+const CANVAS_ORIGIN = "https://analog-canvas.tokenzhang.com";
+const ARENA_ORIGIN = "https://chip-arena.com";
+
+/** Where the sign-in handoff to the Schematic Arena page `page` begins. */
+function handoffBegin(page: string): string {
+  return (
+    `${ARENA_ORIGIN}/api/auth/handoff/begin?` +
+    new URLSearchParams({ return: page }).toString()
+  );
+}
+
+/** Each host's cookies, as a browser keeps them. */
+type CookieJar = Map<string, Map<string, string>>;
+
+/**
+ * A browser's visit to `address`: it follows redirects within this Worker's
+ * hosts, sends each host its own cookies and keeps what each sets (every
+ * cookie here is host-only). Returns the addresses it went through and the
+ * last answer; a redirect to another site, such as GitHub's, ends it.
+ */
+async function browse(
+  at: ReturnType<typeof canvas>["at"],
+  address: string,
+  jar: CookieJar = new Map(),
+): Promise<{ path: string[]; response: Response }> {
+  const ours = new Set(
+    [CANVAS_ORIGIN, ARENA_ORIGIN, ORIGIN].map((origin) => new URL(origin).host),
+  );
+  const path: string[] = [];
+  let next = address;
+  for (;;) {
+    const host = new URL(next).host;
+    const cookies = jar.get(host) ?? new Map<string, string>();
+    jar.set(host, cookies);
+    const response = await at(next, {
+      headers: {
+        Cookie: [...cookies]
+          .map(([name, value]) => `${name}=${value}`)
+          .join("; "),
+      },
+    });
+    path.push(next);
+    for (const cookie of response.headers.getSetCookie()) {
+      const pair = cookie.split(";", 1)[0]!;
+      const name = pair.slice(0, pair.indexOf("="));
+      if (/; Max-Age=0(;|$)/u.test(cookie)) cookies.delete(name);
+      else cookies.set(name, pair.slice(name.length + 1));
+    }
+    const location = response.headers.get("location");
+    if (response.status < 300 || response.status >= 400 || !location)
+      return { path, response };
+    next = new URL(location, next).toString();
+    if (!ours.has(new URL(next).host) || path.length > 8)
+      return { path: [...path, next], response };
+  }
+}
+
+/** A jar holding `cookie` (a `name=value` pair) for Analog Canvas's host. */
+function signedInOnCanvas(cookie: string): CookieJar {
+  const [name, value] = cookie.split(";", 1)[0]!.split("=") as [string, string];
+  return new Map([[new URL(CANVAS_ORIGIN).host, new Map([[name, value]])]]);
+}
+
+const arenaHost = new URL(ARENA_ORIGIN).host;
+const canvasHost = new URL(CANVAS_ORIGIN).host;
+
+describe("AnalogArena's host", () => {
+  it.each([
+    [`${ARENA_ORIGIN}/`, 302, `${ARENA_ORIGIN}/schematic`],
+    [
+      `${ARENA_ORIGIN}/editor?project=1`,
+      302,
+      `${CANVAS_ORIGIN}/editor?project=1`,
+    ],
+    [`${ARENA_ORIGIN}/g/abc`, 302, `${CANVAS_ORIGIN}/g/abc`],
+    [
+      `${ARENA_ORIGIN}/api/gallery/list`,
+      302,
+      `${CANVAS_ORIGIN}/api/gallery/list`,
+    ],
+    [`${CANVAS_ORIGIN}/arena`, 302, handoffBegin("/schematic")],
+    [
+      `${CANVAS_ORIGIN}/arena/leaderboard?season=1`,
+      302,
+      handoffBegin("/schematic/leaderboard?season=1"),
+    ],
+    [
+      `${CANVAS_ORIGIN}/schematic/my-votes`,
+      302,
+      handoffBegin("/schematic/my-votes"),
+    ],
+    [`${ORIGIN}/arena/my-votes?x=1`, 301, `${ORIGIN}/schematic/my-votes?x=1`],
+  ] as const)("%s answers %i to %s", async (address, status, location) => {
+    const { at, forwarded } = canvas();
+    const response = await at(address);
+    expect(response.status).toBe(status);
+    expect(response.headers.get("location")).toBe(location);
+    expect(forwarded).toHaveLength(0);
+  });
+
+  it("forwards the Schematic Arena's pages and API on its host", async () => {
+    const { at, forwarded } = canvas();
+    for (const path of [
+      "/schematic",
+      "/schematic/leaderboard",
+      "/api/arena/session",
+    ])
+      expect((await at(`${ARENA_ORIGIN}${path}`)).status).toBe(200);
+    expect(forwarded.map((request) => request.url)).toEqual([
+      `${ARENA_ORIGIN}/schematic`,
+      `${ARENA_ORIGIN}/schematic/leaderboard`,
+      `${ARENA_ORIGIN}/api/arena/session`,
+    ]);
+  });
+
+  it("leaves Analog Canvas's own paths alone", async () => {
+    const { at, forwarded, served } = canvas();
+    expect((await at(`${CANVAS_ORIGIN}/api/auth/me`)).status).toBe(200);
+    expect((await at(`${CANVAS_ORIGIN}/editor`)).status).toBe(200);
+    expect(served.map((request) => request.url)).toEqual([
+      `${CANVAS_ORIGIN}/editor`,
+    ]);
+    expect((await at(`${ORIGIN}/schematic`)).status).toBe(200);
+    expect(forwarded.map((request) => request.url)).toEqual([
+      `${ORIGIN}/schematic`,
+    ]);
+  });
+
+  it("answers the sign-in API on its host", async () => {
+    const { at } = canvas();
+    const response = await at(`${ARENA_ORIGIN}/api/auth/me`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ user: null });
+  });
+
+  it("starts a sign-in with no Arena page to return to as Analog Canvas does", async () => {
+    const { at } = canvas();
+    for (const requested of [
+      "",
+      "?return=/editor",
+      "?return=https://evil.example/schematic",
+    ]) {
+      const response = await at(
+        `${ARENA_ORIGIN}/api/auth/google/start${requested}`,
+      );
+      expect(response.headers.get("location")).toBe(
+        `${CANVAS_ORIGIN}/api/auth/google/start`,
+      );
+    }
+  });
+});
+
+describe("handing a sign-in on to AnalogArena", () => {
+  /** The handoff's completion for a browser signed in on Analog Canvas as `cookie`. */
+  async function completionFor(
+    at: ReturnType<typeof canvas>["at"],
+    cookie: string,
+    page = "/schematic",
+  ): Promise<{ completion: string; binding: string }> {
+    const begun = await at(handoffBegin(page));
+    const binding = begun.headers
+      .getSetCookie()
+      .find((set) => set.startsWith("icm_handoff="))!
+      .split(";", 1)[0]!;
+    const asked = await at(begun.headers.get("location")!, {
+      headers: { Cookie: cookie },
+    });
+    return { completion: asked.headers.get("location")!, binding };
+  }
+
+  /** The session cookie an answer sets, if any. */
+  const sessionSet = (response: Response) =>
+    response.headers
+      .getSetCookie()
+      .find((set) => /^icm_session=[^;]+/u.test(set));
+
+  it("arrives on the page signed in as the account signed in on Analog Canvas", async () => {
+    const { accounts, at, forwarded, visit } = canvas();
+    const cookie = await makerOf(accounts);
+    const jar = signedInOnCanvas(cookie);
+    const { path, response } = await browse(
+      at,
+      `${CANVAS_ORIGIN}/arena/my-votes?x=1`,
+      jar,
+    );
+
+    expect(
+      path.map((address) => new URL(address).host + new URL(address).pathname),
+    ).toEqual([
+      `${canvasHost}/arena/my-votes`,
+      `${arenaHost}/api/auth/handoff/begin`,
+      `${canvasHost}/api/auth/handoff`,
+      `${arenaHost}/api/auth/handoff/complete`,
+      `${arenaHost}/schematic/my-votes`,
+    ]);
+    expect(path.at(-1)).toBe(`${ARENA_ORIGIN}/schematic/my-votes?x=1`);
+    expect(response.status).toBe(200);
+    expect(forwardedAccount(forwarded.at(-1))).toMatchObject({
+      id: await accountId(visit, cookie),
+    });
+    // AnalogArena's host holds a session of its own, and nothing else.
+    const arenaCookies = jar.get(arenaHost)!;
+    expect([...arenaCookies.keys()]).toEqual(["icm_session"]);
+    expect(arenaCookies.get("icm_session")).not.toBe(
+      jar.get(canvasHost)!.get("icm_session"),
+    );
+  });
+
+  it("sets a host-only session and leaves no address behind", async () => {
+    const { accounts, at } = canvas();
+    const { completion, binding } = await completionFor(
+      at,
+      await makerOf(accounts),
+    );
+    const completed = await at(completion, { headers: { Cookie: binding } });
+    expect(sessionSet(completed)).toMatch(
+      /^icm_session=[0-9a-f]{64}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=\d+; Secure$/u,
+    );
+    expect(completed.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(completed.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("arrives signed out when the browser is signed out on Analog Canvas", async () => {
+    const { at, forwarded } = canvas();
+    const jar: CookieJar = new Map();
+    const { path } = await browse(at, `${CANVAS_ORIGIN}/arena`, jar);
+    expect(path.at(-1)).toBe(`${ARENA_ORIGIN}/schematic`);
+    expect(jar.get(arenaHost)?.has("icm_session")).toBe(false);
+    expect(forwardedAccount(forwarded.at(-1))).toBeNull();
+  });
+
+  it("signs in only the browser that began the handoff", async () => {
+    const { accounts, at } = canvas();
+    const cookie = await makerOf(accounts);
+    // Someone's own handoff, its completion sent on to another browser.
+    for (const other of ["", "icm_handoff=someone-elses"]) {
+      const { completion } = await completionFor(at, cookie);
+      const completed = await at(completion, { headers: { Cookie: other } });
+      expect(completed.headers.get("location")).toBe(
+        `${ARENA_ORIGIN}/schematic`,
+      );
+      expect(sessionSet(completed)).toBeUndefined();
+    }
+  });
+
+  it("takes each code once", async () => {
+    const { accounts, at } = canvas();
+    const { completion, binding } = await completionFor(
+      at,
+      await makerOf(accounts),
+    );
+    const init = { headers: { Cookie: binding } };
+    expect(sessionSet(await at(completion, init))).toBeDefined();
+    expect(sessionSet(await at(completion, init))).toBeUndefined();
+  });
+
+  it("takes a code for a minute", async () => {
+    const { accounts, at } = canvas();
+    const { completion, binding } = await completionFor(
+      at,
+      await makerOf(accounts),
+    );
+    const later = Date.now() + 61_000;
+    accounts.authDurable.now = () => new Date(later);
+    const completed = await at(completion, { headers: { Cookie: binding } });
+    expect(sessionSet(completed)).toBeUndefined();
+  });
+
+  it("begins on AnalogArena's host when asked without a binding", async () => {
+    const { at } = canvas();
+    const response = await at(
+      `${CANVAS_ORIGIN}/api/auth/handoff?return=` +
+        encodeURIComponent(`${ARENA_ORIGIN}/schematic/battle?round=2`),
+    );
+    expect(response.headers.get("location")).toBe(
+      handoffBegin("/schematic/battle?round=2"),
+    );
+  });
+
+  it.each([
+    "https://evil.example/schematic",
+    "https://chip-arena.com.evil.example/schematic",
+    "https://chip-arena.com/editor",
+    "http://chip-arena.com/schematic",
+    "/schematic",
+  ])("hands a sign-in asked for %s on to /schematic", async (requested) => {
+    const { accounts, at } = canvas();
+    const asked = await at(
+      `${CANVAS_ORIGIN}/api/auth/handoff?` +
+        new URLSearchParams({ return: requested, binding: "b" }).toString(),
+      { headers: { Cookie: await makerOf(accounts) } },
+    );
+    const completion = new URL(asked.headers.get("location")!);
+    expect(completion.origin + completion.pathname).toBe(
+      `${ARENA_ORIGIN}/api/auth/handoff/complete`,
+    );
+    expect(completion.searchParams.get("return")).toBe("/schematic");
+  });
+
+  it.each([
+    "https://evil.example/",
+    "//evil.example/",
+    "/editor",
+    "/schematics",
+    "/schematic/../editor",
+  ])("lands a handoff asked for %s on /schematic", async (requested) => {
+    const { at } = canvas();
+    const begun = await at(handoffBegin(requested));
+    expect(
+      new URL(begun.headers.get("location")!).searchParams.get("return"),
+    ).toBe(`${ARENA_ORIGIN}/schematic`);
+    const completed = await at(
+      `${ARENA_ORIGIN}/api/auth/handoff/complete?` +
+        new URLSearchParams({ code: "none", return: requested }).toString(),
+    );
+    expect(completed.headers.get("location")).toBe(`${ARENA_ORIGIN}/schematic`);
+  });
+
+  /** The provider's answer to a GitHub sign-in whose authorize page is `authorize`. */
+  function callbackOf(authorize: string): string {
+    const state = new URL(authorize).searchParams.get("state") ?? "";
+    return (
+      `${CANVAS_ORIGIN}/api/auth/github/callback?code=abc&state=` +
+      encodeURIComponent(state)
+    );
+  }
+
+  it("brings a GitHub sign-in started on its host back there, signed in on both hosts", async () => {
+    const { accounts, at, forwarded } = canvas();
+    accounts.authDurable.fetchLike = providers;
+    const jar: CookieJar = new Map();
+    const started = await browse(
+      at,
+      `${ARENA_ORIGIN}/api/auth/github/start?return=` +
+        encodeURIComponent("/schematic/my-votes?x=1"),
+      jar,
+    );
+    expect(new URL(started.path.at(-1)!).host).toBe("github.com");
+    const { path, response } = await browse(
+      at,
+      callbackOf(started.path.at(-1)!),
+      jar,
+    );
+    expect(path.slice(1).map((address) => new URL(address).pathname)).toEqual([
+      "/api/auth/handoff/begin",
+      "/api/auth/handoff",
+      "/api/auth/handoff/complete",
+      "/schematic/my-votes",
+    ]);
+    expect(path.at(-1)).toBe(`${ARENA_ORIGIN}/schematic/my-votes?x=1`);
+    expect(response.status).toBe(200);
+    expect(jar.get(canvasHost)?.has("icm_session")).toBe(true);
+    expect(jar.get(arenaHost)?.has("icm_session")).toBe(true);
+    expect(forwardedAccount(forwarded.at(-1))).toMatchObject({
+      displayName: "A Voter",
+    });
+  });
+
+  it("brings a sign-in started on Analog Canvas back there, as before", async () => {
+    const { accounts, at } = canvas();
+    accounts.authDurable.fetchLike = providers;
+    const jar: CookieJar = new Map();
+    const started = await browse(
+      at,
+      `${CANVAS_ORIGIN}/api/auth/github/start`,
+      jar,
+    );
+    const callback = await at(callbackOf(started.path.at(-1)!), {
+      headers: {
+        Cookie: `icm_oauth_state=${jar.get(canvasHost)!.get("icm_oauth_state")}`,
+      },
+    });
+    expect(callback.headers.get("location")).toBe(`${CANVAS_ORIGIN}/`);
+    expect(sessionSet(callback)).toMatch(
+      /^icm_session=[0-9a-f]{64}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=\d+; Secure$/u,
+    );
   });
 });
 

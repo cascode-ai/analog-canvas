@@ -44,6 +44,13 @@ export const SITE_COOKIES = [
     lifetime: "10 minutes",
     when: "While you sign in with GitHub or Google",
   },
+  {
+    name: "icm_handoff",
+    purpose:
+      "Makes sure a sign-in carried from Analog Canvas to AnalogArena arrives in the browser that asked for it.",
+    lifetime: "1 minute",
+    when: "On chip-arena.com, while you open AnalogArena from Analog Canvas",
+  },
 ] as const;
 
 function browserRefusesTracking(): boolean {
@@ -255,11 +262,13 @@ export function PrivacyPage() {
 
         <h2>AnalogArena</h2>
         <p>
-          AnalogArena, at <code>/arena</code>, asks signed-in people which of
-          two schematics, drawn from the same netlist by AI models and tools
-          whose names stay hidden until you vote, is drawn better. Before your
-          first Vote it asks for your one-time Consent, and keeps which version
-          of that text you agreed to. It then keeps:
+          AnalogArena, at <code>chip-arena.com/schematic</code>, asks signed-in
+          people which of two schematics, drawn from the same netlist by AI
+          models and tools whose names stay hidden until you vote, is drawn
+          better. It uses your Analog Canvas account: when you open it from
+          Analog Canvas signed in, it signs you in there too. Before your first
+          Vote it asks for your one-time Consent, and keeps which version of
+          that text you agreed to. It then keeps:
         </p>
         <ul>
           <li>
