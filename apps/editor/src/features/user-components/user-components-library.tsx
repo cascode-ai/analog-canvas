@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchSessionUser, type SessionUser } from "../../components/account";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
-import type { SharedComponent } from "./component-library-contract";
+import type {
+  ComponentLibraryPage,
+  SharedComponent,
+} from "./component-library-contract";
 import { loadSharedComponents } from "./component-library-client";
+
+const LIBRARY_CACHE_MS = 60_000;
 
 export default function UserComponentsLibrary({
   open,
@@ -32,6 +37,15 @@ export default function UserComponentsLibrary({
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const generation = useRef(0);
+  const loadedPage = useRef<{
+    query: string;
+    deleted: boolean;
+    refresh: number;
+    retry: number;
+    loadedAt: number;
+    page: ComponentLibraryPage;
+  } | null>(null);
+  const failedCursor = useRef<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -51,25 +65,51 @@ export default function UserComponentsLibrary({
   useEffect(() => {
     if (!open) return;
     generation.current += 1;
+    const cached = loadedPage.current;
+    const sameList =
+      !deleted && cached?.query === query && cached.deleted === deleted;
+    setError(null);
+    failedCursor.current = null;
+    setEntries(sameList ? cached.page.entries : []);
+    setCursor(sameList ? cached.page.nextCursor : null);
+    if (
+      sameList &&
+      cached.refresh === refresh &&
+      cached.retry === retry &&
+      Date.now() - cached.loadedAt < LIBRARY_CACHE_MS
+    ) {
+      setLoading(false);
+      return () => {
+        generation.current += 1;
+      };
+    }
     const controller = new AbortController();
     setLoading(true);
-    setError(null);
-    setEntries([]);
-    setCursor(null);
-    const timer = setTimeout(() => {
-      void loadSharedComponents(query, null, deleted, controller.signal)
-        .then((page) => {
-          if (controller.signal.aborted) return;
-          setEntries(page.entries);
-          setCursor(page.nextCursor);
-        })
-        .catch((error) => {
-          if (!controller.signal.aborted) setError(String(error.message));
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLoading(false);
-        });
-    }, 150);
+    const timer = setTimeout(
+      () => {
+        void loadSharedComponents(query, null, deleted, controller.signal)
+          .then((page) => {
+            if (controller.signal.aborted) return;
+            setEntries(page.entries);
+            setCursor(page.nextCursor);
+            loadedPage.current = {
+              query,
+              deleted,
+              refresh,
+              retry,
+              loadedAt: Date.now(),
+              page,
+            };
+          })
+          .catch((error) => {
+            if (!controller.signal.aborted) setError(String(error.message));
+          })
+          .finally(() => {
+            if (!controller.signal.aborted) setLoading(false);
+          });
+      },
+      query ? 150 : 0,
+    );
     return () => {
       generation.current += 1;
       clearTimeout(timer);
@@ -83,16 +123,27 @@ export default function UserComponentsLibrary({
     try {
       const page = await loadSharedComponents(query, cursor, deleted);
       if (currentGeneration !== generation.current) return;
-      setEntries((current) => [
+      const current = loadedPage.current?.page.entries ?? entries;
+      const nextEntries = [
         ...current,
         ...page.entries.filter(
           (next) => !current.some((item) => item.id === next.id),
         ),
-      ]);
+      ];
+      setEntries(nextEntries);
+      if (loadedPage.current) {
+        loadedPage.current = {
+          ...loadedPage.current,
+          loadedAt: Date.now(),
+          page: { entries: nextEntries, nextCursor: page.nextCursor },
+        };
+      }
       setCursor(page.nextCursor);
     } catch (error) {
-      if (currentGeneration === generation.current)
+      if (currentGeneration === generation.current) {
+        failedCursor.current = cursor;
         setError(error instanceof Error ? error.message : String(error));
+      }
     } finally {
       if (currentGeneration === generation.current) setLoading(false);
     }
@@ -161,10 +212,17 @@ export default function UserComponentsLibrary({
         ) : null}
         {error ? (
           <div className="user-components-message" role="status">
-            <span>Couldn’t load user components.</span>
+            <span>
+              {entries.length
+                ? "Couldn’t refresh components. Loaded components are still available."
+                : "Couldn’t load user components."}
+            </span>
             <button
               type="button"
-              onClick={() => setRetry((value) => value + 1)}
+              onClick={() => {
+                if (failedCursor.current) void more();
+                else setRetry((value) => value + 1);
+              }}
             >
               Try Again
             </button>
@@ -257,6 +315,13 @@ export default function UserComponentsLibrary({
           ) : null}
         </div>
         <footer className="user-components-footer">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => setRetry((value) => value + 1)}
+          >
+            Refresh
+          </button>
           {drafts.length ? (
             <details>
               <summary>Project drafts ({drafts.length})</summary>

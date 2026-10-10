@@ -190,6 +190,13 @@ publication advances the draft to the returned record/revision. Identical retrie
 use the same ID and idempotency key. Public attribution comes from the server's
 authenticated publisher; source credit text is preserved. Library updates do not
 rewrite previously placed Project captures.
+
+The last successful public list, including appended pages, may be reused for
+60 seconds when reopening the same search. Refresh reads the current list
+immediately; local publication and management invalidate reuse. Refresh failure
+retains displayed public cards and offers retry. Deleted/admin lists are always
+freshly authorized and never restored from cached results.
+
 Before any publication request, including a first local publication, the Project
 stores its applied payload and destination as a private authoring snapshot. A
 pending snapshot has no public entry or claimed public revision; a successful

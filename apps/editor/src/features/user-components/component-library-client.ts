@@ -71,22 +71,46 @@ export async function loadSharedComponents(
   const params = new URLSearchParams({ q: query, limit: "20" });
   if (cursor) params.set("cursor", cursor);
   if (deleted) params.set("status", "deleted");
-  const payload = await responseJson(
-    await fetchLibrary(`/api/components?${params}`, {
-      credentials: "same-origin",
-      cache: "no-store",
-      ...(signal ? { signal } : {}),
-    }),
-  );
-  if (
-    !Array.isArray(payload.entries) ||
-    (payload.nextCursor !== null && typeof payload.nextCursor !== "string")
-  )
-    throw new Error("Component library unavailable: invalid page");
-  return {
-    entries: payload.entries.map(parseSharedComponentEntry),
-    nextCursor: payload.nextCursor,
-  };
+  signal?.throwIfAborted();
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal?.reason);
+  signal?.addEventListener("abort", abort, { once: true });
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    if (!controller.signal.aborted) {
+      timedOut = true;
+      controller.abort();
+    }
+  }, 10_000);
+  try {
+    const payload = await responseJson(
+      await fetchLibrary(`/api/components?${params}`, {
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: controller.signal,
+      }),
+    );
+    if (
+      !Array.isArray(payload.entries) ||
+      (payload.nextCursor !== null && typeof payload.nextCursor !== "string")
+    )
+      throw new Error("Component library unavailable: invalid page");
+    return {
+      entries: payload.entries.map(parseSharedComponentEntry),
+      nextCursor: payload.nextCursor,
+    };
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason;
+    if (timedOut)
+      throw new ComponentLibraryError(
+        "Component library timed out. Try again.",
+        408,
+      );
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
 }
 export async function readSharedComponent(
   id: string,

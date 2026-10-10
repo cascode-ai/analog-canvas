@@ -518,6 +518,13 @@ Authors and administrators update a permitted record; other contributors use
 without archived public revisions. A lost reply can be retried with the same
 publication identity and key for seven days.
 
+Reopening **User Components** reuses your last loaded public list for up to one
+minute. **Refresh** immediately loads new or updated entries from other users;
+publishing or managing an entry here refreshes automatically. If a refresh fails,
+loaded cards remain available and **Try Again** retries. A failed **Load More**
+retries that page without discarding earlier cards. Deleted entries always
+require a fresh authorized request.
+
 Placing a public native revision captures source, interface and artwork in your
 Project through ordinary placement. Compatible repeated insertion reuses its
 model and allocates a new reference. Conflicts refuse without overwriting the
