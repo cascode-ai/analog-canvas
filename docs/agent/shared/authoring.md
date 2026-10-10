@@ -10,6 +10,26 @@ Apply. Read the canonical edit schema with `describe_tool` when needed. Ports
 and formal defaults derive from the applied declaration; zero ports are valid.
 No second implementation or independent process label is stored.
 
+For a User Component, the same edit accepts a transient `authoring` field on
+each definition target. Use `{symbolMode:"automatic"}` for generated artwork,
+or `{symbolMode:"custom",artworkText:"<ComponentDefinition JSON>"}` for custom
+geometry. On edit, omitting Custom `artworkText` retains the owner's current
+custom capture; creating Custom artwork requires it. Optional
+`authoring.terminalDirections` is keyed by formal port names
+(input/output/inout/passive); optional complete `authoring.pinMap` maps each
+formal name to `{pinName:"<graphical contact>"}` or an explicit `{supply:"VSS"}` /
+`{supply:"VDD"}`. Complete identical names initialize automatically when the
+artwork has no binding. Arbitrary aliases require explicit correspondence.
+Do not combine `authoring` with compiled `symbol` or ID-keyed terminal directions
+on the same target. Read the edit schema for copied-draft `artworkOrigin` and
+existing port/caller migrations. This is the GUI Circuit/Symbol resolver and
+ordinary atomic Apply; invalid raw text belongs in `save_model_source_draft`,
+not in executable facts. Use `advanced_transact` with `dryRun:true` to validate
+the complete candidate and its caller migration without committing it, then
+commit with the same expected revisions. Specialized graphical roles such as gate/bulk survive
+formal-direction edits. Public `user_components` publish/fork/update stays a
+separate deliberate operation with its existing revision and permission guards.
+
 Only reviewed core SKY130 1.8 V / IHP SG13G2 low-voltage MOS replacements are
 currently mapped. Unknown variants, parameters or library identities refuse
 without partial changes. Repair the native source and real dependencies.

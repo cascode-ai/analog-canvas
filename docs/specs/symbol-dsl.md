@@ -122,11 +122,38 @@ copy, export or simulation preparation.
 
 ## Component authoring
 
-Create Component defaults to Circuit. Circuit, Symbol and Pins are views of one
+Create Component defaults to Circuit. Circuit and Symbol are views of one
 candidate: native source owns the formal interface, JSON owns artwork, and
 `circuitBinding` alone maps graphical/property contacts to stable native
-terminal IDs. Automatic layout, Custom JSON and the Pins table edit that same
-candidate. Unknown, duplicate or missing correspondences refuse Apply.
+terminal IDs. Circuit contains the native source, parsed interface directions
+and expandable exceptional Pin mapping. Symbol contains automatic layout or
+Custom JSON and preview. Unknown, duplicate or missing correspondences refuse
+Apply. Input/output/inout/passive belongs to the formal terminal; geometric
+north/east/south/west and specialized JSON roles such as gate/bulk remain
+distinct. Direction edits preserve specialized roles and do not change symbol
+mode. Automatic correspondence follows the source; Customize symbol explicitly
+captures the current generated artwork before an exceptional mapping edit.
+Returning to Automatic is explicit and uses the dirty-change safeguard.
+
+Invalid artwork text remains a draft: Circuit source and direction edits stay
+available, while only mapping controls requiring parsed artwork are unavailable.
+A stale preview is labeled; it cannot replace the authored text or be applied.
+The SPICE starter includes the commented minimal declaration
+`* .subckt my_cell PIN1 PIN2 params: PARAM1=1`.
+
+GUI and Agent may submit `apply_model_source.definitions[].authoring` with
+`symbolMode`, optional custom `artworkText`/`artworkOrigin`, formal-name-keyed
+`terminalDirections` and optional complete `pinMap` (each value is `{pinName}`
+or `{supply: "VDD" | "VSS"}`). The shared resolver derives stable IDs and checks
+correspondence. Automatic input rejects artwork and exceptional mappings.
+Authoring input cannot coexist with compiled `symbol`/`terminalDirections`
+fields on the same target. Existing compiled inputs remain supported.
+This transient input creates no parallel persisted fact store. Preview uses the
+same interface/artwork resolver; atomic Apply retains source and Project revision
+checks and connected-port/caller migration rules. Missing direction entries
+retain native owner metadata; a supplied pinMap is complete, not a patch.
+On edit, omitted Custom artwork retains the owner's existing capture; creating
+a Custom definition requires artwork. An explicit mode change resets to Automatic.
 
 Save draft retains the complete candidate, including invalid source or artwork
 text, separately from executable applied facts. Local Apply and Place require
@@ -148,6 +175,26 @@ the snapshot's library baseline; the server remains the permission authority.
 Primitive/artwork library drafts retain the same fixed public baseline and
 their raw candidate text. Their locally applied candidate is private draft
 state, with Place capturing it through the ordinary definition path.
+
+The library shows each entry's artwork, name, publisher and applicable actions
+in separate bounded regions. Dense and paginated lists scroll without clipping
+metadata. An author's shared entry offers Edit; Create from… always creates
+an independent publication, including when selected by the original author.
+Other users see Create from…; administrators use an explicit management action
+to update/manage another record. Editing a placed capture is still local.
+Publication intent and a stable new ID are retained in the non-executable draft
+snapshot, not inferred from later login state. Historical drafts without intent
+default to creating a new publication. Update uses the captured library revision;
+the server rejects unauthorized updates and stale revisions. Successful new
+publication advances the draft to the returned record/revision. Identical retries
+use the same ID and idempotency key. Public attribution comes from the server's
+authenticated publisher; source credit text is preserved. Library updates do not
+rewrite previously placed Project captures.
+Before any publication request, including a first local publication, the Project
+stores its applied payload and destination as a private authoring snapshot. A
+pending snapshot has no public entry or claimed public revision; a successful
+response binds the actual entry. Native publication snapshots contain only the
+packaged circuit, never the whole drawing or a nested history of Project drafts.
 
 ## Public circuit snapshots
 

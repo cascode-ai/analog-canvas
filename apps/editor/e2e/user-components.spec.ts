@@ -46,6 +46,7 @@ import {
 
 /** Browser journeys use the real HTTP policy and SQLite storage, with isolated test sessions. */
 function library() {
+  let dropPublicationResponse = false;
   const db = new DatabaseSync(":memory:");
   const durable = new ComponentLibraryDO({
     storage: {
@@ -64,6 +65,9 @@ function library() {
     },
   });
   return {
+    dropNextPublicationResponse: () => {
+      dropPublicationResponse = true;
+    },
     close: () => db.close(),
     async connect(context: BrowserContext, identity: string | null) {
       const user = identity
@@ -107,6 +111,15 @@ function library() {
             },
           },
         );
+        if (
+          dropPublicationResponse &&
+          route.request().method() === "PUT" &&
+          response!.ok
+        ) {
+          dropPublicationResponse = false;
+          await route.abort("failed");
+          return;
+        }
         await route.fulfill({
           status: response!.status,
           contentType: "application/json",
@@ -180,10 +193,21 @@ async function readProject(page: Page): Promise<CircuitProject> {
 }
 async function authoringView(
   editor: Locator,
-  name: "Circuit" | "Symbol" | "Pins",
+  name: "Circuit" | "Symbol" | "Mapping",
 ) {
-  const tab = editor.getByRole("tab", { name, exact: true });
+  const tab = editor.getByRole("tab", {
+    name: name === "Mapping" ? "Circuit" : name,
+    exact: true,
+  });
   if (await tab.count()) await tab.click();
+  if (name === "Mapping") {
+    const details = editor.locator(".component-circuit-interface details");
+    if (
+      (await details.count()) &&
+      (await details.getAttribute("open")) === null
+    )
+      await details.locator("summary").click();
+  }
 }
 async function editDefinition(page: Page, name: string) {
   await expect(
@@ -269,7 +293,18 @@ test("library cards separate artwork, long titles and authors at narrow and zoom
         { x: -160, y: -20 },
       ],
     };
-    for (const definition of [tall, wide]) {
+    const entries = [
+      tall,
+      wide,
+      ...Array.from({ length: 22 }, (_, index) => ({
+        symbol: {
+          ...structuredClone(wide.symbol),
+          id: `dense-card-${index}`,
+          name: `Device ${index}`,
+        },
+      })),
+    ];
+    for (const definition of entries) {
       expect(
         await page.evaluate(
           async (definition) =>
@@ -289,6 +324,27 @@ test("library cards separate artwork, long titles and authors at narrow and zoom
       name: "User Components",
       exact: true,
     });
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(20);
+    await dialog
+      .getByRole("button", { name: "Load More", exact: true })
+      .click();
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+    for (const card of await dialog.locator(".user-component-tile").all()) {
+      await card.scrollIntoViewIfNeeded();
+      const caption = card.locator(".user-component-caption");
+      const action = card.locator(".user-component-actions");
+      await expect(caption).toBeInViewport();
+      await expect(action).toBeInViewport();
+      const bounds = (await card.boundingBox())!;
+      const captionBounds = (await caption.boundingBox())!;
+      const actionBounds = (await action.boundingBox())!;
+      expect(captionBounds.y + captionBounds.height).toBeLessThanOrEqual(
+        bounds.y + bounds.height,
+      );
+      expect(actionBounds.y + actionBounds.height).toBeLessThanOrEqual(
+        bounds.y + bounds.height,
+      );
+    }
     await expect(
       dialog.getByRole("button", { name: `Place ${name}`, exact: true }),
     ).toBeVisible();
@@ -308,6 +364,7 @@ test("library cards separate artwork, long titles and authors at narrow and zoom
         name: `Place ${name}`,
         exact: true,
       });
+      await placeButton.scrollIntoViewIfNeeded();
       const title = placeButton.locator("strong");
       const authorLabel = placeButton.getByText(author, { exact: true });
       const artBounds = (await placeButton.locator("svg").boundingBox())!;
@@ -346,6 +403,10 @@ test("library cards separate artwork, long titles and authors at narrow and zoom
       document.documentElement.style.zoom = "1";
     });
     await dialog
+      .getByLabel("Search User Defined components")
+      .fill("Precision amplifier");
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(1);
+    await dialog
       .getByRole("button", { name: `Place ${name}`, exact: true })
       .click();
     await place(page);
@@ -354,6 +415,409 @@ test("library cards separate artwork, long titles and authors at narrow and zoom
       project.componentDefinitions!.some((d) => d.symbol.name === name),
     ).toBe(true);
     expect(project.documents[0]!.instances).toHaveLength(1);
+  } finally {
+    service.close();
+  }
+});
+
+test("Create from keeps a new publication destination through draft reopening even for the original author", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const definition = {
+      symbol: { ...newComponentDefinition().symbol, name: "Original device" },
+    };
+    await page.evaluate(async (definition) => {
+      const response = await fetch("/api/components/original-device", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revision: 0, definition }),
+      });
+      if (!response.ok) throw Error(await response.text());
+    }, definition);
+    await openUserComponents(page);
+    await page
+      .getByRole("button", { name: "Create from Original device", exact: true })
+      .click();
+    const editor = page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await editor.getByLabel("Component definition code").fill(
+      JSON.stringify({
+        symbol: { ...definition.symbol, name: "Derivative device" },
+      }),
+    );
+    await editor.getByRole("button", { name: "Apply", exact: true }).click();
+    await editor.getByLabel("Close component editor").click();
+    const saved = await readProject(page);
+    await page.getByTestId("project-file").setInputFiles({
+      name: "draft.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(saved)),
+    });
+    await awaitEditorReady(page);
+    await openUserComponents(page);
+    await page.getByText("Project drafts (1)", { exact: true }).click();
+    await page
+      .getByRole("button", {
+        name: "Library draft Original device",
+        exact: true,
+      })
+      .click();
+    await editor
+      .getByRole("button", { name: "Publish as new component", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText(
+      "Published to the public library",
+    );
+    await expect(
+      editor.getByRole("button", { name: "Update my component", exact: true }),
+    ).toBeEnabled();
+    const entries = await page.evaluate(
+      async () => (await (await fetch("/api/components")).json()).entries,
+    );
+    expect(entries).toHaveLength(2);
+    expect(
+      entries.find((entry: { id: string }) => entry.id === "original-device"),
+    ).toMatchObject({
+      revision: 1,
+      authorId: "alice",
+      definition: { symbol: { name: "Original device" } },
+    });
+    expect(
+      entries.find((entry: { id: string }) => entry.id !== "original-device"),
+    ).toMatchObject({
+      revision: 1,
+      authorId: "alice",
+      definition: { symbol: { name: "Derivative device" } },
+    });
+  } finally {
+    service.close();
+  }
+});
+
+test("publication conflicts retain update intent until explicit reload or create-copy after an account change", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const definition = { symbol: newComponentDefinition().symbol };
+    async function publish(revision: number, name: string) {
+      return page.evaluate(
+        async ({ revision, definition, name }) => {
+          const response = await fetch("/api/components/owned-device", {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              revision,
+              definition: {
+                ...definition,
+                symbol: { ...definition.symbol, name },
+              },
+            }),
+          });
+          return response.status;
+        },
+        { revision, definition, name },
+      );
+    }
+    expect(await publish(0, "Owned device")).toBe(200);
+    await openUserComponents(page);
+    await page
+      .getByRole("button", {
+        name: "Edit Owned device definition",
+        exact: true,
+      })
+      .click();
+    const editor = page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await editor.getByLabel("Component definition code").fill(
+      JSON.stringify({
+        ...definition,
+        symbol: { ...definition.symbol, name: "My pending edit" },
+      }),
+    );
+    await editor.getByRole("button", { name: "Apply", exact: true }).click();
+    expect(await publish(1, "Concurrent revision")).toBe(200);
+    await editor
+      .getByRole("button", { name: "Update my component", exact: true })
+      .click();
+    const recovery = editor.getByRole("group", {
+      name: "Publication recovery",
+    });
+    await expect(recovery).toBeVisible();
+    await recovery
+      .getByRole("button", { name: "Reload published version" })
+      .click();
+    await expect(editor.getByLabel("Component definition code")).toContainText(
+      "Concurrent revision",
+    );
+    await editor.getByLabel("Close component editor").click();
+    await openUserComponents(page);
+    await page
+      .getByRole("button", {
+        name: "Edit Concurrent revision definition",
+        exact: true,
+      })
+      .click();
+    await expect(editor.getByLabel("Component definition code")).toContainText(
+      "Concurrent revision",
+    );
+    await service.connect(context, "bob");
+    await editor
+      .getByRole("button", { name: "Update my component", exact: true })
+      .click();
+    await expect(recovery).toBeVisible();
+    await recovery
+      .getByRole("button", { name: "Create separate copy" })
+      .click();
+    await editor
+      .getByRole("button", { name: "Publish as new component", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText(
+      "Published to the public library",
+    );
+    const entries = await page.evaluate(
+      async () => (await (await fetch("/api/components")).json()).entries,
+    );
+    expect(entries).toHaveLength(2);
+    expect(
+      entries.find((entry: { id: string }) => entry.id === "owned-device"),
+    ).toMatchObject({ revision: 2, authorId: "alice" });
+    expect(
+      entries.find((entry: { id: string }) => entry.id !== "owned-device"),
+    ).toMatchObject({ revision: 1, authorId: "bob" });
+  } finally {
+    service.close();
+  }
+});
+
+for (const kind of ["native", "artwork"] as const)
+  test(`new ${kind} publication survives a lost response, Project reopen and another edit without duplicating its public identity`, async ({
+    page,
+    context,
+  }) => {
+    const service = library();
+    try {
+      await service.connect(context, "alice");
+      await openEditor(page);
+      const editor = await openNativeComponent(page);
+      if (kind === "native") {
+        await editor
+          .getByLabel("External model netlist")
+          .fill(
+            ".subckt retry_source IN OUT\nR1 IN OUT 1k\n.ends retry_source\n",
+          );
+        await editor
+          .getByRole("button", { name: "Apply model", exact: true })
+          .click();
+      } else {
+        await editor
+          .getByLabel("Definition type", { exact: true })
+          .selectOption("json");
+        await editor.getByLabel("Component definition code").fill(
+          JSON.stringify({
+            symbol: {
+              ...newComponentDefinition().symbol,
+              name: "Retry artwork",
+            },
+          }),
+        );
+        await editor
+          .getByRole("button", { name: "Apply", exact: true })
+          .click();
+      }
+      service.dropNextPublicationResponse();
+      await editor
+        .getByRole("button", { name: "Publish", exact: true })
+        .click();
+      await expect(
+        editor.getByText(/Failed to fetch|NetworkError/i),
+      ).toBeVisible();
+      if (kind === "artwork") {
+        await editor
+          .locator(".component-definition-actions > details > summary")
+          .click();
+        await editor
+          .getByRole("button", { name: "Save draft", exact: true })
+          .click();
+      }
+      await editor.getByLabel("Close component editor").click();
+      const pending = await readProject(page);
+      await page.getByTestId("project-file").setInputFiles({
+        name: "pending.icproj.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(serializeProject(pending)),
+      });
+      await awaitEditorReady(page);
+      async function reopenPublication() {
+        await openUserComponents(page);
+        await page.getByText("Project drafts (1)", { exact: true }).click();
+        await page.getByRole("button", { name: /^Library draft / }).click();
+      }
+      await reopenPublication();
+      await editor
+        .getByRole("button", { name: "Publish", exact: true })
+        .click();
+      await expect(
+        editor.getByRole("button", {
+          name: "Update my component",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await editor.getByLabel("Close component editor").click();
+      await reopenPublication();
+      await expect(
+        editor.getByRole("button", {
+          name: "Update my component",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      const entries = await page.evaluate(
+        async () => (await (await fetch("/api/components")).json()).entries,
+      );
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ revision: 1, authorId: "alice" });
+      if (kind === "native") {
+        await editor
+          .getByLabel("External model netlist")
+          .fill(
+            ".subckt retry_source IN OUT\nR1 IN OUT 2k\n.ends retry_source\n",
+          );
+        await editor
+          .getByRole("button", { name: "Apply model", exact: true })
+          .click();
+      } else {
+        await editor.getByLabel("Component definition code").fill(
+          JSON.stringify({
+            symbol: {
+              ...newComponentDefinition().symbol,
+              name: "Updated retry artwork",
+            },
+          }),
+        );
+        await editor
+          .getByRole("button", { name: "Apply", exact: true })
+          .click();
+      }
+      await editor
+        .getByRole("button", { name: "Update my component", exact: true })
+        .click();
+      await expect(
+        editor.getByText(/^(Saved|Published) to the public library\.$/),
+      ).toBeVisible();
+      const updated = await page.evaluate(
+        async () => (await (await fetch("/api/components")).json()).entries,
+      );
+      expect(updated).toHaveLength(1);
+      expect(updated[0]).toMatchObject({
+        id: entries[0].id,
+        revision: 2,
+        authorId: "alice",
+      });
+      if (kind === "native") {
+        await authoringView(editor, "Symbol");
+        await editor.getByLabel("Symbol mode").selectOption("custom");
+        await editor
+          .getByLabel("Circuit symbol JSON")
+          .fill("{ unfinished publication artwork");
+        await authoringView(editor, "Circuit");
+        await editor
+          .getByLabel("External model netlist")
+          .fill("* unfinished publication circuit\n");
+        await editor.getByText("More", { exact: true }).click();
+        await editor
+          .getByRole("button", { name: "Save draft", exact: true })
+          .click();
+        await editor
+          .getByRole("button", { name: "View applied version", exact: true })
+          .click();
+        await editor
+          .getByRole("button", { name: "Update my component", exact: true })
+          .click();
+        await expect(
+          editor.getByText("Saved to the public library.", { exact: true }),
+        ).toBeVisible();
+        await editor.getByLabel("Close component editor").click();
+        await reopenPublication();
+        await expect(editor.getByLabel("External model netlist")).toContainText(
+          "unfinished publication circuit",
+        );
+        await authoringView(editor, "Symbol");
+        await expect(editor.getByLabel("Circuit symbol JSON")).toHaveText(
+          "{ unfinished publication artwork",
+        );
+      }
+    } finally {
+      service.close();
+    }
+  });
+
+test("Circuit owns directions while invalid Custom JSON remains editable without changing specialized pin roles", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await expect(editor.getByRole("tab")).toHaveText(["Circuit", "Symbol"]);
+    await editor
+      .getByLabel("External model netlist")
+      .fill(".subckt simple IN OUT\nR1 IN OUT 1k\n.ends simple\n");
+    await editor.getByLabel("Model IN direction").selectOption("input");
+    await authoringView(editor, "Symbol");
+    await expect(editor.getByLabel("Symbol mode")).toHaveValue("automatic");
+    await editor.getByLabel("Symbol mode").selectOption("custom");
+    const json = editor.getByLabel("Circuit symbol JSON");
+    await json.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("ControlOrMeta+c");
+    const custom = JSON.parse(
+      await page.evaluate(() => navigator.clipboard.readText()),
+    );
+    custom.symbol.pins.find((pin: { name: string }) => pin.name === "IN").role =
+      "gate";
+    await json.fill("{ unfinished artwork");
+    await authoringView(editor, "Circuit");
+    await editor.getByLabel("Model OUT direction").selectOption("output");
+    await expect(
+      editor.getByText("Fix Symbol JSON to edit pin mapping.", { exact: true }),
+    ).toBeVisible();
+    await authoringView(editor, "Symbol");
+    await expect(json).toHaveText("{ unfinished artwork");
+    await json.fill(JSON.stringify(custom));
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("Applied");
+    await editor.getByLabel("Close component editor").click();
+    const project = await readProject(page);
+    expect(
+      project.externalSubcircuitDefinitions[0]!.terminals.map((pin) => [
+        pin.name,
+        pin.direction,
+      ]),
+    ).toEqual([
+      ["IN", "input"],
+      ["OUT", "output"],
+    ]);
+    expect(
+      project
+        .componentDefinitions!.find((component) => component.circuitBinding)!
+        .symbol.pins.find((pin) => pin.name === "IN")!.role,
+    ).toBe("gate");
   } finally {
     service.close();
   }
@@ -516,7 +980,10 @@ test("public artwork drafts retain their library identity and applied candidate 
       candidate.symbol.name,
     );
     await expect(
-      editor.getByRole("button", { name: "Publish", exact: true }),
+      editor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await editor.getByRole("button", { name: "Apply", exact: true }).click();
     await editor.getByLabel("Close component editor").click();
@@ -546,9 +1013,17 @@ test("public artwork drafts retain their library identity and applied candidate 
       })
       .click();
     await expect(
-      editor.getByRole("button", { name: "Publish", exact: true }),
+      editor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeEnabled();
-    await editor.getByRole("button", { name: "Publish", exact: true }).click();
+    await editor
+      .getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      })
+      .click();
     await expect(
       editor.getByText("Published to the public library.", { exact: true }),
     ).toBeVisible();
@@ -623,7 +1098,10 @@ test("reopened artwork drafts require Apply before publishing and Place applies 
     await page.getByText("Project drafts (1)", { exact: true }).click();
     await page.getByRole("button", { name: /^Artwork draft / }).click();
     await expect(
-      editor.getByRole("button", { name: "Publish", exact: true }),
+      editor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await editor.getByRole("button", { name: "Place", exact: true }).click();
     await place(page, 420, 230);
@@ -656,7 +1134,12 @@ test("public circuit authoring drafts survive closing and portable reopening wit
     await editor
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await editor.getByRole("button", { name: "Publish", exact: true }).click();
+    await editor
+      .getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      })
+      .click();
     await expect(
       editor.getByText("Saved to the public library.", { exact: true }),
     ).toBeVisible();
@@ -696,7 +1179,10 @@ test("public circuit authoring drafts survive closing and portable reopening wit
       editor.getByLabel("Circuit symbol JSON", { exact: true }),
     ).toContainText(broken);
     await expect(
-      editor.getByRole("button", { name: "Publish", exact: true }),
+      editor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await editor.getByLabel("Close component editor").click();
     await page.getByTestId("project-file").setInputFiles({
@@ -765,7 +1251,7 @@ test("new circuit authoring starts with native source and places a complete six-
     await editor
       .getByLabel("Symbol mode", { exact: true })
       .selectOption("custom");
-    await editor.getByRole("tab", { name: "Pins", exact: true }).click();
+    await authoringView(editor, "Mapping");
     await editor
       .getByLabel("Map native INP", { exact: true })
       .selectOption("pin:INN");
@@ -956,7 +1442,7 @@ test("legacy four-to-six repair uses the full native pin editor and preserves pe
     await editor
       .getByLabel("External model source owner", { exact: true })
       .selectOption("six-source");
-    await editor.getByRole("tab", { name: "Pins", exact: true }).click();
+    await authoringView(editor, "Mapping");
     await expect(
       editor.getByLabel("Native pin mapping").locator("tbody tr"),
     ).toHaveCount(6);
@@ -1186,7 +1672,10 @@ test("a complete native draft retains invalid JSON through portable save and reo
       editor.getByLabel("Custom symbol preview").locator("circle"),
     ).toHaveCount(1);
     await expect(
-      editor.getByRole("button", { name: "Publish", exact: true }),
+      editor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await editor.getByRole("tab", { name: "Circuit", exact: true }).click();
     await expect(editor.getByLabel("External model netlist")).toContainText(
@@ -1226,7 +1715,10 @@ test("native authoring retains freely edited artwork before a valid circuit and 
     await authoringView(editor, "Symbol");
     await expect(code).toBeVisible();
     await expect(
-      editor.getByRole("button", { name: "Publish", exact: true }),
+      editor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     for (const [width, zoom] of [
       [640, 1],
@@ -1243,7 +1735,7 @@ test("native authoring retains freely edited artwork before a valid circuit and 
         )
         .toBeLessThanOrEqual(1);
       await expect(
-        editor.getByRole("tab", { name: "Pins", exact: true }),
+        editor.getByRole("tab", { name: "Circuit", exact: true }),
       ).toBeVisible();
       await expect(editor.getByLabel("Close component editor")).toBeVisible();
       await page.screenshot({
@@ -1309,7 +1801,7 @@ test("Create keeps custom artwork, preview and commit actions usable in a bounde
           editor.evaluate((dialog) => dialog.scrollWidth - dialog.clientWidth),
         )
         .toBeLessThanOrEqual(1);
-      await authoringView(editor, "Pins");
+      await authoringView(editor, "Mapping");
       await authoringView(editor, "Symbol");
       await expect(code).toHaveText("{ unfinished artwork");
       await page.screenshot({
@@ -1321,7 +1813,7 @@ test("Create keeps custom artwork, preview and commit actions usable in a bounde
   }
 });
 
-test("native Circuit, automatic Symbol, Pins and draft actions remain usable in narrow or zoomed Create", async ({
+test("native Circuit, automatic Symbol, Circuit interface and draft actions remain usable in narrow or zoomed Create", async ({
   page,
   context,
 }, testInfo) => {
@@ -1361,11 +1853,13 @@ test("native Circuit, automatic Symbol, Pins and draft actions remain usable in 
       await editor
         .getByLabel("Symbol mode", { exact: true })
         .selectOption("automatic");
+      await authoringView(editor, "Circuit");
       const direction = editor.getByLabel("Model INP direction", {
         exact: true,
       });
       await direction.selectOption("input");
       await expect(direction).toHaveValue("input");
+      await authoringView(editor, "Symbol");
       const bodyWidth = editor.getByLabel("Cell symbol width", { exact: true });
       await bodyWidth.fill("140");
       await bodyWidth.blur();
@@ -1376,18 +1870,13 @@ test("native Circuit, automatic Symbol, Pins and draft actions remain usable in 
       await page.screenshot({
         path: testInfo.outputPath(`automatic-${width}-${zoom}.png`),
       });
-      await authoringView(editor, "Pins");
-      const pins = editor.getByLabel("Native pin mapping", { exact: true });
-      await expect(pins.getByRole("row")).toHaveCount(7);
-      await pins
-        .getByLabel("Map native INP", { exact: true })
-        .selectOption("pin:INP");
-      await pins
-        .getByLabel("Map native VSS", { exact: true })
-        .scrollIntoViewIfNeeded();
+      await authoringView(editor, "Mapping");
       await expect(
-        pins.getByLabel("Map native VSS", { exact: true }),
-      ).toBeInViewport();
+        editor.getByRole("button", { name: "Customize symbol", exact: true }),
+      ).toBeVisible();
+      await expect(
+        editor.getByLabel("Model VSS direction", { exact: true }),
+      ).toBeVisible();
       await page.screenshot({
         path: testInfo.outputPath(`pins-${width}-${zoom}.png`),
       });
@@ -1398,7 +1887,10 @@ test("native Circuit, automatic Symbol, Pins and draft actions remain usable in 
         editor.getByRole("button", { name: "Apply & Place", exact: true }),
       ).toBeInViewport();
       await expect(
-        editor.getByRole("button", { name: "Publish", exact: true }),
+        editor.getByRole("button", {
+          name: /^(Publish|Update my component)$/,
+          exact: true,
+        }),
       ).toBeDisabled();
       await editor.locator(".external-model-more > summary").click();
       await expect(
@@ -1462,7 +1954,10 @@ test("advanced artwork can be applied and placed locally without publishing", as
     await editor.getByLabel("Definition type").selectOption("json");
     await editor.getByRole("button", { name: "Apply", exact: true }).click();
     await expect(
-      editor.getByRole("button", { name: "Publish", exact: true }),
+      editor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await editor.getByRole("button", { name: "Place", exact: true }).click();
     await expect(editor).toHaveCount(0);
@@ -1682,9 +2177,17 @@ test("publishes an applied native component and captures another user's complete
       .click();
     await expect(editor.getByRole("status")).toContainText("Applied");
     await expect(
-      editor.getByRole("button", { name: "Publish", exact: true }),
+      editor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeEnabled();
-    await editor.getByRole("button", { name: "Publish", exact: true }).click();
+    await editor
+      .getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      })
+      .click();
     await expect(
       editor.getByText("Saved to the public library.", { exact: true }),
     ).toBeVisible();
@@ -1857,13 +2360,19 @@ test("publishes an applied native component and captures another user's complete
       .getByLabel("External model netlist")
       .fill(finiteGainSource.replace("gain=10", "gain=40"));
     await expect(
-      libraryEditor.getByRole("button", { name: "Publish", exact: true }),
+      libraryEditor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await libraryEditor
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
     await libraryEditor
-      .getByRole("button", { name: "Publish", exact: true })
+      .getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      })
       .click();
     await expect(
       libraryEditor.getByText("Saved to the public library.", { exact: true }),
@@ -1929,7 +2438,7 @@ test("publishes an applied native component and captures another user's complete
     await openEditor(adminPage);
     await openUserComponents(adminPage);
     await adminPage
-      .getByRole("button", { name: "Edit finite_gain definition", exact: true })
+      .getByRole("button", { name: "Manage finite_gain", exact: true })
       .click();
     await expect(
       adminPage.getByRole("button", {
@@ -2026,7 +2535,12 @@ test("forking a native public record captures its selected artwork while reusing
     await editor
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await editor.getByRole("button", { name: "Publish", exact: true }).click();
+    await editor
+      .getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      })
+      .click();
     await expect(
       editor.getByText("Saved to the public library.", { exact: true }),
     ).toBeVisible();
@@ -2051,7 +2565,7 @@ test("forking a native public record captures its selected artwork while reusing
     const captured = await readProject(receiver);
     await openUserComponents(receiver);
     await receiver
-      .getByRole("button", { name: "Edit finite_gain definition", exact: true })
+      .getByRole("button", { name: "Create from finite_gain", exact: true })
       .click();
     const forkEditor = receiver.getByRole("dialog", {
       name: "Edit Component Definition",
@@ -2083,7 +2597,22 @@ test("forking a native public record captures its selected artwork while reusing
     await forkEditor
       .getByRole("button", { name: "Close component editor" })
       .click();
-    expect(await readProject(receiver)).toEqual(captured);
+    const afterPublication = await readProject(receiver);
+    expect(afterPublication).toEqual({
+      ...captured,
+      structureRevision: afterPublication.structureRevision,
+      componentAuthoringDrafts: afterPublication.componentAuthoringDrafts,
+    });
+    expect(afterPublication.componentAuthoringDrafts).toHaveLength(1);
+    const publicationDraft = afterPublication.componentAuthoringDrafts![0]!;
+    expect(publicationDraft.library).toEqual({
+      componentId: forked.id,
+      revision: 1,
+    });
+    expect(JSON.parse(publicationDraft.text).publication).toEqual({
+      kind: "update",
+      componentId: forked.id,
+    });
     await openUserComponents(receiver);
     await receiver
       .locator(".user-component-tile")
@@ -2120,7 +2649,10 @@ test("forking a native public record captures its selected artwork while reusing
       .getByRole("button", { name: "Save draft", exact: true })
       .click();
     await expect(
-      localEditor.getByRole("button", { name: "Publish", exact: true }),
+      localEditor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await localEditor
       .getByRole("button", { name: "Close component editor" })
@@ -2160,13 +2692,19 @@ test("forking a native public record captures its selected artwork while reusing
       .getByRole("button", { name: "Save draft", exact: true })
       .click();
     await expect(
-      draftEditor.getByRole("button", { name: "Publish", exact: true }),
+      draftEditor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await draftEditor
       .getByRole("button", { name: "View applied version", exact: true })
       .click();
     await expect(
-      draftEditor.getByRole("button", { name: "Publish", exact: true }),
+      draftEditor.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeEnabled();
     await draftEditor
       .getByRole("button", { name: "Place", exact: true })
@@ -2527,7 +3065,7 @@ test("repairs a wired legacy custom component with explicit native port mapping 
     await dialog
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await expect(dialog.getByRole("status")).toBeVisible();
+    await expect(dialog.locator(".cell-external-result")).toBeVisible();
     expect((await client.refreshSnapshot()).snapshot.project).toEqual(original);
     await dialog
       .getByRole("textbox", { name: "External model netlist", exact: true })
@@ -2538,7 +3076,7 @@ test("repairs a wired legacy custom component with explicit native port mapping 
     await dialog
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await expect(dialog.getByRole("status")).toContainText(
+    await expect(dialog.locator(".cell-external-result")).toContainText(
       /terminal|mapping/iu,
     );
     expect((await client.refreshSnapshot()).snapshot.project).toEqual(original);
@@ -2562,7 +3100,9 @@ test("repairs a wired legacy custom component with explicit native port mapping 
     await dialog
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await expect(dialog.getByRole("status")).toContainText("Project changed");
+    await expect(dialog.locator(".cell-external-result")).toContainText(
+      "Project changed",
+    );
     expect((await client.refreshSnapshot()).snapshot.project).toEqual(live);
     await dialog.getByLabel("Close component editor", { exact: true }).click();
     await dialog
@@ -2589,7 +3129,9 @@ test("repairs a wired legacy custom component with explicit native port mapping 
     await dialog
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await expect(dialog.getByRole("status")).toContainText("Applied");
+    await expect(dialog.locator(".cell-external-result")).toContainText(
+      "Applied",
+    );
     await dialog
       .getByRole("button", { name: "Close component editor", exact: true })
       .click();
@@ -2670,7 +3212,9 @@ test("repairs a wired legacy custom component with explicit native port mapping 
     await dialog
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await expect(dialog.getByRole("status")).toContainText("Applied");
+    await expect(dialog.locator(".cell-external-result")).toContainText(
+      "Applied",
+    );
     await dialog.getByLabel("Close component editor", { exact: true }).click();
     const reapplied = await readProject(page);
     expect(reapplied.documents[0]!.instances[0]!.symbolVariantId).toBe(
@@ -2886,7 +3430,7 @@ test("explicitly attaches a legacy class to an existing applied Project model wi
     await editor
       .getByLabel("External model source owner", { exact: true })
       .selectOption(before.modelSources![0]!.id);
-    await editor.getByRole("tab", { name: "Pins", exact: true }).click();
+    await authoringView(editor, "Mapping");
     await editor
       .getByLabel("Map native IN", { exact: true })
       .selectOption("pin:1");
@@ -2998,20 +3542,28 @@ test("explicitly upgrades a legacy public entry or forks it without rewriting ca
       .getByRole("button", { name: "Place Legacy public repair", exact: true })
       .click();
     await place(page);
+    await expect(page.getByTestId("active-instance-count")).toHaveText("1");
     const captured = await readProject(page);
+    expect(captured.documents[0]!.instances).toHaveLength(1);
+    expect(
+      createDesignNetlistExport(captured, { format: "spice" }).status,
+    ).toBe("blocked");
     const visitor = await other.newPage();
     await openEditor(visitor);
     const empty = await readProject(visitor);
     for (const [target, save] of [
       [visitor, "Publish as new component"],
-      [page, "Publish"],
+      [page, "Update my component"],
     ] as const) {
       await openUserComponents(target);
       await target
         .locator(".user-component-tile")
         .filter({ hasText: "alice" })
         .getByRole("button", {
-          name: "Edit Legacy public repair definition",
+          name:
+            target === visitor
+              ? "Create from Legacy public repair"
+              : "Edit Legacy public repair definition",
           exact: true,
         })
         .click();
@@ -3274,7 +3826,22 @@ test("E edits one instance, publicly saves its definition, and leaves Q and peer
     };
     await context.route("**/api/components**", rejectSave);
     await page.getByRole("button", { name: "Apply", exact: true }).click();
-    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await page.getByLabel("Close component editor", { exact: true }).click();
+    await page.keyboard.press("ControlOrMeta+z");
+    expect(
+      (await readProject(page)).documents[0]!.instances.map(
+        (item) => item.symbolId,
+      ),
+    ).toEqual(["resistor", "resistor"]);
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    await page.getByTestId("hit-R1").click();
+    await page.keyboard.press("e");
+    await page
+      .getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      })
+      .click();
     await expect(
       page.getByText("Library temporarily unavailable"),
     ).toBeVisible();
@@ -3282,7 +3849,12 @@ test("E edits one instance, publicly saves its definition, and leaves Q and peer
       page.getByRole("dialog", { name: "Edit Component Definition" }),
     ).toBeVisible();
     await context.unroute("**/api/components**", rejectSave);
-    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await page
+      .getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      })
+      .click();
     await expect(
       page.getByText("Published to the public library.", { exact: true }),
     ).toBeVisible();
@@ -3305,12 +3877,6 @@ test("E edits one instance, publicly saves its definition, and leaves Q and peer
       .getByRole("button", { name: "Close", exact: true })
       .click();
     await page.getByTestId("hit-R1").click();
-    await page.keyboard.press("ControlOrMeta+z");
-    expect(
-      (await readProject(page)).documents[0]!.instances.map(
-        (item) => item.symbolId,
-      ),
-    ).toEqual(["resistor", "resistor"]);
     await page.getByTestId("hit-R1").click({ button: "right" });
     await page
       .getByRole("menuitem", {
@@ -3355,7 +3921,12 @@ test("create, live preview, public sharing, standard insertion and administrator
       path: "plan/user-component-definition-editor.png",
     });
     await page.getByRole("button", { name: "Apply", exact: true }).click();
-    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await page
+      .getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      })
+      .click();
     await expect(
       page.getByText("Published to the public library.", { exact: true }),
     ).toBeVisible();
@@ -3388,7 +3959,7 @@ test("create, live preview, public sharing, standard insertion and administrator
     await openUserComponents(receiver);
     await receiver
       .getByRole("button", {
-        name: "Edit Shared amplifier definition",
+        name: "Create from Shared amplifier",
         exact: true,
       })
       .click();
@@ -3410,7 +3981,7 @@ test("create, live preview, public sharing, standard insertion and administrator
     await openUserComponents(administrator);
     await administrator
       .getByRole("button", {
-        name: "Edit Shared amplifier definition",
+        name: "Manage Shared amplifier",
         exact: true,
       })
       .click();
@@ -3450,7 +4021,7 @@ test("create, live preview, public sharing, standard insertion and administrator
       .click();
     await administrator
       .getByRole("button", {
-        name: "Edit Shared amplifier definition",
+        name: "Review Shared amplifier",
         exact: true,
       })
       .click();
@@ -3484,7 +4055,10 @@ test("anonymous creation keeps public publication disabled and invalid code leav
       .getByLabel("Definition type", { exact: true })
       .selectOption("json");
     await expect(
-      page.getByRole("button", { name: "Publish", exact: true }),
+      page.getByRole("button", {
+        name: /^(Publish|Update my component)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await expect(
       page.getByRole("button", { name: "Apply", exact: true }),
@@ -4121,7 +4695,7 @@ test("complete same-name custom artwork initializes checked mappings through GUI
     );
     await panel.getByRole("button", { name: "Close Agent dialog" }).click();
     component.symbol.id += "-agent";
-    const accepted = await client.advancedTransact({
+    const candidate = {
       structureEdits: [
         {
           kind: "apply_model_source",
@@ -4130,13 +4704,20 @@ test("complete same-name custom artwork initializes checked mappings through GUI
             {
               definitionId: captured.circuitBinding!.definitionId,
               entry: "finite_gain",
-              symbol: component,
+              authoring: {
+                symbolMode: "custom",
+                artworkText: JSON.stringify(component),
+              },
             },
           ],
         },
       ],
-    });
-    expect(accepted.ok).toBe(true);
+    };
+    const preview = await client.advancedTransact(candidate, { dryRun: true });
+    expect(preview.ok, preview.message).toBe(true);
+    expect(await readProject(page)).toEqual(applied);
+    const accepted = await client.advancedTransact(candidate);
+    expect(accepted.ok, accepted.message).toBe(true);
     const after = await readProject(page);
     expect(
       after.componentDefinitions!.find(
@@ -4492,12 +5073,6 @@ test("editing connected custom artwork and switching modes preserves logical pin
     await editor
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await expect(editor.getByRole("status")).toContainText("immutable");
-    artwork.symbol.id += "-moved";
-    await code.fill(JSON.stringify(artwork, null, 2));
-    await editor
-      .getByRole("button", { name: "Apply model", exact: true })
-      .click();
     await expect(editor.getByRole("status")).toContainText("Applied");
     await editor.getByLabel("Close component editor", { exact: true }).click();
     const moved = await readProject(page);
@@ -4540,7 +5115,16 @@ test("editing connected custom artwork and switching modes preserves logical pin
     ).toEqual(movedPoint);
     expect(
       moved.documents[0]!.instances.find((i) => i.id === "X1")!.symbolId,
-    ).toBe(artwork.symbol.id);
+    ).not.toBe(artwork.symbol.id);
+    expect(
+      moved.componentDefinitions!.find(
+        (definition) => definition.symbol.id === artwork.symbol.id,
+      ),
+    ).toEqual(
+      before.componentDefinitions!.find(
+        (definition) => definition.symbol.id === artwork.symbol.id,
+      ),
+    );
     await page.keyboard.press("ControlOrMeta+z");
     expect(await readProject(page)).toEqual({
       ...before,
@@ -4570,6 +5154,11 @@ test("editing connected custom artwork and switching modes preserves logical pin
     await expect(editor.getByLabel("Symbol mode")).toHaveValue("custom");
     await authoringView(editor, "Symbol");
     await editor.getByLabel("Symbol mode").selectOption("automatic");
+    const discard = editor.getByRole("button", {
+      name: "Discard changes",
+      exact: true,
+    });
+    if (await discard.isVisible()) await discard.click();
     await editor
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
@@ -4841,12 +5430,14 @@ test("native custom source changes diagnose missing mappings without crashing th
         ),
       );
     await expect(
-      editor.getByRole("status").filter({ hasText: "EXTRA" }),
+      editor.locator(".cell-external-result").filter({ hasText: "EXTRA" }),
     ).toBeVisible();
     await editor
       .getByRole("button", { name: "Apply model", exact: true })
       .click();
-    await expect(editor.getByRole("status")).toContainText("EXTRA");
+    await expect(editor.locator(".cell-external-result")).toContainText(
+      "EXTRA",
+    );
     await editor.getByLabel("Close component editor", { exact: true }).click();
     await editor
       .getByRole("button", { name: "Discard changes", exact: true })
@@ -4870,6 +5461,11 @@ test("native custom source changes diagnose missing mappings without crashing th
       );
     await authoringView(editor, "Symbol");
     await editor.getByLabel("Symbol mode").selectOption("automatic");
+    const discard = editor.getByRole("button", {
+      name: "Discard changes",
+      exact: true,
+    });
+    if (await discard.isVisible()) await discard.click();
     await editor
       .getByRole("button", { name: "Apply model", exact: true })
       .click();

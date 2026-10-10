@@ -35,6 +35,7 @@ import {
   type SymbolResolver,
 } from "@icm/symbols";
 import { z } from "zod";
+import { CircuitAuthoringInputSchema } from "./circuit-authoring.js";
 import { collectProjectModelSources } from "@icm/netlist";
 import {
   planModelSourceApply,
@@ -105,6 +106,7 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
             .record(z.string().min(1), z.string().min(1).nullable())
             .optional(),
           symbol: ComponentDefinitionSchema.nullable().optional(),
+          authoring: CircuitAuthoringInputSchema.optional(),
           terminalDirections: z
             .record(
               z.string().min(1),

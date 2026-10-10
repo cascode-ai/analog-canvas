@@ -1,4 +1,5 @@
 import { planComponentDefinitionEdit } from "./component-definition-plan";
+import type { ComponentPublication } from "./component-publication";
 import { definitionError } from "./component-definition-error";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { InlineConfirm } from "../../components/inline-confirm";
@@ -10,6 +11,7 @@ import type { ComponentDefinition, ComponentAuthoringDraft } from "@icm/model";
 import { hasBuiltInSubcircuitInterface } from "@icm/devices";
 import {
   buildCircuitComponentPackage,
+  createCircuitComponentPackageProject,
   prepareLegacyCircuitRepair,
   prepareLegacyCircuitDraft,
   type LegacyCircuitRepair,
@@ -18,7 +20,9 @@ import {
 import {
   useLibraryCircuitAuthoring,
   readLibraryAuthoringDraft,
+  isLibraryAuthoringDraft,
 } from "./library-circuit-authoring";
+import { serializeProject } from "@icm/project-protocol";
 import { localComponentDefinition } from "./component-definition-edit";
 import {
   AccountMenu,
@@ -33,6 +37,8 @@ import {
 import {
   manageSharedComponent,
   saveSharedComponent,
+  readSharedComponent,
+  ComponentLibraryError,
 } from "./component-library-client";
 
 const ProjectTextEditor = lazy(
@@ -42,6 +48,7 @@ const ProjectTextEditor = lazy(
 export interface ComponentDefinitionEditorProps {
   definition: ComponentDefinition;
   entry?: SharedComponent;
+  publicationIntent?: "new" | "update" | undefined;
   draft?: ComponentAuthoringDraft;
   repairTarget?: { documentId: string; instanceId: string };
   mode: "new" | "instance" | "library";
@@ -56,8 +63,9 @@ export interface ComponentDefinitionEditorProps {
   ): string | null;
   onPlaceDefinition(definition: ComponentDefinition): string | null;
   onSaveDefinitionDraft(text: string): string | null;
-  onSaveLibraryDraft(text: string, entry: SharedComponent): string | null;
+  onSaveLibraryDraft(text: string, entry?: SharedComponent): string | null;
   onManaged(): void;
+  onReloadLibrary(entry: SharedComponent): string | null;
   onPlaceCircuit(packaged: CircuitComponentPackage): void;
   onClose(): void;
 }
@@ -68,15 +76,15 @@ export default function ComponentDefinitionEditor(
   const latest = useRef(props);
   latest.current = props;
   const [savedArtwork] = useState(() => {
-    const restored = props.draft?.library
-      ? readLibraryAuthoringDraft(props.draft)
+    const restored = isLibraryAuthoringDraft(props.draft)
+      ? readLibraryAuthoringDraft(props.draft!)
       : undefined;
     return restored?.kind === "definition" ? restored : undefined;
   });
   const [source, setSource] = useState(
     () =>
       savedArtwork?.text ??
-      (!props.draft?.library ? props.draft?.text : undefined) ??
+      (!isLibraryAuthoringDraft(props.draft) ? props.draft?.text : undefined) ??
       JSON.stringify(props.definition, null, 2),
   );
   const [baseline, setBaseline] = useState(source);
@@ -89,11 +97,26 @@ export default function ComponentDefinitionEditor(
       (props.mode === "new" ? "" : JSON.stringify(props.definition, null, 2)),
   );
   const [record, setRecord] = useState(props.entry);
-  const [newId] = useState(() => crypto.randomUUID());
+  const [publication, setPublication] = useState<ComponentPublication>(
+    () =>
+      (isLibraryAuthoringDraft(props.draft)
+        ? readLibraryAuthoringDraft(props.draft!).publication
+        : undefined) ?? {
+        kind:
+          props.entry && props.publicationIntent === "update"
+            ? "update"
+            : "new",
+        componentId:
+          props.entry && props.publicationIntent === "update"
+            ? props.entry.id
+            : crypto.randomUUID(),
+      },
+  );
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [publicationConflict, setPublicationConflict] = useState(false);
   const [pinNames, setPinNames] = useState(true);
   const libraryAuthoring = useLibraryCircuitAuthoring(
     record,
@@ -104,7 +127,16 @@ export default function ComponentDefinitionEditor(
     (text) => props.circuit!.onCopyText(text),
     {
       draft: props.draft,
-      onSave: (text, entry) => latest.current.onSaveLibraryDraft(text, entry),
+      onSave: (text, entry) =>
+        latest.current.onSaveLibraryDraft(
+          JSON.stringify({
+            ...JSON.parse(text),
+            kind: "library-authoring",
+            definition: entry?.definition ?? props.definition,
+            publication,
+          }),
+          entry,
+        ),
     },
   );
   const baseAuthoring = libraryAuthoring ?? props.circuit;
@@ -116,7 +148,7 @@ export default function ComponentDefinitionEditor(
         candidate.legacyRepair,
     );
   const [repairIdentity] = useState(
-    savedRepairCandidate?.legacyRepair?.identity ?? newId,
+    savedRepairCandidate?.legacyRepair?.identity ?? publication.componentId,
   );
   const [repair, setRepair] = useState<LegacyCircuitRepair | null>(() =>
     props.mode !== "new" &&
@@ -216,7 +248,7 @@ export default function ComponentDefinitionEditor(
         }
       : baseAuthoring;
   const [definitionType, setDefinitionType] = useState(
-    props.draft && (!props.draft.library || savedArtwork)
+    props.draft && (!isLibraryAuthoringDraft(props.draft) || savedArtwork)
       ? "json"
       : authoring?.definitionId || (props.mode === "new" && authoring)
         ? "circuit"
@@ -277,8 +309,8 @@ export default function ComponentDefinitionEditor(
     !!record &&
     (user?.isAdmin ||
       (record.authorId === user?.id && record.status === "shared"));
-  const id = canUpdate ? record!.id : newId;
-  const revision = canUpdate ? record!.revision : 0;
+  const id = publication.componentId;
+  const revision = publication.kind === "update" ? record!.revision : 0;
   function requestLeave(action: () => void) {
     if (dirty) setPendingLeave(() => action);
     else action();
@@ -301,7 +333,7 @@ export default function ComponentDefinitionEditor(
       setNotice(error);
       return null;
     }
-    if (props.mode === "library" && record) {
+    if (props.mode === "library" || isLibraryAuthoringDraft(props.draft)) {
       const error = saveArtworkDraft(record, definition, source);
       if (error) {
         setNotice(error);
@@ -326,7 +358,7 @@ export default function ComponentDefinitionEditor(
   }
   function saveLocalDraft() {
     const error =
-      props.mode === "library" && record
+      props.mode === "library" || isLibraryAuthoringDraft(props.draft)
         ? saveArtworkDraft(record)
         : latest.current.onSaveDefinitionDraft(source);
     if (error) setNotice(error);
@@ -336,28 +368,59 @@ export default function ComponentDefinitionEditor(
     }
   }
   function saveArtworkDraft(
-    entry: SharedComponent,
+    entry: SharedComponent | undefined,
     appliedDefinition = localApplied,
     appliedText = localAppliedText,
+    destination = publication,
   ) {
     return latest.current.onSaveLibraryDraft(
       JSON.stringify({
+        kind: "library-authoring",
         entry,
+        definition: appliedDefinition ?? props.definition,
+        publication: destination,
         definitionText: source,
         ...(appliedDefinition ? { appliedDefinition, appliedText } : {}),
       }),
       entry,
     );
   }
-  const publicationRequest = useRef<{
-    fingerprint: string;
-    key: string;
-  } | null>(null);
-  function publicationOptions(payload: unknown) {
+  async function publicationOptions(payload: unknown) {
     const fingerprint = JSON.stringify([id, revision, payload]);
-    if (publicationRequest.current?.fingerprint !== fingerprint)
-      publicationRequest.current = { fingerprint, key: crypto.randomUUID() };
-    return { idempotencyKey: publicationRequest.current.key };
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(fingerprint),
+    );
+    return {
+      idempotencyKey: [...new Uint8Array(digest)]
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join(""),
+    };
+  }
+  function saveCircuitPublicationDraft(
+    entry: SharedComponent | undefined,
+    packaged: CircuitComponentPackage,
+    destination = publication,
+  ) {
+    if (!native || !nativeDefinitionId) return "No applied native circuit.";
+    return latest.current.onSaveLibraryDraft(
+      JSON.stringify({
+        kind: "library-authoring",
+        entry,
+        definition: packaged.definition,
+        publication: destination,
+        project: serializeProject(
+          libraryAuthoring
+            ? native.project
+            : createCircuitComponentPackageProject(
+                packaged,
+                `publication-${id}`,
+              ),
+        ),
+        definitionId: nativeDefinitionId,
+      }),
+      entry,
+    );
   }
   async function save() {
     if (native) {
@@ -385,15 +448,21 @@ export default function ComponentDefinitionEditor(
           nativeDefinitionId,
           native.symbolId,
         );
+        const pendingError = saveCircuitPublicationDraft(record, packaged);
+        if (pendingError) throw Error(pendingError);
         const saved = await saveSharedComponent(
           id,
           revision,
           packaged.definition,
           packaged.circuit,
-          publicationOptions(packaged),
+          await publicationOptions(packaged),
         );
         setRecord(saved);
-        const draftError = libraryAuthoring?.onPublished(saved);
+        setPublication({ kind: "update", componentId: saved.id });
+        const draftError = saveCircuitPublicationDraft(saved, packaged, {
+          kind: "update",
+          componentId: saved.id,
+        });
         latest.current.onManaged();
         setNotice(
           draftError
@@ -401,6 +470,10 @@ export default function ComponentDefinitionEditor(
             : "Saved to the public library.",
         );
       } catch (error) {
+        setPublicationConflict(
+          error instanceof ComponentLibraryError &&
+            [403, 409].includes(error.status),
+        );
         setNotice(definitionError(error));
       } finally {
         setBusy(false);
@@ -426,24 +499,42 @@ export default function ComponentDefinitionEditor(
     setBusy(true);
     setNotice(null);
     try {
+      const pendingError = saveArtworkDraft(
+        record,
+        localApplied,
+        localAppliedText,
+      );
+      if (pendingError) throw Error(pendingError);
       const saved = await saveSharedComponent(
         id,
         revision,
         localApplied,
         undefined,
-        publicationOptions({ definition: localApplied }),
+        await publicationOptions({ definition: localApplied }),
       );
       setRecord(saved);
+      setPublication({ kind: "update", componentId: saved.id });
       setBaseline(source);
       latest.current.onManaged();
-      const draftError =
-        props.mode === "library" ? saveArtworkDraft(saved) : null;
+      const draftError = saveArtworkDraft(
+        saved,
+        localApplied,
+        localAppliedText,
+        {
+          kind: "update",
+          componentId: saved.id,
+        },
+      );
       setNotice(
         draftError
           ? `Published to the public library. Draft: ${draftError}`
           : "Published to the public library.",
       );
     } catch (error) {
+      setPublicationConflict(
+        error instanceof ComponentLibraryError &&
+          [403, 409].includes(error.status),
+      );
       setNotice(definitionError(error));
     } finally {
       setBusy(false);
@@ -476,6 +567,7 @@ export default function ComponentDefinitionEditor(
       disabled={
         !authReady ||
         !user ||
+        (publication.kind === "update" && !canUpdate) ||
         (native
           ? !nativeReady || nativeDirty
           : !localApplied || source !== localAppliedText) ||
@@ -486,9 +578,13 @@ export default function ComponentDefinitionEditor(
     >
       {busy
         ? "Publishing…"
-        : record && !canUpdate
+        : publication.kind === "new" && record
           ? "Publish as new component"
-          : "Publish"}
+          : publication.kind === "update"
+            ? user?.isAdmin && record?.authorId !== user.id
+              ? "Update component (admin)"
+              : "Update my component"
+            : "Publish"}
     </button>
   );
   return (
@@ -513,7 +609,11 @@ export default function ComponentDefinitionEditor(
     >
       <header>
         <strong>
-          {props.mode === "new" ? "Create Component" : "Edit Component"}
+          {props.mode === "new"
+            ? "Create Component"
+            : props.mode === "library" && publication.kind === "new"
+              ? "Create from Component"
+              : "Edit Component"}
         </strong>
         {(props.mode === "new" || repair) && props.circuit ? (
           <label className="component-definition-type">
@@ -735,7 +835,55 @@ export default function ComponentDefinitionEditor(
           {notice ? <p role="status">{notice}</p> : null}
         </>
       ) : null}
-      {user?.isAdmin && record ? (
+      {publicationConflict ||
+      (record &&
+        publication.kind === "update" &&
+        authReady &&
+        user &&
+        !canUpdate) ? (
+        <div
+          className="component-definition-actions"
+          role="group"
+          aria-label="Publication recovery"
+        >
+          <span className="component-definition-note">
+            Publication needs review. Reload the published version or create a
+            separate copy.
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setPublication({ kind: "new", componentId: crypto.randomUUID() });
+              setPublicationConflict(false);
+              setNotice("Publishing will create a separate component.");
+            }}
+          >
+            Create separate copy
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              requestLeave(() => {
+                setBusy(true);
+                void readSharedComponent(id)
+                  .then((entry) => {
+                    const error = latest.current.onReloadLibrary(entry);
+                    if (error) throw Error(error);
+                  })
+                  .catch((error) => {
+                    setNotice(definitionError(error));
+                    setBusy(false);
+                  });
+              })
+            }
+          >
+            Reload published version
+          </button>
+        </div>
+      ) : null}
+      {user?.isAdmin && record && publication.kind === "update" ? (
         <footer className="component-definition-actions">
           <span>
             {record.author} · Revision {record.revision} · {record.status}
