@@ -145,6 +145,26 @@ export async function installMcp(
     { maxBuffer: 16_000_000, timeout: 30_000, windowsHide: true },
   );
   await writeFile(executable, program, { mode: 0o600, flag: "wx" });
+  // Local mode (#1498) loads the headless workspace from beside the adapter;
+  // a package that ships one installs it there too. An older package has
+  // none, and still installs.
+  const headlessEntry = "package/bin/analog-canvas-headless.mjs";
+  const entries = execFileSync("tar", ["-tf", archive], {
+    encoding: "utf8",
+    maxBuffer: 4_000_000,
+    timeout: 30_000,
+    windowsHide: true,
+  }).split(/\r?\n/u);
+  if (entries.includes(headlessEntry))
+    await writeFile(
+      join(directory, "analog-canvas-headless.mjs"),
+      execFileSync("tar", ["-xOf", archive, headlessEntry], {
+        maxBuffer: 24_000_000,
+        timeout: 30_000,
+        windowsHide: true,
+      }),
+      { mode: 0o600, flag: "wx" },
+    );
   // The probe starts the bundle exactly as the host will.
   const node = stableNodeExecutable(locations.execPath ?? process.execPath);
   const readiness = await probeInstalledMcp(
