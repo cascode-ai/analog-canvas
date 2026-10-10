@@ -14,6 +14,7 @@ import {
   type GalleryLandingPreload,
 } from "../gallery-client";
 import { earlyGalleryFetch } from "../gallery-early-fetch";
+import { galleryOrderPreference, galleryShuffleSeed } from "../gallery-order";
 import { GALLERY_FILTERS_KEY, resolveGalleryFilters } from "../gallery-filters";
 import { galleryFocusEntryId } from "../gallery-focus";
 import "../../analytics/analytics.css";
@@ -66,6 +67,9 @@ export function mountWebEditor() {
       attention: filters.attention,
       attentionKind: filters.attentionKind,
       parts: filters.parts,
+      // The order the wall opens with (#1615), and its shuffle.
+      order: galleryOrderPreference(),
+      seed: galleryShuffleSeed(),
     };
     // index.html already asked for the unfiltered wall's first page and
     // tags (#1592); the loaders take those answers when they ask the same.

@@ -201,11 +201,11 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
   expect(cursors.every((cursor) => cursor === null || cursor === "c1")).toBe(
     true,
   );
-  expect(
-    listRequests.every(
-      (query) => new URLSearchParams(query).get("seed") === null,
-    ),
-  ).toBe(true);
+  // Every page reads the same shuffle (#1615), so none repeats or skips.
+  const seeds = new Set(
+    listRequests.map((query) => new URLSearchParams(query).get("seed")),
+  );
+  expect([...seeds]).toEqual([expect.stringMatching(/^[a-z0-9]{1,16}$/u)]);
 });
 
 test("the feed scrolls inside its shell despite the locked app root", async ({
@@ -711,6 +711,10 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
 test("keeps newest-first order and stops after the last circuit", async ({
   page,
 }) => {
+  // The reader chose Newest first (#1615); the default is a shuffle.
+  await page.addInitScript(() =>
+    localStorage.setItem("icm.gallery.order", "newest"),
+  );
   const wall = Array.from({ length: 10 }, (_, index) => ({
     ...ENTRY,
     id: `g-${index}`,

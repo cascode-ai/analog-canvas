@@ -433,7 +433,11 @@ test("a remembered narrowing loads the wall with its one early request", async (
   );
   await page.route(galleryListUrl, (route) => {
     firstListAsked = Math.min(firstListAsked, Date.now());
-    lists.push(new URL(route.request().url()).search);
+    // The query without the wall's order (#1615), which every wall carries.
+    const query = new URL(route.request().url()).searchParams;
+    query.delete("order");
+    query.delete("seed");
+    lists.push(`?${query.toString()}`);
     return route.fulfill({
       json: { entries: [ENTRY], nextCursor: null, total: 1 },
     });

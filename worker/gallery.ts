@@ -506,6 +506,9 @@ export async function routeGalleryRequest(
       viewerId: viewer?.id ?? "",
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
+      // The wall's order (#1615); without one, newest first.
+      order: url.searchParams.get("order"),
+      seed: url.searchParams.get("seed"),
       tags: (url.searchParams.get("tags") ?? "")
         .split(",")
         .filter((tag) => tag.length > 0),
