@@ -14,11 +14,14 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  isLibraryLogicGate,
+  matchGateCellPins,
   projectLengthToSky130Micrometres,
   resolveReviewedExternalBinding,
   reviewedSize,
   reviewedSizeModelled,
   reviewedSizeOutOfRange,
+  type GateCellPin,
   type ReviewedExternalDeviceBinding,
   type ReviewedSize,
   type ReviewedSizeOutOfRange,
@@ -36,6 +39,40 @@ import {
   groundPinName,
   groundPortIndex,
 } from "./extract-ground-pin.js";
+
+/**
+ * The Net of a gate's rail that no Net was chosen for, whether the gate calls
+ * a standard cell or a Cell of the Project (#1450): the Cell's one drawn
+ * supply of that domain, as an unbound gate's. A Cell that drew none took the
+ * conventional supply before extraction; one that drew several is asked to
+ * choose, once per rail in `asked`.
+ */
+function autoRailNetName(
+  document: SchematicDocument,
+  instance: Instance,
+  rail: "VDD" | "VSS",
+  context: CellNetContext,
+  diagnostics: NetlistDiagnostic[],
+  asked: Set<string>,
+): string | null {
+  const drawn = drawnSupplyNet(
+    document,
+    rail === "VDD" ? "vdd" : "ground",
+    context.logicalNets,
+  );
+  const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
+  if (!drawnName && !asked.has(rail)) {
+    asked.add(rail);
+    diagnostic(
+      diagnostics,
+      document.id,
+      "MISSING_BLOCK_SUPPLY",
+      `Analog Block ${instance.reference ?? instance.id} has no unambiguous ${rail} Net; select one in Properties or draw a unique ${rail === "VDD" ? "positive supply" : "ground"}`,
+      [instance.id],
+    );
+  }
+  return drawnName ?? null;
+}
 
 export function extractHierarchyInstance(
   document: SchematicDocument,
@@ -88,16 +125,49 @@ export function extractHierarchyInstance(
   );
   // Callers and definitions share the authored interface, including its order.
   const childPorts = projectCellInterface(child.netlist).ports;
-  const nodes = childPorts.map((port) => {
-    const netName = terminalNetName(
-      document,
-      instance,
-      port.name,
-      context,
+  // A Library gate bound to the Cell keeps its own pins, and meets the
+  // Cell's Pins by name (#1450).
+  const gate = isLibraryLogicGate(instance.symbolId)
+    ? matchGateCellPins(instance.symbolId, {
+        name: child.netlist.name,
+        portNames: childPorts.map((port) => port.name),
+      })
+    : undefined;
+  const reference = instance.reference ?? instance.id;
+  if (gate && !gate.ok)
+    diagnostic(
       diagnostics,
+      document.id,
+      "GATE_CELL_PIN_MISMATCH",
+      `${gate.message}. ${reference} is bound to it: fix the Cell's Pins, or clear ${reference}'s model`,
+      [instance.id, child.id],
     );
+  const railsAsked = new Set<string>();
+  const nodes = childPorts.map((port) => {
+    const pin: Omit<GateCellPin, "portName"> | undefined = gate
+      ? gate.pins.find((item) => item.portName === port.name)
+      : { pinName: port.name };
     // Strict extraction rejects the accompanying error. Authoring keeps an
     // explicit non-executable slot rather than shifting positional arguments.
+    const netName = !pin
+      ? null
+      : pin.supply &&
+          !context.netByTerminal.has(`${instance.id}\u0000${pin.pinName}`)
+        ? autoRailNetName(
+            document,
+            instance,
+            pin.supply,
+            context,
+            diagnostics,
+            railsAsked,
+          )
+        : terminalNetName(
+            document,
+            instance,
+            pin.pinName,
+            context,
+            diagnostics,
+          );
     return {
       pinName: port.name,
       netName: netName ?? `<unconnected:${port.name}>`,
@@ -289,35 +359,20 @@ export function extractExternalSubcircuitInstance(
       );
     }
   }
-  // A standard cell's rail with no Net chosen reads the Cell's one drawn
-  // supply of its domain, as an unbound gate does; a Cell that drew none took
-  // the conventional supply before extraction (#1450).
   const railsAsked = new Set<string>();
-  const railNetName = (rail: "VDD" | "VSS") => {
-    const drawn = drawnSupplyNet(
-      document,
-      rail === "VDD" ? "vdd" : "ground",
-      context.logicalNets,
-    );
-    const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
-    if (!drawnName && !railsAsked.has(rail)) {
-      railsAsked.add(rail);
-      diagnostic(
-        diagnostics,
-        document.id,
-        "MISSING_BLOCK_SUPPLY",
-        `Analog Block ${instance.reference!} has no unambiguous ${rail} Net; select one in Properties or draw a unique ${rail === "VDD" ? "positive supply" : "ground"}`,
-        [instance.id],
-      );
-    }
-    return drawnName ?? null;
-  };
   const nodes = terminalBindings.map((terminal) => {
     const rail = "supply" in terminal ? terminal.supply : undefined;
     const netName =
       rail &&
       !context.netByTerminal.has(`${instance.id}\u0000${terminal.pinName}`)
-        ? railNetName(rail)
+        ? autoRailNetName(
+            document,
+            instance,
+            rail,
+            context,
+            diagnostics,
+            railsAsked,
+          )
         : terminalNetName(
             document,
             instance,

@@ -21,7 +21,12 @@ import { componentInternalMark } from "./component-visual-variants";
 
 export interface ComponentPropertyDetailsContext {
   parameters: readonly ComponentParameter[];
-  modelTarget?: { defaultValue: string; suggestions: readonly string[] };
+  modelTarget?: {
+    defaultValue: string;
+    suggestions: readonly string[];
+    /** The Project's Cells a Library gate may be bound to (#1450). */
+    cells?: readonly string[];
+  };
   signalFlow?: boolean;
 }
 
@@ -246,14 +251,26 @@ export function componentDetailFields(
     {
       path: "netlistTarget",
       label: "Target netlist",
-      kind: context.modelTarget?.suggestions.length ? "choice" : "text",
+      kind:
+        context.modelTarget?.suggestions.length ||
+        context.modelTarget?.cells?.length
+          ? "choice"
+          : "text",
       options: [
         ...new Set([
           "",
+          ...(context.modelTarget?.cells ?? []),
           ...(context.modelTarget?.suggestions ?? []),
           context.modelTarget?.defaultValue ?? "",
         ]),
-      ].map((value) => ({ value, label: value || "None" })),
+      ].map((value) => ({
+        value,
+        label: !value
+          ? "None"
+          : context.modelTarget?.cells?.includes(value)
+            ? `${value} · Project Cell`
+            : value,
+      })),
       description: "",
       help: "Choose a suggested model or type a custom model name in JSON. An empty string clears the target; model compatibility checks still apply.",
     },

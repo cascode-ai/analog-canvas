@@ -27,6 +27,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
+import { blockSupplyTerminals } from "../features/properties/gate-cell-target";
 import {
   logicGateInputInfo,
   type LogicGateInputCount,
@@ -300,11 +301,12 @@ export function planSetProperties(
     value.signalFlow = nextSignalFlow(instance, command.signalFlow, resolver);
   }
   if (command.supplies) {
-    const descriptor = subcircuitDescriptor(instance.symbolId, project);
+    // Those Properties shows: a gate bound to a Cell has the Cell's (#1450).
+    const supplies = blockSupplyTerminals(project, instance) ?? [];
     value.supplies = {};
     for (const [pinName, netId] of Object.entries(command.supplies)) {
       if (netId === undefined) continue;
-      if (!descriptor?.ports.some((port) => port.supply === pinName))
+      if (!supplies.some((supply) => supply === pinName))
         throw new Error(`${name} has no ${pinName} supply to choose`);
       if (netId !== null && !document.nets.some((net) => net.id === netId))
         throw new Error(`Net not found: ${netId}`);

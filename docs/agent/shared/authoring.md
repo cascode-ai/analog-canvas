@@ -209,14 +209,25 @@ refused with their IDs; it never means the first of them.
   the cells that fit; an empty model returns the gate to its ideal body with
   its default parameters. A cell imported from a SPICE file stays an external
   block with its own rail pins.
+- A Library gate also takes a Cell of the Project drawn at transistor level:
+  `set-model` with the Cell's name (any case) or ID. The Cell's Pins must be
+  the gate's pins (`A`, `B`, `Y`; any case), plus `VDD` and `VSS` unless the
+  Cell takes its supplies globally; any other Pin, or a missing one, is
+  refused by name. The gate keeps its symbol, pins and VDD/VSS Nets (Auto as
+  for an unbound gate), its call goes to the Cell's subcircuit Pin by name,
+  and the Cell is part of the netlist, so hosted runs simulate it. Its own
+  parameters give way to the Cell's; a VDD/VSS Net the Cell has no Pin for is
+  cleared. The Cell cannot be the one the gate is drawn in. While bound, a
+  Pin the gate uses cannot be renamed or removed; an empty model returns the
+  gate to its ideal body.
 - The AND, NAND, OR, NOR, XOR and XNOR gates come with 2, 3 or 4 inputs.
   `place-component` places the 3- and 4-input forms by their own IDs
   (`nor-gate-3`, `xor-gate-4`), and `set-property {target, set:{inputs:"3"}}`
   switches a placed gate between 2, 3 and 4 inputs, as the Properties Inputs
   choice does: the symbol and its default netlist target change together and
   the shared inputs keep their wires. An input that would go is refused while
-  it is wired (disconnect it first), and a gate bound to a standard cell is
-  refused until its model is cleared.
+  it is wired (disconnect it first), and a gate bound to a standard cell or a
+  Cell is refused until its model is cleared.
 - `place-component` without `parameters` places a part as the GUI library
   does: each parameter's catalog default, and for a transistor the model of
   the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as

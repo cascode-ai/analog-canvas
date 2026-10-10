@@ -4,7 +4,10 @@ import {
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
-import { resolveReviewedExternalBinding } from "@icm/devices";
+import {
+  isLibraryLogicGate,
+  resolveReviewedExternalBinding,
+} from "@icm/devices";
 import {
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
@@ -330,7 +333,8 @@ export function planProjectCellImport(
           (candidate) =>
             identifierMap.get(candidate.id) === binding.childDocumentId,
         );
-        if (child)
+        // A Library gate bound to the Cell keeps its symbol (#1450).
+        if (child && !isLibraryLogicGate(instance.symbolId))
           instance.symbolId = hierarchicalSymbolId(names.get(child.id)!);
       } else if (binding?.kind === "external-subcircuit") {
         const definition = [

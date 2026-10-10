@@ -71,7 +71,6 @@ import {
   reviewedExternalBindingForMaster,
   reviewedExternalModelSuggestions,
   deviceDescriptor,
-  subcircuitDescriptor,
 } from "@icm/devices";
 import type {
   CircuitProject,
@@ -163,6 +162,11 @@ import { useVisualClipboard } from "../features/clipboard/visual-clipboard";
 import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
+import {
+  blockSupplyTerminals,
+  gateCellChoices,
+  gateCellTargetName,
+} from "../features/properties/gate-cell-target";
 import { componentSourceCode } from "../features/properties/component-source-code";
 import {
   endpointTestId,
@@ -3866,10 +3870,17 @@ function WorkspaceEditor({
         )
       : undefined;
   const selectedBuiltInSupplies = selectedInstance
-    ? subcircuitDescriptor(selectedInstance.symbolId, project)?.ports.flatMap(
-        (port) => (port.supply ? [port.supply] : []),
-      )
+    ? blockSupplyTerminals(project, selectedInstance)
     : undefined;
+  // The model Properties shows: a model, a reviewed device or standard cell,
+  // or the Cell a Library gate is bound to (#1450).
+  const selectedModelTargetName = !selectedInstance?.netlist
+    ? ""
+    : selectedInstance.netlist.binding?.kind === "model"
+      ? selectedInstance.netlist.binding.name
+      : selectedReviewedExternalBinding
+        ? (selectedExternalSubcircuit?.name ?? "")
+        : (gateCellTargetName(project, selectedInstance) ?? "");
 
   const selectedCircuitBinding = selectedInstance?.netlist?.binding;
   const selectedAuthoredCircuit =
@@ -6019,13 +6030,7 @@ function WorkspaceEditor({
                                 document,
                                 resolver,
                                 instance: selectedInstance,
-                                currentTarget:
-                                  selectedInstance.netlist?.binding?.kind ===
-                                  "model"
-                                    ? selectedInstance.netlist.binding.name
-                                    : selectedReviewedExternalBinding
-                                      ? (selectedExternalSubcircuit?.name ?? "")
-                                      : "",
+                                currentTarget: selectedModelTargetName,
                               },
                               value,
                             );
@@ -6171,13 +6176,12 @@ function WorkspaceEditor({
                             ).length > 0 ||
                             selectedReviewedExternalBinding)
                             ? {
-                                defaultValue:
-                                  selectedInstance.netlist.binding?.kind ===
-                                  "model"
-                                    ? selectedInstance.netlist.binding.name
-                                    : selectedReviewedExternalBinding
-                                      ? (selectedExternalSubcircuit?.name ?? "")
-                                      : "",
+                                defaultValue: selectedModelTargetName,
+                                cells: gateCellChoices(
+                                  project,
+                                  document.id,
+                                  selectedInstance,
+                                ),
                                 suggestions: reviewedExternalModelSuggestions(
                                   selectedPropertyDevice?.symbolId ??
                                     selectedInstance.symbolId,

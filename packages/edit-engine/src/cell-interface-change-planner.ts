@@ -1,9 +1,11 @@
 // Changes to a Cell's formal interface (Pin renames, label formats and
 // removals) and how every caller's symbol, Nets and wires follow them.
 import type { Annotation, CircuitProject, SchematicDocument } from "@icm/model";
+import { isLibraryLogicGate, libraryGateTerminals } from "@icm/devices";
 import {
   canonicalPortTextDocument,
   deriveStableId,
+  foldNetName,
   removeCircuitComponentTerminals,
   isAutomaticPinLabelLook,
   projectCellInterface,
@@ -149,6 +151,8 @@ export function planCallerInterfaceChanges(
   const afterChild: ProjectStructureEdit[] = [];
   const capturedIds = new Set<string>();
   const symbolMigrations = new Map<string, string>();
+  /** The Cell's Pins after the change, by folded name, for gate callers. */
+  let gatePinsAfter: Set<string> | undefined;
 
   for (const parent of project.documents) {
     const callers = parent.instances.filter((instance) => {
@@ -170,6 +174,38 @@ export function planCallerInterfaceChanges(
     };
     const reconcileEdits: DocumentEdits = [];
     for (const instance of callers) {
+      // A Library gate bound to the Cell keeps its own pins (#1450). The
+      // change goes ahead while each pin it uses keeps a Pin of its name;
+      // whether the Cell still fits the gate, export says.
+      if (!external && isLibraryLogicGate(instance.symbolId)) {
+        const pinsAfter = (gatePinsAfter ??= new Set(
+          projectCellInterface(
+            requireDocument(project, childDocumentId).netlist,
+          ).ports.flatMap((port) =>
+            uniqueDisappearingPinNames.includes(port.name)
+              ? []
+              : [
+                  foldNetName(
+                    uniquePinRenames.find((r) => r.source === port.name)
+                      ?.target ?? port.name,
+                  ),
+                ],
+          ),
+        ));
+        const lost = libraryGateTerminals(instance.symbolId)
+          .map((terminal) => terminal.pinName)
+          .filter(
+            (pinName) =>
+              instanceReferencesPin(parent, instance.id, pinName) &&
+              !pinsAfter.has(foldNetName(pinName)),
+          );
+        const gateName = instance.reference ?? instance.id;
+        if (lost.length)
+          throw new Error(
+            `${gateName} in Cell ${parent.name} is a ${instance.symbolId} bound to this Cell, and its ${lost.join(", ")} would have no Pin; clear ${gateName}'s model first, or keep the Pin${lost.length > 1 ? "s" : ""}`,
+          );
+        continue;
+      }
       let symbolId = instance.symbolId;
       const captured = project.componentDefinitions?.find(
         (component) => component.symbol.id === instance.symbolId,

@@ -8,6 +8,7 @@ import {
   resolveDocumentLogicalNets,
   resolveMosBulkConnection,
 } from "@icm/derived";
+import { isLibraryLogicGate } from "@icm/devices";
 import { hierarchicalSymbolId } from "@icm/symbols";
 import {
   planProjectCellImport,
@@ -202,9 +203,11 @@ export function planProjectCellBodyImport(
   if (incoming.sourceBinding) incoming.sourceBinding.cellName = name;
   for (const document of remapped)
     for (const instance of document.instances) {
+      // A Library gate bound to the Cell keeps its symbol (#1450).
       if (
         instance.netlist?.binding?.kind === "subcircuit" &&
-        instance.netlist.binding.childDocumentId === target.id
+        instance.netlist.binding.childDocumentId === target.id &&
+        !isLibraryLogicGate(instance.symbolId)
       )
         instance.symbolId = hierarchicalSymbolId(name);
     }

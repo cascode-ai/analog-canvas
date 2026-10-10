@@ -15,6 +15,7 @@ import {
   createHierarchyInstance,
   planDeleteCell,
   planPlaceCellInstance,
+  planRenameCell,
   planSetCellSymbolPins,
 } from "./hierarchy-planner.js";
 import {
@@ -29,7 +30,10 @@ import {
   planRemoveCellTerminal,
   planRenameCellTerminal,
 } from "./cell-interface-change-planner.js";
-import { planSetDeviceModelTarget } from "./device-model-target-planner.js";
+import {
+  gateCellTargets,
+  planSetDeviceModelTarget,
+} from "./device-model-target-planner.js";
 import {
   executeProjectTransaction,
   type ProjectStructureEdit,
@@ -202,7 +206,7 @@ describe("a Library gate takes a standard cell of its function (#1450)", () => {
     expect(() =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", "nor2"),
     ).toThrow(
-      "nor2 is not a reviewed standard cell for nor-gate; use sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
+      "nor2 is neither a Cell of this Project nor a reviewed standard cell for nor-gate; use sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
     );
   });
 
@@ -240,6 +244,189 @@ describe("a Library gate takes a standard cell of its function (#1450)", () => {
       edit.kind === "add_document" ? edit.document.instances : [],
     );
     expect(placed.map((instance) => instance.symbolId)).toEqual(["nor-gate"]);
+  });
+});
+
+describe("a Library gate takes a Cell of its Project (#1450)", () => {
+  /** A nor-gate X1 wired at A, B and Y, its VDD on Net net-vdda. */
+  function gateProject() {
+    const project = createEmptyProject("gates", "Gates");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: "nor-gate",
+      placement: null,
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "nor_gate" },
+        parameters: { vt: "10m", td: "10p" },
+      },
+    });
+    document.nets.push(
+      ...["A", "B", "Y", "VDD"].map((pin) => ({
+        id: `net-${pin.toLowerCase()}`,
+        terminals: [{ instanceId: "X1", pinName: pin }],
+      })),
+    );
+    return project;
+  }
+  /** Cell `name`, with a Port and a Net for each Pin. */
+  function addCell(
+    project: ReturnType<typeof gateProject>,
+    id: string,
+    name: string,
+    pins: readonly string[],
+  ) {
+    const cell = createEmptyDocument(id, name);
+    cell.netlist!.name = name;
+    for (const pin of pins) {
+      cell.instances.push({
+        id: `${id}-port-${pin}`,
+        symbolId: "port",
+        placement: null,
+      });
+      cell.nets.push({
+        id: `${id}-net-${pin}`,
+        terminals: [{ instanceId: `${id}-port-${pin}`, pinName: "P" }],
+      });
+      cell.netlist!.terminals.push({
+        id: `${id}-${pin}`,
+        name: pin,
+        netId: `${id}-net-${pin}`,
+        direction: "inout",
+        interfaceInstanceIds: [`${id}-port-${pin}`],
+      });
+    }
+    project.documents.push(cell);
+    return cell;
+  }
+  const execute = (
+    project: ReturnType<typeof gateProject>,
+    edits: ProjectStructureEdit[],
+  ) => {
+    const result = executeProjectTransaction(project, {
+      transactionId: "gate-cell",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.project;
+  };
+  const bind = (project: ReturnType<typeof gateProject>, model: string) =>
+    execute(
+      project,
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", model),
+    );
+  const gate = (project: ReturnType<typeof gateProject>) =>
+    project.documents[0]!.instances.find((instance) => instance.id === "X1")!;
+  const pinsOf = (project: ReturnType<typeof gateProject>) =>
+    project.documents[0]!.nets.flatMap((net) =>
+      net.terminals
+        .filter((terminal) => terminal.instanceId === "X1")
+        .map((terminal) => terminal.pinName),
+    );
+
+  it("binds by the Cell's name in any case, keeps the gate's symbol and pins, and clears back to the ideal body", () => {
+    const project = gateProject();
+    addCell(project, "nor2", "NOR2", ["a", "b", "y", "VDD", "VSS"]);
+    const bound = bind(project, "nor2");
+    expect(gate(bound)).toMatchObject({
+      symbolId: "nor-gate",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "nor2" },
+        parameters: {},
+      },
+    });
+    // The Cell has a VDD Pin, so the gate's VDD Net stays.
+    expect(pinsOf(bound)).toEqual(["A", "B", "Y", "VDD"]);
+    expect(
+      planSetDeviceModelTarget(bound, bound.topDocumentId, "X1", "NOR2"),
+    ).toEqual([]);
+    const exported = createDesignNetlistExport(bound, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // In the Cell's order: VDD on the gate's Net, VSS on ground, then a, b
+    // and y on the gate's A, B and Y.
+    expect(exported.file.text).toMatch(/^X1 net2 VSS net0 net1 net3 NOR2$/mu);
+
+    const cleared = bind(bound, "");
+    expect(gate(cleared).netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "nor_gate" },
+      parameters: { vt: "10m", td: "10p" },
+    });
+  });
+
+  it("refuses a Cell whose Pins do not fit, naming them, and offers the Cells that do", () => {
+    const project = gateProject();
+    addCell(project, "inv1", "inv1", ["A", "Y", "EN"]);
+    addCell(project, "nor2", "nor2", ["A", "B", "Y"]);
+    const plan = (model: string) =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
+    expect(() => plan("INV1")).toThrow(
+      "Cell inv1 does not fit the nor-gate: it has no Pin B, and its Pin EN is not one of the gate's. Its Pins must be A, B and Y, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
+    );
+    expect(() => plan("nor3")).toThrow(
+      "nor3 is neither a Cell of this Project nor a reviewed standard cell for nor-gate; use nor2, sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
+    );
+    expect(
+      gateCellTargets(project, project.topDocumentId, "nor-gate").map(
+        (cell) => cell.id,
+      ),
+    ).toEqual(["nor2"]);
+  });
+
+  it("refuses the Cell the gate is drawn in", () => {
+    const project = gateProject();
+    const cell = addCell(project, "nor2", "nor2", ["A", "B", "Y"]);
+    cell.instances.push({
+      id: "X9",
+      reference: "X9",
+      symbolId: "nor-gate",
+      placement: null,
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "nor_gate" },
+        parameters: {},
+      },
+    });
+    expect(() =>
+      planSetDeviceModelTarget(project, "nor2", "X9", "nor2"),
+    ).toThrow("X9 is drawn in Cell nor2, which cannot call itself");
+    expect(gateCellTargets(project, "nor2", "nor-gate")).toEqual([]);
+  });
+
+  it("clears the gate's VDD Net where the Cell takes its supplies globally", () => {
+    const project = gateProject();
+    addCell(project, "nor2", "nor2", ["A", "B", "Y"]);
+    expect(pinsOf(bind(project, "nor2"))).toEqual(["A", "B", "Y"]);
+  });
+
+  it("stays a gate through a Cell rename, and keeps the Pins it uses", () => {
+    const project = gateProject();
+    addCell(project, "nor2", "nor2", ["a", "b", "y", "VDD", "VSS"]);
+    const bound = bind(project, "nor2");
+    const renamed = execute(bound, planRenameCell(bound, "nor2", "nor_cmos"));
+    expect(gate(renamed).symbolId).toBe("nor-gate");
+    // A new spelling of the same Pin leaves the gate as it is.
+    const recased = execute(
+      renamed,
+      planRenameCellTerminal(renamed, "nor2", "nor2-b", "B"),
+    );
+    expect(gate(recased).symbolId).toBe("nor-gate");
+    expect(pinsOf(recased)).toEqual(["A", "B", "Y", "VDD"]);
+    expect(() =>
+      planRenameCellTerminal(recased, "nor2", "nor2-b", "in2"),
+    ).toThrow(
+      "X1 in Cell dut is a nor-gate bound to this Cell, and its B would have no Pin; clear X1's model first, or keep the Pin",
+    );
+    expect(() => planRemoveCellTerminal(recased, "nor2", "nor2-VDD")).toThrow(
+      "its VDD would have no Pin",
+    );
+    // Its VSS is Auto: the Cell may take ground globally instead.
+    expect(
+      planRemoveCellTerminal(recased, "nor2", "nor2-VSS").length,
+    ).toBeGreaterThan(0);
   });
 });
 

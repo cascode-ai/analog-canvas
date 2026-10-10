@@ -15,6 +15,7 @@ import {
   type PlacedMosBody,
 } from "@icm/derived";
 import {
+  gateCellBinding,
   IDEAL_COMPARATOR_SUPPLY_TARGET,
   IDEAL_COMPARATOR_TARGET,
   instanceBuiltInSubcircuit,
@@ -138,13 +139,43 @@ export interface ImplicitMosSupplyProjection {
   placedBodies: ReadonlyMap<string, PlacedMosBodies>;
 }
 
+/** The rails of a gate bound to a standard cell, or to a Cell's VDD/VSS Pins. */
+function boundGateRails(
+  source: CircuitProject,
+  instance: CircuitProject["documents"][number]["instances"][number],
+): readonly ("VDD" | "VSS")[] {
+  const binding = instance.netlist?.binding;
+  if (binding?.kind === "subcircuit")
+    return (
+      gateCellBinding(source, instance)?.match.pins.flatMap((pin) =>
+        pin.supply ? [pin.supply] : [],
+      ) ?? []
+    );
+  if (binding?.kind !== "external-subcircuit") return [];
+  const definition = source.externalSubcircuitDefinitions.find(
+    (candidate) => candidate.id === binding.definitionId,
+  );
+  if (!definition || definition.implementation) return [];
+  const reviewed = resolveReviewedExternalBinding(
+    definition.name,
+    definition.terminals.map((terminal) => terminal.name),
+    instance.symbolId,
+  );
+  return (
+    reviewed?.terminals.flatMap((terminal) =>
+      terminal.supply ? [terminal.supply] : [],
+    ) ?? []
+  );
+}
+
 /**
- * The rails of a gate bound to a standard cell (#1450) that no Net was chosen
- * for, in a Cell that drew no supply of that domain: each joins the
- * conventional supply, as an unbound gate's does. A drawn supply is read at
- * export, or asked for when several were drawn (MISSING_BLOCK_SUPPLY).
+ * The rails of a gate bound to a standard cell or to a Cell of the Project
+ * (#1450) that no Net was chosen for, in a Cell that drew no supply of that
+ * domain: each joins the conventional supply, as an unbound gate's does. A
+ * drawn supply is read at export, or asked for when several were drawn
+ * (MISSING_BLOCK_SUPPLY).
  */
-function standardCellSuppliesToDefault(source: CircuitProject): {
+function boundGateSuppliesToDefault(source: CircuitProject): {
   documentId: string;
   instanceId: string;
   supply: "VDD" | "VSS";
@@ -158,22 +189,7 @@ function standardCellSuppliesToDefault(source: CircuitProject): {
         (logical ??= resolveDocumentLogicalNets(document)),
       );
     return document.instances.flatMap((instance) => {
-      const binding = instance.netlist?.binding;
-      if (binding?.kind !== "external-subcircuit") return [];
-      const definition = source.externalSubcircuitDefinitions.find(
-        (candidate) => candidate.id === binding.definitionId,
-      );
-      if (!definition || definition.implementation) return [];
-      const reviewed = resolveReviewedExternalBinding(
-        definition.name,
-        definition.terminals.map((terminal) => terminal.name),
-        instance.symbolId,
-      );
-      const rails = new Set(
-        reviewed?.terminals.flatMap((terminal) =>
-          terminal.supply ? [terminal.supply] : [],
-        ),
-      );
+      const rails = new Set(boundGateRails(source, instance));
       return [...rails].flatMap((supply) =>
         document.nets.some((net) =>
           net.terminals.some(
@@ -196,7 +212,7 @@ export function withImplicitMosSupplies(
   options: DesignNetlistAnalysisOptions,
 ): ImplicitMosSupplyProjection {
   const blockSupplies = blockSuppliesToDefault(source, options);
-  const cellRails = standardCellSuppliesToDefault(source);
+  const cellRails = boundGateSuppliesToDefault(source);
   const missing = source.documents.flatMap((document) => {
     const logical = resolveDocumentLogicalNets(document);
     return document.instances.flatMap((instance) =>

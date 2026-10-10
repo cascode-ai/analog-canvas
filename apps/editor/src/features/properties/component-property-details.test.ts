@@ -98,6 +98,22 @@ describe("unified component property details", () => {
     ]);
     expect(field.description).not.toContain("model_a");
   });
+  it("offers a gate the Project's Cells that fit it before the standard cells (#1450)", () => {
+    const gate = { id: "X1", symbolId: "nor-gate", placement: null };
+    const field = componentDetailFields(gate, {
+      parameters: [],
+      modelTarget: {
+        defaultValue: "nor2_cmos",
+        suggestions: ["sky130_fd_sc_hd__nor2_1"],
+        cells: ["nor2_cmos"],
+      },
+    }).find((item) => item.path === "netlistTarget")!;
+    expect(field.options).toEqual([
+      { value: "", label: "None" },
+      { value: "nor2_cmos", label: "nor2_cmos · Project Cell" },
+      { value: "sky130_fd_sc_hd__nor2_1", label: "sky130_fd_sc_hd__nor2_1" },
+    ]);
+  });
   it("round-trips authored strings, overrides, and model target without unit conversion", () => {
     const source = formatComponentPropertyCode(context);
     expect(Object.keys(JSON.parse(source))).toEqual([

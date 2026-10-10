@@ -17,6 +17,7 @@ import type { Diagnostic } from "./diagnostic.js";
 import { findExternalMasterCollisions } from "../master-names.js";
 import {
   deviceDescriptor,
+  gateCellBinding,
   instanceParameterContract,
   milliScaleReading,
   validateDeviceParameters,
@@ -360,6 +361,30 @@ export function runErcChecks(
         continue;
       }
       if (!resolved) continue;
+      // A Library gate bound to the Cell keeps its own pins, and meets the
+      // Cell's Pins by name (#1450).
+      const gate = gateCellBinding(project, instance);
+      if (gate) {
+        if (!gate.match.ok)
+          diagnostics.push({
+            id: `erc:port-name-mismatch:${document.id}:${instance.id}`,
+            domain: "erc",
+            code: "ERC_PORT_NAME_MISMATCH",
+            severity: "error",
+            confidence: "high",
+            gateEligible: true,
+            message: gate.match.message,
+            primary: directObjectLocator(document.id, "instance", instance.id),
+            related: [],
+            parameters: {
+              instanceId: instance.id,
+              childDocumentId: child.id,
+              unmatchedPortCount: gate.match.extra.length,
+              unmatchedPinCount: gate.match.missing.length,
+            },
+          });
+        continue;
+      }
       const pinNames = new Set(resolved.definition.pins.map((pin) => pin.name));
       const childTerminalNames = new Set(
         projectCellInterface(child.netlist).ports.map((port) => port.name),
@@ -698,7 +723,8 @@ export function runErcChecks(
         instance.symbolId,
         instance.symbolVariantId,
       );
-      if (!child || !resolved) continue;
+      // A Library gate's fit is its own finding above.
+      if (!child || !resolved || gateCellBinding(project, instance)) continue;
       const pinNames = new Set(resolved.definition.pins.map((pin) => pin.name));
       const childPortNames = new Set(
         projectCellInterface(child.netlist).ports.map((port) => port.name),

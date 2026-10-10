@@ -9,6 +9,7 @@ import { ProjectSimulationFolderSchema } from "./simulation-source.js";
 import { ProjectModelSourceSchema } from "./model-source.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
+import { foldNetName } from "../net-name.js";
 import { circuitComponentIssues } from "../circuit-component.js";
 export const ComponentAuthoringDraftSchema = z.strictObject({
   id: StableIdSchema,
@@ -348,8 +349,10 @@ export const CircuitProjectSchema = z
           });
           continue;
         }
+        // A Cell's Pins are named without case, as its interface groups them:
+        // a Library gate bound to the Cell keeps its own pins' spelling (#1450).
         const childPinNames = new Set(
-          projectCellInterface(child.netlist).ports.map((port) => port.name),
+          projectCellInterface(child.netlist).ports.map((port) => port.key),
         );
         const referencedPins: Array<{
           pinName: string;
@@ -423,7 +426,7 @@ export const CircuitProjectSchema = z
           });
         }
         for (const reference of referencedPins) {
-          if (childPinNames.has(reference.pinName)) continue;
+          if (childPinNames.has(foldNetName(reference.pinName))) continue;
           context.addIssue({
             code: "custom",
             message: `Hierarchy Instance ${instance.id} references unknown child terminal ${reference.pinName}`,

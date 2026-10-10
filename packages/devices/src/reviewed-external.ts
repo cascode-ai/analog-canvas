@@ -1102,6 +1102,12 @@ const GATE_OF_SYMBOL = new Map<
     ),
   ),
 );
+/** Whether a symbol is one of the Library logic gates (#1450). */
+export function isLibraryLogicGate(
+  symbolId: string,
+): symbolId is StandardCellGateSymbolId {
+  return GATE_OF_SYMBOL.has(symbolId);
+}
 const GATE_INPUTS = ["A", "B", "C", "D"] as const;
 const INVERTING: ReadonlySet<GateFunction> = new Set([
   "inv",
