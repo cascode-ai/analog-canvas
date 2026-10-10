@@ -203,15 +203,15 @@ test("a signed-out visitor sees the wall's first twelve circuits, dimmed and clo
 }) => {
   // Signed out, the server answers only the unfiltered first page, cut to
   // twelve, and those twelve previews; every other read asks to sign in.
+  // Exactly what the Worker sends signed out: id, name and preview only. A
+  // fuller mock once hid a crash on the fields the server leaves out.
   const entries = Array.from({ length: 12 }, (_, n) => ({
     id: `g${n + 1}`,
     name: `Circuit ${n + 1}`,
-    author: "tz",
-    description: "",
-    createdAt: "2026-08-21T00:00:00.000Z",
-    schemaVersion: 23,
     previewRevision: `r${n + 1}`,
   }));
+  const crashes: string[] = [];
+  page.on("pageerror", (error) => crashes.push(error.message));
   const reads: string[] = [];
   await page.route("**/api/gallery**", (route) => {
     const url = new URL(route.request().url());
@@ -268,6 +268,9 @@ test("a signed-out visitor sees the wall's first twelve circuits, dimmed and clo
     [],
   );
   expect(reads.filter((path) => path.includes("cursor="))).toEqual([]);
+  // The page never broke on the fields the server leaves out.
+  await expect(page.locator(".editor-crash-screen")).toHaveCount(0);
+  expect(crashes).toEqual([]);
 });
 
 test("signed out, the editor's Gallery panel is grey with a way to sign in", async ({
