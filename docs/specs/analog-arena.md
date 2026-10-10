@@ -11,7 +11,7 @@ call), `worker/arena-paths.ts` (the hosts and the `/schematic` path rule),
 ## Scope
 
 AnalogArena is its own Worker, `analog-arena`, deployed from the private
-repository Arcadia-1/analog-arena. It has no route of its own: it is reached
+repository Arcadia-1/chip-arena. It has no route of its own: it is reached
 only through this Worker, which serves it on its own host,
 `chip-arena.com`, with Analog Canvas's accounts. This
 specification owns the hosts, the forwarded identity, the routing, the sign-in
@@ -19,6 +19,10 @@ handoff, the sign-in return and the account deletion's call between the two
 sides; the Arena repository keeps its half in its `docs/contracts.md`. A
 change starts here, and each side tests its own half. What Arena does with a
 forwarded request is Arena's.
+
+Visitors see the site as **Chip Arena**, and its repository took that name
+(2026-10-10). The Worker keeps the name `analog-arena`, because its Durable
+Objects are keyed to it and the binding below names it.
 
 ## Hosts
 

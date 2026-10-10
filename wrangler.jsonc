@@ -62,7 +62,7 @@
       "/arena/*",
     ],
   },
-  // AnalogArena (Arcadia-1/analog-arena) has no route of its own: this
+  // AnalogArena (Arcadia-1/chip-arena) has no route of its own: this
   // Worker forwards /schematic… and /api/arena/… to it with the signed-in
   // account, which Arena trusts because only this binding reaches it
   // (docs/specs/analog-arena.md). Only Production holds it.

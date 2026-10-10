@@ -92,7 +92,7 @@ counts and sizes; it does not calculate or compare SHA256 hashes. Runtime
 bindings, routes, secrets, queues, buckets, and Durable Object namespaces are
 applied by `wrangler.jsonc` rather than baked into the candidate. One binding
 names a Worker this repository does not deploy: `ARENA`, the service
-`analog-arena` from Arcadia-1/analog-arena
+`analog-arena` from Arcadia-1/chip-arena
 ([AnalogArena](specs/analog-arena.md#routing)). That Worker must exist before
 a Production deploy carries the binding; rolling Analog Canvas back does not
 touch it.
