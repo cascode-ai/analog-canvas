@@ -13,6 +13,7 @@ import {
   warmGalleryPreviews,
   type GalleryLandingPreload,
 } from "../gallery-client";
+import { earlyGalleryFetch } from "../gallery-early-fetch";
 import { GALLERY_FILTERS_KEY, resolveGalleryFilters } from "../gallery-filters";
 import { galleryFocusEntryId } from "../gallery-focus";
 import "../../analytics/analytics.css";
@@ -66,11 +67,14 @@ export function mountWebEditor() {
       attentionKind: filters.attentionKind,
       parts: filters.parts,
     };
+    // index.html already asked for the unfiltered wall's first page and
+    // tags (#1592); the loaders take those answers when they ask the same.
+    const early = earlyGalleryFetch();
     return {
       // The tags beside that page are counted for the same filters.
-      tags: loadGalleryTagSummary(fetch, query),
+      tags: loadGalleryTagSummary(early, query),
       tagsScope: galleryTagScope(query),
-      feed: loadGalleryFeed(fetch, query),
+      feed: loadGalleryFeed(early, query),
       feedQuery: galleryFeedQueryKey(query),
       ...(focusId
         ? { focus: { id: focusId, entry: loadGalleryEntry(fetch, focusId) } }
