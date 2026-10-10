@@ -1,4 +1,5 @@
 import { AccountMenu } from "./account";
+import { ARENA_ENTRY_VISIBLE } from "./arena-entry";
 import { BugReportLink } from "./bug-report-link";
 import { CrossedSwordsIcon } from "./crossed-swords-icon";
 import { SITE_PRIVACY_PATH, SITE_REPOSITORY_URL } from "./site-resource-links";
@@ -51,15 +52,17 @@ export function GalleryChrome({
         </a>
         {/* AnalogArena, where drawings are judged side by side: /arena
             hands the visitor to chip-arena.com, signed in as here. */}
-        <a
-          className="gallery-arena-link"
-          href="/arena"
-          data-testid="gallery-arena-link"
-          title="Judge schematics side by side in AnalogArena"
-        >
-          <CrossedSwordsIcon />
-          <span>Arena</span>
-        </a>
+        {ARENA_ENTRY_VISIBLE ? (
+          <a
+            className="gallery-arena-link"
+            href="/arena"
+            data-testid="gallery-arena-link"
+            title="Judge schematics side by side in AnalogArena"
+          >
+            <CrossedSwordsIcon />
+            <span>Arena</span>
+          </a>
+        ) : null}
         <div className="app-brand-copy">
           <p>{subtitle}</p>
         </div>

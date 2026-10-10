@@ -80,16 +80,19 @@
   height: var(--icm-control-h);
   padding: 0 11px 0 9px;
   border-radius: 999px;
-  color: #fff;
-  background: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
   font-size: var(--icm-font-sm);
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
 }
 
+/* At rest it wears the soft blue of the header's other links, and lights up
+   only under the pointer, as they do. */
 .gallery-editor-link:hover {
-  filter: brightness(1.08);
+  color: #fff;
+  background: var(--icm-accent);
 }
 
 .gallery-editor-link:focus-visible {
@@ -102,8 +105,7 @@
   height: 15px;
 }
 
-/* AnalogArena beside the Editor, in the soft blue the editor's own header
-   gives its Gallery and Arena links: the Editor stays the primary way on. */
+/* Chip Arena beside the Editor, in the same soft blue. */
 .gallery-arena-link {
   display: inline-flex;
   flex: 0 0 auto;

@@ -1,6 +1,7 @@
 import { type ReactNode, type ComponentProps, type MouseEvent } from "react";
 
 import { BugReportLink } from "../components/bug-report-link";
+import { ARENA_ENTRY_VISIBLE } from "../components/arena-entry";
 import { CrossedSwordsIcon } from "../components/crossed-swords-icon";
 import { ProjectMenu } from "./project-menu";
 import { AccountMenu } from "../components/account";
@@ -195,7 +196,7 @@ export function EditorAppChrome({
           ) : null}
           {/* AnalogArena, where drawings are judged side by side: /arena
               hands the visitor to chip-arena.com, signed in as here. */}
-          {communityEnabled ? (
+          {communityEnabled && ARENA_ENTRY_VISIBLE ? (
             <a
               className="header-gallery-link header-arena-link"
               href="/arena"

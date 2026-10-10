@@ -434,10 +434,8 @@ describe("GalleryFeed", () => {
     // Editor is the one way into the editor; there is no second New Circuit.
     expect(markup).toContain('data-testid="gallery-editor-switch"');
     expect(markup).not.toContain("gallery-new-circuit");
-    // Beside it, the way to AnalogArena: /arena hands the visitor on.
-    expect(markup).toMatch(
-      /<a class="gallery-arena-link" href="\/arena" data-testid="gallery-arena-link"[^>]*><svg[^>]*>.*?<\/svg><span>Arena<\/span><\/a>/u,
-    );
+    // The way to Chip Arena beside it is hidden for now (#1608).
+    expect(markup).not.toContain('data-testid="gallery-arena-link"');
     expect(markup).toContain('data-testid="gallery-report-bug"');
     expect(markup).toContain("Report bug");
     expect(markup).toContain('href="/editor"');
