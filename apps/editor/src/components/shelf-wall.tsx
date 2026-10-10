@@ -13,6 +13,7 @@ import {
   saveCloudProject,
   type CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
+import { noteCloudProjectDeleted } from "../document/cloud-project-session";
 import { parseProject } from "@icm/project-protocol";
 import {
   VersionHistoryDialog,
@@ -258,6 +259,9 @@ export function ShelfWall() {
     const outcome = await deleteCloudProject(project.id);
     setBusyId(null);
     if (outcome.status === "deleted") {
+      // An editor tab of it, when this browser tab returns to the editor,
+      // becomes an unsaved draft instead of a saved Project that is gone.
+      noteCloudProjectDeleted(project.id);
       setState({ status: "ready", projects: outcome.projects });
     } else {
       setError(outcome.message);

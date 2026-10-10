@@ -86,8 +86,13 @@ an application-specific database, keyed by a random `workingCopyId` plus a
 `latest`/`previous` generation, never by `projectId` alone. The executable
 limits live in `apps/editor/src/document/browser-recovery-contract.ts`:
 
-- at most 2 retained working-copy sessions, the active one always kept and the
-  oldest inactive session pruned first;
+- every working copy an editor tab has open keeps its `latest` copy; at most
+  20 sessions no tab has open are kept besides them, the oldest pruned first;
+- one closed copy per Project: a closed session is pruned once a more recent
+  session holds the same Project, except that a copy with unsaved work
+  (`unsavedAtSnapshot: true`) gives way only to a more recent copy with
+  unsaved work, never to a saved one such as the same Cloud Project opened
+  again;
 - at most `latest` and `previous` per session; identical Project text does not
   consume a new generation. Save-state and formal-file metadata may update the
   latest envelope in place without rotating its Project text into `previous`;
@@ -132,6 +137,25 @@ across routes, including its active tab and unsaved content. Explicit project,
 Gallery and New Circuit targets retain their existing opening semantics. See
 [workspace storage](../../apps/editor/src/document/project-workspace.ts).
 
+The route a workspace is kept under is the editor address without the open
+requests the editor consumes (`resume`, `project`, `new`), a Gallery entry
+link `/g/<id>` counting as `/editor`. Coming back to plain `/editor` in the
+same window, from the account, the Privacy page or the Gallery, therefore
+restores that window's tabs whichever link opened them. An address that still
+differs (a built-in example, a Gallery history branch) starts the window
+afresh, and the tabs it saves take the place of the window's. Before anything
+replaces them, every saved tab with unsaved work is stored in browser recovery
+as a closed session of its own, listed by File → Recover Unsaved Work; the
+copies the window's tabs and the page's resumed working copy already have are
+kept beside them. If one cannot be stored, the window's tabs are left in place,
+the new page saves no tabs, and `/editor?resume=1` brings them back.
+
+A Cloud Project deleted from the account page or the Gallery's shelf, in the
+same browser tab, no longer counts as saved when the editor's tabs come back:
+its tab becomes an unbound draft with unsaved work, as the editor Shelf's
+Delete leaves an open tab, so closing it asks first and its next Save creates
+a new Cloud Project.
+
 Inactive tabs retain live controllers and Undo histories during a session;
 refresh reconstructs controllers without Undo stacks or unfinished text-field
 edits. Workspace restoration does not make unsaved content formally saved.
@@ -148,10 +172,14 @@ Lock named after its identity for its page's lifetime, so an open window's
 tabs are never offered; without Web Locks nothing is offered. A workspace is
 offered only when a tab holds unsaved work or stands for a Cloud Project,
 Gallery entry or file, never for an untouched New Circuit. Reopened tabs join
-the window's tabs (a Cloud Project already open is not doubled), and an
-untouched blank placeholder gives way to them. The closed window's record is
-removed only after this window's own saved workspace holds every reopened
-tab. "Not now" keeps the record; another fresh window offers it again.
+the window's tabs, and an untouched blank placeholder gives way to them. A
+tab of a Cloud Project already open here is not doubled when it holds nothing
+unsaved; one with unsaved edits reopens beside the open tab as
+`<name> (unsaved copy)`, an independent Project bound to no Cloud Project, so
+neither tab can save over the other and its next Save creates a new Cloud
+Project. Every tab with unsaved work is thus reopened, and the closed window's
+record is removed only after this window's own saved workspace holds every
+reopened tab. "Not now" keeps the record; another fresh window offers it again.
 
 ## Cloud Project and Save semantics
 

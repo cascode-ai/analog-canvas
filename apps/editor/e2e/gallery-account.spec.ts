@@ -964,3 +964,103 @@ test("/mine offers owner withdrawal, restore, and version history", async ({
   await expect(version).toHaveCSS("display", "grid");
   await expect(version).toContainText("Live Amp v1");
 });
+
+test("a window back from its account and Privacy at plain /editor keeps its tabs, and a Cloud Project deleted there turns unsaved (#1599)", async ({
+  page,
+  context,
+}) => {
+  const project = { ...galleryResistorProject("7k"), name: "Cloud circuit" };
+  const summary = {
+    id: "account-cloud",
+    name: project.name,
+    revision: 1,
+    schemaVersion: project.schemaVersion,
+    updatedAt: "2026-10-10T00:00:00Z",
+  };
+  let deleted = false;
+  await context.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: false, email: false } }),
+  );
+  await context.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "account-owner",
+          displayName: "Owner",
+          provider: "github",
+          email: null,
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await context.route("**/api/projects", (route) =>
+    route.fulfill({ json: { projects: deleted ? [] : [summary] } }),
+  );
+  await context.route("**/api/projects/account-cloud", (route) => {
+    if (route.request().method() === "DELETE") {
+      deleted = true;
+      return route.fulfill({ json: { projects: [] } });
+    }
+    return route.fulfill({
+      json: { project: { ...summary, projectText: serializeProject(project) } },
+    });
+  });
+  await context.route("**/api/gallery/mine**", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  // The account page's Cloud Projects tile opens the editor at ?project=.
+  await page.goto("/editor?project=account-cloud");
+  await awaitEditorReady(page);
+  const cloudTab = page.getByRole("tab", { name: /Cloud circuit$/ });
+  await expect(cloudTab).toHaveAttribute("aria-selected", "true");
+  await page.getByTestId("tab-project-file").setInputFiles({
+    name: "draft.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      serializeProject({
+        ...galleryResistorProject("13k"),
+        id: "local-draft",
+        name: "Local draft",
+      }),
+    ),
+  });
+  const draftTab = page.getByRole("tab", { name: /Local draft/ });
+  await draftTab.dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  await name.fill("Local draft edited");
+  await name.press("Enter");
+  await expect(draftTab.getByLabel("Unsaved")).toBeVisible();
+  const names = await page
+    .getByTestId("project-tabs")
+    .getByRole("tab")
+    .allTextContents();
+  page.on("dialog", (dialog) => void dialog.accept());
+
+  // Out through the account and Privacy, back by Privacy's plain /editor.
+  await page.getByTestId("account-name").click();
+  await expect(page.getByTestId("account-page")).toBeVisible();
+  await page.getByTestId("gallery-privacy-link").click();
+  await page.getByTestId("gallery-editor-switch").click();
+  await awaitEditorReady(page);
+  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page.getByTestId("project-tabs").getByRole("tab")).toHaveText(
+    names,
+  );
+  await expect(draftTab.getByLabel("Unsaved")).toBeVisible();
+  await expect(cloudTab.getByLabel("Unsaved")).toHaveCount(0);
+
+  // Deleting the Cloud Project on the account page leaves its tab unsaved.
+  await page.getByTestId("account-name").click();
+  await page.getByTestId("account-tab-projects").click();
+  await page.getByTestId("shelf-delete-account-cloud").click();
+  await page
+    .getByRole("button", { name: "Really delete", exact: true })
+    .click();
+  await expect(page.getByTestId("shelf-tile-account-cloud")).toHaveCount(0);
+  await page.getByTestId("gallery-editor-switch").click();
+  await awaitEditorReady(page);
+  await expect(page).toHaveURL(/\/editor\?resume=1$/);
+  await expect(cloudTab.getByLabel("Unsaved")).toBeVisible();
+});

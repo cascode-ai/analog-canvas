@@ -231,30 +231,21 @@ export function useProjectTabs<Session>(options: {
     },
     /**
      * Bring a closed window's tabs into this one (#1250). They follow the
-     * open tabs, the one that was active there becomes active, a tab for an
-     * already open Cloud Project is not doubled, and an untouched blank
-     * placeholder gives way to them.
+     * open tabs, the one that was active there becomes active, and an
+     * untouched blank placeholder gives way to them. The caller chose them
+     * (planWorkspaceReopen); every one is added, since a tab dropped here
+     * could hold the only copy of its edits (#1599).
      */
     adopt: (
-      incoming: {
-        session: Session;
-        cloudId: string | null;
-        active: boolean;
-      }[],
+      incoming: { session: Session; active: boolean }[],
       replaceActive: boolean,
     ) =>
       transition(() => {
-        const added = incoming
-          .filter(
-            ({ cloudId }) =>
-              !cloudId ||
-              !liveIds.current.some((id) => describe(id).cloudId === cloudId),
-          )
-          .map(({ session, active: wasActive }) => {
-            const id = createId("tab");
-            sessions.current.set(id, session);
-            return { id, wasActive };
-          });
+        const added = incoming.map(({ session, active: wasActive }) => {
+          const id = createId("tab");
+          sessions.current.set(id, session);
+          return { id, wasActive };
+        });
         if (!added.length) return;
         const outgoing = active.current;
         const next = [

@@ -1883,3 +1883,106 @@ for (const kind of ["port", "net"] as const) {
     await verify(3);
   });
 }
+
+test("Reopen tabs brings back unsaved edits to a Cloud Project open here as an unsaved copy (#1599)", async ({
+  context,
+}) => {
+  test.slow();
+  const alpha = createEmptyProject("project-alpha", "Alpha");
+  const summary = {
+    id: "cloud-alpha",
+    name: "Alpha",
+    revision: 1,
+    schemaVersion: alpha.schemaVersion,
+    updatedAt: "2026-10-10T00:00:00.000Z",
+  };
+  await context.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Author",
+          email: "author@example.com",
+          provider: "github",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await context.route("**/api/projects", (route) =>
+    route.fulfill({ json: { projects: [summary] } }),
+  );
+  await context.route("**/api/projects/cloud-alpha", (route) =>
+    route.fulfill({
+      json: { project: { ...summary, projectText: serializeProject(alpha) } },
+    }),
+  );
+  const alphaTab = (target: Page) =>
+    target.getByRole("tab", { name: /Alpha$/ });
+
+  // Edit Alpha without saving, then close the browser tab.
+  const page = await context.newPage();
+  await page.goto("/editor?project=cloud-alpha");
+  await expect(alphaTab(page)).toHaveAttribute("aria-selected", "true");
+  await insert(page, "resistor", 260, 240);
+  await expect(alphaTab(page).getByLabel("Unsaved")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise<boolean>((resolve, reject) => {
+            const windowId = sessionStorage.getItem("icm.workspace-window.v1");
+            const request = indexedDB.open("analog-canvas-workspaces", 1);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              const read = request.result
+                .transaction("windows")
+                .objectStore("windows")
+                .get(windowId ?? "");
+              read.onsuccess = () => {
+                request.result.close();
+                resolve(
+                  Boolean(
+                    read.result?.tabs.some(
+                      (tab: {
+                        session: {
+                          dirty: boolean;
+                          file: { cloudBinding: { id: string } | null };
+                        };
+                      }) =>
+                        tab.session.dirty &&
+                        tab.session.file.cloudBinding?.id === "cloud-alpha",
+                    ),
+                  ),
+                );
+              };
+              read.onerror = () => reject(read.error);
+            };
+          }),
+      ),
+    )
+    .toBe(true);
+  await page.close();
+
+  // A new browser tab opens Alpha from the Shelf: its saved version.
+  const fresh = await context.newPage();
+  await fresh.goto("/editor");
+  const banner = fresh.getByTestId("workspace-reopen-banner");
+  await expect(banner).toContainText("Alpha");
+  await fresh.getByLabel("Open Shelf project in tab", { exact: true }).click();
+  await fresh
+    .locator(".project-tabs-shelf")
+    .getByRole("button", { name: "Alpha", exact: true })
+    .click();
+  await expect(alphaTab(fresh)).toHaveAttribute("aria-selected", "true");
+  await expect(fresh.getByTestId("active-instance-count")).toHaveText("0");
+
+  // Reopen tabs brings the edits back beside it, bound to no Cloud Project.
+  await banner.getByRole("button", { name: "Reopen tabs" }).click();
+  const copy = fresh.getByRole("tab", { name: /Alpha \(unsaved copy\)$/ });
+  await expect(copy).toHaveAttribute("aria-selected", "true");
+  await expect(copy.getByLabel("Unsaved")).toBeVisible();
+  await expect(fresh.getByTestId("active-instance-count")).toHaveText("1");
+  await alphaTab(fresh).click();
+  await expect(fresh.getByTestId("active-instance-count")).toHaveText("0");
+});

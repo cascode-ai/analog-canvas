@@ -225,6 +225,49 @@ function readTopRevision(record: BrowserRecoveryRecordV2): number | undefined {
   return record.documentRevisions[record.topDocumentId];
 }
 
+/** One working copy's Project, ready to become a recovery record. */
+export interface RecoveryCandidate {
+  project: CircuitProject;
+  session: RecoveryWorkingSession;
+  unsavedAtSnapshot: boolean;
+  cloudBinding: BrowserRecoveryCloudBinding | null;
+}
+
+/** The recovery record of a candidate, as every writer stores it. */
+export function recoveryRecordOf(
+  candidate: RecoveryCandidate,
+  recordId: string,
+  updatedAt: string,
+  serialize: (project: CircuitProject) => string = serializeProject,
+): BrowserRecoveryRecordV2 {
+  const { project, session } = candidate;
+  const documentRevisions: Record<string, number> = {};
+  for (const document of project.documents) {
+    documentRevisions[document.id] = document.revision;
+  }
+  return finalizeBrowserRecoveryRecord({
+    recordId,
+    workingCopyId: session.workingCopyId,
+    generation: "latest",
+    projectId: project.id,
+    projectName: project.name,
+    projectSchemaVersion: CURRENT_PROJECT_FILE_VERSION,
+    topDocumentId: project.topDocumentId,
+    documentRevisions,
+    structureRevision: project.structureRevision,
+    source: session.source,
+    updatedAt,
+    projectText: serialize(project),
+    unsavedAtSnapshot: candidate.unsavedAtSnapshot,
+    ...(candidate.cloudBinding === null
+      ? {}
+      : { cloudBinding: candidate.cloudBinding }),
+    ...(session.formalFileHint === undefined
+      ? {}
+      : { formalFileHint: session.formalFileHint }),
+  });
+}
+
 export function createRecoveryCoordinator(
   options: CreateRecoveryCoordinatorOptions = {},
 ): RecoveryCoordinator {
@@ -267,13 +310,6 @@ export function createRecoveryCoordinator(
   // debounced batch fires must not drop the newer revision, and this tab must
   // never race two write transactions against the same session.
   let writeChain: Promise<void> = Promise.resolve();
-
-  interface RecoveryCandidate {
-    project: CircuitProject;
-    session: RecoveryWorkingSession;
-    unsavedAtSnapshot: boolean;
-    cloudBinding: BrowserRecoveryCloudBinding | null;
-  }
 
   function enqueueWrite(candidate: RecoveryCandidate): void {
     if (workingCopyId === candidate.session.workingCopyId)
@@ -334,33 +370,13 @@ export function createRecoveryCoordinator(
   }
 
   function buildRecord(candidate: RecoveryCandidate): BrowserRecoveryRecordV2 {
-    const { project, session } = candidate;
     recordCounter += 1;
-    const documentRevisions: Record<string, number> = {};
-    for (const document of project.documents) {
-      documentRevisions[document.id] = document.revision;
-    }
-    return finalizeBrowserRecoveryRecord({
-      recordId: `${session.workingCopyId}-snapshot-${recordCounter}`,
-      workingCopyId: session.workingCopyId,
-      generation: "latest",
-      projectId: project.id,
-      projectName: project.name,
-      projectSchemaVersion: CURRENT_PROJECT_FILE_VERSION,
-      topDocumentId: project.topDocumentId,
-      documentRevisions,
-      structureRevision: project.structureRevision,
-      source: session.source,
-      updatedAt: now(),
-      projectText: (options.serializeProject ?? serializeProject)(project),
-      unsavedAtSnapshot: candidate.unsavedAtSnapshot,
-      ...(candidate.cloudBinding === null
-        ? {}
-        : { cloudBinding: candidate.cloudBinding }),
-      ...(session.formalFileHint === undefined
-        ? {}
-        : { formalFileHint: session.formalFileHint }),
-    });
+    return recoveryRecordOf(
+      candidate,
+      `${candidate.session.workingCopyId}-snapshot-${recordCounter}`,
+      now(),
+      options.serializeProject,
+    );
   }
 
   const scheduler = createRecoveryScheduler<RecoveryCandidate>({
