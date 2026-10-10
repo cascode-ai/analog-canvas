@@ -270,6 +270,8 @@ test("a signed-out visitor sees the wall's first twelve circuits, dimmed and clo
   await expect(prompt.locator("a")).toHaveCount(0);
   await expect(page.locator('[data-testid^="gallery-tile-"]')).toHaveCount(0);
   await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
+  // Nor an order to choose (#1615): signed out, it would change nothing.
+  await expect(page.getByTestId("gallery-order-menu")).toHaveCount(0);
   await circuits.nth(3).click({ force: true });
   await expect(page).toHaveURL(/\/$/u);
   // No circuit was opened, and no other page was asked for.
