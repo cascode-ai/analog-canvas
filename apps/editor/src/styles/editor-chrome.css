@@ -1255,6 +1255,12 @@
   fill: currentColor;
 }
 
+/* The Arena button's swords are a cartoon with its own colours, a size up. */
+.header-arena-link svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* Project titles are variable-length content, never menubar layout inputs. */
 .app-chrome-main .app-brand,
 .app-chrome-main .gallery-home-link,

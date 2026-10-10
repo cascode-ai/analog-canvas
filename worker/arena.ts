@@ -1,6 +1,6 @@
 // AnalogArena's way in (docs/specs/analog-arena.md#forwarded-identity-and-routing).
 //
-// Arena is its own Worker, `analog-arena`, deployed from Arcadia-1/analog-arena
+// Arena is its own Worker, `analog-arena`, deployed from Arcadia-1/chip-arena
 // with no route of its own. This Worker serves it on chip-arena.com, forwards
 // exactly /schematic, /schematic/… and /api/arena/… to it over a service
 // binding and vouches for the signed-in
