@@ -194,7 +194,10 @@ test("a signed-out visitor sees a grey wall with a way to sign in, and no circui
   await expect(page.getByTestId("signin-github")).toBeVisible();
   await expect(page.getByTestId("signin-google")).toBeVisible();
   // Asked once for the list and refused; no preview or entry was read.
-  expect(reads).toContain("/api/gallery");
+  // The unfiltered wall, in whatever order it opens with (#1615).
+  expect(reads.some((path) => path.split("?")[0] === "/api/gallery")).toBe(
+    true,
+  );
   expect(reads.filter((path) => path.endsWith("/preview.svg"))).toEqual([]);
 });
 
@@ -216,7 +219,13 @@ test("a signed-out visitor sees the wall's first twelve circuits, dimmed and clo
   await page.route("**/api/gallery**", (route) => {
     const url = new URL(route.request().url());
     reads.push(url.pathname + url.search);
-    if (url.pathname === "/api/gallery" && url.search === "")
+    // The unfiltered first page, in whatever order it opens with (#1615).
+    if (
+      url.pathname === "/api/gallery" &&
+      [...url.searchParams.keys()].every((key) =>
+        ["order", "seed"].includes(key),
+      )
+    )
       return route.fulfill({
         json: { entries, nextCursor: null, signedOut: true },
       });
@@ -327,7 +336,10 @@ test("signed out, the editor's Gallery panel is grey with a way to sign in", asy
   await expect(page.getByTestId("signin-github")).toBeHidden();
   await locked.getByTestId("examples-panel-sign-in-button").click();
   await expect(page.getByTestId("signin-github")).toBeVisible();
-  expect(reads).toContain("/api/gallery");
+  // The unfiltered wall, in whatever order it opens with (#1615).
+  expect(reads.some((path) => path.split("?")[0] === "/api/gallery")).toBe(
+    true,
+  );
   expect(reads.filter((path) => path.endsWith("/preview.svg"))).toEqual([]);
 });
 

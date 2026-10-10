@@ -337,6 +337,93 @@ describe("newest-first gallery feed", () => {
     expect(order).toEqual([...order].sort().reverse());
   });
 
+  async function orderedPage(
+    env: Harness,
+    order: string,
+    seed: string,
+    cursor?: string,
+  ) {
+    const params = new URLSearchParams({ limit: "3", order, seed });
+    if (cursor) params.set("cursor", cursor);
+    const response = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery?${params.toString()}`),
+    );
+    return (await response.json()) as {
+      entries: { id: string; createdAt: string; componentCount?: number }[];
+      nextCursor: string | null;
+      total: number;
+    };
+  }
+  async function walk(env: Harness, order: string, seed = "") {
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let pages = 0; pages < 10; pages += 1) {
+      const page = await orderedPage(env, order, seed, cursor);
+      seen.push(...page.entries.map((entry) => entry.id));
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+    return seen;
+  }
+
+  it("shuffles by a seed, steady from page to page, every circuit once (#1615)", async () => {
+    const env = environment();
+    const wall = await wallOf(env, 8);
+    const first = await walk(env, "random", "abc123");
+    expect(first).toHaveLength(8);
+    expect([...first].sort()).toEqual([...wall].sort());
+    // The same seed gives the same order; another seed another one, and
+    // neither is simply newest first.
+    expect(await walk(env, "random", "abc123")).toEqual(first);
+    const other = await walk(env, "random", "zz9");
+    expect([...other].sort()).toEqual([...wall].sort());
+    expect(other).not.toEqual(first);
+    expect(first).not.toEqual(await walk(env, "newest"));
+    // Without a seed, the order falls back to newest first.
+    expect(await walk(env, "random", "")).toEqual(await walk(env, "newest"));
+  });
+
+  it("orders by most parts, then newest, paging without repeats (#1615)", async () => {
+    const env = environment();
+    const wall = await wallOf(env, 7);
+    const parts = [3, 9, 1, 9, 5, 0, 7];
+    wall.forEach((id, index) =>
+      env.gallerySql.exec(
+        "UPDATE gallery_entries SET component_count = ?, component_count_version = 1 WHERE id = ?",
+        parts[index]!,
+        id,
+      ),
+    );
+    const seen = await walk(env, "parts");
+    expect(seen).toHaveLength(7);
+    const count = new Map(wall.map((id, index) => [id, parts[index]!]));
+    const counts = seen.map((id) => count.get(id)!);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+    // Equal counts: the newer first.
+    const nines = seen.filter((id) => count.get(id) === 9);
+    expect(nines).toEqual([wall[3], wall[1]]);
+    // Fewest first, with a circuit whose count is unknown last either way.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET component_count_version = 0 WHERE id = ?",
+      wall[5]!,
+    );
+    const fewest = await walk(env, "fewest");
+    expect(fewest).toHaveLength(7);
+    expect(fewest.at(-1)).toBe(wall[5]);
+    const known = fewest.slice(0, -1).map((id) => count.get(id)!);
+    expect(known).toEqual([...known].sort((a, b) => a - b));
+    expect((await walk(env, "parts")).at(-1)).toBe(wall[5]);
+  });
+
+  it("orders oldest first, the reverse of newest first (#1615)", async () => {
+    const env = environment();
+    await wallOf(env, 7);
+    const oldest = await walk(env, "oldest");
+    expect(oldest).toHaveLength(7);
+    expect(oldest).toEqual([...(await walk(env, "newest"))].reverse());
+  });
+
   it("stops when the newest-first cursor chain is exhausted", async () => {
     const env = environment();
     const empty = await galleryPage(env);

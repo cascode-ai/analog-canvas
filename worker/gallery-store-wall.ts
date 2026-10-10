@@ -282,6 +282,60 @@ function searchMatches(
 
 const searchMatchesByRequest = new WeakMap<object, string>();
 
+/**
+ * The wall's orders (#1615): a shuffle, the default, that a seed keeps steady
+ * from page to page; by time, newest or oldest first; or by part count, most
+ * or fewest first, circuits whose part count is unknown last either way.
+ */
+type WallOrder = "random" | "newest" | "oldest" | "parts" | "fewest";
+
+const KNOWN_PARTS =
+  "CASE WHEN e.component_count_version > 0 THEN e.component_count END";
+/** Part counts as each part order sorts them, unknown counts at the end. */
+const WALL_PARTS = {
+  parts: `COALESCE(${KNOWN_PARTS}, -1)`,
+  fewest: `COALESCE(${KNOWN_PARTS}, 1000000000)`,
+} as const;
+
+function wallOrder(body: Record<string, unknown>): {
+  order: WallOrder;
+  seed: string;
+} {
+  const seed =
+    typeof body.seed === "string" && /^[a-z0-9]{1,16}$/u.test(body.seed)
+      ? body.seed
+      : "";
+  if (body.order === "random" && seed) return { order: "random", seed };
+  if (
+    body.order === "oldest" ||
+    body.order === "parts" ||
+    body.order === "fewest"
+  )
+    return { order: body.order, seed: "" };
+  return { order: "newest", seed: "" };
+}
+
+/** FNV-1a: a steady, well-spread position for one circuit under one seed. */
+function shufflePosition(seed: string, id: string): number {
+  let hash = 0x811c9dc5;
+  for (const char of `${seed}|${id}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash;
+}
+
+/** The wall's ids in one seed's shuffled order. */
+function shuffledWallIds(
+  ids: readonly string[],
+  seed: string,
+): string[] {
+  return [...ids]
+    .map((id) => ({ id, at: shufflePosition(seed, id) }))
+    .sort((left, right) => left.at - right.at || (left.id < right.id ? -1 : 1))
+    .map((item) => item.id);
+}
+
 export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
   const limit = Math.min(
     Math.max(Number(body.limit) || GALLERY_DEFAULT_LIST_LIMIT, 1),
@@ -318,39 +372,110 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
     body.attention === true ? attentionKindCounts(sql, body) : undefined;
   const componentRanges = componentRangeCounts(sql, body);
   const authors = contributorCounts(sql, conditions, bindings);
-  if (cursor) {
-    conditions.push("(e.created_at || '|' || e.id) < ?");
-    bindings.push(cursor);
-  }
-  const rows = sql
-    .exec<
-      EntrySummaryRow & {
-        likes: number;
-        liked_by_viewer: number;
-        simulation_passes: number;
+  const { order, seed } = wallOrder(body);
+  const select = (where: string[], tail: string, tailBindings: unknown[]) =>
+    sql
+      .exec<
+        EntrySummaryRow & {
+          likes: number;
+          liked_by_viewer: number;
+          simulation_passes: number;
+          parts: number;
+        }
+      >(
+        `SELECT e.id, e.name, e.author, e.description, e.created_at,
+           e.owner_user_id,
+           e.schema_version, e.tags, e.curation_json, e.netlistable, e.preview_revision,
+           e.preview_width, e.preview_height, e.component_count,
+           e.component_count_version, e.ai_generated,
+           ${order === "fewest" ? WALL_PARTS.fewest : WALL_PARTS.parts} AS parts,
+           ${SIMULATION_CHECK_PASSES} AS simulation_passes,
+           (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
+           (SELECT COUNT(*) FROM gallery_likes
+             WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
+         FROM gallery_entries e WHERE ${where.join(" AND ")} ${tail}`,
+        viewerId,
+        ...bindings,
+        ...tailBindings,
+      )
+      .toArray();
+  let page: ReturnType<typeof select>;
+  let nextCursor: string | null = null;
+  if (order === "random") {
+    // The filtered wall's ids are few and small; the seed orders them the
+    // same way on every page, and the cursor is a position in that order.
+    const ids = sql
+      .exec<{ id: string }>(
+        `SELECT e.id FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
+        ...bindings,
+      )
+      .toArray()
+      .map((row) => row.id);
+    const offset = /^r\d{1,6}$/u.test(cursor ?? "")
+      ? Number(cursor!.slice(1))
+      : 0;
+    const pageIds = shuffledWallIds(ids, seed).slice(offset, offset + limit);
+    const found = pageIds.length
+      ? select(
+          [...conditions, `e.id IN (${pageIds.map(() => "?").join(", ")})`],
+          "",
+          pageIds,
+        )
+      : [];
+    const byId = new Map(found.map((row) => [row.id, row]));
+    page = pageIds.flatMap((id) => byId.get(id) ?? []);
+    if (offset + limit < ids.length) nextCursor = `r${offset + limit}`;
+  } else {
+    // Each order's sort, its cursor's tag, and the comparison that resumes
+    // after the cursor's row.
+    const where = [...conditions];
+    const tailBindings: unknown[] = [];
+    const ascending = order === "oldest";
+    const time = ascending
+      ? "e.created_at ASC, e.id ASC"
+      : "e.created_at DESC, e.id DESC";
+    const after = ascending ? ">" : "<";
+    if (order === "parts" || order === "fewest") {
+      const key = WALL_PARTS[order];
+      const direction = order === "parts" ? "<" : ">";
+      const tag = order === "parts" ? "p" : "f";
+      const [parts, rest] =
+        new RegExp(`^${tag}(-?\\d+)\\|(.+)$`, "u")
+          .exec(cursor ?? "")
+          ?.slice(1) ?? [];
+      if (parts !== undefined && rest !== undefined) {
+        where.push(
+          `(${key} ${direction} ? OR (${key} = ? AND (e.created_at || '|' || e.id) < ?))`,
+        );
+        tailBindings.push(Number(parts), Number(parts), rest);
       }
-    >(
-      `SELECT e.id, e.name, e.author, e.description, e.created_at,
-         e.owner_user_id,
-         e.schema_version, e.tags, e.curation_json, e.netlistable, e.preview_revision,
-         e.preview_width, e.preview_height, e.component_count,
-         e.component_count_version, e.ai_generated,
-         ${SIMULATION_CHECK_PASSES} AS simulation_passes,
-         (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
-         (SELECT COUNT(*) FROM gallery_likes
-           WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
-       FROM gallery_entries e WHERE ${conditions.join(" AND ")}
-       ORDER BY created_at DESC, id DESC LIMIT ?`,
-      viewerId,
-      ...bindings,
+    } else {
+      const tag = ascending ? "o" : "";
+      if (
+        cursor &&
+        cursor.startsWith(tag) &&
+        (tag || !/^[ofpr]/u.test(cursor))
+      ) {
+        where.push(`(e.created_at || '|' || e.id) ${after} ?`);
+        tailBindings.push(cursor.slice(tag.length));
+      }
+    }
+    const sort =
+      order === "parts" || order === "fewest"
+        ? `${WALL_PARTS[order]} ${order === "parts" ? "DESC" : "ASC"}, e.created_at DESC, e.id DESC`
+        : time;
+    const rows = select(where, `ORDER BY ${sort} LIMIT ?`, [
+      ...tailBindings,
       limit + 1,
-    )
-    .toArray();
-  const page = rows.slice(0, limit);
-  const nextCursor =
-    rows.length > limit && page.length > 0
-      ? `${page.at(-1)!.created_at}|${page.at(-1)!.id}`
-      : null;
+    ]);
+    page = rows.slice(0, limit);
+    const last = page.at(-1);
+    if (rows.length > limit && last)
+      nextCursor =
+        order === "parts" || order === "fewest"
+          ? `${order === "parts" ? "p" : "f"}${last.parts}|${last.created_at}|${last.id}`
+          : `${ascending ? "o" : ""}${last.created_at}|${last.id}`;
+  }
   return Response.json({
     // `simVerified` is every passing entry's here; the route keeps it only
     // for the viewers who may see the Sim mark (#1545).

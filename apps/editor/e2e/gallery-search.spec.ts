@@ -272,7 +272,12 @@ test("a search the server answers finds an older circuit at once and counts only
         body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
       });
     if (url.pathname !== "/api/gallery") return route.fallback();
-    requests.push(`feed ${url.search}`);
+    // The wall's order (#1615) is not what this test is about.
+    const asked = new URLSearchParams(url.search);
+    asked.delete("order");
+    asked.delete("seed");
+    const rest = asked.toString();
+    requests.push(`feed ${rest ? `?${rest}` : ""}`);
     // The server searches every circuit before it pages, and says so.
     if (q) {
       const found = wall.filter((entry) => galleryEntryMatchesQuery(entry, q));

@@ -47,6 +47,14 @@ import { GalleryChrome } from "./gallery-chrome";
 import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
 import { GallerySourceNote, useGalleryDatasets } from "./gallery-datasets";
+import { GalleryOrderMenu } from "./gallery-order-menu";
+import {
+  galleryOrderPreference,
+  galleryShuffleSeed,
+  newGalleryShuffleSeed,
+  rememberGalleryOrder,
+  type GalleryOrder,
+} from "../gallery-order";
 import { gallerySourceByKey } from "../gallery-sources";
 import { useGalleryFilters } from "./gallery-feed-filters";
 import { useBundledGalleryFallback, useGalleryWall } from "./gallery-feed-wall";
@@ -161,6 +169,16 @@ export function GalleryFeed({
   // An account narrows by its id. Its byline is then only the label, and
   // possibly a former one, so rewriting it must not reload the wall.
   const queriedAuthor = ownerUserId ? null : author;
+  // The wall's order (#1615): the reader's kept choice, else a shuffle,
+  // seeded as the landing preload was so it can reuse that first page.
+  const [order, setOrder] = useState<GalleryOrder>(galleryOrderPreference);
+  const [seed, setSeed] = useState(galleryShuffleSeed);
+  function chooseOrder(next: GalleryOrder): void {
+    rememberGalleryOrder(next);
+    // Random again shuffles anew.
+    if (next === "random") setSeed(newGalleryShuffleSeed());
+    setOrder(next);
+  }
   // One query for the first page, every later page and the landing preload.
   const feedQuery = useMemo<GalleryFeedQuery>(
     () => ({
@@ -176,8 +194,12 @@ export function GalleryFeed({
       attentionKind,
       parts: selectedParts,
       ...(serverSearch ? { q: serverSearch } : {}),
+      order,
+      seed,
     }),
     [
+      order,
+      seed,
       queriedAuthor,
       ownerUserId,
       selectedTags,
@@ -470,6 +492,9 @@ export function GalleryFeed({
             </button>
           ))}
         </div>
+        {view === "gallery" ? (
+          <GalleryOrderMenu order={order} onChoose={chooseOrder} />
+        ) : null}
         {/* The shelf states its own count ("N of 20 saved"); this one
             describes the community wall and leaves with it. */}
         {view === "gallery" ? (

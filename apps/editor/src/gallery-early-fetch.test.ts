@@ -10,8 +10,9 @@ import {
   earlyGalleryFetch,
   galleryEarlyFetchScript,
   GALLERY_EARLY_FILTERS_KEY,
-  GALLERY_EARLY_URLS,
+  galleryEarlyUrls,
 } from "./gallery-early-fetch";
+import { GALLERY_ORDER_KEY, type GalleryOrder } from "./gallery-order";
 import { GALLERY_FILTERS_KEY, resolveGalleryFilters } from "./gallery-filters";
 
 /** The query the landing preload builds for an unfiltered wall. */
@@ -27,40 +28,73 @@ const UNFILTERED = {
 };
 
 describe("the landing page's early Gallery requests (#1592)", () => {
-  it("are the URLs the unfiltered wall's loaders ask for", async () => {
-    const asked: string[] = [];
-    const fetchLike = vi.fn(async (input: RequestInfo | URL) => {
-      asked.push(String(input));
-      return new Response("{}", { status: 401 });
-    }) as unknown as typeof fetch;
-    await loadGalleryFeed(fetchLike, UNFILTERED);
-    await loadGalleryTagSummary(fetchLike, UNFILTERED);
-    expect(asked).toEqual([...GALLERY_EARLY_URLS]);
+  it("are the URLs the unfiltered wall's loaders ask for, in each order (#1615)", async () => {
+    for (const order of [
+      "random",
+      "newest",
+      "oldest",
+      "parts",
+      "fewest",
+    ] as GalleryOrder[]) {
+      const asked: string[] = [];
+      const fetchLike = vi.fn(async (input: RequestInfo | URL) => {
+        asked.push(String(input));
+        return new Response("{}", { status: 401 });
+      }) as unknown as typeof fetch;
+      const query = { ...UNFILTERED, order, seed: "abc123" };
+      await loadGalleryFeed(fetchLike, query);
+      await loadGalleryTagSummary(fetchLike, query);
+      expect(asked, order).toEqual(galleryEarlyUrls(order, "abc123"));
+    }
   });
 
   /** The inline script on `pathname`, with `stored` as the remembered filters. */
-  const run = (pathname: string, search = "", stored: string | null = null) => {
+  const run = (
+    pathname: string,
+    search = "",
+    stored: string | null = null,
+    order: string | null = null,
+  ) => {
     const window: Record<string, unknown> = {};
     const fetch = vi.fn(() => Promise.resolve(new Response("{}")));
     runInNewContext(galleryEarlyFetchScript(), {
       window,
       location: { pathname, search },
       localStorage: {
-        getItem: (key: string) => (key === GALLERY_FILTERS_KEY ? stored : null),
+        getItem: (key: string) =>
+          key === GALLERY_FILTERS_KEY
+            ? stored
+            : key === GALLERY_ORDER_KEY
+              ? order
+              : null,
       },
       fetch,
     });
     return { window, fetch };
   };
 
-  it("start on the landing route only", () => {
+  it("start on the landing route only, shuffled unless the reader kept an order (#1615)", () => {
     const landing = run("/");
+    const seed = landing.window.__icmGallerySeed as string;
+    expect(seed).toMatch(/^[a-z0-9]{1,16}$/u);
+    const urls = galleryEarlyUrls("random", seed);
     expect(landing.fetch.mock.calls).toEqual(
-      GALLERY_EARLY_URLS.map((url) => [url, { credentials: "same-origin" }]),
+      urls.map((url) => [url, { credentials: "same-origin" }]),
     );
-    expect(Object.keys(landing.window.__icmGalleryEarly as object)).toEqual([
-      ...GALLERY_EARLY_URLS,
-    ]);
+    expect(Object.keys(landing.window.__icmGalleryEarly as object)).toEqual(
+      urls,
+    );
+    for (const order of ["newest", "oldest", "parts", "fewest"]) {
+      const kept = run("/", "", null, order);
+      expect(kept.window.__icmGallerySeed).toBeUndefined();
+      expect(
+        (kept.fetch.mock.calls as unknown as [string][]).map(([url]) => url),
+      ).toEqual(galleryEarlyUrls(order as GalleryOrder, ""));
+    }
+    // Anything else kept reads as the default shuffle.
+    expect(run("/", "", null, "sideways").window.__icmGallerySeed).toBeTypeOf(
+      "string",
+    );
     for (const path of ["/editor", "/g/abc", "/analytics"])
       expect(run(path).fetch).not.toHaveBeenCalled();
   });

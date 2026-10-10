@@ -2,15 +2,32 @@
  * The landing page's first Gallery requests, started by an inline script in
  * index.html as soon as the browser reads it (#1592), beside the entry
  * script's download instead of after it has run. The wall's own loaders then
- * take those responses when they ask for the same URL. No imports: the build
- * reads this module too.
+ * take those responses when they ask for the same URL. The build reads this
+ * module too, so it imports only gallery-order, which imports nothing.
  */
+import {
+  GALLERY_ORDER_KEY,
+  GALLERY_SEED_GLOBAL,
+  STORED_GALLERY_ORDERS,
+  type GalleryOrder,
+} from "./gallery-order";
 
-/** The first page and its tag counts, as the unfiltered wall asks for them. */
-export const GALLERY_EARLY_URLS = [
-  "/api/gallery",
-  "/api/gallery/tags",
-] as const;
+/**
+ * The first page and its tag counts, as the unfiltered wall asks for them in
+ * the order it opens with (#1615); a shuffle names its seed.
+ */
+export function galleryEarlyUrls(
+  order: GalleryOrder,
+  seed: string,
+): [string, string] {
+  const feed =
+    order === "random"
+      ? `/api/gallery?order=random&seed=${seed}`
+      : order === "newest"
+        ? "/api/gallery"
+        : `/api/gallery?order=${order}`;
+  return [feed, "/api/gallery/tags"];
+}
 
 const GALLERY_EARLY_GLOBAL = "__icmGalleryEarly";
 
@@ -40,12 +57,27 @@ type EarlyResponses = Record<string, Promise<Response>>;
  * request each URL once.
  */
 export function galleryEarlyFetchScript(): string {
+  const tagsUrl = galleryEarlyUrls("newest", "")[1];
+  const keptOrderUrls = Object.fromEntries(
+    STORED_GALLERY_ORDERS.map((order) => [
+      order,
+      galleryEarlyUrls(order, "")[0],
+    ]),
+  );
+  const shuffledUrl = galleryEarlyUrls("random", "")[0];
   return (
     `if(/^\\/?$/.test(location.pathname)){var raw=null;` +
     `try{raw=localStorage.getItem(${JSON.stringify(GALLERY_EARLY_FILTERS_KEY)})}catch(e){}` +
     `if((${OPENS_UNFILTERED})(location.search,raw)){` +
     `var early=window.${GALLERY_EARLY_GLOBAL}={};` +
-    `${JSON.stringify(GALLERY_EARLY_URLS)}.forEach(function(url){` +
+    // The order the wall opens with (#1615): the reader's kept choice, or a
+    // shuffle whose seed the wall then takes up. The URLs are galleryEarlyUrls'.
+    `var order="random";try{var kept=localStorage.getItem(${JSON.stringify(GALLERY_ORDER_KEY)});` +
+    `if(${JSON.stringify(STORED_GALLERY_ORDERS)}.indexOf(kept)>=0)order=kept}catch(e){}` +
+    `var feed=${JSON.stringify(keptOrderUrls)}[order];if(order==="random"){` +
+    `var seed=Math.random().toString(36).slice(2,10)||"s0";window.${GALLERY_SEED_GLOBAL}=seed;` +
+    `feed=${JSON.stringify(shuffledUrl)}+seed}` +
+    `[feed,${JSON.stringify(tagsUrl)}].forEach(function(url){` +
     `var response=fetch(url,{credentials:"same-origin"});` +
     `response.catch(function(){});early[url]=response;});}}`
   );

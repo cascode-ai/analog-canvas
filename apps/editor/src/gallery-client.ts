@@ -1,3 +1,4 @@
+import type { GalleryOrder } from "./gallery-order";
 import type { GalleryAttention } from "../../../worker/gallery-curation";
 
 /** Bundled teaching circuits are a loopback fallback, not hosted Gallery data. */
@@ -322,7 +323,8 @@ export interface GalleryLandingPreload {
  * added to the wall narrows its tag counts too.
  */
 export function galleryTagScope(query: GalleryFeedQuery): string {
-  return galleryFeedParams({ ...query, tags: [] }).toString();
+  // Counts do not depend on the order the wall is shown in.
+  return galleryFeedParams({ ...query, tags: [], order: "newest" }).toString();
 }
 
 /** One public byline and its contribution to the current Gallery results. */
@@ -425,6 +427,10 @@ export interface GalleryFeedQuery {
   attentionKind?: string | null;
   /** Sizes by part count; any of them matches. */
   parts?: readonly string[];
+  /** The wall's order (#1615); without one, newest first. */
+  order?: GalleryOrder;
+  /** The shuffle a random order pages through. */
+  seed?: string;
 }
 
 function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
@@ -447,6 +453,10 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   if (query.liked) params.set("liked", "1");
   if (query.parts && query.parts.length > 0)
     params.set("parts", query.parts.join(","));
+  // The order last, so an unfiltered wall's first page reads as index.html's
+  // early request asks for it (galleryEarlyUrls).
+  if (query.order && query.order !== "newest") params.set("order", query.order);
+  if (query.order === "random" && query.seed) params.set("seed", query.seed);
   return params;
 }
 

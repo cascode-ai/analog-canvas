@@ -1313,6 +1313,98 @@
 }
 
 /* The wall count is also the door to a compact contributor leaderboard. */
+/* The wall's order (#1615), left of the count; the count follows it. */
+.gallery-order-menu {
+  position: relative;
+  margin-left: auto;
+  align-self: center;
+  padding-bottom: 6px;
+}
+
+.gallery-order-menu + .gallery-contributor-menu {
+  margin-left: 8px;
+}
+
+.gallery-order-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  background: var(--icm-surface);
+  color: var(--icm-text-muted);
+  font-size: 0.85rem;
+  list-style: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.gallery-order-button::-webkit-details-marker {
+  display: none;
+}
+
+.gallery-order-menu[open] > .gallery-order-button,
+.gallery-order-button:hover {
+  border-color: var(--icm-accent);
+  color: var(--icm-text);
+}
+
+.gallery-order-button svg,
+.gallery-order-popover svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.gallery-order-popover {
+  position: absolute;
+  z-index: 70;
+  top: calc(100% + 1px);
+  right: 0;
+  display: grid;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 12.5rem;
+  padding: 6px;
+  border: 1px solid var(--icm-border);
+  border-radius: 12px;
+  background: var(--icm-surface);
+  box-shadow: 0 16px 36px rgb(15 15 15 / 16%);
+}
+
+.gallery-order-popover button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--icm-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gallery-order-popover button:hover {
+  background: var(--icm-surface-hover);
+}
+
+.gallery-order-popover button[aria-checked="true"] {
+  color: var(--icm-accent);
+  font-weight: 600;
+}
+
+.gallery-order-group {
+  padding: 6px 8px 2px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .gallery-contributor-menu {
   position: relative;
   margin-left: auto;
@@ -2030,6 +2122,13 @@ div.gallery-contributor-status {
   }
   .gallery-contributor-menu {
     min-width: 0;
+  }
+  /* Only the icon: the count keeps its room. */
+  .gallery-order-label {
+    display: none;
+  }
+  .gallery-order-menu {
+    flex-shrink: 0;
   }
 }
 
