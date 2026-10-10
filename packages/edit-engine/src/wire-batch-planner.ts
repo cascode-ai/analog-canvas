@@ -223,16 +223,24 @@ function tapOwnWire(
   const context = deriveNetConnectivityContext(document, resolver);
   const wiresOf = (logicalIds: readonly string[]) => {
     const own = new Set(logicalIds);
-    return document.routes.flatMap((route) =>
-      own.has(
-        context.logicalNetResolution.byBaseNetId.get(route.netId)?.id ??
-          route.netId,
+    return document.routes.flatMap((route) => {
+      if (
+        !own.has(
+          context.logicalNetResolution.byBaseNetId.get(route.netId)?.id ??
+            route.netId,
+        )
       )
-        ? (resolveRouteGeometry(document, resolver, route)?.segments ?? []).map(
-            (segment) => ({ route, segment }),
-          )
-        : [],
-    );
+        return [];
+      const geometry = resolveRouteGeometry(document, resolver, route);
+      return (geometry?.segments ?? []).map((segment) => ({
+        route,
+        segment,
+        ends: [
+          { point: geometry!.centerline[0], endpoint: route.start },
+          { point: geometry!.centerline.at(-1), endpoint: routeEnd(route) },
+        ],
+      }));
+    });
   };
   /** Where a leg, walked from `outer` toward the pin at `pin`, first runs
    * along one of `wires` for some length. */
@@ -241,9 +249,12 @@ function tapOwnWire(
     outer: Point,
     pin: Point,
   ) => {
-    let best: Extract<WireIntent["to"], { kind: "route-segment" }> | null =
-      null;
-    for (const { route, segment } of wires) {
+    let best: Extract<
+      WireIntent["to"],
+      { kind: "route-segment" } | { kind: "endpoint" }
+    > | null = null;
+    let bestPoint: Point | null = null;
+    for (const { route, segment, ends } of wires) {
       const near = intersectSegments(outer, pin, segment.from, segment.to);
       const far = intersectSegments(pin, outer, segment.from, segment.to);
       // Touching at one point is a crossing, or the pin itself.
@@ -254,18 +265,29 @@ function tapOwnWire(
       )
         continue;
       if (
-        !best ||
+        !bestPoint ||
         Math.hypot(near.point.x - outer.x, near.point.y - outer.y) <
-          Math.hypot(best.point.x - outer.x, best.point.y - outer.y)
-      )
-        best = {
-          kind: "route-segment",
-          routeId: route.id,
-          legId: segment.address.legId,
-          point: near.point,
-        };
+          Math.hypot(bestPoint.x - outer.x, bestPoint.y - outer.y)
+      ) {
+        bestPoint = near.point;
+        // Met where that wire ends, at a Junction a wire there already left
+        // from, or a pin, the wire joins that end: there is no wire on
+        // either side to split (#1589).
+        const end = ends.find(
+          (candidate) =>
+            candidate.point && samePoint(candidate.point, near.point),
+        );
+        best = end
+          ? { kind: "endpoint", endpoint: end.endpoint }
+          : {
+              kind: "route-segment",
+              routeId: route.id,
+              legId: segment.address.legId,
+              point: near.point,
+            };
+      }
     }
-    return best;
+    return best && bestPoint ? { anchor: best, point: bestPoint } : null;
   };
   let path = [...points];
   let next: WireIntent = intent;
@@ -273,14 +295,14 @@ function tapOwnWire(
     const end = meeting(wiresOf(nets.to), path.at(-2)!, path.at(-1)!);
     if (end) {
       path = [...path.slice(0, -1), end.point];
-      next = { ...next, to: end };
+      next = { ...next, to: end.anchor };
     }
   }
   if (intent.from.kind === "endpoint" && nets.from.length) {
     const start = meeting(wiresOf(nets.from), path[1]!, path[0]!);
     if (start) {
       path = [start.point, ...path.slice(1)];
-      next = { ...next, from: start };
+      next = { ...next, from: start.anchor };
     }
   }
   if (next === intent) return null;
