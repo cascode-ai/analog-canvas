@@ -68,6 +68,27 @@ export function galleryPreviewUrl(
     : path;
 }
 
+/** How many of the first page's previews start before the wall renders. */
+export const WARMED_GALLERY_PREVIEWS = 8;
+
+/**
+ * Start the first tiles' previews as soon as the landing page's first page
+ * answers (#1590), beside the wall's own code, instead of after the wall has
+ * rendered them; the tiles then draw from the browser's cache.
+ */
+export function warmGalleryPreviews(
+  result: GalleryFeedResult,
+  load: (url: string) => void = (url) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = url;
+  },
+): void {
+  if (!result || result === GALLERY_SIGN_IN_REQUIRED) return;
+  for (const entry of result.entries.slice(0, WARMED_GALLERY_PREVIEWS))
+    load(galleryPreviewUrl(entry.id, entry.previewRevision));
+}
+
 /**
  * Warm the publisher's browser cache without delaying the completed publish.
  * A missing revision means an older server is still active during a rollout;
