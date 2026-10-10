@@ -4,6 +4,7 @@ import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import type {
   ComponentLibraryPage,
   SharedComponent,
+  RejectedSharedComponent,
 } from "./component-library-contract";
 import { loadSharedComponents } from "./component-library-client";
 
@@ -32,6 +33,8 @@ export default function UserComponentsLibrary({
   const [query, setQuery] = useState("");
   const [deleted, setDeleted] = useState(false);
   const [entries, setEntries] = useState<SharedComponent[]>([]);
+  const [rejected, setRejected] = useState<RejectedSharedComponent[]>([]);
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,8 +72,10 @@ export default function UserComponentsLibrary({
     const sameList =
       !deleted && cached?.query === query && cached.deleted === deleted;
     setError(null);
+    setCopyNotice(null);
     failedCursor.current = null;
     setEntries(sameList ? cached.page.entries : []);
+    setRejected(sameList ? (cached.page.rejected ?? []) : []);
     setCursor(sameList ? cached.page.nextCursor : null);
     if (
       sameList &&
@@ -91,6 +96,7 @@ export default function UserComponentsLibrary({
           .then((page) => {
             if (controller.signal.aborted) return;
             setEntries(page.entries);
+            setRejected(page.rejected ?? []);
             setCursor(page.nextCursor);
             loadedPage.current = {
               query,
@@ -131,11 +137,23 @@ export default function UserComponentsLibrary({
         ),
       ];
       setEntries(nextEntries);
+      const currentRejected = loadedPage.current?.page.rejected ?? [];
+      const nextRejected = [
+        ...currentRejected,
+        ...(page.rejected ?? []).filter(
+          (next) => !currentRejected.some((item) => item.id === next.id),
+        ),
+      ];
+      setRejected(nextRejected);
       if (loadedPage.current) {
         loadedPage.current = {
           ...loadedPage.current,
           loadedAt: Date.now(),
-          page: { entries: nextEntries, nextCursor: page.nextCursor },
+          page: {
+            entries: nextEntries,
+            nextCursor: page.nextCursor,
+            ...(nextRejected.length ? { rejected: nextRejected } : {}),
+          },
         };
       }
       setCursor(page.nextCursor);
@@ -228,6 +246,14 @@ export default function UserComponentsLibrary({
             </button>
           </div>
         ) : null}
+        {rejected.length ? (
+          <p className="user-components-message" role="status">
+            {rejected.length}{" "}
+            {rejected.length === 1 ? "component needs" : "components need"}{" "}
+            repair.
+          </p>
+        ) : null}
+        {copyNotice ? <p role="status">{copyNotice}</p> : null}
         <div className="user-components-grid">
           {entries.map((entry) => (
             <article className="user-component-tile" key={entry.id}>
@@ -304,7 +330,44 @@ export default function UserComponentsLibrary({
               </div>
             </article>
           ))}
-          {!loading && !entries.length && !error ? (
+          {rejected.map((entry) => (
+            <article
+              className="user-component-tile"
+              key={entry.id}
+              data-testid="rejected-user-component"
+            >
+              <div className="user-component-preview">Needs repair</div>
+              <div className="user-component-caption">
+                <strong title={entry.name}>{entry.name}</strong>
+                <small title={entry.author}>
+                  {entry.author.trim() || "Unknown author"}
+                </small>
+                <small title={entry.message}>{entry.message}</small>
+              </div>
+              <div className="user-component-actions">
+                <button
+                  type="button"
+                  className="user-component-edit"
+                  aria-label={`Copy raw record for ${entry.name}`}
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(JSON.stringify(entry.record, null, 2))
+                      .then(() =>
+                        setCopyNotice(
+                          "Copied raw record. Repair the source before creating a component.",
+                        ),
+                      )
+                      .catch(() =>
+                        setCopyNotice("Couldn’t copy the record. Try again."),
+                      );
+                  }}
+                >
+                  Copy raw record
+                </button>
+              </div>
+            </article>
+          ))}
+          {!loading && !entries.length && !rejected.length && !error ? (
             <p className="user-components-empty">
               {query
                 ? "No user components match this search."

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { newComponentDefinition } from "./component-definition-edit";
 import {
   loadSharedComponents,
+  readSharedComponent,
   saveSharedComponent,
 } from "./component-library-client";
 
@@ -11,6 +12,68 @@ afterEach(() => {
 });
 
 describe("public component library responses", () => {
+  it("isolates invalid historical definitions while retaining their raw records and strict reads", async () => {
+    const definition = newComponentDefinition();
+    const metadata = {
+      id: "healthy-component",
+      revision: 1,
+      authorId: "alice",
+      author: "Alice",
+      status: "shared",
+      createdAt: "2026-01-01",
+      updatedAt: "2026-01-01",
+    };
+    const healthy = { ...metadata, definition };
+    const legacy = {
+      ...metadata,
+      id: "legacy-component",
+      definition: {
+        ...definition,
+        subcircuit: {
+          id: "legacy-interface",
+          symbolId: definition.symbol.id,
+          target: "legacy",
+          ports: [{ name: "IN", pinName: "IN", direction: "input" }],
+        },
+      },
+    };
+    const fetchLibrary: typeof fetch = vi.fn(async () =>
+      Response.json({
+        entries: [healthy, legacy],
+        nextCursor: "legacy-component",
+      }),
+    );
+    const page = await loadSharedComponents(
+      "",
+      null,
+      false,
+      undefined,
+      fetchLibrary,
+    );
+    expect(page.entries.map((entry) => entry.id)).toEqual([
+      "healthy-component",
+    ]);
+    expect(page.nextCursor).toBe("legacy-component");
+    expect(page.rejected).toMatchObject([
+      {
+        id: "legacy-component",
+        name: definition.symbol.name,
+        author: "Alice",
+        record: legacy,
+      },
+    ]);
+    expect(page.rejected![0]!.message).toContain("missing OUT");
+    await expect(
+      readSharedComponent("legacy-component", async () =>
+        Response.json({ entry: legacy }),
+      ),
+    ).rejects.toThrow("missing OUT");
+    await expect(
+      saveSharedComponent("legacy-component", 1, definition, undefined, {
+        fetch: async () => Response.json({ entry: legacy }),
+      }),
+    ).rejects.toThrow("missing OUT");
+  });
   it("preserves caller cancellation while a response body is being read", async () => {
     const caller = new AbortController();
     let readingBody!: () => void;

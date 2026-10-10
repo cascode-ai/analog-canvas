@@ -16,6 +16,63 @@ import {
 } from "../../../../worker/component-library.test-support";
 
 describe("Agent User Components", () => {
+  it("reports invalid historical source explicitly instead of silently omitting it from Agent listings", async () => {
+    let project = createEmptyProject("destination", "Destination");
+    const before = structuredClone(project);
+    const definition = nativePackage().definition;
+    const legacy = {
+      ...definition,
+      circuitBinding: undefined,
+      subcircuit: {
+        id: "legacy-interface",
+        symbolId: definition.symbol.id,
+        target: "legacy",
+        ports: [{ name: "A", pinName: "1", direction: "input" }],
+      },
+    };
+    const host = new BrowserAgentProjectHost({
+      getProject: () => project,
+      getProjectSessionId: () => "session",
+      getActiveDocumentId: () => project.topDocumentId,
+      commitProjectStructure: (next) => {
+        project = next;
+      },
+      dispatchProjectTransaction: (request) =>
+        executeProjectTransaction(project, request),
+      fetch: async () =>
+        Response.json({
+          entries: [
+            {
+              id: "legacy-device",
+              revision: 1,
+              authorId: "alice",
+              author: "Alice",
+              status: "shared",
+              createdAt: "2026-01-01",
+              updatedAt: "2026-01-01",
+              definition: legacy,
+            },
+          ],
+          nextCursor: null,
+        }),
+    });
+    const result = await host.handle(
+      AgentProjectResourceRequestSchema.parse({
+        apiVersion: AGENT_API_VERSION,
+        operation: "components",
+        requestId: "invalid-list",
+        request: { action: "list" },
+      }),
+    );
+    expect(AgentProjectResourceResponseSchema.parse(result)).toMatchObject({
+      ok: false,
+      error: { code: "COMPONENT_INVALID", recovery: "fix-input" },
+    });
+    if (result.ok) throw Error("Invalid source was accepted");
+    expect(result.error.message).toContain("legacy-device");
+    expect(result.error.message).toContain("missing 2");
+    expect(project).toEqual(before);
+  });
   it("recovers an unknown public write with the same identity and rejects a Project changed during an insertion read", async () => {
     const library = componentLibraryHarness();
     const packaged = nativePackage();

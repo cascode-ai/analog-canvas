@@ -5,7 +5,9 @@ import {
   type ComponentLibraryPage,
   type ComponentLibraryStatus,
   type SharedComponent,
+  type RejectedSharedComponent,
 } from "./component-library-contract";
+import { definitionError } from "./component-definition-error";
 
 export class ComponentLibraryError extends Error {
   constructor(
@@ -31,7 +33,9 @@ async function responseJson(response: Response) {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
-export function parseSharedComponentEntry(value: unknown): SharedComponent {
+function parseSharedComponentMetadata(
+  value: unknown,
+): Omit<SharedComponent, "definition" | "circuit"> {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
@@ -55,9 +59,16 @@ export function parseSharedComponentEntry(value: unknown): SharedComponent {
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     status: value.status,
+  };
+}
+export function parseSharedComponentEntry(value: unknown): SharedComponent {
+  const metadata = parseSharedComponentMetadata(value);
+  const record = value as Record<string, unknown>;
+  return {
+    ...metadata,
     ...parseSharedComponentPayload({
-      definition: value.definition,
-      ...(value.circuit === undefined ? {} : { circuit: value.circuit }),
+      definition: record.definition,
+      ...(record.circuit === undefined ? {} : { circuit: record.circuit }),
     }),
   };
 }
@@ -95,9 +106,31 @@ export async function loadSharedComponents(
       (payload.nextCursor !== null && typeof payload.nextCursor !== "string")
     )
       throw new Error("Component library unavailable: invalid page");
+    const entries: SharedComponent[] = [];
+    const rejected: RejectedSharedComponent[] = [];
+    for (const value of payload.entries) {
+      const metadata = parseSharedComponentMetadata(value);
+      try {
+        entries.push(parseSharedComponentEntry(value));
+      } catch (error) {
+        const record = value as Record<string, unknown>;
+        const symbol = isRecord(record.definition) && record.definition.symbol;
+        rejected.push({
+          id: metadata.id,
+          author: metadata.author,
+          name:
+            isRecord(symbol) && typeof symbol.name === "string"
+              ? symbol.name
+              : metadata.id,
+          message: definitionError(error),
+          record,
+        });
+      }
+    }
     return {
-      entries: payload.entries.map(parseSharedComponentEntry),
+      entries,
       nextCursor: payload.nextCursor,
+      ...(rejected.length ? { rejected } : {}),
     };
   } catch (error) {
     if (signal?.aborted) throw signal.reason;

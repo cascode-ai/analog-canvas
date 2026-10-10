@@ -23,6 +23,15 @@ export interface SharedComponent {
 export interface ComponentLibraryPage {
   entries: SharedComponent[];
   nextCursor: string | null;
+  rejected?: RejectedSharedComponent[];
+}
+/** Historical source that failed validation stays inspectable, never executable. */
+export interface RejectedSharedComponent {
+  id: string;
+  name: string;
+  author: string;
+  message: string;
+  record: Record<string, unknown>;
 }
 
 export const COMPONENT_DEFINITION_MAX_BYTES = 128 * 1024;

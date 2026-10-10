@@ -65,6 +65,17 @@ function library() {
     },
   });
   return {
+    seedHistoricalDefinition(id: string, definition: unknown) {
+      db.prepare(
+        `INSERT INTO components
+        (id, revision, author_id, author, status, created_at, updated_at, name, definition)
+        VALUES (?, 1, 'alice', 'Alice', 'shared', '2026-01-01', '2026-01-01', ?, ?)`,
+      ).run(
+        id,
+        (definition as { symbol: { name: string } }).symbol.name,
+        JSON.stringify(definition),
+      );
+    },
     dropNextPublicationResponse: () => {
       dropPublicationResponse = true;
     },
@@ -362,6 +373,119 @@ test("reopening User Components retains loaded cards without another list reques
   }
 });
 
+test("historical invalid pin mappings remain inspectable without blocking valid library cards", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const healthy = {
+      symbol: structuredClone(
+        builtInSymbols.find((symbol) => symbol.id === "resistor")!,
+      ),
+    };
+    healthy.symbol.name = "Healthy device";
+    expect(
+      await page.evaluate(
+        async (definition) =>
+          (
+            await fetch("/api/components/healthy-device", {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ revision: 0, definition }),
+            })
+          ).status,
+        healthy,
+      ),
+    ).toBe(200);
+    const legacy = {
+      ...newComponentDefinition(),
+      subcircuit: {
+        id: "legacy-interface",
+        symbolId: "custom-component",
+        target: "legacy",
+        ports: [{ name: "IN", pinName: "IN", direction: "input" }],
+      },
+    };
+    legacy.subcircuit.symbolId = legacy.symbol.id;
+    legacy.symbol.name = "Legacy device";
+    service.seedHistoricalDefinition("legacy-device", legacy);
+    await openUserComponents(page);
+    const dialog = page.getByRole("dialog", {
+      name: "User Components",
+      exact: true,
+    });
+    await expect(
+      dialog.getByRole("button", { name: "Place Healthy device", exact: true }),
+    ).toBeVisible();
+    await expect(dialog.getByTestId("rejected-user-component")).toContainText(
+      "Legacy device",
+    );
+    await expect(dialog.getByTestId("rejected-user-component")).toContainText(
+      "Alice",
+    );
+    await expect(dialog.getByTestId("rejected-user-component")).toContainText(
+      "missing OUT",
+    );
+    await expect(
+      dialog.getByRole("button", { name: "Place Legacy device", exact: true }),
+    ).toHaveCount(0);
+    await dialog
+      .getByRole("button", {
+        name: "Copy raw record for Legacy device",
+        exact: true,
+      })
+      .click();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(JSON.parse(copied)).toMatchObject({
+      id: "legacy-device",
+      revision: 1,
+      definition: legacy,
+    });
+    await dialog
+      .getByRole("button", { name: "Place Healthy device", exact: true })
+      .click();
+    await place(page, 400, 300);
+    await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+    await openUserComponents(page);
+    await expect(dialog.getByTestId("rejected-user-component")).toContainText(
+      "missing OUT",
+    );
+    await dialog
+      .getByRole("textbox", { name: "Search User Defined components" })
+      .fill("Legacy");
+    await expect(
+      dialog.getByRole("button", { name: "Place Healthy device", exact: true }),
+    ).toHaveCount(0);
+    await expect(dialog.getByTestId("rejected-user-component")).toBeVisible();
+    await expect(
+      dialog.getByText("No user components match this search.", {
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole("button", { name: "Try Again", exact: true }),
+    ).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        async (definition) =>
+          (
+            await fetch("/api/components/new-invalid-device", {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ revision: 0, definition }),
+            })
+          ).status,
+        legacy,
+      ),
+    ).toBe(400);
+  } finally {
+    service.close();
+  }
+});
+
 test("User Components recovers first-load failures and keeps cards when stale refresh fails", async ({
   page,
   context,
@@ -521,12 +645,25 @@ test("a failed next page retains cards and Try Again retries that page", async (
         if (!response.ok) throw Error(await response.text());
       }
     }, definition);
+    const legacy = {
+      ...newComponentDefinition(),
+      subcircuit: {
+        id: "legacy-paged-interface",
+        symbolId: "custom-component",
+        target: "legacy",
+        ports: [{ name: "IN", pinName: "IN", direction: "input" }],
+      },
+    };
+    legacy.subcircuit.symbolId = legacy.symbol.id;
+    legacy.symbol.name = "Legacy paged device";
+    service.seedHistoricalDefinition("paged-device-23", legacy);
     let failNextPage = true;
+    let failFirstPage = false;
     const cursors: (string | null)[] = [];
     await context.route("**/api/components?**", async (route) => {
       const cursor = new URL(route.request().url()).searchParams.get("cursor");
       cursors.push(cursor);
-      if (cursor && failNextPage)
+      if ((cursor && failNextPage) || (!cursor && failFirstPage))
         await route.fulfill({
           status: 503,
           json: { error: "Service unavailable" },
@@ -553,11 +690,31 @@ test("a failed next page retains cards and Try Again retries that page", async (
     await dialog
       .getByRole("button", { name: "Try Again", exact: true })
       .click();
-    await expect(dialog.locator(".user-component-tile")).toHaveCount(23);
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+    await expect(dialog.locator(".user-component-place")).toHaveCount(23);
+    const rejected = dialog.getByTestId("rejected-user-component");
+    await expect(rejected).toContainText("Legacy paged device");
+    await expect(rejected).toContainText("OUT");
     await expect(
       dialog.getByRole("button", { name: "Try Again", exact: true }),
     ).toHaveCount(0);
     expect(cursors).toEqual([null, "paged-device-19", "paged-device-19"]);
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await openUserComponents(page);
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+    await expect(rejected).toContainText("OUT");
+    expect(cursors).toHaveLength(3);
+    failFirstPage = true;
+    await dialog.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(
+      dialog.getByText(
+        "Couldn’t refresh components. Loaded components are still available.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+    await expect(rejected).toContainText("OUT");
+    expect(cursors).toEqual([null, "paged-device-19", "paged-device-19", null]);
   } finally {
     service.close();
   }

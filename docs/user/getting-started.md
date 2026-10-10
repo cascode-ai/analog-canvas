@@ -525,6 +525,12 @@ loaded cards remain available and **Try Again** retries. A failed **Load More**
 retries that page without discarding earlier cards. Deleted entries always
 require a fresh authorized request.
 
+An older definition that no longer validates appears as **Needs repair**, with
+its name, author and validation reason. **Copy raw record** preserves the original
+source for inspection. Repair the copied definition in **Create Component**
+before applying or publishing; an invalid record cannot be placed. Other valid
+cards remain available. Agent listings report the invalid record explicitly.
+
 Placing a public native revision captures source, interface and artwork in your
 Project through ordinary placement. Compatible repeated insertion reuses its
 model and allocates a new reference. Conflicts refuse without overwriting the
