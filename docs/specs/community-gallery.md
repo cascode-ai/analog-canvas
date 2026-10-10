@@ -796,7 +796,9 @@ database stores only SHA-256 hashes of session tokens and sign-in codes.
   same-origin gated. `GalleryDO` deletes the circuits the account
   published, in every status, with their versions and likes; then the
   account's likes on other circuits; then its Cloud Projects and their
-  revisions. `ComponentLibraryDO` deletes the components it shared. Last,
+  revisions. `ComponentLibraryDO` deletes the components it shared.
+  AnalogArena unlinks the account from its Voter
+  ([Account deletion](analog-arena.md#account-deletion)). Last,
   `AuthDO` deletes the account's sessions, sign-in codes, daily code
   counters and the account row, and clears the session cookie. A failing
   step answers 503 and leaves the account signed in. Every step is

@@ -11,17 +11,11 @@ import {
   AUTH_SESSION_COOKIE,
   sessionUserOf,
   type AuthEnv,
-  type SessionUser,
 } from "./auth";
+import { ARENA_ACCOUNT_HEADER, arenaAccount } from "./arena-account";
 import { isArenaForwardedPath } from "./arena-paths";
 
-/** The forwarded account, as one JSON object; absent when signed out. */
-const ARENA_ACCOUNT_HEADER = "x-arena-account";
-
-export type ArenaEnv = Partial<AuthEnv> & {
-  /** The service binding to `analog-arena`; Production alone holds it. */
-  ARENA?: { fetch(request: Request): Promise<Response> };
-};
+export type ArenaEnv = Partial<AuthEnv>;
 
 /** Cookies Arena may never set: Analog Canvas's own sign-in. */
 const CANVAS_SESSION_COOKIES = new Set([
@@ -68,28 +62,6 @@ function withoutCanvasSessionCookies(response: Response): Response {
     statusText: response.statusText,
     headers,
   });
-}
-
-/**
- * The header value: the contract's fields, nothing else from the session.
- * A header carries bytes, so every character outside printable ASCII
- * travels as a JSON `\u` escape; the value is still one JSON object and
- * parses to the name.
- */
-function arenaAccount(user: SessionUser): string {
-  const account = JSON.stringify({
-    id: user.id,
-    displayName: user.displayName,
-    isOwner: user.isOwner === true,
-    isAdmin: user.isAdmin,
-    role: user.role === "moderator" ? "moderator" : "user",
-    seat: user.seat ?? null,
-  });
-  // UTF-16 units, not code points: an emoji travels as its surrogate pair.
-  return account.replace(
-    /[\u007f-\uffff]/g,
-    (unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
 }
 
 /**

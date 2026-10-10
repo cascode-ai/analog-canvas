@@ -60,4 +60,29 @@ describe("privacy notice", () => {
     expect(markup).toContain("<strong>Delete account…</strong>");
     expect(markup).toContain("Do Not Track or Global");
   });
+
+  it("describes AnalogArena as its Consent does: what it keeps, the IP hash, publication and account deletion", () => {
+    const markup = renderToStaticMarkup(<PrivacyPage />);
+    expect(markup).toContain("<h2>AnalogArena</h2>");
+    expect(markup).toContain("<strong>Your Votes</strong>");
+    expect(markup).toContain("<strong>Timings and interactions</strong>");
+    expect(markup).toContain("<strong>Your Voter Profile</strong>");
+    expect(markup).toContain(
+      "a keyed hash of your IP address, with your country and network operator",
+    );
+    expect(markup).toContain("pseudonymous research data under CC BY 4.0");
+    expect(markup).toContain(
+      "names you only by a pseudonym made for that release alone",
+    );
+    expect(markup).toContain("with their timings and interactions");
+    expect(markup).toContain(
+      "of your Votes stay with them, unlinked from you, until that Season",
+    );
+    expect(markup).toContain(
+      "Deleting your Analog Canvas account unlinks your Votes from you",
+    );
+    expect(markup).toContain(
+      "Deletion cannot withdraw data already published.",
+    );
+  });
 });

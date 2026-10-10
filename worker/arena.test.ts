@@ -26,8 +26,23 @@ const arenaPage: ArenaService = async () =>
     headers: { "content-type": "text/html; charset=utf-8" },
   });
 
-/** Analog Canvas with Arena answering as `arena` does; null leaves it unbound. */
+/**
+ * Analog Canvas with Arena answering as `arena` does; null leaves it unbound.
+ * Every request Arena receives is kept in `forwarded`, whether the Worker
+ * forwarded it or the account store sent it while deleting an account: as
+ * in Production, the account store sees the Worker's bindings.
+ */
 function canvas(arena: ArenaService | null = arenaPage) {
+  const forwarded: Request[] = [];
+  const served: Request[] = [];
+  const binding = arena && {
+    ARENA: {
+      fetch: (request: Request) => {
+        forwarded.push(request);
+        return arena(request);
+      },
+    },
+  };
   const authState = sqliteState();
   const authDurable = new AuthDO(authState, {
     RESEND_API_KEY: "rk",
@@ -36,14 +51,13 @@ function canvas(arena: ArenaService | null = arenaPage) {
     GH_OAUTH_CLIENT_SECRET: "gsecret",
     GOOGLE_CLIENT_ID: "cid",
     GOOGLE_CLIENT_SECRET: "csecret",
+    ...binding,
   } as AuthEnv);
   // The Gallery harness's sign-in helpers need only the accounts.
   const accounts = {
     authDurable,
     authSql: authState.storage.sql,
   } as unknown as Harness;
-  const forwarded: Request[] = [];
-  const served: Request[] = [];
   const env = {
     AUTH: {
       getByName: () => ({
@@ -53,14 +67,7 @@ function canvas(arena: ArenaService | null = arenaPage) {
           ),
       }),
     },
-    ...(arena && {
-      ARENA: {
-        fetch: (request: Request) => {
-          forwarded.push(request);
-          return arena(request);
-        },
-      },
-    }),
+    ...binding,
     ASSETS: {
       fetch: async (request: Request) => {
         served.push(request);
@@ -289,6 +296,9 @@ describe("Arena forwarding", () => {
     "/api/arena",
     "/api/arenas/session",
     "/api/auth/providers",
+    // Arena's account deletion, which only the account store sends.
+    "/api/canvas/account-deletion",
+    "/api/arena/../canvas/account-deletion",
   ])("leaves %s to Analog Canvas", async (path) => {
     const { forwarded, visit } = canvas();
 
@@ -443,5 +453,133 @@ describe("signing in from Arena", () => {
 
   it("sign-in started anywhere else still comes back to /", async () => {
     expect(await landing("google")).toBe(`${ORIGIN}/`);
+  });
+});
+
+describe("deleting an account", () => {
+  /** The account page's Delete account…, confirmed. */
+  function deleteAccount(
+    visit: ReturnType<typeof canvas>["visit"],
+    cookie: string,
+    headers: Record<string, string> = {},
+  ) {
+    return visit("/api/auth/account/delete", {
+      method: "POST",
+      headers: { Origin: ORIGIN, Cookie: cookie, ...headers },
+      body: JSON.stringify({ confirm: "delete-account" }),
+    });
+  }
+
+  async function signedIn(
+    visit: ReturnType<typeof canvas>["visit"],
+    cookie: string,
+  ): Promise<boolean> {
+    const response = await visit("/api/auth/me", {
+      headers: { Cookie: cookie },
+    });
+    return ((await response.json()) as { user: unknown }).user !== null;
+  }
+
+  const unlinked: ArenaService = async () => Response.json({ unlinked: true });
+
+  it("asks Arena to unlink the account being deleted from its Voter, then deletes it", async () => {
+    const { accounts, forwarded, visit } = canvas(unlinked);
+    const cookie = await makerOf(accounts);
+    const id = await accountId(visit, cookie);
+    // A forged account on the deletion request changes nothing.
+    const forged = JSON.stringify({
+      id: "someone-else",
+      displayName: "Someone",
+      isOwner: false,
+      isAdmin: false,
+      role: "user",
+      seat: null,
+    });
+
+    const response = await deleteAccount(visit, cookie, {
+      "x-arena-account": forged,
+    });
+
+    expect(response.status).toBe(200);
+    expect(forwarded).toHaveLength(1);
+    const [request] = forwarded;
+    expect(request?.method).toBe("POST");
+    expect(request?.url).toBe(`${ORIGIN}/api/canvas/account-deletion`);
+    expect(forwardedAccount(request)).toEqual({
+      id,
+      displayName: "maker",
+      isOwner: false,
+      isAdmin: false,
+      role: "user",
+      seat: null,
+    });
+    // Analog Canvas's credentials never reach Arena.
+    expect(request?.headers.has("cookie")).toBe(false);
+    expect(request?.headers.has("authorization")).toBe(false);
+    expect(await signedIn(visit, cookie)).toBe(false);
+  });
+
+  it.each<[string, ArenaService]>([
+    [
+      "is unreachable",
+      async () => {
+        throw new Error("Network connection lost.");
+      },
+    ],
+    ["fails", async () => new Response("Worker threw", { status: 500 })],
+    [
+      "refuses",
+      async () =>
+        Response.json(
+          { error: "invalid-request", message: "…" },
+          { status: 400 },
+        ),
+    ],
+    // An Arena deployed without the account deletion answers 404, which
+    // never counts as unlinked.
+    [
+      "does not know the call",
+      async () => Response.json({ error: "not-found" }, { status: 404 }),
+    ],
+  ])(
+    "keeps the account signed in when Arena %s, and a retry finishes the deletion",
+    async (_case, failure) => {
+      let arenaAnswers = failure;
+      const { accounts, forwarded, visit } = canvas((request) =>
+        arenaAnswers(request),
+      );
+      const cookie = await makerOf(accounts);
+      const id = await accountId(visit, cookie);
+
+      const failed = await deleteAccount(visit, cookie);
+
+      expect(failed.status).toBe(503);
+      expect(failed.headers.get("cache-control")).toBe("no-store");
+      expect(await failed.json()).toEqual({ error: "arena-unlink-failed" });
+      expect(failed.headers.has("set-cookie")).toBe(false);
+      expect(await signedIn(visit, cookie)).toBe(true);
+
+      // Arena answers the same however often it is asked, so retrying is
+      // safe and finishes the deletion.
+      arenaAnswers = unlinked;
+      const retried = await deleteAccount(visit, cookie);
+
+      expect(retried.status).toBe(200);
+      expect(forwarded.map(forwardedAccount)).toEqual([
+        expect.objectContaining({ id }),
+        expect.objectContaining({ id }),
+      ]);
+      expect(await signedIn(visit, cookie)).toBe(false);
+    },
+  );
+
+  it("deletes the account without Arena where Arena is not bound", async () => {
+    const { accounts, visit } = canvas(null);
+    const cookie = await makerOf(accounts);
+
+    const response = await deleteAccount(visit, cookie);
+
+    expect(response.status).toBe(200);
+    expect(await signedIn(visit, cookie)).toBe(false);
   });
 });

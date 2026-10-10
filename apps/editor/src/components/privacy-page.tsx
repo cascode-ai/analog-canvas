@@ -12,7 +12,7 @@ import {
 } from "./site-resource-links";
 
 /** When the notice last changed; update it with the text. */
-export const PRIVACY_UPDATED = "9 October 2026";
+export const PRIVACY_UPDATED = "10 October 2026";
 
 /**
  * Every cookie the site sets. All but `canvas_vid` belong to a feature you
@@ -253,6 +253,68 @@ export function PrivacyPage() {
           </li>
         </ul>
 
+        <h2>AnalogArena</h2>
+        <p>
+          AnalogArena, at <code>/arena</code>, asks signed-in people which of
+          two schematics, drawn from the same netlist by AI models and tools
+          whose names stay hidden until you vote, is drawn better. Before your
+          first Vote it asks for your one-time Consent, and keeps which version
+          of that text you agreed to. It then keeps:
+        </p>
+        <ul>
+          <li>
+            <strong>Your Votes</strong> and the events of each Battle you see:
+            which drawings were shown, when, what you chose, and any reasons you
+            add. It also notes when you open My votes, which is never published.
+          </li>
+          <li>
+            <strong>Timings and interactions</strong> of each Battle: when the
+            drawings loaded, how long you took to decide and how long the Battle
+            was on screen, how often and how long you enlarged, zoomed or panned
+            a drawing or opened the netlist, how often you copied the netlist or
+            changed your choice, whether you used a keyboard or a pointer, and
+            your screen&rsquo;s size, pixel density and orientation, kind of
+            pointer and browser family. These are counts and durations only,
+            never mouse trails or keystroke timing.
+          </li>
+          <li>
+            <strong>Your Voter Profile</strong>, asked after your fifth Vote:
+            your role, your years of analog design experience and how often you
+            draw schematics. Each answer can be &ldquo;Prefer not to say&rdquo;.
+          </li>
+          <li>
+            <strong>Where each Vote came from</strong>: a keyed hash of your IP
+            address, with your country and network operator, to find one person
+            voting through several accounts. Your IP address itself is never
+            stored, and the key never leaves AnalogArena. These three are never
+            published, and are deleted once the analysis of that Season is
+            closed, even if you delete your account before then.
+          </li>
+        </ul>
+        <p>
+          AnalogArena knows you by a random Voter id, never derived from your
+          account. With your Consent, it publishes your Votes and Battle events,
+          with their timings and interactions and your Voter Profile answers, as
+          pseudonymous research data under CC BY 4.0 (Creative Commons
+          Attribution 4.0), for anyone to reuse. Each release names you only by
+          a pseudonym made for that release alone. It never holds your account,
+          display name, email address, Voter id, IP hash, country or network
+          operator, and it holds a remark you added only once it has been read
+          and approved for publication.
+        </p>
+        <p>
+          Deleting your Analog Canvas account unlinks your Votes from you:
+          AnalogArena removes your account from its records, and keeps your
+          Votes, Battle events, timings and interactions and Voter Profile
+          answers as anonymous data under the Voter id alone. The IP hash,
+          country and network operator of your Votes stay with them, unlinked
+          from you, until that Season&rsquo;s analysis is closed. Its daily
+          copies of its records never hold your account, though for about 30
+          days Cloudflare can still restore its store as it was before the
+          deletion. Deletion cannot withdraw data already published. If you sign
+          in again later with the same account, you start as a new Voter.
+        </p>
+
         <h2>Cookies and browser storage</h2>
         <p>
           The site sets only these cookies, all its own. The sign-in cookies are
@@ -323,9 +385,10 @@ export function PrivacyPage() {
           <strong>Delete account…</strong>, then type your name to confirm. This
           at once deletes the account and everything kept for it: your Cloud
           Projects, the circuits you published with their history, the
-          components you shared, and your likes. Export anything you want to
-          keep first. Drawings stored only in your browser are not affected.
-          Earlier backups keep their copies.
+          components you shared, and your likes. It also unlinks your
+          AnalogArena Votes from you, as described above. Export anything you
+          want to keep first. Drawings stored only in your browser are not
+          affected. Earlier backups keep their copies.
         </p>
         <p>
           You may also ask what data the site keeps about you, have it corrected
