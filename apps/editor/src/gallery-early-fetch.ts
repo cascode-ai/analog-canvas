@@ -14,15 +14,40 @@ export const GALLERY_EARLY_URLS = [
 
 const GALLERY_EARLY_GLOBAL = "__icmGalleryEarly";
 
+/** Where the wall remembers its filters: gallery-filters' GALLERY_FILTERS_KEY. */
+export const GALLERY_EARLY_FILTERS_KEY = "icm.gallery-filters.v1";
+
+/**
+ * Whether the wall opens unfiltered, so that the early requests are the ones
+ * it will ask: the address carries no query, and the remembered filters
+ * narrow nothing the first page is asked with (or cannot be read, which
+ * resolveGalleryFilters reads as none). A narrowed wall asks for itself, and
+ * an early unfiltered request would only be wasted.
+ */
+const OPENS_UNFILTERED =
+  `function(search,raw){if(search)return false;var s;` +
+  `try{s=raw&&JSON.parse(raw)}catch(e){return true}` +
+  `if(!s||typeof s!=="object"||Array.isArray(s))return true;` +
+  `function text(v){return typeof v==="string"&&v.trim()!==""}` +
+  `function list(v){return Array.isArray(v)&&v.length>0}` +
+  `return!(text(s.author)||text(s.ownerUserId)||text(s.source)||list(s.tags)||` +
+  `list(s.parts)||s.netlistable===true||s.liked===true||s.attention===true)}`;
+
 type EarlyResponses = Record<string, Promise<Response>>;
 
-/** The inline script: on the landing route, request each URL once. */
+/**
+ * The inline script: on the landing route of a wall that opens unfiltered,
+ * request each URL once.
+ */
 export function galleryEarlyFetchScript(): string {
   return (
-    `if(/^\\/?$/.test(location.pathname)){var early=window.${GALLERY_EARLY_GLOBAL}={};` +
+    `if(/^\\/?$/.test(location.pathname)){var raw=null;` +
+    `try{raw=localStorage.getItem(${JSON.stringify(GALLERY_EARLY_FILTERS_KEY)})}catch(e){}` +
+    `if((${OPENS_UNFILTERED})(location.search,raw)){` +
+    `var early=window.${GALLERY_EARLY_GLOBAL}={};` +
     `${JSON.stringify(GALLERY_EARLY_URLS)}.forEach(function(url){` +
     `var response=fetch(url,{credentials:"same-origin"});` +
-    `response.catch(function(){});early[url]=response;});}`
+    `response.catch(function(){});early[url]=response;});}}`
   );
 }
 
