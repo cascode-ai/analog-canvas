@@ -1,6 +1,7 @@
 import { type ReactNode, type ComponentProps, type MouseEvent } from "react";
 
 import { BugReportLink } from "../components/bug-report-link";
+import { CrossedSwordsIcon } from "../components/crossed-swords-icon";
 import { ProjectMenu } from "./project-menu";
 import { AccountMenu } from "../components/account";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
@@ -42,6 +43,7 @@ export interface EditorAppChromeProps {
   projectSchemaVersion: number;
   hasUnsavedWork: boolean;
   onOpenGallery: () => void;
+  onOpenArena: () => void;
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
   onInsertComponent: () => void;
@@ -85,6 +87,7 @@ export function EditorAppChrome({
   projectSchemaVersion,
   hasUnsavedWork,
   onOpenGallery,
+  onOpenArena,
   fileCommands,
   searchOpen,
   onInsertComponent,
@@ -130,20 +133,24 @@ export function EditorAppChrome({
     mirrorTopBottom.enabled ||
     alignmentActions.length > 0;
   // A plain click leaves through the editor's own guard for unsaved work; a
-  // modified click opens the Gallery in another tab as any link would.
-  const openGallery = (event: MouseEvent<HTMLAnchorElement>): void => {
-    if (
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey
-    ) {
-      return;
-    }
-    event.preventDefault();
-    if (communityEnabled) onOpenGallery();
-  };
+  // modified click opens the Gallery or Arena in another tab as any link
+  // would.
+  const leaveThrough =
+    (leave: () => void) =>
+    (event: MouseEvent<HTMLAnchorElement>): void => {
+      if (
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      event.preventDefault();
+      if (communityEnabled) leave();
+    };
+  const openGallery = leaveThrough(onOpenGallery);
   return (
     <header className="app-chrome">
       <div className="app-chrome-main">
@@ -184,6 +191,20 @@ export function EditorAppChrome({
                 <rect x="9" y="8" width="5.5" height="6.5" rx="1.2" />
               </svg>
               <span>Gallery</span>
+            </a>
+          ) : null}
+          {/* AnalogArena, where drawings are judged side by side: /arena
+              hands the visitor to chip-arena.com, signed in as here. */}
+          {communityEnabled ? (
+            <a
+              className="header-gallery-link header-arena-link"
+              href="/arena"
+              data-testid="header-arena-link"
+              title="Judge schematics side by side in AnalogArena"
+              onClick={leaveThrough(onOpenArena)}
+            >
+              <CrossedSwordsIcon />
+              <span>Arena</span>
             </a>
           ) : null}
           {/* File holds Project Info and the file commands; project tabs

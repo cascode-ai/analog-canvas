@@ -246,7 +246,7 @@ import {
   useGalleryRefresh,
 } from "./use-gallery-publishing";
 import {
-  createLeaveForGallery,
+  createLeaveEditor,
   useBootLink,
   useGalleryTabEntry,
   useRestoredTabLinks,
@@ -4838,17 +4838,18 @@ function WorkspaceEditor({
     noteProjectPublished,
   });
 
-  const leaveForGallery = createLeaveForGallery({
-    project,
-    stageRecovery,
-    flushRecovery,
-    captureAuthoredProject,
-    cloudBinding,
-    isDirtyWork,
-    guardDirtyReplacement,
-    dropDiscardedWork,
-    allowNextBrowserUnload,
-  });
+  const { toGallery: leaveForGallery, toArena: leaveForArena } =
+    createLeaveEditor({
+      project,
+      stageRecovery,
+      flushRecovery,
+      captureAuthoredProject,
+      cloudBinding,
+      isDirtyWork,
+      guardDirtyReplacement,
+      dropDiscardedWork,
+      allowNextBrowserUnload,
+    });
 
   return (
     <main className="app-shell">
@@ -4996,6 +4997,7 @@ function WorkspaceEditor({
         closeNativeTabs={closeNativeTabs}
         saveNativeTab={saveNativeTab}
         leaveForGallery={leaveForGallery}
+        leaveForArena={leaveForArena}
       />
       <EditorDialogs
         projectStore={projectStore}
