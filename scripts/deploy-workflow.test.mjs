@@ -271,13 +271,21 @@ describe("Cloudflare deploy workflow", () => {
     expect(verifySection).toContain('if [ "$status" != "404" ]');
   });
 
-  it("verifies that a signed-out visitor reads nothing from the Gallery", () => {
+  it("verifies that a signed-out visitor reads only the wall's first twelve circuits", () => {
     const verifySection = workflow.slice(
       workflow.indexOf("Verify production deployment"),
       workflow.indexOf("Roll back a failed deployment"),
     );
+    // The bare list is the twelve alone: no further page, no count.
     expect(verifySection).toContain(
-      'for path in api/gallery "api/gallery?q=amp" api/gallery/tags api/gallery/authors; do',
+      "https://analog-canvas.tokenzhang.com/api/gallery)",
+    );
+    expect(verifySection).toContain(
+      'wall.signedOut !== true || wall.nextCursor !== null || !Array.isArray(wall.entries) || wall.entries.length > 12 || "total" in wall',
+    );
+    // Every other read still asks to sign in.
+    expect(verifySection).toContain(
+      'for path in "api/gallery?q=amp" "api/gallery?cursor=x" api/gallery/tags api/gallery/authors; do',
     );
     expect(verifySection).toContain('if [ "$status" != "401" ]');
     expect(verifySection).not.toContain("signInForMore");
