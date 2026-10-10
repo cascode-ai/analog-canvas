@@ -16,13 +16,22 @@
 // tests never touch the network.
 
 import { unlinkArenaVoter, type ArenaService } from "./arena-account";
-import { isArenaPagePath } from "./arena-paths";
+import {
+  ARENA_ORIGIN,
+  CANVAS_HOST,
+  SCHEMATIC_ARENA_PATH,
+  isArenaPagePath,
+} from "./arena-paths";
 
 export const AUTH_SESSION_COOKIE = "icm_session";
 export const AUTH_STATE_COOKIE = "icm_oauth_state";
+/** AnalogArena's host's half of a sign-in handoff: the browser it began in. */
+export const AUTH_HANDOFF_COOKIE = "icm_handoff";
 export const AUTH_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 /** How long an emailed sign-in code works. */
 const AUTH_LOGIN_CODE_TTL_MS = 10 * 60 * 1000;
+/** How long a sign-in handoff's one-time code lasts: one redirect, and then some. */
+export const AUTH_HANDOFF_TTL_MS = 60 * 1000;
 /** Wrong guesses one code takes before it stops working. */
 export const AUTH_LOGIN_CODE_ATTEMPTS = 5;
 export const AUTH_EMAIL_DAILY_LIMIT = 5;
@@ -244,6 +253,13 @@ function ownerCookie(token: string, secure: boolean, maxAge: number): string {
   );
 }
 
+function handoffCookie(value: string, secure: boolean, maxAge: number): string {
+  return (
+    `${AUTH_HANDOFF_COOKIE}=${value}; Path=/api/auth/handoff; HttpOnly; ` +
+    `SameSite=Lax; Max-Age=${maxAge}${secure ? "; Secure" : ""}`
+  );
+}
+
 function stateCookie(value: string, secure: boolean, maxAge: number): string {
   return (
     `${AUTH_STATE_COOKIE}=${value}; Path=/api/auth; HttpOnly; ` +
@@ -289,6 +305,9 @@ function redirect(location: string): Response {
  * anything else, as before (docs/specs/analog-arena.md#sign-in-return).
  */
 function signInReturnPath(requested: string | null, origin: string): string {
+  // A sign-in started on AnalogArena's host asks to be handed back there.
+  if (requested?.startsWith(`${ARENA_ORIGIN}/`))
+    return arenaPageAddress(requested) ?? "/";
   if (!requested?.startsWith("/")) return "/";
   let url: URL;
   try {
@@ -299,6 +318,60 @@ function signInReturnPath(requested: string | null, origin: string): string {
   return url.origin === origin && isArenaPagePath(url.pathname)
     ? url.pathname + url.search
     : "/";
+}
+
+/**
+ * `requested` as the full address of a Schematic Arena page on AnalogArena's
+ * host, normalized, its query kept; null for anything else.
+ */
+function arenaPageAddress(requested: string | null): string | null {
+  if (!requested?.startsWith(`${ARENA_ORIGIN}/`)) return null;
+  let url: URL;
+  try {
+    url = new URL(requested);
+  } catch {
+    return null;
+  }
+  return url.origin === ARENA_ORIGIN && isArenaPagePath(url.pathname)
+    ? url.origin + url.pathname + url.search
+    : null;
+}
+
+/**
+ * The page path a handoff on `url`'s host lands on: `requested` when it is
+ * a Schematic Arena page there, query kept, and /schematic otherwise.
+ */
+function arenaLanding(url: URL, requested: string | null): string {
+  if (!requested?.startsWith("/")) return SCHEMATIC_ARENA_PATH;
+  let target: URL;
+  try {
+    target = new URL(requested, url.origin);
+  } catch {
+    return SCHEMATIC_ARENA_PATH;
+  }
+  return target.origin === url.origin && isArenaPagePath(target.pathname)
+    ? target.pathname + target.search
+    : SCHEMATIC_ARENA_PATH;
+}
+
+/** Where a handoff to the Schematic Arena page `page` begins. */
+function handoffBeginning(page: URL): string {
+  return (
+    `${ARENA_ORIGIN}/api/auth/handoff/begin?` +
+    new URLSearchParams({ return: page.pathname + page.search }).toString()
+  );
+}
+
+/** A redirect that leaves no address behind it: the next page sees no referrer. */
+function handoffRedirect(location: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      location,
+      "cache-control": "no-store",
+      "referrer-policy": "no-referrer",
+    },
+  });
 }
 
 function noStoreJson(payload: unknown, status = 200): Response {
@@ -429,6 +502,16 @@ export class AuthDO {
         PRIMARY KEY (day, email_hash)
       ) WITHOUT ROWID
     `);
+    // One-time codes that hand a sign-in on to AnalogArena's host
+    // (docs/specs/analog-arena.md#sign-in-handoff).
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS arena_handoffs (
+        code_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        binding_hash TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      ) WITHOUT ROWID
+    `);
     this.ensureAiSeats(state);
   }
 
@@ -447,6 +530,15 @@ export class AuthDO {
     }
     if (route === "me" && method === "GET") {
       return noStoreJson({ user: await this.me(request) });
+    }
+    if (route === "handoff" && method === "GET") {
+      return this.handoffStart(request, url);
+    }
+    if (route === "handoff/begin" && method === "GET") {
+      return this.handoffBegin(url);
+    }
+    if (route === "handoff/complete" && method === "GET") {
+      return this.handoffComplete(request, url);
     }
     if (route === "admin/stats" && method === "GET") {
       const caller = await this.superAdmin(request);
@@ -634,7 +726,11 @@ export class AuthDO {
   ): Promise<Response> {
     const secure = url.protocol === "https:";
     const token = await this.createSession(user.id);
-    const response = redirect(`${url.origin}${returnPath}`);
+    // A sign-in started on AnalogArena's host goes back there through the
+    // handoff, which signs that host in too.
+    const response = returnPath.startsWith(`${ARENA_ORIGIN}/`)
+      ? handoffRedirect(handoffBeginning(new URL(returnPath)))
+      : redirect(`${url.origin}${returnPath}`);
     response.headers.append(
       "Set-Cookie",
       sessionCookie(token, secure, AUTH_SESSION_TTL_SECONDS),
@@ -642,6 +738,116 @@ export class AuthDO {
     if (clearState) {
       response.headers.append("Set-Cookie", stateCookie("", secure, 0));
     }
+    return response;
+  }
+
+  // --- Sign-in handoff to AnalogArena ----------------------------------
+  // (docs/specs/analog-arena.md#sign-in-handoff)
+
+  /**
+   * GET /api/auth/handoff/begin?return=<page path>, on AnalogArena's host:
+   * marks this browser with a fresh binding and asks Analog Canvas who it
+   * is signed in as there.
+   */
+  private handoffBegin(url: URL): Response {
+    const binding = randomToken();
+    const response = handoffRedirect(
+      `https://${CANVAS_HOST}/api/auth/handoff?` +
+        new URLSearchParams({
+          return:
+            url.origin + arenaLanding(url, url.searchParams.get("return")),
+          binding,
+        }).toString(),
+    );
+    response.headers.append(
+      "Set-Cookie",
+      handoffCookie(
+        binding,
+        url.protocol === "https:",
+        AUTH_HANDOFF_TTL_MS / 1000,
+      ),
+    );
+    return response;
+  }
+
+  /**
+   * GET /api/auth/handoff?return=<Schematic Arena page address>&binding=…,
+   * on Analog Canvas's host: sends the browser to that page, signed in as it
+   * is here when it is (through a one-time code only the browser holding
+   * the binding can use), or as it is, signed out. Without a binding the
+   * handoff begins on AnalogArena's host first.
+   */
+  private async handoffStart(request: Request, url: URL): Promise<Response> {
+    const page = new URL(
+      arenaPageAddress(url.searchParams.get("return")) ??
+        `${ARENA_ORIGIN}${SCHEMATIC_ARENA_PATH}`,
+    );
+    const binding = url.searchParams.get("binding");
+    if (!binding) return handoffRedirect(handoffBeginning(page));
+    const user = await this.sessionUser(request);
+    if (!user) return handoffRedirect(page.toString());
+    const code = randomToken();
+    const now = this.now();
+    this.sql.exec(
+      "DELETE FROM arena_handoffs WHERE expires_at <= ?",
+      now.toISOString(),
+    );
+    this.sql.exec(
+      "INSERT INTO arena_handoffs(code_hash, user_id, binding_hash, expires_at) VALUES (?, ?, ?, ?)",
+      await sha256(code),
+      user.id,
+      await sha256(binding),
+      new Date(now.getTime() + AUTH_HANDOFF_TTL_MS).toISOString(),
+    );
+    return handoffRedirect(
+      `${ARENA_ORIGIN}/api/auth/handoff/complete?` +
+        new URLSearchParams({
+          code,
+          return: page.pathname + page.search,
+        }).toString(),
+    );
+  }
+
+  /**
+   * GET /api/auth/handoff/complete?code=…&return=<page path>, on
+   * AnalogArena's host: a live, unused code, in the browser that began its
+   * handoff, signs this host in as its account, once. The browser then
+   * lands on the page, signed in or not.
+   */
+  private async handoffComplete(request: Request, url: URL): Promise<Response> {
+    const secure = url.protocol === "https:";
+    const response = handoffRedirect(
+      url.origin + arenaLanding(url, url.searchParams.get("return")),
+    );
+    response.headers.append("Set-Cookie", handoffCookie("", secure, 0));
+    const code = url.searchParams.get("code");
+    const binding = parseCookies(request.headers.get("Cookie"))[
+      AUTH_HANDOFF_COOKIE
+    ];
+    if (!code) return response;
+    const codeHash = await sha256(code);
+    const row = this.sql
+      .exec<{ user_id: string; binding_hash: string; expires_at: string }>(
+        "SELECT user_id, binding_hash, expires_at FROM arena_handoffs WHERE code_hash = ?",
+        codeHash,
+      )
+      .toArray()[0];
+    this.sql.exec("DELETE FROM arena_handoffs WHERE code_hash = ?", codeHash);
+    if (!row || row.expires_at <= this.now().toISOString()) return response;
+    if (!binding || !sameDigest(await sha256(binding), row.binding_hash))
+      return response;
+    const user = this.sql
+      .exec<UserRow>("SELECT * FROM users WHERE id = ?", row.user_id)
+      .toArray()[0];
+    if (!user) return response;
+    response.headers.append(
+      "Set-Cookie",
+      sessionCookie(
+        await this.createSession(user.id),
+        secure,
+        AUTH_SESSION_TTL_SECONDS,
+      ),
+    );
     return response;
   }
 

@@ -49,6 +49,7 @@ import {
 import { AnalyticsDO as AnalyticsStore } from "../apps/editor/analytics/worker";
 import { GalleryDO as GalleryStore } from "./gallery";
 import {
+  routeArenaHosts,
   routeArenaRequest,
   withoutClientArenaAccount,
   type ArenaEnv,
@@ -127,6 +128,10 @@ type ScheduledEventLike = { scheduledTime: number; cron: string };
 
 async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
+
+  // The Arena host serves only AnalogArena; the former /arena pages move there.
+  const hostRedirect = routeArenaHosts(request);
+  if (hostRedirect) return hostRedirect;
 
   const conversion = await handleNetlistConversionRequest(request);
   if (conversion) return conversion;

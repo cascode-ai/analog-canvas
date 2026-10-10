@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  AUTH_HANDOFF_COOKIE,
+  AUTH_HANDOFF_TTL_MS,
   AUTH_SESSION_COOKIE,
   AUTH_SESSION_TTL_SECONDS,
   AUTH_STATE_COOKIE,
@@ -26,12 +28,16 @@ describe("privacy notice", () => {
       [
         AUTH_SESSION_COOKIE,
         AUTH_STATE_COOKIE,
+        AUTH_HANDOFF_COOKIE,
         ANALYTICS_PERSISTENCE_IDENTITY.visitorCookie,
         ANALYTICS_OPT_OUT_COOKIE,
       ].sort(),
     );
     expect(lifetime(AUTH_SESSION_COOKIE)).toBe(
       `${AUTH_SESSION_TTL_SECONDS / 86_400} days`,
+    );
+    expect(lifetime(AUTH_HANDOFF_COOKIE)).toBe(
+      `${AUTH_HANDOFF_TTL_MS / 60_000} minute`,
     );
     expect(VISITOR_COOKIE_MAX_AGE).toBe(365 * 86_400);
     expect(lifetime(ANALYTICS_PERSISTENCE_IDENTITY.visitorCookie)).toMatch(

@@ -13,6 +13,13 @@
       "pattern": "analog-canvas.tokenzhang.com",
       "custom_domain": true,
     },
+    // AnalogArena's own host: this Worker serves the Schematic Arena at
+    // /schematic there and sends every other path to Analog Canvas
+    // (worker/arena.ts routeArenaHosts, docs/specs/analog-arena.md#hosts).
+    {
+      "pattern": "chip-arena.com",
+      "custom_domain": true,
+    },
   ],
   "vars": {
     "SIMULATION_DISPATCH": "alarm",
@@ -47,13 +54,16 @@
       "/robots.txt",
       "/sitemap.xml",
       "/llms.txt",
-      // AnalogArena's pages, forwarded to the Arena Worker below.
+      // The Schematic Arena's pages, forwarded to the Arena Worker below,
+      // and their former address, which redirects to them.
+      "/schematic",
+      "/schematic/*",
       "/arena",
       "/arena/*",
     ],
   },
   // AnalogArena (Arcadia-1/analog-arena) has no route of its own: this
-  // Worker forwards /arena… and /api/arena/… to it with the signed-in
+  // Worker forwards /schematic… and /api/arena/… to it with the signed-in
   // account, which Arena trusts because only this binding reaches it
   // (docs/specs/analog-arena.md). Only Production holds it.
   "services": [{ "binding": "ARENA", "service": "analog-arena" }],

@@ -1,8 +1,9 @@
 // AnalogArena's way in (docs/specs/analog-arena.md#forwarded-identity-and-routing).
 //
 // Arena is its own Worker, `analog-arena`, deployed from Arcadia-1/analog-arena
-// with no route of its own. This Worker forwards exactly /arena, /arena/… and
-// /api/arena/… to it over a service binding and vouches for the signed-in
+// with no route of its own. This Worker serves it on chip-arena.com, forwards
+// exactly /schematic, /schematic/… and /api/arena/… to it over a service
+// binding and vouches for the signed-in
 // account in one header. Arena trusts that header because nothing else can
 // reach it, so this Worker never lets a client's copy through.
 
@@ -13,7 +14,16 @@ import {
   type AuthEnv,
 } from "./auth";
 import { ARENA_ACCOUNT_HEADER, arenaAccount } from "./arena-account";
-import { isArenaForwardedPath } from "./arena-paths";
+import {
+  ARENA_HOST,
+  ARENA_ORIGIN,
+  CANVAS_HOST,
+  SCHEMATIC_ARENA_PATH,
+  isArenaForwardedPath,
+  isArenaPagePath,
+  isLegacyArenaPagePath,
+  schematicArenaPathOf,
+} from "./arena-paths";
 
 export type ArenaEnv = Partial<AuthEnv>;
 
@@ -74,6 +84,80 @@ export function withoutClientArenaAccount(request: Request): Request {
   const headers = new Headers(request.headers);
   headers.delete(ARENA_ACCOUNT_HEADER);
   return new Request(request, { headers });
+}
+
+function redirectTo(location: string, status: 301 | 302): Response {
+  return new Response(null, { status, headers: { location } });
+}
+
+/** A GitHub or Google sign-in start: /api/auth/<provider>/start. */
+const OAUTH_START = /^\/api\/auth\/(github|google)\/start$/u;
+
+/**
+ * The sign-in handoff to an AnalogArena page: the browser arrives there
+ * signed in as it is on Analog Canvas, or signed out when it is signed out
+ * here. It begins on AnalogArena's host, which marks the browser first.
+ */
+function handoffTo(arenaPage: string): Response {
+  return redirectTo(
+    `${ARENA_ORIGIN}/api/auth/handoff/begin?` +
+      new URLSearchParams({ return: arenaPage }).toString(),
+    302,
+  );
+}
+
+/**
+ * Where each host sends a request before any route answers it
+ * (docs/specs/analog-arena.md#hosts). Null when the request stays.
+ *
+ * - AnalogArena's host serves the Schematic Arena's pages, /api/arena/… and
+ *   the sign-in API. Its root opens /schematic, and every other path goes to
+ *   Analog Canvas. A GitHub or Google sign-in starts on Analog Canvas, the
+ *   only host those providers send people back to, and is handed back here.
+ * - On Analog Canvas's host, the former /arena… pages and /schematic… go to
+ *   the same Schematic Arena page on AnalogArena's host, through the sign-in
+ *   handoff. Elsewhere (local development) /arena… goes to /schematic… on the
+ *   same origin.
+ */
+export function routeArenaHosts(request: Request): Response | null {
+  const url = new URL(request.url);
+  if (url.hostname === ARENA_HOST) {
+    if (url.pathname === "/") {
+      return redirectTo(`${url.origin}${SCHEMATIC_ARENA_PATH}`, 302);
+    }
+    if (OAUTH_START.test(url.pathname)) {
+      const start = new URL(url.pathname, `https://${CANVAS_HOST}`);
+      const requested = url.searchParams.get("return");
+      const page = requested?.startsWith("/")
+        ? URL.parse(requested, ARENA_ORIGIN)
+        : null;
+      if (page?.origin === ARENA_ORIGIN && isArenaPagePath(page.pathname)) {
+        start.searchParams.set("return", page.href);
+      }
+      return redirectTo(start.toString(), 302);
+    }
+    if (isArenaForwardedPath(url.pathname)) return null;
+    if (url.pathname.startsWith("/api/auth/")) return null;
+    return redirectTo(
+      `https://${CANVAS_HOST}${url.pathname}${url.search}`,
+      302,
+    );
+  }
+  const legacy = isLegacyArenaPagePath(url.pathname);
+  if (url.hostname === CANVAS_HOST) {
+    if (legacy)
+      return handoffTo(schematicArenaPathOf(url.pathname) + url.search);
+    if (isArenaPagePath(url.pathname))
+      return handoffTo(url.pathname + url.search);
+    return null;
+  }
+  if (legacy) {
+    return redirectTo(
+      `${url.origin}${schematicArenaPathOf(url.pathname)}${url.search}`,
+      301,
+    );
+  }
+  return null;
 }
 
 /**

@@ -63,11 +63,17 @@ describe("assets binding wiring", () => {
   });
 
   it("hands AnalogArena's pages to the Worker, which forwards them to analog-arena", () => {
-    // Without these the asset layer answers /arena with the editor's shell
-    // and the forwarding never runs; /api/* already reaches the Worker.
+    // Without these the asset layer answers /schematic with the editor's
+    // shell and the forwarding never runs, and /arena never redirects;
+    // /api/* already reaches the Worker.
     const config = wranglerConfig();
     expect(config.assets.run_worker_first).toEqual(
-      expect.arrayContaining(["/arena", "/arena/*"]),
+      expect.arrayContaining([
+        "/schematic",
+        "/schematic/*",
+        "/arena",
+        "/arena/*",
+      ]),
     );
     expect(config.services).toContainEqual({
       binding: "ARENA",
