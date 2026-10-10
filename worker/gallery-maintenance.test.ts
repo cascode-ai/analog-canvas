@@ -192,9 +192,17 @@ describe("off-site Gallery backup credential", () => {
       { method: "POST", body: JSON.stringify({ table: "cloudProjects" }) },
     );
     expect(await unscoped.json()).toEqual({ error: "invalid-table" });
-    // The store credential opens no other read.
+    // The store credential opens no other read: the bare wall shows it only
+    // what any signed-out visitor sees.
+    expect(
+      (
+        (await (await get("/api/gallery", store)).json()) as {
+          signedOut?: boolean;
+        }
+      ).signedOut,
+    ).toBe(true);
     for (const path of [
-      "/api/gallery",
+      "/api/gallery?limit=50",
       "/api/gallery/maintenance/netlists",
       "/api/gallery/maintenance/schema-backup?table=cloudProjects",
       "/api/projects",

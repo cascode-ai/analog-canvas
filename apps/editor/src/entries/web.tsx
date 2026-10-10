@@ -74,7 +74,7 @@ export function mountWebEditor() {
       // The tags beside that page are counted for the same filters.
       tags: loadGalleryTagSummary(early, query),
       tagsScope: galleryTagScope(query),
-      feed: loadGalleryFeed(early, query),
+      feed: loadGalleryFeed(early, { ...query, signedOutWall: true }),
       feedQuery: galleryFeedQueryKey(query),
       ...(focusId
         ? { focus: { id: focusId, entry: loadGalleryEntry(fetch, focusId) } }

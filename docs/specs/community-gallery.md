@@ -22,11 +22,21 @@ The Gallery is for signed-in readers. Every Gallery read (the list and its
 search, tags, authors, an entry and its Project, its preview and its history)
 needs a signed-in session or the read-only Gallery credential
 (`GALLERY_BACKUP_TOKEN` as a Bearer token). Signed out, every one of them
-answers `401 {"error":"sign-in-required"}` with `cache-control: no-store`:
-a visitor sees no circuit, name or count. The landing page then shows grey
-stand-ins for the wall's tiles under a veil, with "The Gallery is for
-signed-in members" and a Sign in button that opens the header's sign-in
-choices; no tags, search or filters sit beside it. The editor's Insert from
+answers `401 {"error":"sign-in-required"}` with `cache-control: no-store`,
+with one exception: the wall's first twelve circuits (Owner's decision,
+2026-10-10).
+- `GET /api/gallery` with no query at all answers the unfiltered wall's first
+  twelve public entries as `{entries, nextCursor: null, signedOut: true}`,
+  `no-store`. It carries no count and no further page; any query, a cursor
+  included, still asks to sign in.
+- Each of those twelve serves its preview. Every other read stays refused,
+  including opening one of them, its Project and its history.
+- The landing page draws the twelve a little grey and out of reach under a
+  veil, with "The Gallery is for signed-in members" and a Sign in button that
+  opens the header's sign-in choices; no tags, search or filters sit beside it.
+- When the server shows none, grey stand-ins keep the wall's shape instead.
+- Only the landing wall takes the twelve: every other reader of the list
+  reads the signed-out answer as a request to sign in. The editor's Insert from
 Gallery panel shows the same veil over grey cards, with "Sign in to insert circuits from
 the Gallery." and its own Sign in button. Agent Gallery reads made through a
 signed-out editor fail with a message saying to sign in to the editor. Built-in

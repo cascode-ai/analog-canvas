@@ -275,16 +275,18 @@ export function useGalleryWall({
         feedQuery,
       )
         ? preload.feed
-        : loadGalleryFeed(fetch, feedQuery);
+        : loadGalleryFeed(fetch, { ...feedQuery, signedOutWall: true });
     void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
       setHeldWall([]);
-      if (page === GALLERY_SIGN_IN_REQUIRED) {
+      if (page === GALLERY_SIGN_IN_REQUIRED || page?.signedOut) {
+        // Signed out, the server shows at most the wall's first circuits,
+        // which the veil draws dimmed; refused outright, it shows none.
         loadedQueryRef.current = queryKey;
         setState({
           status: "signed-out",
-          entries: [],
+          entries: page === GALLERY_SIGN_IN_REQUIRED ? [] : page.entries,
           nextCursor: null,
           total: null,
         });

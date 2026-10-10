@@ -5,6 +5,7 @@ import {
   announceGalleryChange,
   galleryAuthorsOf,
   galleryNarrowedByline,
+  galleryPreviewUrl,
   loadGalleryFeed,
   loadGalleryTags,
   localhostExamplesEnabled,
@@ -59,8 +60,9 @@ import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
 import { GalleryBundledTile, GalleryWallTile } from "./gallery-feed-tile";
 
 /**
- * Heights of the grey stand-in tiles behind the sign-in invitation. Signed
- * out, the Gallery shows no circuit at all, only the shape of its wall.
+ * Heights of the grey stand-in tiles behind the sign-in invitation, for a
+ * signed-out visitor the server shows no circuit at all; otherwise the veil
+ * draws the wall's first circuits it shows, dimmed and closed.
  */
 const SIGNED_OUT_TILE_HEIGHTS = [
   190, 250, 160, 220, 270, 180, 240, 200, 160, 260, 210, 180,
@@ -514,13 +516,32 @@ export function GalleryFeed({
           aria-labelledby="gallery-sign-in-title"
         >
           <div className="gallery-sign-in-veil" aria-hidden="true">
-            {SIGNED_OUT_TILE_HEIGHTS.map((height, index) => (
-              <span
-                key={index}
-                className="gallery-sign-in-tile"
-                style={{ height }}
-              />
-            ))}
+            {state.entries.length > 0
+              ? state.entries.map((entry) => (
+                  <span
+                    key={entry.id}
+                    className="gallery-sign-in-tile gallery-sign-in-circuit"
+                    data-testid="gallery-sign-in-circuit"
+                  >
+                    <img
+                      src={galleryPreviewUrl(entry.id, entry.previewRevision)}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                    />
+                    <span className="gallery-sign-in-circuit-name">
+                      {entry.name}
+                    </span>
+                  </span>
+                ))
+              : SIGNED_OUT_TILE_HEIGHTS.map((height, index) => (
+                  <span
+                    key={index}
+                    className="gallery-sign-in-tile"
+                    style={{ height }}
+                  />
+                ))}
           </div>
           <div className="gallery-sign-in-card">
             <h2 id="gallery-sign-in-title">
