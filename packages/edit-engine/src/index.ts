@@ -45,6 +45,7 @@ export * from "./undrawn-instances.js";
 export * from "./transaction.js";
 export * from "./transaction-preflight.js";
 export * from "./project-transaction.js";
+export * from "./circuit-authoring.js";
 export * from "./project-cell-import.js";
 export * from "./project-cell-body-import.js";
 export * from "./power-rail-label.js";

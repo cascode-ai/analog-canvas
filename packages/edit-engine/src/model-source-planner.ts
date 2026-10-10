@@ -1,10 +1,8 @@
 import {
-  deriveStableId,
   circuitComponentIssues,
   initializeCircuitComponent,
   removeCircuitComponentTerminals,
   type CircuitProject,
-  type ExternalSubcircuitDefinition,
 } from "@icm/model";
 import {
   inspectProjectModelSource,
@@ -23,6 +21,10 @@ import {
 import { executeTransaction } from "./transaction.js";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import { resolveReviewedLibraryInterface } from "@icm/devices";
+import {
+  modelSourceInterface,
+  resolveCircuitAuthoring,
+} from "./circuit-authoring.js";
 
 export class ModelSourceApplyError extends Error {
   constructor(readonly diagnostic: SimulationSourceDiagnostic) {
@@ -85,7 +87,9 @@ export function planModelSourceApply(
   const previous = project.modelSources?.find((s) => s.id === source.id);
   if (previous && previous.revision !== source.revision)
     throw Error("Model source revision is stale");
-  const targets = new Map(edit.definitions.map((d) => [d.definitionId, d]));
+  const targets = new Map(
+    edit.definitions.map((d) => [d.definitionId, { ...d }]),
+  );
   if (targets.size !== edit.definitions.length)
     throw Error("A definition can only be selected once per Apply");
   for (const definition of project.externalSubcircuitDefinitions) {
@@ -193,6 +197,27 @@ export function planModelSourceApply(
         ? [{ source, target: destination }]
         : [],
     );
+    const definition = modelSourceInterface(id, source.id, entry, old, map);
+    if (target.authoring) {
+      if (
+        target.symbol !== undefined ||
+        target.terminalDirections !== undefined
+      )
+        throw Error(
+          "Use either authoring input or compiled symbol/directions, not both.",
+        );
+      const resolved = resolveCircuitAuthoring(
+        definition,
+        target.authoring,
+        working.componentDefinitions,
+      );
+      if (resolved.issue)
+        throw Error(
+          `${resolved.issue.path.join(".")}: ${resolved.issue.message}`,
+        );
+      target.symbol = resolved.symbol;
+      target.terminalDirections = resolved.terminalDirections;
+    }
     const changes = planCallerInterfaceChanges(
       working,
       id,
@@ -213,33 +238,6 @@ export function planModelSourceApply(
       ),
     );
     preview(changes.beforeChild);
-    const definition: ExternalSubcircuitDefinition = {
-      ...old,
-      id,
-      name: entry.name,
-      terminals: entry.ports.map((name) => {
-        const previousTerminal = old?.terminals.find(
-          (t) => (Object.hasOwn(map, t.name) ? map[t.name] : t.name) === name,
-        );
-        return previousTerminal
-          ? { ...previousTerminal, name }
-          : {
-              id: deriveStableId("model-terminal", id, name),
-              name,
-              direction: "passive",
-            };
-      }),
-      formalParameters: entry.parameters.map((p) => ({
-        name: p.name,
-        defaultValue: p.rawText,
-      })),
-      interfaceStatus: "declared",
-      implementation: {
-        kind: "source",
-        sourceId: source.id,
-        entry: entry.name,
-      },
-    };
     for (const id of Object.keys(target.terminalDirections ?? {}))
       if (!definition.terminals.some((terminal) => terminal.id === id))
         throw Error("Unknown native terminal in the direction candidate");

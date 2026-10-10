@@ -80,10 +80,11 @@
   flex: 1;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  grid-auto-rows: max-content;
   align-content: start;
-  gap: 0.55rem;
+  gap: 0.35rem;
   min-height: 0;
-  padding: 0.55rem;
+  padding: 0.35rem;
   overflow-y: auto;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-md);
@@ -100,7 +101,7 @@
 }
 .user-component-place {
   width: 100%;
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   align-items: stretch;
   flex-direction: column;
@@ -117,11 +118,12 @@
   background: var(--icm-accent-soft);
 }
 .user-component-preview {
-  flex: 0 0 7rem;
+  flex: 0 0 5.25rem;
+  height: 5.25rem;
   display: grid;
   place-items: center;
   min-width: 0;
-  padding: var(--icm-space-3);
+  padding: 0.4rem;
   overflow: hidden;
   border-bottom: 1px solid var(--icm-border);
 }
@@ -134,17 +136,17 @@
   color: var(--icm-text);
 }
 .user-component-caption {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--icm-space-1);
+  gap: 0.15rem;
   min-width: 0;
-  padding: var(--icm-space-2) var(--icm-space-3);
+  padding: 0.35rem 0.55rem;
 }
 .user-component-caption strong {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  min-height: 2.5em;
   line-height: 1.25;
   overflow: hidden;
   overflow-wrap: anywhere;
@@ -158,15 +160,21 @@
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
-.user-component-edit {
-  border: 0;
+.user-component-actions {
+  flex: 0 0 auto;
+  display: flex;
   border-top: 1px solid var(--icm-border);
+}
+.user-component-edit {
+  flex: 1;
+  min-width: 0;
+  border: 0;
   border-radius: 0;
   background: var(--icm-surface);
   box-shadow: none;
   color: var(--icm-accent);
   font-size: var(--icm-font-xs);
-  padding: 0.35rem;
+  padding: 0.25rem 0.35rem;
   cursor: pointer;
 }
 .user-components-empty {
@@ -333,9 +341,30 @@
   width: 5.5rem;
 }
 .component-definition-native .circuit-pin-editor {
-  flex: 1;
   min-height: 0;
   overflow: auto;
+}
+.component-circuit-interface {
+  flex: 0 0 auto;
+  padding-block: var(--icm-space-2);
+  border-top: 1px solid var(--icm-border);
+}
+.component-circuit-interface details {
+  margin-top: var(--icm-space-2);
+}
+.component-circuit-interface summary {
+  cursor: pointer;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+}
+.component-circuit-interface .external-model-directions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.component-circuit-interface .external-model-directions label {
+  grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 1fr);
+}
+.component-circuit-interface .external-model-directions strong {
+  overflow-wrap: anywhere;
 }
 .component-definition-native .external-model-actionbar {
   position: static;
@@ -464,10 +493,10 @@
   }
   .component-definition-native .component-definition-workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(80px, 28%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(80px, 28%);
   }
   .component-definition-native .component-definition-preview {
-    grid-row: 1;
+    grid-row: 2;
   }
 }
 @media (max-width: 520px) {

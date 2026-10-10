@@ -10,27 +10,86 @@ import type { SharedComponent } from "./component-library-contract";
 import { parseSharedDefinition } from "./component-library-contract";
 import type { CircuitComponentAuthoring } from "./native-component-editor";
 import { definitionError } from "./component-definition-error";
-import { createEmptyProject, type ComponentAuthoringDraft } from "@icm/model";
+import {
+  ComponentDefinitionSchema,
+  createEmptyProject,
+  type ComponentAuthoringDraft,
+} from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { parseSharedComponentEntry } from "./component-library-client";
+import { readComponentPublication } from "./component-publication";
 
-/** The Project stores the isolated library session as a non-executable draft. */
+/** An explicit reload replaces the saved baseline as well as the visible editor. */
+export function reloadedLibraryDraft(
+  id: string,
+  entry: SharedComponent,
+): ComponentAuthoringDraft {
+  const project = entry.circuit
+    ? createCircuitComponentPackageProject(
+        { definition: entry.definition, circuit: entry.circuit },
+        `library-${entry.id}-r${entry.revision}`,
+      )
+    : undefined;
+  const definitionText = JSON.stringify(entry.definition, null, 2);
+  return {
+    id,
+    library: { componentId: entry.id, revision: entry.revision },
+    text: JSON.stringify({
+      entry,
+      publication: { kind: "update", componentId: entry.id },
+      ...(project
+        ? {
+            project: serializeProject(project),
+            definitionId: entry.circuit!.externalDefinition.id,
+          }
+        : {
+            definitionText,
+            appliedText: definitionText,
+            appliedDefinition: entry.definition,
+          }),
+    }),
+  };
+}
+
+export function isLibraryAuthoringDraft(draft?: ComponentAuthoringDraft) {
+  if (!draft) return false;
+  if (draft.library) return true;
+  try {
+    return JSON.parse(draft.text)?.kind === "library-authoring";
+  } catch {
+    return false;
+  }
+}
+
+/** Pending publication and published snapshots are private, non-executable drafts. */
 export function readLibraryAuthoringDraft(draft: ComponentAuthoringDraft) {
-  if (!draft.library) throw Error("This is not a library authoring draft.");
+  if (!isLibraryAuthoringDraft(draft))
+    throw Error("This is not a library authoring draft.");
   const snapshot: unknown = JSON.parse(draft.text);
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot))
     throw Error("Invalid library authoring snapshot.");
   const data = snapshot as Record<string, unknown>;
-  const entry = parseSharedComponentEntry(data.entry);
+  const entry =
+    data.entry === undefined
+      ? undefined
+      : parseSharedComponentEntry(data.entry);
+  const definition =
+    entry?.definition ?? ComponentDefinitionSchema.parse(data.definition);
+  const publication = readComponentPublication(data.publication, entry);
+  if (!entry && !publication)
+    throw Error("Pending publication destination is missing.");
   if (
-    entry.id !== draft.library.componentId ||
-    entry.revision !== draft.library.revision
+    draft.library &&
+    (entry?.id !== draft.library.componentId ||
+      entry?.revision !== draft.library.revision)
   )
     throw Error("Library draft identity does not match its snapshot.");
   if (typeof data.definitionText === "string")
     return {
       kind: "definition" as const,
+      publication,
       entry,
+      definition,
       text: data.definitionText,
       ...(data.appliedDefinition !== undefined &&
       typeof data.appliedText === "string"
@@ -51,7 +110,9 @@ export function readLibraryAuthoringDraft(draft: ComponentAuthoringDraft) {
     throw Error("The library draft's model owner is missing.");
   return {
     kind: "circuit" as const,
+    publication,
     entry,
+    definition,
     project,
     definitionId: data.definitionId,
   };
@@ -64,16 +125,12 @@ export function useLibraryCircuitAuthoring(
   onCopyText: (text: string) => Promise<void>,
   persistence: {
     draft?: ComponentAuthoringDraft | undefined;
-    onSave(text: string, entry: SharedComponent): string | null;
+    onSave(text: string, entry: SharedComponent | undefined): string | null;
   },
-):
-  | (CircuitComponentAuthoring & {
-      onPublished(entry: SharedComponent): string | null;
-    })
-  | undefined {
+): CircuitComponentAuthoring | undefined {
   const [restored] = useState(() => {
-    const saved = persistence.draft?.library
-      ? readLibraryAuthoringDraft(persistence.draft)
+    const saved = isLibraryAuthoringDraft(persistence.draft)
+      ? readLibraryAuthoringDraft(persistence.draft!)
       : undefined;
     return saved?.kind === "circuit" ? saved : undefined;
   });
@@ -100,7 +157,7 @@ export function useLibraryCircuitAuthoring(
     restored?.definitionId ?? entry?.circuit?.externalDefinition.id,
   );
   current.current = project;
-  if (!project || !entry) return undefined;
+  if (!project) return undefined;
   function commit(edits: ProjectStructureEdit[], definitionId: string) {
     const source = current.current!;
     try {
@@ -118,7 +175,7 @@ export function useLibraryCircuitAuthoring(
             project: serializeProject(result.project),
             definitionId,
           }),
-          entry!,
+          entry,
         );
         if (error) return { ok: false, definitionId, message: error };
         setDefinitionId(definitionId);
@@ -139,17 +196,6 @@ export function useLibraryCircuitAuthoring(
   return {
     project,
     definitionId,
-    onPublished: (published) =>
-      persistence.draft?.library
-        ? persistence.onSave(
-            JSON.stringify({
-              entry: published,
-              project: serializeProject(current.current!),
-              definitionId,
-            }),
-            published,
-          )
-        : null,
     onRepair: (edits, definitionId, expectedProject) =>
       JSON.stringify(current.current) === JSON.stringify(expectedProject)
         ? commit(edits, definitionId)

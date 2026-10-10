@@ -33,7 +33,11 @@ import {
 } from "../features/user-components/component-definition-edit";
 import type { EditorServices } from "../services/editor-services";
 import type { ComponentEditorSession } from "./component-editor-session";
-import { readLibraryAuthoringDraft } from "../features/user-components/library-circuit-authoring";
+import {
+  readLibraryAuthoringDraft,
+  reloadedLibraryDraft,
+  isLibraryAuthoringDraft,
+} from "../features/user-components/library-circuit-authoring";
 import { LazyComponentDefinitionEditor as ComponentDefinitionEditor } from "./lazy-editor-dialogs";
 
 const UserComponentsLibrary = lazy(
@@ -295,6 +299,7 @@ export function EditorComponentEditor({
             key={componentEditor.key}
             definition={componentEditor.definition}
             mode={componentEditor.mode}
+            publicationIntent={componentEditor.publicationIntent}
             {...(componentEditor.target
               ? {
                   repairTarget: {
@@ -533,7 +538,14 @@ export function EditorComponentEditor({
               const draft = {
                 id: componentEditor.draft?.id ?? componentEditor.key,
                 text,
-                library: { componentId: entry.id, revision: entry.revision },
+                ...(entry
+                  ? {
+                      library: {
+                        componentId: entry.id,
+                        revision: entry.revision,
+                      },
+                    }
+                  : {}),
               };
               const outcome = commitModelEdits(
                 [
@@ -550,6 +562,37 @@ export function EditorComponentEditor({
               return outcome.ok ? null : outcome.message;
             }}
             onManaged={() => setComponentLibraryRefresh((value) => value + 1)}
+            onReloadLibrary={(entry) => {
+              if (!componentSessionIsCurrent())
+                return "The Project changed. Reopen before reloading.";
+              const draft = reloadedLibraryDraft(
+                componentEditor.draft?.id ?? componentEditor.key,
+                entry,
+              );
+              const outcome = commitModelEdits(
+                [
+                  {
+                    kind: "save_component_authoring_draft",
+                    draft,
+                    expectedText: componentEditor.draft?.text ?? null,
+                  },
+                ],
+                draft.id,
+                "Reloaded published component",
+              );
+              if (!outcome.ok) return outcome.message;
+              setComponentEditor({
+                key: crypto.randomUUID(),
+                projectSessionId,
+                mode: "library",
+                publicationIntent: "update",
+                definition: entry.definition,
+                entry,
+                draft,
+              });
+              setComponentLibraryRefresh((value) => value + 1);
+              return null;
+            }}
             onPlaceCircuit={(packaged) =>
               insertCircuitComponent(
                 packaged,
@@ -568,13 +611,13 @@ export function EditorComponentEditor({
             drafts={[
               ...(project.componentAuthoringDrafts ?? []).map((draft) => ({
                 id: draft.id,
-                label: draft.library
+                label: isLibraryAuthoringDraft(draft)
                   ? (() => {
                       try {
                         return (
                           "Library draft " +
-                          readLibraryAuthoringDraft(draft).entry.definition
-                            .symbol.name
+                          readLibraryAuthoringDraft(draft).definition.symbol
+                            .name
                         );
                       } catch {
                         return "Invalid library draft " + draft.id.slice(0, 8);
@@ -641,15 +684,15 @@ export function EditorComponentEditor({
                 });
                 return;
               }
-              if (draft.library) {
+              if (isLibraryAuthoringDraft(draft)) {
                 try {
                   const snapshot = readLibraryAuthoringDraft(draft);
                   setComponentEditor({
                     key: crypto.randomUUID(),
                     projectSessionId,
                     mode: "library",
-                    definition: snapshot.entry.definition,
-                    entry: snapshot.entry,
+                    definition: snapshot.definition,
+                    ...(snapshot.entry ? { entry: snapshot.entry } : {}),
                     draft,
                   });
                 } catch (error) {
@@ -705,11 +748,21 @@ export function EditorComponentEditor({
                 definition: newComponentDefinition(),
               });
             }}
-            onEdit={(entry) => {
+            onEdit={(entry, publicationIntent) => {
               cancelAllTransientInteraction();
               const draft =
                 definitionProjectRef.current.project.componentAuthoringDrafts?.find(
-                  (d) => d.library?.componentId === entry.id,
+                  (d) => {
+                    if (d.library?.componentId !== entry.id) return false;
+                    try {
+                      return (
+                        readLibraryAuthoringDraft(d).publication?.kind ===
+                        publicationIntent
+                      );
+                    } catch {
+                      return false;
+                    }
+                  },
                 );
               if (draft) {
                 try {
@@ -718,8 +771,8 @@ export function EditorComponentEditor({
                     key: crypto.randomUUID(),
                     projectSessionId,
                     mode: "library",
-                    definition: saved.entry.definition,
-                    entry: saved.entry,
+                    definition: saved.definition,
+                    ...(saved.entry ? { entry: saved.entry } : {}),
                     draft,
                   });
                 } catch (error) {
@@ -735,6 +788,7 @@ export function EditorComponentEditor({
                 mode: "library",
                 definition: entry.definition,
                 entry,
+                publicationIntent,
               });
             }}
             onInsert={insertSharedComponent}

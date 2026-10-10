@@ -12,6 +12,7 @@ export interface ComponentEditorSession {
   definition: ComponentDefinition;
   mode: "new" | "instance" | "library";
   entry?: SharedComponent;
+  publicationIntent?: "new" | "update";
   draft?: ComponentAuthoringDraft;
   externalDefinitionId?: string;
   target?: { projectSessionId: string; documentId: string; instance: Instance };

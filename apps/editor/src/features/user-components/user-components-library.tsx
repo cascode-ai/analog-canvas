@@ -17,7 +17,7 @@ export default function UserComponentsLibrary({
   open: boolean;
   onClose(): void;
   onCreate(): void;
-  onEdit(entry: SharedComponent): void;
+  onEdit(entry: SharedComponent, intent: "new" | "update"): void;
   onInsert(entry: SharedComponent): void;
   refresh: number;
   drafts?: { id: string; label: string }[];
@@ -194,24 +194,56 @@ export default function UserComponentsLibrary({
                   <strong title={entry.definition.symbol.name}>
                     {entry.definition.symbol.name}
                   </strong>
-                  <small title={entry.author}>{entry.author}</small>
+                  <small title={entry.author}>
+                    {entry.author.trim() || "Unknown author"}
+                  </small>
                   {entry.status === "official" ? <small>Official</small> : null}
                   {entry.definition.subcircuit && !entry.circuit ? (
                     <small>Implementation missing</small>
                   ) : null}
                 </span>
               </button>
-              <button
-                type="button"
-                className="user-component-edit"
-                aria-label={`Edit ${entry.definition.symbol.name} definition`}
-                onClick={() => {
-                  onClose();
-                  onEdit(entry);
-                }}
-              >
-                {deleted ? "Review" : "Edit"}
-              </button>
+              <div className="user-component-actions">
+                {entry.authorId === user?.id && entry.status === "shared" ? (
+                  <button
+                    type="button"
+                    className="user-component-edit"
+                    aria-label={`Edit ${entry.definition.symbol.name} definition`}
+                    onClick={() => {
+                      onClose();
+                      onEdit(entry, "update");
+                    }}
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                {!deleted ? (
+                  <button
+                    type="button"
+                    className="user-component-edit"
+                    aria-label={`Create from ${entry.definition.symbol.name}`}
+                    onClick={() => {
+                      onClose();
+                      onEdit(entry, "new");
+                    }}
+                  >
+                    Create from…
+                  </button>
+                ) : null}
+                {user?.isAdmin ? (
+                  <button
+                    type="button"
+                    className="user-component-edit"
+                    aria-label={`${deleted ? "Review" : "Manage"} ${entry.definition.symbol.name}`}
+                    onClick={() => {
+                      onClose();
+                      onEdit(entry, "update");
+                    }}
+                  >
+                    {deleted ? "Review" : "Manage (admin)"}
+                  </button>
+                ) : null}
+              </div>
             </article>
           ))}
           {!loading && !entries.length && !error ? (

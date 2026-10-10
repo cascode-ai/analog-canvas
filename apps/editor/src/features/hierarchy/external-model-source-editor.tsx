@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState, useRef, type ReactNode } from "react";
 import {
   createId,
-  deriveStableId,
   ComponentDefinitionSchema,
   CellSymbolPresentationSchema,
-  circuitComponentIssues,
-  initializeCircuitComponent,
   projectCircuitSymbol,
-  resolveCircuitArtworkDraft,
   type CircuitProject,
   type ExternalSubcircuitDefinition,
   type ProjectModelSource,
@@ -35,11 +31,15 @@ import {
   netlistFormatOptions,
 } from "../netlist-export/netlist-code-controls";
 import { browserExportDelivery } from "../../hosts/browser-export-delivery";
-import type { ProjectStructureEdit } from "@icm/edit-engine";
+import {
+  modelSourceInterface,
+  resolveCircuitAuthoring,
+  type ProjectStructureEdit,
+} from "@icm/edit-engine";
 import ProjectTextEditor from "../project-code/project-text-editor";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import { definitionError } from "../user-components/component-definition-error";
-import { CircuitPinEditor } from "../user-components/circuit-pin-editor";
+import { CircuitInterfaceEditor } from "../user-components/circuit-interface-editor";
 import { newComponentDefinition } from "../user-components/component-definition-edit";
 import type { ExternalDefinitionResult } from "./project-structure-commands";
 import { CellSymbolLayoutProperties } from "../properties/component-structure-properties";
@@ -135,7 +135,7 @@ export function ExternalModelSourceEditor({
     : undefined;
   const useAppliedBytes =
     revealApplied || !!savedAuthoring?.legacyRepair?.useAppliedSource;
-  const [view, setView] = useState<"circuit" | "symbol" | "pins">("circuit");
+  const [view, setView] = useState<"circuit" | "symbol">("circuit");
   const [baseRevision, setBaseRevision] = useState(
     (useAppliedBytes ? existing?.revision : existing?.draft?.baseRevision) ??
       existing?.revision ??
@@ -311,45 +311,36 @@ export function ExternalModelSourceEditor({
     ...shared.filter((d) => d.id !== selectedDefinitionId),
     ...(selectedDefinition ? [selectedDefinition] : []),
   ];
-  const previewTerminals = selected?.ports.map((name) => {
-    const previousTerminal = selectedDefinition?.terminals.find(
-      (t) =>
-        (Object.hasOwn(portMaps[selectedDefinitionId] ?? {}, t.name)
-          ? portMaps[selectedDefinitionId]![t.name]
-          : t.name) === name,
-    );
-    const terminal = previousTerminal
-      ? { ...previousTerminal, name }
-      : {
-          id: deriveStableId("model-terminal", selectedDefinitionId, name),
-          name,
-          direction: "passive" as const,
-        };
-    return {
-      ...terminal,
-      direction: terminalDirections[terminal.id] ?? terminal.direction,
-    };
-  });
-  const previewDefinition: ExternalSubcircuitDefinition | undefined = selected
-    ? {
-        id: selectedDefinitionId,
-        name: selected.name,
-        terminals: previewTerminals!,
-        formalParameters: [],
-        interfaceStatus: "declared",
-        implementation: { kind: "source", sourceId, entry: selected.name },
-        ...(presentation
-          ? {
-              presentation: {
-                ...presentation,
-                pinPlacements: presentation.pinPlacements?.filter((p) =>
-                  previewTerminals?.some((t) => t.id === p.terminalId),
-                ),
-              },
-            }
-          : {}),
-      }
+  const derivedInterface = selected
+    ? modelSourceInterface(
+        selectedDefinitionId,
+        sourceId,
+        selected,
+        selectedDefinition,
+        portMaps[selectedDefinitionId],
+      )
     : undefined;
+  const previewTerminals = derivedInterface?.terminals.map((terminal) => ({
+    ...terminal,
+    direction: terminalDirections[terminal.id] ?? terminal.direction,
+  }));
+  const previewDefinition: ExternalSubcircuitDefinition | undefined =
+    derivedInterface
+      ? {
+          ...derivedInterface,
+          terminals: previewTerminals!,
+          ...(presentation
+            ? {
+                presentation: {
+                  ...presentation,
+                  pinPlacements: presentation.pinPlacements?.filter((p) =>
+                    previewTerminals?.some((t) => t.id === p.terminalId),
+                  ),
+                },
+              }
+            : {}),
+        }
+      : undefined;
   const preview = previewDefinition
     ? createProjectSymbolResolver(
         {
@@ -369,11 +360,17 @@ export function ExternalModelSourceEditor({
           definition: parsed,
           error: "Define a native entry in Circuit before Apply.",
         };
-      const component = initializeCircuitComponent(
-        resolveCircuitArtworkDraft(parsed, previewDefinition, artworkOrigin),
+      const resolved = resolveCircuitAuthoring(
         previewDefinition,
+        {
+          symbolMode: "custom",
+          artworkText,
+          ...(artworkOrigin ? { artworkOrigin } : {}),
+        },
+        project.componentDefinitions,
       );
-      const issue = circuitComponentIssues(component, previewDefinition)[0];
+      const component = resolved.symbol;
+      const issue = resolved.issue;
       return {
         definition: component,
         error: issue ? `${issue.path.join(".")}: ${issue.message}` : null,
@@ -452,10 +449,21 @@ export function ExternalModelSourceEditor({
         definitionId: selectedDefinitionId,
         entry: selected.name,
         ...(customSymbols
-          ? { symbol: symbolMode === "custom" ? artwork.definition : null }
-          : {}),
-        ...(customSymbols
-          ? { terminalDirections, ...(presentation ? { presentation } : {}) }
+          ? {
+              authoring: {
+                symbolMode,
+                ...(symbolMode === "custom"
+                  ? { artworkText, ...(artworkOrigin ? { artworkOrigin } : {}) }
+                  : {}),
+                terminalDirections: Object.fromEntries(
+                  (previewDefinition?.terminals ?? []).map((terminal) => [
+                    terminal.name,
+                    terminal.direction,
+                  ]),
+                ),
+              },
+              ...(presentation ? { presentation } : {}),
+            }
           : {}),
         ...(portMaps[selectedDefinitionId]
           ? { portMap: portMaps[selectedDefinitionId] }
@@ -755,7 +763,7 @@ export function ExternalModelSourceEditor({
           role="tablist"
           aria-label="Component views"
         >
-          {(["circuit", "symbol", "pins"] as const).map((tab) => (
+          {(["circuit", "symbol"] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -1068,6 +1076,31 @@ export function ExternalModelSourceEditor({
             <span>No subcircuit yet</span>
           )}
         </div>
+        {customSymbols && previewDefinition ? (
+          <CircuitInterfaceEditor
+            owner={previewDefinition}
+            component={
+              symbolMode === "custom" ? artwork.definition : automaticComponent
+            }
+            automatic={symbolMode === "automatic"}
+            readOnly={viewingApplied}
+            onDirection={(id, direction) =>
+              editDraft({
+                terminalDirections: { ...terminalDirections, [id]: direction },
+              })
+            }
+            onChange={(component) =>
+              editDraft({ artworkText: JSON.stringify(component, null, 2) })
+            }
+            onCustomize={() => {
+              editDraft({
+                symbolMode: "custom",
+                artworkText: JSON.stringify(automaticComponent, null, 2),
+              });
+              setView("symbol");
+            }}
+          />
+        ) : null}
         {targets.flatMap((target) => {
           const next =
             target.id === selectedDefinitionId
@@ -1250,7 +1283,16 @@ export function ExternalModelSourceEditor({
                     null,
                     2,
                   );
-                editDraft({ symbolMode: next, artworkText: text });
+                const change = () =>
+                  editDraft({
+                    symbolMode: next,
+                    artworkText: next === "automatic" ? "" : text,
+                    artworkOrigin:
+                      next === "automatic" ? undefined : artworkOrigin,
+                  });
+                if (next === "automatic" && symbolMode === "custom")
+                  onRequestLeave(change);
+                else change();
               }}
             >
               <option value="automatic">Automatic</option>
@@ -1311,50 +1353,56 @@ export function ExternalModelSourceEditor({
           hidden={customSymbols && view !== "symbol"}
         >
           <header>
-            <h3>Symbol layout and directions</h3>
-            <p>Pin directions and symbol placement for this model.</p>
+            <h3>
+              {customSymbols ? "Symbol layout" : "Symbol layout and directions"}
+            </h3>
+            {!customSymbols ? (
+              <p>Pin directions and symbol placement for this model.</p>
+            ) : null}
           </header>
           <div className="external-model-layout">
             <div className="external-model-layout-controls">
-              <div className="external-model-directions">
-                {layoutDefinition.terminals.map((terminal) => (
-                  <label key={terminal.id}>
-                    <span>
-                      <strong>{terminal.name}</strong> direction
-                    </span>
-                    <select
-                      aria-label={"Model " + terminal.name + " direction"}
-                      disabled={viewingApplied}
-                      value={terminal.direction}
-                      onChange={(event) =>
-                        updateLayout({
-                          ...layoutDefinition,
-                          terminals: layoutDefinition.terminals.map((t) =>
-                            t.id === terminal.id
-                              ? {
-                                  ...t,
-                                  direction: event.currentTarget
-                                    .value as typeof t.direction,
-                                }
-                              : t,
+              {!customSymbols ? (
+                <div className="external-model-directions">
+                  {layoutDefinition.terminals.map((terminal) => (
+                    <label key={terminal.id}>
+                      <span>
+                        <strong>{terminal.name}</strong> direction
+                      </span>
+                      <select
+                        aria-label={"Model " + terminal.name + " direction"}
+                        disabled={viewingApplied}
+                        value={terminal.direction}
+                        onChange={(event) =>
+                          updateLayout({
+                            ...layoutDefinition,
+                            terminals: layoutDefinition.terminals.map((t) =>
+                              t.id === terminal.id
+                                ? {
+                                    ...t,
+                                    direction: event.currentTarget
+                                      .value as typeof t.direction,
+                                  }
+                                : t,
+                            ),
+                          })
+                        }
+                      >
+                        {["passive", "input", "output", "inout"].map(
+                          (direction) => (
+                            <option key={direction} value={direction}>
+                              {direction === "inout"
+                                ? "In/Out"
+                                : direction[0]!.toUpperCase() +
+                                  direction.slice(1)}
+                            </option>
                           ),
-                        })
-                      }
-                    >
-                      {["passive", "input", "output", "inout"].map(
-                        (direction) => (
-                          <option key={direction} value={direction}>
-                            {direction === "inout"
-                              ? "In/Out"
-                              : direction[0]!.toUpperCase() +
-                                direction.slice(1)}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-                ))}
-              </div>
+                        )}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
               <CellSymbolLayoutProperties
                 target={{
                   kind: "external",
@@ -1412,30 +1460,6 @@ export function ExternalModelSourceEditor({
             ) : null}
           </div>
         </section>
-      ) : null}
-      {customSymbols && view === "pins" ? (
-        previewDefinition &&
-        (symbolMode === "custom" ? artwork.definition : automaticComponent) ? (
-          <CircuitPinEditor
-            owner={previewDefinition}
-            component={
-              (symbolMode === "custom"
-                ? artwork.definition
-                : automaticComponent)!
-            }
-            readOnly={viewingApplied}
-            onChange={(component) =>
-              editDraft({
-                symbolMode: "custom",
-                artworkText: JSON.stringify(component, null, 2),
-              })
-            }
-          />
-        ) : (
-          <p role="status">
-            Define a native entry and valid symbol JSON to edit its Pin mapping.
-          </p>
-        )
       ) : null}
       {customSymbols && previewDefinition ? (
         <p className="component-definition-note">
