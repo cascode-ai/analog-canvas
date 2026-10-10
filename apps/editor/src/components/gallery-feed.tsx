@@ -492,7 +492,8 @@ export function GalleryFeed({
             </button>
           ))}
         </div>
-        {view === "gallery" ? (
+        {/* Signed out, the server shows the newest few whatever the order. */}
+        {view === "gallery" && state.status !== "signed-out" ? (
           <GalleryOrderMenu order={order} onChoose={chooseOrder} />
         ) : null}
         {/* The shelf states its own count ("N of 20 saved"); this one
