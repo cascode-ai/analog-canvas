@@ -502,8 +502,8 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(toolbar.getByTestId("open-agent")).toBeVisible();
   await expect(toolbar.getByTestId("publish-gallery-button")).toBeVisible();
-  // Publish keeps its fill under the pointer; the app-wide button hover once
-  // turned it grey under the white label.
+  // Publish rests in soft blue and turns solid blue under the pointer
+  // (#1612); the app-wide button hover once turned it grey instead.
   const publish = toolbar.getByTestId("publish-gallery-button");
   // Read the settled colour: a running transition still reports its start.
   const fill = () =>
@@ -511,9 +511,9 @@ test("keeps the production command surface compact and publishes PWA metadata", 
       for (const animation of element.getAnimations()) animation.finish();
       return getComputedStyle(element).backgroundColor;
     });
-  const resting = await fill();
+  expect(await fill()).toBe("rgba(35, 131, 226, 0.1)");
   await publish.hover();
-  expect(await fill()).toBe(resting);
+  await expect.poll(fill).toBe("rgb(35, 131, 226)");
   await expect(page.getByTestId("copy-netlist")).toBeHidden();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
   // Three header menus, one open at a time: File, Edit, and Circuit
