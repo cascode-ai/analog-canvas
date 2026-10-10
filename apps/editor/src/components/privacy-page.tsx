@@ -323,6 +323,19 @@ export function PrivacyPage() {
           deletion. Deletion cannot withdraw data already published. If you sign
           in again later with the same account, you start as a new Voter.
         </p>
+        <p>
+          Chip Arena counts its own visitors at <code>chip-arena.com</code>, the
+          way this site counts its own: the two share no cookie and no counts.
+          On your first visit it sets one first-party cookie,{" "}
+          <code>arena_vid</code>, holding a random number of which it keeps only
+          the hash; it lasts one year from that visit and is never renewed. A
+          browser that asks not to be tracked (Do Not Track or Global Privacy
+          Control) is not counted and gets no cookie. Stop counting me on
+          chip-arena.com sends <code>{"POST /api/arena/track/opt-out"}</code>{" "}
+          there with <code>{'{"optOut": true}'}</code> (<code>false</code> takes
+          it back, and a <code>GET</code> of the same address reads your
+          choice); it then sets <code>arena_optout</code>, kept for 13 months.
+        </p>
 
         <h2>Cookies and browser storage</h2>
         <p>
@@ -330,7 +343,9 @@ export function PrivacyPage() {
           set only when you sign in, which needs them. <code>canvas_vid</code>{" "}
           only counts returning visitors to this site: it is never shared or
           combined with other data, lasts at most a year, and you can refuse it
-          at any time. That is why the site shows no cookie banner.
+          at any time. That is why the site shows no cookie banner. Chip
+          Arena&rsquo;s own two cookies, on chip-arena.com, are in its section
+          above.
         </p>
         <div className="privacy-table-scroll">
           <table className="privacy-cookies">

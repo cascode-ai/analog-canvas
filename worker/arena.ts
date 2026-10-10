@@ -2,9 +2,9 @@
 //
 // Arena is its own Worker, `analog-arena`, deployed from Arcadia-1/chip-arena
 // with no route of its own. This Worker serves it on chip-arena.com, forwards
-// exactly /schematic, /schematic/… and /api/arena/… to it over a service
-// binding and vouches for the signed-in
-// account in one header. Arena trusts that header because nothing else can
+// exactly /schematic, /schematic/… and /api/arena/… to it, and on that host
+// alone also / and /analytics, over a service binding, and vouches for the
+// signed-in account in one header. Arena trusts that header because nothing else can
 // reach it, so this Worker never lets a client's copy through.
 
 import {
@@ -18,8 +18,8 @@ import {
   ARENA_HOST,
   ARENA_ORIGIN,
   CANVAS_HOST,
-  SCHEMATIC_ARENA_PATH,
   isArenaForwardedPath,
+  isArenaHostOwnPath,
   isArenaPagePath,
   isLegacyArenaPagePath,
   schematicArenaPathOf,
@@ -110,9 +110,9 @@ function handoffTo(arenaPage: string): Response {
  * Where each host sends a request before any route answers it
  * (docs/specs/analog-arena.md#hosts). Null when the request stays.
  *
- * - AnalogArena's host serves the Schematic Arena's pages, /api/arena/… and
- *   the sign-in API. Its root opens /schematic, and every other path goes to
- *   Analog Canvas. A GitHub or Google sign-in starts on Analog Canvas, the
+ * - AnalogArena's host serves Chip Arena's front page (/) and visitor
+ *   statistics (/analytics), the Schematic Arena's pages, /api/arena/… and the
+ *   sign-in API; every other path goes to Analog Canvas. A GitHub or Google sign-in starts on Analog Canvas, the
  *   only host those providers send people back to, and is handed back here.
  * - On Analog Canvas's host, the former /arena… pages and /schematic… go to
  *   the same Schematic Arena page on AnalogArena's host, through the sign-in
@@ -122,9 +122,7 @@ function handoffTo(arenaPage: string): Response {
 export function routeArenaHosts(request: Request): Response | null {
   const url = new URL(request.url);
   if (url.hostname === ARENA_HOST) {
-    if (url.pathname === "/") {
-      return redirectTo(`${url.origin}${SCHEMATIC_ARENA_PATH}`, 302);
-    }
+    if (isArenaHostOwnPath(url.pathname)) return null;
     if (OAUTH_START.test(url.pathname)) {
       const start = new URL(url.pathname, `https://${CANVAS_HOST}`);
       const requested = url.searchParams.get("return");
@@ -168,7 +166,12 @@ export async function routeArenaRequest(
   request: Request,
   env: ArenaEnv,
 ): Promise<Response | null> {
-  if (!isArenaForwardedPath(new URL(request.url).pathname)) return null;
+  const url = new URL(request.url);
+  if (
+    !isArenaForwardedPath(url.pathname) &&
+    !(url.hostname === ARENA_HOST && isArenaHostOwnPath(url.pathname))
+  )
+    return null;
   const headers = forwardedHeaders(request);
   const user = await sessionUserOf(request, env);
   if (user) headers.set(ARENA_ACCOUNT_HEADER, arenaAccount(user));

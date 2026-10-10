@@ -64,7 +64,8 @@ describe("assets binding wiring", () => {
 
   it("hands AnalogArena's pages to the Worker, which forwards them to analog-arena", () => {
     // Without these the asset layer answers /schematic with the editor's
-    // shell and the forwarding never runs, and /arena never redirects;
+    // shell and the forwarding never runs, /arena never redirects, and
+    // chip-arena.com's / and /analytics show Analog Canvas's own pages;
     // /api/* already reaches the Worker.
     const config = wranglerConfig();
     expect(config.assets.run_worker_first).toEqual(
@@ -73,6 +74,8 @@ describe("assets binding wiring", () => {
         "/schematic/*",
         "/arena",
         "/arena/*",
+        "/",
+        "/analytics",
       ]),
     );
     expect(config.services).toContainEqual({
