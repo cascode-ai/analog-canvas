@@ -72,7 +72,8 @@ export default function AccountMenuView({
 
   if (user) {
     // The name is the one way into the account: its own page, where the
-    // account is managed. In the editor it opens beside the drawing.
+    // account is managed. Keep the same browser window so returning can
+    // resume its complete workspace, including unsaved tabs.
     return (
       <div className="account-menu" data-testid="account-menu">
         <a
@@ -81,7 +82,7 @@ export default function AccountMenuView({
           data-testid="account-name"
           data-initial={accountInitial(user.displayName)}
           title="Your account"
-          {...(inEditor ? { target: "_blank", rel: "noreferrer" } : {})}
+          {...(inEditor ? { rel: "noreferrer" } : {})}
         >
           {user.displayName}
         </a>

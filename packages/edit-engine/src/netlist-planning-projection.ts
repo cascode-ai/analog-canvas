@@ -6,7 +6,10 @@ import {
   type ProjectStructureEdit,
   executeProjectTransaction,
 } from "./project-transaction.js";
-import { applyInstanceNetlistEdit } from "./transaction-instance-netlist.js";
+import {
+  applyInstanceNetlistEdit,
+  createReferenceValidationCache,
+} from "./transaction-instance-netlist.js";
 import { applyPropertyTerminalEdit } from "./transaction-property-terminal.js";
 import { applyNetPowerEdit } from "./transaction-net-power.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
@@ -48,6 +51,10 @@ export function createNetlistPlanningProjection(source: CircuitProject) {
     string,
     ReturnType<typeof resolveDocumentLogicalNets>
   >();
+  const references = new Map<
+    string,
+    ReturnType<typeof createReferenceValidationCache>
+  >();
   const reject: RejectEdit = (_code, message) => {
     throw new Error(message);
   };
@@ -81,6 +88,7 @@ export function createNetlistPlanningProjection(source: CircuitProject) {
       project = result.project;
       resolver = createProjectSymbolResolver(project, builtInSymbols);
       logical.clear();
+      references.clear();
       return;
     }
     for (const edit of edits) {
@@ -121,7 +129,14 @@ export function createNetlistPlanningProjection(source: CircuitProject) {
         pruneUnreachableLocalNet(draft, netId, changedObjectIds, {
           deferInto: deferred,
         });
+      let referenceCache = references.get(draft.id);
+      if (!referenceCache)
+        references.set(
+          draft.id,
+          (referenceCache = createReferenceValidationCache(draft)),
+        );
       const context = {
+        references: referenceCache,
         draft,
         resolver,
         changedObjectIds,

@@ -12,6 +12,7 @@ export function createProjectSnapshotSerializer(
 ) {
   const texts = new Map<CircuitProject, string>();
   let bytes = 0;
+  let retained = new Set<CircuitProject>();
   const remove = (project: CircuitProject) => {
     const text = texts.get(project);
     if (text === undefined) return;
@@ -30,8 +31,15 @@ export function createProjectSnapshotSerializer(
       const text = serialize(project);
       const size = text.length * 2;
       if (limits.entries > 0 && size <= limits.bytes) {
-        while (texts.size >= limits.entries || bytes + size > limits.bytes)
-          remove(texts.keys().next().value!);
+        // Workspace passes are cyclic. Evicting another live tab on each miss
+        // would defeat the entire cache when the workspace exceeds the budget.
+        while (texts.size >= limits.entries || bytes + size > limits.bytes) {
+          const evictable = [...texts.keys()].find(
+            (item) => !retained.has(item),
+          );
+          if (!evictable) return text;
+          remove(evictable);
+        }
         texts.set(project, text);
         bytes += size;
       }
@@ -40,6 +48,7 @@ export function createProjectSnapshotSerializer(
     /** Drop closed tabs and older snapshots when the live workspace is saved. */
     retain(projects: readonly CircuitProject[]): void {
       const live = new Set(projects);
+      retained = live;
       for (const project of texts.keys())
         if (!live.has(project)) remove(project);
     },

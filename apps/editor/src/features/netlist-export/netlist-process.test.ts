@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import * as engine from "@icm/edit-engine";
+import * as devices from "@icm/devices";
 import {
   createEmptyProject,
   createSimulationFolder,
@@ -25,6 +26,7 @@ import {
 import {
   planNetlistProcess,
   prepareNetlistProcess,
+  createNetlistDefaultsCache,
   inferNetlistProcess,
   instanceModelTarget,
   placementModelTarget,
@@ -84,6 +86,7 @@ describe("what the process still owes a circuit", () => {
       });
     const before = structuredClone(project);
     const execute = vi.spyOn(engine, "executeProjectTransaction");
+    const references = vi.spyOn(devices, "createReferenceIndex");
     try {
       const prepared = prepareNetlistProcess(
         project,
@@ -91,6 +94,9 @@ describe("what the process still owes a circuit", () => {
         { onlyMissing: true },
       );
       expect(execute).toHaveBeenCalledTimes(1);
+      // Filling defaults does not change References: build their complete
+      // index once for planning and once for the authoritative transaction.
+      expect(references.mock.calls.length).toBeLessThanOrEqual(3);
       expect(prepared.instanceCount).toBe(120);
       expect(project).toEqual(before);
       const result = executeProjectTransaction(project, {
@@ -117,6 +123,7 @@ describe("what the process still owes a circuit", () => {
       ).toEqual({ edits: [], instanceCount: 0 });
     } finally {
       execute.mockRestore();
+      references.mockRestore();
     }
   });
   function twoBareDevices(): CircuitProject {
@@ -895,4 +902,25 @@ describe("persisted netlist process authoring", () => {
       cards(simulation.generated[0]!.text),
     );
   });
+});
+
+it("reuses immutable defaults across tab remounts but respects profile content and snapshot changes", () => {
+  const project = createEmptyProject("defaults-cache", "Defaults cache");
+  project.documents[0]!.instances.push({
+    id: "M1",
+    reference: "M1",
+    symbolId: "nmos",
+    placement: null,
+  });
+  const profile = createNetlistExportProfile("tsmc28");
+  const read = createNetlistDefaultsCache();
+  const first = read(project, profile);
+  expect(first.instanceCount).toBe(1);
+  expect(read(project, structuredClone(profile))).toBe(first);
+  const changedProfile = structuredClone(profile);
+  changedProfile.devices.nmos.parameters.w = "9u";
+  expect(read(project, changedProfile)).not.toBe(first);
+  const replaced = { ...project, name: "Changed snapshot" };
+  expect(read(replaced, profile)).not.toBe(first);
+  expect(project.documents[0]!.instances[0]!.netlist).toBeUndefined();
 });

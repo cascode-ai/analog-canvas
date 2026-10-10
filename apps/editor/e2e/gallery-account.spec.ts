@@ -4,7 +4,146 @@
 import { expect, test } from "@playwright/test";
 import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { awaitEditorReady } from "./editor-fixtures.js";
-import { ENTRY, galleryListUrl, mockGallery } from "./gallery-fixtures.js";
+import {
+  ENTRY,
+  galleryListUrl,
+  galleryResistorProject,
+  mockGallery,
+} from "./gallery-fixtures.js";
+import { serializeProject } from "@icm/project-protocol";
+
+test("account round trips keep this window's cloud tabs and active unsaved circuit", async ({
+  page,
+  context,
+}) => {
+  const project = { ...galleryResistorProject("7k"), name: "Cloud circuit" };
+  const summary = {
+    id: "account-cloud",
+    name: project.name,
+    revision: 1,
+    schemaVersion: project.schemaVersion,
+    updatedAt: "2026-10-10T00:00:00Z",
+  };
+  await context.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: false, email: false } }),
+  );
+  await context.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "account-owner",
+          displayName: "Owner",
+          provider: "github",
+          email: null,
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await context.route("**/api/projects", (route) =>
+    route.fulfill({ json: { projects: [summary] } }),
+  );
+  await context.route("**/api/projects/account-cloud", (route) =>
+    route.fulfill({
+      json: { project: { ...summary, projectText: serializeProject(project) } },
+    }),
+  );
+  await context.route("**/api/gallery/mine**", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.goto("/editor?project=account-cloud");
+  await awaitEditorReady(page);
+  await expect(
+    page.getByRole("tab", { name: "Cloud circuit", exact: true }),
+  ).toBeVisible();
+  const draft = {
+    ...galleryResistorProject("13k"),
+    id: "local-draft",
+    name: "Local draft",
+  };
+  await page.getByTestId("tab-project-file").setInputFiles({
+    name: "draft.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(draft)),
+  });
+  const draftTab = page.getByRole("tab", { name: /Local draft/ });
+  await expect(draftTab).toHaveAttribute("aria-selected", "true");
+  await draftTab.dblclick();
+  await page
+    .getByRole("textbox", { name: "Project name", exact: true })
+    .fill("Local draft edited");
+  await page
+    .getByRole("textbox", { name: "Project name", exact: true })
+    .press("Enter");
+  await expect(draftTab.getByLabel("Unsaved")).toBeVisible();
+  const names = await page
+    .getByTestId("project-tabs")
+    .getByRole("tab")
+    .allTextContents();
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.getByTestId("account-name").click();
+  await expect(page.getByTestId("account-page")).toBeVisible();
+  expect(context.pages()).toHaveLength(1);
+  await page.getByTestId("gallery-editor-switch").click();
+  await awaitEditorReady(page);
+  await expect(page.getByTestId("project-tabs").getByRole("tab")).toHaveText(
+    names,
+  );
+  await expect(page.getByRole("tab", { name: /Local draft/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(page.getByTestId("hit-R2")).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: /Local draft/ }).getByLabel("Unsaved"),
+  ).toBeVisible();
+});
+
+test("account tabs retain loaded projects when returning from Settings", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: false, email: false } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "retained-owner",
+          displayName: "Owner",
+          provider: "github",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  let reads = 0;
+  await page.route("**/api/projects", (route) => {
+    reads++;
+    return route.fulfill({
+      json: {
+        projects: [
+          {
+            id: "retained",
+            name: "Retained circuit",
+            revision: 1,
+            schemaVersion: 1,
+            updatedAt: "2026-10-10T00:00:00Z",
+          },
+        ],
+      },
+    });
+  });
+  await page.goto("/account?tab=projects");
+  await expect(page.getByTestId("shelf-tile-retained")).toBeVisible();
+  await page.getByTestId("account-tab-settings").click();
+  await expect(page.getByTestId("account-panel-settings")).toBeVisible();
+  await page.getByTestId("account-tab-projects").click();
+  await expect(page.getByTestId("shelf-tile-retained")).toBeVisible();
+  expect(reads).toBe(1);
+});
 
 test("a signed-out visitor sees a grey wall with a way to sign in, and no circuit", async ({
   page,

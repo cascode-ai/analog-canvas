@@ -93,7 +93,7 @@ export function cloudProjectCreate(
     galleryEntryId,
   );
   return Response.json(
-    { project: cloudProjectOpenPayload(sql, userId, id) },
+    { project: cloudProjectSavedSummary(sql, userId, id) },
     { status: 201 },
   );
 }
@@ -126,6 +126,7 @@ export function cloudProjectFavorite(
 export function cloudProjectUpdate(
   state: DurableObjectStateLike,
   body: Record<string, unknown>,
+  checkOnly = false,
 ): Response {
   const sql = state.storage.sql;
   const userId = String(body.userId);
@@ -150,7 +151,7 @@ export function cloudProjectUpdate(
     current.project_text === String(body.projectText)
   ) {
     return Response.json({
-      project: cloudProjectOpenPayload(sql, userId, id),
+      project: cloudProjectSummary(current),
     });
   }
   if (current.revision !== expectedRevision) {
@@ -162,6 +163,8 @@ export function cloudProjectUpdate(
       { status: 409 },
     );
   }
+  if (checkOnly)
+    return Response.json({ status: "update-needed" }, { status: 202 });
   const nextRevision = current.revision + 1;
   state.storage.transactionSync(() => {
     sql.exec(
@@ -187,12 +190,32 @@ export function cloudProjectUpdate(
       userId,
       expectedRevision,
     );
-    pruneCloudProjectVersions(sql);
+    pruneCloudProjectVersions(sql, id);
   });
-  return Response.json({ project: cloudProjectOpenPayload(sql, userId, id) });
+  return Response.json({
+    project: cloudProjectSummary({
+      ...current,
+      name: String(body.name),
+      updated_at: String(body.updatedAt),
+      revision: nextRevision,
+      schema_version: Number(body.schemaVersion),
+    }),
+  });
 }
 
-export function pruneCloudProjectVersions(sql: SqlStorage): void {
+export function pruneCloudProjectVersions(
+  sql: SqlStorage,
+  projectId?: string,
+): void {
+  if (projectId !== undefined) {
+    sql.exec(
+      `DELETE FROM cloud_project_versions WHERE project_id = ? AND id NOT IN
+      (SELECT id FROM cloud_project_versions WHERE project_id = ? ORDER BY revision DESC LIMIT 3)`,
+      projectId,
+      projectId,
+    );
+    return;
+  }
   sql.exec(`DELETE FROM cloud_project_versions
     WHERE id NOT IN (
       SELECT id FROM (
@@ -385,4 +408,15 @@ export function cloudProjectDelete(
     deleted: id,
     projects: cloudProjectRows(sql, userId),
   });
+}
+
+function cloudProjectSavedSummary(sql: SqlStorage, userId: string, id: string) {
+  const row = sql
+    .exec<CloudProjectRow>(
+      "SELECT id, name, updated_at, revision, schema_version, gallery_entry_id, favorite FROM cloud_projects WHERE id = ? AND user_id = ?",
+      id,
+      userId,
+    )
+    .toArray()[0];
+  return row ? cloudProjectSummary(row) : null;
 }

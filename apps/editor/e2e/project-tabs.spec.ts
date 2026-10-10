@@ -538,6 +538,11 @@ test("the Shelf appends a Cloud Project tab, deduplicates and saves Cloud identi
     };
   });
   const writes: string[] = [];
+  const reads: string[] = [];
+  const deletes: string[] = [];
+  const creations: string[] = [];
+  let finishDeletion = () => {};
+  let deleteRequested = false;
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       json: {
@@ -551,20 +556,52 @@ test("the Shelf appends a Cloud Project tab, deduplicates and saves Cloud identi
       },
     }),
   );
-  await page.route("**/api/projects", (route) =>
-    route.fulfill({ json: { projects: records } }),
-  );
-  await page.route("**/api/projects/cloud-*", (route) => {
+  await page.route("**/api/projects", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      const project = parseSavedProject(body.projectText);
+      const created = {
+        id: "cloud-recreated",
+        name: body.name,
+        revision: 1,
+        schemaVersion: project.schemaVersion,
+        updatedAt: "2026-10-10T00:00:00Z",
+        projectText: body.projectText,
+      };
+      records.push(created);
+      creations.push(created.id);
+      return route.fulfill({ status: 201, json: { project: created } });
+    }
+    return route.fulfill({ json: { projects: records } });
+  });
+  await page.route("**/api/projects/cloud-*", async (route) => {
     const item = records.find((item) =>
       route.request().url().endsWith(item.id),
     )!;
+    if (!item)
+      return route.fulfill({
+        status: 404,
+        json: { error: "project-not-found" },
+      });
+    if (route.request().method() === "DELETE") {
+      deleteRequested = true;
+      await new Promise<void>((resolve) => {
+        finishDeletion = resolve;
+      });
+      deletes.push(item.id);
+      records.splice(records.indexOf(item), 1);
+      return route.fulfill({ json: { projects: records } });
+    }
     if (route.request().method() !== "GET") {
+      expect(route.request().headers()["if-match"]).toBe(
+        `revision-${item.revision}`,
+      );
       const body = route.request().postDataJSON();
       item.projectText = body.projectText;
       item.name = body.name;
       item.revision++;
       writes.push(item.id);
-    }
+    } else reads.push(item.id);
     return route.fulfill({ json: { project: item } });
   });
   await page.goto("/editor?new=1");
@@ -592,6 +629,7 @@ test("the Shelf appends a Cloud Project tab, deduplicates and saves Cloud identi
   expect((await saved(page)).id).toBe(blankProjectId);
   await shelf("Alpha");
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  expect(reads).toEqual(["cloud-0", "cloud-1"]);
   await page.keyboard.press("ControlOrMeta+s");
   await expect.poll(() => writes).toEqual(["cloud-1", "cloud-0"]);
   expect(
@@ -602,6 +640,34 @@ test("the Shelf appends a Cloud Project tab, deduplicates and saves Cloud identi
     parseSavedProject(records[1]!.projectText).documents[0]!.instances[0]!
       .symbolId,
   ).toBe("resistor");
+  await page.getByRole("tab", { name: /Alpha$/ }).dblclick();
+  await page
+    .getByRole("textbox", { name: "Project name", exact: true })
+    .fill("Alpha local");
+  await page
+    .getByRole("textbox", { name: "Project name", exact: true })
+    .press("Enter");
+  await page.getByLabel("Open Shelf project in tab", { exact: true }).click();
+  const renamePanel = page.locator(".project-tabs-shelf");
+  await renamePanel.getByRole("button", { name: "Alpha", exact: true }).hover();
+  await renamePanel
+    .getByRole("button", { name: "Rename Alpha", exact: true })
+    .click();
+  await renamePanel
+    .getByRole("textbox", { name: "Shelf project name", exact: true })
+    .fill("Alpha stored");
+  await renamePanel
+    .getByRole("textbox", { name: "Shelf project name", exact: true })
+    .press("Enter");
+  await expect(
+    renamePanel.getByRole("button", { name: "Alpha stored", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: /Alpha local$/ }).getByLabel("Unsaved"),
+  ).toBeVisible();
+  expect(parseSavedProject(records[0]!.projectText).name).toBe("Alpha stored");
+  await page.getByLabel("Open Shelf project in tab", { exact: true }).click();
+  page.on("dialog", (dialog) => void dialog.accept());
   await page.goto("/");
   await page.goto("/editor?project=cloud-1");
   await awaitEditorReady(page);
@@ -611,6 +677,91 @@ test("the Shelf appends a Cloud Project tab, deduplicates and saves Cloud identi
     "true",
   );
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await insert(page, "nmos", 300, 240);
+  await page.getByLabel("Open Shelf project in tab", { exact: true }).click();
+  const shelfPanel = page.locator(".project-tabs-shelf");
+  await shelfPanel.getByRole("button", { name: "Beta", exact: true }).hover();
+  await shelfPanel
+    .getByRole("button", { name: "Rename Beta", exact: true })
+    .click();
+  await shelfPanel
+    .getByRole("textbox", { name: "Shelf project name", exact: true })
+    .fill("Beta renamed");
+  await shelfPanel
+    .getByRole("textbox", { name: "Shelf project name", exact: true })
+    .press("Enter");
+  await expect(
+    shelfPanel.getByRole("button", { name: "Beta renamed", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: /Beta renamed$/ }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  expect(
+    parseSavedProject(records[1]!.projectText).documents[0]!.instances,
+  ).toHaveLength(1);
+  await expect(
+    page.getByRole("tab", { name: /Beta renamed$/ }).getByLabel("Unsaved"),
+  ).toBeVisible();
+  // Management of an inactive tab must preserve the selected circuit and its
+  // recovery identity, while detaching the deleted tab from its Cloud resource.
+  await page.getByLabel("Open Shelf project in tab", { exact: true }).click();
+  await page.getByRole("tab", { name: /Alpha local$/ }).click();
+  await page.getByLabel("Open Shelf project in tab", { exact: true }).click();
+  await shelfPanel
+    .getByRole("button", { name: "Beta renamed", exact: true })
+    .hover();
+  await shelfPanel
+    .getByRole("button", { name: "Delete Beta renamed", exact: true })
+    .click();
+  await shelfPanel
+    .getByRole("button", { name: "Keep it", exact: true })
+    .click();
+  expect(deletes).toEqual([]);
+  await shelfPanel
+    .getByRole("button", { name: "Delete Beta renamed", exact: true })
+    .click();
+  await shelfPanel
+    .getByRole("button", { name: "Really delete", exact: true })
+    .click();
+  await expect.poll(() => deleteRequested).toBe(true);
+  const writesBeforeDeletion = [...writes];
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 100, y: 100 } });
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(page.getByTestId("status")).toContainText("Can't save yet");
+  expect(writes).toEqual(writesBeforeDeletion);
+  finishDeletion();
+  await expect.poll(() => deletes).toEqual(["cloud-1"]);
+  await expect(
+    shelfPanel.getByRole("button", { name: "Beta renamed", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: /Beta renamed$/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Alpha local$/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await page.getByLabel("Open Shelf project in tab", { exact: true }).click();
+  await page.reload();
+  await awaitEditorReady(page);
+  await expect(page.getByRole("tab", { name: /Alpha local$/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("tab", { name: /Beta renamed$/ }).click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect.poll(() => creations).toEqual(["cloud-recreated"]);
+  expect(
+    parseSavedProject(
+      records.find((item) => item.id === "cloud-recreated")!.projectText,
+    ).documents[0]!.instances,
+  ).toHaveLength(2);
+  await expect(
+    page.getByRole("tab", { name: /Beta renamed$/ }).getByLabel("Unsaved"),
+  ).toHaveCount(0);
 });
 
 test("plain C/V works between internal tabs when system clipboard permission is denied", async ({

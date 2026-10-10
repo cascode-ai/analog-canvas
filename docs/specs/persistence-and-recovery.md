@@ -126,7 +126,10 @@ Cloud bindings and Cell views separately from bounded crash recovery. Refresh
 restores that window's workspace for the same route. The window identity is
 kept in sessionStorage, with snapshots in IndexedDB and a synchronous journal
 for immediate refresh. This state never changes a Cloud Project or enters
-portable Project JSON. See
+portable Project JSON. Account navigation stays in that browser window; its
+Editor return link `/editor?resume=1` restores the window's complete workspace
+across routes, including its active tab and unsaved content. Explicit project,
+Gallery and New Circuit targets retain their existing opening semantics. See
 [workspace storage](../../apps/editor/src/document/project-workspace.ts).
 
 Inactive tabs retain live controllers and Undo histories during a session;
@@ -177,12 +180,41 @@ unbound draft; an existing source remains in place. Changing a saved draft's
 publication source is an explicit Gallery Publish/Update transaction, not a
 side effect of `PUT /api/projects/:id`.
 
+Create and Save acknowledge with a Project summary; only Open returns the full
+`projectText`. Identical Save retries return the existing revision without
+rendering another thumbnail or adding history. Changed writes check revision
+again at the atomic commit after preview preparation. Browser recovery writes
+capture their working-copy identity before enqueueing; Cloud acknowledgement
+and internal tab activation need not wait for IndexedDB completion. Recovery
+failures remain visible and never mark a Cloud Save as failed.
+
 Repeated Save updates the same id and does not consume another account slot.
 The first Save of an unbound New/imported/recovered Project creates a Cloud
 Project. The editor exposes no second Save command that silently creates a
 duplicate Project. Changed saves retain bounded history as described below;
 the server never evicts another Project to make room. A revision mismatch or
 capacity limit blocks only that explicit Save; editing and local recovery continue.
+
+The editor's compact Shelf stays at the right of the project tabs. Rename and
+Delete appear on row hover or keyboard focus, with inline editing and a delete
+confirmation. Opening an already open Cloud id selects its current tab without
+fetching or overwriting its unsaved drawing. Rename uses revision-checked Save;
+matching open sessions acknowledge the saved name while retaining other local
+edits. Delete removes the Cloud resource but keeps its open local drawing as an
+unbound unsaved tab, whose next Save creates a new Cloud Project.
+
+Account dashboard sections load on their first visit and remain mounted while
+switching sections within that account. Concurrent lists share one request;
+subsequent reads, mutations and account changes do not reuse a settled response.
+Immutable editor snapshots reuse netlist default plans, connectivity and crossing
+geometry across tab activations, with symbol-context and export-profile changes
+invalidating their results. Public mutable-input algorithms remain uncached.
+Workspace change detection compares immutable identities plus complete session
+metadata, and retains one portable text per open tab; computation cache budgets
+never cause a whole workspace to be serialized repeatedly.
+
+Publication metadata is loaded when Publish opens, without listing on every
+internal project-tab activation.
 
 Shelf cards expose Duplicate, Rename, Export, Favorite and Version history
 through the visible actions button, plus Open in new tab. Right-click and

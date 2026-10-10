@@ -564,6 +564,8 @@ export class GalleryDO {
           String(body.id),
           body.versionId,
         );
+      case "cloud-project-check-update":
+        return cloudProjectUpdate(this.state, body, true);
       case "cloud-project-update":
         return cloudProjectUpdate(this.state, body);
       case "cloud-project-list":

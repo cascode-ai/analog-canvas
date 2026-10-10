@@ -207,6 +207,17 @@ export function useGalleryPublishing({
     setCloudProjects,
     cloudProjectsReady,
     cloudListMutationRef,
+    noteCloudProjectSaved: (saved: CloudProjectSummary) => {
+      cloudListMutationRef.current += 1;
+      setCloudProjects((current) => [
+        saved,
+        ...current.filter((item) => item.id !== saved.id),
+      ]);
+    },
+    noteCloudProjectsDeleted: (projects: readonly CloudProjectSummary[]) => {
+      cloudListMutationRef.current += 1;
+      setCloudProjects(projects);
+    },
     reloadCloudProjects,
     galleryEntryContext,
     setGalleryEntryContext,
@@ -225,13 +236,13 @@ export function useGalleryPublishing({
 
 /** The Gallery entry a saved Cloud Project was published as. */
 export function useGalleryPublicationLink({
+  publishGalleryOpen,
   projectStore,
   capabilities,
   project,
   editorDocumentController,
   projectSessionId,
   publishSession,
-  galleryEntryContext,
   setGalleryEntryContext,
   setPublicationLinkLoading,
   setPublicationLinkError,
@@ -240,13 +251,13 @@ export function useGalleryPublicationLink({
   cloudBinding,
   noteGalleryPublication,
 }: {
+  publishGalleryOpen: boolean;
   projectStore: EditorServices["projectStore"];
   capabilities: EditorServices["capabilities"];
   project: CircuitProject;
   editorDocumentController: EditorDocumentController;
   projectSessionId: string;
   publishSession: GalleryPublishing["publishSession"];
-  galleryEntryContext: GalleryPublishing["galleryEntryContext"];
   setGalleryEntryContext: GalleryPublishing["setGalleryEntryContext"];
   setPublicationLinkLoading: GalleryPublishing["setPublicationLinkLoading"];
   setPublicationLinkError: GalleryPublishing["setPublicationLinkError"];
@@ -255,15 +266,18 @@ export function useGalleryPublicationLink({
   cloudBinding: ProjectFileLifecycle["cloudBinding"];
   noteGalleryPublication: ProjectFileLifecycle["noteGalleryPublication"];
 }) {
+  const cloudProjectId = cloudBinding?.id;
+  const notePublication = useRef(noteGalleryPublication);
+  notePublication.current = noteGalleryPublication;
   useEffect(() => {
     let cancelled = false;
     setPublicationLinkError(null);
     setPublicationLinkNotice(null);
     if (
+      !publishGalleryOpen ||
       !capabilities.community ||
       !projectStore ||
-      !cloudBinding ||
-      galleryEntryContext
+      !cloudProjectId
     ) {
       setPublicationLinkLoading(false);
       return;
@@ -275,7 +289,7 @@ export function useGalleryPublicationLink({
         const listed = await projectStore.list();
         const saved =
           listed.status === "listed"
-            ? listed.projects.find((item) => item.id === cloudBinding.id)
+            ? listed.projects.find((item) => item.id === cloudProjectId)
             : null;
         if (!saved)
           throw new Error(
@@ -286,10 +300,9 @@ export function useGalleryPublicationLink({
           ? await loadGalleryPublicationContext(entryId, project.id)
           : null;
         if (cancelled) return;
-        noteGalleryPublication(entryId);
-        if (context) {
-          setGalleryEntryContext(context);
-        } else if (entryId) {
+        notePublication.current(entryId);
+        setGalleryEntryContext(context);
+        if (!context && entryId) {
           setPublicationLinkNotice(
             "The original Gallery entry is unavailable. Publishing creates a new entry; the Shelf draft is preserved.",
           );
@@ -309,9 +322,15 @@ export function useGalleryPublicationLink({
       cancelled = true;
     };
   }, [
-    cloudBinding?.id,
+    publishGalleryOpen,
+    cloudProjectId,
+    capabilities.community,
+    project.id,
+    setGalleryEntryContext,
+    setPublicationLinkError,
+    setPublicationLinkLoading,
+    setPublicationLinkNotice,
     projectSessionId,
-    galleryEntryContext,
     publicationLinkRetry,
     projectStore,
   ]);

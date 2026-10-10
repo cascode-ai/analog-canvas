@@ -107,3 +107,20 @@ describe("committed project serialization reuse", () => {
     expect(serialize).toHaveBeenCalledTimes(7);
   });
 });
+
+it("keeps a useful bounded cache when the open workspace exceeds its entry budget", () => {
+  const projects = Array.from({ length: 20 }, (_, i) =>
+    createEmptyProject(`tab-${i}`, `Tab ${i}`),
+  );
+  const serialize = vi.fn(serializeProject);
+  const cache = createProjectSnapshotSerializer(serialize);
+  const save = () => {
+    cache.retain(projects);
+    return projects.map((p) => cache.serialize(p));
+  };
+  const first = save();
+  expect(save()).toEqual(first);
+  expect(save()).toEqual(first);
+  // Four misses per pass, rather than evicting every unchanged open tab.
+  expect(serialize).toHaveBeenCalledTimes(28);
+});

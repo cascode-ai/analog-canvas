@@ -11,16 +11,18 @@ import { SITE_PRIVACY_PATH, SITE_REPOSITORY_URL } from "./site-resource-links";
 export function GalleryChrome({
   subtitle,
   visitStats,
+  editorHref = "/editor",
 }: {
   subtitle: string;
   visitStats?: { pv: number; uv: number } | null | undefined;
+  editorHref?: string;
 }) {
   return (
     <header className="gallery-chrome">
       <div className="app-brand">
         <a
           className="gallery-home-link"
-          href="/editor"
+          href={editorHref}
           aria-label="Open the editor"
           title="Open the editor"
           data-testid="gallery-editor-link"
@@ -30,7 +32,7 @@ export function GalleryChrome({
         </a>
         <a
           className="gallery-editor-link"
-          href="/editor"
+          href={editorHref}
           data-testid="gallery-editor-switch"
           title="Open the editor"
         >

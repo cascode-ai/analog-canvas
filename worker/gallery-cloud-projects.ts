@@ -102,6 +102,39 @@ async function handleCloudProjects(
   } catch {
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
+  const operation =
+    request.method === "POST" ? "cloud-project-create" : "cloud-project-update";
+  const expectedRevisionMatch = request.headers
+    .get("if-match")
+    ?.match(/^revision-(\d+)$/u);
+  if (request.method === "PUT" && !expectedRevisionMatch) {
+    return Response.json(
+      { error: "expected-revision-required" },
+      { status: 428 },
+    );
+  }
+  const projectText = serializeProject(project);
+  const fields = {
+    userId: user.id,
+    id: projectId ?? shortId(),
+    name,
+    schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+    projectText,
+    ...(expectedRevisionMatch
+      ? { expectedRevision: Number(expectedRevisionMatch[1]) }
+      : {}),
+  };
+  if (request.method === "PUT") {
+    // The DO decides idempotency and conflicts before expensive preview work.
+    // Changed writes still repeat the revision check at the atomic commit.
+    const checked = await callGallery(
+      env,
+      "cloud-project-check-update",
+      fields,
+    );
+    if (checked.status !== 202)
+      return Response.json(checked.payload, { status: checked.status });
+  }
   // The shelf shows the circuit, not its name, so the thumbnail is rendered
   // once here on save rather than on every read. A drawing the renderer
   // cannot handle still saves; the shelf draws a placeholder tile instead.
@@ -114,33 +147,15 @@ async function handleCloudProjects(
   } catch {
     previewSvg = "";
   }
-  const operation =
-    request.method === "POST" ? "cloud-project-create" : "cloud-project-update";
-  const expectedRevisionMatch = request.headers
-    .get("if-match")
-    ?.match(/^revision-(\d+)$/u);
-  if (request.method === "PUT" && !expectedRevisionMatch) {
-    return Response.json(
-      { error: "expected-revision-required" },
-      { status: 428 },
-    );
-  }
   const { status, payload } = await callGallery(env, operation, {
-    userId: user.id,
+    ...fields,
     mayEditGallery: user.isAdmin === true || user.role === "moderator",
     ...(body.galleryEntryId === undefined
       ? {}
       : {
           galleryEntryId: body.galleryEntryId,
         }),
-    id: projectId ?? shortId(),
-    name,
     updatedAt: new Date().toISOString(),
-    ...(expectedRevisionMatch
-      ? { expectedRevision: Number(expectedRevisionMatch[1]) }
-      : {}),
-    schemaVersion: CURRENT_PROJECT_FILE_VERSION,
-    projectText: serializeProject(project),
     previewSvg,
   });
   return Response.json(payload, { status });

@@ -42,7 +42,10 @@ import {
   inheritCellPortFormatting,
 } from "./transaction-cell-interface.js";
 import { applyInstanceLifecycleEdit } from "./transaction-instance-lifecycle.js";
-import { applyInstanceNetlistEdit } from "./transaction-instance-netlist.js";
+import {
+  applyInstanceNetlistEdit,
+  createReferenceValidationCache,
+} from "./transaction-instance-netlist.js";
 import { applyPropertyTerminalEdit } from "./transaction-property-terminal.js";
 import { applyInstanceSignalFlowEdit } from "./transaction-instance-signal-flow.js";
 import { applyInstanceStyleOverrideEdit } from "./transaction-instance-style.js";
@@ -133,6 +136,7 @@ export function executeTransaction(
 
   const proposedRevision = document.revision + 1;
   const draft = structuredClone(document);
+  const references = createReferenceValidationCache(draft);
   // Removing a Route's geometry states its geometry too: a Junction dragged
   // onto the pin at the far end of a stub collapses that stub.
   const explicitlyAuthoredRouteIds = new Set(
@@ -299,6 +303,7 @@ export function executeTransaction(
       case "clear_cell_drawing":
       case "reset_cell_placement":
       case "reset_cell_body": {
+        references.invalidate();
         const outcome = applyCellResetEdit(edit, {
           draft,
           changedObjectIds,
@@ -314,6 +319,7 @@ export function executeTransaction(
       case "add_no_connect":
       case "remove_no_connect":
       case "set_instance_symbol": {
+        references.invalidate();
         const outcome = applyInstanceLifecycleEdit(edit, {
           draft,
           resolver,
@@ -383,6 +389,7 @@ export function executeTransaction(
       case "set_instance_netlist":
       case "bulk_patch_instance_netlist": {
         const outcome = applyInstanceNetlistEdit(edit, {
+          references,
           draft,
           changedObjectIds,
           reject: rejectAt,

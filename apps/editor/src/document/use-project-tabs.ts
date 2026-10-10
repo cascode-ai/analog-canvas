@@ -181,6 +181,7 @@ export function useProjectTabs<Session>(options: {
   };
   return {
     activeId,
+    currentId: () => active.current,
     busy,
     tabs: ids.map((id) => ({ id, ...describe(id) })),
     hasUnsafeTabs: ids.some((id) => describe(id).unsafe),

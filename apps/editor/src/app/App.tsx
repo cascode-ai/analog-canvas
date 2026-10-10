@@ -1,3 +1,4 @@
+import { editorSnapshotDerived } from "./editor-snapshot-derived-cache";
 import {
   holdWorkspaceWindow,
   workspaceWindowId,
@@ -41,7 +42,6 @@ import {
   type WireSource,
 } from "@icm/edit-engine";
 import {
-  buildProjectConnectivityIndex,
   computeNetHighlight,
   annotationOwningInstanceId,
   deriveProjectNetNameProjection,
@@ -475,11 +475,13 @@ export function App(props: AppProps) {
           {
             // An open request brings this window's tabs back and opens its
             // target beside them: a Gallery entry, a Cloud Project, or a new
-            // circuit.
+            // circuit. Returning from the account resumes this window's
+            // workspace without selecting its former deep-link target.
             allowRouteChange:
               Boolean(props.initialGalleryEntryId) ||
               new URLSearchParams(window.location.search).has("project") ||
-              new URLSearchParams(window.location.search).get("new") === "1",
+              new URLSearchParams(window.location.search).get("new") === "1" ||
+              new URLSearchParams(window.location.search).get("resume") === "1",
           },
         );
       })
@@ -695,6 +697,7 @@ function WorkspaceEditor({
     ready: recoveryReady,
     workingCopyId: recoveryWorkingCopyId,
     stage: stageRecovery,
+    writeSessionSnapshot: writeRecoverySessionSnapshot,
     cancelPending: cancelRecovery,
     flushNow: flushRecovery,
     beginWorkingCopy: beginRecoveryWorkingCopy,
@@ -746,7 +749,7 @@ function WorkspaceEditor({
   const definitionProjectRef = useRef({ project, projectSessionId });
   definitionProjectRef.current = { project, projectSessionId };
   const projectConnectivityIndex = useMemo(
-    () => buildProjectConnectivityIndex(project, resolver),
+    () => editorSnapshotDerived.connectivity(project, resolver),
     [project, resolver],
   );
   const {
@@ -940,6 +943,8 @@ function WorkspaceEditor({
     setCloudProjects,
     cloudProjectsReady,
     cloudListMutationRef,
+    noteCloudProjectSaved,
+    noteCloudProjectsDeleted,
     reloadCloudProjects,
     galleryEntryContext,
     setGalleryEntryContext,
@@ -1117,6 +1122,16 @@ function WorkspaceEditor({
     exportDelivery,
     openProjectInTab: (project, view, options, background) =>
       openProjectInTabRef.current(project, view, options, background),
+    selectOpenCloudProject: (id, background) => {
+      const existing = projectTabs
+        .entries()
+        .find(({ session }) => session.file.cloudBinding?.id === id);
+      return existing
+        ? background
+          ? Promise.resolve(true)
+          : projectTabs.select(existing.id)
+        : null;
+    },
     restoreWorkingSession: agentStartupRecovery !== null,
     externalWorkspaceRestored: restoredWorkspace !== null,
     galleryEntryId: canUpdateGalleryPublication(
@@ -1129,22 +1144,20 @@ function WorkspaceEditor({
     beforeSnapshot: captureAuthoredProject,
     onRecoverBuffers: recoverSourceDrafts,
     describeOpenBlocker: () => projectSwitchBlockerRef.current(),
+    describeCloudSaveBlocker: () =>
+      isCloudManagementInFlight()
+        ? "Cloud Project management is in progress"
+        : null,
     project,
     projectSessionId,
     viewBox,
     defaultViewBox: DEFAULT_VIEWBOX,
     setStatus,
     onCloudProjectSaved: (saved) => {
-      if (
-        galleryEntryContext &&
-        saved.galleryEntryId !== galleryEntryContext.id
-      )
-        setGalleryEntryContext(null);
-      cloudListMutationRef.current += 1;
-      setCloudProjects((current) => [
-        saved,
-        ...current.filter((candidate) => candidate.id !== saved.id),
-      ]);
+      noteCloudProjectSaved(saved);
+      setGalleryEntryContext((current) =>
+        current && saved.galleryEntryId !== current.id ? null : current,
+      );
     },
     recovery: {
       ready: recoveryReady,
@@ -1183,13 +1196,13 @@ function WorkspaceEditor({
     },
   });
   const linkExistingPublication = useGalleryPublicationLink({
+    publishGalleryOpen,
     projectStore,
     capabilities,
     project,
     editorDocumentController,
     projectSessionId,
     publishSession,
-    galleryEntryContext,
     setGalleryEntryContext,
     setPublicationLinkLoading,
     setPublicationLinkError,
@@ -4625,7 +4638,14 @@ function WorkspaceEditor({
     workspaceReopen,
     setWorkspaceReopen,
     reopenClosedWindowTabs,
+    cloudManagementBusy,
+    isCloudManagementInFlight,
+    renameShelfProject,
+    deleteShelfProject,
   } = useProjectTabSessions({
+    projectStore,
+    onCloudProjectSaved: noteCloudProjectSaved,
+    onCloudProjectsDeleted: noteCloudProjectsDeleted,
     initialProject,
     restoredWorkspace,
     workspaceError,
@@ -4639,6 +4659,7 @@ function WorkspaceEditor({
     captureRecoverySession,
     resumeRecoverySession,
     stageRecovery,
+    writeRecoverySessionSnapshot,
     flushRecovery,
     openWorkingCopyIdsRef,
     project,
@@ -4902,6 +4923,9 @@ function WorkspaceEditor({
         setOpenedFromCheckNotice={setOpenedFromCheckNotice}
         cloudProjects={cloudProjects}
         reloadCloudProjects={reloadCloudProjects}
+        cloudManagementBusy={cloudManagementBusy}
+        renameShelfProject={renameShelfProject}
+        deleteShelfProject={deleteShelfProject}
         analogSimulationState={analogSimulationState}
         openAnalogSimulation={openAnalogSimulation}
         nativeBinding={nativeBinding}
