@@ -48,6 +48,10 @@ const result=m.method==='initialize'?{serverInfo:{name:'analog-canvas',version:'
 process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
 }`,
       );
+      await writeFile(
+        join(source, "analog-canvas-headless.mjs"),
+        "export const headless = true;\n",
+      );
       const archive = join(directory, "fixture.tgz");
       execFileSync("tar", ["-czf", archive, "-C", directory, "package"], {
         windowsHide: true,
@@ -107,6 +111,16 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
           : join(brew, "opt", "node", "bin", "node"),
       );
       expect(installed.hostLoaded).toBe(false);
+      // Local mode's headless workspace lands beside the adapter it loads from.
+      expect(
+        await readFile(
+          join(
+            dirname(installed.launch.args[0]!),
+            "analog-canvas-headless.mjs",
+          ),
+          "utf8",
+        ),
+      ).toBe("export const headless = true;\n");
       expect(await readFile(installed.backupPath!, "utf8")).toBe(original);
       const configured = await readFile(config, "utf8");
       expect(configured).toContain(original.trim());
