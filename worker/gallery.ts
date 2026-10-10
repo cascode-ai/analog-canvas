@@ -418,11 +418,12 @@ export async function routeGalleryRequest(
     !(isAutomatedBackup(segments) && hasStoreBackupToken(request, env)) &&
     !(await galleryReaderOf(request, env))
   ) {
-    if (
-      segments.length === 0 &&
-      request.method === "GET" &&
-      url.search === ""
-    ) {
+    // The wall's order and shuffle (#1615) change nothing here: a
+    // signed-out visitor sees the newest twelve whichever order is asked.
+    const unfilteredWall = [...url.searchParams.keys()].every(
+      (key) => key === "order" || key === "seed",
+    );
+    if (segments.length === 0 && request.method === "GET" && unfilteredWall) {
       return Response.json(
         {
           entries: await signedOutWallEntries(env),
