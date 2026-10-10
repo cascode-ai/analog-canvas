@@ -9,7 +9,11 @@ import {
   loadGalleryTagSummary,
   primeGalleryPreview,
   subscribeGalleryRefresh,
+  warmGalleryPreviews,
   withLoadedTail,
+  GALLERY_SIGN_IN_REQUIRED,
+  WARMED_GALLERY_PREVIEWS,
+  type GalleryFeedEntry,
 } from "./gallery-client";
 
 class FakeBroadcastChannel {
@@ -147,6 +151,23 @@ it("asks the server to search, and counts tags for the same search", async () =>
 });
 
 describe("Gallery preview caching", () => {
+  it("starts the first page's previews, by the tiles' own URLs, as soon as it answers (#1590)", () => {
+    const entries = Array.from({ length: 12 }, (_, index) => ({
+      id: `e${index}`,
+      previewRevision: `r${index}`,
+    })) as GalleryFeedEntry[];
+    const loaded: string[] = [];
+    warmGalleryPreviews({ entries, nextCursor: null, total: 12 }, (url) =>
+      loaded.push(url),
+    );
+    expect(loaded).toHaveLength(WARMED_GALLERY_PREVIEWS);
+    expect(loaded[0]).toBe(galleryPreviewUrl("e0", "r0"));
+    // A signed-out or failed first page starts nothing.
+    warmGalleryPreviews(GALLERY_SIGN_IN_REQUIRED, (url) => loaded.push(url));
+    warmGalleryPreviews(null, (url) => loaded.push(url));
+    expect(loaded).toHaveLength(WARMED_GALLERY_PREVIEWS);
+  });
+
   it("uses one immutable URL per preview revision", () => {
     expect(galleryPreviewUrl("entry-1", "revision 0")).toBe(
       "/api/gallery/entry-1/preview.svg?v=revision%200&render=formula-label-v5",

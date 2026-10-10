@@ -10,6 +10,7 @@ import {
   loadGalleryFeed,
   galleryTagScope,
   loadGalleryTagSummary,
+  warmGalleryPreviews,
   type GalleryLandingPreload,
 } from "../gallery-client";
 import { GALLERY_FILTERS_KEY, resolveGalleryFilters } from "../gallery-filters";
@@ -81,6 +82,11 @@ export function mountWebEditor() {
   // first page and tag counts for the filters the wall opens with, and the
   // circuit a "View in Gallery" link names.
   const initialGalleryPreload = galleryLandingPreload();
+  // Its first previews start when that page answers, not after the wall's
+  // code has loaded and rendered the tiles (#1590).
+  void initialGalleryPreload?.feed
+    ?.then(warmGalleryPreviews)
+    .catch(() => undefined);
 
   const EditorApp = lazy(
     guardedRouteChunk(() =>
