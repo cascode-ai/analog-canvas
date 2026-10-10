@@ -530,7 +530,12 @@ const canvasHost = new URL(CANVAS_ORIGIN).host;
 
 describe("AnalogArena's host", () => {
   it.each([
-    [`${ARENA_ORIGIN}/`, 302, `${ARENA_ORIGIN}/schematic`],
+    // Only /analytics itself is Chip Arena's; below it is Analog Canvas's.
+    [
+      `${ARENA_ORIGIN}/analytics/extra`,
+      302,
+      `${CANVAS_ORIGIN}/analytics/extra`,
+    ],
     [
       `${ARENA_ORIGIN}/editor?project=1`,
       302,
@@ -562,19 +567,32 @@ describe("AnalogArena's host", () => {
     expect(forwarded).toHaveLength(0);
   });
 
-  it("forwards the Schematic Arena's pages and API on its host", async () => {
-    const { at, forwarded } = canvas();
+  it("forwards Chip Arena's front page, statistics, Schematic Arena and API on its host", async () => {
+    const { at, forwarded, served } = canvas();
     for (const path of [
+      "/",
+      "/analytics",
       "/schematic",
       "/schematic/leaderboard",
       "/api/arena/session",
     ])
       expect((await at(`${ARENA_ORIGIN}${path}`)).status).toBe(200);
     expect(forwarded.map((request) => request.url)).toEqual([
+      `${ARENA_ORIGIN}/`,
+      `${ARENA_ORIGIN}/analytics`,
       `${ARENA_ORIGIN}/schematic`,
       `${ARENA_ORIGIN}/schematic/leaderboard`,
       `${ARENA_ORIGIN}/api/arena/session`,
     ]);
+    // None of them falls to Analog Canvas's own pages.
+    expect(served).toEqual([]);
+  });
+
+  it("keeps Analog Canvas's own front page and statistics on its host", async () => {
+    const { at, forwarded } = canvas();
+    for (const path of ["/", "/analytics"])
+      expect((await at(`${CANVAS_ORIGIN}${path}`)).status).toBe(200);
+    expect(forwarded).toEqual([]);
   });
 
   it("leaves Analog Canvas's own paths alone", async () => {

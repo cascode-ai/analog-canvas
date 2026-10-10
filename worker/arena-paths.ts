@@ -37,3 +37,11 @@ export function schematicArenaPathOf(legacyPathname: string): string {
 export function isArenaForwardedPath(pathname: string): boolean {
   return isArenaPagePath(pathname) || pathname.startsWith("/api/arena/");
 }
+
+/**
+ * Chip Arena's own pages on its host alone: its front page and its visitor
+ * statistics. On Analog Canvas's host the same paths are Analog Canvas's.
+ */
+export function isArenaHostOwnPath(pathname: string): boolean {
+  return pathname === "/" || pathname === "/analytics";
+}

@@ -60,6 +60,9 @@
       "/schematic/*",
       "/arena",
       "/arena/*",
+      // Chip Arena's visitor statistics on chip-arena.com, forwarded there;
+      // on Analog Canvas's host the Worker hands it back to the assets.
+      "/analytics",
     ],
   },
   // AnalogArena (Arcadia-1/chip-arena) has no route of its own: this

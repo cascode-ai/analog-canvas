@@ -34,8 +34,8 @@ to the other. Before any route, `routeArenaHosts` sends a request elsewhere
 when its host and path call for it:
 
 - On AnalogArena's host:
-  - `/` goes to `/schematic` (`302`), the Schematic Arena.
-  - `/schematic`, `/schematic/…`, `/api/arena/…` and `/api/auth/…` stay.
+  - `/` (Chip Arena's front page), `/analytics` (its visitor statistics),
+    `/schematic`, `/schematic/…`, `/api/arena/…` and `/api/auth/…` stay.
   - `GET /api/auth/<github|google>/start` goes to the same path on Analog
     Canvas's host (`302`), the one host those providers return to. A `return`
     naming a Schematic Arena page becomes that page's full address here
@@ -60,11 +60,13 @@ when its host and path call for it:
   replica. Arena trusts the account of whoever calls it, so the binding is
   the trust boundary.
 - It forwards exactly `/schematic`, `/schematic/…` and `/api/arena/…`, on any
-  host that keeps them ([Hosts](#hosts)). Nothing else reaches Arena,
-  including `/schematics`, `/api/arena` and `/api/auth/…`. `/schematic`,
-  `/schematic/*`, `/arena` and `/arena/*` run the Worker before the static
-  assets, as `/api/*` already does; otherwise the editor's shell would answer
-  them.
+  host that keeps them ([Hosts](#hosts)), and, on AnalogArena's host alone,
+  `/` and `/analytics`: Analog Canvas's own `/` and `/analytics` stay
+  Analog Canvas's. Nothing else reaches Arena, including `/schematics`,
+  `/api/arena`, `/analytics/…` and `/api/auth/…`. `/schematic`,
+  `/schematic/*`, `/arena`, `/arena/*`, `/` and `/analytics` run the Worker
+  before the static assets, as `/api/*` already does; otherwise the editor's
+  shell would answer them.
 - The forwarded request keeps the method, the URL (Analog Canvas's origin,
   the path and the query), the body and the client's headers, except the
   account header below.

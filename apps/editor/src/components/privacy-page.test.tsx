@@ -70,6 +70,10 @@ describe("privacy notice", () => {
   it("describes AnalogArena as its Consent does: what it keeps, the IP hash, publication and account deletion", () => {
     const markup = renderToStaticMarkup(<PrivacyPage />);
     expect(markup).toContain("<h2>AnalogArena</h2>");
+    // Chip Arena counts its own visitors, with cookies of its own.
+    expect(markup).toContain("<code>arena_vid</code>");
+    expect(markup).toContain("<code>arena_optout</code>");
+    expect(markup).toContain("<code>POST /api/arena/track/opt-out</code>");
     expect(markup).toContain("<strong>Your Votes</strong>");
     expect(markup).toContain("<strong>Timings and interactions</strong>");
     expect(markup).toContain("<strong>Your Voter Profile</strong>");
