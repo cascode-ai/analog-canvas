@@ -65,6 +65,17 @@ function library() {
     },
   });
   return {
+    seedHistoricalDefinition(id: string, definition: unknown) {
+      db.prepare(
+        `INSERT INTO components
+        (id, revision, author_id, author, status, created_at, updated_at, name, definition)
+        VALUES (?, 1, 'alice', 'Alice', 'shared', '2026-01-01', '2026-01-01', ?, ?)`,
+      ).run(
+        id,
+        (definition as { symbol: { name: string } }).symbol.name,
+        JSON.stringify(definition),
+      );
+    },
     dropNextPublicationResponse: () => {
       dropPublicationResponse = true;
     },
@@ -253,6 +264,461 @@ const finiteGainSource = [
   ".ends owned_helper",
   "",
 ].join("\n");
+
+test("reopening User Components retains loaded cards without another list request", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const definition = { symbol: newComponentDefinition().symbol };
+    definition.symbol.name = "Reusable device";
+    expect(
+      await page.evaluate(async (definition) => {
+        const response = await fetch("/api/components/reusable-device", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ revision: 0, definition }),
+        });
+        return response.status;
+      }, definition),
+    ).toBe(200);
+    let listRequests = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/components")
+        listRequests += 1;
+    });
+    await openUserComponents(page);
+    const dialog = page.getByRole("dialog", {
+      name: "User Components",
+      exact: true,
+    });
+    await expect(
+      dialog.getByRole("button", {
+        name: "Place Reusable device",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await context.route("**/api/components?**", (route) =>
+      route.abort("failed"),
+    );
+    await openUserComponents(page);
+    await expect(
+      dialog.getByRole("button", {
+        name: "Place Reusable device",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText("Loading components…", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByText("Couldn’t load user components.", { exact: true }),
+    ).toHaveCount(0);
+    expect(listRequests).toBe(1);
+    const search = dialog.getByRole("textbox", {
+      name: "Search User Defined components",
+    });
+    await search.fill("unmatched");
+    await expect(
+      dialog.getByText("Couldn’t load user components.", { exact: true }),
+    ).toBeVisible();
+    await search.fill("");
+    await expect(
+      dialog.getByRole("button", {
+        name: "Place Reusable device",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText("Loading components…", { exact: true }),
+    ).toHaveCount(0);
+    expect(listRequests).toBe(2);
+    await context.unroute("**/api/components?**");
+    await page.evaluate(async (definition) => {
+      for (const [id, revision, name] of [
+        ["reusable-device", 1, "Updated device"],
+        ["new-device", 0, "New device"],
+      ] as const) {
+        const response = await fetch(`/api/components/${id}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            revision,
+            definition: { symbol: { ...definition.symbol, name } },
+          }),
+        });
+        if (!response.ok) throw Error(await response.text());
+      }
+    }, definition);
+    await dialog.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(
+      dialog.getByRole("button", { name: "Place Updated device", exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Place New device", exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", {
+        name: "Place Reusable device",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    expect(listRequests).toBe(3);
+  } finally {
+    service.close();
+  }
+});
+
+test("historical invalid pin mappings remain inspectable without blocking valid library cards", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const healthy = {
+      symbol: structuredClone(
+        builtInSymbols.find((symbol) => symbol.id === "resistor")!,
+      ),
+    };
+    healthy.symbol.name = "Healthy device";
+    expect(
+      await page.evaluate(
+        async (definition) =>
+          (
+            await fetch("/api/components/healthy-device", {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ revision: 0, definition }),
+            })
+          ).status,
+        healthy,
+      ),
+    ).toBe(200);
+    const legacy = {
+      ...newComponentDefinition(),
+      subcircuit: {
+        id: "legacy-interface",
+        symbolId: "custom-component",
+        target: "legacy",
+        ports: [{ name: "IN", pinName: "IN", direction: "input" }],
+      },
+    };
+    legacy.subcircuit.symbolId = legacy.symbol.id;
+    legacy.symbol.name = "Legacy device";
+    service.seedHistoricalDefinition("legacy-device", legacy);
+    await openUserComponents(page);
+    const dialog = page.getByRole("dialog", {
+      name: "User Components",
+      exact: true,
+    });
+    await expect(
+      dialog.getByRole("button", { name: "Place Healthy device", exact: true }),
+    ).toBeVisible();
+    await expect(dialog.getByTestId("rejected-user-component")).toContainText(
+      "Legacy device",
+    );
+    await expect(dialog.getByTestId("rejected-user-component")).toContainText(
+      "Alice",
+    );
+    await expect(dialog.getByTestId("rejected-user-component")).toContainText(
+      "missing OUT",
+    );
+    await expect(
+      dialog.getByRole("button", { name: "Place Legacy device", exact: true }),
+    ).toHaveCount(0);
+    await dialog
+      .getByRole("button", {
+        name: "Copy raw record for Legacy device",
+        exact: true,
+      })
+      .click();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(JSON.parse(copied)).toMatchObject({
+      id: "legacy-device",
+      revision: 1,
+      definition: legacy,
+    });
+    await dialog
+      .getByRole("button", { name: "Place Healthy device", exact: true })
+      .click();
+    await place(page, 400, 300);
+    await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+    await openUserComponents(page);
+    await expect(dialog.getByTestId("rejected-user-component")).toContainText(
+      "missing OUT",
+    );
+    await dialog
+      .getByRole("textbox", { name: "Search User Defined components" })
+      .fill("Legacy");
+    await expect(
+      dialog.getByRole("button", { name: "Place Healthy device", exact: true }),
+    ).toHaveCount(0);
+    await expect(dialog.getByTestId("rejected-user-component")).toBeVisible();
+    await expect(
+      dialog.getByText("No user components match this search.", {
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole("button", { name: "Try Again", exact: true }),
+    ).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        async (definition) =>
+          (
+            await fetch("/api/components/new-invalid-device", {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ revision: 0, definition }),
+            })
+          ).status,
+        legacy,
+      ),
+    ).toBe(400);
+  } finally {
+    service.close();
+  }
+});
+
+test("User Components recovers first-load failures and keeps cards when stale refresh fails", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const definition = { symbol: newComponentDefinition().symbol };
+    definition.symbol.name = "Recoverable device";
+    await page.evaluate(async (definition) => {
+      const response = await fetch("/api/components/recoverable-device", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revision: 0, definition }),
+      });
+      if (!response.ok) throw Error(await response.text());
+    }, definition);
+    let unavailable = true;
+    await context.route("**/api/components?**", async (route) => {
+      if (unavailable)
+        await route.fulfill({
+          status: 503,
+          json: { error: "Service unavailable" },
+        });
+      else await route.fallback();
+    });
+    await openUserComponents(page);
+    const dialog = page.getByRole("dialog", {
+      name: "User Components",
+      exact: true,
+    });
+    await expect(
+      dialog.getByText("Couldn’t load user components.", { exact: true }),
+    ).toBeVisible();
+    unavailable = false;
+    await dialog
+      .getByRole("button", { name: "Try Again", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("button", {
+        name: "Place Recoverable device",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.clock.install();
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await page.clock.fastForward(61_000);
+    unavailable = true;
+    await openUserComponents(page);
+    await page.clock.runFor(100);
+    await expect(
+      dialog.getByText(
+        "Couldn’t refresh components. Loaded components are still available.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", {
+        name: "Place Recoverable device",
+        exact: true,
+      }),
+    ).toBeVisible();
+    unavailable = false;
+    await dialog
+      .getByRole("button", { name: "Try Again", exact: true })
+      .click();
+    await page.clock.runFor(100);
+    await expect(
+      dialog.getByRole("button", { name: "Try Again", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByText("Loading components…", { exact: true }),
+    ).toHaveCount(0);
+  } finally {
+    service.close();
+  }
+});
+
+test("reopening deleted components after sign-out does not retain administrator results", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "admin");
+    await openEditor(page);
+    const definition = { symbol: newComponentDefinition().symbol };
+    definition.symbol.name = "Deleted device";
+    await page.evaluate(async (definition) => {
+      const response = await fetch("/api/components/deleted-device", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revision: 0, definition }),
+      });
+      if (!response.ok) throw Error(await response.text());
+      const deleted = await fetch("/api/components/deleted-device", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revision: 1, status: "deleted" }),
+      });
+      if (!deleted.ok) throw Error(await deleted.text());
+    }, definition);
+    await openUserComponents(page);
+    const dialog = page.getByRole("dialog", {
+      name: "User Components",
+      exact: true,
+    });
+    await dialog
+      .getByRole("button", { name: "Review deleted components", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("button", { name: "Place Deleted device", exact: true }),
+    ).toBeVisible();
+    await page.clock.install();
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await page.clock.fastForward(31_000);
+    await service.connect(context, null);
+    await openUserComponents(page);
+    await page.clock.runFor(200);
+    await expect(
+      dialog.getByText("Couldn’t load user components.", { exact: true }),
+    ).toBeVisible();
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(0);
+    await expect(
+      dialog.getByRole("button", {
+        name: "Show available components",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+  } finally {
+    service.close();
+  }
+});
+
+test("a failed next page retains cards and Try Again retries that page", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const definition = { symbol: newComponentDefinition().symbol };
+    await page.evaluate(async (definition) => {
+      for (let index = 0; index < 23; index += 1) {
+        const next = structuredClone(definition);
+        next.symbol.name = `Device ${index}`;
+        const response = await fetch(
+          `/api/components/paged-device-${String(index).padStart(2, "0")}`,
+          {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ revision: 0, definition: next }),
+          },
+        );
+        if (!response.ok) throw Error(await response.text());
+      }
+    }, definition);
+    const legacy = {
+      ...newComponentDefinition(),
+      subcircuit: {
+        id: "legacy-paged-interface",
+        symbolId: "custom-component",
+        target: "legacy",
+        ports: [{ name: "IN", pinName: "IN", direction: "input" }],
+      },
+    };
+    legacy.subcircuit.symbolId = legacy.symbol.id;
+    legacy.symbol.name = "Legacy paged device";
+    service.seedHistoricalDefinition("paged-device-23", legacy);
+    let failNextPage = true;
+    let failFirstPage = false;
+    const cursors: (string | null)[] = [];
+    await context.route("**/api/components?**", async (route) => {
+      const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      cursors.push(cursor);
+      if ((cursor && failNextPage) || (!cursor && failFirstPage))
+        await route.fulfill({
+          status: 503,
+          json: { error: "Service unavailable" },
+        });
+      else await route.fallback();
+    });
+    await openUserComponents(page);
+    const dialog = page.getByRole("dialog", {
+      name: "User Components",
+      exact: true,
+    });
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(20);
+    await dialog
+      .getByRole("button", { name: "Load More", exact: true })
+      .click();
+    await expect(
+      dialog.getByText(
+        "Couldn’t refresh components. Loaded components are still available.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(20);
+    failNextPage = false;
+    await dialog
+      .getByRole("button", { name: "Try Again", exact: true })
+      .click();
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+    await expect(dialog.locator(".user-component-place")).toHaveCount(23);
+    const rejected = dialog.getByTestId("rejected-user-component");
+    await expect(rejected).toContainText("Legacy paged device");
+    await expect(rejected).toContainText("OUT");
+    await expect(
+      dialog.getByRole("button", { name: "Try Again", exact: true }),
+    ).toHaveCount(0);
+    expect(cursors).toEqual([null, "paged-device-19", "paged-device-19"]);
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await openUserComponents(page);
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+    await expect(rejected).toContainText("OUT");
+    expect(cursors).toHaveLength(3);
+    failFirstPage = true;
+    await dialog.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(
+      dialog.getByText(
+        "Couldn’t refresh components. Loaded components are still available.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+    await expect(rejected).toContainText("OUT");
+    expect(cursors).toEqual([null, "paged-device-19", "paged-device-19", null]);
+  } finally {
+    service.close();
+  }
+});
 
 test("library cards separate artwork, long titles and authors at narrow and zoomed sizes", async ({
   page,
@@ -2404,6 +2870,20 @@ test("publishes an applied native component and captures another user's complete
     );
     const beforeConflictingInsert = await readProject(insertedPage);
     await openUserComponents(insertedPage);
+    const currentLibrary = insertedPage.getByRole("dialog", {
+      name: "User Components",
+      exact: true,
+    });
+    const refreshed = insertedPage.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/api/components",
+    );
+    await currentLibrary
+      .getByRole("button", { name: "Refresh", exact: true })
+      .click();
+    await refreshed;
+    await expect(
+      currentLibrary.getByText("Loading components…", { exact: true }),
+    ).toHaveCount(0);
     await insertedPage
       .getByRole("button", { name: "Place finite_gain", exact: true })
       .click();
@@ -3347,6 +3827,11 @@ test("explicitly attaches a legacy class to an existing applied Project model wi
     ).toBe(200);
     for (const x of [350, 500]) {
       await openUserComponents(page);
+      if (x === 350) {
+        await page
+          .getByRole("button", { name: "Refresh", exact: true })
+          .click();
+      }
       await page
         .getByRole("button", { name: "Place Legacy attach", exact: true })
         .click();

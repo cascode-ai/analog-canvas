@@ -129,6 +129,13 @@ export async function handleAgentComponents(
         fetchLibrary,
       );
       assertBound();
+      if (page.rejected?.length)
+        throw new ComponentOperationError(
+          "COMPONENT_INVALID",
+          page.rejected
+            .map((entry) => `${entry.id} (${entry.name}): ${entry.message}`)
+            .join("; "),
+        );
       return { ...base, ok: true, result: { action: "list", ...page } };
     }
     let entry: SharedComponent;

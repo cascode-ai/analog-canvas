@@ -190,6 +190,22 @@ publication advances the draft to the returned record/revision. Identical retrie
 use the same ID and idempotency key. Public attribution comes from the server's
 authenticated publisher; source credit text is preserved. Library updates do not
 rewrite previously placed Project captures.
+
+The last successful public list, including appended pages, may be reused for
+60 seconds when reopening the same search. Refresh reads the current list
+immediately; local publication and management invalidate reuse. Refresh failure
+retains displayed public cards and offers retry. Deleted/admin lists are always
+freshly authorized and never restored from cached results.
+
+Historical records with valid library metadata but invalid definition/source
+are isolated from executable entries. The GUI keeps their name, publisher,
+validation reason and raw record available to copy; these records cannot be
+placed. A bad source does not hide other valid records or block pagination.
+Malformed page envelopes or identity metadata still reject the page. Agent
+listings remain strict and identify invalid records explicitly rather than
+silently returning an incomplete successful collection. Read, capture and
+publication continue to require a complete validated definition.
+
 Before any publication request, including a first local publication, the Project
 stores its applied payload and destination as a private authoring snapshot. A
 pending snapshot has no public entry or claimed public revision; a successful
