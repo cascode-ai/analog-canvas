@@ -26,7 +26,7 @@ import {
 } from "./netlist-code-controls";
 import {
   inferNetlistProcess,
-  prepareNetlistProcess,
+  preparedNetlistDefaults,
   netlistFamilyTarget,
   planNetlistProcess,
 } from "./netlist-process";
@@ -168,7 +168,7 @@ export function NetlistCodePanel({
   const preparedDefaults = useMemo(() => {
     if (configurationError) return null;
     try {
-      return prepareNetlistProcess(project, profile, { onlyMissing: true });
+      return preparedNetlistDefaults(project, profile);
     } catch {
       return null;
     }

@@ -1,3 +1,4 @@
+import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
 import type { CircuitProject } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 
@@ -87,6 +88,7 @@ export async function saveCloudProject(
   fetchLike: typeof fetch = fetch,
   galleryEntryId?: string,
 ): Promise<CloudProjectSaveOutcome> {
+  cloudLists.delete(fetchLike);
   let response: Response;
   try {
     response = await fetchLike(
@@ -111,6 +113,7 @@ export async function saveCloudProject(
       message: error instanceof Error ? error.message : "Network error",
     };
   }
+  cloudLists.delete(fetchLike);
   const payload = (await response.json().catch(() => null)) as {
     error?: string;
     project?: unknown;
@@ -149,7 +152,28 @@ export async function saveCloudProject(
   };
 }
 
-export async function listCloudProjects(
+// Share only concurrent reads. Later callers always consult server authority.
+const cloudLists = new WeakMap<
+  typeof fetch,
+  Promise<CloudProjectListOutcome>
+>();
+if (typeof window !== "undefined")
+  window.addEventListener(ACCOUNT_CHANGED_EVENT, () =>
+    cloudLists.delete(fetch),
+  );
+export function listCloudProjects(
+  fetchLike: typeof fetch = fetch,
+): Promise<CloudProjectListOutcome> {
+  const pending = cloudLists.get(fetchLike);
+  if (pending) return pending;
+  const request = requestCloudProjects(fetchLike).finally(() => {
+    if (cloudLists.get(fetchLike) === request) cloudLists.delete(fetchLike);
+  });
+  cloudLists.set(fetchLike, request);
+  return request;
+}
+
+async function requestCloudProjects(
   fetchLike: typeof fetch = fetch,
 ): Promise<CloudProjectListOutcome> {
   try {
@@ -218,11 +242,13 @@ export async function deleteCloudProject(
   | { status: "deleted"; projects: readonly CloudProjectSummary[] }
   | { status: "failed"; message: string }
 > {
+  cloudLists.delete(fetchLike);
   try {
     const response = await fetchLike(
       `${ENDPOINT}/${encodeURIComponent(projectId)}`,
       { method: "DELETE", credentials: "same-origin" },
     );
+    cloudLists.delete(fetchLike);
     const payload = (await response.json().catch(() => null)) as {
       projects?: unknown[];
     } | null;
@@ -284,6 +310,7 @@ export async function setShelfFavorite(
   favorite: boolean,
   fetchLike: typeof fetch = fetch,
 ): Promise<CloudProjectSummary> {
+  cloudLists.delete(fetchLike);
   const response = await fetchLike(`${ENDPOINT}/${encodeURIComponent(id)}`, {
     method: "PATCH",
     credentials: "same-origin",
@@ -292,6 +319,7 @@ export async function setShelfFavorite(
   });
   if (!response.ok)
     throw new Error(`Could not update favorite (${response.status})`);
+  cloudLists.delete(fetchLike);
   const payload = (await response.json()) as { project?: unknown };
   const project = summaryOf(payload.project);
   if (!project) throw new Error("Invalid Shelf response");

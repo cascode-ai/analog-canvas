@@ -20,6 +20,7 @@ for (const scenario of [
   "reopen and metadata",
   "source replacement",
   "publish before Save",
+  "unrelated Shelf rename",
 ] as const) {
   test(`Shelf publication: ${scenario}`, async ({ page }) => {
     // Independent user journeys avoid accumulating reload time into one timeout.
@@ -180,9 +181,9 @@ for (const scenario of [
       expect(drafts.get("draft-1")!.projectText).toBe(originalPrivateText);
       await page.goto("/editor?project=draft-1");
       await awaitEditorReady(page);
-      await expect(page.getByTestId("status")).toContainText(
-        "Opened Cloud Project",
-      );
+      // A restored Cloud tab is selected without downloading it again. Assert
+      // its actual circuit before editing, rather than the download's status.
+      await expect(page.getByTestId("active-instance-count")).toHaveText("1");
       await chooseComponent(page, "capacitor");
       await page
         .getByTestId("schematic-canvas")
@@ -297,6 +298,47 @@ for (const scenario of [
       projectText: serializeProject(replacement),
       galleryEntryId: null,
     });
+    if (scenario === "unrelated Shelf rename") {
+      await page.goto("/g/published-1");
+      await awaitEditorReady(page);
+      dialog = await publishDialog();
+      await expect(
+        dialog.getByRole("button", { name: "Update entry" }),
+      ).toBeEnabled();
+      await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page
+        .getByLabel("Open Shelf project in tab", { exact: true })
+        .click();
+      const shelf = page.locator(".project-tabs-shelf");
+      await shelf
+        .getByRole("button", { name: "Replacement draft", exact: true })
+        .hover();
+      await shelf
+        .getByRole("button", { name: "Rename Replacement draft", exact: true })
+        .click();
+      await shelf
+        .getByRole("textbox", { name: "Shelf project name", exact: true })
+        .fill("Unrelated renamed");
+      await shelf
+        .getByRole("textbox", { name: "Shelf project name", exact: true })
+        .press("Enter");
+      await expect(
+        shelf.getByRole("button", { name: "Unrelated renamed", exact: true }),
+      ).toBeVisible();
+      await page
+        .getByLabel("Open Shelf project in tab", { exact: true })
+        .click();
+      dialog = await publishDialog();
+      await expect(
+        dialog.getByRole("button", { name: "Update entry" }),
+      ).toBeEnabled();
+      await dialog.getByRole("button", { name: "Update entry" }).click();
+      await expect(dialog).toHaveCount(0);
+      expect(requests).toHaveLength(1);
+      expect(requests[0]!.method).toBe("PUT");
+      expect(requests[0]!.id).toBe("published-1");
+      return;
+    }
     const oldDraft = drafts.get("draft-1")!.projectText;
     await page.goto("/editor?project=draft-2");
     await awaitEditorReady(page);

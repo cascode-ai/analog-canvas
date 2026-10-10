@@ -251,3 +251,27 @@ describe("Shelf card operations", () => {
     ).rejects.toThrow("403");
   });
 });
+
+it("shares concurrent Cloud lists but refreshes after settled reads and mutations", async () => {
+  const pending: ((response: Response) => void)[] = [];
+  const fetchLike = ((_url: string, init?: RequestInit) =>
+    init?.method
+      ? Promise.resolve(Response.json({ project: summary }, { status: 201 }))
+      : new Promise<Response>((resolve) =>
+          pending.push(resolve),
+        )) as typeof fetch;
+  const first = listCloudProjects(fetchLike);
+  const concurrent = listCloudProjects(fetchLike);
+  expect(pending).toHaveLength(1);
+  await saveCloudProject(project, null, fetchLike);
+  const afterSave = listCloudProjects(fetchLike);
+  expect(pending).toHaveLength(2);
+  pending[0]!(Response.json({ projects: [summary] }));
+  pending[1]!(Response.json({ projects: [{ ...summary, revision: 2 }] }));
+  expect(await concurrent).toEqual(await first);
+  expect(await afterSave).toMatchObject({ projects: [{ revision: 2 }] });
+  const refreshed = listCloudProjects(fetchLike);
+  expect(pending).toHaveLength(3);
+  pending[2]!(Response.json({ projects: [] }));
+  expect(await refreshed).toEqual({ status: "listed", projects: [] });
+});

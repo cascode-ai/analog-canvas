@@ -214,10 +214,10 @@ test("compacts the editor header at half width and keeps the account role in its
     }
   }
 
-  // Beside the drawing, the name opens the account page in its own tab.
+  // Beside the drawing, account navigation keeps this window for workspace return.
   const name = page.getByTestId("account-name");
   await expect(name).toHaveAttribute("href", "/account");
-  await expect(name).toHaveAttribute("target", "_blank");
+  await expect(name).not.toHaveAttribute("target", "_blank");
   await page.goto("/account");
   await expect(page.getByTestId("account-menu-name")).toHaveText(
     "A Very Long Display Name",

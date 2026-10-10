@@ -102,9 +102,13 @@ describe("AccountMenuView", () => {
       "account-signout",
     ])
       expect(markup).not.toContain(absent);
-    // Beside a drawing, the account opens in a tab of its own.
+    // Account navigation stays with the drawing's window; explicitly opening
+    // another browser tab still gives it its own workspace.
     expect(markupFor({ providers, user }, null, true)).toContain(
-      'target="_blank" rel="noreferrer"',
+      'rel="noreferrer"',
+    );
+    expect(markupFor({ providers, user }, null, true)).not.toContain(
+      'target="_blank"',
     );
     expect(markup).not.toContain("account-switch-back");
     // A browser the Owner switched to an AI account shows the way back.

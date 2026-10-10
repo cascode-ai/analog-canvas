@@ -686,3 +686,26 @@ export function prepareNetlistExample(
   if (!result.ok) throw new Error(result.error.message);
   return result.project;
 }
+
+/** Only immutable committed editor snapshots may enter this cache. */
+export function createNetlistDefaultsCache() {
+  const snapshots = new WeakMap<
+    CircuitProject,
+    Map<string, ReturnType<typeof prepareNetlistProcess>>
+  >();
+  return (project: CircuitProject, profile: NetlistExportProfile) => {
+    const key = JSON.stringify(profile);
+    let profiles = snapshots.get(project);
+    const cached = profiles?.get(key);
+    if (cached) return cached;
+    const prepared = prepareNetlistProcess(project, profile, {
+      onlyMissing: true,
+    });
+    if (!profiles) snapshots.set(project, (profiles = new Map()));
+    const oldest = profiles.keys().next().value;
+    if (profiles.size >= 4 && oldest !== undefined) profiles.delete(oldest);
+    profiles.set(key, prepared);
+    return prepared;
+  };
+}
+export const preparedNetlistDefaults = createNetlistDefaultsCache();

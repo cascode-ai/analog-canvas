@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ContextMenu } from "../../components/context-menu";
 import type { CloudProjectSummary } from "./cloud-projects";
 import "./project-tabs.css";
+import { ProjectShelf } from "./project-shelf";
 
 const InlineConfirm = lazy(() =>
   import("../../components/inline-confirm").then((module) => ({
@@ -25,6 +26,8 @@ export function ProjectTabs({
   cloudProjects,
   onRefreshShelf,
   onOpenShelf,
+  onRenameShelf,
+  onDeleteShelf,
 }: {
   cloudEnabled?: boolean;
   tabs: { id: string; name: string; dirty: boolean }[];
@@ -42,6 +45,8 @@ export function ProjectTabs({
   cloudProjects: readonly CloudProjectSummary[];
   onRefreshShelf(): void;
   onOpenShelf(id: string): void;
+  onRenameShelf(id: string, name: string): Promise<void>;
+  onDeleteShelf(id: string): Promise<void>;
 }) {
   const list = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState<{
@@ -304,25 +309,13 @@ export function ProjectTabs({
               ▾
             </summary>
             <div>
-              {cloudProjects.length ? (
-                cloudProjects.map((project) => (
-                  <button
-                    type="button"
-                    key={project.id}
-                    disabled={busy}
-                    onClick={(event) => {
-                      event.currentTarget.closest("details")!.open = false;
-                      onOpenShelf(project.id);
-                    }}
-                  >
-                    {project.name}
-                  </button>
-                ))
-              ) : (
-                <span>
-                  No saved Shelf projects. Sign in to load your shelf.
-                </span>
-              )}
+              <ProjectShelf
+                projects={cloudProjects}
+                busy={busy}
+                onOpen={onOpenShelf}
+                onRename={onRenameShelf}
+                onDelete={onDeleteShelf}
+              />
             </div>
           </details>
         ) : null}

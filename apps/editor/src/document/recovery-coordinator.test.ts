@@ -500,3 +500,88 @@ it("resumes separate project-tab recovery identities without overwriting another
   expect(coordinator.captureWorkingSession().formalFileHint).toBeUndefined();
   coordinator.dispose();
 });
+
+// A tab may activate while its outgoing write remains queued behind IndexedDB.
+it("captures outgoing recovery identity before a nonblocking tab activation", async () => {
+  const { coordinator, settle } = createHarness();
+  await settle();
+  const first = createEmptyProject("queued-a", "Queued first");
+  coordinator.noteFormalFileHint({ name: "first.icproj.json" });
+  const a = coordinator.captureWorkingSession();
+  coordinator.stage(first);
+  const outgoing = coordinator.flushNow();
+  coordinator.beginWorkingCopy("opened-file");
+  const b = coordinator.captureWorkingSession();
+  coordinator.stage(createEmptyProject("queued-b", "Queued second"));
+  await coordinator.flushNow();
+  await outgoing;
+  const readA = await coordinator.readSessionProject(a.workingCopyId, "latest");
+  const readB = await coordinator.readSessionProject(b.workingCopyId, "latest");
+  expect(readA.status).toBe("valid");
+  expect(readB.status).toBe("valid");
+  if (readA.status === "valid") {
+    expect(readA.project.name).toBe("Queued first");
+    expect(readA.record.source).toBe(a.source);
+    expect(readA.record.formalFileHint).toEqual(a.formalFileHint);
+  }
+  if (readB.status === "valid") {
+    expect(readB.project.name).toBe("Queued second");
+    expect(readB.record.source).toBe("opened-file");
+    expect(readB.record.formalFileHint).toBeUndefined();
+  }
+  coordinator.dispose();
+});
+
+it("updates an inactive tab's unbound recovery copy without changing active identity", async () => {
+  const { coordinator, settle } = createHarness();
+  await settle();
+  const active = coordinator.captureWorkingSession();
+  coordinator.stage(createEmptyProject("active-copy", "Active drawing"));
+  await coordinator.flushNow();
+  coordinator.beginWorkingCopy("cloud-project");
+  const inactive = coordinator.captureWorkingSession();
+  const drawing = createEmptyProject("deleted-cloud", "Cloud drawing");
+  coordinator.stage(drawing, {
+    unsavedAtSnapshot: false,
+    cloudBinding: { id: "deleted-resource", revision: 2 },
+  });
+  await coordinator.flushNow();
+  coordinator.resumeWorkingSession(active);
+  const state = coordinator.state;
+  coordinator.writeSessionSnapshot(inactive, drawing, {
+    unsavedAtSnapshot: true,
+    cloudBinding: null,
+  });
+  await coordinator.flushNow();
+  expect(coordinator.workingCopyId).toBe(active.workingCopyId);
+  expect(coordinator.state).toBe(state);
+  const read = await coordinator.readSessionProject(
+    inactive.workingCopyId,
+    "latest",
+  );
+  expect(read.status).toBe("valid");
+  if (read.status === "valid") {
+    expect(read.record.unsavedAtSnapshot).toBe(true);
+    expect(read.record.cloudBinding).toBeUndefined();
+    expect(read.project.name).toBe("Cloud drawing");
+  }
+  coordinator.dispose();
+});
+
+it("reports an outgoing recovery failure after another tab activates", async () => {
+  const notices: string[] = [];
+  const coordinator = createRecoveryCoordinator({
+    store: createBrowserRecoveryStore(),
+    getSessionStorage: () => null,
+    events: { onNotice: (message) => notices.push(message) },
+  });
+  coordinator.stage(createEmptyProject("outgoing-failed", "Outgoing drawing"));
+  const outgoing = coordinator.flushNow();
+  coordinator.beginWorkingCopy("new");
+  coordinator.resumeWorkingSession(coordinator.captureWorkingSession());
+  await outgoing;
+  expect(coordinator.state).toBe("idle");
+  expect(notices.join(" ")).toContain("Outgoing drawing");
+  expect(notices.join(" ")).toContain("recovery");
+  coordinator.dispose();
+});

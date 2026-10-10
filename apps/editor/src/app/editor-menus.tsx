@@ -102,6 +102,9 @@ export function EditorMenuBar({
   setOpenedFromCheckNotice,
   cloudProjects,
   reloadCloudProjects,
+  cloudManagementBusy,
+  renameShelfProject,
+  deleteShelfProject,
   analogSimulationState,
   openAnalogSimulation,
   nativeBinding,
@@ -198,6 +201,9 @@ export function EditorMenuBar({
   setPublishGalleryOpen: GalleryPublishing["setPublishGalleryOpen"];
   setOpenedFromCheckNotice: GalleryPublishing["setOpenedFromCheckNotice"];
   cloudProjects: GalleryPublishing["cloudProjects"];
+  cloudManagementBusy: ProjectTabSessions["cloudManagementBusy"];
+  renameShelfProject: ProjectTabSessions["renameShelfProject"];
+  deleteShelfProject: ProjectTabSessions["deleteShelfProject"];
   reloadCloudProjects: GalleryPublishing["reloadCloudProjects"];
   analogSimulationState: SimulationSurface["analogSimulationState"];
   openAnalogSimulation: SimulationSurface["openAnalogSimulation"];
@@ -272,6 +278,7 @@ export function EditorMenuBar({
             activeId={projectTabs.activeId}
             busy={
               projectTabs.busy ||
+              cloudManagementBusy ||
               (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
             }
             onSelect={projectTabs.select}
@@ -320,6 +327,8 @@ export function EditorMenuBar({
                 : tabProjectInputRef.current?.click()
             }
             cloudProjects={cloudProjects}
+            onRenameShelf={renameShelfProject}
+            onDeleteShelf={deleteShelfProject}
             onRefreshShelf={() => {
               void reloadCloudProjects();
             }}

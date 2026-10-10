@@ -62,6 +62,9 @@ import { DEFAULT_VIEWBOX } from "./default-view-box";
 import type { EditorProjectPanelMode } from "./editor-project-dock";
 import type { HighlightedNetOrigin } from "./use-editor-derived-model";
 import type { useAgentProjectResources } from "./use-agent-hosts";
+import { executeProjectTransaction } from "@icm/edit-engine";
+import type { CloudProjectStore } from "../services/editor-services";
+import type { CloudProjectSummary } from "../features/editor-shell/cloud-projects";
 
 type DocumentControllerState = ReturnType<typeof useDocumentController>;
 type ProjectFileLifecycle = ReturnType<typeof useProjectFileLifecycle>;
@@ -81,6 +84,9 @@ export function browserWorkspaceStore() {
 }
 
 interface ProjectTabSessionsOptions {
+  projectStore: CloudProjectStore | null;
+  onCloudProjectSaved(project: CloudProjectSummary): void;
+  onCloudProjectsDeleted(projects: readonly CloudProjectSummary[]): void;
   initialProject: CircuitProject | undefined;
   restoredWorkspace: ProjectWorkspace | null;
   workspaceError: string | null;
@@ -94,6 +100,7 @@ interface ProjectTabSessionsOptions {
   captureRecoverySession: UseRecoveryCoordinatorResult["captureWorkingSession"];
   resumeRecoverySession: UseRecoveryCoordinatorResult["resumeWorkingSession"];
   stageRecovery: UseRecoveryCoordinatorResult["stage"];
+  writeRecoverySessionSnapshot: UseRecoveryCoordinatorResult["writeSessionSnapshot"];
   flushRecovery: UseRecoveryCoordinatorResult["flushNow"];
   openWorkingCopyIdsRef: RefObject<() => readonly string[]>;
   project: CircuitProject;
@@ -177,6 +184,9 @@ interface ProjectTabSessionsOptions {
 
 /** The window's project tabs: one session per tab, saved with the window. */
 export function useProjectTabSessions({
+  projectStore,
+  onCloudProjectSaved,
+  onCloudProjectsDeleted,
   initialProject,
   restoredWorkspace,
   workspaceError,
@@ -190,6 +200,7 @@ export function useProjectTabSessions({
   captureRecoverySession,
   resumeRecoverySession,
   stageRecovery,
+  writeRecoverySessionSnapshot,
   flushRecovery,
   openWorkingCopyIdsRef,
   project,
@@ -425,7 +436,20 @@ export function useProjectTabSessions({
       };
     }
   });
-  const workspaceLastText = useRef("");
+  const workspaceLastSignature = useRef("");
+  // Portable records already own one text per open tab. Reuse that text until
+  // its immutable snapshot changes, regardless of the computation-cache budget.
+  const workspaceTexts = useRef(
+    new Map<string, { project: CircuitProject; text: string }>(),
+  );
+  const snapshotIds = useRef(new WeakMap<CircuitProject, number>());
+  const nextSnapshotId = useRef(0);
+  const snapshotId = (project: CircuitProject) => {
+    let id = snapshotIds.current.get(project);
+    if (id === undefined)
+      snapshotIds.current.set(project, (id = ++nextSnapshotId.current));
+    return id;
+  };
   const workspaceLastRecord = useRef<ProjectWorkspace | null>(null);
   const workspaceSaveQueue = useRef(Promise.resolve());
   const workspaceFailure = useRef(false);
@@ -469,19 +493,52 @@ export function useProjectTabSessions({
       snapshotSerializer.retain(
         workspace.tabs.map(({ session }) => session.controller.project),
       );
+      const liveIds = new Set(workspace.tabs.map((tab) => tab.id));
+      for (const id of workspaceTexts.current.keys())
+        if (!liveIds.has(id)) workspaceTexts.current.delete(id);
       const tabs = workspace.tabs.map(({ id, session }) => {
         const { controller, cellViews, ...rest } = session;
+        let cached = workspaceTexts.current.get(id);
+        if (cached?.project !== controller.project) {
+          cached = {
+            project: controller.project,
+            text: snapshotSerializer.serialize(controller.project),
+          };
+          workspaceTexts.current.set(id, cached);
+        }
         const portable: PortableTab = {
           ...rest,
           cellViews: [...cellViews],
-          projectText: snapshotSerializer.serialize(controller.project),
+          projectText: cached.text,
           activeDocumentId: controller.document.id,
           agentEdited: controller.agentEdited,
         };
         return { id, session: portable };
       });
-      const text = JSON.stringify({ activeId: workspace.activeId, tabs });
-      if (text !== workspaceLastText.current) {
+      // Compare small session metadata and immutable identities. Escaping all
+      // drawing text and saved baselines on every render made switching costly.
+      const text = JSON.stringify({
+        activeId: workspace.activeId,
+        tabs: tabs.map(({ id, session }, index) => ({
+          id,
+          session: {
+            ...session,
+            projectText: snapshotId(
+              workspace.tabs[index]!.session.controller.project,
+            ),
+            file: {
+              ...session.file,
+              savedBaseline: session.file.savedBaseline
+                ? {
+                    ...session.file.savedBaseline,
+                    project: snapshotId(session.file.savedBaseline.project),
+                  }
+                : null,
+            },
+          },
+        })),
+      });
+      if (text !== workspaceLastSignature.current) {
         const record: ProjectWorkspace = {
           version: 1,
           windowId: workspaceWindowId(),
@@ -490,14 +547,14 @@ export function useProjectTabSessions({
           activeId: workspace.activeId,
           tabs,
         };
-        workspaceLastText.current = text;
+        workspaceLastSignature.current = text;
         workspaceLastRecord.current = record;
         workspaceSaveQueue.current = workspaceSaveQueue.current
           .then(() => browserWorkspaceStore().write(record))
           .then(
             () => releaseReopenedWorkspace(record),
             () => {
-              workspaceLastText.current = "";
+              workspaceLastSignature.current = "";
               if (!workspaceFailure.current) {
                 workspaceFailure.current = true;
                 setStatus(
@@ -547,10 +604,15 @@ export function useProjectTabSessions({
     codeDraftDirty,
   });
   const currentEditBlocker = () => editInProgressReason(editInProgress());
+  const [cloudManagementBusy, setCloudManagementBusy] = useState(false);
+  const cloudMutation = useRef(false);
   const projectSwitchBlocker = () =>
     projectHoldReason({
       ...editInProgress(),
-      saving: isSaveInFlight() || nativeWorkspaceSaving.current,
+      saving:
+        isSaveInFlight() ||
+        nativeWorkspaceSaving.current ||
+        cloudMutation.current,
       replaceGuard: !!replaceGuard,
       recoveryDialogOpen,
       publishGalleryOpen,
@@ -599,7 +661,9 @@ export function useProjectTabSessions({
         cloudBinding,
         unsavedAtSnapshot: isDirtyWork(),
       });
-      await flushRecovery();
+      // flushNow synchronously enqueues the captured outgoing identity.
+      // IndexedDB completion does not need to delay painting the incoming tab.
+      void flushRecovery();
       return true;
     },
     onError: (message) => setStatus(message),
@@ -741,7 +805,133 @@ export function useProjectTabSessions({
           () => createTabSession(next, view, options),
           options.cloudBinding?.id,
         );
+  async function manageCloud(
+    action: (store: CloudProjectStore) => Promise<void>,
+  ) {
+    const blocker = projectSwitchBlocker();
+    if (!projectStore || cloudMutation.current || blocker)
+      throw new Error(blocker ?? "Cloud storage is unavailable");
+    cloudMutation.current = true;
+    setCloudManagementBusy(true);
+    try {
+      await action(projectStore);
+    } finally {
+      cloudMutation.current = false;
+      setCloudManagementBusy(false);
+    }
+  }
+  function updateOpenCloud(id: string, update: (session: TabSession) => void) {
+    for (const entry of projectTabs.entries()) {
+      if (entry.session.file.cloudBinding?.id !== id) continue;
+      update(entry.session);
+      if (entry.id === projectTabs.currentId()) {
+        flushSync(() => {
+          activateDocumentSession(entry.session.controller);
+          restoreFileSession(entry.session.file);
+        });
+        stageRecovery(entry.session.controller.project, {
+          cloudBinding: entry.session.file.cloudBinding,
+          unsavedAtSnapshot: entry.session.dirty,
+        });
+      } else {
+        writeRecoverySessionSnapshot(
+          entry.session.recovery,
+          entry.session.controller.project,
+          {
+            cloudBinding: entry.session.file.cloudBinding,
+            unsavedAtSnapshot: entry.session.dirty,
+          },
+        );
+      }
+    }
+    projectTabs.changed();
+  }
+  const renameShelfProject = (id: string, name: string) =>
+    manageCloud(async (store) => {
+      const opened = await store.open(id);
+      if (opened.status !== "opened")
+        throw new Error(`Could not rename this Project (${opened.status}).`);
+      const original = parseProject(opened.project.projectText);
+      if (name === original.name) return;
+      const transaction = {
+        transactionId: createId("shelf-rename"),
+        projectId: original.id,
+        expectedStructureRevision: original.structureRevision,
+        actor: { kind: "human" as const, id: "editor" },
+        edits: [{ kind: "rename_project" as const, name }],
+      };
+      const renamed = executeProjectTransaction(original, transaction);
+      if (!renamed.ok) throw new Error(renamed.error.message);
+      const saved = await store.save(renamed.project, opened.project);
+      if (saved.status !== "saved")
+        throw new Error(
+          saved.status === "conflict"
+            ? "This Project changed elsewhere. Refresh and try again; no edits were overwritten."
+            : `Could not rename this Project (${saved.status}).`,
+        );
+      onCloudProjectSaved(saved.project);
+      updateOpenCloud(id, (session) => {
+        // An older local binding must still conflict rather than acknowledging
+        // remote drawing changes that this working copy has never received.
+        if (session.file.cloudBinding?.revision !== opened.project.revision)
+          return;
+        if (session.controller.project.name === original.name) {
+          const result = session.controller.dispatchProjectTransaction({
+            ...transaction,
+            expectedStructureRevision:
+              session.controller.project.structureRevision,
+          });
+          if (!result.ok) {
+            setStatus(
+              "Cloud name changed; the local draft was retained. Reopen the Project to review it.",
+            );
+            return;
+          }
+        }
+        // Independent local and Cloud edits can share the same revision token.
+        // Only the acknowledged content may lose its unsaved protection.
+        const dirty =
+          snapshotSerializer.serialize(session.controller.project) !==
+          snapshotSerializer.serialize(renamed.project);
+        session.file = {
+          ...session.file,
+          cloudBinding: {
+            id: saved.project.id,
+            revision: saved.project.revision,
+            galleryEntryId: saved.project.galleryEntryId ?? null,
+          },
+          savedBaseline: {
+            project: renamed.project,
+            viewBox: session.file.savedBaseline?.viewBox ?? session.view,
+          },
+          persistenceState: dirty ? "dirty" : "clean",
+        };
+        session.dirty = dirty;
+        session.unsafe = dirty;
+      });
+    });
+  const deleteShelfProject = (id: string) =>
+    manageCloud(async (store) => {
+      const removed = await store.delete(id);
+      if (removed.status !== "deleted") throw new Error(removed.message);
+      onCloudProjectsDeleted(removed.projects);
+      updateOpenCloud(id, (session) => {
+        session.file = {
+          ...session.file,
+          cloudBinding: null,
+          savedBaseline: null,
+          safeSnapshotToken: null,
+          persistenceState: "dirty",
+        };
+        session.dirty = true;
+        session.unsafe = true;
+      });
+    });
   return {
+    cloudManagementBusy,
+    isCloudManagementInFlight: () => cloudMutation.current,
+    renameShelfProject,
+    deleteShelfProject,
     createTabSession,
     restoredTabs,
     currentEditBlocker,

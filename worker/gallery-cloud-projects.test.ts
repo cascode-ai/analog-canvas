@@ -1,8 +1,9 @@
+import * as galleryRequests from "./gallery-requests";
 // Private Cloud Projects and the Shelf drafts a publication comes from.
 
 import { clearFormulaArtifactCacheForTests } from "../packages/math-typesetting/src/cache";
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CLOUD_PROJECT_LIMIT as EDITOR_CLOUD_PROJECT_LIMIT } from "../apps/editor/src/features/editor-shell/cloud-projects";
 import { CLOUD_PROJECT_LIMIT } from "./gallery-store-cloud-projects";
 import { GalleryDO } from "./gallery";
@@ -808,4 +809,55 @@ describe("durable Shelf publication sources", () => {
       gallery_entry_id: "old-public",
     });
   });
+});
+
+it("acknowledges unchanged saves without rendering another thumbnail or returning the drawing", async () => {
+  const env = environment();
+  const cookie = await makerOf(env);
+  const preview = vi.spyOn(galleryRequests, "renderPreview");
+  try {
+    const created = await route(
+      env,
+      saveRequest(cookie, "Fast acknowledgement"),
+    );
+    const { project } = await created.json();
+    expect(preview).toHaveBeenCalledTimes(1);
+    const saved = await route(
+      env,
+      new Request(`${ORIGIN}/api/projects/${project.id}`, {
+        method: "PUT",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: cookie,
+          "If-Match": "revision-1",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Fast acknowledgement",
+          projectText: projectText("Fast acknowledgement"),
+        }),
+      }),
+    );
+    expect(saved.status).toBe(200);
+    expect(preview).toHaveBeenCalledTimes(1);
+    const acknowledgement = (await saved.json()).project;
+    expect(acknowledgement).toMatchObject({
+      id: project.id,
+      revision: 1,
+      name: "Fast acknowledgement",
+    });
+    expect(acknowledgement).not.toHaveProperty("projectText");
+    expect(project).not.toHaveProperty("projectText");
+    const opened = await route(
+      env,
+      new Request(`${ORIGIN}/api/projects/${project.id}`, {
+        headers: cookieHeaders(cookie),
+      }),
+    );
+    expect((await opened.json()).project.projectText).toContain(
+      "Fast acknowledgement",
+    );
+  } finally {
+    preview.mockRestore();
+  }
 });

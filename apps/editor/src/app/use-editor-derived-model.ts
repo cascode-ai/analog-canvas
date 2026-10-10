@@ -1,8 +1,8 @@
+import { editorSnapshotDerived } from "./editor-snapshot-derived-cache";
 import { useMemo } from "react";
 
 import {
   buildProjectSearchIndex,
-  deriveCrossings,
   endpointKey,
   isMosBulkTerminal,
   isVisibleEndpoint,
@@ -317,12 +317,7 @@ export function useEditorDerivedModel({
     wireSource?.netId,
   ]);
   const crossings = useMemo(
-    () =>
-      deriveCrossings(
-        document,
-        resolver,
-        documentConnectivity?.routingGeometry,
-      ),
+    () => editorSnapshotDerived.crossings(document, resolver),
     [document, documentConnectivity, resolver],
   );
   const endpointIndex = useMemo(

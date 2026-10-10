@@ -132,6 +132,12 @@ export interface RecoveryCoordinator {
   stage(project: CircuitProject, options?: RecoveryStageOptions): void;
   /** Drop a pending write without storing it (replacement boundary). */
   cancelPending(): void;
+  /** Enqueue metadata/content for an inactive editor tab without activating it. */
+  writeSessionSnapshot(
+    session: RecoveryWorkingSession,
+    project: CircuitProject,
+    options?: RecoveryStageOptions,
+  ): void;
   /** Flush any pending write and wait for the write chain to settle. */
   flushNow(): Promise<RecoveryState>;
   /**
@@ -140,7 +146,7 @@ export interface RecoveryCoordinator {
    */
   beginWorkingCopy(source: BrowserRecoverySource): string;
   captureWorkingSession(): RecoveryWorkingSession;
-  /** Flush outgoing writes first; resume an existing internal project tab. */
+  /** Enqueue outgoing writes first; resume an existing internal project tab. */
   resumeWorkingSession(session: RecoveryWorkingSession): void;
   /** Attach a formal-file hint to subsequent records (file service, WP-3). */
   noteFormalFileHint(hint: BrowserRecoveryFormalFileHint): void;
@@ -264,18 +270,31 @@ export function createRecoveryCoordinator(
 
   interface RecoveryCandidate {
     project: CircuitProject;
+    session: RecoveryWorkingSession;
     unsavedAtSnapshot: boolean;
     cloudBinding: BrowserRecoveryCloudBinding | null;
   }
 
   function enqueueWrite(candidate: RecoveryCandidate): void {
-    publishState("pending");
+    if (workingCopyId === candidate.session.workingCopyId)
+      publishState("pending");
+    const publishWriteState = (next: RecoveryState) => {
+      if (workingCopyId === candidate.session.workingCopyId) publishState(next);
+      else if (
+        next === "failed" ||
+        next === "quota-exceeded" ||
+        next === "unavailable"
+      )
+        events.onNotice?.(
+          `Local recovery for ${candidate.project.name} failed (${next}). Save or download this Project to keep its latest edits.`,
+        );
+    };
     writeChain = writeChain.then(async () => {
       let record: BrowserRecoveryRecordV2;
       try {
         record = buildRecord(candidate);
       } catch (error) {
-        publishState("failed");
+        publishWriteState("failed");
         events.onNotice?.(
           `Recovery snapshot could not be serialized: ${
             error instanceof Error ? error.message : "invalid Project"
@@ -288,7 +307,7 @@ export function createRecoveryCoordinator(
         options.openWorkingCopyIds?.() ?? [],
       );
       if (outcome.status === "stored" || outcome.status === "unchanged") {
-        publishState("stored");
+        publishWriteState("stored");
         if (outcome.overCapacity && !overCapacityNoticed) {
           events.onNotice?.(
             "Unsaved work in your open tabs is more than this browser keeps for recovery (12 MB). Every open tab still has its copy, but save to Cloud or download the Projects you need.",
@@ -298,13 +317,13 @@ export function createRecoveryCoordinator(
         return;
       }
       if (outcome.status === "rejected-too-large") {
-        publishState("failed");
+        publishWriteState("failed");
         events.onNotice?.(
           "Recovery snapshot exceeds the 4 MB browser limit; the previous copy was kept. Download the Project to keep it safe.",
         );
         return;
       }
-      publishState(
+      publishWriteState(
         outcome.failure === "quota-exceeded"
           ? "quota-exceeded"
           : outcome.failure === "storage-unavailable"
@@ -315,15 +334,15 @@ export function createRecoveryCoordinator(
   }
 
   function buildRecord(candidate: RecoveryCandidate): BrowserRecoveryRecordV2 {
-    const { project } = candidate;
+    const { project, session } = candidate;
     recordCounter += 1;
     const documentRevisions: Record<string, number> = {};
     for (const document of project.documents) {
       documentRevisions[document.id] = document.revision;
     }
     return finalizeBrowserRecoveryRecord({
-      recordId: `${workingCopyId}-snapshot-${recordCounter}`,
-      workingCopyId,
+      recordId: `${session.workingCopyId}-snapshot-${recordCounter}`,
+      workingCopyId: session.workingCopyId,
       generation: "latest",
       projectId: project.id,
       projectName: project.name,
@@ -331,14 +350,16 @@ export function createRecoveryCoordinator(
       topDocumentId: project.topDocumentId,
       documentRevisions,
       structureRevision: project.structureRevision,
-      source: currentSource,
+      source: session.source,
       updatedAt: now(),
       projectText: (options.serializeProject ?? serializeProject)(project),
       unsavedAtSnapshot: candidate.unsavedAtSnapshot,
       ...(candidate.cloudBinding === null
         ? {}
         : { cloudBinding: candidate.cloudBinding }),
-      ...(formalFileHint === undefined ? {} : { formalFileHint }),
+      ...(session.formalFileHint === undefined
+        ? {}
+        : { formalFileHint: session.formalFileHint }),
     });
   }
 
@@ -371,8 +392,27 @@ export function createRecoveryCoordinator(
     stage(project: CircuitProject, options: RecoveryStageOptions = {}): void {
       scheduler.schedule({
         project,
+        session: {
+          workingCopyId,
+          source: currentSource,
+          ...(formalFileHint ? { formalFileHint: { ...formalFileHint } } : {}),
+        },
         unsavedAtSnapshot: options.unsavedAtSnapshot ?? true,
         cloudBinding: options.cloudBinding ?? null,
+      });
+    },
+
+    writeSessionSnapshot(session, project, stageOptions = {}) {
+      enqueueWrite({
+        project,
+        session: {
+          ...session,
+          ...(session.formalFileHint
+            ? { formalFileHint: { ...session.formalFileHint } }
+            : {}),
+        },
+        unsavedAtSnapshot: stageOptions.unsavedAtSnapshot ?? true,
+        cloudBinding: stageOptions.cloudBinding ?? null,
       });
     },
 
@@ -515,6 +555,7 @@ export interface UseRecoveryCoordinatorResult {
   ready: boolean;
   workingCopyId: string;
   stage: (project: CircuitProject, options?: RecoveryStageOptions) => void;
+  writeSessionSnapshot: RecoveryCoordinator["writeSessionSnapshot"];
   cancelPending: () => void;
   flushNow: () => Promise<RecoveryState>;
   beginWorkingCopy: (source: BrowserRecoverySource) => string;
@@ -608,6 +649,8 @@ export function useRecoveryCoordinator(
     ready,
     workingCopyId: currentWorkingCopyId,
     stage: (project, stageOptions) => coordinator.stage(project, stageOptions),
+    writeSessionSnapshot: (session, project, stageOptions) =>
+      coordinator.writeSessionSnapshot(session, project, stageOptions),
     cancelPending: () => coordinator.cancelPending(),
     flushNow: () => coordinator.flushNow(),
     beginWorkingCopy: (source) => {

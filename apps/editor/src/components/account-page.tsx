@@ -389,7 +389,13 @@ export function AccountDashboard({
   const [tab, setTab] = useState<AccountTab>(
     tabs.includes(initialTab) ? initialTab : "circuits",
   );
+  const [visited, setVisited] = useState<AccountTab[]>([
+    tabs.includes(initialTab) ? initialTab : "circuits",
+  ]);
   const select = (next: AccountTab) => {
+    setVisited((current) =>
+      current.includes(next) ? current : [...current, next],
+    );
     setTab(next);
     // The address names the open tab, so a reload or a link returns to it.
     try {
@@ -445,35 +451,41 @@ export function AccountDashboard({
           ))}
         </nav>
       </aside>
-      <section
-        className="account-dashboard-main"
-        role="tabpanel"
-        aria-label={TAB_LABELS[tab]}
-        data-testid={`account-panel-${tab}`}
-      >
-        <h2>{TAB_LABELS[tab]}</h2>
-        {tab === "circuits" ? (
-          <MySubmissionsContent />
-        ) : tab === "projects" ? (
-          <Suspense
-            fallback={
-              <p className="gallery-status" data-testid="shelf-loading">
-                Loading your Cloud Projects…
-              </p>
-            }
+      {visited
+        .filter((id) => tabs.includes(id))
+        .map((id) => (
+          <section
+            key={id}
+            hidden={tab !== id}
+            className="account-dashboard-main"
+            role="tabpanel"
+            aria-label={TAB_LABELS[id]}
+            data-testid={`account-panel-${id}`}
           >
-            <ShelfWall />
-          </Suspense>
-        ) : tab === "moderation" ? (
-          <ModerationContent isAdmin={user.isAdmin} />
-        ) : tab === "data" ? (
-          <OwnerDataContent />
-        ) : tab === "ai" ? (
-          <AiAccountsContent />
-        ) : (
-          <AccountSettings user={user} {...actions} />
-        )}
-      </section>
+            <h2>{TAB_LABELS[id]}</h2>
+            {id === "circuits" ? (
+              <MySubmissionsContent />
+            ) : id === "projects" ? (
+              <Suspense
+                fallback={
+                  <p className="gallery-status" data-testid="shelf-loading">
+                    Loading your Cloud Projects…
+                  </p>
+                }
+              >
+                <ShelfWall />
+              </Suspense>
+            ) : id === "moderation" ? (
+              <ModerationContent isAdmin={user.isAdmin} />
+            ) : id === "data" ? (
+              <OwnerDataContent />
+            ) : id === "ai" ? (
+              <AiAccountsContent />
+            ) : (
+              <AccountSettings user={user} {...actions} />
+            )}
+          </section>
+        ))}
     </div>
   );
 }
@@ -498,7 +510,7 @@ export function AccountPage() {
   }, []);
   return (
     <main className="review-shell account-shell" data-testid="account-page">
-      <GalleryChrome subtitle="Account" />
+      <GalleryChrome subtitle="Account" editorHref="/editor?resume=1" />
       <div className="page-body account-page-body">
         {state.status === "loading" ? (
           <p className="gallery-status">Loading your account…</p>
@@ -508,6 +520,7 @@ export function AccountPage() {
           </p>
         ) : (
           <AccountDashboard
+            key={state.user.id}
             user={state.user}
             initialTab={accountTabFromSearch(window.location.search)}
             onRename={(displayName) => {

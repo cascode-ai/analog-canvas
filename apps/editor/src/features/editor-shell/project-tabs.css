@@ -114,3 +114,40 @@
   font-size: 12px;
   color: var(--icm-text-muted);
 }
+.project-shelf-row {
+  display: flex;
+  align-items: center;
+}
+.project-tabs-shelf .project-shelf-open {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-shelf-actions {
+  display: flex;
+  visibility: hidden;
+}
+.project-shelf-row:hover .project-shelf-actions,
+.project-shelf-row:focus-within .project-shelf-actions {
+  visibility: visible;
+}
+.project-tabs-shelf .project-shelf-actions button {
+  width: auto;
+  padding: 4px;
+}
+.project-shelf-rename {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 4px;
+}
+.project-shelf-rename input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.project-tabs-shelf .project-shelf-rename button {
+  width: auto;
+  padding: 4px 8px;
+}

@@ -118,6 +118,11 @@ export interface UseProjectFileLifecycleOptions {
     options: ReplaceProjectOptions,
     background?: boolean,
   ): Promise<boolean>;
+  /** Null means unopened; otherwise activate its live draft before any GET. */
+  selectOpenCloudProject?(
+    id: string,
+    background: boolean,
+  ): Promise<boolean> | null;
   galleryEntryId?: string | undefined;
   project: CircuitProject;
   projectSessionId: string;
@@ -136,6 +141,8 @@ export interface UseProjectFileLifecycleOptions {
   hasPendingEdits?(): boolean;
   /** What keeps a Project from opening now, for a refusal to name (#1462). */
   describeOpenBlocker?(): string | null;
+  /** Management of a Cloud resource shares the save acknowledgement boundary. */
+  describeCloudSaveBlocker?(): string | null;
   /** Feature-local drafts follow an explicit recovery fork, never an arbitrary import. */
   onRecoverBuffers?(
     from: string,
@@ -151,6 +158,7 @@ export function useProjectFileLifecycle({
   restoreWorkingSession = false,
   externalWorkspaceRestored = false,
   openProjectInTab,
+  selectOpenCloudProject,
   galleryEntryId,
   project,
   projectSessionId,
@@ -164,6 +172,7 @@ export function useProjectFileLifecycle({
   hasPendingEdits,
   onRecoverBuffers,
   describeOpenBlocker,
+  describeCloudSaveBlocker,
 }: UseProjectFileLifecycleOptions) {
   // Read-only initializer: consuming the one-shot flag here would be a render
   // side effect, and a discarded render (StrictMode's double pass, a Suspense
@@ -343,7 +352,7 @@ export function useProjectFileLifecycle({
       `Saving ${savedCandidate.name} to ${CLOUD_PROJECT_COPY.destination}`,
     );
     recovery.stage(savedCandidate, { unsavedAtSnapshot: true, cloudBinding });
-    await recovery.flushNow();
+    void recovery.flushNow();
     const outcome = await projectStore.save(
       savedCandidate,
       asNew ? null : cloudBinding,
@@ -368,7 +377,7 @@ export function useProjectFileLifecycle({
         unsavedAtSnapshot: !stillMatchesSavedCandidate,
         cloudBinding: nextBinding,
       });
-      await recovery.flushNow();
+      void recovery.flushNow();
       if (!snapshot.isCurrent()) return outcome;
       stillMatchesSavedCandidate = snapshot.matchesCurrentProject();
       setPersistenceState(stillMatchesSavedCandidate ? "clean" : "dirty");
@@ -413,6 +422,11 @@ export function useProjectFileLifecycle({
     candidate?: CircuitProject,
     asNew = false,
   ): Promise<CloudProjectSaveOutcome> {
+    const blocker = describeCloudSaveBlocker?.();
+    if (blocker) {
+      setStatus(`Can't save yet: ${blocker}. No work was discarded.`);
+      return Promise.resolve({ status: "rejected", message: blocker });
+    }
     return saveCoordinator.save({
       sessionId: projectSessionId,
       current: () => ({
@@ -902,6 +916,20 @@ export function useProjectFileLifecycle({
   ): Promise<{ applied: boolean; message?: string }> {
     if (!projectStore)
       return { applied: false, message: "Cloud storage is unavailable" };
+    if (inTab) {
+      const existing = selectOpenCloudProject?.(projectId, background);
+      if (existing) {
+        const applied = await existing;
+        return {
+          applied,
+          ...(applied
+            ? {}
+            : {
+                message: `Can't open a Project yet: ${describeOpenBlocker?.() ?? "another Project operation is running"}`,
+              }),
+        };
+      }
+    }
     const fetched = await projectStore.open(projectId);
     if (fetched.status !== "opened") {
       if (fetched.status === "not-found") forgetRecentCloudProject();

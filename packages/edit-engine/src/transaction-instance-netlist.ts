@@ -1,4 +1,9 @@
-import { createReferenceIndex, referenceIssuesForInstance } from "@icm/devices";
+import {
+  createReferenceIndex,
+  referenceIssuesForInstance,
+  referencePolicyForInstance,
+  type ReferenceIndex,
+} from "@icm/devices";
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
@@ -24,6 +29,31 @@ export interface InstanceNetlistEditContext {
   draft: SchematicDocument;
   changedObjectIds: Set<string>;
   reject: RejectEdit;
+  references?: ReturnType<typeof createReferenceValidationCache>;
+}
+
+/** Scoped to one mutable draft. Parameters do not change Reference authority. */
+export function createReferenceValidationCache(draft: SchematicDocument) {
+  let index: ReferenceIndex | undefined;
+  return {
+    invalidate() {
+      index = undefined;
+    },
+    read(instanceId: string) {
+      const instance = draft.instances.find((item) => item.id === instanceId);
+      const policy = instance && referencePolicyForInstance(instance);
+      const previous = index?.policyByInstanceId.get(instanceId);
+      if (
+        !index ||
+        policy?.kind !== previous?.kind ||
+        (policy?.kind === "required" &&
+          previous?.kind === "required" &&
+          policy.prefix !== previous.prefix)
+      )
+        index = createReferenceIndex(draft);
+      return index;
+    },
+  };
 }
 
 export type InstanceNetlistEditOutcome = EditMutationOutcome;
@@ -31,9 +61,10 @@ export type InstanceNetlistEditOutcome = EditMutationOutcome;
 function referencePolicyFailure(
   draft: SchematicDocument,
   instanceId: string,
+  references?: InstanceNetlistEditContext["references"],
 ): string | null {
   const issue = referenceIssuesForInstance(
-    createReferenceIndex(draft),
+    references?.read(instanceId) ?? createReferenceIndex(draft),
     instanceId,
   )[0];
   if (!issue) return null;
@@ -226,7 +257,12 @@ export function applyInstanceNetlistEdit(
       const before: SchematicDocument["instances"][number] =
         structuredClone(instance);
       instance.reference = edit.reference;
-      const failure = referencePolicyFailure(draft, instance.id);
+      context.references?.invalidate();
+      const failure = referencePolicyFailure(
+        draft,
+        instance.id,
+        context.references,
+      );
       if (failure) {
         return {
           ok: false,
@@ -272,7 +308,11 @@ export function applyInstanceNetlistEdit(
       if (edit.binding)
         instance.netlist.binding = structuredClone(edit.binding);
       else delete instance.netlist.binding;
-      const failure = referencePolicyFailure(draft, instance.id);
+      const failure = referencePolicyFailure(
+        draft,
+        instance.id,
+        context.references,
+      );
       if (failure) {
         return {
           ok: false,
@@ -314,7 +354,11 @@ export function applyInstanceNetlistEdit(
       const before: SchematicDocument["instances"][number] =
         structuredClone(instance);
       instance.netlist = structuredClone(edit.netlist);
-      const failure = referencePolicyFailure(draft, instance.id);
+      const failure = referencePolicyFailure(
+        draft,
+        instance.id,
+        context.references,
+      );
       if (failure) {
         return {
           ok: false,
@@ -331,6 +375,8 @@ export function applyInstanceNetlistEdit(
       return { ok: true, connectivityChanged: true };
     }
     case "bulk_patch_instance_netlist": {
+      if (edit.assignments.some((item) => item.reference !== undefined))
+        context.references?.invalidate();
       const assignedIds = new Set<string>();
       let connectivityChanged = false;
       for (const assignment of edit.assignments) {
@@ -473,7 +519,11 @@ export function applyInstanceNetlistEdit(
         changedObjectIds.add(instance.id);
       }
       for (const instanceId of assignedIds) {
-        const failure = referencePolicyFailure(draft, instanceId);
+        const failure = referencePolicyFailure(
+          draft,
+          instanceId,
+          context.references,
+        );
         if (failure) {
           return {
             ok: false,
