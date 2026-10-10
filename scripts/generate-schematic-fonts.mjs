@@ -5,6 +5,10 @@
  *
  *   node scripts/generate-schematic-fonts.mjs [--check]
  *
+ * Metropolis is read through a copy whose underscore nothing kerns
+ * (scripts/unkern-metropolis-underscore.py); the committed sources stay as
+ * published.
+ *
  * Needs Python's fontTools (python3 -m fontTools.subset). --check rebuilds
  * into a temporary directory and fails when a committed face differs. A
  * local check: the faces change only with this script or the font package.
@@ -61,16 +65,32 @@ export const SCHEMATIC_FONT_UNICODES = [
   "U+25A0-25FF",
 ];
 
-function subset(face, directory) {
+/** Metropolis with an unkerned underscore, read in place of the sources. */
+function unkernedMetropolis() {
+  const directory = mkdtempSync(join(tmpdir(), "metropolis-"));
+  const result = spawnSync(
+    "python3",
+    [
+      join(root, "scripts/unkern-metropolis-underscore.py"),
+      join(output, "metropolis"),
+      directory,
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0)
+    throw new Error(
+      `Cannot unkern the Metropolis underscore: ${result.stderr}`,
+    );
+  return directory;
+}
+
+function subset(face, directory, metropolis) {
   const result = spawnSync(
     "python3",
     [
       "-m",
       "fontTools.subset",
-      join(
-        face.startsWith("Metropolis-") ? join(output, "metropolis") : ttf,
-        `${face}.ttf`,
-      ),
+      join(face.startsWith("Metropolis-") ? metropolis : ttf, `${face}.ttf`),
       `--unicodes=${SCHEMATIC_FONT_UNICODES.join(",")}`,
       "--flavor=woff",
       // Hinting is most of each face; browsers that use it draw well
@@ -94,6 +114,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const directory = check
     ? mkdtempSync(join(tmpdir(), "schematic-fonts-"))
     : output;
+  const metropolis = unkernedMetropolis();
   try {
     const stale = [];
     const period = Buffer.from(schematicRoundPeriodFontBase64, "base64");
@@ -103,7 +124,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       if (!readFileSync(periodPath).equals(period)) stale.push(periodPath);
     }
     for (const face of SCHEMATIC_FONT_FACES) {
-      subset(face, directory);
+      subset(face, directory, metropolis);
       if (!check) continue;
       const name = `${face}.schematic.woff`;
       if (
@@ -117,7 +138,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       "python3",
       [
         join(root, "scripts/generate-headless-fonts.py"),
-        join(output, "metropolis"),
+        metropolis,
         ttf,
         join(directory, "ICMRoundPeriod.ttf"),
         directory,
@@ -138,7 +159,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       "python3",
       [
         join(root, "scripts/generate-schematic-metrics.py"),
-        join(output, "metropolis"),
+        metropolis,
         ttf,
         JSON.stringify(SCHEMATIC_FONT_UNICODES),
       ],
@@ -177,5 +198,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       );
   } finally {
     if (check) rmSync(directory, { recursive: true, force: true });
+    rmSync(metropolis, { recursive: true, force: true });
   }
 }
