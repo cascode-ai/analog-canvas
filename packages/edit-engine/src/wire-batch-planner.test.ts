@@ -902,6 +902,72 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
   });
 });
 
+describe("a second branch that leaves along its own wire (#1589)", () => {
+  it("joins the Junction the first branch left from instead of splitting at it", () => {
+    // A gate tie: an input wire into M2's gate, then branches up to M1's
+    // gate and down to M3's, both leaving the input wire at x = 160.
+    const document = createEmptyDocument("tie", "Gate tie");
+    for (const [id, symbolId, y] of [
+      ["M1", "pmos", 100],
+      ["M2", "pmos", 200],
+      ["M3", "nmos", 300],
+    ] as const)
+      document.instances.push({
+        id,
+        symbolId,
+        placement: { position: { x: 200, y }, rotation: 0, mirror: "none" },
+      });
+    const h = history(document);
+    const gate = (instanceId: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId, pinName: "G" },
+    });
+    const draw = (intent: WireIntent) => {
+      const plan = planWireBatch(h.document, resolver, intent, 512, {
+        keepClear: true,
+      });
+      if (typeof plan === "string") throw new Error(plan);
+      const result = h.transact({
+        transactionId: intent.id,
+        documentId: h.document.id,
+        expectedRevision: h.document.revision,
+        actor: { kind: "agent", id: "test" },
+        edits: plan.edits,
+      });
+      expect(result.ok, JSON.stringify(result)).toBe(true);
+    };
+    draw(wire("in", free(120, 200), gate("M2")));
+    draw(
+      wire("up", gate("M2"), gate("M1"), [
+        { x: 160, y: 200 },
+        { x: 160, y: 100 },
+      ]),
+    );
+    draw(
+      wire("down", gate("M2"), gate("M3"), [
+        { x: 160, y: 200 },
+        { x: 160, y: 300 },
+      ]),
+    );
+    // One branch Junction where both branches leave, and every gate on
+    // one Net.
+    expect(
+      h.document.junctions
+        .filter((junction) => junction.role === "branch")
+        .map((junction) => junction.position),
+    ).toEqual([{ x: 160, y: 200 }]);
+    const netOf = (instanceId: string) =>
+      h.document.nets.find((net) =>
+        net.terminals.some(
+          (t) => t.instanceId === instanceId && t.pinName === "G",
+        ),
+      )?.id;
+    expect(netOf("M1")).toBeDefined();
+    expect(netOf("M2")).toBe(netOf("M1"));
+    expect(netOf("M3")).toBe(netOf("M1"));
+  });
+});
+
 describe("an Agent body wire along the via points it is given (#1514)", () => {
   // A three-terminal NMOS at the origin: its hidden body pin lands at the
   // origin, inside the channel, and leaves east; its source lands at
