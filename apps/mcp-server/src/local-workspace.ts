@@ -56,6 +56,8 @@ export type FetchArtifact = ((
 ) => Promise<Response>) & {
   /** Selection only: do not publish/download until a missing local file requests bytes. */
   select?: (refs: ArtifactRef[], options?: { deferPending: boolean }) => void;
+  /** Called after length/hash verification and atomic local publication. */
+  completed?: (ref: ArtifactRef) => Promise<void>;
 };
 type DownloadTiming = { started: number; remoteWaitMs: number };
 const workspaces = new Map<string, Promise<LocalWorkspace>>();
@@ -228,6 +230,7 @@ export class LocalWorkspace {
         }
       },
     );
+    await fetchArtifact.completed?.(ref).catch(() => {});
     const old = this.index.downloads.findIndex((item) => item.path === path);
     const record = { artifact: ref, path, ...(runId ? { runId } : {}) };
     if (old < 0 || !isDeepStrictEqual(this.index.downloads[old], record)) {

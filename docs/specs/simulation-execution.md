@@ -619,16 +619,20 @@ and diagnostic export, not duplicated beside its CSV in Explorer. Archived
 legacy output artifacts remain readable/exportable without being regenerated.
 
 Automatic retention and **Archive current run** capture a run's verified artifact
-set and compact presentation metadata in browser IndexedDB. Saving a new run
-does not evict older run records, including session-only results whose storage
-failed. Archives accept up to 512 MiB per run, within browser quota and the shared
+set and compact presentation metadata in browser IndexedDB. Before admitting a
+new bundle, reclaim eligible older automatic caches; protect explicit Saves,
+legacy records, the latest durable result and evidence in use. Failed saves
+retain their session result for an evidence-only retry. The complete body set
+and catalog commit atomically. See [evidence storage](simulation-evidence-storage.md).
+Archives accept up to 512 MiB per run, within browser quota and the shared
 1 GiB Project evidence budget. Individual evidence files allow 256 MiB, with
 only a bounded cache held in memory. Opening an archive republishes its
 verified files into the current session File Resource and decodes the ordinary
 result contracts; it does not rerun ngspice or silently substitute the current
 Project revision. Complete-run ZIP remains the portable/Agent-accessible
-archive path. Browser quota or storage denial is recoverable and never blocks
-running or exporting a simulation.
+archive path. Browser quota and storage denial report a persistence failure
+separately from completed execution. Existing durable files remain readable;
+export retries retained evidence without executing the simulator again.
 
 Recoverable problems use `{code,message,stage,recovery,diagnostics?}`. Ordinary
 compile errors, unavailable Profiles, simulator failures and busy responses do

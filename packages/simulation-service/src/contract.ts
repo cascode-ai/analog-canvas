@@ -642,6 +642,7 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
     cursor: Id.optional(),
   }),
   z.strictObject({ operation: z.literal("history-usage") }),
+  z.strictObject({ operation: z.literal("resource-usage") }),
   z.strictObject({
     operation: z.literal("history-delete"),
     runId: Id,
@@ -952,7 +953,47 @@ export const SimulationBatchSchema = z.strictObject({
   items: z.array(SimulationBatchItemSchema).min(1).max(16),
 });
 export type SimulationBatch = z.infer<typeof SimulationBatchSchema>;
+export const EvidenceResourceUsageSchema = z.strictObject({
+  scope: z.enum([
+    "browser-project",
+    "session-memory",
+    "agent-session-transfer",
+  ]),
+  usedBytes: z.number().int().nonnegative(),
+  logicalBytes: z.number().int().nonnegative().optional(),
+  reservedBytes: z.number().int().nonnegative(),
+  protectedBytes: z.number().int().nonnegative(),
+  reclaimableBytes: z.number().int().nonnegative(),
+  pendingReclaimBytes: z.number().int().nonnegative(),
+  fileCount: z.number().int().nonnegative(),
+  catalogCount: z.number().int().nonnegative().optional(),
+  identityCount: z.number().int().nonnegative().optional(),
+  byteLimit: z.number().int().positive(),
+  fileLimit: z.number().int().positive(),
+  blockers: z.array(z.string()).max(4096).optional(),
+  originQuota: z
+    .strictObject({
+      usage: z.number().nonnegative().optional(),
+      quota: z.number().nonnegative().optional(),
+    })
+    .optional(),
+});
+export type EvidenceResourceUsage = z.infer<typeof EvidenceResourceUsageSchema>;
 export const SimulationReplySchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    resources: z.array(EvidenceResourceUsageSchema).max(3),
+    resourceProblems: z
+      .array(
+        z.strictObject({
+          scope: z.literal("agent-session-transfer"),
+          code: z.string(),
+          message: z.string(),
+        }),
+      )
+      .max(1)
+      .optional(),
+  }),
   z.strictObject({
     ok: z.literal(true),
     helpers: z.array(

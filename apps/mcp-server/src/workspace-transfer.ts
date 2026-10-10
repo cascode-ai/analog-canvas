@@ -1,22 +1,45 @@
-import type { AgentSessionClient } from "@icm/agent-client";
+import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
 import type { AgentFileResourceResponse } from "@icm/agent-adapter";
 import type { FetchArtifact } from "./local-workspace.js";
 import { TransferPending } from "./transfer-pending.js";
 
 /** One sync's metadata preparation. Local cache hits never enter this function. */
-export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
+export function workspaceTransfer(
+  client: AgentSessionClient,
+  prepared?: AgentFileResourceResponse,
+): FetchArtifact {
   let ids: string[] = [];
   const batches = new Map<string, Promise<AgentFileResourceResponse>>();
   let deferPending = false;
   const pendingIds = new Set<string>();
   const attempts = new Map<string, { started: number; count: number }>();
+  const consumerId = crypto.randomUUID();
+  let protocol: Promise<1 | 2> | undefined;
+  const leases = new Map<string, { path: string; leaseId: string }>();
+  const descriptors = new Map<string, AgentFileResourceResponse>();
+  if (
+    prepared?.ok &&
+    prepared.operation === "simulation-input" &&
+    prepared.result.ok &&
+    "download" in prepared.result
+  )
+    descriptors.set(prepared.result.artifact.id, prepared);
   const fetch: FetchArtifact = async (ref, offset) => {
+    protocol ??= client.artifactTransferVersion();
+    const leased = (await protocol) === 2;
     const attempt = attempts.get(ref.id) ?? { started: Date.now(), count: 0 };
     attempts.set(ref.id, attempt);
     const first = attempt.count++ === 0;
     const position = ids.indexOf(ref.id);
-    let descriptor: AgentFileResourceResponse | undefined;
-    if ((first || deferPending) && position >= 0 && ids.length > 1) {
+    let descriptor: AgentFileResourceResponse | undefined = descriptors.get(
+      ref.id,
+    );
+    if (
+      !descriptor &&
+      (first || deferPending) &&
+      position >= 0 &&
+      ids.length > 1
+    ) {
       const group = Math.floor(position / 32);
       // A publication retry is still one batch per round, not N individual
       // descriptor requests. Ready/cache-hit files do not enter later rounds.
@@ -29,7 +52,9 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
             requestId: crypto.randomUUID(),
             operation: "simulation-input",
             input: {
-              action: "downloads",
+              ...(leased
+                ? { action: "downloads-v2" as const, consumerId }
+                : { action: "downloads" as const }),
               artifactIds: ids
                 .slice(group * 32, group * 32 + 32)
                 .filter((id) => first || pendingIds.has(id) || id === ref.id),
@@ -70,11 +95,10 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
         } else throw new Error(JSON.stringify(response));
       } else throw new Error(JSON.stringify(response));
     }
-    descriptor ??= await client.prepareArtifactDownload(
-      ref.id,
-      undefined,
-      deferPending ? { waitMs: 0 } : {},
-    );
+    descriptor ??= await client.prepareArtifactDownload(ref.id, undefined, {
+      ...(deferPending ? { waitMs: 0 } : {}),
+      ...(leased ? { consumerId } : {}),
+    });
     if (
       deferPending &&
       descriptor.ok &&
@@ -94,18 +118,67 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
           ),
         );
     }
-    if (
-      !descriptor.ok ||
-      descriptor.operation !== "simulation-input" ||
-      !descriptor.result.ok ||
-      !("download" in descriptor.result)
-    )
-      throw new Error(JSON.stringify(descriptor));
-    return client.downloadArtifact(
-      descriptor.result.download.path,
-      offset,
-      ref.sha256,
-    );
+    const ready = (response: AgentFileResourceResponse) => {
+      if (
+        !response.ok ||
+        response.operation !== "simulation-input" ||
+        !response.result.ok ||
+        !("download" in response.result)
+      )
+        throw new Error(JSON.stringify(response));
+      descriptors.set(ref.id, response);
+      const download = response.result.download;
+      if ("leaseId" in download)
+        leases.set(ref.id, { path: download.path, leaseId: download.leaseId });
+      return download;
+    };
+    const refresh = async () => {
+      if (
+        !leased ||
+        attempt.count > 60 ||
+        Date.now() - attempt.started >= 120_000
+      )
+        throw new Error("ARTIFACT_LEASE_RECOVERY_EXHAUSTED");
+      return ready(
+        await client.prepareArtifactDownload(ref.id, undefined, {
+          consumerId: crypto.randomUUID(),
+          waitMs: Math.max(0, 120_000 - (Date.now() - attempt.started)),
+        }),
+      );
+    };
+    let download = ready(descriptor);
+    if ("expiresAt" in download && download.expiresAt <= Date.now())
+      download = await refresh();
+    const stream = () =>
+      client.downloadArtifact(
+        download.path,
+        offset,
+        ref.sha256,
+        "leaseId" in download ? download.leaseId : undefined,
+      );
+    try {
+      const response = await stream();
+      attempts.delete(ref.id);
+      return response;
+    } catch (error) {
+      if (
+        !(error instanceof AgentSessionError) ||
+        !["ARTIFACT_LEASE_EXPIRED", "ARTIFACT_UNAVAILABLE"].includes(error.code)
+      )
+        throw error;
+      download = await refresh();
+      const response = await stream();
+      attempts.delete(ref.id);
+      return response;
+    }
+  };
+  fetch.completed = async (ref) => {
+    const lease = leases.get(ref.id);
+    if (lease) {
+      await client.releaseArtifactDownload(lease.path, lease.leaseId);
+      leases.delete(ref.id);
+      descriptors.delete(ref.id);
+    }
   };
   fetch.select = (refs, options) => {
     ids = [...new Set(refs.map((ref) => ref.id))];

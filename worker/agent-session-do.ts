@@ -22,6 +22,7 @@ import {
   parseAgentProjectResourceRequest,
   type AgentCircuitRequest,
   type AgentFileResourceRequest,
+  type AgentFileResourceResponse,
   type AgentSimulationResourceRequest,
   type AgentProjectResourceRequest,
   type AgentSessionEvent,
@@ -212,7 +213,10 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
-    if (url.pathname.startsWith("/artifacts/")) {
+    if (
+      url.pathname.startsWith("/artifacts/") ||
+      url.pathname === "/artifact-status"
+    ) {
       const now = Date.now();
       if (request.method === "PUT") {
         if (!machine.authorizeEditor(editorSecret(request)))
@@ -241,6 +245,19 @@ export class AgentSessionDO {
             allowedOrigin,
           );
       }
+      if (url.pathname === "/artifact-status") {
+        if (request.method !== "GET")
+          return jsonResponse(
+            { error: "Method not allowed" },
+            405,
+            allowedOrigin,
+          );
+        return jsonResponse(
+          { ok: true, usage: await this.artifacts.usage() },
+          200,
+          allowedOrigin,
+        );
+      }
       const response = await this.artifacts.handle(
         request,
         machine.sessionId,
@@ -250,6 +267,16 @@ export class AgentSessionDO {
         machine.recordActivity(now);
         await this.persist();
       }
+      const maintenanceAt = await this.artifacts.nextMaintenanceAt();
+      if (maintenanceAt)
+        await this.state.storage.setAlarm?.(
+          Math.min(
+            maintenanceAt,
+            Date.now() < machine.expiresAt - EXPIRY_WARNING_MS
+              ? machine.expiresAt - EXPIRY_WARNING_MS
+              : machine.expiresAt,
+          ),
+        );
       return response;
     }
     if (request.method === "POST" && url.pathname === "/claim") {
@@ -578,6 +605,7 @@ export class AgentSessionDO {
 
   async alarm(): Promise<void> {
     await this.ready;
+    await this.artifacts.maintenance();
     const left = await this.state.storage.get<string[]>(ARTIFACT_CLEANUP_KEY);
     if (left?.length) {
       const still = await this.artifacts.deleteObjects(left);
@@ -600,7 +628,10 @@ export class AgentSessionDO {
     const machine = await this.loadMachine();
     if (machine && Date.now() < machine.expiresAt - EXPIRY_WARNING_MS) {
       await this.state.storage.setAlarm?.(
-        machine.expiresAt - EXPIRY_WARNING_MS,
+        Math.min(
+          machine.expiresAt - EXPIRY_WARNING_MS,
+          (await this.artifacts.nextMaintenanceAt()) ?? Infinity,
+        ),
       );
       return;
     }
@@ -612,7 +643,12 @@ export class AgentSessionDO {
       };
       this.emit(event);
       this.notifyEditor(event);
-      await this.state.storage.setAlarm?.(machine.expiresAt);
+      await this.state.storage.setAlarm?.(
+        Math.min(
+          machine.expiresAt,
+          (await this.artifacts.nextMaintenanceAt()) ?? Infinity,
+        ),
+      );
       return;
     }
     if (machine) {
@@ -1145,14 +1181,18 @@ export class AgentSessionDO {
     });
     try {
       const forwardStarted = performance.now();
-      const result = await this.forwardToEditor(
-        machine,
-        fileRequest,
-        "file-request",
-        request.headers.get("x-agent-context") ?? undefined,
-        request.headers.get("x-agent-workspace") ?? undefined,
-        trace,
-      );
+      const result =
+        fileRequest.operation === "simulation-input" &&
+        fileRequest.input.action === "release-download"
+          ? await this.releaseArtifactLease(machine, fileRequest)
+          : await this.forwardToEditor(
+              machine,
+              fileRequest,
+              "file-request",
+              request.headers.get("x-agent-context") ?? undefined,
+              request.headers.get("x-agent-workspace") ?? undefined,
+              trace,
+            );
       if (trace) trace.result = result as RequestTrace["result"];
       // Export blobs are explicitly one-shot: the DO retains only an unavailable
       // idempotency marker, never their bytes. Candidate summaries are safe to cache.
@@ -1195,6 +1235,45 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+  }
+
+  private async releaseArtifactLease(
+    machine: AgentSessionMachine,
+    request: AgentFileResourceRequest,
+  ): Promise<AgentFileResourceResponse> {
+    if (
+      request.operation !== "simulation-input" ||
+      request.input.action !== "release-download"
+    )
+      throw new Error("INVALID_ARTIFACT_ACK");
+    const response = await this.artifacts.handle(
+      new Request("https://internal/artifacts/" + request.input.fileId, {
+        method: "DELETE",
+        headers: { "x-artifact-lease": request.input.leaseId },
+      }),
+      machine.sessionId,
+      request.input.fileId,
+    );
+    const result =
+      response.ok || response.status === 404
+        ? { ok: true, released: response.ok }
+        : {
+            ok: false,
+            error: {
+              code: "ARTIFACT_ACK_FAILED",
+              message:
+                "Verified local evidence is safe; the download lease will expire",
+              stage: "export",
+              recovery: "retry-after",
+            },
+          };
+    return AgentFileResourceResponseSchema.parse({
+      apiVersion: "3.0",
+      requestId: request.requestId,
+      operation: request.operation,
+      ok: true,
+      result,
+    });
   }
 
   /**
@@ -1897,7 +1976,10 @@ export class AgentSessionDO {
     if (this.publishedExpiresAt !== this.machine.expiresAt) {
       this.publishedExpiresAt = this.machine.expiresAt;
       await this.state.storage.setAlarm?.(
-        Math.max(Date.now(), this.machine.expiresAt - EXPIRY_WARNING_MS),
+        Math.min(
+          Math.max(Date.now(), this.machine.expiresAt - EXPIRY_WARNING_MS),
+          (await this.artifacts.nextMaintenanceAt()) ?? Infinity,
+        ),
       );
       const event: AgentSessionEvent = {
         type: "session.renewed",

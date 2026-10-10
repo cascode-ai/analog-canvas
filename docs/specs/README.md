@@ -16,6 +16,7 @@ against. They describe required behavior and invariants, not task history.
 | [`simulation.md`](simulation.md)                             | accepted | Source folders, native/legacy configuration, mapped edits, compilation and Code interaction |
 | [`simulation-execution.md`](simulation-execution.md)         | accepted | Profiles, preparation, execution, retention, File artifacts, and qualification              |
 | [`simulation-results.md`](simulation-results.md)             | accepted | Numeric evidence, rawfiles, units, measurements, and CSV                                    |
+| [`simulation-evidence-storage.md`](simulation-evidence-storage.md) | accepted | Evidence admission, cache reclamation, lossless storage and leased Agent downloads |
 | [`connectivity-and-routing.md`](connectivity-and-routing.md) | accepted | Physical/Logical Nets, Route graph, contacts, guidance, cuts, and locks                     |
 | [`visual-language.md`](visual-language.md)                   | accepted | Razavi visual tokens, annotations, overlays, golden output                                  |
 | [`names-and-labels.md`](names-and-labels.md)                 | accepted | Electrical names versus label display, standard looks, rename and editing rules             |

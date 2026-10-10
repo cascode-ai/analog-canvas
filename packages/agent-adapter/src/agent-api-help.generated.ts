@@ -14,6 +14,10 @@ export const agentApiHelp = {
     "Discover Profiles/help; run submits a revisioned source once, including preparation. Optional prepare/start supports inspection and reuse. Read/cancel or catalog/export runs and batches; history and history-usage discover retained evidence. history-delete targets one completed run, supports dryRun, and requires includeSaved for saved archives. Preserve request ID/payload for uncertain writes. Execution failure does not revoke authorization.",
   agentSessionProjectResource:
     "Read the signed-in Community Gallery and insert-gallery-entry: source Cell drawing and dependency closure into targetDocumentId at position, guarded by expectedRevision and expectedStructureRevision, in one undoable edit of the bound workspace. No new tab or project replacement; requires project.import plus existing edit scopes. Also read or replace Project Code/netlists and discover/import saved Cloud Cells. publish-gallery-entry/update-gallery-entry put the working copy its tab shows on the Gallery as the signed-in Editor account, marked AI (update keeps unnamed fields) and require gallery.publish. As an AI account, list-gallery with scope ai-seats (and status rejected) lists every AI account's entries with status and rejectReason, and update-gallery-entry with takeOver republishes one under your name.",
+  agentSessionArtifactAcknowledge:
+    "Release this download lease after original length/SHA256 verification and atomic local publication. Does not delete project evidence or other consumers' leases.",
+  agentSessionArtifactUsage:
+    "Session transfer replica usage, separate from browser project evidence. Pending R2 deletion remains charged.",
   agentSessionArtifactDownload:
     "Stream immutable bytes using the simulation.run bearer. Get paths via File simulation-input download or downloads (1–32 IDs); each batch entry independently reports ready/pending/error. Retry pending descriptors with fresh IDs after retryAfterMs, never restart execution. Range/If-Range support resume. No cookies or tokens in URLs. Authorized published transfers survive temporary browser offline; local files survive revocation.",
 };

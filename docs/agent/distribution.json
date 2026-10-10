@@ -367,6 +367,23 @@
       "mimeType": "text/markdown"
     },
     {
+      "id": "reference/simulation-evidence-storage",
+      "source": "docs/agent/simulation-evidence-storage.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
+      "task": "Simulation evidence usage and recovery",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/simulation-evidence-storage",
+      "kitPath": "references/simulation-evidence-storage.md",
+      "name": "simulation-evidence-storage.md",
+      "description": "Storage budgets, leased downloads and evidence-only recovery.",
+      "mimeType": "text/markdown"
+    },
+    {
       "id": "reference/simulation-result-handoff",
       "source": "docs/agent/simulation-result-handoff.md",
       "consumers": [
@@ -494,7 +511,10 @@
   },
   "templateConsumers": {
     "apiHelp": {
-      "consumers": ["http-kit", "maintainer"],
+      "consumers": [
+        "http-kit",
+        "maintainer"
+      ],
       "task": "Describe published HTTP operations"
     },
     "connect": {

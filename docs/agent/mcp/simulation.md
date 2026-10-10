@@ -58,6 +58,10 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    The default receipt keeps current-task counts and up to 16 file paths/timings;
    larger selections use `filesOmitted` and the local index. Outer `detail:"full"`
    retains every file and history. Explicit `workspace` lists local runs.
+   Transfers are on demand. The helper negotiates download leases and ACKs only
+   after verified local publication. `simulation` / `resource-usage` distinguishes
+   browser evidence from Worker replicas; see [evidence recovery](../simulation-evidence-storage.md)
+   when storage or download capacity fails. Retrying evidence never reruns a solver.
    Full identities, units and dataset mapping remain in the returned local index.
    `simulation_results` `catalog` is the explicit full remote directory, not
    a mandatory extra step. Read data locally rather than paging waveform previews.

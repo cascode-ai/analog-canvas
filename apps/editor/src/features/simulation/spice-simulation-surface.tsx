@@ -18,6 +18,7 @@ import {
   newFolderProfile,
 } from "@icm/netlist";
 import { profileEngine } from "@icm/simulation-service";
+import type { ReleaseEvidence } from "@icm/simulation-service/files";
 import type { SimulationCodeWorkspaceProps } from "./code-workspace";
 import type {
   ArtifactRef,
@@ -31,6 +32,7 @@ import type {
 import { downloadTextArtifact } from "../../document/project-file-service";
 import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
 import { SimulationExampleCards } from "./simulation-example-cards";
+import { SimulationStorageStatus } from "./simulation-storage-status";
 export type {
   SpiceSimulationSurfaceProps,
   SimulationFolderSaveResult,
@@ -84,6 +86,14 @@ interface PreparedPresentation {
 function uiProblem(code: string, message: string): Problem {
   return { code, message, stage: "input", recovery: "fix-input" };
 }
+function evidencePersistenceFailed(run: Run | undefined) {
+  return (
+    run?.error?.stage === "export" ||
+    run?.error?.diagnostics?.some(
+      (item) => item.code === "RUN_EVIDENCE_STORAGE_UNAVAILABLE",
+    )
+  );
+}
 
 /** A projection of the same prepare/start/read/cancel service used by MCP.
  * The canvas remains the editor for sources, connections and DUT instances. */
@@ -121,6 +131,26 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
+  const viewedRunId = run?.id;
+  useEffect(() => {
+    if (!viewedRunId) return;
+    let disposed = false;
+    let release: ReleaseEvidence | undefined;
+    void session.files
+      .pinRun(viewedRunId)
+      .then((unpin) => {
+        if (disposed) void unpin();
+        else release = unpin;
+      })
+      .catch((error: unknown) => {
+        if (!disposed)
+          setProblem(uiProblem("RESULT_PROTECTION_FAILED", String(error)));
+      });
+    return () => {
+      disposed = true;
+      void release?.();
+    };
+  }, [session, viewedRunId]);
   const openedProjectFiles = useRef(new Map<string, string>());
   const openedProjectFile = run
     ? openedProjectFiles.current.get(run.id)
@@ -645,11 +675,47 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     }
     setArtifactPreview(result.content);
   };
+  const recoverRunEvidence = async (current: Run): Promise<Run | undefined> => {
+    const exported = await session.handle({
+      operation: "export",
+      runId: current.id,
+    });
+    if (!exported.ok) {
+      // Reopened portable archives have verified files but no live service Run.
+      if (
+        exported.error.code === "ARTIFACT_UNAVAILABLE" &&
+        !evidencePersistenceFailed(current)
+      )
+        return current;
+      setProblem(exported.error);
+      return undefined;
+    }
+    const reply = await session.handle({
+      operation: "read",
+      runId: current.id,
+    });
+    receive(reply);
+    return reply.ok && "run" in reply ? reply.run : undefined;
+  };
+  const retrySaving = async () => {
+    if (!run) return;
+    setArtifactBusy("evidence:retry");
+    await recoverRunEvidence(run);
+    setArtifactBusy(undefined);
+  };
   const downloadBundle = async (
     key: "diagnostics" | "run",
     artifacts: readonly ArtifactRef[],
   ) => {
     setArtifactBusy(`bundle:${key}`);
+    if (key === "run" && run) {
+      const recovered = await recoverRunEvidence(run);
+      if (!recovered) {
+        setArtifactBusy(undefined);
+        return;
+      }
+      artifacts = recovered.artifacts;
+    }
     const result = await buildSimulationArtifactArchive(
       session.files,
       artifacts,
@@ -677,6 +743,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     )
       return;
     setArtifactBusy("archive:save");
+    const evidenceRun = await recoverRunEvidence(run);
+    if (!evidenceRun) {
+      setArtifactBusy(undefined);
+      return;
+    }
     const captured = await captureSimulationRunArchive(session.files, {
       projectId: project.id,
       presentation: {
@@ -689,7 +760,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           : {}),
       },
       prepared: runPresentation.prepared,
-      run,
+      run: evidenceRun,
     });
     if (!captured.ok) {
       setArtifactBusy(undefined);
@@ -871,13 +942,18 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       run: async () => {
         if (!run || !openedProjectFile) return;
         setArtifactBusy("bundle:project");
+        const recovered = await recoverRunEvidence(run);
+        if (!recovered) {
+          setArtifactBusy(undefined);
+          return;
+        }
         const result = await buildSimulationWorkspaceArchive(session.files, [
           {
             kind: "text",
             path: "project.icproj.json",
             text: openedProjectFile,
           },
-          ...run.artifacts.map((artifact) => ({
+          ...recovered.artifacts.map((artifact) => ({
             kind: "artifact" as const,
             path: `results/${artifact.name}`,
             artifact,
@@ -1172,6 +1248,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const historyContent = (
     <details className="simulation-run-history">
       <summary>Run history</summary>{" "}
+      <SimulationStorageStatus
+        files={session.files}
+        projectId={project.id}
+        revision={`${run?.id ?? ""}:${run?.state ?? ""}:${archives.length}`}
+      />
       <label>
         <input
           type="checkbox"
@@ -1299,6 +1380,22 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                 The on-screen result is bounded; exported artifacts contain the
                 complete data.
               </p>
+            ) : null}
+            {run && evidencePersistenceFailed(run) ? (
+              <div aria-label="Run evidence persistence">
+                <p>
+                  Execution: {run.details?.execution ?? "finished"} ·
+                  Collection: {run.details?.collection ?? "unknown"} ·
+                  Persistence: failed. Collected results remain in this session.
+                </p>
+                <button
+                  type="button"
+                  disabled={!!artifactBusy}
+                  onClick={() => void retrySaving()}
+                >
+                  Retry saving results
+                </button>
+              </div>
             ) : null}
             {activeProblem ? (
               <SimulationProblemView

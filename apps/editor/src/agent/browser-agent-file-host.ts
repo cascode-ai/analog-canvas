@@ -8,8 +8,10 @@ import {
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
 } from "@icm/agent-adapter";
-import { SimulationFiles } from "@icm/simulation-service/files";
-import type { ArtifactRef } from "@icm/simulation-service/contract";
+import {
+  SimulationFiles,
+  type ArtifactPublisher,
+} from "@icm/simulation-service/files";
 import type {
   ProjectTransaction,
   ProjectTransactionResult,
@@ -70,9 +72,10 @@ export class BrowserAgentFileHost {
   private readonly candidates = new Map<string, StoredCandidate>();
   private readonly boundProjectSessionId: string;
   setArtifactPublisher(
-    publisher: (ref: ArtifactRef, text: string) => Promise<string>,
+    publisher: ArtifactPublisher,
+    options?: { leasedDownloads?: boolean },
   ) {
-    this.simulationFiles.setArtifactPublisher(publisher);
+    this.simulationFiles.setArtifactPublisher(publisher, options);
   }
 
   constructor(private readonly options: BrowserAgentFileHostOptions) {

@@ -86,6 +86,7 @@ export default {
         "e2e/**/*.spec.ts",
         // Specs load these by URL (e2e/helpers/page-modules.ts).
         "e2e/helpers/*-harness.tsx",
+        "e2e/helpers/simulation-files.ts",
       ],
       project: [
         "src/**/*.{ts,tsx}!",

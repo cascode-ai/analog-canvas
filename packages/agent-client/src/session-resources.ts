@@ -121,10 +121,37 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
   }
 
   /** Publication progresses independently of short relay RPCs. Poll metadata only. */
+  async artifactTransferVersion(): Promise<1 | 2> {
+    const response = await this.fileResource({
+      apiVersion: AGENT_API_VERSION,
+      requestId: this.newRequestId(),
+      operation: "simulation-input",
+      input: { action: "transfer-capabilities" },
+    });
+    if (
+      response.ok &&
+      response.operation === "simulation-input" &&
+      response.result.ok &&
+      "artifactTransfer" in response.result
+    )
+      return response.result.artifactTransfer.protocols.includes(2) ? 2 : 1;
+    const error = !response.ok
+      ? response.error
+      : response.operation === "simulation-input" && !response.result.ok
+        ? response.result.error
+        : undefined;
+    if (error && /INVALID|UNSUPPORTED|UNKNOWN/u.test(error.code)) return 1;
+    if (error) throw new Error(error.code);
+    throw new Error("ARTIFACT_CAPABILITIES_INVALID");
+  }
   async prepareArtifactDownload(
     artifactId: string,
     requestId = this.newRequestId(),
-    options: { waitMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+    options: {
+      waitMs?: number;
+      sleep?: (ms: number) => Promise<void>;
+      consumerId?: string;
+    } = {},
   ): Promise<AgentFileResourceResponse> {
     const deadline =
       Date.now() + Math.max(0, Math.min(options.waitMs ?? 120_000, 120_000));
@@ -136,7 +163,13 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
         apiVersion: AGENT_API_VERSION,
         requestId: attempt ? this.newRequestId() : requestId,
         operation: "simulation-input",
-        input: { action: "download", artifactId },
+        input: options.consumerId
+          ? {
+              action: "download-v2",
+              artifactId,
+              consumerId: options.consumerId,
+            }
+          : { action: "download", artifactId },
       });
       if (
         !response.ok ||
@@ -162,6 +195,7 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
     path: string,
     offset = 0,
     digest?: string,
+    leaseId?: string,
   ): Promise<Response> {
     return this.withAuthorization((session) =>
       this.http.downloadArtifact(
@@ -170,6 +204,17 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
         path,
         offset,
         digest,
+        leaseId,
+      ),
+    );
+  }
+  async releaseArtifactDownload(path: string, leaseId: string): Promise<void> {
+    return this.withAuthorization((session) =>
+      this.http.releaseArtifactDownload(
+        session.sessionId,
+        session.agentToken,
+        path,
+        leaseId,
       ),
     );
   }
@@ -194,6 +239,33 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
           attempts,
         ),
     );
+    if (
+      request.operation === "resource-usage" &&
+      response.ok &&
+      "resources" in response
+    ) {
+      try {
+        const transfer = await this.withAuthorization((session) =>
+          this.http.artifactUsage(session.sessionId, session.agentToken),
+        );
+        return { ...response, resources: [...response.resources, transfer] };
+      } catch (error) {
+        return {
+          ...response,
+          resourceProblems: [
+            {
+              scope: "agent-session-transfer",
+              code:
+                error instanceof AgentSessionError
+                  ? error.code
+                  : "TRANSFER_STATUS_UNAVAILABLE",
+              message:
+                "Session transfer usage could not be observed; project storage status remains available",
+            },
+          ],
+        };
+      }
+    }
     const reusable =
       response.ok &&
       ((request.operation === "capabilities" && "capabilities" in response) ||

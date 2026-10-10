@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "bcb03d34fbe4a63d6e6b9e95e56dfc5bb95de43029919c8b42668eeb894f18b5",
+  "registrySha256": "8ce51f004914620d154cb54df36b2c6e73dc2ee7850eda8b1c33dbf3d430c08a",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -88,8 +88,12 @@
       "sha256": "9c31c1ab69681bd94f7ca3ada8ad1ec165d2a622db149dcb95dda1b84da2d5c5"
     },
     {
+      "source": "docs/agent/simulation-evidence-storage.md",
+      "sha256": "1bb24645dacf0d2e877876bd75391eb10bdbb52b86b800aff1c048563efe8b5b"
+    },
+    {
       "source": "docs/agent/simulation-result-handoff.md",
-      "sha256": "84d4f478a9f01e082bf39e1399f30d87c4a3c888a95f35cc62f3c81794c6fc72"
+      "sha256": "6397b1c19e5ff09b539ca141acdea0aa394d9c55e2bc2258dca9e2615bd7807f"
     },
     {
       "source": "docs/agent/mcp/tools.md",
@@ -97,7 +101,7 @@
     },
     {
       "source": "docs/agent/mcp/simulation.md",
-      "sha256": "f96737b6733c9661dbd7996e4ca532227aa61c901dca7a745c0fb49d6486ab13"
+      "sha256": "7dc9f10d892db3b0f30c15f2b9d6ff689c2658320a36f9c3ac5e69a6ba4e345b"
     },
     {
       "source": "docs/agent/mcp/simulation-reference.md",
@@ -121,7 +125,7 @@
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
-      "sha256": "438ad43ce85a1f4c14c4771a41b907ef9c59c8401d742168de46476a61968da1"
+      "sha256": "bd8f5af77be9987793863081456098f5d3e296d0386265cb6619d91a14164f00"
     },
     {
       "source": "docs/agent/mcp/instructions.md",
@@ -429,6 +433,20 @@
       "kitPath": "references/examples.md"
     },
     {
+      "id": "reference/simulation-evidence-storage",
+      "source": "docs/agent/simulation-evidence-storage.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
+      "task": "Simulation evidence usage and recovery",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/simulation-evidence-storage",
+      "kitPath": "references/simulation-evidence-storage.md"
+    },
+    {
       "id": "reference/simulation-result-handoff",
       "source": "docs/agent/simulation-result-handoff.md",
       "consumers": [
@@ -580,6 +598,7 @@
         "docs/agent/knowledge/hierarchy-and-large-circuits.md",
         "docs/agent/knowledge/pdk-and-symbols.md",
         "docs/agent/mcp-install.md",
+        "docs/agent/simulation-evidence-storage.md",
         "docs/agent/simulation-result-handoff.md",
         "docs/agent/mcp/tools.md",
         "docs/agent/mcp/simulation.md",
@@ -587,7 +606,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "ee273b1b1441ae499deffc704547aa56fa076ad8ec5891d80bc5a89747d07ace"
+      "sha256": "7d57b6bef392c406a8d1af48782905de6be4ee12f2d37a5e4c01da5ca69e2762"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -612,11 +631,12 @@
         "docs/agent/knowledge/pdk-and-symbols.md",
         "docs/agent/api-usage.md",
         "docs/agent/examples.md",
+        "docs/agent/simulation-evidence-storage.md",
         "docs/agent/simulation-result-handoff.md",
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "6248d6b80e7a1be576a584106d857e741bc3ce0cff100f2d92aa7a2638724a74"
+      "sha256": "bc6e78e9891a138bf301a1deaf9b4f7b6294f6e4654ef88045832b561d43f8db"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -624,7 +644,7 @@
         "docs/agent/distribution.json",
         "docs/agent/http-kit/api-help.json"
       ],
-      "sha256": "3a963ed9d1550944602956a3756f910c992a2dbc1dd84d2cba6b7a880e07dedc"
+      "sha256": "5f5f6371d9a5533869e1067cb6762a0267060e5deba702fb4282d660ed0934f8"
     },
     {
       "file": "apps/mcp-server/src/guidance.generated.ts",

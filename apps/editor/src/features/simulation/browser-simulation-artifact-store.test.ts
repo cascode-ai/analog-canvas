@@ -1,12 +1,722 @@
+import { createHash } from "node:crypto";
 import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
-import { SimulationFiles } from "@icm/simulation-service/files";
+import { SimulationFiles, sha256 } from "@icm/simulation-service/files";
 import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
 import { SimulationService } from "@icm/simulation-service";
 import { createEmptyProject } from "@icm/model";
 
+const digest = (text: string) =>
+  createHash("sha256").update(text).digest("hex");
+
 describe("persistent simulation evidence", () => {
+  it("falls back to original identity bytes after a compression Worker times out", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore(
+      "codec-timeout",
+      factory,
+      { compression: true },
+    )!;
+    const text = "voltage,0.9\n".repeat(7000);
+    const ref = {
+      id: "timeout",
+      name: "result.csv",
+      mediaType: "text/csv",
+      byteLength: new Blob([text]).size,
+      sha256: await sha256(text),
+    };
+    const posted = vi.fn();
+    const terminated = vi.fn();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.stubGlobal(
+      "Worker",
+      class {
+        postMessage = posted;
+        terminate = terminated;
+      },
+    );
+    try {
+      const saving = store.put(ref, text).then(
+        () => ({ ok: true }),
+        (error: unknown) => ({ ok: false, error }),
+      );
+      await vi.waitFor(() => expect(posted).toHaveBeenCalledOnce());
+      await vi.advanceTimersByTimeAsync(120_001);
+      expect(await saving).toEqual({ ok: true });
+      expect(terminated).toHaveBeenCalledOnce();
+      expect((await store.usage!()).byteLength).toBe(ref.byteLength);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+    expect((await store.get(ref.id))?.text).toBe(text);
+  });
+  it("rejects same-length corruption of identity evidence and preserves its charged bytes", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore(
+      "identity-corrupt",
+      factory,
+    )!;
+    const files = new SimulationFiles(Date.now, undefined, undefined, store);
+    const ref = await files.put(
+      "result.json",
+      "application/json",
+      '{"voltage":0.9}',
+    );
+    const before = await store.usage!();
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      const open = factory.open("analog-canvas-simulation-files", 4);
+      open.onsuccess = () => resolve(open.result);
+    });
+    try {
+      const tx = db.transaction("bodies", "readwrite");
+      tx.objectStore("bodies").put(new Blob(['{"voltage":0.8}']), [
+        "identity-corrupt",
+        ref.id,
+      ]);
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onabort = () => reject(tx.error);
+      });
+      const reopened = createBrowserSimulationArtifactStore(
+        "identity-corrupt",
+        factory,
+      )!;
+      await expect(reopened.get(ref.id)).rejects.toThrow(
+        "ARTIFACT_CODEC_INTEGRITY",
+      );
+      expect((await reopened.usage!()).byteLength).toBe(before.byteLength);
+    } finally {
+      db.close();
+    }
+  });
+  it.each([false, true])(
+    "preserves original UTF-8 BOM bytes across reopen (compression=%s)",
+    async (compression) => {
+      const factory = new IDBFactory();
+      const store = createBrowserSimulationArtifactStore("utf8-bom", factory, {
+        compression,
+      })!;
+      const files = new SimulationFiles(Date.now, undefined, undefined, store);
+      const text =
+        "\uFEFF" + "time,电压\r\n0,0.900000000000000\r\n".repeat(3000);
+      const ref = await files.put("bom.csv", "text/csv", text);
+      const reopened = createBrowserSimulationArtifactStore(
+        "utf8-bom",
+        factory,
+      )!;
+      const restored = await reopened.get(ref.id);
+      expect(restored?.text).toBe(text);
+      expect(await sha256(restored!.text)).toBe(ref.sha256);
+      expect(new Blob([restored!.text]).size).toBe(ref.byteLength);
+    },
+  );
+  it("keeps the latest successfully completed result when a later solver failure publishes only its input evidence", async () => {
+    const store = createBrowserSimulationArtifactStore(
+      "latest-success",
+      new IDBFactory(),
+      { limits: { bytes: 12, files: 8 }, locks: navigator.locks },
+    )!;
+    const ref = (id: string) => ({
+      id,
+      name: id,
+      mediaType: "text/plain",
+      byteLength: 4,
+      sha256: digest("data"),
+    });
+    for (const [id, execution, storedAt] of [
+      ["success", "completed", 1],
+      ["failure", "failed", 2],
+    ] as const) {
+      await store.put(ref(id), "data");
+      await store.saveCatalog!({
+        storedAt,
+        catalog: {
+          schemaVersion: 1,
+          runId: id,
+          preparedId: "prepared",
+          inputRevision: "rev",
+          execution,
+          collection: "complete",
+          retentionPolicy: "cache",
+          files: [ref(id)],
+          datasets: [],
+        },
+      });
+    }
+    await store.put(
+      { ...ref("incoming"), byteLength: 8, sha256: digest("incoming") },
+      "incoming",
+    );
+    expect((await store.get("success"))?.text).toBe("data");
+    expect(await store.get("failure")).toBeNull();
+    expect(await store.latestPersistedRun()).toBe("success");
+  });
+  it("coordinates a new producer with a cleanup snapshot so its fresh evidence cannot be reclaimed", async () => {
+    const factory = new IDBFactory();
+    const initial = createBrowserSimulationArtifactStore(
+      "producer-gc-race",
+      factory,
+    )!;
+    const ref = {
+      id: "old",
+      name: "raw",
+      mediaType: "text/plain",
+      byteLength: 4,
+      sha256: digest("data"),
+    };
+    await initial.put(ref, "data");
+    let release!: () => void;
+    let observed!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const captured = new Promise<void>((resolve) => {
+      observed = resolve;
+    });
+    const locks: LockManager = {
+      request: navigator.locks.request.bind(navigator.locks),
+      async query() {
+        const state = await navigator.locks.query();
+        observed();
+        await gate;
+        return state;
+      },
+    };
+    const archives = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+      locks,
+    });
+    const cleanup = archives.cleanup("producer-gc-race");
+    await captured;
+    const producer = createBrowserSimulationArtifactStore(
+      "producer-gc-race",
+      factory,
+      { retainSession: true, cleanupOnStart: false, locks },
+    )!;
+    let published = false;
+    const publishing = producer
+      .put({ ...ref, id: "fresh" }, "data")
+      .then(() => {
+        published = true;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const premature = published;
+    release();
+    await cleanup;
+    await publishing;
+    expect(premature).toBe(false);
+    expect(await producer.get("fresh")).toEqual({
+      ref: { ...ref, id: "fresh" },
+      text: "data",
+    });
+    await producer.releaseSession!();
+    archives.close();
+  });
+  it("retries a failed public bundle publication with the original file identities", async () => {
+    const store = createBrowserSimulationArtifactStore(
+      "retry-identity",
+      new IDBFactory(),
+      { retainSession: true, cleanupOnStart: false, locks: navigator.locks },
+    )!;
+    const files = new SimulationFiles(Date.now, undefined, undefined, store);
+    const entries = [
+      {
+        name: "out.raw",
+        mediaType: "text/plain",
+        text: "data",
+        metadata: { role: "raw" as const },
+      },
+    ];
+    const finish = () => ({
+      name: "manifest.json",
+      mediaType: "application/json",
+      text: "{}",
+      metadata: { role: "manifest" as const },
+    });
+    const catalog = (
+      refs: readonly import("@icm/simulation-service/contract").ArtifactRef[],
+    ) => ({
+      schemaVersion: 1 as const,
+      runId: "retry",
+      preparedId: "prepared",
+      inputRevision: "rev",
+      retentionPolicy: "cache" as const,
+      execution: "completed" as const,
+      collection: "complete" as const,
+      files: [...refs],
+      datasets: [],
+    });
+    const failedIds: string[] = [];
+    const original = IDBObjectStore.prototype.put;
+    const fault = vi
+      .spyOn(IDBObjectStore.prototype, "put")
+      .mockImplementation(function (this: IDBObjectStore, value, key) {
+        if (this.name === "files") failedIds.push(value.ref.id);
+        if (this.name === "catalogs")
+          throw new DOMException("Full", "QuotaExceededError");
+        return original.call(this, value, key);
+      });
+    try {
+      await expect(
+        files.publishEvidence("retry", entries, finish, catalog),
+      ).rejects.toMatchObject({ name: "QuotaExceededError" });
+    } finally {
+      fault.mockRestore();
+    }
+    expect(await store.usage!()).toMatchObject({
+      byteLength: 0,
+      fileCount: 0,
+      catalogCount: 0,
+    });
+    const refs = await files.publishEvidence("retry", entries, finish, catalog);
+    expect(refs.map((ref) => ref.id)).toEqual(failedIds);
+    expect(await files.readArtifact(refs[0]!.id)).toMatchObject({
+      ok: true,
+      text: "data",
+    });
+    await store.releaseSession!();
+  });
+  it("rejects damaged compressed evidence without discarding its stored bytes", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore(
+      "damaged-gzip",
+      factory,
+      { compression: true },
+    )!;
+    const text = "0.001,1.2,-3.4\n".repeat(8192);
+    const ref = {
+      id: "damaged",
+      name: "ac.csv",
+      mediaType: "text/csv",
+      byteLength: new TextEncoder().encode(text).byteLength,
+      sha256: await sha256(text),
+    };
+    await store.put(ref, text);
+    const before = await store.usage!();
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      const open = factory.open("analog-canvas-simulation-files", 4);
+      open.onsuccess = () => resolve(open.result);
+    });
+    try {
+      for (const [encoding, length, digest, error] of [
+        ["unknown", ref.byteLength, ref.sha256, "ARTIFACT_CODEC_UNSUPPORTED"],
+        ["gzip", ref.byteLength - 1, ref.sha256, "ARTIFACT_CODEC_LIMIT"],
+        ["gzip", ref.byteLength, "0".repeat(64), "ARTIFACT_CODEC_INTEGRITY"],
+      ] as const) {
+        const tx = db.transaction("files", "readwrite");
+        const file = tx.objectStore("files").get(["damaged-gzip", ref.id]);
+        file.onsuccess = () =>
+          tx.objectStore("files").put(
+            {
+              ...file.result,
+              encoding,
+              ref: { ...ref, byteLength: length, sha256: digest },
+            },
+            ["damaged-gzip", ref.id],
+          );
+        await new Promise<void>((resolve, reject) => {
+          tx.oncomplete = () => resolve();
+          tx.onabort = () => reject(tx.error);
+        });
+        await expect(store.get(ref.id)).rejects.toThrow(error);
+        expect((await store.usage!()).byteLength).toBe(before.byteLength);
+      }
+    } finally {
+      db.close();
+    }
+  });
+  it("rejects a blocked historical database upgrade without hanging or deleting the old bytes", async () => {
+    const factory = new IDBFactory();
+    const historical = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = factory.open("analog-canvas-simulation-files", 3);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore("legacy-proof").put("kept", "file");
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      const store = createBrowserSimulationArtifactStore("blocked", factory)!;
+      await expect(store.get("file")).rejects.toThrow(
+        "ARTIFACT_STORAGE_UPGRADE_BLOCKED",
+      );
+      const read = historical
+        .transaction("legacy-proof")
+        .objectStore("legacy-proof")
+        .get("file");
+      expect(
+        await new Promise((resolve) => {
+          read.onsuccess = () => resolve(read.result);
+        }),
+      ).toBe("kept");
+    } finally {
+      historical.close();
+    }
+  });
+  it("charges duplicate identities once and refuses an incoming conflict before reclaiming evidence", async () => {
+    const store = createBrowserSimulationArtifactStore(
+      "duplicate",
+      new IDBFactory(),
+      { limits: { bytes: 8, files: 1 }, locks: navigator.locks },
+    )!;
+    const ref = {
+      id: "same",
+      name: "raw",
+      mediaType: "text/plain",
+      byteLength: 8,
+      sha256: digest("abcdefgh"),
+    };
+    await store.putMany!([
+      { ref, text: "abcdefgh" },
+      { ref, text: "abcdefgh" },
+    ]);
+    expect(await store.usage!()).toMatchObject({ byteLength: 8, fileCount: 1 });
+    await expect(
+      store.putMany!([{ ref: { ...ref, name: "conflict" }, text: "abcdefgh" }]),
+    ).rejects.toThrow("ARTIFACT_ID_CONFLICT");
+    expect(await store.get(ref.id)).toEqual({ ref, text: "abcdefgh" });
+  });
+  it("charges compressed storage bytes while preserving original UTF-8 bytes and identity on reopen", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore("gzip", factory, {
+      compression: true,
+      locks: navigator.locks,
+      limits: { bytes: 4096, files: 8 },
+    })!;
+    const text =
+      "frequency,V(out).real,V(out).imag\r\n1.000000,2.000000,-3.000000\r\n".repeat(
+        2048,
+      );
+    const ref = {
+      id: "complex-ac",
+      name: "ac.csv",
+      mediaType: "text/csv",
+      byteLength: new TextEncoder().encode(text).byteLength,
+      sha256: await sha256(text),
+    };
+    await store.put(ref, text);
+    expect((await store.usage!()).byteLength).toBeLessThan(4096);
+    const reopened = createBrowserSimulationArtifactStore("gzip", factory)!;
+    expect(await reopened.get(ref.id)).toEqual({ ref, text });
+    expect(ref.byteLength).toBeGreaterThan(100000);
+  });
+  it("aborts a producer write when its session changes before commit", async () => {
+    const store = createBrowserSimulationArtifactStore(
+      "retired-producer",
+      new IDBFactory(),
+      { retainSession: true, cleanupOnStart: false, locks: navigator.locks },
+    )!;
+    const original = IDBObjectStore.prototype.put;
+    const fault = vi
+      .spyOn(IDBObjectStore.prototype, "put")
+      .mockImplementation(function (this: IDBObjectStore, value, key) {
+        const result = original.call(this, value, key);
+        if (this.name === "bodies") void store.releaseSession!();
+        return result;
+      });
+    try {
+      await expect(
+        store.put(
+          {
+            id: "file",
+            name: "file",
+            mediaType: "text/plain",
+            byteLength: 4,
+            sha256: digest("data"),
+          },
+          "data",
+        ),
+      ).rejects.toThrow("SESSION_CHANGED");
+    } finally {
+      fault.mockRestore();
+    }
+    expect(await store.get("file")).toBeNull();
+    await store.releaseSession!();
+  });
+  it("publishes the complete evidence bundle and catalog atomically", async () => {
+    const store = createBrowserSimulationArtifactStore(
+      "bundle",
+      new IDBFactory(),
+      {
+        retainSession: true,
+        cleanupOnStart: false,
+        locks: navigator.locks,
+        limits: { bytes: 12, files: 4 },
+      },
+    )!;
+    const ref = (id: string, size: number) => ({
+      id,
+      name: id,
+      mediaType: "text/plain",
+      byteLength: size,
+      sha256: digest(size === 4 ? "data" : "12345678"),
+    });
+    const entries = [
+      { ref: ref("result", 8), text: "12345678" },
+      { ref: ref("manifest", 4), text: "data" },
+    ];
+    const catalog = {
+      schemaVersion: 1 as const,
+      runId: "bundle-run",
+      preparedId: "prepared",
+      inputRevision: "rev",
+      retentionPolicy: "cache" as const,
+      execution: "completed" as const,
+      collection: "complete" as const,
+      files: entries.map((entry) => entry.ref),
+      datasets: [],
+    };
+    const original = IDBObjectStore.prototype.put;
+    const fault = vi
+      .spyOn(IDBObjectStore.prototype, "put")
+      .mockImplementation(function (this: IDBObjectStore, value, key) {
+        if (this.name === "catalogs") throw new Error("catalog write failed");
+        return original.call(this, value, key);
+      });
+    try {
+      await expect(
+        store.publishEvidence!(entries, () => ({ catalog, storedAt: 1 })),
+      ).rejects.toThrow("catalog write failed");
+    } finally {
+      fault.mockRestore();
+    }
+    expect(await store.get("result")).toBeNull();
+    expect(await store.get("manifest")).toBeNull();
+    await store.publishEvidence!(entries, () => ({ catalog, storedAt: 1 }));
+    expect(await store.catalog!("bundle-run")).toMatchObject({
+      catalog,
+      storedAt: 1,
+    });
+    expect(await store.usage!()).toMatchObject({
+      byteLength: 12,
+      fileCount: 2,
+    });
+    await store.releaseSession!();
+  });
+  it("defers the body of an explicitly deleted viewed Run until its reader releases it", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore(
+      "deleted-view",
+      factory,
+      { locks: navigator.locks },
+    )!;
+    const files = new SimulationFiles(Date.now, undefined, undefined, store);
+    const ref = await files.put("view.raw", "text/plain", "data");
+    await files.saveCatalog({
+      schemaVersion: 1,
+      runId: "view",
+      preparedId: "prepared",
+      inputRevision: "rev",
+      retentionPolicy: "cache",
+      execution: "completed",
+      collection: "complete",
+      files: [ref],
+      datasets: [],
+    });
+    const release = await store.pinRun!("view");
+    await store.deleteRun!("view", false);
+    expect(await store.catalog!("view")).toBeNull();
+    expect((await store.get(ref.id))?.text).toBe("data");
+    await release();
+    const archives = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+      locks: navigator.locks,
+    });
+    expect(await archives.cleanup("deleted-view")).toMatchObject({
+      ok: true,
+      value: { files: 0, bytes: 0 },
+    });
+    expect(await store.get(ref.id)).toBeNull();
+    archives.close();
+  });
+  it("recovers unowned bodies before refusing admission when the latest Run is protected", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore(
+      "orphan-pressure",
+      factory,
+      { locks: navigator.locks, limits: { bytes: 16, files: 8 } },
+    )!;
+    const ref = (id: string, bytes: number) => ({
+      id,
+      name: id,
+      mediaType: "text/plain",
+      byteLength: bytes,
+      sha256: digest(
+        id === "orphan" ? "orphaned" : id === "incoming" ? "incoming" : "data",
+      ),
+    });
+    await store.put(ref("orphan", 8), "orphaned");
+    await store.put(ref("latest", 4), "data");
+    await store.saveCatalog!({
+      storedAt: 1,
+      catalog: {
+        schemaVersion: 1,
+        runId: "latest",
+        preparedId: "prepared",
+        inputRevision: "rev",
+        retentionPolicy: "cache",
+        execution: "completed",
+        collection: "complete",
+        files: [ref("latest", 4)],
+        datasets: [],
+      },
+    });
+    await store.put(ref("incoming", 8), "incoming");
+    expect(await store.get("orphan")).toBeNull();
+    expect((await store.get("latest"))?.text).toBe("data");
+    expect(await store.usage!()).toMatchObject({
+      byteLength: 12,
+      fileCount: 2,
+    });
+  });
+  it("keeps a viewed Run while reclaiming an unrelated older cache in the same Project", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore("viewed-run", factory, {
+      locks: navigator.locks,
+      limits: { bytes: 24, files: 8 },
+    })!;
+    const ref = (id: string, bytes = 4) => ({
+      id,
+      name: id + ".raw",
+      mediaType: "text/plain",
+      byteLength: bytes,
+      sha256: digest(bytes === 4 ? "data" : "x".repeat(bytes)),
+    });
+    for (const [id, at] of [
+      ["viewed", 1],
+      ["unrelated", 2],
+      ["latest", 3],
+    ] as const) {
+      await store.put(ref(id), "data");
+      await store.saveCatalog!({
+        storedAt: at,
+        catalog: {
+          schemaVersion: 1,
+          runId: id,
+          preparedId: "prepared",
+          inputRevision: "rev",
+          retentionPolicy: "cache",
+          execution: "completed",
+          collection: "complete",
+          files: [ref(id)],
+          datasets: [],
+        },
+      });
+    }
+    const release = await store.pinRun!("viewed");
+    try {
+      await store.put(ref("incoming", 16), "x".repeat(16));
+      expect((await store.get("viewed"))?.text).toBe("data");
+      expect(await store.get("unrelated")).toBeNull();
+      expect(await store.usage!()).toMatchObject({ byteLength: 24 });
+    } finally {
+      await release();
+    }
+  });
+  it("reclaims unrelated cache while an online producer protects its unpublished files", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore(
+      "online-producer",
+      factory,
+      {
+        retainSession: true,
+        locks: navigator.locks,
+        limits: { bytes: 16, files: 8 },
+      },
+    )!;
+    const ref = (id: string, size = 4) => ({
+      id,
+      name: id + ".raw",
+      mediaType: "text/plain",
+      byteLength: size,
+      sha256: digest(size === 4 ? "data" : "incoming"),
+    });
+    for (const [id, at] of [
+      ["old", 1],
+      ["latest", 2],
+    ] as const) {
+      await store.put(ref(id), "data");
+      await store.saveCatalog!({
+        storedAt: at,
+        catalog: {
+          schemaVersion: 1,
+          runId: id,
+          preparedId: "prepared",
+          inputRevision: "rev",
+          retentionPolicy: "cache",
+          execution: "completed",
+          collection: "complete",
+          files: [ref(id)],
+          datasets: [],
+        },
+      });
+    }
+    await store.put(ref("unpublished"), "data");
+    await store.putMany!([{ ref: ref("incoming", 8), text: "incoming" }]);
+    expect(await store.get("old")).toBeNull();
+    expect((await store.get("unpublished"))?.text).toBe("data");
+    expect((await store.get("latest"))?.text).toBe("data");
+    expect(await store.usage!()).toMatchObject({ byteLength: 16 });
+    await store.releaseSession!();
+    const archives = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+      locks: navigator.locks,
+    });
+    expect(await archives.cleanup("online-producer")).toMatchObject({
+      ok: true,
+      value: { deferred: false, bytes: 12 },
+    });
+    expect(await store.get("unpublished")).toBeNull();
+    expect((await store.get("latest"))?.text).toBe("data");
+    archives.close();
+  });
+  it("reclaims an older cache before admitting new evidence below the Run count limit", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore("byte-budget", factory, {
+      locks: navigator.locks,
+      limits: { bytes: 12, files: 4 },
+    })!;
+    const makeFile = (id: string, text: string) => ({
+      id,
+      name: id + ".raw",
+      mediaType: "text/plain",
+      byteLength: text.length,
+      sha256: digest(text),
+    });
+    const old = makeFile("old", "aaaa");
+    const latest = makeFile("latest", "bbbb");
+    for (const [ref, text, at] of [
+      [old, "aaaa", 1],
+      [latest, "bbbb", 2],
+    ] as const) {
+      await store.put(ref, text);
+      await store.saveCatalog!({
+        storedAt: at,
+        catalog: {
+          schemaVersion: 1,
+          runId: ref.id,
+          preparedId: "prepared",
+          inputRevision: "rev",
+          retentionPolicy: "cache",
+          execution: "completed",
+          collection: "complete",
+          files: [ref],
+          datasets: [],
+        },
+      });
+    }
+    const incoming = makeFile("incoming", "cccccccc");
+    await store.putMany!([{ ref: incoming, text: "cccccccc" }]);
+    expect(await store.get("old")).toBeNull();
+    expect((await store.get("latest"))?.text).toBe("bbbb");
+    expect((await store.get("incoming"))?.text).toBe("cccccccc");
+    expect(await store.usage!()).toMatchObject({
+      byteLength: 12,
+      fileCount: 2,
+    });
+  });
   it("prunes only new unarchived cache catalogs and leaves legacy history intact", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArtifactStore("project", factory)!;
@@ -275,7 +985,7 @@ describe("persistent simulation evidence", () => {
         name: `${id}.txt`,
         mediaType: "text/plain",
         byteLength: id.length,
-        sha256: id.padEnd(64, "0"),
+        sha256: digest(id),
       },
       text: id,
     }));
@@ -311,7 +1021,7 @@ describe("persistent simulation evidence", () => {
       name: "result.raw",
       mediaType: "text/plain",
       byteLength: 4,
-      sha256: "a".repeat(64),
+      sha256: digest("data"),
     };
     await store.put(ref, "data");
     await store.saveCatalog!({
@@ -340,11 +1050,13 @@ describe("persistent simulation evidence", () => {
       await expect(store.reclaim([], [])).rejects.toThrow(
         "injected reclamation failure",
       );
+      // A read also attempts pending cleanup. Keep the physical-delete fault
+      // active to establish that failure still preserves readable evidence.
+      expect((await store.get("file"))?.text).toBe("data");
+      expect(await store.catalogs!()).toHaveLength(1);
     } finally {
       fault.mockRestore();
     }
-    expect((await store.get("file"))?.text).toBe("data");
-    expect(await store.catalogs!()).toHaveLength(1);
     expect(await store.reclaim([], [])).toEqual({ files: 1, bytes: 4 });
     expect(await store.catalogs!()).toEqual([]);
     expect(await store.get("file")).toBeNull();
@@ -356,7 +1068,7 @@ describe("persistent simulation evidence", () => {
       name: "old.raw",
       mediaType: "text/plain",
       byteLength: 3,
-      sha256: "a".repeat(64),
+      sha256: digest("old"),
     };
     const catalog = {
       schemaVersion: 1 as const,
@@ -626,9 +1338,9 @@ describe("persistent simulation evidence", () => {
         throw new Error("Unavailable");
       },
     });
-    await expect(failing.put("x", "text/plain", "x")).rejects.toThrow(
-      "ARTIFACT_STORAGE_UNAVAILABLE",
-    );
+    await expect(failing.put("x", "text/plain", "x")).rejects.toMatchObject({
+      name: "QuotaExceededError",
+    });
     expect(await failing.readArtifact("unknown")).toMatchObject({
       ok: false,
       error: { code: "ARTIFACT_STORAGE_UNAVAILABLE" },

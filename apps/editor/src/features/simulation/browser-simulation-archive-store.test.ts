@@ -1,9 +1,13 @@
+import { createHash } from "node:crypto";
 import { IDBDatabase, IDBFactory, IDBObjectStore } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
 import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
 import type { SimulationRunArchiveV1 } from "./simulation-run-archive";
+
+const digest = (text: string) =>
+  createHash("sha256").update(text).digest("hex");
 
 function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
   return {
@@ -42,6 +46,64 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("refuses automatic deletion after a cache has become an explicit Save", async () => {
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: new IDBFactory(),
+    });
+    const saved = {
+      ...archive("promoted", new Date(0).toISOString()),
+      retention: "saved" as const,
+    };
+    expect(await store.save(saved)).toMatchObject({ ok: true });
+    expect(await store.delete(saved.id, { cacheOnly: true })).toEqual({
+      ok: true,
+      value: false,
+    });
+    expect(await store.read(saved.id)).toEqual({ ok: true, value: saved });
+    expect(await store.delete(saved.id)).toEqual({ ok: true, value: true });
+    store.close();
+  });
+  it("admits an archive by reclaiming older cache before taking its commit protection", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+      locks: navigator.locks,
+      artifactLimits: { bytes: 12, files: 8 },
+    });
+    const record = (
+      id: string,
+      at: number,
+      text: string,
+    ): SimulationRunArchiveV1 => ({
+      ...archive(id, new Date(at).toISOString()),
+      retention: "cache",
+      artifacts: [
+        {
+          originalId: id,
+          name: id + ".raw",
+          mediaType: "text/plain",
+          byteLength: text.length,
+          sha256: digest(text),
+          text,
+        },
+      ],
+      byteLength: text.length,
+    });
+    expect((await store.save(record("old", 1, "aaaa"))).ok).toBe(true);
+    expect((await store.save(record("latest", 2, "bbbb"))).ok).toBe(true);
+    const incoming = await store.save(record("incoming", 3, "cccccccc"));
+    if (!incoming.ok) throw new Error(incoming.message);
+    expect(await store.read("old")).toEqual({ ok: true, value: null });
+    expect(await store.read("latest")).toMatchObject({
+      ok: true,
+      value: { id: "latest" },
+    });
+    expect(await store.read("incoming")).toMatchObject({
+      ok: true,
+      value: { artifacts: [{ text: "cccccccc" }] },
+    });
+    store.close();
+  });
   it("reconciles many retained archives with one evidence-reference transaction", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
@@ -128,7 +190,7 @@ describe("browser simulation archive store", () => {
             name: "invalid.raw",
             mediaType: "text/plain",
             byteLength: 100,
-            sha256: "a".repeat(64),
+            sha256: digest("data"),
             text: "data",
           },
         ],
@@ -264,7 +326,7 @@ describe("browser simulation archive store", () => {
       name: "result.raw",
       mediaType: "text/plain",
       byteLength: 4,
-      sha256: "a".repeat(64),
+      sha256: digest("data"),
     };
     await other.put(ref, "data");
     await evidence.put(
@@ -329,7 +391,7 @@ describe("browser simulation archive store", () => {
           name: "result.raw",
           mediaType: "text/plain",
           byteLength: 4,
-          sha256: "a".repeat(64),
+          sha256: digest("data"),
           text: "data",
         },
       ],
@@ -412,7 +474,7 @@ describe("browser simulation archive store", () => {
           name: `${id}.raw`,
           mediaType: "text/plain",
           byteLength: 4,
-          sha256: "a".repeat(64),
+          sha256: digest("data"),
           text: "data",
         },
       ],
@@ -449,7 +511,7 @@ describe("browser simulation archive store", () => {
           name: "input.cir",
           mediaType: "text/plain",
           byteLength: 4,
-          sha256: "c".repeat(64),
+          sha256: digest("deck"),
           text: "deck",
         },
       ],
@@ -489,7 +551,7 @@ describe("browser simulation archive store", () => {
       name: "result.raw",
       mediaType: "text/plain",
       byteLength: 4,
-      sha256: "a".repeat(64),
+      sha256: digest("data"),
       role: "raw" as const,
     };
     await evidence.put(ref, "data");

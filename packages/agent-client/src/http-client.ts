@@ -20,6 +20,10 @@ import {
   networkFailure,
   transportFailure,
 } from "./errors.js";
+import {
+  EvidenceResourceUsageSchema,
+  type EvidenceResourceUsage,
+} from "@icm/simulation-service/contract";
 
 interface ResponseIssue {
   code: string;
@@ -141,6 +145,7 @@ export class AgentHttpClient {
     path: string,
     offset = 0,
     digest?: string,
+    leaseId?: string,
   ): Promise<Response> {
     const prefix = `/api/agent/sessions/${encodeURIComponent(sessionId)}/artifacts/`;
     if (
@@ -157,6 +162,7 @@ export class AgentHttpClient {
         redirect: "error",
         headers: {
           authorization: `Bearer ${agentToken}`,
+          ...(leaseId ? { "x-artifact-lease": leaseId } : {}),
           ...(offset
             ? {
                 range: `bytes=${offset}-`,
@@ -173,6 +179,63 @@ export class AgentHttpClient {
         await this.consume(response, (body) => body),
       );
     return response;
+  }
+  /** Release only this unguessable download lease after verified local commit. */
+  async releaseArtifactDownload(
+    sessionId: string,
+    agentToken: string,
+    path: string,
+    leaseId: string,
+  ): Promise<void> {
+    const prefix = `/api/agent/sessions/${encodeURIComponent(sessionId)}/artifacts/`;
+    if (
+      !path.startsWith(prefix) ||
+      !/^[a-zA-Z0-9_-]{1,128}$/u.test(path.slice(prefix.length)) ||
+      !/^[0-9a-f-]{36}$/u.test(leaseId)
+    )
+      throw invalidResponseFailure(
+        "Artifact lease is outside the authorized session",
+      );
+    const response = await this.send(
+      path,
+      {
+        method: "DELETE",
+        redirect: "error",
+        headers: {
+          authorization: `Bearer ${agentToken}`,
+          "x-artifact-lease": leaseId,
+        },
+      },
+      30_000,
+    );
+    if (!response.ok && response.status !== 404)
+      throw this.transportError(
+        response.status,
+        await this.consume(response, (body) => body),
+      );
+    await response.body?.cancel();
+  }
+  async artifactUsage(
+    sessionId: string,
+    agentToken: string,
+  ): Promise<EvidenceResourceUsage> {
+    const response = await this.send(
+      `/api/agent/sessions/${encodeURIComponent(sessionId)}/artifact-status`,
+      {
+        method: "GET",
+        redirect: "error",
+        headers: { authorization: `Bearer ${agentToken}` },
+      },
+      30_000,
+    );
+    const body = (await this.consume(response, (value) => value)) as {
+      usage?: unknown;
+    };
+    if (!response.ok) throw this.transportError(response.status, body);
+    const parsed = EvidenceResourceUsageSchema.safeParse(body.usage);
+    if (!parsed.success || parsed.data.scope !== "agent-session-transfer")
+      throw invalidResponseFailure("Artifact transfer usage failed validation");
+    return parsed.data;
   }
 
   /**
