@@ -252,6 +252,11 @@ export interface GalleryQuickFilterCounts {
 export interface GalleryFeedPage {
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
+  /**
+   * The wall's first circuits as a signed-out visitor sees them: shown
+   * dimmed, never opened, and never followed by another page.
+   */
+  signedOut?: true;
   /** Whole filtered wall's size; null while a pre-totals API answers. */
   total: number | null;
   /** Counts across the filtered wall, before pagination, scoped to this viewer. */
@@ -458,6 +463,12 @@ export async function loadGalleryFeed(
   options: GalleryFeedQuery & {
     cursor?: string | null;
     limit?: number;
+    /**
+     * The landing wall takes a signed-out visitor's first circuits; every
+     * other reader (the Insert panel, the Agent) hears that the Gallery
+     * asks to sign in.
+     */
+    signedOutWall?: boolean;
   } = {},
 ): Promise<GalleryFeedResult> {
   const params = galleryFeedParams(options);
@@ -475,16 +486,20 @@ export async function loadGalleryFeed(
     const payload = (await response.json()) as {
       entries?: GalleryFeedEntry[];
       nextCursor?: unknown;
+      signedOut?: unknown;
       total?: unknown;
       search?: unknown;
       filterCounts?: GalleryQuickFilterCounts;
       authors?: GalleryAuthorOption[];
     };
+    if (payload.signedOut === true && !options.signedOutWall)
+      return GALLERY_SIGN_IN_REQUIRED;
     return {
       entries: payload.entries ?? [],
       nextCursor:
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       total: typeof payload.total === "number" ? payload.total : null,
+      ...(payload.signedOut === true ? { signedOut: true as const } : {}),
       ...(typeof payload.search === "string" ? { search: payload.search } : {}),
       ...(Array.isArray(payload.authors) &&
       payload.authors.every(

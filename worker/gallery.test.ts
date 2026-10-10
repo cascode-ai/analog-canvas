@@ -1,6 +1,10 @@
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
-import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
+import {
+  SIGNED_OUT_WALL_SIZE,
+  forgetEarlierOpens,
+  routeGalleryRequest,
+} from "./gallery";
 import { galleryReadableDocument } from "./gallery-documents";
 import {
   SHORT_ID_LENGTH,
@@ -51,12 +55,17 @@ describe("Gallery readers", () => {
       env,
     ))!;
 
-  it("refuses every read to a visitor without a session or the read credential", async () => {
+  it("refuses every other read to a visitor without a session or the read credential", async () => {
     const env = environment();
+    // The unfiltered first page and its previews are the signed-out wall's
+    // (below); every other read asks to sign in.
     const paths = [
-      ...(await reads(env)),
+      ...(await reads(env)).filter(
+        (path) => path !== "/api/gallery" && !path.includes("/preview.svg"),
+      ),
       "/api/gallery?q=circuit",
       "/api/gallery?limit=1",
+      "/api/gallery?cursor=x",
     ];
     for (const headers of [
       undefined,
@@ -81,6 +90,58 @@ describe("Gallery readers", () => {
         )?.status,
         path,
       ).toBe(401);
+  });
+
+  it("shows a signed-out visitor the wall's first twelve circuits, with their previews only", async () => {
+    const env = environment();
+    const admin = await adminOf(env);
+    for (let n = 1; n <= SIGNED_OUT_WALL_SIZE + 1; n += 1)
+      await submitOne(env, `Circuit ${n}`, { cookie: admin });
+    const member = cookieHeaders(await makerOf(env));
+    const wall = (await (await direct(env, "/api/gallery", member)).json()) as {
+      entries: { id: string; previewRevision: string }[];
+    };
+    expect(wall.entries).toHaveLength(SIGNED_OUT_WALL_SIZE + 1);
+
+    const signedOut = await direct(env, "/api/gallery");
+    expect(signedOut.status).toBe(200);
+    expect(signedOut.headers.get("cache-control")).toBe("no-store");
+    const shown = (await signedOut.json()) as {
+      entries: { id: string }[];
+      nextCursor: unknown;
+      signedOut: unknown;
+      total?: unknown;
+    };
+    // The wall's own first twelve, no further page and no count.
+    expect(shown.entries.map((entry) => entry.id)).toEqual(
+      wall.entries.slice(0, SIGNED_OUT_WALL_SIZE).map((entry) => entry.id),
+    );
+    expect(shown.nextCursor).toBeNull();
+    expect(shown.signedOut).toBe(true);
+    expect(shown).not.toHaveProperty("total");
+    // Only what the dimmed tile draws: no byline, description, tags or counts.
+    for (const entry of shown.entries)
+      expect(Object.keys(entry).sort()).toEqual([
+        "id",
+        "name",
+        "previewRevision",
+      ]);
+
+    const preview = (entry: { id: string; previewRevision: string }) =>
+      direct(
+        env,
+        `/api/gallery/${entry.id}/preview.svg?v=${entry.previewRevision}`,
+      );
+    const first = await preview(wall.entries[0]!);
+    expect(first.status).toBe(200);
+    expect(first.headers.get("content-type")).toBe("image/svg+xml");
+    const thirteenth = await preview(wall.entries[SIGNED_OUT_WALL_SIZE]!);
+    expect(thirteenth.status).toBe(401);
+    expect(await thirteenth.json()).toEqual({ error: "sign-in-required" });
+    // Opening one of the twelve still asks to sign in.
+    expect(
+      (await direct(env, `/api/gallery/${wall.entries[0]!.id}`)).status,
+    ).toBe(401);
   });
 
   it("serves a signed-in member and the read credential every read", async () => {

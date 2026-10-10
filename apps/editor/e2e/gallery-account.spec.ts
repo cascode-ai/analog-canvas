@@ -198,6 +198,78 @@ test("a signed-out visitor sees a grey wall with a way to sign in, and no circui
   expect(reads.filter((path) => path.endsWith("/preview.svg"))).toEqual([]);
 });
 
+test("a signed-out visitor sees the wall's first twelve circuits, dimmed and closed", async ({
+  page,
+}) => {
+  // Signed out, the server answers only the unfiltered first page, cut to
+  // twelve, and those twelve previews; every other read asks to sign in.
+  const entries = Array.from({ length: 12 }, (_, n) => ({
+    id: `g${n + 1}`,
+    name: `Circuit ${n + 1}`,
+    author: "tz",
+    description: "",
+    createdAt: "2026-08-21T00:00:00.000Z",
+    schemaVersion: 23,
+    previewRevision: `r${n + 1}`,
+  }));
+  const reads: string[] = [];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    reads.push(url.pathname + url.search);
+    if (url.pathname === "/api/gallery" && url.search === "")
+      return route.fulfill({
+        json: { entries, nextCursor: null, signedOut: true },
+      });
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 30"><rect width="40" height="30" fill="#888"/></svg>',
+      });
+    return route.fulfill({
+      status: 401,
+      json: { error: "sign-in-required" },
+    });
+  });
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: true, email: true } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ json: { user: null } }),
+  );
+  await page.goto("/");
+  const prompt = page.getByTestId("gallery-sign-in");
+  await expect(prompt).toContainText("The Gallery is for signed-in members");
+  const circuits = prompt.getByTestId("gallery-sign-in-circuit");
+  await expect(circuits).toHaveCount(12);
+  await expect(circuits.first()).toContainText("Circuit 1");
+  const preview = circuits.first().locator("img");
+  await expect(preview).toHaveAttribute(
+    "src",
+    /^\/api\/gallery\/g1\/preview\.svg\?v=r1/u,
+  );
+  await expect
+    .poll(() =>
+      preview.evaluate((image) => (image as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  // A little grey, and closed: no link, no real tile, no grey stand-in.
+  expect(
+    await circuits
+      .first()
+      .evaluate((tile) => Number(getComputedStyle(tile).opacity)),
+  ).toBeLessThan(1);
+  await expect(prompt.locator("a")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="gallery-tile-"]')).toHaveCount(0);
+  await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
+  await circuits.nth(3).click({ force: true });
+  await expect(page).toHaveURL(/\/$/u);
+  // No circuit was opened, and no other page was asked for.
+  expect(reads.filter((path) => /^\/api\/gallery\/g\d+$/u.test(path))).toEqual(
+    [],
+  );
+  expect(reads.filter((path) => path.includes("cursor="))).toEqual([]);
+});
+
 test("signed out, the editor's Gallery panel is grey with a way to sign in", async ({
   page,
 }) => {

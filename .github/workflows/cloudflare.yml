@@ -220,9 +220,18 @@ jobs:
               exit 1
             fi
           done
-          # Signed out, the Gallery shows nothing: its list, search and
+          # Signed out, the Gallery shows only the wall's first twelve
+          # circuits, with no further page; its search, other pages and
           # discovery endpoints all ask to sign in.
-          for path in api/gallery "api/gallery?q=amp" api/gallery/tags api/gallery/authors; do
+          signed_out_wall="$(curl --fail --silent --show-error --max-time 20 \
+            https://analog-canvas.tokenzhang.com/api/gallery)"
+          node -e '
+            const wall = JSON.parse(process.argv[1]);
+            if (wall.signedOut !== true || wall.nextCursor !== null || !Array.isArray(wall.entries) || wall.entries.length > 12 || "total" in wall) {
+              console.error("Signed-out Gallery wall is not the first twelve circuits alone.");
+              process.exit(1);
+            }' "$signed_out_wall"
+          for path in "api/gallery?q=amp" "api/gallery?cursor=x" api/gallery/tags api/gallery/authors; do
             status="$(curl --silent --show-error --max-time 20 \
               --output /dev/null --write-out '%{http_code}' \
               "https://analog-canvas.tokenzhang.com/$path")"

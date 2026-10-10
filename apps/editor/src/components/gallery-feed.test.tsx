@@ -104,6 +104,31 @@ describe("loadGalleryFeed", () => {
     expect(await loadGalleryFeed(fetchStatus(503))).toBeNull();
   });
 
+  it("gives a signed-out visitor's first circuits to the landing wall only", async () => {
+    const signedOut = fetchReturning({
+      entries: [
+        {
+          id: "g1",
+          name: "Ring",
+          author: "tz",
+          description: "",
+          createdAt: "2026-08-21T00:00:00.000Z",
+          schemaVersion: 23,
+        },
+      ],
+      nextCursor: null,
+      signedOut: true,
+    });
+    // The Insert panel and the Agent hear that the Gallery asks to sign in.
+    expect(await loadGalleryFeed(signedOut)).toBe(GALLERY_SIGN_IN_REQUIRED);
+    const page = pageOf(
+      await loadGalleryFeed(signedOut, { signedOutWall: true }),
+    );
+    expect(page?.signedOut).toBe(true);
+    expect(page?.entries.map((entry) => entry.id)).toEqual(["g1"]);
+    expect(page?.nextCursor).toBeNull();
+  });
+
   it("returns a page of entries with its cursor", async () => {
     const page = pageOf(
       await loadGalleryFeed(

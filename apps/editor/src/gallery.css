@@ -680,6 +680,34 @@
   background: color-mix(in srgb, var(--icm-text-muted) 22%, transparent);
 }
 
+/* One of the wall's first circuits, as a signed-out visitor sees it: a
+   little grey, and out of reach under the veil, which takes no pointer. */
+.gallery-sign-in-circuit {
+  box-sizing: border-box;
+  padding: 10px 10px 8px;
+  border: 1px solid var(--icm-border);
+  background: var(--icm-surface);
+  opacity: 0.62;
+  filter: grayscale(0.7);
+}
+
+.gallery-sign-in-circuit img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.gallery-sign-in-circuit-name {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .gallery-sign-in-card {
   position: absolute;
   top: 96px;

@@ -206,6 +206,35 @@ function wallFilters(url: URL) {
 }
 
 /** Drop the record of earlier days' opens; only today's is ever needed. */
+/** How many of the wall's first circuits a signed-out visitor sees, dimmed. */
+export const SIGNED_OUT_WALL_SIZE = 12;
+
+/**
+ * The wall's first circuits as a signed-out visitor sees them: the newest
+ * public ones of the unfiltered wall, as many as SIGNED_OUT_WALL_SIZE, and
+ * never a next page or a count (docs/specs/community-gallery.md#reader-access).
+ */
+async function signedOutWallEntries(
+  env: GalleryEnv,
+): Promise<Pick<GalleryEntrySummary, "id" | "name" | "previewRevision">[]> {
+  const { payload } = await callGallery<{ entries?: GalleryEntrySummary[] }>(
+    env,
+    "list",
+    {
+      ...wallFilters(new URL("https://gallery.invalid/")),
+      isAdmin: false,
+      viewerId: "",
+      limit: String(SIGNED_OUT_WALL_SIZE),
+      cursor: null,
+      tags: [],
+    },
+  );
+  // Only what the dimmed tile draws: no byline, description, tags or counts.
+  return (payload.entries ?? [])
+    .slice(0, SIGNED_OUT_WALL_SIZE)
+    .map(({ id, name, previewRevision }) => ({ id, name, previewRevision }));
+}
+
 export async function forgetEarlierOpens(env: GalleryEnv): Promise<void> {
   await callGallery(env, "forget-opens", {
     day: new Date().toISOString().slice(0, 10),
@@ -379,18 +408,41 @@ export async function routeGalleryRequest(
   const segments = url.pathname.split("/").filter(Boolean).slice(2);
   // The Community Gallery is for signed-in readers. Without a session or the
   // read-only Gallery credential every read asks to sign in: the list and its
-  // search, an entry, its Project and its preview alike. Writes keep their
-  // own, stricter checks.
+  // search, an entry, its Project and its preview alike. The one exception is
+  // the wall's first twelve circuits, which a signed-out visitor sees dimmed
+  // and closed: the unfiltered first page, cut to them, and their previews.
+  // Writes keep their own, stricter checks.
   if (
     (request.method === "GET" || request.method === "HEAD") &&
     !hasGalleryReadToken(request, env) &&
     !(isAutomatedBackup(segments) && hasStoreBackupToken(request, env)) &&
     !(await galleryReaderOf(request, env))
   ) {
-    return Response.json(
-      { error: "sign-in-required" },
-      { status: 401, headers: { "cache-control": "no-store" } },
-    );
+    if (
+      segments.length === 0 &&
+      request.method === "GET" &&
+      url.search === ""
+    ) {
+      return Response.json(
+        {
+          entries: await signedOutWallEntries(env),
+          nextCursor: null,
+          signedOut: true,
+        },
+        { headers: { "cache-control": "no-store" } },
+      );
+    }
+    const firstTwelvePreview =
+      segments.length === 2 &&
+      segments[1] === "preview.svg" &&
+      (await signedOutWallEntries(env)).some(
+        (entry) => entry.id === segments[0],
+      );
+    if (!firstTwelvePreview)
+      return Response.json(
+        { error: "sign-in-required" },
+        { status: 401, headers: { "cache-control": "no-store" } },
+      );
   }
 
   // Reference datasets (#1510). Each lives in a store of its own: a request
