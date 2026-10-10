@@ -961,4 +961,49 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     ]);
     expect(at(controller.project, "instance-value")).toEqual(nameSlot);
   });
+
+  it("binds a gate to a Cell of the Project whose Pins fit it, and clears it (#1450)", async () => {
+    const { client, apply, refuse, instance } = await session();
+    const drawPins = async (documentId: string, pins: readonly string[]) => {
+      const report = await client.applyActions(
+        pins.map((pin, index) => ({
+          kind: "place-component",
+          symbol: "port",
+          reference: pin,
+          position: { x: 0, y: index * 40 },
+        })),
+        { documentId },
+      );
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([{ kind: "create-cell", id: "nor2", name: "nor2" }]);
+    await apply([{ kind: "create-cell", id: "inv1", name: "inv1" }]);
+    await drawPins("nor2", ["a", "b", "y"]);
+    await drawPins("inv1", ["a", "y"]);
+    await apply([place("nor-gate", "X1", 200)]);
+    const target = { kind: "instance", reference: "X1" };
+
+    await apply([{ kind: "set-model", target, model: "NOR2" }]);
+    expect(instance("X1")).toMatchObject({
+      symbolId: "nor-gate",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "nor2" },
+        parameters: {},
+      },
+    });
+    // The Cell takes its supplies globally: the gate has none to choose.
+    expect(
+      await refuse([
+        { kind: "set-block-supply", target, supply: "VDD", net: null },
+      ]),
+    ).toContain("X1 has no VDD supply to choose");
+    expect(
+      await refuse([{ kind: "set-model", target, model: "inv1" }]),
+    ).toContain("Cell inv1 does not fit the nor-gate: it has no Pin B.");
+    await apply([{ kind: "set-model", target, model: "" }]);
+    expect(instance("X1").netlist?.binding).toEqual({
+      kind: "unresolved-subcircuit",
+      name: "nor_gate",
+    });
+  });
 });

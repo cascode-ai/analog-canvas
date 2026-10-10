@@ -16,7 +16,12 @@ import type {
   Instance,
   SchematicDocument,
 } from "@icm/model";
-import { deviceDescriptor, resolveReviewedExternalBinding } from "@icm/devices";
+import {
+  deviceDescriptor,
+  isLibraryLogicGate,
+  libraryGateTerminals,
+  resolveReviewedExternalBinding,
+} from "@icm/devices";
 import type { DesignNetlistCell, NetlistDiagnostic } from "./ir.js";
 import {
   encodedNetNameCollisionKey,
@@ -427,8 +432,13 @@ export function buildNetContext(
                 instance.symbolId,
               )
             : undefined;
+        // A Library gate bound to a Cell keeps its own pins (#1450).
         const allowedPins = child?.netlist
-          ? projectCellInterface(child.netlist).ports.map((port) => port.name)
+          ? isLibraryLogicGate(instance.symbolId)
+            ? libraryGateTerminals(instance.symbolId).map(
+                (gateTerminal) => gateTerminal.pinName,
+              )
+            : projectCellInterface(child.netlist).ports.map((port) => port.name)
           : reviewed
             ? reviewed.terminals.map((terminal) => terminal.pinName)
             : externalDefinition

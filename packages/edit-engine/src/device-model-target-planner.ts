@@ -5,10 +5,11 @@ import type {
   ExternalSubcircuitDefinition,
   SchematicDocument,
 } from "@icm/model";
-import { deriveStableId } from "@icm/model";
+import { deriveStableId, projectCellInterface } from "@icm/model";
 import {
   builtInModelDefaults,
   deviceDescriptor,
+  matchGateCellPins,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
@@ -86,6 +87,146 @@ function removedPropertyTerminalEdits(
   );
 }
 
+/** Whether a Cell calls `targetId`, itself or through the Cells it places. */
+function cellReaches(
+  project: CircuitProject,
+  cellId: string,
+  targetId: string,
+): boolean {
+  const visited = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (id === targetId) return true;
+    if (visited.has(id)) return false;
+    visited.add(id);
+    return (
+      project.documents.find((document) => document.id === id)?.instances ?? []
+    ).some((instance) => {
+      const binding = instance.netlist?.binding;
+      return binding?.kind === "subcircuit" && visit(binding.childDocumentId);
+    });
+  };
+  return visit(cellId);
+}
+
+/** A Document with a formal interface: a Cell a part can call. */
+type Cell = SchematicDocument & {
+  netlist: NonNullable<SchematicDocument["netlist"]>;
+};
+const isCell = (document: SchematicDocument): document is Cell =>
+  Boolean(document.netlist);
+
+function cellPinMatch(cell: Cell, symbolId: string) {
+  return matchGateCellPins(symbolId, {
+    name: cell.netlist.name,
+    portNames: projectCellInterface(cell.netlist).ports.map(
+      (port) => port.name,
+    ),
+  });
+}
+
+/**
+ * The Cells of the Project a Library gate drawn in this Document may call
+ * (#1450): those whose Pins fit the gate, and none that would call the
+ * Document itself.
+ */
+export function gateCellTargets(
+  project: CircuitProject,
+  documentId: string,
+  symbolId: string,
+): Cell[] {
+  return project.documents
+    .filter(isCell)
+    .filter(
+      (cell) =>
+        cellPinMatch(cell, symbolId)?.ok &&
+        !cellReaches(project, cell.id, documentId),
+    );
+}
+
+/** A Cell of the Project by its name, as SPICE compares names, or its ID. */
+function projectCellNamed(
+  project: CircuitProject,
+  name: string,
+): Cell | undefined {
+  const folded = name.toLowerCase();
+  const cells = project.documents.filter(isCell);
+  return (
+    cells.find((cell) => cell.netlist.name.toLowerCase() === folded) ??
+    cells.find((cell) => cell.name.toLowerCase() === folded) ??
+    cells.find((cell) => cell.id === name)
+  );
+}
+
+/**
+ * Binds a Library gate to a transistor-level Cell of its Project (#1450).
+ * The gate keeps its symbol and pins; its call goes to the Cell, Pin by
+ * name. Its own parameters give way to the Cell's, and a VDD or VSS Net it
+ * was given is cleared where the Cell takes that supply globally.
+ */
+function planGateCellBinding(
+  project: CircuitProject,
+  document: SchematicDocument,
+  instance: SchematicDocument["instances"][number],
+  netlist: NonNullable<SchematicDocument["instances"][number]["netlist"]>,
+  cell: Cell,
+): ProjectStructureEdit[] {
+  const name = cell.netlist.name;
+  const gateName = instance.reference ?? instance.id;
+  if (cellReaches(project, cell.id, document.id))
+    throw new Error(
+      cell.id === document.id
+        ? `${gateName} is drawn in Cell ${name}, which cannot call itself`
+        : `Cell ${name} contains Cell ${document.name}, where ${gateName} is drawn; a Cell cannot call itself`,
+    );
+  const match = cellPinMatch(cell, instance.symbolId);
+  if (match && !match.ok) throw new Error(match.message);
+  const supplies = new Set(match?.pins.map((pin) => pin.supply));
+  const documentEdits: DocumentEdits = (["VDD", "VSS"] as const)
+    .filter(
+      (supply) =>
+        !supplies.has(supply) &&
+        document.nets.some((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === instance.id &&
+              terminal.pinName === supply,
+          ),
+        ),
+    )
+    .map((supply) => ({
+      kind: "set_property_terminal_net" as const,
+      instanceId: instance.id,
+      pinName: supply,
+      netId: null,
+    }));
+  const binding = { kind: "subcircuit" as const, childDocumentId: cell.id };
+  const formals = new Set(
+    cell.netlist.formalParameters.map((parameter) =>
+      parameter.name.toLowerCase(),
+    ),
+  );
+  const unset = Object.keys(netlist.parameters).filter(
+    (parameter) => !formals.has(parameter.toLowerCase()),
+  );
+  if (
+    JSON.stringify(netlist.binding ?? null) !== JSON.stringify(binding) ||
+    unset.length > 0
+  )
+    documentEdits.push({
+      kind: "bulk_patch_instance_netlist",
+      assignments: [
+        {
+          instanceId: instance.id,
+          binding,
+          ...(unset.length ? { unset } : {}),
+        },
+      ],
+    });
+  return documentEdits.length
+    ? [transactDocument(project, document.id, documentEdits)]
+    : [];
+}
+
 /**
  * Switches a native device between its ordinary binding and one exact reviewed
  * external target without renaming the schematic Instance. Invocation prefixes
@@ -139,9 +280,24 @@ export function planSetDeviceModelTarget(
         : undefined))
     : undefined;
   if (gate && gateTargets.length > 0) {
+    // A Cell of the Project comes first: the Project defines that name.
+    const cell = normalizedName
+      ? projectCellNamed(project, normalizedName)
+      : undefined;
+    if (cell)
+      return planGateCellBinding(
+        project,
+        document,
+        instance,
+        instance.netlist,
+        cell,
+      );
     if (!targetBinding && normalizedName) {
+      const cells = gateCellTargets(project, documentId, sourceSymbolId).map(
+        (candidate) => candidate.netlist.name,
+      );
       throw new Error(
-        `${normalizedName} is not a reviewed standard cell for ${sourceSymbolId}; use ${gateTargets.join(", ")}`,
+        `${normalizedName} is neither a Cell of this Project nor a reviewed standard cell for ${sourceSymbolId}; use ${[...cells, ...gateTargets].join(", ")}`,
       );
     }
     if (!targetBinding) {

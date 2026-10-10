@@ -12,6 +12,8 @@ type Instance = SchematicDocument["instances"][number];
 export interface ComponentModelTargetView {
   defaultValue: string;
   suggestions: readonly string[];
+  /** The Project's Cells a Library gate may be bound to (#1450). */
+  cells?: readonly string[];
   externalSubcircuit: boolean;
 }
 

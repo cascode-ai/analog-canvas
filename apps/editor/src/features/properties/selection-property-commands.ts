@@ -96,12 +96,26 @@ export function createSelectionPropertyCommands({
                 selectedInstance.symbolId,
               )
             : undefined;
+          // A Library gate bound to a Cell of the Project (#1450).
+          const cell = edits.some(
+            (edit) =>
+              edit.kind === "transact_document" &&
+              edit.edits.some(
+                (item) =>
+                  item.kind === "bulk_patch_instance_netlist" &&
+                  item.assignments.some(
+                    (assignment) => assignment.binding?.kind === "subcircuit",
+                  ),
+              ),
+          );
           setStatus(
-            reviewed
-              ? `Set reviewed external target ${target} and its X Reference`
-              : target
-                ? `Set model target ${target}`
-                : `Cleared model target for ${selectedInstance.id}`,
+            cell
+              ? `Bound ${selectedInstance.reference ?? selectedInstance.id} to Cell ${target}`
+              : reviewed
+                ? `Set reviewed external target ${target} and its X Reference`
+                : target
+                  ? `Set model target ${target}`
+                  : `Cleared model target for ${selectedInstance.id}`,
           );
         }
       } catch (error) {

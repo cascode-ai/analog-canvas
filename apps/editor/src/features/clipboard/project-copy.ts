@@ -16,6 +16,7 @@ import {
   resolveEndpointConnection,
   sameDocumentStyle,
 } from "@icm/derived";
+import { isLibraryLogicGate } from "@icm/devices";
 import {
   builtInSymbols,
   withProjectComponentDefinitions,
@@ -771,9 +772,11 @@ export function prepareProjectCopy(
       }
       binding.childDocumentId = targetId;
       const child = prepared.documents.find((d) => d.id === targetId)!;
-      instance.symbolId = hierarchicalSymbolId(
-        child.netlist?.name ?? child.name,
-      );
+      // A Library gate bound to the Cell keeps its symbol (#1450).
+      if (!isLibraryLogicGate(instance.symbolId))
+        instance.symbolId = hierarchicalSymbolId(
+          child.netlist?.name ?? child.name,
+        );
     }
     childMap.set(clipboard.sourceDocumentId, document.id);
     Object.assign(dependencyMapping.cells, Object.fromEntries(childMap));
