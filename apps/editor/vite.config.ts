@@ -10,6 +10,7 @@ import { localAgentRelay } from "./dev/agent-relay";
 import { localSimulation } from "./dev/local-simulation.js";
 import { localReplica } from "./dev/local-replica";
 import { editorPreload } from "./build/editor-preload";
+import { galleryEarlyFetch } from "./build/gallery-early-fetch";
 
 function isolateDevDependencyCache(): Plugin {
   return {
@@ -67,6 +68,7 @@ export default defineConfig({
     // After the Agent relay, whose narrower /api/agent/ proxy must win.
     localReplica(),
     editorPreload(),
+    galleryEarlyFetch(),
     versionStaticServiceWorker(),
   ],
 });
