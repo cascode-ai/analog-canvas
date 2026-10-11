@@ -57,6 +57,7 @@ import {
 } from "./extract-common.js";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
 import { bubblePhasePins } from "./extract-switch.js";
+import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
 import { extractCell } from "./extract-cell.js";
 /** A target with a shared generated recipe: logic, multiplier, converters. */
@@ -821,7 +822,11 @@ function analyzeDesign(
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
       generatedDefinitions: [
-        ...[...IDEAL_COMPARATOR_BODIES, ...IDEAL_OPAMP_BODIES]
+        ...[
+          ...IDEAL_COMPARATOR_BODIES,
+          ...IDEAL_OPAMP_BODIES,
+          IDEAL_CHOPPER_TARGET,
+        ]
           .filter(
             (name) =>
               !projectNames.has(name.toLowerCase()) &&

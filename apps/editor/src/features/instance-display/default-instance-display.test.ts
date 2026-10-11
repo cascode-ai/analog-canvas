@@ -1,4 +1,5 @@
 import {
+  drawnSwitchPhase,
   resolveAnnotationName,
   resolveAnnotationPresentation,
   resolveSchematicStyleProfile,
@@ -177,6 +178,43 @@ describe("default instance display annotations", () => {
       ).toEqual([]);
     },
   );
+  it("labels a chopper with the clock it switches on, Φ_ch at first (#1641)", () => {
+    const document = createEmptyDocument("chopper-label", "Chopper label");
+    const profile = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    );
+    const chopper = createNewInstance(document, {
+      symbolId: "chopper",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: initialInstanceNetlist("chopper", {}),
+    });
+    expect(chopper.reference).toBe("CH1");
+    const annotations = defaultInstanceDisplayAnnotations(
+      document,
+      chopper,
+      resolver,
+      profile,
+      { showValue: true },
+    );
+    // One label, the clock's name, not bound to the Reference.
+    expect(annotations).toHaveLength(1);
+    const [label] = annotations;
+    expect(label).toMatchObject({ kind: "instance-label" });
+    expect(label!.binding).toBeUndefined();
+    expect(flattenRichText(label!.content!)).toBe("Φch");
+    // The netlist reads the clock from it, as it reads a switch's phase.
+    document.instances.push(chopper);
+    document.annotations.push(label!);
+    expect(drawnSwitchPhase(document, chopper)).toEqual({
+      name: "Φch",
+      drawnName: "Φ_ch",
+    });
+  });
+
   it("shows a live Battery Reference with a voltage-source binding", () => {
     const document = createEmptyDocument("battery", "Battery");
     const instance = createNewInstance(document, {

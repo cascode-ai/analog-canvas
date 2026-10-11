@@ -56,6 +56,7 @@ const PRODUCT_IDS = [
   "resistor",
   "simple-switch",
   "spdt-switch",
+  "chopper",
   "variable-capacitor",
   "variable-inductor",
   "variable-resistor",

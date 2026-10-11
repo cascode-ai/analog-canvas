@@ -2114,6 +2114,64 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "chopper",
+      name: "Chopper",
+      category: "switch",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      bounds: {
+        x: -20,
+        y: -30,
+        width: 40,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "INP",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: -10,
+          },
+        },
+        {
+          name: "INN",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 10,
+          },
+        },
+        {
+          name: "OUTP",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: -10,
+          },
+        },
+        {
+          name: "OUTN",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 10,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "variable-capacitor",
       name: "Variable Capacitor",
       category: "passive",

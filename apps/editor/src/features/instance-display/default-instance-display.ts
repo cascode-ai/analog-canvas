@@ -158,7 +158,16 @@ export function defaultInstanceDisplayAnnotations(
         )
       : alone;
   if (showsDesignator && label) {
-    if (LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId)) {
+    if (instance.symbolId === "chopper") {
+      // A chopper's label names its clock (#1641). Every chopper starts on
+      // Φ_ch, so the input and output choppers of an amplifier switch
+      // together until one is relabelled.
+      annotations.push({
+        ...label,
+        binding: undefined,
+        content: controlledSourceExpressionDocument("Φ_{ch}"),
+      });
+    } else if (LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId)) {
       annotations.push({
         ...label,
         binding: undefined,

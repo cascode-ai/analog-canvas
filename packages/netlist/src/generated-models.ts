@@ -8,6 +8,11 @@ import {
   type IdealOpampBody,
 } from "@icm/devices";
 import { idealLogicModel } from "./ideal-logic-gate-models.js";
+import {
+  chopperBehavioralDefinition,
+  IDEAL_CHOPPER_TARGET,
+  spiceChopperBody,
+} from "./ideal-switch-model.js";
 import { idealSignalModel } from "./ideal-signal-block-models.js";
 import {
   voltage,
@@ -80,6 +85,7 @@ function idealOpampModel(target: IdealOpampBody): BehavioralModel {
 
 /** One family dispatch; printers never own model equations or defaults. */
 export function generatedBehavioralDefinition(target: string): BehavioralModel {
+  if (target === IDEAL_CHOPPER_TARGET) return chopperBehavioralDefinition();
   if (isIdealComparatorBody(target)) return idealComparatorModel(target);
   if (isIdealOpampBody(target)) return idealOpampModel(target);
   const model = builtInModelContract(target);
@@ -89,5 +95,7 @@ export function generatedBehavioralDefinition(target: string): BehavioralModel {
 }
 
 export function generatedBehavioralModel(target: string): string[] {
+  // SPICE switches the chopper's paths with its native S cards (#1641).
+  if (target === IDEAL_CHOPPER_TARGET) return spiceChopperBody();
   return printSpiceBehavioralModel(generatedBehavioralDefinition(target));
 }

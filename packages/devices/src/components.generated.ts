@@ -1655,6 +1655,21 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "chopper",
+    symbolId: "chopper",
+    deviceClass: "switch",
+    referencePrefix: "CH",
+    pinOrder: ["INP", "INN", "OUTP", "OUTN"],
+    targetPolicy: "none",
+    parameters: [],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: false,
+    },
+  },
+  {
     id: "ground",
     symbolId: "ground",
     deviceClass: "net-marker",

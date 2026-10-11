@@ -142,6 +142,7 @@ export function symbolCategory(symbolId: string): string {
       "simple-switch",
       "spdt-switch",
       "voltage-controlled-switch",
+      "chopper",
     ].includes(symbolId)
   ) {
     return "Switches";

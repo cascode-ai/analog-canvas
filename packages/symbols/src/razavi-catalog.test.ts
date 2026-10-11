@@ -267,6 +267,7 @@ describe("Razavi symbol catalog", () => {
       ["simple-spdt-switch", "reviewed", "house"],
       ["simple-switch", "reviewed", "house"],
       ["spdt-switch", "reviewed", "house"],
+      ["chopper", "reviewed", "house"],
       ["variable-capacitor", "reviewed", "razavi-reference-v1"],
       ["variable-inductor", "reviewed", "razavi-reference-v1"],
       ["variable-resistor", "reviewed", "razavi-reference-v1"],

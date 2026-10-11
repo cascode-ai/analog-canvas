@@ -2314,6 +2314,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "619b00cf2fdb0a6b81830a245018425fcabb38641eec39fe2bb21fd4a285e92d",
   },
   {
+    symbolId: "chopper",
+    name: "Chopper",
+    category: "switch",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A chopper does not appear on the reviewed page; it is drawn here as chopper-stabilized amplifiers draw it, a crossed box as tall as the op-amp body and about a quarter as wide, its pins on the op-amp's input rows.",
+    pinOrder: ["INP", "INN", "OUTP", "OUTN"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Four switches on one clock, straight while it is high and crossed while it is low; SPICE has no single chopper primitive.",
+    assetPath: "chopper.json",
+    assetHash:
+      "5042e5a4b1d2784b28b0ded160f49c3b69bb7057f95a0e502aef625f63498208",
+  },
+  {
     symbolId: "variable-capacitor",
     name: "Variable Capacitor",
     category: "passive",
@@ -16379,6 +16396,186 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 20,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "chopper",
+    name: "Chopper",
+    viewBox: {
+      x: -24,
+      y: -34,
+      width: 48,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "INP",
+        role: "passive",
+        at: {
+          x: -20,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "INN",
+        role: "passive",
+        at: {
+          x: -20,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUTP",
+        role: "passive",
+        at: {
+          x: 20,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUTN",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: -10,
+        },
+        to: {
+          x: -8,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 10,
+        },
+        to: {
+          x: -8,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 8,
+          y: -10,
+        },
+        to: {
+          x: 20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 8,
+          y: 10,
+        },
+        to: {
+          x: 20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -8 -30 L 8 -30 L 8 30 L -8 30 Z",
+        bounds: {
+          x: -8,
+          y: -30,
+          width: 16,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -8,
+          y: -30,
+        },
+        to: {
+          x: 8,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 8,
+          y: -30,
+        },
+        to: {
+          x: -8,
+          y: 30,
         },
         style: {
           strokeRole: "normal",

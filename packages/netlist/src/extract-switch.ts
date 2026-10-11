@@ -9,7 +9,10 @@ import type {
   DesignNetlistInstance,
   NetlistDiagnostic,
 } from "./ir.js";
-import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
+import {
+  IDEAL_CHOPPER_TARGET,
+  IDEAL_SWITCH_MODEL,
+} from "./ideal-switch-model.js";
 import {
   type ResolvedDesignNetlistAnalysisOptions,
   diagnostic,
@@ -87,7 +90,9 @@ export function isDrawnSwitch(
 
 /**
  * A drawn switch as the SPICE `S` card it means: its two switched nodes, then
- * its control against the Cell's ground, closing through the ideal switch.
+ * its control against the Cell's ground, closing through the ideal switch. A
+ * chopper is the call of the ideal chopper's body on its four pins and the
+ * clock its label names.
  * A phase names its node the way a Net Label would, so the switch meets the
  * clock drawn on a Net of that name, or a Cell Pin of that name. A phase
  * nothing in the Cell drives becomes a pin of a Cell printed as a subcircuit
@@ -98,14 +103,14 @@ export function extractDrawnSwitch(
   document: SchematicDocument,
   instance: Instance,
   definition: DeviceDescriptor,
-  control: "phase" | "pin",
+  control: "phase" | "pin" | "chopper",
   context: CellNetContext,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const reference = instance.reference!;
   let controlNode: string | null;
-  if (control === "phase") {
+  if (control !== "pin") {
     // A switch whose label still shows its own name is clocked by a phase of
     // that name, so a freshly placed switch netlists at once. Writing Φ1 on
     // the label moves it onto a shared clock, and E̅N̅ is the signal EN_bar,
@@ -170,6 +175,17 @@ export function extractDrawnSwitch(
       terminalNetName(document, instance, pinName, context, diagnostics) ??
       `<unconnected:${pinName}>`,
   }));
+  // A chopper calls its four switches' body with its clock last (#1641).
+  if (control === "chopper")
+    return {
+      id: instance.id,
+      reference,
+      invocationKind: "subcircuit",
+      deviceClass: "hierarchical",
+      target: IDEAL_CHOPPER_TARGET,
+      nodes: [...nodes, { pinName: "CK", netName: controlNode }],
+      parameters: [],
+    };
   return {
     id: instance.id,
     reference,

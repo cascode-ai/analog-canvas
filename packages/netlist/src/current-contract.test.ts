@@ -2129,6 +2129,90 @@ describe("drawn switches", () => {
     return project;
   }
 
+  /** Choppers, each named for the Nets of its pins, labelled to its clock. */
+  function chopped(choppers: [reference: string, nets: string[]][]) {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    for (const [reference, nets] of choppers) {
+      document.instances.push({
+        id: reference,
+        symbolId: "chopper",
+        placement: null,
+        reference,
+        netlist: { parameters: {} },
+      });
+      ["INP", "INN", "OUTP", "OUTN"].forEach((pinName, index) => {
+        const name = nets[index]!;
+        const net = document.nets.find((item) => item.id === `net-${name}`);
+        if (net) net.terminals.push({ instanceId: reference, pinName });
+        else {
+          document.nets.push({
+            id: `net-${name}`,
+            terminals: [{ instanceId: reference, pinName }],
+          });
+          claimNet(document, `net-${name}`, name);
+        }
+      });
+      document.annotations.push({
+        id: `label-${reference}`,
+        kind: "instance-label",
+        anchor: {
+          kind: "object",
+          objectId: reference,
+          localOffset: { x: 0, y: -40 },
+          fallbackPosition: { x: 0, y: -40 },
+        },
+        content: phi("ch"),
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+    }
+    return project;
+  }
+
+  it("chops on the one clock its label names, straight while high and crossed while low (#1641)", () => {
+    // An input and an output chopper around an amplifier share Φ_ch.
+    const project = chopped([
+      ["CH1", ["inp", "inn", "ap", "an"]],
+      ["CH2", ["op", "on", "outp", "outn"]],
+    ]);
+    const analysis = analyzeDesignNetlist(project);
+    expect(analysis.diagnostics).toEqual([]);
+    const text = printSpiceNetlist(analysis.ir!);
+    // Nothing drives the clock, so the Cell takes it as one pin, in English.
+    expect(text).toMatch(/^\.subckt dut PHIch$/mu);
+    expect(text).toContain("XCH1 inp inn ap an PHIch ideal_chopper");
+    expect(text).toContain("XCH2 op on outp outn PHIch ideal_chopper");
+    // One body, printed once: the straight pair closes above the ideal
+    // switch's threshold, the crossed pair below it.
+    expect(text.match(/^\.subckt ideal_chopper /gmu)).toHaveLength(1);
+    expect(text).toContain(
+      [
+        ".subckt ideal_chopper INP INN OUTP OUTN CK",
+        "S1 INP OUTP CK 0 chopper_straight",
+        "S2 INN OUTN CK 0 chopper_straight",
+        "S3 INP OUTN 0 CK chopper_crossed",
+        "S4 INN OUTP 0 CK chopper_crossed",
+        ".model chopper_straight SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+        ".model chopper_crossed SW(RON=1 ROFF=1e12 VT=-0.5 VH=0)",
+        ".ends ideal_chopper",
+      ].join("\n"),
+    );
+    const spectre = createDesignNetlistExport(project, { format: "spectre" });
+    expect(spectre.status).toBe("ready");
+    if (spectre.status !== "ready") return;
+    expect(spectre.file.text).toContain(
+      "CH1 (inp inn ap an PHIch) ideal_chopper",
+    );
+    expect(spectre.file.text).toContain(
+      "s1 (INP OUTP) bsource i=v(INP,OUTP)/(v(CK)>vt ? ron : roff)",
+    );
+    expect(spectre.file.text).toContain(
+      "s3 (INP OUTN) bsource i=v(INP,OUTN)/(v(CK)>vt ? roff : ron)",
+    );
+  });
+
   it("closes a two-terminal switch on the phase its label names", () => {
     const analysis = analyzeDesignNetlist(switched("ideal-switch", phi("1")));
     expect(
