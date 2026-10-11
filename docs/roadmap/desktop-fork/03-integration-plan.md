@@ -1,8 +1,8 @@
 # 迁入清单与验收顺序
 
-本文件是完整候选清单。首版本地批次已在 [05-local-merge-plan.md](05-local-merge-plan.md) 收敛范围，Properties、schema 等延期项不因出现在本清单中而自动进入首版。
+本文件是完整候选清单。当前范围由[离线版完善方案](06-desktop-completion-plan.md)持有，Properties、schema 等延期项不因出现在本清单中而自动进入本轮。
 
-本文件是分析后的后续实施边界。部分 upstream 准备已通过 #1126 合并，尚未迁入 fork 实现，也没有声称下列桌面/Visio 测试已经通过。实际进度和反馈取舍以 [05 第 0 节](05-local-merge-plan.md#feedback-alignment)为准。关键源码与提交见[固定源码索引](migration-references.md)，完整历史可按[参考环境说明](README.md)读取；每个后续目标开始前还需检查最新主线及工作区改动归属。
+本文件保留后续迁入候选及其验收要求，不代表整张候选表已获本轮实施授权或通过验收。当前范围见[离线版完善方案](06-desktop-completion-plan.md)，未决分叉和复用约束见[05 迁入约束](05-local-merge-plan.md#feedback-alignment)。关键源码与提交见[固定源码索引](migration-references.md)，完整历史可按[参考环境说明](README.md)读取；每个后续目标开始前还需检查最新主线及工作区改动归属。
 
 ## 1. 先保存参考，再从主线开目标
 
