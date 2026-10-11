@@ -182,8 +182,19 @@ export function itemPropertyCode(
     const fields: CanvasPropertyField[] = native
       .spans(baseline)
       .map(({ field }) => ({ ...field, path: publicPath(field.path) }));
-    const spans = (source: string) =>
-      propertyCodeSpans(source, undefined, fields);
+    // Every option edits the same displayed source. Keep only that source's
+    // ranges; candidate validation below must not replace them.
+    let current:
+      | { source: string; ranges: ReturnType<typeof propertyCodeSpans> }
+      | undefined;
+    const spans = (source: string) => {
+      if (current?.source !== source)
+        current = {
+          source,
+          ranges: propertyCodeSpans(source, undefined, fields),
+        };
+      return [...current.ranges];
+    };
     const validate = (source: string) => {
       try {
         const result = native.parse(restore(source));

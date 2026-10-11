@@ -10,6 +10,7 @@ import {
 import { createEmptyDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+import { createLargePerformanceFixture } from "../../../../../packages/derived/src/test-support/large-performance-fixture";
 
 import {
   defaultDocumentSettingsCode,
@@ -21,6 +22,7 @@ import {
   type DocumentSettingsCodeValue,
 } from "./document-settings-code";
 import {
+  createDocumentSettingsCodeAdapter,
   documentSettingsCodeChanges,
   documentSettingsCodeSpans,
 } from "./document-settings-code-assists";
@@ -67,6 +69,84 @@ function applyChanges(
 }
 
 describe("document Style code", () => {
+  it("retains every candidate edit on a public 385-instance, 280-Net fixture", () => {
+    const document = createLargePerformanceFixture(
+      new InMemorySymbolResolver(builtInSymbols),
+      {
+        instances: 385,
+        nets: 280,
+        routes: 1280,
+        junctions: 400,
+        annotations: 389,
+      },
+    ).documents[0]!;
+    const source = serializeDocumentSettingsCode(
+      documentSettingsCodeValue(document, canvas),
+    );
+    const adapter = createDocumentSettingsCodeAdapter(document);
+    expect(adapter.spans(source)).toEqual(
+      documentSettingsCodeSpans(source, document),
+    );
+    for (const span of adapter.spans(source))
+      for (const option of span.field.options ?? []) {
+        const values = { [span.field.path]: option.value };
+        expect(adapter.changes(source, values)).toEqual(
+          documentSettingsCodeChanges(source, document, values),
+        );
+      }
+  }, 30_000);
+
+  it("prepares the same complete choices and edits across draft and document changes", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push(
+      ...Array.from({ length: 40 }, (_, index) => ({
+        id: `net-${index}`,
+        terminals: [],
+      })),
+    );
+    const source = serializeDocumentSettingsCode(editableValue());
+    const adapter = createDocumentSettingsCodeAdapter(document);
+    for (const draft of [
+      source,
+      source.replace('"preserve"', '"uppercase"'),
+      "{",
+      source,
+    ]) {
+      expect(adapter.parse(draft)).toEqual(
+        parseDocumentSettingsCode(draft, document),
+      );
+      const spans = adapter.spans(draft);
+      expect(spans).toEqual(documentSettingsCodeSpans(draft, document));
+      for (const span of spans) {
+        for (const option of span.field.options ?? []) {
+          const values = { [span.field.path]: option.value };
+          expect(adapter.changes(draft, values)).toEqual(
+            documentSettingsCodeChanges(draft, document, values),
+          );
+        }
+      }
+    }
+    const invalid = source.replace('"nmos": "VSS"', '"nmos": "missing"');
+    expect(adapter.changes(invalid, { "bulkDefaults.nmos": "net-1" })).toEqual(
+      documentSettingsCodeChanges(invalid, document, {
+        "bulkDefaults.nmos": "net-1",
+      }),
+    );
+    expect(adapter.changes(source, { "bulkDefaults.nmos": "missing" })).toEqual(
+      [],
+    );
+    const changed = structuredClone(document);
+    changed.nets = changed.nets.filter((net) => net.id !== "net-1");
+    const next = createDocumentSettingsCodeAdapter(changed);
+    expect(next.changes(source, { "bulkDefaults.nmos": "net-1" })).toEqual([]);
+    expect(
+      adapter.changes(source, { "bulkDefaults.nmos": "net-1" }),
+    ).not.toEqual([]);
+    expect(next.parse(invalid)).toEqual(
+      parseDocumentSettingsCode(invalid, changed),
+    );
+  });
+
   it("serializes the complete appearance and canvas preference surface", () => {
     const document = createEmptyDocument("document-main", "Main");
     expect(documentSettingsCodeValue(document, canvas)).toEqual(

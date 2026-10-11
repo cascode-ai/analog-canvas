@@ -150,6 +150,23 @@ export function parseDocumentSettingsCode(
   source: string,
   document: SchematicDocument,
 ): DocumentSettingsCodeParseResult {
+  return parseSettingsCode(source, document);
+}
+
+/** One reader belongs to one immutable, committed Document, never an engine draft. */
+export function createDocumentSettingsCodeParser(document: SchematicDocument) {
+  const validNetIds = new Set(
+    logicalNetChoices(document).map((net) => net.netId),
+  );
+  return (source: string): DocumentSettingsCodeParseResult =>
+    parseSettingsCode(source, document, validNetIds);
+}
+
+function parseSettingsCode(
+  source: string,
+  document: SchematicDocument,
+  preparedNetIds?: ReadonlySet<string>,
+): DocumentSettingsCodeParseResult {
   let raw: unknown;
   try {
     raw = JSON.parse(source);
@@ -204,9 +221,9 @@ export function parseDocumentSettingsCode(
     "bulkDefaults",
   );
   if (bulkError) return { ok: false, message: bulkError };
-  const validNetIds = new Set(
-    logicalNetChoices(document).map((net) => net.netId),
-  );
+  const validNetIds =
+    preparedNetIds ??
+    new Set(logicalNetChoices(document).map((net) => net.netId));
   const bulkDefaults = {} as DocumentSettingsCodeValue["bulkDefaults"];
   for (const [field, value] of Object.entries(raw.bulkDefaults)) {
     const kind = field as "nmos" | "pmos";

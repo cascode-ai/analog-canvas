@@ -10,6 +10,7 @@ import type {
   CanvasPropertyOptionPreview,
 } from "../properties/component-property-fields";
 import {
+  createDocumentSettingsCodeParser,
   mosBulkDefaultNetIdFromCode,
   parseDocumentSettingsCode,
 } from "./document-settings-code";
@@ -277,7 +278,10 @@ export function documentSettingsCodeSpans(
   return propertyCodeSpans(source, undefined, fields(document));
 }
 
-/** Replace only selected JSON values; preserve all unrelated authored bytes. */
+/**
+ * Replace only selected JSON values; preserve all unrelated authored bytes.
+ * @internal Uncached oracle for prepared-reader differential contract tests.
+ */
 export function documentSettingsCodeChanges(
   source: string,
   document: SchematicDocument,
@@ -289,6 +293,54 @@ export function documentSettingsCodeChanges(
     return [];
   }
   const spans = documentSettingsCodeSpans(source, document);
+  return changesForSpans(source, values, spans, (candidate) =>
+    parseDocumentSettingsCode(candidate, document),
+  );
+}
+
+/** Prepare the shared reader once for the editor's committed Document. */
+export function createDocumentSettingsCodeAdapter(document: SchematicDocument) {
+  const parse = createDocumentSettingsCodeParser(document);
+  const preparedFields = fields(document);
+  function read(source: string) {
+    let validJson = true;
+    try {
+      JSON.parse(source);
+    } catch {
+      validJson = false;
+    }
+    return {
+      source,
+      validJson,
+      parsed: parse(source),
+      spans: propertyCodeSpans(source, undefined, preparedFields),
+    };
+  }
+  // Only the current source is held; candidate validation never evicts it.
+  let current: ReturnType<typeof read> | undefined;
+  function prepared(source: string) {
+    if (!current || current.source !== source) current = read(source);
+    return current;
+  }
+  return {
+    parse: (source: string) => prepared(source).parsed,
+    // CodeMirror's linter sorts this array to locate the most specific field.
+    spans: (source: string) => [...prepared(source).spans],
+    changes: (source: string, values: Readonly<Record<string, unknown>>) => {
+      const state = prepared(source);
+      return state.validJson
+        ? changesForSpans(source, values, state.spans, parse)
+        : [];
+    },
+  };
+}
+
+function changesForSpans(
+  source: string,
+  values: Readonly<Record<string, unknown>>,
+  spans: readonly PropertyCodeSpan[],
+  parse: (source: string) => { ok: boolean },
+): readonly { from: number; to: number; insert: string }[] {
   const changes = Object.entries(values).map(([path, value]) => {
     const matches = spans.filter((item) => item.field.path === path);
     const span = matches.length === 1 ? matches[0] : undefined;
@@ -306,5 +358,5 @@ export function documentSettingsCodeChanges(
       candidate.slice(0, change.from) +
       change.insert +
       candidate.slice(change.to);
-  return parseDocumentSettingsCode(candidate, document).ok ? sorted : [];
+  return parse(candidate).ok ? sorted : [];
 }
