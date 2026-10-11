@@ -23,7 +23,7 @@ import {
   type UseAgentSessionResult,
 } from "./use-agent-session";
 
-const WorkspaceAgent = createContext<{
+const WorkspaceAgent = /* @__PURE__ */ createContext<{
   session: UseAgentSessionResult;
   bind: (context: UseAgentSessionOptions | null) => void;
   /** Whether this page offers Agent connections at all. */

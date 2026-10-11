@@ -573,7 +573,9 @@ export function EditorDialogs({
               },
               cloudProjects,
               activeCloudProjectId: cloudBinding?.id ?? null,
-              onLoadCloudProject: loadCloudProjectForCellImport,
+              ...(!import.meta.env?.ICM_DESKTOP
+                ? { onLoadCloudProject: loadCloudProjectForCellImport }
+                : {}),
               onImportCloudCell: async (source, sourceDocumentId) => {
                 const plan = planProjectCellImport(
                   project,
@@ -636,7 +638,7 @@ export function EditorDialogs({
           : null
       }
       publishGallery={
-        publishGalleryOpen
+        !import.meta.env?.ICM_DESKTOP && publishGalleryOpen
           ? {
               draft: publishDraft,
               onDraftChange: setPublishDraft,
@@ -706,7 +708,9 @@ export function EditorDialogs({
           : null
       }
       versionHistory={
-        versionHistoryOpen && galleryEntryContext
+        !import.meta.env?.ICM_DESKTOP &&
+        versionHistoryOpen &&
+        galleryEntryContext
           ? {
               entryId: galleryEntryContext.id,
               entryName: galleryEntryContext.name,
@@ -735,7 +739,10 @@ export function EditorDialogs({
           : null
       }
       agentConnection={
-        publicAgentUiEnabled && agentPanelOpen
+        !import.meta.env?.ICM_DESKTOP &&
+        publicAgentUiEnabled &&
+        agentSession &&
+        agentPanelOpen
           ? {
               open: agentPanelOpen,
               status: agentSession.status,

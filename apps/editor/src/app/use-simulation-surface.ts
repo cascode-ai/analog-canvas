@@ -83,7 +83,7 @@ export function useSimulationSurface({
   projectSessionId: string;
   simulationTransport: ReturnType<typeof resolveSimulationTransport>;
   setProjectPanel: Dispatch<SetStateAction<EditorProjectPanelMode | null>>;
-  projectRunHistory: ProjectRunHistory;
+  projectRunHistory: ProjectRunHistory | null;
 }) {
   const [simulationPickMode, setSimulationPickModeState] = useState<
     "net" | "terminal" | null
@@ -101,7 +101,9 @@ export function useSimulationSurface({
   const analogSimulationMaximized = analogSimulationState === "maximized";
   const humanSimulationSession = useMemo(
     () =>
-      analogSimulationOpened
+      !import.meta.env?.ICM_DESKTOP &&
+      analogSimulationOpened &&
+      projectRunHistory
         ? new BrowserSimulationSession({
             runHistory: projectRunHistory,
             owner: "human",

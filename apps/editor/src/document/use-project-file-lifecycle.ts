@@ -460,6 +460,8 @@ export function useProjectFileLifecycle({
   function saveProjectToNative(
     candidate?: CircuitProject,
     asNew = false,
+    intoLibrary = false,
+    copyName?: string,
   ): Promise<NativeSaveOutcome> {
     return nativeSaveCoordinator.save({
       sessionId: projectSessionId,
@@ -483,6 +485,7 @@ export function useProjectFileLifecycle({
           snapshot,
           {
             store: nativeProjectStore,
+            workingCopyId: recovery.workingCopyId,
             binding,
             previousState: persistenceState,
             recovery,
@@ -494,11 +497,23 @@ export function useProjectFileLifecycle({
               );
               setNativeBinding(file);
             },
+            installCopy: (copy, baseline, file, dirty) => {
+              replaceActiveProject(copy, viewBox, {
+                nativeBinding: file,
+                savedBaseline: baseline,
+                persistenceState: dirty ? "dirty" : "clean",
+              });
+              nativeSavedTokenRef.current = projectChangeToken(
+                baseline.project,
+              );
+            },
             setBaseline: setSavedProjectBaseline,
             setState: setPersistenceState,
             report: setStatus,
           },
           asNew,
+          intoLibrary,
+          copyName,
         );
       },
       rejected: (reason) => ({

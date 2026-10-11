@@ -396,7 +396,13 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       mirror: options.componentPlacementMirror,
     };
     try {
-      if (capture.library) await checkSharedComponentRevision(capture.library);
+      if (capture.library) {
+        if (import.meta.env?.ICM_DESKTOP)
+          throw Error(
+            "Online component library is unavailable in the offline app.",
+          );
+        else await checkSharedComponentRevision(capture.library);
+      }
       const current = latest.current;
       if (current.pendingComponentPlacement?.capture !== capture) return;
       if (

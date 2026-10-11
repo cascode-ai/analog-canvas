@@ -15,8 +15,9 @@ interface GalleryChangeMessage extends GalleryChange {
   sourceId: string;
 }
 
-const SOURCE_ID =
-  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+const SOURCE_ID = import.meta.env?.ICM_DESKTOP
+  ? ""
+  : typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random()}`;
 

@@ -7,8 +7,6 @@ import {
   type AgentPermissions,
   type AgentSessionScope,
 } from "@icm/agent-adapter";
-const simulationOperations =
-  AgentSimulationResourceCapabilitySchema.shape.operations.element.options;
 
 /** What a paired session may do, as its granted scopes say. */
 function permissionsFromScopes(
@@ -67,7 +65,9 @@ export function agentCircuitServiceOptions(options: {
             ? {
                 simulationResource: {
                   path: "/api/agent/sessions/{sessionId}/simulation" as const,
-                  operations: simulationOperations,
+                  operations:
+                    AgentSimulationResourceCapabilitySchema.shape.operations
+                      .element.options,
                   analyses: ["op", "dc", "ac", "tran", "noise"] as const,
                   maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,
                   synchronous: false as const,

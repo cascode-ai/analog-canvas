@@ -87,6 +87,7 @@ function issuesBadge(issues: {
 }
 
 export function EditorStatusbar({
+  externalLinksEnabled = true,
   visitStats,
   status,
   tool,
@@ -113,6 +114,7 @@ export function EditorStatusbar({
   onZoomIn,
   onFitView,
 }: {
+  externalLinksEnabled?: boolean;
   visitStats?: { pv: number; uv: number } | null | undefined;
   status: string;
   tool: EditorTool;
@@ -296,25 +298,29 @@ export function EditorStatusbar({
         </a>
       ) : null}
       <div className="statusbar-view-controls">
-        <a
-          className="statusbar-change-log"
-          data-testid="statusbar-change-log"
-          href={SITE_CHANGE_LOG_URL}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Change Log
-        </a>
-        {/* A new tab, like Change Log: the drawing stays open here. */}
-        <a
-          className="statusbar-change-log statusbar-privacy"
-          data-testid="statusbar-privacy"
-          href={SITE_PRIVACY_PATH}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Privacy
-        </a>
+        {externalLinksEnabled ? (
+          <>
+            <a
+              className="statusbar-change-log"
+              data-testid="statusbar-change-log"
+              href={SITE_CHANGE_LOG_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Change Log
+            </a>
+            {/* A new tab, like Change Log: the drawing stays open here. */}
+            <a
+              className="statusbar-change-log statusbar-privacy"
+              data-testid="statusbar-privacy"
+              href={SITE_PRIVACY_PATH}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Privacy
+            </a>
+          </>
+        ) : null}
         <button
           type="button"
           className="statusbar-hints-toggle"

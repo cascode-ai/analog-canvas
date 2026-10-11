@@ -1,7 +1,7 @@
 /** The unscoped name also respects consumers running the previous host version. */
 export const evidenceLockName = (projectId: string, scope?: string) =>
   `analog-canvas:evidence:${projectId}${scope ? ":" + scope : ""}`;
-const changes = new EventTarget();
+const changes = /* @__PURE__ */ new EventTarget();
 const CHANGE_CHANNEL = "analog-canvas:evidence-changes";
 export function announceEvidenceChange(projectId: string) {
   changes.dispatchEvent(new CustomEvent("change", { detail: projectId }));

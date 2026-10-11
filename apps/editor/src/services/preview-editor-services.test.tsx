@@ -23,6 +23,9 @@ describe("desktop preview composition", () => {
       'data-testid="examples-toggle"',
       'data-testid="open-agent"',
       'data-testid="open-analog-simulation"',
+      'data-testid="statusbar-change-log"',
+      'data-testid="statusbar-privacy"',
+      'href="https://tokenzhang.com"',
     ])
       expect(html).not.toContain(marker);
     expect(html).toContain("Export Project File");

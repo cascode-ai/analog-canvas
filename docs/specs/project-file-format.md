@@ -17,6 +17,12 @@ connection facts. Schema 62 lets a Symbol's body text keep an authored look. Bot
 metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
 version.
 
+Windows desktop also accepts `.icproj` as an outer filename alias for exactly
+the same canonical JSON. It allows an opt-in product-specific file association:
+Windows treats `.icproj.json` as `.json`, which this application never takes over.
+Library files and portable exports continue to use `.icproj.json`; external
+desktop Save As suggests `.icproj`. There is no second codec, schema or model.
+
 Schema 63 adds optional `source.files[].content` (decoded text and encoding),
 `originalContent` for inputs converted before parsing, and Document
 `importReference`. The reference stores source Net names/scopes and immutable

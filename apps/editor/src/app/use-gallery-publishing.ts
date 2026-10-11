@@ -56,7 +56,12 @@ export function useGalleryRefresh({
   const [, setGalleryRefreshSignal] = useState(0);
   const galleryLoadGenerationRef = useRef(0);
   useEffect(() => {
-    if (!capabilities.community || !visibleLibraryPanelOpen) return;
+    if (
+      import.meta.env?.ICM_DESKTOP ||
+      !capabilities.community ||
+      !visibleLibraryPanelOpen
+    )
+      return;
     return subscribeGalleryRefresh(() => {
       galleryLoadGenerationRef.current += 1;
       setGalleryRefreshSignal((previous) => previous + 1);
@@ -168,7 +173,12 @@ export function useGalleryPublishing({
   useEffect(() => {
     // An earlier count is no promise for this opening: say nothing until read.
     setPublishQuota(null);
-    if (!publishGalleryOpen || !publishAccountId) return;
+    if (
+      import.meta.env?.ICM_DESKTOP ||
+      !publishGalleryOpen ||
+      !publishAccountId
+    )
+      return;
     let cancelled = false;
     void loadGalleryQuota().then((quota) => {
       if (!cancelled) setPublishQuota(quota);
@@ -274,6 +284,7 @@ export function useGalleryPublicationLink({
     setPublicationLinkError(null);
     setPublicationLinkNotice(null);
     if (
+      import.meta.env?.ICM_DESKTOP ||
       !publishGalleryOpen ||
       !capabilities.community ||
       !projectStore ||
@@ -336,6 +347,8 @@ export function useGalleryPublicationLink({
   ]);
 
   const linkExistingPublication = async (input: string): Promise<void> => {
+    if (import.meta.env?.ICM_DESKTOP)
+      throw new Error("Gallery is unavailable in this host");
     const match = input
       .trim()
       .match(/^(?:https?:\/\/[^/]+)?\/g\/([^/?#]+)(?:[?#].*)?$/u);
@@ -411,6 +424,7 @@ export function useGalleryPublicationRecord({
     sessionId: string,
     by: "person" | "agent",
   ): boolean {
+    if (import.meta.env?.ICM_DESKTOP) return false;
     if (editorDocumentController.projectSessionId !== sessionId) {
       announceGalleryChange({ entryId: id });
       return false;

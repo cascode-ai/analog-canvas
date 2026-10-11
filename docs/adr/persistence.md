@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Owners: `packages/project-protocol`, `apps/editor`, `apps/local-host`, `worker`
+Owners: `packages/project-protocol`, `apps/editor`, `apps/desktop`, `apps/local-host`, `worker`
 
 ## Decision
 
@@ -37,6 +37,17 @@ than scattered legacy branches. Ambiguous electrical data must be refused with
 a located explanation, not silently converted into guessed connectivity.
 
 ## Internal desktop preview decision (2026-09-26)
+
+### Desktop completion (2026-10-11)
+
+The [accepted completion plan](../roadmap/desktop-fork/06-desktop-completion-plan.md)
+adds a default user-owned project library, independent Save As, three previous
+save versions and checked workspace/preview recovery. Canonical project files
+remain authoritative instead of introducing a second content database; opaque
+main-process grants isolate file authority from renderer display paths. Stable
+user data survives ZIP replacement, and an opt-in `.icproj` filename association
+avoids taking over every `.json` file. Web Save remains Cloud-backed. The older
+paragraphs below record the preview's successive, smaller boundaries.
 
 The minimum desktop follow-up extends the preview to file-bound Save/Save As,
 recent Projects and all-tab close protection, using the same Project protocol

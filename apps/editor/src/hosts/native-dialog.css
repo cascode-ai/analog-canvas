@@ -1,0 +1,74 @@
+.native-dialog {
+  box-sizing: border-box;
+  width: min(68rem, 90vw);
+  max-height: 85dvh;
+  padding: 1.5rem;
+  overflow: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: 14px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: 0 24px 48px rgb(15 15 15 / 18%);
+  font: inherit;
+}
+.native-dialog::backdrop {
+  background: rgb(55 53 47 / 28%);
+  backdrop-filter: blur(3px);
+}
+.native-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.native-dialog h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+.native-dialog p,
+.native-dialog small {
+  color: var(--icm-text-muted);
+  line-height: 1.5;
+}
+.native-dialog [role="alert"] {
+  color: var(--icm-error);
+}
+.native-dialog button,
+.native-dialog input,
+.native-dialog select {
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+}
+.native-dialog button {
+  cursor: pointer;
+}
+.native-dialog button:hover:not(:disabled) {
+  background: var(--icm-surface-hover, #eee);
+}
+.native-dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.native-dialog form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+.native-dialog form label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.native-save-dialog {
+  width: min(38rem, 90vw);
+}
+.native-save-dialog h2,
+.native-save-dialog p {
+  flex-basis: 100%;
+}

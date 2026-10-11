@@ -119,7 +119,7 @@ describe("HTTP executable adapter", () => {
     expect(await failure("circuit_place", "{ not json")).toMatch(
       /^HTTP client command failed: .*JSON/u,
     );
-    const secret = "3f2a9c1e-7b4d-4e8f-9a0b-1c2d3e4f5a6b";
+    const secret = "00000000-0000-4000-8000-000000000001";
     expect(
       httpCommandFailureMessage(
         Object.assign(

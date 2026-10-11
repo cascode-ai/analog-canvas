@@ -162,6 +162,26 @@ it("does not deliver a failed visual build and keeps the chunk refresh remedy", 
 });
 
 describe("netlist delivery", () => {
+  it("saves the selected netlist to a file with the same refusal rules while ordinary Copy stays on the clipboard", async () => {
+    const target = commands({
+      project: hierarchyParameterFixture(),
+      netlistRootDocumentId: "resistors",
+    });
+    await target.exportDesignNetlist("spice", "native", "file");
+    expect(target.copyText).not.toHaveBeenCalled();
+    expect(target.deliverFile).toHaveBeenCalledOnce();
+    expect(String(target.deliverFile.mock.calls[0]![0].bytes)).toContain(
+      ".subckt",
+    );
+    expect(target.dependencies.setStatus).toHaveBeenLastCalledWith(
+      expect.stringContaining("saved"),
+    );
+    const refused = commands({
+      netlistConfigurationError: "Choose a root Cell",
+    });
+    await refused.exportDesignNetlist("spice", "native", "file");
+    expect(refused.deliverFile).not.toHaveBeenCalled();
+  });
   it.each(["spice", "spectre"] as const)(
     "copies the current %s plan with the chosen root and warnings through the host",
     async (format) => {

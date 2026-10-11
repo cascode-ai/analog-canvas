@@ -285,12 +285,13 @@ export default function ComponentDefinitionEditor(
   useEffect(() => {
     dialog.current?.showModal();
     let active = true;
-    void fetchSessionUser().then((next) => {
-      if (active) {
-        setUser(next);
-        setAuthReady(true);
-      }
-    });
+    if (!import.meta.env?.ICM_DESKTOP)
+      void fetchSessionUser().then((next) => {
+        if (active) {
+          setUser(next);
+          setAuthReady(true);
+        }
+      });
     return () => {
       active = false;
       dialog.current?.close();
@@ -427,6 +428,7 @@ export default function ComponentDefinitionEditor(
     );
   }
   async function save() {
+    if (import.meta.env?.ICM_DESKTOP) return;
     if (native) {
       if (
         !nativeDefinitionId ||
@@ -545,6 +547,7 @@ export default function ComponentDefinitionEditor(
     }
   }
   async function manage(status: "official" | "deleted" | "shared") {
+    if (import.meta.env?.ICM_DESKTOP) return;
     if (!record || busy) return;
     setBusy(true);
     setNotice(null);
@@ -564,7 +567,7 @@ export default function ComponentDefinitionEditor(
       setBusy(false);
     }
   }
-  const publishAction = (
+  const publishAction = import.meta.env?.ICM_DESKTOP ? null : (
     <button
       type="button"
       className="primary"
@@ -645,7 +648,9 @@ export default function ComponentDefinitionEditor(
               Back to library
             </button>
           ) : null}
-          {!user && authReady ? <AccountMenu inEditor /> : null}
+          {!import.meta.env?.ICM_DESKTOP && !user && authReady ? (
+            <AccountMenu inEditor />
+          ) : null}
           {dirty || pendingLeave ? (
             <InlineConfirm
               aria-label="Close component editor"
@@ -872,7 +877,7 @@ export default function ComponentDefinitionEditor(
           </footer>
         </>
       ) : null}
-      {native ? (
+      {!import.meta.env?.ICM_DESKTOP && native ? (
         <>
           <p className="component-definition-note">
             {authReady && !user
@@ -884,12 +889,13 @@ export default function ComponentDefinitionEditor(
           {notice ? <p role="status">{notice}</p> : null}
         </>
       ) : null}
-      {publicationConflict ||
-      (record &&
-        publication.kind === "update" &&
-        authReady &&
-        user &&
-        !canUpdate) ? (
+      {!import.meta.env?.ICM_DESKTOP &&
+      (publicationConflict ||
+        (record &&
+          publication.kind === "update" &&
+          authReady &&
+          user &&
+          !canUpdate)) ? (
         <div
           className="component-definition-actions"
           role="group"

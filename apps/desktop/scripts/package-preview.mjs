@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { assertPublicDistributionPath } from "../../../scripts/lib/distribution-security.mjs";
+import { rcedit } from "rcedit";
 
 const root = resolve(import.meta.dirname, "../../..");
 const require = createRequire(import.meta.url);
@@ -39,6 +40,15 @@ await rename(
   join(application, "electron.exe"),
   join(application, "Analog Canvas Preview.exe"),
 );
+// Set Explorer and taskbar branding on the distribution copy only.
+await rcedit(join(application, "Analog Canvas Preview.exe"), {
+  icon: join(root, "apps/desktop/dist/app.ico"),
+  "version-string": {
+    ProductName: "Analog Canvas Preview",
+    FileDescription: "Analog Canvas offline schematic editor",
+    OriginalFilename: "Analog Canvas Preview.exe",
+  },
+});
 const appRoot = join(application, "resources/app");
 await mkdir(appRoot, { recursive: true });
 await cp(join(root, "apps/desktop/dist"), join(appRoot, "dist"), {

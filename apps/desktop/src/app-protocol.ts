@@ -33,6 +33,7 @@ export interface AppProtocolOptions {
   editorRoot: string;
   exportFile: (request: Request) => Promise<Response>;
   projectFile?: (request: Request) => Promise<Response>;
+  system?: (request: Request) => Promise<Response>;
 }
 
 function inside(root: string, requested: string): string {
@@ -81,7 +82,9 @@ export async function createAppProtocolHandler(
     "font-src 'self' data:",
     `script-src ${scriptSources}`,
     "worker-src 'self' blob:",
-    "connect-src 'self'",
+    // The vector PDF renderer reads its bundled period font from a data URL.
+    // This admits embedded bytes, never an external network destination.
+    "connect-src 'self' data:",
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
@@ -109,6 +112,8 @@ export async function createAppProtocolHandler(
     if (pathname === "/desktop/export") return options.exportFile(request);
     if (pathname.startsWith("/desktop/project/") && options.projectFile)
       return options.projectFile(request);
+    if (pathname.startsWith("/desktop/system/") && options.system)
+      return options.system(request);
     if (pathname.startsWith("/api/") || pathname.startsWith("/desktop/"))
       return new Response("Not Found", { status: 404, headers: secureHeaders });
 

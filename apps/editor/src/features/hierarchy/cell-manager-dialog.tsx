@@ -131,7 +131,7 @@ export function CellManagerDialog({
   onRemoveExternalDefinition(definitionId: string): ExternalDefinitionResult;
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
-  onLoadCloudProject(
+  onLoadCloudProject?(
     projectId: string,
   ): Promise<
     { ok: true; project: CircuitProject } | { ok: false; message: string }
@@ -272,7 +272,7 @@ export function CellManagerDialog({
     setImportSource(null);
     setImportCellId("");
     setImportMessage("");
-    if (!projectId) return;
+    if (!projectId || !onLoadCloudProject) return;
     setImportBusy(true);
     const loaded = await onLoadCloudProject(projectId);
     setImportBusy(false);
@@ -516,27 +516,29 @@ export function CellManagerDialog({
                 >
                   New Cell
                 </button>
-                <button
-                  type="button"
-                  className="cell-manager-new"
-                  disabled={cloudProjects.length === 0}
-                  title={
-                    cloudProjects.length === 0
-                      ? "Sign in and open another Project to import a Cell."
-                      : undefined
-                  }
-                  onClick={() => {
-                    setCreating(false);
-                    setDeleteId(null);
-                    setImporting(true);
-                    setImportProjectId("");
-                    setImportSource(null);
-                    setImportCellId("");
-                    setImportMessage("");
-                  }}
-                >
-                  Import Cell
-                </button>
+                {onLoadCloudProject ? (
+                  <button
+                    type="button"
+                    className="cell-manager-new"
+                    disabled={cloudProjects.length === 0}
+                    title={
+                      cloudProjects.length === 0
+                        ? "Sign in and open another Project to import a Cell."
+                        : undefined
+                    }
+                    onClick={() => {
+                      setCreating(false);
+                      setDeleteId(null);
+                      setImporting(true);
+                      setImportProjectId("");
+                      setImportSource(null);
+                      setImportCellId("");
+                      setImportMessage("");
+                    }}
+                  >
+                    Import Cell
+                  </button>
+                ) : null}
               </footer>
             </aside>
           ) : (

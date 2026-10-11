@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 
-const AccountMenuView = lazy(() => import("./account-menu-view"));
+const AccountMenuView = /* @__PURE__ */ lazy(
+  () => import("./account-menu-view"),
+);
 
 /**
  * Gallery accounts (roadmap phase G2), dark-shipped: the worker reports
@@ -43,7 +45,7 @@ const NO_PROVIDERS: AuthProviders = {
 };
 
 const SESSION_CACHE_MS = 30_000;
-const sessionRequests = new WeakMap<
+const sessionRequests = /* @__PURE__ */ new WeakMap<
   typeof fetch,
   { expiresAt: number; request: Promise<SessionUser | null> }
 >();

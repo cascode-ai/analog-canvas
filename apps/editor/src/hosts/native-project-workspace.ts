@@ -1,4 +1,5 @@
 import type { CircuitProject, GridRect } from "@icm/model";
+import { createIndependentProject } from "@icm/project-protocol";
 import type {
   NativeFileBinding,
   NativeProjectStore,
@@ -20,6 +21,7 @@ interface FileTab {
   id: string;
   session: {
     controller: { project: CircuitProject; projectSessionId: string };
+    recovery: { workingCopyId: string };
     file: ProjectFileSession;
     view: GridRect;
     dirty: boolean;
@@ -90,6 +92,9 @@ export async function saveBackgroundNativeTab(
   const outcome = await store.save(
     snapshot.project,
     entry.session.file.nativeBinding ?? null,
+    false,
+    false,
+    `${entry.session.recovery.workingCopyId}:save`,
   );
   const live = tabs.entries().find((item) => item.id === id);
   if (outcome.status === "saved" && live && snapshot.isCurrent()) {
@@ -171,17 +176,26 @@ export async function writeNativeProject(
   snapshot: ProjectSaveSnapshot,
   ports: {
     store: NativeProjectStore;
+    workingCopyId: string;
     binding: NativeFileBinding | null;
     previousState: PersistenceState;
     recovery: Pick<RecoveryCoordinator, "stage" | "flushNow">;
     view: GridRect;
     currentProject(): CircuitProject;
     acknowledge(file: NativeFileBinding): void;
+    installCopy(
+      project: CircuitProject,
+      baseline: SavedProjectBaseline,
+      file: NativeFileBinding,
+      dirty: boolean,
+    ): void;
     setBaseline(baseline: SavedProjectBaseline): void;
     setState(state: PersistenceState): void;
     report(message: string): void;
   },
   asNew: boolean,
+  intoLibrary = false,
+  copyName?: string,
 ): Promise<NativeSaveOutcome> {
   if (!snapshot.isCurrent())
     return { status: "failed", message: "Project changed before saving" };
@@ -190,13 +204,41 @@ export async function writeNativeProject(
   await ports.recovery.flushNow();
   if (!snapshot.isCurrent())
     return { status: "failed", message: "Project changed before saving" };
+  const savedProject = asNew
+    ? createIndependentProject(
+        snapshot.project,
+        `copy-${ports.workingCopyId}`,
+        copyName,
+      )
+    : snapshot.project;
   const outcome = await ports.store.save(
-    snapshot.project,
+    savedProject,
     ports.binding,
     asNew,
+    intoLibrary,
+    `${ports.workingCopyId}:${asNew ? "copy" : "save"}`,
   );
   if (!snapshot.isCurrent()) return outcome;
   if (outcome.status === "saved") {
+    if (asNew) {
+      const dirty = !snapshot.matchesCurrentProject();
+      const live = ports.currentProject();
+      ports.installCopy(
+        createIndependentProject(
+          live,
+          savedProject.id,
+          live.name === snapshot.project.name ? savedProject.name : live.name,
+        ),
+        { project: savedProject, viewBox: { ...ports.view } },
+        outcome.file,
+        dirty,
+      );
+      ports.report(
+        outcome.warning ??
+          `Saved independent project: ${savedProject.name}${dirty ? "; newer edits remain unsaved" : ""}`,
+      );
+      return outcome;
+    }
     ports.acknowledge(outcome.file);
     ports.setBaseline({
       project: snapshot.project,
@@ -209,7 +251,7 @@ export async function writeNativeProject(
     });
     ports.report(
       outcome.warning ??
-        `Saved: ${outcome.file.path}${unchanged ? "" : "; newer edits remain unsaved"}`,
+        `Saved: ${savedProject.name}${unchanged ? "" : "; newer edits remain unsaved"}`,
     );
   } else if (outcome.status === "cancelled") {
     ports.setState(

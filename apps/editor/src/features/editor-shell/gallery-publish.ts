@@ -1,6 +1,6 @@
 import type { SubmissionGateFailure } from "@icm/derived";
 import type { GalleryEntryContext } from "./gallery-example-commands";
-import { gallerySourceOfEntryId } from "../../gallery-sources";
+
 import type { CloudProjectBinding } from "./cloud-projects";
 import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
@@ -44,21 +44,7 @@ function galleryPublicationBinding(binding: CloudProjectBinding | null) {
     : {};
 }
 
-export function canUpdateGalleryPublication(
-  context: GalleryEntryContext | null,
-  user: { id: string; isAdmin: boolean; role?: string } | null,
-): boolean {
-  // A reference dataset's circuit is read-only for everyone (#1510).
-  return !!(
-    context &&
-    user &&
-    !gallerySourceOfEntryId(context.id) &&
-    (user.isAdmin ||
-      user.role === "moderator" ||
-      context.ownerUserId === user.id)
-  );
-}
-
+export { canUpdateGalleryPublication } from "./gallery-publication-permission";
 /** A Gallery read that failed, with the HTTP status that said so. */
 export class GalleryReadError extends Error {
   constructor(

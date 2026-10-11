@@ -1,3 +1,4 @@
+import { parseSharedComponentEntry } from "./component-library-entry";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentLibrarySummary } from "@icm/agent-adapter";
 import { fetchSessionUser, type SessionUser } from "../../components/account";
@@ -8,7 +9,6 @@ import type {
 } from "./component-library-contract";
 import {
   loadSharedComponentSummaries,
-  parseSharedComponentEntry,
   readSharedComponentRecord,
   ComponentLibraryError,
   checkSharedComponentRevision,

@@ -204,7 +204,7 @@ import {
   cellPlacementIssue,
 } from "../features/hierarchy/project-structure-commands";
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
-import { canUpdateGalleryPublication } from "../features/editor-shell/gallery-publish";
+import { canUpdateGalleryPublication } from "../features/editor-shell/gallery-publication-permission";
 import { GalleryDailyLimitCard } from "../features/editor-shell/gallery-daily-limit-card";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
@@ -274,6 +274,9 @@ import { createAgentGalleryPublisher } from "../agent/agent-gallery-publish";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import { WorkspaceAgentProvider } from "../agent/workspace-agent";
+const HostAgentProvider = !import.meta.env?.ICM_DESKTOP
+  ? WorkspaceAgentProvider
+  : ({ children }: Parameters<typeof WorkspaceAgentProvider>[0]) => children;
 export { WorkspaceAgentProvider } from "../agent/workspace-agent";
 import { referencedDocumentId } from "../document/editor-session";
 import { useInteractionState } from "../interaction/interaction-state";
@@ -465,8 +468,10 @@ export function App(props: AppProps) {
   } | null>(() =>
     typeof window === "undefined" || props.project ? { workspace: null } : null,
   );
+  const startup = useRef({ props, boot });
   useEffect(() => {
-    if (boot) return;
+    const { props: entryProps, boot: initialBoot } = startup.current;
+    if (initialBoot) return;
     let mounted = true;
     void Promise.resolve()
       .then(() => {
@@ -480,13 +485,18 @@ export function App(props: AppProps) {
           // target beside them: a Gallery entry, a Cloud Project, or a new
           // circuit. Returning from the account resumes this window's
           // workspace without selecting its former deep-link target.
-          Boolean(props.initialGalleryEntryId) ||
+          Boolean(entryProps.initialGalleryEntryId) ||
             new URLSearchParams(window.location.search).has("project") ||
             new URLSearchParams(window.location.search).get("new") === "1" ||
             new URLSearchParams(window.location.search).get("resume") === "1",
         );
       })
-      .then((read) => {
+      .then(async (read) => {
+        if (entryProps.services.restoreWorkspace && !read.error)
+          read = {
+            ...read,
+            ...(await entryProps.services.restoreWorkspace(read.workspace)),
+          };
         if (!mounted) return;
         // Taken in by the tabs just read, or by none this window keeps.
         clearDeletedCloudProjects();
@@ -507,8 +517,9 @@ export function App(props: AppProps) {
   if (!boot) return <div role="status">Restoring project tabs…</div>;
   return (
     <EditorServicesProvider services={props.services}>
-      <WorkspaceAgentProvider
+      <HostAgentProvider
         enabled={
+          !import.meta.env?.ICM_DESKTOP &&
           props.services.capabilities.agent &&
           (props.publicAgentUiEnabled ?? PUBLIC_AGENT_UI_ENABLED)
         }
@@ -519,7 +530,7 @@ export function App(props: AppProps) {
           workspaceError={boot.error ?? null}
           workspaceNotice={boot.notice ?? null}
         />
-      </WorkspaceAgentProvider>
+      </HostAgentProvider>
     </EditorServicesProvider>
   );
 }
@@ -542,9 +553,10 @@ function propertiesMosBulkDefaultNetId(
 function WorkspaceEditor({
   project: initialProject,
   visitStats,
-  publicAgentUiEnabled: requestedAgentUi = PUBLIC_AGENT_UI_ENABLED,
-  publicSimulationUiEnabled:
-    requestedSimulationUi = PUBLIC_SIMULATION_UI_ENABLED,
+  publicAgentUiEnabled: requestedAgentUi = !import.meta.env?.ICM_DESKTOP &&
+    PUBLIC_AGENT_UI_ENABLED,
+  publicSimulationUiEnabled: requestedSimulationUi = !import.meta.env
+    .ICM_DESKTOP && PUBLIC_SIMULATION_UI_ENABLED,
   initialGalleryEntryId = null,
   restoredWorkspace,
   workspaceError,
@@ -559,12 +571,16 @@ function WorkspaceEditor({
     projectStore,
     nativeProjectStore,
     NativeFileCommands,
+    NativeProjectHome,
     exportDelivery,
     capabilities,
   } = useEditorServices();
-  const publicAgentUiEnabled = capabilities.agent && requestedAgentUi;
+  const publicAgentUiEnabled =
+    !import.meta.env?.ICM_DESKTOP && capabilities.agent && requestedAgentUi;
   const publicSimulationUiEnabled =
-    capabilities.simulation && requestedSimulationUi;
+    !import.meta.env?.ICM_DESKTOP &&
+    capabilities.simulation &&
+    requestedSimulationUi;
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
   );
@@ -1001,42 +1017,59 @@ function WorkspaceEditor({
     projectSwitchBlockerRef,
     openProjectInTabRef,
   });
+  const agentProjectTabsRef = useRef(() => projectTabs);
+  agentProjectTabsRef.current = () => projectTabs;
   const browserAgentProjectHost = useMemo(
     () =>
-      new BrowserAgentProjectHost({
-        projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
-        isProjectAvailable: () =>
-          projectTabs
-            .entries()
-            .some(
-              (entry) => entry.session.controller === editorDocumentController,
-            ),
-        publishToGallery: createAgentGalleryPublisher({
-          // Only while this working copy is the one its tab shows.
-          current: () => {
-            const state = agentGalleryPublicationRef.current();
-            return state.controller === editorDocumentController ? state : null;
-          },
-          published: (outcome, state) =>
-            recordGalleryPublicationRef.current(
-              outcome,
-              state.sessionId,
-              "agent",
-            ),
-        }),
-        workspace: (request) => agentWorkspaceRef.current(request),
-        getProjectSessionId: () => editorDocumentController.projectSessionId,
-        getProject: () => editorDocumentController.project,
-        getActiveDocumentId: () => editorDocumentController.document.id,
-        commitProjectStructure: (nextProject, activeDocumentId) =>
-          browserAgentHost.commitProjectStructure(
-            nextProject,
-            activeDocumentId,
-          ),
-        dispatchProjectTransaction: (request) =>
-          browserAgentHost.dispatchProjectTransaction(request),
-      }),
-    [browserAgentHost, editorDocumentController, projectSessionId],
+      !import.meta.env?.ICM_DESKTOP && browserAgentHost
+        ? new BrowserAgentProjectHost({
+            projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
+            isProjectAvailable: () =>
+              agentProjectTabsRef
+                .current()
+                .entries()
+                .some(
+                  (entry) =>
+                    entry.session.controller === editorDocumentController,
+                ),
+            publishToGallery: createAgentGalleryPublisher({
+              // Only while this working copy is the one its tab shows.
+              current: () => {
+                const state = agentGalleryPublicationRef.current();
+                return state.controller === editorDocumentController
+                  ? state
+                  : null;
+              },
+              published: (outcome, state) =>
+                recordGalleryPublicationRef.current(
+                  outcome,
+                  state.sessionId,
+                  "agent",
+                ),
+            }),
+            workspace: (request) => agentWorkspaceRef.current(request),
+            getProjectSessionId: () =>
+              editorDocumentController.projectSessionId,
+            getProject: () => editorDocumentController.project,
+            getActiveDocumentId: () => editorDocumentController.document.id,
+            commitProjectStructure: (nextProject, activeDocumentId) =>
+              browserAgentHost.commitProjectStructure(
+                nextProject,
+                activeDocumentId,
+              ),
+            dispatchProjectTransaction: (request) =>
+              browserAgentHost.dispatchProjectTransaction(request),
+          })
+        : null,
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- preserve the host's existing per-session lifetime when a controller is reused
+    [
+      browserAgentHost,
+      editorDocumentController,
+      projectSessionId,
+      agentWorkspaceRef,
+      agentGalleryPublicationRef,
+      recordGalleryPublicationRef,
+    ],
   );
   const {
     simulationPickMode,
@@ -1182,7 +1215,7 @@ function WorkspaceEditor({
       deleteSession: deleteRecoverySession,
     },
     installProject: (nextProject, nextViewBox, options) => {
-      browserAgentFileHost.clear();
+      browserAgentFileHost?.clear();
       setAgentFileCandidate(null);
       setImportReport(null);
       setImportReviewOpen(false);
@@ -3606,21 +3639,21 @@ function WorkspaceEditor({
     selectedInstance,
     setStatus,
   });
-  const applyAgentSemanticIntent = createAgentSemanticIntentHandler({
-    project,
-    resolver,
-    connectivityIndex: projectConnectivityIndex,
-    navigateToLocator,
-    fitDocument,
-    clearFocus: () => {
-      resetInteractionState();
-      setHighlightedNetOrigin(null);
-      setSelectionOpen(false);
-      setStatus("Agent cleared semantic focus");
-    },
-    highlightNet,
-  });
-  agentSemanticIntentRef.current = applyAgentSemanticIntent;
+  if (!import.meta.env?.ICM_DESKTOP)
+    agentSemanticIntentRef.current = createAgentSemanticIntentHandler({
+      project,
+      resolver,
+      connectivityIndex: projectConnectivityIndex,
+      navigateToLocator,
+      fitDocument,
+      clearFocus: () => {
+        resetInteractionState();
+        setHighlightedNetOrigin(null);
+        setSelectionOpen(false);
+        setStatus("Agent cleared semantic focus");
+      },
+      highlightNet,
+    });
 
   useEffect(() => {
     if (!selectedRouteId) setSelectedRouteSegmentIndex(null);
@@ -4778,6 +4811,7 @@ function WorkspaceEditor({
     closeNativeTabs,
     saveNativeTab,
   } = useNativeProjectTabs({
+    restoringWorkspace,
     nativeProjectStore,
     setStatus,
     replaceGuard,
@@ -4790,41 +4824,49 @@ function WorkspaceEditor({
     projectTabs,
     nativeWorkspaceSaving,
   });
-  agentWorkspaceRef.current = createAgentWorkspaceHandler({
-    projectStore,
-    stageRecovery,
-    flushRecovery,
-    editorDocumentController,
-    synchronizeExternalCommit,
-    setCloudProjects,
-    cloudListMutationRef,
-    simulationSourceBuffer,
-    codeDraftDirty,
-    restoreFileSession,
-    saveProjectToCloud,
-    openCloudProjectById,
-    renameProject,
-    createTabSession,
-    projectSwitchBlocker,
-    projectTabs,
-  });
-  agentTargetRef.current = createAgentWorkspaceTargets({
-    flushRecovery,
-    synchronizeExternalCommit,
-    agentPlanning,
-    browserAgentHost,
-    simulationTransport,
-    projectSwitchBlockerRef,
-    openProjectInTabRef,
-    setAgentFileCandidate,
-    agentProjectResources,
-    browserAgentFileHost,
-    browserAgentSimulationHost,
-    agentWorkspaceRef,
-    browserAgentProjectHost,
-    backgroundAgentHosts,
-    projectTabs,
-  });
+  if (!import.meta.env?.ICM_DESKTOP)
+    agentWorkspaceRef.current = createAgentWorkspaceHandler({
+      projectStore,
+      stageRecovery,
+      flushRecovery,
+      editorDocumentController,
+      synchronizeExternalCommit,
+      setCloudProjects,
+      cloudListMutationRef,
+      simulationSourceBuffer,
+      codeDraftDirty,
+      restoreFileSession,
+      saveProjectToCloud,
+      openCloudProjectById,
+      renameProject,
+      createTabSession,
+      projectSwitchBlocker,
+      projectTabs,
+    });
+  if (
+    !import.meta.env?.ICM_DESKTOP &&
+    browserAgentHost &&
+    browserAgentFileHost &&
+    browserAgentSimulationHost &&
+    browserAgentProjectHost
+  )
+    agentTargetRef.current = createAgentWorkspaceTargets({
+      flushRecovery,
+      synchronizeExternalCommit,
+      agentPlanning,
+      browserAgentHost,
+      simulationTransport,
+      projectSwitchBlockerRef,
+      openProjectInTabRef,
+      setAgentFileCandidate,
+      agentProjectResources,
+      browserAgentFileHost,
+      browserAgentSimulationHost,
+      agentWorkspaceRef,
+      browserAgentProjectHost,
+      backgroundAgentHosts,
+      projectTabs,
+    });
   const allowNextBrowserUnload = useUnsavedWorkGuard(projectTabs.hasUnsafeTabs);
 
   const recordGalleryPublication = useGalleryPublicationRecord({
@@ -4907,6 +4949,8 @@ function WorkspaceEditor({
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
         NativeFileCommands={NativeFileCommands}
+        NativeProjectHome={NativeProjectHome}
+        initiallyOpenProjectHome={restoredWorkspace === null}
         capabilities={capabilities}
         publicAgentUiEnabled={publicAgentUiEnabled}
         publicSimulationUiEnabled={publicSimulationUiEnabled}
@@ -5401,6 +5445,16 @@ function WorkspaceEditor({
                         netlistNamingProfile,
                       )
                     }
+                    {...(nativeProjectStore
+                      ? {
+                          onSaveFile: () =>
+                            void exportDesignNetlist(
+                              netlistPreferences.format,
+                              netlistNamingProfile,
+                              "file",
+                            ),
+                        }
+                      : {})}
                     configurationError={netlistPreferences.error}
                   />
                 ) : projectPanel === "instances" ? (
@@ -5498,6 +5552,7 @@ function WorkspaceEditor({
               hasInspectableSelection={hasInspectableSelection}
               agentIndicator={
                 publicAgentUiEnabled &&
+                agentSession &&
                 agentSession.status !== "idle" &&
                 !agentStatusDismissed
                   ? {
@@ -6439,6 +6494,7 @@ function WorkspaceEditor({
               }
               agent={
                 publicAgentUiEnabled &&
+                agentSession &&
                 (agentSession.status !== "idle" ||
                   agentSession.error !== null) &&
                 !agentStatusDismissed
@@ -7036,7 +7092,7 @@ function WorkspaceEditor({
             },
           }}
           notice={
-            galleryDailyLimit ? (
+            !import.meta.env?.ICM_DESKTOP && galleryDailyLimit ? (
               <GalleryDailyLimitCard
                 limit={galleryDailyLimit}
                 onBackToGallery={leaveForGallery}
@@ -7095,6 +7151,7 @@ function WorkspaceEditor({
         onClose={() => setSelectionFilterOpen(false)}
       />
       <EditorStatusbar
+        externalLinksEnabled={capabilities.externalLinks}
         visitStats={visitStats}
         status={status}
         tool={tool}
@@ -7105,6 +7162,7 @@ function WorkspaceEditor({
         wireCornerOrder={wireCornerOrder}
         recoveryLabel={isDirtyWork() ? recoveryStateLabel(recoveryState) : null}
         agentExpiring={
+          agentSession &&
           agentSession.expiringSoon &&
           agentSession.status !== "expired" &&
           agentSession.status !== "revoked"
