@@ -1,8 +1,8 @@
 # 目标架构：一条主线，两个宿主，共用编辑和文件协议
 
-拟定的目标是：**同一个仓库和 main，Web 与 desktop 分别装配、测试、发布；model、edit-engine、派生计算、编辑界面和正式文件协议共用。** 这是准备阶段的架构建议，以下目录、接口和发行方式属于待实现设计，不表示产品已完成解耦或讨论参与者已共同确认。首批范围以[首版本地合并计划](05-local-merge-plan.md)为准，正式发行留待讨论。
+拟定的目标是：**同一个仓库和 main，Web 与 desktop 分别装配、测试、发布；model、edit-engine、派生计算、编辑界面和正式文件协议共用。** 以下目录、接口和发行方式是架构候选，不表示产品已完成解耦或讨论参与者已共同确认。当前范围与发布完成条件以[离线版完善方案](06-desktop-completion-plan.md)为准。
 
-2026-09-26 对齐：服务装配与 [#1121](https://github.com/cascode-ai/analog-canvas/issues/1121) 采用同一条实施路线；该 Issue 提出的 Web 本地文件正式保存超出本批“Web 行为不变”的边界，仍待独立决策。[反馈与进度](05-local-merge-plan.md#feedback-alignment)记录已完成的 U-B/U-C 部分及尚未解除的 fork 实现迁入停点。
+服务装配与 [#1121](https://github.com/cascode-ai/analog-canvas/issues/1121) 采用同一条路线；Web 本地文件正式保存仍待独立决策。当前实施范围见[离线版完善方案](06-desktop-completion-plan.md)，后续复用和未决分叉见[迁入约束](05-local-merge-plan.md#feedback-alignment)。下述架构候选不自动进入本轮。
 
 ## 1. 仓库和应用边界
 
