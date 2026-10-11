@@ -38,6 +38,14 @@ store is introduced. Returning to Editor registers fresh services and context.
 Manual pause remains authoritative across request completion, socket recovery,
 and connector bearer renewal. A transport failure does not revoke a pairing.
 
+The browser displays the Claim as soon as creation succeeds; socket readiness
+is still reported separately. The creation response's HTTP `Date` supplies the
+relay time for its countdown, advanced using the page's elapsed clock so an
+incorrect or changed computer clock cannot discard a fresh code. Expiry removes
+the code, not its explanation; reconnecting does not reset the handoff. A failed
+or canceled setup removes its code. New connection replaces the old handoff, and
+Disconnect remains locally terminal even while earlier requests are pending.
+
 ```text
 GET  /api/agent/kit
 POST /api/agent/claims
