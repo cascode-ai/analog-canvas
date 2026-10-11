@@ -1,4 +1,4 @@
-import { lazy, type ComponentType } from "react";
+import { lazy, type ComponentProps, type ComponentType } from "react";
 
 import { createChunkLoadFallback } from "../components/chunk-load-fallback";
 
@@ -45,11 +45,19 @@ export const LazyProjectCodePanel = lazyChunk("inline", () =>
   })),
 );
 
-export const LazySpiceSimulationSurface = lazyChunk("inline", () =>
-  import("../features/simulation/spice-simulation-surface").then((module) => ({
-    default: module.SpiceSimulationSurface,
-  })),
-);
+export const LazySpiceSimulationSurface = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../features/simulation/spice-simulation-surface").SpiceSimulationSurface
+      >,
+    ) => null
+  : lazyChunk("inline", () =>
+      import("../features/simulation/spice-simulation-surface").then(
+        (module) => ({
+          default: module.SpiceSimulationSurface,
+        }),
+      ),
+    );
 
 export const LazyNetlistPreflightDialog = lazyChunk("dialog", () =>
   import("../features/netlist-export/netlist-preflight-dialog").then(
@@ -57,17 +65,31 @@ export const LazyNetlistPreflightDialog = lazyChunk("dialog", () =>
   ),
 );
 
-export const LazyPublishGalleryDialog = lazyChunk("dialog", () =>
-  import("../features/editor-shell/publish-gallery-dialog").then((module) => ({
-    default: module.PublishGalleryDialog,
-  })),
-);
+export const LazyPublishGalleryDialog = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../features/editor-shell/publish-gallery-dialog").PublishGalleryDialog
+      >,
+    ) => null
+  : lazyChunk("dialog", () =>
+      import("../features/editor-shell/publish-gallery-dialog").then(
+        (module) => ({
+          default: module.PublishGalleryDialog,
+        }),
+      ),
+    );
 
-export const LazyVersionHistoryDialog = lazyChunk("dialog", () =>
-  import("../components/version-history-dialog").then((module) => ({
-    default: module.VersionHistoryDialog,
-  })),
-);
+export const LazyVersionHistoryDialog = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../components/version-history-dialog").VersionHistoryDialog
+      >,
+    ) => null
+  : lazyChunk("dialog", () =>
+      import("../components/version-history-dialog").then((module) => ({
+        default: module.VersionHistoryDialog,
+      })),
+    );
 
 export const LazyProjectInfoDialog = lazyChunk("dialog", () =>
   import("../features/editor-shell/project-info-dialog").then((module) => ({
@@ -99,11 +121,17 @@ export const LazyInsertComponentDialog = lazyChunk("dialog", () =>
   ),
 );
 
-export const LazyConnectAgentPanel = lazyChunk("dialog", () =>
-  import("../agent/connect-agent-panel").then((module) => ({
-    default: module.ConnectAgentPanel,
-  })),
-);
+export const LazyConnectAgentPanel = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../agent/connect-agent-panel").ConnectAgentPanel
+      >,
+    ) => null
+  : lazyChunk("dialog", () =>
+      import("../agent/connect-agent-panel").then((module) => ({
+        default: module.ConnectAgentPanel,
+      })),
+    );
 
 // Properties sections load with the first selection that shows them. A tab
 // that outlived a deploy found the chunk gone, and the whole editor fell to
@@ -132,36 +160,60 @@ export const LazyDocumentSettingsSection = lazyChunk("inline", () =>
   })),
 );
 
-export const LazyExamplesPanel = lazyChunk("inline", () =>
-  import("../features/editor-shell/examples-panel").then((module) => ({
-    default: module.ExamplesPanel,
-  })),
-);
+export const LazyExamplesPanel = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../features/editor-shell/examples-panel").ExamplesPanel
+      >,
+    ) => null
+  : lazyChunk("inline", () =>
+      import("../features/editor-shell/examples-panel").then((module) => ({
+        default: module.ExamplesPanel,
+      })),
+    );
 
 export const LazyComponentDefinitionEditor = lazyChunk(
   "dialog",
   () => import("../features/user-components/component-definition-editor"),
 );
 
-export const LazyAgentPropertiesSection = lazyChunk("inline", () =>
-  import("../agent/connect-agent-panel").then((module) => ({
-    default: module.AgentPropertiesSection,
-  })),
-);
+export const LazyAgentPropertiesSection = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../agent/connect-agent-panel").AgentPropertiesSection
+      >,
+    ) => null
+  : lazyChunk("inline", () =>
+      import("../agent/connect-agent-panel").then((module) => ({
+        default: module.AgentPropertiesSection,
+      })),
+    );
 
 /** Community polling is absent when no community surface is mounted. */
-export const LazyGalleryPublishedNotice = lazyChunk("inline", () =>
-  import("../features/editor-shell/gallery-published-notice").then(
-    (module) => ({
-      default: module.GalleryPublishedNotice,
-    }),
-  ),
-);
+export const LazyGalleryPublishedNotice = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../features/editor-shell/gallery-published-notice").GalleryPublishedNotice
+      >,
+    ) => null
+  : lazyChunk("inline", () =>
+      import("../features/editor-shell/gallery-published-notice").then(
+        (module) => ({
+          default: module.GalleryPublishedNotice,
+        }),
+      ),
+    );
 
-export const LazyGalleryTopologyTaskNotice = lazyChunk("inline", () =>
-  import("../features/editor-shell/gallery-topology-task-notice").then(
-    (module) => ({
-      default: module.GalleryTopologyTaskNotice,
-    }),
-  ),
-);
+export const LazyGalleryTopologyTaskNotice = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../features/editor-shell/gallery-topology-task-notice").GalleryTopologyTaskNotice
+      >,
+    ) => null
+  : lazyChunk("inline", () =>
+      import("../features/editor-shell/gallery-topology-task-notice").then(
+        (module) => ({
+          default: module.GalleryTopologyTaskNotice,
+        }),
+      ),
+    );

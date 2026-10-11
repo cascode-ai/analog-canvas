@@ -54,6 +54,16 @@ type DocumentControllerState = ReturnType<typeof useDocumentController>;
 type ProjectFileLifecycle = ReturnType<typeof useProjectFileLifecycle>;
 type EditorPanels = ReturnType<typeof useEditorPanels>;
 
+type SessionOptions = Parameters<typeof useEditorAgentSession>[0];
+function useWebAgentSession(options: SessionOptions | null) {
+  if (!options) throw new Error("Web Agent hosts were not assembled");
+  return useEditorAgentSession(options);
+}
+// The host is fixed for the entire build, so every render calls the same hook.
+const useHostAgentSession = import.meta.env?.ICM_DESKTOP
+  ? (_options: SessionOptions | null) => null
+  : useWebAgentSession;
+
 /** The Agent session a refreshed tab resumes, read once at startup. */
 export function useAgentStartupRecovery({
   capabilities,
@@ -68,6 +78,7 @@ export function useAgentStartupRecovery({
 }) {
   const [agentStartupRecovery] = useState(() => {
     if (
+      import.meta.env?.ICM_DESKTOP ||
       !capabilities.agent ||
       typeof window === "undefined" ||
       restoredWorkspace
@@ -141,22 +152,27 @@ export function useBrowserAgentHost({
     }),
     [],
   );
+  const commitCallbacks = useRef({ synchronizeExternalCommit, flushRecovery });
+  commitCallbacks.current = { synchronizeExternalCommit, flushRecovery };
   const browserAgentHost = useMemo(
     () =>
-      new BrowserAgentHost(
-        editorDocumentController,
-        () => {
-          synchronizeExternalCommit();
-          // Agent commits have already crossed a network boundary. Start the
-          // durable write immediately so a following render crash cannot lose
-          // the acknowledged transaction inside the debounce window.
-          void flushRecovery();
-        },
-        (request) => agentSemanticIntentRef.current(request),
-        undefined,
-        agentPlanning,
-      ),
-    [editorDocumentController, projectSessionId],
+      !import.meta.env?.ICM_DESKTOP
+        ? new BrowserAgentHost(
+            editorDocumentController,
+            () => {
+              commitCallbacks.current.synchronizeExternalCommit();
+              // Agent commits have already crossed a network boundary. Start the
+              // durable write immediately so a following render crash cannot lose
+              // the acknowledged transaction inside the debounce window.
+              void commitCallbacks.current.flushRecovery();
+            },
+            (request) => agentSemanticIntentRef.current(request),
+            undefined,
+            agentPlanning,
+          )
+        : null,
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- a replacement session must receive a new host even if its controller is reused
+    [editorDocumentController, projectSessionId, agentPlanning],
   );
   return {
     agentSemanticIntentRef,
@@ -177,7 +193,7 @@ export function useAgentProjectResources({
 }: {
   editorDocumentController: EditorDocumentController;
   projectSessionId: string;
-  browserAgentHost: BrowserAgentHost;
+  browserAgentHost: BrowserAgentHost | null;
   simulationTransport: ReturnType<typeof resolveSimulationTransport>;
   projectSwitchBlockerRef: RefObject<() => string | null>;
   openProjectInTabRef: RefObject<
@@ -214,69 +230,87 @@ export function useAgentProjectResources({
   const resourceKey = `${projectSessionId}:${simulationTransport}`;
   const browserAgentFileHost = useMemo(
     () =>
-      resources.get(resourceKey)?.files ??
-      new BrowserAgentFileHost({
-        transport: simulationTransport,
-        getProjectSessionId: () => editorDocumentController.projectSessionId,
-        getProject: () => editorDocumentController.project,
-        getDocument: (documentId) =>
-          editorDocumentController.project.documents.find(
-            (candidate) => candidate.id === documentId,
-          ) ?? null,
-        getResolver: () => editorDocumentController.resolver,
-        onApprovalRequested: setAgentFileCandidate,
-        getActiveDocumentId: () => editorDocumentController.document.id,
-        commitProjectStructure: (next, active) =>
-          browserAgentHost.commitProjectStructure(next, active),
-        describeOpenBlocker: () => projectSwitchBlockerRef.current(),
-        openProjectInNewTab: (candidate, background) =>
-          openProjectInTabRef.current(
-            candidate,
-            DEFAULT_VIEWBOX,
-            {
-              source: "opened-file",
-              agentEdited: true,
-            },
-            background,
-          ),
-        dispatchProjectTransaction: (request) =>
-          browserAgentHost.dispatchProjectTransaction(request),
-      }),
-    [editorDocumentController, resourceKey, simulationTransport],
+      !import.meta.env?.ICM_DESKTOP && browserAgentHost
+        ? (resources.get(resourceKey)?.files ??
+          new BrowserAgentFileHost({
+            transport: simulationTransport,
+            getProjectSessionId: () =>
+              editorDocumentController.projectSessionId,
+            getProject: () => editorDocumentController.project,
+            getDocument: (documentId) =>
+              editorDocumentController.project.documents.find(
+                (candidate) => candidate.id === documentId,
+              ) ?? null,
+            getResolver: () => editorDocumentController.resolver,
+            onApprovalRequested: setAgentFileCandidate,
+            getActiveDocumentId: () => editorDocumentController.document.id,
+            commitProjectStructure: (next, active) =>
+              browserAgentHost.commitProjectStructure(next, active),
+            describeOpenBlocker: () => projectSwitchBlockerRef.current(),
+            openProjectInNewTab: (candidate, background) =>
+              openProjectInTabRef.current(
+                candidate,
+                DEFAULT_VIEWBOX,
+                {
+                  source: "opened-file",
+                  agentEdited: true,
+                },
+                background,
+              ),
+            dispatchProjectTransaction: (request) =>
+              browserAgentHost.dispatchProjectTransaction(request),
+          }))
+        : null,
+    [
+      editorDocumentController,
+      resourceKey,
+      simulationTransport,
+      resources,
+      browserAgentHost,
+      openProjectInTabRef,
+      projectSwitchBlockerRef,
+    ],
   );
   const projectRunHistory = useMemo(
     () =>
-      resources.get(resourceKey)?.history ??
-      new ProjectRunHistory(editorDocumentController.project.id),
-    [editorDocumentController, resourceKey],
+      !import.meta.env?.ICM_DESKTOP
+        ? (resources.get(resourceKey)?.history ??
+          new ProjectRunHistory(editorDocumentController.project.id))
+        : null,
+    [editorDocumentController, resourceKey, resources],
   );
   useEffect(() => {
-    projectRunHistory.activate();
+    projectRunHistory?.activate();
   }, [projectRunHistory]);
   const browserAgentSimulationHost = useMemo(
     () =>
-      resources.get(resourceKey)?.simulation ??
-      new BrowserAgentSimulationHost({
-        runHistory: projectRunHistory,
-        owner: "agent",
-        files: browserAgentFileHost.simulationFiles,
-        getProjectSessionId: () => editorDocumentController.projectSessionId,
-        getProject: () => editorDocumentController.project,
-        transport: simulationTransport,
-      }),
+      !import.meta.env?.ICM_DESKTOP && browserAgentFileHost && projectRunHistory
+        ? (resources.get(resourceKey)?.simulation ??
+          new BrowserAgentSimulationHost({
+            runHistory: projectRunHistory,
+            owner: "agent",
+            files: browserAgentFileHost.simulationFiles,
+            getProjectSessionId: () =>
+              editorDocumentController.projectSessionId,
+            getProject: () => editorDocumentController.project,
+            transport: simulationTransport,
+          }))
+        : null,
     [
-      browserAgentFileHost.simulationFiles,
+      browserAgentFileHost,
+      resources,
       projectRunHistory,
       editorDocumentController,
       resourceKey,
       simulationTransport,
     ],
   );
-  resources.set(resourceKey, {
-    files: browserAgentFileHost,
-    history: projectRunHistory,
-    simulation: browserAgentSimulationHost,
-  });
+  if (browserAgentFileHost && projectRunHistory && browserAgentSimulationHost)
+    resources.set(resourceKey, {
+      files: browserAgentFileHost,
+      history: projectRunHistory,
+      simulation: browserAgentSimulationHost,
+    });
   useEffect(
     () => () => {
       for (const group of agentProjectResources.current.values())
@@ -356,14 +390,14 @@ export function useEditorAgentConnection({
   flushRecovery: UseRecoveryCoordinatorResult["flushNow"];
   agentStartupRecovery: ReturnType<typeof useAgentStartupRecovery>;
   project: CircuitProject;
-  browserAgentHost: BrowserAgentHost;
+  browserAgentHost: BrowserAgentHost | null;
   agentFileCandidate: AgentFileCandidateSummary | null;
   setAgentFileCandidate: Dispatch<
     SetStateAction<AgentFileCandidateSummary | null>
   >;
-  browserAgentFileHost: BrowserAgentFileHost;
-  browserAgentSimulationHost: BrowserAgentSimulationHost;
-  browserAgentProjectHost: BrowserAgentProjectHost;
+  browserAgentFileHost: BrowserAgentFileHost | null;
+  browserAgentSimulationHost: BrowserAgentSimulationHost | null;
+  browserAgentProjectHost: BrowserAgentProjectHost | null;
   captureAuthoredProject: () => Promise<CircuitProject | null>;
   cloudBinding: ProjectFileLifecycle["cloudBinding"];
   startupRestoreReady: ProjectFileLifecycle["startupRestoreReady"];
@@ -386,40 +420,49 @@ export function useEditorAgentConnection({
       }
     >(),
   );
-  const agentSession = useEditorAgentSession({
-    // A restored workspace is already the requested circuit. Resume its
-    // matching Agent only after the active Project and working copy are installed.
-    recover: true,
-    beforeConnect: async () => {
-      const snapshot = await captureAuthoredProject();
-      if (snapshot) {
-        stageRecovery(snapshot, {
-          unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
-          cloudBinding,
-        });
-        await flushRecovery();
-      }
-    },
-    enabled:
-      publicAgentUiEnabled &&
-      !restoringWorkspace &&
-      (startupRestoreReady ||
-        recoveryWorkingCopyId !== agentStartupRecovery?.projectSessionId),
-    project,
-    projectSessionId: recoveryWorkingCopyId,
-    host: browserAgentHost,
-    fileHost: browserAgentFileHost,
-    simulationHost: browserAgentSimulationHost,
-    projectHost: browserAgentProjectHost,
-    resolveWorkspace: (workspaceId) => agentTargetRef.current(workspaceId),
-  });
+  const agentSession = useHostAgentSession(
+    !import.meta.env?.ICM_DESKTOP &&
+      browserAgentHost &&
+      browserAgentFileHost &&
+      browserAgentSimulationHost &&
+      browserAgentProjectHost
+      ? {
+          // A restored workspace is already the requested circuit. Resume its
+          // matching Agent only after the active Project and working copy are installed.
+          recover: true,
+          beforeConnect: async () => {
+            const snapshot = await captureAuthoredProject();
+            if (snapshot) {
+              stageRecovery(snapshot, {
+                unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
+                cloudBinding,
+              });
+              await flushRecovery();
+            }
+          },
+          enabled:
+            publicAgentUiEnabled &&
+            !restoringWorkspace &&
+            (startupRestoreReady ||
+              recoveryWorkingCopyId !== agentStartupRecovery?.projectSessionId),
+          project,
+          projectSessionId: recoveryWorkingCopyId,
+          host: browserAgentHost,
+          fileHost: browserAgentFileHost,
+          simulationHost: browserAgentSimulationHost,
+          projectHost: browserAgentProjectHost,
+          resolveWorkspace: (workspaceId) =>
+            agentTargetRef.current(workspaceId),
+        }
+      : null,
+  );
   useEffect(() => {
     if (!publicAgentUiEnabled) return;
     setAgentStatusDismissed(false);
-  }, [agentSession.status, publicAgentUiEnabled]);
+  }, [agentSession?.status, publicAgentUiEnabled]);
 
   function approveAgentFileCandidate(): void {
-    if (!agentFileCandidate) return;
+    if (!agentFileCandidate || !browserAgentFileHost) return;
     const meta = agentFileCandidate;
     void guardDirtyReplacement(`Accept Agent ${meta.kind} candidate`, () => {
       const candidate = browserAgentFileHost.consumeApproved(meta.candidateId);
@@ -439,13 +482,14 @@ export function useEditorAgentConnection({
   }
 
   function rejectAgentFileCandidate(): void {
-    if (!agentFileCandidate) return;
+    if (!agentFileCandidate || !browserAgentFileHost) return;
     browserAgentFileHost.discard(agentFileCandidate.candidateId);
     setAgentFileCandidate(null);
     setStatus("Rejected Agent file candidate");
   }
 
   const openAgentConnection = () => {
+    if (!agentSession) return;
     setAgentPanelOpen(true);
     if (
       agentSession.status === "idle" ||

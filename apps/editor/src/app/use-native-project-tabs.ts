@@ -36,6 +36,7 @@ export function useNativeProjectTabs({
   currentEditBlocker,
   projectTabs,
   nativeWorkspaceSaving,
+  restoringWorkspace,
 }: {
   nativeProjectStore: EditorServices["nativeProjectStore"];
   setStatus: Dispatch<SetStateAction<string>>;
@@ -48,12 +49,15 @@ export function useNativeProjectTabs({
   currentEditBlocker: ProjectTabSessions["currentEditBlocker"];
   projectTabs: ProjectTabSessions["projectTabs"];
   nativeWorkspaceSaving: RefObject<boolean>;
+  restoringWorkspace: boolean;
 }) {
   const [recentNativeFiles, setRecentNativeFiles] = useState<
     RecentProjectFile[]
   >([]);
   const [nativeBusy, setNativeBusy] = useState(false);
   const nativeOperation = useRef(false);
+  const openingLaunchFiles = useRef(false);
+  const editBlocker = currentEditBlocker();
   const refreshNativeFiles = async () => {
     if (!nativeProjectStore) return;
     try {
@@ -145,12 +149,41 @@ export function useNativeProjectTabs({
   });
   const nativeBridgeRef = useRef({
     state: nativeWorkspaceState,
+    openPending: async () => {},
     save: async (): Promise<{ status: string; message?: string }> => ({
       status: "cancelled",
     }),
   });
   nativeBridgeRef.current = {
     state: nativeWorkspaceState,
+    openPending: async () => {
+      if (
+        restoringWorkspace ||
+        openingLaunchFiles.current ||
+        nativeWorkspaceState().busy ||
+        nativeWorkspaceState().pendingEdits
+      )
+        return;
+      openingLaunchFiles.current = true;
+      try {
+        while (
+          !nativeWorkspaceState().busy &&
+          !nativeWorkspaceState().pendingEdits
+        ) {
+          const id = await nativeProjectStore?.nextLaunch?.();
+          if (!id) break;
+          window.dispatchEvent(new Event("analog-canvas-native-open"));
+          await openNativeProject(id);
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        }
+      } catch (error) {
+        setStatus(`Could not open requested Project: ${String(error)}`);
+      } finally {
+        openingLaunchFiles.current = false;
+      }
+    },
     save: async () => {
       const { saveNativeWorkspace } = await loadNativeProjectWorkspace();
       return saveNativeWorkspace(
@@ -169,6 +202,7 @@ export function useNativeProjectTabs({
     const bridge = {
       state: () => nativeBridgeRef.current.state(),
       save: () => nativeBridgeRef.current.save(),
+      openPending: () => nativeBridgeRef.current.openPending(),
     };
     target.__analogCanvasDesktop = bridge;
     return () => {
@@ -176,6 +210,18 @@ export function useNativeProjectTabs({
         delete target.__analogCanvasDesktop;
     };
   }, [nativeProjectStore]);
+  useEffect(() => {
+    if (!nativeProjectStore) return;
+    void nativeBridgeRef.current.openPending();
+  }, [
+    nativeProjectStore,
+    restoringWorkspace,
+    nativeBusy,
+    projectTabs.busy,
+    replaceGuard,
+    recoveryDialogOpen,
+    editBlocker,
+  ]);
   return {
     recentNativeFiles,
     nativeBusy,

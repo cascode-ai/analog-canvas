@@ -99,6 +99,7 @@ export function createEditorFileCommands({
   const exportDesignNetlist = async (
     format: NetlistFormat,
     namingProfile: NetlistNamingProfile = "native",
+    destination: "clipboard" | "file" = "clipboard",
   ): Promise<void> => {
     showNetlist(format, namingProfile);
     if (netlistConfigurationError) {
@@ -119,11 +120,31 @@ export function createEditorFileCommands({
       return;
     }
     try {
+      if (destination === "file") {
+        const result = await exportDelivery.deliverFile({
+          bytes: plan.artifact.bytes,
+          mediaType: plan.artifact.mediaType,
+          suggestedName: `${safeExportBaseName(project.name)}.${plan.artifact.extension}`,
+        });
+        setStatus(
+          result.status === "cancelled"
+            ? "Export cancelled"
+            : plan.artifact.report.replace(
+                "copied",
+                result.status === "saved" ? "saved" : "download requested",
+              ),
+        );
+        return;
+      }
       await exportDelivery.copyText(String(plan.artifact.bytes));
       setStatus(plan.artifact.report);
-    } catch {
+    } catch (error) {
       setStatus(
-        "Clipboard unavailable; select the netlist in the sidebar and copy it",
+        destination === "file"
+          ? error instanceof Error
+            ? error.message
+            : "Netlist file export failed"
+          : "Clipboard unavailable; select the netlist in the sidebar and copy it",
       );
     }
   };

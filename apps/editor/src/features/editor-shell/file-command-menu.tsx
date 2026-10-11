@@ -21,8 +21,9 @@ export interface FileCommandMenuProps {
     busy: boolean;
     refresh(): void;
     open(id?: string): void;
-    saveAs(): void;
+    saveAs(options?: { name: string; intoLibrary: boolean }): void;
     forget(id: string): void;
+    newProject?(): void;
   };
   cloudEnabled?: boolean;
   canRevert: boolean;
@@ -179,7 +180,7 @@ export function FileCommandMenu({
         {cloudEnabled || nativeFiles ? "Save" : "Export Project File…"}
       </button>
       {nativeFiles && NativeFileCommands ? (
-        <NativeFileCommands {...nativeFiles} />
+        <NativeFileCommands {...nativeFiles} newProject={onNewProject} />
       ) : null}
       {cloudEnabled ? (
         <>

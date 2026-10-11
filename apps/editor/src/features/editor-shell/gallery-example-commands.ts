@@ -178,6 +178,7 @@ export function createGalleryExampleCommands({
     protectCurrentProject = true,
     inTab = false,
   ): Promise<void> => {
+    if (import.meta.env?.ICM_DESKTOP) return;
     setDailyOpenLimit(null);
     try {
       const response = await fetchImpl(`/api/gallery/${entryId}`, {
@@ -224,6 +225,7 @@ export function createGalleryExampleCommands({
   const refreshGalleryEntry = async (
     context: GalleryEntryContext,
   ): Promise<void> => {
+    if (import.meta.env?.ICM_DESKTOP) return;
     try {
       const response = await fetchImpl(`/api/gallery/${context.id}`, {
         credentials: "same-origin",
@@ -259,6 +261,7 @@ export function createGalleryExampleCommands({
   };
 
   const insertGalleryEntryById = async (entryId: string): Promise<void> => {
+    if (import.meta.env?.ICM_DESKTOP) return;
     setDailyOpenLimit(null);
     try {
       const response = await fetchImpl(`/api/gallery/${entryId}`, {

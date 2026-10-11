@@ -16,7 +16,7 @@ import {
   type ComponentAuthoringDraft,
 } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
-import { parseSharedComponentEntry } from "./component-library-client";
+import { parseSharedComponentEntry } from "./component-library-entry";
 import { readComponentPublication } from "./component-publication";
 
 /** An explicit reload replaces the saved baseline as well as the visible editor. */

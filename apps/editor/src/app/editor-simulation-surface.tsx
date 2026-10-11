@@ -64,7 +64,7 @@ export function EditorSimulationSurface({
 }: {
   projectSessionId: string;
   humanSimulationSession: BrowserSimulationSession;
-  projectRunHistory: ProjectRunHistory;
+  projectRunHistory: ProjectRunHistory | null;
   project: CircuitProject;
   document: SchematicDocument;
   selectedInstance: Instance | undefined;
@@ -101,6 +101,7 @@ export function EditorSimulationSurface({
   >["navigateToLocator"];
   setCodeNetPreview: SimulationPicking["setCodeNetPreview"];
 }) {
+  if (!projectRunHistory) return null;
   return (
     <Suspense fallback={null}>
       <LazySpiceSimulationSurface
@@ -120,7 +121,7 @@ export function EditorSimulationSurface({
         selectedFolderId={activeSimulationFolder?.id ?? null}
         onSelectFolderId={setActiveSimulationFolderId}
         agentGuidance={
-          publicAgentUiEnabled
+          publicAgentUiEnabled && agentSession
             ? {
                 status: agentSession.status,
                 onOpen: openAgentConnection,

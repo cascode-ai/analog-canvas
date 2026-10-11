@@ -1,5 +1,20 @@
 # Desktop preview source map
 
+## Desktop completion (2026-10-11)
+
+The sections below record earlier migrations; omitted capabilities describe
+those historical changes. This completion extends the already-adapted shell
+and file bridge, preserving their original notices and LXY-freshman credit.
+No additional fork implementation is copied here.
+
+Upstream integration adds the project library, three-version history,
+independent-copy codec, workspace grant recovery, checked preview migration,
+`.icproj` Windows registration, About, compact paths, website icon packaging,
+online module exclusion and native-ota acceptance. Registration follows
+[Windows per-user file type guidance](https://learn.microsoft.com/en-us/windows/win32/shell/fa-file-types)
+and does not adopt the fork schema or `.schdraft` association. Shared-model
+direction and capability isolation retain Arcadia-1's discussion credit below.
+
 ## Native file management (2026-09-26)
 
 This bounded migration adopts the file dialog/result flow and close decision
@@ -7,11 +22,11 @@ ports from LXY-freshman. The original implementation author is recorded as
 `Co-authored-by: LXY-freshman <57762866+LXY-freshman@users.noreply.github.com>`
 in the adopting commits; verify that trailer on the final squash as well.
 
-| Destination | Fixed original | Reuse and adaptation |
-| --- | --- | --- |
-| `src/project-files.ts` | [Project file API](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/project-files.ts), originating in [desktop c15d9f2d](https://github.com/LXY-freshman/schematic-draft/commit/c15d9f2db22cfbf19bdbc84d743460f5a384b7f6) | Retain native Open/Save/Save-As routing, cancelled/failed/saved outcomes and bounded Project size. Replace renderer-selected paths with main-process grants, optimistic byte comparisons and atomic replacement. Add recent-file index. No `.schdraft`, file associations or arbitrary path read API. |
-| `../editor/src/hosts/native-project-store.ts` | [Renderer file bridge](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/editor/src/features/editor-shell/project-files.ts) | Adapt POST transport, canonical serialization and defensive outcome decoding to injected services and opaque revisioned bindings. Paths in receipts are display metadata, never write authority. |
-| `src/close-guard.ts` and its test | [Close guard](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/close-guard.ts), [original close change](https://github.com/LXY-freshman/schematic-draft/commit/54179d29be1c04f17d20fd22deaf98418fc9ff5e), [tests](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/close-guard.test.ts) | Retain pure decision ports and save/cancel/failure branches. Aggregate all tabs, recheck after Save, default to Keep open, and require explicit discard if the renderer is unavailable. Current-workspace assertions replace the original single-Project fixtures. |
+| Destination                                   | Fixed original                                                                                                                                                                                                                                                                                                                                                                                                      | Reuse and adaptation                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/project-files.ts`                        | [Project file API](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/project-files.ts), originating in [desktop c15d9f2d](https://github.com/LXY-freshman/schematic-draft/commit/c15d9f2db22cfbf19bdbc84d743460f5a384b7f6)                                                                                                                             | Retain native Open/Save/Save-As routing, cancelled/failed/saved outcomes and bounded Project size. Replace renderer-selected paths with main-process grants, optimistic byte comparisons and atomic replacement. Add recent-file index. No `.schdraft`, file associations or arbitrary path read API. |
+| `../editor/src/hosts/native-project-store.ts` | [Renderer file bridge](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/editor/src/features/editor-shell/project-files.ts)                                                                                                                                                                                                                                        | Adapt POST transport, canonical serialization and defensive outcome decoding to injected services and opaque revisioned bindings. Paths in receipts are display metadata, never write authority.                                                                                                      |
+| `src/close-guard.ts` and its test             | [Close guard](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/close-guard.ts), [original close change](https://github.com/LXY-freshman/schematic-draft/commit/54179d29be1c04f17d20fd22deaf98418fc9ff5e), [tests](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/close-guard.test.ts) | Retain pure decision ports and save/cancel/failure branches. Aggregate all tabs, recheck after Save, default to Keep open, and require explicit discard if the renderer is unavailable. Current-workspace assertions replace the original single-Project fixtures.                                    |
 
 The recent index, tab integration, current Project protocol adaptation and new
 storage regression cases are upstream integration work. Original source commits

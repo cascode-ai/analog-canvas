@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createRequire } from "node:module";
 import { _electron as electron, expect } from "@playwright/test";
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import { acceptProjectLibrary } from "./accept-project-library.mjs";
+import { acceptAmplifier } from "./accept-amplifier.mjs";
+import { spawn } from "node:child_process";
 
 const root = resolve(import.meta.dirname, "../../..");
 const require = createRequire(import.meta.url);
@@ -18,19 +21,26 @@ let running;
 const errors = [];
 const auditFiles = [];
 const deliberateProbes = new Set();
-async function launch(name) {
+async function launch(name, options = {}) {
   const audit = join(output, `${name}.jsonl`);
   auditFiles.push(audit);
   const env = {
     ...process.env,
     ICM_PREVIEW_USER_DATA: join(output, `${name}-data`),
+    ICM_DESKTOP_PROJECTS: join(output, `${name}-projects`),
     ICM_PREVIEW_AUDIT: audit,
     ICM_PREVIEW_WAIT_FOR_DRIVER: "1",
+    ...(options.legacyData
+      ? { ICM_DESKTOP_LEGACY_DATA: options.legacyData }
+      : {}),
   };
   delete env.ELECTRON_RUN_AS_NODE;
   running = await electron.launch({
     executablePath: dev ? require("electron") : manifest.executable,
-    args: dev ? [resolve(import.meta.dirname, "..")] : [],
+    args: [
+      ...(dev ? [resolve(import.meta.dirname, "..")] : []),
+      ...(options.args ?? []),
+    ],
     env,
     timeout: 60000,
   });
@@ -50,6 +60,17 @@ async function launch(name) {
     0,
     "The renderer must wait until the acceptance driver has attached",
   );
+  if (options.legacyData)
+    await running.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async (options) => {
+        assertMigrationDialog(options);
+        return { response: 1, checkboxChecked: false };
+      };
+      function assertMigrationDialog(options) {
+        if (!options.buttons.includes("Import previous data"))
+          throw new Error("Expected the preview import prompt");
+      }
+    });
   await running.evaluate(() => globalThis.__analogCanvasPreviewDriverReady());
   const page = await running.firstWindow();
   page.on("pageerror", (error) => errors.push(error.message));
@@ -60,6 +81,14 @@ async function launch(name) {
     timeout: 60000,
   });
   console.log(`Ready ${name}`);
+  const home = page.getByRole("dialog", {
+    name: "Local projects",
+    exact: true,
+  });
+  if (options.args?.includes("--open-project"))
+    await expect(home).toHaveCount(0);
+  else if (await home.count())
+    await home.getByRole("button", { name: "Close", exact: true }).click();
   return page;
 }
 async function chooseExport(path) {
@@ -75,10 +104,15 @@ async function exportProject(page, path) {
   await page.keyboard.press("Escape");
   const menu = page
     .locator("details.command-menu")
-    .filter({ has: page.locator("summary").filter({ hasText: /^File$/ }) });
+    .filter({ has: page.getByTestId("project-menu-toggle") });
   if (!(await menu.evaluate((element) => element.open)))
     await menu.locator("summary").click();
-  await menu.getByRole("button", { name: "Export", exact: true }).click();
+  if (
+    (await menu
+      .getByRole("button", { name: "Export", exact: true })
+      .getAttribute("aria-expanded")) !== "true"
+  )
+    await menu.getByRole("button", { name: "Export", exact: true }).click();
   await menu
     .getByRole("button", { name: "Export Project File…", exact: true })
     .click();
@@ -124,7 +158,7 @@ async function closePreview() {
   running = undefined;
 }
 try {
-  const first = await launch("first");
+  let first = await launch("first");
   assert.equal(await first.evaluate(() => typeof window.require), "undefined");
   assert.equal(
     await first.evaluate(() => navigator.serviceWorker.controller),
@@ -141,6 +175,8 @@ try {
     "open-analog-simulation",
     "publish-gallery-button",
     "examples-toggle",
+    "statusbar-change-log",
+    "statusbar-privacy",
   ])
     await expect(first.getByTestId(testId)).toHaveCount(0);
   for (const x of [160, 320, 480]) {
@@ -163,34 +199,64 @@ try {
     await first.keyboard.press("Escape");
   }
   await expect(first.getByTestId("instance-count")).toHaveText("3");
-  await chooseExport(null);
-  await first.keyboard.press("Control+s");
-  await expect(
-    first.getByText("Save cancelled", { exact: true }),
-  ).toBeVisible();
-  await first
-    .locator("summary")
-    .filter({ hasText: /^File$/ })
-    .click();
-  await first.getByRole("button", { name: "New Project", exact: true }).click();
-  const replaceGuard = first.getByRole("dialog", {
-    name: "Unsaved changes",
-    exact: true,
+  await running.evaluate(({ dialog }) => {
+    dialog.showSaveDialog = async () => {
+      throw new Error("First Save must automatically use the project library");
+    };
   });
-  await expect(replaceGuard).toBeVisible();
-  await replaceGuard
-    .getByRole("button", { name: "Save and continue", exact: true })
-    .click();
-  await expect(
-    replaceGuard.getByRole("button", {
-      name: "Save and continue",
-      exact: true,
-    }),
-  ).toBeEnabled();
-  await expect(first.getByTestId("instance-count")).toHaveText("3");
-  await replaceGuard.getByRole("button", { name: "Stay", exact: true }).click();
-  await chooseExport(join(output, "does-not-exist", "failed.json"));
+  // Lose a real committed response, then reload the renderer before retrying.
+  // The working-copy identity must recover the same native creation.
+  await first.evaluate(() => {
+    const original = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+      const response = await original(...args);
+      if (String(args[0]).endsWith("/desktop/project/save")) {
+        window.fetch = original;
+        throw new Error("Acceptance: committed response lost");
+      }
+      return response;
+    };
+  });
   await first.keyboard.press("Control+s");
+  await expect(
+    first.getByText(/Save failed: Acceptance: committed response lost/),
+  ).toBeVisible();
+  const createdBeforeRetry = await readdir(join(output, "first-projects"));
+  assert.equal(createdBeforeRetry.length, 1);
+  // Exit without the close/save guard to model interruption after disk commit.
+  // Reopen the real profile, with a new main process and renderer.
+  const interrupted = running.waitForEvent("close");
+  await running.evaluate(({ app }) => app.exit(0));
+  await interrupted;
+  running = undefined;
+  first = await launch("first");
+  await expect(first.getByTestId("instance-count")).toHaveText("3");
+  await first.keyboard.press("Control+s");
+  await expect(first.getByText(/^Saved:/)).toBeVisible();
+  assert.deepEqual(
+    await readdir(join(output, "first-projects")),
+    createdBeforeRetry,
+  );
+  const firstBinding = await first
+    .getByTestId("native-file-location")
+    .getAttribute("title");
+  assert(firstBinding.startsWith(join(output, "first-projects")));
+  assert.equal(
+    parseProject(await readFile(firstBinding, "utf8")).documents[0].instances
+      .length,
+    3,
+  );
+  await fileCommand(first, "Save As…");
+  await first
+    .getByRole("dialog", { name: "Save independent project" })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  assert.equal(
+    await first.getByTestId("native-file-location").getAttribute("title"),
+    firstBinding,
+  );
+  await chooseExport(join(output, "does-not-exist", "failed.json"));
+  await saveAsExternal(first);
   await expect(first.getByText(/^Save failed:/)).toBeVisible();
   const path = join(output, "roundtrip.icproj.json");
   const before = await exportProject(first, path);
@@ -200,9 +266,15 @@ try {
     await chooseExport(artifact);
     const menu = first
       .locator("details.command-menu")
-      .filter({ has: first.locator("summary").filter({ hasText: /^File$/ }) });
-    await menu.locator("summary").click();
-    await menu.getByRole("button", { name: "Export", exact: true }).click();
+      .filter({ has: first.getByTestId("project-menu-toggle") });
+    if (!(await menu.evaluate((element) => element.open)))
+      await menu.locator("summary").click();
+    if (
+      (await menu
+        .getByRole("button", { name: "Export", exact: true })
+        .getAttribute("aria-expanded")) !== "true"
+    )
+      await menu.getByRole("button", { name: "Export", exact: true }).click();
     await menu
       .getByRole("button", {
         name: `Export ${format.toUpperCase()}`,
@@ -243,22 +315,11 @@ try {
   await second.screenshot({ path: join(output, "reopened.png") });
   await closePreview();
   const recovered = await launch("first");
-  await recovered
-    .locator("summary")
-    .filter({ hasText: /^File$/ })
-    .click();
-  await recovered
-    .getByRole("button", { name: "Recover Unsaved Work…", exact: true })
-    .click();
-  const recoveryDialog = recovered.getByRole("dialog", {
-    name: "Recover recent work",
-    exact: true,
-  });
-  await recoveryDialog
-    .getByRole("button", { name: "Restore New Circuit", exact: true })
-    .first()
-    .click();
   await expect(recovered.getByTestId("instance-count")).toHaveText("3");
+  await expect(recovered.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    firstBinding,
+  );
   const recovery = await exportProject(
     recovered,
     join(output, "recovery.icproj.json"),
@@ -295,9 +356,18 @@ try {
   } finally {
     await new Promise((resolve) => sentinel.close(resolve));
   }
+  // Online links are absent from the desktop UI. Exercise its independent
+  // navigation guard with a deliberately injected link instead.
+  await recovered.evaluate(() => {
+    const link = document.createElement("a");
+    link.href = "https://example.invalid/desktop-navigation-probe";
+    link.target = "_blank";
+    link.textContent = "External navigation probe";
+    document.body.append(link);
+  });
   const externalHelp = recovered.waitForEvent("dialog");
   const helpClick = recovered
-    .getByRole("link", { name: "Change Log", exact: true })
+    .getByRole("link", { name: "External navigation probe", exact: true })
     .click();
   const help = await externalHelp;
   assert.match(help.message(), /External links are unavailable/u);
@@ -315,15 +385,31 @@ try {
     await page.keyboard.press("Escape");
     const menu = page
       .locator("details.command-menu")
-      .filter({ has: page.locator("summary").filter({ hasText: /^File$/ }) });
+      .filter({ has: page.getByTestId("project-menu-toggle") });
     if (!(await menu.evaluate((element) => element.open)))
       await menu.locator("summary").click();
     await menu.getByRole("button", { name, exact: true }).click();
   }
+  async function saveAsExternal(page) {
+    await fileCommand(page, "Save As…");
+    const dialog = page.getByRole("dialog", {
+      name: "Save independent project",
+    });
+    await dialog.getByLabel("Location").selectOption("external");
+    await dialog
+      .getByRole("button", { name: "Save copy", exact: true })
+      .click();
+  }
   async function renameProject(page, name) {
-    await page.getByTestId("project-menu-toggle").click();
-    await page.getByTestId("project-name-input").fill(name);
-    await page.getByTestId("project-name-input").press("Enter");
+    await page.keyboard.press("Escape");
+    await page.getByRole("tab", { selected: true }).dblclick();
+    const field = page.getByRole("textbox", {
+      name: "Project name",
+      exact: true,
+    });
+    await field.fill(name);
+    await field.press("Enter");
+    await expect(field).toBeHidden();
   }
   await running.evaluate(({ dialog }, path) => {
     dialog.showOpenDialog = async () => ({
@@ -348,17 +434,79 @@ try {
   await expect
     .poll(async () => parseProject(await readFile(nativeA, "utf8")).name)
     .toBe("Native A again");
+  await fileCommand(native, "Local projects…");
+  const externalManager = native.getByRole("dialog", {
+    name: "Local projects",
+    exact: true,
+  });
+  await externalManager
+    .getByRole("region", { name: "Recently opened files" })
+    .locator("article")
+    .filter({ hasText: "Native A again" })
+    .getByRole("button", { name: "History", exact: true })
+    .click();
+  await expect(externalManager.getByLabel("Saved version")).toBeVisible();
+  await externalManager
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
   await chooseExport(null);
-  await fileCommand(native, "Save As…");
+  await saveAsExternal(native);
   await expect(
     native.getByText("Save cancelled", { exact: true }),
   ).toBeVisible();
-  await expect(native.getByTestId("native-file-location")).toHaveText(nativeA);
-  await chooseExport(nativeB);
-  await fileCommand(native, "Save As…");
-  await expect(native.getByTestId("native-file-location")).toHaveText(nativeB);
+  await expect(native.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    nativeA,
+  );
+  await running.evaluate(({ dialog }) => {
+    dialog.showSaveDialog = () =>
+      new Promise((resolve) => {
+        globalThis.__finishPendingSave = resolve;
+      });
+  });
+  await saveAsExternal(native);
+  await expect
+    .poll(() => running.evaluate(() => typeof globalThis.__finishPendingSave))
+    .toBe("function");
+  await fileCommand(native, "Project Info");
+  const pendingInfo = native.getByRole("dialog", {
+    name: "Project Info",
+    exact: true,
+  });
+  const pendingName = pendingInfo.getByRole("textbox", {
+    name: "Name",
+    exact: true,
+  });
+  await pendingName.fill("Edited during Save As");
+  await pendingName.press("Enter");
+  await expect(pendingInfo).toBeHidden();
+  await running.evaluate((_electron, destination) => {
+    globalThis.__finishPendingSave({ canceled: false, filePath: destination });
+    delete globalThis.__finishPendingSave;
+  }, nativeB);
+  await expect(native.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    nativeB,
+  );
+  await expect(native.getByTestId("project-name")).toHaveText(
+    "Edited during Save As",
+  );
+  await expect(
+    native.getByRole("tab", { selected: true }).getByLabel("Unsaved"),
+  ).toBeVisible();
+  assert.equal(
+    parseProject(await readFile(nativeB, "utf8")).name,
+    "Native A again",
+  );
+  assert.notEqual(
+    parseProject(await readFile(nativeA, "utf8")).id,
+    parseProject(await readFile(nativeB, "utf8")).id,
+  );
   await exportProject(native, nativeCopy);
-  await expect(native.getByTestId("native-file-location")).toHaveText(nativeB);
+  await expect(native.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    nativeB,
+  );
   await renameProject(native, "Native B");
   await running.evaluate(({ dialog }) => {
     dialog.showSaveDialog = async () => {
@@ -375,18 +523,27 @@ try {
   );
   // Two open files retain independent destinations; reopening selects the tab.
   await fileCommand(native, "Open Project…");
-  await expect(native.getByTestId("native-file-location")).toHaveText(nativeA);
+  await expect(native.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    nativeA,
+  );
   await renameProject(native, "Independent A");
   await native.keyboard.press("Control+s");
   await expect
     .poll(async () => parseProject(await readFile(nativeA, "utf8")).name)
     .toBe("Independent A");
   await native.getByRole("tab", { name: "Native B", exact: true }).click();
-  await expect(native.getByTestId("native-file-location")).toHaveText(nativeB);
+  await expect(native.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    nativeB,
+  );
   const tabCount = await native.getByRole("tab").count();
   await fileCommand(native, "Open Project…");
   await expect(native.getByRole("tab")).toHaveCount(tabCount);
-  await expect(native.getByTestId("native-file-location")).toHaveText(nativeA);
+  await expect(native.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    nativeA,
+  );
   // A late external write must survive Save, including through the UI wiring.
   const external = parseProject(await readFile(nativeA, "utf8"));
   external.name = "External edit";
@@ -404,7 +561,7 @@ try {
   await closePreview();
   const restarted = await launch("native");
   const fileMenu = restarted.locator("details.command-menu").filter({
-    has: restarted.locator("summary").filter({ hasText: /^File$/ }),
+    has: restarted.getByTestId("project-menu-toggle"),
   });
   await fileMenu.locator("summary").click();
   await expect(
@@ -414,6 +571,10 @@ try {
     .getByRole("button")
     .filter({ hasText: "native-B.icproj.json" })
     .click();
+  await expect(restarted.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    nativeB,
+  );
   await expect(restarted.getByTestId("instance-count")).toHaveText("3");
   await renameProject(restarted, "Native B restarted");
   await running.evaluate(({ dialog }) => {
@@ -446,6 +607,118 @@ try {
     parseProject(await readFile(nativeB, "utf8")).name,
     "Background saved on close",
   );
+  const libraryPage = await launch("library");
+  await acceptProjectLibrary({
+    page: libraryPage,
+    running,
+    source: path,
+    fileCommand,
+    screenshot: join(output, "project-library.png"),
+  });
+  await closePreview();
+  const amplifier = await launch("amplifier");
+  await acceptAmplifier({
+    page: amplifier,
+    root,
+    output,
+    chooseExport,
+    exportProject,
+  });
+  await closePreview();
+  const associatedFile = join(output, "放大器.icproj");
+  await cp(join(output, "native-ota.icproj.json"), associatedFile);
+  const cold = await launch("os-open", {
+    args: ["--open-project", associatedFile],
+  });
+  await expect(cold.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    associatedFile,
+  );
+  await expect(cold.getByTestId("instance-count")).toHaveText("23");
+  await cold.getByRole("button", { name: "About", exact: true }).click();
+  const about = cold.getByRole("dialog", {
+    name: "About Analog Canvas",
+    exact: true,
+  });
+  await expect(about.getByText(/Project format/)).toBeVisible();
+  await cold.screenshot({ path: join(output, "desktop-about.png") });
+  await about.getByRole("button", { name: "Close", exact: true }).click();
+  const warmFile = join(output, "Second project.icproj");
+  await cp(nativeB, warmFile);
+  const warmEnv = {
+    ...process.env,
+    ICM_PREVIEW_USER_DATA: join(output, "os-open-data"),
+    ICM_DESKTOP_PROJECTS: join(output, "os-open-projects"),
+  };
+  delete warmEnv.ELECTRON_RUN_AS_NODE;
+  delete warmEnv.ICM_PREVIEW_WAIT_FOR_DRIVER;
+  await new Promise((done, reject) => {
+    const second = spawn(
+      dev ? require("electron") : manifest.executable,
+      [
+        ...(dev ? [resolve(import.meta.dirname, "..")] : []),
+        "--open-project",
+        warmFile,
+      ],
+      { env: warmEnv, windowsHide: true, stdio: "ignore" },
+    );
+    second.once("error", reject);
+    second.once("exit", (code) =>
+      code === 0
+        ? done()
+        : reject(new Error(`Second instance exited with ${code}`)),
+    );
+  });
+  await expect(cold.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    warmFile,
+  );
+  await expect(cold.getByTestId("instance-count")).toHaveText("3");
+  assert.equal(
+    await running.evaluate(
+      ({ BrowserWindow }) => BrowserWindow.getAllWindows().length,
+    ),
+    1,
+  );
+  await closePreview();
+  const migrated = await launch("migrated", {
+    legacyData: join(output, "os-open-data"),
+  });
+  await expect(migrated.getByTestId("native-file-location")).toHaveAttribute(
+    "title",
+    warmFile,
+  );
+  await expect(migrated.getByTestId("instance-count")).toHaveText("3");
+  assert.equal(
+    JSON.parse(
+      await readFile(
+        join(output, "migrated-data", "preview-migration.json"),
+        "utf8",
+      ),
+    ).source,
+    join(output, "os-open-data"),
+  );
+  await closePreview();
+  const embedded = await launch("embedded");
+  const legacyPath = join(root, "netlists/native-ota/source.icproj.json");
+  const legacy = parseProject(await readFile(legacyPath, "utf8"));
+  await embedded.getByTestId("tab-project-file").setInputFiles(legacyPath);
+  await expect(embedded.getByTestId("instance-count")).not.toHaveText("0");
+  const legacyExchange = await exportProject(
+    embedded,
+    join(output, "embedded-roundtrip.icproj.json"),
+  );
+  assert.equal(legacy.componentDefinitions.length, 8);
+  assert.deepEqual(
+    legacyExchange.componentDefinitions,
+    legacy.componentDefinitions,
+  );
+  assert.deepEqual(legacyExchange.source, legacy.source);
+  assert.deepEqual(
+    legacyExchange.externalSubcircuitDefinitions,
+    legacy.externalSubcircuitDefinitions,
+  );
+  await closePreview();
   for (const audit of auditFiles) {
     const requests = (await readFile(audit, "utf8"))
       .trim()
@@ -475,7 +748,11 @@ try {
           "driver-attaches-before-renderer",
           "draw",
           "cancel",
-          "replacement-cancel-preserves-work",
+          "first-save-without-dialog",
+          "lost-creation-response-reload-reuses-destination",
+          "save-as-retains-edits-made-during-native-save",
+          "external-file-history-visible-in-project-manager",
+          "save-as-cancel-preserves-binding",
           "recovery-relaunch",
           "write-failure",
           "real-export",
@@ -497,6 +774,14 @@ try {
           "independent-file-tabs-and-deduplication",
           "external-write-conflict-preserves-both-versions",
           "background-tab-save-on-close",
+          "local-library-management-and-history",
+          "native-ota-drawing-hierarchy-parameters-copy-undo",
+          "native-ota-project-and-source-roundtrip",
+          "native-ota-spice-spectre-files-and-svg-png-pdf",
+          "short-path-labels-and-project-window-title",
+          "os-file-open-cold-and-real-second-instance",
+          "preview-profile-migration-and-file-rebinding",
+          "legacy-embedded-components-roundtrip",
         ],
         output,
       },

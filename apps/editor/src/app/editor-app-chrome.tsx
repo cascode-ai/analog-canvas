@@ -40,6 +40,7 @@ export interface EditorAppChromeProps {
   identityEnabled?: boolean;
   externalLinksEnabled?: boolean;
   projectTabs?: ReactNode;
+  projectHome?: ReactNode;
   projectName: string;
   projectSchemaVersion: number;
   hasUnsavedWork: boolean;
@@ -82,8 +83,10 @@ export interface EditorAppChromeProps {
 /** Persistent command chrome above the document workspace. */
 export function EditorAppChrome({
   communityEnabled = true,
+  identityEnabled = true,
   externalLinksEnabled = true,
   projectTabs,
+  projectHome,
   projectName,
   projectSchemaVersion,
   hasUnsavedWork,
@@ -174,6 +177,7 @@ export function EditorAppChrome({
             <span className="app-brand-mark" aria-hidden="true" />
             <h1 title="Analog Canvas">Analog Canvas</h1>
           </a>
+          {projectHome}
           {/* The one thing called Gallery: where circuits are browsed,
               liked and opened. Inserting one into this drawing is the
               toolbar's Insert. */}
@@ -460,7 +464,9 @@ export function EditorAppChrome({
             </button>
           ) : null}
           {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
-          <AccountMenu inEditor alwaysVisible />
+          {!import.meta.env?.ICM_DESKTOP && identityEnabled ? (
+            <AccountMenu inEditor alwaysVisible />
+          ) : null}
           {externalLinksEnabled ? (
             <>
               <BugReportLink
@@ -486,7 +492,7 @@ export function EditorAppChrome({
               </a>
             </>
           ) : (
-            <span title="Export Project File writes a copy. Native Save and online services are unavailable.">
+            <span title="Save updates a local Project. Export Project File writes an exchange copy. Online services are unavailable.">
               Desktop preview
             </span>
           )}
@@ -494,7 +500,7 @@ export function EditorAppChrome({
             <span className="tokenzhang-credit-kicker">Presented by</span>
             <a
               className="tokenzhang-link"
-              href="https://tokenzhang.com"
+              href={externalLinksEnabled ? "https://tokenzhang.com" : undefined}
               target="_blank"
               rel="noreferrer"
               aria-label="TokenZhang"

@@ -78,6 +78,20 @@ credential is ever found, block distribution and revoke/rotate it at the issuer;
 removing a file or a release cannot invalidate a previously copied credential.
 Audit the public Git history as well as build outputs before restoring access.
 
+The desktop renderer build additionally checks every emitted chunk's module
+inventory (`desktop-modules.json`) against the online implementation policy.
+Account, Cloud/Gallery clients, cloud component library, telemetry, browser
+simulation sessions and Agent hosts/transports must be absent. Shared pure model,
+source-editing and API schema descriptors can remain; endpoint text in a schema
+does not itself provide a network client. UI capability checks and the main
+process's request/navigation restrictions remain independent defenses.
+
+Desktop CSP allows `connect-src 'self' data:` so the PDF exporter can read its
+bundled, embedded font bytes. `data:` is an in-memory resource, not an external
+network destination. HTTP/WebSocket/file requests and external browser handoff
+remain blocked. Packaged acceptance observes real SVG/PNG/PDF and netlist exports
+and independently tests prohibited network requests. Web CSP is unchanged.
+
 For local validation, install the reviewed scanner and set `GITLEAKS_BINARY` to
 its executable, then run `pnpm --filter @icm/desktop security:preview` after
 packaging and acceptance. The scan is mandatory in the distribution workflow;

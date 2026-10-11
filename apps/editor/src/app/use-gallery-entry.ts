@@ -106,7 +106,12 @@ export function useBootLink({
   // boot Project only; ordinary sessions never re-run these.
   const bootTargetHandled = useRef(false);
   useEffect(() => {
-    if (!capabilities.community || bootTargetHandled.current) return;
+    if (
+      import.meta.env?.ICM_DESKTOP ||
+      !capabilities.community ||
+      bootTargetHandled.current
+    )
+      return;
     bootTargetHandled.current = true;
     // A safe recovery refresh reloads the same URL: the pending restore owns
     // this boot. Re-running the URL's boot target here would fork the

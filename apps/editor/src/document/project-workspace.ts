@@ -14,10 +14,12 @@ const WINDOW_KEY = "icm.workspace-window.v1";
 const JOURNAL_KEY = "icm.workspace-journal.v1";
 let identity: string | undefined;
 
-export function workspaceWindowId(): string {
+export function workspaceWindowId(preferredId?: string): string {
   if (identity) return identity;
   try {
-    identity = sessionStorage.getItem(WINDOW_KEY) || crypto.randomUUID();
+    identity =
+      preferredId ??
+      (sessionStorage.getItem(WINDOW_KEY) || crypto.randomUUID());
     sessionStorage.setItem(WINDOW_KEY, identity);
   } catch {
     identity = undefined;

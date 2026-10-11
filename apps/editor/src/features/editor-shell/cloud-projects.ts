@@ -1,6 +1,10 @@
 import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
 import type { CircuitProject } from "@icm/model";
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import {
+  createIndependentProject,
+  parseProject,
+  serializeProject,
+} from "@icm/project-protocol";
 
 /** Private formal Project storage. One id owns one mutable current revision. */
 export const CLOUD_PROJECT_LIMIT = 20;
@@ -157,7 +161,7 @@ const cloudLists = new WeakMap<
   typeof fetch,
   Promise<CloudProjectListOutcome>
 >();
-if (typeof window !== "undefined")
+if (!import.meta.env?.ICM_DESKTOP && typeof window !== "undefined")
   window.addEventListener(ACCOUNT_CHANGED_EVENT, () =>
     cloudLists.delete(fetch),
   );
@@ -283,10 +287,16 @@ export async function editShelfProject(
   try {
     const project = parseProject(loaded.project.projectText);
     if (action.kind === "duplicate") {
-      project.id = crypto.randomUUID();
-      project.name = `${loaded.project.name.slice(0, 113)} (copy)`;
       // A copy is independent; it must never inherit the source's publication link.
-      return saveCloudProject(project, null, fetchLike);
+      return saveCloudProject(
+        createIndependentProject(
+          project,
+          crypto.randomUUID(),
+          `${loaded.project.name.slice(0, 113)} (copy)`,
+        ),
+        null,
+        fetchLike,
+      );
     }
     const name = action.name.trim();
     if (!name || name.length > 120)

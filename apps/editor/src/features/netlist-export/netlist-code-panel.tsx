@@ -96,6 +96,7 @@ export function NetlistCodePanel({
   onFormatChange,
   onReset,
   onCopy,
+  onSaveFile,
   configurationError,
   onApply,
   onFocusInstance,
@@ -116,6 +117,7 @@ export function NetlistCodePanel({
   onReset(): void;
   /** Puts the current netlist on the clipboard, as the Netlist menu's Copy does. */
   onCopy(): void;
+  onSaveFile?(): void;
   configurationError: string | null;
   onApply(edits: ProjectStructureEdit[]): boolean;
   onFocusInstance(instance: PrintedNetlistInstance | null): void;
@@ -515,6 +517,26 @@ export function NetlistCodePanel({
             disabled={dirty || !!draftPreview}
             onCopy={onCopy}
           />
+          {onSaveFile ? (
+            <button
+              type="button"
+              aria-label="Save netlist file…"
+              title="Save netlist file…"
+              disabled={dirty || !!draftPreview}
+              onClick={onSaveFile}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                  d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
         </div>
       </div>
       <div

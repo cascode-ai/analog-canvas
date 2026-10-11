@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   type Dispatch,
+  type ComponentProps,
   type RefObject,
   type SetStateAction,
 } from "react";
@@ -40,9 +41,13 @@ import {
 } from "../features/user-components/library-circuit-authoring";
 import { LazyComponentDefinitionEditor as ComponentDefinitionEditor } from "./lazy-editor-dialogs";
 
-const UserComponentsLibrary = lazy(
-  () => import("../features/user-components/user-components-library"),
-);
+const UserComponentsLibrary = import.meta.env?.ICM_DESKTOP
+  ? (
+      _props: ComponentProps<
+        typeof import("../features/user-components/user-components-library").default
+      >,
+    ) => null
+  : lazy(() => import("../features/user-components/user-components-library"));
 
 type DocumentControllerState = ReturnType<typeof useDocumentController>;
 
@@ -603,7 +608,7 @@ export function EditorComponentEditor({
           />
         </Suspense>
       ) : null}
-      {capabilities.community ? (
+      {!import.meta.env?.ICM_DESKTOP && capabilities.community ? (
         <Suspense fallback={null}>
           <UserComponentsLibrary
             open={userComponentsOpen}

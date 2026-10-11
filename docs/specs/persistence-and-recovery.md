@@ -48,16 +48,30 @@ embedded in Project JSON or recovery records.
 
 ## Desktop file ownership
 
-Native Open and first Save authorize a target in the main process. Renderer
-sessions hold opaque binding identifiers and acknowledged revisions; displayed
-paths do not authorize writes. Repeated Save updates the same target. Save As
-rebinds only after success, while Export never rebinds. Each tab retains its own
-binding; the same open target selects the existing tab. File locations and the
-last twenty recent files are visible in File. The main-process recent index
-survives restart; explicit reopening reads the file and creates a fresh grant.
-Removing a recent shortcut does not delete its file. Missing files can be located
-through Open Project. New/Save-As suggestions remember the most recently used
-project directory.
+The main process owns the project library and native file grants. The default
+library is `%USERPROFILE%\Analog Canvas\Projects`; each managed project has an
+independent directory containing canonical `project.icproj.json`. First Save
+allocates there without a path dialog. Changing the default library retains
+previous roots and never moves existing files. Project files remain the source
+of content; directory scanning rebuilds the list, with favorites stored separately.
+
+Renderer sessions hold opaque binding identifiers and acknowledged revisions;
+displayed paths do not authorize writes. Save updates that target. Save As creates
+an independent Project identity using the same complete-copy rule as Web Duplicate,
+and rebinds only after success. It defaults to the library or can use a chosen
+external destination. Export retains content identity and never rebinds or marks
+edits saved. Overwriting another saved project first archives its content and
+history in the recycle area; overwriting the source or another open tab is refused.
+
+Local projects offers search, favorites, modification ordering, copy, rename,
+export, history and reveal. File shows a compact location; hovering shows its full
+path. Window titles show the project name. The last twenty external/recent files
+can be reopened, located, viewed in history, copied independently into the library or removed from
+the list. Removing a shortcut never deletes its file. Repeated opening of one
+path selects its tab; equal content identities at different paths stay separate.
+Library deletion moves the whole project directory into a recoverable recycle
+area; permanent removal requires native confirmation. Close its tab before
+changing or removing its saved copy. Rename preserves identity and filename.
 
 Writes capture an owned Project snapshot and use a temporary sibling file,
 flush, then atomic replacement. Compare the target bytes against the acknowledged
@@ -68,13 +82,36 @@ unsaved edits and existing destination. Newer edits during a successful save
 remain dirty. A stale/expired grant cannot overwrite a file; Save As to a new
 destination remains available.
 
+First Save and independent-copy operations retain a durable creation identity
+and chosen destination before committing. A retry after an interrupted response
+reuses that destination only when the recorded content matches; an externally
+changed destination or changed retry payload is rejected rather than duplicated
+or overwritten. Incomplete managed allocations remain visible for recovery.
+An uncommitted attempt offers Cancel, retry of the original content/destination,
+or a new destination; choosing anew preserves the earlier files and decision.
+The retry carries its verified bytes through the final conflict check, including
+across that prompt. A confirmed committed attempt is reopened/replayed rather
+than silently treated as a new creation.
+
 Window close summarizes every tab, permits explicit discard, or saves each dirty
 Project and rechecks for newer edits. A cancelled/failed save keeps the window.
 An unavailable renderer requires an explicit discard decision. Unfinished editor
 dialogs/buffers or an active operation must be finished or cancelled first.
-Recovery is still a safety copy and does not automatically acquire write authority
-over the original file. Web Cloud Save and its conflict/recovery contracts below
-are unchanged.
+Changed saves retain the latest three previous versions; unchanged retries do
+not rotate history. A durable pending journal reconciles interrupted replacement
+against the before/after bytes. The history UI compares, restores with a conflict
+check, or branches an independent project. External-file history lives in user
+data; a portable file export does not include history. Back up the complete
+library and user data while the application is closed.
+
+The desktop restores a stable main-window workspace. It reacquires a native grant
+only for a previously authorized target whose exact byte digest matches the
+acknowledged receipt. Authorizations are separate from the twenty recent shortcuts;
+forgetting or evicting a shortcut does not detach an open workspace. Older receipts
+without a byte digest require explicit Open to reacquire the target.
+Changed/unavailable targets reopen as unsaved detached copies with a notice;
+recovery alone never grants authority over a displayed path. Web Cloud Save and
+the browser-window behavior below are unchanged.
 
 ## Browser recovery records
 
@@ -357,16 +394,27 @@ The Windows preview serves the same editor over a stable private
 simulation and analytics are unavailable; service workers are not registered.
 The Web profile retains its existing formal Cloud Save contract.
 
-File / Save and Ctrl+S write to the active tab's bound `.icproj.json` file;
-new projects choose a destination once. Save As changes the binding only after
-a successful write, while Export Project File creates a separate copy. Native
-Open and recent files use the current reader/normalization rules. Each tab owns
-its file independently; the complete binding, write-conflict and close behavior
-is specified under [Desktop file ownership](#desktop-file-ownership).
-Origin-local recovery remains a non-authoritative safety copy and does not
-restore native file bindings.
+File / Save and Ctrl+S update a bound file or allocate a first library save.
+Save As creates an independent project; Export creates a portable exchange copy.
+Native Open, startup file requests and recent files use the current reader and
+normalization rules. See [Desktop file ownership](#desktop-file-ownership).
+
+Stable application data lives in `%APPDATA%\Analog Canvas`, outside the ZIP.
+On first upgrade, the old `Analog Canvas Preview` profile is offered for import
+before the renderer starts. Only durable settings, recent records and recovery
+stores are copied, with a checked, retryable snapshot; caches and logs are excluded.
+The previous application must be closed, original data remains untouched, and
+conflicting destination data is never overwritten. Unsupported Project versions
+retain the shared reader's rejection and recovery rules.
+
+The desktop build excludes online implementation modules and emits a checked
+module inventory. Native network/navigation restrictions independently reject
+external requests. The bundled fonts and graphics/netlist exporters work offline.
+About displays version, source commit, file format and data locations.
 
 The preview is distributed as an unsigned Windows ZIP. Window close offers to
 save all changed tabs and stays open if any save is canceled or fails. External
-file changes are detected before overwriting; continuous file watching, file
-associations, installers and automatic updates remain deferred.
+file changes are detected before overwriting. About offers explicit enable/remove
+of a per-user `.icproj` association, including cold and running-instance opening.
+This is a filename alias for canonical Project JSON; `.json` is never registered.
+Continuous watching, installers, signing and automatic updates remain deferred.

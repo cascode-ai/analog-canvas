@@ -3,20 +3,26 @@
 import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { projectFileBaseName } from "../document/project-file-service";
+import { nativeProjectRequest as post } from "./native-project-request";
 
 export interface NativeFileBinding {
   id: string;
   revision: number;
   name: string;
   path: string;
+  byteDigest?: string;
 }
-export type RecentProjectFile = Omit<NativeFileBinding, "revision">;
+export type RecentProjectFile = Omit<
+  NativeFileBinding,
+  "revision" | "byteDigest"
+>;
 type Failure = { status: "failed" | "conflict"; message: string };
 export type NativeSaveOutcome =
   | { status: "saved"; file: NativeFileBinding; warning?: string }
   | { status: "cancelled" }
   | Failure;
 export interface NativeProjectStore {
+  nextLaunch?(): Promise<string | null>;
   open(
     recentId?: string,
   ): Promise<
@@ -31,6 +37,8 @@ export interface NativeProjectStore {
     project: CircuitProject,
     binding: NativeFileBinding | null,
     saveAs?: boolean,
+    intoLibrary?: boolean,
+    creationKey?: string,
   ): Promise<NativeSaveOutcome>;
 }
 function binding(value: unknown): value is NativeFileBinding {
@@ -46,23 +54,23 @@ function binding(value: unknown): value is NativeFileBinding {
     file.revision > 0
   );
 }
-async function post(route: string, body?: unknown, recentId?: string) {
-  const response = await fetch(`/desktop/project/${route}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(recentId ? { "x-recent-project": recentId } : {}),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  if (!response.ok)
-    throw new Error(`File operation failed (${response.status})`);
-  return (await response.json()) as Record<string, unknown>;
-}
 const failure = (value: unknown): Failure => ({
   status: "failed",
   message: value instanceof Error ? value.message : "Invalid file response",
 });
+export async function resumeNativeFile(
+  path: string,
+  byteDigest: string | undefined,
+): Promise<NativeFileBinding> {
+  const body = await post("resume", { path, byteDigest });
+  if (body.status !== "opened" || !binding(body.file))
+    throw new Error(
+      typeof body.message === "string"
+        ? body.message
+        : "File cannot be rebound",
+    );
+  return body.file;
+}
 function unsuccessful(
   body: Record<string, unknown>,
 ): Failure | { status: "cancelled" } {
@@ -75,6 +83,17 @@ function unsuccessful(
 }
 export function createNativeProjectStore(): NativeProjectStore {
   return {
+    async nextLaunch() {
+      const body = await post("next-launch");
+      if (body.status === "empty") return null;
+      if (body.status === "queued" && typeof body.id === "string")
+        return body.id;
+      throw new Error(
+        typeof body.message === "string"
+          ? body.message
+          : "Could not open the requested file",
+      );
+    },
     async recent() {
       const body = await post("recent");
       if (!Array.isArray(body.files))
@@ -88,10 +107,18 @@ export function createNativeProjectStore(): NativeProjectStore {
       );
     },
     async forget(id) {
-      await post("forget", { id });
+      const result = await post("forget", { id });
+      if (result.status !== "done")
+        throw new Error(
+          String(result.message ?? "Could not remove recent Project"),
+        );
     },
     async release(id) {
-      await post("release", { id });
+      const result = await post("release", { id });
+      if (result.status !== "done")
+        throw new Error(
+          String(result.message ?? "Could not close Project file"),
+        );
     },
     async open(recentId) {
       try {
@@ -105,13 +132,21 @@ export function createNativeProjectStore(): NativeProjectStore {
         return failure(error);
       }
     },
-    async save(project, file, saveAs = false) {
+    async save(
+      project,
+      file,
+      saveAs = false,
+      intoLibrary = false,
+      creationKey,
+    ) {
       try {
         const body = await post("save", {
           text: serializeProject(project),
           name: `${projectFileBaseName(project.name)}.icproj.json`,
           binding: file,
           saveAs,
+          intoLibrary,
+          creationKey,
         });
         return body.status === "saved" && binding(body.file)
           ? {

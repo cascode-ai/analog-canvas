@@ -69,6 +69,8 @@ export function EditorMenuBar({
   projectStore,
   nativeProjectStore,
   NativeFileCommands,
+  NativeProjectHome,
+  initiallyOpenProjectHome,
   capabilities,
   publicAgentUiEnabled,
   publicSimulationUiEnabled,
@@ -170,6 +172,8 @@ export function EditorMenuBar({
   projectStore: EditorServices["projectStore"];
   nativeProjectStore: EditorServices["nativeProjectStore"];
   NativeFileCommands: EditorServices["NativeFileCommands"];
+  NativeProjectHome: EditorServices["NativeProjectHome"];
+  initiallyOpenProjectHome: boolean;
   capabilities: EditorServices["capabilities"];
   publicAgentUiEnabled: boolean;
   publicSimulationUiEnabled: boolean;
@@ -272,6 +276,15 @@ export function EditorMenuBar({
       communityEnabled={capabilities.community}
       externalLinksEnabled={capabilities.externalLinks}
       identityEnabled={identity !== null}
+      projectHome={
+        NativeProjectHome ? (
+          <NativeProjectHome
+            initiallyOpen={initiallyOpenProjectHome}
+            onOpen={(id) => void openNativeProject(id)}
+            onNew={() => void projectTabs.open(() => createTabSession())}
+          />
+        ) : null
+      }
       projectTabs={
         <>
           <ProjectTabs
@@ -372,7 +385,13 @@ export function EditorMenuBar({
                 busy: nativeBusy || saveBusy,
                 refresh: () => void refreshNativeFiles(),
                 open: (id?: string) => void openNativeProject(id),
-                saveAs: () => void saveProjectToNative(undefined, true),
+                saveAs: (options?: { name: string; intoLibrary: boolean }) =>
+                  void saveProjectToNative(
+                    undefined,
+                    true,
+                    options?.intoLibrary,
+                    options?.name,
+                  ),
                 forget: (id: string) => {
                   void nativeProjectStore
                     .forget(id)
@@ -506,7 +525,7 @@ export function EditorMenuBar({
       onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
       onExportNetlist={(format) => void exportDesignNetlist(format)}
       agentAction={
-        publicAgentUiEnabled
+        publicAgentUiEnabled && agentSession
           ? {
               label:
                 agentSession.status === "idle"

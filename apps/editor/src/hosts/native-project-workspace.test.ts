@@ -32,6 +32,7 @@ function fixture() {
       id: "tab",
       session: {
         controller: { project, projectSessionId: "session" },
+        recovery: { workingCopyId: "working-copy" },
         file: {
           nativeBinding: file,
           cloudBinding: null,
@@ -160,6 +161,7 @@ function writingFixture() {
   }));
   const ports = {
     store: f.store,
+    workingCopyId: "working-copy",
     binding: f.file,
     previousState: "dirty" as const,
     recovery: {
@@ -169,6 +171,7 @@ function writingFixture() {
     view: f.entries[0]!.session.view,
     currentProject: () => f.project,
     acknowledge: vi.fn(),
+    installCopy: vi.fn(),
     setBaseline: vi.fn(),
     setState: vi.fn(),
     report: vi.fn(),
