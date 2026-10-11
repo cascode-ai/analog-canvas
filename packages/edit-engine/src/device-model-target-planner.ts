@@ -6,6 +6,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { deriveStableId, projectCellInterface } from "@icm/model";
+import { pdkSubstrateDefaultNet } from "@icm/derived";
 import {
   builtInModelDefaults,
   deviceDescriptor,
@@ -81,6 +82,40 @@ function removedPropertyTerminalEdits(
             instanceId,
             pinName: terminal.pinName,
             netId: null,
+          },
+        ]
+      : [],
+  );
+}
+
+/**
+ * A substrate terminal the new model brings, on no Net yet, takes the Cell's
+ * substrate default, as placing the part with that model would (#1619). A
+ * poly resistor's B is never drawn, so left unbound it blocked export.
+ */
+function substrateDefaultEdits(
+  document: SchematicDocument,
+  instanceId: string,
+  binding: NonNullable<ReturnType<typeof resolveReviewedExternalBinding>>,
+): DocumentEdits {
+  const net = pdkSubstrateDefaultNet(document);
+  if (!net) return [];
+  return binding.terminals.flatMap((terminal) =>
+    terminal.interaction === "property" &&
+    terminal.role === "substrate" &&
+    !document.nets.some((item) =>
+      item.terminals.some(
+        (member) =>
+          member.instanceId === instanceId &&
+          member.pinName.toLowerCase() === terminal.pinName.toLowerCase(),
+      ),
+    )
+      ? [
+          {
+            kind: "set_property_terminal_net" as const,
+            instanceId,
+            pinName: terminal.pinName,
+            netId: net.id,
           },
         ]
       : [],
@@ -237,6 +272,8 @@ export function planSetDeviceModelTarget(
   documentId: string,
   instanceId: string,
   modelName: string,
+  // The Process binds substrates by its own rule, which may name another Net.
+  { substrateDefault = true }: { substrateDefault?: boolean } = {},
 ): ProjectStructureEdit[] {
   const document = requireDocument(project, documentId);
   const instance = document.instances.find(
@@ -438,6 +475,10 @@ export function planSetDeviceModelTarget(
         ],
       });
     }
+    if (substrateDefault)
+      documentEdits.push(
+        ...substrateDefaultEdits(document, instanceId, verified),
+      );
     if (documentEdits.length === 0) return [];
     return [
       ...(sameNameDefinition
