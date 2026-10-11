@@ -540,8 +540,10 @@ async function controlledConnections(page: Page) {
   const creates: Route[] = [];
   const controls: Route[] = [];
   const sockets: string[] = [];
+  const socketRoutes: WebSocketRoute[] = [];
   await page.routeWebSocket("**/api/agent/sessions/*/editor", (socket) => {
     sockets.push(socket.url());
+    socketRoutes.push(socket);
     socket.onMessage((message) => {
       const parsed = JSON.parse(String(message));
       if (parsed.kind === "heartbeat")
@@ -556,27 +558,144 @@ async function controlledConnections(page: Page) {
     else if (path.endsWith("/control")) controls.push(route);
     else if (request.method() === "DELETE")
       await route.fulfill({ status: 204 });
+    else if (path.endsWith("/status"))
+      await route.fulfill({
+        json: {
+          ok: true,
+          authorization: "active",
+          editor: "detached",
+          observedAt: Date.now(),
+          expiresAt: Date.now() + 1_800_000,
+        },
+      });
     else await route.abort();
   });
   return {
     creates,
     controls,
     sockets,
-    complete: (index: number) =>
+    socketRoutes,
+    complete: (index: number, claimLifetimeMs = 300_000) =>
       creates[index]!.fulfill({
+        headers: { date: new Date().toUTCString() },
         json: {
           ok: true,
           session: {
             sessionId: `controlled-${index}`,
             editorSecret: `secret-${index}`,
             claimCode: `controlled-${index}.claim`,
-            claimExpiresAt: Date.now() + 300_000,
+            claimExpiresAt: Date.now() + claimLifetimeMs,
             expiresAt: Date.now() + 1_800_000,
           },
         },
       }),
   };
 }
+
+test("Claim handoff tolerates an incorrect browser clock and later clock changes", async ({
+  page,
+}) => {
+  await page.clock.install({ time: Date.now() + 31 * 60_000 });
+  const relay = await controlledConnections(page);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect.poll(() => relay.creates.length).toBe(1);
+  await relay.complete(0);
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-0\.claim/,
+  );
+  await page.clock.setSystemTime(Date.now() + 24 * 60 * 60_000);
+  await page.clock.runFor(1_100);
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-0\.claim/,
+  );
+  await panel.getByTestId("agent-new-connection").click();
+  await expect.poll(() => relay.creates.length).toBe(2);
+  await relay.complete(1);
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-1\.claim/,
+  );
+});
+
+test("an expired Claim keeps its explanation after socket recovery and can be replaced", async ({
+  page,
+}) => {
+  await page.clock.install();
+  const relay = await controlledConnections(page);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect.poll(() => relay.creates.length).toBe(1);
+  await relay.complete(0, 4_000);
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-0\.claim/,
+  );
+  await page.clock.runFor(4_100);
+  await expect(panel.getByTestId("agent-claim-expired")).toBeVisible();
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1_000));
+  await relay.socketRoutes[0]!.close({ code: 1012, reason: "relay restart" });
+  await expect(panel.getByTestId("agent-status")).toHaveText("Reconnecting");
+  await expect(panel.getByTestId("agent-claim-expired")).toBeVisible();
+  await page.clock.runFor(1_100);
+  await expect.poll(() => relay.sockets.length).toBe(2);
+  await expect(panel.getByTestId("agent-status")).toHaveText(
+    "Waiting for Agent",
+  );
+  await expect(panel.getByTestId("agent-claim-expired")).toBeVisible();
+  await expect(panel.getByTestId("agent-copy-text")).toHaveCount(0);
+  await panel.getByTestId("agent-new-connection").click();
+  await expect.poll(() => relay.creates.length).toBe(2);
+  await relay.complete(1);
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-1\.claim/,
+  );
+});
+
+test("a created Claim is visible before socket readiness and removed when setup times out", async ({
+  page,
+}) => {
+  await page.clock.install();
+  const relay = await controlledConnections(page);
+  // Delay the external socket's open notification, not any Editor collaborator.
+  await page.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = class extends NativeWebSocket {
+      constructor(...args: ConstructorParameters<typeof WebSocket>) {
+        super(...args);
+        this.addEventListener(
+          "open",
+          (event) => {
+            event.stopImmediatePropagation();
+            setTimeout(() => this.dispatchEvent(new Event("open")), 60_000);
+          },
+          { once: true },
+        );
+      }
+    };
+  });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect.poll(() => relay.creates.length).toBe(1);
+  await relay.complete(0);
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-0\.claim/,
+  );
+  await expect(panel.getByTestId("agent-status")).toHaveText(
+    "Creating connection…",
+  );
+  await expect(
+    panel.getByRole("button", { name: "Cancel connection" }),
+  ).toBeEnabled();
+  await page.clock.runFor(15_100);
+  await expect(panel.getByRole("alert")).toContainText("timed out");
+  await expect(panel.getByTestId("agent-copy-text")).toHaveCount(0);
+  await expect(panel.getByTestId("agent-connect")).toBeEnabled();
+});
 
 test("connection controls recover across dialog and Properties while old requests are pending", async ({
   page,

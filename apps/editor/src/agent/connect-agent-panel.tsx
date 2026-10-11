@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { AgentSessionScope } from "@icm/agent-adapter";
 import type { ConnectionOperationKind } from "./connection-operation";
+import { claimNow } from "./claim-clock";
 
 /** Browser authorization hand-off and compact Properties status controls. */
 
@@ -81,8 +82,8 @@ function useClock(active: boolean, initial: number): number {
   const [clock, setClock] = useState(initial);
   useEffect(() => {
     if (!active) return;
-    setClock(Date.now());
-    const timer = window.setInterval(() => setClock(Date.now()), 1_000);
+    setClock(claimNow());
+    const timer = window.setInterval(() => setClock(claimNow()), 1_000);
     return () => window.clearInterval(timer);
   }, [active]);
   return clock;
@@ -293,7 +294,8 @@ function ClaimHandOff({
             <span>Keep this editor open.</span>
           </div>
         </div>
-      ) : claimExpired && status === "waiting-for-agent" ? (
+      ) : claimExpired &&
+        ["waiting-for-agent", "reconnecting", "offline"].includes(status) ? (
         <p className="agent-connection-hint" data-testid="agent-claim-expired">
           Connection message expired. Choose New connection to try again.
         </p>
@@ -373,7 +375,7 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
 export function AgentPropertiesSection(
   props: AgentPropertiesSectionProps,
 ): ReactNode {
-  const clock = useClock(true, Date.now());
+  const clock = useClock(true, claimNow());
   if (props.status === "idle" && !props.error && !props.pendingOperation)
     return null;
   const terminal = props.status === "revoked" || props.status === "expired";

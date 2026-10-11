@@ -1,4 +1,5 @@
 import type { AgentConnectionStatus } from "./connect-agent-panel";
+import { claimNow } from "./claim-clock";
 
 /**
  * Headless pairing (#1523). Automation that opens the editor itself, a
@@ -69,7 +70,7 @@ export class AgentPairing {
     reject: (error: Error) => void;
   }> = [];
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(private readonly now: () => number = claimNow) {}
 
   /** The page starts connecting for automation. */
   start(): void {
