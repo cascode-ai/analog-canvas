@@ -5,9 +5,9 @@
     "id": "center-tap-inductor",
     "name": "Center-Tap Inductor",
     "viewBox": {
-      "x": -64,
+      "x": -54,
       "y": -16,
-      "width": 128,
+      "width": 108,
       "height": 40
     },
     "pins": [
@@ -15,7 +15,7 @@
         "name": "1",
         "role": "passive",
         "at": {
-          "x": -60,
+          "x": -50,
           "y": 0
         },
         "direction": "west",
@@ -28,7 +28,7 @@
         "name": "2",
         "role": "passive",
         "at": {
-          "x": 60,
+          "x": 50,
           "y": 0
         },
         "direction": "east",
@@ -55,7 +55,7 @@
       {
         "kind": "line",
         "from": {
-          "x": -60,
+          "x": -50,
           "y": 0
         },
         "to": {
@@ -113,7 +113,7 @@
           "y": 0
         },
         "to": {
-          "x": 60,
+          "x": 50,
           "y": 0
         },
         "part": "terminal-2-lead",

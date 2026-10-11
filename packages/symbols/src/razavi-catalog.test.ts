@@ -1395,11 +1395,13 @@ describe("Razavi symbol catalog", () => {
 
   it("composes the PDF-positioned XFMR from two reviewed Inductor paths", () => {
     const xfmr = requireRazaviCatalogSymbol("xfmr");
+    // Each lead a grid square shorter than the reference's (2026-10-11):
+    // the pins sit where the windings end.
     expect(xfmr.pins).toMatchObject([
-      { name: "P-", at: { x: -30, y: -10 }, direction: "west" },
-      { name: "P+", at: { x: 30, y: -10 }, direction: "east" },
-      { name: "S-", at: { x: -30, y: 10 }, direction: "west" },
-      { name: "S+", at: { x: 30, y: 10 }, direction: "east" },
+      { name: "P-", at: { x: -20, y: -10 }, direction: "west" },
+      { name: "P+", at: { x: 20, y: -10 }, direction: "east" },
+      { name: "S-", at: { x: -20, y: 10 }, direction: "west" },
+      { name: "S+", at: { x: 20, y: 10 }, direction: "east" },
     ]);
     expect(
       xfmr.primitives.filter((primitive) => primitive.kind === "path"),
@@ -1428,9 +1430,10 @@ describe("Razavi symbol catalog", () => {
 
   it("keeps the bridged T-coil atomic while reusing reviewed L and C artwork", () => {
     const tcoil = requireRazaviCatalogSymbol("tcoil");
+    // Terminals 1 and 2 a grid square outside the bridge's junctions.
     expect(tcoil.pins).toMatchObject([
-      { name: "1", at: { x: -100, y: 0 }, direction: "west" },
-      { name: "2", at: { x: 100, y: 0 }, direction: "east" },
+      { name: "1", at: { x: -90, y: 0 }, direction: "west" },
+      { name: "2", at: { x: 90, y: 0 }, direction: "east" },
       { name: "3", at: { x: 0, y: 20 }, direction: "south" },
     ]);
     expect(

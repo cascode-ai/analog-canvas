@@ -1132,9 +1132,9 @@ export const agentRazaviAuthoringCatalog = {
       formula: false,
       coefficient: false,
       bounds: {
-        x: -104,
+        x: -94,
         y: -56,
-        width: 208,
+        width: 188,
         height: 90,
       },
       pins: [
@@ -1144,7 +1144,7 @@ export const agentRazaviAuthoringCatalog = {
           direction: "west",
           visibility: "visible",
           at: {
-            x: -100,
+            x: -90,
             y: 0,
           },
         },
@@ -1154,7 +1154,7 @@ export const agentRazaviAuthoringCatalog = {
           direction: "east",
           visibility: "visible",
           at: {
-            x: 100,
+            x: 90,
             y: 0,
           },
         },
@@ -1180,9 +1180,9 @@ export const agentRazaviAuthoringCatalog = {
       formula: false,
       coefficient: false,
       bounds: {
-        x: -34,
+        x: -24,
         y: -24,
-        width: 68,
+        width: 48,
         height: 48,
       },
       pins: [
@@ -1192,7 +1192,7 @@ export const agentRazaviAuthoringCatalog = {
           direction: "west",
           visibility: "visible",
           at: {
-            x: -30,
+            x: -20,
             y: -10,
           },
         },
@@ -1202,7 +1202,7 @@ export const agentRazaviAuthoringCatalog = {
           direction: "east",
           visibility: "visible",
           at: {
-            x: 30,
+            x: 20,
             y: -10,
           },
         },
@@ -1212,7 +1212,7 @@ export const agentRazaviAuthoringCatalog = {
           direction: "west",
           visibility: "visible",
           at: {
-            x: -30,
+            x: -20,
             y: 10,
           },
         },
@@ -1222,7 +1222,7 @@ export const agentRazaviAuthoringCatalog = {
           direction: "east",
           visibility: "visible",
           at: {
-            x: 30,
+            x: 20,
             y: 10,
           },
         },
@@ -1238,9 +1238,9 @@ export const agentRazaviAuthoringCatalog = {
       formula: false,
       coefficient: false,
       bounds: {
-        x: -64,
+        x: -54,
         y: -16,
-        width: 128,
+        width: 108,
         height: 40,
       },
       pins: [
@@ -1250,7 +1250,7 @@ export const agentRazaviAuthoringCatalog = {
           direction: "west",
           visibility: "visible",
           at: {
-            x: -60,
+            x: -50,
             y: 0,
           },
         },
@@ -1260,7 +1260,7 @@ export const agentRazaviAuthoringCatalog = {
           direction: "east",
           visibility: "visible",
           at: {
-            x: 60,
+            x: 50,
             y: 0,
           },
         },

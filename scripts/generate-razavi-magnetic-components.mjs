@@ -147,14 +147,28 @@ const inductorPath = inductor.primitives.find(
 );
 if (!inductorPath) fail("reviewed compact Inductor has no path");
 
+// The product's outer leads are one grid square shorter than the
+// references' (Owner, 2026-10-11): each outer pin moves 10 toward its
+// winding, on the grid. The evidence keeps the references' own anchors.
+const LEAD_TRIM = 10;
+const trimmed = (anchor, axis) => ({
+  ...anchor,
+  [axis]: anchor[axis] - Math.sign(anchor[axis]) * LEAD_TRIM,
+});
+/** A lead, or nothing where the trimmed pin meets its winding. */
+const lead = (from, to, role) =>
+  Math.hypot(to.x - from.x, to.y - from.y) < 1 ? [] : [line(from, to, role)];
+
 const xfmrLayout = xfmrEvidence.evidence.normalization;
 const xfmrCenters = xfmrLayout.productCoilCentersLogical;
-const xfmrPins = xfmrLayout.productPinAnchorsLogical;
+const xfmrPins = xfmrLayout.productPinAnchorsLogical.map((anchor) =>
+  trimmed(anchor, "x"),
+);
 const xfmr = {
   schemaVersion: 1,
   id: "xfmr",
   name: "XFMR",
-  viewBox: { x: -34, y: -24, width: 68, height: 48 },
+  viewBox: { x: -24, y: -24, width: 48, height: 48 },
   pins: [
     pin("P-", xfmrPins[0], "west"),
     pin("P+", xfmrPins[1], "east"),
@@ -162,24 +176,24 @@ const xfmr = {
     pin("S+", xfmrPins[3], "east"),
   ],
   primitives: [
-    line(
+    ...lead(
       point(xfmrPins[0]),
       { x: -19.5, y: xfmrCenters[0].y },
       "primary-left-lead",
     ),
     transformPrimitive(inductorPath, xfmrCenters[0], 90, "primary-winding"),
-    line(
+    ...lead(
       { x: 19.5, y: xfmrCenters[0].y },
       point(xfmrPins[1]),
       "primary-right-lead",
     ),
-    line(
+    ...lead(
       point(xfmrPins[2]),
       { x: -19.5, y: xfmrCenters[1].y },
       "secondary-left-lead",
     ),
     transformPrimitive(inductorPath, xfmrCenters[1], 90, "secondary-winding"),
-    line(
+    ...lead(
       { x: 19.5, y: xfmrCenters[1].y },
       point(xfmrPins[3]),
       "secondary-right-lead",
@@ -193,7 +207,10 @@ const xfmr = {
 
 const tcoilLayout = tcoilEvidence.evidence.normalization;
 const tcoilCenters = tcoilLayout.productCoilCentersLogical;
-const tcoilPins = tcoilLayout.productPinAnchorsLogical;
+// Terminals 1 and 2 are trimmed; the centre tap's lead is as drawn.
+const tcoilPins = tcoilLayout.productPinAnchorsLogical.map((anchor) =>
+  anchor.name === "3" ? anchor : trimmed(anchor, "x"),
+);
 const [tcoilLeftBranchX, tcoilRightBranchX] =
   tcoilLayout.productBridgeBranchXsLogical;
 const tcoilBridgeY = tcoilLayout.productCapacitorCenterLogical.y;
@@ -209,7 +226,7 @@ const tcoil = {
   schemaVersion: 1,
   id: "tcoil",
   name: "T-Coil",
-  viewBox: { x: -104, y: -56, width: 208, height: 90 },
+  viewBox: { x: -94, y: -56, width: 188, height: 90 },
   pins: [
     pin("1", tcoilPins[0], "west"),
     pin("2", tcoilPins[1], "east"),
@@ -278,15 +295,15 @@ const centerTap = {
   schemaVersion: 1,
   id: "center-tap-inductor",
   name: "Center-Tap Inductor",
-  viewBox: { x: -64, y: -16, width: 128, height: 40 },
+  viewBox: { x: -54, y: -16, width: 108, height: 40 },
   pins: [
-    pin("1", { x: -60, y: 0 }, "west"),
-    pin("2", { x: 60, y: 0 }, "east"),
+    pin("1", { x: -50, y: 0 }, "west"),
+    pin("2", { x: 50, y: 0 }, "east"),
     pin("3", { x: 0, y: 20 }, "south"),
   ],
   primitives: [
     line(
-      { x: -60, y: 0 },
+      { x: -50, y: 0 },
       { x: centerTapCenters[0].x - 19.5, y: 0 },
       "terminal-1-lead",
     ),
@@ -299,7 +316,7 @@ const centerTap = {
     transformPrimitive(inductorPath, centerTapCenters[1], 90, "winding-2"),
     line(
       { x: centerTapCenters[1].x + 19.5, y: 0 },
-      { x: 60, y: 0 },
+      { x: 50, y: 0 },
       "terminal-2-lead",
     ),
     line({ x: 0, y: -0.5 }, { x: 0, y: 20 }, "terminal-3-lead"),
