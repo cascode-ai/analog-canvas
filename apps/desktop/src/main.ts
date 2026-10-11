@@ -22,6 +22,8 @@ import { createProjectLibrary } from "./project-library.js";
 import { decideClose, workspaceCloseState } from "./close-guard.js";
 import { createLaunchFileQueue } from "./launch-files.js";
 import { createSystemHandler } from "./system-info.js";
+import { createLocalComponentHandler } from "./component-library.js";
+import { createExternalLinkHandler } from "./external-links.js";
 import { windowsAssociation } from "./windows-association.js";
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import {
@@ -282,6 +284,13 @@ else {
           ? join(process.resourcesPath, "editor")
           : resolve(import.meta.dirname, "../../editor/dist-desktop"),
         exportFile,
+        components: createLocalComponentHandler(
+          join(userData, "components.json"),
+        ),
+        externalLink: createExternalLinkHandler(
+          (url) => shell.openExternal(url),
+          __ICM_DESKTOP_BUILD__.commit,
+        ),
         system: createSystemHandler({
           async info() {
             return {

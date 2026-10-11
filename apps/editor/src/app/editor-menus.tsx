@@ -29,7 +29,10 @@ import type { useSelectionController } from "../features/selection/selection-con
 import type { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import { hasVisualSelection } from "../features/selection/visual-selection";
 import type { useInteractionState } from "../interaction/interaction-state";
-import type { EditorServices } from "../services/editor-services";
+import {
+  useEditorServices,
+  type EditorServices,
+} from "../services/editor-services";
 import { EditorAppChrome } from "./editor-app-chrome";
 import type { EditorProjectPanelMode } from "./editor-project-dock";
 import type { createEditorTransactionCommands } from "./editor-transaction-commands";
@@ -271,10 +274,24 @@ export function EditorMenuBar({
   leaveForGallery: () => void;
   leaveForArena: () => void;
 }) {
+  const { NativeHeaderActions, openExternalLink } = useEditorServices();
   return (
     <EditorAppChrome
       communityEnabled={capabilities.community}
+      userComponentsEnabled={
+        capabilities.community || capabilities.localComponents === true
+      }
       externalLinksEnabled={capabilities.externalLinks}
+      hostActions={NativeHeaderActions ? <NativeHeaderActions /> : null}
+      onOpenExternalLink={
+        openExternalLink
+          ? (target) => {
+              void openExternalLink(target).catch((error) =>
+                setStatus(String(error)),
+              );
+            }
+          : undefined
+      }
       identityEnabled={identity !== null}
       projectHome={
         NativeProjectHome ? (

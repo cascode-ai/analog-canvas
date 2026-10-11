@@ -411,6 +411,39 @@ The desktop build excludes online implementation modules and emits a checked
 module inventory. Native network/navigation restrictions independently reject
 external requests. The bundled fonts and graphics/netlist exporters work offline.
 About displays version, source commit, file format and data locations.
+Its header entry is on the right. Explicit TokenZhang/repository/source actions
+open fixed product URLs in the system browser through a same-origin private
+command. They send no Project content, file paths or credentials. The renderer
+keeps its network/navigation restrictions; arbitrary external destinations are
+not accepted by the host command.
+
+### Desktop User Components
+
+User Components authoring and validation share the existing component/native
+source model. Local library records live in stable application data as
+`components.json`, separately from Project files and recovery. Apply changes a
+Project or an isolated authoring draft; Save to local library makes a reusable
+record without login, Cloud synchronization or public publication. Import
+creates an independent record; export includes the self-contained definition
+and any complete native source package. A selected revision is checked before
+placement, then the Project captures its own definition/resources. Library
+updates/removal never rewrite existing Project captures.
+
+The private main-process store serializes operations, validates complete
+definitions, checks revisions and atomically replaces its bounded library file.
+An identical completed-save retry returns the same revision; reusing its
+operation identity with different content is rejected. Stale writes/placement,
+invalid packages, oversized requests and malformed retained data are refused
+without replacing valid data. Removal is recoverable and restoration advances
+the revision. Limits are 500 records / 16 MiB including removed records, and the
+shared 128 KiB per-definition limit. Back up application data while closed.
+The single desktop process owns coordination; externally replacing its data file
+while the app is running is outside this coordination contract.
+
+Local projects displays primary Open/favorite actions in compact rows. Other
+operations remain under More; external files and folder settings use separate
+disclosures. History is a secondary view. These layout changes retain native
+file authority, confirmations, conflict detection and recovery semantics.
 
 The preview is distributed as an unsigned Windows ZIP. Window close offers to
 save all changed tabs and stays open if any save is canceled or fails. External

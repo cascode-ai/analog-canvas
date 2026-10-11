@@ -3938,8 +3938,8 @@ function WorkspaceEditor({
   );
 
   function openSelectedComponentDefinition(): void {
-    if (!capabilities.community) {
-      setStatus("Shared component editing is unavailable in this preview");
+    if (!capabilities.community && !capabilities.localComponents) {
+      setStatus("Component definition editing is unavailable in this host");
       return;
     }
     if (!selectedInstance) {

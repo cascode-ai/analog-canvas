@@ -2,6 +2,14 @@
 
 ## Desktop completion (2026-10-11)
 
+The interface follow-up adds a private persistent User Components library and
+adapts upstream definition/native-source authoring and revision checks to that
+host. It simplifies the native Project manager and adds fixed product URLs
+opened in the system browser, independently of blocked renderer navigation.
+These additions reuse upstream component implementations; no additional fork
+implementation is copied. Historical handoff descriptions below remain as the
+record of the earlier migrations.
+
 The sections below record earlier migrations; omitted capabilities describe
 those historical changes. This completion extends the already-adapted shell
 and file bridge, preserving their original notices and LXY-freshman credit.

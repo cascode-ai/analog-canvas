@@ -31,7 +31,25 @@ to keep your edits in another file, or explicitly close the old tab and reopen
 the file. Writes replace the destination atomically after checking its bytes;
 this is optimistic conflict detection, not an operating-system-wide write lock.
 
-This preview has no account, Cloud, community, Agent, simulation, external links
+**Edit → User Components…** creates and edits reusable definitions with the same
+SPICE/Spectre and artwork editors as the Web version. Apply the definition, then
+**Save to local library**. Definitions persist in
+`%APPDATA%\Analog Canvas\components.json`, independently of the current Project
+and extracted ZIP. The library supports search, independent copies, definition
+import/export, removal and restore. An exported definition includes its native
+source package; it can be imported into another installation. Placing captures
+that version in the Project, so later library changes do not change earlier
+drawings. Library updates and placement reject stale revisions; interrupted
+save retries reuse the same operation. Back up application data while closed.
+The local library is limited to 500 records / 16 MiB; individual definitions
+retain the shared 128 KiB limit. Removal retains recoverable definitions.
+
+Local projects uses compact name/location rows. Click a name to open it; use
+the star for favorites. Copy, rename, history, export and recycle commands are
+under **More**. External files and project folder settings are separate
+disclosures; history opens a focused view with **Back to projects**.
+
+This preview has no account, Cloud, community, Agent, simulation
 or service worker. It retains the shared editor, model, Project schema, embedded
 components and simulation source data. The desktop build rejects online
 implementation modules in emitted chunks and records `desktop-modules.json`.
@@ -62,6 +80,23 @@ extension is the same canonical JSON, avoiding a global `.json` association.
 Cold and running-instance opens are supported. After replacing the ZIP, enable
 association in the new installation to update its path. Installers, signing and
 automatic updates remain deferred.
+
+About is on the right of the header. TokenZhang, the GitHub repository and the
+source commit open in the system browser through fixed product-link commands.
+The desktop renderer's network and external-navigation restrictions remain
+active; no Project bytes, file paths or credentials are passed to those links.
+
+## Package size
+
+The `27fd0221abfd` preview ZIP is 169 MiB (390 MiB extracted). Compressed
+contents: Electron runtime 142 MiB, runtime language packs 13 MiB, corresponding
+source 9 MiB, editor assets 4 MiB, and the small host/notices/acceptance records.
+The executable alone includes 235 MiB of Electron/Chromium before compression.
+The package contains no developer `node_modules`, user profiles or local
+Projects. Runtime DLLs/fonts and license notices belong with the application;
+the corresponding source and attribution are required distribution material.
+Reducing language packs saves only a small share. A substantially smaller host
+would need a separate compatibility/security and deployment decision.
 
 ## Build and validate
 

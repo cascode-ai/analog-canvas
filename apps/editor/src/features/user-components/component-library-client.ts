@@ -19,15 +19,8 @@ import {
 } from "./component-library-contract";
 import { definitionError } from "./component-definition-error";
 
-export class ComponentLibraryError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly outcomeUnknown = false,
-  ) {
-    super(message);
-  }
-}
+import { ComponentLibraryError } from "./component-library-error";
+export { ComponentLibraryError } from "./component-library-error";
 async function responseJson(response: Response) {
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok)

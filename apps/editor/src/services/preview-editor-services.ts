@@ -3,6 +3,8 @@ import { NativeFileCommands } from "../hosts/native-file-commands";
 import { NativeProjectHome } from "../hosts/native-project-home";
 import { createNativeProjectStore } from "../hosts/native-project-store";
 import { restoreNativeWorkspace } from "../hosts/native-workspace-restore";
+import { NativeAboutButton } from "../hosts/native-about-button";
+import { openNativeExternalLink } from "../hosts/native-external-links";
 
 /** No Cloud adapter or identity provider is constructed for the preview. */
 export function createPreviewEditorServices(): EditorServices {
@@ -13,8 +15,11 @@ export function createPreviewEditorServices(): EditorServices {
     nativeProjectStore: createNativeProjectStore(),
     NativeFileCommands,
     NativeProjectHome,
+    NativeHeaderActions: NativeAboutButton,
+    openExternalLink: openNativeExternalLink,
     capabilities: {
       community: false,
+      localComponents: true,
       agent: false,
       simulation: false,
       externalLinks: false,

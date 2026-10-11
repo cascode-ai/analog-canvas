@@ -19,6 +19,7 @@
     "@icm/project-protocol": "workspace:*",
     "electron": "44.4.2",
     "esbuild": "0.28.1",
-    "rcedit": "5.0.2"
+    "rcedit": "5.0.2",
+    "zod": "4.4.3"
   }
 }

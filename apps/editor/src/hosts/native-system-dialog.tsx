@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 import { nativePathLabel } from "./native-path-label";
 import "./native-dialog.css";
+import { openNativeExternalLink } from "./native-external-links";
 
 const infoSchema = z.object({
   version: z.string(),
@@ -89,9 +90,18 @@ export function NativeSystemDialog({ onClose }: { onClose(): void }) {
             format {info.format}
           </p>
           <p>
-            <code>
-              https://github.com/cascode-ai/analog-canvas/commit/{info.commit}
-            </code>
+            <a
+              data-native-external-link="source"
+              href={`https://github.com/cascode-ai/analog-canvas/commit/${info.commit}`}
+              onClick={(event) => {
+                event.preventDefault();
+                void openNativeExternalLink("source").catch((error) =>
+                  setError(String(error)),
+                );
+              }}
+            >
+              View source on GitHub ↗
+            </a>
           </p>
           <p title={info.projectRoot}>
             Projects: {nativePathLabel(info.projectRoot)}

@@ -18,6 +18,7 @@ import type { EditorExportDelivery } from "../hosts/export-delivery";
 import type { FileCommandMenuProps } from "../features/editor-shell/file-command-menu";
 import type { NativeProjectStore } from "../hosts/native-project-store";
 import type { ProjectWorkspace } from "../document/project-workspace";
+import type { NativeExternalTarget } from "../hosts/native-external-links";
 
 /** Current Cloud contract, including revisions/conflicts; not a native store. */
 export interface CloudProjectStore {
@@ -43,8 +44,11 @@ export interface EditorServices {
   readonly nativeProjectStore?: NativeProjectStore;
   readonly NativeFileCommands?: FileCommandMenuProps["NativeFileCommands"];
   readonly NativeProjectHome?: ComponentType<NativeProjectHomeProps>;
+  readonly NativeHeaderActions?: ComponentType;
+  readonly openExternalLink?: (target: NativeExternalTarget) => Promise<void>;
   readonly capabilities: {
     readonly community: boolean;
+    readonly localComponents?: boolean;
     readonly agent: boolean;
     readonly simulation: boolean;
     readonly externalLinks: boolean;

@@ -72,3 +72,141 @@
 .native-save-dialog p {
   flex-basis: 100%;
 }
+.native-library-dialog,
+.native-components-dialog {
+  width: min(56rem, 90vw);
+}
+.native-library-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.25rem 0;
+}
+.native-library-toolbar input:not([hidden]) {
+  flex: 1;
+  min-width: 12rem;
+}
+.native-project-list,
+.native-component-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.native-project-list > li,
+.native-project-list > article,
+.native-component-list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--icm-border);
+}
+.native-library-entry {
+  min-width: 0;
+}
+.native-library-entry strong,
+.native-library-entry small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.native-library-entry small,
+.native-project-list time {
+  font-size: 0.8rem;
+  color: var(--icm-text-muted);
+}
+.native-dialog .native-project-open {
+  max-width: 100%;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  background: transparent;
+}
+.native-dialog .native-project-open:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+.native-dialog .native-favorite {
+  border-color: transparent;
+  font-size: 1.2rem;
+}
+.native-more-actions summary,
+.native-folder-settings summary,
+.native-recent-projects > summary {
+  cursor: pointer;
+  padding: 0.35rem 0;
+  color: var(--icm-text-muted);
+}
+.native-more-actions[open] {
+  grid-column: 1 / -1;
+}
+.native-more-actions summary {
+  text-align: right;
+  min-height: 2rem;
+  box-sizing: border-box;
+}
+.native-action-menu {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface-subtle, var(--icm-surface));
+}
+.native-folder-settings,
+.native-recent-projects {
+  margin-top: 1rem;
+}
+.native-row-notice {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.native-library-note,
+.native-library-empty {
+  font-size: 0.85rem;
+  color: var(--icm-text-muted);
+  line-height: 1.5;
+  margin: 1rem 0 0;
+}
+.native-library-rename {
+  padding: 0.75rem;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+}
+.native-components-dialog header p {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+}
+.native-component-list > li {
+  grid-template-columns: 4rem minmax(0, 1fr) auto auto auto;
+}
+.native-component-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+}
+.native-component-preview svg {
+  max-width: 100%;
+  max-height: 100%;
+}
+@media (max-width: 1000px) {
+  .native-component-list > li {
+    grid-template-columns: 3rem minmax(0, 1fr) auto;
+  }
+  .native-component-preview {
+    width: 3rem;
+    height: 3rem;
+  }
+  .native-project-list time {
+    display: none;
+  }
+}
