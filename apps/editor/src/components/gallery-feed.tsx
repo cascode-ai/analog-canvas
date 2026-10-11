@@ -8,7 +8,6 @@ import {
   galleryPreviewUrl,
   loadGalleryFeed,
   loadGalleryTags,
-  localhostExamplesEnabled,
   type GalleryAuthorOption,
   type GalleryFeedEntry,
   type GalleryFeedPage,
@@ -57,7 +56,7 @@ import {
 } from "../gallery-order";
 import { gallerySourceByKey } from "../gallery-sources";
 import { useGalleryFilters } from "./gallery-feed-filters";
-import { useBundledGalleryFallback, useGalleryWall } from "./gallery-feed-wall";
+import { useGalleryWall } from "./gallery-feed-wall";
 import { useGalleryOwnerTools } from "./gallery-feed-owner-tools";
 import { useGalleryFocusLink } from "./gallery-feed-focus";
 import {
@@ -65,7 +64,7 @@ import {
   GallerySearchProgress,
 } from "./gallery-feed-count-panel";
 import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
-import { GalleryBundledTile, GalleryWallTile } from "./gallery-feed-tile";
+import { GalleryWallTile } from "./gallery-feed-tile";
 
 /**
  * Heights of the grey stand-in tiles behind the sign-in invitation, for a
@@ -315,16 +314,6 @@ export function GalleryFeed({
   }
 
   const entries = state.entries;
-  const needsBundledFallback =
-    localhostExamplesEnabled() &&
-    !datasetWall &&
-    state.status !== "loading" &&
-    entries.length === 0 &&
-    !galleryFiltersNarrowQuery(filters) &&
-    !searchQuery.trim();
-
-  const bundledFallback = useBundledGalleryFallback(needsBundledFallback);
-
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   // Once the server has answered this search, its totals, tags and
   // contributors are the search's and nothing older is left to read; until
@@ -691,10 +680,7 @@ export function GalleryFeed({
                 That circuit is not on the wall. It may have been removed.
               </p>
             ) : null}
-            {(state.status === "loading" && !refreshing) ||
-            (needsBundledFallback &&
-              (bundledFallback.status === "idle" ||
-                bundledFallback.status === "loading")) ? (
+            {state.status === "loading" && !refreshing ? (
               <p className="gallery-status" data-testid="gallery-loading">
                 Loading gallery…
               </p>
@@ -741,19 +727,6 @@ export function GalleryFeed({
                         />
                       ),
                     })),
-                    ...(needsBundledFallback
-                      ? bundledFallback.tiles
-                          .filter((tile) =>
-                            galleryEntryMatchesQuery(
-                              { ...tile, author: "", tags: [] },
-                              normalizedSearchQuery,
-                            ),
-                          )
-                          .map((tile) => ({
-                            key: `bundled-${tile.id}`,
-                            node: <GalleryBundledTile tile={tile} />,
-                          }))
-                      : []),
                   ]}
                 />
                 {refreshing ? null : (
@@ -825,8 +798,7 @@ export function GalleryFeed({
                                       : "No circuits made by hand here yet."}
                       </p>
                     ) : null}
-                    {(!localhostExamplesEnabled() || datasetWall) &&
-                    entries.length === 0 &&
+                    {entries.length === 0 &&
                     !galleryFiltersNarrowQuery(filters) ? (
                       <p className="gallery-status" data-testid="gallery-empty">
                         {state.status === "unavailable"

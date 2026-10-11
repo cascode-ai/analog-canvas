@@ -39,6 +39,7 @@ const gallerySpecs = [
   "tags",
   "wall",
 ].map((name) => `apps/editor/e2e/gallery-${name}.spec.ts`);
+gallerySpecs.push("apps/editor/e2e/local-examples.spec.ts");
 
 function ciPlan(paths, options) {
   return planCiValidation(planValidation(paths, catalog), options);

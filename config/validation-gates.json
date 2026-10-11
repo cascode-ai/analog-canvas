@@ -218,6 +218,11 @@
       "apps/editor/e2e/gallery-tags.spec.ts",
       "apps/editor/e2e/gallery-wall.spec.ts",
       "apps/editor/e2e/gallery-fixtures.ts",
+      "apps/editor/e2e/gallery-test.ts",
+      "apps/editor/e2e/local-examples.spec.ts",
+      "apps/editor/src/gallery-source.ts",
+      "apps/editor/src/components/local-examples-page.tsx",
+      "apps/editor/src/features/editor-shell/gallery-panel-loader*",
       "worker/gallery-do.ts",
       "worker/gallery-store*.ts",
       "apps/editor/src/components/gallery-version-*",
@@ -471,7 +476,8 @@
         "apps/editor/e2e/gallery-search.spec.ts",
         "apps/editor/e2e/gallery-shelf.spec.ts",
         "apps/editor/e2e/gallery-tags.spec.ts",
-        "apps/editor/e2e/gallery-wall.spec.ts"
+        "apps/editor/e2e/gallery-wall.spec.ts",
+        "apps/editor/e2e/local-examples.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
@@ -485,7 +491,8 @@
           "apps/editor/e2e/gallery-search.spec.ts",
           "apps/editor/e2e/gallery-shelf.spec.ts",
           "apps/editor/e2e/gallery-tags.spec.ts",
-          "apps/editor/e2e/gallery-wall.spec.ts"
+          "apps/editor/e2e/gallery-wall.spec.ts",
+          "apps/editor/e2e/local-examples.spec.ts"
         ]
       }
     },

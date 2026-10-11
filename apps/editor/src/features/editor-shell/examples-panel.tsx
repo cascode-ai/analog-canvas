@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./examples-panel.css";
 
 import type { LibraryProjectExample } from "../../examples/library-examples";
@@ -6,13 +6,14 @@ import {
   galleryCountLabel,
   galleryPreviewUrl,
   GALLERY_SIGN_IN_REQUIRED,
-  loadGalleryFeed,
   localhostExamplesEnabled,
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
 } from "../../gallery-client";
 import { galleryEntryMatchesQuery } from "../../gallery-search";
 import { requestSignIn } from "../../components/sign-in-request";
+import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
+import { createGalleryPanelLoader } from "./gallery-panel-loader";
 
 const ExamplesPanelTags = lazy(() =>
   import("./examples-panel-tags").then((module) => ({
@@ -48,6 +49,8 @@ interface FeedState {
   total: number | null;
   /** The search the server answered for these entries; "" for none. */
   search?: string;
+  /** Request owner, including servers that do not implement search yet. */
+  requestedSearch?: string;
 }
 
 const EMPTY_FEED: FeedState = {
@@ -58,7 +61,7 @@ const EMPTY_FEED: FeedState = {
 };
 
 export interface GalleryPanelView {
-  /** False while the feed is loading or unreachable: bundled circuits stand in. */
+  /** True only for an answered feed, never for loading or unavailable results. */
   showGallery: boolean;
   visibleEntries: GalleryFeedEntry[];
   /** Null when the server has not said the size; never a guess. */
@@ -81,18 +84,22 @@ export interface GalleryPanelView {
 export function deriveGalleryPanelView(
   feed: Pick<
     FeedState,
-    "status" | "entries" | "nextCursor" | "total" | "search"
+    "status" | "entries" | "nextCursor" | "total" | "search" | "requestedSearch"
   >,
   options: { searchQuery: string; selectedTags?: readonly string[] },
 ): GalleryPanelView {
   const normalizedQuery = options.searchQuery.trim().toLowerCase();
   const selectedTags = options.selectedTags ?? [];
+  const request = feed.requestedSearch ?? feed.search;
+  const pendingQuery =
+    request !== undefined && request !== options.searchQuery.trim();
   // The server answered this search over the whole Gallery: its total is
   // the matches and nothing older is left to read.
   const answered =
     !!normalizedQuery && feed.search === options.searchQuery.trim();
   const showGallery =
-    feed.status === "ready" && (feed.entries.length > 0 || answered);
+    feed.status === "ready" &&
+    (feed.entries.length > 0 || answered || pendingQuery);
   const filtering = (!!normalizedQuery && !answered) || selectedTags.length > 0;
   const visibleEntries = feed.entries.filter(
     (entry) =>
@@ -104,21 +111,26 @@ export function deriveGalleryPanelView(
   return {
     showGallery,
     visibleEntries,
-    countLabel: showGallery
-      ? galleryCountLabel(feed.total, {
-          searched: answered && !selectedTags.length,
-          search: filtering
-            ? { visible: visibleEntries.length, settled: exhausted }
-            : null,
-        })
-      : null,
+    countLabel:
+      showGallery && !pendingQuery
+        ? galleryCountLabel(feed.total, {
+            searched: answered && !selectedTags.length,
+            search: filtering
+              ? { visible: visibleEntries.length, settled: exhausted }
+              : null,
+          })
+        : null,
     emptyMessage:
-      showGallery && (filtering || answered) && visibleEntries.length === 0
-        ? exhausted || (answered && !selectedTags.length)
-          ? selectedTags.length
-            ? "No circuits match these filters."
-            : `No circuits match “${options.searchQuery.trim()}”.`
-          : "No matches yet — searching older circuits…"
+      showGallery &&
+      (filtering || answered || pendingQuery) &&
+      visibleEntries.length === 0
+        ? pendingQuery
+          ? "Searching…"
+          : exhausted || (answered && !selectedTags.length)
+            ? selectedTags.length
+              ? "No circuits match these filters."
+              : `No circuits match “${options.searchQuery.trim()}”.`
+            : "No matches yet — searching older circuits…"
         : null,
   };
 }
@@ -135,10 +147,36 @@ export function deriveGalleryPanelView(
  * Search is always available; the shared tag tree takes one column only when
  * the dock is wide enough for more than three circuit columns.
  */
-export function ExamplesPanel({
+export function ExamplesPanel(props: ExamplesPanelProps) {
+  if (!localhostExamplesEnabled()) return <GalleryPanel {...props} />;
+  return (
+    <aside
+      id="examples-panel"
+      className={
+        props.open ? "shapes-panel examples-panel" : "shapes-panel collapsed"
+      }
+      aria-label="Insert examples"
+      aria-hidden={!props.open}
+      inert={!props.open ? true : undefined}
+      data-testid="examples-panel"
+      data-open={props.open ? "true" : "false"}
+    >
+      <div className="shapes-panel-body">
+        <div className="shapes-example-list">
+          {props.open ? (
+            <Suspense fallback={null}>
+              <LocalExamplesCards onOpenExample={props.onOpenExample} />
+            </Suspense>
+          ) : null}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function GalleryPanel({
   open,
   onOpenGalleryExample,
-  onOpenExample,
   fetchImpl,
 }: ExamplesPanelProps) {
   const fetcher = fetchImpl ?? fetch;
@@ -155,16 +193,33 @@ export function ExamplesPanel({
     return () => window.clearTimeout(handle);
   }, [searchQuery, serverSearch]);
   const [refreshSignal, setRefreshSignal] = useState(0);
+  const loader = useMemo(
+    () => createGalleryPanelLoader(fetcher),
+    // A new opening/account/refresh owns requests even with the same fetcher.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fetcher, open, refreshSignal],
+  );
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const loadGenerationRef = useRef(0);
+  const firstPagePendingRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    return subscribeGalleryRefresh(() => {
+    const refresh = () => {
+      // Invalidate before React renders the new request owner.
+      ++loadGenerationRef.current;
+      firstPagePendingRef.current = true;
+      loadingMoreRef.current = false;
       setRefreshSignal((previous) => previous + 1);
-    });
+    };
+    const unsubscribe = subscribeGalleryRefresh(refresh);
+    window.addEventListener(ACCOUNT_CHANGED_EVENT, refresh);
+    return () => {
+      unsubscribe();
+      window.removeEventListener(ACCOUNT_CHANGED_EVENT, refresh);
+    };
   }, [open]);
 
   // The first page of the current Gallery, or of the circuits a search
@@ -172,10 +227,13 @@ export function ExamplesPanel({
   useEffect(() => {
     if (!open) return;
     const generation = ++loadGenerationRef.current;
+    firstPagePendingRef.current = true;
+    loadingMoreRef.current = false;
     setFeed(EMPTY_FEED);
     const query = serverSearch ? { q: serverSearch } : {};
-    void loadGalleryFeed(fetcher, query).then((page) => {
+    void loader.feed(query).then((page) => {
       if (generation !== loadGenerationRef.current) return;
+      firstPagePendingRef.current = false;
       setFeed(
         page === GALLERY_SIGN_IN_REQUIRED
           ? { ...EMPTY_FEED, status: "signed-out" }
@@ -188,30 +246,46 @@ export function ExamplesPanel({
                 total: page.total,
                 // Only a server that says it searched has answered it.
                 search: page.search ?? "",
+                requestedSearch: serverSearch,
               },
       );
     });
-  }, [open, fetcher, refreshSignal, serverSearch]);
+    return () => {
+      loadGenerationRef.current = generation + 1;
+    };
+  }, [open, loader, serverSearch]);
 
   // More pages arrive as the sentinel comes into view. A filtered list stays
   // short, so the sentinel keeps showing and the feed keeps arriving until it
   // is exhausted — which is what lets the empty state below tell the truth.
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!open || !sentinel || feed.nextCursor === null) return;
+    if (
+      !open ||
+      !sentinel ||
+      feed.nextCursor === null ||
+      firstPagePendingRef.current
+    )
+      return;
     if (typeof IntersectionObserver === "undefined") return;
     const cursor = feed.nextCursor;
+    const generation = loadGenerationRef.current;
     const observer = new IntersectionObserver((entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return;
+      if (
+        firstPagePendingRef.current ||
+        generation !== loadGenerationRef.current
+      )
+        return;
       if (loadingMoreRef.current) return;
       // Words the server has not been asked yet: it answers them whole.
       if (searchTextRef.current !== serverSearch) return;
       loadingMoreRef.current = true;
-      const generation = loadGenerationRef.current;
-      void loadGalleryFeed(fetcher, {
-        ...(serverSearch ? { q: serverSearch } : {}),
-        cursor,
-      })
+      void loader
+        .feed({
+          ...(serverSearch ? { q: serverSearch } : {}),
+          cursor,
+        })
         .then((page) => {
           if (
             page === null ||
@@ -227,16 +301,18 @@ export function ExamplesPanel({
           }));
         })
         .finally(() => {
-          loadingMoreRef.current = false;
+          if (generation === loadGenerationRef.current)
+            loadingMoreRef.current = false;
         });
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [open, fetcher, feed.nextCursor, serverSearch]);
+  }, [open, loader, feed.status, feed.nextCursor, serverSearch]);
 
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
     deriveGalleryPanelView(feed, { searchQuery, selectedTags });
   const exhausted = feed.nextCursor === null;
+  const showControls = feed.status !== "signed-out";
 
   return (
     <aside
@@ -251,7 +327,7 @@ export function ExamplesPanel({
       data-open={open ? "true" : "false"}
     >
       <div className="shapes-panel-body">
-        {showGallery ? (
+        {showControls ? (
           <div className="examples-panel-controls">
             <input
               autoComplete="off"
@@ -286,9 +362,9 @@ export function ExamplesPanel({
         ) : null}
         <div
           className="examples-panel-browser"
-          data-tags-available={showGallery}
+          data-tags-available={showControls}
         >
-          {showGallery ? (
+          {showControls ? (
             <aside
               className="examples-panel-tags"
               aria-label="Gallery tags"
@@ -297,7 +373,7 @@ export function ExamplesPanel({
               <h2>Tags</h2>
               <Suspense fallback={null}>
                 <ExamplesPanelTags
-                  fetcher={fetcher}
+                  loader={loader}
                   open={open}
                   refreshSignal={refreshSignal}
                   selected={selectedTags}
@@ -341,50 +417,46 @@ export function ExamplesPanel({
             tiles do; a separate control for the same thing is one knob too
             many. */}
             <div className="shapes-example-list">
-              {showGallery ? (
-                visibleEntries.map((example) => (
-                  <button
-                    key={example.id}
-                    type="button"
-                    className="shapes-example-card"
-                    data-testid={`gallery-example-${example.id}`}
-                    aria-label={`Insert gallery circuit ${example.name}`}
-                    title={`Insert ${example.name}`}
-                    onClick={() => onOpenGalleryExample?.(example.id)}
-                  >
-                    <span className="shapes-example-preview">
-                      <img
-                        src={galleryPreviewUrl(
-                          example.id,
-                          example.previewRevision,
-                        )}
-                        alt=""
-                        loading="lazy"
-                      />
-                    </span>
-                    <span className="shapes-example-copy">
-                      <span className="shapes-example-kicker">
-                        {example.author || "Gallery"}
+              {showGallery
+                ? visibleEntries.map((example) => (
+                    <button
+                      key={example.id}
+                      type="button"
+                      className="shapes-example-card"
+                      data-testid={`gallery-example-${example.id}`}
+                      aria-label={`Insert gallery circuit ${example.name}`}
+                      title={`Insert ${example.name}`}
+                      onClick={() => onOpenGalleryExample?.(example.id)}
+                    >
+                      <span className="shapes-example-preview">
+                        <img
+                          src={galleryPreviewUrl(
+                            example.id,
+                            example.previewRevision,
+                          )}
+                          alt=""
+                          loading="lazy"
+                        />
                       </span>
-                      <span className="shapes-example-name">
-                        {example.name}
+                      <span className="shapes-example-copy">
+                        <span className="shapes-example-kicker">
+                          {example.author || "Gallery"}
+                        </span>
+                        <span className="shapes-example-name">
+                          {example.name}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                ))
-              ) : localhostExamplesEnabled() && feed.status !== "signed-out" ? (
-                <Suspense fallback={null}>
-                  <LocalExamplesCards onOpenExample={onOpenExample} />
-                </Suspense>
-              ) : null}
+                    </button>
+                  ))
+                : null}
             </div>
-            {!showGallery &&
-            !localhostExamplesEnabled() &&
-            feed.status !== "signed-out" ? (
+            {!showGallery && feed.status !== "signed-out" ? (
               <p className="examples-panel-empty">
                 {feed.status === "unavailable"
                   ? "Gallery is unavailable. Try again later."
-                  : "No published circuits yet."}
+                  : feed.status === "loading"
+                    ? "Loading gallery…"
+                    : "No published circuits yet."}
               </p>
             ) : null}
             {/* Says "still looking" while pages remain, and only claims nothing

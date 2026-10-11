@@ -1,7 +1,7 @@
 // Narrowing the wall: netlist marks, likes, quick filters, Needs attention and
 // part counts, with the counts and remembered choices that follow them.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import type { Route } from "@playwright/test";
 import { ENTRY, galleryListUrl } from "./gallery-fixtures.js";
 

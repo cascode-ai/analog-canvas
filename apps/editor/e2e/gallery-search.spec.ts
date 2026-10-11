@@ -1,7 +1,7 @@
 // Searching the Gallery: metadata and typos, an unfinished feed, a returning
 // window and matches the server finds.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import { galleryEntryMatchesQuery } from "../src/gallery-search";
 import { ENTRY, galleryListUrl } from "./gallery-fixtures.js";
 

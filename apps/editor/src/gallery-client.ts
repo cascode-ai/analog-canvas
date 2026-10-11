@@ -1,14 +1,7 @@
 import type { GalleryOrder } from "./gallery-order";
 import type { GalleryAttention } from "../../../worker/gallery-curation";
 
-/** Bundled teaching circuits are a loopback fallback, not hosted Gallery data. */
-export function localhostExamplesEnabled(
-  hostname = globalThis.location?.hostname ?? "",
-): boolean {
-  return (
-    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
-  );
-}
+export { localhostExamplesEnabled } from "./gallery-source";
 
 const GALLERY_CHANGE_CHANNEL = "analog-canvas-gallery-change-v1";
 

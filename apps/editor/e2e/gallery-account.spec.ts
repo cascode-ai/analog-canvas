@@ -1,7 +1,7 @@
 // Accounts: what a signed-out visitor sees, signing in, the account page and
 // header chip, and My submissions (/mine).
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { awaitEditorReady } from "./editor-fixtures.js";
 import {
