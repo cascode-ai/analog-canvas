@@ -459,6 +459,9 @@ async function clickLibraryAction(scope: Page | Locator, name: string) {
     exact: true,
     includeHidden: true,
   });
+  // Query changes load cards asynchronously. Wait for this action before
+  // deciding whether its containing menu needs to be opened.
+  await button.waitFor({ state: "attached" });
   const menu = button.locator("xpath=ancestor::details[1]");
   if ((await menu.count()) && (await menu.getAttribute("open")) === null)
     await menu.locator("summary").click();
