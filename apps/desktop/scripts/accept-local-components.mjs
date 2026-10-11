@@ -56,6 +56,9 @@ export async function acceptLocalComponents({
   await entry.getByRole("button", { name: "Place", exact: true }).click();
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.click({ position: { x: 340, y: 250 } });
+  // Placement includes a host revision check; wait for its visible result
+  // before Escape cancels the remaining placement interaction.
+  await expect(page.getByTestId("instance-count")).toHaveText("1");
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("instance-count")).toHaveText("1");
   const captured = await exportProject(
@@ -167,6 +170,7 @@ export async function acceptLocalComponents({
     .getByRole("button", { name: "Place", exact: true })
     .click();
   await canvas.click({ position: { x: 500, y: 250 } });
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("instance-count")).toHaveText("2");
   await page.keyboard.press("Control+s");
