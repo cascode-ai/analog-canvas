@@ -37,6 +37,7 @@ export function useNativeProjectTabs({
   projectTabs,
   nativeWorkspaceSaving,
   restoringWorkspace,
+  flushNativeWorkspace,
 }: {
   nativeProjectStore: EditorServices["nativeProjectStore"];
   setStatus: Dispatch<SetStateAction<string>>;
@@ -50,6 +51,7 @@ export function useNativeProjectTabs({
   projectTabs: ProjectTabSessions["projectTabs"];
   nativeWorkspaceSaving: RefObject<boolean>;
   restoringWorkspace: boolean;
+  flushNativeWorkspace: () => Promise<void>;
 }) {
   const [recentNativeFiles, setRecentNativeFiles] = useState<
     RecentProjectFile[]
@@ -149,6 +151,7 @@ export function useNativeProjectTabs({
   });
   const nativeBridgeRef = useRef({
     state: nativeWorkspaceState,
+    flushWorkspace: async () => {},
     openPending: async () => {},
     save: async (): Promise<{ status: string; message?: string }> => ({
       status: "cancelled",
@@ -156,6 +159,16 @@ export function useNativeProjectTabs({
   });
   nativeBridgeRef.current = {
     state: nativeWorkspaceState,
+    flushWorkspace: async () => {
+      nativeWorkspaceSaving.current = true;
+      setNativeBusy(true);
+      try {
+        await flushNativeWorkspace();
+      } finally {
+        nativeWorkspaceSaving.current = false;
+        setNativeBusy(false);
+      }
+    },
     openPending: async () => {
       if (
         restoringWorkspace ||
@@ -203,6 +216,7 @@ export function useNativeProjectTabs({
       state: () => nativeBridgeRef.current.state(),
       save: () => nativeBridgeRef.current.save(),
       openPending: () => nativeBridgeRef.current.openPending(),
+      flushWorkspace: () => nativeBridgeRef.current.flushWorkspace(),
     };
     target.__analogCanvasDesktop = bridge;
     return () => {

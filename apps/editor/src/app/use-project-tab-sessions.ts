@@ -450,6 +450,7 @@ export function useProjectTabSessions({
   const workspaceLastRecord = useRef<ProjectWorkspace | null>(null);
   const workspaceSaveQueue = useRef(Promise.resolve());
   const workspaceFailure = useRef(false);
+  const workspaceWriteError = useRef<string | null>(null);
   // The closed window whose tabs this one reopened (#1250). Its record goes
   // once this window's own saved record holds every one of those tabs, so
   // no other window offers them again and nothing is lost on the way.
@@ -485,7 +486,7 @@ export function useProjectTabSessions({
       typeof window === "undefined" ||
       initialProject
     )
-      return;
+      return false;
     try {
       snapshotSerializer.retain(
         workspace.tabs.map(({ session }) => session.controller.project),
@@ -551,8 +552,13 @@ export function useProjectTabSessions({
         workspaceSaveQueue.current = workspaceSaveQueue.current
           .then(() => browserWorkspaceStore().write(record))
           .then(
-            () => releaseReopenedWorkspace(record),
             () => {
+              workspaceWriteError.current = null;
+              return releaseReopenedWorkspace(record);
+            },
+            () => {
+              workspaceWriteError.current =
+                "Project tabs could not be stored. The window stayed open; retry closing or export your work.";
               workspaceLastSignature.current = "";
               if (!workspaceFailure.current) {
                 workspaceFailure.current = true;
@@ -565,13 +571,17 @@ export function useProjectTabSessions({
       }
       if (final && workspaceLastRecord.current)
         journalProjectWorkspace(workspaceLastRecord.current);
+      return true;
     } catch {
+      workspaceWriteError.current =
+        "The latest tab snapshot could not be stored. The window stayed open; export your work before leaving.";
       if (!workspaceFailure.current) {
         workspaceFailure.current = true;
         setStatus(
           "The latest tab snapshot could not be saved. Export your work before leaving.",
         );
       }
+      return false;
     }
   }
   useEffect(() => {
@@ -923,7 +933,24 @@ export function useProjectTabSessions({
         session.unsafe = true;
       });
     });
+  async function flushNativeWorkspace() {
+    const restorationError = workspaceError || restoredTabs.error;
+    if (restorationError) throw new Error(restorationError);
+    if (
+      !persistTabs(
+        { activeId: projectTabs.currentId(), tabs: projectTabs.entries() },
+        false,
+      )
+    )
+      throw new Error(
+        workspaceWriteError.current ?? "Project tabs could not be captured",
+      );
+    await workspaceSaveQueue.current;
+    if (workspaceWriteError.current)
+      throw new Error(workspaceWriteError.current);
+  }
   return {
+    flushNativeWorkspace,
     cloudManagementBusy,
     isCloudManagementInFlight: () => cloudMutation.current,
     renameShelfProject,

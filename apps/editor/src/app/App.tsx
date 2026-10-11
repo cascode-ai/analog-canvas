@@ -4679,6 +4679,7 @@ function WorkspaceEditor({
   const nativeWorkspaceSaving = useRef(false);
   const {
     createTabSession,
+    flushNativeWorkspace,
     restoredTabs,
     currentEditBlocker,
     projectSwitchBlocker,
@@ -4812,6 +4813,7 @@ function WorkspaceEditor({
     saveNativeTab,
   } = useNativeProjectTabs({
     restoringWorkspace,
+    flushNativeWorkspace,
     nativeProjectStore,
     setStatus,
     replaceGuard,

@@ -11,6 +11,7 @@ export interface CloseGuardPorts {
     state: WorkspaceCloseState | null,
   ): Promise<"save" | "discard" | "cancel">;
   save(): Promise<{ status: string; message?: string }>;
+  flushWorkspace(): Promise<void>;
   reportFailure(message: string): Promise<void>;
 }
 export function workspaceCloseState(raw: unknown): WorkspaceCloseState | null {
@@ -33,6 +34,19 @@ export function workspaceCloseState(raw: unknown): WorkspaceCloseState | null {
 export async function decideClose(
   ports: CloseGuardPorts,
 ): Promise<"close" | "stay"> {
+  const closeStoredWorkspace = async (): Promise<"close" | "stay"> => {
+    try {
+      await ports.flushWorkspace();
+      return "close";
+    } catch (error) {
+      await ports.reportFailure(
+        error instanceof Error
+          ? error.message
+          : "Project tabs could not be stored",
+      );
+      return "stay";
+    }
+  };
   const state = await ports.readState().catch(() => null);
   if (state?.busy || state?.pendingEdits) {
     await ports.reportFailure(
@@ -40,10 +54,10 @@ export async function decideClose(
     );
     return "stay";
   }
-  if (state && !state.dirty.length) return "close";
+  if (state && !state.dirty.length) return closeStoredWorkspace();
   // A missing renderer answer must never silently discard unsaved work.
   const answer = await ports.ask(state).catch(() => "cancel" as const);
-  if (answer === "discard") return "close";
+  if (answer === "discard") return state ? closeStoredWorkspace() : "close";
   if (answer !== "save") return "stay";
   const attempt = await ports.save().catch((error: unknown) => ({
     status: "failed",
@@ -52,7 +66,7 @@ export async function decideClose(
   if (attempt.status === "saved") {
     const after = await ports.readState().catch(() => null);
     if (after && !after.busy && !after.pendingEdits && !after.dirty.length)
-      return "close";
+      return closeStoredWorkspace();
     await ports.reportFailure(
       "New or unfinished edits remain unsaved. The window stayed open.",
     );

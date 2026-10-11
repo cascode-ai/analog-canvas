@@ -410,6 +410,15 @@ retain the shared reader's rejection and recovery rules.
 The desktop build excludes online implementation modules and emits a checked
 module inventory. Native network/navigation restrictions independently reject
 external requests. The bundled fonts and graphics/netlist exporters work offline.
+Before destroying a responding desktop window after a clean close or confirmed
+Save/discard, the host captures the latest tab workspace through its existing
+persistence authority and awaits the serialized storage commit. Native window
+input is disabled during that final commit. Failure keeps the window open and
+reports the storage problem; retry captures the current workspace again.
+This protects active-tab and file-binding recovery across immediate close,
+restart and preview-profile import. The explicit discard fallback for an
+unavailable renderer remains available. Web persistence timing is unchanged.
+
 About displays version, source commit, file format and data locations.
 Its header entry is on the right. Explicit TokenZhang/repository/source actions
 open fixed product URLs in the system browser through a same-origin private
