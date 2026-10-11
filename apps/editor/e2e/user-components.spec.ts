@@ -188,6 +188,9 @@ async function openUserComponents(page: Page) {
   ).toBeVisible();
 }
 async function readProject(page: Page): Promise<CircuitProject> {
+  // Sharing journeys return to an earlier editor window. Clipboard reads
+  // require that document to be focused, not just its code editor element.
+  await page.bringToFront();
   const editor = page.getByRole("textbox", {
     name: "Project code",
     exact: true,
@@ -660,6 +663,12 @@ test("historical invalid pin mappings remain inspectable without blocking valid 
         exact: true,
       })
       .click();
+    await expect(
+      dialog.getByText(
+        "Copied raw record. Repair the source before creating a component.",
+        { exact: true },
+      ),
+    ).toBeVisible();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(JSON.parse(copied)).toMatchObject({
       id: "legacy-device",
