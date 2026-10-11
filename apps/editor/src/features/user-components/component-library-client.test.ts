@@ -4,6 +4,7 @@ import {
   loadSharedComponents,
   readSharedComponent,
   saveSharedComponent,
+  loadSharedComponentSummaries,
 } from "./component-library-client";
 
 afterEach(() => {
@@ -12,6 +13,26 @@ afterEach(() => {
 });
 
 describe("public component library responses", () => {
+  it("bounds summary body reads and reports a timed-out publication as unknown", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: () => new Promise(() => {}) })),
+    );
+    const read = loadSharedComponentSummaries("", null).catch(
+      (error: Error) => error,
+    );
+    const write = saveSharedComponent(
+      "bounded-write",
+      0,
+      newComponentDefinition(),
+      undefined,
+      { idempotencyKey: "bounded-write-retry" },
+    ).catch((error: Error) => error);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await read).toMatchObject({ status: 408, outcomeUnknown: false });
+    expect(await write).toMatchObject({ status: 408, outcomeUnknown: true });
+  });
   it("isolates invalid historical definitions while retaining their raw records and strict reads", async () => {
     const definition = newComponentDefinition();
     const metadata = {
@@ -199,4 +220,25 @@ describe("public component library responses", () => {
       saveSharedComponent("test-component", 0, newComponentDefinition()),
     ).rejects.toThrow("Sign in to save");
   });
+  it.each(["request", "body"])(
+    "reports a lost write %s as unknown, preserving same-operation recovery",
+    async (stage) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          if (stage === "request") throw new TypeError("Connection lost");
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new TypeError("Body lost"));
+              },
+            }),
+          );
+        }),
+      );
+      await expect(
+        saveSharedComponent("test-component", 0, newComponentDefinition()),
+      ).rejects.toMatchObject({ outcomeUnknown: true });
+    },
+  );
 });

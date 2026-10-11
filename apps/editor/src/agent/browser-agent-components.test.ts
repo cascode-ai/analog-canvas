@@ -5,6 +5,7 @@ import {
   AgentProjectResourceResponseSchema,
 } from "@icm/agent-adapter";
 import { createEmptyProject } from "@icm/model";
+import { newComponentDefinition } from "../features/user-components/component-definition-edit";
 import {
   createCircuitComponentPackageProject,
   executeProjectTransaction,
@@ -16,6 +17,74 @@ import {
 } from "../../../../worker/component-library.test-support";
 
 describe("Agent User Components", () => {
+  it("captures a public symbol and connects coincident pins in the same insertion transaction", async () => {
+    const library = componentLibraryHarness();
+    const definition = newComponentDefinition();
+    await library(
+      "PUT",
+      "/contact-block",
+      { definition, revision: 0 },
+      "alice",
+    );
+    let project = createEmptyProject("contacts", "Contacts");
+    const host = new BrowserAgentProjectHost({
+      getProject: () => project,
+      getProjectSessionId: () => "contacts",
+      getActiveDocumentId: () => project.topDocumentId,
+      commitProjectStructure: (next) => {
+        project = next;
+      },
+      dispatchProjectTransaction: (request) => {
+        const result = executeProjectTransaction(project, request);
+        if (result.ok) project = result.project;
+        return result;
+      },
+      fetch: async (input) => {
+        const url = new URL(String(input), "https://components.test");
+        return library(
+          "GET",
+          url.pathname.slice("/api/components".length) + url.search,
+        );
+      },
+    });
+    for (const x of [0, 80]) {
+      expect(
+        await host.handle(
+          AgentProjectResourceRequestSchema.parse({
+            apiVersion: AGENT_API_VERSION,
+            operation: "components",
+            requestId: `at-${x}`,
+            request: {
+              action: "insert",
+              componentId: "contact-block",
+              expectedLibraryRevision: 1,
+              projectId: project.id,
+              targetDocumentId: project.topDocumentId,
+              expectedStructureRevision: project.structureRevision,
+              expectedRevision: project.documents[0]!.revision,
+              position: { x, y: 0 },
+            },
+          }),
+        ),
+      ).toMatchObject({ ok: true });
+    }
+    const document = project.documents[0]!;
+    const [first, second] = document.instances;
+    const nets = document.nets;
+    expect(
+      nets.some(
+        (net) =>
+          net.terminals.some(
+            (pin) => pin.instanceId === first!.id && pin.pinName === "OUT",
+          ) &&
+          net.terminals.some(
+            (pin) => pin.instanceId === second!.id && pin.pinName === "IN",
+          ),
+      ),
+    ).toBe(true);
+    expect(project.structureRevision).toBe(2);
+    expect(project.componentDefinitions).toHaveLength(1);
+  });
   it("reports invalid historical source explicitly instead of silently omitting it from Agent listings", async () => {
     let project = createEmptyProject("destination", "Destination");
     const before = structuredClone(project);
@@ -71,6 +140,36 @@ describe("Agent User Components", () => {
     if (result.ok) throw Error("Invalid source was accepted");
     expect(result.error.message).toContain("legacy-device");
     expect(result.error.message).toContain("missing 2");
+    expect(project).toEqual(before);
+    const browsed = await host.handle(
+      AgentProjectResourceRequestSchema.parse({
+        apiVersion: AGENT_API_VERSION,
+        operation: "components",
+        requestId: "diagnostic-browse",
+        request: { action: "browse" },
+      }),
+    );
+    expect(AgentProjectResourceResponseSchema.parse(browsed)).toMatchObject({
+      ok: true,
+      result: {
+        action: "browse",
+        entries: [
+          {
+            id: "legacy-device",
+            capability: "needs-repair",
+            diagnostic: expect.stringContaining("missing 2"),
+            diagnostics: expect.arrayContaining([
+              expect.objectContaining({
+                componentId: "legacy-device",
+                path: expect.any(Array),
+                recovery: "edit-definition",
+              }),
+            ]),
+          },
+        ],
+        nextCursor: null,
+      },
+    });
     expect(project).toEqual(before);
   });
   it("recovers an unknown public write with the same identity and rejects a Project changed during an insertion read", async () => {

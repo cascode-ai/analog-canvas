@@ -3,8 +3,10 @@ import type {
   RichTextDocument,
   Rotation,
 } from "@icm/model";
+import type { PendingCircuitCapture } from "../user-components/component-placement";
 
 export interface SymbolInsertRequest {
+  capture?: PendingCircuitCapture;
   kind: "symbol";
   componentDefinition?: ComponentDefinition;
   symbolId: string;
@@ -71,6 +73,7 @@ export interface CellInsertRequest {
 }
 
 export interface ExternalSubcircuitInsertRequest {
+  capture?: PendingCircuitCapture;
   kind: "external-subcircuit";
   symbolId: string;
   symbolName: string;

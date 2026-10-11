@@ -465,16 +465,16 @@ To edit one component, select it and press **E**, or right-click and choose
 A hierarchical Cell uses **E / Enter Cell** to navigate into its circuit.
 
 **Edit / User Components… / Create Component…** starts in **Circuit**. The
-**Circuit**, **Symbol** and **Pins** tabs edit one retained authoring session:
+**Circuit** and **Symbol** tabs edit one retained authoring session:
 
 - **Circuit:** enter SPICE or Spectre, select its subcircuit entry, or choose an
   existing Project source. Format, Process and Copy use the same controls and
   qualified conversions as External Circuits in Cell Manager.
-- **Symbol:** use Automatic layout and directions, or Custom JSON with an
+- **Symbol:** use Automatic layout, or Custom JSON with an
   isolated preview. Custom preserves the full Symbol DSL; mouse drawing tools
   for internal shapes are not provided. A last valid preview remains visible
   while JSON is unfinished, without replacing the unfinished text.
-- **Pins:** map each native terminal to a distinct graphical pin or explicit
+- **Circuit / Pin mapping:** map each native terminal to a distinct graphical pin or explicit
   VDD/VSS property supply. Add a graphical pin for an unmapped terminal, or
   explicitly remove an unused graphical pin. Electrical direction is distinct
   from the pin's drawing side. Unknown, duplicate or missing mappings block Apply.
@@ -499,7 +499,7 @@ entry, symbol mode, raw JSON (including invalid text), directions, layout and
 mappings. Project Save, recovery and portable files retain these non-executable
 drafts. Reopen them under **User Components / Project drafts**. Ctrl/Cmd+S in
 the component workspace saves the draft; Ctrl/Cmd+Enter applies. Switching the
-three views or the advanced definition type retains pending work. Closing an
+two views or the advanced definition type retains pending work. Closing an
 unsaved session uses the existing keep/discard protection.
 
 The **Primitive / Artwork (advanced)** definition type retains free JSON,
@@ -540,7 +540,7 @@ exported netlists and qualified simulation use the same applied definition closu
 
 Older artwork with a `subcircuit` interface but no implementation remains
 placeable and visibly unimplemented; its target name does not bind an existing
-Project model by itself. **E** opens the same Circuit/Symbol/Pins session to
+Project model by itself. **E** opens the same Circuit/Symbol session to
 provide source or explicitly choose an existing model. Inspect every formal
 terminal, add missing pins and select mappings before Apply. The interface
 summary shows native and legacy terminal counts and the actual number of calls

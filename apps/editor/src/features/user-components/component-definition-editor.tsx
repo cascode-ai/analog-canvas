@@ -30,8 +30,10 @@ import {
   type SessionUser,
 } from "../../components/account";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
+import { DefinitionWorkspace } from "./definition-workspace";
 import {
   parseSharedDefinition,
+  componentCapability,
   type SharedComponent,
 } from "./component-library-contract";
 import {
@@ -68,6 +70,7 @@ export interface ComponentDefinitionEditorProps {
   onReloadLibrary(entry: SharedComponent): string | null;
   onPlaceCircuit(packaged: CircuitComponentPackage): void;
   onClose(): void;
+  onBackToLibrary?: (() => void) | undefined;
 }
 
 export default function ComponentDefinitionEditor(
@@ -118,6 +121,7 @@ export default function ComponentDefinitionEditor(
   const [notice, setNotice] = useState<string | null>(null);
   const [publicationConflict, setPublicationConflict] = useState(false);
   const [pinNames, setPinNames] = useState(true);
+  const [previewWarning, setPreviewWarning] = useState<string | null>(null);
   const libraryAuthoring = useLibraryCircuitAuthoring(
     record,
     (packaged) => {
@@ -632,6 +636,15 @@ export default function ComponentDefinitionEditor(
           </label>
         ) : null}
         <div className="component-definition-actions">
+          {props.onBackToLibrary ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => requestLeave(props.onBackToLibrary!)}
+            >
+              Back to library
+            </button>
+          ) : null}
           {!user && authReady ? <AccountMenu inEditor /> : null}
           {dirty || pendingLeave ? (
             <InlineConfirm
@@ -733,13 +746,44 @@ export default function ComponentDefinitionEditor(
       {!native ? (
         <>
           <p className="component-definition-note">
-            {parsed.definition?.subcircuit &&
-            !hasBuiltInSubcircuitInterface(parsed.definition)
-              ? "Interface only: provide a native implementation to simulate."
+            {parsed.definition &&
+            componentCapability({ definition: parsed.definition }) ===
+              "symbol-only"
+              ? "Symbol only · add a circuit implementation to simulate."
               : "Apply locally; Publish shares an applied version in User Defined."}
             {!user && authReady ? " Sign in to Publish." : ""}
           </p>
-          <div className="component-definition-workspace">
+          {parsed.definition ? (
+            <label className="component-definition-name">
+              Display name{" "}
+              <input
+                aria-label="Component display name"
+                key={parsed.definition.symbol.name}
+                defaultValue={parsed.definition.symbol.name}
+                maxLength={100}
+                onBlur={(event) => {
+                  if (!event.currentTarget.value.trim()) {
+                    event.currentTarget.value = parsed.definition!.symbol.name;
+                    return;
+                  }
+                  setSource(
+                    JSON.stringify(
+                      {
+                        ...parsed.definition,
+                        symbol: {
+                          ...parsed.definition!.symbol,
+                          name: event.currentTarget.value,
+                        },
+                      },
+                      null,
+                      2,
+                    ),
+                  );
+                }}
+              />
+            </label>
+          ) : null}
+          <DefinitionWorkspace>
             <section
               className="component-definition-preview"
               aria-label="Component preview"
@@ -751,11 +795,16 @@ export default function ComponentDefinitionEditor(
                   ) : null}
                   <div className="component-definition-art">
                     <SymbolArtwork
+                      fitContent
+                      onPreviewWarning={setPreviewWarning}
                       symbol={previewDefinition.symbol}
                       className="component-definition-artwork"
                       paddingRatio={0.25}
                     />
                   </div>
+                  {previewWarning ? (
+                    <small role="status">{previewWarning}</small>
+                  ) : null}
                   <label>
                     <input
                       type="checkbox"
@@ -795,7 +844,7 @@ export default function ComponentDefinitionEditor(
                 />
               </Suspense>
             </section>
-          </div>
+          </DefinitionWorkspace>
           {parsed.error ? <p role="alert">{parsed.error}</p> : null}
           {notice ? <p role="status">{notice}</p> : null}
           <footer className="component-definition-actions">

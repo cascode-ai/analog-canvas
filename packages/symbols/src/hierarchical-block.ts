@@ -25,6 +25,7 @@ import type { SymbolDefinition } from "./schema.js";
 
 export {
   freeHierarchicalBlockOffsets,
+  hierarchicalBlockBodySize,
   type HierarchicalBlockPinSlot,
 } from "./hierarchical-block-geometry.js";
 

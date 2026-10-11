@@ -546,10 +546,22 @@ operations remain separate work. Simulation sweeps use the Simulation resource.
 
 ## User Components
 
-`user_components` exposes `request.action`: `list`, `read`, `publish`, `update`,
+`user_components` exposes `request.action`: `browse`, `list`, `read`, `publish`, `update`,
 `fork`, and `insert`. This library stores reusable components, separately from
 Gallery circuits. Reads return complete snapshots; `read` also returns the
 SHA-256 digest of the definition and native circuit package.
+
+Prefer `browse` for discovery: optional `query` and `cursor` return lightweight
+entries with identity/revision, name/author, capability, Pin/parameter counts and
+an optional diagnostic. `diagnostics` retains component IDs, field paths, available
+source file/spans and `edit-definition` recovery for invalid definitions. Use these
+discovery diagnostics to locate a strict read/insert refusal; their legacy error
+schema remains unchanged. `symbol-only` covers artwork or an interface without an
+implementation. `needs-repair` entries remain in the page with their diagnosis;
+they do not block healthy entries or `nextCursor`. Read an entry before using it.
+Capability is not simulator qualification. Older tools can continue using strict
+`list`; inspect the current tool schema before requesting `browse` from an older
+Editor/MCP. Both discovery actions need only the existing circuit.snapshot scope.
 
 Publish with an explicit `projectId`, `expectedStructureRevision`, library
 `componentId`, and stable `idempotencyKey`. A circuit selection names its

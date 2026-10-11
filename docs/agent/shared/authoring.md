@@ -27,7 +27,10 @@ ordinary atomic Apply; invalid raw text belongs in `save_model_source_draft`,
 not in executable facts. Use `advanced_transact` with `dryRun:true` to validate
 the complete candidate and its caller migration without committing it, then
 commit with the same expected revisions. Specialized graphical roles such as gate/bulk survive
-formal-direction edits. Public `user_components` publish/fork/update stays a
+formal-direction edits. Use `user_components` with `action:"browse"` to discover
+lightweight public summaries, including Symbol only and Needs repair entries,
+then `read` for the complete definition and source. Legacy `list` remains strict.
+Public `user_components` publish/fork/update stays a
 separate deliberate operation with its existing revision and permission guards.
 
 Only reviewed core SKY130 1.8 V / IHP SG13G2 low-voltage MOS replacements are

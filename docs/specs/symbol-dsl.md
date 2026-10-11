@@ -191,8 +191,27 @@ use the same ID and idempotency key. Public attribution comes from the server's
 authenticated publisher; source credit text is preserved. Library updates do not
 rewrite previously placed Project captures.
 
-The last successful public list, including appended pages, may be reused for
-60 seconds when reopening the same search. Refresh reads the current list
+Discovery derives capability from the same validated definition used for Apply
+and capture. Artwork-only and interface-only records both display **Symbol only**;
+invalid source or correspondence displays **Needs repair**. Complete primitive,
+reviewed built-in and native definitions do not receive a missing-circuit badge.
+These capabilities do not certify a source for a particular simulation engine.
+Pending valid source is **Not applied**, not a missing implementation.
+
+Library and authoring previews fit actual rendered geometry, visible text and
+pins with a bounded magnification and pixel padding. They never modify stored
+viewBox, geometry, text proportions or electrical contacts. Unusual remote
+coordinates remain inspectable in the complete preview. Card captions remain
+outside the artwork. Details returns to the same list and scroll position;
+Edit, Create from and administration are in the card action menu.
+
+Automatic layout dimensions are minimums, with the actual size shown. Auto-side
+pins have no manual Offset until a side is chosen. Circuit owns interface
+directions and expandable mappings; Custom JSON retains complete DSL access.
+Custom display-name controls update symbol.name without renaming the source entry.
+
+Recent public lists, including appended pages and scroll positions, may be reused
+for 60 seconds within bounded query and byte caches. Refresh reads the current list
 immediately; local publication and management invalidate reuse. Refresh failure
 retains displayed public cards and offers retry. Deleted/admin lists are always
 freshly authorized and never restored from cached results.
@@ -201,10 +220,21 @@ Historical records with valid library metadata but invalid definition/source
 are isolated from executable entries. The GUI keeps their name, publisher,
 validation reason and raw record available to copy; these records cannot be
 placed. A bad source does not hide other valid records or block pagination.
-Malformed page envelopes or identity metadata still reject the page. Agent
-listings remain strict and identify invalid records explicitly rather than
-silently returning an incomplete successful collection. Read, capture and
+Malformed page envelopes or identity metadata still reject the page. The additive
+Agent browse action uses the same lightweight summaries and diagnostics as the
+GUI, preserving healthy records and pagination. Legacy list retains its strict
+full-record contract. Structured discovery diagnostics retain component identity,
+schema paths, available source file/spans and a repair action. The GUI displays a
+short summary; existing read/insert error envelopes remain compatible with old clients.
+Summary and revision-bound preview reads carry no executable
+source. An explicit selection reads the current full record and checks the selected
+revision before editing or placement. Read, capture and
 publication continue to require a complete validated definition.
+
+GUI placement prepares a transient preview, then uses the same capture/instance
+planner as Agent insert. Capture, instance and annotations commit together at the
+chosen position. Cancellation leaves no dependencies; one Undo reverses insertion.
+The selected snapshot never silently advances to newer cloud content.
 
 Before any publication request, including a first local publication, the Project
 stores its applied payload and destination as a private authoring snapshot. A

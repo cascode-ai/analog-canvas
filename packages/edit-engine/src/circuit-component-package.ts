@@ -65,13 +65,36 @@ export function parseCircuitComponentPackage(
     throw Error(
       "Package source, interface and symbol must have the same owner",
     );
-  const mapping = circuitComponentIssues(definition, externalDefinition)[0];
-  if (mapping) throw Error(`${mapping.path.join(".")}: ${mapping.message}`);
+  const mappings = circuitComponentIssues(definition, externalDefinition);
+  const mapping = mappings[0];
+  if (mapping)
+    throw Object.assign(
+      Error(`${mapping.path.join(".")}: ${mapping.message}`),
+      {
+        issues: mappings.map((issue) => ({
+          ...issue,
+          path: ["definition", ...issue.path],
+        })),
+      },
+    );
   const inspected = inspectProjectModelSource(source);
   const failure = inspected.diagnostics.find(
     (diagnostic) => diagnostic.severity === "error",
   );
-  if (failure) throw Error(`${failure.path ?? "model"}: ${failure.message}`);
+  if (failure)
+    throw Object.assign(
+      Error(`${failure.path ?? "model"}: ${failure.message}`),
+      {
+        issues: inspected.diagnostics
+          .filter((issue) => issue.severity === "error")
+          .map((issue) => ({
+            path: ["circuit", "source"],
+            message: issue.message,
+            ...(issue.path ? { file: issue.path } : {}),
+            ...(issue.sourceRef ? { sourceRef: issue.sourceRef } : {}),
+          })),
+      },
+    );
   const entry = inspected.entries.find(
     (entry) => entry.name === implementation.entry,
   );
