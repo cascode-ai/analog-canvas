@@ -28,6 +28,7 @@ import type {
 } from "./ir.js";
 import { bodySupplies } from "./implicit-mos-supplies.js";
 import { builtInBlockCallTarget } from "./ideal-analog-block-models.js";
+import { extractInductorCouplings } from "./extract-coupling.js";
 import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
 import {
   type ResolvedDesignNetlistAnalysisOptions,
@@ -493,6 +494,7 @@ export function extractCell(
       ],
     });
   }
+  const couplings = extractInductorCouplings(document, instances, diagnostics);
   // A clock phase nothing here drives is this Cell's pin, after the authored
   // ones and ground, for its caller or testbench to drive (#1475).
   if (printedAsSubcircuit)
@@ -509,6 +511,7 @@ export function extractCell(
     nets: context.nets,
     instances,
     ...(models.length ? { models } : {}),
+    ...(couplings.length ? { couplings } : {}),
     formalParameters: document.netlist.formalParameters.map((parameter) => ({
       name: parameter.name,
       ...(parameter.defaultValue === undefined

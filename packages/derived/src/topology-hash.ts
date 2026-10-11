@@ -139,7 +139,22 @@ function electricalProjection(document: SchematicDocument): unknown {
       id: noConnect.id,
       endpoint: noConnect.endpoint,
     }));
-  return { instances, nets, logicalNets, noConnects };
+  // Only when present, so every uncoupled Document keeps its hash.
+  const couplings = [...(document.inductorCouplings ?? [])]
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map((coupling) => ({
+      id: coupling.id,
+      name: coupling.name,
+      members: coupling.members,
+      k: coupling.k,
+    }));
+  return {
+    instances,
+    nets,
+    logicalNets,
+    noConnects,
+    ...(couplings.length ? { inductorCouplings: couplings } : {}),
+  };
 }
 
 /**

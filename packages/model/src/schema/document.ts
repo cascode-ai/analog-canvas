@@ -11,6 +11,7 @@ import {
 import {
   ConnectivityEvidenceSchema,
   NetSchema,
+  InductorCouplingSchema,
   NoConnectSchema,
 } from "./connectivity.js";
 import { JunctionSchema, RouteBranchSchema } from "./routing.js";
@@ -89,6 +90,9 @@ const SchematicDocumentBaseSchema = z.strictObject({
   layoutGroups: z.array(LayoutGroupSchema),
   constraints: z.array(LayoutConstraintSchema),
   noConnects: z.array(NoConnectSchema).default([]),
+  // Omitted rather than empty, so a Document without couplings keeps the
+  // exact shape it had before they existed.
+  inductorCouplings: z.array(InductorCouplingSchema).optional(),
   // Drafting remains optional for programmatic in-memory Documents; canonical
   // factories and persisted fixtures write an explicit empty layer.
   drafting: DraftingLayerSchema.optional(),
@@ -128,6 +132,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
       ...document.layoutGroups,
       ...document.constraints,
       ...document.noConnects,
+      ...(document.inductorCouplings ?? []),
       ...(document.drafting?.objects ?? []),
     ];
     for (const [key, netId] of Object.entries(document.mosBulkDefaults ?? {})) {
@@ -715,6 +720,47 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         });
       }
       noConnectEndpointKeys.add(key);
+    }
+
+    const couplingPairs = new Set<string>();
+    const couplingNames = new Set<string>();
+    for (const [index, coupling] of (
+      document.inductorCouplings ?? []
+    ).entries()) {
+      const path = ["inductorCouplings", index];
+      for (const [memberIndex, member] of coupling.members.entries()) {
+        if (!instanceIds.has(member.instanceId))
+          context.addIssue({
+            code: "custom",
+            message: `Unknown coupled inductor instance: ${member.instanceId}`,
+            path: [...path, "members", memberIndex, "instanceId"],
+          });
+      }
+      const [first, second] = coupling.members.map(
+        (member) => member.instanceId,
+      );
+      if (first === second)
+        context.addIssue({
+          code: "custom",
+          message: "An inductor coupling needs two different inductors",
+          path: [...path, "members"],
+        });
+      const pair = [first, second].sort().join("\u0000");
+      if (couplingPairs.has(pair))
+        context.addIssue({
+          code: "custom",
+          message: "These two inductors are already coupled",
+          path: [...path, "members"],
+        });
+      couplingPairs.add(pair);
+      const name = coupling.name.toLowerCase();
+      if (couplingNames.has(name))
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate inductor coupling name: ${coupling.name}`,
+          path: [...path, "name"],
+        });
+      couplingNames.add(name);
     }
 
     for (const [junctionIndex, junction] of document.junctions.entries()) {

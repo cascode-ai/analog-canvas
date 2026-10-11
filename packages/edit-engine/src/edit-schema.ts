@@ -4,6 +4,7 @@ import {
   CellNetlistTerminalSchema,
   DraftingObjectSchema,
   ConnectivityEvidenceSchema,
+  InductorCouplingSchema,
   InstanceNetlistDataSchema,
   InstanceNetlistBindingSchema,
   InstanceSchema,
@@ -389,6 +390,15 @@ const RemoveLayoutGroupEditSchema = z.strictObject({
   kind: z.literal("remove_layout_group"),
   groupId: StableIdSchema,
 });
+/** Creates or replaces one coupling of two drawn inductors. */
+const SetInductorCouplingEditSchema = z.strictObject({
+  kind: z.literal("set_inductor_coupling"),
+  coupling: InductorCouplingSchema,
+});
+const RemoveInductorCouplingEditSchema = z.strictObject({
+  kind: z.literal("remove_inductor_coupling"),
+  couplingId: StableIdSchema,
+});
 const SetLayoutConstraintEditSchema = z.strictObject({
   kind: z.literal("set_layout_constraint"),
   constraint: LayoutConstraintSchema,
@@ -455,6 +465,8 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   SetPropertyTerminalNetEditSchema,
   AddNoConnectEditSchema,
   RemoveNoConnectEditSchema,
+  SetInductorCouplingEditSchema,
+  RemoveInductorCouplingEditSchema,
   SetPresentationStyleEditSchema,
   SetCellSymbolPresentationEditSchema,
   UpsertSchematicAnnotationEditSchema,

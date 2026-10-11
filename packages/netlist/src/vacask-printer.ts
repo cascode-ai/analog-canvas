@@ -6,6 +6,7 @@ import {
 } from "@icm/devices";
 import { expressionIsStructurallyValid, parseSpiceNumber } from "@icm/spice";
 import type {
+  DesignNetlistCell,
   DesignNetlistIR,
   DesignNetlistInstance,
   NetlistDiagnostic,
@@ -148,6 +149,51 @@ export function vacaskProjectValue(
   return `(${output.join("")})`;
 }
 
+/**
+ * Which coupled inductor cards to write reversed. The native `mutual` takes
+ * k from 0 to 1, so a negative coupling is written as its magnitude with one
+ * of its inductors turned around; turning one inductor turns every coupling
+ * it is in, so the turns are solved over the Cell's couplings together.
+ */
+function couplingTurns(cell: DesignNetlistCell): Set<string> {
+  const edges = new Map<string, { other: string; negative: boolean }[]>();
+  for (const coupling of cell.couplings ?? []) {
+    const k = parseSpiceNumber(coupling.k)?.value ?? 1;
+    const negative = coupling.polarity * Math.sign(k) < 0;
+    const [first, second] = coupling.inductorIds;
+    for (const [from, to] of [
+      [first, second],
+      [second, first],
+    ] as const) {
+      const list = edges.get(from) ?? [];
+      list.push({ other: to, negative });
+      edges.set(from, list);
+    }
+  }
+  const turned = new Map<string, boolean>();
+  for (const start of edges.keys()) {
+    if (turned.has(start)) continue;
+    turned.set(start, false);
+    const pending = [start];
+    while (pending.length) {
+      const id = pending.pop()!;
+      for (const { other, negative } of edges.get(id) ?? []) {
+        const wanted = turned.get(id) !== negative;
+        const known = turned.get(other);
+        if (known === undefined) {
+          turned.set(other, wanted);
+          pending.push(other);
+        } else if (known !== wanted)
+          throw new ProjectionError(
+            "VACASK_COUPLING_ORIENTATION",
+            `Cell ${cell.name}'s inductor couplings ask for opposite dots on one inductor; native VACASK cannot write them all.`,
+          );
+      }
+    }
+  }
+  return new Set([...turned].filter(([, value]) => value).map(([id]) => id));
+}
+
 export type PrintedVacask =
   | {
       ok: true;
@@ -257,6 +303,12 @@ export function printVacaskWithLocations(
     ),
   ]);
   const models = new Map<string, string>();
+  let couplingModel: string | undefined;
+  if (ir.cells.some((cell) => cell.couplings?.length)) {
+    couplingModel = "__icm_mutual";
+    while (used.has(couplingModel)) couplingModel += "_";
+    used.add(couplingModel);
+  }
   let switchMaster: string | undefined;
   if (ir.cells.some((c) => c.models?.some((m) => m.type === "SW"))) {
     switchMaster = "__icm_switch";
@@ -709,14 +761,45 @@ export function printVacaskWithLocations(
           `model ${vacaskIdentifier(model.name)} ${module} ${model.parameters.map((p) => `${p.name.toLowerCase()}=${projectValue(p.rawValue, parameterNames)}`).join(" ")}`,
         );
       }
+      if (cell.couplings?.length) append(`model ${couplingModel!} mutual`);
+    } catch (error) {
+      report(cell.id, undefined, error);
+    }
+    let turns = new Set<string>();
+    try {
+      turns = couplingTurns(cell);
     } catch (error) {
       report(cell.id, undefined, error);
     }
     for (const card of cell.instances) {
       try {
-        emitCard(cell.id, card);
+        emitCard(
+          cell.id,
+          turns.has(card.id)
+            ? { ...card, nodes: [...card.nodes].reverse() }
+            : card,
+        );
       } catch (error) {
         report(cell.id, card.id, error);
+      }
+    }
+    const references = new Map(
+      cell.instances.map((card) => [card.id, card.reference]),
+    );
+    for (const coupling of cell.couplings ?? []) {
+      try {
+        const number = parseSpiceNumber(coupling.k);
+        const k = number
+          ? vacaskProjectValue(String(Math.abs(number.value)))
+          : projectValue(coupling.k, parameterNames);
+        const [first, second] = coupling.inductorIds.map((id) =>
+          JSON.stringify(references.get(id) ?? id),
+        );
+        append(
+          `${vacaskIdentifier(coupling.reference)} () ${couplingModel!} k=${k} ind1=${first} ind2=${second}`,
+        );
+      } catch (error) {
+        report(cell.id, coupling.id, error);
       }
     }
     if (!top) append("ends");

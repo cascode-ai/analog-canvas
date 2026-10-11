@@ -79,3 +79,24 @@ export const NoConnectSchema = z.strictObject({
   /** The Document style this mark keeps from a copy's source drawing. */
   documentStyle: ObjectDocumentStyleSchema.optional(),
 });
+
+/**
+ * Two drawn inductors of one Cell coupled as a mutual inductance (a SPICE
+ * `K`), however far apart they are drawn. Each member names the pin of its
+ * dotted end; `arrow: false` hides the curved arrow, which shows otherwise.
+ */
+const InductorCouplingMemberSchema = z.strictObject({
+  instanceId: StableIdSchema,
+  dotPin: z.string().min(1),
+});
+export const InductorCouplingSchema = z.strictObject({
+  id: StableIdSchema,
+  name: z.string().trim().min(1).max(64),
+  members: z.tuple([
+    InductorCouplingMemberSchema,
+    InductorCouplingMemberSchema,
+  ]),
+  /** SPICE value text, as an instance parameter is. */
+  k: z.string().trim().min(1).max(256),
+  arrow: z.literal(false).optional(),
+});

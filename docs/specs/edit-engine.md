@@ -77,6 +77,11 @@ create separate mutation endpoints:
   `set_property_terminal_net`,
   `reconcile_mos_bulk`, `clear_mos_bulk_default`;
 - explicit open terminal: `add_no_connect`, `remove_no_connect`;
+- coupled inductors: `set_inductor_coupling` (create or replace one coupling
+  of two drawn inductors by id; members must be distinct inductor Instances,
+  each `dotPin` one of its pins, no pair coupled twice, names unique),
+  `remove_inductor_coupling`. Deleting either inductor removes its couplings;
+  a coupled inductor can only be swapped for another inductor Symbol;
 - presentation/layout: `set_presentation_style`, `set_route_style_override`,
   `set_object_document_style`, `set_cell_symbol_presentation`,
   `upsert_schematic_annotation`, `remove_schematic_annotation`,

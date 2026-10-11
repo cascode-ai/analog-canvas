@@ -56,6 +56,15 @@ export function planInstanceDeletion(
     ...planTerminalDisconnections(document, selected),
     ...planNoConnectRemovals(document, selected),
     ...planLayoutReferenceRemoval(document, selected),
+    // A coupling needs both its inductors; deleting either removes it.
+    ...(document.inductorCouplings ?? [])
+      .filter((coupling) =>
+        coupling.members.some((member) => selected.has(member.instanceId)),
+      )
+      .map((coupling): SchematicEdit => ({
+        kind: "remove_inductor_coupling",
+        couplingId: coupling.id,
+      })),
     ...instancesById(document, selected).map((instance): SchematicEdit => ({
       kind: "remove_instance",
       instanceId: instance.id,
@@ -157,6 +166,7 @@ function planRoutedEndpointDetachment(
       ...document.annotations,
       ...document.layoutGroups,
       ...document.constraints,
+      ...(document.inductorCouplings ?? []),
       ...(document.drafting?.objects ?? []),
     ].map((object) => object.id),
   );

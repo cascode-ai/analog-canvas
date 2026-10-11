@@ -33,6 +33,8 @@ import {
   routeEnd,
 } from "@icm/model";
 
+import { uniqueInductorCouplingName } from "@icm/derived";
+
 import { createNewInstance } from "../netlist-export/netlist-authoring";
 import type { SchematicClipboard } from "./clipboard";
 import {
@@ -90,6 +92,7 @@ export function proposePaste(
       ...document.layoutGroups,
       ...document.constraints,
       ...document.connectivityEvidence,
+      ...(document.inductorCouplings ?? []),
       ...(document.netlist?.terminals ?? []),
       ...(document.drafting?.objects ?? []),
     ].map((object) => object.id),
@@ -119,6 +122,7 @@ export function proposePaste(
       // creates a fresh net for it instead of emitting an undefined netId.
       ...clipboard.junctions.map((junction) => ({ id: junction.netId })),
       ...clipboard.draftingObjects,
+      ...(clipboard.inductorCouplings ?? []),
     ].map((object) => object.id),
     clipboard.routes,
     clipboard.annotations.flatMap((annotation) =>
@@ -252,6 +256,12 @@ export function proposePaste(
     clipboard.constraints.map((constraint) => [
       constraint.id,
       pastedId(constraint.id),
+    ]),
+  );
+  const couplingIds = new Map(
+    (clipboard.inductorCouplings ?? []).map((coupling) => [
+      coupling.id,
+      pastedId(coupling.id),
     ]),
   );
   const errors: string[] = [];
@@ -801,6 +811,9 @@ export function proposePaste(
     layoutGroups: Object.fromEntries(layoutGroupIds),
     constraints: Object.fromEntries(constraintIds),
     cellTerminals: Object.fromEntries(terminalIds),
+    ...(couplingIds.size
+      ? { inductorCouplings: Object.fromEntries(couplingIds) }
+      : {}),
   };
   // Drafting objects carry no connectivity, so a copy is the object itself
   // under a fresh id, shifted by the same placement offset as everything else.
@@ -865,6 +878,34 @@ export function proposePaste(
         ...structuredClone(constraint),
         id: constraintIds.get(constraint.id)!,
         objectIds: mappedObjectIds,
+      },
+    });
+  }
+  // A pasted coupling joins the two pasted inductors under a name of its
+  // own: the copied one while it is free, otherwise the next free number.
+  const couplingNames = (document.inductorCouplings ?? []).map(
+    (coupling) => coupling.name,
+  );
+  for (const coupling of clipboard.inductorCouplings ?? []) {
+    const members = coupling.members.map((member) => ({
+      ...member,
+      instanceId: instanceIds.get(member.instanceId),
+    }));
+    if (members.some((member) => !member.instanceId)) {
+      errors.push(
+        `Inductor coupling ${coupling.name} references an inductor the copy does not bring`,
+      );
+      continue;
+    }
+    const name = uniqueInductorCouplingName(coupling.name, couplingNames);
+    couplingNames.push(name);
+    edits.push({
+      kind: "set_inductor_coupling",
+      coupling: {
+        ...structuredClone(coupling),
+        id: couplingIds.get(coupling.id)!,
+        name,
+        members: members as typeof coupling.members,
       },
     });
   }

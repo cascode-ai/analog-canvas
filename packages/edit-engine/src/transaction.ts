@@ -57,6 +57,7 @@ import { applyRouteStyleOverrideEdit } from "./transaction-route-style.js";
 import { applyObjectDocumentStyleEdit } from "./transaction-object-document-style.js";
 import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
+import { applyInductorCouplingEdit } from "./transaction-inductor-coupling.js";
 import { fitReviewedSizes } from "./transaction-reviewed-size.js";
 import {
   mergeBaseNets,
@@ -524,6 +525,16 @@ export function executeTransaction(
         });
         if (!outcome.ok) return outcome.rejection;
         connectivityChanged ||= outcome.connectivityChanged ?? false;
+        break;
+      }
+      case "set_inductor_coupling":
+      case "remove_inductor_coupling": {
+        const outcome = applyInductorCouplingEdit(edit, {
+          draft,
+          changedObjectIds,
+          reject: rejectAt,
+        });
+        if (!outcome.ok) return outcome.rejection;
         break;
       }
       case "set_presentation_style":

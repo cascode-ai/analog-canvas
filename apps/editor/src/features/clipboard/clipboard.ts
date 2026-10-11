@@ -13,6 +13,7 @@ import type {
   CellNetlistTerminal,
   ConnectivityEvidence,
   DraftingObject,
+  InductorCoupling,
   Instance,
   LayoutConstraint,
   LayoutGroup,
@@ -56,6 +57,8 @@ export interface SchematicClipboard {
   layoutGroups: LayoutGroup[];
   /** Layout constraints wholly contained in the copied closure. */
   constraints: LayoutConstraint[];
+  /** Couplings both of whose inductors are copied; absent when none. */
+  inductorCouplings?: InductorCoupling[];
 }
 
 /** Electrical objects the person explicitly included in the visual selection. */
@@ -152,6 +155,9 @@ export function captureDocumentComposition(
     draftingObjects,
     layoutGroups: document.layoutGroups,
     constraints: document.constraints,
+    ...(document.inductorCouplings?.length
+      ? { inductorCouplings: document.inductorCouplings }
+      : {}),
   });
 }
 
@@ -275,6 +281,11 @@ export function copySelection(
       copiedLayoutObjectIds.has(objectId),
     ),
   );
+  // A coupling travels only with both of its inductors.
+  const inductorCouplings = (document.inductorCouplings ?? []).filter(
+    (coupling) =>
+      coupling.members.every((member) => selectedIds.has(member.instanceId)),
+  );
   const clipboard: SchematicClipboard = structuredClone({
     intent: "clone-selection",
     sourceDocumentId: document.id,
@@ -357,6 +368,7 @@ export function copySelection(
     draftingObjects,
     layoutGroups,
     constraints,
+    ...(inductorCouplings.length ? { inductorCouplings } : {}),
   });
   // Copied electrical names and rich-text labels remain authored content,
   // including customized power markers. Fresh object IDs do not imply fresh names.

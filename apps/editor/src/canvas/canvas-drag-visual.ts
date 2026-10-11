@@ -24,6 +24,26 @@ interface SavedTether {
   target: Point;
 }
 
+/**
+ * A coupling's arrow (#1648): each end follows its own inductor's drag, its
+ * curve's control point half of each, its heads their ends and its name
+ * the middle. The drop redraws it exactly.
+ */
+interface SavedCouplingArrow {
+  ends: [string, string];
+  shaft: Element | null;
+  d: string | null;
+  p0: Point;
+  control: Point;
+  p1: Point;
+  moved: { element: Element; end: 0 | 1 | null; transform: string | null }[];
+}
+
+function pairOf(value: string | null): Point {
+  const [x, y] = (value ?? "0 0").split(" ").map(Number);
+  return { x: x ?? 0, y: y ?? 0 };
+}
+
 function pointList(points: readonly Point[]): string {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
@@ -194,6 +214,57 @@ export function startCanvasDragVisual(
     }
     return [...tethers.values()];
   };
+  const couplings = new Map<Element, SavedCouplingArrow>();
+  for (const group of Array.from(
+    root.querySelectorAll("[data-coupling-ends]"),
+  )) {
+    const ends = (group.getAttribute("data-coupling-ends") ?? "").split(
+      " ",
+    ) as [string, string];
+    if (!ids.has(ends[0]) && !ids.has(ends[1])) continue;
+    const shaft = group.querySelector('[data-role="coupling-arrow"]');
+    if (!shaft) continue;
+    couplings.set(group, {
+      ends,
+      shaft,
+      d: shaft.getAttribute("d"),
+      p0: pairOf(shaft.getAttribute("data-p0")),
+      control: pairOf(shaft.getAttribute("data-c")),
+      p1: pairOf(shaft.getAttribute("data-p1")),
+      moved: Array.from(
+        group.querySelectorAll(
+          '[data-coupling-head], [data-role="coupling-name"]',
+        ),
+      ).map((element) => {
+        const head = element.getAttribute("data-coupling-head");
+        return {
+          element,
+          end: head === "0" ? 0 : head === "1" ? 1 : null,
+          transform: element.getAttribute("transform"),
+        };
+      }),
+    });
+  }
+  const offsets = new Map<string, Point>();
+  const bend = (moved: (id: string) => Point | null): void => {
+    for (const arrow of couplings.values()) {
+      const a = moved(arrow.ends[0]) ?? { x: 0, y: 0 };
+      const b = moved(arrow.ends[1]) ?? { x: 0, y: 0 };
+      const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      arrow.shaft?.setAttribute(
+        "d",
+        `M ${arrow.p0.x + a.x} ${arrow.p0.y + a.y} Q ${arrow.control.x + middle.x} ${arrow.control.y + middle.y} ${arrow.p1.x + b.x} ${arrow.p1.y + b.y}`,
+      );
+      for (const item of arrow.moved) {
+        const delta = item.end === 0 ? a : item.end === 1 ? b : middle;
+        const prefix = `translate(${delta.x} ${delta.y})`;
+        item.element.setAttribute(
+          "transform",
+          item.transform ? `${prefix} ${item.transform}` : prefix,
+        );
+      }
+    }
+  };
   const stretch = (
     moved: (id: string | null) => Point | null,
     seen: readonly SavedTether[] = collectTethers(),
@@ -230,6 +301,7 @@ export function startCanvasDragVisual(
         );
       }
       stretch((id) => (id !== null && ids.has(id) ? delta : null));
+      bend((id) => (ids.has(id) ? delta : null));
     },
     translateObject(objectId, delta) {
       for (const item of saved) {
@@ -240,6 +312,8 @@ export function startCanvasDragVisual(
           item.transform ? `${prefix} ${item.transform}` : prefix,
         );
       }
+      offsets.set(objectId, delta);
+      bend((id) => offsets.get(id) ?? null);
       for (const tether of collectTethers()) {
         if (tether.labelId === objectId) {
           tether.element.setAttribute("x1", String(tether.label.x + delta.x));
@@ -268,6 +342,15 @@ export function startCanvasDragVisual(
     restore() {
       routeInk.restore();
       stretch(() => null, [...tethers.values()]);
+      for (const arrow of couplings.values()) {
+        if (arrow.d === null) arrow.shaft?.removeAttribute("d");
+        else arrow.shaft?.setAttribute("d", arrow.d);
+        for (const item of arrow.moved) {
+          if (item.transform === null)
+            item.element.removeAttribute("transform");
+          else item.element.setAttribute("transform", item.transform);
+        }
+      }
       for (const item of saved) {
         if (item.transform === null) item.element.removeAttribute("transform");
         else item.element.setAttribute("transform", item.transform);

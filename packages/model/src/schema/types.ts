@@ -64,6 +64,7 @@ export type RouteStyleOverride = z.infer<
   typeof Schema.RouteStyleOverrideSchema
 >;
 export type NoConnect = z.infer<typeof Schema.NoConnectSchema>;
+export type InductorCoupling = z.infer<typeof Schema.InductorCouplingSchema>;
 export type RouteAnnotationAttachment = z.infer<
   typeof Schema.RouteAnnotationAttachmentSchema
 >;

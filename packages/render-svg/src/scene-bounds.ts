@@ -24,6 +24,7 @@ import {
 } from "./annotation-render.js";
 import type { ResolvedSvgAnnotation } from "./annotation-render.js";
 import { signalFlowFormulaLocalBounds } from "./signal-flow-formula.js";
+import { inductorCouplingBounds } from "./inductor-coupling-render.js";
 
 function symbolBounds(
   definition: SymbolDefinition,
@@ -253,6 +254,9 @@ export function deriveBounds(
     );
     bounds.push(geometry.bounds);
   }
+  bounds.push(
+    ...inductorCouplingBounds(document, resolver, profile, objectIds),
+  );
   if (bounds.length === 0) {
     if (objectIds) throw new Error("Select visible objects before copying");
     return { x: 0, y: 0, width: 960, height: 640 };

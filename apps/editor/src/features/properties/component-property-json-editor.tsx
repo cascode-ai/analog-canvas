@@ -360,8 +360,10 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
       .filter(
         (span) =>
           // A batch lists one switch per component where they differ.
+          // and a coupled inductor one per coupling, for its arrow.
           (span.field.path.startsWith("display.parameters.") ||
-            /^display\.(?:visualAnnotation|value)\./u.test(span.field.path)) &&
+            /^display\.(?:visualAnnotation|value)\./u.test(span.field.path) ||
+            /^coupling\..+\.arrow$/u.test(span.field.path)) &&
           span.field.kind === "boolean",
       )
       .map((span) => span.field),

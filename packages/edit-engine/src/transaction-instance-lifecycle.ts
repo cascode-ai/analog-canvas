@@ -6,6 +6,10 @@ import type { EditTransaction } from "./edit-schema.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
 import { removeConnectivityEvidenceOwnedBy } from "./transaction-connectivity.js";
 import { lockedLayoutOwner } from "./transaction-routing.js";
+import {
+  coupledInductorSwapRefusal,
+  remapCoupledInductorDots,
+} from "./transaction-inductor-coupling.js";
 
 type InstanceLifecycleEdit = Extract<
   EditTransaction["edits"][number],
@@ -46,6 +50,7 @@ export function applyInstanceLifecycleEdit(
         ...draft.annotations,
         ...draft.layoutGroups,
         ...draft.constraints,
+        ...(draft.inductorCouplings ?? []),
       ].some((candidate) => candidate.id === edit.instance.id);
       if (objectIdExists) {
         return {
@@ -110,6 +115,11 @@ export function applyInstanceLifecycleEdit(
         ) ||
         draft.constraints.some((constraint) =>
           constraint.objectIds.includes(edit.instanceId),
+        ) ||
+        (draft.inductorCouplings ?? []).some((coupling) =>
+          coupling.members.some(
+            (member) => member.instanceId === edit.instanceId,
+          ),
         );
       if (referenced) {
         return {
@@ -140,6 +150,7 @@ export function applyInstanceLifecycleEdit(
         ...draft.annotations,
         ...draft.layoutGroups,
         ...draft.constraints,
+        ...(draft.inductorCouplings ?? []),
       ].some((candidate) => candidate.id === edit.noConnect.id);
       if (idExists) {
         return {
@@ -207,6 +218,21 @@ export function applyInstanceLifecycleEdit(
           ),
         };
       }
+      const couplingRefusal = coupledInductorSwapRefusal(
+        draft,
+        edit.instanceId,
+        edit.symbolId,
+      );
+      if (couplingRefusal)
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            couplingRefusal,
+            [],
+            [edit.instanceId],
+          ),
+        };
       const symbolVariantId = edit.symbolVariantId ?? undefined;
       const resolved = resolver.resolve(edit.symbolId, symbolVariantId);
       if (!resolved) {
@@ -350,6 +376,14 @@ export function applyInstanceLifecycleEdit(
             pinName: pinMap[terminal.pinName] ?? terminal.pinName,
           }));
       }
+      remapCoupledInductorDots(
+        draft,
+        instance.id,
+        instance.symbolId,
+        edit.symbolId,
+        pinMap,
+        changedObjectIds,
+      );
       instance.symbolId = edit.symbolId;
       if (symbolVariantId === undefined) delete instance.symbolVariantId;
       else instance.symbolVariantId = symbolVariantId;

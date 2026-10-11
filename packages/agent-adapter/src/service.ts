@@ -298,6 +298,8 @@ export function agentEditCategory(
     case "disconnect_endpoint":
     case "add_no_connect":
     case "remove_no_connect":
+    case "set_inductor_coupling":
+    case "remove_inductor_coupling":
       return "connectivity";
     case "upsert_schematic_annotation":
     case "remove_schematic_annotation":

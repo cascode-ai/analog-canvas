@@ -15,6 +15,12 @@ import {
   parseCanvasColor,
 } from "./component-property-fields";
 import {
+  inductorCouplingPropertyValue,
+  parseInductorCouplingProperties,
+  type InductorCouplingPropertyContext,
+  type InductorCouplingPropertyValue,
+} from "./inductor-coupling-properties";
+import {
   componentInputPolarity,
   componentInputsSwapped,
   componentInternalMark,
@@ -40,7 +46,8 @@ export interface ComponentPropertyDisplayCode {
   parameters?: Record<string, boolean>;
 }
 
-export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
+export interface ComponentPropertyCodeValue
+  extends ComponentPropertyDetailsValue, InductorCouplingPropertyValue {
   /** Empty Net ID selects the existing unique authored-supply fallback. */
   supplies?: Record<string, string>;
   control?:
@@ -94,6 +101,8 @@ export interface ComponentPropertyCodeContext {
   }[];
   controlDeviceOptions?: readonly { value: string; label: string }[];
   controlTerminalOptions?: readonly { value: string; label: string }[];
+  /** Present for an inductor that can be coupled to another. */
+  inductorCoupling?: InductorCouplingPropertyContext;
 }
 
 export type ComponentPropertyCodeParseResult =
@@ -115,6 +124,8 @@ const ROOT_KEYS = new Set([
   "symbol",
   "signalFlow",
   "control",
+  "dot",
+  "coupling",
 ]);
 const fieldKeys = (group: string) =>
   new Set(
@@ -371,6 +382,7 @@ export function componentPropertyCodeValue(
     ...(context.displayName !== undefined && context.displayName !== null
       ? { displayName: context.displayName }
       : {}),
+    ...inductorCouplingPropertyValue(context.inductorCoupling),
     placement: instance.placement
       ? {
           coordinate: [
@@ -406,6 +418,8 @@ export function serializeComponentPropertyCode(
     netlistName,
     netlistTarget,
     control,
+    dot,
+    coupling,
     ...details
   } = value;
   const source = JSON.stringify(
@@ -433,6 +447,8 @@ export function serializeComponentPropertyCode(
       ...(display ? { display } : {}),
       ...(displayName !== undefined ? { displayName } : {}),
       ...(control !== undefined ? { control } : {}),
+      ...(dot !== undefined ? { dot } : {}),
+      ...(coupling !== undefined ? { coupling } : {}),
       ...details,
       netlistName,
       netlistTarget,
@@ -616,6 +632,11 @@ export function parseComponentPropertyCode(
               control,
             }
           : {}),
+        ...parseInductorCouplingProperties(
+          decoded,
+          context.instance.id,
+          context.inductorCoupling,
+        ),
         ...(connectionAvailable
           ? {
               connection: decoded.connection as "cell-pin" | "global",

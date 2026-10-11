@@ -11,6 +11,7 @@ import {
 
 import { snapCoordinate } from "../../snap/engine";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
+import { planInductorCouplingEdits } from "./inductor-coupling-properties";
 import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
 import {
   logicGateInputInfo,
@@ -431,6 +432,7 @@ export function planComponentPropertyCodeEdits(
     }
   }
 
+  edits.push(...planInductorCouplingEdits(document, instance, value));
   const styleOverride = {
     ...(value.appearance.color === "auto"
       ? {}

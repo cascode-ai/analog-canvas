@@ -43,6 +43,7 @@ function sortKeys(value: unknown): unknown {
             "connectivityEvidence",
             "layoutGroups",
             "constraints",
+            "inductorCouplings",
             "sourceBinding",
             "sourceStatus",
             "revision",

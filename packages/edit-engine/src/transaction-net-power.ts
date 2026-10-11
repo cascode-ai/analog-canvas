@@ -64,6 +64,7 @@ export function applyNetPowerEdit(
           ...draft.layoutGroups,
           ...draft.constraints,
           ...draft.noConnects,
+          ...(draft.inductorCouplings ?? []),
           ...(draft.netlist?.terminals ?? []),
           ...(draft.drafting?.objects ?? []),
         ].map((object) => object.id),
@@ -315,6 +316,7 @@ export function applyNetPowerEdit(
         ...draft.annotations,
         ...draft.layoutGroups,
         ...draft.constraints,
+        ...(draft.inductorCouplings ?? []),
         ...(draft.drafting?.objects ?? []),
       ].find((object) => object.id === edit.evidence.id);
       if (collidingObject) {

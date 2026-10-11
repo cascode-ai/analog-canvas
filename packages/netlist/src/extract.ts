@@ -60,6 +60,7 @@ import { bubblePhasePins } from "./extract-switch.js";
 import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
 import { extractCell } from "./extract-cell.js";
+import { projectCouplingReferences } from "./extract-coupling.js";
 /** A target with a shared generated recipe: logic, multiplier, converters. */
 function isBehaviouralTarget(target: string): boolean {
   const family = builtInModelContract(target)?.family;
@@ -429,6 +430,7 @@ function analyzeDesign(
           [issue.instanceId, issue.targetId],
         );
       if (resolvedOptions.format === "spice") projectSpiceReferences(cell);
+      projectCouplingReferences(cell, resolvedOptions.format);
       for (const instance of cell.instances) {
         if (!instance.controlSourceInstanceId) continue;
         const sensor = cell.instances.find(

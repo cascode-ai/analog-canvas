@@ -286,6 +286,21 @@ export function tryParseProjectWithMetadata(
           path: ["componentDefinitions"],
         },
       ]);
+    if (
+      sourceSchemaVersion < 70 &&
+      Array.isArray(parsed.documents) &&
+      parsed.documents.some(
+        (document: unknown) =>
+          isRecord(document) && Object.hasOwn(document, "inductorCouplings"),
+      )
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "Inductor couplings require Project schema 70",
+          path: ["documents"],
+        },
+      ]);
     if (sourceSchemaVersion < 64) rejectKeptDocumentStyle(parsed);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (

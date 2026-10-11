@@ -297,6 +297,10 @@ import {
 } from "../features/properties/controlled-source-canvas-pick";
 import { currentControlOptions } from "../features/properties/current-control-options";
 import {
+  inductorCouplingPropertyContext,
+  planCoupleInductors,
+} from "../features/properties/inductor-coupling-properties";
+import {
   defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
   razaviHiddenBulkRisk,
@@ -5952,6 +5956,14 @@ function WorkspaceEditor({
                           document,
                           selectedInstance,
                         ),
+                        ...(() => {
+                          const inductorCoupling =
+                            inductorCouplingPropertyContext(
+                              document,
+                              selectedInstance,
+                            );
+                          return inductorCoupling ? { inductorCoupling } : {};
+                        })(),
                         connection: selectedSupplyMarker
                           ? selectedFormalTerminal
                             ? "cell-pin"
@@ -7114,6 +7126,16 @@ function WorkspaceEditor({
             openSelectedComponentDefinition={openSelectedComponentDefinition}
             hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
+            coupleInductors={(() => {
+              const edit = planCoupleInductors(document, selectedIds);
+              if (!edit || edit.kind !== "set_inductor_coupling") return null;
+              return () => {
+                if (transact([edit]).ok)
+                  setStatus(
+                    `Coupled the inductors as ${edit.coupling.name} (k = ${edit.coupling.k})`,
+                  );
+              };
+            })()}
           />
         ) : null}
       </div>

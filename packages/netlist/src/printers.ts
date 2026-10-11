@@ -12,6 +12,7 @@ import { printSpectreBehavioralModel } from "./behavioral-model.js";
 import { switchBehavioralDefinition } from "./ideal-switch-model.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { printInstanceCard } from "./printed-card.js";
+import { printedCouplingValue } from "./extract-coupling.js";
 import type {
   DesignNetlistLocations,
   PrintedNetlistInstance,
@@ -88,6 +89,25 @@ function spiceMagneticSubcircuit(
   ];
 }
 
+/** Each `K` over two of the Cell's inductor cards, by their printed names. */
+function couplingCards(
+  cell: DesignNetlistCell,
+  format: NetlistFormat,
+): string[] {
+  const references = new Map(
+    cell.instances.map((instance) => [instance.id, instance.reference]),
+  );
+  return (cell.couplings ?? []).map((coupling) => {
+    const [first, second] = coupling.inductorIds.map(
+      (id) => references.get(id) ?? id,
+    );
+    const k = printedCouplingValue(coupling, format);
+    return format === "spice"
+      ? `${coupling.reference} ${first} ${second} ${k}`
+      : `${coupling.reference} mutual_inductor coupling=${k} ind1=${first} ind2=${second}`;
+  });
+}
+
 function spiceCell(
   cell: DesignNetlistCell,
   onInstance?: (
@@ -118,6 +138,7 @@ function spiceCell(
     lines.push(...card.lines);
     offset += card.lines.reduce((total, line) => total + line.length + 1, 0);
   }
+  lines.push(...couplingCards(cell, "spice"));
   lines.push(`.ends ${cell.name}`);
   return lines;
 }
@@ -132,7 +153,10 @@ function spiceCell(
  * order. Net markers still print nothing.
  */
 export function printSpiceCellInstances(cell: DesignNetlistCell): string[] {
-  return cell.instances.flatMap((instance) => spiceInstance(instance));
+  return [
+    ...cell.instances.flatMap((instance) => spiceInstance(instance)),
+    ...couplingCards(cell, "spice"),
+  ];
 }
 
 /** The same printer supplies locations; no parser guesses IDs from printed refs. */
@@ -216,6 +240,7 @@ function renderSpice(
         if (locations) locate(root, instance, length + 1, card);
         append(...card.lines);
       }
+      append(...couplingCards(root, "spice"));
     }
   }
   return { text: `${lines.join("\n")}\n`, parameters, instances, fields };
@@ -282,6 +307,7 @@ function spectreCell(
       offset += card.text.length + 1;
     }
   }
+  lines.push(...couplingCards(cell, "spectre"));
   lines.push(`ends ${cell.name}`);
   return lines;
 }

@@ -51,6 +51,7 @@ export interface ComponentPropertyCodeEditorProps {
   controlNetOptions?: ComponentPropertyCodeContext["controlNetOptions"];
   controlDeviceOptions?: ComponentPropertyCodeContext["controlDeviceOptions"];
   controlTerminalOptions?: ComponentPropertyCodeContext["controlTerminalOptions"];
+  inductorCoupling?: ComponentPropertyCodeContext["inductorCoupling"];
   onStartControlPick?: () => void;
   onCancelControlPick?: () => void;
   onPreviewControlNet?: (netId: string | null) => void;
@@ -78,6 +79,7 @@ export function ComponentPropertyCodeEditor({
   controlNetOptions,
   controlDeviceOptions,
   controlTerminalOptions,
+  inductorCoupling,
   onStartControlPick,
   onCancelControlPick,
   onPreviewControlNet,
@@ -98,6 +100,7 @@ export function ComponentPropertyCodeEditor({
     ...(controlNetOptions ? { controlNetOptions } : {}),
     ...(controlDeviceOptions ? { controlDeviceOptions } : {}),
     ...(controlTerminalOptions ? { controlTerminalOptions } : {}),
+    ...(inductorCoupling ? { inductorCoupling } : {}),
   });
   const context = useMemo<ComponentPropertyCodeContext>(
     () => JSON.parse(contextKey),

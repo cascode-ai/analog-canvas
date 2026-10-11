@@ -44,6 +44,7 @@ export interface OperationIdRemap {
   readonly layoutGroups: Readonly<Record<string, string>>;
   readonly constraints: Readonly<Record<string, string>>;
   readonly cellTerminals: Readonly<Record<string, string>>;
+  readonly inductorCouplings?: Readonly<Record<string, string>>;
 }
 
 export type ExpectedElectricalEffect =

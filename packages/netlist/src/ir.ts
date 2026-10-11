@@ -76,6 +76,23 @@ export interface DesignNetlistCell {
   /** Model cards only this Cell's own instances use, such as the ideal switch
    * and the generic diode and BJTs. */
   models?: DesignNetlistModel[];
+  /** Mutual inductances between this Cell's own inductors, after its cards. */
+  couplings?: DesignNetlistCoupling[];
+}
+
+/**
+ * Two of a Cell's inductor cards coupled by k. Each card is written from its
+ * dotted node, which is how `K` reads polarity; an inductor whose dot another
+ * coupling already fixed the other way gives this one `polarity: -1`.
+ */
+export interface DesignNetlistCoupling {
+  id: StableId;
+  /** The printed element name, allocated with the dialect's references. */
+  reference: string;
+  inductorIds: [StableId, StableId];
+  /** Authored SPICE value text. */
+  k: string;
+  polarity: 1 | -1;
 }
 
 /** Referenced external interfaces deliberately do not produce an empty body. */

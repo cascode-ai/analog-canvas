@@ -25,6 +25,48 @@ class FakeElement {
 }
 
 describe("startCanvasDragVisual", () => {
+  it("bends a coupling's arrow end by end with its inductors, and restores it (#1648)", () => {
+    const shaft = new FakeElement({
+      "data-role": "coupling-arrow",
+      "data-p0": "0 0",
+      "data-c": "50 -30",
+      "data-p1": "100 0",
+      d: "M 0 0 Q 50 -30 100 0",
+    });
+    const heads = [
+      new FakeElement({ "data-coupling-head": "0" }),
+      new FakeElement({ "data-coupling-head": "1" }),
+    ];
+    const name = new FakeElement({ "data-role": "coupling-name" });
+    const group = Object.assign(
+      new FakeElement({ "data-coupling-ends": "L1 L2" }),
+      {
+        querySelector: () => shaft,
+        querySelectorAll: () => [...heads, name],
+      },
+    );
+    const root = {
+      querySelectorAll: (selector: string) =>
+        selector === "[data-coupling-ends]" ? [group] : [],
+    } as unknown as ParentNode;
+    const visual = startCanvasDragVisual(root, ["L2"]);
+    visual.translateObject("L2", { x: 10, y: 4 });
+    // L1's end stays; L2's end follows it; the curve's middle goes half way.
+    expect(shaft.getAttribute("d")).toBe("M 0 0 Q 55 -28 110 4");
+    expect(heads[0]!.getAttribute("transform")).toBe("translate(0 0)");
+    expect(heads[1]!.getAttribute("transform")).toBe("translate(10 4)");
+    expect(name.getAttribute("transform")).toBe("translate(5 2)");
+    // Both inductors dragged together carry the arrow whole.
+    const both = startCanvasDragVisual(root, ["L1", "L2"]);
+    both.translate({ x: 10, y: 0 });
+    expect(shaft.getAttribute("d")).toBe("M 10 0 Q 60 -30 110 0");
+    both.restore();
+    visual.restore();
+    expect(shaft.getAttribute("d")).toBe("M 0 0 Q 50 -30 100 0");
+    expect(heads[1]!.getAttribute("transform")).toBeNull();
+    expect(name.getAttribute("transform")).toBeNull();
+  });
+
   it("moves a junction independently of its stretched incident wires and restores both", () => {
     const junction = new FakeElement({
       "data-object-id": "J",

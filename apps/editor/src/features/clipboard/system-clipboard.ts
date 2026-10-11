@@ -70,6 +70,9 @@ export function encodeCircuitClipboard(
       noConnects: copied.noConnects,
       layoutGroups: copied.layoutGroups,
       constraints: copied.constraints,
+      ...(copied.inductorCouplings?.length
+        ? { inductorCouplings: copied.inductorCouplings }
+        : {}),
       drafting: { objects: copied.draftingObjects },
       ...(document.netlist
         ? {

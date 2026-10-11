@@ -7,6 +7,7 @@ import {
 import {
   resolveDocumentLogicalNets,
   resolveMosBulkConnection,
+  uniqueInductorCouplingName,
 } from "@icm/derived";
 import { isLibraryLogicGate } from "@icm/devices";
 import { hierarchicalSymbolId } from "@icm/symbols";
@@ -250,6 +251,16 @@ export function planProjectCellBodyImport(
         ],
       };
     });
+    // Appended couplings keep their names unless the body already uses one.
+    const taken = (target.inductorCouplings ?? []).map((c) => c.name);
+    const couplings = append(
+      target.inductorCouplings ?? [],
+      (incoming.inductorCouplings ?? []).map((coupling) => {
+        const name = uniqueInductorCouplingName(coupling.name, taken);
+        taken.push(name);
+        return { ...coupling, name };
+      }),
+    );
     incoming = {
       ...target,
       instances: append(target.instances, incoming.instances),
@@ -272,6 +283,7 @@ export function planProjectCellBodyImport(
       },
       sourceStatus: "connectivity-modified",
     };
+    if (couplings.length) incoming.inductorCouplings = couplings;
     // Adding a global supply must not silently resolve or retarget a previously
     // authored body's implicit substrate connection.
     for (const instance of target.instances) {

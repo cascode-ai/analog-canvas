@@ -172,6 +172,7 @@ export function planCellReset(
       ...document.connectivityEvidence,
       ...document.layoutGroups,
       ...document.constraints,
+      ...(document.inductorCouplings ?? []),
       ...(document.drafting?.objects ?? []),
     ];
     affectedObjectIds = uniqueIds([

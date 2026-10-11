@@ -2,16 +2,16 @@
 
 Status: `accepted`
 
-Portable file schema: `69`; normalized editor model schema: `58`.
+Portable file schema: `70`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec).
 `packages/model` validates the normalized editor indexes used by rendering,
 connectivity and transactions. The normalized indexes are decoded working data;
-serialization always writes the one schema-69 authoring representation.
+serialization always writes the one schema-70 authoring representation.
 
 An `.icproj.json` file contains a complete Project. The public `parseProject`
-boundary reads file schemas 24 through 69. Historical schemas pass through the
-existing explicit upgrades; schemas 59 through 69 decode through the
+boundary reads file schemas 24 through 70. Historical schemas pass through the
+existing explicit upgrades; schemas 59 through 70 decode through the
 owned-object codec. Schema 60 introduced derived network membership from
 connection facts. Schema 62 lets a Symbol's body text keep an authored look. Both return the same validated editor model. File/envelope
 metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
@@ -56,7 +56,7 @@ these are optional additions.
 Schema 67 adds native `spectre` model sources and optional draft `language`.
 Schema 66 SPICE owners load unchanged, with an absent draft language inheriting
 the applied language. Earlier envelopes cannot carry the new language facts;
-current portable writers emit 69. Conversion never changes the native owner
+current portable writers emit 70. Conversion never changes the native owner
 unless committed through the ordinary Apply boundary.
 
 Schema 68 adds optional source `draft.authoring` candidates, keyed by native
@@ -86,6 +86,16 @@ are upgraded without guessed origins; older envelopes cannot carry this field.
 Rollback must retain a reader
 capable of schema 69 rather than silently removing associations. See the
 [publication contract](component-publication.md).
+
+Schema 70 adds an optional Document `inductorCouplings` list. Each record
+`{ id, name, members: [{ instanceId, dotPin }, { instanceId, dotPin }], k,
+arrow? }` couples two distinct drawn inductors of that Document as a mutual
+inductance: `name` is its display name, `k` its SPICE value text, `dotPin` the
+pin of each inductor's dotted end, and `arrow: false` hides the curved arrow
+drawn otherwise. Members name existing Instances, no pair is coupled twice and
+names are unique without case. The field is omitted when empty, so every
+uncoupled Document keeps its exact bytes; older envelopes cannot carry it. The
+normalized model remains 58 for this optional field.
 
 Owned sources and drafts travel through Cloud Save, recovery, Project Code,
 portable export/reload, Cell import and cross-Project copy. Import provenance
@@ -353,9 +363,9 @@ file codec preserves these contracts rather than redefining them.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project file schema 24 through 69
--> migrate old files or decode 59–69 -> strict runtime model validation -> install unbound
-export -> validate -> encode file schema 69 -> readable canonical JSON -> download
+import text -> parse JSON -> require Project file schema 24 through 70
+-> migrate old files or decode 59–70 -> strict runtime model validation -> install unbound
+export -> validate -> encode file schema 70 -> readable canonical JSON -> download
 ```
 
 An invalid candidate never replaces the current browser Project. File Resource
@@ -378,7 +388,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its `current` entries must all be
-already canonical Project file schema 69. Explicit `migrated` witnesses retain
+already canonical Project file schema 70. Explicit `migrated` witnesses retain
 their source bytes and declared source version; loading and saving must produce
 a byte-stable current Project. The rejected corpus names expected validation
 failures. These are test inventory categories, not new Project fields.

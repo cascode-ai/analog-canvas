@@ -53,6 +53,7 @@ import {
 } from "./annotation-render.js";
 import type { ResolvedSvgAnnotation } from "./annotation-render.js";
 import { renderDraftingLayer } from "./drafting-render.js";
+import { renderInductorCouplingLayer } from "./inductor-coupling-render.js";
 import {
   junctionMiterBridgePaths,
   renderNoConnectMarkers,
@@ -717,7 +718,7 @@ export function buildSvgScene(
 
   return {
     viewBox,
-    formalBody: `<g data-layer="formal">${renderDraftingLayer(document, resolver, profile, routingGeometry, "background", objectIds)}<g data-layer="routes">${routes}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, routingGeometry, "foreground", objectIds)}</g>`,
+    formalBody: `<g data-layer="formal">${renderDraftingLayer(document, resolver, profile, routingGeometry, "background", objectIds)}<g data-layer="routes">${routes}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${renderInductorCouplingLayer(document, resolver, profile, objectIds)}${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, routingGeometry, "foreground", objectIds)}</g>`,
   };
 }
 

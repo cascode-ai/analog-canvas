@@ -219,10 +219,22 @@ export function applyCellResetEdit(
         ...draft.connectivityEvidence,
         ...draft.layoutGroups,
         ...draft.constraints,
+        ...(draft.inductorCouplings ?? []),
         ...(draft.drafting?.objects ?? []),
       ]) {
         if (!retainedIds.has(object.id)) changedObjectIds.add(object.id);
       }
+      // A coupling stays only while both its inductors do.
+      const retainedCouplings = (draft.inductorCouplings ?? []).filter(
+        (coupling) =>
+          coupling.members.every((member) =>
+            retainedIds.has(member.instanceId),
+          ),
+      );
+      for (const coupling of retainedCouplings)
+        changedObjectIds.delete(coupling.id);
+      if (retainedCouplings.length) draft.inductorCouplings = retainedCouplings;
+      else delete draft.inductorCouplings;
       for (const retainedNet of retainedNets) {
         const sourceNet = draft.nets.find((net) => net.id === retainedNet.id);
         if (sourceNet?.terminals.length !== retainedNet.terminals.length) {

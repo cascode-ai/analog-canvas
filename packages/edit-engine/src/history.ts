@@ -37,6 +37,7 @@ function collectObjects(
       ...document.annotations,
       ...document.layoutGroups,
       ...document.constraints,
+      ...(document.inductorCouplings ?? []),
       ...(document.drafting?.objects ?? []),
     ].map((object) => [object.id, object]),
   );

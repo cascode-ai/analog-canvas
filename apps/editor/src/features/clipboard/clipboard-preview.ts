@@ -136,6 +136,9 @@ function fallbackClipboardPreviewDocument(
     connectivityEvidence: structuredClone(clipboard.connectivityEvidence),
     layoutGroups: structuredClone(clipboard.layoutGroups),
     constraints: structuredClone(clipboard.constraints),
+    inductorCouplings: clipboard.inductorCouplings?.length
+      ? structuredClone(clipboard.inductorCouplings)
+      : undefined,
   };
 }
 
@@ -310,6 +313,12 @@ export function clipboardPreviewDocument(
             edit.kind === "set_layout_constraint" ? [edit.constraint.id] : [],
           ),
         );
+        const couplingIds = new Set(
+          Object.values(proposal.idRemap.inductorCouplings ?? {}),
+        );
+        const inductorCouplings = (
+          result.document.inductorCouplings ?? []
+        ).filter((coupling) => couplingIds.has(coupling.id));
         const instances = result.document.instances.filter((instance) =>
           instanceIds.has(instance.id),
         );
@@ -378,6 +387,7 @@ export function clipboardPreviewDocument(
           constraints: result.document.constraints.filter((constraint) =>
             constraintIds.has(constraint.id),
           ),
+          ...(inductorCouplings.length ? { inductorCouplings } : {}),
         });
         // Back from the clearance the dry run needed, so the ghost lands
         // where the caller asked for it.

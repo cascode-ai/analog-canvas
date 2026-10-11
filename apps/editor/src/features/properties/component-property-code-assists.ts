@@ -96,7 +96,45 @@ export function propertyCodeSpans(
     ...(context
       ? componentDetailFields(context.instance, context.details)
       : []),
+    ...(context?.inductorCoupling
+      ? [
+          {
+            path: "dot",
+            label: "Dotted end",
+            kind: "choice" as const,
+            options: context.inductorCoupling.pins.map((pin) => ({
+              value: pin,
+              label: `Pin ${pin}`,
+            })),
+            description: "",
+            help: "The end of this inductor its polarity dot marks, in every coupling it is in",
+          },
+        ]
+      : []),
   ];
+  // Each coupling is keyed by its own name, so its fields are found by
+  // their place under `coupling`, not by a fixed path.
+  const couplingField = (path: string): CanvasPropertyField | undefined => {
+    const coupling = context?.inductorCoupling;
+    const match = /^coupling\.(.+)\.(with|arrow)$/u.exec(path);
+    if (!coupling || !match) return undefined;
+    return match[2] === "with"
+      ? {
+          path,
+          label: "Coupled with",
+          kind: "choice",
+          options: coupling.partners,
+          description: "",
+          help: "The other inductor of this coupling",
+        }
+      : {
+          path,
+          label: "Show arrow",
+          kind: "boolean",
+          description: "",
+          help: "Draw the curved arrow and name between the two dots",
+        };
+  };
   function visit(object: JsonNode, prefix: string) {
     for (let node = object.firstChild; node; node = node.nextSibling) {
       if (node.name !== "Property") continue;
@@ -106,7 +144,8 @@ export function propertyCodeSpans(
       try {
         const key = JSON.parse(source.slice(name.from, name.to)) as string;
         const path = prefix ? `${prefix}.${key}` : key;
-        const field = fields.find((item) => item.path === path);
+        const field =
+          fields.find((item) => item.path === path) ?? couplingField(path);
         if (field) {
           const decoded: unknown = JSON.parse(
             source.slice(value.from, value.to),

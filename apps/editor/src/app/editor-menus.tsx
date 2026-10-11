@@ -661,6 +661,7 @@ export function EditorCanvasContextMenu({
   openSelectedComponentDefinition,
   hasDefinitionSelection,
   editorCommands,
+  coupleInductors,
 }: {
   canvasContextMenu: { x: number; y: number };
   setCanvasContextMenu: Dispatch<
@@ -673,6 +674,8 @@ export function EditorCanvasContextMenu({
   openSelectedComponentDefinition: () => void;
   hasDefinitionSelection: boolean;
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
+  /** Offered only while two uncoupled inductors are the selection. */
+  coupleInductors?: (() => void) | null;
 }) {
   return (
     <CanvasContextMenu
@@ -693,6 +696,15 @@ export function EditorCanvasContextMenu({
                 label: "Enter Cell (E)",
                 enabled: true,
                 execute: enterSelectedHierarchy,
+              },
+            ]
+          : []),
+        ...(coupleInductors
+          ? [
+              {
+                label: "Couple inductors",
+                enabled: true,
+                execute: coupleInductors,
               },
             ]
           : []),
