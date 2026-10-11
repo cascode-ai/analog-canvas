@@ -1297,6 +1297,11 @@ test("a runtime diagnostic opens the exact applied helper file while retaining i
   await page.getByTestId("open-analog-simulation").click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Run", exact: true }).click();
+  // Completing a run selects its result view. Open Console after that outcome,
+  // so this source-navigation test does not race the pending result selection.
+  await expect(
+    panel.getByRole("status").filter({ hasText: /^failed$/ }),
+  ).toBeVisible();
   await panel.getByRole("tab", { name: "Console", exact: true }).click();
   await panel
     .getByRole("button", {
