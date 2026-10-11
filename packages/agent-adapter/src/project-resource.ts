@@ -443,6 +443,9 @@ export const AgentProjectResourceResponseSchema = z.union([
       code: z.string().min(1),
       message: z.string().min(1),
       recovery: z.enum(["sign-in", "refresh", "fix-input", "retry"]),
+      component: z
+        .strictObject({ id: z.string(), revision: z.number().int().positive() })
+        .optional(),
     }),
   }),
 ]);

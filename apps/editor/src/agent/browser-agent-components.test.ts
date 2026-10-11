@@ -188,6 +188,8 @@ describe("Agent User Components", () => {
       },
       fetch: async (input, init) => {
         const url = new URL(String(input), "https://components.test");
+        if (url.pathname === "/api/auth/me")
+          return Response.json({ user: { id: "alice", isAdmin: false } });
         const response = await library(
           init?.method ?? "GET",
           url.pathname.slice("/api/components".length) + url.search,
@@ -258,7 +260,7 @@ describe("Agent User Components", () => {
         position: { x: 0, y: 0 },
       }),
     ).toMatchObject({ ok: false, error: { code: "STALE_STRUCTURE_REVISION" } });
-    expect(commits).toBe(0);
+    expect(commits).toBe(1);
     expect(project.modelSources ?? []).toEqual([]);
     expect(project.documents[0]!.instances).toEqual([]);
   });
@@ -274,6 +276,8 @@ describe("Agent User Components", () => {
             : input.url,
         "https://components.test",
       );
+      if (url.pathname === "/api/auth/me")
+        return Response.json({ user: { id: user, isAdmin: false } });
       return library(
         init?.method ?? "GET",
         url.pathname.slice("/api/components".length) + url.search,
@@ -359,6 +363,7 @@ describe("Agent User Components", () => {
         action: "update",
         expectedLibraryRevision: 1,
         idempotencyKey: "bob-update",
+        expectedStructureRevision: project.structureRevision,
       }),
     ).toMatchObject({
       ok: false,
@@ -391,7 +396,7 @@ describe("Agent User Components", () => {
       ok: true,
       result: { action: "insert", structureRevision: 1, revision: 1 },
     });
-    expect(commits).toBe(1);
+    expect(commits).toBe(2);
     expect(project.documents[0]!.instances[0]).toMatchObject({
       symbolId: "user-agent-resistor-r1",
       reference: "X1",
@@ -411,7 +416,7 @@ describe("Agent User Components", () => {
       ok: false,
       error: { code: "STALE_STRUCTURE_REVISION" },
     });
-    expect(commits).toBe(1);
+    expect(commits).toBe(2);
     session = "replacement";
     expect(
       await call({ action: "read", componentId: "agent-resistor" }),

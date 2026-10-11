@@ -128,6 +128,8 @@ export function resolveCircuitAuthoring(
     };
   }
   component = initializeCircuitComponent(component, owner);
+  const origin = existing?.libraryOrigin ?? owner.libraryOrigin;
+  if (origin) component = { ...component, libraryOrigin: origin };
   const issue = circuitComponentIssues(component, owner)[0];
   const captured = captures.find(
     (value) => value.symbol.id === component.symbol.id,

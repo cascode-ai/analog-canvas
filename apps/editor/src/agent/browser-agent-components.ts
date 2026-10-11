@@ -6,18 +6,28 @@ import {
 } from "@icm/agent-adapter";
 import { buildCircuitComponentPackage } from "@icm/edit-engine";
 import type { CircuitProject } from "@icm/model";
+import { externalSubcircuitSymbolId } from "@icm/symbols";
 import {
   ComponentLibraryError,
   loadSharedComponents,
   loadSharedComponentSummaries,
   readSharedComponent,
-  saveSharedComponent,
 } from "../features/user-components/component-library-client";
 import {
   parseSharedComponentPayload,
   type SharedComponent,
 } from "../features/user-components/component-library-contract";
 import { planComponentPlacement } from "../features/user-components/component-placement";
+import {
+  componentLibraryCapture,
+  componentLibraryAssociation,
+} from "../features/user-components/component-library-origin";
+import {
+  executeComponentPublication,
+  componentPublicationSnapshot,
+  publicationAccount,
+} from "../features/user-components/component-publication-operation";
+import { publicationFromOrigin } from "../features/user-components/component-publication";
 import type { BrowserAgentProjectHostOptions } from "./browser-agent-project-host";
 
 type Request = Extract<
@@ -142,11 +152,72 @@ export async function handleAgentComponents(
       return { ...base, ok: true, result: { action: "list", ...page } };
     }
     let entry: SharedComponent;
-    if (action.action === "publish" || action.action === "update") {
+    let publication:
+      | {
+          version: 1;
+          outcome: "created" | "updated" | "unchanged";
+          recovered: boolean;
+          association: "associated" | "pending" | "not-requested";
+          diagnostic?: string;
+        }
+      | undefined;
+    if (action.action === "inspect") {
       const project = options.getProject();
       expectProject(project, action);
-      let payload;
-      if (action.selection.kind === "circuit") {
+      const definition = project.componentDefinitions?.find(
+        (item) => item.symbol.id === action.selection.symbolId,
+      );
+      const selection = action.selection;
+      const automatic =
+        selection.kind === "circuit"
+          ? project.externalSubcircuitDefinitions.find(
+              (item) =>
+                item.id === selection.definitionId &&
+                !item.symbolId &&
+                externalSubcircuitSymbolId(item.id) === selection.symbolId,
+            )
+          : undefined;
+      if (!definition && !automatic)
+        throw new ComponentOperationError(
+          "COMPONENT_SYMBOL_MISSING",
+          "Select an applied captured component.",
+        );
+      const origin = definition?.libraryOrigin ?? automatic?.libraryOrigin;
+      const account = await publicationAccount(fetchLibrary);
+      const current = origin
+        ? await readSharedComponent(origin.componentId, fetchLibrary)
+        : undefined;
+      const destination =
+        origin && current && account
+          ? publicationFromOrigin(origin, current, account)
+          : { kind: "new" as const, componentId: crypto.randomUUID() };
+      assertBound();
+      return {
+        ...base,
+        ok: true,
+        result: {
+          action: "inspect",
+          ...(origin ? { origin } : {}),
+          destination,
+          stale: !!origin && current?.revision !== origin.revision,
+        },
+      };
+    }
+    if (action.action === "publish" || action.action === "update") {
+      const project = options.getProject();
+      const snapshot = await componentPublicationSnapshot(
+        action.componentId,
+        action.idempotencyKey,
+      );
+      if (snapshot && project.id !== action.projectId)
+        throw new ComponentOperationError(
+          "PROJECT_REPLACED",
+          "Select the original publication Project.",
+          "refresh",
+        );
+      if (!snapshot) expectProject(project, action);
+      let payload = snapshot;
+      if (!payload && action.selection.kind === "circuit") {
         const selection = action.selection;
         const owner = project.externalSubcircuitDefinitions.find(
           (item) => item.id === selection.definitionId,
@@ -176,7 +247,7 @@ export async function handleAgentComponents(
           selection.definitionId,
           selection.symbolId,
         );
-      } else {
+      } else if (!payload) {
         const definition = project.componentDefinitions?.find(
           (item) => item.symbol.id === action.selection.symbolId,
         );
@@ -187,26 +258,82 @@ export async function handleAgentComponents(
           );
         payload = parseSharedComponentPayload({ definition });
       }
-      entry = await saveSharedComponent(
-        action.componentId,
-        action.action === "publish" ? 0 : action.expectedLibraryRevision,
-        payload.definition,
-        payload.circuit,
-        { fetch: fetchLibrary, idempotencyKey: action.idempotencyKey },
+      const receipt = await executeComponentPublication({
+        componentId: action.componentId,
+        revision:
+          action.action === "publish" ? 0 : action.expectedLibraryRevision,
+        payload,
+        fetch: fetchLibrary,
+        idempotencyKey: action.idempotencyKey,
+      });
+      entry = receipt.entry;
+      publication = {
+        version: 1,
+        outcome: receipt.outcome,
+        recovered: receipt.recovered,
+        association: "pending",
+      };
+      try {
+        assertBound();
+        const current = options.getProject();
+        const captured = await componentLibraryCapture(entry);
+        assertBound();
+        const edits = componentLibraryAssociation(
+          current,
+          action.selection.symbolId,
+          captured,
+        );
+        if (edits.length) {
+          const result = options.dispatchProjectTransaction({
+            transactionId: `${request.requestId}-association`,
+            projectId: current.id,
+            expectedStructureRevision: current.structureRevision,
+            actor: { kind: "agent", id: "agent-components" },
+            edits,
+          });
+          if (!result.ok) throw Error(result.error.message);
+        }
+        publication.association = "associated";
+      } catch (error) {
+        publication.diagnostic =
+          error instanceof Error ? error.message : String(error);
+      }
+    } else if (action.action === "fork") {
+      const snapshot = await componentPublicationSnapshot(
+        action.newComponentId,
+        action.idempotencyKey,
       );
+      let payload = snapshot;
+      if (!payload) {
+        const source = await readSharedComponent(
+          action.componentId,
+          fetchLibrary,
+        );
+        assertBound();
+        expectLibrary(source, action.expectedLibraryRevision);
+        payload = {
+          definition: source.definition,
+          ...(source.circuit ? { circuit: source.circuit } : {}),
+        };
+      }
+      const receipt = await executeComponentPublication({
+        componentId: action.newComponentId,
+        revision: 0,
+        payload,
+        fetch: fetchLibrary,
+        idempotencyKey: action.idempotencyKey,
+      });
+      entry = receipt.entry;
+      publication = {
+        version: 1,
+        outcome: receipt.outcome,
+        recovered: receipt.recovered,
+        association: "not-requested",
+      };
     } else {
       entry = await readSharedComponent(action.componentId, fetchLibrary);
       assertBound();
-      if (action.action === "fork") {
-        expectLibrary(entry, action.expectedLibraryRevision);
-        entry = await saveSharedComponent(
-          action.newComponentId,
-          0,
-          entry.definition,
-          entry.circuit,
-          { fetch: fetchLibrary, idempotencyKey: action.idempotencyKey },
-        );
-      } else if (action.action === "insert") {
+      if (action.action === "insert") {
         expectLibrary(entry, action.expectedLibraryRevision);
         const project = options.getProject();
         expectProject(project, action);
@@ -228,10 +355,7 @@ export async function handleAgentComponents(
           planComponentPlacement(
             project,
             document.id,
-            {
-              definition: entry.definition,
-              ...(entry.circuit ? { circuit: entry.circuit } : {}),
-            },
+            await componentLibraryCapture(entry),
             `library-${entry.id}-r${entry.revision}`,
             { position: action.position, rotation: 0, mirror: "none" },
             { ...(action.reference ? { reference: action.reference } : {}) },
@@ -269,7 +393,7 @@ export async function handleAgentComponents(
       }
     }
     const contentDigest = await digest(entry);
-    assertBound();
+    if (!publication) assertBound();
     return {
       ...base,
       ok: true,
@@ -277,6 +401,11 @@ export async function handleAgentComponents(
         action: action.action as "read" | "publish" | "update" | "fork",
         entry,
         digest: contentDigest,
+        ...(publication &&
+        "publicationVersion" in action &&
+        action.publicationVersion === 1
+          ? { publication }
+          : {}),
       },
     };
   } catch (error) {
@@ -285,18 +414,22 @@ export async function handleAgentComponents(
         ? error
         : error instanceof ComponentLibraryError
           ? new ComponentOperationError(
-              error.outcomeUnknown
-                ? "COMPONENT_WRITE_UNKNOWN"
-                : error.status === 401
-                  ? "SIGN_IN_REQUIRED"
-                  : error.status === 403
-                    ? "COMPONENT_PERMISSION_DENIED"
-                    : error.status === 409
-                      ? "COMPONENT_REVISION_CONFLICT"
-                      : error.status === 404
-                        ? "COMPONENT_NOT_FOUND"
-                        : "COMPONENT_LIBRARY_FAILED",
-              error.message,
+              error.code === "COMPONENT_ALREADY_PUBLISHED"
+                ? error.code
+                : error.outcomeUnknown
+                  ? "COMPONENT_WRITE_UNKNOWN"
+                  : error.status === 401
+                    ? "SIGN_IN_REQUIRED"
+                    : error.status === 403
+                      ? "COMPONENT_PERMISSION_DENIED"
+                      : error.status === 409
+                        ? "COMPONENT_REVISION_CONFLICT"
+                        : error.status === 404
+                          ? "COMPONENT_NOT_FOUND"
+                          : "COMPONENT_LIBRARY_FAILED",
+              error.existing
+                ? `${error.message} Existing component: ${error.existing.id}, revision ${error.existing.revision}.`
+                : error.message,
               error.status === 401
                 ? "sign-in"
                 : error.status === 409
@@ -316,6 +449,12 @@ export async function handleAgentComponents(
         code: failure.code,
         message: failure.message,
         recovery: failure.recovery,
+        ...(error instanceof ComponentLibraryError &&
+        error.existing &&
+        "publicationVersion" in request.request &&
+        request.request.publicationVersion === 1
+          ? { component: error.existing }
+          : {}),
       },
     };
   }

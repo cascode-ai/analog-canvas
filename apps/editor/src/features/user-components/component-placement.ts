@@ -10,10 +10,45 @@ import { resolveDocumentStyleProfile } from "@icm/derived";
 import { createNewInstance } from "../netlist-export/netlist-authoring";
 import { defaultInstanceDisplayAnnotations } from "../instance-display/default-instance-display";
 import { planInsertedInstanceConnections } from "../component-insert/placement-connectivity";
+import { componentPublicationContent } from "./component-publication-content";
+import { componentLibraryAssociation } from "./component-library-origin";
 import {
   sharedComponentNetlist,
   type SharedDefinitionPayload,
 } from "./component-library-contract";
+
+function prepareNativeCapture(
+  project: CircuitProject,
+  payload: SharedDefinitionPayload,
+  identity: string,
+) {
+  // Library metadata is associated separately, never compared as immutable artwork.
+  const { libraryOrigin, ...definition } = payload.definition;
+  const comparable = {
+    ...project,
+    componentDefinitions: project.componentDefinitions?.map(
+      ({ libraryOrigin: _origin, ...component }) => component,
+    ),
+  };
+  const captured = planCircuitComponentCapture(
+    comparable,
+    { ...payload, definition },
+    identity,
+  );
+  const existing = project.componentDefinitions?.find(
+    (component) => component.symbol.id === captured.symbolId,
+  );
+  const edits: ProjectStructureEdit[] = captured.edits.map((edit) =>
+    edit.kind === "capture_component_definition" && libraryOrigin
+      ? { ...edit, definition: { ...edit.definition, libraryOrigin } }
+      : edit,
+  );
+  if (existing && libraryOrigin)
+    edits.push(
+      ...componentLibraryAssociation(project, captured.symbolId, payload),
+    );
+  return { ...captured, edits };
+}
 
 /** GUI preview and Agent insertion prepare the same capture without mutating a Project. */
 export function prepareComponentCapture(
@@ -21,17 +56,29 @@ export function prepareComponentCapture(
   payload: SharedDefinitionPayload,
   identity: string,
 ) {
+  const existing = project.componentDefinitions?.find(
+    (item) => item.symbol.id === payload.definition.symbol.id,
+  );
+  const reuseArtwork =
+    !payload.circuit &&
+    existing &&
+    componentPublicationContent({ definition: existing }) ===
+      componentPublicationContent(payload);
   const captured = payload.circuit
-    ? planCircuitComponentCapture(project, payload, identity)
+    ? prepareNativeCapture(project, payload, identity)
     : {
         symbolId: payload.definition.symbol.id,
         definitionId: undefined,
-        edits: [
-          {
-            kind: "capture_component_definition" as const,
-            definition: payload.definition,
-          },
-        ],
+        edits: reuseArtwork
+          ? payload.definition.libraryOrigin
+            ? componentLibraryAssociation(project, existing.symbol.id, payload)
+            : []
+          : [
+              {
+                kind: "capture_component_definition" as const,
+                definition: payload.definition,
+              },
+            ],
       };
   const preview = captured.edits.length
     ? executeProjectTransaction(project, {

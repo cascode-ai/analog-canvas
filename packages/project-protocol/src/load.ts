@@ -251,6 +251,25 @@ export function tryParseProjectWithMetadata(
         },
       ]);
     }
+    if (
+      sourceSchemaVersion < 69 &&
+      [parsed.componentDefinitions, parsed.externalSubcircuitDefinitions].some(
+        (definitions) =>
+          Array.isArray(definitions) &&
+          definitions.some(
+            (definition: unknown) =>
+              isRecord(definition) &&
+              Object.hasOwn(definition, "libraryOrigin"),
+          ),
+      )
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "Component library provenance requires Project schema 69",
+          path: ["componentDefinitions"],
+        },
+      ]);
     if (sourceSchemaVersion < 64) rejectKeptDocumentStyle(parsed);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (

@@ -165,6 +165,54 @@ function externalFixture() {
   return source;
 }
 describe("one Project copy path", () => {
+  it.each(["older", "legacy", "unassociated"] as const)(
+    "keeps automatic capture provenance separate from a reused %s owner",
+    (kind) => {
+      const source = externalFixture();
+      const origin = {
+        componentId: "published-amplifier",
+        authorId: "alice",
+        revision: 2,
+        contentVersion: 1 as const,
+        digest: "a".repeat(64),
+      };
+      if (kind !== "unassociated")
+        source.externalSubcircuitDefinitions[0]!.libraryOrigin = origin;
+      const target = structuredClone(source);
+      target.id = "destination";
+      target.documents[0]!.instances = [];
+      const owner = target.externalSubcircuitDefinitions[0]!;
+      if (kind === "legacy") delete owner.libraryOrigin;
+      else owner.libraryOrigin = { ...origin, revision: 1 };
+      const before = structuredClone(target);
+      const clipboard = captureProjectCopy(
+        source,
+        source.documents[0]!,
+        selection(["X1"]),
+      )!;
+      const copied = place(target, clipboard);
+      const instance = copied.documents[0]!.instances[0]!;
+      const capture = copied.componentDefinitions?.find(
+        (item) => item.symbol.id === instance.symbolId,
+      );
+      expect(capture).toBeDefined();
+      expect(capture!.libraryOrigin).toEqual(
+        source.externalSubcircuitDefinitions[0]!.libraryOrigin,
+      );
+      expect(capture!.circuitBinding?.definitionId).toBe(owner.id);
+      expect(copied.externalSubcircuitDefinitions).toEqual(
+        before.externalSubcircuitDefinitions,
+      );
+      const repeated = place(copied, clipboard, 2);
+      expect(repeated.componentDefinitions).toEqual(
+        copied.componentDefinitions,
+      );
+      expect(repeated.documents[0]!.instances).toHaveLength(2);
+      expect(source.externalSubcircuitDefinitions[0]!.libraryOrigin).toEqual(
+        kind === "unassociated" ? undefined : origin,
+      );
+    },
+  );
   it("keeps the complete Cell graph and testbench when every selectable object is copied", () => {
     const source = parseProject(
       readFileSync(

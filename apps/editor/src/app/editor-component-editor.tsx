@@ -1,4 +1,8 @@
 import { prepareComponentCapture } from "../features/user-components/component-placement";
+import {
+  componentLibraryCapture,
+  componentLibraryAssociation,
+} from "../features/user-components/component-library-origin";
 import type { SharedDefinitionPayload } from "../features/user-components/component-library-contract";
 // The shared-component editor and the public component library, opened over
 // the editor.
@@ -109,18 +113,29 @@ export function EditorComponentEditor({
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
 }) {
   const returnToLibrary = useRef(false);
-  function insertSharedComponent(entry: SharedComponent): void {
+  async function insertSharedComponent(entry: SharedComponent): Promise<void> {
     returnToLibrary.current = false;
     try {
+      const captured = await componentLibraryCapture(entry);
       if (entry.circuit) {
         insertCircuitComponent(
-          { definition: entry.definition, circuit: entry.circuit },
+          captured,
           `component-${entry.id}-r${entry.revision}`,
           entry,
         );
         return;
       }
-      editorDocumentController.offerComponentDefinition(entry.definition);
+      const current = editorDocumentController.project;
+      const prepared = prepareComponentCapture(
+        current,
+        captured,
+        `component-${entry.id}-r${entry.revision}`,
+      );
+      editorDocumentController.offerComponentDefinition(
+        current.componentDefinitions?.find(
+          (item) => item.symbol.id === prepared.symbolId,
+        ) ?? captured.definition,
+      );
       synchronizeExternalCommit();
       editorCommands.execute({
         id: "insert.start",
@@ -129,12 +144,12 @@ export function EditorComponentEditor({
           request: {
             ...sharedComponentInsertRequest(entry),
             capture: {
-              payload: entry,
+              payload: captured,
               identity: `component-${entry.id}-r${entry.revision}`,
-              projectId: project.id,
+              projectId: current.id,
               documentId: editorDocumentController.activeDocumentId,
-              structureRevision: project.structureRevision,
-              documentRevision: project.documents.find(
+              structureRevision: current.structureRevision,
+              documentRevision: current.documents.find(
                 (d) => d.id === editorDocumentController.activeDocumentId,
               )!.revision,
               library: {
@@ -223,7 +238,13 @@ export function EditorComponentEditor({
       actor: { kind: "human", id: "human-local" },
       edits,
     });
-    if (result.ok) onApplied?.(result.project);
+    if (result.ok) {
+      definitionProjectRef.current = {
+        ...definitionProjectRef.current,
+        project: result.project,
+      };
+      onApplied?.(result.project);
+    }
     return {
       ok: result.ok,
       definitionId,
@@ -574,6 +595,35 @@ export function EditorComponentEditor({
               return outcome.ok ? null : outcome.message;
             }}
             onManaged={() => setComponentLibraryRefresh((value) => value + 1)}
+            onAssociateLibrary={(payload) => {
+              if (!componentEditor.target) return null;
+              if (!componentSessionIsCurrent())
+                return "The Project changed. Reopen to recover the association.";
+              const current = definitionProjectRef.current.project;
+              const instance = current.documents
+                .find((item) => item.id === componentEditor.target!.documentId)
+                ?.instances.find(
+                  (item) => item.id === componentEditor.target!.instance.id,
+                );
+              if (!instance)
+                return "The edited instance is no longer available.";
+              try {
+                const edits = componentLibraryAssociation(
+                  current,
+                  instance.symbolId,
+                  payload,
+                );
+                if (!edits.length) return null;
+                const outcome = commitModelEdits(
+                  edits,
+                  instance.symbolId,
+                  "Associated published component",
+                );
+                return outcome.ok ? null : outcome.message;
+              } catch (error) {
+                return error instanceof Error ? error.message : String(error);
+              }
+            }}
             onReloadLibrary={(entry) => {
               if (!componentSessionIsCurrent())
                 return "The Project changed. Reopen before reloading.";
@@ -773,7 +823,7 @@ export function EditorComponentEditor({
                 definition: newComponentDefinition(),
               });
             }}
-            onEdit={(entry, publicationIntent) => {
+            onEdit={async (entry, publicationIntent) => {
               returnToLibrary.current = true;
               cancelAllTransientInteraction();
               const draft =
@@ -808,14 +858,21 @@ export function EditorComponentEditor({
                 }
                 return;
               }
-              setComponentEditor({
-                key: crypto.randomUUID(),
-                projectSessionId,
-                mode: "library",
-                definition: entry.definition,
-                entry,
-                publicationIntent,
-              });
+              try {
+                const captured = await componentLibraryCapture(entry);
+                setComponentEditor({
+                  key: crypto.randomUUID(),
+                  projectSessionId,
+                  mode: "library",
+                  definition: captured.definition,
+                  entry: { ...entry, ...captured },
+                  publicationIntent,
+                });
+              } catch (error) {
+                setStatus(
+                  error instanceof Error ? error.message : String(error),
+                );
+              }
             }}
             onInsert={insertSharedComponent}
           />

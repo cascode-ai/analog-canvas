@@ -16,6 +16,44 @@ function definition(name = "Custom resistor") {
 }
 
 describe("public component library", () => {
+  it("rejects identical new publications by the same author, but preserves same-name variants and other authors", async () => {
+    const route = harness();
+    const body = {
+      definition: definition(),
+      revision: 0,
+      idempotencyKey: "first-publication",
+    };
+    const first = await (
+      await route("PUT", "/identity-first", body, "alice")
+    ).json();
+    const duplicate = await route(
+      "PUT",
+      "/identity-second",
+      { ...body, idempotencyKey: "second-publication" },
+      "alice",
+    );
+    expect(duplicate.status).toBe(409);
+    expect(await duplicate.json()).toMatchObject({
+      code: "COMPONENT_ALREADY_PUBLISHED",
+      existing: { id: first.entry.id, revision: 1 },
+    });
+    const variant = definition();
+    variant.symbol.viewBox.width += 1;
+    expect(
+      (
+        await route(
+          "PUT",
+          "/identity-variant",
+          { definition: variant, revision: 0 },
+          "alice",
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (await route("PUT", "/identity-other-author", body, "bob")).status,
+    ).toBe(200);
+    expect((await (await route()).json()).entries).toHaveLength(3);
+  });
   it("browses lightweight capabilities without source and reads a revision-bound preview", async () => {
     const route = harness();
     const native = nativePackage();
@@ -120,6 +158,10 @@ describe("public component library", () => {
     );
     const next = {
       ...body,
+      definition: {
+        ...body.definition,
+        symbol: { ...body.definition.symbol, name: "Updated recovery fixture" },
+      },
       revision: 1,
       idempotencyKey: "publish-request-two",
     };
@@ -374,7 +416,14 @@ describe("public component library", () => {
         await route(
           "PUT",
           "/native-package",
-          { ...packaged, revision: 2 },
+          {
+            ...packaged,
+            definition: {
+              ...packaged.definition,
+              symbol: { ...packaged.definition.symbol, name: "Admin update" },
+            },
+            revision: 2,
+          },
           "admin",
         )
       ).status,
@@ -448,7 +497,7 @@ describe("public component library", () => {
       await route(
         "PUT",
         `/${id}`,
-        { definition: definition(), revision: 0 },
+        { definition: definition(id), revision: 0 },
         user,
       );
     const removed = await route.durable.fetch(

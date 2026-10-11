@@ -135,7 +135,14 @@ export function buildCircuitComponentPackage(
   ).resolve(id)?.definition;
   if (!captured && !automatic) throw Error("The selected artwork is missing");
   const definition = initializeCircuitComponent(
-    captured?.circuitBinding ? captured : { symbol: automatic! },
+    captured?.circuitBinding
+      ? captured
+      : {
+          symbol: automatic!,
+          ...(owner.libraryOrigin
+            ? { libraryOrigin: owner.libraryOrigin }
+            : {}),
+        },
     owner,
   );
   const paths = new Set(inspectProjectModelSource(source).graph.paths);

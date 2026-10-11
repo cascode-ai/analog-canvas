@@ -504,7 +504,8 @@ export function projectOperationScopes(
     case "components":
       return request.request.action === "list" ||
         request.request.action === "read" ||
-        request.request.action === "browse"
+        request.request.action === "browse" ||
+        request.request.action === "inspect"
         ? ["circuit.snapshot"]
         : request.request.action === "insert"
           ? [

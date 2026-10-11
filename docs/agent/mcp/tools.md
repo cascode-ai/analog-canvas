@@ -547,7 +547,7 @@ operations remain separate work. Simulation sweeps use the Simulation resource.
 ## User Components
 
 `user_components` exposes `request.action`: `browse`, `list`, `read`, `publish`, `update`,
-`fork`, and `insert`. This library stores reusable components, separately from
+`fork`, `inspect`, and `insert`. This library stores reusable components, separately from
 Gallery circuits. Reads return complete snapshots; `read` also returns the
 SHA-256 digest of the definition and native circuit package.
 
@@ -584,3 +584,20 @@ publication outcome. The public library retains publication receipts for seven
 days. Reuse `requestId` for an uncertain insertion. Do not generate a new ID
 just to retry a request that may have committed. Authentication failures mean
 sign in to the Editor; stale revisions mean reread and inspect the change.
+
+`inspect` uses the same Project selection/revision fields as publication and
+returns captured origin, a suggested destination and `stale`. Explicit `publish`
+still creates a new ID; it never silently becomes `update`. Names are not unique:
+same-name variants are allowed. Exact same-author new packages return
+`COMPONENT_ALREADY_PUBLISHED` with the existing ID in the message. Identical
+updates return the original revision and leave its timestamp unchanged.
+
+Opt write actions into `publicationVersion:1` for `result.publication`:
+`outcome:created|updated|unchanged`, `recovered`, and
+`association:associated|pending|not-requested` (plus a diagnostic when pending).
+Duplicate errors additionally expose `error.component:{id,revision}`. Omit the
+flag for legacy write response shapes; list/read/insert remain unchanged.
+GUI and Agent retries share a private fixed-request journal. Retry the original
+ID/key with its original account even after local edits. A published result with
+pending association is already public; recover the association, never create a
+replacement publication. Project undo affects local association only.

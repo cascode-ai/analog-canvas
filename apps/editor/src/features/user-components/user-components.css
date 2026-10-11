@@ -598,3 +598,22 @@
   gap: 0.3rem;
   margin: 0.3rem 1rem 0.3rem 0;
 }
+
+.component-publication-destination {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0 1rem;
+  font-size: var(--icm-font-sm);
+  color: var(--icm-text-muted);
+  overflow-wrap: anywhere;
+}
+.component-publication-destination details {
+  min-width: 0;
+}
+.component-publication-destination label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}

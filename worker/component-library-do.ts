@@ -7,15 +7,20 @@ import {
   parseSharedComponentPayload,
   summarizeSharedComponent,
 } from "../apps/editor/src/features/user-components/component-library-contract";
+import {
+  componentPublicationContent,
+  componentContentDigest,
+} from "../apps/editor/src/features/user-components/component-publication-content";
+import {
+  ComponentPublicationIndex,
+  type ComponentLibrarySql,
+} from "./component-publication-index";
 
-type Sql = {
-  exec<T = Record<string, unknown>>(
-    query: string,
-    ...bindings: (string | number | null)[]
-  ): { toArray(): T[] };
-};
 export interface ComponentLibraryState {
-  storage: { sql: Sql; transactionSync<T>(callback: () => T): T };
+  storage: {
+    sql: ComponentLibrarySql;
+    transactionSync<T>(callback: () => T): T;
+  };
 }
 interface Row {
   id: string;
@@ -52,7 +57,8 @@ const entry = (row: Row): SharedComponent => {
 
 /** Separate namespace: no Gallery, account or analytics tables are touched. */
 export class ComponentLibraryDO {
-  private readonly sql: Sql;
+  private readonly sql: ComponentLibrarySql;
+  private readonly contentIndex: ComponentPublicationIndex;
   constructor(private readonly state: ComponentLibraryState) {
     this.sql = state.storage.sql;
     this.sql.exec(`CREATE TABLE IF NOT EXISTS components (
@@ -68,6 +74,7 @@ export class ComponentLibraryDO {
       request_digest TEXT NOT NULL, response_json TEXT NOT NULL, created_at TEXT NOT NULL,
       PRIMARY KEY (user_id, request_key)
     ) WITHOUT ROWID`);
+    this.contentIndex = new ComponentPublicationIndex(this.sql);
   }
   async fetch(request: Request): Promise<Response> {
     const operation = new URL(request.url).pathname.slice(1);
@@ -124,6 +131,10 @@ export class ComponentLibraryDO {
             id: string;
           }>("SELECT id FROM components WHERE author_id = ?", authorId)
           .toArray();
+        this.sql.exec(
+          "DELETE FROM component_content_index WHERE component_id IN (SELECT id FROM components WHERE author_id = ?)",
+          authorId,
+        );
         this.sql.exec("DELETE FROM components WHERE author_id = ?", authorId);
         this.sql.exec(
           "DELETE FROM component_write_receipts WHERE user_id = ?",
@@ -175,11 +186,38 @@ export class ComponentLibraryDO {
         ? Response.json({ entry: entry(row) })
         : Response.json({ error: "Component not found" }, { status: 404 });
     }
+    const incomingContent =
+      operation === "save"
+        ? componentPublicationContent(
+            parseSharedComponentPayload({
+              definition: body.definition,
+              ...(body.circuit === undefined ? {} : { circuit: body.circuit }),
+            }),
+          )
+        : null;
+    const incomingDigest =
+      incomingContent === null
+        ? null
+        : await componentContentDigest(incomingContent);
+    if (operation === "save") await this.contentIndex.ensureComplete();
     return this.state.storage.transactionSync(() => {
       const current = this.sql
         .exec<Row>("SELECT * FROM components WHERE id = ?", id)
         .toArray()[0];
       const admin = body.admin === true;
+      const respond = (response: object, status = 200) => {
+        if (operation === "save" && digest)
+          this.sql.exec(
+            "INSERT INTO component_write_receipts (user_id, request_key, component_id, request_digest, response_json, created_at) VALUES (?,?,?,?,?,?)",
+            String(body.userId),
+            String(body.idempotencyKey),
+            id,
+            digest,
+            JSON.stringify({ status, body: response }),
+            new Date().toISOString(),
+          );
+        return Response.json(response, { status });
+      };
       if (operation === "save") {
         if (
           current &&
@@ -226,7 +264,11 @@ export class ComponentLibraryDO {
                 { error: "Restore the component before editing it" },
                 { status: 409 },
               );
-            return Response.json(JSON.parse(receipt.response_json));
+            const recovered = JSON.parse(receipt.response_json);
+            return Response.json(recovered.body ?? recovered, {
+              status: recovered.status ?? 200,
+              headers: { "x-component-write-recovered": "true" },
+            });
           }
         }
         if ((current?.revision ?? 0) !== body.revision)
@@ -239,6 +281,25 @@ export class ComponentLibraryDO {
             { error: "Restore the component before editing it" },
             { status: 409 },
           );
+        if (!current) {
+          const existing = this.contentIndex.duplicate(
+            String(body.userId),
+            incomingDigest!,
+            incomingContent!,
+          );
+          if (existing)
+            return respond(
+              {
+                error:
+                  "Already published. Use the existing component or change this definition.",
+                code: "COMPONENT_ALREADY_PUBLISHED",
+                existing,
+              },
+              409,
+            );
+        } else if (this.contentIndex.matches(id, incomingContent!)) {
+          return respond({ entry: entry(current), outcome: "unchanged" });
+        }
         const revision = (current?.revision ?? 0) + 1;
         const payload = publishedComponentPayload(
           parseSharedComponentPayload({
@@ -266,6 +327,7 @@ export class ComponentLibraryDO {
           payload.definition.symbol.name,
           JSON.stringify(payload.circuit ? payload : payload.definition),
         );
+        this.contentIndex.put(id, revision, incomingDigest!, incomingContent!);
       } else if (operation === "status") {
         if (!admin)
           return Response.json(
@@ -288,23 +350,20 @@ export class ComponentLibraryDO {
           new Date().toISOString(),
           id,
         );
+        this.sql.exec(
+          "UPDATE component_content_index SET revision = revision + 1 WHERE component_id = ?",
+          id,
+        );
       } else return Response.json({ error: "Not found" }, { status: 404 });
       const row = this.sql
         .exec<Row>("SELECT * FROM components WHERE id = ?", id)
         .toArray()[0]!;
-      const response = { entry: entry(row) };
-      if (operation === "save" && digest) {
-        this.sql.exec(
-          "INSERT INTO component_write_receipts (user_id, request_key, component_id, request_digest, response_json, created_at) VALUES (?,?,?,?,?,?)",
-          String(body.userId),
-          String(body.idempotencyKey),
-          id,
-          digest,
-          JSON.stringify(response),
-          new Date().toISOString(),
-        );
-      }
-      return Response.json(response);
+      return respond({
+        entry: entry(row),
+        ...(operation === "save"
+          ? { outcome: current ? "updated" : "created" }
+          : {}),
+      });
     });
   }
 }

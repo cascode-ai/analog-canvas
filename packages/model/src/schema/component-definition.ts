@@ -114,6 +114,14 @@ const CircuitSymbolBindingSchema = z.strictObject({
 });
 
 /** One local class, referenced by Instance.symbolId and floating symbols. */
+export const ComponentLibraryOriginSchema = z.strictObject({
+  componentId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/u),
+  revision: z.number().int().positive(),
+  authorId: z.string().min(1),
+  contentVersion: z.literal(1),
+  digest: z.string().regex(/^[a-f0-9]{64}$/u),
+});
+
 export const ComponentDefinitionSchema = z
   .strictObject({
     symbol: SymbolDefinitionSchema,
@@ -121,6 +129,8 @@ export const ComponentDefinitionSchema = z
     electrical: ComponentElectricalSchema.optional(),
     subcircuit: ComponentSubcircuitSchema.optional(),
     circuitBinding: CircuitSymbolBindingSchema.optional(),
+    /** Capture provenance, not permission or an automatic publication destination. */
+    libraryOrigin: ComponentLibraryOriginSchema.optional(),
   })
   .superRefine((definition, ctx) => {
     if (

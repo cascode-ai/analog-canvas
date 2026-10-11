@@ -24,6 +24,8 @@ export class ComponentLibraryError extends Error {
     message: string,
     readonly status: number,
     readonly outcomeUnknown = false,
+    readonly code?: string,
+    readonly existing?: { id: string; revision: number },
   ) {
     super(message);
   }
@@ -36,6 +38,16 @@ async function responseJson(response: Response) {
         ? payload.error
         : `Component library unavailable (${response.status})`,
       response.status,
+      false,
+      isRecord(payload) && typeof payload.code === "string"
+        ? payload.code
+        : undefined,
+      isRecord(payload) &&
+        isRecord(payload.existing) &&
+        typeof payload.existing.id === "string" &&
+        typeof payload.existing.revision === "number"
+        ? { id: payload.existing.id, revision: payload.existing.revision }
+        : undefined,
     );
   if (!isRecord(payload))
     throw new Error("Component library unavailable: invalid response");
@@ -100,6 +112,17 @@ async function libraryJson(
     clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
   }
+}
+
+/** Uncached account check before a fixed publication operation is sent. */
+export async function publicationAccount(
+  fetchLike: typeof fetch = fetch,
+): Promise<{ id: string; isAdmin: boolean } | null> {
+  const payload = await libraryJson("/api/auth/me", {}, fetchLike);
+  const user = payload.user;
+  return isRecord(user) && typeof user.id === "string"
+    ? { id: user.id, isAdmin: user.isAdmin === true }
+    : null;
 }
 
 export async function loadSharedComponentSummaries(
@@ -298,13 +321,17 @@ export async function readSharedComponent(
   );
   return parseSharedComponentEntry(payload.entry);
 }
-export async function saveSharedComponent(
+export interface ComponentPublicationReceipt {
+  entry: SharedComponent;
+  outcome: "created" | "updated" | "unchanged";
+}
+export async function publishSharedComponent(
   id: string,
   revision: number,
   definition: ComponentDefinition,
   circuit?: SharedDefinitionPayload["circuit"],
   options: { idempotencyKey?: string; fetch?: typeof fetch } = {},
-): Promise<SharedComponent> {
+): Promise<ComponentPublicationReceipt> {
   const payload = await libraryJson(
     `/api/components/${encodeURIComponent(id)}`,
     {
@@ -322,7 +349,15 @@ export async function saveSharedComponent(
     },
     options.fetch ?? fetch,
   );
-  return parseSharedComponentEntry(payload.entry);
+  return {
+    entry: parseSharedComponentEntry(payload.entry),
+    outcome:
+      payload.outcome === "unchanged"
+        ? "unchanged"
+        : payload.outcome === "updated" || revision > 0
+          ? "updated"
+          : "created",
+  };
 }
 export async function manageSharedComponent(
   entry: SharedComponent,

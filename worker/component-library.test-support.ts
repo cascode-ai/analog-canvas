@@ -78,7 +78,30 @@ export function componentLibraryHarness() {
       }),
       env,
     ) as Promise<Response>;
-  return Object.assign(route, { durable });
+  return Object.assign(route, {
+    durable,
+    seed: (row: {
+      id: string;
+      authorId: string;
+      definition: unknown;
+      revision?: number;
+      status?: string;
+    }) => {
+      db.prepare(
+        "INSERT INTO components (id,revision,author_id,author,status,created_at,updated_at,name,definition) VALUES (?,?,?,?,?,?,?,?,?)",
+      ).run(
+        row.id,
+        row.revision ?? 1,
+        row.authorId,
+        row.authorId,
+        row.status ?? "shared",
+        "2026-01-01T00:00:00Z",
+        "2026-01-01T00:00:00Z",
+        "Historical",
+        JSON.stringify(row.definition),
+      );
+    },
+  });
 }
 export function nativePackage(): CircuitComponentPackage {
   return {

@@ -2,16 +2,16 @@
 
 Status: `accepted`
 
-Portable file schema: `68`; normalized editor model schema: `58`.
+Portable file schema: `69`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec).
 `packages/model` validates the normalized editor indexes used by rendering,
 connectivity and transactions. The normalized indexes are decoded working data;
-serialization always writes the one schema-68 authoring representation.
+serialization always writes the one schema-69 authoring representation.
 
 An `.icproj.json` file contains a complete Project. The public `parseProject`
-boundary reads file schemas 24 through 68. Historical schemas pass through the
-existing explicit upgrades; schemas 59 through 68 decode through the
+boundary reads file schemas 24 through 69. Historical schemas pass through the
+existing explicit upgrades; schemas 59 through 69 decode through the
 owned-object codec. Schema 60 introduced derived network membership from
 connection facts. Schema 62 lets a Symbol's body text keep an authored look. Both return the same validated editor model. File/envelope
 metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
@@ -56,7 +56,7 @@ these are optional additions.
 Schema 67 adds native `spectre` model sources and optional draft `language`.
 Schema 66 SPICE owners load unchanged, with an absent draft language inheriting
 the applied language. Earlier envelopes cannot carry the new language facts;
-current portable writers emit 68. Conversion never changes the native owner
+current portable writers emit 69. Conversion never changes the native owner
 unless committed through the ordinary Apply boundary.
 
 Schema 68 adds optional source `draft.authoring` candidates, keyed by native
@@ -73,6 +73,19 @@ scope/disconnection choices. None of these fields is an applied implementation,
 a public package or a used runtime component. Earlier envelopes cannot carry
 these fields. These optional fields retain runtime schema 58; existing files keep their
 applied facts.
+
+Schema 69 adds optional `componentDefinitions[].libraryOrigin`, bound to the
+captured local class: public component ID, captured revision, author ID and
+versioned exact-content digest. Native bindings already name their local owner
+and terminals, so copies remap those existing references while retaining origin.
+Origin is a publication hint, never an electrical or permission authority. The
+automatic native representation stores the same origin on its external owner
+when no custom class is selected. These records follow their copied owners.
+The normalized model remains 58 for this optional metadata. Old portable files
+are upgraded without guessed origins; older envelopes cannot carry this field.
+Rollback must retain a reader
+capable of schema 69 rather than silently removing associations. See the
+[publication contract](component-publication.md).
 
 Owned sources and drafts travel through Cloud Save, recovery, Project Code,
 portable export/reload, Cell import and cross-Project copy. Import provenance
@@ -340,9 +353,9 @@ file codec preserves these contracts rather than redefining them.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project file schema 24 through 68
--> migrate old files or decode 59–68 -> strict runtime model validation -> install unbound
-export -> validate -> encode file schema 68 -> readable canonical JSON -> download
+import text -> parse JSON -> require Project file schema 24 through 69
+-> migrate old files or decode 59–69 -> strict runtime model validation -> install unbound
+export -> validate -> encode file schema 69 -> readable canonical JSON -> download
 ```
 
 An invalid candidate never replaces the current browser Project. File Resource
@@ -365,7 +378,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its `current` entries must all be
-already canonical Project file schema 68. Explicit `migrated` witnesses retain
+already canonical Project file schema 69. Explicit `migrated` witnesses retain
 their source bytes and declared source version; loading and saving must produce
 a byte-stable current Project. The rejected corpus names expected validation
 failures. These are test inventory categories, not new Project fields.

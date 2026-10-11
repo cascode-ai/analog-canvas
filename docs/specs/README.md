@@ -5,6 +5,9 @@ against. They describe required behavior and invariants, not task history.
 
 ## Specifications
 
+[User Component publication](component-publication.md) owns library identity,
+exact content comparison, destination, provenance and write recovery (`accepted`).
+
 | Specification                                                | Status   | Covers                                                                                      |
 | ------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------- |
 | [`project-file-format.md`](project-file-format.md)           | accepted | Project JSON, source manifest, symbol lock, canonical save/load                             |

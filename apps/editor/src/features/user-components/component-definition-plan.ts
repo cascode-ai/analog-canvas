@@ -51,6 +51,8 @@ export function planComponentDefinitionEdit(
     const oldDefinition = candidate.componentDefinitions?.find(
       (item) => item.symbol.id === instance.symbolId,
     );
+    if (oldDefinition?.libraryOrigin)
+      parsed.libraryOrigin = oldDefinition.libraryOrigin;
     const existing = candidate.componentDefinitions?.find(
       (item) => item.symbol.id === parsed.symbol.id,
     );

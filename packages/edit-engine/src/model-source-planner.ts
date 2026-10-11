@@ -279,7 +279,18 @@ export function planModelSourceApply(
       }
     }
     if (target.symbol) {
-      const symbol = initializeCircuitComponent(target.symbol, definition);
+      const previousOrigin =
+        working.componentDefinitions?.find(
+          (component) => component.symbol.id === old?.symbolId,
+        )?.libraryOrigin ?? old?.libraryOrigin;
+      const symbol = initializeCircuitComponent(
+        {
+          ...target.symbol,
+          ...(previousOrigin ? { libraryOrigin: previousOrigin } : {}),
+        },
+        definition,
+      );
+      delete definition.libraryOrigin;
       const issue = circuitComponentIssues(symbol, definition)[0];
       if (issue) throw Error(`${issue.path.join(".")}: ${issue.message}`);
       const captured = {
@@ -289,7 +300,14 @@ export function planModelSourceApply(
       preview([captured]);
       planned.push(captured);
       definition.symbolId = symbol.symbol.id;
-    } else if (target.symbol === null) delete definition.symbolId;
+    } else if (target.symbol === null) {
+      const origin =
+        working.componentDefinitions?.find(
+          (component) => component.symbol.id === old?.symbolId,
+        )?.libraryOrigin ?? old?.libraryOrigin;
+      if (origin) definition.libraryOrigin = origin;
+      delete definition.symbolId;
+    }
     const index = working.externalSubcircuitDefinitions.findIndex(
       (d) => d.id === id,
     );

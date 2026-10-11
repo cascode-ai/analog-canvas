@@ -4,6 +4,7 @@ import {
   ExternalSubcircuitDefinitionSchema,
   ProjectModelSourceSchema,
   SourceSpanSchema,
+  ComponentLibraryOriginSchema,
 } from "@icm/model";
 
 const Id = z.string().min(1).max(256);
@@ -12,6 +13,7 @@ const Revision = z.number().int().nonnegative();
 const WriteIdentity = {
   componentId: LibraryId,
   idempotencyKey: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/u),
+  publicationVersion: z.literal(1).optional(),
 };
 const ProjectSelection = {
   projectId: Id,
@@ -43,6 +45,7 @@ export const AgentComponentLibraryActionSchema = z.discriminatedUnion(
       cursor: z.string().max(2048).optional(),
     }),
     z.strictObject({ action: z.literal("read"), componentId: LibraryId }),
+    z.strictObject({ action: z.literal("inspect"), ...ProjectSelection }),
     z.strictObject({
       action: z.literal("publish"),
       ...WriteIdentity,
@@ -60,6 +63,7 @@ export const AgentComponentLibraryActionSchema = z.discriminatedUnion(
       expectedLibraryRevision: Revision.min(1),
       newComponentId: LibraryId,
       idempotencyKey: WriteIdentity.idempotencyKey,
+      publicationVersion: WriteIdentity.publicationVersion,
     }),
     z.strictObject({
       action: z.literal("insert"),
@@ -145,6 +149,25 @@ export const AgentComponentLibraryResultSchema = z.discriminatedUnion(
       action: z.enum(["read", "publish", "update", "fork"]),
       entry: AgentSharedComponentSchema,
       digest: z.string().regex(/^[a-f0-9]{64}$/u),
+      publication: z
+        .strictObject({
+          version: z.literal(1),
+          outcome: z.enum(["created", "updated", "unchanged"]),
+          recovered: z.boolean(),
+          association: z.enum(["associated", "pending", "not-requested"]),
+          diagnostic: z.string().optional(),
+        })
+        .optional(),
+    }),
+    z.strictObject({
+      action: z.literal("inspect"),
+      origin: ComponentLibraryOriginSchema.optional(),
+      destination: z.strictObject({
+        kind: z.enum(["new", "update"]),
+        componentId: LibraryId,
+        expectedLibraryRevision: Revision.min(1).optional(),
+      }),
+      stale: z.boolean(),
     }),
     z.strictObject({
       action: z.literal("insert"),

@@ -3,7 +3,7 @@ import { newComponentDefinition } from "./component-definition-edit";
 import {
   loadSharedComponents,
   readSharedComponent,
-  saveSharedComponent,
+  publishSharedComponent,
   loadSharedComponentSummaries,
 } from "./component-library-client";
 
@@ -22,7 +22,7 @@ describe("public component library responses", () => {
     const read = loadSharedComponentSummaries("", null).catch(
       (error: Error) => error,
     );
-    const write = saveSharedComponent(
+    const write = publishSharedComponent(
       "bounded-write",
       0,
       newComponentDefinition(),
@@ -90,7 +90,7 @@ describe("public component library responses", () => {
       ),
     ).rejects.toThrow("missing OUT");
     await expect(
-      saveSharedComponent("legacy-component", 1, definition, undefined, {
+      publishSharedComponent("legacy-component", 1, definition, undefined, {
         fetch: async () => Response.json({ entry: legacy }),
       }),
     ).rejects.toThrow("missing OUT");
@@ -205,7 +205,7 @@ describe("public component library responses", () => {
       vi.fn(async () => Response.json({ entry: {} })),
     );
     await expect(
-      saveSharedComponent("test-component", 0, newComponentDefinition()),
+      publishSharedComponent("test-component", 0, newComponentDefinition()),
     ).rejects.toThrow("invalid entry");
   });
 
@@ -217,7 +217,7 @@ describe("public component library responses", () => {
       ),
     );
     await expect(
-      saveSharedComponent("test-component", 0, newComponentDefinition()),
+      publishSharedComponent("test-component", 0, newComponentDefinition()),
     ).rejects.toThrow("Sign in to save");
   });
   it.each(["request", "body"])(
@@ -237,7 +237,7 @@ describe("public component library responses", () => {
         }),
       );
       await expect(
-        saveSharedComponent("test-component", 0, newComponentDefinition()),
+        publishSharedComponent("test-component", 0, newComponentDefinition()),
       ).rejects.toMatchObject({ outcomeUnknown: true });
     },
   );

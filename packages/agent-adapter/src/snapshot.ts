@@ -357,7 +357,9 @@ function projectIndex(options: BuildAgentSessionSnapshotOptions) {
     structureRevision: options.project?.structureRevision ?? 0,
     topDocumentId: options.project?.topDocumentId ?? options.document.id,
     externalSubcircuitDefinitions: structuredClone(
-      options.project?.externalSubcircuitDefinitions ?? [],
+      (options.project?.externalSubcircuitDefinitions ?? []).map(
+        ({ libraryOrigin: _origin, ...definition }) => definition,
+      ),
     ),
     ...(options.project?.modelSources?.length
       ? { modelSources: structuredClone(options.project.modelSources) }

@@ -174,6 +174,17 @@ it("authorizes Gallery, Project Code and Netlist operations by their real effect
     scopes({
       operation: "components",
       request: {
+        action: "inspect",
+        projectId: "project",
+        expectedStructureRevision: 0,
+        selection: { kind: "component", symbolId: "symbol" },
+      },
+    }),
+  ).toEqual(["circuit.snapshot"]);
+  expect(
+    scopes({
+      operation: "components",
+      request: {
         action: "insert",
         componentId: "native-model",
         expectedLibraryRevision: 1,

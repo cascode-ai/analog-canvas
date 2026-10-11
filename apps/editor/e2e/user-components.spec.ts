@@ -400,7 +400,16 @@ test("library selection refuses a revision changed during preview and editing re
           await fetch("/api/components/revision-guard", {
             method: "PUT",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ revision: 1, definition }),
+            body: JSON.stringify({
+              revision: 1,
+              definition: {
+                ...definition,
+                symbol: {
+                  ...definition.symbol,
+                  name: "Revision guard changed",
+                },
+              },
+            }),
           })
         ).status,
       definition,
@@ -470,6 +479,13 @@ async function clickLibraryAction(scope: Page | Locator, name: string) {
 async function place(page: Page, x = 350, y = 300) {
   await expect(
     page.getByRole("dialog", { name: "User Components", exact: true }),
+  ).toBeHidden();
+  // Circuit placement prepares its provenance before closing the authoring dialog.
+  await expect(
+    page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    }),
   ).toBeHidden();
   const count = Number(
     await page.getByTestId("active-instance-count").textContent(),
@@ -1195,6 +1211,162 @@ test("library cards separate artwork, long titles and authors at narrow and zoom
   }
 });
 
+test("inserts an existing legacy artwork capture without overwriting its class and restores provenance through history", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const definition = {
+      symbol: {
+        ...newComponentDefinition().symbol,
+        name: "Legacy reusable graphic",
+      },
+    };
+    await page.evaluate(async (definition) => {
+      const response = await fetch("/api/components/legacy-reusable-graphic", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revision: 0, definition }),
+      });
+      if (!response.ok) throw Error("Fixture publication failed");
+    }, definition);
+    const project = createEmptyProject(
+      "legacy-capture-placement",
+      "Legacy capture placement",
+    );
+    const published = publishedDefinition(
+      definition,
+      "legacy-reusable-graphic",
+      1,
+    );
+    project.componentDefinitions = [published];
+    project.documents[0]!.instances.push({
+      id: "legacy-existing",
+      symbolId: published.symbol.id,
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    await page.getByTestId("project-file").setInputFiles({
+      name: "legacy-capture.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(project)),
+    });
+    await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+    await openUserComponents(page);
+    await page
+      .getByRole("button", {
+        name: "Place Legacy reusable graphic",
+        exact: true,
+      })
+      .click();
+    await place(page, 400, 220);
+    const placed = await readProject(page);
+    expect(placed.documents[0]!.instances).toHaveLength(2);
+    expect(placed.componentDefinitions).toHaveLength(1);
+    expect(placed.componentDefinitions![0]!.libraryOrigin?.componentId).toBe(
+      "legacy-reusable-graphic",
+    );
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    const undone = await readProject(page);
+    expect(undone.documents[0]!.instances).toHaveLength(1);
+    expect(undone.componentDefinitions![0]!.libraryOrigin).toBeUndefined();
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    expect(
+      (await readProject(page)).componentDefinitions![0]!.libraryOrigin,
+    ).toEqual(placed.componentDefinitions![0]!.libraryOrigin);
+  } finally {
+    service.close();
+  }
+});
+
+test("identical Create from offers explicit association while same-name artwork variants remain publishable", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const definition = {
+      symbol: { ...newComponentDefinition().symbol, name: "Reusable block" },
+    };
+    await page.evaluate(async (definition) => {
+      const response = await fetch("/api/components/reusable-original", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revision: 0, definition }),
+      });
+      if (!response.ok) throw Error(await response.text());
+    }, definition);
+    await openUserComponents(page);
+    await clickLibraryAction(page, "Create from Reusable block");
+    const editor = page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await editor
+      .getByRole("button", { name: "Publish as new component", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("Already published");
+    await expect(
+      editor.getByRole("group", { name: "Publication destination" }),
+    ).toContainText("New component");
+    await editor
+      .getByRole("button", { name: "Use existing", exact: true })
+      .click();
+    await expect(
+      editor.getByRole("button", { name: "Update my component", exact: true }),
+    ).toBeEnabled();
+    await editor
+      .getByRole("button", { name: "Update my component", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText(
+      "Already up to date",
+    );
+    await editor.getByLabel("Close component editor").click();
+    await openUserComponents(page);
+    await clickLibraryAction(page, "Create from Reusable block");
+    await editor
+      .getByRole("button", { name: "Publish as new component", exact: true })
+      .click();
+    await expect(
+      editor.getByRole("button", { name: "Continue editing", exact: true }),
+    ).toBeVisible();
+    await editor
+      .getByRole("button", { name: "Continue editing", exact: true })
+      .click();
+    const variant = structuredClone(definition);
+    variant.symbol.viewBox.width += 10;
+    await editor
+      .getByLabel("Component definition code")
+      .fill(JSON.stringify(variant));
+    await editor.getByRole("button", { name: "Apply", exact: true }).click();
+    await editor
+      .getByRole("button", { name: "Publish as new component", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText(
+      "Published to the public library",
+    );
+    const entries = await page.evaluate(
+      async () => (await (await fetch("/api/components")).json()).entries,
+    );
+    expect(entries).toHaveLength(2);
+    expect(
+      entries.map(
+        (entry: { definition: { symbol: { name: string } } }) =>
+          entry.definition.symbol.name,
+      ),
+    ).toEqual(["Reusable block", "Reusable block"]);
+    expect(
+      entries.find((entry: { id: string }) => entry.id === "reusable-original"),
+    ).toMatchObject({ revision: 1 });
+  } finally {
+    service.close();
+  }
+});
+
 test("Create from keeps a new publication destination through draft reopening even for the original author", async ({
   page,
   context,
@@ -1228,6 +1400,12 @@ test("Create from keeps a new publication destination through draft reopening ev
     await editor.getByRole("button", { name: "Apply", exact: true }).click();
     await editor.getByLabel("Close component editor").click();
     const saved = await readProject(page);
+    const draft = JSON.parse(saved.componentAuthoringDrafts![0]!.text);
+    expect(draft.appliedDefinition.libraryOrigin).toMatchObject({
+      componentId: "original-device",
+      revision: 1,
+      authorId: "alice",
+    });
     await page.getByTestId("project-file").setInputFiles({
       name: "draft.icproj.json",
       mimeType: "application/json",
@@ -1269,6 +1447,178 @@ test("Create from keeps a new publication destination through draft reopening ev
       authorId: "alice",
       definition: { symbol: { name: "Derivative device" } },
     });
+    const derivativeId = entries.find(
+      (entry: { id: string }) => entry.id !== "original-device",
+    ).id;
+    await editor.getByLabel("Component definition code").fill(
+      JSON.stringify({
+        symbol: { ...definition.symbol, name: "Further local edit" },
+      }),
+    );
+    await editor.getByRole("button", { name: "Apply", exact: true }).click();
+    await editor.getByRole("button", { name: "Place", exact: true }).click();
+    await place(page);
+    const placed = await readProject(page);
+    const instance = placed.documents[0]!.instances.at(-1)!;
+    expect(
+      placed.componentDefinitions!.find(
+        (item) => item.symbol.id === instance.symbolId,
+      )!.libraryOrigin,
+    ).toMatchObject({ componentId: derivativeId, revision: 1 });
+  } finally {
+    service.close();
+  }
+});
+
+for (const failureStatus of [404, 503])
+  test(`captured origin lookup ${failureStatus} preserves its target and refuses implicit new publication`, async ({
+    page,
+    context,
+  }) => {
+    const service = library();
+    try {
+      service.seedHistoricalDefinition(
+        "origin-lookup-device",
+        publishedDefinition(
+          {
+            symbol: {
+              ...newComponentDefinition().symbol,
+              name: "Origin lookup device",
+            },
+          },
+          "origin-lookup-device",
+          1,
+        ),
+      );
+      await service.connect(context, "alice");
+      await openEditor(page);
+      await openUserComponents(page);
+      await page
+        .getByRole("button", {
+          name: "Place Origin lookup device",
+          exact: true,
+        })
+        .click();
+      await place(page);
+      let originReads = 0;
+      let newWrites = 0;
+      await context.route("**/api/components/*", async (route) => {
+        if (
+          route.request().method() === "GET" &&
+          route.request().url().endsWith("/origin-lookup-device")
+        ) {
+          originReads++;
+          await route.fulfill({
+            status: failureStatus,
+            json: { message: "Origin lookup unavailable" },
+          });
+        } else {
+          if (route.request().method() === "PUT") newWrites++;
+          await route.fallback();
+        }
+      });
+      await page.getByTestId("hit-X1").click();
+      await page.keyboard.press("e");
+      const editor = page.getByRole("dialog", {
+        name: "Edit Component Definition",
+        exact: true,
+      });
+      const recovery = editor.getByRole("group", {
+        name: "Publication recovery",
+      });
+      await expect(recovery).toBeVisible();
+      await expect(
+        editor.getByRole("button", {
+          name: "Update my component",
+          exact: true,
+        }),
+      ).toBeDisabled();
+      await recovery
+        .getByRole("button", { name: "Reload published version" })
+        .click();
+      await expect.poll(() => originReads).toBe(2);
+      expect(newWrites).toBe(0);
+      const variant = {
+        symbol: {
+          ...newComponentDefinition().symbol,
+          name: "Explicit origin copy",
+        },
+      };
+      await editor
+        .getByLabel("Component definition code")
+        .fill(JSON.stringify(variant));
+      await editor.getByRole("button", { name: "Apply", exact: true }).click();
+      await expect(
+        editor.getByRole("button", {
+          name: "Update my component",
+          exact: true,
+        }),
+      ).toBeDisabled();
+      await recovery
+        .getByRole("button", { name: "Create separate copy" })
+        .click();
+      await editor
+        .getByRole("button", {
+          name: /^Publish( as new component)?$/,
+          exact: true,
+        })
+        .click();
+      await expect(editor.getByRole("status")).toContainText(
+        "Published to the public library",
+      );
+      expect(newWrites).toBe(1);
+    } finally {
+      service.close();
+    }
+  });
+
+test("placing a Symbol-only Create from retains source provenance through Project reopening", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    service.seedHistoricalDefinition(
+      "source-artwork",
+      publishedDefinition(
+        {
+          symbol: {
+            ...newComponentDefinition().symbol,
+            name: "Source artwork",
+          },
+        },
+        "source-artwork",
+        1,
+      ),
+    );
+    await service.connect(context, "bob");
+    await openEditor(page);
+    await openUserComponents(page);
+    await clickLibraryAction(page, "Create from Source artwork");
+    const editor = page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await expect(
+      editor.getByRole("group", { name: "Publication destination" }),
+    ).toContainText("New component");
+    await editor.getByRole("button", { name: "Place", exact: true }).click();
+    await place(page);
+    const saved = await readProject(page);
+    expect(saved.componentDefinitions![0]!.libraryOrigin).toMatchObject({
+      componentId: "source-artwork",
+      revision: 1,
+      authorId: "alice",
+    });
+    await page.getByTestId("project-file").setInputFiles({
+      name: "source-copy.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(saved)),
+    });
+    await awaitEditorReady(page);
+    expect(
+      (await readProject(page)).componentDefinitions![0]!.libraryOrigin,
+    ).toEqual(saved.componentDefinitions![0]!.libraryOrigin);
   } finally {
     service.close();
   }
@@ -1512,7 +1862,7 @@ for (const kind of ["native", "artwork"] as const)
           .getByRole("button", { name: "Update my component", exact: true })
           .click();
         await expect(
-          editor.getByText("Saved to the public library.", { exact: true }),
+          editor.getByText("Already up to date.", { exact: true }),
         ).toBeVisible();
         await editor.getByLabel("Close component editor").click();
         await reopenPublication();
@@ -2939,9 +3289,44 @@ test("MCP publishes a native component, recovers requests and inserts a fixed li
         idempotencyKey: "bob-fork",
       }),
     ).toMatchObject({ ok: true, result: { entry: { authorId: "bob" } } });
+    const updatedSource = await readProject(page);
+    const changedSource = executeProjectTransaction(updatedSource, {
+      projectId: updatedSource.id,
+      expectedStructureRevision: updatedSource.structureRevision,
+      transactionId: "change-published-source",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            ...updatedSource.modelSources![0]!,
+            files: updatedSource.modelSources![0]!.files.map((file) => ({
+              ...file,
+              text: file.text + "\n* Revised implementation.\n",
+            })),
+          },
+          definitions: [{ definitionId: owner.id, entry: "finite_gain" }],
+        },
+      ],
+    });
+    if (!changedSource.ok) throw Error(JSON.stringify(changedSource.error));
+    await page.getByTestId("project-file").setInputFiles({
+      name: "updated-publication.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(changedSource.project)),
+    });
+    await expect
+      .poll(async () => (await readProject(page)).structureRevision)
+      .toBe(changedSource.project.structureRevision);
+    const updatedAuthor = await paired(page);
     expect(
-      await author.tool({
+      await updatedAuthor.tool({
         ...publication,
+        expectedStructureRevision: changedSource.project.structureRevision,
+        selection: {
+          ...publication.selection,
+          sourceRevision: changedSource.project.modelSources![0]!.revision,
+        },
         action: "update",
         expectedLibraryRevision: 1,
         idempotencyKey: "author-update",
@@ -3468,6 +3853,7 @@ test("forking a native public record captures its selected artwork while reusing
     expect(JSON.parse(publicationDraft.text).publication).toEqual({
       kind: "update",
       componentId: forked.id,
+      expectedLibraryRevision: 1,
     });
     await openUserComponents(receiver);
     await receiver
@@ -3506,7 +3892,7 @@ test("forking a native public record captures its selected artwork while reusing
       .click();
     await expect(
       localEditor.getByRole("button", {
-        name: /^(Publish|Update my component)$/,
+        name: /^(Publish|Publish as new component|Update my component)$/,
         exact: true,
       }),
     ).toBeDisabled();
@@ -3548,7 +3934,7 @@ test("forking a native public record captures its selected artwork while reusing
       .click();
     await expect(
       draftEditor.getByRole("button", {
-        name: /^(Publish|Update my component)$/,
+        name: /^(Publish|Publish as new component|Update my component)$/,
         exact: true,
       }),
     ).toBeDisabled();
@@ -3557,7 +3943,7 @@ test("forking a native public record captures its selected artwork while reusing
       .click();
     await expect(
       draftEditor.getByRole("button", {
-        name: /^(Publish|Update my component)$/,
+        name: /^(Publish|Publish as new component|Update my component)$/,
         exact: true,
       }),
     ).toBeEnabled();
@@ -4744,6 +5130,20 @@ test("E edits one instance, publicly saves its definition, and leaves Q and peer
     await expect(
       page.getByRole("dialog", { name: "Edit Component Definition" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Update my component", exact: true }),
+    ).toBeEnabled();
+    await page
+      .getByRole("button", { name: "Update my component", exact: true })
+      .click();
+    await expect(
+      page.getByText("Already up to date.", { exact: true }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        async () => (await (await fetch("/api/components")).json()).entries,
+      ),
+    ).toHaveLength(1);
     await page.getByRole("button", { name: "Close component editor" }).click();
   } finally {
     service.close();

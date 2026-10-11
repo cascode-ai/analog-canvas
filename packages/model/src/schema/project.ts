@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { ComponentDefinitionSchema } from "./component-definition.js";
+import {
+  ComponentDefinitionSchema,
+  ComponentLibraryOriginSchema,
+} from "./component-definition.js";
 
 import { CURRENT_MODEL_SCHEMA_VERSION, StableIdSchema } from "./common.js";
 import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
@@ -47,6 +50,8 @@ const ExternalSubcircuitFormalParameterSchema = z.strictObject({
 export const ExternalSubcircuitDefinitionSchema = z.strictObject({
   id: StableIdSchema,
   name: z.string().min(1).max(128),
+  /** Automatic artwork has no captured class; publication origin belongs to its owner. */
+  libraryOrigin: ComponentLibraryOriginSchema.optional(),
   terminals: z.array(ExternalSubcircuitTerminalSchema).max(128),
   formalParameters: z.array(ExternalSubcircuitFormalParameterSchema).max(128),
   /** Imported positional interfaces are valid, but remain visibly provisional. */

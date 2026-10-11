@@ -162,6 +162,9 @@ export function publishedComponentPayload(
 ): SharedDefinitionPayload {
   const snapshot = structuredClone(payload);
   const copy = snapshot.definition;
+  delete copy.libraryOrigin;
+  if (snapshot.circuit)
+    delete snapshot.circuit.externalDefinition.libraryOrigin;
   const symbolId = `user-${id}-r${revision}`;
   copy.symbol.id = symbolId;
   if (copy.electrical) {

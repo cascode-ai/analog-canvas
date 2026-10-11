@@ -1,5 +1,6 @@
 import {
   deriveStableId,
+  initializeCircuitComponent,
   resolveCircuitArtworkDraft,
   ComponentDefinitionSchema,
   type CircuitProject,
@@ -7,7 +8,11 @@ import {
   type Instance,
   type ProjectModelSource,
 } from "@icm/model";
-import { externalSubcircuitSymbolId } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectHierarchicalSymbols,
+  externalSubcircuitSymbolId,
+} from "@icm/symbols";
 import { inspectProjectModelSource } from "@icm/netlist";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 
@@ -375,11 +380,66 @@ export function planExternalCopyDependencies(
   for (const definition of source.externalSubcircuitDefinitions)
     if (externalIds.has(definition.id) && definition.symbolId)
       usedSymbols.add(definition.symbolId);
-  for (const component of source.componentDefinitions ?? []) {
+  const artwork = (source.componentDefinitions ?? []).map((component) => ({
+    component,
+    originalSymbolId: component.symbol.id,
+  }));
+  // One native implementation may be reused by captures from different library
+  // versions. Snapshot the generated artwork when its owner cannot represent
+  // both baselines; never rewrite the destination owner's existing provenance.
+  for (const owner of source.externalSubcircuitDefinitions) {
+    const originalSymbolId = externalSubcircuitSymbolId(owner.id);
+    if (
+      !usedSymbols.has(originalSymbolId) ||
+      !externalIds.has(owner.id) ||
+      artwork.some(
+        (item) =>
+          item.originalSymbolId === originalSymbolId &&
+          !item.component.generatedFrom,
+      )
+    )
+      continue;
+    const existing = destination.externalSubcircuitDefinitions.find(
+      (item) => item.id === externalIds.get(owner.id),
+    );
+    if (
+      !existing ||
+      JSON.stringify(existing.libraryOrigin) ===
+        JSON.stringify(owner.libraryOrigin)
+    )
+      continue;
+    const symbol = createProjectHierarchicalSymbols(
+      {
+        documents: [],
+        topDocumentId: source.id,
+        externalSubcircuitDefinitions: [owner],
+      },
+      builtInSymbols,
+    )[0]!;
+    symbol.id = deriveStableId(
+      "copy-publication-symbol",
+      destination.id,
+      originalSymbolId,
+      JSON.stringify(owner.libraryOrigin ?? null),
+    );
+    artwork.push({
+      originalSymbolId,
+      component: initializeCircuitComponent(
+        {
+          symbol,
+          ...(owner.libraryOrigin
+            ? { libraryOrigin: owner.libraryOrigin }
+            : {}),
+        },
+        owner,
+      ),
+    });
+  }
+  for (const { component, originalSymbolId } of artwork) {
     const binding = component.circuitBinding;
     if (
       !binding ||
-      !usedSymbols.has(component.symbol.id) ||
+      !usedSymbols.has(originalSymbolId) ||
       !externalIds.has(binding.definitionId)
     )
       continue;
@@ -399,7 +459,7 @@ export function planExternalCopyDependencies(
       )
     )
       copy.symbol.id = `${baseId}-copy-${ordinal++}`;
-    symbolIds.set(component.symbol.id, copy.symbol.id);
+    symbolIds.set(originalSymbolId, copy.symbol.id);
     if (!captured.some((previous) => previous.symbol.id === copy.symbol.id)) {
       captured.push(copy);
       edits.unshift({ kind: "capture_component_definition", definition: copy });
