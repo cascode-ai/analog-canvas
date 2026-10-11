@@ -19,7 +19,9 @@ import {
   componentInputsSwapped,
   componentInternalMark,
   componentOutputsSwapped,
+  componentSourceShape,
   NO_INTERNAL_MARK,
+  type SourceShape,
 } from "./component-visual-variants";
 
 type Instance = SchematicDocument["instances"][number];
@@ -58,6 +60,8 @@ export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValu
     inputPolarity?: boolean;
     inputsSwapped?: boolean;
     outputsSwapped?: boolean;
+    /** A current source drawn as a circle or a diamond; nothing else. */
+    shape?: SourceShape;
   };
 }
 
@@ -244,8 +248,10 @@ function parseAppearance(
     inputsSwapped: componentInputsSwapped(context.instance.symbolId),
     outputsSwapped: componentOutputsSwapped(context.instance.symbolId),
   };
+  const shape = componentSourceShape(context.instance);
   const supported = new Set<string>(["color"]);
   if (internalMark !== undefined) supported.add("internalMark");
+  if (shape !== undefined) supported.add("shape");
   for (const [key, state] of Object.entries(booleanStates))
     if (state !== undefined) supported.add(key);
   const unknown = unexpectedKey(value, supported, "appearance");
@@ -276,6 +282,12 @@ function parseAppearance(
       throw new Error(`appearance.${key} must be true or false`);
     appearance[key] = value[key];
   }
+  if (shape !== undefined) {
+    if (!("shape" in value)) throw new Error("appearance.shape is required");
+    if (value.shape !== "circle" && value.shape !== "diamond")
+      throw new Error('appearance.shape must be "circle" or "diamond"');
+    appearance.shape = value.shape;
+  }
   return appearance;
 }
 
@@ -287,6 +299,7 @@ export function componentPropertyCodeValue(
   const inputPolarity = componentInputPolarity(instance.symbolId);
   const inputsSwapped = componentInputsSwapped(instance.symbolId);
   const outputsSwapped = componentOutputsSwapped(instance.symbolId);
+  const shape = componentSourceShape(instance);
   const display: ComponentPropertyDisplayCode = {};
   if (context.referenceVisible !== null) {
     display.visualAnnotation = context.referenceVisible;
@@ -375,6 +388,7 @@ export function componentPropertyCodeValue(
       ...(inputPolarity !== undefined ? { inputPolarity } : {}),
       ...(inputsSwapped !== undefined ? { inputsSwapped } : {}),
       ...(outputsSwapped !== undefined ? { outputsSwapped } : {}),
+      ...(shape !== undefined ? { shape } : {}),
     },
   };
 }
@@ -414,6 +428,7 @@ export function serializeComponentPropertyCode(
         ...(appearance.outputsSwapped !== undefined
           ? { outputsSwapped: appearance.outputsSwapped }
           : {}),
+        ...(appearance.shape !== undefined ? { shape: appearance.shape } : {}),
       },
       ...(display ? { display } : {}),
       ...(displayName !== undefined ? { displayName } : {}),
@@ -655,6 +670,7 @@ export function defaultComponentPropertyCode(
     ...(value.appearance.outputsSwapped !== undefined
       ? { outputsSwapped: false }
       : {}),
+    ...(value.appearance.shape !== undefined ? { shape: "circle" } : {}),
   };
   if (value.parameters && context.details) {
     // Preserve unknown model overrides; only descriptor-owned defaults are known.

@@ -291,7 +291,18 @@ export const agentRazaviAuthoringCatalog = {
           },
         },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "diamond",
+          hiddenPinNames: [],
+          bounds: {
+            x: -12.5,
+            y: -20,
+            width: 25,
+            height: 40,
+          },
+        },
+      ],
     },
     {
       symbolId: "vccs",
@@ -329,7 +340,18 @@ export const agentRazaviAuthoringCatalog = {
           },
         },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "diamond",
+          hiddenPinNames: [],
+          bounds: {
+            x: -12.5,
+            y: -20,
+            width: 25,
+            height: 40,
+          },
+        },
+      ],
     },
     {
       symbolId: "cccs",
@@ -367,7 +389,18 @@ export const agentRazaviAuthoringCatalog = {
           },
         },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "diamond",
+          hiddenPinNames: [],
+          bounds: {
+            x: -12.5,
+            y: -20,
+            width: 25,
+            height: 40,
+          },
+        },
+      ],
     },
     {
       symbolId: "d-flip-flop",

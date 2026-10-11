@@ -27,6 +27,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
+import { componentSourceShape } from "../features/properties/component-visual-variants";
 import { blockSupplyTerminals } from "../features/properties/gate-cell-target";
 import {
   logicGateInputInfo,
@@ -233,6 +234,14 @@ export function planSetProperties(
         "auto") as ComponentPropertyCodeValue["appearance"]["color"],
     },
   };
+  if (command.shape !== undefined) {
+    // A current source's outline is its Properties Shape choice.
+    if (componentSourceShape(instance) === undefined)
+      throw new Error(
+        `${name} (${instance.symbolId}) has no shape choice; shape is for current-source, vccs and cccs`,
+      );
+    value.appearance.shape = command.shape;
+  }
   const formalPin = document.netlist?.terminals.some((terminal) =>
     terminal.interfaceInstanceIds.includes(instance.id),
   );

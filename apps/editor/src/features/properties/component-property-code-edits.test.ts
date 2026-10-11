@@ -335,6 +335,81 @@ describe("planComponentPropertyCodeEdits", () => {
     },
   );
 
+  it("draws a current source as a diamond and back, the same part throughout", () => {
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    for (const symbolId of ["current-source", "vccs", "cccs"]) {
+      let document = createEmptyDocument("main", "Main");
+      document.instances.push({
+        id: "I1",
+        symbolId,
+        reference: "I1",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      const shape = (next: "circle" | "diamond") => {
+        const instance = document.instances[0]!;
+        const edits = planComponentPropertyCodeEdits(document, instance, {
+          placement: null,
+          appearance: { color: "auto", shape: next },
+        });
+        if (!edits.length) return edits;
+        const applied = executeTransaction(
+          document,
+          {
+            transactionId: `shape-${next}`,
+            documentId: document.id,
+            expectedRevision: document.revision,
+            actor: { kind: "human", id: "test" },
+            edits,
+          },
+          { symbolResolver: resolver },
+        );
+        if (!applied.ok) throw new Error(applied.error.message);
+        document = applied.document;
+        return edits;
+      };
+      expect(
+        componentPropertyCodeValue({
+          instance: document.instances[0]!,
+          referenceVisible: true,
+          valueVisible: false,
+        }).appearance.shape,
+        symbolId,
+      ).toBe("circle");
+      // Only the outline changes: the part and its pins stay.
+      expect(shape("diamond"), symbolId).toEqual([
+        {
+          kind: "set_instance_symbol",
+          instanceId: "I1",
+          symbolId,
+          symbolVariantId: "diamond",
+        },
+      ]);
+      expect(document.instances[0], symbolId).toMatchObject({
+        symbolId,
+        symbolVariantId: "diamond",
+      });
+      expect(
+        resolver.resolve(symbolId, "diamond")!.definition.pins,
+        symbolId,
+      ).toEqual(resolver.resolve(symbolId)!.definition.pins);
+      expect(shape("diamond"), symbolId).toEqual([]);
+      shape("circle");
+      expect(document.instances[0]!.symbolVariantId, symbolId).toBeUndefined();
+    }
+    // A part with no diamond offers no shape.
+    expect(
+      componentPropertyCodeValue({
+        instance: { id: "V1", symbolId: "voltage-source", placement: null },
+        referenceVisible: true,
+        valueVisible: false,
+      }).appearance,
+    ).not.toHaveProperty("shape");
+  });
+
   it("combines comparator mark visibility with input swapping in one edit", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = { id: "X1", symbolId: "comparator", placement: null };

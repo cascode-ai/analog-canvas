@@ -151,6 +151,44 @@ function pulseVoltageSource(measurement) {
   };
 }
 
+/**
+ * The diamond some readers draw a current source as (Owner, 2026-10-11): a
+ * square on its corner, as wide as it is tall, about the circle's size,
+ * with the same arrow inside and the leads from its tips to the pins. A
+ * variant of the same part, so its netlist, pins and wiring never change.
+ */
+const SOURCE_DIAMOND_HALF_DIAGONAL = 12.5;
+function sourceDiamondVariant() {
+  const tip = SOURCE_DIAMOND_HALF_DIAGONAL;
+  return {
+    id: "diamond",
+    hiddenPinNames: [],
+    hiddenPrimitiveParts: ["body", "lead-positive", "lead-negative"],
+    additionalPrimitives: [
+      {
+        kind: "polygon",
+        points: [
+          { x: 0, y: -tip },
+          { x: tip, y: 0 },
+          { x: 0, y: tip },
+          { x: -tip, y: 0 },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        part: "diamond-body",
+        style: normal,
+      },
+      line(
+        { x: 0, y: -tip },
+        { x: 0, y: -20 },
+        normal,
+        "diamond-lead-positive",
+      ),
+      line({ x: 0, y: tip }, { x: 0, y: 20 }, normal, "diamond-lead-negative"),
+    ],
+  };
+}
+
 function currentSource(measurement) {
   const radius = rounded(
     measurement.circleRadiusPx / geometry.pixelsPerLogical,
@@ -176,7 +214,13 @@ function currentSource(measurement) {
     viewBox: { x: -15, y: -24, width: 30, height: 48 },
     pins: sourcePins(),
     primitives: [
-      { kind: "circle", center: { x: 0, y: 0 }, radius, style: normal },
+      {
+        kind: "circle",
+        center: { x: 0, y: 0 },
+        radius,
+        part: "body",
+        style: normal,
+      },
       line(shaftStart, base),
       {
         kind: "polygon",
@@ -188,10 +232,10 @@ function currentSource(measurement) {
         fill: "foreground",
         stroke: "none",
       },
-      line({ x: 0, y: -radius }, { x: 0, y: -20 }),
-      line({ x: 0, y: radius }, { x: 0, y: 20 }),
+      line({ x: 0, y: -radius }, { x: 0, y: -20 }, normal, "lead-positive"),
+      line({ x: 0, y: radius }, { x: 0, y: 20 }, normal, "lead-negative"),
     ],
-    variants: [],
+    variants: [sourceDiamondVariant()],
   };
 }
 

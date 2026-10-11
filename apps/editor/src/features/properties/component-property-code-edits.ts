@@ -17,6 +17,8 @@ import {
   logicGateSymbolId,
 } from "./logic-gate-input-count";
 import {
+  componentSourceShape,
+  DIAMOND_SOURCE_VARIANT,
   NO_INTERNAL_MARK,
   symbolForInputPolarity,
   symbolForInputsSwapped,
@@ -322,6 +324,18 @@ export function planComponentPropertyCodeEdits(
       kind: "set_instance_symbol",
       instanceId: instance.id,
       symbolId: nextSymbolId,
+    });
+  // A current source's outline is its variant; the part stays the same.
+  if (
+    value.appearance.shape !== undefined &&
+    value.appearance.shape !== componentSourceShape(instance)
+  )
+    edits.push({
+      kind: "set_instance_symbol",
+      instanceId: instance.id,
+      symbolId: instance.symbolId,
+      symbolVariantId:
+        value.appearance.shape === "diamond" ? DIAMOND_SOURCE_VARIANT : null,
     });
   if (nextSymbolId !== instance.symbolId && value.inputs !== undefined) {
     const oldTarget = subcircuitDescriptor(instance.symbolId)?.target;

@@ -362,7 +362,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: ["spice:I"],
     assetPath: "current-source.json",
     assetHash:
-      "fa00a8c4aac387e2d5531d560dabf0897df079fdbcb3cef9823f67d6a564e796",
+      "9484e9b2320cd17cd5ba32f965f0b10578697701a3e2106c0d0db4e303124de5",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -396,7 +396,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: ["spice:G"],
     assetPath: "vccs.json",
     assetHash:
-      "974f704bb9dab32d9cdded3008da1dbd5f9dbcd6f89b28c60d32195244272859",
+      "110797f21226a59d22d280c7e6f8478b8512117d2bc3b32250425497d44aa322",
   },
   {
     symbolId: "cccs",
@@ -411,7 +411,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: ["spice:F"],
     assetPath: "cccs.json",
     assetHash:
-      "accd56e1d36b08ad27abc3512ce5c1042bf661049435819d1fd3b97f8cd95996",
+      "12da436812ed9bf4b08fda6d80297c4a42c2d4fe52932485bb3da1417f73e49c",
   },
   {
     symbolId: "d-flip-flop",
@@ -4471,6 +4471,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         radius: 10.755814,
+        part: "body",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4522,6 +4523,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: -20,
         },
+        part: "lead-positive",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4538,6 +4540,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: 20,
         },
+        part: "lead-negative",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4545,7 +4548,78 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
       },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "diamond",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: ["body", "lead-positive", "lead-negative"],
+        additionalPrimitives: [
+          {
+            kind: "polygon",
+            points: [
+              {
+                x: 0,
+                y: -12.5,
+              },
+              {
+                x: 12.5,
+                y: 0,
+              },
+              {
+                x: 0,
+                y: 12.5,
+              },
+              {
+                x: -12.5,
+                y: 0,
+              },
+            ],
+            fill: "none",
+            stroke: "foreground",
+            part: "diamond-body",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+          {
+            kind: "line",
+            from: {
+              x: 0,
+              y: -12.5,
+            },
+            to: {
+              x: 0,
+              y: -20,
+            },
+            part: "diamond-lead-positive",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+          {
+            kind: "line",
+            from: {
+              x: 0,
+              y: 12.5,
+            },
+            to: {
+              x: 0,
+              y: 20,
+            },
+            part: "diamond-lead-negative",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+        ],
+      },
+    ],
   },
   {
     schemaVersion: 1,
@@ -4593,6 +4667,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         radius: 10.755814,
+        part: "body",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4644,6 +4719,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: -20,
         },
+        part: "lead-positive",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4660,6 +4736,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: 20,
         },
+        part: "lead-negative",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4667,7 +4744,78 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
       },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "diamond",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: ["body", "lead-positive", "lead-negative"],
+        additionalPrimitives: [
+          {
+            kind: "polygon",
+            points: [
+              {
+                x: 0,
+                y: -12.5,
+              },
+              {
+                x: 12.5,
+                y: 0,
+              },
+              {
+                x: 0,
+                y: 12.5,
+              },
+              {
+                x: -12.5,
+                y: 0,
+              },
+            ],
+            fill: "none",
+            stroke: "foreground",
+            part: "diamond-body",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+          {
+            kind: "line",
+            from: {
+              x: 0,
+              y: -12.5,
+            },
+            to: {
+              x: 0,
+              y: -20,
+            },
+            part: "diamond-lead-positive",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+          {
+            kind: "line",
+            from: {
+              x: 0,
+              y: 12.5,
+            },
+            to: {
+              x: 0,
+              y: 20,
+            },
+            part: "diamond-lead-negative",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+        ],
+      },
+    ],
   },
   {
     schemaVersion: 1,
@@ -4715,6 +4863,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         radius: 10.755814,
+        part: "body",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4766,6 +4915,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: -20,
         },
+        part: "lead-positive",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4782,6 +4932,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: 20,
         },
+        part: "lead-negative",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4789,7 +4940,78 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
       },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "diamond",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: ["body", "lead-positive", "lead-negative"],
+        additionalPrimitives: [
+          {
+            kind: "polygon",
+            points: [
+              {
+                x: 0,
+                y: -12.5,
+              },
+              {
+                x: 12.5,
+                y: 0,
+              },
+              {
+                x: 0,
+                y: 12.5,
+              },
+              {
+                x: -12.5,
+                y: 0,
+              },
+            ],
+            fill: "none",
+            stroke: "foreground",
+            part: "diamond-body",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+          {
+            kind: "line",
+            from: {
+              x: 0,
+              y: -12.5,
+            },
+            to: {
+              x: 0,
+              y: -20,
+            },
+            part: "diamond-lead-positive",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+          {
+            kind: "line",
+            from: {
+              x: 0,
+              y: 12.5,
+            },
+            to: {
+              x: 0,
+              y: 20,
+            },
+            part: "diamond-lead-negative",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+          },
+        ],
+      },
+    ],
   },
   {
     schemaVersion: 1,

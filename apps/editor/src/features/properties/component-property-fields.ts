@@ -167,6 +167,17 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     description: "",
     help: "Exchange the + and - output positions independently of the inputs. Connections stay attached to their named pins.",
   },
+  {
+    path: "appearance.shape",
+    label: "Shape",
+    kind: "choice",
+    options: [
+      { value: "circle", label: "Circle" },
+      { value: "diamond", label: "Diamond" },
+    ],
+    description: "",
+    help: "Draw the current source as a circle or a diamond. Only the outline changes: its netlist, pins and wiring stay the same.",
+  },
 ];
 
 export function colorToRgb(value: string): [number, number, number] {

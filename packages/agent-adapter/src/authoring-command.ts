@@ -121,6 +121,12 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
         .nullable()
         .optional()
         .describe("A controlled source's control; null clears it."),
+      shape: z
+        .enum(["circle", "diamond"])
+        .optional()
+        .describe(
+          "A current source's outline (current-source, vccs, cccs): circle, the default, or diamond. Its netlist, pins and wires stay.",
+        ),
       placement: z
         .strictObject({
           position: PointSchema.optional(),

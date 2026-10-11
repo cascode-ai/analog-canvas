@@ -114,3 +114,21 @@ export function symbolForOutputsSwapped(
     ? symbolId
     : differentialOutputSibling(symbolId);
 }
+
+/**
+ * The current sources a reader may draw as a diamond (2026-10-11): the same
+ * part in its "diamond" variant, so its netlist, pins and wiring never
+ * change. A circle is the default.
+ */
+const SHAPED_SOURCES = new Set(["current-source", "vccs", "cccs"]);
+export const DIAMOND_SOURCE_VARIANT = "diamond";
+export type SourceShape = "circle" | "diamond";
+
+export function componentSourceShape(
+  instance: Pick<Instance, "symbolId" | "symbolVariantId">,
+): SourceShape | undefined {
+  if (!SHAPED_SOURCES.has(instance.symbolId)) return undefined;
+  return instance.symbolVariantId === DIAMOND_SOURCE_VARIANT
+    ? "diamond"
+    : "circle";
+}
