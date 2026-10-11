@@ -26,6 +26,7 @@ export type ReviewedExternalBindingId =
   | "sky130-ind-05-125"
   | "sky130-ind-05-220"
   | "sky130-pnp-05v5-w0p68l0p68"
+  | "sky130-pnp-05v5-w3p40l3p40"
   | "sky130-npn-05v5-w1p00l1p00"
   | "sg13g2-lv-nmos"
   | "sg13g2-lv-pmos"
@@ -693,6 +694,32 @@ const bjtCanvasTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
     interaction: "canvas" as const,
   }));
 
+/**
+ * A SKY130 vertical PNP. Each size's wrapper exposes C/B/E only; its internal
+ * Q card ties substrate to C. The collector is the p-substrate, so C carries
+ * the substrate role and belongs on ground (#1314).
+ */
+const sky130VerticalPnpBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sky130_fd_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId: "pnp",
+  deviceClass: "bjt",
+  terminals: bjtCanvasTerminals().map((terminal) =>
+    terminal.pinName === "C"
+      ? { ...terminal, role: "substrate" as const }
+      : terminal,
+  ),
+  // The emitter area is fixed inside; parallel devices are the X-line
+  // multiplier, which ngspice 46 scales exactly (m=8 carries 8x the current
+  // of m=1). A bandgap's 1:8 ratio is this count.
+  parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
+});
+
 const bjtTerminalsWithSubstrate =
   (): readonly ReviewedExternalTerminalBinding[] => [
     ...bjtCanvasTerminals(),
@@ -1008,26 +1035,16 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
     sky130InductorBinding("sky130-ind-03-90", "sky130_fd_pr__ind_03_90"),
     sky130InductorBinding("sky130-ind-05-125", "sky130_fd_pr__ind_05_125"),
     sky130InductorBinding("sky130-ind-05-220", "sky130_fd_pr__ind_05_220"),
-    {
-      id: "sky130-pnp-05v5-w0p68l0p68",
-      libraryId: "sky130_fd_pr",
-      masterName: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
-      invocationKind: "external-subcircuit",
-      symbolId: "pnp",
-      deviceClass: "bjt",
-      // This wrapper exposes C/B/E only; its internal Q card ties substrate to
-      // C. The vertical PNP's collector is the p-substrate, so C carries the
-      // substrate role and belongs on ground (#1314).
-      terminals: bjtCanvasTerminals().map((terminal) =>
-        terminal.pinName === "C"
-          ? { ...terminal, role: "substrate" as const }
-          : terminal,
-      ),
-      // The emitter area is fixed inside; parallel devices are the X-line
-      // multiplier, which ngspice 46 scales exactly (m=8 carries 8x the
-      // current of m=1). A bandgap's 1:8 ratio is this count.
-      parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
-    },
+    sky130VerticalPnpBinding(
+      "sky130-pnp-05v5-w0p68l0p68",
+      "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+    ),
+    // The 3.4 um emitter stays below its high-injection knee at currents
+    // where the 0.68 um one does not (#1614).
+    sky130VerticalPnpBinding(
+      "sky130-pnp-05v5-w3p40l3p40",
+      "sky130_fd_pr__pnp_05v5_W3p40L3p40",
+    ),
     {
       id: "sky130-npn-05v5-w1p00l1p00",
       libraryId: "sky130_fd_pr",

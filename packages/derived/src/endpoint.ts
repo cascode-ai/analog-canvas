@@ -14,7 +14,10 @@ import type {
 } from "@icm/model";
 import { resolveSignalFlowPinAt, type SymbolResolver } from "@icm/symbols";
 import { mosBulkShouldBeVisible } from "./mos-bulk.js";
-import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
+import {
+  resolveDocumentLogicalNets,
+  type ResolvedDocumentLogicalNets,
+} from "./logical-net.js";
 
 export interface EndpointRoutingGeometry {
   /** Exact transformed artwork contact used by render and pointer hit. */
@@ -57,6 +60,23 @@ export interface EndpointObjectLookup {
    * them once per index sets this.
    */
   readonly logicalNets?: ResolvedDocumentLogicalNets;
+}
+
+/** One raw lookup for this exact model value, including hidden MOS body policy. */
+export function buildEndpointObjectLookup(
+  document: SchematicDocument,
+): EndpointObjectLookup & {
+  readonly logicalNets: ResolvedDocumentLogicalNets;
+} {
+  return {
+    instancesById: new Map(
+      document.instances.map((instance) => [instance.id, instance]),
+    ),
+    junctionsById: new Map(
+      document.junctions.map((junction) => [junction.id, junction]),
+    ),
+    logicalNets: resolveDocumentLogicalNets(document),
+  };
 }
 
 function samePoint(left: DerivedPoint, right: DerivedPoint): boolean {

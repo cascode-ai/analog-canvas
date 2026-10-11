@@ -12,7 +12,8 @@ import { razaviLibrarySymbols } from "./razavi-catalog.js";
  * Library. Browsable lists are owned by `razaviProductSymbols` and
  * `expandedDeviceSymbols`.
  */
-export const builtInSymbols = [
+export const builtInSymbols = freezeSnapshot([
   ...razaviLibrarySymbols,
   ...expandedDeviceSymbols,
-];
+]);
+import { freezeSnapshot } from "@icm/model";

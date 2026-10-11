@@ -2627,6 +2627,7 @@ function WorkspaceEditor({
     model: {
       document,
       resolver,
+      externalSubcircuitDefinitions: project.externalSubcircuitDefinitions,
       visibleEndpoints,
       routeGeometryRecords,
       contactComponents,
@@ -3938,8 +3939,8 @@ function WorkspaceEditor({
   );
 
   function openSelectedComponentDefinition(): void {
-    if (!capabilities.community) {
-      setStatus("Shared component editing is unavailable in this preview");
+    if (!capabilities.community && !capabilities.localComponents) {
+      setStatus("Component definition editing is unavailable in this host");
       return;
     }
     if (!selectedInstance) {
@@ -4679,6 +4680,7 @@ function WorkspaceEditor({
   const nativeWorkspaceSaving = useRef(false);
   const {
     createTabSession,
+    flushNativeWorkspace,
     restoredTabs,
     currentEditBlocker,
     projectSwitchBlocker,
@@ -4812,6 +4814,7 @@ function WorkspaceEditor({
     saveNativeTab,
   } = useNativeProjectTabs({
     restoringWorkspace,
+    flushNativeWorkspace,
     nativeProjectStore,
     setStatus,
     replaceGuard,
@@ -5925,7 +5928,6 @@ function WorkspaceEditor({
                           selectedInstance.reference ??
                           selectedInstance.id,
                         defaultForeground: styleProfile.foreground,
-                        revision: document.revision,
                         // A Cell Pin's name label is shown or hidden like a
                         // device Reference, though the Pin has no Reference;
                         // a placed Cell's X1, though its block's Symbol has

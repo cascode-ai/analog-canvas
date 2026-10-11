@@ -1,4 +1,9 @@
-import { CircuitProjectSchema } from "@icm/model";
+import { parseProjectSnapshot } from "@icm/edit-engine";
+import {
+  CircuitProjectSchema,
+  freezeSnapshot,
+  isFrozenSnapshot,
+} from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 
 /** Replace one validated Document without allowing callers to patch Project. */
@@ -6,24 +11,22 @@ export function replaceProjectDocument(
   project: CircuitProject,
   document: SchematicDocument,
 ): CircuitProject {
-  const parsed = CircuitProjectSchema.parse({
+  const candidate = {
     ...project,
     documents: project.documents.map((candidate) =>
       candidate.id === document.id ? document : candidate,
     ),
-  });
-  const previousDocuments = new Map(
-    project.documents.map((candidate) => [candidate.id, candidate] as const),
-  );
+  };
+  if (isFrozenSnapshot(project) && isFrozenSnapshot(document))
+    return parseProjectSnapshot(candidate, freezeSnapshot(candidate));
+  const parsed = CircuitProjectSchema.parse(candidate);
   return {
     ...parsed,
-    // Whole-Project validation clones every Document. Restore the already
-    // validated, unchanged revisions so downstream WeakMap caches and React
-    // readers can retain their identity across an unrelated Document edit.
-    documents: parsed.documents.map((candidate) =>
-      candidate.id === document.id
-        ? candidate
-        : (previousDocuments.get(candidate.id) ?? candidate),
+    documents: parsed.documents.map((item) =>
+      item.id === document.id
+        ? item
+        : (project.documents.find((previous) => previous.id === item.id) ??
+          item),
     ),
   };
 }

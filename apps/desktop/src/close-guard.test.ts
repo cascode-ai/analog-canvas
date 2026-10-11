@@ -14,6 +14,7 @@ const ports = (): CloseGuardPorts => ({
   readState: vi.fn(async () => dirty),
   ask: vi.fn(async () => "cancel" as const),
   save: vi.fn(async () => ({ status: "saved" })),
+  flushWorkspace: vi.fn(async () => {}),
   reportFailure: vi.fn(async () => {}),
 });
 describe("all-tab native close guard", () => {
@@ -23,6 +24,58 @@ describe("all-tab native close guard", () => {
     expect(await decideClose(p)).toBe("close");
     expect(p.ask).not.toHaveBeenCalled();
   });
+  it("keeps a clean window when its final workspace cannot be stored", async () => {
+    const p = {
+      ...ports(),
+      readState: async () => clean,
+      flushWorkspace: async () => {
+        throw new Error("Workspace storage failed");
+      },
+    };
+    expect(await decideClose(p)).toBe("stay");
+  });
+  it("waits for the final workspace commit before allowing close", async () => {
+    let commit!: () => void;
+    let started!: () => void;
+    const committed = new Promise<void>((resolve) => {
+      commit = resolve;
+    });
+    const flushing = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const p = {
+      ...ports(),
+      readState: async () => clean,
+      flushWorkspace: () => {
+        started();
+        return committed;
+      },
+    };
+    let settled = false;
+    const decision = decideClose(p).then((value) => {
+      settled = true;
+      return value;
+    });
+    await flushing;
+    expect(settled).toBe(false);
+    commit();
+    expect(await decision).toBe("close");
+  });
+  it.each(["save", "discard"] as const)(
+    "keeps the window after %s when its workspace commit fails",
+    async (answer) => {
+      const p = ports();
+      p.ask = vi.fn(async () => answer);
+      p.readState = vi
+        .fn()
+        .mockResolvedValueOnce(dirty)
+        .mockResolvedValue(clean);
+      p.flushWorkspace = async () => {
+        throw new Error("Storage unavailable");
+      };
+      expect(await decideClose(p)).toBe("stay");
+    },
+  );
   it("asks about background work and cancellation retains it", async () => {
     const p = ports();
     expect(await decideClose(p)).toBe("stay");
@@ -33,6 +86,9 @@ describe("all-tab native close guard", () => {
     p.readState = vi.fn(async () => null);
     expect(await decideClose(p)).toBe("stay");
     p.ask = vi.fn(async () => "discard" as const);
+    p.flushWorkspace = async () => {
+      throw new Error("Renderer unavailable");
+    };
     expect(await decideClose(p)).toBe("close");
   });
   it.each(["cancelled", "failed", "conflict"])(

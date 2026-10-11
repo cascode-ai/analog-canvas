@@ -107,360 +107,86 @@ export function NativeLibraryDialog({
       return { error: String(error) };
     }
   })();
+  const projects =
+    library?.projects.filter(
+      (entry) =>
+        entry.recycled === (filter === "recycle") &&
+        (filter !== "favorites" || entry.favorite) &&
+        entry.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+    ) ?? [];
+  const recent =
+    library?.recentProjects.filter((entry) =>
+      entry.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+    ) ?? [];
   if (typeof document === "undefined") return null;
   return createPortal(
     <dialog
       ref={dialog}
-      className="native-dialog"
+      className="native-dialog native-library-dialog"
+      aria-label="Local projects"
       onKeyDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
-      aria-label="Local projects"
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) onClose();
       }}
-      style={{
-        width: "min(1100px, 90vw)",
-        maxHeight: "85vh",
-        overflow: "auto",
-      }}
     >
-      <header
-        style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
-      >
+      <header>
         <h2>Local projects</h2>
         <button type="button" disabled={busy} onClick={onClose}>
           Close
         </button>
       </header>
-      <p>
-        Project files and their last three saved versions stay on this computer.
-        Exporting one Project file does not include its history.
-      </p>
-      <p title={library?.root}>
-        Project folder:{" "}
-        {library ? nativePathLabel(library.root) : "Unavailable"}
-      </p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {onNew ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              onClose();
-              onNew();
-            }}
-          >
-            New Project
-          </button>
-        ) : null}
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void run(() => libraryCommand("reveal", {}))}
-        >
-          Open project folder
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void run(() => libraryCommand("library-directory"))}
-        >
-          Choose project directory…
-        </button>
-        <button type="button" disabled={busy} onClick={() => void run(refresh)}>
-          Refresh
-        </button>
-        <input
-          aria-label="Search local projects"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search local projects"
-        />
-        <select
-          aria-label="Project list filter"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        >
-          <option value="all">Projects</option>
-          <option value="favorites">Favorites</option>
-          <option value="recycle">Recycle area</option>
-        </select>
-      </div>
       {error ? <p role="alert">{error}</p> : null}
-      {renaming ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void action(renaming.entry, "rename", { name: renaming.name });
-            setRenaming(null);
-          }}
-        >
-          <label>
-            Project name{" "}
-            <input
-              autoFocus
-              maxLength={120}
-              value={renaming.name}
-              onChange={(event) =>
-                setRenaming({ ...renaming, name: event.target.value })
-              }
-            />
-          </label>
-          <button type="submit" disabled={busy || !renaming.name.trim()}>
-            Save name
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setRenaming(null)}
-          >
-            Cancel
-          </button>
-        </form>
-      ) : null}
-      <p>
-        Close a project's tab before renaming, restoring history or deleting its
-        saved file; the tab will protect unsaved edits.
-      </p>
-      <ul style={{ padding: 0, listStyle: "none" }}>
-        {library?.projects
-          .filter(
-            (entry) =>
-              entry.recycled === (filter === "recycle") &&
-              (filter !== "favorites" || entry.favorite) &&
-              entry.name
-                .toLocaleLowerCase()
-                .includes(query.toLocaleLowerCase()),
-          )
-          .map((entry) => (
-            <li
-              key={entry.id}
-              style={{ borderBottom: "1px solid #8886", padding: "12px 0" }}
-            >
-              <strong>
-                {entry.favorite ? "★ " : ""}
-                {entry.name}
-              </strong>
-              <small
-                title={entry.path}
-                style={{ display: "block", overflowWrap: "anywhere" }}
-              >
-                {nativePathLabel(entry.path)} ·{" "}
-                {entry.modified
-                  ? new Date(entry.modified).toLocaleString()
-                  : "Unavailable"}
-              </small>
-              {entry.error || entry.warning ? (
-                <p role="alert">{entry.error ?? entry.warning}</p>
-              ) : null}
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginTop: 8,
-                }}
-              >
-                {entry.recycled ? (
-                  <>
-                    <button
-                      disabled={busy || !!entry.error}
-                      onClick={() => void action(entry, "restore")}
-                    >
-                      Restore project
-                    </button>
-                    <button
-                      disabled={busy || !!entry.error}
-                      onClick={() => void action(entry, "purge")}
-                    >
-                      Delete permanently…
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      disabled={busy || !!entry.error}
-                      onClick={() => {
-                        onClose();
-                        onOpen(entry.id);
-                      }}
-                    >
-                      Open
-                    </button>
-                    <button
-                      disabled={busy || !!entry.error}
-                      onClick={() =>
-                        void action(entry, "favorite", {
-                          favorite: !entry.favorite,
-                        })
-                      }
-                    >
-                      {entry.favorite ? "Unfavorite" : "Favorite"}
-                    </button>
-                    <button
-                      disabled={busy || !!entry.error}
-                      onClick={() => void action(entry, "duplicate")}
-                    >
-                      Copy
-                    </button>
-                    <button
-                      disabled={busy || !!entry.error}
-                      onClick={() => setRenaming({ entry, name: entry.name })}
-                    >
-                      Rename…
-                    </button>
-                    <button
-                      disabled={busy || !!entry.error}
-                      onClick={() => void showHistory(entry)}
-                    >
-                      History
-                    </button>
-                    <button
-                      disabled={busy || !!entry.error}
-                      onClick={() => void action(entry, "delete")}
-                    >
-                      Move to recycle area…
-                    </button>
-                  </>
-                )}
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => libraryCommand("reveal", { id: entry.id }))
-                  }
-                >
-                  Show in folder
-                </button>
-                {!entry.recycled ? (
-                  <button
-                    disabled={busy || !!entry.error}
-                    onClick={() => void run(() => exportSaved(entry.id))}
-                  >
-                    Export saved file…
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-      </ul>
-      {library?.projects.length === 0 ? (
-        <p>No saved projects yet. Create a project, then press Ctrl+S.</p>
-      ) : null}
-      {filter !== "recycle" ? (
-        <section aria-label="Recently opened files">
-          <h3>Recently opened files</h3>
-          <p>
-            External files stay in their original locations. Removing a record
-            keeps the file.
-          </p>
-          {library?.recentProjects
-            .filter((entry) =>
-              entry.name
-                .toLocaleLowerCase()
-                .includes(query.toLocaleLowerCase()),
-            )
-            .map((entry) => (
-              <article key={entry.id}>
-                <strong>{entry.name}</strong>
-                <p title={entry.path}>{nativePathLabel(entry.path)}</p>
-                {entry.error ? (
-                  <p role="alert">
-                    File unavailable. Use Open Project to locate it again.
-                  </p>
-                ) : null}
-                <button
-                  disabled={busy || !!entry.error}
-                  onClick={() => {
-                    onClose();
-                    onOpen(entry.id);
-                  }}
-                >
-                  Open recent file
-                </button>{" "}
-                <button
-                  disabled={busy || !!entry.error}
-                  onClick={() =>
-                    void run(() =>
-                      libraryCommand("copy-to-library", { id: entry.id }),
-                    )
-                  }
-                >
-                  Copy to project library
-                </button>{" "}
-                <button
-                  disabled={busy || !!entry.error}
-                  onClick={() => void showHistory(entry)}
-                >
-                  History
-                </button>{" "}
-                <button
-                  disabled={busy || !!entry.error}
-                  onClick={() => void run(() => exportSaved(entry.id))}
-                >
-                  Export saved file…
-                </button>{" "}
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => libraryCommand("reveal", { id: entry.id }))
-                  }
-                >
-                  Show in folder
-                </button>{" "}
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => libraryCommand("forget", { id: entry.id }))
-                  }
-                >
-                  Remove recent record
-                </button>
-              </article>
-            ))}
-        </section>
-      ) : null}
       {history ? (
-        <section aria-label="Local save history">
+        <section
+          aria-label="Local save history"
+          className="native-library-history"
+        >
+          <button disabled={busy} onClick={() => setHistory(null)}>
+            Back to projects
+          </button>
           <h3>History · {history.entry.name}</h3>
           {!history.content.versions.length ? (
             <p>No earlier saves yet.</p>
           ) : (
             <>
-              <select
-                aria-label="Saved version"
-                value={history.selected}
-                onChange={(e) =>
-                  setHistory({ ...history, selected: e.target.value })
-                }
-              >
-                {history.content.versions.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {new Date(v.savedAt).toLocaleString()}
-                  </option>
-                ))}
-              </select>
-              <button
-                disabled={busy}
-                onClick={() =>
-                  void action(history.entry, "restore-version", {
-                    version: history.selected,
-                    expectedText: history.content.currentText,
-                  })
-                }
-              >
-                Restore this version…
-              </button>
-              <button
-                disabled={busy}
-                onClick={() =>
-                  void action(history.entry, "branch-version", {
-                    version: history.selected,
-                  })
-                }
-              >
-                Create independent branch
-              </button>
+              <div className="native-library-toolbar">
+                <select
+                  aria-label="Saved version"
+                  value={history.selected}
+                  onChange={(event) =>
+                    setHistory({ ...history, selected: event.target.value })
+                  }
+                >
+                  {history.content.versions.map((version) => (
+                    <option key={version.id} value={version.id}>
+                      {new Date(version.savedAt).toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void action(history.entry, "restore-version", {
+                      version: history.selected,
+                      expectedText: history.content.currentText,
+                    })
+                  }
+                >
+                  Restore this version…
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void action(history.entry, "branch-version", {
+                      version: history.selected,
+                    })
+                  }
+                >
+                  Create independent branch
+                </button>
+              </div>
               {comparison && "error" in comparison ? (
                 <p role="alert">{comparison.error}</p>
               ) : comparison ? (
@@ -471,8 +197,335 @@ export function NativeLibraryDialog({
               ) : null}
             </>
           )}
+          <p className="native-library-note">
+            The latest three prior saves are kept. Close the project's tab
+            before restoring its file.
+          </p>
         </section>
-      ) : null}
+      ) : (
+        <>
+          <div className="native-library-toolbar">
+            <input
+              autoFocus
+              aria-label="Search local projects"
+              placeholder="Search projects"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <select
+              aria-label="Project list filter"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+            >
+              <option value="all">Projects</option>
+              <option value="favorites">Favorites</option>
+              <option value="recycle">Recycle area</option>
+            </select>
+            {onNew ? (
+              <button
+                type="button"
+                className="primary"
+                disabled={busy}
+                onClick={() => {
+                  onClose();
+                  onNew();
+                }}
+              >
+                New Project
+              </button>
+            ) : null}
+          </div>
+          {renaming ? (
+            <form
+              className="native-library-rename"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const rename = renaming;
+                void run(async () => {
+                  await libraryCommand("library-action", {
+                    id: rename.entry.id,
+                    action: "rename",
+                    name: rename.name,
+                  });
+                  setRenaming(null);
+                });
+              }}
+            >
+              <label>
+                Project name{" "}
+                <input
+                  autoFocus
+                  maxLength={120}
+                  value={renaming.name}
+                  onChange={(event) =>
+                    setRenaming({ ...renaming, name: event.target.value })
+                  }
+                />
+              </label>
+              <button type="submit" disabled={busy || !renaming.name.trim()}>
+                Save name
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setRenaming(null)}
+              >
+                Cancel
+              </button>
+            </form>
+          ) : null}
+          <ul className="native-project-list">
+            {projects.map((entry) => (
+              <li key={entry.id}>
+                <div className="native-library-entry">
+                  <button
+                    className="native-project-open"
+                    disabled={busy || !!entry.error || entry.recycled}
+                    onClick={() => {
+                      onClose();
+                      onOpen(entry.id);
+                    }}
+                    aria-label={`Open ${entry.name}`}
+                  >
+                    <strong>{entry.name}</strong>
+                  </button>
+                  <small title={entry.path}>
+                    {nativePathLabel(entry.path)}
+                  </small>
+                </div>
+                <time
+                  dateTime={
+                    entry.modified
+                      ? new Date(entry.modified).toISOString()
+                      : undefined
+                  }
+                >
+                  {entry.modified
+                    ? new Date(entry.modified).toLocaleDateString()
+                    : "Unavailable"}
+                </time>
+                {entry.recycled ? (
+                  <button
+                    disabled={busy || !!entry.error}
+                    onClick={() => void action(entry, "restore")}
+                  >
+                    Restore project
+                  </button>
+                ) : (
+                  <button
+                    className="native-favorite"
+                    title={entry.favorite ? "Unfavorite" : "Favorite"}
+                    aria-label={entry.favorite ? "Unfavorite" : "Favorite"}
+                    aria-pressed={entry.favorite}
+                    disabled={busy || !!entry.error}
+                    onClick={() =>
+                      void action(entry, "favorite", {
+                        favorite: !entry.favorite,
+                      })
+                    }
+                  >
+                    {entry.favorite ? "★" : "☆"}
+                  </button>
+                )}
+                <details className="native-more-actions">
+                  <summary aria-label={`More actions for ${entry.name}`}>
+                    More
+                  </summary>
+                  <div className="native-action-menu">
+                    {entry.recycled ? (
+                      <button
+                        disabled={busy || !!entry.error}
+                        onClick={() => void action(entry, "purge")}
+                      >
+                        Delete permanently…
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          disabled={busy || !!entry.error}
+                          onClick={() => void action(entry, "duplicate")}
+                        >
+                          Copy
+                        </button>
+                        <button
+                          disabled={busy || !!entry.error}
+                          onClick={() =>
+                            setRenaming({ entry, name: entry.name })
+                          }
+                        >
+                          Rename…
+                        </button>
+                        <button
+                          disabled={busy || !!entry.error}
+                          onClick={() => void showHistory(entry)}
+                        >
+                          History
+                        </button>
+                        <button
+                          disabled={busy || !!entry.error}
+                          onClick={() => void run(() => exportSaved(entry.id))}
+                        >
+                          Export saved file…
+                        </button>
+                        <button
+                          disabled={busy || !!entry.error}
+                          onClick={() => void action(entry, "delete")}
+                        >
+                          Move to recycle area…
+                        </button>
+                      </>
+                    )}
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() =>
+                          libraryCommand("reveal", { id: entry.id }),
+                        )
+                      }
+                    >
+                      Show in folder
+                    </button>
+                  </div>
+                </details>
+                {entry.error || entry.warning ? (
+                  <p className="native-row-notice" role="alert">
+                    {entry.error ?? entry.warning}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          {!projects.length ? (
+            <p className="native-library-empty">
+              {query
+                ? "No matching projects."
+                : filter === "favorites"
+                  ? "No favorites yet. Use the star beside a project."
+                  : filter === "recycle"
+                    ? "The recycle area is empty."
+                    : "No saved projects yet. Create a project, then press Ctrl+S."}
+            </p>
+          ) : null}
+          {filter === "all" && recent.length ? (
+            <details className="native-recent-projects">
+              <summary>External files ({recent.length})</summary>
+              <p className="native-library-note">
+                Files stay in their original folders. Removing a record keeps
+                the file.
+              </p>
+              <div className="native-project-list">
+                {recent.map((entry) => (
+                  <article key={entry.id}>
+                    <div className="native-library-entry">
+                      <button
+                        className="native-project-open"
+                        disabled={busy || !!entry.error}
+                        onClick={() => {
+                          onClose();
+                          onOpen(entry.id);
+                        }}
+                        aria-label={`Open recent file ${entry.name}`}
+                      >
+                        <strong>{entry.name}</strong>
+                      </button>
+                      <small title={entry.path}>
+                        {nativePathLabel(entry.path)}
+                      </small>
+                    </div>
+                    <details className="native-more-actions">
+                      <summary aria-label={`More actions for ${entry.name}`}>
+                        More
+                      </summary>
+                      <div className="native-action-menu">
+                        <button
+                          disabled={busy || !!entry.error}
+                          onClick={() =>
+                            void run(() =>
+                              libraryCommand("copy-to-library", {
+                                id: entry.id,
+                              }),
+                            )
+                          }
+                        >
+                          Copy to project library
+                        </button>
+                        <button
+                          disabled={busy || !!entry.error}
+                          onClick={() => void showHistory(entry)}
+                        >
+                          History
+                        </button>
+                        <button
+                          disabled={busy || !!entry.error}
+                          onClick={() => void run(() => exportSaved(entry.id))}
+                        >
+                          Export saved file…
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            void run(() =>
+                              libraryCommand("reveal", { id: entry.id }),
+                            )
+                          }
+                        >
+                          Show in folder
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            void run(() =>
+                              libraryCommand("forget", { id: entry.id }),
+                            )
+                          }
+                        >
+                          Remove recent record
+                        </button>
+                      </div>
+                    </details>
+                    {entry.error ? (
+                      <p role="alert" className="native-row-notice">
+                        File unavailable. Use Open Project to locate it again.
+                      </p>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          <details className="native-folder-settings">
+            <summary>Project folder & settings</summary>
+            <p title={library?.root}>
+              {library
+                ? nativePathLabel(library.root)
+                : "Reading project folder…"}
+            </p>
+            <div className="native-library-toolbar">
+              <button
+                disabled={busy}
+                onClick={() => void run(() => libraryCommand("reveal", {}))}
+              >
+                Open project folder
+              </button>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void run(() => libraryCommand("library-directory"))
+                }
+              >
+                Choose project directory…
+              </button>
+              <button disabled={busy} onClick={() => void run(refresh)}>
+                Refresh
+              </button>
+            </div>
+            <p className="native-library-note">
+              Changing this folder keeps existing files where they are. Close a
+              project's tab before renaming or deleting its saved file.
+            </p>
+          </details>
+        </>
+      )}
     </dialog>,
     document.body,
   );

@@ -17,7 +17,6 @@ describe("ComponentPropertyCodeEditor", () => {
             mirror: "none",
           },
         }}
-        revision={1}
         displayName="RL"
         referenceVisible
         valueVisible={false}

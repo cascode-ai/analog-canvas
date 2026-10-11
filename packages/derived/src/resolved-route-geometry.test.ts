@@ -1,5 +1,5 @@
 import { createRoutePath, transformPoint } from "@icm/model";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, freezeSnapshot } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -38,6 +38,55 @@ function document(id: string): SchematicDocument {
 }
 
 describe("resolved route geometry", () => {
+  it("moves an unchanged owned route with its endpoint and still resolves mutable drafts freshly", () => {
+    const schematic = document("shared-route");
+    schematic.nets.push({ id: "n", terminals: [] });
+    schematic.junctions.push(
+      { id: "left", netId: "n", position: { x: 0, y: 0 } },
+      { id: "right", netId: "n", position: { x: 100, y: 0 } },
+    );
+    schematic.routes.push(
+      createRoutePath({
+        id: "r",
+        netId: "n",
+        start: { kind: "junction", junctionId: "left" },
+        end: { kind: "junction", junctionId: "right" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const owned = freezeSnapshot(schematic);
+    expect(
+      resolveRouteGeometry(owned, resolver, owned.routes[0]!)!.centerline.at(
+        -1,
+      ),
+    ).toEqual({ x: 100, y: 0 });
+    const moved = freezeSnapshot({
+      ...owned,
+      revision: 1,
+      junctions: [
+        owned.junctions[0]!,
+        { ...owned.junctions[1]!, position: { x: 200, y: 0 } },
+      ],
+    });
+    expect(
+      resolveRouteGeometry(moved, resolver, moved.routes[0]!)!.centerline.at(
+        -1,
+      ),
+    ).toEqual({ x: 200, y: 0 });
+    const draft = structuredClone(moved);
+    expect(
+      resolveRouteGeometry(draft, resolver, draft.routes[0]!)!.centerline.at(
+        -1,
+      ),
+    ).toEqual({ x: 200, y: 0 });
+    draft.junctions[1]!.position.x = 300;
+    expect(
+      resolveRouteGeometry(draft, resolver, draft.routes[0]!)!.centerline.at(
+        -1,
+      ),
+    ).toEqual({ x: 300, y: 0 });
+  });
   it("keeps existing named routes attached when Analog Block outputs move one grid step", () => {
     const family = builtInSymbols.filter((symbol) =>
       /^(?:opamp|voltage-amplifier|comparator)(?:-|$)/u.test(symbol.id),

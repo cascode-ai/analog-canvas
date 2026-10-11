@@ -45,6 +45,7 @@ import {
   type Point,
   type RouteEndpoint,
   type SchematicDocument,
+  type CircuitProject,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -108,6 +109,7 @@ export interface UseWireInteractionOptions {
   model: {
     document: SchematicDocument;
     resolver: SymbolResolver;
+    externalSubcircuitDefinitions: CircuitProject["externalSubcircuitDefinitions"];
     visibleEndpoints: readonly WireSource[];
     routeGeometryRecords: readonly RouteGeometryRecord[];
     contactComponents: Parameters<typeof resolveElectricalContactTargets>[3];
@@ -188,6 +190,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
   ): TransactionResult => {
     const gate = gateRoutingOperationPlan(options.document, proposal, {
       symbolResolver: options.resolver,
+      externalSubcircuitDefinitions: options.externalSubcircuitDefinitions,
     });
     if (!gate.ok) {
       options.setStatus(gate.message);

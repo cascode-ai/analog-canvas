@@ -34,6 +34,34 @@ function hierarchicalProject() {
 }
 
 describe("EditorDocumentController", () => {
+  it("keeps returned transaction documents mutable and detached from committed history", () => {
+    const controller = new EditorDocumentController(hierarchicalProject());
+    const result = controller.transact([
+      { kind: "add_instance", instance: instance("Rtop") },
+    ]);
+    expect(result.ok).toBe(true);
+    result.document.instances.length = 0;
+    expect(controller.document.instances.map((item) => item.id)).toContain(
+      "Rtop",
+    );
+    const rejected = controller.dispatchTransaction({
+      transactionId: "stale",
+      documentId: controller.document.id,
+      expectedRevision: 0,
+      actor: { kind: "human", id: "editor" },
+      edits: [{ kind: "noop" }],
+    });
+    expect(rejected.ok).toBe(false);
+    rejected.document.instances.length = 0;
+    expect(controller.document.instances.map((item) => item.id)).toContain(
+      "Rtop",
+    );
+    const undone = controller.transact([{ kind: "undo" }]);
+    expect(undone.ok).toBe(true);
+    undone.document.name = "Caller edit";
+    expect(controller.document.name).not.toBe("Caller edit");
+  });
+
   it("owns a validated clone rather than mutating the caller's Project", () => {
     const source = hierarchicalProject();
     const controller = new EditorDocumentController(source);

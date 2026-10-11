@@ -7,6 +7,10 @@ import { _electron as electron, expect } from "@playwright/test";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { acceptProjectLibrary } from "./accept-project-library.mjs";
 import { acceptAmplifier } from "./accept-amplifier.mjs";
+import {
+  acceptLocalComponents,
+  acceptLocalComponentRestart,
+} from "./accept-local-components.mjs";
 import { spawn } from "node:child_process";
 
 const root = resolve(import.meta.dirname, "../../..");
@@ -439,10 +443,12 @@ try {
     name: "Local projects",
     exact: true,
   });
-  await externalManager
-    .getByRole("region", { name: "Recently opened files" })
+  await externalManager.locator(".native-recent-projects > summary").click();
+  const externalEntry = externalManager
     .locator("article")
-    .filter({ hasText: "Native A again" })
+    .filter({ hasText: "Native A again" });
+  await externalEntry.locator("summary").click();
+  await externalEntry
     .getByRole("button", { name: "History", exact: true })
     .click();
   await expect(externalManager.getByLabel("Saved version")).toBeVisible();
@@ -625,6 +631,18 @@ try {
     exportProject,
   });
   await closePreview();
+  const components = await launch("components");
+  await acceptLocalComponents({
+    page: components,
+    running,
+    output,
+    chooseExport,
+    exportProject,
+  });
+  await closePreview();
+  const reopenedComponents = await launch("components");
+  await acceptLocalComponentRestart(reopenedComponents);
+  await closePreview();
   const associatedFile = join(output, "放大器.icproj");
   await cp(join(output, "native-ota.icproj.json"), associatedFile);
   const cold = await launch("os-open", {
@@ -775,6 +793,10 @@ try {
           "external-write-conflict-preserves-both-versions",
           "background-tab-save-on-close",
           "local-library-management-and-history",
+          "compact-project-manager-secondary-actions",
+          "local-components-author-edit-import-export-remove-restore-restart",
+          "local-component-captures-retain-original-source",
+          "right-about-and-system-browser-product-links",
           "native-ota-drawing-hierarchy-parameters-copy-undo",
           "native-ota-project-and-source-roundtrip",
           "native-ota-spice-spectre-files-and-svg-png-pdf",

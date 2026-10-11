@@ -1,8 +1,10 @@
 import { deriveStableId, routeEnd } from "@icm/model";
 import type { Net, Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import type { DocumentSpatialIndex } from "./spatial-index.js";
 
 import {
+  buildEndpointObjectLookup,
   endpointKey,
   isVisibleEndpoint,
   netEndpoints,
@@ -214,6 +216,7 @@ function contactIncidents(
   geometry: ResolvedDocumentRoutingGeometry,
   routesForNet: readonly SchematicDocument["routes"][number][],
   endpointConnections?: ReadonlyMap<string, EndpointConnection>,
+  endpointLookup?: EndpointObjectLookup,
 ): ContactIncident[] {
   const incidents: ContactIncident[] = [];
   const explicitEndpointKeys = new Set(endpoints.map(endpointKey));
@@ -238,7 +241,12 @@ function contactIncidents(
     if (endpoint.kind !== "terminal") continue;
     const outward =
       endpointConnections?.get(endpointKey(endpoint))?.outward ??
-      resolveEndpointOutwardDirection(document, resolver, endpoint);
+      resolveEndpointOutwardDirection(
+        document,
+        resolver,
+        endpoint,
+        endpointLookup,
+      );
     if (outward) {
       incidents.push({
         kind: "terminal",
@@ -266,6 +274,10 @@ function netContacts(
   routesForNet: readonly SchematicDocument["routes"][number][],
   endpointConnections?: ReadonlyMap<string, EndpointConnection>,
   endpointLookup?: EndpointObjectLookup,
+  routeLookup?: {
+    spatialIndex: DocumentSpatialIndex;
+    routesById: ReadonlyMap<string, SchematicDocument["routes"][number]>;
+  },
 ): CoincidentContact[] {
   const grouped = new Map<
     string,
@@ -290,14 +302,30 @@ function netContacts(
           endpointKey(left).localeCompare(endpointKey(right), "en"),
         );
       const point = entries[0]!.point;
+      // Scanning a small Net is cheaper than querying all spatial buckets.
+      // Larger Nets reuse the context's already-built broad-phase index.
+      const nearbyRoutes =
+        routeLookup && routesForNet.length > 32
+          ? [
+              ...new Set(
+                routeLookup.spatialIndex.routeSegments
+                  .queryPoint(point)
+                  .map((segment) => segment.routeId),
+              ),
+            ].flatMap((id) => {
+              const route = routeLookup.routesById.get(id);
+              return route?.netId === net.id ? [route] : [];
+            })
+          : routesForNet;
       const incidents = contactIncidents(
         document,
         resolver,
         endpoints,
         point,
         geometry,
-        routesForNet,
+        nearbyRoutes,
         endpointConnections,
+        endpointLookup,
       );
       const directions = new Map<string, Point>();
       for (const incident of incidents) {
@@ -356,8 +384,20 @@ export function deriveDocumentContactEvidence(
     >;
     endpointConnections?: ReadonlyMap<string, EndpointConnection>;
     endpointLookup?: EndpointObjectLookup;
+    spatialIndex?: DocumentSpatialIndex;
+    routesById?: ReadonlyMap<string, SchematicDocument["routes"][number]>;
   } = {},
 ): DocumentContactEvidence {
+  const endpointLookup =
+    options.endpointLookup ?? buildEndpointObjectLookup(document);
+  const routeLookup = options.spatialIndex
+    ? {
+        spatialIndex: options.spatialIndex,
+        routesById:
+          options.routesById ??
+          new Map(document.routes.map((route) => [route.id, route])),
+      }
+    : undefined;
   const routesByNetId =
     options.routesByNetId ??
     (() => {
@@ -379,7 +419,8 @@ export function deriveDocumentContactEvidence(
         routingGeometry,
         routesByNetId.get(net.id) ?? [],
         options.endpointConnections,
-        options.endpointLookup,
+        endpointLookup,
+        routeLookup,
       ),
     );
   const byEndpointKey = new Map<string, CoincidentContact>();

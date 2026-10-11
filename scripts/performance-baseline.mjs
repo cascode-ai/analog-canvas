@@ -3,6 +3,11 @@ import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 
 import { createAgentCircuitService } from "../packages/agent-adapter/dist/index.js";
+import {
+  executeTransaction,
+  prepareTransaction,
+  parseProjectSnapshot,
+} from "../packages/edit-engine/dist/index.js";
 import { buildProjectConnectivityIndex } from "../packages/derived/dist/index.js";
 import {
   CircuitProjectSchema,
@@ -15,6 +20,8 @@ import { importSpiceSources } from "../packages/spice/dist/index.js";
 import {
   InMemorySymbolResolver,
   builtInSymbols,
+  createSymbolCatalog,
+  createProjectSymbolResolver,
 } from "../packages/symbols/dist/index.js";
 
 const budgets = {
@@ -26,6 +33,8 @@ const budgets = {
   connectivityIndex: 1000,
   connectivityRenderSvg: 2000,
   spiceImport: 2000,
+  preparedCommit: 1000,
+  libraryOverlay: 1000,
 };
 
 async function measure(action) {
@@ -122,6 +131,60 @@ for (let index = 0; index < 200; index += 1) {
 const validatedConnectivityProject =
   CircuitProjectSchema.parse(connectivityProject);
 
+// Catalog loading is a boundary cost; an edit must not revalidate unused
+// artwork. Keep the Project fixed and measure a 10,000-definition catalog's
+// overlay plus the actual placed-instance lookups after loading it once.
+const catalogLoad = await measure(() =>
+  createSymbolCatalog([
+    ...builtInSymbols,
+    ...Array.from({ length: 10_000 }, (_, index) => ({
+      ...builtInSymbols.find((symbol) => symbol.id === "resistor"),
+      id: `unused-${index}`,
+    })),
+  ]),
+);
+const largeCatalog = catalogLoad.result;
+const ownedProject = parseProjectSnapshot(project);
+createProjectSymbolResolver(ownedProject, largeCatalog);
+const libraryOverlay = await measure(() => {
+  const current = createProjectSymbolResolver(ownedProject, largeCatalog);
+  return ownedProject.documents[0].instances.map((instance) =>
+    current.resolve(instance.symbolId),
+  );
+});
+if (libraryOverlay.result.some((symbol) => !symbol))
+  throw new Error("Catalog lost a placed symbol");
+const ownedDocument = ownedProject.documents[0];
+const preparedRequest = {
+  transactionId: "prepared-benchmark",
+  documentId: ownedDocument.id,
+  expectedRevision: ownedDocument.revision,
+  actor: { kind: "human", id: "benchmark" },
+  dryRun: true,
+  edits: [
+    { kind: "move_instance", instanceId: "R1", position: { x: 80, y: 80 } },
+  ],
+};
+const preparation = prepareTransaction(ownedDocument, preparedRequest, {
+  symbolResolver: resolver,
+});
+if (!preparation.result.ok) throw new Error("Preparation failed");
+const preparedCommit = await measure(() =>
+  executeTransaction(
+    ownedDocument,
+    { ...preparedRequest, dryRun: false },
+    {
+      symbolResolver: resolver,
+      preparedTransactions: [preparation.prepared],
+    },
+  ),
+);
+if (
+  !preparedCommit.result.ok ||
+  preparedCommit.result.document.revision !== ownedDocument.revision + 1
+)
+  throw new Error("Prepared commit lost its revision fence");
+
 const serialized = await measure(() => serializeProject(project));
 const rendered = await measure(() =>
   renderDocumentSvg(document, resolver, { title: project.name }),
@@ -191,6 +254,8 @@ const measurements = {
   connectivityIndex: connectivityIndex.milliseconds,
   connectivityRenderSvg: connectivityRender.milliseconds,
   spiceImport: imported.milliseconds,
+  libraryOverlay: libraryOverlay.milliseconds,
+  preparedCommit: preparedCommit.milliseconds,
 };
 const failures = Object.entries(measurements).filter(
   ([name, value]) => value > budgets[name],
@@ -212,6 +277,12 @@ const report = {
     routes: connectivityDocument.routes.length,
     junctions: connectivityDocument.junctions.length,
     annotations: connectivityDocument.annotations.length,
+  },
+  catalogFixture: {
+    unusedDefinitions: 10_000,
+    placedInstances: 500,
+    loadingExcluded: true,
+    loadingMs: Number(catalogLoad.milliseconds.toFixed(3)),
   },
   measurements: Object.fromEntries(
     Object.entries(measurements).map(([name, value]) => [

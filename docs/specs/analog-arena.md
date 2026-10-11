@@ -115,6 +115,37 @@ Every other answer of Arena, its own `404` among them, passes through. A
 visitor never meets a crash, and Arena keeps 5xx for failures, not for answers
 it designed.
 
+## Drawing delivery
+
+Chip Arena prepares the next Battle's two drawings while the Voter judges the
+current one, after that Battle is noted as shown. For the first Battle as well
+as every next Battle, both drawings must finish loading and decoding before
+the Battle is shown or accepts a Vote.
+Each drawing attempt has a 15-second limit. A failed drawing is retried once
+automatically; further failure offers retry and online recovery for the same
+assigned Battle, without marking it shown.
+Finishing preparation while the Voter views a past Battle does not mark the
+prepared Battle shown or request another; that waits until the Voter returns.
+These behaviors are implemented and tested in the Arena repository.
+
+Arena may keep immutable SVG bytes in a named Cloudflare edge cache, shared
+by content hash within each data center. Signed-in drawing requests still check
+their forwarded identity and Battle ownership, or live Submission membership,
+before using the cache. Only SVG bytes and their content headers are cached;
+accounts, cookies, Battle metadata and personalized responses are never cached.
+The internal cache key is not a public image route.
+
+Browser-facing Battle and Submission responses remain
+`Cache-Control: private, max-age=31536000, immutable`. Battle addresses remain
+specific to that Battle and expose neither a content hash nor an ETag. The
+signed-out example keeps its public five-minute policy and resolves the active
+Season before reading an image. Arena may report `hit`, `miss` or `bypass` in
+an `arena_image` Server-Timing description without identifying the image.
+Cache failures fall back to the private R2 bucket; failed or missing reads
+are never cached, and cache writes run after the response is ready.
+Analog Canvas forwards these responses under the existing routing rules;
+it adds no shared cache of authenticated responses.
+
 ## Account deletion
 
 Deleting an Analog Canvas account

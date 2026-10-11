@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { NativeLibraryDialog } from "./native-library-dialog";
-import { NativeSystemDialog } from "./native-system-dialog";
 
 export interface NativeProjectHomeProps {
   initiallyOpen: boolean;
@@ -15,7 +14,6 @@ export function NativeProjectHome({
   onNew,
 }: NativeProjectHomeProps) {
   const [open, setOpen] = useState(initiallyOpen);
-  const [about, setAbout] = useState(false);
   useEffect(() => {
     const opened = () => setOpen(false);
     window.addEventListener("analog-canvas-native-open", opened);
@@ -31,14 +29,6 @@ export function NativeProjectHome({
       >
         Local projects
       </button>
-      <button
-        type="button"
-        className="app-action"
-        onClick={() => setAbout(true)}
-      >
-        About
-      </button>
-      {about ? <NativeSystemDialog onClose={() => setAbout(false)} /> : null}
       {open ? (
         <NativeLibraryDialog
           onClose={() => setOpen(false)}

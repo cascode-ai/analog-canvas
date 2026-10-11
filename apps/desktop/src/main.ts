@@ -22,6 +22,8 @@ import { createProjectLibrary } from "./project-library.js";
 import { decideClose, workspaceCloseState } from "./close-guard.js";
 import { createLaunchFileQueue } from "./launch-files.js";
 import { createSystemHandler } from "./system-info.js";
+import { createLocalComponentHandler } from "./component-library.js";
+import { createExternalLinkHandler } from "./external-links.js";
 import { windowsAssociation } from "./windows-association.js";
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import {
@@ -181,6 +183,14 @@ async function createWindow() {
             : {}),
         };
       },
+      flushWorkspace: async () => {
+        // No new user edits may arrive between the final snapshot and teardown.
+        window.setEnabled(false);
+        await window.webContents.executeJavaScript(
+          "window.__analogCanvasDesktop.flushWorkspace()",
+        );
+        session.defaultSession.flushStorageData();
+      },
       reportFailure: async (message) => {
         await dialog.showMessageBox(window, {
           type: "warning",
@@ -196,6 +206,7 @@ async function createWindow() {
       .catch(() => {})
       .finally(() => {
         deciding = false;
+        if (!window.isDestroyed()) window.setEnabled(true);
       });
   });
   await window.loadURL(`${APP_ORIGIN}/editor`);
@@ -282,6 +293,13 @@ else {
           ? join(process.resourcesPath, "editor")
           : resolve(import.meta.dirname, "../../editor/dist-desktop"),
         exportFile,
+        components: createLocalComponentHandler(
+          join(userData, "components.json"),
+        ),
+        externalLink: createExternalLinkHandler(
+          (url) => shell.openExternal(url),
+          __ICM_DESKTOP_BUILD__.commit,
+        ),
         system: createSystemHandler({
           async info() {
             return {

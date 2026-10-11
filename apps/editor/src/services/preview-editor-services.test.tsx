@@ -25,11 +25,17 @@ describe("desktop preview composition", () => {
       'data-testid="open-analog-simulation"',
       'data-testid="statusbar-change-log"',
       'data-testid="statusbar-privacy"',
-      'href="https://tokenzhang.com"',
+      'data-testid="editor-report-bug"',
     ])
       expect(html).not.toContain(marker);
     expect(html).toContain("Export Project File");
     expect(html).toContain("Desktop preview");
+    expect(html).toContain('href="https://tokenzhang.com"');
+    expect(html).toContain('data-testid="editor-repository-link"');
+    expect(html).toContain("User Components…");
+    expect(html.indexOf(">About</button>")).toBeGreaterThan(
+      html.indexOf('class="app-chrome-actions"'),
+    );
     expect(services.projectStore).toBeNull();
     expect(services.identity).toBeNull();
     expect(fetch).not.toHaveBeenCalled();

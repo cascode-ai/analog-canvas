@@ -77,8 +77,8 @@ publish/update/fork actions retain their meanings. `publicationVersion:1` opts
 write callers into result outcome/recovery/association metadata and structured
 duplicate references. Without it, legacy list/read/insert/write success shapes
 remain unchanged; duplicate refusal still carries a useful code and message.
-New MCP schemas/docs must be packaged and smoke tested before release. This branch
-does not release/install MCP or merge/deploy the website.
+New MCP schemas/docs must be packaged and smoke tested before release. A website
+merge does not release or install the separately versioned MCP package.
 
 Portable schema 69 and runtime model 58 carry provenance. Schemas 24–68 remain
 readable without invented origins. Old strict readers reject the new portable

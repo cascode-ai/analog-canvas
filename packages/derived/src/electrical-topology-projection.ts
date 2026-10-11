@@ -2,7 +2,7 @@ import { deriveStableId, routeEnd } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { deriveDocumentContactEvidence } from "./contact.js";
+import { buildDocumentDerivedContext } from "./document-derived-context.js";
 import { endpointKey } from "./endpoint.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 
@@ -80,6 +80,9 @@ export function deriveElectricalTopologyProjection(
   resolver?: SymbolResolver,
 ): ElectricalTopologyProjection {
   const endpointToBaseNet = new Map<string, string>();
+  const context = resolver
+    ? buildDocumentDerivedContext(document, resolver)
+    : undefined;
   const sets = new DisjointSet();
   for (const net of document.nets) {
     for (const terminal of net.terminals) {
@@ -107,9 +110,8 @@ export function deriveElectricalTopologyProjection(
       junctionIncidenceMutable.set(endpoint.junctionId, incident);
     }
   }
-  if (resolver) {
-    for (const contact of deriveDocumentContactEvidence(document, resolver)
-      .contacts) {
+  if (context) {
+    for (const contact of context.contactEvidence.contacts) {
       const keys = contact.endpoints.map(endpointKey);
       const first = keys[0];
       if (!first) continue;
@@ -125,7 +127,9 @@ export function deriveElectricalTopologyProjection(
     );
   }
   const logicalNetByBaseNet = new Map<string, string>();
-  for (const group of resolveDocumentLogicalNets(document).groups) {
+  for (const group of (
+    context?.logicalNetResolution ?? resolveDocumentLogicalNets(document)
+  ).groups) {
     for (const netId of group.baseNetIds) {
       logicalNetByBaseNet.set(netId, group.id);
     }

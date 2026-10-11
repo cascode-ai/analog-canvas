@@ -76,22 +76,26 @@ describe("reviewed external device bindings", () => {
         { pinName: "SUB", interaction: "property", role: "substrate" },
       ],
     });
-    expect(
-      resolveReviewedExternalBinding("sky130_fd_pr__pnp_05v5_W0p68L0p68", [
-        "C",
-        "B",
-        "E",
-      ]),
-    ).toMatchObject({
-      id: "sky130-pnp-05v5-w0p68l0p68",
-      symbolId: "pnp",
-      deviceClass: "bjt",
-      terminals: [
-        { pinName: "C", interaction: "canvas" },
-        { pinName: "B", interaction: "canvas" },
-        { pinName: "E", interaction: "canvas" },
-      ],
-    });
+    // Both vertical PNP sizes, the larger one for currents past the smaller
+    // one's high-injection knee (#1614).
+    for (const [masterName, id] of [
+      ["sky130_fd_pr__pnp_05v5_W0p68L0p68", "sky130-pnp-05v5-w0p68l0p68"],
+      ["sky130_fd_pr__pnp_05v5_W3p40L3p40", "sky130-pnp-05v5-w3p40l3p40"],
+    ] as const)
+      expect(
+        resolveReviewedExternalBinding(masterName, ["C", "B", "E"]),
+        masterName,
+      ).toMatchObject({
+        id,
+        symbolId: "pnp",
+        deviceClass: "bjt",
+        invocationKind: "external-subcircuit",
+        terminals: [
+          { pinName: "C", interaction: "canvas", role: "substrate" },
+          { pinName: "B", interaction: "canvas" },
+          { pinName: "E", interaction: "canvas" },
+        ],
+      });
     expect(
       resolveReviewedExternalBinding("sky130_fd_pr__npn_05v5_W1p00L1p00", [
         "C",

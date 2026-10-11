@@ -26,13 +26,18 @@ export async function acceptProjectLibrary({
   });
   const entries = manager.getByRole("listitem");
   await expect(entries).toHaveCount(1);
+  await expect(
+    entries.getByRole("button", { name: "Copy", exact: true }),
+  ).toBeHidden();
   await entries.getByRole("button", { name: "Favorite", exact: true }).click();
   await manager.getByLabel("Project list filter").selectOption("favorites");
   await expect(entries).toHaveCount(1);
+  await entries.locator("summary").click();
   await entries.getByRole("button", { name: "Copy", exact: true }).click();
   await manager.getByLabel("Project list filter").selectOption("all");
   await expect(entries).toHaveCount(2);
   const copy = entries.filter({ hasText: `${original.name} (copy)` });
+  await copy.locator("summary").click();
   await copy.getByRole("button", { name: "Rename…", exact: true }).click();
   await manager
     .getByLabel("Project name", { exact: true })
@@ -43,6 +48,10 @@ export async function acceptProjectLibrary({
   await renamed.getByRole("button", { name: "History", exact: true }).click();
   const history = manager.getByRole("region", { name: "Local save history" });
   await expect(history.getByLabel("Saved version")).toBeVisible();
+  await manager
+    .getByRole("button", { name: "Back to projects", exact: true })
+    .click();
+  await renamed.locator("summary").click();
   await running.evaluate(({ dialog }) => {
     dialog.showMessageBox = async () => ({
       response: 1,

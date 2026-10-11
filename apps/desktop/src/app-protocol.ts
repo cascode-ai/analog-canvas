@@ -34,6 +34,8 @@ export interface AppProtocolOptions {
   exportFile: (request: Request) => Promise<Response>;
   projectFile?: (request: Request) => Promise<Response>;
   system?: (request: Request) => Promise<Response>;
+  components?: (request: Request) => Promise<Response>;
+  externalLink?: (request: Request) => Promise<Response>;
 }
 
 function inside(root: string, requested: string): string {
@@ -110,6 +112,10 @@ export async function createAppProtocolHandler(
     }
 
     if (pathname === "/desktop/export") return options.exportFile(request);
+    if (pathname === "/desktop/external" && options.externalLink)
+      return options.externalLink(request);
+    if (pathname.startsWith("/desktop/components/") && options.components)
+      return options.components(request);
     if (pathname.startsWith("/desktop/project/") && options.projectFile)
       return options.projectFile(request);
     if (pathname.startsWith("/desktop/system/") && options.system)

@@ -172,6 +172,47 @@ function previewClearanceOffset(base: SchematicDocument): Point {
 }
 
 /**
+ * The ghost needs target names, interfaces and body policy, but meets no
+ * target conductor. Keep that logical context in the canonical model while
+ * making target parts undrawn. The real drop always uses the full Document.
+ */
+function previewExecutionDocument(base: SchematicDocument): SchematicDocument {
+  // Drafting-owned name claims need their original owner geometry. Retain
+  // the established full-context path for these uncommon imported drawings.
+  if (
+    base.connectivityEvidence.some((evidence) => {
+      if (
+        evidence.kind !== "name-claim" ||
+        evidence.owner.kind !== "power-marker"
+      )
+        return false;
+      const ownerId = evidence.owner.objectId;
+      return !base.instances.some((instance) => instance.id === ownerId);
+    })
+  )
+    return base;
+  return {
+    ...base,
+    instances: base.instances.map((instance) => ({
+      ...instance,
+      placement: null,
+    })),
+    routes: [],
+    annotations: base.annotations.map((annotation) =>
+      annotation.anchor.kind === "route"
+        ? {
+            ...annotation,
+            anchor: { kind: "free" as const, position: { x: 0, y: 0 } },
+          }
+        : annotation,
+    ),
+    drafting: undefined,
+    layoutGroups: [],
+    constraints: [],
+  };
+}
+
+/**
  * Build the copy ghost from the same dry-run transaction as its eventual
  * commit.  The fallback keeps rendering resilient while the Symbol resolver
  * is unavailable during isolated unit callers.
@@ -210,18 +251,25 @@ export function clipboardPreviewDocument(
       resolver,
     );
     if (proposal.errors.length === 0) {
-      const result = executeTransaction(
-        base,
-        {
-          transactionId: "copy-placement-preview",
-          documentId: base.id,
-          expectedRevision: base.revision,
-          actor: { kind: "human", id: "copy-placement-preview" },
-          dryRun: true,
-          edits: [...proposal.edits],
-        },
-        { symbolResolver: resolver },
+      const request = {
+        transactionId: "copy-placement-preview",
+        documentId: base.id,
+        expectedRevision: base.revision,
+        actor: { kind: "human" as const, id: "copy-placement-preview" },
+        dryRun: true,
+        edits: [...proposal.edits],
+      };
+      const context = { symbolResolver: resolver };
+      const isolated = executeTransaction(
+        previewExecutionDocument(base),
+        request,
+        context,
       );
+      // A legacy context may carry additional reference-bearing fields.
+      // Preserve its established rendering if it cannot be projected safely.
+      const result = isolated.ok
+        ? isolated
+        : executeTransaction(base, request, context);
       if (result.ok) {
         const instanceIds = new Set(proposal.instanceIds);
         // The dry run lands clear of the circuit, so every wire and Junction

@@ -450,6 +450,8 @@ export function planNetlistProcess(
             documentId,
             instance.id,
             target,
+            // Its substrate rule binds the hidden terminals below.
+            { substrateDefault: false },
           ),
         );
       }

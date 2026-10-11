@@ -88,8 +88,12 @@ process's request/navigation restrictions remain independent defenses.
 
 Desktop CSP allows `connect-src 'self' data:` so the PDF exporter can read its
 bundled, embedded font bytes. `data:` is an in-memory resource, not an external
-network destination. HTTP/WebSocket/file requests and external browser handoff
-remain blocked. Packaged acceptance observes real SVG/PNG/PDF and netlist exports
+network destination. External HTTP/WebSocket/file requests and navigation from
+the renderer remain blocked. About can explicitly ask the main process to open
+the fixed author, repository or source link in the system browser. This command
+accepts a product-link identifier, never an arbitrary URL; it passes no Project
+bytes, file paths or credentials. It does not enable renderer networking,
+background requests or online services. Packaged acceptance observes real SVG/PNG/PDF and netlist exports
 and independently tests prohibited network requests. Web CSP is unchanged.
 
 For local validation, install the reviewed scanner and set `GITLEAKS_BINARY` to

@@ -40,6 +40,42 @@ import {
 } from "./project-transaction.js";
 
 describe("default project entry", () => {
+  it("returns a detached mutable Project after rejecting a stale transaction", () => {
+    const project = createEmptyProject("stale-result", "Original");
+    const result = executeProjectTransaction(project, {
+      transactionId: "stale",
+      projectId: project.id,
+      expectedStructureRevision: 1,
+      actor: { kind: "human", id: "editor" },
+      edits: [{ kind: "rename_project", name: "Never committed" }],
+    });
+    expect(!result.ok && result.error.code).toBe("STALE_STRUCTURE_REVISION");
+    result.project.name = "Caller edit";
+    result.project.documents[0]!.name = "Caller document";
+    expect(project.name).toBe("Original");
+    expect(project.documents[0]!.name).not.toBe("Caller document");
+  });
+
+  it("revalidates a public Project result changed after it was adopted", () => {
+    const project = createEmptyProject("mutable-result", "Original");
+    const request = {
+      transactionId: "rename",
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      actor: { kind: "human" as const, id: "editor" },
+      edits: [{ kind: "rename_project" as const, name: "Renamed" }],
+    };
+    const first = executeProjectTransaction(project, request);
+    if (!first.ok) throw new Error(JSON.stringify(first));
+    const next = {
+      ...request,
+      expectedStructureRevision: first.project.structureRevision,
+    };
+    expect(executeProjectTransaction(first.project, next).ok).toBe(true);
+    first.project.topDocumentId = "missing";
+    expect(() => executeProjectTransaction(first.project, next)).toThrow();
+    expect(project.name).toBe("Original");
+  });
   it("keeps captured artwork immutable and rolls back a conflicting batch", () => {
     const project = createEmptyProject("capture", "Capture");
     const snapshot = {

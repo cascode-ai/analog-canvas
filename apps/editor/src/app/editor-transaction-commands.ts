@@ -199,6 +199,7 @@ export function createEditorTransactionCommands({
     });
     const gate = gateRoutingOperationPlan(document, proposal, {
       ...(resolver ? { symbolResolver: resolver } : {}),
+      externalSubcircuitDefinitions: project.externalSubcircuitDefinitions,
       ...(contactEvidence
         ? { beforeContactEvidence: { document, evidence: contactEvidence } }
         : {}),

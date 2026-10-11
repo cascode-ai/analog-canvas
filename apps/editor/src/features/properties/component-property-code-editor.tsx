@@ -35,7 +35,6 @@ export interface ComponentPropertyCodeEditorProps {
   instance: Instance;
   displayName?: string | null;
   itemName?: string;
-  revision: number;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
   parameterVisibility?: Record<string, boolean>;
@@ -65,7 +64,6 @@ export function ComponentPropertyCodeEditor({
   instance,
   displayName,
   itemName,
-  revision,
   referenceVisible,
   valueVisible,
   parameterVisibility,
@@ -85,39 +83,29 @@ export function ComponentPropertyCodeEditor({
   onPreviewControlNet,
   onApply,
 }: ComponentPropertyCodeEditorProps) {
+  // These are model facts and choice lists, all JSON values. Equal facts
+  // keep the adapter stable even when the parent rebuilt its option arrays.
+  const contextKey = JSON.stringify({
+    instance,
+    ...(displayName !== undefined ? { displayName } : {}),
+    referenceVisible,
+    valueVisible,
+    ...(parameterVisibility ? { parameterVisibility } : {}),
+    ...(connection !== undefined ? { connection } : {}),
+    ...(netName !== undefined ? { netName } : {}),
+    ...(details ? { details } : {}),
+    ...(supplyTerminals ? { supplyTerminals } : {}),
+    ...(controlNetOptions ? { controlNetOptions } : {}),
+    ...(controlDeviceOptions ? { controlDeviceOptions } : {}),
+    ...(controlTerminalOptions ? { controlTerminalOptions } : {}),
+  });
   const context = useMemo<ComponentPropertyCodeContext>(
-    () => ({
-      instance,
-      ...(displayName !== undefined ? { displayName } : {}),
-      referenceVisible,
-      valueVisible,
-      ...(parameterVisibility ? { parameterVisibility } : {}),
-      ...(connection !== undefined ? { connection } : {}),
-      ...(netName !== undefined ? { netName } : {}),
-      ...(details ? { details } : {}),
-      ...(supplyTerminals ? { supplyTerminals } : {}),
-      ...(controlNetOptions ? { controlNetOptions } : {}),
-      ...(controlDeviceOptions ? { controlDeviceOptions } : {}),
-      ...(controlTerminalOptions ? { controlTerminalOptions } : {}),
-    }),
-    [
-      instance,
-      displayName,
-      referenceVisible,
-      valueVisible,
-      parameterVisibility,
-      connection,
-      netName,
-      details,
-      supplyTerminals,
-      controlNetOptions,
-      controlDeviceOptions,
-      controlTerminalOptions,
-    ],
+    () => JSON.parse(contextKey),
+    [contextKey],
   );
   const nativeBaseline = useMemo(
     () => formatComponentPropertyCode(context),
-    [context, revision],
+    [context],
   );
   const projection = useMemo(() => {
     const value = JSON.parse(nativeBaseline);

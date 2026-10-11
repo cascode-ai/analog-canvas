@@ -140,7 +140,10 @@ Web Cloud 与 desktop 文件系统作为两个存储适配实现。权限、路�
 按 #1121 补齐能力工厂与导入约束：离线入口不装配 identity/community/telemetry/
 simulation/agent，不包含其在线实现。构建检查使用产物模块图及辅助 API 路径检查，
 保留主进程网络/导航/权限拦截。应用内部协议读静态资源及本机文件桥接属于本地操作；
-外部 HTTP/WebSocket、外部浏览器交接、云轮询、service worker 和隐式更新均禁用。
+renderer 的外部 HTTP/WebSocket、外部导航、云轮询、service worker 和隐式更新均禁用。
+关于页仅在用户主动点击时，通过主进程打开固定的作者网站、仓库或源码链接到系统
+浏览器；不接受任意 URL，也不由 renderer 获取这些网页。这是已授权的产品链接，
+不启用账户、云服务或后台联网。
 UI 隐藏、模块剥离和运行时零外部请求分别验收，不能互相替代。
 
 本轮不顺带为 Web 增加本地文件正式保存和 Cloud/文件目标选择。这是 #1121 的
@@ -233,3 +236,52 @@ Visio、MATLAB 色板、粗网格及其他 fork 特性不作为本阶段完成�
 本轮没有更改 Web Save 的产品语义，也没有迁入 fork Schema。#1121 的 Web 文件
 正式保存仍未实现；Visio、MATLAB 色板、粗网格、签名、安装器、自动更新及 macOS
 继续按原计划单独推进。此处的“完成”只指本方案约定的离线桌面阶段。
+
+## 11. 本地元件与界面补齐的交付证据
+
+- [PR #1629](https://github.com/cascode-ai/analog-canvas/pull/1629) 完成本地
+  User Components、简洁项目管理页和右侧 About。元件定义独立保存在
+  `%APPDATA%\Analog Canvas\components.json`，共用主线编辑器、模型和校验；
+  创建、修改、导入／导出、删除／恢复及重启均可离线使用。项目中已放置的元件
+  保留当时版本，库更新不改写已有图纸。项目列表保留搜索、筛选、新建、项目名
+  和收藏，将重命名、副本、历史和删除放入“更多”，目录／外部文件设置收起。
+  作者网站、仓库和源码链接按上节约束交给系统浏览器。
+  合并源码 `4bfdbc8424761b9285ca16f805935759b44cc2a6` 的
+  [合并检查](https://github.com/cascode-ai/analog-canvas/actions/runs/38121241636) 与
+  [Production 验证](https://github.com/cascode-ai/analog-canvas/actions/runs/38121534580) 通过；
+  [首次发行验收](https://github.com/cascode-ai/analog-canvas/actions/runs/38121576346) 失败。
+- 首次发行验收发现测试在放置完成前按 Escape；[PR #1630](https://github.com/cascode-ai/analog-canvas/pull/1630)
+  改为等待实际放置结果，保留原断言。再次发行发现窗口关闭可能中断工作区写入，
+  迁入旧预览配置后恢复了前一个项目；[PR #1632](https://github.com/cascode-ai/analog-canvas/pull/1632)
+  让桌面退出先提交最新标签工作区，再销毁窗口，存储失败时保留窗口。慢存储真实
+  EXE 复现与修复后流程均已核验；两次失败的发行没有发布 ZIP。
+  #1630 合并源码为 `d21aa66a1b294d7eda994eddd91b73b1d9765968`，
+  [合并检查](https://github.com/cascode-ai/analog-canvas/actions/runs/38122255897) 与
+  [Production 验证](https://github.com/cascode-ai/analog-canvas/actions/runs/38122484002) 通过，
+  [第二次发行验收](https://github.com/cascode-ai/analog-canvas/actions/runs/38122515079) 失败。
+- 新发行源码为 `6aa378b047e68d90fe148c98a09917d082bd2bf8`。
+  [合并检查](https://github.com/cascode-ai/analog-canvas/actions/runs/38127230622)、
+  [Production 验证](https://github.com/cascode-ai/analog-canvas/actions/runs/38127539274) 均通过；
+  [Windows 打包／EXE 验收／安全／发布](https://github.com/cascode-ai/analog-canvas/actions/runs/38127572883)
+  各执行步骤通过，产物已发布；最终功能与关闭修复 squash 提交保留 LXY-freshman 和 Token Zhang 共同作者。
+  原 fork 来源、适配范围、版权和许可声明继续随包提供，本轮没有额外复制 fork 实现。
+- [新版 Windows x64 ZIP](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-6aa378b047e6-7/analog-canvas-desktop-windows-x64.zip) ·
+  [发行说明](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-6aa378b047e6-7)。
+  已实际下载，SHA256 为 `a4a8607d297b6f2bede710c42ff3879e1f3e51369d1520ff2f01c6a62562af0d`，
+  与 GitHub 资产摘要一致；包内 `BUILD.txt`、已通过的 `ACCEPTANCE.json`、
+  `SECURITY.json` 对应同一源码提交，随附源码、许可和来源说明均存在。
+  ZIP 实测 177,271,296 字节（169.1 MiB），解压内容 408,672,163 字节（389.7 MiB）。
+  压缩内容约 142.4 MiB 为 Electron 运行库、12.9 MiB 为语言资源、9.0 MiB 为源码、
+  4.3 MiB 为编辑器，其余为桌面宿主和说明／验收记录；没有开发依赖目录或用户工程。
+- 初始功能候选 Web 全量为 730 通过、8 跳过，1,199 张 Gallery 图纸与固定基线
+  无行为差异。关闭修复的最终本地 Web 全量为 729 通过、8 跳过、1 失败；未改动的
+  模拟配置用例单独通过，再整文件 20 项通过，断言和超时未放宽。远端合并候选的
+  8 组 Web 分片全部通过。最终本地单元全量为 7,421 通过、166 跳过、12 失败；
+  其中 9 项资源争用超时隔离后通过，余下 3 项已在原 Windows 基线复现，远端
+  Linux Core 门禁通过。以上记录保留原始结果，不将隔离复查称为一次全量全绿。
+- 新包实际 EXE 验收包含 native-ota 绘图／导出与文件往返、本地项目库／历史／回收、
+  元件电路与图形定义、版本固定、重启、冷／热启动文件打开、旧配置迁入，以及
+  零外部请求和主动联网拦截。Web 保存时机和正式 Save 语义保持原约定。
+
+本次补齐没有完成 #1121 的 Web 本地文件正式保存，也不改变上节列出的后续功能和
+正式发行范围；下载入口仍在 GitHub 仓库 README，不增加网站主页下载按钮。

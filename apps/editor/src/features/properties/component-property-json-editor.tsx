@@ -237,13 +237,17 @@ export default function ComponentPropertyJsonEditor(props: Props) {
     }
   }, [props.value, props.historyKey, props.context, props.adapter]);
 
+  const controlDecorationKey = JSON.stringify({
+    ...props.controlAction,
+    canReverse: Boolean(props.controlAction?.onReverse),
+  });
   useLayoutEffect(() => {
     viewRef.current?.dispatch({ effects: refreshDecorations.of(null) });
   }, [
     props.context,
     props.adapter,
     props.defaultForeground,
-    props.controlAction,
+    controlDecorationKey,
   ]);
 
   return <div className="component-json-editor" ref={parent} />;

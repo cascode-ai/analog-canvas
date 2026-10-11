@@ -1,7 +1,7 @@
 import {
-  CircuitProjectSchema,
   ComponentDefinitionSchema,
   ComponentLibraryOriginSchema,
+  isFrozenSnapshot,
   ComponentAuthoringDraftSchema,
   ExternalSubcircuitDefinitionSchema,
   SourceFileRecordSchema,
@@ -55,6 +55,11 @@ import {
   type SchematicEdit,
 } from "./edit-schema.js";
 import { executeTransaction } from "./transaction.js";
+import {
+  parseProjectSnapshot,
+  validateProjectResult,
+} from "./project-snapshot.js";
+import type { PreparedTransaction } from "./prepared-transaction.js";
 import { planInstanceSymbolGeometryRouteFollow } from "./transaction-route-follow.js";
 import {
   projectDrawnGeometry,
@@ -270,7 +275,7 @@ function rejectProjectTransaction(
     ok: false,
     applied: false,
     structureRevision: project.structureRevision,
-    project,
+    project: isFrozenSnapshot(project) ? structuredClone(project) : project,
     error: { code, message },
     diagnostics,
   };
@@ -566,6 +571,8 @@ function withRedrawnCallers(
 }
 
 export interface ProjectTransactionOptions {
+  /** In-process, engine-owned document calculations from a compound planner. */
+  readonly preparedTransactions?: readonly PreparedTransaction[];
   /**
    * Edits that move a caller's labels its redrawn wiring newly strikes
    * (#1366), given the caller before the change and after its wiring
@@ -608,7 +615,7 @@ function applyProjectTransaction(
   input: ProjectTransaction | unknown,
   options: ProjectTransactionOptions,
 ): ProjectTransactionResult {
-  const project = CircuitProjectSchema.parse(sourceProject);
+  const project = parseProjectSnapshot(sourceProject);
   const parsed = ProjectTransactionSchema.safeParse(input);
   if (!parsed.success) {
     return rejectProjectTransaction(
@@ -1235,6 +1242,9 @@ function applyProjectTransaction(
       {
         symbolResolver: resolver,
         externalSubcircuitDefinitions: candidate.externalSubcircuitDefinitions,
+        ...(options.preparedTransactions
+          ? { preparedTransactions: options.preparedTransactions }
+          : {}),
       },
     );
     documentResults.push(result);
@@ -1495,7 +1505,7 @@ function applyProjectTransaction(
       },
     ]);
   }
-  const validated = CircuitProjectSchema.safeParse(candidate);
+  const validated = validateProjectResult(candidate);
   if (!validated.success) {
     return rejectProjectTransaction(
       project,
@@ -1522,7 +1532,8 @@ function applyProjectTransaction(
         ? project.structureRevision
         : proposedStructureRevision,
     proposedStructureRevision,
-    project: transaction.dryRun === true ? project : proposedProject,
+    project:
+      transaction.dryRun === true ? structuredClone(project) : proposedProject,
     proposedProject,
     changedDocumentIds: [...changedDocumentIds].sort(),
     documentResults,
