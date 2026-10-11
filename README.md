@@ -8,7 +8,7 @@ edit model.
 
 [Browse the Gallery](https://analog-canvas.tokenzhang.com/) ·
 [Open the editor](https://analog-canvas.tokenzhang.com/editor) ·
-[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-27fd0221abfd-4/analog-canvas-desktop-windows-x64.zip) ·
+[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-6aa378b047e6-7/analog-canvas-desktop-windows-x64.zip) ·
 [Documentation](docs/README.md) ·
 [GitHub repository](https://github.com/cascode-ai/analog-canvas)
 
@@ -89,8 +89,8 @@ describe how the local registration works.
 
 ## Windows desktop preview
 
-[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-27fd0221abfd-4/analog-canvas-desktop-windows-x64.zip)
-· [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-27fd0221abfd-4)
+[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-6aa378b047e6-7/analog-canvas-desktop-windows-x64.zip)
+· [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-6aa378b047e6-7)
 
 1. Download and extract the **whole ZIP**.
 2. Open the extracted preview directory and run
@@ -98,8 +98,10 @@ describe how the local registration works.
    together; the `.exe` alone will not work. No Node.js, pnpm or developer tools
    are required.
 3. Draw a new project and press **Ctrl+S**. It saves automatically in
-   `%USERPROFILE%\Analog Canvas\Projects`. **Local projects** provides search,
-   favorites, rename, independent copies, history and a recoverable recycle area.
+   `%USERPROFILE%\Analog Canvas\Projects`. **Local projects** offers search,
+   filters and New above a compact list. Click a project name to open it; use its
+   star for favorites and **More** for rename, independent copies, history and
+   recoverable deletion. Folder and external-file settings are collapsed.
 4. **File → Open Project…** opens `.icproj.json` or `.icproj` in place; **Save**
    writes back to that file. **Save As…** creates an independent project and
    switches to it after success. **Export Project File…** makes a portable copy
@@ -107,8 +109,15 @@ describe how the local registration works.
 5. Each tab keeps its own file. Locations are shortened in the interface, with
    full paths on hover and **Show in folder**. Restart restores tabs and recovery;
    external changes are checked before writing. Closing offers to save all changed
-   tabs and stays open if a save is cancelled or fails.
-6. **About** shows data locations and offers opt-in Windows `.icproj` association.
+   tabs, commits the latest workspace before exit, and stays open if saving or
+   workspace persistence fails.
+6. **User Components** supports local circuit and artwork definitions through
+   the shared authoring editor. Create, edit, import/export, remove and restore
+   definitions without an account. The library persists separately in
+   `%APPDATA%\Analog Canvas\components.json`; placed project instances retain
+   their captured version when the library changes.
+7. **About**, on the right, shows data locations and offers opt-in Windows `.icproj` association.
+   TokenZhang, repository and source links open in the system browser when clicked.
    Upgrading to a new extracted ZIP preserves stable user data; the previous
    preview's settings and recovery can be imported without changing originals.
 
@@ -122,6 +131,11 @@ The linked package passed real Windows EXE acceptance, offline request checks
 and credential/private-file scanning. It includes corresponding source,
 attribution, `ACCEPTANCE.json` and `SECURITY.json` tied to the same source commit.
 See the [security audit and its limitations](docs/desktop-distribution-security.md).
+
+This ZIP is **169.1 MiB** (about **389.7 MiB** extracted). Most is Electron's
+Chromium/runtime and language packs; the rest is the editor, desktop host,
+corresponding source, licenses and acceptance records. It contains no developer
+`node_modules` or user projects. Keep the bundled runtime and resources together.
 
 ## Run locally
 
