@@ -1,6 +1,6 @@
 # 离线桌面版完善方案：项目管理与共享机制
 
-日期：2026-10-11。状态：实现和本地验收进行中；未发布新桌面包。
+日期：2026-10-11。状态：本阶段实现、Web 交付与 Windows 打包验收已完成；新桌面包已发布。
 
 本方案承接 [#1119](https://github.com/cascode-ai/analog-canvas/issues/1119)、
 [#1121](https://github.com/cascode-ai/analog-canvas/issues/1121) 与
@@ -12,7 +12,7 @@ Windows 离线绘图软件：项目可以管理、保存、复制、恢复和迁
 账号、Cloud、Gallery、云端共享元件、拓扑查重服务、统计、模拟、Agent/MCP
 不进入离线版。内置元件、项目内嵌元件及源数据属于项目内容，必须完整保留。
 
-本文是实施计划，不把未来目标写成现有行为。实施对应目标时同步更新
+本文保留本轮实施范围和验收约定；实际交付证据见末节。实施时已同步更新
 [持久化契约](../../specs/persistence-and-recovery.md)、
 [文件协议](../../specs/project-file-format.md)中实际受到影响的规则及
 [持久化 ADR](../../adr/persistence.md)。其他主线契约继续有效。
@@ -27,9 +27,9 @@ Windows 离线绘图软件：项目可以管理、保存、复制、恢复和迁
 | 离线     | 独立入口、关闭在线能力、外壳拒绝联网                        | 构建产物排除在线模块；全流程零外部请求                  |
 | 分发     | Windows ZIP、发布时打包验收、安全扫描及来源记录             | 文件关联、旧版数据接入、升级验收、新 ZIP 和下载入口更新 |
 
-截至本轮核对，公开桌面包仍为 2026-09-26 的
+本轮开始时，公开桌面包为 2026-09-26 的
 [8c0de605318a 预览](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-8c0de605318a)。
-近期主线改进不能在重新打包验收前算作桌面已交付。已有验收主要使用三个电阻，
+当时的主线改进尚未完成桌面重新打包验收。旧包验收主要使用三个电阻，
 不能替代本轮完整电路验收。具体当前实现见 [desktop README](../../../apps/desktop/README.md)。
 
 ## 2. 本地项目库和数据归属
@@ -209,3 +209,27 @@ L2、L3 在 L1 的正式存储规则上推进；L4 可以在记录好共享接�
 Visio、MATLAB 色板、粗网格及其他 fork 特性不作为本阶段完成条件。它们仍按原
 来源和分叉讨论单独推进。本轮交付后留下的是明确后续能力，而非基础文件管理、
 绘图和离线保障缺口。
+
+## 10. 本轮交付证据
+
+- 实现与合并：[PR #1625](https://github.com/cascode-ai/analog-canvas/pull/1625)，
+  源码提交 `27fd0221abfdf291d60260580c82498a1bc7d079`；最终提交保留 LXY-freshman 与 Token Zhang 的共同作者署名。
+- [Windows x64 ZIP](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-27fd0221abfd-4/analog-canvas-desktop-windows-x64.zip) · [发布说明](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-27fd0221abfd-4)。
+  解压完整目录运行 EXE；不需要 Node.js、pnpm 或开发环境。
+- [合并检查](https://github.com/cascode-ai/analog-canvas/actions/runs/38114505251)、
+  [Production 验证](https://github.com/cascode-ai/analog-canvas/actions/runs/38114994688)、
+  [Windows 打包／验收／安全／发布](https://github.com/cascode-ai/analog-canvas/actions/runs/38115027306)
+  均通过；发行包内 `ACCEPTANCE.json`、`SECURITY.json` 与源码对应同一提交。
+- 本地 Web 全量浏览器测试 722 通过、8 跳过；合并同事最新组件功能后补跑
+  55 项组件浏览器测试全部通过；1,199 张 Gallery 图纸与基线无行为差异。
+  本地全量单元测试的三项 Windows 基线失败已在原基线复现，远端 Linux Core 门禁通过。
+- 实际 EXE 验收覆盖默认项目库、独立另存为、保存时继续编辑、提交回执丢失后的
+  进程重启、历史／回收、外部修改保护、冷／热启动文件打开、旧数据迁入，以及
+  native-ota 画图和文件往返、SVG/PNG/PDF/SPICE/Spectre 输出。原已发布 EXE 的
+  保存文件、未保存编辑和最近记录另行完成升级测试，原始数据保持不变。
+- 标题显示项目名；文件菜单、项目列表和关于页缩短位置显示，悬停查看完整路径；
+  窗口及 EXE 采用网页 NMOS 图标。
+
+本轮没有更改 Web Save 的产品语义，也没有迁入 fork Schema。#1121 的 Web 文件
+正式保存仍未实现；Visio、MATLAB 色板、粗网格、签名、安装器、自动更新及 macOS
+继续按原计划单独推进。此处的“完成”只指本方案约定的离线桌面阶段。

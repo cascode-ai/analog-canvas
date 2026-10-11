@@ -8,7 +8,7 @@ edit model.
 
 [Browse the Gallery](https://analog-canvas.tokenzhang.com/) ·
 [Open the editor](https://analog-canvas.tokenzhang.com/editor) ·
-[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-8c0de605318a/analog-canvas-desktop-windows-x64.zip) ·
+[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-27fd0221abfd-4/analog-canvas-desktop-windows-x64.zip) ·
 [Documentation](docs/README.md) ·
 [GitHub repository](https://github.com/cascode-ai/analog-canvas)
 
@@ -89,31 +89,39 @@ describe how the local registration works.
 
 ## Windows desktop preview
 
-[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-8c0de605318a/analog-canvas-desktop-windows-x64.zip)
-· [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-8c0de605318a)
+[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-27fd0221abfd-4/analog-canvas-desktop-windows-x64.zip)
+· [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-27fd0221abfd-4)
 
 1. Download and extract the **whole ZIP**.
 2. Open the extracted preview directory and run
    `Analog Canvas Preview/Analog Canvas Preview.exe`. Keep its sibling resources
    together; the `.exe` alone will not work. No Node.js, pnpm or developer tools
    are required.
-3. Use **File → Open Project…** to open a `.icproj.json` file. **Save** (Ctrl+S)
-   writes back to that file; a new project asks for a destination on its first
-   save. **Save As…** changes the destination after a successful write.
-4. Each project tab keeps its own file. The File menu shows its current path
-   and recent files. Closing with unsaved work offers to save all changed tabs;
-   a canceled or failed save keeps the window open. **Export Project File…**
-   makes a separate portable copy without changing the Save destination.
+3. Draw a new project and press **Ctrl+S**. It saves automatically in
+   `%USERPROFILE%\Analog Canvas\Projects`. **Local projects** provides search,
+   favorites, rename, independent copies, history and a recoverable recycle area.
+4. **File → Open Project…** opens `.icproj.json` or `.icproj` in place; **Save**
+   writes back to that file. **Save As…** creates an independent project and
+   switches to it after success. **Export Project File…** makes a portable copy
+   without changing the Save destination or marking edits saved.
+5. Each tab keeps its own file. Locations are shortened in the interface, with
+   full paths on hover and **Show in folder**. Restart restores tabs and recovery;
+   external changes are checked before writing. Closing offers to save all changed
+   tabs and stays open if a save is cancelled or fails.
+6. **About** shows data locations and offers opt-in Windows `.icproj` association.
+   Upgrading to a new extracted ZIP preserves stable user data; the previous
+   preview's settings and recovery can be imported without changing originals.
 
 This is an **unsigned, offline preview** with no installer or automatic updates.
-It supports local project files, circuit editing and SVG/PNG/PDF export.
-Account, Cloud, Gallery, Agent and simulation services are unavailable.
-Recovery remains a safety copy; save needed projects to files.
-See the [full preview instructions and limitations](apps/desktop/README.md).
+It shares the Web editor's drawing model and exports SVG/PNG/PDF and
+SPICE/Spectre files. Account, Cloud, Gallery, Agent and simulation services are
+unavailable. Local history keeps three prior saves; recovery remains a safety
+copy. See the [full instructions and limitations](apps/desktop/README.md).
 
-The linked package passed packaged-application acceptance and credential
-distribution checks, and includes corresponding source, attribution and
-`SECURITY.json`. See the [security audit and its limitations](docs/desktop-distribution-security.md).
+The linked package passed real Windows EXE acceptance, offline request checks
+and credential/private-file scanning. It includes corresponding source,
+attribution, `ACCEPTANCE.json` and `SECURITY.json` tied to the same source commit.
+See the [security audit and its limitations](docs/desktop-distribution-security.md).
 
 ## Run locally
 
