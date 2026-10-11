@@ -35,8 +35,11 @@ export default function UserComponentsLibrary({
   open: boolean;
   onClose(): void;
   onCreate(): void;
-  onEdit(entry: SharedComponent, intent: "new" | "update"): void;
-  onInsert(entry: SharedComponent): void;
+  onEdit(
+    entry: SharedComponent,
+    intent: "new" | "update",
+  ): void | Promise<void>;
+  onInsert(entry: SharedComponent): void | Promise<void>;
   refresh: number;
   drafts?: { id: string; label: string }[];
   onOpenDraft?(id: string): void;
@@ -225,8 +228,8 @@ export default function UserComponentsLibrary({
       if (action === "details") setDetail({ summary, entry });
       else {
         onClose();
-        if (action === "place") onInsert(entry);
-        else onEdit(entry, action);
+        if (action === "place") await onInsert(entry);
+        else await onEdit(entry, action);
       }
     } catch (error) {
       if (!controller.signal.aborted) {

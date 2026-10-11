@@ -78,8 +78,8 @@ export default function NativeComponentsLibrary({
           "This component changed. Reopen the library before selecting it.",
         );
       onClose();
-      if (intent === "place") onInsert(current);
-      else onEdit(current, intent);
+      if (intent === "place") await onInsert(current);
+      else await onEdit(current, intent);
     });
   }
   const visible = entries.filter(
