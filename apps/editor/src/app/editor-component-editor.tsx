@@ -1,19 +1,17 @@
+import { prepareComponentCapture } from "../features/user-components/component-placement";
+import type { SharedDefinitionPayload } from "../features/user-components/component-library-contract";
 // The shared-component editor and the public component library, opened over
 // the editor.
 import {
   lazy,
+  useRef,
   Suspense,
-  useState,
-  useEffect,
   type Dispatch,
   type ComponentProps,
   type RefObject,
   type SetStateAction,
 } from "react";
-import {
-  planCircuitComponentCapture,
-  type ProjectStructureEdit,
-} from "@icm/edit-engine";
+import { type ProjectStructureEdit } from "@icm/edit-engine";
 import type { SymbolDefinition } from "@icm/symbols";
 import type { CircuitComponentAuthoring } from "../features/user-components/native-component-editor";
 import type { CircuitProject, ComponentDefinition } from "@icm/model";
@@ -110,18 +108,15 @@ export function EditorComponentEditor({
   cancelAllTransientInteraction: () => void;
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
 }) {
-  const [pendingPublicComponent, setPendingPublicComponent] = useState<{
-    projectSessionId: string;
-    definitionId: string;
-    symbolId: string;
-  } | null>(null);
-
+  const returnToLibrary = useRef(false);
   function insertSharedComponent(entry: SharedComponent): void {
+    returnToLibrary.current = false;
     try {
       if (entry.circuit) {
         insertCircuitComponent(
           { definition: entry.definition, circuit: entry.circuit },
           `component-${entry.id}-r${entry.revision}`,
+          entry,
         );
         return;
       }
@@ -129,7 +124,27 @@ export function EditorComponentEditor({
       synchronizeExternalCommit();
       editorCommands.execute({
         id: "insert.start",
-        launch: { kind: "quick", request: sharedComponentInsertRequest(entry) },
+        launch: {
+          kind: "quick",
+          request: {
+            ...sharedComponentInsertRequest(entry),
+            capture: {
+              payload: entry,
+              identity: `component-${entry.id}-r${entry.revision}`,
+              projectId: project.id,
+              documentId: editorDocumentController.activeDocumentId,
+              structureRevision: project.structureRevision,
+              documentRevision: project.documents.find(
+                (d) => d.id === editorDocumentController.activeDocumentId,
+              )!.revision,
+              library: {
+                id: entry.id,
+                revision: entry.revision,
+                status: entry.status,
+              },
+            },
+          },
+        },
       });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -137,27 +152,57 @@ export function EditorComponentEditor({
   }
 
   function insertCircuitComponent(
-    packaged: Parameters<typeof planCircuitComponentCapture>[1],
+    packaged: SharedDefinitionPayload,
     identity: string,
+    library?: SharedComponent,
   ) {
     try {
-      const captured = planCircuitComponentCapture(
-        definitionProjectRef.current.project,
-        packaged,
-        identity,
-      );
-      if (captured.edits.length) {
-        const result = commitModelEdits(
-          captured.edits,
-          captured.definitionId,
-          "Captured component model",
-        );
-        if (!result.ok) throw Error(result.message);
+      const current = definitionProjectRef.current.project;
+      const prepared = prepareComponentCapture(current, packaged, identity);
+      if (!resolver.resolve(prepared.symbolId)) {
+        editorDocumentController.offerComponentDefinition({
+          symbol: prepared.symbol,
+        });
+        synchronizeExternalCommit();
       }
-      setPendingPublicComponent({
-        projectSessionId,
-        definitionId: captured.definitionId,
-        symbolId: captured.symbolId,
+      onBeforePlace();
+      returnToLibrary.current = false;
+      editorCommands.execute({
+        id: "insert.start",
+        launch: {
+          kind: "quick",
+          request: {
+            kind: "external-subcircuit",
+            definitionId: prepared.definitionId!,
+            symbolId: prepared.symbolId,
+            symbolName: prepared.symbol.name,
+            masterName: packaged.circuit!.externalDefinition.name,
+            parameters: {},
+            initialRotation: 0,
+            showReference: !prepared.symbol.hierarchicalBlock,
+            referenceText: null,
+            showValue: true,
+            capture: {
+              payload: packaged,
+              identity,
+              projectId: current.id,
+              documentId: editorDocumentController.activeDocumentId,
+              structureRevision: current.structureRevision,
+              documentRevision: current.documents.find(
+                (d) => d.id === editorDocumentController.activeDocumentId,
+              )!.revision,
+              ...(library
+                ? {
+                    library: {
+                      id: library.id,
+                      revision: library.revision,
+                      status: library.status,
+                    },
+                  }
+                : {}),
+            },
+          },
+        },
       });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -207,6 +252,7 @@ export function EditorComponentEditor({
   }
 
   function placeExternalComponent(definitionId: string): boolean {
+    returnToLibrary.current = false;
     const candidate = externalSubcircuitInsertCandidates.find(
       (item) => item.definitionId === definitionId,
     );
@@ -255,46 +301,6 @@ export function EditorComponentEditor({
       definition,
     );
   }
-
-  useEffect(() => {
-    if (!pendingPublicComponent) return;
-    if (pendingPublicComponent.projectSessionId !== projectSessionId) {
-      setPendingPublicComponent(null);
-      return;
-    }
-    const owner = project.externalSubcircuitDefinitions.find(
-      (definition) => definition.id === pendingPublicComponent.definitionId,
-    );
-    const symbol = resolver.resolve(
-      pendingPublicComponent.symbolId,
-    )?.definition;
-    if (!owner || !symbol) return;
-    setPendingPublicComponent(null);
-    editorCommands.execute({
-      id: "insert.start",
-      launch: {
-        kind: "quick",
-        request: {
-          kind: "external-subcircuit",
-          definitionId: owner.id,
-          symbolId: symbol.id,
-          symbolName: symbol.name,
-          masterName: owner.name,
-          parameters: {},
-          initialRotation: 0,
-          showReference: !symbol.hierarchicalBlock,
-          referenceText: null,
-          showValue: true,
-        },
-      },
-    });
-  }, [
-    pendingPublicComponent,
-    project,
-    projectSessionId,
-    resolver,
-    editorCommands,
-  ]);
 
   return (
     <>
@@ -487,6 +493,7 @@ export function EditorComponentEditor({
               return null;
             }}
             onPlaceDefinition={(definition) => {
+              returnToLibrary.current = false;
               if (!componentSessionIsCurrent())
                 return "The Project changed. Reopen the component before placing.";
               try {
@@ -604,7 +611,19 @@ export function EditorComponentEditor({
                 `component-${componentEditor.key}`,
               )
             }
-            onClose={() => setComponentEditor(null)}
+            onBackToLibrary={
+              returnToLibrary.current
+                ? () => {
+                    setComponentEditor(null);
+                    setUserComponentsOpen(true);
+                    returnToLibrary.current = false;
+                  }
+                : undefined
+            }
+            onClose={() => {
+              setComponentEditor(null);
+              returnToLibrary.current = false;
+            }}
           />
         </Suspense>
       ) : null}
@@ -745,6 +764,7 @@ export function EditorComponentEditor({
             }}
             onClose={() => setUserComponentsOpen(false)}
             onCreate={() => {
+              returnToLibrary.current = true;
               cancelAllTransientInteraction();
               setComponentEditor({
                 key: crypto.randomUUID(),
@@ -754,6 +774,7 @@ export function EditorComponentEditor({
               });
             }}
             onEdit={(entry, publicationIntent) => {
+              returnToLibrary.current = true;
               cancelAllTransientInteraction();
               const draft =
                 definitionProjectRef.current.project.componentAuthoringDrafts?.find(

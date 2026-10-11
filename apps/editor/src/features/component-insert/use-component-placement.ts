@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { planComponentPlacement } from "../user-components/component-placement";
+import { checkSharedComponentRevision } from "../user-components/component-library-client";
 
 import type {
   ExpectedElectricalEffect,
@@ -142,6 +144,9 @@ export interface UseComponentPlacementOptions {
 
 /** Flat owner of component/VDD placement, dialog recents, and its transactions. */
 export function useComponentPlacement(options: UseComponentPlacementOptions) {
+  const latest = useRef(options);
+  latest.current = options;
+  const captureBusy = useRef(false);
   const [insertDialogOpen, setInsertDialogOpen] = useState(false);
   const [insertScope, setInsertScope] = useState<InsertScope>("all");
   const [insertInitialSelectionId, setInsertInitialSelectionId] = useState<
@@ -374,6 +379,109 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     options.setStatus(
       `Placed ${child.netlist.name} as ${id} · click to place another · Esc exits`,
     );
+  };
+
+  const placeNewCapturedComponent = async (
+    position: Point,
+    placementRequest: PendingComponentPlacement,
+  ): Promise<void> => {
+    const capture = placementRequest.capture;
+    if (!capture || captureBusy.current) return;
+    captureBusy.current = true;
+    const structureRevision = capture.structureRevision;
+    const documentRevision = capture.documentRevision;
+    const placement = {
+      position,
+      rotation: options.componentPlacementRotation,
+      mirror: options.componentPlacementMirror,
+    };
+    try {
+      if (capture.library) {
+        if (import.meta.env?.ICM_DESKTOP)
+          throw Error(
+            "Online component library is unavailable in the offline app.",
+          );
+        else await checkSharedComponentRevision(capture.library);
+      }
+      const current = latest.current;
+      if (current.pendingComponentPlacement?.capture !== capture) return;
+      if (
+        capture.projectId !== current.project.id ||
+        capture.documentId !== current.document.id ||
+        structureRevision !== current.project.structureRevision ||
+        documentRevision !== current.document.revision
+      )
+        throw Error("The target changed. Select the component again.");
+      const plan = planComponentPlacement(
+        current.project,
+        current.document.id,
+        capture.payload,
+        capture.identity,
+        placement,
+        {
+          ...(placementRequest.referenceText
+            ? { reference: placementRequest.referenceText }
+            : {}),
+          showReference: placementRequest.showReference,
+          showValue: placementRequest.showValue,
+        },
+      );
+      let edits = plan.edits;
+      if (plan.connection) {
+        const effect = plan.connection.contact.expectedElectricalEffect;
+        const gated = current.gateConnectivity(
+          "connect",
+          plan.documentEdits,
+          effect ? { expectedElectricalEffect: effect } : {},
+        );
+        if (!gated) return;
+        const filled = current.processFill(gated);
+        edits = [
+          ...plan.edits.filter((edit) => edit.kind !== "transact_document"),
+          ...(filled ?? [
+            {
+              kind: "transact_document" as const,
+              documentId: current.document.id,
+              expectedRevision: current.document.revision,
+              edits: [...gated],
+            },
+          ]),
+        ];
+      }
+      if (!current.transactProject("place-public-component", edits)) return;
+      capture.structureRevision = structureRevision + 1;
+      capture.documentRevision = documentRevision + 1;
+      current.selectOnly("instance", [plan.instance.id]);
+      current.setComponentPreviewPoint(position);
+      const contact = plan.connection?.contact;
+      const nearMiss =
+        plan.connection && !contact?.matched
+          ? describePlacementNearMiss(
+              findPlacementNearMisses(
+                plan.connection.projectedDocument,
+                plan.resolver,
+                plan.instance,
+              ),
+              plan.instance.id,
+            )
+          : null;
+      const connectionStatus = contact?.ambiguous
+        ? "; overlapping pins are ambiguous, wire explicitly"
+        : contact?.matched
+          ? " and connected its contacted pin"
+          : nearMiss
+            ? ` · ${nearMiss}`
+            : "";
+      current.setStatus(
+        `Placed ${capture.payload.definition.symbol.name}${connectionStatus} · click to place another · Esc exits`,
+      );
+    } catch (error) {
+      latest.current.setStatus(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      captureBusy.current = false;
+    }
   };
 
   const placeNewExternalSubcircuit = (
@@ -870,6 +978,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       return;
     }
     if (!options.pendingSymbolId || !options.pendingComponentPlacement) return;
+    if (options.pendingComponentPlacement.capture) {
+      void placeNewCapturedComponent(point, options.pendingComponentPlacement);
+      return;
+    }
     if (options.pendingComponentPlacement.kind === "drafting-text") {
       placeDraftingTextAnnotation(point, options.pendingComponentPlacement);
     } else if (options.pendingComponentPlacement.kind === "retained-instance") {

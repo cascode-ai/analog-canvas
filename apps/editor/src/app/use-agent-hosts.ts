@@ -25,6 +25,7 @@ import { BrowserAgentHost } from "../agent/browser-agent-host";
 import type { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
 import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
 import { peekAgentSessionRecovery } from "../agent/session-recovery";
+import { claimNow } from "../agent/claim-clock";
 import type { UseAgentSessionOptions } from "../agent/use-agent-session";
 import { useEditorAgentSession } from "../agent/workspace-agent";
 import type {
@@ -489,7 +490,7 @@ export function useEditorAgentConnection({
   }
 
   const openAgentConnection = () => {
-    if (!agentSession) return;
+    if (import.meta.env?.ICM_DESKTOP || !agentSession) return;
     setAgentPanelOpen(true);
     if (
       agentSession.status === "idle" ||
@@ -497,7 +498,7 @@ export function useEditorAgentConnection({
       agentSession.status === "expired" ||
       (agentSession.status === "waiting-for-agent" &&
         agentSession.claimExpiresAt !== null &&
-        agentSession.claimExpiresAt <= Date.now())
+        agentSession.claimExpiresAt <= claimNow())
     ) {
       void agentSession.newConnection();
     }

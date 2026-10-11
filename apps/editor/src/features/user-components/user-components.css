@@ -165,6 +165,51 @@
   display: flex;
   border-top: 1px solid var(--icm-border);
 }
+.user-component-menu {
+  min-width: 2rem;
+}
+.user-component-menu > summary {
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  list-style: none;
+  color: var(--icm-text-muted);
+}
+.user-component-menu > div {
+  display: flex;
+  flex-direction: column;
+}
+.user-component-detail {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--icm-space-2);
+}
+.user-component-detail h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.user-component-detail pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--icm-font-sm);
+}
+.user-component-detail-preview {
+  height: 15rem;
+  flex-shrink: 0;
+  padding: 0.5rem;
+  background: var(--icm-surface-muted);
+  border-radius: var(--icm-radius-md);
+}
+.component-definition-native .component-geometry-row {
+  max-width: 22rem;
+}
+.component-definition-native
+  .external-model-actionbar
+  > .component-definition-note {
+  flex-basis: 100%;
+}
 .user-component-edit {
   flex: 1;
   min-width: 0;
@@ -256,8 +301,11 @@
 }
 .component-definition-workspace {
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(320px, 1.8fr);
-  gap: var(--icm-space-4);
+  grid-template-columns: minmax(0, var(--definition-split, 40%)) 8px minmax(
+      0,
+      1fr
+    );
+  gap: var(--icm-space-1);
   flex: 1;
   min-height: 0;
 }
@@ -308,7 +356,29 @@
   width: 12rem;
 }
 .component-definition-native .component-definition-workspace {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--definition-split, 65%)) 8px minmax(
+      0,
+      1fr
+    );
+}
+.component-definition-divider {
+  cursor: col-resize;
+  touch-action: none;
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+}
+.component-definition-divider:hover,
+.component-definition-divider:focus-visible {
+  background: var(--icm-border-strong);
+}
+.component-definition-name {
+  display: flex;
+  align-items: center;
+  gap: var(--icm-space-2);
+}
+.component-definition-name input {
+  width: min(24rem, 70%);
+  min-width: 0;
 }
 .component-definition-native .component-definition-preview {
   justify-content: center;
@@ -329,7 +399,7 @@
   overflow: auto;
 }
 .component-definition-native .external-model-layout {
-  grid-template-columns: minmax(0, 1fr) minmax(9rem, 11rem);
+  grid-template-columns: minmax(16rem, 22rem) minmax(12rem, 1fr);
 }
 .component-definition-native .external-model-layout-preview {
   position: sticky;
@@ -472,6 +542,9 @@
   margin: 0;
 }
 @media (max-width: 700px) {
+  .component-definition-divider {
+    display: none;
+  }
   .component-definition-workspace {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(140px, 30%) 1fr;

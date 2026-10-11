@@ -273,158 +273,166 @@ describe.each(["compatibility", "focused", "cli"] as const)(
       expect(service.maxActive).toBe(1);
     });
 
-    it("authors a raw workspace, recovers an input error, runs, reads numbers and exports verified CSV using the same session", async () => {
-      const directory = await tempDirectory();
-      const service = new HostedSimulationService();
-      const tabs: { active: string; open: OpenTab[] } = {
-        active: "tab-1",
-        open: [],
-      };
-      const editor = liveEditorWithRelay({
-        simulationService: service.fetch,
-        projectHost: { workspace: openTabs(tabs) },
-      });
-      editors.push(editor);
-      tabs.open = [{ id: "tab-1", controller: editor.controller }];
-      const { controller, http, relay } = editor;
-      const tool = tools({
-        client: editor.client,
-        workspaceRoot: join(directory, "locations"),
-      });
-      await tool("connect", { claimCode: "session-1.code" });
-      const help = await tool("simulation", {
-        request: { operation: "authoring-help", name: "embed" },
-      });
-      expect(help.ok).toBe(true);
-      expect(help.helpers[0].source).toContain("def report_measurement(");
-      expect(help.helpers[0].source).toContain("def report_plot(");
-      expect(service.executions).toBe(0);
-      const bad = await tool("simulation", {
-        request: {
-          operation: "prepare",
-          source: {
-            kind: "project-folder",
-            folderId: "folder-1",
-            expectedStructureRevision: controller.project.structureRevision,
-          },
-        },
-      });
-      expect(bad).toMatchObject({
-        ok: false,
-        error: { code: "SIMULATION_FOLDER_MISSING" },
-      });
-      const created = await tool("simulation_files", {
-        request: { action: "create" },
-      });
-      const workspaceId = created.workspace.id;
-      await tool("simulation_files", {
-        request: {
-          action: "update",
-          owner: { kind: "session-workspace", workspaceId },
-          expectedRevision: 0,
-          entry: "main.sim",
-          writes: dividerFiles(),
-        },
-      });
-      const prepared = await tool("simulation", {
-        request: {
-          operation: "prepare",
-          source: { kind: "workspace", workspaceId, expectedRevision: 1 },
-        },
-      });
-      expect(service.executions).toBe(0);
-      expect(prepared.prepared.projection).toBe("summary");
-      expect(prepared.prepared.acquisition).toContain("not captured data");
-      expect(prepared.prepared.vectors).toBeUndefined();
-      expect(prepared.prepared.detailsArtifact.name).toBe("preparation.json");
-      const args = {
-        request: {
-          operation: "start",
-          preparedId: prepared.prepared.id,
-          digest: prepared.prepared.digest,
-        },
-        requestId: "start-once",
-      };
-      const started = await tool("simulation", args);
-      expect(started.run.id).toBeDefined();
-      expect((await tool("simulation", args)).run.id).toBe(started.run.id);
-      let finished: any;
-      await vi.waitFor(async () => {
-        finished = await tool("simulation", {
-          request: { operation: "read", runId: started.run.id },
-          detail: "full",
+    // Artifact download and sync each exercise a real 2 s pending-transfer poll.
+    // Leave room for the live editor and filesystem work before cleanup starts.
+    it(
+      "authors a raw workspace, recovers an input error, runs, reads numbers and exports verified CSV using the same session",
+      { timeout: 10_000 },
+      async () => {
+        const directory = await tempDirectory();
+        const service = new HostedSimulationService();
+        const tabs: { active: string; open: OpenTab[] } = {
+          active: "tab-1",
+          open: [],
+        };
+        const editor = liveEditorWithRelay({
+          simulationService: service.fetch,
+          projectHost: { workspace: openTabs(tabs) },
         });
-        expect(finished.run.state).toBe("finished");
-      });
-      expect(service.executions).toBe(1);
-      await vi.waitFor(async () =>
-        expect(
-          await tool("simulation", { request: { operation: "history" } }),
-        ).toMatchObject({
-          ok: true,
-          runs: [{ runId: started.run.id }],
-          nextCursor: null,
-        }),
-      );
-      expect(finished.run.result.data).toBeUndefined();
-      expect(finished.run.outputData).toBeUndefined();
-      const summary = await tool("simulation", {
-        request: { operation: "read", runId: started.run.id },
-      });
-      expect(summary.run.artifacts).toBeUndefined();
-      expect(summary.run.artifactCount).toBe(finished.run.artifacts.length);
-      expect(summary.run.details).toEqual(finished.run.details);
-      // Publishing evidence does not upload anything before a download request.
-      const fileIds = finished.run.artifacts.map(
-        (item: { id: string; fileId?: string }) => item.fileId ?? item.id,
-      );
-      expect(relay.uploaded).toEqual([]);
-      const csv = finished.run.artifacts.find(
-        (item: { name: string }) => item.name === "op-0.csv",
-      );
-      const path = join(directory, "result.csv");
-      expect(
+        editors.push(editor);
+        tabs.open = [{ id: "tab-1", controller: editor.controller }];
+        const { controller, http, relay } = editor;
+        const tool = tools({
+          client: editor.client,
+          workspaceRoot: join(directory, "locations"),
+        });
+        await tool("connect", { claimCode: "session-1.code" });
+        const help = await tool("simulation", {
+          request: { operation: "authoring-help", name: "embed" },
+        });
+        expect(help.ok).toBe(true);
+        expect(help.helpers[0].source).toContain("def report_measurement(");
+        expect(help.helpers[0].source).toContain("def report_plot(");
+        expect(service.executions).toBe(0);
+        const bad = await tool("simulation", {
+          request: {
+            operation: "prepare",
+            source: {
+              kind: "project-folder",
+              folderId: "folder-1",
+              expectedStructureRevision: controller.project.structureRevision,
+            },
+          },
+        });
+        expect(bad).toMatchObject({
+          ok: false,
+          error: { code: "SIMULATION_FOLDER_MISSING" },
+        });
+        const created = await tool("simulation_files", {
+          request: { action: "create" },
+        });
+        const workspaceId = created.workspace.id;
         await tool("simulation_files", {
-          request: { action: "artifact", artifactId: csv.id },
-          outputPath: path,
-        }),
-      ).toMatchObject({ ok: true });
-      expect(relay.uploaded).toEqual([csv.id]);
-      // The captured raw record declares "notype"; the unit stays unknown.
-      expect((await readFile(path, "utf8")).split("\n")).toContain("output,2,");
-      const basePath = join(directory, "workspace");
-      const synced = await tool("simulation_files", {
-        request: { action: "sync", runId: started.run.id },
-        basePath,
-      });
-      expect(synced).toMatchObject({
-        ok: true,
-        basePath,
-        workspaceFileCount: finished.run.artifacts.length,
-      });
-      expect(synced.files).toHaveLength(finished.run.artifacts.length);
-      expect(relay.uploaded).toEqual(expect.arrayContaining(fileIds));
-      expect(relay.served).toEqual(expect.arrayContaining(fileIds));
-      expect(synced.projection).toBe("summary");
-      expect(synced.runs).toBeUndefined();
-      expect(synced.files[0].sha256).toBeUndefined();
-      expect(
-        await tool("simulation_files", { request: { action: "workspace" } }),
-      ).toMatchObject({ ok: true, basePath });
-      const served = relay.served.length;
-      const reused = await tool("simulation_files", {
-        request: { action: "sync", runId: started.run.id },
-      });
-      expect(reused.ok, JSON.stringify(reused.error)).toBe(true);
-      expect(
-        reused.files.every((file: { reused: boolean }) => file.reused),
-      ).toBe(true);
-      expect(relay.served).toHaveLength(served);
-      const localIndex = JSON.parse(await readFile(synced.indexPath, "utf8"));
-      expect(localIndex.runs[0].runId).toBe(started.run.id);
-      expect(localIndex.runs[0].files[0].sha256).toBeDefined();
-      expect(http.claims).toHaveLength(1);
-    });
+          request: {
+            action: "update",
+            owner: { kind: "session-workspace", workspaceId },
+            expectedRevision: 0,
+            entry: "main.sim",
+            writes: dividerFiles(),
+          },
+        });
+        const prepared = await tool("simulation", {
+          request: {
+            operation: "prepare",
+            source: { kind: "workspace", workspaceId, expectedRevision: 1 },
+          },
+        });
+        expect(service.executions).toBe(0);
+        expect(prepared.prepared.projection).toBe("summary");
+        expect(prepared.prepared.acquisition).toContain("not captured data");
+        expect(prepared.prepared.vectors).toBeUndefined();
+        expect(prepared.prepared.detailsArtifact.name).toBe("preparation.json");
+        const args = {
+          request: {
+            operation: "start",
+            preparedId: prepared.prepared.id,
+            digest: prepared.prepared.digest,
+          },
+          requestId: "start-once",
+        };
+        const started = await tool("simulation", args);
+        expect(started.run.id).toBeDefined();
+        expect((await tool("simulation", args)).run.id).toBe(started.run.id);
+        let finished: any;
+        await vi.waitFor(async () => {
+          finished = await tool("simulation", {
+            request: { operation: "read", runId: started.run.id },
+            detail: "full",
+          });
+          expect(finished.run.state).toBe("finished");
+        });
+        expect(service.executions).toBe(1);
+        await vi.waitFor(async () =>
+          expect(
+            await tool("simulation", { request: { operation: "history" } }),
+          ).toMatchObject({
+            ok: true,
+            runs: [{ runId: started.run.id }],
+            nextCursor: null,
+          }),
+        );
+        expect(finished.run.result.data).toBeUndefined();
+        expect(finished.run.outputData).toBeUndefined();
+        const summary = await tool("simulation", {
+          request: { operation: "read", runId: started.run.id },
+        });
+        expect(summary.run.artifacts).toBeUndefined();
+        expect(summary.run.artifactCount).toBe(finished.run.artifacts.length);
+        expect(summary.run.details).toEqual(finished.run.details);
+        // Publishing evidence does not upload anything before a download request.
+        const fileIds = finished.run.artifacts.map(
+          (item: { id: string; fileId?: string }) => item.fileId ?? item.id,
+        );
+        expect(relay.uploaded).toEqual([]);
+        const csv = finished.run.artifacts.find(
+          (item: { name: string }) => item.name === "op-0.csv",
+        );
+        const path = join(directory, "result.csv");
+        expect(
+          await tool("simulation_files", {
+            request: { action: "artifact", artifactId: csv.id },
+            outputPath: path,
+          }),
+        ).toMatchObject({ ok: true });
+        expect(relay.uploaded).toEqual([csv.id]);
+        // The captured raw record declares "notype"; the unit stays unknown.
+        expect((await readFile(path, "utf8")).split("\n")).toContain(
+          "output,2,",
+        );
+        const basePath = join(directory, "workspace");
+        const synced = await tool("simulation_files", {
+          request: { action: "sync", runId: started.run.id },
+          basePath,
+        });
+        expect(synced).toMatchObject({
+          ok: true,
+          basePath,
+          workspaceFileCount: finished.run.artifacts.length,
+        });
+        expect(synced.files).toHaveLength(finished.run.artifacts.length);
+        expect(relay.uploaded).toEqual(expect.arrayContaining(fileIds));
+        expect(relay.served).toEqual(expect.arrayContaining(fileIds));
+        expect(synced.projection).toBe("summary");
+        expect(synced.runs).toBeUndefined();
+        expect(synced.files[0].sha256).toBeUndefined();
+        expect(
+          await tool("simulation_files", { request: { action: "workspace" } }),
+        ).toMatchObject({ ok: true, basePath });
+        const served = relay.served.length;
+        const reused = await tool("simulation_files", {
+          request: { action: "sync", runId: started.run.id },
+        });
+        expect(reused.ok, JSON.stringify(reused.error)).toBe(true);
+        expect(
+          reused.files.every((file: { reused: boolean }) => file.reused),
+        ).toBe(true);
+        expect(relay.served).toHaveLength(served);
+        const localIndex = JSON.parse(await readFile(synced.indexPath, "utf8"));
+        expect(localIndex.runs[0].runId).toBe(started.run.id);
+        expect(localIndex.runs[0].files[0].sha256).toBeDefined();
+        expect(http.claims).toHaveLength(1);
+      },
+    );
 
     it("warns about an invalid @spec line in a file it saved, and the file is saved as written (#1398)", async () => {
       const project = emptyAgentProject();

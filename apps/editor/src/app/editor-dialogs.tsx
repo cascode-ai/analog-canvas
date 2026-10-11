@@ -3,6 +3,7 @@
 // version history, and the Agent connection and file approval.
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { flushSync } from "react-dom";
+import { claimNow } from "../agent/claim-clock";
 import { planProjectCellImport } from "@icm/edit-engine";
 import type {
   HierarchyFrame,
@@ -738,7 +739,10 @@ export function EditorDialogs({
           : null
       }
       agentConnection={
-        publicAgentUiEnabled && agentSession && agentPanelOpen
+        !import.meta.env?.ICM_DESKTOP &&
+        publicAgentUiEnabled &&
+        agentSession &&
+        agentPanelOpen
           ? {
               open: agentPanelOpen,
               status: agentSession.status,
@@ -749,7 +753,7 @@ export function EditorDialogs({
               expiresAt: agentSession.expiresAt,
               error: agentSession.error,
               backgroundRequests: agentSession.backgroundRequests,
-              now: Date.now(),
+              now: claimNow(),
               onPause: () => void agentSession.pause(),
               onResume: () => void agentSession.resume(),
               onReconnect: agentSession.reconnect,

@@ -5,6 +5,7 @@ import type {
 import {
   publishedComponentPayload,
   parseSharedComponentPayload,
+  summarizeSharedComponent,
 } from "../apps/editor/src/features/user-components/component-library-contract";
 
 type Sql = {
@@ -27,9 +28,16 @@ interface Row {
   definition: string;
 }
 const entry = (row: Row): SharedComponent => {
-  const stored = JSON.parse(row.definition);
+  let stored;
+  try {
+    stored = JSON.parse(row.definition);
+  } catch {
+    stored = { rawSource: row.definition };
+  }
   const payload =
-    stored.circuit === undefined ? { definition: stored } : stored;
+    !stored || typeof stored !== "object" || stored.circuit === undefined
+      ? { definition: stored }
+      : stored;
   return {
     id: row.id,
     revision: row.revision,
@@ -99,7 +107,11 @@ export class ComponentLibraryDO {
         )
         .toArray();
       return Response.json({
-        entries: rows.slice(0, limit).map(entry),
+        entries: rows
+          .slice(0, limit)
+          .map((row) =>
+            body.summary ? summarizeSharedComponent(entry(row)) : entry(row),
+          ),
         nextCursor: rows.length > limit ? rows[limit - 1]!.id : null,
       });
     }
@@ -125,6 +137,40 @@ export class ComponentLibraryDO {
       const row = this.sql
         .exec<Row>("SELECT * FROM components WHERE id = ?", id)
         .toArray()[0];
+      if (
+        row &&
+        (row.status !== "deleted" || body.admin) &&
+        (body.preview || body.identity)
+      ) {
+        if (row.revision !== body.revision)
+          return Response.json(
+            { error: "This component changed. Refresh before selecting it." },
+            { status: 409 },
+          );
+        if (body.identity)
+          return Response.json({
+            id: row.id,
+            revision: row.revision,
+            status: row.status,
+          });
+        try {
+          const { definition, circuit } = entry(row);
+          const parsed = parseSharedComponentPayload({
+            definition,
+            ...(circuit ? { circuit } : {}),
+          });
+          return Response.json({
+            id: row.id,
+            revision: row.revision,
+            symbol: parsed.definition.symbol,
+          });
+        } catch {
+          return Response.json(
+            { error: "This component needs repair." },
+            { status: 422 },
+          );
+        }
+      }
       return row && (row.status !== "deleted" || body.admin)
         ? Response.json({ entry: entry(row) })
         : Response.json({ error: "Component not found" }, { status: 404 });

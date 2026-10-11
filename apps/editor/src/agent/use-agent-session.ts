@@ -31,6 +31,7 @@ import type { CircuitProject } from "@icm/model";
 import { ArtifactDownloadError } from "@icm/simulation-service/files";
 
 import type { AgentConnectionStatus } from "./connect-agent-panel";
+import { claimDeadline, claimNow } from "./claim-clock";
 import type { AgentPairing } from "./headless-pairing";
 import { transitionAgentSession } from "./agent-session-state-machine";
 import { agentCircuitServiceOptions } from "./agent-service-options";
@@ -92,6 +93,7 @@ type LiveSession = {
   sessionId: string;
   editorSecret: string;
   claimCode: string | null;
+  /** Page-clock deadline, not the relay's wall timestamp; never persisted. */
   claimExpiresAt: number | null;
   expiresAt: number;
   scopes: AgentSessionScope[];
@@ -145,6 +147,7 @@ export interface AgentSessionViewModel {
   pendingOperation: ConnectionOperationKind | null;
   status: AgentConnectionStatus;
   claimCode: string | null;
+  /** Page-clock deadline shared by the dialog, Properties and headless handoff. */
   claimExpiresAt: number | null;
   scopes: readonly AgentSessionScope[];
   expiresAt: number | null;
@@ -446,7 +449,9 @@ export function useAgentSession(
         const { SessionTransport } = await import("./session-transport");
         operation.signal.throwIfAborted();
         let created: CreatedSessionResponse | null = null;
+        let claimExpiresAt: number | null = null;
         if (!recovery) {
+          const requestStartedAt = claimNow();
           const response = await fetch("/api/agent/sessions", {
             signal: operation.signal,
             method: "POST",
@@ -476,6 +481,11 @@ export function useAgentSession(
             throw new Error("Session creation returned an invalid response");
           }
           created = payload;
+          claimExpiresAt = claimDeadline(
+            payload.session.claimExpiresAt,
+            response.headers.get("date"),
+            requestStartedAt,
+          );
         }
         operation.signal.throwIfAborted();
         if (operationRef.current !== operation) return;
@@ -491,7 +501,7 @@ export function useAgentSession(
           sessionId: recovery?.sessionId ?? created!.session.sessionId,
           editorSecret: recovery?.editorSecret ?? created!.session.editorSecret,
           claimCode: recovery ? null : created!.session.claimCode,
-          claimExpiresAt: recovery ? null : created!.session.claimExpiresAt,
+          claimExpiresAt,
           expiresAt: recovery?.expiresAt ?? created!.session.expiresAt,
           scopes: [...scopes],
           socket: null,
@@ -505,6 +515,12 @@ export function useAgentSession(
           attachedFileHosts: new WeakSet(),
         };
         liveRef.current = live;
+        // Creation already produced the handoff. Transport readiness remains a
+        // separate status; a slow socket must not hide a successfully issued code.
+        update({
+          claimCode: live.claimCode,
+          claimExpiresAt: live.claimExpiresAt,
+        });
         live.publishArtifact = async (ref, text, transfer) => {
           if (liveRef.current !== live) throw new Error("Session changed");
           const path = `/api/agent/sessions/${encodeURIComponent(live.sessionId)}/artifacts/${encodeURIComponent(ref.fileId ?? ref.id)}`;
@@ -1292,8 +1308,6 @@ export function useAgentSession(
             opened();
             update({
               status: "reconnecting",
-              claimCode: live.claimCode,
-              claimExpiresAt: live.claimExpiresAt,
               scopes,
               expiresAt: live.expiresAt,
               error: null,
@@ -1316,6 +1330,8 @@ export function useAgentSession(
         // expired/revoked events clear the same-tab recovery credential.
         update({
           status: "idle",
+          claimCode: null,
+          claimExpiresAt: null,
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -1625,11 +1641,12 @@ export function useAgentSession(
         live &&
         live.claimCode !== null &&
         live.claimExpiresAt !== null &&
-        Date.now() >= live.claimExpiresAt
+        claimNow() >= live.claimExpiresAt
       ) {
         const claimExpiresAt = live.claimExpiresAt;
         live.claimCode = null;
-        live.claimExpiresAt = null;
+        // Keep the deadline as the explanation for an absent code, independent
+        // of later socket recovery. Only replacement/termination clears it.
         update({ claimCode: null, claimExpiresAt });
       }
     }, 1_000);

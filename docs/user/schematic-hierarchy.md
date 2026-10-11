@@ -39,7 +39,8 @@ choose the public entry; helper definitions remain with the same source. New
 definitions can select an existing source owner to expose another entry.
 
 The same native editor is available through **Edit → User Components… →
-Create Component…**. Circuit is the default. The Circuit, Symbol and Pins views retain one draft.
+Create Component…**. Circuit is the default. Circuit and Symbol retain one draft;
+Pin directions and expandable mappings are in Circuit.
 Enter SPICE or Spectre, choose Automatic or Custom artwork, and complete its Pin
 mapping before Apply or Place.
 Custom JSON pins map explicitly to the model's formal terminals. Choosing an existing source

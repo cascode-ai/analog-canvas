@@ -222,7 +222,7 @@ export async function routeAgentSessionRequest(
       );
     }
     const rawClaim = result.session.claimCode;
-    return jsonResponse(
+    const createdResponse = jsonResponse(
       {
         ...result,
         session: {
@@ -236,6 +236,9 @@ export async function routeAgentSessionRequest(
       200,
       allowedOrigin,
     );
+    // Same-origin browser handoff uses relay time, not the computer's clock.
+    createdResponse.headers.set("date", new Date().toUTCString());
+    return createdResponse;
   }
 
   if (request.method === "POST" && url.pathname === "/api/agent/claims") {
@@ -500,7 +503,8 @@ export function projectOperationScopes(
   switch (request.operation) {
     case "components":
       return request.request.action === "list" ||
-        request.request.action === "read"
+        request.request.action === "read" ||
+        request.request.action === "browse"
         ? ["circuit.snapshot"]
         : request.request.action === "insert"
           ? [
