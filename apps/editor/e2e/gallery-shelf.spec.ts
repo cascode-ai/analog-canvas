@@ -1,7 +1,7 @@
 // The Shelf: publication journeys from a draft, and Shelf cards that
 // duplicate, rename, export and keep account favourites.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import { readFileSync } from "node:fs";
 import { createEmptyProject } from "@icm/model";
 import {

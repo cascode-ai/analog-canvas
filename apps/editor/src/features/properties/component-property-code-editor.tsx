@@ -14,15 +14,12 @@ import {
 } from "./current-control-options";
 import { itemPropertyCode } from "./item-property-code";
 import {
-  propertyCodeSpans,
-  propertyCodeChanges,
+  createComponentPropertyCodeAdapter,
   dependentControlPropertyValues,
-  reflectedPropertyCode,
 } from "./component-property-code-assists";
 
 import {
   formatComponentPropertyCode,
-  parseComponentPropertyCode,
   serializeComponentPropertyCode,
   defaultComponentPropertyCode,
   type ComponentPropertyCodeContext,
@@ -145,20 +142,18 @@ export function ComponentPropertyCodeEditor({
     itemName,
   ]);
   const baseline = projection.format(nativeBaseline);
+  const nativeAdapter = useMemo(
+    () => createComponentPropertyCodeAdapter(context),
+    [context],
+  );
   const adapter = useMemo(() => {
-    const projected = projection.adapter({
-      parse: (source) => parseComponentPropertyCode(source, context),
-      spans: (source) => propertyCodeSpans(source, context),
-      changes: (source, values) => propertyCodeChanges(source, context, values),
-      reflected: (source, direction) =>
-        reflectedPropertyCode(source, context, direction),
-    });
+    const projected = projection.adapter(nativeAdapter);
     return {
       ...projected,
       changes: (source: string, values: Readonly<Record<string, unknown>>) =>
         projected.changes(source, dependentControlPropertyValues(values)),
     };
-  }, [projection, context]);
+  }, [projection, nativeAdapter]);
   const previousBaseline = useRef(baseline);
   const appliedCode = useRef<string | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
@@ -181,11 +176,8 @@ export function ComponentPropertyCodeEditor({
   }, [baseline, draft]);
 
   const parsed = useMemo(
-    () =>
-      projection.parse(draft, (source) =>
-        parseComponentPropertyCode(source, context),
-      ),
-    [context, draft, projection],
+    () => projection.parse(draft, nativeAdapter.parse),
+    [nativeAdapter, draft, projection],
   );
   const statusMessage =
     applyMessage ??
@@ -204,9 +196,7 @@ export function ComponentPropertyCodeEditor({
     setDraft(source);
     setApplyMessage(null);
     setRejected(false);
-    const next = projection.parse(source, (native) =>
-      parseComponentPropertyCode(native, context),
-    );
+    const next = projection.parse(source, nativeAdapter.parse);
     if (!next.ok) return;
     const normalized = projection.format(
       serializeComponentPropertyCode(next.value),

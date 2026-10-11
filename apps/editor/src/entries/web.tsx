@@ -22,6 +22,7 @@ import "../styles.css";
 import { hasAgentSessionRecovery } from "../agent/session-recovery-presence";
 
 import { configureWebServiceWorker } from "./web-service-worker";
+import { localhostExamplesEnabled } from "../gallery-source";
 
 export function mountWebEditor() {
   const WorkspaceAgentProvider = lazy(() =>
@@ -42,7 +43,8 @@ export function mountWebEditor() {
   }
 
   function galleryLandingPreload(): GalleryLandingPreload | undefined {
-    if (!/^\/?$/.test(window.location.pathname)) return undefined;
+    if (!/^\/?$/.test(window.location.pathname) || localhostExamplesEnabled())
+      return undefined;
     let storedFilters: string | null = null;
     try {
       storedFilters = localStorage.getItem(GALLERY_FILTERS_KEY);
@@ -119,6 +121,9 @@ export function mountWebEditor() {
       })),
     ),
   );
+  const LocalExamplesPage = lazy(
+    () => import("../components/local-examples-page"),
+  );
 
   const Moderation = lazy(
     guardedRouteChunk(() =>
@@ -176,12 +181,16 @@ export function mountWebEditor() {
         <Suspense
           fallback={<div className="analytics-loading">Loading gallery…</div>}
         >
-          <GalleryFeed
-            visitStats={stats}
-            {...(initialGalleryPreload
-              ? { preload: initialGalleryPreload }
-              : {})}
-          />
+          {localhostExamplesEnabled() ? (
+            <LocalExamplesPage visitStats={stats} />
+          ) : (
+            <GalleryFeed
+              visitStats={stats}
+              {...(initialGalleryPreload
+                ? { preload: initialGalleryPreload }
+                : {})}
+            />
+          )}
         </Suspense>
       );
     }

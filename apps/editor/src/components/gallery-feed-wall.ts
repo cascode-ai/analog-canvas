@@ -1,7 +1,6 @@
 /**
  * What the wall holds and how it loads: the first page and every later one,
- * the tag counts beside it, refreshes, likes, entries taken off it, and the
- * bundled examples that stand in on a development host.
+ * the tag counts beside it, refreshes, likes, and entries taken off it.
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -21,7 +20,6 @@ import {
   type GalleryQuickFilterCounts,
   type GalleryTagSummary,
 } from "../gallery-client";
-import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 
 /**
  * The eager landing request is one-use: the wall takes it only for its first
@@ -452,29 +450,4 @@ export function useGalleryWall({
     toggleLike,
     removeManagedEntry,
   };
-}
-
-export function useBundledGalleryFallback(needsBundledFallback: boolean) {
-  const [bundledFallback, setBundledFallback] = useState<{
-    status: "idle" | "loading" | "ready" | "failed";
-    tiles: BundledGalleryTile[];
-  }>({ status: "idle", tiles: [] });
-
-  useEffect(() => {
-    if (!needsBundledFallback || bundledFallback.status !== "idle") return;
-    let cancelled = false;
-    setBundledFallback({ status: "loading", tiles: [] });
-    void import("./gallery-bundled-fallback")
-      .then(({ loadBundledGalleryTiles }) => loadBundledGalleryTiles())
-      .then((tiles) => {
-        if (!cancelled) setBundledFallback({ status: "ready", tiles });
-      })
-      .catch(() => {
-        if (!cancelled) setBundledFallback({ status: "failed", tiles: [] });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [needsBundledFallback]);
-  return bundledFallback;
 }

@@ -8,21 +8,16 @@ import {
   useState,
 } from "react";
 import type { SchematicDocument } from "@icm/model";
-import type { PropertyJsonEditorAdapter } from "../properties/component-property-json-editor";
 
 import {
   documentSettingsCodeValue,
   defaultDocumentSettingsCode,
   formatDocumentSettingsCode,
-  parseDocumentSettingsCode,
   serializeDocumentSettingsCode,
   type CanvasPreferenceCodeValue,
   type DocumentSettingsCodeValue,
 } from "./document-settings-code";
-import {
-  documentSettingsCodeChanges,
-  documentSettingsCodeSpans,
-} from "./document-settings-code-assists";
+import { createDocumentSettingsCodeAdapter } from "./document-settings-code-assists";
 
 const PropertyJsonEditor = lazy(
   () => import("../properties/component-property-json-editor"),
@@ -54,13 +49,8 @@ export function DocumentSettingsSection({
   const [draft, setDraft] = useState(baseline);
   const [message, setMessage] = useState<string | null>(null);
   const [rejected, setRejected] = useState(false);
-  const adapter = useMemo<PropertyJsonEditorAdapter>(
-    () => ({
-      parse: (source) => parseDocumentSettingsCode(source, document),
-      spans: (source) => documentSettingsCodeSpans(source, document),
-      changes: (source, values) =>
-        documentSettingsCodeChanges(source, document, values),
-    }),
+  const adapter = useMemo(
+    () => createDocumentSettingsCodeAdapter(document),
     [document],
   );
 
@@ -75,10 +65,7 @@ export function DocumentSettingsSection({
     setRejected(false);
   }, [baseline]);
 
-  const parsed = useMemo(
-    () => parseDocumentSettingsCode(draft, document),
-    [document, draft],
-  );
+  const parsed = useMemo(() => adapter.parse(draft), [adapter, draft]);
   const status =
     message ??
     (parsed.ok ? null : `${parsed.message} · Canvas keeps the last valid edit`);
@@ -87,7 +74,7 @@ export function DocumentSettingsSection({
     setDraft(source);
     setMessage(null);
     setRejected(false);
-    const next = parseDocumentSettingsCode(source, document);
+    const next = adapter.parse(source);
     if (!next.ok) return;
     const normalized = serializeDocumentSettingsCode(next.value);
     if (normalized === baseline) return;

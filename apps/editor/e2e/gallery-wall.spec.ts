@@ -1,7 +1,8 @@
 // The Gallery wall: landing, masonry, paging and scrolling, links to an entry,
 // the circuit count and contributors, tile marks and opening a tile.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
+import { test as localTest } from "@playwright/test";
 import type { Locator, Route } from "@playwright/test";
 import { serializeProject } from "@icm/project-protocol";
 import { awaitEditorReady, openProjectInfo } from "./editor-fixtures.js";
@@ -659,7 +660,7 @@ test("contributors cover filtered pages while text search follows only matching 
   expect(globalRequests).toBe(0);
 });
 
-test("falls back to bundled tiles when the gallery is empty or unreachable", async ({
+test("hosted Gallery never falls back to local examples when unreachable", async ({
   page,
 }) => {
   await page.route(galleryListUrl, (route) =>
@@ -668,7 +669,8 @@ test("falls back to bundled tiles when the gallery is empty or unreachable", asy
   await page.goto("/");
   await expect(
     page.getByTestId("gallery-bundled-two-stage-op-amp"),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByTestId("gallery-feed")).toBeVisible();
 });
 
 test("a gallery tile opens its circuit in the editor", async ({ page }) => {
@@ -838,56 +840,59 @@ test("marks the circuits that extract or an AI made, and counts thumbs on every 
 });
 
 // Also the browser check that a starter tile opens its example in the editor.
-test("bundled VDD rails keep their current presentation in the Gallery and editor", async ({
-  page,
-}) => {
-  await mockGallery(page, []);
-  await page.goto("/");
-  const tile = page.getByTestId(
-    "gallery-bundled-current-mirror-loaded-differential-pair",
-  );
-  const tileRails = tile.locator('[data-route-presentation="power-rail"]');
-  await expect(tileRails).toHaveCount(3);
-  // A conductor run is one shape, so a rail's width is on the shape carrying
-  // its subpath rather than on the element that carries its identity.
-  const railInkWidths = (root: Locator) =>
-    root.evaluate((element: SVGElement | HTMLElement) => {
-      const inks = [...element.querySelectorAll('[data-role="conductor-ink"]')];
-      return [
-        ...element.querySelectorAll('[data-route-presentation="power-rail"]'),
-      ].map((rail) => {
-        const subpath = `M ${Array.from((rail as SVGPolylineElement).points)
-          .map((point) => `${point.x} ${point.y}`)
-          .join(" L ")}`;
-        return (
-          inks
-            .find((path) => (path.getAttribute("d") ?? "").includes(subpath))
-            ?.getAttribute("stroke-width") ?? null
-        );
+localTest(
+  "bundled VDD rails keep their current presentation in the Gallery and editor",
+  async ({ page }) => {
+    await mockGallery(page, []);
+    await page.goto("/");
+    const tile = page.getByTestId(
+      "gallery-bundled-current-mirror-loaded-differential-pair",
+    );
+    const tileRails = tile.locator('[data-route-presentation="power-rail"]');
+    await expect(tileRails).toHaveCount(3);
+    // A conductor run is one shape, so a rail's width is on the shape carrying
+    // its subpath rather than on the element that carries its identity.
+    const railInkWidths = (root: Locator) =>
+      root.evaluate((element: SVGElement | HTMLElement) => {
+        const inks = [
+          ...element.querySelectorAll('[data-role="conductor-ink"]'),
+        ];
+        return [
+          ...element.querySelectorAll('[data-route-presentation="power-rail"]'),
+        ].map((rail) => {
+          const subpath = `M ${Array.from((rail as SVGPolylineElement).points)
+            .map((point) => `${point.x} ${point.y}`)
+            .join(" L ")}`;
+          return (
+            inks
+              .find((path) => (path.getAttribute("d") ?? "").includes(subpath))
+              ?.getAttribute("stroke-width") ?? null
+          );
+        });
       });
-    });
-  expect(await railInkWidths(tile)).toEqual(["3.24", "3.24", "3.24"]);
-  await expect(
-    tile.locator(
-      '[data-layer="junctions"] circle[cx="380"][cy="160"], [data-layer="junctions"] circle[cx="500"][cy="160"]',
-    ),
-  ).toHaveCount(0);
+    expect(await railInkWidths(tile)).toEqual(["3.24", "3.24", "3.24"]);
+    await expect(
+      tile.locator(
+        '[data-layer="junctions"] circle[cx="380"][cy="160"], [data-layer="junctions"] circle[cx="500"][cy="160"]',
+      ),
+    ).toHaveCount(0);
 
-  await tile.click();
-  await expect(page).toHaveURL(
-    /\/editor\?example=current-mirror-loaded-differential-pair$/,
-  );
-  await awaitEditorReady(page);
-  const canvasRails = page.locator(
-    '[data-testid="schematic-canvas"] [data-route-presentation="power-rail"]',
-  );
-  await expect(canvasRails).toHaveCount(3);
-  expect(
-    await railInkWidths(page.locator('[data-testid="schematic-canvas"]')),
-  ).toEqual(["3.24", "3.24", "3.24"]);
-  await expect(
-    page.locator(
-      '[data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="380"][cy="160"], [data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="500"][cy="160"]',
-    ),
-  ).toHaveCount(0);
-});
+    await tile.click();
+    await expect(page).toHaveURL(
+      /\/editor\?example=current-mirror-loaded-differential-pair$/,
+    );
+    await awaitEditorReady(page);
+    const canvasRails = page.locator(
+      '[data-testid="schematic-canvas"] [data-route-presentation="power-rail"]',
+    );
+    await expect(canvasRails).toHaveCount(3);
+    expect(
+      await railInkWidths(page.locator('[data-testid="schematic-canvas"]')),
+    ).toEqual(["3.24", "3.24", "3.24"]);
+    await expect(
+      page.locator(
+        '[data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="380"][cy="160"], [data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="500"][cy="160"]',
+      ),
+    ).toHaveCount(0);
+  },
+);

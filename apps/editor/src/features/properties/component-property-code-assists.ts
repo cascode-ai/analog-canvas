@@ -165,7 +165,6 @@ export function propertyCodeChanges(
   context: ComponentPropertyCodeContext,
   values: Readonly<Record<string, unknown>>,
 ) {
-  values = dependentControlPropertyValues(values);
   // Do not guess boundaries in malformed JSON. Independent semantic errors,
   // however, must not lock unrelated controls or be silently repaired.
   try {
@@ -174,6 +173,83 @@ export function propertyCodeChanges(
     return [];
   }
   const spans = propertyCodeSpans(source, context);
+  const baseline = formatComponentPropertyCode(context);
+  return changesForPreparedCode(
+    context,
+    values,
+    spans,
+    baseline,
+    propertyCodeSpans(baseline, context),
+  );
+}
+
+/** Bound to one immutable property context; retain only its current draft. */
+export function createComponentPropertyCodeAdapter(
+  context: ComponentPropertyCodeContext,
+) {
+  const baseline = formatComponentPropertyCode(context);
+  const baselineSpans = propertyCodeSpans(baseline, context);
+  function read(source: string) {
+    let validJson = true;
+    try {
+      JSON.parse(source);
+    } catch {
+      validJson = false;
+    }
+    return {
+      source,
+      validJson,
+      spans:
+        source === baseline
+          ? baselineSpans
+          : propertyCodeSpans(source, context),
+    };
+  }
+  let current: ReturnType<typeof read> | undefined;
+  // Candidate validation needs no spans. In particular, validating each menu
+  // option must not rebuild fields or evict the displayed draft's spans.
+  let parsed:
+    | { source: string; result: ReturnType<typeof parseComponentPropertyCode> }
+    | undefined;
+  function prepared(source: string) {
+    if (!current || current.source !== source) current = read(source);
+    return current;
+  }
+  return {
+    parse: (source: string) => {
+      if (parsed?.source !== source)
+        parsed = {
+          source,
+          result: parseComponentPropertyCode(source, context),
+        };
+      return parsed.result;
+    },
+    spans: (source: string) => [...prepared(source).spans],
+    changes: (source: string, values: Readonly<Record<string, unknown>>) => {
+      const state = prepared(source);
+      return state.validJson
+        ? changesForPreparedCode(
+            context,
+            values,
+            state.spans,
+            baseline,
+            baselineSpans,
+          )
+        : [];
+    },
+    reflected: (source: string, direction: "left-right" | "top-bottom") =>
+      reflectedPropertyCode(source, context, direction),
+  };
+}
+
+function changesForPreparedCode(
+  context: ComponentPropertyCodeContext,
+  values: Readonly<Record<string, unknown>>,
+  spans: readonly PropertyCodeSpan[],
+  baseline: string,
+  baselineSpans: readonly PropertyCodeSpan[],
+) {
+  values = dependentControlPropertyValues(values);
   const changes = Object.entries(values).map(([path, value]) => {
     const matches = spans.filter((item) => item.field.path === path);
     const span = matches.length === 1 ? matches[0] : undefined;
@@ -187,8 +263,7 @@ export function propertyCodeChanges(
     .sort((a, b) => a.from - b.from);
   // Validate requested values against the committed context, without committing
   // or replacing any other draft bytes (which may contain invalid values).
-  let candidate = formatComponentPropertyCode(context);
-  const baselineSpans = propertyCodeSpans(candidate, context);
+  let candidate = baseline;
   const validationChanges = Object.entries(values).map(([path, value]) => {
     const span = baselineSpans.find((item) => item.field.path === path);
     return span ? { ...span, insert: JSON.stringify(value) } : null;

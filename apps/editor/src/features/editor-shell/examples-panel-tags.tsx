@@ -1,20 +1,18 @@
 import "./examples-panel-tags.css";
 import { useEffect, useState } from "react";
 import { GalleryTagGroups } from "../../components/gallery-tag-groups";
-import {
-  loadGalleryTagSummary,
-  type GalleryTagSummary,
-} from "../../gallery-client";
+import { type GalleryTagSummary } from "../../gallery-client";
+import type { createGalleryPanelLoader } from "./gallery-panel-loader";
 
 /** Load the taxonomy only when the Gallery is opened, outside editor startup. */
 export function ExamplesPanelTags({
-  fetcher,
+  loader,
   open,
   refreshSignal,
   selected,
   onChange,
 }: {
-  fetcher: typeof fetch;
+  loader: ReturnType<typeof createGalleryPanelLoader>;
   open: boolean;
   refreshSignal: number;
   selected: string[];
@@ -29,7 +27,7 @@ export function ExamplesPanelTags({
     if (!open) return;
     let cancelled = false;
     setLoading(true);
-    void loadGalleryTagSummary(fetcher).then((next) => {
+    void loader.tags().then((next) => {
       if (cancelled) return;
       setSummary(next);
       setLoading(false);
@@ -37,7 +35,7 @@ export function ExamplesPanelTags({
     return () => {
       cancelled = true;
     };
-  }, [open, fetcher, refreshSignal]);
+  }, [open, loader, refreshSignal]);
   return (
     <GalleryTagGroups
       tags={summary.tags}

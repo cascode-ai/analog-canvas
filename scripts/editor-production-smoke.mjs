@@ -100,6 +100,11 @@ async function main() {
         : { channel: process.env.CI ? undefined : "chrome" },
     );
     const page = await browser.newPage();
+    // This acceptance checks the hosted Gallery contract on a loopback server.
+    // Ordinary loopback Examples have their own browser workflow.
+    await page.addInitScript(() => {
+      window.__icmLocalGalleryReplica = true;
+    });
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
@@ -110,6 +115,8 @@ async function main() {
     await page.waitForSelector('[data-testid="gallery-feed"]', {
       timeout: 10_000,
     });
+    if (await loadedJavaScriptPathContains(page, "library-examples-"))
+      throw new Error("Hosted Gallery loaded localhost examples");
     galleryEditorCodeLoaded = await loadedJavaScriptContains(
       page,
       "schematic-canvas",
@@ -150,6 +157,12 @@ async function main() {
     await page.waitForSelector(
       '[aria-label="Netlist code"][contenteditable="true"]',
     );
+    await page.getByTestId("examples-toggle").click();
+    await page.getByTestId("examples-panel").waitFor();
+    await page.waitForLoadState("networkidle");
+    if (await loadedJavaScriptPathContains(page, "library-examples-"))
+      throw new Error("Hosted Editor Gallery panel loaded localhost examples");
+    await page.getByTestId("examples-toggle").click();
     // The first page installs the SW; a controlled navigation must actually
     // cache consumed JS bodies, not only the five install-time icons/shell.
     await page.evaluate(() => navigator.serviceWorker.ready);

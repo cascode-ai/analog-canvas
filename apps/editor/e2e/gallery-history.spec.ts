@@ -1,7 +1,7 @@
 // Version history: browsing and restoring Gallery versions, comparing and
 // branching from history, and Shelf save history.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import type { CircuitProject } from "@icm/model";
 import {
   serializeProject,

@@ -54,12 +54,13 @@ describe("the landing page's early Gallery requests (#1592)", () => {
     search = "",
     stored: string | null = null,
     order: string | null = null,
+    hostname = "analog-canvas.tokenzhang.com",
   ) => {
     const window: Record<string, unknown> = {};
     const fetch = vi.fn(() => Promise.resolve(new Response("{}")));
     runInNewContext(galleryEarlyFetchScript(), {
       window,
-      location: { pathname, search },
+      location: { pathname, search, hostname },
       localStorage: {
         getItem: (key: string) =>
           key === GALLERY_FILTERS_KEY
@@ -72,6 +73,11 @@ describe("the landing page's early Gallery requests (#1592)", () => {
     });
     return { window, fetch };
   };
+
+  it("does not start Gallery data on an ordinary loopback landing page", () => {
+    for (const hostname of ["localhost", "127.0.0.1", "[::1]"])
+      expect(run("/", "", null, null, hostname).fetch).not.toHaveBeenCalled();
+  });
 
   it("start on the landing route only, shuffled unless the reader kept an order (#1615)", () => {
     const landing = run("/");

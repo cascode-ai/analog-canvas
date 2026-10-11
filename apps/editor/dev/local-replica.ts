@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import type { Plugin, ProxyOptions } from "vite";
 import type { Unstable_DevWorker } from "wrangler";
+import { LOCAL_GALLERY_REPLICA } from "../src/gallery-source";
 
 type ReplicaRole = "owner" | "moderator" | "user";
 
@@ -299,6 +300,17 @@ export function localReplica(enabled = process.env.ICM_LOCAL_REPLICA): Plugin {
   return {
     name: "local-replica",
     apply: "serve",
+    transformIndexHtml() {
+      return enabled
+        ? [
+            {
+              tag: "script",
+              children: `window.${LOCAL_GALLERY_REPLICA}=true;`,
+              injectTo: "head-prepend" as const,
+            },
+          ]
+        : [];
+    },
     config() {
       if (!enabled) return;
       return { server: { proxy: { "/api/": replicaProxy } } };

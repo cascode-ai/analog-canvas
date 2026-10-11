@@ -1,7 +1,7 @@
 // Duplicate checks: the admin cleanup, the check before publishing and its
 // topology comparison, and the durable check across reloads.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import { readFileSync } from "node:fs";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject, parseProject } from "@icm/project-protocol";

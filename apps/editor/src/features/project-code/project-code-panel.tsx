@@ -8,12 +8,9 @@ import {
 } from "react";
 import type { CircuitProject } from "@icm/model";
 
-import {
-  formatProjectCode,
-  validateProjectCode,
-  planProjectCodeCommit,
-} from "./project-code";
+import { formatProjectCode, planProjectCodeCommit } from "./project-code";
 import { projectCodeInstanceRanges } from "./project-code-ranges";
+import { createProjectCodeReader } from "./project-code-reader";
 
 const ProjectTextEditor = lazy(() => import("./project-text-editor"));
 
@@ -42,7 +39,8 @@ export function ProjectCodePanel({
     },
   ): ProjectCodeApplyOutcome;
 }) {
-  const baseline = useMemo(() => formatProjectCode(project), [project]);
+  const reader = useMemo(() => createProjectCodeReader(project), [project]);
+  const baseline = reader.baseline;
   const [draft, setDraft] = useState(baseline);
   const [editBaseline, setEditBaseline] = useState(baseline);
   const [dirty, setDirty] = useState(false);
@@ -82,18 +80,18 @@ export function ProjectCodePanel({
   );
 
   const changedOutsideDraft = dirty && editBaseline !== baseline;
-  const parsed = validateProjectCode(draft, project.id);
+  const parsed = reader.validate(draft);
 
   function change(source: string): void {
     if (!dirty) setEditBaseline(baseline);
     setDraft(source);
     setDirty(source !== baseline);
-    const next = validateProjectCode(source, project.id);
+    const next = reader.validate(source);
     setError(next.ok ? null : next.message);
   }
 
   function apply(): void {
-    const current = validateProjectCode(draft, project.id);
+    const current = reader.validate(draft);
     if (!current.ok) {
       setError(current.message);
       return;
