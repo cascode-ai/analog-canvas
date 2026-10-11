@@ -128,6 +128,162 @@ describe("a Var Cap is a generic tunable capacitor (#1298)", () => {
   });
 });
 
+describe("a model's substrate pin takes the Cell's substrate default (#1619)", () => {
+  /** R1 between `a` and `b` in a Cell whose ground is the Net `gnd`. */
+  function groundedResistor() {
+    const project = createEmptyProject("poly", "Poly");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "10k" },
+      },
+    });
+    document.nets.push(
+      { id: "net-a", terminals: [{ instanceId: "R1", pinName: "1" }] },
+      { id: "net-b", terminals: [{ instanceId: "R1", pinName: "2" }] },
+    );
+    return run(project, [
+      {
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        edits: [
+          { kind: "create_base_net", netId: "gnd" },
+          {
+            kind: "upsert_schematic_annotation",
+            annotation: {
+              id: "gnd-label",
+              kind: "net-label",
+              netId: "gnd",
+              binding: { kind: "net-name", netId: "gnd" },
+              visible: false,
+              anchor: {
+                kind: "object",
+                objectId: "R1",
+                localOffset: { x: 0, y: 0 },
+                fallbackPosition: { x: 0, y: 0 },
+              },
+              alignment: "start",
+              rotation: 0,
+              locked: false,
+            },
+          },
+          {
+            kind: "upsert_connectivity_evidence",
+            evidence: {
+              id: "gnd-claim",
+              kind: "name-claim",
+              netId: "gnd",
+              name: "0",
+              scope: "global",
+              powerDomain: "ground",
+              owner: { kind: "net-label", annotationId: "gnd-label" },
+            },
+          },
+        ],
+      },
+    ]);
+  }
+  function run(
+    project: ReturnType<typeof createEmptyProject>,
+    edits: ProjectStructureEdit[],
+  ) {
+    const result = executeProjectTransaction(project, {
+      transactionId: "substrate-default",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.project;
+  }
+  const model = (
+    project: ReturnType<typeof createEmptyProject>,
+    name: string,
+    options?: { substrateDefault?: boolean },
+  ) =>
+    planSetDeviceModelTarget(
+      project,
+      project.topDocumentId,
+      "R1",
+      name,
+      options,
+    );
+  const substrateNet = (project: ReturnType<typeof createEmptyProject>) =>
+    project.documents[0]!.nets.find((net) =>
+      net.terminals.some(
+        (terminal) => terminal.instanceId === "R1" && terminal.pinName === "B",
+      ),
+    )?.id;
+
+  it("binds a poly resistor's B to ground, so the netlist exports", () => {
+    const grounded = groundedResistor();
+    const bound = run(grounded, model(grounded, "sky130_fd_pr__res_high_po"));
+    expect(substrateNet(bound)).toBe("gnd");
+    const exported = createDesignNetlistExport(bound, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    expect(exported.file.text).toMatch(
+      /^XR1 net0 net1 VSS sky130_fd_pr__res_high_po w=1 l=5\.5 mult=1$/mu,
+    );
+    // Another poly model keeps the B it has; the ideal resistor drops it.
+    const swapped = run(bound, model(bound, "sky130_fd_pr__res_xhigh_po"));
+    expect(substrateNet(swapped)).toBe("gnd");
+    expect(substrateNet(run(swapped, model(swapped, "")))).toBeUndefined();
+  });
+
+  it("binds the larger vertical PNP as the smaller, C on the substrate (#1614)", () => {
+    const project = createEmptyProject("pnp", "PNP");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "Q1",
+      reference: "Q1",
+      symbolId: "pnp",
+      placement: null,
+      netlist: {
+        binding: { kind: "model", deviceClass: "bjt", name: "QP" },
+        parameters: {},
+      },
+    });
+    document.nets.push(
+      ...["C", "B", "E"].map((pin) => ({
+        id: `net-${pin.toLowerCase()}`,
+        terminals: [{ instanceId: "Q1", pinName: pin }],
+      })),
+    );
+    const bound = run(
+      project,
+      planSetDeviceModelTarget(
+        project,
+        project.topDocumentId,
+        "Q1",
+        "sky130_fd_pr__pnp_05v5_W3p40L3p40",
+      ),
+    );
+    const exported = createDesignNetlistExport(bound, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // C, B, E in the PDK's order: net-c, net-b, net-e, numbered by id.
+    expect(exported.file.text).toMatch(
+      /^XQ1 net1 net0 net2 sky130_fd_pr__pnp_05v5_W3p40L3p40 m=1$/mu,
+    );
+  });
+
+  it("leaves it to the Process, whose own rule may name another Net", () => {
+    const grounded = groundedResistor();
+    const edits = model(grounded, "sky130_fd_pr__res_high_po", {
+      substrateDefault: false,
+    });
+    expect(substrateNet(run(grounded, edits))).toBeUndefined();
+  });
+});
+
 describe("a Library gate takes a standard cell of its function (#1450)", () => {
   function norProject() {
     const project = createEmptyProject("gates", "Gates");
