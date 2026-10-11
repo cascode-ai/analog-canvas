@@ -96,7 +96,7 @@ const AgentSharedComponentSchema = z.strictObject({
     .optional(),
 });
 /** Discovery is a derived view, never an executable component package. */
-export const ComponentDefinitionDiagnosticSchema = z.strictObject({
+const ComponentDefinitionDiagnosticSchema = z.strictObject({
   componentId: LibraryId,
   path: z.array(z.union([z.string(), z.number().int()])),
   file: z.string().optional(),
