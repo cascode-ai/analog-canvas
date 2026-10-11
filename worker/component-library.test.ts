@@ -37,7 +37,7 @@ describe("public component library", () => {
       code: "COMPONENT_ALREADY_PUBLISHED",
       existing: { id: first.entry.id, revision: 1 },
     });
-    const variant = definition();
+    const variant = structuredClone(definition());
     variant.symbol.viewBox.width += 1;
     expect(
       (
