@@ -1,4 +1,4 @@
-import { Suspense, type ComponentProps, type RefObject } from "react";
+import { Suspense, useMemo, type ComponentProps, type RefObject } from "react";
 
 import { KeptDocumentStyleSection } from "../features/editor-shell/kept-document-style-section";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
@@ -91,6 +91,20 @@ export function EditorPropertiesDock({
   importReview,
   agent,
 }: EditorPropertiesDockProps) {
+  const parameters = component?.parameters;
+  const modelTarget = component?.identity.modelTarget;
+  const signalFlow = component?.signalFlow;
+  const details = useMemo(
+    () =>
+      parameters === undefined
+        ? undefined
+        : {
+            parameters,
+            ...(modelTarget ? { modelTarget } : {}),
+            signalFlow: signalFlow ?? false,
+          },
+    [parameters, modelTarget, signalFlow],
+  );
   return (
     <aside
       className={open ? "selection-dock open" : "selection-dock"}
@@ -150,13 +164,7 @@ export function EditorPropertiesDock({
                   <ComponentPropertyCodeEditor
                     key={component.code.instance.id}
                     {...component.code}
-                    details={{
-                      parameters: component.parameters,
-                      ...(component.identity.modelTarget
-                        ? { modelTarget: component.identity.modelTarget }
-                        : {}),
-                      signalFlow: component.signalFlow,
-                    }}
+                    {...(details ? { details } : {})}
                   />
                 </Suspense>
                 {component.cellSymbolLayout ? (

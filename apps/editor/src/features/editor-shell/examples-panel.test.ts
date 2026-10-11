@@ -152,7 +152,31 @@ describe("gallery panel view", () => {
     expect(
       deriveGalleryPanelView(answered, { searchQuery: "bandgap x" })
         .emptyMessage,
-    ).toBe("No matches yet — searching older circuits…");
+    ).toBe("Searching…");
+  });
+
+  it("does not present an old search count as the next query's answer during debounce", () => {
+    const answered = {
+      ...feed,
+      entries: [feed.entries[1]!],
+      total: 1,
+      search: "bandgap",
+    };
+    for (const searchQuery of ["clock", ""]) {
+      const view = deriveGalleryPanelView(answered, { searchQuery });
+      expect(view.countLabel).toBeNull();
+      expect(view.emptyMessage).toBe(searchQuery ? "Searching…" : null);
+    }
+  });
+
+  it("does not call the entire Gallery empty when leaving an empty search", () => {
+    const emptySearch = { ...feed, entries: [], total: 0, search: "amp" };
+    for (const searchQuery of ["clock", ""]) {
+      const view = deriveGalleryPanelView(emptySearch, { searchQuery });
+      expect(view.showGallery).toBe(true);
+      expect(view.countLabel).toBeNull();
+      expect(view.emptyMessage).toBe("Searching…");
+    }
   });
 
   it("says nothing matches only once the feed is exhausted", () => {
@@ -232,7 +256,7 @@ describe("user examples section", () => {
       }),
     );
     expect(markup).not.toContain('data-testid="shapes-example-');
-    expect(markup).toContain("No published circuits yet.");
+    expect(markup).toContain("Loading gallery…");
   });
 
   it("keeps the gallery as the only place circuits are stored", () => {

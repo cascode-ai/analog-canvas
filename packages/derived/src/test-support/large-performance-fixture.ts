@@ -23,13 +23,15 @@ export const LARGE_PERFORMANCE_FIXTURE_COUNTS = {
  */
 export function createLargePerformanceFixture(
   resolver: SymbolResolver,
+  counts: {
+    [K in keyof typeof LARGE_PERFORMANCE_FIXTURE_COUNTS]: number;
+  } = LARGE_PERFORMANCE_FIXTURE_COUNTS,
 ): CircuitProject {
   const project = createEmptyProject(
     "performance-large",
     "Deterministic performance fixture",
   );
   const document = project.documents[0]!;
-  const counts = LARGE_PERFORMANCE_FIXTURE_COUNTS;
 
   for (let index = 0; index < counts.instances; index += 1) {
     document.instances.push({

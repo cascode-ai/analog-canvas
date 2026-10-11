@@ -1,11 +1,181 @@
 // The editor's Gallery and Examples panels: copying an entry into the drawing,
 // tag columns, and guarding unsaved work.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import { readFileSync } from "node:fs";
 import { serializeProject, parseProject } from "@icm/project-protocol";
 import { awaitEditorReady, chooseComponent } from "./editor-fixtures.js";
 import { ENTRY, mockGallery } from "./gallery-fixtures.js";
+
+test("Gallery does not label stale search totals as a new answer during debounce", async ({
+  page,
+}) => {
+  await mockGallery(page, [ENTRY]);
+  await page.route(
+    (url) => url.pathname === "/api/gallery" && url.searchParams.has("q"),
+    (route) => {
+      const query = new URL(route.request().url()).searchParams.get("q")!;
+      return route.fulfill({
+        json: {
+          entries: query === "empty" ? [] : [{ ...ENTRY, name: query }],
+          nextCursor: null,
+          total: query === "empty" ? 0 : 1,
+          search: query,
+        },
+      });
+    },
+  );
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("examples-toggle").click();
+  const search = page.getByTestId("examples-panel-search");
+  const count = page.getByTestId("examples-panel-count");
+  await search.fill("amp");
+  await expect(count).toHaveText("1 matching circuit");
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await search.fill("clock");
+  await expect(count).toHaveCount(0);
+  await expect(page.getByTestId("examples-panel-empty")).toHaveText(
+    "Searching…",
+  );
+  await page.clock.runFor(300);
+  await expect(count).toHaveText("1 matching circuit");
+  await search.fill("");
+  await expect(count).toHaveCount(0);
+  await expect(search).toBeFocused();
+  await search.fill("empty");
+  await page.clock.runFor(300);
+  await expect(count).toHaveText("0 matching circuits");
+  for (const query of ["clock", ""]) {
+    await search.fill(query);
+    await expect(count).toHaveCount(0);
+    await expect(page.getByTestId("examples-panel-empty")).toHaveText(
+      "Searching…",
+    );
+    await expect(
+      page.getByText("No published circuits yet.", { exact: true }),
+    ).toHaveCount(0);
+  }
+});
+
+test("search keeps focus through pending queries and ignores an older response", async ({
+  page,
+}) => {
+  await mockGallery(page, [ENTRY]);
+  let releaseOld: (() => void) | undefined;
+  await page.route(
+    (url) => url.pathname === "/api/gallery" && url.searchParams.has("q"),
+    async (route) => {
+      const query = new URL(route.request().url()).searchParams.get("q");
+      if (query === "old")
+        await new Promise<void>((resolve) => {
+          releaseOld = resolve;
+        });
+      await route.fulfill({
+        json: {
+          entries: query === "new" ? [{ ...ENTRY, name: "new result" }] : [],
+          nextCursor: null,
+          total: query === "new" ? 1 : 0,
+          search: query,
+        },
+      });
+    },
+  );
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("examples-toggle").click();
+  const search = page.getByTestId("examples-panel-search");
+  await search.fill("old");
+  await expect.poll(() => Boolean(releaseOld)).toBe(true);
+  await expect(search).toBeFocused();
+  await search.press("ControlOrMeta+A");
+  await search.pressSequentially("new");
+  await expect(page.getByTestId(`gallery-example-${ENTRY.id}`)).toContainText(
+    "new result",
+  );
+  const oldResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname === "/api/gallery" && url.searchParams.get("q") === "old"
+    );
+  });
+  releaseOld!();
+  await (await oldResponse).finished();
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("new");
+  await expect(page.getByTestId(`gallery-example-${ENTRY.id}`)).toContainText(
+    "new result",
+  );
+});
+
+for (const invalidation of ["reopen", "account"] as const) {
+  test(`Gallery ${invalidation} discards pending data from the previous owner`, async ({
+    page,
+  }) => {
+    await mockGallery(page, [ENTRY]);
+    let requests = 0;
+    let releaseOld: (() => void) | undefined;
+    let signedOut = false;
+    await page.route(
+      (url) => url.pathname === "/api/gallery",
+      async (route) => {
+        const request = ++requests;
+        if (request === 1)
+          await new Promise<void>((resolve) => {
+            releaseOld = resolve;
+          });
+        await route.fulfill(
+          signedOut
+            ? { status: 401, json: { error: "Sign in" } }
+            : {
+                json: {
+                  entries: [
+                    {
+                      ...ENTRY,
+                      name: request === 1 ? "Old account" : "Current account",
+                    },
+                  ],
+                  nextCursor: null,
+                  total: 1,
+                },
+              },
+        );
+      },
+    );
+    await page.goto("/editor");
+    await awaitEditorReady(page);
+    const toggle = page.getByTestId("examples-toggle");
+    await toggle.click();
+    await expect.poll(() => Boolean(releaseOld)).toBe(true);
+    if (invalidation === "reopen") {
+      await toggle.click();
+      await toggle.click();
+    } else
+      await page.evaluate(() =>
+        window.dispatchEvent(new Event("icm-account-changed")),
+      );
+    const card = page.getByTestId(`gallery-example-${ENTRY.id}`);
+    await expect(card).toContainText("Current account");
+    const oldResponse = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/api/gallery",
+    );
+    releaseOld!();
+    await (await oldResponse).finished();
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await expect(card).toContainText("Current account");
+    await expect(page.getByTestId("examples-panel-count")).toHaveText(
+      "1 circuit",
+    );
+    signedOut = true;
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("icm-account-changed")),
+    );
+    await expect(page.getByTestId("examples-panel-sign-in")).toBeVisible();
+    await expect(card).toHaveCount(0);
+  });
+}
 
 test("Gallery copies SKY130 dependencies with preview, repeat placement and atomic undo", async ({
   page,

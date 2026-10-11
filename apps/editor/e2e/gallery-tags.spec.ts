@@ -1,7 +1,7 @@
 // The tag sidebar and tag menu: grouped categories, multi-selection, resizing
 // and narrow layouts.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import { ENTRY, galleryListUrl } from "./gallery-fixtures.js";
 
 test("tag categories select all children, retain other groups and expose mixed selection", async ({

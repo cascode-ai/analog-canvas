@@ -1,7 +1,7 @@
 // Moderation: rejecting and withdrawing entries, the recycle bin, moderation
 // collections and pending visual reviews.
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./gallery-test.js";
 import { ENTRY, mockGallery } from "./gallery-fixtures.js";
 
 test("the Owner rejects a Gallery entry with an author-visible reason", async ({

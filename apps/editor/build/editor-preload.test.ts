@@ -2,7 +2,11 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { editorPreload } from "./editor-preload";
 
-function preload(path: string) {
+function preload(
+  path: string,
+  hostname = "analog-canvas.test",
+  replica = false,
+) {
   const handler = (
     editorPreload().transformIndexHtml as {
       handler: (html: string, context: unknown) => { children: string }[];
@@ -40,7 +44,8 @@ function preload(path: string) {
   const tags = handler("", { bundle });
   const links: { rel: string; href: string; as?: string }[] = [];
   runInNewContext(tags[0]!.children, {
-    location: { pathname: path },
+    location: { pathname: path, hostname },
+    window: { __icmLocalGalleryReplica: replica },
     document: {
       createElement: () => ({}),
       head: { appendChild: (link: (typeof links)[number]) => links.push(link) },
@@ -50,6 +55,14 @@ function preload(path: string) {
 }
 
 describe("route resource preload", () => {
+  it.each(["localhost", "127.0.0.1", "[::1]"])(
+    "does not preload Gallery on ordinary %s, but keeps explicit replica support",
+    (hostname) => {
+      expect(preload("/", hostname)).toEqual([]);
+      expect(preload("/", hostname, true)).toEqual(preload("/"));
+      expect(preload("/editor", hostname)).toEqual(preload("/editor"));
+    },
+  );
   it("downloads only eager Gallery resources on the landing route", () => {
     expect(preload("/")).toEqual([
       {

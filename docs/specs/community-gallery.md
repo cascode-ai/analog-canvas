@@ -203,12 +203,16 @@ deleted.
   reads the same gallery list and inserts entries through the same path as
   `/g/<id>`. The panel has no heading or link of its own: it starts with its
   search, count and circuit cards, and the header's Gallery entry is the way
-  to the Gallery itself. While the gallery is empty or
-  unreachable, the feed and the panel both fall back to the bundled
-  Library examples, so neither surface is ever blank. The landing feed loads
-  its renderer, symbol catalogue, and bundled Projects only after the remote
-  feed has settled empty or unavailable; a populated Gallery never pays for
-  those fallback-only dependencies.
+  to the Gallery itself. Hosted Production/preview always uses Gallery and
+  never loads bundled examples, including empty, unavailable and signed-out
+  states. Ordinary loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) select
+  Examples before data initialization: neither the landing page nor Insert
+  requests Gallery feeds, tags or previews. `?example=` is loopback-only.
+  Explicit `dev:replica` selects its mirrored Gallery instead. This source
+  choice does not change Agent, files, component library or desktop capabilities.
+  During hosted searches the search input stays mounted and focused; counts
+  describe only the answered query. In-flight reads belong to one panel
+  opening/refresh and may be shared, but completed results gain no new TTL.
 - The editor Publish dialog offers an on-demand **Check Duplicate**
   action. It compares the currently visible Cell (not
   unconditionally the Project's root Cell) against every public Gallery

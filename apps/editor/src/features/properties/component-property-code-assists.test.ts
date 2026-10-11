@@ -5,6 +5,7 @@ import {
   parseComponentPropertyCode,
 } from "./component-property-code";
 import {
+  createComponentPropertyCodeAdapter,
   propertyCodeSpans,
   propertyCodeChanges,
   reflectedPropertyCode,
@@ -38,6 +39,40 @@ function apply(
 }
 
 describe("Canvas property assistance", () => {
+  it("keeps complete controls and independent invalid draft bytes in a prepared editor", () => {
+    const adapter = createComponentPropertyCodeAdapter(context);
+    const baseline = formatComponentPropertyCode(context);
+    const invalid = baseline.replace('"rotation": 0', '"rotation": 13');
+    for (const source of [baseline, invalid, "{", baseline]) {
+      expect(adapter.parse(source)).toEqual(
+        parseComponentPropertyCode(source, context),
+      );
+      expect(adapter.spans(source)).toEqual(propertyCodeSpans(source, context));
+      for (const span of adapter.spans(source)) {
+        for (const option of span.field.options ?? []) {
+          expect(
+            adapter.changes(source, { [span.field.path]: option.value }),
+          ).toEqual(
+            propertyCodeChanges(source, context, {
+              [span.field.path]: option.value,
+            }),
+          );
+        }
+      }
+    }
+    const result = JSON.parse(
+      apply(invalid, adapter.changes(invalid, { "display.value": true })),
+    );
+    expect(result.placement.rotation).toBe(13);
+    expect(result.display.value).toBe(true);
+    expect(adapter.changes("{", { "display.value": true })).toEqual([]);
+    expect(adapter.changes(baseline, { "placement.rotation": 13 })).toEqual([]);
+    // Consumers may sort returned spans without altering later assistance.
+    adapter.spans(baseline).reverse();
+    expect(adapter.spans(baseline)).toEqual(
+      propertyCodeSpans(baseline, context),
+    );
+  });
   it("keeps each selected physical member within its single Logical Net choice", () => {
     const controlled = {
       ...context,
