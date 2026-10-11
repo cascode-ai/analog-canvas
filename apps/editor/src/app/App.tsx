@@ -2627,6 +2627,7 @@ function WorkspaceEditor({
     model: {
       document,
       resolver,
+      externalSubcircuitDefinitions: project.externalSubcircuitDefinitions,
       visibleEndpoints,
       routeGeometryRecords,
       contactComponents,
@@ -5925,7 +5926,6 @@ function WorkspaceEditor({
                           selectedInstance.reference ??
                           selectedInstance.id,
                         defaultForeground: styleProfile.foreground,
-                        revision: document.revision,
                         // A Cell Pin's name label is shown or hidden like a
                         // device Reference, though the Pin has no Reference;
                         // a placed Cell's X1, though its block's Symbol has

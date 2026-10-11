@@ -43,8 +43,13 @@ export * from "./net-name-operation-planner.js";
 export * from "./instance-lifecycle.js";
 export * from "./undrawn-instances.js";
 export * from "./transaction.js";
+export {
+  prepareTransaction,
+  type PreparedTransaction,
+} from "./prepared-transaction.js";
 export * from "./transaction-preflight.js";
 export * from "./project-transaction.js";
+export * from "./project-snapshot.js";
 export * from "./circuit-authoring.js";
 export * from "./project-cell-import.js";
 export * from "./project-cell-body-import.js";

@@ -268,6 +268,7 @@ test.describe("editor latency on a large Project", () => {
       const state = {
         tasks: [] as { start: number; duration: number }[],
         events: [] as { kind: string; start: number }[],
+        paints: [] as { kind: "ghost" | "drop"; start: number; end: number }[],
       };
       (window as unknown as { __copyPerf: typeof state }).__copyPerf = state;
       new PerformanceObserver((list) => {
@@ -280,7 +281,43 @@ test.describe("editor latency on a large Project", () => {
       for (const kind of ["keydown", "pointerdown"])
         window.addEventListener(
           kind,
-          () => state.events.push({ kind, start: performance.now() }),
+          (event) => {
+            const start = performance.now();
+            state.events.push({ kind, start });
+            const ghost = () =>
+              document.querySelector('[data-testid="copy-placement-preview"]');
+            const count = () =>
+              document.querySelectorAll('[data-canvas-hit-kind="instance"]')
+                .length;
+            const beforeCount = count();
+            const paintKind =
+              kind === "keydown" && (event as KeyboardEvent).key === "c"
+                ? ("ghost" as const)
+                : kind === "pointerdown" && ghost()
+                  ? ("drop" as const)
+                  : undefined;
+            if (!paintKind) return;
+            // Observe the browser's commit directly. Assertion polling and
+            // bridge round trips are recorded separately in the old timings.
+            const observer = new MutationObserver(() => {
+              if (
+                !ghost() ||
+                (paintKind === "drop" && count() !== beforeCount + 1)
+              )
+                return;
+              observer.disconnect();
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => {
+                  state.paints.push({
+                    kind: paintKind,
+                    start,
+                    end: performance.now(),
+                  });
+                }),
+              );
+            });
+            observer.observe(document, { childList: true, subtree: true });
+          },
           true,
         );
     });
@@ -318,6 +355,8 @@ test.describe("editor latency on a large Project", () => {
     const measurements: {
       ghostMs: number;
       dropMs: number;
+      observedGhostMs: number;
+      observedDropMs: number;
       tasks: { start: number; duration: number }[];
     }[] = [];
     for (let sample = 0; sample < samples; sample++) {
@@ -372,6 +411,11 @@ test.describe("editor latency on a large Project", () => {
                 __copyPerf: {
                   tasks: { start: number; duration: number }[];
                   events: { kind: string; start: number }[];
+                  paints: {
+                    kind: "ghost" | "drop";
+                    start: number;
+                    end: number;
+                  }[];
                 };
               }
             ).__copyPerf;
@@ -382,8 +426,21 @@ test.describe("editor latency on a large Project", () => {
             return {
               ghostMs: ghost - event("keydown", start),
               dropMs: end - event("pointerdown", beforeDrop),
+              observedGhostMs: (() => {
+                const paint = state.paints.find(
+                  (item) => item.kind === "ghost" && item.start >= start,
+                )!;
+                return paint.end - paint.start;
+              })(),
+              observedDropMs: (() => {
+                const paint = state.paints.find(
+                  (item) => item.kind === "drop" && item.start >= beforeDrop,
+                )!;
+                return paint.end - paint.start;
+              })(),
               tasks: state.tasks.filter(
-                (task) => task.start >= start && task.start <= end,
+                (task) =>
+                  task.start + task.duration >= start && task.start <= end,
               ),
             };
           },
@@ -397,7 +454,10 @@ test.describe("editor latency on a large Project", () => {
     }
     expect(errors).toEqual([]);
     const warm = measurements.slice(1);
-    const quantile = (key: "ghostMs" | "dropMs", fraction: number) => {
+    const quantile = (
+      key: "ghostMs" | "dropMs" | "observedGhostMs" | "observedDropMs",
+      fraction: number,
+    ) => {
       const sorted = warm.map((item) => item[key]).sort((a, b) => a - b);
       return sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)];
     };
@@ -415,8 +475,12 @@ test.describe("editor latency on a large Project", () => {
         ghostP95Ms: quantile("ghostMs", 0.95),
         dropMedianMs: quantile("dropMs", 0.5),
         dropP95Ms: quantile("dropMs", 0.95),
+        observedGhostMedianMs: quantile("observedGhostMs", 0.5),
+        observedGhostP95Ms: quantile("observedGhostMs", 0.95),
+        observedDropMedianMs: quantile("observedDropMs", 0.5),
+        observedDropP95Ms: quantile("observedDropMs", 0.95),
       },
-      note: "Production build; input-to-double-rAF includes assertion polling and the next copy ghost. Undo restores object count each sample; revisions/sequence advance. No timing gate or payload hashing.",
+      note: "Production build. Observed timings end at browser double-rAF after the ghost/instance DOM update; other timings also include assertion polling. Drop includes the next copy ghost. Undo restores object count each sample; revisions/sequence advance. No timing gate or payload hashing.",
     };
     const dir = resolve(process.cwd(), "output/performance");
     mkdirSync(dir, { recursive: true });

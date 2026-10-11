@@ -1,7 +1,12 @@
-import { createEmptyProject, createSimulationFolder } from "@icm/model";
+import {
+  createEmptyProject,
+  createSimulationFolder,
+  freezeSnapshot,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { createDesignNetlistExport } from "./export.js";
+import { analyzeDesignNetlist } from "./extract.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { ngspiceSimulationDevices } from "./simulation-ngspice-devices.js";
 
@@ -56,6 +61,31 @@ function instanceCards(text: string): string[] {
 }
 
 describe("canonical design-netlist authority", () => {
+  it("isolates repeated analysis outputs and exports changed snapshot parameters freshly", () => {
+    const { project } = copiedExternalMosProject();
+    const owned = freezeSnapshot(project);
+    const analysis = analyzeDesignNetlist(owned);
+    if (!analysis.ir) throw new Error(JSON.stringify(analysis.diagnostics));
+    const originalName = analysis.ir.cells[0]!.name;
+    analysis.ir.cells[0]!.name = "changed-by-caller";
+    expect(analyzeDesignNetlist(owned).ir?.cells[0]!.name).toBe(originalName);
+    const first = createDesignNetlistExport(owned, { format: "spice" });
+    const again = createDesignNetlistExport(owned, { format: "spice" });
+    expect(again).toEqual(first);
+    const changed = structuredClone(owned);
+    changed.documents[0]!.instances[0]!.netlist!.parameters!.w = "7";
+    const updated = createDesignNetlistExport(freezeSnapshot(changed), {
+      format: "spice",
+    });
+    expect(updated.status).toBe("ready");
+    if (updated.status !== "ready") return;
+    expect(
+      instanceCards(updated.file.text).find((line) => line.startsWith("XM1 ")),
+    ).toContain("w=7");
+    expect(createDesignNetlistExport(owned, { format: "spice" })).toEqual(
+      first,
+    );
+  });
   it("keeps copied external-subcircuit identity identical in direct export and simulation", () => {
     const { project, folder } = copiedExternalMosProject();
     const direct = createDesignNetlistExport(project, { format: "spice" });

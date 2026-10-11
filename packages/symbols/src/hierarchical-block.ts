@@ -22,6 +22,7 @@ import {
 import { resolvePdkSymbolMappingForTerminalOrder } from "./pdk-registry.js";
 import { SymbolDefinitionSchema } from "./schema.js";
 import type { SymbolDefinition } from "./schema.js";
+import type { SymbolResolver } from "./resolver.js";
 
 export {
   freeHierarchicalBlockOffsets,
@@ -292,7 +293,7 @@ export function cellSymbolPinSlots(
 export function createProjectHierarchicalSymbols(
   project: Pick<CircuitProject, "documents" | "topDocumentId"> &
     Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
-  baseDefinitions: readonly SymbolDefinition[] = [],
+  baseDefinitions: readonly SymbolDefinition[] | SymbolResolver = [],
 ): SymbolDefinition[] {
   // A Cell no parent has placed yet shows the symbol its first placement
   // keeps (unplacedCellSymbol); a placed block's Pins never move.
@@ -323,7 +324,11 @@ export function createProjectHierarchicalSymbols(
               definition.terminals.map((terminal) => terminal.name),
             );
       const mappedDefinition = mapping
-        ? baseDefinitions.find((candidate) => candidate.id === mapping.symbolId)
+        ? "resolve" in baseDefinitions
+          ? baseDefinitions.resolve(mapping.symbolId)?.definition
+          : baseDefinitions.find(
+              (candidate) => candidate.id === mapping.symbolId,
+            )
         : undefined;
       if (mappedDefinition) {
         const { id: _baseId, name: _baseName, ...artwork } = mappedDefinition;

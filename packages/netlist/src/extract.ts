@@ -1,6 +1,11 @@
 // The design netlist: the options it reads, the Cells a root reaches, and
 // the IR assembled from them with the definitions their calls need.
-import { deriveStableId, componentInterfaceIssues } from "@icm/model";
+import {
+  deriveStableId,
+  componentInterfaceIssues,
+  freezeSnapshot,
+  isFrozenSnapshot,
+} from "@icm/model";
 import { lowerTerminalCurrentControls } from "./controlled-current.js";
 import {
   deriveProjectNetNameProjection,
@@ -262,7 +267,7 @@ export function analyzeDesignNetlist(
   project: CircuitProject,
   options: DesignNetlistAnalysisOptions = {},
 ): DesignNetlistAnalysisResult {
-  return analyzeDesign(project, options, false);
+  return analyzeSnapshot(project, options, false);
 }
 
 /** Incomplete authoring projection only. Export and execution keep the strict entry above. */
@@ -270,7 +275,34 @@ export function analyzeDesignNetlistForAuthoring(
   project: CircuitProject,
   options: DesignNetlistAnalysisOptions = {},
 ): DesignNetlistAnalysisResult {
-  return analyzeDesign(project, options, true);
+  return analyzeSnapshot(project, options, true);
+}
+
+const analysisCache = new WeakMap<
+  CircuitProject,
+  Map<string, DesignNetlistAnalysisResult>
+>();
+
+function analyzeSnapshot(
+  project: CircuitProject,
+  options: DesignNetlistAnalysisOptions,
+  authoring: boolean,
+): DesignNetlistAnalysisResult {
+  // Mutable authoring callers may change a model without advancing a revision.
+  // Only owned immutable Project snapshots can share their electrical analysis.
+  if (!isFrozenSnapshot(project))
+    return analyzeDesign(project, options, authoring);
+  const key = JSON.stringify([authoring, options]);
+  const cache =
+    analysisCache.get(project) ??
+    new Map<string, DesignNetlistAnalysisResult>();
+  analysisCache.set(project, cache);
+  const cached = cache.get(key);
+  if (cached) return structuredClone(cached);
+  const result = analyzeDesign(project, options, authoring);
+  if (cache.size >= 16) cache.delete(cache.keys().next().value!);
+  cache.set(key, freezeSnapshot(structuredClone(result)));
+  return result;
 }
 
 function analyzeDesign(

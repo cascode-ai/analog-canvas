@@ -8,7 +8,10 @@ import {
 } from "@icm/derived";
 
 import type { SchematicEdit } from "./edit-schema.js";
-import { executeTransaction } from "./transaction.js";
+import {
+  prepareTransaction,
+  type PreparedTransaction,
+} from "./prepared-transaction.js";
 import type {
   EditDiagnostic,
   EditDiff,
@@ -99,6 +102,7 @@ export interface ActualElectricalEffect {
 }
 
 export interface EvaluatedRoutingOperation {
+  readonly preparedTransaction: PreparedTransaction;
   readonly plan: RoutingOperationPlan;
   readonly finalDocument: SchematicDocument;
   readonly actualElectricalEffect: ActualElectricalEffect;
@@ -608,7 +612,7 @@ export function evaluateRoutingOperationPlan(
     document,
     context.symbolResolver,
   );
-  const result = executeTransaction(
+  const preparation = prepareTransaction(
     document,
     {
       transactionId: `evaluate-routing-${document.revision}`,
@@ -619,6 +623,7 @@ export function evaluateRoutingOperationPlan(
     },
     context,
   );
+  const result = preparation.result;
   if (!result.ok) {
     return {
       ok: false,
@@ -654,6 +659,7 @@ export function evaluateRoutingOperationPlan(
   return {
     ok: true,
     value: {
+      preparedTransaction: preparation.prepared!,
       plan,
       finalDocument: result.document,
       actualElectricalEffect: actualEffect(

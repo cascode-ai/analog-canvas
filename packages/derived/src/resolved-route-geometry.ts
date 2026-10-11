@@ -4,10 +4,11 @@ import type {
   SegmentMode,
   SchematicDocument,
 } from "@icm/model";
-import { routeEnd } from "@icm/model";
+import { routeEnd, freezeSnapshot, isFrozenSnapshot } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
+  buildEndpointObjectLookup,
   type EndpointConnection,
   type EndpointObjectLookup,
   endpointKey,
@@ -75,6 +76,11 @@ export interface ResolvedDocumentRoutingGeometry {
   endpointJoins: readonly EndpointJoin[];
 }
 
+const routeGeometryCache = new WeakMap<
+  SchematicDocument["routes"][number],
+  { key: string; geometry: ResolvedRouteGeometry }
+>();
+
 function vertexKindForEndpoint(
   document: SchematicDocument,
   endpoint: RouteEndpoint,
@@ -122,6 +128,18 @@ export function resolveRouteGeometry(
     endpointConnections?.get(endpointKey(end)) ??
     resolveEndpointConnection(document, resolver, end, lookup);
   if (!fromConnection || !toConnection) return null;
+  const cacheKey =
+    isFrozenSnapshot(document) && isFrozenSnapshot(route)
+      ? JSON.stringify([
+          fromConnection,
+          toConnection,
+          vertexKindForEndpoint(document, route.start, lookup?.junctionsById),
+          vertexKindForEndpoint(document, end, lookup?.junctionsById),
+        ])
+      : undefined;
+  const cached =
+    cacheKey === undefined ? undefined : routeGeometryCache.get(route);
+  if (cached && cached.key === cacheKey) return cached.geometry;
   const from = fromConnection.contactPoint;
   const to = toConnection.contactPoint;
   const centerline = [
@@ -189,7 +207,7 @@ export function resolveRouteGeometry(
     }
   }
 
-  return {
+  const geometry: ResolvedRouteGeometry = {
     routeId: route.id,
     netId: route.netId,
     centerline,
@@ -198,6 +216,12 @@ export function resolveRouteGeometry(
     endpointJoins,
     endpointConnections: { from: fromConnection, to: toConnection },
   };
+  if (cacheKey !== undefined) {
+    const owned = freezeSnapshot(structuredClone(geometry));
+    routeGeometryCache.set(route, { key: cacheKey, geometry: owned });
+    return owned;
+  }
+  return geometry;
 }
 
 /**
@@ -213,19 +237,6 @@ export function resolveRouteGeometry(
  * endpoint that legitimately resolves to nothing is still answered once and
  * cheaply.
  */
-function buildEndpointLookup(
-  document: SchematicDocument,
-): EndpointObjectLookup {
-  return {
-    instancesById: new Map(
-      document.instances.map((instance) => [instance.id, instance] as const),
-    ),
-    junctionsById: new Map(
-      document.junctions.map((junction) => [junction.id, junction] as const),
-    ),
-  };
-}
-
 export function resolveDocumentRoutingGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -235,7 +246,7 @@ export function resolveDocumentRoutingGeometry(
   // connections; callers that have them are already O(1).
   const lookup = endpointConnections
     ? undefined
-    : buildEndpointLookup(document);
+    : buildEndpointObjectLookup(document);
   const routes = new Map<string, ResolvedRouteGeometry>();
   const terminalJoins: EndpointJoin[] = [];
   for (const route of [...document.routes].sort((left, right) =>

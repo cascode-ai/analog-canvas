@@ -95,6 +95,7 @@ import {
 
 export * from "./edit-schema.js";
 export * from "./transaction-result.js";
+import { reusePreparedTransaction } from "./prepared-transaction.js";
 
 export function executeTransaction(
   document: SchematicDocument,
@@ -133,6 +134,9 @@ export function executeTransaction(
       "Undo and redo require a Document History session",
     );
   }
+
+  const prepared = reusePreparedTransaction(document, transaction, context);
+  if (prepared) return prepared;
 
   const proposedRevision = document.revision + 1;
   const draft = structuredClone(document);

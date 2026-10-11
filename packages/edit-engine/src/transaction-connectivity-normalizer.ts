@@ -2,13 +2,14 @@ import { routeEndpoints } from "@icm/model";
 import type { Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   buildDocumentSpatialIndex,
+  buildEndpointObjectLookup,
   endpointKey,
   findRouteSegmentsAtPoint,
   isVisibleEndpoint,
   resolveDocumentRoutingGeometry,
   resolveEndpointConnection,
 } from "@icm/derived";
-import type { DocumentSpatialIndex } from "@icm/derived";
+import type { DocumentSpatialIndex, EndpointObjectLookup } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
@@ -44,6 +45,7 @@ function samePoint(left: Point, right: Point): boolean {
 function visibleEndpoints(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  lookup?: EndpointObjectLookup,
 ): RouteEndpoint[] {
   const terminals = document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
@@ -58,7 +60,9 @@ function visibleEndpoints(
         instanceId: instance.id,
         pinName: pin.name,
       };
-      return isVisibleEndpoint(document, resolver, endpoint) ? [endpoint] : [];
+      return isVisibleEndpoint(document, resolver, endpoint, lookup)
+        ? [endpoint]
+        : [];
     });
   });
   return [
@@ -124,6 +128,14 @@ export function newlyTouchedRouteEndpoints(
   routeIds: ReadonlySet<string>,
 ): NewlyTouchedRouteEndpoint[] {
   if (routeIds.size === 0) return [];
+  // New Routes are reconciled by their authoring planner. Only existing
+  // conductors can have moved onto a previously separate endpoint.
+  const existingRouteIds = new Set(before.routes.map((route) => route.id));
+  const movedRouteIds = [...routeIds]
+    .filter((id) => existingRouteIds.has(id))
+    .sort((left, right) => left.localeCompare(right, "en"));
+  if (movedRouteIds.length === 0) return [];
+  const routesById = new Map(after.routes.map((route) => [route.id, route]));
   const beforeGeometry = resolveDocumentRoutingGeometry(before, resolver);
   const afterGeometry = resolveDocumentRoutingGeometry(after, resolver);
   // One broad phase per Document for the whole nested sweep below. Neither
@@ -134,24 +146,17 @@ export function newlyTouchedRouteEndpoints(
   const beforeIndex = buildDocumentSpatialIndex(before, beforeGeometry);
   const afterIndex = buildDocumentSpatialIndex(after, afterGeometry);
   const result: NewlyTouchedRouteEndpoint[] = [];
-  for (const endpoint of visibleEndpoints(after, resolver)) {
+  const lookup = buildEndpointObjectLookup(after);
+  for (const endpoint of visibleEndpoints(after, resolver, lookup)) {
     const point = resolveEndpointConnection(
       after,
       resolver,
       endpoint,
+      lookup,
     )?.contactPoint;
     if (!point) continue;
-    for (const routeId of [...routeIds].sort((left, right) =>
-      left.localeCompare(right, "en"),
-    )) {
-      // A newly pasted/drawn Route is handled by its authoring planner. This
-      // detector is for an existing conductor whose geometry moved onto a
-      // previously separate pin; treating every new Route as a drag also
-      // connected copied circuits to unrelated objects under the paste ghost.
-      if (!before.routes.some((candidate) => candidate.id === routeId)) {
-        continue;
-      }
-      const route = after.routes.find((candidate) => candidate.id === routeId);
+    for (const routeId of movedRouteIds) {
+      const route = routesById.get(routeId);
       if (!route) continue;
       if (
         routeEndpoints(route).some(
@@ -220,7 +225,8 @@ export function nextPhysicalContactOperation(
   const endpointLicensed = (endpoint: RouteEndpoint): boolean =>
     license.objectIds.has(endpointObjectId(endpoint)) ||
     license.endpointKeys.has(endpointKey(endpoint));
-  const endpoints = visibleEndpoints(document, resolver).filter(
+  const lookup = buildEndpointObjectLookup(document);
+  const endpoints = visibleEndpoints(document, resolver, lookup).filter(
     (endpoint) => !suppressedEndpointKeys.has(endpointKey(endpoint)),
   );
   const positioned = endpoints.flatMap((endpoint) => {
@@ -228,6 +234,7 @@ export function nextPhysicalContactOperation(
       document,
       resolver,
       endpoint,
+      lookup,
     )?.contactPoint;
     return point ? [{ endpoint, point }] : [];
   });

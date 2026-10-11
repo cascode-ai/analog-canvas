@@ -1,11 +1,13 @@
 import {
   routeEndpoints,
+  isFrozenSnapshot,
   type Net,
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
 import {
   ConnectionGraph,
+  buildDocumentDerivedContext,
   deriveDocumentContactEvidence,
   endpointKey,
   netEndpoints,
@@ -161,7 +163,9 @@ export function rebuildEditedConnectivity(
     ),
   );
   const beforeContacts = resolver
-    ? deriveDocumentContactEvidence(before, resolver)
+    ? isFrozenSnapshot(before)
+      ? buildDocumentDerivedContext(before, resolver).contactEvidence
+      : deriveDocumentContactEvidence(before, resolver)
     : undefined;
   // Legacy/imported Nets can contain intentional, not-yet-routed components.
   // Preserve a bridge between their surviving representatives, not between

@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import {
   DEFAULT_DOCUMENT_HISTORY_LIMIT,
   executeTransaction,
+  parseProjectSnapshot,
+  shareProjectSnapshot,
   shareEqualDocumentStructure,
   executeProjectTransaction,
   rejectTransaction,
@@ -17,10 +19,17 @@ import type {
   ProjectTransactionResult,
   SchematicEdit,
 } from "@icm/edit-engine";
-import { CircuitProjectSchema, ComponentDefinitionSchema } from "@icm/model";
+import {
+  CircuitProjectSchema,
+  isFrozenSnapshot,
+  ComponentDefinitionSchema,
+  freezeSnapshot,
+} from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import {
   builtInSymbols,
+  createSymbolCatalog,
+  InMemorySymbolResolver,
   createProjectSymbolResolver,
   withProjectComponentDefinitions,
   projectCellSymbolTerminals,
@@ -100,17 +109,14 @@ export class EditorDocumentController {
   // Retain revision high-water marks for deleted/recreated Cells too.
   private readonly documentRevisions = new Map<string, number>();
   private readonly availableComponents = new Map<string, ComponentDefinition>();
+  private availableCatalog = createSymbolCatalog(builtInSymbols);
   private transactionCounter = 0;
   private projectSessionCounter = 1;
   private agentEditedValue = false;
-  private readonly liveResolver = {
-    resolve: (id: string, variant?: string) =>
-      this.resolverValue.resolve(id, variant),
-  };
 
   constructor(initialProject: CircuitProject) {
-    this.projectValue = withProjectComponentDefinitions(
-      CircuitProjectSchema.parse(structuredClone(initialProject)),
+    this.projectValue = parseProjectSnapshot(
+      withProjectComponentDefinitions(parseProjectSnapshot(initialProject)),
     );
     this.activeDocumentIdValue = this.projectValue.topDocumentId;
     this.resolverValue = this.projectResolver(this.projectValue);
@@ -119,7 +125,7 @@ export class EditorDocumentController {
 
   /** An insertion candidate is not Project content until a real instance is placed. */
   offerComponentDefinition(value: ComponentDefinition): void {
-    const definition = ComponentDefinitionSchema.parse(structuredClone(value));
+    const definition = freezeSnapshot(ComponentDefinitionSchema.parse(value));
     if (
       !definition.symbol.id.startsWith("user-") &&
       !definition.symbol.id.startsWith("component-")
@@ -134,14 +140,15 @@ export class EditorDocumentController {
     if (existing && JSON.stringify(existing) !== JSON.stringify(definition))
       throw new Error("A placed component version cannot be overwritten");
     this.availableComponents.set(definition.symbol.id, definition);
+    this.availableCatalog = new InMemorySymbolResolver(
+      [...this.availableComponents.values()].map((item) => item.symbol),
+      createSymbolCatalog(builtInSymbols),
+    );
     this.resolverValue = this.projectResolver(this.projectValue);
   }
 
   private projectResolver(project: CircuitProject): ProjectSymbolResolver {
-    return createProjectSymbolResolver(project, [
-      ...builtInSymbols,
-      ...[...this.availableComponents.values()].map((item) => item.symbol),
-    ]);
+    return createProjectSymbolResolver(project, this.availableCatalog);
   }
 
   get project(): CircuitProject {
@@ -202,12 +209,13 @@ export class EditorDocumentController {
   }
 
   replaceProject(nextProject: CircuitProject): SchematicDocument {
-    const parsed = withProjectComponentDefinitions(
-      CircuitProjectSchema.parse(structuredClone(nextProject)),
+    const parsed = parseProjectSnapshot(
+      withProjectComponentDefinitions(parseProjectSnapshot(nextProject)),
     );
     this.projectSessionCounter += 1;
     this.agentEditedValue = false;
     this.availableComponents.clear();
+    this.availableCatalog = createSymbolCatalog(builtInSymbols);
     this.projectValue = parsed;
     this.activeDocumentIdValue = parsed.topDocumentId;
     this.resolverValue = this.projectResolver(parsed);
@@ -295,18 +303,7 @@ export class EditorDocumentController {
     before: CircuitProject,
     after: CircuitProject,
   ): CircuitProject {
-    const originals = new Map(
-      before.documents.map((document) => [document.id, document]),
-    );
-    return {
-      ...after,
-      documents: after.documents.map((document) => {
-        const original = originals.get(document.id);
-        return original
-          ? shareEqualDocumentStructure(original, document)
-          : document;
-      }),
-    };
+    return shareProjectSnapshot(before, after);
   }
 
   commitProjectStructure(
@@ -318,7 +315,7 @@ export class EditorDocumentController {
     const parsed = this.shareDocuments(
       before,
       withProjectComponentDefinitions(
-        CircuitProjectSchema.parse(structuredClone(nextProject)),
+        parseProjectSnapshot(nextProject, before),
       ),
     );
     if (parsed.id !== before.id)
@@ -388,6 +385,15 @@ export class EditorDocumentController {
   dispatchTransaction(
     request: EditorTransactionRequest,
   ): EditTransactionResult {
+    const result = this.applyTransaction(request);
+    return isFrozenSnapshot(result.document)
+      ? { ...result, document: structuredClone(result.document) }
+      : result;
+  }
+
+  private applyTransaction(
+    request: EditorTransactionRequest,
+  ): EditTransactionResult {
     const document = this.projectValue.documents.find(
       (item) => item.id === request.documentId,
     );
@@ -417,7 +423,7 @@ export class EditorDocumentController {
       // expectedStructureRevision is a controller fence, not a Document edit field.
       const { expectedStructureRevision: _, ...envelope } = request;
       result = executeTransaction(document, envelope, {
-        symbolResolver: this.liveResolver,
+        symbolResolver: this.resolverValue,
         externalSubcircuitDefinitions:
           this.projectValue.externalSubcircuitDefinitions,
       });
@@ -467,8 +473,13 @@ export class EditorDocumentController {
         before,
         withProjectComponentDefinitions(
           replaceProjectDocument(
-            { ...before, componentDefinitions: [...definitions.values()] },
-            result.document,
+            freezeSnapshot({
+              ...before,
+              componentDefinitions: [...definitions.values()],
+            }),
+            freezeSnapshot(
+              shareEqualDocumentStructure(document, result.document),
+            ),
           ),
         ),
       );

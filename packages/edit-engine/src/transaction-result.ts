@@ -1,3 +1,4 @@
+import { isFrozenSnapshot } from "@icm/model";
 import type {
   ExternalSubcircuitDefinition,
   SchematicDocument,
@@ -6,6 +7,7 @@ import type { DocumentContactEvidence } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
+import type { PreparedTransaction } from "./prepared-transaction.js";
 
 /** Public outcome protocol for one atomic transaction execution. */
 export type EditErrorCode =
@@ -85,6 +87,8 @@ export interface ContactEvidenceHint {
 }
 
 export interface EditExecutionContext {
+  /** Internal calculation hints. Unregistered or changed inputs execute normally. */
+  preparedTransactions?: readonly PreparedTransaction[];
   symbolResolver?: SymbolResolver;
   /**
    * Optional. The editor already derives this for the committed Document when
@@ -143,7 +147,7 @@ export function rejectTransaction(
     ok: false,
     applied: false,
     revision: document.revision,
-    document,
+    document: isFrozenSnapshot(document) ? structuredClone(document) : document,
     error: { code, message },
     diagnostics: synthesized,
   };

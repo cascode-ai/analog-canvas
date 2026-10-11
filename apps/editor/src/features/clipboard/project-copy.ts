@@ -25,7 +25,8 @@ import {
 } from "@icm/symbols";
 import {
   executeProjectTransaction,
-  executeTransaction,
+  parseProjectSnapshot,
+  prepareTransaction,
   gateRoutingOperationPlan,
   normalizeRouteGeometry,
   planExternalCopyDependencies,
@@ -36,6 +37,7 @@ import {
   type CopyDependencySource,
   type ProjectStructureEdit,
   type ProjectTransactionOptions,
+  type PreparedTransaction,
 } from "@icm/edit-engine";
 import {
   captureDocumentComposition,
@@ -651,7 +653,15 @@ export function prepareProjectCopy(
     remap(clipboard.instances, clipboard.draftingObjects);
     for (const child of context.documents)
       remap(child.instances, child.drafting?.objects ?? []);
-    prepared = { ...project, componentDefinitions };
+    if (
+      JSON.stringify(componentDefinitions) ===
+      JSON.stringify(project.componentDefinitions)
+    ) {
+      componentDefinitions = project.componentDefinitions;
+      prepared = project;
+    } else {
+      prepared = { ...project, componentDefinitions };
+    }
   }
   if (context) {
     if (
@@ -850,10 +860,14 @@ export function prepareProjectCopy(
     dependencyMapping,
     dependencyEdits: edits,
     resolver,
-    baseProject: {
-      ...project,
-      ...(componentDefinitions ? { componentDefinitions } : {}),
-    },
+    baseProject: parseProjectSnapshot(
+      componentDefinitions === project.componentDefinitions
+        ? project
+        : {
+            ...project,
+            ...(componentDefinitions ? { componentDefinitions } : {}),
+          },
+    ),
   };
 }
 
@@ -877,11 +891,16 @@ export function planProjectCopyPlacement(
   if (proposal.errors.length) throw new Error(proposal.errors.join("; "));
   const gate = gateRoutingOperationPlan(document, proposal.operationPlan, {
     symbolResolver: prepared.resolver,
+    externalSubcircuitDefinitions:
+      prepared.baseProject.externalSubcircuitDefinitions,
   });
   if (!gate.ok)
     throw new Error(
       `${gate.message}: ${gate.diagnostics.map((d) => `${d.path?.join(".") ?? ""} ${d.message}`).join("; ")}`,
     );
+  const preparedTransactions: PreparedTransaction[] = [
+    gate.evaluated.preparedTransaction,
+  ];
   const changesInterface = gate.edits.some(
     (e) => e.kind === "add_cell_terminal" || e.kind === "update_cell_terminal",
   );
@@ -963,7 +982,7 @@ export function planProjectCopyPlacement(
         expectedRevision: projected.revision,
         edits: connections.edits,
       };
-      const result = executeTransaction(
+      const preparation = prepareTransaction(
         projected,
         {
           transactionId: "copy-insert-contact",
@@ -972,9 +991,15 @@ export function planProjectCopyPlacement(
           actor: { kind: "human", id: "copy-insert" },
           edits: connections.edits,
         },
-        { symbolResolver: prepared.resolver },
+        {
+          symbolResolver: prepared.resolver,
+          externalSubcircuitDefinitions:
+            prepared.baseProject.externalSubcircuitDefinitions,
+        },
       );
+      const result = preparation.result;
       if (!result.ok) throw new Error(result.error.message);
+      preparedTransactions.push(preparation.prepared!);
       projected = result.document;
       // Every accepted contact can change pin visibility, owners and Route
       // segment identities. No read context crosses this transaction boundary.
@@ -992,6 +1017,7 @@ export function planProjectCopyPlacement(
       ...prepared.dependencyMapping,
     },
     baseProject: prepared.baseProject,
+    preparedTransactions,
   };
 }
 
@@ -1019,7 +1045,7 @@ export function applyProjectCopyPlacement(
       actor,
       edits: plan.edits,
     },
-    options,
+    { ...options, preparedTransactions: plan.preparedTransactions },
   );
   if (!result.ok)
     throw new Error(result.diagnostics[0]?.message ?? result.error.message);

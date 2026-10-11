@@ -1,6 +1,12 @@
 import { SymbolDefinitionSchema } from "./schema.js";
 import type { SymbolDefinition, SymbolVariant } from "./schema.js";
-import { projectCircuitSymbol, type CircuitProject } from "@icm/model";
+import {
+  freezeSnapshot,
+  isFrozenSnapshot,
+  projectCircuitSymbol,
+  type CircuitProject,
+} from "@icm/model";
+import { builtInSymbols } from "./builtins.js";
 import {
   createProjectHierarchicalSymbols,
   projectSymbolSources,
@@ -15,31 +21,61 @@ export interface SymbolResolver {
   resolve(symbolId: string, variantId?: string): ResolvedSymbol | undefined;
 }
 
+const validatedSymbols = new WeakMap<SymbolDefinition, SymbolDefinition>();
+
 export class InMemorySymbolResolver implements SymbolResolver {
   readonly #symbols = new Map<string, SymbolDefinition>();
+  readonly #variants = new Map<string, ReadonlyMap<string, SymbolVariant>>();
+  readonly #base: InMemorySymbolResolver | undefined;
 
-  constructor(definitions: readonly SymbolDefinition[]) {
+  constructor(
+    definitions: readonly SymbolDefinition[],
+    base?: InMemorySymbolResolver,
+  ) {
+    this.#base = base;
     for (const input of definitions) {
-      const definition = SymbolDefinitionSchema.parse(input);
+      const reusable = isFrozenSnapshot(input)
+        ? validatedSymbols.get(input)
+        : undefined;
+      const definition =
+        reusable ?? freezeSnapshot(SymbolDefinitionSchema.parse(input));
+      if (isFrozenSnapshot(input)) validatedSymbols.set(input, definition);
+      validatedSymbols.set(definition, definition);
       if (this.#symbols.has(definition.id)) {
         throw new Error(`Duplicate symbol: ${definition.id}`);
       }
       this.#symbols.set(definition.id, definition);
+      this.#variants.set(
+        definition.id,
+        new Map(definition.variants.map((variant) => [variant.id, variant])),
+      );
     }
   }
 
   resolve(symbolId: string, variantId?: string): ResolvedSymbol | undefined {
     const definition = this.#symbols.get(symbolId);
     if (!definition) {
-      return undefined;
+      return this.#base?.resolve(symbolId, variantId);
     }
     const effectiveVariantId = variantId ?? definition.defaultVariantId;
     if (effectiveVariantId === undefined) return { definition };
-    const variant = definition.variants.find(
-      (candidate) => candidate.id === effectiveVariantId,
-    );
+    const variant = this.#variants.get(symbolId)?.get(effectiveVariantId);
     return variant ? { definition, variant } : undefined;
   }
+}
+
+let builtInCatalog: InMemorySymbolResolver | undefined;
+
+/** Validate a library at ingestion; the resulting catalog owns its records. */
+export function createSymbolCatalog(
+  definitions: readonly SymbolDefinition[] | InMemorySymbolResolver,
+): InMemorySymbolResolver {
+  if (definitions instanceof InMemorySymbolResolver) return definitions;
+  // This library is owned and frozen by builtins.ts. Caller-owned arrays still
+  // take a fresh validated snapshot, so editing an input cannot poison a cache.
+  if (definitions === builtInSymbols)
+    return (builtInCatalog ??= new InMemorySymbolResolver(definitions));
+  return new InMemorySymbolResolver(definitions);
 }
 
 export function createProjectSymbolResolver(
@@ -50,11 +86,21 @@ export function createProjectSymbolResolver(
         "externalSubcircuitDefinitions" | "componentDefinitions"
       >
     >,
-  baseDefinitions: readonly SymbolDefinition[],
+  baseDefinitions: readonly SymbolDefinition[] | InMemorySymbolResolver,
 ): InMemorySymbolResolver {
-  const definitions = new Map(
-    baseDefinitions.map((definition) => [definition.id, definition]),
+  // Legacy callers merge available and captured definitions in one list.
+  // Preserve their last-definition precedence before loading the catalog.
+  const base = createSymbolCatalog(
+    baseDefinitions === builtInSymbols ||
+      baseDefinitions instanceof InMemorySymbolResolver
+      ? baseDefinitions
+      : [
+          ...new Map(
+            baseDefinitions.map((definition) => [definition.id, definition]),
+          ).values(),
+        ],
   );
+  const definitions = new Map<string, SymbolDefinition>();
   for (const definition of project.componentDefinitions ?? []) {
     const owner = definition.circuitBinding
       ? project.externalSubcircuitDefinitions?.find(
@@ -73,11 +119,11 @@ export function createProjectSymbolResolver(
       definition,
     ]),
   );
-  const hierarchical = createProjectHierarchicalSymbols(project, [
-    ...definitions.values(),
-  ]);
+  const overlay = new InMemorySymbolResolver([...definitions.values()], base);
+  const hierarchical = createProjectHierarchicalSymbols(project, overlay);
+  const generatedOverrides: SymbolDefinition[] = [];
   for (const definition of hierarchical) {
-    const existing = definitions.get(definition.id);
+    const existing = overlay.resolve(definition.id)?.definition;
     // A changed Cell interface owns its pins. A stable interface keeps its
     // captured/customized artwork instead of following website releases.
     if (
@@ -88,9 +134,9 @@ export function createProjectSymbolResolver(
       JSON.stringify(existing.pins.map((pin) => pin.name)) !==
         JSON.stringify(definition.pins.map((pin) => pin.name))
     )
-      definitions.set(definition.id, definition);
+      generatedOverrides.push(definition);
   }
-  return new InMemorySymbolResolver([...definitions.values()]);
+  return new InMemorySymbolResolver(generatedOverrides, overlay);
 }
 
 export function findUnsupportedProjectSymbolIds(

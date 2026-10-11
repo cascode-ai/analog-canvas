@@ -2,7 +2,10 @@ import { type CircuitProject, type ComponentDefinition } from "@icm/model";
 import { deviceDescriptor, subcircuitDescriptor } from "@icm/devices";
 import { projectSymbolSources } from "./hierarchical-block.js";
 import { builtInSymbols } from "./builtins.js";
-import { createProjectSymbolResolver } from "./resolver.js";
+import {
+  createProjectSymbolResolver,
+  type InMemorySymbolResolver,
+} from "./resolver.js";
 import type { SymbolDefinition } from "./schema.js";
 
 export function referencedProjectSymbolIds(
@@ -29,7 +32,8 @@ export function referencedProjectSymbolIds(
  * so undo can restore a deleted custom component. */
 export function withProjectComponentDefinitions(
   project: CircuitProject,
-  baseDefinitions: readonly SymbolDefinition[] = builtInSymbols,
+  baseDefinitions:
+    readonly SymbolDefinition[] | InMemorySymbolResolver = builtInSymbols,
 ): CircuitProject {
   const resolver = createProjectSymbolResolver(project, baseDefinitions);
   const existing = new Map(

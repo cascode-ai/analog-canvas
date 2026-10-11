@@ -38,6 +38,50 @@ const resistor = {
 };
 
 describe("Symbol Resolver boundary", () => {
+  it("retains the last definition and its variants in merged caller-owned lists", () => {
+    const project = createEmptyProject("merged", "Merged");
+    const definitions = [
+      resistor,
+      {
+        ...resistor,
+        name: "Available capture",
+        variants: [{ id: "captured", hiddenPinNames: [] }],
+        defaultVariantId: "captured",
+      },
+    ];
+    const resolver = createProjectSymbolResolver(project, definitions);
+    expect(resolver.resolve("resistor")?.definition.name).toBe(
+      "Available capture",
+    );
+    expect(resolver.resolve("resistor")?.variant?.id).toBe("captured");
+    expect(resolver.resolve("resistor", "compact")).toBeUndefined();
+    definitions[1]!.name = "Updated capture";
+    expect(
+      createProjectSymbolResolver(project, definitions).resolve("resistor")
+        ?.definition.name,
+    ).toBe("Updated capture");
+    expect(resolver.resolve("resistor")?.definition.name).toBe(
+      "Available capture",
+    );
+  });
+
+  it("layers captured Project definitions over an owned catalog snapshot", () => {
+    const input = structuredClone(resistor);
+    const catalog = new InMemorySymbolResolver([input]);
+    input.name = "Edited after catalog loading";
+    const project = createEmptyProject("overlay", "Overlay");
+    const resolver = createProjectSymbolResolver(project, catalog);
+    expect(resolver.resolve("resistor")?.definition.name).toBe("Resistor");
+    project.componentDefinitions = [
+      {
+        symbol: SymbolDefinitionSchema.parse({ ...resistor, name: "Captured" }),
+      },
+    ];
+    const captured = createProjectSymbolResolver(project, catalog);
+    expect(captured.resolve("resistor")?.definition.name).toBe("Captured");
+    expect(catalog.resolve("resistor")?.definition.name).toBe("Resistor");
+  });
+
   it("resolves only canonical IDs and applies the canonical default variant", () => {
     const resolver = new InMemorySymbolResolver([resistor]);
     expect(resolver.resolve("res")).toBeUndefined();

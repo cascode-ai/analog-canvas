@@ -1,5 +1,5 @@
 import { registerDocumentCache } from "./document-caches.js";
-import { routeEnd } from "@icm/model";
+import { routeEnd, isFrozenSnapshot } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -8,10 +8,7 @@ import {
   type CoincidentContact,
   type DocumentContactEvidence,
 } from "./contact.js";
-import {
-  resolveDocumentLogicalNets,
-  type ResolvedDocumentLogicalNets,
-} from "./logical-net.js";
+import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 import {
   resolveNetLabelBinding,
   type ResolvedNetLabelBinding,
@@ -26,9 +23,9 @@ import {
 } from "./spatial-index.js";
 import {
   endpointKey,
+  buildEndpointObjectLookup,
   resolveEndpointConnection,
   type EndpointConnection,
-  type EndpointObjectLookup,
 } from "./endpoint.js";
 
 type Instance = SchematicDocument["instances"][number];
@@ -68,7 +65,7 @@ export interface DocumentDerivedContext {
 
 interface CachedDocumentDerivedContext {
   readonly revision: number;
-  readonly resolver: SymbolResolver;
+  readonly symbols: string;
   readonly context: DocumentDerivedContext;
 }
 
@@ -95,34 +92,26 @@ export function buildDocumentDerivedContext(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): DocumentDerivedContext {
-  const cached = contextCache.get(document);
-  if (cached?.revision === document.revision && cached.resolver === resolver) {
+  const symbols = isFrozenSnapshot(document)
+    ? resolvedSymbolContext(document, resolver)
+    : undefined;
+  const cached = symbols === undefined ? undefined : contextCache.get(document);
+  if (cached?.revision === document.revision && cached.symbols === symbols) {
     return cached.context;
   }
-  const instancesById = new Map(
-    document.instances.map((item) => [item.id, item] as const),
-  );
-  const junctionsById = new Map(
-    document.junctions.map((item) => [item.id, item] as const),
-  );
+  const endpointLookup = buildEndpointObjectLookup(document);
+  const {
+    instancesById,
+    junctionsById,
+    logicalNets: logicalNetResolution,
+  } = endpointLookup;
   const routesByNetId = groupedBy(document.routes, (item) => item.netId);
+  const routesById = new Map(document.routes.map((route) => [route.id, route]));
   const junctionsByNetId = groupedBy(document.junctions, (item) => item.netId);
   const annotationsByNetId = groupedBy(
     document.annotations,
     (item) => item.netId,
   );
-  // Resolved here rather than at the context literal below: the lookup is
-  // handed to endpoint resolution, whose hidden-MOS-bulk-pin branch asks the
-  // bulk policy, and the contact evidence derived a few lines down runs that
-  // resolution for every endpoint. Carrying the resolution means that branch
-  // reads the one pass this function already made instead of resolving the
-  // whole Document per endpoint.
-  const logicalNetResolution = resolveDocumentLogicalNets(document);
-  const endpointLookup: EndpointObjectLookup = {
-    instancesById,
-    junctionsById,
-    logicalNets: logicalNetResolution,
-  };
   const endpoints = new Map(
     [
       ...document.nets.flatMap((net) =>
@@ -153,11 +142,18 @@ export function buildDocumentDerivedContext(
     resolver,
     endpointConnections,
   );
+  const spatialIndex = buildDocumentSpatialIndex(document, routingGeometry);
   const contactEvidence = deriveDocumentContactEvidence(
     document,
     resolver,
     routingGeometry,
-    { routesByNetId, endpointConnections, endpointLookup },
+    {
+      routesByNetId,
+      routesById,
+      spatialIndex,
+      endpointConnections,
+      endpointLookup,
+    },
   );
   const netLabelBindingsByNetId = new Map<string, ResolvedNetLabelBinding[]>();
   for (const annotation of document.annotations) {
@@ -192,7 +188,7 @@ export function buildDocumentDerivedContext(
     documentRevision: document.revision,
     instancesById,
     netsById: new Map(document.nets.map((item) => [item.id, item])),
-    routesById: new Map(document.routes.map((item) => [item.id, item])),
+    routesById,
     junctionsById,
     annotationsById: new Map(
       document.annotations.map((item) => [item.id, item]),
@@ -207,12 +203,34 @@ export function buildDocumentDerivedContext(
     contactsByNetId: groupedBy(contactEvidence.contacts, (item) => item.netId),
     netLabelBindingsByNetId,
     logicalNetResolution,
-    spatialIndex: buildDocumentSpatialIndex(document, routingGeometry),
+    spatialIndex,
   };
-  contextCache.set(document, {
-    revision: document.revision,
-    resolver,
-    context,
-  });
+  if (symbols !== undefined)
+    contextCache.set(document, {
+      revision: document.revision,
+      symbols,
+      context,
+    });
   return context;
+}
+
+function resolvedSymbolContext(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): string {
+  const references = new Map<string, readonly [string, string | undefined]>();
+  for (const instance of document.instances) {
+    const reference = [instance.symbolId, instance.symbolVariantId] as const;
+    references.set(JSON.stringify(reference), reference);
+  }
+  for (const object of document.drafting?.objects ?? []) {
+    if (object.kind !== "floating-symbol") continue;
+    const reference = [object.symbolId, undefined] as const;
+    references.set(JSON.stringify(reference), reference);
+  }
+  return JSON.stringify(
+    [...references.values()].map(
+      ([id, variant]) => resolver.resolve(id, variant) ?? null,
+    ),
+  );
 }

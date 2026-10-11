@@ -1,4 +1,8 @@
-import { CircuitProjectSchema, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
+import {
+  CircuitProjectSchema,
+  CURRENT_MODEL_SCHEMA_VERSION,
+  validateProjectSnapshot,
+} from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 import { collectProjectModelSources } from "@icm/netlist";
 
@@ -104,7 +108,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function tryValidateProject(input: unknown): ProjectLoadResult {
-  const result = CircuitProjectSchema.safeParse(input);
+  return checkedProject(CircuitProjectSchema.safeParse(input));
+}
+
+/** Canonical read path; the model alone owns immutable validation provenance. */
+export function validateProjectReadSnapshot(input: unknown): CircuitProject {
+  const result = checkedProject(validateProjectSnapshot(input));
+  if (!result.ok) throw new ProjectFormatError(result.diagnostics);
+  return result.project;
+}
+
+function checkedProject(
+  result: ReturnType<typeof CircuitProjectSchema.safeParse>,
+): ProjectLoadResult {
   if (!result.success)
     return {
       ok: false,

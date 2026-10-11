@@ -1,7 +1,7 @@
 import { withProjectComponentDefinitions } from "@icm/symbols";
 import type { CircuitProject } from "@icm/model";
 
-import { validateProject } from "./load.js";
+import { validateProjectReadSnapshot } from "./load.js";
 import { encodeProjectFile } from "./owned-project-file.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -82,8 +82,8 @@ function sortKeys(value: unknown): unknown {
 export function serializeProject(project: CircuitProject): string {
   const value = sortKeys(
     encodeProjectFile(
-      validateProject(
-        withProjectComponentDefinitions(validateProject(project)),
+      validateProjectReadSnapshot(
+        withProjectComponentDefinitions(validateProjectReadSnapshot(project)),
       ),
     ),
   );
