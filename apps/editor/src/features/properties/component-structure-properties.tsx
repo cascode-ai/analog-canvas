@@ -1,4 +1,5 @@
 import type { BlockSymbolLayoutTarget } from "../hierarchy/block-symbol-layout-target";
+import { hierarchicalBlockBodySize } from "@icm/symbols";
 
 type PinSide = "north" | "east" | "south" | "west" | "auto";
 
@@ -9,11 +10,13 @@ export function CellSymbolLayoutProperties({
   onToggle,
   onBodySizeChange,
   onPortPlacementChange,
+  onReset,
 }: {
   target: BlockSymbolLayoutTarget;
   enabled: boolean;
   readOnly?: boolean;
   onToggle?: () => void;
+  onReset?: () => void;
   onBodySizeChange: (width: number, height: number) => void;
   onPortPlacementChange: (
     terminalId: string,
@@ -22,6 +25,11 @@ export function CellSymbolLayoutProperties({
   ) => void;
 }) {
   const bodySize = target.presentation?.minimumBodySize;
+  const automaticSize = hierarchicalBlockBodySize(target.terminals);
+  const actualSize = hierarchicalBlockBodySize(
+    target.terminals,
+    target.presentation,
+  );
   return (
     <div
       className="cell-symbol-layout-properties"
@@ -47,40 +55,58 @@ export function CellSymbolLayoutProperties({
       ) : null}
       <div className="component-geometry-row">
         <label>
-          Width
+          Minimum width
           <input
             key={`${target.id}-${target.revision}-symbol-width`}
             disabled={readOnly}
             aria-label="Cell symbol width"
             autoComplete="off"
-            defaultValue={String(bodySize?.width ?? 100)}
+            placeholder="Auto"
+            defaultValue={bodySize ? String(bodySize.width) : ""}
             inputMode="numeric"
             onBlur={(event) =>
               onBodySizeChange(
-                Number(event.currentTarget.value),
-                bodySize?.height ?? 60,
+                event.currentTarget.value.trim()
+                  ? Number(event.currentTarget.value)
+                  : automaticSize.width,
+                bodySize?.height ?? automaticSize.height,
               )
             }
           />
         </label>
         <label>
-          Height
+          Minimum height
           <input
             key={`${target.id}-${target.revision}-symbol-height`}
             disabled={readOnly}
             aria-label="Cell symbol height"
             autoComplete="off"
-            defaultValue={String(bodySize?.height ?? 60)}
+            placeholder="Auto"
+            defaultValue={bodySize ? String(bodySize.height) : ""}
             inputMode="numeric"
             onBlur={(event) =>
               onBodySizeChange(
-                bodySize?.width ?? 100,
-                Number(event.currentTarget.value),
+                bodySize?.width ?? automaticSize.width,
+                event.currentTarget.value.trim()
+                  ? Number(event.currentTarget.value)
+                  : automaticSize.height,
               )
             }
           />
         </label>
       </div>
+      <small>
+        Actual size: {actualSize.width} × {actualSize.height}
+      </small>
+      {onReset ? (
+        <button
+          type="button"
+          disabled={readOnly || !target.presentation}
+          onClick={onReset}
+        >
+          Reset layout
+        </button>
+      ) : null}
       <table className="cell-symbol-pin-layout-table">
         <thead>
           <tr>
@@ -122,7 +148,12 @@ export function CellSymbolLayoutProperties({
                 </td>
                 <td>
                   <input
-                    disabled={readOnly}
+                    disabled={readOnly || !pinPlacement}
+                    title={
+                      !pinPlacement
+                        ? "Choose a side to set an offset."
+                        : undefined
+                    }
                     key={`${target.revision}-${terminal.id}-offset`}
                     aria-label={`Cell symbol ${terminal.name} pin offset`}
                     autoComplete="off"

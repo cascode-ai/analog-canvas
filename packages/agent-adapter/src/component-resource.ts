@@ -3,6 +3,7 @@ import {
   ComponentDefinitionSchema,
   ExternalSubcircuitDefinitionSchema,
   ProjectModelSourceSchema,
+  SourceSpanSchema,
 } from "@icm/model";
 
 const Id = z.string().min(1).max(256);
@@ -33,6 +34,11 @@ export const AgentComponentLibraryActionSchema = z.discriminatedUnion(
   [
     z.strictObject({
       action: z.literal("list"),
+      query: z.string().max(100).optional(),
+      cursor: z.string().max(2048).optional(),
+    }),
+    z.strictObject({
+      action: z.literal("browse"),
       query: z.string().max(100).optional(),
       cursor: z.string().max(2048).optional(),
     }),
@@ -89,9 +95,47 @@ const AgentSharedComponentSchema = z.strictObject({
     })
     .optional(),
 });
+/** Discovery is a derived view, never an executable component package. */
+const ComponentDefinitionDiagnosticSchema = z.strictObject({
+  componentId: LibraryId,
+  path: z.array(z.union([z.string(), z.number().int()])),
+  file: z.string().optional(),
+  sourceRef: SourceSpanSchema.optional(),
+  message: z.string(),
+  recovery: z.literal("edit-definition"),
+});
+export const ComponentLibrarySummarySchema = z.strictObject({
+  id: LibraryId,
+  revision: Revision.min(1),
+  authorId: Id,
+  author: z.string(),
+  status: z.enum(["shared", "official", "deleted"]),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  name: z.string(),
+  capability: z.enum([
+    "circuit",
+    "primitive",
+    "builtin",
+    "symbol-only",
+    "needs-repair",
+  ]),
+  pinCount: z.number().int().nonnegative(),
+  parameterCount: z.number().int().nonnegative(),
+  diagnostic: z.string().optional(),
+  diagnostics: z.array(ComponentDefinitionDiagnosticSchema).optional(),
+});
+export type ComponentLibrarySummary = z.infer<
+  typeof ComponentLibrarySummarySchema
+>;
 export const AgentComponentLibraryResultSchema = z.discriminatedUnion(
   "action",
   [
+    z.strictObject({
+      action: z.literal("browse"),
+      entries: z.array(ComponentLibrarySummarySchema),
+      nextCursor: z.string().nullable(),
+    }),
     z.strictObject({
       action: z.literal("list"),
       entries: z.array(AgentSharedComponentSchema),

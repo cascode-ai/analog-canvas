@@ -4,28 +4,20 @@ import {
   type AgentProjectResourceRequest,
   type AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
-import {
-  buildCircuitComponentPackage,
-  executeProjectTransaction,
-  planCircuitComponentCapture,
-  type ProjectStructureEdit,
-} from "@icm/edit-engine";
+import { buildCircuitComponentPackage } from "@icm/edit-engine";
 import type { CircuitProject } from "@icm/model";
-import { resolveDocumentStyleProfile } from "@icm/derived";
-import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import {
   ComponentLibraryError,
   loadSharedComponents,
+  loadSharedComponentSummaries,
   readSharedComponent,
   saveSharedComponent,
 } from "../features/user-components/component-library-client";
 import {
   parseSharedComponentPayload,
-  sharedComponentNetlist,
   type SharedComponent,
 } from "../features/user-components/component-library-contract";
-import { createNewInstance } from "../features/netlist-export/netlist-authoring";
-import { defaultInstanceDisplayAnnotations } from "../features/instance-display/default-instance-display";
+import { planComponentPlacement } from "../features/user-components/component-placement";
 import type { BrowserAgentProjectHostOptions } from "./browser-agent-project-host";
 
 type Request = Extract<
@@ -120,6 +112,17 @@ export async function handleAgentComponents(
   try {
     assertBound();
     const action = request.request;
+    if (action.action === "browse") {
+      const page = await loadSharedComponentSummaries(
+        action.query ?? "",
+        action.cursor ?? null,
+        false,
+        undefined,
+        fetchLibrary,
+      );
+      assertBound();
+      return { ...base, ok: true, result: { action: "browse", ...page } };
+    }
     if (action.action === "list") {
       const page = await loadSharedComponents(
         action.query ?? "",
@@ -221,86 +224,18 @@ export async function handleAgentComponents(
             `Cell revision is ${document.revision}; reread before inserting`,
             "refresh",
           );
-        let definitionId: string | undefined;
-        let symbolId = entry.definition.symbol.id;
-        let edits: ProjectStructureEdit[];
-        if (entry.circuit) {
-          const captured = planCircuitComponentCapture(
+        const { definitionId, symbolId, instance, edits } =
+          planComponentPlacement(
             project,
-            { definition: entry.definition, circuit: entry.circuit },
-            `library-${entry.id}-r${entry.revision}`,
-          );
-          ({ definitionId, symbolId } = captured);
-          edits = captured.edits;
-        } else
-          edits = [
+            document.id,
             {
-              kind: "capture_component_definition",
               definition: entry.definition,
+              ...(entry.circuit ? { circuit: entry.circuit } : {}),
             },
-          ];
-        const preview = edits.length
-          ? executeProjectTransaction(
-              project,
-              {
-                transactionId: request.requestId + "-capture",
-                projectId: project.id,
-                expectedStructureRevision: project.structureRevision,
-                actor: { kind: "agent", id: "agent-components" },
-                edits,
-              },
-              options.projectTransactionOptions,
-            )
-          : { ok: true as const, project };
-        if (!preview.ok)
-          throw new ComponentOperationError(
-            "COMPONENT_CAPTURE_REJECTED",
-            preview.error.message,
+            `library-${entry.id}-r${entry.revision}`,
+            { position: action.position, rotation: 0, mirror: "none" },
+            { ...(action.reference ? { reference: action.reference } : {}) },
           );
-        const instance = createNewInstance(
-          document,
-          {
-            symbolId,
-            placement: {
-              position: action.position,
-              rotation: 0,
-              mirror: "none",
-            },
-            netlist: definitionId
-              ? {
-                  parameters: {},
-                  binding: { kind: "external-subcircuit", definitionId },
-                }
-              : sharedComponentNetlist(entry.definition),
-          },
-          {
-            project: preview.project,
-            ...(action.reference ? { reference: action.reference } : {}),
-          },
-        );
-        const resolver = createProjectSymbolResolver(
-          preview.project,
-          builtInSymbols,
-        );
-        const annotations = defaultInstanceDisplayAnnotations(
-          document,
-          instance,
-          resolver,
-          resolveDocumentStyleProfile(document.presentation),
-          { showDesignator: true, masterName: entry.definition.symbol.name },
-        );
-        edits.push({
-          kind: "transact_document",
-          documentId: document.id,
-          expectedRevision: action.expectedRevision,
-          edits: [
-            { kind: "add_instance", instance },
-            ...annotations.map((annotation) => ({
-              kind: "upsert_schematic_annotation" as const,
-              annotation,
-            })),
-          ],
-        });
         assertBound();
         const result = options.dispatchProjectTransaction({
           transactionId: request.requestId,
@@ -350,27 +285,29 @@ export async function handleAgentComponents(
         ? error
         : error instanceof ComponentLibraryError
           ? new ComponentOperationError(
-              error.status === 401
-                ? "SIGN_IN_REQUIRED"
-                : error.status === 403
-                  ? "COMPONENT_PERMISSION_DENIED"
-                  : error.status === 409
-                    ? "COMPONENT_REVISION_CONFLICT"
-                    : error.status === 404
-                      ? "COMPONENT_NOT_FOUND"
-                      : "COMPONENT_LIBRARY_FAILED",
+              error.outcomeUnknown
+                ? "COMPONENT_WRITE_UNKNOWN"
+                : error.status === 401
+                  ? "SIGN_IN_REQUIRED"
+                  : error.status === 403
+                    ? "COMPONENT_PERMISSION_DENIED"
+                    : error.status === 409
+                      ? "COMPONENT_REVISION_CONFLICT"
+                      : error.status === 404
+                        ? "COMPONENT_NOT_FOUND"
+                        : "COMPONENT_LIBRARY_FAILED",
               error.message,
               error.status === 401
                 ? "sign-in"
                 : error.status === 409
                   ? "refresh"
-                  : error.status >= 500
+                  : error.status >= 500 || error.status === 408
                     ? "retry"
                     : "fix-input",
             )
           : new ComponentOperationError(
               "COMPONENT_INVALID",
-              error instanceof Error ? error.message : String(error),
+              `${"componentId" in request.request ? request.request.componentId + ": " : ""}${error instanceof Error ? error.message : String(error)}. Use browse diagnostics to locate definition repairs.`,
             );
     return {
       ...base,

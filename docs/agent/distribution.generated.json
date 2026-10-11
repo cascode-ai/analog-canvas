@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "edff91515139955440246f1b19c5f6a9ba26eeca4255a3c49b5d3e749463c90e"
+      "sha256": "70b48b260cbe51412f328f694cce3aa01aab37f7438f44bff16f1773a92b243b"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -97,7 +97,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "195a9de5346b0b5eb9b5783fd3b94e050d0a6de72d3ec5c351d0f7add6a86dca"
+      "sha256": "d564dc27458a063fd5c7bfedd065b16cf42110adbffceea7545a53aab0a7c9bc"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -121,7 +121,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "a2004a148324272999aa16bcab217ca194581cb531274f0f68adecffb868dfba"
+      "sha256": "4c82110efc1774e853c8331db86ba37b9061983f003a539e0dec44e2705a917b"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -606,7 +606,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "7d57b6bef392c406a8d1af48782905de6be4ee12f2d37a5e4c01da5ca69e2762"
+      "sha256": "9649cc348ea708a5cabe39fa4e04fb89bfcca2e1fd2433328c3d3a4289869967"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -636,7 +636,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "bc6e78e9891a138bf301a1deaf9b4f7b6294f6e4654ef88045832b561d43f8db"
+      "sha256": "10b158e8c791a9f6fe3d22b976643c88a9e58ffc91ce8e01bc05ba9e5cb70844"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -653,7 +653,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "257d9c2a3fe89edcf2fb7b98070600baef6d3810be4673898c2151a401f59f12"
+      "sha256": "82d783097db7d0c0580e8032f5ec27fc654139244b99d1e386a7213b60b3a15d"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

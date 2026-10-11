@@ -7,6 +7,12 @@ import {
   parseCircuitComponentPackage,
   type CircuitComponentResources,
 } from "@icm/edit-engine";
+import { hasBuiltInSubcircuitInterface } from "@icm/devices";
+import type { ComponentLibrarySummary } from "@icm/agent-adapter";
+import {
+  definitionError,
+  componentDefinitionDiagnostics,
+} from "./component-definition-error";
 
 export type ComponentLibraryStatus = "shared" | "official" | "deleted";
 export interface SharedComponent {
@@ -24,6 +30,59 @@ export interface ComponentLibraryPage {
   entries: SharedComponent[];
   nextCursor: string | null;
   rejected?: RejectedSharedComponent[];
+}
+export interface ComponentLibrarySummaryPage {
+  entries: ComponentLibrarySummary[];
+  nextCursor: string | null;
+}
+
+/** Derived capabilities do not imply qualification for a simulation engine. */
+export function componentCapability(
+  payload: SharedDefinitionPayload,
+): ComponentLibrarySummary["capability"] {
+  if (payload.circuit) return "circuit";
+  if (payload.definition.electrical) return "primitive";
+  if (hasBuiltInSubcircuitInterface(payload.definition)) return "builtin";
+  return "symbol-only";
+}
+
+export function summarizeSharedComponent(
+  entry: SharedComponent,
+): ComponentLibrarySummary {
+  const { definition, circuit, ...metadata } = entry;
+  const name =
+    typeof definition?.symbol?.name === "string"
+      ? definition.symbol.name
+      : entry.id;
+  try {
+    const payload = parseSharedComponentPayload({
+      definition,
+      ...(circuit ? { circuit } : {}),
+    });
+    return {
+      ...metadata,
+      name,
+      capability: componentCapability(payload),
+      pinCount:
+        circuit?.externalDefinition.terminals.length ??
+        definition.subcircuit?.ports.length ??
+        definition.symbol.pins.length,
+      parameterCount:
+        circuit?.externalDefinition.formalParameters.length ??
+        definition.electrical?.parameters.length ??
+        0,
+    };
+  } catch (error) {
+    return {
+      ...metadata,
+      name,
+      capability: "needs-repair",
+      pinCount: 0,
+      parameterCount: 0,
+      diagnostic: definitionError(error),
+      diagnostics: componentDefinitionDiagnostics(error, entry.id),
+    };
+  }
 }
 /** Historical source that failed validation stays inspectable, never executable. */
 export interface RejectedSharedComponent {

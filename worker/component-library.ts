@@ -58,8 +58,15 @@ export async function routeComponentLibraryRequest(
           cursor: url.searchParams.get("cursor"),
           limit: url.searchParams.get("limit"),
           deleted,
+          summary: url.searchParams.get("view") === "summary",
         })
-      : call("get", { id, admin });
+      : call("get", {
+          id,
+          admin,
+          preview: url.searchParams.get("view") === "preview",
+          identity: url.searchParams.get("view") === "identity",
+          revision: Number(url.searchParams.get("revision")),
+        });
   }
   if (!new Set(["PUT", "PATCH"]).has(request.method) || isList)
     return Response.json({ error: "Method not allowed" }, { status: 405 });

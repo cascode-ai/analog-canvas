@@ -113,6 +113,7 @@ function sameWireTarget(
 export type InteractionMode = InteractionState<unknown>["kind"];
 
 export interface PendingComponentPlacement {
+  capture?: import("../features/user-components/component-placement").PendingCircuitCapture;
   componentDefinition?: ComponentDefinition;
   kind:
     | "symbol"

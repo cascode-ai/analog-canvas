@@ -38,6 +38,7 @@ import {
 } from "@icm/edit-engine";
 import ProjectTextEditor from "../project-code/project-text-editor";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
+import { DefinitionWorkspace } from "../user-components/definition-workspace";
 import { definitionError } from "../user-components/component-definition-error";
 import { CircuitInterfaceEditor } from "../user-components/circuit-interface-editor";
 import { newComponentDefinition } from "../user-components/component-definition-edit";
@@ -109,6 +110,7 @@ export function ExternalModelSourceEditor({
   ): ExternalDefinitionResult;
 }) {
   const [forking, setForking] = useState(false);
+  const [previewWarning, setPreviewWarning] = useState<string | null>(null);
   const [changingOwner, setChangingOwner] = useState(false);
   const definition = forking || changingOwner ? undefined : initialDefinition;
   const binding = definition?.implementation;
@@ -432,6 +434,26 @@ export function ExternalModelSourceEditor({
       });
     } else setResult(onMetadata(next));
   };
+  const applyUnavailable =
+    failure?.message ??
+    (!selected
+      ? "Add a .subckt definition and select its entry."
+      : customSymbols
+        ? artwork.error
+        : null);
+  const sourceCallCount = project.documents
+    .flatMap((document) => document.instances)
+    .filter((instance) => {
+      const binding = instance.netlist?.binding;
+      return (
+        binding?.kind === "external-subcircuit" &&
+        project.externalSubcircuitDefinitions.some(
+          (owner) =>
+            owner.id === binding.definitionId &&
+            owner.implementation?.sourceId === sourceId,
+        )
+      );
+    }).length;
   const apply = (place = false) => {
     if (viewingApplied) return;
     if (failure || !selected || (customSymbols && artwork.error)) {
@@ -780,6 +802,40 @@ export function ExternalModelSourceEditor({
         className="external-model-source-view"
         hidden={customSymbols && view !== "circuit"}
       >
+        {customSymbols && !existing && !selected ? (
+          <label className="component-definition-template">
+            Start from{" "}
+            <select
+              aria-label="Circuit template"
+              value=""
+              onChange={(event) => {
+                const template = event.currentTarget.value;
+                if (!template) return;
+                onRequestLeave(() =>
+                  editDraft({
+                    language: "spice",
+                    entryPath: "model.spice",
+                    files: [
+                      {
+                        path: "model.spice",
+                        text:
+                          template === "rc"
+                            ? ".subckt rc_lowpass IN OUT VSS params: R=10k C=10n\nR1 IN OUT {R}\nC1 OUT VSS {C}\n.ends rc_lowpass\n"
+                            : ".subckt finite_gain IN OUT VSS params: GAIN=10\nE1 OUT VSS IN VSS {GAIN}\nRin IN VSS 1T\n.ends finite_gain\n",
+                      },
+                    ],
+                    dependencies: [],
+                    entry: "",
+                  }),
+                );
+              }}
+            >
+              <option value="">Blank source</option>
+              <option value="rc">RC low-pass (SPICE)</option>
+              <option value="gain">Finite-gain amplifier (SPICE)</option>
+            </select>
+          </label>
+        ) : null}
         <div className="netlist-code-controls">
           <div className="netlist-code-selects">
             <NetlistCodeSelect
@@ -887,7 +943,11 @@ export function ExternalModelSourceEditor({
         {binding?.kind !== "source" || existing?.draft || dirty ? (
           <p className="external-model-state">
             {[
-              binding?.kind !== "source" ? "Unimplemented" : null,
+              binding?.kind !== "source"
+                ? selected && !failure
+                  ? "Not applied"
+                  : "Draft"
+                : null,
               existing?.draft ? "Saved draft" : null,
               dirty ? "Unsaved changes" : null,
             ]
@@ -1299,9 +1359,45 @@ export function ExternalModelSourceEditor({
               <option value="custom">Custom JSON</option>
             </select>
           </label>
+          {symbolMode === "automatic" && !previewDefinition ? (
+            <p className="component-definition-note">
+              Define the circuit interface to generate a symbol.
+            </p>
+          ) : null}
+          {symbolMode === "custom" && artwork.definition ? (
+            <label>
+              Display name{" "}
+              <input
+                aria-label="Component display name"
+                key={artwork.definition.symbol.name}
+                defaultValue={artwork.definition.symbol.name}
+                disabled={viewingApplied}
+                maxLength={100}
+                onBlur={(event) => {
+                  if (!event.currentTarget.value.trim()) {
+                    event.currentTarget.value = artwork.definition!.symbol.name;
+                    return;
+                  }
+                  editDraft({
+                    artworkText: JSON.stringify(
+                      {
+                        ...artwork.definition,
+                        symbol: {
+                          ...artwork.definition!.symbol,
+                          name: event.currentTarget.value,
+                        },
+                      },
+                      null,
+                      2,
+                    ),
+                  });
+                }}
+              />
+            </label>
+          ) : null}
           {symbolMode === "custom" ? (
             <>
-              <div className="component-definition-workspace">
+              <DefinitionWorkspace initialSplit={65}>
                 <section className="component-definition-code">
                   <ProjectTextEditor
                     ariaLabel="Circuit symbol JSON"
@@ -1323,6 +1419,8 @@ export function ExternalModelSourceEditor({
                         <p role="status">Showing the last valid preview.</p>
                       ) : null}
                       <SymbolArtwork
+                        fitContent
+                        onPreviewWarning={setPreviewWarning}
                         symbol={
                           artwork.error || !artwork.definition
                             ? (artwork.definition ?? lastValidArtwork.current)!
@@ -1336,12 +1434,15 @@ export function ExternalModelSourceEditor({
                         }
                         className="component-definition-artwork"
                       />
+                      {previewWarning ? (
+                        <small role="status">{previewWarning}</small>
+                      ) : null}
                     </>
                   ) : (
                     <p>Correct the JSON to preview.</p>
                   )}
                 </section>
-              </div>
+              </DefinitionWorkspace>
               {artwork.error ? <p role="status">{artwork.error}</p> : null}
             </>
           ) : null}
@@ -1417,6 +1518,9 @@ export function ExternalModelSourceEditor({
                 }}
                 enabled={false}
                 readOnly={viewingApplied}
+                onReset={() =>
+                  updateLayout({ ...layoutDefinition, presentation: {} })
+                }
                 onBodySizeChange={(width, height) =>
                   updateLayout({
                     ...layoutDefinition,
@@ -1452,6 +1556,7 @@ export function ExternalModelSourceEditor({
                 <figcaption>Preview</figcaption>
                 <div className="external-model-preview-frame">
                   <SymbolArtwork
+                    fitContent
                     symbol={preview}
                     className="external-model-symbol"
                   />
@@ -1461,7 +1566,9 @@ export function ExternalModelSourceEditor({
           </div>
         </section>
       ) : null}
-      {customSymbols && previewDefinition ? (
+      {customSymbols &&
+      previewDefinition &&
+      (sourceCallCount > 0 || legacyDefinition?.subcircuit) ? (
         <p className="component-definition-note">
           {legacyDefinition?.subcircuit
             ? "Native interface: " +
@@ -1470,25 +1577,17 @@ export function ExternalModelSourceEditor({
               legacyDefinition.subcircuit.ports.length +
               " terminals. "
             : ""}
-          {
-            project.documents
-              .flatMap((document) => document.instances)
-              .filter((instance) => {
-                const binding = instance.netlist?.binding;
-                return (
-                  binding?.kind === "external-subcircuit" &&
-                  project.externalSubcircuitDefinitions.some(
-                    (owner) =>
-                      owner.id === binding.definitionId &&
-                      owner.implementation?.sourceId === sourceId,
-                  )
-                );
-              }).length
-          }{" "}
-          call(s) share this model source.
+          {sourceCallCount > 0
+            ? `${sourceCallCount} call(s) share this model source.`
+            : ""}
         </p>
       ) : null}
       <footer className="external-model-actionbar">
+        {applyUnavailable ? (
+          <small className="component-definition-note">
+            {applyUnavailable}
+          </small>
+        ) : null}
         {customSymbols && view !== "circuit" && result ? (
           <p role="status" className="cell-external-result">
             {result.message}
@@ -1499,17 +1598,22 @@ export function ExternalModelSourceEditor({
             type="button"
             className="primary"
             onClick={() => apply(true)}
-            disabled={viewingApplied}
+            disabled={viewingApplied || !!applyUnavailable}
           >
             Apply &amp; Place
           </button>
         ) : null}
-        <button type="button" onClick={() => apply()} disabled={viewingApplied}>
+        <button
+          type="button"
+          onClick={() => apply()}
+          disabled={viewingApplied || !!applyUnavailable}
+        >
           Apply model
         </button>
         {definition && canPlace ? (
           <button
             type="button"
+            disabled={!viewingApplied && !!applyUnavailable}
             onClick={() =>
               dirty || existing?.draft
                 ? viewingApplied

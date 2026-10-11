@@ -16,6 +16,59 @@ function definition(name = "Custom resistor") {
 }
 
 describe("public component library", () => {
+  it("browses lightweight capabilities without source and reads a revision-bound preview", async () => {
+    const route = harness();
+    const native = nativePackage();
+    await route("PUT", "/native-summary", { ...native, revision: 0 }, "alice");
+    await route(
+      "PUT",
+      "/symbol-summary",
+      { definition: { symbol: definition().symbol }, revision: 0 },
+      "alice",
+    );
+    const page = await (await route("GET", "?view=summary")).json();
+    expect(page.entries).toEqual([
+      expect.objectContaining({
+        id: "native-summary",
+        name: "Packaged resistor",
+        capability: "circuit",
+        pinCount: 2,
+      }),
+      expect.objectContaining({
+        id: "symbol-summary",
+        capability: "symbol-only",
+      }),
+    ]);
+    expect(page.entries[0]).not.toHaveProperty("definition");
+    expect(page.entries[0]).not.toHaveProperty("circuit");
+    expect(JSON.stringify(page).length).toBeLessThan(2000);
+    const preview = await route(
+      "GET",
+      "/native-summary?view=preview&revision=1",
+    );
+    expect(preview.status).toBe(200);
+    expect((await preview.json()).symbol.name).toBe("Packaged resistor");
+    const identity = await route(
+      "GET",
+      "/native-summary?view=identity&revision=1",
+    );
+    expect(identity.status).toBe(200);
+    expect(await identity.json()).toEqual({
+      id: "native-summary",
+      revision: 1,
+      status: "shared",
+    });
+    expect(
+      (await route("GET", "/native-summary?view=identity&revision=2")).status,
+    ).toBe(409);
+    expect(
+      (await route("GET", "/native-summary?view=preview&revision=2")).status,
+    ).toBe(409);
+    expect(
+      (await (await route("GET", "/native-summary")).json()).entry.circuit
+        .source,
+    ).toBeDefined();
+  });
   it("expires publication recovery after seven days without replaying a stale receipt", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
@@ -478,6 +531,9 @@ describe("public component library", () => {
       ).status,
     ).toBe(200);
     expect((await route("GET", "/component-1")).status).toBe(404);
+    expect(
+      (await route("GET", "/component-1?view=identity&revision=3")).status,
+    ).toBe(404);
     expect((await (await route()).json()).entries).toEqual([]);
     expect((await route("GET", "?status=deleted")).status).toBe(403);
     const deleted = (
