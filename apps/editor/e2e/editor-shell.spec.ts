@@ -361,6 +361,19 @@ test("shows first-party visitor analytics without tracking the dashboard itself"
   page,
 }) => {
   await page.addInitScript(() => localStorage.setItem("theme", "dark"));
+  // An administrator: the page asks the session before the admin count.
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "admin-1",
+          displayName: "Admin",
+          provider: "google",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
   await page.route("**/api/auth/admin/stats", async (route) => {
     await route.fulfill({
       contentType: "application/json",
