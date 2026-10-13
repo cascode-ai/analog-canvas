@@ -42,8 +42,11 @@ export interface GalleryFilterState {
   netlistable: boolean;
   /** Only circuits whose drawing does not; never with `netlistable`. */
   withoutNetlist: boolean;
-  /** Only AI-generated circuits, or only those made by hand; null for both. */
-  ai: "ai" | "human" | null;
+  /**
+   * How the circuits were made: AI-generated, by hand (community circuits
+   * without the AI mark) or redrawn from a reference dataset; null for all.
+   */
+  ai: "ai" | "human" | "dataset" | null;
   /** Only circuits this viewer has liked. */
   liked: boolean;
   /**
@@ -121,13 +124,15 @@ export function galleryFiltersNarrowQuery(
   );
 }
 
-/** "1" or "0" in a link, "ai" or "human" in storage: one side of a pair. */
-function readAi(value: unknown): "ai" | "human" | null {
+/** "1", "0" or "dataset" in a link, the side's name in storage. */
+function readAi(value: unknown): "ai" | "human" | "dataset" | null {
   return value === "1" || value === "ai"
     ? "ai"
     : value === "0" || value === "human"
       ? "human"
-      : null;
+      : value === "dataset"
+        ? "dataset"
+        : null;
 }
 
 /** Size keys as a link or storage spells them; the Worker ignores unknown ones. */
@@ -211,7 +216,16 @@ export function galleryFilterSearch(
     "netlist",
     filters.netlistable ? "1" : filters.withoutNetlist ? "0" : null,
   );
-  set("ai", filters.ai === "ai" ? "1" : filters.ai === "human" ? "0" : null);
+  set(
+    "ai",
+    filters.ai === "ai"
+      ? "1"
+      : filters.ai === "human"
+        ? "0"
+        : filters.ai === "dataset"
+          ? "dataset"
+          : null,
+  );
   set("liked", filters.liked ? "1" : null);
   // Category filtering was retired in favor of one tag vocabulary. Remove
   // old links instead of preserving a parameter the Gallery no longer reads.

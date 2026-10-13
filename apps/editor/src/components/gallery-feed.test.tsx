@@ -598,6 +598,7 @@ describe("GalleryQuickFilters", () => {
     attentionKind: null,
     attentionKindCounts: {},
     aiFilter: null,
+    showDatasets: true,
     netlistableOnly: false,
     withoutNetlistOnly: false,
     likedOnly: false,
@@ -624,6 +625,11 @@ describe("GalleryQuickFilters", () => {
         createElement(GalleryQuickFilters, props(overrides)),
       );
     expect(render({})).not.toContain("gallery-filter-attention-reason");
+    // Datasets shows only while the wall holds their circuits (#1697).
+    expect(render({})).toContain("gallery-filter-datasets");
+    expect(render({ showDatasets: false })).not.toContain(
+      "gallery-filter-datasets",
+    );
     const reasons = render({
       attentionOnly: true,
       attentionKindCounts: { "global-vdd": 2, "suspected-disconnection": 1 },
@@ -657,6 +663,7 @@ describe("GalleryQuickFilters", () => {
       { netlistable: false, withoutNetlist: false },
     ]);
     expect(pressed("gallery-filter-human")).toEqual([{ ai: "human" }]);
+    expect(pressed("gallery-filter-datasets")).toEqual([{ ai: "dataset" }]);
     expect(pressed("gallery-filter-ai")).toEqual([{ ai: null }]);
     expect(pressed("gallery-filter-attention")).toEqual([
       { attention: false, attentionKind: null },

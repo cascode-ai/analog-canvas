@@ -1,10 +1,11 @@
 // The community wall with the reference datasets in it (#1697): one wall,
 // one order, and totals, filter counts and tag counts that add up across
-// the community store and every dataset's.
+// the community store and every dataset's. One dataset's wall, or the
+// community's alone, is the same read over one store.
 
 import { withGalleryStore } from "./gallery-datasets";
 import { callGallery } from "./gallery-requests";
-import { GALLERY_SOURCES } from "./gallery-sources";
+import { GALLERY_SOURCES, type GallerySource } from "./gallery-sources";
 import type { GalleryEnv } from "./gallery-store";
 import {
   compareWallKeys,
@@ -24,23 +25,58 @@ interface WallPage {
   [field: string]: unknown;
 }
 
-/** The community store first, then each dataset's, in the registry's order. */
-function wallStores(env: GalleryEnv): GalleryEnv[] {
+/** A store a wall reads, and the dataset it holds (null: the community's). */
+export interface WallStore {
+  env: GalleryEnv;
+  source: GallerySource | null;
+}
+
+/**
+ * The stores a wall request reads: one dataset's (its `env` already that
+ * store), the community's alone, or the community's and every dataset's.
+ */
+export function wallStoresOf(
+  env: GalleryEnv,
+  source: GallerySource | null,
+  communityOnly: boolean,
+): WallStore[] {
+  if (source) return [{ env, source }];
+  if (communityOnly) return [{ env, source: null }];
   return [
-    env,
-    ...GALLERY_SOURCES.map((source) => withGalleryStore(env, source)),
+    { env, source: null },
+    ...GALLERY_SOURCES.map((each) => ({
+      env: withGalleryStore(env, each),
+      source: each,
+    })),
   ];
+}
+
+/**
+ * How a circuit was made, as one store answers the choice: AI generated
+ * (the AI mark), made by hand (a community circuit without it), or from a
+ * reference dataset (whose circuits carry no mark). A store that holds
+ * none of the chosen kind is asked for none.
+ */
+function storeBody(
+  body: Record<string, unknown>,
+  store: WallStore,
+): Record<string, unknown> {
+  if (body.ai === "human")
+    return { ...body, ai: store.source ? "none" : "human" };
+  if (body.ai === "dataset")
+    return { ...body, ai: store.source ? null : "none" };
+  return body;
 }
 
 /** One operation in every store; a dataset that fails adds nothing. */
 async function everyStore<T>(
-  env: GalleryEnv,
+  stores: readonly WallStore[],
   operation: string,
   body: Record<string, unknown>,
-): Promise<[T, ...(T | null)[]]> {
-  const [community, ...datasets] = await Promise.all(
-    wallStores(env).map((store, index) =>
-      callGallery<T>(store, operation, body).then(
+): Promise<(T | null)[]> {
+  return Promise.all(
+    stores.map((store, index) =>
+      callGallery<T>(store.env, operation, storeBody(body, store)).then(
         ({ status, payload }) =>
           index === 0 || status === 200 ? payload : null,
         (error: unknown) => {
@@ -50,7 +86,6 @@ async function everyStore<T>(
       ),
     ),
   );
-  return [community as T, ...datasets];
 }
 
 /** Counts added key by key, nested records too. */
@@ -70,55 +105,79 @@ function addCounts(
 }
 
 /**
- * A page of the merged wall. Each store answers its first page after the
- * cursor in the same order; the merged page is the first of all of them,
- * and the last one's cursor resumes every store. Contributors stay the
- * community's: the datasets are listed beside them with `sources`, how many
- * of each dataset's circuits the filtered wall holds.
+ * A page of the wall. Each store answers its first page after the cursor
+ * in the same order; the page is the first of all of them, and the last
+ * one's cursor resumes every store. Made by hand counts the community's
+ * unmarked circuits, Datasets every dataset's. Contributors stay the
+ * community's; on the merged wall `sources` says how many of each
+ * dataset's circuits the filtered wall holds.
  */
-export async function mergedWallList(
-  env: GalleryEnv,
+export async function wallList(
+  stores: readonly WallStore[],
   body: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [community, ...datasets] = await everyStore<WallPage>(env, "list", {
+  const answers = await everyStore<WallPage>(stores, "list", {
     ...body,
     sortKeys: true,
   });
+  const first = answers[0]!;
   const { order } = wallOrder(body);
   const limit = wallPageLimit(body);
-  const pages = [community, ...datasets].filter(
-    (page): page is WallPage => page !== null,
-  );
+  const pages = answers.filter((page): page is WallPage => page !== null);
   const merged = pages
     .flatMap((page) => page.entries ?? [])
     .sort((left, right) => compareWallKeys(order, left.sortKey, right.sortKey));
   const page = merged.slice(0, limit);
   const more =
     merged.length > limit || pages.some((each) => each.nextCursor != null);
-  const filterCounts = community.filterCounts
-    ? datasets.reduce<Record<string, unknown>>(
-        (sum, dataset) => addCounts(sum, dataset?.filterCounts),
-        structuredClone(community.filterCounts),
-      )
+  const countOf = (answer: WallPage | null, key: string) =>
+    Number(answer?.filterCounts?.[key] ?? 0);
+  const filterCounts = first.filterCounts
+    ? {
+        ...answers
+          .slice(1)
+          .reduce<Record<string, unknown>>(
+            (sum, answer) => addCounts(sum, answer?.filterCounts),
+            structuredClone(first.filterCounts),
+          ),
+        human: answers.reduce(
+          (sum, answer, index) =>
+            stores[index]!.source ? sum : sum + countOf(answer, "human"),
+          0,
+        ),
+        datasets: answers.reduce(
+          (sum, answer, index) =>
+            stores[index]!.source
+              ? sum + countOf(answer, "ai") + countOf(answer, "human")
+              : sum,
+          0,
+        ),
+      }
     : undefined;
+  const merging = stores.length > 1;
   return {
-    ...community,
+    ...first,
     entries: page.map(({ sortKey: _key, cursor: _cursor, ...entry }) => entry),
     nextCursor: more && page.length > 0 ? page.at(-1)!.cursor : null,
     total: pages.reduce((sum, each) => sum + Number(each.total ?? 0), 0),
     ...(filterCounts ? { filterCounts } : {}),
-    sources: Object.fromEntries(
-      GALLERY_SOURCES.map((source, index) => [
-        source.key,
-        Number(datasets[index]?.total ?? 0),
-      ]),
-    ),
+    ...(merging
+      ? {
+          sources: Object.fromEntries(
+            stores.flatMap((store, index) =>
+              store.source
+                ? [[store.source.key, Number(answers[index]?.total ?? 0)]]
+                : [],
+            ),
+          ),
+        }
+      : {}),
   };
 }
 
-/** Tag and family counts of the merged wall, sorted as one store sorts them. */
-export async function mergedTagCounts(
-  env: GalleryEnv,
+/** Tag and family counts of the wall, sorted as one store sorts them. */
+export async function wallTagCounts(
+  stores: readonly WallStore[],
   body: Record<string, unknown>,
 ): Promise<{
   tags: { tag: string; count: number }[];
@@ -127,7 +186,7 @@ export async function mergedTagCounts(
   const answers = await everyStore<{
     tags?: { tag: string; count: number }[];
     groups?: { group: string; count: number }[];
-  }>(env, "tags", body);
+  }>(stores, "tags", body);
   const tags = new Map<string, number>();
   const groups = new Map<string, number>();
   for (const answer of answers) {

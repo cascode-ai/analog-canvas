@@ -205,6 +205,8 @@ function feedConditions(
   }
   if (options.ai !== false && (body.ai === "ai" || body.ai === "human"))
     conditions.push(`e.ai_generated = ${body.ai === "ai" ? 1 : 0}`);
+  // A store holding none of the chosen kind (#1697) answers with none.
+  if (options.ai !== false && body.ai === "none") conditions.push("0 = 1");
   // A search narrows the wall before its counts and cursor, so totals, tags,
   // contributors and pages all describe the same circuits.
   const search = requestedSearch(body);

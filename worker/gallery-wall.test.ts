@@ -440,6 +440,7 @@ describe("newest-first gallery feed", () => {
         human: 0,
         liked: 0,
         componentRanges: sizes(0),
+        datasets: 0,
       },
       authors: [],
       // Each reference dataset's share of the wall (#1697).
@@ -827,6 +828,7 @@ describe("netlist marks and thumbs", () => {
       withoutNetlist: 1,
       ai: 0,
       human: 2,
+      datasets: 0,
       liked: 1,
       componentRanges: sizes(2),
     });
@@ -844,6 +846,7 @@ describe("netlist marks and thumbs", () => {
       withoutNetlist: 1,
       ai: 0,
       human: 2,
+      datasets: 0,
       liked: 0,
       componentRanges: sizes(2),
     });
@@ -861,6 +864,7 @@ describe("netlist marks and thumbs", () => {
       withoutNetlist: 1,
       ai: 0,
       human: 1,
+      datasets: 0,
       liked: 0,
       componentRanges: sizes(1),
     });
@@ -878,6 +882,7 @@ describe("netlist marks and thumbs", () => {
       withoutNetlist: 1,
       ai: 0,
       human: 1,
+      datasets: 0,
       liked: 1,
       componentRanges: sizes(1),
     });
@@ -893,6 +898,7 @@ describe("netlist marks and thumbs", () => {
       withoutNetlist: 1,
       ai: 0,
       human: 0,
+      datasets: 0,
       liked: 0,
       componentRanges: sizes(0),
     });

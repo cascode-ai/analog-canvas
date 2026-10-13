@@ -234,7 +234,10 @@ export interface GalleryQuickFilterCounts {
    */
   withoutNetlist?: number;
   ai?: number;
+  /** The community's circuits without the AI mark. */
   human?: number;
+  /** Circuits redrawn from reference datasets (#1697), the third side. */
+  datasets?: number;
   /** Entries under Needs attention per reason; only with that filter on. */
   attentionKinds?: Record<string, number>;
   /**
@@ -419,8 +422,8 @@ export interface GalleryFeedQuery {
   netlistable?: boolean;
   /** Only circuits whose drawing does not. */
   withoutNetlist?: boolean;
-  /** Only AI-generated circuits, or only those made by hand. */
-  ai?: "ai" | "human" | null;
+  /** Only AI-generated circuits, those made by hand, or the datasets'. */
+  ai?: "ai" | "human" | "dataset" | null;
   /** Only circuits the signed-in viewer has liked. */
   liked?: boolean;
   attention?: boolean;
@@ -450,7 +453,11 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   }
   if (query.netlistable) params.set("netlistable", "1");
   else if (query.withoutNetlist) params.set("netlistable", "0");
-  if (query.ai) params.set("ai", query.ai === "ai" ? "1" : "0");
+  if (query.ai)
+    params.set(
+      "ai",
+      query.ai === "ai" ? "1" : query.ai === "human" ? "0" : "dataset",
+    );
   if (query.liked) params.set("liked", "1");
   if (query.parts && query.parts.length > 0)
     params.set("parts", query.parts.join(","));
@@ -558,7 +565,9 @@ export async function loadGalleryFeed(
               netlistable: payload.filterCounts.netlistable,
               liked: payload.filterCounts.liked,
               ...Object.fromEntries(
-                (["withoutNetlist", "ai", "human"] as const).flatMap((key) => {
+                (
+                  ["withoutNetlist", "ai", "human", "datasets"] as const
+                ).flatMap((key) => {
                   const count = payload.filterCounts![key];
                   return Number.isSafeInteger(count) && count! >= 0
                     ? [[key, count]]

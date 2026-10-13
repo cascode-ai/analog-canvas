@@ -63,6 +63,15 @@ describe("gallery filter preferences", () => {
     });
     expect(narrowed).toBe(true);
     expect(parseGalleryFilterQuery("?ai=0").filters.ai).toBe("human");
+    // The third side, the datasets' circuits (#1697).
+    expect(parseGalleryFilterQuery("?ai=dataset").filters.ai).toBe("dataset");
+    expect(
+      galleryFilterSearch("", {
+        ...filters,
+        withoutNetlist: false,
+        ai: "dataset",
+      }),
+    ).toBe("?ai=dataset");
     expect(galleryFilterSearch("", filters)).toBe("?netlist=0&ai=1");
     expect(
       galleryFilterSearch("", {

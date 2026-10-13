@@ -44,12 +44,14 @@ entries, keyset cursor, limit ≤60.
 
 - Filters, all before the cursor so `total` (repeated per page) matches:
   `author` (byline) or `owner` (account), `tags=a,b` (ANY), `netlistable=0|1`,
-  `ai=0|1`, `liked=1` (signed out selects none), `parts=0-5,…` (ANY taxonomy
-  size; unknown narrows nothing), `q`, authorized `attention`/`reason`.
-- `filterCounts` gives each pair (`netlistable`/`withoutNetlist`, `ai`/`human`),
-  size (`componentRanges`) and reason (`attentionKinds`) with every other filter
-  applied and its own left out; the `authors` aggregate counts before
-  pagination. Rejected and recycled entries never appear.
+  `ai=1|0|dataset` (the AI mark; community circuits without it; reference
+  datasets' circuits), `liked=1` (signed out selects none), `parts=0-5,…` (ANY
+  taxonomy size; unknown narrows nothing), `q`, authorized `attention`/`reason`.
+- `filterCounts` gives each side (`netlistable`/`withoutNetlist`,
+  `ai`/`human`/`datasets`), size (`componentRanges`) and reason
+  (`attentionKinds`) with every other filter applied and its own left out; the
+  `authors` aggregate counts before pagination. Rejected and recycled entries
+  never appear.
 - Entry fields: `previewRevision`, `previewWidth`/`previewHeight` (may be absent;
   clients keep a fallback), `netlistable`, `aiGenerated: true` (publisher's word;
   else omitted), `simVerified: true` (allowed viewers only), `componentCount`
@@ -281,8 +283,8 @@ completed, and every stated Spec passed.
   dataset's share of `total`, `authors` the community's. `source=community`
   answers the community store alone (the duplicate and topology scans).
 - Every write answers 403 `dataset-read-only`; entries have no owner or AI mark
-  (they count as made by hand) and show no like or owner tools; an opened copy
-  publishes as a new community entry.
+  (they count under `datasets`, not `human`) and show no like or owner tools;
+  an opened copy publishes as a new community entry.
 - `GET /api/gallery/sources` → `{sources: [... , count]}`; readers see non-empty
   datasets, Owner accounts all.
 - `POST /api/gallery/sources/<key>/entries` (same-origin, Owner account, else 403

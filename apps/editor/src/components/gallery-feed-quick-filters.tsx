@@ -1,6 +1,7 @@
 /**
- * The sidebar's quick filters: Needs attention and its reason, the two pairs
- * of marks (AI or by hand, with or without a netlist), and Liked.
+ * The sidebar's quick filters: Needs attention and its reason, how circuits
+ * were made (AI, by hand, or from a dataset), with or without a netlist, and
+ * Liked.
  */
 import type { ReactNode } from "react";
 import type { GalleryFilterState } from "../gallery-filters";
@@ -64,6 +65,28 @@ function NoNetlistIcon() {
   );
 }
 
+/** "Datasets": a stack of records, circuits redrawn from a dataset. */
+function DatasetIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <ellipse cx="12" cy="5.5" rx="7.5" ry="3" />
+      <path d="M4.5 5.5v13c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-13" />
+      <path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" />
+    </svg>
+  );
+}
+
 /** "Made by hand": a person, the other side of the AI mark. */
 function PersonIcon() {
   return (
@@ -92,6 +115,7 @@ export function GalleryQuickFilters({
   attentionKind,
   attentionKindCounts,
   aiFilter,
+  showDatasets,
   netlistableOnly,
   withoutNetlistOnly,
   likedOnly,
@@ -104,13 +128,21 @@ export function GalleryQuickFilters({
   attentionKind: string | null;
   attentionKindCounts: Record<string, number>;
   aiFilter: GalleryFilterState["ai"];
+  /** Whether the wall holds reference datasets' circuits (#1697). */
+  showDatasets: boolean;
   netlistableOnly: boolean;
   withoutNetlistOnly: boolean;
   likedOnly: boolean;
   updateFilters: (patch: Partial<GalleryFilterState>) => void;
   quickCount: (
     key:
-      "attention" | "netlistable" | "withoutNetlist" | "ai" | "human" | "liked",
+      | "attention"
+      | "netlistable"
+      | "withoutNetlist"
+      | "ai"
+      | "human"
+      | "datasets"
+      | "liked",
   ) => ReactNode;
 }) {
   return (
@@ -157,9 +189,9 @@ export function GalleryQuickFilters({
           </select>
         </label>
       ) : null}
-      {/* Two pairs. The sides of a pair exclude each other: choosing
-          one moves the choice there, and choosing it again shows
-          both sides. */}
+      {/* How a circuit was made (three sides), then the netlist pair. The
+          sides exclude each other: choosing one moves the choice there,
+          and choosing it again shows every side. */}
       <button
         type="button"
         className={quickMarkClass(aiFilter === "ai")}
@@ -184,7 +216,7 @@ export function GalleryQuickFilters({
         title={
           aiFilter === "human"
             ? "Show circuits however they were made"
-            : "Show only circuits not marked AI-generated"
+            : "Show only community circuits not marked AI-generated"
         }
         onClick={() =>
           updateFilters({
@@ -195,6 +227,27 @@ export function GalleryQuickFilters({
         <PersonIcon /> <span>Human made</span>
         {quickCount("human")}
       </button>
+      {showDatasets ? (
+        <button
+          type="button"
+          className={quickMarkClass(aiFilter === "dataset")}
+          data-testid="gallery-filter-datasets"
+          aria-pressed={aiFilter === "dataset"}
+          title={
+            aiFilter === "dataset"
+              ? "Show circuits however they were made"
+              : "Show only circuits redrawn from reference datasets"
+          }
+          onClick={() =>
+            updateFilters({
+              ai: aiFilter === "dataset" ? null : "dataset",
+            })
+          }
+        >
+          <DatasetIcon /> <span>Datasets</span>
+          {quickCount("datasets")}
+        </button>
+      ) : null}
       <button
         type="button"
         className={quickMarkClass(netlistableOnly)}

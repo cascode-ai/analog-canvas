@@ -199,7 +199,29 @@ describe("reference datasets in stores of their own (#1510)", () => {
     expect(first.sources).toMatchObject({ analoggenie: 3, circuitthink: 2 });
     const counts = first.filterCounts as Record<string, number>;
     expect(counts.netlistable! + counts.withoutNetlist!).toBe(9);
-    expect(counts.ai! + counts.human!).toBe(9);
+    // Made by: AI, by hand (the community's) or from a dataset, three
+    // sides that exclude each other.
+    expect(counts).toMatchObject({ ai: 0, human: 4, datasets: 5 });
+    const madeBy = async (ai: string) => {
+      const answer = await page(`ai=${ai}`);
+      return {
+        total: answer.total,
+        ids: answer.entries.map((entry) => entry.id).sort(),
+        counts: answer.filterCounts,
+      };
+    };
+    const datasets = await madeBy("dataset");
+    expect(datasets.total).toBe(5);
+    expect(datasets.ids).toEqual(["ag-1", "ag-2", "ag-3", "ct-1", "ct-2"]);
+    // The side's own counts leave the choice out, so each still says what
+    // choosing it would show.
+    expect(datasets.counts).toMatchObject({ human: 4, datasets: 5 });
+    expect((await madeBy("0")).ids).toEqual([...community].sort());
+    expect((await madeBy("1")).total).toBe(0);
+    const datasetTags = (await (
+      await call("/api/gallery/tags?ai=dataset")
+    ).json()) as { tags: { tag: string; count: number }[] };
+    expect(datasetTags.tags).toContainEqual({ tag: "amplifier", count: 5 });
     const tags = (await (await call("/api/gallery/tags")).json()) as {
       tags: { tag: string; count: number }[];
     };

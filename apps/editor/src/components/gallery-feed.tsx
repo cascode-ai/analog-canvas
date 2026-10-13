@@ -55,7 +55,7 @@ import {
   rememberGalleryOrder,
   type GalleryOrder,
 } from "../gallery-order";
-import { gallerySourceByKey } from "../gallery-sources";
+import { gallerySourceByKey, gallerySourceOfEntryId } from "../gallery-sources";
 import { useGalleryFilters } from "./gallery-feed-filters";
 import { useGalleryWall } from "./gallery-feed-wall";
 import { useGalleryOwnerTools } from "./gallery-feed-owner-tools";
@@ -380,7 +380,11 @@ export function GalleryFeed({
     netlistable: loadedCount((entry) => entry.netlistable === true),
     withoutNetlist: loadedCount((entry) => entry.netlistable !== true),
     ai: loadedCount((entry) => entry.aiGenerated === true),
-    human: loadedCount((entry) => entry.aiGenerated !== true),
+    human: loadedCount(
+      (entry) =>
+        entry.aiGenerated !== true && !gallerySourceOfEntryId(entry.id),
+    ),
+    datasets: loadedCount((entry) => gallerySourceOfEntryId(entry.id) !== null),
     liked: loadedCount((entry) => entry.likedByViewer === true),
   };
   const quickCounts = localQuickCounts
@@ -633,6 +637,9 @@ export function GalleryFeed({
                 attentionKind={attentionKind}
                 attentionKindCounts={attentionKindCounts}
                 aiFilter={aiFilter}
+                showDatasets={
+                  quickCounts.datasets > 0 || aiFilter === "dataset"
+                }
                 netlistableOnly={netlistableOnly}
                 withoutNetlistOnly={withoutNetlistOnly}
                 likedOnly={likedOnly}
@@ -816,7 +823,9 @@ export function GalleryFeed({
                                     ? "Every circuit here extracts to a netlist."
                                     : aiFilter === "ai"
                                       ? "No AI-generated circuits here yet."
-                                      : "No circuits made by hand here yet."}
+                                      : aiFilter === "dataset"
+                                        ? "No dataset circuits here yet."
+                                        : "No circuits made by hand here yet."}
                       </p>
                     ) : null}
                     {entries.length === 0 &&

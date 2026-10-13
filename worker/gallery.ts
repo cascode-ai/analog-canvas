@@ -12,7 +12,7 @@ import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
-import { mergedTagCounts, mergedWallList } from "./gallery-wall-merge";
+import { wallList, wallStoresOf, wallTagCounts } from "./gallery-wall-merge";
 import { sameOrigin } from "./same-origin";
 import {
   GALLERY_DAILY_OPEN_LIMIT,
@@ -191,13 +191,16 @@ function wallFilters(url: URL) {
     // session, so signed out it selects nothing rather than everything.
     netlistable: url.searchParams.get("netlistable") === "1",
     withoutNetlist: url.searchParams.get("netlistable") === "0",
-    // The AI mark: only AI-generated circuits, or only those made by hand.
+    // How a circuit was made: AI-generated (the AI mark), by hand (a
+    // community circuit without it), or redrawn from a reference dataset.
     ai:
       url.searchParams.get("ai") === "1"
         ? "ai"
         : url.searchParams.get("ai") === "0"
           ? "human"
-          : null,
+          : url.searchParams.get("ai") === "dataset"
+            ? "dataset"
+            : null,
     liked: url.searchParams.get("liked") === "1",
     // Sizes by part count; several mean any of them.
     parts: requestedParts(url),
@@ -476,7 +479,11 @@ export async function routeGalleryRequest(
   }
   // The community wall holds the datasets' circuits too (#1697), unless a
   // reader asks for the community's alone (`source=community`).
-  const mergedWall = !source && url.searchParams.get("source") !== "community";
+  const wallStores = wallStoresOf(
+    env,
+    source,
+    url.searchParams.get("source") === "community",
+  );
 
   if (
     segments.length === 2 &&
@@ -516,11 +523,9 @@ export async function routeGalleryRequest(
         .split(",")
         .filter((tag) => tag.length > 0),
     };
-    const payload = (
-      mergedWall
-        ? await mergedWallList(env, listing)
-        : (await callGallery(env, "list", listing)).payload
-    ) as { entries: GalleryEntrySummary[] };
+    const payload = (await wallList(wallStores, listing)) as {
+      entries: GalleryEntrySummary[];
+    };
     return Response.json(
       {
         ...payload,
@@ -614,9 +619,7 @@ export async function routeGalleryRequest(
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
     };
-    const payload = mergedWall
-      ? await mergedTagCounts(env, counting)
-      : (await callGallery(env, "tags", counting)).payload;
+    const payload = await wallTagCounts(wallStores, counting);
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }
   if (
