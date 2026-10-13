@@ -298,6 +298,11 @@ test("tab file opening is additive, and closing one tab, the others or all asks 
   await expectSelected(tabs.nth(1));
   await placeComponentAt(page, "capacitor", { x: 500, y: 260 });
   await page.setViewportSize({ width: 360, height: 600 });
+  const canvas = page.getByTestId("schematic-canvas");
+  // Let the responsive side panels finish settling after the viewport change.
+  await expect.poll(async () => (await canvas.boundingBox())?.x).toBe(0);
+  const beforeClose = await canvas.boundingBox();
+  const beforeView = await canvas.getAttribute("viewBox");
   await page.getByRole("button", { name: "Close tab Second circuit" }).click();
   await expect(
     page.getByRole("button", { name: "Keep open", exact: true }),
@@ -306,6 +311,8 @@ test("tab file opening is additive, and closing one tab, the others or all asks 
   await expect(strip.locator(".inline-confirm-decision")).toHaveText(
     "Close without savingKeep open",
   );
+  expect(await canvas.boundingBox()).toEqual(beforeClose);
+  await expect(canvas).toHaveAttribute("viewBox", beforeView!);
   expect(
     await strip.evaluate(
       (element) =>
@@ -317,6 +324,7 @@ test("tab file opening is additive, and closing one tab, the others or all asks 
     ),
   ).toBe(true);
   await page.getByRole("button", { name: "Keep open", exact: true }).click();
+  expect(await canvas.boundingBox()).toEqual(beforeClose);
   await expect(tabs).toHaveCount(2);
   await page.getByRole("button", { name: "Close tab Second circuit" }).click();
   await page

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, freezeSnapshot } from "@icm/model";
 import {
   captureProjectSaveSnapshot,
   createProjectSaveCoordinator,
@@ -42,6 +42,18 @@ function fixture() {
 }
 
 describe("shared Project save coordination", () => {
+  it("shares an already owned immutable snapshot without copying the drawing", () => {
+    const project = freezeSnapshot(createEmptyProject("immutable", "Drawing"));
+    const saved = captureProjectSaveSnapshot(project, "tab", () => ({
+      id: "tab",
+      project,
+    }));
+    expect(saved.project).toBe(project);
+    expect(() => {
+      saved.project.name = "Cannot alter saved content";
+    }).toThrow();
+    expect(saved.matchesCurrentProject()).toBe(true);
+  });
   it("commits drafts before capturing owned bytes and preserves newer edits", async () => {
     const f = fixture();
     const drafts = deferred<typeof f.project | null>();

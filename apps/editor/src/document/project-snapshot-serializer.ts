@@ -1,4 +1,5 @@
 import type { CircuitProject } from "@icm/model";
+import { isFrozenSnapshot } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 /** Browser-session computation cache, ONLY for immutable committed snapshots.
@@ -21,6 +22,7 @@ export function createProjectSnapshotSerializer(
   };
   return {
     serialize(project: CircuitProject): string {
+      if (!isFrozenSnapshot(project)) return serialize(project);
       const cached = texts.get(project);
       if (cached !== undefined) {
         texts.delete(project);

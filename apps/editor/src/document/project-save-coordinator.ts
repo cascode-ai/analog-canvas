@@ -1,4 +1,5 @@
 import type { CircuitProject } from "@icm/model";
+import { isFrozenSnapshot } from "@icm/model";
 import { projectChangeToken } from "./project-session-lifecycle";
 
 export interface ProjectSaveSession {
@@ -6,13 +7,15 @@ export interface ProjectSaveSession {
   project: CircuitProject;
 }
 
-/** An owned snapshot; storage must never receive the live mutable Project. */
+/** Mutable callers are detached; committed immutable snapshots are already owned. */
 export function captureProjectSaveSnapshot(
   candidate: CircuitProject,
   sessionId: string,
   current: () => ProjectSaveSession | null,
 ) {
-  const project = structuredClone(candidate);
+  const project = isFrozenSnapshot(candidate)
+    ? candidate
+    : structuredClone(candidate);
   const token = projectChangeToken(project);
   return {
     project,

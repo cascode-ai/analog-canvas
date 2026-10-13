@@ -572,6 +572,7 @@ function WorkspaceEditor({
 }) {
   const {
     identity,
+    projectSerializer,
     projectStore,
     nativeProjectStore,
     NativeFileCommands,
@@ -715,8 +716,8 @@ function WorkspaceEditor({
   // Feature name whose on-demand chunk vanished under a redeploy; the banner
   // offers the refresh that restores the current circuit.
   const [chunkLoadFailure, setChunkLoadFailure] = useState<string | null>(null);
-  const [snapshotSerializer] = useState(() =>
-    createProjectSnapshotSerializer(),
+  const [snapshotSerializer] = useState(
+    () => projectSerializer ?? createProjectSnapshotSerializer(),
   );
   const {
     captureWorkingSession: captureRecoverySession,

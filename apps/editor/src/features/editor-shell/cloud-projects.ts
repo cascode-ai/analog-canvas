@@ -91,6 +91,7 @@ export async function saveCloudProject(
   binding: CloudProjectBinding | null,
   fetchLike: typeof fetch = fetch,
   galleryEntryId?: string,
+  serialize: (project: CircuitProject) => string = serializeProject,
 ): Promise<CloudProjectSaveOutcome> {
   cloudLists.delete(fetchLike);
   let response: Response;
@@ -106,7 +107,7 @@ export async function saveCloudProject(
         },
         body: JSON.stringify({
           name: project.name,
-          projectText: serializeProject(project),
+          projectText: serialize(project),
           ...(!binding && galleryEntryId ? { galleryEntryId } : {}),
         }),
       },

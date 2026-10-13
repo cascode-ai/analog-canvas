@@ -4,7 +4,11 @@ import {
   type SchematicDocument,
   type SymbolLocalPoint,
 } from "@icm/model";
-import { resolveEndpointConnection } from "@icm/derived";
+import {
+  buildBoundsSpatialIndex,
+  buildEndpointObjectLookup,
+  resolveEndpointConnection,
+} from "@icm/derived";
 import type { ResolvedRouteGeometry } from "@icm/derived";
 import {
   resolveInstanceSymbol,
@@ -53,15 +57,21 @@ function visiblePinLeads(
   resolver: SymbolResolver,
   instance: SchematicDocument["instances"][number],
   resolved: ResolvedSymbol,
+  lookup: ReturnType<typeof buildEndpointObjectLookup>,
 ): PinLead[] {
   return resolved.definition.pins.flatMap((pin) => {
     if (pin.presentation.visibility === "implicit") return [];
     if (resolved.variant?.hiddenPinNames.includes(pin.name)) return [];
-    const connection = resolveEndpointConnection(document, resolver, {
-      kind: "terminal",
-      instanceId: instance.id,
-      pinName: pin.name,
-    });
+    const connection = resolveEndpointConnection(
+      document,
+      resolver,
+      {
+        kind: "terminal",
+        instanceId: instance.id,
+        pinName: pin.name,
+      },
+      lookup,
+    );
     if (!connection?.outward) return [];
     return [
       {
@@ -341,6 +351,7 @@ export function deriveWireUnderSymbolWarnings(
     geometry: ResolvedRouteGeometry;
   }[],
 ): WireUnderSymbolWarning[] {
+  const lookup = buildEndpointObjectLookup(document);
   const targets = document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
     // The ink the Instance draws, an adder's sign marks included, as the
@@ -353,27 +364,75 @@ export function deriveWireUnderSymbolWarnings(
           {
             instanceId: instance.id,
             regions,
-            leads: visiblePinLeads(document, resolver, instance, resolved),
+            leads: visiblePinLeads(
+              document,
+              resolver,
+              instance,
+              resolved,
+              lookup,
+            ),
           },
         ]
       : [];
   });
   if (targets.length === 0) return [];
+  // Broad phase only: preserve target order and the existing exact predicates.
+  const spatial = buildBoundsSpatialIndex(
+    targets.map((target) => {
+      const points = target.regions.flatMap((region) =>
+        region.kind === "box"
+          ? [
+              { x: region.box.x, y: region.box.y },
+              {
+                x: region.box.x + region.box.width,
+                y: region.box.y + region.box.height,
+              },
+            ]
+          : [...region.points],
+      );
+      const x = Math.min(...points.map((point) => point.x)) - AXIS_EPSILON;
+      const y = Math.min(...points.map((point) => point.y)) - AXIS_EPSILON;
+      return {
+        value: target,
+        bounds: {
+          x,
+          y,
+          width: Math.max(...points.map((point) => point.x)) - x + AXIS_EPSILON,
+          height:
+            Math.max(...points.map((point) => point.y)) - y + AXIS_EPSILON,
+        },
+      };
+    }),
+    document.presentation.grid * 16,
+  );
+  const nets = new Map(document.nets.map((net) => [net.id, net]));
+  const pinNamesByNet = new Map<string, Map<string, Set<string>>>();
+  const noPins: ReadonlySet<string> = new Set();
 
   const warnings: WireUnderSymbolWarning[] = [];
   for (const { route, geometry } of records) {
     if (route.presentation === "bulk-dashed") continue;
-    const net = document.nets.find((candidate) => candidate.id === route.netId);
-    const netPinNamesByInstance = new Map<string, Set<string>>();
-    for (const terminal of net?.terminals ?? []) {
-      const names = netPinNamesByInstance.get(terminal.instanceId) ?? new Set();
-      names.add(terminal.pinName);
-      netPinNamesByInstance.set(terminal.instanceId, names);
+    const net = nets.get(route.netId);
+    let netPinNamesByInstance = pinNamesByNet.get(route.netId);
+    if (!netPinNamesByInstance) {
+      netPinNamesByInstance = new Map<string, Set<string>>();
+      for (const terminal of net?.terminals ?? []) {
+        const names =
+          netPinNamesByInstance.get(terminal.instanceId) ?? new Set();
+        names.add(terminal.pinName);
+        netPinNamesByInstance.set(terminal.instanceId, names);
+      }
+      pinNamesByNet.set(route.netId, netPinNamesByInstance);
     }
-    const noPins: ReadonlySet<string> = new Set();
     for (const segment of geometry.segments) {
       if (segment.mode === "escape") continue;
-      for (const { instanceId, regions, leads } of targets) {
+      const candidates = spatial.queryBounds({
+        x: Math.min(segment.from.x, segment.to.x),
+        y: Math.min(segment.from.y, segment.to.y),
+        width: Math.abs(segment.to.x - segment.from.x),
+        height: Math.abs(segment.to.y - segment.from.y),
+      });
+      for (const { instanceId, regions, leads } of candidates) {
         if (
           segmentIsSingleConnectedPinRide(
             segment.from,

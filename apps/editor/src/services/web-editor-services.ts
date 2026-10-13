@@ -8,6 +8,7 @@ import {
 } from "../features/editor-shell/cloud-projects";
 import { browserExportDelivery } from "../hosts/browser-export-delivery";
 import type { EditorServices } from "./editor-services";
+import { createProjectSnapshotSerializer } from "../document/project-snapshot-serializer";
 
 /** Creating the Web services does not start requests or subscriptions. */
 export function createWebEditorServices(
@@ -15,8 +16,11 @@ export function createWebEditorServices(
 ): EditorServices & {
   identity: NonNullable<EditorServices["identity"]>;
   projectStore: NonNullable<EditorServices["projectStore"]>;
+  projectSerializer: NonNullable<EditorServices["projectSerializer"]>;
 } {
+  const projectSerializer = createProjectSnapshotSerializer();
   return {
+    projectSerializer,
     identity: { getSessionUser: () => fetchSessionUser(fetchLike) },
     projectStore: {
       kind: "cloud",
@@ -24,7 +28,13 @@ export function createWebEditorServices(
       list: () => listCloudProjects(fetchLike),
       open: (id) => openCloudProject(id, fetchLike),
       save: (project, binding, galleryEntryId) =>
-        saveCloudProject(project, binding, fetchLike, galleryEntryId),
+        saveCloudProject(
+          project,
+          binding,
+          fetchLike,
+          galleryEntryId,
+          projectSerializer.serialize,
+        ),
       delete: (id) => deleteCloudProject(id, fetchLike),
     },
     exportDelivery: browserExportDelivery,

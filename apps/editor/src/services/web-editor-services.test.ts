@@ -3,10 +3,41 @@ import { serializeProject } from "@icm/project-protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchSessionUser } from "../components/account";
 import { createWebEditorServices } from "./web-editor-services";
+import { EditorDocumentController } from "../document/document-controller";
+import { captureProjectSaveSnapshot } from "../document/project-save-coordinator";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Web editor composition", () => {
+  it("saves the same canonical snapshot used for recovery while later edits stay independent", async () => {
+    const controller = new EditorDocumentController(
+      createEmptyProject("saved", "Original"),
+    );
+    const transport = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({}, { status: 401 }));
+    const services = createWebEditorServices(transport);
+    const snapshot = captureProjectSaveSnapshot(
+      controller.project,
+      "tab",
+      () => ({ id: "tab", project: controller.project }),
+    );
+    const recoveryText = services.projectSerializer.serialize(snapshot.project);
+    controller.transact([
+      {
+        kind: "add_instance",
+        instance: { id: "R1", symbolId: "resistor", placement: null },
+      },
+    ]);
+    await services.projectStore.save(snapshot.project, null);
+    expect(
+      JSON.parse(transport.mock.calls[0]![1]!.body as string).projectText,
+    ).toBe(recoveryText);
+    expect(snapshot.matchesCurrentProject()).toBe(false);
+    expect(services.projectSerializer.serialize(controller.project)).not.toBe(
+      recoveryText,
+    );
+  });
   it("starts no requests and shares the account session cache with existing chrome", async () => {
     const user = { id: "member", displayName: "Member" };
     const transport = vi

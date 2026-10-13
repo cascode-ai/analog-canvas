@@ -19,6 +19,7 @@ import type { FileCommandMenuProps } from "../features/editor-shell/file-command
 import type { NativeProjectStore } from "../hosts/native-project-store";
 import type { ProjectWorkspace } from "../document/project-workspace";
 import type { NativeExternalTarget } from "../hosts/native-external-links";
+import type { createProjectSnapshotSerializer } from "../document/project-snapshot-serializer";
 
 /** Current Cloud contract, including revisions/conflicts; not a native store. */
 export interface CloudProjectStore {
@@ -36,6 +37,10 @@ export interface CloudProjectStore {
 
 /** First composition seam. Other online features still own their dependencies. */
 export interface EditorServices {
+  /** Shared by local recovery and Cloud transport; never a second file format. */
+  readonly projectSerializer?: ReturnType<
+    typeof createProjectSnapshotSerializer
+  >;
   readonly restoreWorkspace?: (
     workspace: ProjectWorkspace | null,
   ) => Promise<{ workspace: ProjectWorkspace | null; notice?: string }>;

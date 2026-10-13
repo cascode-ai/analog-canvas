@@ -6,7 +6,8 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import { foldNetName, routeEnd } from "@icm/model";
+import { foldNetName, routeEnd, isFrozenSnapshot } from "@icm/model";
+import { registerDocumentCache } from "./document-caches.js";
 import {
   resolveDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
@@ -34,6 +35,74 @@ export function mosBulkKind(instance: Instance): MosBulkKind | undefined {
   return deviceDescriptor(instance.symbolId)?.mosBulkClass;
 }
 
+function isResolvedMosBulkTerminal(
+  endpoint: RouteEndpoint,
+  instance: Instance | undefined,
+): endpoint is Extract<RouteEndpoint, { kind: "terminal" }> {
+  return (
+    endpoint.kind === "terminal" &&
+    endpoint.pinName === "B" &&
+    Boolean(instance && mosBulkKind(instance))
+  );
+}
+
+interface BulkRouteIndex {
+  instances: Map<string, Instance>;
+  routes: Map<string, RouteBranch>;
+  atContact: Map<string, RouteBranch[]>;
+  explicit: Set<string>;
+  families: Map<string, MosBulkRouteFamily | undefined>;
+}
+const bulkRouteIndexes = registerDocumentCache(
+  new WeakMap<SchematicDocument, BulkRouteIndex>(),
+);
+
+function bulkContactKeys(index: BulkRouteIndex, route: RouteBranch): string[] {
+  return [route.start, routeEnd(route)].flatMap((endpoint) => {
+    if (endpoint.kind === "junction")
+      return [`junction:${endpoint.junctionId}`];
+    const instance = index.instances.get(endpoint.instanceId);
+    return isResolvedMosBulkTerminal(endpoint, instance)
+      ? [`terminal:${endpoint.instanceId}:B`]
+      : [];
+  });
+}
+
+function bulkRouteIndex(document: SchematicDocument): BulkRouteIndex {
+  const immutable = isFrozenSnapshot(document);
+  const cached = immutable ? bulkRouteIndexes.get(document) : undefined;
+  if (cached) return cached;
+  const index: BulkRouteIndex = {
+    instances: new Map(),
+    routes: new Map(),
+    atContact: new Map(),
+    explicit: new Set(),
+    families: new Map(),
+  };
+  for (const instance of document.instances)
+    if (!index.instances.has(instance.id))
+      index.instances.set(instance.id, instance);
+  for (const route of document.routes) {
+    index.routes.set(route.id, route);
+    if (route.presentation !== "bulk-dashed") continue;
+    for (const key of bulkContactKeys(index, route)) {
+      const incident = index.atContact.get(key) ?? [];
+      incident.push(route);
+      index.atContact.set(key, incident);
+    }
+    for (const endpoint of [route.start, routeEnd(route)]) {
+      const instance =
+        endpoint.kind === "terminal"
+          ? index.instances.get(endpoint.instanceId)
+          : undefined;
+      if (isResolvedMosBulkTerminal(endpoint, instance))
+        index.explicit.add(endpoint.instanceId);
+    }
+  }
+  if (immutable) bulkRouteIndexes.set(document, index);
+  return index;
+}
+
 /**
  * The letter `B` is overloaded by SPICE symbols: it is MOS bulk but BJT base.
  * Keep that distinction at the semantic boundary so presentation and editing
@@ -44,28 +113,17 @@ export function isMosBulkTerminal(
   endpoint: RouteEndpoint,
 ): boolean {
   if (endpoint.kind !== "terminal" || endpoint.pinName !== "B") return false;
-  const instance = document.instances.find(
-    (candidate) => candidate.id === endpoint.instanceId,
-  );
-  return Boolean(instance && mosBulkKind(instance));
+  const instance = isFrozenSnapshot(document)
+    ? bulkRouteIndex(document).instances.get(endpoint.instanceId)
+    : document.instances.find(
+        (candidate) => candidate.id === endpoint.instanceId,
+      );
+  return isResolvedMosBulkTerminal(endpoint, instance);
 }
 
 export interface MosBulkRouteFamily {
   routeIds: string[];
   instanceIds: string[];
-}
-
-function bulkFamilyContactKeys(
-  document: SchematicDocument,
-  route: RouteBranch,
-): string[] {
-  return [route.start, routeEnd(route)].flatMap((endpoint) => {
-    if (endpoint.kind === "junction")
-      return [`junction:${endpoint.junctionId}`];
-    return isMosBulkTerminal(document, endpoint)
-      ? [`terminal:${endpoint.instanceId}:B`]
-      : [];
-  });
 }
 
 /**
@@ -79,20 +137,25 @@ export function deriveMosBulkRouteFamily(
   seedRoute: RouteBranch,
 ): MosBulkRouteFamily | undefined {
   if (seedRoute.presentation !== "bulk-dashed") return undefined;
+  const index = bulkRouteIndex(document);
+  const owned = index.routes.get(seedRoute.id) === seedRoute;
+  if (owned && index.families.has(seedRoute.id)) {
+    const family = index.families.get(seedRoute.id);
+    return family
+      ? { routeIds: [...family.routeIds], instanceIds: [...family.instanceIds] }
+      : undefined;
+  }
   const routeIds = new Set([seedRoute.id]);
-  const contactKeys = new Set(bulkFamilyContactKeys(document, seedRoute));
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const route of document.routes) {
-      if (route.presentation !== "bulk-dashed" || routeIds.has(route.id)) {
-        continue;
-      }
-      const routeKeys = bulkFamilyContactKeys(document, route);
-      if (!routeKeys.some((key) => contactKeys.has(key))) continue;
+  const contactKeys = new Set<string>();
+  const pending = bulkContactKeys(index, seedRoute);
+  for (let i = 0; i < pending.length; i++) {
+    const key = pending[i]!;
+    if (contactKeys.has(key)) continue;
+    contactKeys.add(key);
+    for (const route of index.atContact.get(key) ?? []) {
+      if (routeIds.has(route.id)) continue;
       routeIds.add(route.id);
-      routeKeys.forEach((key) => contactKeys.add(key));
-      changed = true;
+      pending.push(...bulkContactKeys(index, route));
     }
   }
   const familyRoutes = document.routes.filter((route) =>
@@ -100,28 +163,40 @@ export function deriveMosBulkRouteFamily(
   );
   const instanceIds = new Set(
     familyRoutes.flatMap((route) =>
-      [route.start, routeEnd(route)].flatMap((endpoint) =>
-        isMosBulkTerminal(document, endpoint) && endpoint.kind === "terminal"
+      [route.start, routeEnd(route)].flatMap((endpoint) => {
+        const instance =
+          endpoint.kind === "terminal"
+            ? index.instances.get(endpoint.instanceId)
+            : undefined;
+        return isResolvedMosBulkTerminal(endpoint, instance)
           ? [endpoint.instanceId]
-          : [],
-      ),
+          : [];
+      }),
     ),
   );
-  if (instanceIds.size === 0) return undefined;
-  return {
-    routeIds: [...routeIds].sort((left, right) =>
-      left.localeCompare(right, "en"),
-    ),
-    instanceIds: [...instanceIds].sort((left, right) =>
-      left.localeCompare(right, "en"),
-    ),
-  };
+  const family =
+    instanceIds.size === 0
+      ? undefined
+      : {
+          routeIds: [...routeIds].sort((left, right) =>
+            left.localeCompare(right, "en"),
+          ),
+          instanceIds: [...instanceIds].sort((left, right) =>
+            left.localeCompare(right, "en"),
+          ),
+        };
+  if (owned) for (const id of routeIds) index.families.set(id, family);
+  return family
+    ? { routeIds: [...family.routeIds], instanceIds: [...family.instanceIds] }
+    : undefined;
 }
 
 export function hasExplicitMosBulkRoute(
   document: SchematicDocument,
   instanceId: string,
 ): boolean {
+  if (isFrozenSnapshot(document))
+    return bulkRouteIndex(document).explicit.has(instanceId);
   return document.routes.some(
     (route) =>
       route.presentation === "bulk-dashed" &&

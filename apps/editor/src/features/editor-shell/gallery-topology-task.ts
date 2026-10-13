@@ -1,6 +1,7 @@
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject } from "@icm/model";
 import type { GalleryTopologyMatchReport } from "../../gallery-topology-match";
+import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
 
 export interface TopologyTaskState {
   durable?: boolean;
@@ -122,6 +123,7 @@ export function createDurableGalleryTopologyTask(
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let watching = false;
+  let observation = 0;
   let local = false;
   const listeners = new Set<() => void>();
   const update = (next: Partial<TopologyTaskState>) => {
@@ -151,40 +153,75 @@ export function createDurableGalleryTopologyTask(
   };
   const later = () => {
     clearTimeout(timer);
-    if (!local && state.running)
+    if (watching && !local && state.running)
       timer = setTimeout(() => void poll(), options.pollMs ?? 2000);
   };
   const poll = async () => {
     const current = generation;
+    const observed = observation;
     try {
       const response = await fetchLike(endpoint(), {
         credentials: "same-origin",
         cache: "no-store",
       });
+      if (current !== generation || observed !== observation || local) return;
+      if (response.status === 401 || response.status === 403) {
+        clearTimeout(timer);
+        job = null;
+        update({
+          snapshot: null,
+          sourceProject: null,
+          report: null,
+          running: false,
+          failure: null,
+        });
+        return;
+      }
       if (!response.ok)
         throw new Error("Waiting to reconnect to the saved duplicate check…");
       const payload = (await response.json()) as {
         job?: DurableJob | null;
         unchanged?: boolean;
       };
-      if (current !== generation || local) return;
+      if (current !== generation || observed !== observation || local) return;
       if (!payload.unchanged && "job" in payload) publish(payload.job ?? null);
     } catch {
-      if (current !== generation || local) return;
+      if (current !== generation || observed !== observation || local) return;
       if (state.running)
         update({
           failure:
             "Connection interrupted. The server check continues; reconnecting…",
         });
-      if (!options.localFallback || state.running) {
+      if (watching && (!options.localFallback || state.running)) {
         clearTimeout(timer);
         timer = setTimeout(() => void poll(), options.pollMs ?? 5000);
       }
       return;
     }
-    if (current === generation) later();
+    if (current === generation && observed === observation) later();
   };
-  options.localFallback?.subscribe(() => {
+  const accountChanged = () => {
+    if (local) return;
+    generation++;
+    observation++;
+    clearTimeout(timer);
+    job = null;
+    update({
+      snapshot: null,
+      sourceProject: null,
+      report: null,
+      running: false,
+      failure: null,
+      noticeDismissed: false,
+    });
+    if (watching && !local) void poll();
+  };
+  const stopWatching = () => {
+    watching = false;
+    observation++;
+    clearTimeout(timer);
+  };
+  const unsubscribeFallback = options.localFallback?.subscribe(() => {
     if (local)
       update({ ...options.localFallback!.getSnapshot(), durable: false });
   });
@@ -194,10 +231,12 @@ export function createDurableGalleryTopologyTask(
       listeners.add(listener);
       if (!watching && typeof window !== "undefined") {
         watching = true;
-        void poll();
+        window.addEventListener?.(ACCOUNT_CHANGED_EVENT, accountChanged);
+        if (!local) void poll();
       }
       return () => {
         listeners.delete(listener);
+        if (!listeners.size) stopWatching();
       };
     },
     async start(project: CircuitProject) {
@@ -248,6 +287,7 @@ export function createDurableGalleryTopologyTask(
           job?: DurableJob;
           error?: string;
         };
+        if (current !== generation) return;
         if (!response.ok || !payload.job)
           throw new Error(payload.error ?? "Could not start the server check.");
         publish(payload.job);
@@ -265,6 +305,7 @@ export function createDurableGalleryTopologyTask(
               : "Could not start duplicate check.",
         });
         await poll();
+        if (current !== generation) return;
         if (!job) update({ running: false });
       }
     },
@@ -284,11 +325,13 @@ export function createDurableGalleryTopologyTask(
           throw new Error(
             "Could not cancel the server check. It is still running.",
           );
+        const payload = await response.json();
         if (current !== generation) return;
         generation++;
         clearTimeout(timer);
-        publish((await response.json()).job);
+        publish(payload.job);
       } catch (error) {
+        if (current !== generation) return;
         update({ failure: String(error) });
       }
     },
@@ -307,7 +350,10 @@ export function createDurableGalleryTopologyTask(
     /** Test/lifecycle cleanup does not cancel cloud work. */
     dispose() {
       generation++;
-      clearTimeout(timer);
+      stopWatching();
+      if (typeof window !== "undefined")
+        window.removeEventListener?.(ACCOUNT_CHANGED_EVENT, accountChanged);
+      unsubscribeFallback?.();
       listeners.clear();
     },
   };

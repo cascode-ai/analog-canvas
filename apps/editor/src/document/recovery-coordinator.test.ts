@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, freezeSnapshot } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import { createBrowserRecoveryStore } from "./browser-recovery-store";
@@ -118,6 +118,12 @@ const projectC = createEmptyProject("project-gamma", "Gamma");
 
 describe("createRecoveryCoordinator", () => {
   it("shares computed text with workspace saving without sharing persistence state", async () => {
+    const projectA = freezeSnapshot(
+      createEmptyProject("project-alpha", "Alpha"),
+    );
+    const projectB = freezeSnapshot(
+      createEmptyProject("project-alpha", "Beta"),
+    );
     const serialize = vi.fn(serializeProject);
     const cache = createProjectSnapshotSerializer(serialize);
     const harness = createHarness({ serializeProject: cache.serialize });

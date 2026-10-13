@@ -1,4 +1,4 @@
-import { createRoutePath } from "@icm/model";
+import { createRoutePath, freezeSnapshot } from "@icm/model";
 import { createEmptyDocument } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
@@ -521,56 +521,74 @@ describe("MOS bulk resolution", () => {
     expect(mosBulkShouldBeVisible(document, "M1")).toBe(false);
   });
 
-  it("gives an explicit multi-segment bulk route precedence over stale default metadata", () => {
-    const document = createEmptyDocument("main", "Main");
-    document.instances.push({
-      ...mos("M1", "nmos"),
-      mosBulkBinding: {
-        netId: "net-vss",
-        origin: "cell-default",
-      },
-    });
-    document.nets.push({
-      id: "net-vss",
-      terminals: [{ instanceId: "M1", pinName: "B" }],
-    });
-    document.junctions.push(
-      { id: "J1", netId: "net-vss", position: { x: 100, y: 100 } },
-      { id: "J2", netId: "net-vss", position: { x: 200, y: 100 } },
-    );
-    document.routes.push(
-      createRoutePath({
-        id: "bulk-near",
-        netId: "net-vss",
-        start: { kind: "terminal", instanceId: "M1", pinName: "B" },
-        end: { kind: "junction", junctionId: "J1" },
-        bends: [],
-        modes: ["manual"],
-        presentation: "bulk-dashed",
-      }),
-      createRoutePath({
-        id: "bulk-distal",
-        netId: "net-vss",
-        start: { kind: "junction", junctionId: "J1" },
-        end: { kind: "junction", junctionId: "J2" },
-        bends: [],
-        modes: ["manual"],
-        presentation: "bulk-dashed",
-      }),
-    );
-    document.mosBulkDefaults = { nmosNetId: "net-vss" };
+  it.each([false, true])(
+    "gives an explicit multi-segment bulk route precedence over stale default metadata (immutable=%s)",
+    (immutable) => {
+      const document = createEmptyDocument("main", "Main");
+      document.instances.push({
+        ...mos("M1", "nmos"),
+        mosBulkBinding: {
+          netId: "net-vss",
+          origin: "cell-default",
+        },
+      });
+      document.nets.push({
+        id: "net-vss",
+        terminals: [{ instanceId: "M1", pinName: "B" }],
+      });
+      document.junctions.push(
+        { id: "J1", netId: "net-vss", position: { x: 100, y: 100 } },
+        { id: "J2", netId: "net-vss", position: { x: 200, y: 100 } },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: "bulk-near",
+          netId: "net-vss",
+          start: { kind: "terminal", instanceId: "M1", pinName: "B" },
+          end: { kind: "junction", junctionId: "J1" },
+          bends: [],
+          modes: ["manual"],
+          presentation: "bulk-dashed",
+        }),
+        createRoutePath({
+          id: "bulk-distal",
+          netId: "net-vss",
+          start: { kind: "junction", junctionId: "J1" },
+          end: { kind: "junction", junctionId: "J2" },
+          bends: [],
+          modes: ["manual"],
+          presentation: "bulk-dashed",
+        }),
+      );
+      document.mosBulkDefaults = { nmosNetId: "net-vss" };
+      if (immutable) freezeSnapshot(document);
 
-    expect(hasExplicitMosBulkRoute(document, "M1")).toBe(true);
-    expect(deriveMosBulkRouteFamily(document, document.routes[1]!)).toEqual({
-      routeIds: ["bulk-distal", "bulk-near"],
-      instanceIds: ["M1"],
-    });
-    expect(resolveMosBulkConnection(document, "M1")).toMatchObject({
-      status: "explicit",
-      net: { id: "net-vss" },
-    });
-    expect(mosBulkShouldBeVisible(document, "M1")).toBe(true);
-  });
+      expect(hasExplicitMosBulkRoute(document, "M1")).toBe(true);
+      expect(deriveMosBulkRouteFamily(document, document.routes[1]!)).toEqual({
+        routeIds: ["bulk-distal", "bulk-near"],
+        instanceIds: ["M1"],
+      });
+      expect(resolveMosBulkConnection(document, "M1")).toMatchObject({
+        status: "explicit",
+        net: { id: "net-vss" },
+      });
+      expect(mosBulkShouldBeVisible(document, "M1")).toBe(true);
+      const family = deriveMosBulkRouteFamily(document, document.routes[1]!)!;
+      family.routeIds.length = 0;
+      family.instanceIds.push("unrelated");
+      expect(deriveMosBulkRouteFamily(document, document.routes[0]!)).toEqual({
+        routeIds: ["bulk-distal", "bulk-near"],
+        instanceIds: ["M1"],
+      });
+      const changed = structuredClone(document);
+      changed.instances[0]!.symbolId = "npn";
+      if (immutable) freezeSnapshot(changed);
+      expect(hasExplicitMosBulkRoute(changed, "M1")).toBe(false);
+      expect(
+        deriveMosBulkRouteFamily(changed, changed.routes[1]!),
+      ).toBeUndefined();
+    },
+  );
 
   it("does not guess when imported fourth-node evidence is missing", () => {
     const document = createEmptyDocument("main", "Main");

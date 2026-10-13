@@ -81,6 +81,265 @@ describe("background topology task", () => {
 });
 
 describe("durable topology observation", () => {
+  it("pauses observation without cancelling the server job and ignores detached responses", async () => {
+    const { createDurableGalleryTopologyTask } =
+      await import("./gallery-topology-task");
+    vi.useFakeTimers();
+    vi.stubGlobal("window", new EventTarget());
+    let resolve!: (response: Response) => void;
+    const requests: string[] = [];
+    const task = createDurableGalleryTopologyTask(async (url, init) => {
+      requests.push(`${init?.method ?? "GET"} ${url}`);
+      if (requests.length === 1)
+        return new Promise<Response>((r) => {
+          resolve = r;
+        });
+      return Response.json({ job: null });
+    });
+    try {
+      const unsubscribe = task.subscribe(() => {});
+      unsubscribe();
+      resolve(
+        Response.json({
+          job: {
+            id: "old",
+            revision: 1,
+            running: true,
+            dismissed: false,
+            report,
+          },
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(requests).toEqual(["GET /api/topology-task"]);
+      expect(task.getSnapshot().running).toBe(false);
+      const stop = task.subscribe(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      expect(requests).toEqual([
+        "GET /api/topology-task",
+        "GET /api/topology-task",
+      ]);
+      stop();
+    } finally {
+      task.dispose();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+  it("stops unauthorized polling and rediscovers the current account on an account change", async () => {
+    const { createDurableGalleryTopologyTask } =
+      await import("./gallery-topology-task");
+    const { ACCOUNT_CHANGED_EVENT } = await import("../../components/account");
+    vi.useFakeTimers();
+    const events = new EventTarget();
+    vi.stubGlobal("window", events);
+    let signedIn = false;
+    const requests: string[] = [];
+    const task = createDurableGalleryTopologyTask(async (url) => {
+      requests.push(String(url));
+      return signedIn
+        ? Response.json({ job: null })
+        : new Response(null, { status: 401 });
+    });
+    try {
+      const unsubscribe = task.subscribe(() => {});
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(requests).toEqual(["/api/topology-task"]);
+      signedIn = true;
+      events.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(requests).toEqual(["/api/topology-task", "/api/topology-task"]);
+      unsubscribe();
+    } finally {
+      task.dispose();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+  it("forgets the previous account while observation is paused without cancelling its server job", async () => {
+    const { createDurableGalleryTopologyTask } =
+      await import("./gallery-topology-task");
+    const { ACCOUNT_CHANGED_EVENT } = await import("../../components/account");
+    const events = new EventTarget();
+    vi.stubGlobal("window", events);
+    vi.useFakeTimers();
+    const requests: string[] = [];
+    let account = "old";
+    const task = createDurableGalleryTopologyTask(async (url, init) => {
+      requests.push(`${init?.method ?? "GET"} ${url}`);
+      return Response.json({
+        job:
+          account === "old"
+            ? {
+                id: "old",
+                revision: 1,
+                running: false,
+                dismissed: false,
+                report,
+              }
+            : null,
+      });
+    });
+    try {
+      const stop = task.subscribe(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      expect(task.getSnapshot().report).toEqual(report);
+      stop();
+      account = "new";
+      events.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
+      expect(task.getSnapshot().report).toBeNull();
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(requests).toHaveLength(1);
+      task.subscribe(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      expect(requests).toEqual([
+        "GET /api/topology-task",
+        "GET /api/topology-task",
+      ]);
+    } finally {
+      task.dispose();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+  it("does not publish a previous account's delayed start response", async () => {
+    const { createDurableGalleryTopologyTask } =
+      await import("./gallery-topology-task");
+    const { ACCOUNT_CHANGED_EVENT } = await import("../../components/account");
+    const events = new EventTarget();
+    vi.stubGlobal("window", events);
+    vi.useFakeTimers();
+    let deliver!: (value: unknown) => void;
+    const task = createDurableGalleryTopologyTask(async (_url, init) =>
+      init?.method === "POST"
+        ? ({
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: () =>
+              new Promise((resolve) => {
+                deliver = resolve;
+              }),
+          } as Response)
+        : Response.json({ job: null }),
+    );
+    try {
+      task.subscribe(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      const starting = task.start(createEmptyProject("private", "Old account"));
+      await vi.advanceTimersByTimeAsync(0);
+      events.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
+      deliver({
+        job: {
+          id: "old",
+          revision: 1,
+          running: true,
+          dismissed: false,
+          report,
+        },
+      });
+      await starting;
+      expect(task.getSnapshot()).toMatchObject({
+        snapshot: null,
+        sourceProject: null,
+        report: null,
+        running: false,
+      });
+    } finally {
+      task.dispose();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+  it("keeps the local fallback running without cloud observation on reopen or account changes", async () => {
+    const { createDurableGalleryTopologyTask } =
+      await import("./gallery-topology-task");
+    const { ACCOUNT_CHANGED_EVENT } = await import("../../components/account");
+    const events = new EventTarget();
+    vi.stubGlobal("window", events);
+    const local = harness();
+    const requests: string[] = [];
+    const task = createDurableGalleryTopologyTask(
+      async (_url, init) => {
+        requests.push(init?.method ?? "GET");
+        return new Response(null, { status: 503 });
+      },
+      { localFallback: local.task },
+    );
+    try {
+      const stop = task.subscribe(() => {});
+      await task.start(createEmptyProject("local", "Local drawing"));
+      const snapshot = task.getSnapshot();
+      expect(snapshot.running).toBe(true);
+      stop();
+      task.subscribe(() => {});
+      events.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
+      expect(requests).toEqual(["GET", "POST"]);
+      expect(task.getSnapshot()).toBe(snapshot);
+      expect(local.workers[0]!.terminate).not.toHaveBeenCalled();
+    } finally {
+      task.dispose();
+      local.task.cancel();
+      vi.unstubAllGlobals();
+    }
+  });
+  it("does not stop a new account's task when old POST recovery completes", async () => {
+    const { createDurableGalleryTopologyTask } =
+      await import("./gallery-topology-task");
+    const { ACCOUNT_CHANGED_EVENT } = await import("../../components/account");
+    vi.stubGlobal("window", new EventTarget());
+    vi.useFakeTimers();
+    let gets = 0;
+    let posts = 0;
+    let finishOld!: (response: Response) => void;
+    let finishNew!: (response: Response) => void;
+    const task = createDurableGalleryTopologyTask(async (_url, init) => {
+      if (init?.method === "POST") {
+        if (++posts === 1) throw new Error("Lost acknowledgement");
+        return new Promise((resolve) => {
+          finishNew = resolve;
+        });
+      }
+      if (++gets === 2)
+        return new Promise((resolve) => {
+          finishOld = resolve;
+        });
+      return Response.json({ job: null });
+    });
+    try {
+      task.subscribe(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      const oldStart = task.start(createEmptyProject("old", "Old account"));
+      await vi.advanceTimersByTimeAsync(0);
+      window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
+      await vi.advanceTimersByTimeAsync(0);
+      const newStart = task.start(createEmptyProject("new", "New account"));
+      finishOld(Response.json({ job: null }));
+      await oldStart;
+      expect(task.getSnapshot()).toMatchObject({
+        snapshot: { name: "New account" },
+        running: true,
+      });
+      finishNew(
+        Response.json({
+          job: {
+            id: "new",
+            revision: 1,
+            running: true,
+            dismissed: false,
+            report,
+          },
+        }),
+      );
+      await newStart;
+      expect(task.getSnapshot().running).toBe(true);
+    } finally {
+      task.dispose();
+      finishNew?.(Response.json({ job: null }));
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
   it("rediscovers the frozen server job after the page session is discarded", async () => {
     const { createDurableGalleryTopologyTask } =
       await import("./gallery-topology-task");
