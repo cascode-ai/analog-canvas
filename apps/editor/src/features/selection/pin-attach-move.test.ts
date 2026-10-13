@@ -93,7 +93,7 @@ function routedDocument(): SchematicDocument {
   return result.document;
 }
 
-function runMove(targetX: number) {
+function runMove(targetX: number, { snapLinedUpElsewhere = false } = {}) {
   const document = routedDocument();
   const statuses: string[] = [];
   const transactions: {
@@ -186,7 +186,15 @@ function runMove(targetX: number) {
     {
       document,
       prefixEdits: [],
-      resolvedMove: resolved,
+      // The same landing, but the snap lined the part up with something
+      // else first, so it names no electrical match (and no prepared plan).
+      resolvedMove: snapLinedUpElsewhere
+        ? (() => {
+            const { electricalMatch: _match, ...snap } = resolved.snap;
+            const { prepared: _prepared, ...rest } = resolved;
+            return { ...rest, snap };
+          })()
+        : resolved,
     },
   );
   return { document, resolved, statuses, transactions };
@@ -226,6 +234,31 @@ describe("pin-onto-wire move snap float dust", () => {
     expect(resolved.snap.electricalMatch!.target.point.x).toBe(40);
     const applied = transactions.some((t) => t.result?.ok);
     expect(applied).toBe(true);
+    expect(statuses.some((s) => s.includes("Snapped pin endpoints"))).toBe(
+      true,
+    );
+  });
+});
+
+describe("a pin that lands on a wire", () => {
+  it("joins it however the snap brought it there", () => {
+    // Lined up with another part first, the drop left the pin touching the
+    // wire but apart (user report, 2026-10-13).
+    const { statuses, transactions } = runMove(40, {
+      snapLinedUpElsewhere: true,
+    });
+    const committed = transactions.find((t) => t.result?.ok)?.result;
+    expect(committed?.ok).toBe(true);
+    if (!committed?.ok) return;
+    const net = committed.document.nets.find((candidate) =>
+      candidate.terminals.some(
+        (t) => t.instanceId === "E" && t.pinName === "P",
+      ),
+    );
+    expect(net).toBeDefined();
+    expect(
+      committed.document.routes.some((route) => route.netId === net!.id),
+    ).toBe(true);
     expect(statuses.some((s) => s.includes("Snapped pin endpoints"))).toBe(
       true,
     );

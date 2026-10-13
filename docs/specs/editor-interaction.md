@@ -174,7 +174,9 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   step; exact contact may add connections at a retained landing but never move it.
 - `M` translates with internal conductors and stretches boundary Routes.
   `Shift+M` (and Ctrl/Cmd-drag) leaves wires: each routed terminal becomes an
-  open Junction stub, then `disconnect_endpoint`; geometry stays byte-identical.
+  open Junction stub, then `disconnect_endpoint`, and a pin set directly on
+  something staying (a ground marker on a source) lets go of it; geometry stays
+  byte-identical.
 - Classification: selected Instances translate; a Route/Junction component with
   all terminal ends selected translates; a Route with one selected end stretches;
   a selected loose Route moves only with both loose Junctions; other connected

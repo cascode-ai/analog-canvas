@@ -84,8 +84,10 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
   following changed Pins newly covers a part's labels, they are arranged as
   `arrange-labels` would, as a group, in the same undo; a caller's default-slot
   labels first follow the new block.
-- Placement and snapped moves share the contact planner (final geometry, joins
-  folded before splits); passive moves gain no contacts; wired devices attach
+- Placement and drag moves share the contact planner (final geometry, joins
+  folded before splits). A dragged pin joins the stationary conductor its final
+  position lands on, snapped there or lined up with something else; a free
+  (Alt) drag and other passive moves gain no contacts; wired devices attach
   rather than splice.
 - Wire Delete uses `cut_connection`, recomputing physical components so no
   evidence hides a disconnection; `remove_route_geometry` removes geometry only.

@@ -619,9 +619,12 @@ export function createSelectionMoveController({
       moves: { instanceId: string; position: Point }[];
     },
     sourceDocument: SchematicDocument,
+    /** Connect wherever a pin ends, snapped there or not (the release). */
+    connectWhereLanded = false,
   ): PreparedSelectionMove => {
     const delta = resolved.snap.delta;
-    const contact = Boolean(resolved.snap.electricalMatch);
+    const contact =
+      connectWhereLanded || Boolean(resolved.snap.electricalMatch);
     if (
       preparedCache?.source === sourceDocument &&
       preparedCache.preview === preview &&
@@ -831,9 +834,15 @@ export function createSelectionMoveController({
         prefixEdits.length === 0
       )
         return;
+      // A pin that ends on a wire, a Junction or another pin joins it, as
+      // the drawing then shows, however the snap brought it there: lined up
+      // with another part first, the drop used to leave it touching but
+      // apart. A free (Alt) move keeps its points apart.
       const prepared =
-        resolved.prepared ??
-        prepareResolvedMove(preview, resolved, sourceDocument);
+        !suppressSnap && !resolved.snap.electricalMatch
+          ? prepareResolvedMove(preview, resolved, sourceDocument, true)
+          : (resolved.prepared ??
+            prepareResolvedMove(preview, resolved, sourceDocument));
       if (
         prepared.plan.source.revision !== sourceDocument.revision ||
         prepared.plan.source.documentId !== sourceDocument.id
