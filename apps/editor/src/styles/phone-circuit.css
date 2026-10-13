@@ -1,0 +1,104 @@
+/* A phone's circuit page and editor notice (2026-10-14). */
+.phone-circuit {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  color: var(--icm-text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.phone-circuit h1 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.3;
+}
+
+.phone-circuit-meta,
+.phone-circuit-note {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
+.phone-circuit-description {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.phone-circuit-preview {
+  overflow: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: #fff;
+}
+
+.phone-circuit-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.phone-circuit-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phone-circuit-tags li {
+  padding: 2px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.phone-circuit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.phone-circuit-actions a,
+.phone-circuit-actions button {
+  min-height: var(--icm-control-h);
+  padding: 6px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.phone-circuit-actions .phone-circuit-primary {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent);
+  color: #fff;
+}
+
+.phone-circuit-netlist {
+  overflow-x: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.phone-circuit-editor-anyway {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--icm-text-muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+}

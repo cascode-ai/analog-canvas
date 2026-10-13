@@ -12,6 +12,7 @@ import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
+import { spiceNetlistOf } from "./gallery-netlist";
 import {
   ownerData,
   wallList,
@@ -816,6 +817,11 @@ export async function routeGalleryRequest(
               projectText: readsTestbench(viewer, held)
                 ? withTestbench(payload.projectText ?? "", payload.testbench)
                 : withoutTestbench(payload.projectText ?? ""),
+              // Its SPICE netlist on request, for a reader without the
+              // editor: the phone's circuit page (2026-10-14).
+              ...(url.searchParams.get("netlist") === "spice"
+                ? { netlist: spiceNetlistOf(payload.projectText ?? "") }
+                : {}),
             }),
       },
       { headers: { "cache-control": "no-store" } },

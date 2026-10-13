@@ -1,6 +1,7 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../src/agent/session-recovery-presence";
+import { PHONE_EDITOR_KEY, PHONE_QUERY } from "../src/phone-viewing";
 import { editorPreload } from "./editor-preload";
 
 const builtHead = `<head>
@@ -79,12 +80,16 @@ function preload(
   {
     search = "",
     saved = {},
-  }: { search?: string; saved?: Record<string, string> } = {},
+    phone = false,
+  }: { search?: string; saved?: Record<string, string>; phone?: boolean } = {},
 ) {
   const links: { rel: string; href: string; as?: string }[] = [];
   runInNewContext(preloadScript(transform(builtHead)), {
     location: { pathname: path, hostname, search },
     URLSearchParams,
+    matchMedia: (query: string) => ({
+      matches: phone && query === PHONE_QUERY,
+    }),
     sessionStorage: { getItem: (key: string) => saved[key] ?? null },
     window: { __icmLocalGalleryReplica: replica },
     document: {
@@ -109,6 +114,22 @@ describe("route resource preload", () => {
     expect(script).not.toContain("/assets/gallery-shared-12345678.js");
     expect(script).not.toContain("/assets/index-12345678.css");
     expect(script).toContain("/assets/gallery-feed-12345678.js");
+  });
+
+  it("fetches no editor on a phone, which views circuits instead (2026-10-14)", () => {
+    const hrefs = (path: string, options: Parameters<typeof preload>[3]) =>
+      preload(path, undefined, false, options).map((link) => link.href);
+    expect(hrefs("/editor", { phone: true })).toEqual([]);
+    expect(hrefs("/g/abc", { phone: true })).toEqual([]);
+    // The Gallery still loads ahead on a phone.
+    expect(hrefs("/", { phone: true })).toContain(
+      "/assets/gallery-feed-12345678.js",
+    );
+    // Someone who opened the editor anyway gets it ahead as on a computer.
+    expect(
+      hrefs("/editor", { phone: true, saved: { [PHONE_EDITOR_KEY]: "1" } }),
+    ).toEqual(hrefs("/editor", {}));
+    expect(hrefs("/editor", {})).toContain("/assets/web-editor-12345678.js");
   });
 
   it("runs before any stylesheet, which an inline script would wait for", () => {

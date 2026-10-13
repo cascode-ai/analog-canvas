@@ -29,6 +29,7 @@ import type { WebEditorApp } from "./web-editor";
 import { configureWebServiceWorker } from "./web-service-worker";
 import { localhostExamplesEnabled } from "../gallery-source";
 import { arenaEntryRedirect } from "../arena-entry-address";
+import { isPhoneViewing } from "../phone-viewing";
 
 export function mountWebEditor() {
   // A Schematic Arena "Draw it yourself" link opens its drawing in the
@@ -202,6 +203,15 @@ export function mountWebEditor() {
     ),
   );
 
+  // A phone views circuits and leaves drawing to a computer (2026-10-14).
+  const PhoneCircuitPage = lazy(
+    guardedRouteChunk(() =>
+      import("../components/phone-circuit-page").then((module) => ({
+        default: module.PhoneCircuitPage,
+      })),
+    ),
+  );
+
   const PrivacyPage = lazy(
     guardedRouteChunk(() =>
       import("../components/privacy-page").then((module) => ({
@@ -288,6 +298,15 @@ export function mountWebEditor() {
         </Suspense>
       );
     }
+    if (isPhoneViewing())
+      return (
+        <Suspense fallback={<div className="analytics-loading">Loading…</div>}>
+          <PhoneCircuitPage
+            entryId={galleryEntryIdOf(path)}
+            visitStats={stats}
+          />
+        </Suspense>
+      );
     return (
       <Suspense
         fallback={<div className="analytics-loading">Loading editor…</div>}

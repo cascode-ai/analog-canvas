@@ -91,7 +91,10 @@ entries, keyset cursor, limit ≤60.
 ### Entry and preview
 
 - `GET /api/gallery/<id>` returns canonical `projectText` (one daily open);
-  `?summary=1` is free. Folders only for testbench readers
+  `?summary=1` is free. `?netlist=spice` adds
+  `netlist: {format: "spice", text}`, or `{format: "spice", blocked}` with the
+  error messages when the drawing does not extract. Folders only for testbench
+  readers
   ([Testbench privacy](#testbench-privacy)).
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v5`
   is immutable when the revision matches; unversioned, stale, hidden and missing
@@ -105,6 +108,16 @@ entries, keyset cursor, limit ≤60.
 - Hosted Production/preview always uses Gallery, never bundled examples;
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
+
+## On a phone
+
+A phone (`(max-width: 700px) and (pointer: coarse)`,
+`apps/editor/src/phone-viewing.ts`) browses the Gallery and views circuits;
+drawing needs a computer or a tablet. `/g/<id>` shows the circuit's preview,
+facts, tags, its SPICE netlist on request and its link; `/editor` says to draw
+on a computer or a tablet and links the Gallery. Neither loads the editor or
+preloads it. "Open the editor anyway" opens it for that tab
+(`icm.phone-editor` in sessionStorage).
 
 ## Classification and attention
 

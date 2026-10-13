@@ -24,6 +24,7 @@ import {
   route,
   seatOf,
   submitOne,
+  wiredProjectText,
 } from "./gallery.test-support";
 
 describe("Gallery readers", () => {
@@ -198,6 +199,48 @@ describe("Gallery readers", () => {
     expect(preview.headers.get("cache-control")).toBe(
       "private, max-age=31536000, immutable",
     );
+  });
+});
+
+describe("a circuit's netlist for a reader without the editor (2026-10-14)", () => {
+  it("comes with the entry when asked for, and only then", async () => {
+    const env = environment();
+    const id = await submitOne(env, "Wired", {
+      cookie: await adminOf(env),
+      text: wiredProjectText("Wired"),
+    });
+    const reader = cookieHeaders(await makerOf(env));
+    const read = async (query: string) =>
+      (await (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/${id}${query}`, {
+            headers: reader,
+          }),
+        )
+      ).json()) as { netlist?: unknown };
+    // A drawing that does not extract says why, errors only.
+    expect((await read("?netlist=spice")).netlist).toEqual({
+      format: "spice",
+      blocked: [
+        "Instance R1 requires parameter value",
+        "Instance R2 requires parameter value",
+      ],
+    });
+    const empty = await submitOne(env, "Empty", {
+      cookie: await adminOf(env),
+    });
+    const written = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${empty}?netlist=spice`, {
+          headers: reader,
+        }),
+      )
+    ).json()) as { netlist?: { text?: string } };
+    expect(written.netlist?.text).toContain(".end");
+    expect((await read("")).netlist).toBeUndefined();
+    expect((await read("?summary=1&netlist=spice")).netlist).toBeUndefined();
   });
 });
 
