@@ -28,8 +28,16 @@ import { hasAgentSessionRecovery } from "../agent/session-recovery-presence";
 import type { WebEditorApp } from "./web-editor";
 import { configureWebServiceWorker } from "./web-service-worker";
 import { localhostExamplesEnabled } from "../gallery-source";
+import { arenaEntryRedirect } from "../arena-entry-address";
 
 export function mountWebEditor() {
+  // A Schematic Arena "Draw it yourself" link opens its drawing in the
+  // editor, and a sign-in begun there continues to it (#1695).
+  const arenaEntryPath = arenaEntryRedirect(window.location);
+  if (arenaEntryPath) {
+    window.location.replace(arenaEntryPath);
+    return;
+  }
   // The Agent runtime is not part of the editor (#1673). A page that must
   // resume a saved session or pair automation loads it beside the route's
   // chunks, so the session is there as the page first renders. Its small

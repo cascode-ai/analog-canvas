@@ -62,14 +62,14 @@ The hosts share only accounts and the way between them. Before any route,
 
 Header `x-arena-account` carries the signed-in account as one JSON object:
 
-| Field         | Type                      | Meaning                           |
-| ------------- | ------------------------- | --------------------------------- |
-| `id`          | non-empty string          | Analog Canvas account id          |
-| `displayName` | string                    | Name Analog Canvas shows          |
-| `isOwner`     | boolean                   | One of the Owner's own accounts   |
-| `isAdmin`     | boolean                   | Analog Canvas administrator       |
-| `role`        | `"user"` or `"moderator"` | Account role                      |
-| `seat`        | string or `null`          | AI seat; `null` for people        |
+| Field         | Type                      | Meaning                         |
+| ------------- | ------------------------- | ------------------------------- |
+| `id`          | non-empty string          | Analog Canvas account id        |
+| `displayName` | string                    | Name Analog Canvas shows        |
+| `isOwner`     | boolean                   | One of the Owner's own accounts |
+| `isAdmin`     | boolean                   | Analog Canvas administrator     |
+| `role`        | `"user"` or `"moderator"` | Account role                    |
+| `seat`        | string or `null`          | AI seat; `null` for people      |
 
 - Facts come from the account store for this request; a browser the Owner
   switched to an AI account is that AI account.
@@ -164,6 +164,35 @@ Implemented and tested in the Arena repository:
   expose no hash or ETag; the signed-out example keeps its public 5-minute
   policy and resolves the active Season first. Analog Canvas adds no shared
   cache of authenticated responses.
+
+## Draw it yourself
+
+After a Both bad Vote, the Arena's Reveal invites the Voter to draw the
+circuit themselves, starting from either side's drawing (#1695).
+
+- **Arena serves the project.** `GET /api/arena/battles/<battle>/a.icproj.json`
+  and `/b.icproj.json` answer the Analog Canvas project behind that side, as
+  the Season bundle holds it. They answer only the Voter whose Battle it is,
+  once they have voted on it, as `a.svg` and `b.svg` do. Before the Vote they
+  answer 409 `vote-required`; another Voter's or an unknown Battle answers
+  404 `battle-unknown`; a side with no project answers 404
+  `project-unknown`. On the Canvas host they go through the forwarding above,
+  signed in as the Canvas account.
+- **Arena links to Canvas.** The Reveal's "Draw it yourself" card links, in a
+  new tab, `https://analog-canvas.tokenzhang.com/editor?arena-battle=<battle>&arena-side=a`
+  and `…&arena-side=b`. The Gallery's address with the same query (`/?…`)
+  opens the editor too.
+- **Canvas opens it as the Voter's own.** Canvas fetches the side's project
+  and opens it as a new, unsaved project with a new identity, named
+  `<circuit> (from Arena)`. The Arena's stored project is untouched, and the
+  address drops the query once handled, so a reload opens no second copy.
+- **Signed out**, the fetch answers 401: the editor asks the Voter to sign
+  in and keeps the entry in the tab for 15 minutes. An email-code sign-in
+  reloads the entry; a GitHub or Google sign-in returns to `/`, which
+  continues to the entry once.
+- **A refused or failed fetch** (`vote-required`, `battle-unknown`,
+  `project-unknown`, or the Arena unreachable) opens the editor as usual with
+  a short notice, never an error page.
 
 ## Account deletion
 

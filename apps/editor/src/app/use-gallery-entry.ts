@@ -24,6 +24,16 @@ import type {
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { prepareNetlistExample } from "../features/netlist-export/netlist-process";
 import { localhostExamplesEnabled } from "../gallery-client";
+import {
+  ARENA_ENTRY_NOTICES,
+  arenaProjectCopy,
+  loadArenaEntryProject,
+} from "../arena-entry";
+import {
+  arenaEntryOf,
+  rememberPendingArenaEntry,
+} from "../arena-entry-address";
+import { requestSignIn } from "../components/sign-in-request";
 import type { EditorServices } from "../services/editor-services";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import type { useAgentProjectResources } from "./use-agent-hosts";
@@ -117,7 +127,33 @@ export function useBootLink({
     // this boot. Re-running the URL's boot target here would fork the
     // working-copy identity and orphan the snapshot the restore is about to
     // read.
-    if (restoreAfterRefresh || restoredWorkspace) return;
+    if (restoreAfterRefresh) return;
+    // A Schematic Arena "Draw it yourself" link (#1695) opens that side's
+    // drawing as a new project of the Voter's own, beside whatever this
+    // window brought back; a sign-in reloads or returns to this address.
+    const arenaEntry = arenaEntryOf(window.location.search);
+    if (arenaEntry) {
+      setStatus("Opening the drawing from the Schematic Arena…");
+      void loadArenaEntryProject(arenaEntry).then(async (result) => {
+        if (result.ok) {
+          const copy = arenaProjectCopy(result.project);
+          await openProjectInTabRef.current(copy, DEFAULT_VIEWBOX, {
+            source: "opened-file",
+            persistenceState: "dirty",
+          });
+          forgetArenaEntryAddress();
+          setStatus(`Opened ${copy.name}`);
+          return;
+        }
+        if (result.reason === "sign-in") {
+          rememberPendingArenaEntry(arenaEntry);
+          requestSignIn();
+        } else forgetArenaEntryAddress();
+        setStatus(ARENA_ENTRY_NOTICES[result.reason]);
+      });
+      return;
+    }
+    if (restoredWorkspace) return;
     const exampleId = new URLSearchParams(window.location.search).get(
       "example",
     );
@@ -387,4 +423,12 @@ export function createLeaveEditor({
     toGallery: leaveFor("Go to Gallery", "/"),
     toArena: leaveFor("Go to Arena", "/arena"),
   };
+}
+
+/** The entry is handled: a reload opens the editor, not another copy. */
+function forgetArenaEntryAddress(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("arena-battle");
+  url.searchParams.delete("arena-side");
+  window.history.replaceState(window.history.state, "", url);
 }
