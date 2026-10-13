@@ -202,3 +202,37 @@ export async function wallTagCounts(
     groups: [...groups.entries()].map(([group, count]) => ({ group, count })),
   };
 }
+
+/**
+ * The Owner's numbers (#1446): the community's authors, or one author's
+ * circuits, with opens in all and in the last seven days (UTC, today
+ * included); the most opened circuits come from the whole wall, the
+ * reference datasets' too.
+ */
+export async function ownerData(
+  env: GalleryEnv,
+  author: string | null,
+): Promise<unknown> {
+  const since = new Date(Date.now() - 6 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  if (author)
+    return (await callGallery(env, "owner-data", { author, since })).payload;
+  const [community, ...datasets] = await Promise.all(
+    wallStoresOf(env, null, false).map((store) =>
+      callGallery<{
+        mostOpened?: { opens: number; opensLastWeek: number }[];
+      }>(store.env, "owner-data", { since }).then(({ payload }) => payload),
+    ),
+  );
+  return {
+    ...community,
+    mostOpened: [community, ...datasets]
+      .flatMap((payload) => payload?.mostOpened ?? [])
+      .sort(
+        (left, right) =>
+          right.opens - left.opens || right.opensLastWeek - left.opensLastWeek,
+      )
+      .slice(0, 50),
+  };
+}

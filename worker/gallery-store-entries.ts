@@ -239,7 +239,8 @@ export function forgetOpens(sql: SqlStorage, day: string): Response {
 /**
  * Spend one of the account's daily opens on `entryId`, unless it already
  * opened that circuit today. `allowed: false` once the day's allowance is
- * used up; the caller decides who is counted at all.
+ * used up; the caller decides who is counted at all. Every allowed open
+ * adds one to the circuit's opens that day, whoever opened it.
  */
 export function countOpen(
   state: DurableObjectStateLike,
@@ -266,7 +267,17 @@ export function countOpen(
         userId,
       )
       .one().n;
-    if (seen) return Response.json({ allowed: true, used });
+    const opened = () =>
+      sql.exec(
+        `INSERT INTO gallery_entry_opens (entry_id, day, opens) VALUES (?, ?, 1)
+         ON CONFLICT (entry_id, day) DO UPDATE SET opens = opens + 1`,
+        entryId,
+        day,
+      );
+    if (seen) {
+      opened();
+      return Response.json({ allowed: true, used });
+    }
     if (used >= GALLERY_DAILY_OPEN_LIMIT)
       return Response.json({ allowed: false, used });
     sql.exec(
@@ -275,6 +286,7 @@ export function countOpen(
       userId,
       entryId,
     );
+    opened();
     return Response.json({ allowed: true, used: used + 1 });
   });
 }

@@ -725,6 +725,12 @@ export function ownerData(
     "(SELECT COUNT(*) FROM gallery_likes l WHERE l.entry_id = e.id)";
   const parts =
     "CASE WHEN e.component_count_version > 0 THEN e.component_count END";
+  // Opens in all, and since `since` (the last seven days, from the route).
+  const opens =
+    "(SELECT COALESCE(SUM(o.opens), 0) FROM gallery_entry_opens o WHERE o.entry_id = e.id)";
+  const since = typeof body.since === "string" ? body.since : "9999";
+  const recent =
+    "(SELECT COALESCE(SUM(o.opens), 0) FROM gallery_entry_opens o WHERE o.entry_id = e.id AND o.day >= ?)";
   if (typeof body.author === "string") {
     const legacy = body.author.startsWith("legacy:")
       ? body.author.slice("legacy:".length)
@@ -738,9 +744,12 @@ export function ownerData(
         netlistable: number;
         ai_generated: number;
         likes: number;
+        opens: number;
+        recent: number;
       }>(
         `SELECT e.id, e.name, e.created_at, ${parts} AS parts,
-                e.netlistable, e.ai_generated, ${likes} AS likes
+                e.netlistable, e.ai_generated, ${likes} AS likes,
+                ${opens} AS opens, ${recent} AS recent
          FROM gallery_entries e
          WHERE e.status = 'public' AND ${
            legacy === null
@@ -748,6 +757,7 @@ export function ownerData(
              : "COALESCE(e.owner_user_id, '') = '' AND e.author = ?"
          }
          ORDER BY e.created_at DESC, e.id DESC`,
+        since,
         legacy ?? body.author,
       )
       .toArray();
@@ -760,6 +770,8 @@ export function ownerData(
         netlistable: row.netlistable === 1,
         aiGenerated: row.ai_generated === 1,
         likes: Number(row.likes),
+        opens: Number(row.opens),
+        opensLastWeek: Number(row.recent),
       })),
     });
   }
@@ -772,6 +784,7 @@ export function ownerData(
       ai: number;
       netlist: number;
       likes: number;
+      opens: number;
       latest: string;
     }>(
       `SELECT MAX(e.author) AS author,
@@ -779,7 +792,8 @@ export function ownerData(
                 AS key,
               COUNT(*) AS circuits, AVG(${parts}) AS parts,
               SUM(e.ai_generated = 1) AS ai, SUM(e.netlistable = 1) AS netlist,
-              SUM(${likes}) AS likes, MAX(e.created_at) AS latest
+              SUM(${likes}) AS likes, SUM(${opens}) AS opens,
+              MAX(e.created_at) AS latest
        FROM gallery_entries e
        WHERE e.status = 'public' AND TRIM(e.author) <> ''
        GROUP BY key
@@ -796,9 +810,44 @@ export function ownerData(
       ai: Number(row.ai),
       withNetlist: Number(row.netlist),
       likes: Number(row.likes),
+      opens: Number(row.opens),
       latest: row.latest,
     })),
+    mostOpened: mostOpened(sql, opens, recent, since),
   });
+}
+
+/** The public circuits opened most, at most fifty, each with its author. */
+function mostOpened(
+  sql: SqlStorage,
+  opens: string,
+  recent: string,
+  since: string,
+) {
+  return sql
+    .exec<{
+      id: string;
+      name: string;
+      author: string;
+      opens: number;
+      recent: number;
+    }>(
+      `SELECT * FROM (
+         SELECT e.id, e.name, e.author, ${opens} AS opens, ${recent} AS recent
+         FROM gallery_entries e WHERE e.status = 'public')
+       WHERE opens > 0
+       ORDER BY opens DESC, recent DESC, id ASC
+       LIMIT 50`,
+      since,
+    )
+    .toArray()
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      author: row.author,
+      opens: Number(row.opens),
+      opensLastWeek: Number(row.recent),
+    }));
 }
 
 /** Public tag counts plus deduplicated circuit totals for each visual group. */

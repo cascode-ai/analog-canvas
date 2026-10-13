@@ -34,6 +34,9 @@ restrictive CSP.
   Agents get `GALLERY_DAILY_LIMIT`. Uncounted: wall, search, tags, previews,
   `?summary=1`, own circuits, curators, AI seats, the read-only credential. The
   scheduled pass drops finished days.
+- Every allowed read, repeats included, adds one to the circuit's opens for
+  the day (`gallery_entry_opens`: entry, day, count; never who; not backed
+  up), which only `owner-data` reports.
 
 ## Public surface
 
@@ -380,8 +383,10 @@ else 401.
   Project-bearing tables from `{backup}` with 3-version retention, within one
   100 MB request; whole-store rollback is point-in-time recovery.
 - `GET /api/gallery/owner-data` (Owner accounts; 401 signed out or credential,
-  403 otherwise): public per-author counts, average parts, AI and netlist marks,
-  likes and newest time; `author=<key>` lists that author's circuits.
+  403 otherwise): public per-author counts, opens, average parts, AI and
+  netlist marks, likes and newest time, and `mostOpened` (the 50 circuits
+  opened most, datasets' included, with `opens` and `opensLastWeek`);
+  `author=<key>` lists that author's circuits with the same opens.
 
 `label-looks` fields (body, then each of the reply's `results`):
 

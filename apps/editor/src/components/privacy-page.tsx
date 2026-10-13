@@ -236,7 +236,9 @@ export function PrivacyPage() {
             <strong>Gallery circuits you open</strong>: the site notes which
             other people&rsquo;s circuits your account opened today, to allow up
             to 100 a day. The note is deleted shortly after the day ends (UTC),
-            or at once with your account.
+            or at once with your account. Each open also adds one to that
+            circuit&rsquo;s count for the day, which keeps no trace of who
+            opened it.
           </li>
           <li>
             <strong>Backups</strong> of the Gallery and Cloud Projects, with the

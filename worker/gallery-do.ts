@@ -308,6 +308,16 @@ export class GalleryDO {
         PRIMARY KEY (day, user_id, entry_id)
       ) WITHOUT ROWID
     `);
+    // How often each circuit was opened each day, for the Owner's numbers:
+    // counts only, never who. Not a backup table.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS gallery_entry_opens (
+        entry_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        opens INTEGER NOT NULL,
+        PRIMARY KEY (entry_id, day)
+      ) WITHOUT ROWID
+    `);
     this.state.storage.transactionSync(() => {
       const applied = this.sql
         .exec<{ id: string }>(

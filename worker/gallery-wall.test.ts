@@ -18,6 +18,7 @@ import {
   projectText,
   route,
   seatOf,
+  signIn,
   submissionRequest,
   submitOne,
 } from "./gallery.test-support";
@@ -143,6 +144,7 @@ describe("the Owner's Data tab (#1446)", () => {
         ai: 1,
         withNetlist: 1,
         likes: 1,
+        opens: 0,
         latest: made!.latest,
       },
       {
@@ -153,9 +155,11 @@ describe("the Owner's Data tab (#1446)", () => {
         ai: 0,
         withNetlist: 1,
         likes: 0,
+        opens: 0,
         latest: expect.any(String),
       },
     ]);
+    expect(data.mostOpened).toEqual([]);
     // A rejected or withdrawn circuit is no public fact: not counted, not
     // named, and neither is who reviewed it.
     expect(JSON.stringify(data)).not.toContain("Spam");
@@ -186,10 +190,104 @@ describe("the Owner's Data tab (#1446)", () => {
       netlistable: true,
       aiGenerated: true,
       likes: 1,
+      opens: 0,
+      opensLastWeek: 0,
     });
     expect(
       (await circuits("legacy:Old hand")).map((item: any) => item.id),
     ).toEqual([legacy]);
+  });
+
+  it("counts every open of a circuit by someone else, the datasets' too", async () => {
+    const env = environment();
+    const maker = await makerOf(env);
+    const owner = await ownerAccountOf(env);
+    const reader = await signIn(env.authDurable, "reader@example.com");
+    const bandgap = await submitOne(env, "Bandgap", { cookie: maker });
+    const mirror = await submitOne(env, "Mirror", { cookie: maker });
+    const imported = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/sources/circuitthink/entries`, {
+        method: "POST",
+        headers: {
+          ...cookieHeaders(owner),
+          Origin: ORIGIN,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          entries: [
+            { id: "ct-7", name: "Dataset LNA", projectText: projectText() },
+          ],
+        }),
+      }),
+    );
+    expect(imported.status).toBe(200);
+    const open = async (cookie: string, id: string) =>
+      expect(
+        (
+          await route(
+            env,
+            new Request(`${ORIGIN}/api/gallery/${id}`, {
+              headers: cookieHeaders(cookie),
+            }),
+          )
+        ).status,
+      ).toBe(200);
+    // Every open counts, the same reader's again the same day too; the
+    // author's own and a tile's summary do not.
+    for (let n = 0; n < 3; n += 1) await open(reader, bandgap);
+    await open(reader, mirror);
+    await open(reader, "ct-7");
+    await open(reader, "ct-7");
+    await open(maker, bandgap);
+    await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${mirror}?summary=1`, {
+        headers: cookieHeaders(reader),
+      }),
+    );
+    const data = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/owner-data`, {
+          headers: cookieHeaders(owner),
+        }),
+      )
+    ).json()) as any;
+    expect(data.mostOpened).toEqual([
+      {
+        id: bandgap,
+        name: "Bandgap",
+        author: expect.any(String),
+        opens: 3,
+        opensLastWeek: 3,
+      },
+      {
+        id: "ct-7",
+        name: "Dataset LNA",
+        author: "CircuitThink (redrawn)",
+        opens: 2,
+        opensLastWeek: 2,
+      },
+      {
+        id: mirror,
+        name: "Mirror",
+        author: expect.any(String),
+        opens: 1,
+        opensLastWeek: 1,
+      },
+    ]);
+    expect(data.authors).toEqual([
+      expect.objectContaining({ circuits: 2, opens: 4 }),
+    ]);
+    // Counts only: nothing says who opened them.
+    expect(
+      Object.keys(
+        env.gallerySql
+          .exec("SELECT * FROM gallery_entry_opens LIMIT 1")
+          .toArray()[0]!,
+      ).sort(),
+    ).toEqual(["day", "entry_id", "opens"]);
   });
 });
 

@@ -10,6 +10,8 @@ export interface OwnerDataAuthor {
   ai: number;
   withNetlist: number;
   likes: number;
+  /** How often others opened its circuits, in all. */
+  opens: number;
   latest: string;
 }
 
@@ -22,10 +24,23 @@ export interface OwnerDataCircuit {
   netlistable: boolean;
   aiGenerated: boolean;
   likes: number;
+  opens: number;
+  /** Opens in the last seven days, today included. */
+  opensLastWeek: number;
+}
+
+/** A circuit among the most opened, the reference datasets' too. */
+export interface OwnerDataOpened {
+  id: string;
+  name: string;
+  author: string;
+  opens: number;
+  opensLastWeek: number;
 }
 
 interface OwnerData {
   authors: OwnerDataAuthor[];
+  mostOpened?: OwnerDataOpened[];
 }
 
 async function readOwnerData<T>(query = ""): Promise<T | null> {
@@ -92,8 +107,50 @@ export function OwnerDataContent() {
   const authors = needle
     ? data.authors.filter((row) => row.author.toLowerCase().includes(needle))
     : data.authors;
+  const mostOpened = data.mostOpened ?? [];
   return (
     <div className="owner-data" data-testid="owner-data">
+      <section className="account-page-section" aria-labelledby="owner-opened">
+        <h3 id="owner-opened">Most opened</h3>
+        <p className="account-page-note">
+          Every time a signed-in reader opens someone else&rsquo;s circuit; its
+          author, curators and AI accounts are not counted.
+        </p>
+        {mostOpened.length === 0 ? (
+          <p className="account-page-note" data-testid="owner-data-opened-none">
+            No opens counted yet.
+          </p>
+        ) : (
+          <div className="owner-data-scroll">
+            <table className="owner-data-table" data-testid="owner-data-opened">
+              <thead>
+                <tr>
+                  <th className="owner-data-number">#</th>
+                  <th>Circuit</th>
+                  <th>Author</th>
+                  <th className="owner-data-number">Opens</th>
+                  <th className="owner-data-number">Last 7 days</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mostOpened.map((circuit, index) => (
+                  <tr key={circuit.id}>
+                    <td className="owner-data-number">{index + 1}</td>
+                    <td>
+                      <a href={`/g/${circuit.id}`}>{circuit.name}</a>
+                    </td>
+                    <td>{circuit.author}</td>
+                    <td className="owner-data-number">{circuit.opens}</td>
+                    <td className="owner-data-number">
+                      {circuit.opensLastWeek}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
       <section className="account-page-section" aria-labelledby="owner-authors">
         <h3 id="owner-authors">Authors</h3>
         <p className="account-page-note" data-testid="owner-data-totals">
@@ -120,6 +177,7 @@ export function OwnerDataContent() {
                 <th className="owner-data-number">Human</th>
                 <th className="owner-data-number">Netlist</th>
                 <th className="owner-data-number">Likes</th>
+                <th className="owner-data-number">Opens</th>
                 <th>Latest</th>
               </tr>
             </thead>
@@ -149,11 +207,12 @@ export function OwnerDataContent() {
                       </td>
                       <td className="owner-data-number">{row.withNetlist}</td>
                       <td className="owner-data-number">{row.likes}</td>
+                      <td className="owner-data-number">{row.opens}</td>
                       <td className="owner-data-date">{day(row.latest)}</td>
                     </tr>
                     {open === row.key ? (
                       <tr className="owner-data-detail">
-                        <td colSpan={8}>
+                        <td colSpan={9}>
                           {listed === undefined ? (
                             <p className="account-page-note">Loading…</p>
                           ) : listed === "failed" ? (
@@ -185,6 +244,10 @@ export function OwnerDataContent() {
                                     </td>
                                     <td className="owner-data-number">
                                       {circuit.likes} ♥
+                                    </td>
+                                    <td className="owner-data-number">
+                                      {circuit.opens} opens ·{" "}
+                                      {circuit.opensLastWeek} this week
                                     </td>
                                   </tr>
                                 ))}

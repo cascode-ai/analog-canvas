@@ -12,7 +12,12 @@ import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
-import { wallList, wallStoresOf, wallTagCounts } from "./gallery-wall-merge";
+import {
+  ownerData,
+  wallList,
+  wallStoresOf,
+  wallTagCounts,
+} from "./gallery-wall-merge";
 import { sameOrigin } from "./same-origin";
 import {
   GALLERY_DAILY_OPEN_LIMIT,
@@ -568,13 +573,7 @@ export async function routeGalleryRequest(
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
     if (!user.isOwner)
       return Response.json({ error: "owner-only" }, { status: 403 });
-    const author = url.searchParams.get("author");
-    const { payload } = await callGallery(
-      env,
-      "owner-data",
-      author ? { author } : {},
-    );
-    return Response.json(payload, {
+    return Response.json(await ownerData(env, url.searchParams.get("author")), {
       headers: { "cache-control": "no-store" },
     });
   }
