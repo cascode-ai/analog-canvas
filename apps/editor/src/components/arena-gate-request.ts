@@ -59,9 +59,10 @@ export function gateAfterManualCloudSave<Outcome extends { status: string }>(
 
 /**
  * The person opened the Cloud shelf: the editor's Shelf menu, the Gallery's
- * My shelf tab or the account page's Cloud Projects tab. Every such opening
- * opens the gate. A page that loads on the shelf, as on a reload, does not
- * call this, so a reload always ends a gate.
+ * My shelf tab or the account page's Cloud Projects tab. Such an opening
+ * opens the gate unless the day's Votes are in (arena-gate.ts). A page that
+ * loads on the shelf, as on a reload, does not call this, so a reload
+ * always ends a gate.
  */
 export function cloudShelfOpened(load: PanelLoader = loadPanel): void {
   requestArenaGate("shelf", load);

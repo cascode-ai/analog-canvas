@@ -93,9 +93,10 @@ reserves 5xx for failures, never for answers it designed.
 
 After a manual Cloud Save, and whenever the person opens the Cloud shelf
 themselves (editor Shelf menu, Gallery My shelf tab, account Cloud Projects
-tab), the editor asks a signed-in person for `min(5, battlesLeft)` Votes
-before its panel closes. A page that loads already on the shelf (a reload)
-opens no gate. Voting happens in Arena's own window on AnalogArena's host;
+tab), the editor asks a signed-in person for the day's Votes still owed,
+`min(5 − votedToday, battlesLeft)`, before its panel closes; none owed, no
+panel. So the gate opens at most once a day. A page that loads already on the
+shelf (a reload) opens no gate. Voting happens in Arena's own window on AnalogArena's host;
 Analog Canvas only counts. Arena's pages never run on Analog Canvas's origin.
 
 The panel frames `https://chip-arena.com/schematic/preview` (a fixed Battle
@@ -122,15 +123,17 @@ The gate reads on Analog Canvas's host, forwarded with the vouched account:
   opened and `castAt` ≥ the `Date` of Arena's first answer; without a `Date`,
   the initially listed Battles alone decide. The first page (20) suffices.
   Re-read every 4 s while visible and on return to the window, one at a time.
+  `votedToday`: listed Votes with `castAt` since this browser's midnight, by
+  Arena's `Date` (the browser's clock without one), cast in the gate or not.
   `403 consent-required` still opens the gate (Votes count once the list
   answers).
 - `GET /api/arena/session`, read with every count: `signedIn`, `aiAccount`,
   `battlesLeft` (active-Season pairings without a Vote by this account; 0 with
   no open Season or for an AI seat). Never cached, creates no Battle
-  (Arcadia-1/chip-arena#238). N = `min(5, battlesLeft)` is fixed as the gate
-  opens and shown as N dots ("Voted x of N" for readers). `battlesLeft` 0 →
-  no panel; reaching 0 before the Votes are in → panel may close. Only a
-  whole number ≥ 0 is accepted; anything else is a failed read.
+  (Arcadia-1/chip-arena#238). N = `min(5 − votedToday, battlesLeft)` is fixed
+  as the gate opens and shown as N dots ("Voted x of N" for readers).
+  `battlesLeft` 0 → no panel; reaching 0 before the Votes are in → panel may
+  close. Only a whole number ≥ 0 is accepted; anything else is a failed read.
 - The gate never calls `POST /api/arena/battles/next` (it assigns Battles).
 - No panel: `signedIn: false`, `aiAccount: true`, list `401` or
   `403 ai-account`, or a non-JSON-object answer to either read (Arena and this

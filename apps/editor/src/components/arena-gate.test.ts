@@ -14,6 +14,12 @@ const BEFORE = "2026-10-12T09:59:59.400Z";
 const after = (second: number) =>
   `2026-10-12T10:00:${String(second).padStart(2, "0")}.250Z`;
 
+/**
+ * A day that begins a minute after the gate opens: every Vote these tests
+ * list is another day's, so none counts toward the day's five.
+ */
+const dayFromOpening = () => -60_000;
+
 type Answer = Response | Error;
 type Session = Record<string, unknown>;
 
@@ -97,7 +103,7 @@ describe("the Arena gate's count", () => {
         ]),
       ],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     expect(await gate.start()).toEqual({
       status: "voting",
       voted: 0,
@@ -124,7 +130,7 @@ describe("the Arena gate's count", () => {
         ),
       ],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     await gate.start();
     expect(await gate.recount()).toEqual({
       status: "voting",
@@ -145,7 +151,7 @@ describe("the Arena gate's count", () => {
         refusal(503, "arena-unavailable"),
       ],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     await gate.start();
     expect(await gate.recount()).toEqual({
       status: "voting",
@@ -176,7 +182,7 @@ describe("the Arena gate's count", () => {
         ),
       ],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     expect(await gate.start()).toEqual({
       status: "voting",
       voted: 0,
@@ -205,7 +211,7 @@ describe("the Arena gate's count", () => {
         past([["n1", after(1)]]),
       ],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     await gate.start();
     await gate.recount();
     expect(await gate.recount()).toEqual({
@@ -217,7 +223,7 @@ describe("the Arena gate's count", () => {
 
   it("reads once for recounts asked while one is reading", async () => {
     const { fetchLike, asked } = arena({ past: [past([])] });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     await gate.start();
     asked.length = 0;
     await Promise.all([gate.recount(), gate.recount()]);
@@ -231,7 +237,10 @@ describe("the Arena gate never traps anyone", () => {
       refusal(503, "arena-unavailable"),
       new TypeError("Failed to fetch"),
     ]) {
-      const gate = createArenaGate(arena({ past: [answer] }).fetchLike);
+      const gate = createArenaGate(
+        arena({ past: [answer] }).fetchLike,
+        dayFromOpening,
+      );
       const state = await gate.start();
       expect(state).toEqual({ status: "free", reason: "unavailable" });
       expect(gateClosable(state)).toBe(true);
@@ -243,7 +252,7 @@ describe("the Arena gate never traps anyone", () => {
     const { fetchLike } = arena({
       past: [past([]), down, past([["n1", after(1)]]), down, down, down],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     await gate.start();
     expect(await gate.recount()).toEqual({
       status: "voting",
@@ -271,6 +280,7 @@ describe("the Arena gate never traps anyone", () => {
     const shown: unknown[] = [];
     const gate = createArenaGate(
       arena({ past: [past([])], session: [voter(0)] }).fetchLike,
+      dayFromOpening,
     );
     expect(await startArenaGate(gate, (state) => shown.push(state))).toBe(
       false,
@@ -290,7 +300,7 @@ describe("the Arena gate never traps anyone", () => {
       ],
       session: [voter(3), voter(0)],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     expect(await gate.start()).toEqual({
       status: "voting",
       voted: 0,
@@ -306,7 +316,7 @@ describe("the Arena gate never traps anyone", () => {
       past: [past([]), past([["n1", after(1)]])],
       session: [voter(7), voter(0)],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     await gate.start();
     expect(await gate.recount()).toEqual({
       status: "free",
@@ -331,7 +341,7 @@ describe("the Arena gate never traps anyone", () => {
       past: [past([])],
       session: [voter(9), { ...voter(9), battlesLeft: -2 }],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     await gate.start();
     // Not "none left": one failed read of the 3 allowed.
     expect(await gate.recount()).toEqual({
@@ -346,6 +356,7 @@ describe("the Arena gate never traps anyone", () => {
     for (const answer of [down, refusal(503, "arena-unavailable")]) {
       const opening = createArenaGate(
         arena({ past: [past([])], session: [answer] }).fetchLike,
+        dayFromOpening,
       );
       expect(await opening.start()).toEqual({
         status: "free",
@@ -356,7 +367,7 @@ describe("the Arena gate never traps anyone", () => {
       past: [past([])],
       session: [voter(9), down, voter(9), down],
     });
-    const gate = createArenaGate(fetchLike);
+    const gate = createArenaGate(fetchLike, dayFromOpening);
     await gate.start();
     expect(await gate.recount()).toEqual({
       status: "voting",
@@ -391,6 +402,7 @@ describe("the Arena gate never traps anyone", () => {
       const shown: unknown[] = [];
       const gate = createArenaGate(
         arena({ past: [answer], session: [session] }).fetchLike,
+        dayFromOpening,
       );
       expect(await startArenaGate(gate, (state) => shown.push(state))).toBe(
         false,
@@ -403,7 +415,10 @@ describe("the Arena gate never traps anyone", () => {
 
   it("shows the panel once, with its first state, to a Voter", async () => {
     const shown: unknown[] = [];
-    const gate = createArenaGate(arena({ past: [past([])] }).fetchLike);
+    const gate = createArenaGate(
+      arena({ past: [past([])] }).fetchLike,
+      dayFromOpening,
+    );
     expect(await startArenaGate(gate, (state) => shown.push(state))).toBe(true);
     expect(shown).toEqual([{ status: "voting", voted: 0, required: 5 }]);
   });
@@ -421,6 +436,7 @@ describe("the Arena gate never traps anyone", () => {
       const gate = createArenaGate(
         arena({ past: [past([]), answer], session: [voter(9), session] })
           .fetchLike,
+        dayFromOpening,
       );
       await gate.start();
       expect(await gate.recount()).toEqual({ status: "free", reason });
@@ -438,5 +454,42 @@ describe("the battle page the gate opens", () => {
     // Arcadia-1/chip-arena#234: Votes cast on a page opened with
     // from=canvas-gate keep the source "canvas-gate".
     expect(address.searchParams.get("from")).toBe("canvas-gate");
+  });
+});
+
+describe("the Arena gate, once a day", () => {
+  // Arena's clock says 10:00; this browser's day began ten hours before.
+  const tenHours = () => 10 * 3_600_000;
+  const yesterday = "2026-10-11T23:00:00.000Z";
+
+  it("asks only for the day's Votes still owed, and nothing once five are in", async () => {
+    const opened = (battles: [string, string][]) =>
+      createArenaGate(arena({ past: [past(battles)] }).fetchLike, tenHours);
+    // Two cast today, one yesterday: three more today.
+    const partly = opened([
+      ["b-3", BEFORE],
+      ["b-2", "2026-10-12T08:00:00.000Z"],
+      ["b-1", yesterday],
+    ]);
+    expect(await partly.start()).toEqual({
+      status: "voting",
+      voted: 0,
+      required: VOTES_REQUIRED - 2,
+    });
+    // Five today, in the gate or in Arena: no panel until tomorrow.
+    const done = opened(
+      Array.from({ length: VOTES_REQUIRED }, (_, index): [string, string] => [
+        `t-${index}`,
+        "2026-10-12T09:00:00.000Z",
+      ]),
+    );
+    expect(await done.start()).toEqual({ status: "closed" });
+    // Yesterday's Votes are yesterday's.
+    const fresh = opened([["y-1", yesterday]]);
+    expect(await fresh.start()).toEqual({
+      status: "voting",
+      voted: 0,
+      required: VOTES_REQUIRED,
+    });
   });
 });

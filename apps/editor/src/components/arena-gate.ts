@@ -1,6 +1,8 @@
 // The Arena gate's count (#1681): after a manual Cloud Save and whenever the
 // person opens the Cloud shelf, Analog Canvas asks for five Schematic Arena
-// Votes before its panel closes. The person votes in Arena's own window,
+// Votes a day before its panel closes: Votes already cast today (the
+// browser's day, by Arena's clock), in the gate or in Arena, count toward
+// them, so the gate opens at most once a day. The person votes in Arena's own window,
 // on chip-arena.com; this side only counts. Arena lists a Voter's voted
 // Battles newest first with the time each Vote was cast
 // (GET /api/arena/battles/past, which this site's Worker forwards with the
@@ -23,8 +25,16 @@
  */
 export const ARENA_GATE_PAGE = "/schematic?from=canvas-gate";
 
-/** The Votes a gate asks for, at most: fewer when fewer Battles are left. */
+/** The Votes a day asks for, at most: fewer when fewer Battles are left. */
 export const VOTES_REQUIRED = 5;
+
+/** How long ago this browser's day began, in milliseconds. */
+function sinceLocalMidnight(): number {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  return now.getTime() - midnight.getTime();
+}
 
 /** Failed reads in a row, while counting, after which the panel unlocks. */
 export const FAILURES_ALLOWED = 3;
@@ -166,7 +176,10 @@ export function gateClosable(state: ArenaGateState): boolean {
  * again. A recount asked while one is reading joins it. Once the panel may
  * close, it stays closable.
  */
-export function createArenaGate(fetchLike: typeof fetch = fetch) {
+export function createArenaGate(
+  fetchLike: typeof fetch = fetch,
+  sinceMidnight: () => number = sinceLocalMidnight,
+) {
   let state: ArenaGateState = { status: "checking" };
   /** The Battles listed as the gate opened; none of them counts. */
   let seen = new Set<string>();
@@ -242,7 +255,14 @@ export function createArenaGate(fetchLike: typeof fetch = fetch) {
         return settle({ status: "free", reason: "unavailable" });
       // Nothing left to vote on, no Season open included: no panel.
       if (session.battlesLeft <= 0) return settle({ status: "closed" });
-      required = Math.min(VOTES_REQUIRED, session.battlesLeft);
+      // The day's Votes so far count: none owed, no panel.
+      const dayStart = (read.at ?? Date.now()) - sinceMidnight();
+      const votedToday =
+        read.kind === "listed"
+          ? read.battles.filter((battle) => battle.castAt >= dayStart).length
+          : 0;
+      if (votedToday >= VOTES_REQUIRED) return settle({ status: "closed" });
+      required = Math.min(VOTES_REQUIRED - votedToday, session.battlesLeft);
       since = read.at;
       if (read.kind === "listed")
         seen = new Set(read.battles.map((battle) => battle.id));
