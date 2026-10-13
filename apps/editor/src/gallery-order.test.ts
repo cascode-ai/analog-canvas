@@ -20,6 +20,8 @@ describe("the Gallery's order (#1615)", () => {
     expect(galleryOrderPreference(() => null)).toBe("random");
     expect(galleryOrderPreference(() => "oldest")).toBe("oldest");
     expect(galleryOrderPreference(() => "fewest")).toBe("fewest");
+    expect(galleryOrderPreference(() => "name")).toBe("name");
+    expect(galleryOrderPreference(() => "name-desc")).toBe("name-desc");
     expect(galleryOrderPreference(() => "random")).toBe("random");
     expect(galleryOrderPreference(() => "sideways")).toBe("random");
     expect(
@@ -66,6 +68,18 @@ describe("the Gallery's order (#1615)", () => {
     expect(parts).toContain('aria-label="Order: Most parts"');
     expect(parts).toMatch(
       /aria-checked="true" data-testid="gallery-order-parts"/u,
+    );
+    // By name, either way.
+    const byName = renderToStaticMarkup(
+      createElement(GalleryOrderMenu, {
+        order: "name-desc",
+        onChoose: () => {},
+      }),
+    );
+    expect(byName).toContain('aria-label="Order: Name Z–A"');
+    expect(byName).toContain('data-testid="gallery-order-name"');
+    expect(byName).toMatch(
+      /aria-checked="true" data-testid="gallery-order-name-desc"/u,
     );
   });
 });

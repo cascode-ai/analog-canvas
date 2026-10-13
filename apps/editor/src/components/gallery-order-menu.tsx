@@ -15,6 +15,8 @@ const LABELS: Record<GalleryOrder, string> = {
   oldest: "Oldest",
   parts: "Most parts",
   fewest: "Fewest parts",
+  name: "Name A–Z",
+  "name-desc": "Name Z–A",
 };
 
 function OrderIcon({ order }: { order: GalleryOrder }) {
@@ -32,6 +34,17 @@ function OrderIcon({ order }: { order: GalleryOrder }) {
       <svg {...common}>
         <path d="M2 4h2.5c2.5 0 4.5 8 7 8H14M12 10l2 2-2 2" />
         <path d="M2 12h2.5c1 0 1.8-1.2 2.5-2.7M9 6.7C9.7 5.2 10.5 4 11.5 4H14M12 2l2 2-2 2" />
+      </svg>
+    );
+  if (order === "name" || order === "name-desc")
+    return (
+      <svg {...common}>
+        {order === "name" ? (
+          <path d="M5 2.5v11M2.5 11 5 13.5 7.5 11" />
+        ) : (
+          <path d="M5 13.5v-11M2.5 5 5 2.5 7.5 5" />
+        )}
+        <path d="M9.5 7 11.25 2.5 13 7M10.1 5.5h2.3M9.5 9.5H13l-3.5 4H13" />
       </svg>
     );
   const down = order === "newest" || order === "parts";
@@ -95,6 +108,9 @@ export function GalleryOrderMenu({
         <span className="gallery-order-group">Parts</span>
         {item("parts", "Most first")}
         {item("fewest", "Fewest first")}
+        <span className="gallery-order-group">Name</span>
+        {item("name", "A to Z")}
+        {item("name-desc", "Z to A")}
       </div>
     </details>
   );

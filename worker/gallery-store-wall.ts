@@ -286,10 +286,12 @@ const searchMatchesByRequest = new WeakMap<object, string>();
 
 /**
  * The wall's orders (#1615): a shuffle, the default, that a seed keeps steady
- * from page to page; by time, newest or oldest first; or by part count, most
- * or fewest first, circuits whose part count is unknown last either way.
+ * from page to page; by time, newest or oldest first; by part count, most
+ * or fewest first, circuits whose part count is unknown last either way; or
+ * by name, A to Z or Z to A (letters' case aside).
  */
-export type WallOrder = "random" | "newest" | "oldest" | "parts" | "fewest";
+export type WallOrder =
+  "random" | "newest" | "oldest" | "parts" | "fewest" | "name" | "name-desc";
 
 const KNOWN_PARTS =
   "CASE WHEN e.component_count_version > 0 THEN e.component_count END";
@@ -311,7 +313,9 @@ export function wallOrder(body: Record<string, unknown>): {
   if (
     body.order === "oldest" ||
     body.order === "parts" ||
-    body.order === "fewest"
+    body.order === "fewest" ||
+    body.order === "name" ||
+    body.order === "name-desc"
   )
     return { order: body.order, seed: "" };
   return { order: "newest", seed: "" };
@@ -358,7 +362,14 @@ const DESCENDING: Record<WallOrder, readonly boolean[]> = {
   parts: [true, true, true],
   fewest: [false, true, true],
   random: [false, false],
+  name: [false, false],
+  "name-desc": [true, true],
 };
+
+/** A name as SQLite's NOCASE compares it: ASCII letters folded, nothing else. */
+function nocase(name: string): string {
+  return name.replace(/[A-Z]/gu, (letter) => letter.toLowerCase());
+}
 
 export function compareWallKeys(
   order: WallOrder,
@@ -407,7 +418,24 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
   const componentRanges = componentRangeCounts(sql, body);
   const authors = contributorCounts(sql, conditions, bindings);
   const { order, seed } = wallOrder(body);
-  const select = (where: string[], tail: string, tailBindings: unknown[]) =>
+  // A page's rows, read by id alone: the order and the filters chose the
+  // ids from the covering index, so no other row is read whole (each
+  // carries its Project and preview).
+  const rowsOf = (ids: readonly string[]) => {
+    if (ids.length === 0) return [];
+    const byId = new Map(
+      select([`e.id IN (${ids.map(() => "?").join(", ")})`], [], "", ids).map(
+        (row) => [row.id, row],
+      ),
+    );
+    return ids.flatMap((id) => byId.get(id) ?? []);
+  };
+  const select = (
+    where: string[],
+    whereBindings: readonly (string | number)[],
+    tail: string,
+    tailBindings: readonly unknown[],
+  ) =>
     sql
       .exec<
         EntrySummaryRow & {
@@ -429,7 +457,7 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
              WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
          FROM gallery_entries e WHERE ${where.join(" AND ")} ${tail}`,
         viewerId,
-        ...bindings,
+        ...whereBindings,
         ...tailBindings,
       )
       .toArray();
@@ -445,6 +473,11 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
       return {
         key: [row.parts, row.created_at, row.id],
         cursor: `${order === "parts" ? "p" : "f"}${row.parts}|${row.created_at}|${row.id}`,
+      };
+    if (order === "name" || order === "name-desc")
+      return {
+        key: [nocase(row.name), row.id],
+        cursor: `${order === "name" ? "a" : "z"}${JSON.stringify([row.name, row.id])}`,
       };
     return {
       key: [row.created_at, row.id],
@@ -476,16 +509,7 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
     const offset = after === -1 ? shuffled.length : after;
     const pageItems = shuffled.slice(offset, offset + limit);
     for (const item of pageItems) positions.set(item.id, item.at);
-    const pageIds = pageItems.map((item) => item.id);
-    const found = pageIds.length
-      ? select(
-          [...conditions, `e.id IN (${pageIds.map(() => "?").join(", ")})`],
-          "",
-          pageIds,
-        )
-      : [];
-    const byId = new Map(found.map((row) => [row.id, row]));
-    page = pageIds.flatMap((id) => byId.get(id) ?? []);
+    page = rowsOf(pageItems.map((item) => item.id));
     const last = page.at(-1);
     if (offset + limit < shuffled.length && last)
       nextCursor = placeOf(last).cursor;
@@ -513,12 +537,35 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
         );
         tailBindings.push(Number(parts), Number(parts), rest);
       }
+    } else if (order === "name" || order === "name-desc") {
+      const tag = order === "name" ? "a" : "z";
+      const resume = cursor?.startsWith(tag)
+        ? (() => {
+            try {
+              const parsed = JSON.parse(cursor.slice(1)) as unknown;
+              return Array.isArray(parsed) &&
+                parsed.length === 2 &&
+                parsed.every((part) => typeof part === "string")
+                ? (parsed as [string, string])
+                : null;
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+      if (resume) {
+        const beyond = order === "name" ? ">" : "<";
+        where.push(
+          `(e.name COLLATE NOCASE ${beyond} ? OR (e.name COLLATE NOCASE = ? AND e.id ${beyond} ?))`,
+        );
+        tailBindings.push(resume[0], resume[0], resume[1]);
+      }
     } else {
       const tag = ascending ? "o" : "";
       if (
         cursor &&
         cursor.startsWith(tag) &&
-        (tag || !/^[ofpr]/u.test(cursor))
+        (tag || !/^[ofpraz]/u.test(cursor))
       ) {
         where.push(`(e.created_at || '|' || e.id) ${after} ?`);
         tailBindings.push(cursor.slice(tag.length));
@@ -527,11 +574,23 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
     const sort =
       order === "parts" || order === "fewest"
         ? `${WALL_PARTS[order]} ${order === "parts" ? "DESC" : "ASC"}, e.created_at DESC, e.id DESC`
-        : time;
-    const rows = select(where, `ORDER BY ${sort} LIMIT ?`, [
-      ...tailBindings,
-      limit + 1,
-    ]);
+        : order === "name"
+          ? "e.name COLLATE NOCASE ASC, e.id ASC"
+          : order === "name-desc"
+            ? "e.name COLLATE NOCASE DESC, e.id DESC"
+            : time;
+    // The page's ids first, sorted off the covering index; then their rows.
+    const ids = sql
+      .exec<{ id: string }>(
+        `SELECT e.id FROM gallery_entries e WHERE ${where.join(" AND ")}
+         ORDER BY ${sort} LIMIT ?`,
+        ...bindings,
+        ...tailBindings,
+        limit + 1,
+      )
+      .toArray()
+      .map((row) => row.id);
+    const rows = rowsOf(ids);
     page = rows.slice(0, limit);
     const last = page.at(-1);
     if (rows.length > limit && last) nextCursor = placeOf(last).cursor;

@@ -50,6 +50,10 @@ entries, keyset cursor, limit ≤60.
   `ai=1|0|dataset` (the AI mark; community circuits without it; reference
   datasets' circuits), `liked=1` (signed out selects none), `parts=0-5,…` (ANY
   taxonomy size; unknown narrows nothing), `q`, authorized `attention`/`reason`.
+- `order`: `newest` (default), `oldest`, `parts`/`fewest` (unknown counts
+  last), `name`/`name-desc` (case-insensitive, then id), or `random` with
+  `seed=[a-z0-9]{1,16}`; the cursor is opaque. A page's ids are sorted off
+  the covering metadata index and only its rows are read.
 - `filterCounts` gives each side (`netlistable`/`withoutNetlist`,
   `ai`/`human`/`datasets`), size (`componentRanges`) and reason
   (`attentionKinds`) with every other filter applied and its own left out; the

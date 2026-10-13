@@ -345,7 +345,7 @@ describe("newest-first gallery feed", () => {
       }
       return results;
     };
-    env.gallerySql.exec("DROP INDEX idx_gallery_entries_feed_stats_ai");
+    env.gallerySql.exec("DROP INDEX idx_gallery_entries_feed_stats_wall");
     const before = await read();
     env.gallerySql.exec(createIndex);
     const after = await read();
@@ -513,6 +513,72 @@ describe("newest-first gallery feed", () => {
     const known = fewest.slice(0, -1).map((id) => count.get(id)!);
     expect(known).toEqual([...known].sort((a, b) => a - b));
     expect((await walk(env, "parts")).at(-1)).toBe(wall[5]);
+  });
+
+  it("orders by name, A to Z or Z to A, letters' case aside, paging without repeats", async () => {
+    const env = environment();
+    const wall = await wallOf(env, 7);
+    const names = [
+      "delta",
+      "Alpha",
+      "charlie",
+      "Bravo",
+      "alpha",
+      "echo",
+      "(a) circuit",
+    ];
+    wall.forEach((id, index) =>
+      env.gallerySql.exec(
+        "UPDATE gallery_entries SET name = ? WHERE id = ?",
+        names[index]!,
+        id,
+      ),
+    );
+    const nameOf = new Map(wall.map((id, index) => [id, names[index]!]));
+    const az = await walk(env, "name");
+    expect(az.map((id) => nameOf.get(id)!.toLowerCase())).toEqual([
+      "(a) circuit",
+      "alpha",
+      "alpha",
+      "bravo",
+      "charlie",
+      "delta",
+      "echo",
+    ]);
+    // Names equal but for case keep one order: by id.
+    const alphas = az.filter((id) => nameOf.get(id)!.toLowerCase() === "alpha");
+    expect(alphas).toEqual([wall[1], wall[4]].sort());
+    expect(await walk(env, "name-desc")).toEqual([...az].reverse());
+  });
+
+  it("sorts a page's ids off the covering index and reads only their rows", async () => {
+    const env = environment();
+    await wallOf(env, 4);
+    const before = env.galleryQueries.length;
+    for (const order of ["random", "parts", "name"])
+      await orderedPage(env, order, "abc123");
+    const queries = env.galleryQueries.slice(before);
+    const plan = (query: string) =>
+      env.gallerySql
+        .exec<{ detail: string }>(
+          `EXPLAIN QUERY PLAN ${query}`,
+          ...Array.from(
+            { length: (query.match(/\?/g) ?? []).length },
+            () => "",
+          ),
+        )
+        .toArray()
+        .map((step) => step.detail)
+        .join("\n");
+    // Each order's ids come off the index alone, never the wide rows that
+    // carry Project Code and previews (about a second a page, 2026-10-13).
+    const sorts = queries.filter((q) => /^\s*SELECT e\.id FROM/u.test(q));
+    expect(sorts).toHaveLength(3);
+    for (const query of sorts) expect(plan(query)).toContain("COVERING INDEX");
+    // The page's rows are read by id.
+    const reads = queries.filter((q) => q.includes("e.id IN ("));
+    expect(reads).toHaveLength(3);
+    for (const query of reads) expect(plan(query)).toContain("PRIMARY KEY");
   });
 
   it("orders oldest first, the reverse of newest first (#1615)", async () => {

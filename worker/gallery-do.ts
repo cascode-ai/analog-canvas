@@ -280,13 +280,17 @@ export class GalleryDO {
     // the index that covers them was rebuilt with each. Without the AI mark,
     // every page's AI and Human counts read it off the row, walking each
     // entry's Project and SVG text: about 139,000 pages of a 1,269-entry
-    // Gallery per click, against about 100 with it.
+    // Gallery per click, against about 100 with it. The orders by parts and
+    // by name sort the page's ids off it too (#1615), so it also holds the
+    // part count's rule version, the time and the name.
     this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats");
     this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats_parts");
+    this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats_ai");
     this.sql.exec(`
-      CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats_ai
+      CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats_wall
       ON gallery_entries(status, owner_user_id, author, netlistable,
-        ai_generated, tags, curation_json, component_count)
+        ai_generated, tags, curation_json, component_count,
+        component_count_version, created_at, name)
     `);
     // Each entry's latest simulation check and the queue of checks (#1545).
     installSimulationChecks(this.sql);

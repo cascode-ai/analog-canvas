@@ -638,7 +638,10 @@ export function GalleryFeed({
                 attentionKindCounts={attentionKindCounts}
                 aiFilter={aiFilter}
                 showDatasets={
-                  quickCounts.datasets > 0 || aiFilter === "dataset"
+                  // Shown while the wall loads, so it never pops in later.
+                  state.status === "loading" ||
+                  quickCounts.datasets > 0 ||
+                  aiFilter === "dataset"
                 }
                 netlistableOnly={netlistableOnly}
                 withoutNetlistOnly={withoutNetlistOnly}
