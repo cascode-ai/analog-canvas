@@ -6,7 +6,7 @@ import { arenaProjectCopy, loadArenaEntryProject } from "./arena-entry";
 import {
   arenaEntryOf,
   arenaEntryRedirect,
-  rememberPendingArenaEntry,
+  rememberArenaEntryOnSignIn,
 } from "./arena-entry-address";
 
 /** A tab's sessionStorage, as far as the entry uses it. */
@@ -49,8 +49,37 @@ describe("the Schematic Arena's Draw it yourself entry (#1695)", () => {
     expect(arenaEntryRedirect({ pathname: "/", search: "" }, storage)).toBe(
       null,
     );
-    // A sign-in begun from the entry ends on the Gallery: it continues, once.
-    rememberPendingArenaEntry({ battle: "b7", side: "a" }, storage, 1_000);
+    // A sign-in chosen from the entry ends on the Gallery: it continues,
+    // once. A Voter who declines finds the Gallery as usual.
+    let now = 1_000;
+    const clicks: Array<(event: { target: unknown }) => void> = [];
+    rememberArenaEntryOnSignIn(
+      { battle: "b7", side: "a" },
+      {
+        addEventListener: (_type: string, listener: unknown) =>
+          void clicks.push(listener as (typeof clicks)[number]),
+      } as unknown as Document,
+      storage,
+      () => now,
+    );
+    const click = (href: string | null) =>
+      clicks.forEach((listener) =>
+        listener({
+          target: {
+            closest: (selector: string) =>
+              href?.startsWith("/api/auth/") &&
+              selector === 'a[href^="/api/auth/"]'
+                ? {}
+                : null,
+          },
+        }),
+      );
+    click(null);
+    click("/arena");
+    expect(arenaEntryRedirect({ pathname: "/", search: "" }, storage)).toBe(
+      null,
+    );
+    click("/api/auth/github/start");
     expect(
       arenaEntryRedirect({ pathname: "/", search: "" }, storage, 2_000),
     ).toBe("/editor?arena-battle=b7&arena-side=a");
@@ -58,7 +87,8 @@ describe("the Schematic Arena's Draw it yourself entry (#1695)", () => {
       arenaEntryRedirect({ pathname: "/", search: "" }, storage, 3_000),
     ).toBeNull();
     // An entry left waiting too long is dropped.
-    rememberPendingArenaEntry({ battle: "b7", side: "a" }, storage, 0);
+    now = 0;
+    click("/api/auth/google/start");
     expect(
       arenaEntryRedirect({ pathname: "/", search: "" }, storage, 16 * 60_000),
     ).toBeNull();

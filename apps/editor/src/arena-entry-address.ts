@@ -32,7 +32,29 @@ function arenaEntryEditorPath(entry: ArenaEntry): string {
 const PENDING_KEY = "icm.arena-entry.pending";
 const PENDING_FOR_MS = 15 * 60_000;
 
-export function rememberPendingArenaEntry(
+/**
+ * The entry waits once the Voter chooses a GitHub or Google sign-in, and
+ * not before: one who declines finds the Gallery as usual. An email
+ * sign-in reloads the entry's own address.
+ */
+export function rememberArenaEntryOnSignIn(
+  entry: ArenaEntry,
+  page: Pick<Document, "addEventListener"> = document,
+  storage: Pick<Storage, "setItem"> = sessionStorage,
+  clock: () => number = Date.now,
+): void {
+  page.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as Partial<Element> | null;
+      if (target?.closest?.('a[href^="/api/auth/"]'))
+        rememberPendingArenaEntry(entry, storage, clock());
+    },
+    { capture: true },
+  );
+}
+
+function rememberPendingArenaEntry(
   entry: ArenaEntry,
   storage: Pick<Storage, "setItem"> = sessionStorage,
   now = Date.now(),

@@ -31,7 +31,7 @@ import {
 } from "../arena-entry";
 import {
   arenaEntryOf,
-  rememberPendingArenaEntry,
+  rememberArenaEntryOnSignIn,
 } from "../arena-entry-address";
 import { requestSignIn } from "../components/sign-in-request";
 import type { EditorServices } from "../services/editor-services";
@@ -146,7 +146,7 @@ export function useBootLink({
           return;
         }
         if (result.reason === "sign-in") {
-          rememberPendingArenaEntry(arenaEntry);
+          rememberArenaEntryOnSignIn(arenaEntry);
           requestSignIn();
         } else forgetArenaEntryAddress();
         setStatus(ARENA_ENTRY_NOTICES[result.reason]);

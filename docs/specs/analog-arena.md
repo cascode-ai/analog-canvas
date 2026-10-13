@@ -187,9 +187,10 @@ circuit themselves, starting from either side's drawing (#1695).
   `<circuit> (from Arena)`. The Arena's stored project is untouched, and the
   address drops the query once handled, so a reload opens no second copy.
 - **Signed out**, the fetch answers 401: the editor asks the Voter to sign
-  in and keeps the entry in the tab for 15 minutes. An email-code sign-in
-  reloads the entry; a GitHub or Google sign-in returns to `/`, which
-  continues to the entry once.
+  in. An email-code sign-in reloads the entry. Choosing GitHub or Google
+  keeps the entry in the tab for 15 minutes; that sign-in returns to `/`,
+  which continues to the entry once. A Voter who declines finds `/` as
+  usual.
 - **A refused or failed fetch** (`vote-required`, `battle-unknown`,
   `project-unknown`, or the Arena unreachable) opens the editor as usual with
   a short notice, never an error page.
