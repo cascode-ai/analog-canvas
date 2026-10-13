@@ -575,10 +575,14 @@ describe("newest-first gallery feed", () => {
     const sorts = queries.filter((q) => /^\s*SELECT e\.id FROM/u.test(q));
     expect(sorts).toHaveLength(3);
     for (const query of sorts) expect(plan(query)).toContain("COVERING INDEX");
-    // The page's rows are read by id.
+    // The page's tiles are read by id off the card index, never the rows
+    // behind their Projects and previews (about 0.8 s a page on Production).
     const reads = queries.filter((q) => q.includes("e.id IN ("));
     expect(reads).toHaveLength(3);
-    for (const query of reads) expect(plan(query)).toContain("PRIMARY KEY");
+    for (const query of reads)
+      expect(plan(query)).toContain(
+        "COVERING INDEX idx_gallery_entries_card (id=?)",
+      );
   });
 
   it("orders oldest first, the reverse of newest first (#1615)", async () => {

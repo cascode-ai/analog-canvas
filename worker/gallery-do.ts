@@ -294,6 +294,17 @@ export class GalleryDO {
     `);
     // Each entry's latest simulation check and the queue of checks (#1545).
     installSimulationChecks(this.sql);
+    // A tile's whole card, by id: a page's tiles and the Owner's lists read
+    // it here, never the row, whose card fields sit behind its Project and
+    // preview (about 100 kB, some 25 pages each; 30 cold tiles took about
+    // 0.8 s on Production, 2026-10-13).
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_gallery_entries_card
+      ON gallery_entries(id, status, name, author, description, created_at,
+        owner_user_id, schema_version, tags, curation_json, netlistable,
+        preview_revision, preview_width, preview_height, component_count,
+        component_count_version, ai_generated, simulation_check_json)
+    `);
     syncAiSeatBylines(this.state);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS data_migrations (

@@ -424,9 +424,13 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
   const rowsOf = (ids: readonly string[]) => {
     if (ids.length === 0) return [];
     const byId = new Map(
-      select([`e.id IN (${ids.map(() => "?").join(", ")})`], [], "", ids).map(
-        (row) => [row.id, row],
-      ),
+      select(
+        [`e.id IN (${ids.map(() => "?").join(", ")})`],
+        [],
+        "",
+        ids,
+        "INDEXED BY idx_gallery_entries_card",
+      ).map((row) => [row.id, row]),
     );
     return ids.flatMap((id) => byId.get(id) ?? []);
   };
@@ -435,6 +439,7 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
     whereBindings: readonly (string | number)[],
     tail: string,
     tailBindings: readonly unknown[],
+    indexed = "",
   ) =>
     sql
       .exec<
@@ -455,7 +460,8 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
            (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
            (SELECT COUNT(*) FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
-         FROM gallery_entries e WHERE ${where.join(" AND ")} ${tail}`,
+         FROM gallery_entries e ${indexed}
+         WHERE ${where.join(" AND ")} ${tail}`,
         viewerId,
         ...whereBindings,
         ...tailBindings,
@@ -809,7 +815,7 @@ export function ownerData(
         `SELECT e.id, e.name, e.created_at, ${parts} AS parts,
                 e.netlistable, e.ai_generated, ${likes} AS likes,
                 ${opens} AS opens, ${recent} AS recent
-         FROM gallery_entries e
+         FROM gallery_entries e INDEXED BY idx_gallery_entries_card
          WHERE e.status = 'public' AND ${
            legacy === null
              ? "e.owner_user_id = ?"
@@ -853,7 +859,7 @@ export function ownerData(
               SUM(e.ai_generated = 1) AS ai, SUM(e.netlistable = 1) AS netlist,
               SUM(${likes}) AS likes, SUM(${opens}) AS opens,
               MAX(e.created_at) AS latest
-       FROM gallery_entries e
+       FROM gallery_entries e INDEXED BY idx_gallery_entries_feed_stats_wall
        WHERE e.status = 'public' AND TRIM(e.author) <> ''
        GROUP BY key
        ORDER BY circuits DESC, author COLLATE NOCASE ASC, author ASC`,
@@ -893,7 +899,8 @@ function mostOpened(
     }>(
       `SELECT * FROM (
          SELECT e.id, e.name, e.author, ${opens} AS opens, ${recent} AS recent
-         FROM gallery_entries e WHERE e.status = 'public')
+         FROM gallery_entries e INDEXED BY idx_gallery_entries_feed_stats_wall
+         WHERE e.status = 'public')
        WHERE opens > 0
        ORDER BY opens DESC, recent DESC, id ASC
        LIMIT 50`,

@@ -53,7 +53,8 @@ entries, keyset cursor, limit ≤60.
 - `order`: `newest` (default), `oldest`, `parts`/`fewest` (unknown counts
   last), `name`/`name-desc` (case-insensitive, then id), or `random` with
   `seed=[a-z0-9]{1,16}`; the cursor is opaque. A page's ids are sorted off
-  the covering metadata index and only its rows are read.
+  the covering metadata index and its tiles read off the card index, never
+  the rows behind their Projects and previews.
 - `filterCounts` gives each side (`netlistable`/`withoutNetlist`,
   `ai`/`human`/`datasets`), size (`componentRanges`) and reason
   (`attentionKinds`) with every other filter applied and its own left out; the
