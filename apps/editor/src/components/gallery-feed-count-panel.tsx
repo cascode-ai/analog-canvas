@@ -4,6 +4,8 @@
  */
 import { useRef, useState } from "react";
 
+import { useDismissDetails } from "./dismiss-details";
+
 import { galleryCountLabel, type GalleryAuthorOption } from "../gallery-client";
 import {
   compareContributorNames,
@@ -224,6 +226,7 @@ export function GalleryCountPanel({
       ? `${(total - datasetShare).toLocaleString()} community · ${datasetShare.toLocaleString()} from datasets`
       : undefined;
   const rootRef = useRef<HTMLDetailsElement | null>(null);
+  useDismissDetails(rootRef);
   // By circuits or by name (#1502), remembered in this browser.
   const [order, setOrder] = useState<ContributorOrder>(() => {
     try {

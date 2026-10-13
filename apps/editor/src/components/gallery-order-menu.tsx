@@ -5,6 +5,8 @@
  */
 import { useRef } from "react";
 
+import { useDismissDetails } from "./dismiss-details";
+
 import type { GalleryOrder } from "../gallery-order";
 
 const LABELS: Record<GalleryOrder, string> = {
@@ -53,6 +55,7 @@ export function GalleryOrderMenu({
   onChoose: (order: GalleryOrder) => void;
 }) {
   const rootRef = useRef<HTMLDetailsElement | null>(null);
+  useDismissDetails(rootRef);
   const choose = (next: GalleryOrder) => {
     rootRef.current?.removeAttribute("open");
     onChoose(next);
