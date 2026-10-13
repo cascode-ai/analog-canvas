@@ -137,14 +137,21 @@ export function AnalyticsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/auth/admin/stats", {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return response.json() as Promise<{ registeredAccounts?: unknown }>;
-      })
+    const read = (path: string) =>
+      fetch(path, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      }).then((response) => (response.ok ? response.json() : null));
+    // Only an administrator is answered; others are not asked, so their
+    // console shows no refusal.
+    void read("/api/auth/me")
+      .then((me: { user?: { isAdmin?: boolean } | null } | null) =>
+        me?.user?.isAdmin
+          ? (read("/api/auth/admin/stats") as Promise<{
+              registeredAccounts?: unknown;
+            } | null>)
+          : null,
+      )
       .then((data) => {
         if (
           typeof data?.registeredAccounts === "number" &&

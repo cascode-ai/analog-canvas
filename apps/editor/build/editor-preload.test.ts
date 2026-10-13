@@ -96,6 +96,21 @@ function preload(
 }
 
 describe("route resource preload", () => {
+  it("asks again for nothing the page itself loads or preloads (2026-10-14)", () => {
+    // Asked for twice, each such module was fetched twice on every visit.
+    const script = preloadScript(
+      transform(
+        builtHead.replace(
+          "jsx-runtime-12345678.js",
+          "gallery-shared-12345678.js",
+        ),
+      ),
+    );
+    expect(script).not.toContain("/assets/gallery-shared-12345678.js");
+    expect(script).not.toContain("/assets/index-12345678.css");
+    expect(script).toContain("/assets/gallery-feed-12345678.js");
+  });
+
   it("runs before any stylesheet, which an inline script would wait for", () => {
     const html = transform(builtHead);
     const script = html.indexOf("<script>const galleryResources");

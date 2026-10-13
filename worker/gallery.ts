@@ -442,6 +442,18 @@ export async function routeGalleryRequest(
         { headers: { "cache-control": "no-store" } },
       );
     }
+    // The landing page asks for the tag counts and the dataset list before
+    // it knows who is reading; a signed-out visitor gets empty ones rather
+    // than a refusal its console would show (2026-10-14).
+    if (
+      segments.length === 1 &&
+      request.method === "GET" &&
+      (segments[0] === "tags" || segments[0] === "sources")
+    )
+      return Response.json(
+        segments[0] === "tags" ? { tags: [], groups: [] } : { sources: [] },
+        { headers: { "cache-control": "no-store" } },
+      );
     const firstTwelvePreview =
       segments.length === 2 &&
       segments[1] === "preview.svg" &&

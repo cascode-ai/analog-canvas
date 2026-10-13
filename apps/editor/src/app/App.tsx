@@ -397,6 +397,7 @@ import type {
 import { buildSceneSnapTargetIndex } from "../snap/candidates";
 import { snapCoordinate } from "../snap/engine";
 import type { SnapGuideLine } from "../snap/engine";
+import { usePageTitle } from "./use-page-title";
 
 const RECENT_COMPONENTS_STORAGE_KEY = "icm.recent-components.v1";
 const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
@@ -774,6 +775,8 @@ function WorkspaceEditor({
     canvasDragSessionRef.current?.cancel();
     stageRecovery(project, { cloudBinding });
   });
+  // The tab names the open Project; the desktop names its window itself.
+  usePageTitle(project.name, !import.meta.env?.ICM_DESKTOP);
   const galleryTopologyProject = useMemo(
     () => projectWithTopologyRoot(project, document.id),
     [document.id, project],

@@ -19,6 +19,7 @@ import { GalleryChrome } from "./gallery-chrome";
 import { ModerationContent } from "./moderation";
 import { OwnerDataContent } from "./owner-data";
 import { MySubmissionsContent } from "./my-submissions";
+import { usePageTitle } from "../app/use-page-title";
 
 const ShelfWall = lazy(() =>
   import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
@@ -501,6 +502,7 @@ type AccountPageState =
 
 /** `/account`: the signed-in account's own page. */
 export function AccountPage() {
+  usePageTitle("Account");
   const [state, setState] = useState<AccountPageState>({ status: "loading" });
   useEffect(() => {
     let cancelled = false;

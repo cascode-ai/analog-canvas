@@ -4,6 +4,7 @@ import "../styles/privacy.css";
 import { useEffect, useState } from "react";
 
 import { ANALYTICS_OPT_OUT_PATH } from "../../analytics/client";
+import { usePageTitle } from "../app/use-page-title";
 import { GalleryChrome } from "./gallery-chrome";
 import {
   SITE_OPERATOR,
@@ -131,6 +132,7 @@ function CountingChoice() {
 
 /** `/privacy`: who runs the site, what it keeps, and how to remove it. */
 export function PrivacyPage() {
+  usePageTitle("Privacy");
   const contact = (
     <a href={`mailto:${SITE_PRIVACY_CONTACT}`}>{SITE_PRIVACY_CONTACT}</a>
   );

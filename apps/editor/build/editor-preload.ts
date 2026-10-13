@@ -85,9 +85,19 @@ export function editorPreload(): Plugin {
               [...styles, ...fonts].map((name) => ["preload", "/" + name]),
             );
         }
-        const editorResources = resourcesFor(editorEntry.fileName);
-        const galleryResources = resourcesFor(galleryEntry.fileName);
-        const agentResources = resourcesFor(agentRuntime.fileName);
+        // The page's own entry, the modules it already preloads and its
+        // stylesheet load anyway: asked for again, each was fetched twice
+        // (2026-10-14).
+        const inPage = new Set(
+          [...html.matchAll(/\b(?:href|src)="(\/assets\/[^"]+)"/gu)].map(
+            (match) => match[1],
+          ),
+        );
+        const notInPage = (resources: string[][]) =>
+          resources.filter(([, href]) => !inPage.has(href));
+        const editorResources = notInPage(resourcesFor(editorEntry.fileName));
+        const galleryResources = notInPage(resourcesFor(galleryEntry.fileName));
+        const agentResources = notInPage(resourcesFor(agentRuntime.fileName));
         const script = `<script>const galleryResources = ${JSON.stringify(galleryResources).replaceAll("<", "\\u003c")}; const editorResources = ${JSON.stringify(editorResources).replaceAll("<", "\\u003c")}; const agentResources = ${JSON.stringify(agentResources).replaceAll("<", "\\u003c")}; const localExamples = ${JSON.stringify(EXAMPLE_HOSTS)}.includes(location.hostname) && window.${LOCAL_GALLERY_REPLICA} !== true; const routeResources = /^\\/?$/.test(location.pathname) ? (localExamples ? [] : galleryResources) : (/^\\/editor\\/?$/.test(location.pathname) || /^\\/g\\/[A-Za-z0-9-]{1,64}\\/?$/.test(location.pathname)) ? editorResources : []; let agentNeeded = false; try { agentNeeded = new URLSearchParams(location.search).get("agent") === "pair" || sessionStorage.getItem(${JSON.stringify(AGENT_SESSION_RECOVERY_STORAGE_KEY)}) !== null; } catch {} const resources = agentNeeded ? routeResources.concat(agentResources.filter(([, href]) => !routeResources.some((resource) => resource[1] === href))) : routeResources; for (const [rel, href] of resources) { const link = document.createElement("link"); link.rel = rel; link.href = href; link.crossOrigin = "anonymous"; if (rel === "preload") link.as = href.endsWith(".css") ? "style" : "font"; document.head.appendChild(link); }</script>`;
         const first = html.search(
           /<(?:link\b[^>]*\brel="stylesheet"|script\b[^>]*\btype="module")/u,

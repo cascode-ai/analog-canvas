@@ -22,7 +22,10 @@ restrictive CSP.
   twelve public entries as `{entries, nextCursor: null, signedOut: true}` with no
   count, and those twelve serve previews. Only the landing wall uses it; other
   readers (Insert from Gallery, Agent reads) treat it as a sign-in request.
-  Bundled editor examples are not Gallery content.
+  `GET /api/gallery/tags` and `/sources` answer a signed-out visitor empty
+  (`{tags: [], groups: []}`, `{sources: []}`), since the landing page asks for
+  them before it knows who reads. Bundled editor examples are not Gallery
+  content.
 - "Public" means on the wall for signed-in readers; admin, owner-only and write
   routes keep stricter checks. Previews are `private`; the edge cache holds
   immutable bytes behind the reader check; sessions are cached one minute per

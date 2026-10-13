@@ -61,7 +61,11 @@ describe("Gallery readers", () => {
     // (below); every other read asks to sign in.
     const paths = [
       ...(await reads(env)).filter(
-        (path) => path !== "/api/gallery" && !path.includes("/preview.svg"),
+        (path) =>
+          path !== "/api/gallery" &&
+          !path.includes("/preview.svg") &&
+          path !== "/api/gallery/tags" &&
+          path !== "/api/gallery/sources",
       ),
       "/api/gallery?q=circuit",
       "/api/gallery?limit=1",
@@ -90,6 +94,19 @@ describe("Gallery readers", () => {
         )?.status,
         path,
       ).toBe(401);
+  });
+
+  it("answers a signed-out visitor's tag counts and dataset list empty, not refused", async () => {
+    // The landing page asks before it knows who reads (2026-10-14).
+    const env = environment();
+    await submitOne(env, "Tagged", { cookie: await adminOf(env) });
+    const tags = await direct(env, "/api/gallery/tags");
+    expect(tags.status).toBe(200);
+    expect(tags.headers.get("cache-control")).toBe("no-store");
+    expect(await tags.json()).toEqual({ tags: [], groups: [] });
+    const sources = await direct(env, "/api/gallery/sources");
+    expect(sources.status).toBe(200);
+    expect(await sources.json()).toEqual({ sources: [] });
   });
 
   it("shows a signed-out visitor the wall's first twelve circuits, with their previews only", async () => {
