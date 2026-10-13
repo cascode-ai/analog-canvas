@@ -193,6 +193,43 @@ describe("AI marks", () => {
 });
 
 describe("gallery submissions", () => {
+  it("refuses a drawing that covers itself with white drafting (2026-10-13)", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    // A hand-made "hop": a white mask over the wire it crosses.
+    const masked = parseProject(projectText("Masked"));
+    masked.documents[0]!.drafting = {
+      ...masked.documents[0]!.drafting!,
+      objects: [
+        {
+          id: "jump-0-mask",
+          kind: "construction-line",
+          locked: false,
+          zIndex: 10,
+          anchor: { kind: "free", position: { x: 540, y: -32 } },
+          points: [
+            { x: 536, y: -32 },
+            { x: 544, y: -32 },
+          ],
+          lineStyle: "solid",
+          styleOverride: { color: "#ffffff", strokeScale: 4 },
+        },
+      ],
+    };
+    const response = await route(
+      env,
+      submissionRequest(
+        { name: "Masked", projectText: serializeProject(masked) },
+        { cookie },
+      ),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "drafting-cover",
+      message: expect.stringContaining("jump-0-mask is #ffffff"),
+    });
+  });
+
   it("keeps a description up to 1000 characters, room for a full citation", async () => {
     const env = environment();
     const cookie = await adminOf(env);

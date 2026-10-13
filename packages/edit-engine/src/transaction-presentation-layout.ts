@@ -1,5 +1,7 @@
 import {
   AnnotationSchema,
+  draftingCoverColor,
+  draftingCoverMessage,
   DraftingObjectSchema,
   flattenRichText,
   LayoutConstraintSchema,
@@ -210,6 +212,18 @@ export function applyPresentationLayoutEdit(
         parsed.locked === false &&
         JSON.stringify({ ...existing, locked: false }) ===
           JSON.stringify(parsed);
+      // Nothing is drawn in the sheet's own color to cover the drawing; an
+      // older object keeps the color it has, so it still moves.
+      const cover = draftingCoverColor(parsed);
+      if (cover && cover !== draftingCoverColor(existing)) {
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            draftingCoverMessage(parsed.id, cover),
+          ),
+        };
+      }
       if (existing?.locked && !isPureUnlock) {
         return {
           ok: false,

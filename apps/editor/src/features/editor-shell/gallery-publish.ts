@@ -322,11 +322,13 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
             ? `Check the fields: a name is required, and the description can be at most ${GALLERY_DESCRIPTION_LIMIT} characters`
             : outcome.message === "invalid-project"
               ? "The Project failed strict validation on the server"
-              : outcome.message === "forbidden"
-                ? "Only the entry's owner or a moderator can update it; an AI account can take over another AI account's circuit with a take-over"
-                : outcome.message === "take-over-forbidden"
-                  ? "Only an AI account can take over a circuit, and only another AI account's: a person's circuit is never taken over"
-                  : `The gallery rejected the submission (${outcome.message})`;
+              : outcome.message === "drafting-cover"
+                ? "A white drafting line or fill covers part of the drawing. Remove it: draw nothing over wires or parts, and a crossing without a dot needs no hop"
+                : outcome.message === "forbidden"
+                  ? "Only the entry's owner or a moderator can update it; an AI account can take over another AI account's circuit with a take-over"
+                  : outcome.message === "take-over-forbidden"
+                    ? "Only an AI account can take over a circuit, and only another AI account's: a person's circuit is never taken over"
+                    : `The gallery rejected the submission (${outcome.message})`;
     case "unreachable":
       return `Could not reach the gallery: ${outcome.message}`;
   }

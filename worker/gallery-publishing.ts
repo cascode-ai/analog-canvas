@@ -9,7 +9,11 @@ import {
   serializeProject,
 } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
-import { type CircuitProject } from "@icm/model";
+import {
+  draftingCoverMessage,
+  projectDraftingCover,
+  type CircuitProject,
+} from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
 import {
@@ -88,6 +92,24 @@ function publicationBindingFields(body: {
   };
 }
 
+/**
+ * A Project that draws in the sheet's own color covers part of its drawing,
+ * as hand-made wire "hops" masked the wires they crossed: the Gallery
+ * publishes none (2026-10-13).
+ */
+function coveringDrafting(project: CircuitProject): Response | null {
+  const cover = projectDraftingCover(project);
+  return cover
+    ? Response.json(
+        {
+          error: "drafting-cover",
+          message: draftingCoverMessage(cover.objectId, cover.color),
+        },
+        { status: 400 },
+      )
+    : null;
+}
+
 export async function handleSubmission(
   request: Request,
   env: GalleryEnv,
@@ -142,6 +164,8 @@ export async function handleSubmission(
   } catch {
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
+  const cover = coveringDrafting(project);
+  if (cover) return cover;
   const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
   project.name = name;
   const now = new Date();
@@ -294,6 +318,8 @@ export async function handleEntryUpdate(
   } catch {
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
+  const cover = coveringDrafting(project);
+  if (cover) return cover;
   const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
   project.name = name;
   // A writer who may not read the testbench never received it: the entry

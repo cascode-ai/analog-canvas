@@ -43,6 +43,75 @@ describe("drafting and guide edits", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("draws nothing in the sheet's own color to cover the drawing", () => {
+    const line = (color?: string, x = 0) => ({
+      id: "mask",
+      kind: "construction-line" as const,
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free" as const, position: { x, y: 0 } },
+      points: [
+        { x, y: 0 },
+        { x: x + 10, y: 0 },
+      ],
+      lineStyle: "solid" as const,
+      ...(color ? { styleOverride: { color, strokeScale: 4 } } : {}),
+    });
+    const upsert = (
+      document: ReturnType<typeof createEmptyDocument>,
+      object: unknown,
+      revision = 0,
+    ) =>
+      executeTransaction(
+        document,
+        transaction(
+          "doc",
+          [{ kind: "upsert_drafting_object", object }],
+          revision,
+        ),
+      );
+    // White or nearly, stroke or fill: refused, with the reason.
+    for (const color of ["#ffffff", "#FFF", "#f4f4f2"]) {
+      const refused = upsert(createEmptyDocument("doc", "Mask"), line(color));
+      expect(refused.ok).toBe(false);
+      expect(JSON.stringify(refused)).toContain("needs no hop");
+    }
+    const filled = upsert(createEmptyDocument("doc", "Fill"), {
+      id: "box",
+      kind: "rectangle",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      center: { x: 0, y: 0 },
+      width: 20,
+      height: 10,
+      rotation: 0,
+      lineStyle: "solid",
+      styleOverride: { fillColor: "#ffffff" },
+    });
+    expect(filled.ok).toBe(false);
+    expect(JSON.stringify(filled)).toContain("needs no hop");
+    // A visible color is drawing.
+    expect(upsert(createEmptyDocument("doc", "Grey"), line("#e0e0e0")).ok).toBe(
+      true,
+    );
+    // An older white object keeps its color and still moves; a black one
+    // never turns white.
+    const older = createEmptyDocument("doc", "Older");
+    older.drafting = {
+      ...older.drafting!,
+      objects: [line("#ffffff") as never],
+    };
+    expect(upsert(older, line("#ffffff", 20)).ok).toBe(true);
+    const black = createEmptyDocument("doc", "Black");
+    const drawn = upsert(black, line("#000000"));
+    expect(drawn.ok).toBe(true);
+    if (drawn.ok)
+      expect(
+        JSON.stringify(upsert(drawn.document, line("#ffffff"), 1)),
+      ).toContain("needs no hop");
+  });
+
   it("keeps drafting layout groups valid as their objects are removed", () => {
     const document = createEmptyDocument("doc", "Grouped drafting");
     const line = (id: string, y: number) => ({

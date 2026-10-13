@@ -25,7 +25,11 @@ only for broad context. New endpoints come from MCP `inspect` target `pins`
 with `instanceIds` (up to 64) or HTTP Snapshot projection `pins`: pin
 geometry, Net IDs and bulk without full topology. A Cell Pin marker (`port`,
 `port-filled`, `vdd-port`) has `reference: null` and its name in
-`cellTerminal: {id, name, direction}`. A crossing is not a connection.
+`cellTerminal: {id, name, direction}`. A crossing is not a connection: leave
+it plain, with no hop. Drafting never fakes or hides circuit geometry: no hops,
+masks or lines over wires or parts. A white (sheet-colored) drafting stroke or
+fill is refused (`EDIT_PRECONDITION`), and the Gallery refuses a Project
+holding one (`drafting-cover`).
 
 `place-component` takes an optional `id` of your choosing (refused if taken).
 Give one to a ground, each VDD marker and any part you will wire: later actions
