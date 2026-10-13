@@ -223,7 +223,7 @@ jobs:
           done
           # Signed out, the Gallery shows only the wall's first twelve
           # circuits, with no further page; its search, other pages and
-          # discovery endpoints all ask to sign in.
+          # author list ask to sign in, and its filter lists answer empty.
           signed_out_wall="$(curl --fail --silent --show-error --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/gallery)"
           node -e '
@@ -232,7 +232,18 @@ jobs:
               console.error("Signed-out Gallery wall is not the first twelve circuits alone.");
               process.exit(1);
             }' "$signed_out_wall"
-          for path in "api/gallery?q=amp" "api/gallery?cursor=x" api/gallery/tags api/gallery/authors; do
+          signed_out_tags="$(curl --fail --silent --show-error --max-time 20 \
+            https://analog-canvas.tokenzhang.com/api/gallery/tags)"
+          signed_out_sources="$(curl --fail --silent --show-error --max-time 20 \
+            https://analog-canvas.tokenzhang.com/api/gallery/sources)"
+          node -e '
+            const tags = JSON.parse(process.argv[1]);
+            const sources = JSON.parse(process.argv[2]);
+            if (tags.tags?.length !== 0 || tags.groups?.length !== 0 || sources.sources?.length !== 0) {
+              console.error("Signed-out Gallery filter lists are not empty.");
+              process.exit(1);
+            }' "$signed_out_tags" "$signed_out_sources"
+          for path in "api/gallery?q=amp" "api/gallery?cursor=x" api/gallery/authors; do
             status="$(curl --silent --show-error --max-time 20 \
               --output /dev/null --write-out '%{http_code}' \
               "https://analog-canvas.tokenzhang.com/$path")"
