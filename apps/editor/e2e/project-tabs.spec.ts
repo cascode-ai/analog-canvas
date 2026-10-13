@@ -541,7 +541,7 @@ test("the Shelf appends a Cloud Project tab, deduplicates and saves Cloud identi
   ).toHaveCount(0);
 });
 
-test("the Arena gate opens after a manual Cloud Save and on every Shelf opening, sends the person to Arena's window, and closes after five new votes or when Arena has nothing to offer (#1681)", async ({
+test("the Arena gate opens after a manual Cloud Save or a Shelf opening until the day's five votes are in, sends the person to Arena's window, and closes after them or when Arena has nothing to offer (#1681)", async ({
   context,
   page,
 }) => {
@@ -570,10 +570,13 @@ test("the Arena gate opens after a manual Cloud Save and on every Shelf opening,
   );
   await page.route("**/api/projects/cloud-gate", saveAnswer);
   // Arena behind Analog Canvas's Worker: the Voter's voted Battles, newest
-  // first with when each was cast, answered with Arena's clock.
-  const votes = [
-    { id: "old", castAt: new Date(Date.now() - 3_600_000).toISOString() },
-  ];
+  // first with when each was cast, answered with Arena's clock. A Vote of
+  // two days ago is another day's, so it counts toward nothing today.
+  const earlier = {
+    id: "old",
+    castAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+  };
+  const votes = [earlier];
   let arenaUp = true;
   let aiAccount = false;
   let pastReads = 0;
@@ -674,10 +677,20 @@ test("the Arena gate opens after a manual Cloud Save and on every Shelf opening,
   await page.keyboard.press("Escape");
   await expect(gate).toHaveCount(0);
 
-  // Every Shelf opening opens it again. With 3 Battles left it asks for 3,
-  // and when they run out it lets the person go.
-  battlesLeft = 3;
+  // The day's five are in: opening the Shelf asks Arena and shows nothing.
   const shelf = page.getByLabel("Open Shelf project in tab", { exact: true });
+  const readsAfterVoting = pastReads;
+  await shelf.click();
+  await expect.poll(() => pastReads).toBe(readsAfterVoting + 1);
+  await awaitTwoFrames(page);
+  await expect(gate).toHaveCount(0);
+  await shelf.click();
+
+  // Another day, as far as Arena's list says: the Shelf opens it again.
+  // With 3 Battles left it asks for 3, and when they run out it lets the
+  // person go.
+  votes.splice(0, votes.length, earlier);
+  battlesLeft = 3;
   await shelf.click();
   await expect(gate).toContainText("Vote on 3 Battles to continue");
   await expect(count).toHaveText("Voted 0 of 3");
