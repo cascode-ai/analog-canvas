@@ -2287,10 +2287,16 @@ test("custom circuit mappings reject collapsed ports and use an explicit propert
   const editor = await openFiniteGain(page, "custom");
   await authoringView(editor, "Symbol");
   const code = symbolJson(editor);
+  // CodeMirror virtualizes its DOM: fill() can replace only the rendered
+  // lines and leave old document text behind. Select through its keymap.
+  const replaceCode = async (value: object) => {
+    await code.press("ControlOrMeta+a");
+    await page.keyboard.insertText(JSON.stringify(value, null, 2));
+  };
   const component = JSON.parse(await copyText(page, code));
   const duplicate = structuredClone(component);
   duplicate.circuitBinding.terminals[1].pinName = "IN";
-  await code.fill(JSON.stringify(duplicate, null, 2));
+  await replaceCode(duplicate);
   await expect(
     editor
       .getByRole("status")
@@ -2305,7 +2311,8 @@ test("custom circuit mappings reject collapsed ports and use an explicit propert
     terminalId: component.circuitBinding.terminals[2].terminalId,
     supply: "VSS",
   };
-  await code.fill(JSON.stringify(component, null, 2));
+  await replaceCode(component);
+  expect(JSON.parse(await copyText(page, code))).toEqual(component);
   await applyAndPlace(editor, 400, 220);
   await expect(page.getByTestId("terminal-X1-VSS")).toHaveCount(0);
   await placeComponent(page, "voltage-source", { x: 160, y: 350 });

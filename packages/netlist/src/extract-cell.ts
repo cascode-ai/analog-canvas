@@ -8,7 +8,7 @@ import {
 } from "@icm/model";
 import {
   portableCellIdentifier,
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
   type PlacedMosBodies,
   type ProjectedNetName,
 } from "@icm/derived";
@@ -123,6 +123,9 @@ export function extractCell(
     diagnostics,
   );
   const interfaceProjection = projectCellInterface(document.netlist);
+  // Formal pins read the authored Document, not buildNetContext's recovered
+  // power-marker claims. All pins share that same logical projection.
+  const interfaceLogicalNets = resolveCommittedDocumentLogicalNets(document);
   for (const issue of interfaceProjection.issues) {
     diagnostic(
       diagnostics,
@@ -147,9 +150,7 @@ export function extractCell(
         );
       }
       if (hasMissingNet) return [];
-      const logicalNet = resolveDocumentLogicalNets(document).byBaseNetId.get(
-        port.netIds[0]!,
-      );
+      const logicalNet = interfaceLogicalNets.byBaseNetId.get(port.netIds[0]!);
       const encodedPort = encodeCandidate(
         port.name,
         logicalNet?.scope ?? "local",

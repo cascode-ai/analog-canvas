@@ -10,7 +10,7 @@ import {
   mosBulkKind,
   portableCellIdentifier,
   resolveMosBulkConnection,
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
   type PlacedMosBodies,
   type PlacedMosBody,
 } from "@icm/derived";
@@ -83,10 +83,11 @@ function blockSuppliesToDefault(
     ),
   );
   return source.documents.flatMap((document) => {
-    let logical: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
+    let logical:
+      ReturnType<typeof resolveCommittedDocumentLogicalNets> | undefined;
     const drawn = new Map<"vdd" | "ground", boolean>();
     const domainDrawn = (domain: "vdd" | "ground") => {
-      logical ??= resolveDocumentLogicalNets(document);
+      logical ??= resolveCommittedDocumentLogicalNets(document);
       if (!drawn.has(domain))
         drawn.set(domain, drawsSupply(document, domain, logical));
       return drawn.get(domain)!;
@@ -181,12 +182,13 @@ function boundGateSuppliesToDefault(source: CircuitProject): {
   supply: "VDD" | "VSS";
 }[] {
   return source.documents.flatMap((document) => {
-    let logical: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
+    let logical:
+      ReturnType<typeof resolveCommittedDocumentLogicalNets> | undefined;
     const domainDrawn = (supply: "VDD" | "VSS") =>
       drawsSupply(
         document,
         supply === "VDD" ? "vdd" : "ground",
-        (logical ??= resolveDocumentLogicalNets(document)),
+        (logical ??= resolveCommittedDocumentLogicalNets(document)),
       );
     return document.instances.flatMap((instance) => {
       const rails = new Set(boundGateRails(source, instance));
@@ -214,7 +216,7 @@ export function withImplicitMosSupplies(
   const blockSupplies = blockSuppliesToDefault(source, options);
   const cellRails = boundGateSuppliesToDefault(source);
   const missing = source.documents.flatMap((document) => {
-    const logical = resolveDocumentLogicalNets(document);
+    const logical = resolveCommittedDocumentLogicalNets(document);
     return document.instances.flatMap((instance) =>
       mosBulkKind(instance) &&
       resolveMosBulkConnection(document, instance, logical)?.status ===
@@ -230,7 +232,7 @@ export function withImplicitMosSupplies(
   const addedVddPorts = new Set<string>();
   const supplies = new Map<string, { nmos?: Net; pmos?: Net }>();
   function supply(document: SchematicDocument, positive: boolean): Net {
-    const logical = resolveDocumentLogicalNets(document);
+    const logical = resolveCommittedDocumentLogicalNets(document);
     const drawn = drawnSupplyNet(
       document,
       positive ? "vdd" : "ground",

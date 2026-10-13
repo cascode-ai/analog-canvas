@@ -15,7 +15,7 @@ import type {
 import { resolveSignalFlowPinAt, type SymbolResolver } from "@icm/symbols";
 import { mosBulkShouldBeVisible } from "./mos-bulk.js";
 import {
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
 } from "./logical-net.js";
 
@@ -75,7 +75,7 @@ export function buildEndpointObjectLookup(
     junctionsById: new Map(
       document.junctions.map((junction) => [junction.id, junction]),
     ),
-    logicalNets: resolveDocumentLogicalNets(document),
+    logicalNets: resolveCommittedDocumentLogicalNets(document),
   };
 }
 

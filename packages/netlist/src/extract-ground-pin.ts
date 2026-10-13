@@ -1,7 +1,7 @@
 // Ground as a Cell's own pin: whether a Cell takes one, what it is named,
 // and where it sits among the Cell's pins.
 import { foldNetName } from "@icm/model";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import { resolveCommittedDocumentLogicalNets } from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
 import { isDrawnSwitch } from "./extract-switch.js";
@@ -30,7 +30,7 @@ export function cellReachesGround(
   // that predates the persisted claim record is recovered by the export view,
   // and most drawings are exactly that. Asking the unrecovered Document would
   // answer "no ground" for a Cell whose nodes are about to be named `0`.
-  const groundOfItsOwn = resolveDocumentLogicalNets(
+  const groundOfItsOwn = resolveCommittedDocumentLogicalNets(
     withNetlistPowerMarkerClaims(document),
   ).groups.some((group) => group.powerDomain === "ground");
   if (groundOfItsOwn) return true;
@@ -57,7 +57,7 @@ export function addsGroundPin(
   seen: Set<string> = new Set(),
 ): boolean {
   if (!cellReachesGround(document, documentsById, seen)) return false;
-  const logical = resolveDocumentLogicalNets(
+  const logical = resolveCommittedDocumentLogicalNets(
     withNetlistPowerMarkerClaims(document),
   );
   return !(document.netlist?.terminals ?? []).some((terminal) => {
@@ -80,7 +80,7 @@ export function groundPinName(document: SchematicDocument): {
   taken?: string;
 } {
   const names = new Map<string, string>();
-  const logical = resolveDocumentLogicalNets(
+  const logical = resolveCommittedDocumentLogicalNets(
     withNetlistPowerMarkerClaims(document),
   );
   const isGround = (name: string | undefined) =>
@@ -120,7 +120,7 @@ export function groundPortIndex(
   document: SchematicDocument,
   ports: readonly { id: string; name?: string }[],
 ): number {
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const logicalNets = resolveCommittedDocumentLogicalNets(document);
   let index = 0;
   for (const [position, port] of ports.entries()) {
     const domain = logicalNets.byBaseNetId.get(port.id)?.powerDomain;

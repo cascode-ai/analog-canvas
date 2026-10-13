@@ -4,7 +4,7 @@ import { deriveStableId, foldNetName, projectCellInterface } from "@icm/model";
 import {
   mosBulkKind,
   resolveMosBulkConnection,
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
   type ProjectedNetName,
   type ResolvedDocumentLogicalNets,
   type ResolvedLogicalNet,
@@ -69,7 +69,7 @@ export function withNetlistPowerMarkerClaims(
   document: SchematicDocument,
   project?: CircuitProject,
 ): SchematicDocument {
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const logicalNets = resolveCommittedDocumentLogicalNets(document);
   const claimedMarkers = new Set(
     document.connectivityEvidence.flatMap((evidence) =>
       evidence.kind === "name-claim" && evidence.owner.kind === "power-marker"
@@ -145,7 +145,7 @@ export function buildNetContext(
   }
   const explicitNames = new Map<string, string>();
   const occupiedNames = new Map<string, string>();
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const logicalNets = resolveCommittedDocumentLogicalNets(document);
   for (const logicalNet of logicalNets.groups) {
     if (logicalNet.conflicts.includes("name-conflict")) {
       diagnostic(

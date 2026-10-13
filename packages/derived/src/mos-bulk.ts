@@ -9,7 +9,7 @@ import type {
 import { foldNetName, routeEnd, isFrozenSnapshot } from "@icm/model";
 import { registerDocumentCache } from "./document-caches.js";
 import {
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
   type ResolvedLogicalNet,
 } from "./logical-net.js";
@@ -296,7 +296,7 @@ export function drawnNegativeSupplyNet(
   document: SchematicDocument,
   logicalNets?: ResolvedDocumentLogicalNets,
 ): Net | undefined {
-  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const resolved = logicalNets ?? resolveCommittedDocumentLogicalNets(document);
   const drawn = drawnSupplyNets(document, "vdd", resolved);
   const negative = drawn.nets.filter((_net, index) =>
     namesNegativeSupply(
@@ -322,7 +322,7 @@ export function pdkSubstrateDefaultNet(
   logicalNets?: ResolvedDocumentLogicalNets,
   nmosNetId: string | null = document.mosBulkDefaults?.nmosNetId ?? null,
 ): Net | undefined {
-  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const resolved = logicalNets ?? resolveCommittedDocumentLogicalNets(document);
   const configured = nmosNetId
     ? document.nets.find((net) => net.id === nmosNetId)
     : undefined;
@@ -347,7 +347,7 @@ function drawnSupplyNets(
   domain: SupplyDomain,
   logicalNets?: ResolvedDocumentLogicalNets,
 ): { nets: Net[]; logicalNetIds: string[]; contradictory: boolean } {
-  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const resolved = logicalNets ?? resolveCommittedDocumentLogicalNets(document);
   const candidates = new Map<string, Net>();
   let contradictory = false;
   const addCandidate = (netId: string) => {
@@ -566,7 +566,7 @@ export function mosBodiesOffSourceSupply(
   logicalNets?: ResolvedDocumentLogicalNets,
   placedBodies?: PlacedMosBodies,
 ): MosBodyOffSourceSupply[] {
-  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const resolved = logicalNets ?? resolveCommittedDocumentLogicalNets(document);
   const supplies = new Map<SupplyDomain, ReadonlySet<string>>();
   const suppliesOf = (domain: SupplyDomain) => {
     let found = supplies.get(domain);
@@ -778,7 +778,7 @@ export function mosBulkShouldBeVisible(
     configured ?? supplyDefaultMosBulkNet(document, kind, logicalNets);
   if (!policyNet) return true;
   if (policyNet.id === resolution.net.id) return false;
-  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const resolved = logicalNets ?? resolveCommittedDocumentLogicalNets(document);
   const policyLogicalId = resolved.byBaseNetId.get(policyNet.id)?.id;
   return (
     !policyLogicalId ||

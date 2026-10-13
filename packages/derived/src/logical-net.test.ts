@@ -1,4 +1,4 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, freezeSnapshot } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -12,15 +12,33 @@ describe("resolved logical Nets", () => {
     const document = createEmptyDocument("document-cache", "Document cache");
     document.nets.push({ id: "net-a", terminals: [] });
 
-    const first = resolveCommittedDocumentLogicalNets(document);
-    const repeated = resolveCommittedDocumentLogicalNets(document);
+    const committed = freezeSnapshot(structuredClone(document));
+    const first = resolveCommittedDocumentLogicalNets(committed);
+    const repeated = resolveCommittedDocumentLogicalNets(committed);
     expect(repeated).toBe(first);
 
     document.nets.push({ id: "net-b", terminals: [] });
     document.revision += 1;
-    const revised = resolveCommittedDocumentLogicalNets(document);
+    const revised = resolveCommittedDocumentLogicalNets(
+      freezeSnapshot(structuredClone(document)),
+    );
     expect(revised).not.toBe(first);
     expect(revised.groups.map((group) => group.id)).toEqual(["net-a", "net-b"]);
+  });
+
+  it("keeps mutable read callers live when membership changes without a revision", () => {
+    const document = createEmptyDocument("mutable-read", "Mutable read");
+    document.nets.push({ id: "net-a", terminals: [] });
+    expect(resolveCommittedDocumentLogicalNets(document).groups).toHaveLength(
+      1,
+    );
+
+    document.nets.push({ id: "net-b", terminals: [] });
+    expect(
+      resolveCommittedDocumentLogicalNets(document).groups.map(
+        (group) => group.id,
+      ),
+    ).toEqual(["net-a", "net-b"]);
   });
 
   it("keeps the raw resolver live for mutable transaction drafts", () => {

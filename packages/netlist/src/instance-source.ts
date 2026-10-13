@@ -1,7 +1,7 @@
 import {
   drawnMagneticNetwork,
   drawnMagneticParameters,
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
 } from "@icm/derived";
 import { deviceDescriptor } from "@icm/devices";
 import {
@@ -94,7 +94,7 @@ function nodeTokens(
   instance: Instance,
   pinNames: readonly string[],
 ): DesignNetlistInstance["nodes"] {
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const logicalNets = resolveCommittedDocumentLogicalNets(document);
   return pinNames.map((pinName) => {
     const baseNet = document.nets.find((net) =>
       net.terminals.some(
@@ -177,7 +177,7 @@ function fallbackSpiceCard(
   const currentControlled =
     descriptor?.deviceClass === "cccs" || descriptor?.deviceClass === "ccvs";
   const controlNetNames = voltageControlled
-    ? resolveDocumentLogicalNets(document).byBaseNetId
+    ? resolveCommittedDocumentLogicalNets(document).byBaseNetId
     : null;
   const controlNodes: DesignNetlistInstance["nodes"] = voltageControlled
     ? (

@@ -13,7 +13,7 @@ import {
   findExternalMasterCollisions,
   directObjectLocator,
   drawnMagneticNetwork,
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
 } from "@icm/derived";
 import type { CircuitProject, SchematicDocument, StableId } from "@icm/model";
 import {
@@ -539,7 +539,7 @@ function analyzeDesign(
         cell.id === resolvedOptions.rootDocumentId
       )
         continue;
-      const logical = resolveDocumentLogicalNets(
+      const logical = resolveCommittedDocumentLogicalNets(
         withNetlistPowerMarkerClaims(documentsById.get(cell.id)!),
       );
       const rank = (port: DesignNetlistCell["ports"][number]) => {

@@ -1,5 +1,5 @@
 import { registerDocumentCache } from "./document-caches.js";
-import { foldNetName } from "@icm/model";
+import { foldNetName, isFrozenSnapshot } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 export type LogicalNetConflictCode =
@@ -319,13 +319,14 @@ export function resolveDocumentLogicalNets(
  *
  * This is deliberately separate from {@link resolveDocumentLogicalNets}.
  * Edit-engine transactions mutate one draft object through several edits
- * before advancing its revision, so mutable drafts must always use the raw
- * resolver. Editor/render read models may opt into this cache only after a
- * Document revision has been committed.
+ * before advancing its revision. Only an owned immutable snapshot enters
+ * this cache; mutable callers always use the raw resolver, even when their
+ * revision has not changed.
  */
 export function resolveCommittedDocumentLogicalNets(
   document: SchematicDocument,
 ): ResolvedDocumentLogicalNets {
+  if (!isFrozenSnapshot(document)) return resolveDocumentLogicalNets(document);
   const cached = committedDocumentLogicalNetCache.get(document);
   if (cached && cached.revision === document.revision) {
     return cached.resolution;
