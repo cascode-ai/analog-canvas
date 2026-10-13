@@ -96,4 +96,67 @@ describe("detached move planning", () => {
         .centerline,
     ).toEqual(before);
   });
+
+  it("lets go of a marker set directly on a pin, which stays where it stands", () => {
+    // A ground marker on an NMOS source with no wire between (Gallery
+    // efx8jakksk's M5): a Ctrl/Cmd-drag of the transistor carried it along.
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      {
+        id: "M5",
+        symbolId: "nmos",
+        placement: {
+          position: { x: 140, y: 150 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "G5",
+        symbolId: "ground",
+        placement: {
+          position: { x: 150, y: 180 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "ground",
+      terminals: [
+        { instanceId: "G5", pinName: "0" },
+        { instanceId: "M5", pinName: "S" },
+      ],
+    });
+
+    const planned = planDetachedMove(document, resolver, new Set(["M5"]), 1);
+    expect(planned.edits).toEqual([
+      {
+        kind: "disconnect_endpoint",
+        endpoint: { kind: "terminal", instanceId: "M5", pinName: "S" },
+      },
+    ]);
+    const gate = gateRoutingOperationPlan(
+      document,
+      createRoutingOperationPlan(document, {
+        intent: "transform",
+        diagnostics: [],
+        edits: planned.edits,
+        expectedElectricalEffect: {
+          kind: "remove",
+          removedEndpointKeys: planned.disconnectedEndpointKeys,
+        },
+      }),
+      { symbolResolver: resolver },
+    );
+    expect(gate.ok).toBe(true);
+    if (!gate.ok) return;
+    expect(gate.evaluated.finalDocument.nets[0]!.terminals).toEqual([
+      { instanceId: "G5", pinName: "0" },
+    ]);
+    // Moved together, the two let go of nothing.
+    expect(
+      planDetachedMove(document, resolver, new Set(["M5", "G5"]), 2).edits,
+    ).toEqual([]);
+  });
 });
