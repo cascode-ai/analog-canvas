@@ -287,7 +287,7 @@ const searchMatchesByRequest = new WeakMap<object, string>();
  * from page to page; by time, newest or oldest first; or by part count, most
  * or fewest first, circuits whose part count is unknown last either way.
  */
-type WallOrder = "random" | "newest" | "oldest" | "parts" | "fewest";
+export type WallOrder = "random" | "newest" | "oldest" | "parts" | "fewest";
 
 const KNOWN_PARTS =
   "CASE WHEN e.component_count_version > 0 THEN e.component_count END";
@@ -297,7 +297,7 @@ const WALL_PARTS = {
   fewest: `COALESCE(${KNOWN_PARTS}, 1000000000)`,
 } as const;
 
-function wallOrder(body: Record<string, unknown>): {
+export function wallOrder(body: Record<string, unknown>): {
   order: WallOrder;
   seed: string;
 } {
@@ -325,22 +325,54 @@ function shufflePosition(seed: string, id: string): number {
   return hash;
 }
 
-/** The wall's ids in one seed's shuffled order. */
-function shuffledWallIds(
+/** The wall's ids in one seed's shuffled order, each with its position. */
+function shuffledWall(
   ids: readonly string[],
   seed: string,
-): string[] {
+): { id: string; at: number }[] {
   return [...ids]
     .map((id) => ({ id, at: shufflePosition(seed, id) }))
-    .sort((left, right) => left.at - right.at || (left.id < right.id ? -1 : 1))
-    .map((item) => item.id);
+    .sort((left, right) => left.at - right.at || (left.id < right.id ? -1 : 1));
 }
 
-export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
-  const limit = Math.min(
+/** A page's size as asked, within the wall's bounds. */
+export function wallPageLimit(body: Record<string, unknown>): number {
+  return Math.min(
     Math.max(Number(body.limit) || GALLERY_DEFAULT_LIST_LIMIT, 1),
     GALLERY_MAX_LIST_LIMIT,
   );
+}
+
+/**
+ * A row's place in an order, as a list asked for `sortKeys` gives it: the
+ * wall merged from several stores (#1697) sorts their pages by it. Every
+ * key is the same in every store, so one row's cursor resumes them all.
+ */
+export type WallSortKey = readonly (string | number)[];
+
+const DESCENDING: Record<WallOrder, readonly boolean[]> = {
+  newest: [true, true],
+  oldest: [false, false],
+  parts: [true, true, true],
+  fewest: [false, true, true],
+  random: [false, false],
+};
+
+export function compareWallKeys(
+  order: WallOrder,
+  left: WallSortKey,
+  right: WallSortKey,
+): number {
+  for (let index = 0; index < left.length; index += 1) {
+    const [a, b] = [left[index]!, right[index]!];
+    if (a === b) continue;
+    return (a < b ? -1 : 1) * (DESCENDING[order][index] ? -1 : 1);
+  }
+  return 0;
+}
+
+export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
+  const limit = wallPageLimit(body);
   const cursor = typeof body.cursor === "string" ? body.cursor : null;
   // The viewer id leads the bindings because its sub-select comes first.
   const { conditions, bindings, viewerId } = feedConditions(sql, body, {
@@ -401,9 +433,26 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
       .toArray();
   let page: ReturnType<typeof select>;
   let nextCursor: string | null = null;
+  // Each row's place in the order and the cursor that resumes after it.
+  const positions = new Map<string, number>();
+  const placeOf = (row: (typeof page)[number]) => {
+    const at = positions.get(row.id) ?? 0;
+    if (order === "random")
+      return { key: [at, row.id], cursor: `r${at}|${row.id}` };
+    if (order === "parts" || order === "fewest")
+      return {
+        key: [row.parts, row.created_at, row.id],
+        cursor: `${order === "parts" ? "p" : "f"}${row.parts}|${row.created_at}|${row.id}`,
+      };
+    return {
+      key: [row.created_at, row.id],
+      cursor: `${order === "oldest" ? "o" : ""}${row.created_at}|${row.id}`,
+    };
+  };
   if (order === "random") {
     // The filtered wall's ids are few and small; the seed orders them the
-    // same way on every page, and the cursor is a position in that order.
+    // same way on every page, and the cursor is a place in that order (an
+    // older cursor, an offset into it).
     const ids = sql
       .exec<{ id: string }>(
         `SELECT e.id FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
@@ -411,10 +460,21 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
       )
       .toArray()
       .map((row) => row.id);
-    const offset = /^r\d{1,6}$/u.test(cursor ?? "")
-      ? Number(cursor!.slice(1))
-      : 0;
-    const pageIds = shuffledWallIds(ids, seed).slice(offset, offset + limit);
+    const shuffled = shuffledWall(ids, seed);
+    const resume = /^r(\d{1,10})\|(.+)$/u.exec(cursor ?? "");
+    const after = resume
+      ? shuffled.findIndex(
+          (item) =>
+            item.at > Number(resume[1]) ||
+            (item.at === Number(resume[1]) && item.id > resume[2]!),
+        )
+      : /^r\d{1,6}$/u.test(cursor ?? "")
+        ? Number(cursor!.slice(1))
+        : 0;
+    const offset = after === -1 ? shuffled.length : after;
+    const pageItems = shuffled.slice(offset, offset + limit);
+    for (const item of pageItems) positions.set(item.id, item.at);
+    const pageIds = pageItems.map((item) => item.id);
     const found = pageIds.length
       ? select(
           [...conditions, `e.id IN (${pageIds.map(() => "?").join(", ")})`],
@@ -424,7 +484,9 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
       : [];
     const byId = new Map(found.map((row) => [row.id, row]));
     page = pageIds.flatMap((id) => byId.get(id) ?? []);
-    if (offset + limit < ids.length) nextCursor = `r${offset + limit}`;
+    const last = page.at(-1);
+    if (offset + limit < shuffled.length && last)
+      nextCursor = placeOf(last).cursor;
   } else {
     // Each order's sort, its cursor's tag, and the comparison that resumes
     // after the cursor's row.
@@ -470,11 +532,7 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
     ]);
     page = rows.slice(0, limit);
     const last = page.at(-1);
-    if (rows.length > limit && last)
-      nextCursor =
-        order === "parts" || order === "fewest"
-          ? `${order === "parts" ? "p" : "f"}${last.parts}|${last.created_at}|${last.id}`
-          : `${ascending ? "o" : ""}${last.created_at}|${last.id}`;
+    if (rows.length > limit && last) nextCursor = placeOf(last).cursor;
   }
   return Response.json({
     // `simVerified` is every passing entry's here; the route keeps it only
@@ -485,6 +543,9 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
         body.isAdmin === true || (!!viewerId && viewerId === row.owner_user_id),
       ),
       ...(row.simulation_passes === 1 ? { simVerified: true } : {}),
+      ...(body.sortKeys === true
+        ? { sortKey: placeOf(row).key, cursor: placeOf(row).cursor }
+        : {}),
     })),
     nextCursor,
     total: Number(counts.total),

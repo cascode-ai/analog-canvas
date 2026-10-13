@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { refreshNetlistMarks } from "./gallery-maintenance";
+import { GALLERY_SOURCES } from "./gallery-sources";
 import {
   type Harness,
   ORIGIN,
@@ -441,6 +442,10 @@ describe("newest-first gallery feed", () => {
         componentRanges: sizes(0),
       },
       authors: [],
+      // Each reference dataset's share of the wall (#1697).
+      sources: Object.fromEntries(
+        GALLERY_SOURCES.map((source) => [source.key, 0]),
+      ),
     });
 
     await wallOf(env, 2);

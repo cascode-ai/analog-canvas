@@ -346,7 +346,21 @@ export function GalleryFeed({
   const narrowedName = narrowedToAuthor
     ? (byline ?? "this contributor")
     : (datasetWall?.name ?? null);
-  const datasets = useGalleryDatasets(source, isOwner);
+  const offeredDatasets = useGalleryDatasets(source, isOwner);
+  // On the community wall, each dataset counts the circuits it adds to the
+  // filtered wall (#1697), as the authors beside it do.
+  const wallSources = source === null ? state.sources : undefined;
+  const datasets = wallSources
+    ? offeredDatasets
+        .map((dataset) => ({
+          ...dataset,
+          count: wallSources[dataset.key] ?? 0,
+        }))
+        .filter((dataset) => isOwner || dataset.count > 0)
+    : offeredDatasets;
+  const datasetShare = wallSources
+    ? Object.values(wallSources).reduce((sum, count) => sum + count, 0)
+    : null;
   // A remembered filter or an older link may carry the account's former
   // byline; once its contributors name it, the wall remembers the current one.
   useEffect(() => {
@@ -503,6 +517,7 @@ export function GalleryFeed({
             onSelectAuthor={selectContributor}
             onShowAllAuthors={() => selectAuthor(null)}
             datasets={datasets}
+            datasetShare={datasetShare}
             currentDataset={source}
             onSelectDataset={selectDataset}
             searched={searchAnswered}

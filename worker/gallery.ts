@@ -12,6 +12,7 @@ import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
+import { mergedTagCounts, mergedWallList } from "./gallery-wall-merge";
 import { sameOrigin } from "./same-origin";
 import {
   GALLERY_DAILY_OPEN_LIMIT,
@@ -473,6 +474,9 @@ export async function routeGalleryRequest(
       return Response.json({ error: "dataset-read-only" }, { status: 403 });
     env = withGalleryStore(env, source);
   }
+  // The community wall holds the datasets' circuits too (#1697), unless a
+  // reader asks for the community's alone (`source=community`).
+  const mergedWall = !source && url.searchParams.get("source") !== "community";
 
   if (
     segments.length === 2 &&
@@ -499,9 +503,7 @@ export async function routeGalleryRequest(
     const filters = wallFilters(url);
     if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
-    const { payload } = await callGallery<{
-      entries: GalleryEntrySummary[];
-    }>(env, "list", {
+    const listing = {
       ...filters,
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
@@ -513,7 +515,12 @@ export async function routeGalleryRequest(
       tags: (url.searchParams.get("tags") ?? "")
         .split(",")
         .filter((tag) => tag.length > 0),
-    });
+    };
+    const payload = (
+      mergedWall
+        ? await mergedWallList(env, listing)
+        : (await callGallery(env, "list", listing)).payload
+    ) as { entries: GalleryEntrySummary[] };
     return Response.json(
       {
         ...payload,
@@ -602,11 +609,14 @@ export async function routeGalleryRequest(
         : null;
     if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
-    const { payload } = await callGallery(env, "tags", {
+    const counting = {
       ...filters,
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
-    });
+    };
+    const payload = mergedWall
+      ? await mergedTagCounts(env, counting)
+      : (await callGallery(env, "tags", counting)).payload;
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }
   if (

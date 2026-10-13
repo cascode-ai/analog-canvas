@@ -50,7 +50,8 @@ export async function scanGalleryDuplicates(
   try {
     do {
       signal?.throwIfAborted();
-      const query = new URLSearchParams({ limit: "100" });
+      // The community's circuits; the reference datasets stay out (#1697).
+      const query = new URLSearchParams({ limit: "100", source: "community" });
       if (cursor) query.set("cursor", cursor);
       const page = (await request(`/api/gallery?${query}`)) as {
         entries: GalleryFeedEntry[];

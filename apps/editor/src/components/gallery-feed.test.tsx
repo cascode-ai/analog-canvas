@@ -452,33 +452,37 @@ describe("GalleryCountPanel", () => {
     expect(datasetWall).toContain('aria-current="true"');
   });
 
-  it("counts the datasets' circuits into the community wall's total", () => {
+  it("says how much of the community wall's total the datasets add (#1697)", () => {
     const datasets = [
       { key: "amsnet", name: "AMS-Net", count: 641 },
       { key: "circuitthink", name: "CircuitThink", count: 72 },
     ];
     const render = (props: Partial<Parameters<typeof GalleryCountPanel>[0]>) =>
       renderToStaticMarkup(
-        createElement(GalleryCountPanel, { total: 1363, datasets, ...props }),
+        createElement(GalleryCountPanel, {
+          total: 2076,
+          datasets,
+          datasetShare: 713,
+          ...props,
+        }),
       );
+    // The server's total already holds the datasets' circuits; the split
+    // is in the title.
     const community = render({});
     expect(community).toContain(`${(2076).toLocaleString()} circuits`);
     expect(community).toContain(
       `title="${(1363).toLocaleString()} community · ${(713).toLocaleString()} from datasets"`,
     );
-    // A dataset's own wall, a narrowed wall and a search count what they show.
-    expect(render({ total: 72, currentDataset: "circuitthink" })).toContain(
-      ">72 circuits<",
-    );
-    expect(render({ filtered: true })).toContain(
-      `${(1363).toLocaleString()} filtered circuits`,
-    );
-    expect(render({ author: "boboIC", total: 86 })).toContain(">86 circuits<");
-    expect(render({ searched: true, total: 5 })).toContain(
-      "5 matching circuits",
-    );
-    expect(render({ search: { visible: 3, settled: true } })).toContain(
-      `${(1363).toLocaleString()} circuits · 3 matches`,
+    // A dataset's own wall has no split.
+    const own = render({
+      total: 72,
+      datasetShare: null,
+      currentDataset: "circuitthink",
+    });
+    expect(own).toContain(">72 circuits<");
+    expect(own).not.toContain("from datasets");
+    expect(render({ filtered: true, total: 300, datasetShare: 40 })).toContain(
+      "300 filtered circuits",
     );
   });
 });
@@ -546,6 +550,13 @@ describe("The Sim mark", () => {
         withdrawEntry: async () => {},
       }),
     );
+
+  it("leaves a reference dataset's circuit read-only on the community wall (#1697)", () => {
+    expect(tile(entry)).toContain('data-testid="gallery-like-divider01"');
+    const dataset = tile({ ...entry, id: "amsnet-12", ownerUserId: null });
+    expect(dataset).toContain('data-testid="gallery-tile-amsnet-12"');
+    expect(dataset).not.toContain("gallery-like-");
+  });
 
   it("follows Netlist and AI for a viewer the server sends it to, and is absent for anyone else", () => {
     // The server sends `simVerified` only to a viewer who may see it.

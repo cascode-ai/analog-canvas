@@ -76,8 +76,8 @@ describe("full Gallery duplicate scan", () => {
     ]);
     expect(report.uncheckable.map(({ entry }) => entry.id)).toEqual(["bad"]);
     expect(urls.filter((url) => url.startsWith("/api/gallery?"))).toEqual([
-      "/api/gallery?limit=100",
-      "/api/gallery?limit=100&cursor=page2",
+      "/api/gallery?limit=100&source=community",
+      "/api/gallery?limit=100&source=community&cursor=page2",
     ]);
   });
 

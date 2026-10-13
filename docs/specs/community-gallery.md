@@ -271,12 +271,18 @@ completed, and every stated Spec passed.
 `config/gallery-sources.json` lists each dataset: `key`, id `prefix`, `name`,
 `byline`, `license`, `homepage`, `paper`.
 
-- Each dataset has its own Durable Object `source:<key>` (community: `gallery`);
-  nothing community-side sees dataset entries. Ids are `<prefix>-<id>`
-  (`ag-308`); community ids never contain a hyphen; routes dispatch by id; feed
-  and tags take `source=<key>`.
-- Every write answers 403 `dataset-read-only`; entries have no owner or AI mark;
-  an opened copy publishes as a new community entry.
+- Each dataset has its own Durable Object `source:<key>` (community: `gallery`).
+  Ids are `<prefix>-<id>` (`ag-308`); community ids never contain a hyphen;
+  routes dispatch by id; feed and tags take `source=<key>` for one dataset's
+  wall.
+- Without `source`, the feed and tags answer the community wall with every
+  dataset in it (#1697): one order across the stores (each row's cursor resumes
+  them all), totals, `filterCounts` and tag counts summed, `sources` each
+  dataset's share of `total`, `authors` the community's. `source=community`
+  answers the community store alone (the duplicate and topology scans).
+- Every write answers 403 `dataset-read-only`; entries have no owner or AI mark
+  (they count as made by hand) and show no like or owner tools; an opened copy
+  publishes as a new community entry.
 - `GET /api/gallery/sources` → `{sources: [... , count]}`; readers see non-empty
   datasets, Owner accounts all.
 - `POST /api/gallery/sources/<key>/entries` (same-origin, Owner account, else 403

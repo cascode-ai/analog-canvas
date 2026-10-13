@@ -259,6 +259,11 @@ export interface GalleryFeedPage {
   /** Contributors to the filtered wall, before pagination. */
   authors?: GalleryAuthorOption[];
   /**
+   * The community wall's circuits from each reference dataset (#1697), by
+   * dataset key, before pagination: the rest are the community's.
+   */
+  sources?: Record<string, number>;
+  /**
    * The search the server applied, echoed: then entries, totals and counts
    * are its answer. Absent, the server did not search.
    */
@@ -279,6 +284,8 @@ export interface GalleryFeedState {
   filterCounts?: GalleryQuickFilterCounts;
   /** Contributors to the filtered wall, before pagination. */
   authors?: GalleryAuthorOption[];
+  /** Each reference dataset's circuits on the community wall (#1697). */
+  sources?: Record<string, number>;
   /** The search the server answered for these entries; "" for none. */
   search?: string;
 }
@@ -495,6 +502,7 @@ export async function loadGalleryFeed(
       search?: unknown;
       filterCounts?: GalleryQuickFilterCounts;
       authors?: GalleryAuthorOption[];
+      sources?: Record<string, number>;
     };
     if (payload.signedOut === true && !options.signedOutWall)
       return GALLERY_SIGN_IN_REQUIRED;
@@ -531,6 +539,13 @@ export async function loadGalleryFeed(
           author.count > 0,
       )
         ? { authors: payload.authors }
+        : {}),
+      ...(payload.sources &&
+      typeof payload.sources === "object" &&
+      Object.values(payload.sources).every(
+        (count) => Number.isSafeInteger(count) && count >= 0,
+      )
+        ? { sources: payload.sources }
         : {}),
       ...(payload.filterCounts &&
       (["attention", "netlistable", "liked"] as const).every((key) => {

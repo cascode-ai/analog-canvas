@@ -377,6 +377,7 @@ export function useGalleryWall({
               nextCursor: page.nextCursor,
               total: page.total ?? previous.total,
               ...(page.authors ? { authors: page.authors } : {}),
+              ...(page.sources ? { sources: page.sources } : {}),
               ...(page.filterCounts ? { filterCounts: page.filterCounts } : {}),
             }
           : previous,

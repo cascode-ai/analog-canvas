@@ -194,6 +194,7 @@ export function GalleryCountPanel({
   onSelectAuthor = () => undefined,
   onShowAllAuthors = () => undefined,
   datasets = [],
+  datasetShare = null,
   currentDataset = null,
   onSelectDataset = () => undefined,
 }: {
@@ -209,24 +210,18 @@ export function GalleryCountPanel({
   onShowAllAuthors?: () => void;
   /** Reference datasets, listed among the contributors (#1574). */
   datasets?: readonly GalleryDatasetRow[];
+  /** How many of the total come from the reference datasets (#1697). */
+  datasetShare?: number | null;
   /** The dataset whose wall is open, if any. */
   currentDataset?: string | null;
   onSelectDataset?: (key: string) => void;
 }) {
-  // The whole community wall counts every circuit the Gallery holds, the
-  // reference datasets' too; a dataset's wall, a narrowed wall or a search
-  // counts only what it shows.
-  const datasetCircuits =
-    currentDataset === null && !filtered && !searched && !search && !author
-      ? datasets.reduce((sum, dataset) => sum + dataset.count, 0)
-      : 0;
-  const label = galleryCountLabel(
-    total === null ? null : total + datasetCircuits,
-    { filtered, search, searched },
-  );
+  // The community wall holds the reference datasets' circuits too (#1697);
+  // its total says how many of them came from the datasets.
+  const label = galleryCountLabel(total, { filtered, search, searched });
   const breakdown =
-    total !== null && datasetCircuits > 0
-      ? `${total.toLocaleString()} community · ${datasetCircuits.toLocaleString()} from datasets`
+    total !== null && datasetShare
+      ? `${(total - datasetShare).toLocaleString()} community · ${datasetShare.toLocaleString()} from datasets`
       : undefined;
   const rootRef = useRef<HTMLDetailsElement | null>(null);
   // By circuits or by name (#1502), remembered in this browser.

@@ -7,7 +7,7 @@ import { TilePreview } from "./tile-preview";
 import { galleryPreviewUrl, type GalleryFeedEntry } from "../gallery-client";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 import { galleryTagLabel } from "../gallery-tag-label";
-import type { GallerySource } from "../gallery-sources";
+import { gallerySourceOfEntryId, type GallerySource } from "../gallery-sources";
 
 const GalleryTileMenu = lazy(() =>
   import("./gallery-owner-controls").then((module) => ({
@@ -98,6 +98,9 @@ export function GalleryWallTile({
   /** The Owner's accounts' "Verify simulation" (#1545); absent for anyone else. */
   verifySimulation?: ((entry: GalleryFeedEntry) => Promise<void>) | undefined;
 }) {
+  // A reference dataset's circuit is read-only, on its own wall or the
+  // community's (#1697): no likes, no owner tools.
+  const dataset = datasetWall ?? gallerySourceOfEntryId(entry.id);
   return (
     <div
       className={
@@ -183,8 +186,8 @@ export function GalleryWallTile({
               </>
             ) : null}
             {savedAtLabel(entry.createdAt)}
-            {datasetWall ? null : " · "}
-            {datasetWall ? null : (
+            {dataset ? null : " · "}
+            {dataset ? null : (
               <button
                 type="button"
                 className="gallery-tile-like"
@@ -239,7 +242,7 @@ export function GalleryWallTile({
           ) : null}
         </span>
       </a>
-      {!datasetWall &&
+      {!dataset &&
       (isOwner ||
         verifySimulation ||
         (!!viewerId && viewerId === entry.ownerUserId)) ? (
