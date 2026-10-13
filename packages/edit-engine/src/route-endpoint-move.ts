@@ -6,7 +6,6 @@ import {
   isVisibleEndpoint,
   pointOnSegment,
   resolveEndpointConnection,
-  resolveRouteGeometry,
 } from "@icm/derived";
 import { proposeJunctionGroupTranslation } from "./route-operations.js";
 import type {
@@ -20,10 +19,14 @@ import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./transaction.js";
 import { endpointOwnerNetId } from "./transaction-routing.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
-import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
+import { projectRoutingGeometryRead } from "./routing-geometry-projection.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { routeEdits } from "./route-proposal-edits.js";
 import type { RouteEditPlan } from "./routing-planner.js";
+import {
+  prepareRoutePathRead,
+  routingEndpointLookup,
+} from "./route-path-read.js";
 import {
   proposeEndpointsRouteAttachment,
   type EndpointRouteAttachmentRequest,
@@ -86,12 +89,19 @@ function endpointLandingsAt(
   point: Point,
   movedEndpoint: RouteEndpoint,
   travellingRouteIds: ReadonlySet<string>,
+  lookup: ReturnType<typeof routingEndpointLookup>,
+  readPath: ReturnType<typeof prepareRoutePathRead>,
 ): EndpointLanding[] {
   const movedNetId = endpointOwnerNetId(document, movedEndpoint);
   const contacts = new Map<string, EndpointLanding>();
   const spans: EndpointLanding[] = [];
   const consider = (endpoint: RouteEndpoint): boolean => {
-    const connection = resolveEndpointConnection(document, resolver, endpoint);
+    const connection = resolveEndpointConnection(
+      document,
+      resolver,
+      endpoint,
+      lookup,
+    );
     if (
       !connection ||
       connection.contactPoint.x !== point.x ||
@@ -121,7 +131,8 @@ function endpointLandingsAt(
         instanceId: instance.id,
         pinName: pin.name,
       };
-      if (isVisibleEndpoint(document, resolver, endpoint)) consider(endpoint);
+      if (isVisibleEndpoint(document, resolver, endpoint, lookup))
+        consider(endpoint);
     }
   }
   for (const junction of document.junctions) {
@@ -133,10 +144,12 @@ function endpointLandingsAt(
     // An existing route end is never an interior point that can be split.
     const atEndpoint = routeEndpoints(candidate).map(consider).some(Boolean);
     if (atEndpoint || candidate.netId === movedNetId) continue;
-    const geometry = resolveRouteGeometry(document, resolver, candidate);
-    const segmentIndex = geometry?.segments.findIndex((segment) =>
-      pointOnSegment(point, segment.from, segment.to),
-    );
+    const path = readPath(candidate);
+    const segmentIndex = path?.points
+      .slice(0, -1)
+      .findIndex((from, index) =>
+        pointOnSegment(point, from, path.points[index + 1]!),
+      );
     if (segmentIndex === undefined || segmentIndex < 0) continue;
     spans.push({ kind: "span", routeId: candidate.id, segmentIndex });
   }
@@ -165,6 +178,8 @@ function endpointLandingEdits(
   suffix: string,
 ): SchematicEdit[] {
   const draft = createContactPlanningDraft(document, resolver);
+  const lookup = routingEndpointLookup(document);
+  const readPath = prepareRoutePathRead(document, resolver, lookup);
   const spanRequests = new Map<string, EndpointRouteAttachmentRequest[]>();
   for (const endpoint of endpoints) {
     const point = resolveEndpointConnection(
@@ -179,6 +194,8 @@ function endpointLandingEdits(
       point,
       endpoint,
       travellingRouteIds,
+      lookup,
+      readPath,
     )) {
       const target =
         landing.kind === "contact"
@@ -279,7 +296,7 @@ export function proposeLooseRouteTranslation(
   ];
   if (!landing) return { routeId, edits };
 
-  const projected = projectRoutingEditGeometry(document, edits);
+  const projected = projectRoutingGeometryRead(document, edits);
   edits.push(
     ...endpointLandingEdits(
       projected,
@@ -476,7 +493,7 @@ export function proposeRouteEndpointMove(
   ];
   if (suffix) {
     // Detachment is already represented in base; project only the stretch.
-    const projected = projectRoutingEditGeometry(
+    const projected = projectRoutingGeometryRead(
       base,
       edits.slice(detachEdits.length),
     );

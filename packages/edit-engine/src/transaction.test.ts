@@ -18,7 +18,7 @@ import {
   resolveSchematicStyleProfile,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   EditTransactionSchema,
@@ -27,6 +27,59 @@ import {
 } from "./transaction.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+
+it("shares route endpoint preparation during a presentation transaction", () => {
+  const document = createEmptyDocument("document-main", "Route reads");
+  document.nets.push({ id: "n", terminals: [] });
+  for (let index = 0; index < 100; index++) {
+    for (const [suffix, x] of [
+      ["a", 0],
+      ["b", 100],
+    ] as const)
+      document.junctions.push({
+        id: `${suffix}${index}`,
+        netId: "n",
+        position: { x, y: index * 20 },
+      });
+    document.routes.push(
+      createRoutePath({
+        id: `r${index}`,
+        netId: "n",
+        start: { kind: "junction", junctionId: `a${index}` },
+        end: { kind: "junction", junctionId: `b${index}` },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+  }
+  const sourceFind = Array.prototype.find;
+  let scans = 0;
+  const spy = vi.spyOn(Array.prototype, "find").mockImplementation(function (
+    this: unknown[],
+    predicate,
+    thisArg,
+  ) {
+    if (this === document.junctions) scans++;
+    return sourceFind.call(this, predicate, thisArg);
+  });
+  try {
+    const result = executeTransaction(
+      document,
+      {
+        ...transaction(),
+        edits: [
+          { kind: "set_presentation_style", styleProfileId: "razavi-v1" },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result).toMatchObject({ ok: true, applied: true });
+    expect(result.document.routes).toEqual(document.routes);
+    expect(scans).toBeLessThan(20);
+  } finally {
+    spy.mockRestore();
+  }
+});
 
 /** Canonical machine-projected value content for a fixture instance. */
 function canonicalValueContent(instance: {

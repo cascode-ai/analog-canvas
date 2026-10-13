@@ -3,6 +3,7 @@ import type {
   MutableRefObject,
   PointerEvent as ReactPointerEvent,
 } from "react";
+import { useMemo } from "react";
 
 import { segmentDragPreviewPolyline } from "./segment-drag-preview";
 import { resolveWireDraftShape } from "./wire-draft-shape";
@@ -20,7 +21,7 @@ import {
   proposePowerRailEndpointResize,
   proposePowerRailTranslation,
   proposeRouteEndpointMove,
-  proposeWireSegmentMove,
+  prepareWireSegmentMove,
   proposeWireCommitThroughContacts,
   type SchematicEdit,
   type ExpectedElectricalEffect,
@@ -177,6 +178,14 @@ function segmentDragOrigin(
  * cross-domain canvas pointer arbiter.
  */
 export function useWireInteraction(capabilities: UseWireInteractionOptions) {
+  const segmentPlanner = useMemo(
+    () =>
+      prepareWireSegmentMove(
+        capabilities.model.document,
+        capabilities.model.resolver,
+      ),
+    [capabilities.model.document, capabilities.model.resolver],
+  );
   const options = {
     ...capabilities.model,
     ...capabilities.selection,
@@ -579,14 +588,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       } else {
         const grid = options.document.presentation.grid;
         const planAt = (target: Point, origin: Point | undefined) =>
-          proposeWireSegmentMove(
-            options.document,
-            options.resolver,
-            record.route.id,
-            preview.segmentIndex,
-            target,
-            origin,
-          );
+          segmentPlanner(record.route.id, preview.segmentIndex, target, origin);
         let refusal: string | null = null;
         const proposal = (() => {
           try {
@@ -846,14 +848,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             y: snapCoordinate(point.y, grid),
           };
           const origin = segmentDragOrigin(start, point, snapped, grid);
-          const plan = proposeWireSegmentMove(
-            options.document,
-            options.resolver,
-            routeId,
-            segmentIndex,
-            snapped,
-            origin,
-          );
+          const plan = segmentPlanner(routeId, segmentIndex, snapped, origin);
           const proposal = plan.preview?.routes.find(
             (candidate) => candidate.routeId === routeId,
           );

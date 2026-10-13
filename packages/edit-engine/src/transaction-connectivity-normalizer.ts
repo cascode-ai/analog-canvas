@@ -137,6 +137,8 @@ export function newlyTouchedRouteEndpoints(
   options: {
     excludeInstanceIds?: ReadonlySet<string>;
     excludeJunctionIds?: ReadonlySet<string>;
+    /** Internal planner read for this exact, unchanged source Document. */
+    beforeGeometry?: ReturnType<typeof resolveDocumentRoutingGeometry>;
   } = {},
 ): NewlyTouchedRouteEndpoint[] {
   if (routeIds.size === 0) return [];
@@ -148,7 +150,8 @@ export function newlyTouchedRouteEndpoints(
   );
   if (movedRouteIds.size === 0) return [];
   const routesById = new Map(after.routes.map((route) => [route.id, route]));
-  const beforeGeometry = resolveDocumentRoutingGeometry(before, resolver);
+  const beforeGeometry =
+    options.beforeGeometry ?? resolveDocumentRoutingGeometry(before, resolver);
   const afterGeometry = resolveDocumentRoutingGeometry(after, resolver);
   // These answers cannot outlive the sweep: a mutable draft's geometry can
   // change between normalization rounds without changing its revision.

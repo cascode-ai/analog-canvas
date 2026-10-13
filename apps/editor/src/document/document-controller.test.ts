@@ -1,5 +1,5 @@
 import { createRoutePath } from "@icm/model";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createEmptyDocument,
@@ -34,6 +34,36 @@ function hierarchicalProject() {
 }
 
 describe("EditorDocumentController", () => {
+  it("compares shared history without serializing whole Documents", () => {
+    const controller = new EditorDocumentController(hierarchicalProject());
+    controller.transact([{ kind: "add_instance", instance: instance("Rtop") }]);
+    const stringify = JSON.stringify;
+    let documentsSerialized = 0;
+    const spy = vi
+      .spyOn(JSON, "stringify")
+      .mockImplementation((value, replacer, space) => {
+        if (
+          value &&
+          Array.isArray(value.instances) &&
+          Array.isArray(value.routes)
+        )
+          documentsSerialized++;
+        return stringify(value, replacer as never, space);
+      });
+    try {
+      const undone = controller.transact([{ kind: "undo" }]);
+      expect(undone).toMatchObject({ ok: true, applied: true, revision: 2 });
+      expect(undone.ok && undone.diff.changedObjectIds).toEqual([
+        controller.document.id,
+        "Rtop",
+      ]);
+      expect(controller.document.instances).toEqual([]);
+      expect(controller.canRedo).toBe(true);
+      expect(documentsSerialized).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
   it("keeps returned transaction documents mutable and detached from committed history", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     const result = controller.transact([

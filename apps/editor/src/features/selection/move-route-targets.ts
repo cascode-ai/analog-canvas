@@ -33,6 +33,7 @@ function boundedQuery(bounds: Rect) {
  * of spatial buckets. Filtering movement ownership belongs to the caller. */
 export function prepareMoveRouteTargets(
   records: readonly RouteGeometryRecord[],
+  prefix: "move-route" | "placement-route" = "move-route",
 ) {
   const entries = records.flatMap(({ route, geometry }, order) =>
     geometry.centerline.slice(0, -1).map((from, segmentIndex) => {
@@ -92,7 +93,7 @@ export function prepareMoveRouteTargets(
         return [];
       return [
         {
-          id: `move-route:${moving.id}:${s.route.id}:${s.segmentIndex}`,
+          id: `${prefix}:${moving.id}:${s.route.id}:${s.segmentIndex}`,
           point: closest,
           kind: "route" as const,
           acceptsMovingAnchorId: moving.id,

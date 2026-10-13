@@ -1,7 +1,7 @@
 import { createEmptyDocument } from "@icm/model";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { DocumentHistory } from "./history.js";
+import { DocumentHistory, diffDocumentObjectIds } from "./history.js";
 
 function historyFixture() {
   const document = createEmptyDocument("document-main", "Main");
@@ -58,6 +58,42 @@ function transaction(revision: number, edits: unknown[], dryRun = false) {
 }
 
 describe("DocumentHistory", () => {
+  it("diffs changed objects without serializing shared neighbors", () => {
+    const history = structuralSharingFixture();
+    const before = history.document;
+    const result = history.transact(
+      transaction(0, [
+        {
+          kind: "place_instance",
+          instanceId: "R1",
+          placement: {
+            position: { x: 50, y: 40 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    const stringify = JSON.stringify;
+    let sharedSerializations = 0;
+    const spy = vi
+      .spyOn(JSON, "stringify")
+      .mockImplementation((value, replacer, space) => {
+        if (value === before.instances[1] || value === before.nets[0])
+          sharedSerializations++;
+        return stringify(value, replacer as never, space);
+      });
+    try {
+      expect(diffDocumentObjectIds(before, history.document)).toEqual(["R1"]);
+      expect(diffDocumentObjectIds(history.document, history.document)).toEqual(
+        [],
+      );
+      expect(sharedSerializations).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
   it("shares unchanged model structure without sharing changed objects", () => {
     const history = structuralSharingFixture();
     const before = history.document;

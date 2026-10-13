@@ -153,6 +153,11 @@ test("the copy ghost follows the pointer, turns with R, and keeps placing over e
   // commit, so it owns a reserved copy ID rather than the source ID.
   const previewSymbol = ghost.locator("[data-object-id] > g").first();
   await expect(previewSymbol).toHaveAttribute("transform", /rotate\(0\)/);
+  const ghostContent = await ghost
+    .locator(":scope > *")
+    .first()
+    .elementHandle();
+  if (!ghostContent) throw new Error("Copy content is not measurable");
   const first = await ghost.boundingBox();
   await page.mouse.move(centre(target).x, centre(target).y);
   const second = await ghost.boundingBox();
@@ -160,6 +165,13 @@ test("the copy ghost follows the pointer, turns with R, and keeps placing over e
   expect(second).not.toBeNull();
   expect(second!.x).not.toBe(first!.x);
   expect(second!.y).not.toBe(first!.y);
+  // Position alone changes the SVG transform, not the already drawn copy.
+  expect(
+    await ghost.evaluate(
+      (current, saved) => current.firstElementChild === saved,
+      ghostContent,
+    ),
+  ).toBe(true);
 
   // The copy capture plane owns this click even though an existing Instance
   // is directly under it, and placement stays armed for the next one.

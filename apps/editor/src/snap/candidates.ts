@@ -392,6 +392,28 @@ export interface SceneSnapTargetIndex {
   readonly targets: readonly IndexedSceneSnapTarget[];
 }
 
+const calculationTargets = new WeakMap<
+  SceneSnapTargetIndex,
+  readonly SnapAnchor[]
+>();
+
+/** Stable, unfiltered input for calculations. The public exclusion reader
+ * below still returns a fresh mutable array. Mutable caller indexes may
+ * replace/reorder anchors; their coordinates stay guarded by the Snap index. */
+export function sceneSnapTargetsForCalculation(
+  index: SceneSnapTargetIndex,
+): readonly SnapAnchor[] {
+  const cached = calculationTargets.get(index);
+  if (
+    cached?.length === index.targets.length &&
+    index.targets.every((target, at) => target.anchor === cached[at])
+  )
+    return cached;
+  const targets = Object.freeze(index.targets.map((target) => target.anchor));
+  calculationTargets.set(index, targets);
+  return targets;
+}
+
 export function buildSceneSnapTargetIndex(
   document: SchematicDocument,
   resolver: SymbolResolver,

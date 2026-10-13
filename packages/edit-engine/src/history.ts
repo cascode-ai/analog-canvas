@@ -47,14 +47,16 @@ export function diffDocumentObjectIds(
   left: SchematicDocument | undefined,
   right: SchematicDocument | undefined,
 ): string[] {
+  if (left === right) return [];
   const leftObjects = collectObjects(left);
   const rightObjects = collectObjects(right);
   const ids = new Set([...leftObjects.keys(), ...rightObjects.keys()]);
   return [...ids]
     .filter(
       (id) =>
+        leftObjects.get(id) !== rightObjects.get(id) &&
         JSON.stringify(leftObjects.get(id)) !==
-        JSON.stringify(rightObjects.get(id)),
+          JSON.stringify(rightObjects.get(id)),
     )
     .sort();
 }

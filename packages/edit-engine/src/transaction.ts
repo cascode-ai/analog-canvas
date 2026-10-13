@@ -12,7 +12,7 @@ import {
   affectedConductorNetIds,
   normalizeSameNetConductorTopology,
 } from "./conductor-topology.js";
-import { resolveRouteEditPath } from "./route-operations.js";
+import { prepareRoutePathRead } from "./route-path-read.js";
 import {
   followNetLabelsOnChangedRoutes,
   followRouteMarkersOnChangedRoutes,
@@ -217,6 +217,9 @@ export function executeTransaction(
           .routeIds,
       ])
     : undefined;
+  const originalPathRead = resolver
+    ? prepareRoutePathRead(document, resolver)
+    : undefined;
   const originalRouteStates = new Map(
     resolver
       ? document.routes
@@ -226,11 +229,7 @@ export function executeTransaction(
               routeValidationIds.has(route.id),
           )
           .map((route) => {
-            const resolvedPath = resolveRouteEditPath(
-              document,
-              resolver,
-              route,
-            );
+            const resolvedPath = originalPathRead!(route);
             return [
               route.id,
               {
@@ -242,10 +241,20 @@ export function executeTransaction(
       : [],
   );
   const originalNetLabelAnchors = resolver
-    ? captureNetLabelRouteAnchors(document, resolver, routeValidationIds)
+    ? captureNetLabelRouteAnchors(
+        document,
+        resolver,
+        routeValidationIds,
+        originalPathRead,
+      )
     : [];
   const originalRouteMarkerAnchors = resolver
-    ? captureRouteMarkerAnchors(document, resolver, routeValidationIds)
+    ? captureRouteMarkerAnchors(
+        document,
+        resolver,
+        routeValidationIds,
+        originalPathRead,
+      )
     : [];
   const changedRouteIds = new Set<string>();
   let geometryChanged = false;
@@ -1086,9 +1095,10 @@ export function executeTransaction(
             (route) =>
               routeValidationIds.has(route.id) || changedRouteIds.has(route.id),
           );
+    const finalPathRead = prepareRoutePathRead(draft, resolver);
     for (const route of routesToValidate) {
       const original = originalRouteStates.get(route.id);
-      const resolvedPath = resolveRouteEditPath(draft, resolver, route);
+      const resolvedPath = finalPathRead(route);
       const routeError = validateRoute(draft, route, resolver, resolvedPath);
       const resolvedPoints = resolvedPath?.points ?? null;
       const resolvedGeometryChanged =

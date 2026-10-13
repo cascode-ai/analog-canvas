@@ -4,7 +4,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import {
   buildInstanceAnchors,
-  sceneSnapTargetsExcluding,
+  sceneSnapTargetsForCalculation,
   type SceneSnapTargetIndex,
 } from "../../snap/candidates";
 import {
@@ -53,7 +53,7 @@ export function snapPendingCopyPlacement(options: {
     },
     movingAnchors: options.movingAnchors,
     // Originals remain stationary and are useful alignment targets for a copy.
-    targetAnchors: sceneSnapTargetsExcluding(options.sceneSnapTargetIndex),
+    targetAnchors: sceneSnapTargetsForCalculation(options.sceneSnapTargetIndex),
     primaryAnchorId: primary.id,
     grid: options.grid,
     tolerance: options.tolerance,

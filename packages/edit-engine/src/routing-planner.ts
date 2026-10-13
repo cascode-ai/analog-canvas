@@ -1,5 +1,9 @@
 // Group, Junction and wire-segment moves planned as typed transaction edits.
-import { endpointKey, resolveRouteGeometry } from "@icm/derived";
+import {
+  endpointKey,
+  resolveRouteGeometry,
+  resolveDocumentRoutingGeometry,
+} from "@icm/derived";
 import {
   proposeGroupMove,
   proposeJunctionGroupTranslation,
@@ -12,12 +16,16 @@ import {
   proposeGroupRotation,
   type GroupRotationProposal,
 } from "./group-rigid-transform.js";
-import { proposeWireSegmentDrag } from "./wire-segment-drag.js";
+import {
+  proposeWireSegmentDragFromSource,
+  prepareWireSegmentDragSource,
+  type WireSegmentDragSource,
+} from "./wire-segment-drag.js";
 import type { Point, SchematicDocument, ScreenFlip } from "@icm/model";
-import { routeEndpoints } from "@icm/model";
+import { routeEndpoints, isFrozenSnapshot } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./transaction.js";
-import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
+import { projectRoutingGeometryRead } from "./routing-geometry-projection.js";
 import { newlyTouchedRouteEndpoints } from "./transaction-connectivity-normalizer.js";
 import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import { routeEdits } from "./route-proposal-edits.js";
@@ -246,13 +254,98 @@ export function proposeWireSegmentMove(
   target: Point,
   origin?: Point,
 ): RouteEditPlan {
-  const proposal = proposeWireSegmentDrag(
+  return planWireSegmentMove(
     document,
     resolver,
     routeId,
     segmentIndex,
     target,
     origin,
+  );
+}
+
+/** Retain source reads while the editor previews one immutable Document.
+ * Mutable callers keep the uncached planner, including in-place changes. */
+export function prepareWireSegmentMove(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+) {
+  const references = isFrozenSnapshot(document)
+    ? new Map(
+        document.instances.map((instance) => [
+          JSON.stringify([instance.symbolId, instance.symbolVariantId]),
+          [instance.symbolId, instance.symbolVariantId] as const,
+        ]),
+      )
+    : undefined;
+  let symbols: string | undefined;
+  let source: WireSegmentDragSource | undefined;
+  return (
+    routeId: string,
+    segmentIndex: number,
+    target: Point,
+    origin?: Point,
+  ) => {
+    if (!references)
+      return proposeWireSegmentMove(
+        document,
+        resolver,
+        routeId,
+        segmentIndex,
+        target,
+        origin,
+      );
+    // Resolver identity is not a promise of unchanged custom Symbols.
+    const currentSymbols = JSON.stringify(
+      [...references.values()].map(
+        ([id, variant]) => resolver.resolve(id, variant) ?? null,
+      ),
+    );
+    if (!source || symbols !== currentSymbols) {
+      source = prepareWireSegmentDragSource(
+        document,
+        resolveDocumentRoutingGeometry(document, resolver),
+      );
+      symbols = currentSymbols;
+    }
+    return planWireSegmentMove(
+      document,
+      resolver,
+      routeId,
+      segmentIndex,
+      target,
+      origin,
+      source,
+    );
+  };
+}
+
+function planWireSegmentMove(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  segmentIndex: number,
+  target: Point,
+  origin?: Point,
+  source?: WireSegmentDragSource,
+): RouteEditPlan {
+  if (!document.routes.some((route) => route.id === routeId))
+    throw new Error(`Route not found: ${routeId}`);
+  const read =
+    source ??
+    prepareWireSegmentDragSource(
+      document,
+      resolveDocumentRoutingGeometry(document, resolver),
+    );
+  const beforeGeometry = read.routingGeometry;
+  const proposal = proposeWireSegmentDragFromSource(
+    document,
+    resolver,
+    routeId,
+    segmentIndex,
+    target,
+    origin,
+    read,
   );
   const edits: SchematicEdit[] = [
     ...proposal.junctions.map((move): SchematicEdit => ({
@@ -261,7 +354,7 @@ export function proposeWireSegmentMove(
     })),
     ...routeEdits(document, proposal.routes),
   ];
-  const projected = projectRoutingEditGeometry(document, edits);
+  const projected = projectRoutingGeometryRead(document, edits);
   const movedJunctionIds = new Set(
     proposal.junctions.map((junction) => junction.junctionId),
   );
@@ -270,10 +363,7 @@ export function proposeWireSegmentMove(
     projected,
     resolver,
     new Set(proposal.routes.map((route) => route.routeId)),
-  ).filter(
-    ({ endpoint }) =>
-      endpoint.kind !== "junction" ||
-      !movedJunctionIds.has(endpoint.junctionId),
+    { excludeJunctionIds: movedJunctionIds, beforeGeometry },
   );
   const expectedElectricalEffect: ExpectedElectricalEffect | undefined =
     contacts.length > 0

@@ -62,21 +62,51 @@ export function projectRoutingEditGeometry(
   document: SchematicDocument,
   edits: readonly SchematicEdit[],
 ): SchematicDocument {
-  const projected = structuredClone(document);
+  return projectGeometry(document, edits, true);
+}
+
+/** Internal synchronous read view. Consumers must not mutate or return this
+ * Document; public projections keep their fully detached ownership above. */
+export function projectRoutingGeometryRead(
+  document: SchematicDocument,
+  edits: readonly SchematicEdit[],
+): SchematicDocument {
+  return projectGeometry(document, edits, false);
+}
+
+function projectGeometry(
+  document: SchematicDocument,
+  edits: readonly SchematicEdit[],
+  detached: boolean,
+): SchematicDocument {
+  const projected = detached ? structuredClone(document) : { ...document };
   for (const edit of edits) {
     if (!canProjectRoutingEditGeometry(document, edit))
       throw new Error(`Not a transform geometry edit: ${edit.kind}`);
     if (edit.kind === "move_instance") {
-      const instance = projected.instances.find(
-        (i) => i.id === edit.instanceId,
+      const index = projected.instances.findIndex(
+        (instance) => instance.id === edit.instanceId,
       );
-      if (instance?.placement)
-        instance.placement.position = { ...edit.position };
+      const instance = projected.instances[index];
+      if (instance?.placement) {
+        projected.instances = [...projected.instances];
+        projected.instances[index] = {
+          ...instance,
+          placement: { ...instance.placement, position: { ...edit.position } },
+        };
+      }
     } else if (edit.kind === "move_junction") {
-      const junction = projected.junctions.find(
-        (j) => j.id === edit.junctionId,
+      const index = projected.junctions.findIndex(
+        (junction) => junction.id === edit.junctionId,
       );
-      if (junction) junction.position = { ...edit.position };
+      const junction = projected.junctions[index];
+      if (junction) {
+        projected.junctions = [...projected.junctions];
+        projected.junctions[index] = {
+          ...junction,
+          position: { ...edit.position },
+        };
+      }
     } else if (edit.kind === "set_route_path") {
       projected.routes = projected.routes.map((r) =>
         r.id === edit.route.id ? structuredClone(edit.route) : r,
@@ -90,9 +120,12 @@ export function projectRoutingEditGeometry(
           : item,
       );
     } else if (edit.kind === "upsert_drafting_object" && projected.drafting) {
-      projected.drafting.objects = projected.drafting.objects.map((item) =>
-        item.id === edit.object.id ? structuredClone(edit.object) : item,
-      );
+      projected.drafting = {
+        ...projected.drafting,
+        objects: projected.drafting.objects.map((item) =>
+          item.id === edit.object.id ? structuredClone(edit.object) : item,
+        ),
+      };
     } else {
       throw new Error(`Not a transform geometry edit: ${edit.kind}`);
     }

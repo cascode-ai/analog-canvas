@@ -8,6 +8,57 @@ import {
 import type { SnapAnchor } from "./engine";
 
 describe("unified Snap Engine", () => {
+  it("keeps appended electrical projections with a retained canvas target set", () => {
+    const moving: SnapAnchor = {
+      id: "moving-pin",
+      kind: "pin",
+      point: { x: 0, y: 0 },
+      electrical: {
+        kind: "endpoint",
+        endpoint: { kind: "terminal", instanceId: "R1", pinName: "1" },
+        netId: null,
+      },
+    };
+    const target: SnapAnchor = {
+      id: "dynamic-route",
+      kind: "route",
+      point: { x: 20, y: 20 },
+      acceptsMovingAnchorId: moving.id,
+      electrical: {
+        kind: "route",
+        routeId: "wire",
+        segmentIndex: 0,
+        netId: "net-wire",
+      },
+    };
+    const request = {
+      movingAnchors: [moving],
+      targetAnchors: [
+        {
+          id: "canvas-origin",
+          kind: "instance-center" as const,
+          point: { x: 100, y: 100 },
+        },
+      ],
+      rawDelta: { x: 19, y: 19 },
+      primaryAnchorId: moving.id,
+      grid: 10,
+      tolerance: 3,
+      profile: SNAP_PROFILES.instancePlacement,
+    };
+    const combined = resolveTranslationSnap({
+      ...request,
+      targetAnchors: [...request.targetAnchors, target],
+    });
+    const separated = resolveTranslationSnap({
+      ...request,
+      ...{ additionalTargetAnchors: [target] },
+    });
+    expect(separated.electricalMatch?.target.id).toBe("dynamic-route");
+    expect(separated.delta).toEqual({ x: 20, y: 20 });
+    expect(separated).toEqual(combined);
+  });
+
   it("invalidates coordinate indexing when a reused target array moves or reorders", () => {
     const targets: SnapAnchor[] = Array.from({ length: 100 }, (_, i) => ({
       id: `t${i}`,

@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createEmptyDocument,
   createRoutePath,
+  freezeSnapshot,
   routeEnd,
   transformPoint,
   SchematicDocumentSchema,
@@ -19,7 +20,11 @@ import {
   proposeLooseRouteTranslation,
   proposeRouteEndpointMove,
 } from "./route-endpoint-move.js";
-import { proposeWireSegmentMove } from "./routing-planner.js";
+import {
+  proposeWireSegmentMove,
+  prepareWireSegmentMove,
+} from "./routing-planner.js";
+import { proposeWireSegmentDrag } from "./index.js";
 import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
@@ -102,6 +107,46 @@ function conductorNets(d: SchematicDocument) {
 }
 
 describe("atomic endpoint landing", () => {
+  it("keeps endpoint landing reads off per-pin full instance scans", () => {
+    const document = looseWires();
+    for (let index = 0; index < 100; index++)
+      document.instances.push({
+        id: `R${index}`,
+        symbolId: "resistor",
+        placement: {
+          position: { x: 1000, y: 1000 + index * 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+    const find = Array.prototype.find;
+    let scans = 0;
+    const spy = vi.spyOn(Array.prototype, "find").mockImplementation(function (
+      this: unknown[],
+      predicate,
+      thisArg,
+    ) {
+      if (this === document.instances) scans++;
+      return find.call(this, predicate, thisArg);
+    });
+    try {
+      const plan = proposeRouteEndpointMove(
+        document,
+        resolver,
+        "r",
+        "start",
+        { x: 40, y: 30 },
+        "local",
+      );
+      expect(plan.preview?.junctions).toEqual([
+        { junctionId: "A", position: { x: 40, y: 30 } },
+      ]);
+      expect(plan.edits.some((edit) => edit.kind === "merge_nets")).toBe(false);
+      expect(scans).toBeLessThan(20);
+    } finally {
+      spy.mockRestore();
+    }
+  });
   it("merges a pair of Nets only once when both loose ends land on endpoints", () => {
     const d = looseWires();
     const before = structuredClone(d);
@@ -328,6 +373,190 @@ describe("terminal-aware shortening", () => {
 });
 
 describe("segment landing on an endpoint", () => {
+  it("ignores caller-provided prepared hints at the public drag boundary", () => {
+    const document = looseWires();
+    const unownedHint = { document };
+    document.junctions.push({
+      id: "C",
+      netId: "n",
+      position: { x: 0, y: -100 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "branch",
+        netId: "n",
+        start: { kind: "junction", junctionId: "A" },
+        end: { kind: "junction", junctionId: "C" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const actual = Reflect.apply(proposeWireSegmentDrag, undefined, [
+      document,
+      resolver,
+      "r",
+      0,
+      { x: 50, y: 30 },
+      undefined,
+      unownedHint,
+    ]);
+    expect(
+      actual.routes.map((route: { routeId: string }) => route.routeId),
+    ).toEqual(["branch", "r"]);
+    expect(actual.junctions).toEqual([
+      { junctionId: "A", position: { x: 0, y: 30 } },
+      { junctionId: "B", position: { x: 100, y: 30 } },
+    ]);
+  });
+  it("refreshes prepared reads for mutable Documents and replaced custom Symbol definitions", () => {
+    const mutable = looseWires();
+    const prepareMutable = prepareWireSegmentMove(mutable, resolver);
+    prepareMutable("r", 0, { x: 50, y: 20 });
+    mutable.junctions[0]!.position.x = -10;
+    expect(
+      prepareMutable("r", 0, { x: 50, y: 30 }).preview?.junctions[0],
+    ).toEqual({ junctionId: "A", position: { x: -10, y: 30 } });
+    const source = createEmptyDocument("symbols", "Symbols");
+    source.instances = [0, 100].map((x, index) => ({
+      id: `R${index}`,
+      symbolId: index === 0 ? "custom-resistor" : "resistor",
+      placement: { position: { x, y: -20 }, rotation: 0, mirror: "none" },
+    }));
+    source.nets.push({
+      id: "n",
+      terminals: [0, 1].map((index) => ({
+        instanceId: `R${index}`,
+        pinName: "2",
+      })),
+    });
+    source.routes.push(
+      createRoutePath({
+        id: "r",
+        netId: "n",
+        start: { kind: "terminal", instanceId: "R0", pinName: "2" },
+        end: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const custom = structuredClone(resolver.resolve("resistor")!.definition);
+    custom.id = "custom-resistor";
+    let catalog = new InMemorySymbolResolver([custom], resolver);
+    const liveResolver = {
+      resolve: (id: string, variant?: string) => catalog.resolve(id, variant),
+    };
+    const document = freezeSnapshot(source);
+    const prepare = prepareWireSegmentMove(document, liveResolver);
+    prepare("r", 0, { x: 50, y: 50 });
+    custom.pins.find((pin) => pin.name === "2")!.at = { x: 80, y: 40 };
+    catalog = new InMemorySymbolResolver([custom], resolver);
+    // The changed pin makes this a 45-degree leg. This target now folds it
+    // back and must be refused, rather than using the cached horizontal run.
+    expect(() => prepare("r", 0, { x: 50, y: 50 }, { x: 50, y: 0 })).toThrow(
+      "Segment move would fold the wire back",
+    );
+    expect(() =>
+      proposeWireSegmentMove(
+        document,
+        liveResolver,
+        "r",
+        0,
+        { x: 50, y: 50 },
+        { x: 50, y: 0 },
+      ),
+    ).toThrow("Segment move would fold the wire back");
+  });
+  it("retains source geometry and incident routes between segment pointer positions", () => {
+    const source = looseWires();
+    for (let index = 0; index < 100; index++) {
+      source.junctions.push(
+        {
+          id: `bg-a${index}`,
+          netId: "n",
+          position: { x: 1000, y: 1000 + index * 20 },
+        },
+        {
+          id: `bg-b${index}`,
+          netId: "n",
+          position: { x: 1100, y: 1000 + index * 20 },
+        },
+      );
+      source.routes.push(
+        createRoutePath({
+          id: `bg-r${index}`,
+          netId: "n",
+          start: { kind: "junction", junctionId: `bg-a${index}` },
+          end: { kind: "junction", junctionId: `bg-b${index}` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    const document = freezeSnapshot(source);
+    const prepare = prepareWireSegmentMove(document, resolver);
+    prepare("r", 0, { x: 50, y: 10 });
+    const sort = Array.prototype.sort;
+    const iterator = Array.prototype[Symbol.iterator];
+    let fullRouteIterations = 0;
+    Array.prototype[Symbol.iterator] = function (this: unknown[]) {
+      if (this === document.routes) fullRouteIterations++;
+      return iterator.call(this);
+    };
+    let fullSorts = 0;
+    const spy = vi.spyOn(Array.prototype, "sort").mockImplementation(function (
+      this: unknown[],
+      compare,
+    ) {
+      if (
+        this.length === document.routes.length &&
+        this[0] === document.routes[0]
+      )
+        fullSorts++;
+      return sort.call(this, compare);
+    });
+    try {
+      for (const y of [20, 30, 40]) {
+        expect(prepare("r", 0, { x: 50, y }).preview?.junctions).toEqual([
+          { junctionId: "A", position: { x: 0, y } },
+          { junctionId: "B", position: { x: 100, y } },
+        ]);
+      }
+      // One full projection of the changed canvas per frame remains necessary;
+      // the unchanged source must not be resolved twice again per frame.
+      expect(fullSorts).toBeLessThanOrEqual(3);
+      expect(fullRouteIterations).toBe(0);
+    } finally {
+      spy.mockRestore();
+      Array.prototype[Symbol.iterator] = iterator;
+    }
+  });
+  it("plans segment geometry without cloning the source document", () => {
+    const d = looseWires();
+    const before = structuredClone(d);
+    const clone = structuredClone;
+    let sourceClones = 0;
+    const spy = vi
+      .spyOn(globalThis, "structuredClone")
+      .mockImplementation((value, options) => {
+        if (value === d) sourceClones++;
+        return clone(value, options);
+      });
+    try {
+      const plan = proposeWireSegmentMove(d, resolver, "r", 0, {
+        x: 50,
+        y: 30,
+      });
+      expect(plan.preview?.junctions).toEqual([
+        { junctionId: "A", position: { x: 0, y: 30 } },
+        { junctionId: "B", position: { x: 100, y: 30 } },
+      ]);
+      expect(plan.expectedElectricalEffect).toBeUndefined();
+      expect(d).toEqual(before);
+      expect(sourceClones).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
   it("connects and dots a capacitor pin touched by the moved segment", () => {
     const d = createEmptyDocument("segment-pin", "Segment pin contact");
     d.presentation.grid = 10;

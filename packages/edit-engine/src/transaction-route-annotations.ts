@@ -1,7 +1,7 @@
 import type { Annotation, Point, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { resolveRouteEditPath } from "./route-operations.js";
+import { prepareRoutePathRead } from "./route-path-read.js";
 
 export interface NetLabelRouteAnchor {
   annotationId: string;
@@ -154,10 +154,11 @@ export function captureNetLabelRouteAnchors(
   document: SchematicDocument,
   resolver: SymbolResolver,
   routeIds?: ReadonlySet<string>,
+  readPath = prepareRoutePathRead(document, resolver),
 ): NetLabelRouteAnchor[] {
   const polylines = document.routes.flatMap((route) => {
     if (routeIds && !routeIds.has(route.id)) return [];
-    const polyline = resolveRouteEditPath(document, resolver, route);
+    const polyline = readPath(route);
     return polyline ? [{ route, polyline }] : [];
   });
   return document.annotations.flatMap((annotation) => {
@@ -245,6 +246,7 @@ export function captureRouteMarkerAnchors(
   document: SchematicDocument,
   resolver: SymbolResolver,
   routeIds?: ReadonlySet<string>,
+  readPath = prepareRoutePathRead(document, resolver),
 ): RouteMarkerAnchor[] {
   return document.annotations.flatMap((annotation) => {
     const attachment = routeMarkerAttachment(annotation);
@@ -254,7 +256,7 @@ export function captureRouteMarkerAnchors(
       (candidate) => candidate.id === attachment.routeId,
     );
     if (!route) return [];
-    const polyline = resolveRouteEditPath(document, resolver, route);
+    const polyline = readPath(route);
     if (!polyline) return [];
     const segmentIndex = route.legs.findIndex(
       (leg) => leg.id === attachment.legId,

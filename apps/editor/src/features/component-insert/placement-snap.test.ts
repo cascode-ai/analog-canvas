@@ -1,7 +1,11 @@
 import { resolveDocumentRoutingGeometry } from "@icm/derived";
-import { createEmptyDocument, createRoutePath } from "@icm/model";
+import {
+  createEmptyDocument,
+  createRoutePath,
+  freezeSnapshot,
+} from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildSceneSnapTargetIndex } from "../../snap/candidates";
 import { defaultRazaviSymbolVariantId } from "../../presentation/razavi-presentation";
@@ -25,6 +29,103 @@ function routeRecords(
 }
 
 describe("pending component placement snap", () => {
+  it("reads an immutable canvas without cloning it for each pending position", () => {
+    const document = freezeSnapshot(createEmptyDocument("main", "Main"));
+    const sceneSnapTargetIndex = buildSceneSnapTargetIndex(
+      document,
+      resolver,
+      [],
+    );
+    const originalClone = globalThis.structuredClone;
+    let sourceClones = 0;
+    const clone = vi
+      .spyOn(globalThis, "structuredClone")
+      .mockImplementation((value, options) => {
+        if (value === document) sourceClones++;
+        return originalClone(value, options);
+      });
+    try {
+      for (const x of [103, 133, 163]) {
+        const result = snapPendingComponentPlacement({
+          document,
+          resolver,
+          routeGeometryRecords: [],
+          sceneSnapTargetIndex,
+          symbolId: "resistor",
+          position: { x, y: 203 },
+          rotation: 0,
+          mirror: "none",
+          tolerance: 3,
+        });
+        expect(result.position).toEqual({ x: x - 3, y: 200 });
+      }
+      expect(sourceClones).toBe(0);
+      expect(document.instances).toEqual([]);
+    } finally {
+      clone.mockRestore();
+    }
+  });
+
+  it("does not compare a pending pin to every distant conductor", () => {
+    const source = createEmptyDocument("main", "Main");
+    for (let index = 0; index < 100; index++) {
+      const netId = `net-${index}`;
+      source.nets.push({ id: netId, terminals: [] });
+      source.junctions.push(
+        {
+          id: `${netId}-a`,
+          netId,
+          position: { x: 10000, y: 10000 + index * 100 },
+        },
+        {
+          id: `${netId}-b`,
+          netId,
+          position: { x: 10100, y: 10000 + index * 100 },
+        },
+      );
+      source.routes.push(
+        createRoutePath({
+          id: `wire-${index}`,
+          netId,
+          start: { kind: "junction", junctionId: `${netId}-a` },
+          end: { kind: "junction", junctionId: `${netId}-b` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    const document = freezeSnapshot(source);
+    const routeGeometryRecords = routeRecords(document);
+    const sceneSnapTargetIndex = buildSceneSnapTargetIndex(
+      document,
+      resolver,
+      [],
+    );
+    const originalHypot = Math.hypot;
+    let distances = 0;
+    const hypot = vi.spyOn(Math, "hypot").mockImplementation((...values) => {
+      distances++;
+      return originalHypot(...values);
+    });
+    try {
+      const result = snapPendingComponentPlacement({
+        document,
+        resolver,
+        routeGeometryRecords,
+        sceneSnapTargetIndex,
+        symbolId: "ground",
+        position: { x: 103, y: 203 },
+        rotation: 0,
+        mirror: "none",
+        tolerance: 3,
+      });
+      expect(result.position).toEqual({ x: 100, y: 200 });
+      expect(distances).toBeLessThan(20);
+    } finally {
+      hypot.mockRestore();
+    }
+  });
+
   it.each([
     "ground",
     "vdd-port",

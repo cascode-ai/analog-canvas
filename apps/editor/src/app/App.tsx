@@ -1746,12 +1746,13 @@ function WorkspaceEditor({
       setStatus(`Copy preview unavailable — ${copyPreviewState.error}`);
     }
   }, [copyPreviewState.error]);
+  const copyPreviewVisible = Boolean(copyPlacement?.previewPoint);
   const copyPreviewInnerHtml = useMemo(
     () =>
-      copyPreviewState.scene === null || !copyPlacement?.previewPoint
+      copyPreviewState.scene === null || !copyPreviewVisible
         ? null
         : { __html: copyPreviewState.scene.formalBody },
-    [copyPlacement?.previewPoint, copyPreviewState.scene],
+    [copyPreviewVisible, copyPreviewState.scene],
   );
   const copyPreviewTransform = copyPlacement?.previewPoint
     ? `translate(${copyPlacement.previewPoint.x - copyPlacement.anchor.x} ${

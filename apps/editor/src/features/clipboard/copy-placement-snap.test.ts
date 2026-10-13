@@ -1,6 +1,6 @@
 import { createEmptyDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildSceneSnapTargetIndex } from "../../snap/candidates";
 import type { PlacementOrientationOperation } from "../../interaction/shortcut-orientation";
@@ -23,6 +23,110 @@ const resistor = (id: string, x: number, y: number) => ({
 });
 
 describe("copy placement alignment", () => {
+  it("reads target replacements, reordering and coordinate changes after a cached placement", () => {
+    const sceneSnapTargetIndex = {
+      targets: [
+        {
+          objectId: "first",
+          anchor: {
+            id: "a",
+            kind: "instance-center" as const,
+            point: { x: 30, y: 50 },
+          },
+        },
+        {
+          objectId: "second",
+          anchor: {
+            id: "b",
+            kind: "instance-center" as const,
+            point: { x: 70, y: 50 },
+          },
+        },
+      ],
+    };
+    const options = {
+      sceneSnapTargetIndex,
+      movingAnchors: [
+        {
+          id: "origin",
+          kind: "instance-center" as const,
+          point: { x: 0, y: 0 },
+        },
+      ],
+      anchor: { x: 0, y: 0 },
+      grid: 10,
+      tolerance: 3,
+    };
+    expect(
+      snapPendingCopyPlacement({ ...options, position: { x: 32, y: 52 } })
+        .point,
+    ).toEqual({ x: 30, y: 50 });
+    sceneSnapTargetIndex.targets.reverse();
+    sceneSnapTargetIndex.targets[0]!.anchor = {
+      id: "c",
+      kind: "instance-center",
+      point: { x: 90, y: 80 },
+    };
+    expect(
+      snapPendingCopyPlacement({ ...options, position: { x: 92, y: 82 } })
+        .point,
+    ).toEqual({ x: 90, y: 80 });
+    sceneSnapTargetIndex.targets[0]!.anchor.point.x = 100;
+    expect(
+      snapPendingCopyPlacement({ ...options, position: { x: 102, y: 82 } })
+        .point,
+    ).toEqual({ x: 100, y: 80 });
+    sceneSnapTargetIndex.targets.length = 0;
+    expect(
+      snapPendingCopyPlacement({ ...options, position: { x: 32, y: 52 } }),
+    ).toEqual({ point: { x: 30, y: 50 }, guides: [] });
+  });
+  it("keeps repeated pointer placement off the full canvas sorting path", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances = Array.from({ length: 100 }, (_, index) =>
+      resistor(`R${index}`, 10000 + index * 100, 10000),
+    );
+    const sceneSnapTargetIndex = buildSceneSnapTargetIndex(
+      document,
+      resolver,
+      [],
+    );
+    const options = {
+      movingAnchors: [
+        {
+          id: "copy-origin",
+          kind: "instance-center" as const,
+          point: { x: 100, y: 100 },
+        },
+      ],
+      sceneSnapTargetIndex,
+      anchor: { x: 100, y: 100 },
+      grid: 10,
+      tolerance: 3,
+    };
+    snapPendingCopyPlacement({ ...options, position: { x: 3003, y: 203 } });
+    const originalSort = Array.prototype.sort;
+    let fullTargetSorts = 0;
+    // Count real runtime work, without replacing any Snap/planner answer.
+    const sort = vi.spyOn(Array.prototype, "sort").mockImplementation(function (
+      this: unknown[],
+      compare?: (left: unknown, right: unknown) => number,
+    ) {
+      if (this.length >= sceneSnapTargetIndex.targets.length) fullTargetSorts++;
+      return originalSort.call(this, compare);
+    });
+    try {
+      for (const x of [3033, 3063, 3093]) {
+        expect(
+          snapPendingCopyPlacement({ ...options, position: { x, y: 203 } }),
+        ).toEqual({ point: { x: x - 3, y: 200 }, guides: [] });
+      }
+      expect(fullTargetSorts).toBe(0);
+    } finally {
+      sort.mockRestore();
+    }
+  });
+
   it("keeps the original as an alignment target without mutating either document", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances = [resistor("R1", 100, 100)];

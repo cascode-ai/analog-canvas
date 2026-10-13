@@ -42,6 +42,34 @@ import {
 
 type ProjectSymbolResolver = ReturnType<typeof createProjectSymbolResolver>;
 
+/** Model Documents are validated JSON. Preserve serialization equality (key
+ * order included), but shared subtrees need no second serialization. */
+function sameDocumentJson(
+  left: SchematicDocument | undefined,
+  right: SchematicDocument | undefined,
+  ignoreRevision = false,
+): boolean {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  const keys = (document: SchematicDocument) =>
+    Object.keys(document).filter(
+      (key) => Reflect.get(document, key) !== undefined,
+    );
+  const leftKeys = keys(left),
+    rightKeys = keys(right);
+  if (
+    leftKeys.length !== rightKeys.length ||
+    leftKeys.some((key, index) => key !== rightKeys[index])
+  )
+    return false;
+  return leftKeys.every((key) => {
+    if (ignoreRevision && key === "revision") return true;
+    const before = Reflect.get(left, key),
+      after = Reflect.get(right, key);
+    return before === after || JSON.stringify(before) === JSON.stringify(after);
+  });
+}
+
 function documentSymbolDefinitionChanged(
   before: SchematicDocument,
   after: SchematicDocument,
@@ -442,10 +470,7 @@ export class EditorDocumentController {
       return this.restoreHistory(request, request.edits[0].kind);
     }
     if (!result.ok || !result.applied) return result;
-    if (
-      JSON.stringify({ ...result.document, revision: document.revision }) ===
-      JSON.stringify(document)
-    )
+    if (sameDocumentJson(result.document, document, true))
       return {
         ...result,
         applied: false,
@@ -587,10 +612,7 @@ export class EditorDocumentController {
         documents: entry.project.documents.map((saved) => {
           const live = current.get(saved.id);
           // Revisions identify live versions, never the historical snapshot.
-          const unchanged =
-            live &&
-            JSON.stringify({ ...live, revision: 0 }) ===
-              JSON.stringify({ ...saved, revision: 0 });
+          const unchanged = live && sameDocumentJson(live, saved, true);
           return unchanged
             ? live
             : {
@@ -612,8 +634,10 @@ export class EditorDocumentController {
         ),
       ].filter(
         (id) =>
-          JSON.stringify(before.documents.find((item) => item.id === id)) !==
-          JSON.stringify(restored.documents.find((item) => item.id === id)),
+          !sameDocumentJson(
+            before.documents.find((item) => item.id === id),
+            restored.documents.find((item) => item.id === id),
+          ),
       );
       const changedObjectIds = [
         ...new Set(

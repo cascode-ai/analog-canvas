@@ -21,6 +21,63 @@ import type {
   RouteStretchProposal,
   WireSegmentDragProposal,
 } from "./route-operations.js";
+
+/** Source-owned read facts, never a persisted routing policy or preview result. */
+export interface WireSegmentDragSource {
+  readonly document: SchematicDocument;
+  readonly routingGeometry: ResolvedDocumentRoutingGeometry;
+  readonly routesById: ReadonlyMap<string, SchematicDocument["routes"][number]>;
+  readonly junctionsById: ReadonlyMap<
+    string,
+    SchematicDocument["junctions"][number]
+  >;
+  readonly incidentRoutes: (
+    junctionIds: Iterable<string>,
+  ) => readonly SchematicDocument["routes"][number][];
+}
+
+export function prepareWireSegmentDragSource(
+  document: SchematicDocument,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+): WireSegmentDragSource {
+  const routesById = new Map<string, SchematicDocument["routes"][number]>();
+  const junctionsById = new Map<
+    string,
+    SchematicDocument["junctions"][number]
+  >();
+  type Record = { route: SchematicDocument["routes"][number]; order: number };
+  const incident = new Map<string, Record[]>();
+  for (const junction of document.junctions)
+    if (!junctionsById.has(junction.id))
+      junctionsById.set(junction.id, junction);
+  document.routes.forEach((route, order) => {
+    if (!routesById.has(route.id)) routesById.set(route.id, route);
+    const record = { route, order };
+    for (const id of new Set(
+      [route.start, routeEnd(route)].flatMap((endpoint) =>
+        endpoint.kind === "junction" ? [endpoint.junctionId] : [],
+      ),
+    )) {
+      const records = incident.get(id) ?? [];
+      records.push(record);
+      incident.set(id, records);
+    }
+  });
+  return {
+    document,
+    routingGeometry,
+    routesById,
+    junctionsById,
+    incidentRoutes(junctionIds) {
+      const records = new Set<Record>();
+      for (const id of junctionIds)
+        for (const record of incident.get(id) ?? []) records.add(record);
+      return [...records]
+        .sort((left, right) => left.order - right.order)
+        .map((record) => record.route);
+    },
+  };
+}
 import {
   normalizeProposal,
   protectedMode,
@@ -35,13 +92,11 @@ import {
  * anchors: their positions belong to their Symbols.
  */
 function movableSegmentJunctionId(
-  document: SchematicDocument,
   endpoint: RouteEndpoint,
+  source: WireSegmentDragSource,
 ): string | null {
   if (endpoint.kind !== "junction") return null;
-  const junction = document.junctions.find(
-    (candidate) => candidate.id === endpoint.junctionId,
-  );
+  const junction = source.junctionsById.get(endpoint.junctionId);
   if (!junction) return null;
   return junction.id;
 }
@@ -60,10 +115,10 @@ function routeSideEndpoint(
  * A dot's previous visibility is not a constraint on conductor movement.
  */
 function assertJunctionBranchesStayVisible(
-  document: SchematicDocument,
   routingGeometry: ResolvedDocumentRoutingGeometry,
   proposal: WireSegmentDragProposal,
   junctionIds: readonly string[],
+  source: WireSegmentDragSource,
 ): void {
   if (junctionIds.length === 0) return;
   const movedById = new Map(
@@ -105,7 +160,7 @@ function assertJunctionBranchesStayVisible(
 
   for (const junctionId of junctionIds) {
     const headings = new Map<string, string>();
-    for (const route of document.routes) {
+    for (const route of source.incidentRoutes([junctionId])) {
       const points = resultingPoints(route);
       if (!points) continue;
       for (const side of ["from", "to"] as const) {
@@ -120,9 +175,7 @@ function assertJunctionBranchesStayVisible(
         if (!key) continue;
         const existing = headings.get(key);
         if (existing && existing !== route.id) {
-          const other = document.routes.find(
-            (candidate) => candidate.id === existing,
-          )!;
+          const other = source.routesById.get(existing)!;
           // Ordinary same-Net coverage is normalized at the transaction
           // boundary. Its former branch role must not pin the drag in place.
           if (
@@ -155,18 +208,40 @@ export function proposeWireSegmentDrag(
   target: Point,
   origin?: Point,
 ): WireSegmentDragProposal {
+  if (!document.routes.some((route) => route.id === routeId))
+    throw new Error(`Route not found: ${routeId}`);
+  return proposeWireSegmentDragFromSource(
+    document,
+    resolver,
+    routeId,
+    segmentIndex,
+    target,
+    origin,
+    prepareWireSegmentDragSource(
+      document,
+      resolveDocumentRoutingGeometry(document, resolver),
+    ),
+  );
+}
+
+/** Package-private: prepared reads are owned by the immutable GUI planner,
+ * not accepted as unchecked hints at the public planner boundary. */
+export function proposeWireSegmentDragFromSource(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  segmentIndex: number,
+  target: Point,
+  origin: Point | undefined,
+  read: WireSegmentDragSource,
+): WireSegmentDragProposal {
+  if (!document.routes.some((route) => route.id === routeId))
+    throw new Error(`Route not found: ${routeId}`);
   const plan = (at: Point) =>
     tidyDragProposal(
       document,
       resolver,
-      proposeWireSegmentDragGeometry(
-        document,
-        resolver,
-        routeId,
-        segmentIndex,
-        at,
-        origin,
-      ),
+      proposeWireSegmentDragGeometry(routeId, segmentIndex, at, origin, read),
     );
   try {
     return plan(target);
@@ -175,12 +250,11 @@ export function proposeWireSegmentDrag(
     // along y. When the pointer's axis would fold the wire back (a pin jog
     // doubling against the slant), take the other axis before refusing.
     const alternate = equivalentDiagonalTarget(
-      document,
-      resolver,
       routeId,
       segmentIndex,
       target,
       origin,
+      read,
     );
     if (!alternate) throw error;
     try {
@@ -197,18 +271,14 @@ export function proposeWireSegmentDrag(
  * move `d` equals a horizontal move `-s·d`. Null for any other segment.
  */
 function equivalentDiagonalTarget(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
   routeId: string,
   segmentIndex: number,
   target: Point,
   origin: Point | undefined,
+  source: WireSegmentDragSource,
 ): Point | null {
   if (!origin) return null;
-  const polyline = routeEditPathFromGeometry(
-    resolveDocumentRoutingGeometry(document, resolver),
-    routeId,
-  );
+  const polyline = routeEditPathFromGeometry(source.routingGeometry, routeId);
   const from = polyline?.points[segmentIndex];
   const to = polyline?.points[segmentIndex + 1];
   if (!from || !to) return null;
@@ -225,18 +295,21 @@ function equivalentDiagonalTarget(
 
 /** Stretch every other Route at the Junctions a segment drag carries. */
 function stretchRoutesAtMovedJunctions(
-  document: SchematicDocument,
   routingGeometry: ResolvedDocumentRoutingGeometry,
   draggedRouteId: string,
   movedJunctions: ReadonlyMap<string, Point>,
+  source: WireSegmentDragSource,
 ): RouteStretchProposal[] {
   const proposals: RouteStretchProposal[] = [];
-  for (const route of document.routes) {
+  for (const route of source.incidentRoutes(movedJunctions.keys())) {
     if (route.id === draggedRouteId) continue;
-    const fromAnchor = movableSegmentJunctionId(document, route.start);
-    const toAnchor = movableSegmentJunctionId(document, routeEnd(route));
-    const movedFrom = fromAnchor ? movedJunctions.get(fromAnchor) : undefined;
-    const movedTo = toAnchor ? movedJunctions.get(toAnchor) : undefined;
+    const end = routeEnd(route);
+    const movedFrom =
+      route.start.kind === "junction"
+        ? movedJunctions.get(route.start.junctionId)
+        : undefined;
+    const movedTo =
+      end.kind === "junction" ? movedJunctions.get(end.junctionId) : undefined;
     if (!movedFrom && !movedTo) continue;
     const polyline = routeEditPathFromGeometry(routingGeometry, route.id);
     if (!polyline) throw new Error(`Route ${route.id} has unresolved geometry`);
@@ -284,16 +357,15 @@ function segmentDragProposal(
 }
 
 function proposeWireSegmentDragGeometry(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
   routeId: string,
   segmentIndex: number,
   target: Point,
   origin: Point | undefined,
+  source: WireSegmentDragSource,
 ): WireSegmentDragProposal {
-  const selectedRoute = document.routes.find((route) => route.id === routeId);
+  const selectedRoute = source.routesById.get(routeId);
   if (!selectedRoute) throw new Error(`Route not found: ${routeId}`);
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const routingGeometry = source.routingGeometry;
   const selectedPolyline = routeEditPathFromGeometry(routingGeometry, routeId);
   if (!selectedPolyline)
     throw new Error(`Route ${routeId} has unresolved geometry`);
@@ -326,10 +398,10 @@ function proposeWireSegmentDragGeometry(
   const lastPointIndex = selectedPolyline.points.length - 1;
   const selectedEndpointJunction = (pointIndex: number): string | null => {
     if (pointIndex === 0) {
-      return movableSegmentJunctionId(document, selectedRoute.start);
+      return movableSegmentJunctionId(selectedRoute.start, source);
     }
     if (pointIndex === lastPointIndex) {
-      return movableSegmentJunctionId(document, routeEnd(selectedRoute));
+      return movableSegmentJunctionId(routeEnd(selectedRoute), source);
     }
     return null;
   };
@@ -377,9 +449,7 @@ function proposeWireSegmentDragGeometry(
     try {
       const movedJunctions = new Map<string, Point>();
       for (const anchorId of anchorIds) {
-        const junction = document.junctions.find(
-          (candidate) => candidate.id === anchorId,
-        )!;
+        const junction = source.junctionsById.get(anchorId)!;
         movedJunctions.set(anchorId, {
           x: junction.position.x + drag.move.x,
           y: junction.position.y + drag.move.y,
@@ -398,29 +468,29 @@ function proposeWireSegmentDragGeometry(
             }),
           },
           ...stretchRoutesAtMovedJunctions(
-            document,
             routingGeometry,
             routeId,
             movedJunctions,
+            source,
           ),
         ],
         movedJunctions,
       );
       assertJunctionBranchesStayVisible(
-        document,
         routingGeometry,
         planned,
         anchorIds,
+        source,
       );
       return planned;
     } catch {
       // As for an orthogonal segment: leave the Junction and jog to it.
       const fallback = doglegged();
       assertJunctionBranchesStayVisible(
-        document,
         routingGeometry,
         fallback,
         anchorIds,
+        source,
       );
       return fallback;
     }
@@ -454,9 +524,7 @@ function proposeWireSegmentDragGeometry(
   const movedJunctions = new Map<string, Point>();
   for (const anchorId of [leftAnchorId, rightAnchorId]) {
     if (!anchorId || movedJunctions.has(anchorId)) continue;
-    const junction = document.junctions.find(
-      (candidate) => candidate.id === anchorId,
-    )!;
+    const junction = source.junctionsById.get(anchorId)!;
     movedJunctions.set(anchorId, { ...junction.position, [axis]: coordinate });
   }
 
@@ -495,10 +563,10 @@ function proposeWireSegmentDragGeometry(
     [
       normalizeProposal(routeId, selectedPoints, selectedModes),
       ...stretchRoutesAtMovedJunctions(
-        document,
         routingGeometry,
         routeId,
         movedJunctions,
+        source,
       ),
     ],
     movedJunctions,
@@ -512,10 +580,10 @@ function proposeWireSegmentDragGeometry(
   );
   try {
     assertJunctionBranchesStayVisible(
-      document,
       routingGeometry,
       planned,
       anchorIds,
+      source,
     );
     return planned;
   } catch {
@@ -533,10 +601,10 @@ function proposeWireSegmentDragGeometry(
       junctions: [],
     };
     assertJunctionBranchesStayVisible(
-      document,
       routingGeometry,
       doglegged,
       anchorIds,
+      source,
     );
     return doglegged;
   }

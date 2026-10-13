@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, freezeSnapshot } from "@icm/model";
 import { createRoutingOperationPlan } from "./routing-operation-plan.js";
 import { projectRoutingTransformGeometry } from "./instance-contact-transform.js";
 
@@ -34,6 +34,39 @@ function source() {
 }
 
 describe("coordinate-only routing projection", () => {
+  it("keeps public projections detached and legacy duplicate moves find-first", () => {
+    const document = source();
+    document.instances.push(
+      ...[0, 100].map((x) => ({
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x, y: 0 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      })),
+    );
+    const owned = freezeSnapshot(document);
+    const plan = createRoutingOperationPlan(owned, {
+      intent: "transform",
+      diagnostics: [],
+      edits: [
+        { kind: "move_instance", instanceId: "R1", position: { x: 20, y: 10 } },
+      ],
+    });
+    const projected = projectRoutingTransformGeometry(owned, plan);
+    expect(projected.instances.map((item) => item.placement?.position)).toEqual(
+      [
+        { x: 20, y: 10 },
+        { x: 100, y: 0 },
+      ],
+    );
+    projected.nets[0]!.id = "caller-change";
+    projected.annotations[0]!.alignment = "end";
+    expect(owned.nets[0]!.id).toBe("signal");
+    expect(owned.annotations[0]!.alignment).toBe("start");
+  });
   it("projects existing text placements without a transaction, preserving source and binding", () => {
     const document = source();
     const original = structuredClone(document);

@@ -75,6 +75,9 @@ export interface TranslationSnapRequest {
   rawDelta: Point;
   movingAnchors: readonly SnapAnchor[];
   targetAnchors: readonly SnapAnchor[];
+  /** Pointer-local projections follow the retained canvas targets in the
+   * same order as concatenation, without rebuilding their coordinate index. */
+  additionalTargetAnchors?: readonly SnapAnchor[];
   primaryAnchorId: string;
   grid: number;
   tolerance: number;
@@ -375,14 +378,22 @@ export function resolveTranslationSnap(
     request.targetAnchors,
     releaseTolerance + 1e-6,
   );
+  const additionalAt = request.additionalTargetAnchors
+    ? translationTargetCandidates(
+        request.additionalTargetAnchors,
+        releaseTolerance + 1e-6,
+      )
+    : undefined;
   const byMoving = new Map<SnapAnchor, readonly SnapAnchor[]>();
   const targetsFor = (moving: SnapAnchor) => {
     let targets = byMoving.get(moving);
     if (!targets) {
-      targets = candidatesAt({
+      const point = {
         x: moving.point.x + request.rawDelta.x,
         y: moving.point.y + request.rawDelta.y,
-      });
+      };
+      targets = candidatesAt(point);
+      if (additionalAt) targets = [...targets, ...additionalAt(point)];
       byMoving.set(moving, targets);
     }
     return targets;
