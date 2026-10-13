@@ -26,6 +26,7 @@ export * from "./named-net-planner.js";
 export * from "./direct-contact-planner.js";
 export * from "./instance-contact-planner.js";
 export * from "./instance-contact-transform.js";
+export * from "./closed-translation-preview.js";
 export { canProjectRoutingEditGeometry } from "./routing-geometry-projection.js";
 export * from "./direct-contact-route-normalization.js";
 export { transformMaySeparateDirectContact } from "./transaction-direct-contact.js";

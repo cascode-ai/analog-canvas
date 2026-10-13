@@ -5,8 +5,78 @@ import {
   resolveTranslationSnap,
   SNAP_PROFILES,
 } from "./engine";
+import type { SnapAnchor } from "./engine";
 
 describe("unified Snap Engine", () => {
+  it("invalidates coordinate indexing when a reused target array moves or reorders", () => {
+    const targets: SnapAnchor[] = Array.from({ length: 100 }, (_, i) => ({
+      id: `t${i}`,
+      kind: "instance-center",
+      point: { x: i === 0 ? 30 : 10000 + i * 100, y: 10000 },
+    }));
+    const request = {
+      rawDelta: { x: 29, y: 12 },
+      movingAnchors: [
+        { id: "m", kind: "instance-center" as const, point: { x: 0, y: 0 } },
+      ],
+      targetAnchors: targets,
+      primaryAnchorId: "m",
+      grid: 10,
+      tolerance: 3,
+      profile: SNAP_PROFILES.instanceMove,
+    };
+    const captured = resolveTranslationSnap(request);
+    expect(captured.xMatch?.targetAnchorId).toBe("t0");
+    targets[0]!.point.x = 50;
+    const released = resolveTranslationSnap(request, captured);
+    expect(released.guides).toEqual([]);
+    targets[1]!.point.x = 30;
+    targets.reverse();
+    expect(
+      resolveTranslationSnap(request, released).xMatch?.targetAnchorId,
+    ).toBe("t1");
+  });
+  it("keeps distant axis alignment without comparing every group anchor to far targets", () => {
+    let reads = 0;
+    const targetAnchors: SnapAnchor[] = Array.from({ length: 1000 }, (_, i) => {
+      const point =
+        i === 0
+          ? { x: 30, y: 10000 }
+          : { x: 50000 + i * 100, y: 60000 + i * 10 };
+      return {
+        id: `target-${i}`,
+        kind: "instance-center",
+        get point() {
+          reads++;
+          return point;
+        },
+      };
+    });
+    const result = resolveTranslationSnap({
+      rawDelta: { x: 29, y: 12 },
+      movingAnchors: Array.from({ length: 100 }, (_, i) => ({
+        id: `moving-${i}`,
+        kind: "instance-center" as const,
+        point: { x: 0, y: 0 },
+      })),
+      targetAnchors,
+      primaryAnchorId: "moving-0",
+      grid: 10,
+      tolerance: 3,
+      profile: SNAP_PROFILES.instanceMove,
+    });
+    expect(result.delta).toEqual({ x: 30, y: 10 });
+    expect(result.guides).toEqual([
+      {
+        axis: "x",
+        coordinate: 30,
+        from: 12,
+        to: 10000,
+        kind: "instance-center",
+      },
+    ]);
+    expect(reads).toBeLessThan(5000);
+  });
   it("keeps the retained contact when another equally close pin sorts first", () => {
     const pin = (id: string, x: number) => ({
       id,

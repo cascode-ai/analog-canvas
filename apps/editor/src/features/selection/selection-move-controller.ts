@@ -4,6 +4,7 @@ import {
   canProjectRoutingEditGeometry,
   gateRoutingOperationPlan,
   transformMaySeparateDirectContact,
+  prepareClosedTranslationPreview,
   type RoutingOperationPlan,
   type ExpectedElectricalEffect,
   type RoutingOperationIntent,
@@ -34,7 +35,7 @@ import {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { closestPointOnSegment } from "../../canvas/canvas-geometry";
+import { prepareMoveRouteTargets } from "./move-route-targets";
 import {
   buildInstanceAnchors,
   buildDraftingAnchors,
@@ -110,6 +111,7 @@ interface GestureSourceFacts {
   staticTargets: readonly SnapAnchor[];
   routingGeometry: ResolvedDocumentRoutingGeometry;
   planTransform: ReturnType<typeof prepareInstanceContactTransform>;
+  routeTargets: ReturnType<typeof prepareMoveRouteTargets>;
 }
 
 export function createSelectionMoveController({
@@ -435,53 +437,22 @@ export function createSelectionMoveController({
           gridAlignedTranslation: true,
           captureWithinGridStep: true,
         };
+    const projectRouteTargets =
+      cachedFacts?.routeTargets ??
+      prepareMoveRouteTargets(
+        sourceRouteGeometryRecords.filter(
+          ({ route }) =>
+            !carriedRouteIds.has(route.id) &&
+            !routeEndpoints(route).some(
+              (e) => e.kind === "terminal" && movingIds.has(e.instanceId),
+            ),
+        ),
+      );
     const routeTargets: SnapAnchor[] = suppressSnap
       ? []
-      : movingAnchors.flatMap((moving): SnapAnchor[] => {
-          if (moving.electrical?.kind !== "endpoint") return [];
-          const movedPoint = {
-            x: moving.point.x + rawDelta.x,
-            y: moving.point.y + rawDelta.y,
-          };
-          return sourceRouteGeometryRecords.flatMap(({ route, geometry }) => {
-            const belongsToMovingInstance = routeEndpoints(route).some(
-              (endpoint) =>
-                endpoint.kind === "terminal" &&
-                movingIds.has(endpoint.instanceId),
-            );
-            if (belongsToMovingInstance || carriedRouteIds.has(route.id))
-              return [];
-            return geometry.centerline
-              .slice(0, -1)
-              .flatMap((from, segmentIndex) => {
-                const point = closestPointOnSegment(
-                  movedPoint,
-                  from,
-                  geometry.centerline[segmentIndex + 1]!,
-                );
-                if (
-                  Math.hypot(point.x - movedPoint.x, point.y - movedPoint.y) >
-                  tolerance
-                ) {
-                  return [];
-                }
-                return [
-                  {
-                    id: `move-route:${moving.id}:${route.id}:${segmentIndex}`,
-                    point,
-                    kind: "route" as const,
-                    acceptsMovingAnchorId: moving.id,
-                    electrical: {
-                      kind: "route" as const,
-                      routeId: route.id,
-                      segmentIndex,
-                      netId: route.netId,
-                    },
-                  },
-                ];
-              });
-          });
-        });
+      : movingAnchors.flatMap((moving) =>
+          projectRouteTargets(moving, rawDelta, tolerance),
+        );
     const staticTargets =
       cachedFacts?.staticTargets ??
       (!projectedDocument && sceneSnapTargetIndex
@@ -503,6 +474,7 @@ export function createSelectionMoveController({
       carriedRouteIds,
       movingAnchors,
       staticTargets,
+      routeTargets: projectRouteTargets,
       routingGeometry: {
         documentId: sourceDocument.id,
         documentRevision: sourceDocument.revision,
@@ -526,7 +498,9 @@ export function createSelectionMoveController({
           {
             rawDelta,
             movingAnchors,
-            targetAnchors: [...staticTargets, ...routeTargets],
+            targetAnchors: routeTargets.length
+              ? [...staticTargets, ...routeTargets]
+              : staticTargets,
             primaryAnchorId,
             grid: pitch,
             tolerance,
@@ -630,6 +604,7 @@ export function createSelectionMoveController({
         source: SchematicDocument;
         preview: SelectionMovePreview;
         separates: boolean;
+        closedTranslation: ReturnType<typeof prepareClosedTranslationPreview>;
       }
     | undefined;
   const dispose = (): void => {
@@ -709,15 +684,19 @@ export function createSelectionMoveController({
     ) {
       const movingInstances = new Set(plan.affected.instances);
       const movingJunctions = new Set(plan.affected.internalJunctions);
+      const separates = transformMaySeparateDirectContact(
+        sourceDocument,
+        resolver,
+        movingInstances,
+        movingJunctions,
+      );
       contactBoundaryCache = {
         source: sourceDocument,
         preview,
-        separates: transformMaySeparateDirectContact(
-          sourceDocument,
-          resolver,
-          movingInstances,
-          movingJunctions,
-        ),
+        separates,
+        closedTranslation: separates
+          ? prepareClosedTranslationPreview(sourceDocument, resolver, plan)
+          : () => false,
       };
     }
     // Most pointer frames only deform existing conductors. Apply the same
@@ -726,7 +705,8 @@ export function createSelectionMoveController({
     // transaction preview; every release still uses the strict commit gate.
     const geometryOnly =
       plan.intent === "transform" &&
-      !contactBoundaryCache.separates &&
+      (!contactBoundaryCache.separates ||
+        contactBoundaryCache.closedTranslation(plan, delta)) &&
       plan.edits.every((edit) =>
         canProjectRoutingEditGeometry(sourceDocument, edit),
       );

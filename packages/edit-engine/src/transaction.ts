@@ -715,26 +715,23 @@ export function executeTransaction(
     // an otherwise local edit into a whole-document geometry repair.
     const physicalContactLicense =
       physicalContactLicenseForTransaction(transaction);
+    // Move planners own contacts of the endpoints they move. Exclude those
+    // owners before the detector queries their coordinates, not afterwards.
     for (const contact of newlyTouchedRouteEndpoints(
       document,
       draft,
       resolver,
       explicitlyAuthoredRouteIds,
+      {
+        excludeInstanceIds: context.pinsMovedInstanceIds
+          ? new Set([
+              ...transformedInstanceIds,
+              ...context.pinsMovedInstanceIds,
+            ])
+          : transformedInstanceIds,
+        excludeJunctionIds: movedJunctionIds,
+      },
     )) {
-      // An endpoint and Route moved by the same transform preserve their
-      // previous relative geometry. Comparing the endpoint's new absolute
-      // point against the old Route can otherwise misclassify an existing
-      // overlap as a new contact. Explicit move planners own intentional
-      // contacts for moved endpoints; this detector repairs Routes moved onto
-      // static terminals and Junctions.
-      if (
-        contact.endpoint.kind === "terminal"
-          ? transformedInstanceIds.has(contact.endpoint.instanceId) ||
-            context.pinsMovedInstanceIds?.has(contact.endpoint.instanceId)
-          : movedJunctionIds.has(contact.endpoint.junctionId)
-      ) {
-        continue;
-      }
       const points =
         physicalContactLicense.routeGeometryPoints.get(contact.routeId) ??
         new Set<string>();

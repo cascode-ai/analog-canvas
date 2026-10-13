@@ -1,7 +1,14 @@
 // Moving parts, Wires and groups: command move, drags and their live previews,
 // and the wiring a selected group carries.
 
-import { clickDrawTool, expectStatus } from "./editor-fixtures";
+import {
+  clickDrawTool,
+  expectStatus,
+  openProject,
+  exportedProject,
+  closeProjectTools,
+} from "./editor-fixtures";
+import { createGroupDragPerformanceProject } from "../src/features/selection/test-support/group-drag-fixture";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { placeComponent } from "./manual-editor-fixtures.js";
@@ -15,6 +22,82 @@ import {
   polylinePoints,
   drawWire,
 } from "./canvas-fixtures.js";
+
+test("a closed 85-part group in a large background cancels, commits once and restores all geometry with Undo", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const { project } = createGroupDragPerformanceProject();
+  await openProject(page, project);
+  await closeProjectTools(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  await expect(page.getByTestId("instance-count")).toHaveText("485");
+  const before = (await exportedProject(page)).documents[0];
+  const revision = Number(await page.getByTestId("revision").textContent());
+  const corners = await canvas.evaluate((svg) => {
+    const matrix = (svg as SVGSVGElement).getScreenCTM()!;
+    return [
+      { x: 9940, y: 9940 },
+      { x: 12800, y: 11140 },
+    ].map((p) => new DOMPoint(p.x, p.y).matrixTransform(matrix).toJSON());
+  });
+  await page.mouse.move(corners[0]!.x, corners[0]!.y);
+  await page.mouse.down();
+  await page.mouse.move(corners[1]!.x, corners[1]!.y, { steps: 3 });
+  await page.mouse.up();
+  await expect(
+    page.locator('[data-canvas-hit-kind="instance"].selected'),
+  ).toHaveCount(85);
+  await canvas.focus();
+  const formal = page.locator('[data-layer="formal"]');
+  const original = await formal.elementHandle();
+  const target = { x: corners[0]!.x + 70, y: corners[0]!.y + 60 };
+  await page.keyboard.press("m");
+  await page.keyboard.down("Alt");
+  await page.mouse.move(target.x, target.y, { steps: 3 });
+  await expect(canvas).toHaveClass(/semantic-move-preview/);
+  expect(await formal.evaluate((node, saved) => node === saved, original)).toBe(
+    true,
+  );
+  await expect(page.getByTestId("revision")).toHaveText(String(revision));
+  await page.keyboard.press("Escape");
+  await page.keyboard.up("Alt");
+  const cancelled = (await exportedProject(page)).documents[0];
+  expect(cancelled).toEqual(before);
+  // Select again: Escape intentionally clears the current selection.
+  await page.mouse.move(corners[0]!.x, corners[0]!.y);
+  await page.mouse.down();
+  await page.mouse.move(corners[1]!.x, corners[1]!.y, { steps: 3 });
+  await page.mouse.up();
+  await expect(
+    page.locator('[data-canvas-hit-kind="instance"].selected'),
+  ).toHaveCount(85);
+  await canvas.focus();
+  await page.keyboard.press("m");
+  await page.keyboard.down("Alt");
+  await page.mouse.move(target.x, target.y, { steps: 3 });
+  await page.mouse.click(target.x, target.y);
+  await page.keyboard.up("Alt");
+  await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
+  const after = (await exportedProject(page)).documents[0];
+  const positions = (doc: typeof before) =>
+    doc.instances
+      .filter((i: { id: string }) => i.id.startsWith("RM"))
+      .map(
+        (i: { placement: { position: { x: number; y: number } } }) =>
+          i.placement.position,
+      );
+  expect(positions(after)).not.toEqual(positions(before));
+  expect(
+    after.instances.filter((i: { id: string }) => !i.id.startsWith("RM")),
+  ).toEqual(
+    before.instances.filter((i: { id: string }) => !i.id.startsWith("RM")),
+  );
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  const restored = (await exportedProject(page)).documents[0];
+  expect({ ...restored, revision: before.revision }).toEqual(before);
+});
 
 /** R1 and R2 side by side, joined by a Wire from R1's pin 2 to R2's pin 1. */
 async function wiredResistors(page: Page): Promise<void> {

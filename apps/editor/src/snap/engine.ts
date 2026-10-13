@@ -1,4 +1,5 @@
 import type { Point, RouteEndpoint } from "@icm/model";
+import { translationTargetCandidates } from "./translation-target-index";
 
 export type SnapAxis = "x" | "y";
 
@@ -277,6 +278,7 @@ function exactElectricalCandidate(
   request: TranslationSnapRequest,
   primary: SnapAnchor,
   retainedAxes: readonly (AxisCandidate | undefined)[],
+  targetsFor: (moving: SnapAnchor) => readonly SnapAnchor[],
 ): ElectricalSnapMatch | undefined {
   if (!request.profile.exactElectrical) return undefined;
   const candidates = request.movingAnchors.flatMap((moving) => {
@@ -285,7 +287,7 @@ function exactElectricalCandidate(
       x: moving.point.x + request.rawDelta.x,
       y: moving.point.y + request.rawDelta.y,
     };
-    return request.targetAnchors.flatMap((target) => {
+    return targetsFor(moving).flatMap((target) => {
       if (!target.electrical || !request.profile.kinds.has(target.kind))
         return [];
       if (
@@ -367,13 +369,31 @@ export function resolveTranslationSnap(
       : Infinity;
   const captureTolerance = Math.min(request.tolerance, gridRadius);
   const releaseTolerance = Math.min(request.tolerance * 1.5, gridRadius);
+  // Retained electrical landings allow 1e-6 of equality error. Widen the
+  // candidate range, not the exact predicate or the visible magnet radius.
+  const candidatesAt = translationTargetCandidates(
+    request.targetAnchors,
+    releaseTolerance + 1e-6,
+  );
+  const byMoving = new Map<SnapAnchor, readonly SnapAnchor[]>();
+  const targetsFor = (moving: SnapAnchor) => {
+    let targets = byMoving.get(moving);
+    if (!targets) {
+      targets = candidatesAt({
+        x: moving.point.x + request.rawDelta.x,
+        y: moving.point.y + request.rawDelta.y,
+      });
+      byMoving.set(moving, targets);
+    }
+    return targets;
+  };
   const candidates: Record<SnapAxis, AxisCandidate[]> = { x: [], y: [] };
   for (const moving of request.movingAnchors) {
     const moved = {
       x: moving.point.x + request.rawDelta.x,
       y: moving.point.y + request.rawDelta.y,
     };
-    for (const target of request.targetAnchors) {
+    for (const target of targetsFor(moving)) {
       if (!request.profile.kinds.has(target.kind)) continue;
       if (!compatibleAxisKinds(moving, target)) continue;
       for (const axis of axes(moving)) {
@@ -443,6 +463,7 @@ export function resolveTranslationSnap(
     { ...request, tolerance: captureTolerance },
     primary,
     [retainedX, retainedY],
+    targetsFor,
   );
   if (electricalMatch) {
     const moved = {

@@ -25,6 +25,94 @@ class FakeElement {
 }
 
 describe("startCanvasDragVisual", () => {
+  it("keeps duplicate-run ownership in paint order and restores each original bucket", () => {
+    const red = new FakeElement({
+      "data-role": "conductor-ink",
+      d: "M 0 0 L 50 0",
+      stroke: "red",
+    });
+    const blue = new FakeElement({
+      "data-role": "conductor-ink",
+      d: "M 0 0 L 50 0",
+      stroke: "blue",
+    });
+    const wires = ["a", "b", "c"].map(
+      (id) =>
+        new FakeElement({
+          "data-object-id": id,
+          "data-net-id": id,
+          points: "0,0 50,0",
+          stroke: "none",
+        }),
+    );
+    const root = {
+      querySelectorAll: () => [red, blue, ...wires],
+    } as unknown as ParentNode;
+    const visual = startCanvasDragVisual(root, ["a", "b", "c"]);
+    expect(wires.map((wire) => wire.getAttribute("stroke"))).toEqual([
+      "red",
+      "blue",
+      "none",
+    ]);
+    expect([red.getAttribute("d"), blue.getAttribute("d")]).toEqual(["", ""]);
+    visual.restore();
+    visual.restore();
+    expect(wires.map((wire) => wire.getAttribute("stroke"))).toEqual([
+      "none",
+      "none",
+      "none",
+    ]);
+    expect([red.getAttribute("d"), blue.getAttribute("d")]).toEqual([
+      "M 0 0 L 50 0",
+      "M 0 0 L 50 0",
+    ]);
+  });
+  it("takes up a large selected wire group without repeatedly reading shared ink", () => {
+    let reads = 0;
+    class Ink extends FakeElement {
+      override getAttribute(name: string) {
+        if (name === "d") reads++;
+        return super.getAttribute(name);
+      }
+    }
+    const runs = Array.from(
+      { length: 40 },
+      (_, i) => `M ${i * 100} 0 L ${i * 100 + 50} 0`,
+    );
+    const ink = new Ink({
+      "data-role": "conductor-ink",
+      d: runs.join(" "),
+      stroke: "#dc2626",
+      "stroke-width": "2",
+    });
+    const wires = runs.map(
+      (_, i) =>
+        new FakeElement({
+          "data-object-id": `r${i}`,
+          "data-net-id": "n",
+          stroke: "none",
+          points: `${i * 100},0 ${i * 100 + 50},0`,
+        }),
+    );
+    const root = {
+      querySelectorAll: (selector: string) =>
+        selector === '[data-role="conductor-ink"]' ? [ink] : wires,
+    } as unknown as ParentNode;
+    const visual = startCanvasDragVisual(
+      root,
+      wires.map((_, i) => `r${i}`),
+    );
+    expect(ink.getAttribute("d")).toBe("");
+    expect(
+      wires.every((wire) => wire.getAttribute("stroke") === "#dc2626"),
+    ).toBe(true);
+    expect(reads).toBeLessThanOrEqual(2);
+    visual.restore();
+    expect(ink.getAttribute("d")).toBe(runs.join(" "));
+    expect(wires.every((wire) => wire.getAttribute("stroke") === "none")).toBe(
+      true,
+    );
+  });
   it("bends a coupling's arrow end by end with its inductors, and restores it (#1648)", () => {
     const shaft = new FakeElement({
       "data-role": "coupling-arrow",

@@ -107,31 +107,64 @@ function takeOverRouteInk(root: ParentNode, saved: readonly SavedElement[]) {
         },
       ),
     );
+    // Parse each shared path once. The ordered owner lists preserve the old
+    // first-remaining-ink rule, including equal runs in different paint buckets.
+    const buckets = inks.map((element) => {
+      const d = element.getAttribute("d") ?? "";
+      const subpaths = d.split(/ (?=M )/);
+      const byRun = new Map<string, number[]>();
+      const byVertex = new Map<string, number[]>();
+      const remaining = new Map<string, number>();
+      subpaths.forEach((subpath, index) => {
+        const members = byRun.get(subpath) ?? [];
+        members.push(index);
+        byRun.set(subpath, members);
+        remaining.set(subpath, (remaining.get(subpath) ?? 0) + 1);
+        if (!runs.has(subpath))
+          for (const vertex of inkVertices(subpath)) {
+            const miters = byVertex.get(vertex) ?? [];
+            miters.push(index);
+            byVertex.set(vertex, miters);
+          }
+      });
+      return {
+        element,
+        d,
+        subpaths,
+        byRun,
+        byVertex,
+        remaining,
+        removed: new Set<number>(),
+      };
+    });
+    const owners = new Map<string, typeof buckets>();
+    for (const bucket of buckets)
+      for (const run of bucket.byRun.keys()) {
+        const list = owners.get(run) ?? [];
+        list.push(bucket);
+        owners.set(run, list);
+      }
     for (const item of routes) {
       const run = inkRun(item.points!);
-      const ends = [inkVertices(run)[0], inkVertices(run).at(-1)];
-      const ink = inks.find((candidate) =>
-        (candidate.getAttribute("d") ?? "").split(/ (?=M )/).includes(run),
-      );
-      if (!ink) continue;
-      const d = ink.getAttribute("d") ?? "";
-      if (!originalInk.has(ink)) originalInk.set(ink, d);
-      ink.setAttribute(
-        "d",
-        d
-          .split(/ (?=M )/)
-          .filter(
-            (subpath) =>
-              subpath !== run &&
-              // A miter joining this Route's end: any ink there that is not
-              // itself another Route's run.
-              !(
-                !runs.has(subpath) &&
-                inkVertices(subpath).some((vertex) => ends.includes(vertex))
-              ),
-          )
-          .join(" "),
-      );
+      const vertices = inkVertices(run);
+      const bucket = owners
+        .get(run)
+        ?.find((candidate) => candidate.remaining.has(run));
+      if (!bucket) continue;
+      const ink = bucket.element;
+      if (!originalInk.has(ink)) originalInk.set(ink, bucket.d);
+      const remove = (index: number) => {
+        if (bucket.removed.has(index)) return;
+        bucket.removed.add(index);
+        const subpath = bucket.subpaths[index]!;
+        const count = bucket.remaining.get(subpath)! - 1;
+        if (count) bucket.remaining.set(subpath, count);
+        else bucket.remaining.delete(subpath);
+      };
+      for (const index of bucket.byRun.get(run) ?? []) remove(index);
+      for (const end of [vertices[0], vertices.at(-1)])
+        if (end !== undefined)
+          for (const index of bucket.byVertex.get(end) ?? []) remove(index);
       const before = new Map<string, string | null>();
       for (const name of INK_PAINT) {
         before.set(name, item.element.getAttribute(name));
@@ -141,6 +174,15 @@ function takeOverRouteInk(root: ParentNode, saved: readonly SavedElement[]) {
       }
       painted.set(item.element, before);
     }
+    for (const bucket of buckets)
+      if (originalInk.has(bucket.element)) {
+        bucket.element.setAttribute(
+          "d",
+          bucket.subpaths
+            .filter((_, index) => !bucket.removed.has(index))
+            .join(" "),
+        );
+      }
   }
   return {
     restore() {

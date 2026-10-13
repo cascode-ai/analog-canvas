@@ -76,35 +76,43 @@ function visibleEndpoints(
   );
 }
 
-function routeContainsAuthoredPoint(
+/** One exact answer per coordinate, owned by this immutable local geometry. */
+function authoredRoutesAtPoint(
   document: SchematicDocument,
   geometry: ReturnType<typeof resolveDocumentRoutingGeometry>,
-  routeId: string,
-  point: Point,
-  spatialIndex?: DocumentSpatialIndex,
-): boolean {
-  const route = document.routes.find((candidate) => candidate.id === routeId);
-  // Power rails own a dedicated contact planner which keeps off-grid artwork
-  // tips connected through grid-aligned taps. Generic Route contact repair
-  // would split the rail at the artwork tip and create a second topology.
-  if (
-    !route ||
-    route.presentation === "bulk-dashed" ||
-    route.presentation === "power-rail"
-  )
-    return false;
-  return findRouteSegmentsAtPoint(geometry, point, spatialIndex).some(
-    (address) => {
-      if (address.routeId !== routeId) return false;
+  spatialIndex: DocumentSpatialIndex,
+): (point: Point) => ReadonlySet<string> {
+  const routesById = new Map(document.routes.map((route) => [route.id, route]));
+  const byPoint = new Map<string, ReadonlySet<string>>();
+  return (point) => {
+    const key = physicalContactPointKey(point);
+    const cached = byPoint.get(key);
+    if (cached) return cached;
+    const routeIds = new Set<string>();
+    for (const address of findRouteSegmentsAtPoint(
+      geometry,
+      point,
+      spatialIndex,
+    )) {
+      const route = routesById.get(address.routeId);
+      // Rail taps and MOS bodies retain their dedicated contact planners.
+      if (
+        !route ||
+        route.presentation === "bulk-dashed" ||
+        route.presentation === "power-rail"
+      )
+        continue;
       const segment = geometry.routes
-        .get(routeId)
+        .get(address.routeId)
         ?.segments.find(
           (candidate) =>
             candidate.address.segmentIndex === address.segmentIndex,
         );
-      return segment !== undefined && segment.mode !== "escape";
-    },
-  );
+      if (segment && segment.mode !== "escape") routeIds.add(address.routeId);
+    }
+    byPoint.set(key, routeIds);
+    return routeIds;
+  };
 }
 
 export interface NewlyTouchedRouteEndpoint {
@@ -126,28 +134,37 @@ export function newlyTouchedRouteEndpoints(
   after: SchematicDocument,
   resolver: SymbolResolver,
   routeIds: ReadonlySet<string>,
+  options: {
+    excludeInstanceIds?: ReadonlySet<string>;
+    excludeJunctionIds?: ReadonlySet<string>;
+  } = {},
 ): NewlyTouchedRouteEndpoint[] {
   if (routeIds.size === 0) return [];
   // New Routes are reconciled by their authoring planner. Only existing
   // conductors can have moved onto a previously separate endpoint.
   const existingRouteIds = new Set(before.routes.map((route) => route.id));
-  const movedRouteIds = [...routeIds]
-    .filter((id) => existingRouteIds.has(id))
-    .sort((left, right) => left.localeCompare(right, "en"));
-  if (movedRouteIds.length === 0) return [];
+  const movedRouteIds = new Set(
+    [...routeIds].filter((id) => existingRouteIds.has(id)),
+  );
+  if (movedRouteIds.size === 0) return [];
   const routesById = new Map(after.routes.map((route) => [route.id, route]));
   const beforeGeometry = resolveDocumentRoutingGeometry(before, resolver);
   const afterGeometry = resolveDocumentRoutingGeometry(after, resolver);
-  // One broad phase per Document for the whole nested sweep below. Neither
-  // geometry changes while this runs, and the sweep asks
-  // `routeContainsAuthoredPoint` twice per endpoint-and-Route pair, so an
-  // unwidened scan of every segment there ran tens of thousands of times for
-  // one multi-select delete.
+  // These answers cannot outlive the sweep: a mutable draft's geometry can
+  // change between normalization rounds without changing its revision.
   const beforeIndex = buildDocumentSpatialIndex(before, beforeGeometry);
   const afterIndex = buildDocumentSpatialIndex(after, afterGeometry);
+  const beforeHits = authoredRoutesAtPoint(before, beforeGeometry, beforeIndex);
+  const afterHits = authoredRoutesAtPoint(after, afterGeometry, afterIndex);
   const result: NewlyTouchedRouteEndpoint[] = [];
   const lookup = buildEndpointObjectLookup(after);
   for (const endpoint of visibleEndpoints(after, resolver, lookup)) {
+    if (
+      endpoint.kind === "terminal"
+        ? options.excludeInstanceIds?.has(endpoint.instanceId)
+        : options.excludeJunctionIds?.has(endpoint.junctionId)
+    )
+      continue;
     const point = resolveEndpointConnection(
       after,
       resolver,
@@ -155,7 +172,10 @@ export function newlyTouchedRouteEndpoints(
       lookup,
     )?.contactPoint;
     if (!point) continue;
-    for (const routeId of movedRouteIds) {
+    const candidates = [...afterHits(point)]
+      .filter((id) => movedRouteIds.has(id))
+      .sort((left, right) => left.localeCompare(right, "en"));
+    for (const routeId of candidates) {
       const route = routesById.get(routeId);
       if (!route) continue;
       if (
@@ -165,26 +185,7 @@ export function newlyTouchedRouteEndpoints(
       ) {
         continue;
       }
-      if (
-        !routeContainsAuthoredPoint(
-          after,
-          afterGeometry,
-          routeId,
-          point,
-          afterIndex,
-        )
-      ) {
-        continue;
-      }
-      if (
-        routeContainsAuthoredPoint(
-          before,
-          beforeGeometry,
-          routeId,
-          point,
-          beforeIndex,
-        )
-      ) {
+      if (beforeHits(point).has(routeId)) {
         continue;
       }
       result.push({ endpoint, routeId, point: { ...point } });

@@ -1,11 +1,20 @@
-import { createEmptyDocument, createRoutePath } from "@icm/model";
+import {
+  createEmptyDocument,
+  createRoutePath,
+  freezeSnapshot,
+} from "@icm/model";
 import {
   resolveRouteGeometry,
   resolveEndpointConnection,
   resolveDocumentRoutingGeometry,
   resolveVisualAnchor,
 } from "@icm/derived";
-import { executeTransaction } from "@icm/edit-engine";
+import {
+  executeTransaction,
+  gateRoutingOperationPlan,
+  prepareInstanceContactTransform,
+} from "@icm/edit-engine";
+import * as transactionRuntime from "../../../../../packages/edit-engine/src/transaction";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 import { createSelectionMoveController } from "./selection-move-controller";
@@ -13,6 +22,289 @@ import { planSelectionMove } from "./selection-move-plan";
 import { EMPTY_VISUAL_SELECTION } from "./visual-selection";
 
 describe("prepared instance movement", () => {
+  it("preserves separately named Nets and their shared contacts during joint translation", () => {
+    const document = createEmptyDocument("unlicensed", "Unlicensed");
+    document.instances = ["A", "B"].map((id) => ({
+      id,
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    }));
+    document.nets = ["A", "B"].map((instanceId) => ({
+      id: `net-${instanceId}`,
+      terminals: [{ instanceId, pinName: "1" }],
+    }));
+    document.nets.push({
+      id: "shared",
+      terminals: ["A", "B"].map((instanceId) => ({ instanceId, pinName: "2" })),
+    });
+    freezeSnapshot(document);
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const controller = createSelectionMoveController({
+      document,
+      resolver,
+      visibleEndpoints: [],
+      routeGeometryRecords: [],
+      contactComponents: [],
+      nextRoutingSuffix: () => 1,
+      setStatus: () => {},
+      transactConnectivity: () => {
+        throw new Error("Preview must not commit");
+      },
+    });
+    const preview = {
+      instanceIds: ["A", "B"],
+      primaryInstanceId: "A",
+      originalPositions: { A: { x: 0, y: 0 }, B: { x: 0, y: 0 } },
+      pointerStart: { x: 0, y: 0 },
+      movePlan: planSelectionMove(document, {
+        ...EMPTY_VISUAL_SELECTION,
+        instanceIds: ["A", "B"],
+      }),
+    };
+    const plan = prepareInstanceContactTransform(document, resolver, {
+      instanceIds: ["A", "B"],
+      routeIds: [],
+      junctionIds: [],
+    })({ x: 30, y: 10 }, false);
+    const strict = gateRoutingOperationPlan(document, plan, {
+      symbolResolver: resolver,
+    });
+    const moved = controller.resolveSelectionMove(
+      preview,
+      { x: 30, y: 10 },
+      4,
+      true,
+    );
+    if (!strict.ok) throw new Error(strict.message);
+    expect(moved.preparationError).toBeUndefined();
+    expect(moved.prepared!.previewDocument.nets).toEqual(
+      strict.evaluated.finalDocument.nets,
+    );
+    expect(moved.prepared!.previewDocument.instances).toEqual(
+      strict.evaluated.finalDocument.instances,
+    );
+    expect(moved.prepared!.previewDocument.nets).toHaveLength(3);
+  });
+  it.each([
+    { name: "mutable source", frozen: false, background: 1000, delta: 30 },
+    {
+      name: "overlapping stationary conductors",
+      frozen: true,
+      background: 1000,
+      delta: 1000,
+    },
+    {
+      name: "extreme translated coordinates",
+      frozen: true,
+      background: 1000,
+      delta: 2 ** 25,
+    },
+  ])(
+    "retains the exact evaluated preview for $name",
+    ({ frozen, background, delta }) => {
+      const document = createEmptyDocument("guard", "Guard");
+      document.instances = ["A", "B", "C"].map((id) => ({
+        id,
+        symbolId: "resistor",
+        placement: {
+          position: { x: id === "C" ? background : 0, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+      }));
+      document.nets = ["1", "2"].map((pinName) => ({
+        id: `n${pinName}`,
+        terminals: ["A", "B"].map((instanceId) => ({ instanceId, pinName })),
+      }));
+      if (frozen) freezeSnapshot(document);
+      const resolver = new InMemorySymbolResolver(builtInSymbols);
+      const controller = createSelectionMoveController({
+        document,
+        resolver,
+        visibleEndpoints: [],
+        routeGeometryRecords: [],
+        contactComponents: [],
+        nextRoutingSuffix: () => 1,
+        setStatus: () => {},
+        transactConnectivity: () => {
+          throw new Error("Preview must not commit");
+        },
+      });
+      const preview = {
+        instanceIds: ["A", "B"],
+        primaryInstanceId: "A",
+        originalPositions: { A: { x: 0, y: 0 }, B: { x: 0, y: 0 } },
+        pointerStart: { x: 0, y: 0 },
+        movePlan: planSelectionMove(document, {
+          ...EMPTY_VISUAL_SELECTION,
+          instanceIds: ["A", "B"],
+        }),
+      };
+      const moved = controller.resolveSelectionMove(
+        preview,
+        { x: delta, y: 0 },
+        4,
+        true,
+      );
+      expect(moved.preparationError).toBeUndefined();
+      const prepared = moved.prepared!;
+      const strict = gateRoutingOperationPlan(document, prepared.plan, {
+        symbolResolver: resolver,
+      });
+      if (!strict.ok) throw new Error(strict.message);
+      expect(prepared.previewDocument).toEqual(strict.evaluated.finalDocument);
+      expect(prepared.previewDocument.revision).toBe(document.revision + 1);
+      controller.dispose();
+    },
+  );
+  it.each([false, true])(
+    "projects a closed contact, retaining strict label repair when required=%s",
+    (repairLabel) => {
+      const document = createEmptyDocument("joint-contact", "Joint contact");
+      document.instances = ["A", "B", "background"].map((id) => ({
+        id,
+        symbolId: "resistor",
+        placement: {
+          position: { x: id === "background" ? 1000 : 0, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+      }));
+      document.nets = ["1", "2"].map((pinName) => ({
+        id: `n${pinName}`,
+        terminals: ["A", "B"].map((instanceId) => ({ instanceId, pinName })),
+      }));
+      document.junctions.push({
+        id: "end",
+        netId: "n2",
+        position: { x: 0, y: 100 },
+      });
+      document.routes.push(
+        createRoutePath({
+          id: "internal",
+          netId: "n2",
+          start: { kind: "terminal", instanceId: "A", pinName: "2" },
+          end: { kind: "junction", junctionId: "end" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      document.annotations.push({
+        id: "net-label",
+        kind: "net-label",
+        netId: "n2",
+        binding: { kind: "net-name", netId: "n2" },
+        anchor: {
+          kind: "route",
+          routeId: "internal",
+          legId: repairLabel ? "removed-leg" : document.routes[0]!.legs[0]!.id,
+          t: 1,
+          normalOffset: 0,
+          direction: "forward",
+          orientation: "horizontal",
+          fallbackPosition: { x: 0, y: 300 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      freezeSnapshot(document);
+      const resolver = new InMemorySymbolResolver(builtInSymbols);
+      const controller = createSelectionMoveController({
+        document,
+        resolver,
+        visibleEndpoints: [],
+        routeGeometryRecords: [],
+        contactComponents: [],
+        nextRoutingSuffix: () => 1,
+        setStatus: () => {},
+        transactConnectivity: () => {
+          throw new Error("Preview must not commit");
+        },
+      });
+      const preview = {
+        instanceIds: ["A", "B"],
+        primaryInstanceId: "A",
+        originalPositions: { A: { x: 0, y: 0 }, B: { x: 0, y: 0 } },
+        pointerStart: { x: 0, y: 0 },
+        movePlan: planSelectionMove(document, {
+          ...EMPTY_VISUAL_SELECTION,
+          instanceIds: ["A", "B"],
+        }),
+      };
+      const transactionReads = vi.spyOn(
+        transactionRuntime,
+        "executeTransaction",
+      );
+      for (const [index, x] of [30, 50, -20].entries()) {
+        const moved = controller.resolveSelectionMove(
+          preview,
+          { x, y: 10 },
+          4,
+          true,
+        );
+        // Observe the unchanged real writer. Only the first pointer frame may
+        // qualify the source; subsequent eligible frames must do no full write.
+        if (!repairLabel)
+          expect(transactionReads).toHaveBeenCalledTimes(index === 0 ? 1 : 0);
+        expect(moved.preparationError).toBeUndefined();
+        expect(moved.prepared!.previewDocument.revision).toBe(
+          document.revision + (repairLabel ? 1 : 0),
+        );
+        expect(
+          moved
+            .prepared!.previewDocument.instances.slice(0, 2)
+            .map((i) => i.placement!.position),
+        ).toEqual([
+          { x, y: 10 },
+          { x, y: 10 },
+        ]);
+        expect(moved.prepared!.previewDocument.nets).toEqual(document.nets);
+        expect(moved.prepared!.visualRoutePoints).toBeDefined();
+        const strict = gateRoutingOperationPlan(
+          document,
+          moved.prepared!.plan,
+          {
+            symbolResolver: resolver,
+          },
+        );
+        transactionReads.mockClear();
+        if (!strict.ok) throw new Error(strict.message);
+        expect(
+          resolveDocumentRoutingGeometry(
+            moved.prepared!.previewDocument,
+            resolver,
+          ).routes,
+        ).toEqual(
+          resolveDocumentRoutingGeometry(
+            strict.evaluated.finalDocument,
+            resolver,
+          ).routes,
+        );
+        expect(moved.prepared!.previewDocument.junctions).toEqual(
+          strict.evaluated.finalDocument.junctions,
+        );
+        expect(
+          resolveVisualAnchor(
+            moved.prepared!.previewDocument,
+            resolver,
+            moved.prepared!.previewDocument.annotations[0]!.anchor,
+          ),
+        ).toEqual(
+          resolveVisualAnchor(
+            strict.evaluated.finalDocument,
+            resolver,
+            strict.evaluated.finalDocument.annotations[0]!.anchor,
+          ),
+        );
+      }
+      transactionReads.mockRestore();
+      expect(document.instances[0]!.placement!.position).toEqual({
+        x: 0,
+        y: 0,
+      });
+    },
+  );
   it("repaints DraftText on a stretched boundary wire from the committed geometry proposal", () => {
     const document = createEmptyDocument("boundary-text", "Boundary text");
     document.instances.push({
