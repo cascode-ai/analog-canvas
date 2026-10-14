@@ -66,6 +66,7 @@ import {
   LINEAR_CONTROLLED_SOURCE_KINDS,
   controlledSourceExpressionSource,
 } from "@icm/model";
+import { designNetlistNetName } from "@icm/netlist";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
@@ -2666,6 +2667,11 @@ function WorkspaceEditor({
       visibleEndpoints,
       routeGeometryRecords,
       contactComponents,
+      netNameOf: (netId) =>
+        designNetlistNetName(project, document.id, netId, {
+          format: netlistPreferences.format,
+          namingProfile: netlistNamingProfile,
+        }),
     },
     selection: {
       selectedInstance,

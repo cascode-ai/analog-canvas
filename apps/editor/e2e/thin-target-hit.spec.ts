@@ -154,7 +154,7 @@ test("FD Amp blank space does not capture clicks, body and pins remain usable, a
     ),
   ).toEqual(expect.arrayContaining(["route", "instance"]));
   await page.mouse.click(overlap.x, overlap.y);
-  await expectStatus(page, "Selected route");
+  await expectStatus(page, /Selected wire on \S+/);
   await page.keyboard.press("Escape");
   const [body] = await onScreen(canvas, [{ x: 60, y: 318 }]);
   await page.mouse.click(body.x, body.y);
