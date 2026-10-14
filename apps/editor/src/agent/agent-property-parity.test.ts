@@ -1006,4 +1006,42 @@ describe("Agent property actions are planned as Apply in Properties", () => {
       name: "nor_gate",
     });
   });
+
+  it("binds a D flip-flop to a Cell of the Project as a gate, and clears it (#1689)", async () => {
+    const { client, apply, refuse, instance } = await session();
+    const drawPins = async (documentId: string, pins: readonly string[]) => {
+      const report = await client.applyActions(
+        pins.map((pin, index) => ({
+          kind: "place-component",
+          symbol: "port",
+          reference: pin,
+          position: { x: 0, y: index * 40 },
+        })),
+        { documentId },
+      );
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([{ kind: "create-cell", id: "dff", name: "dff_cmos" }]);
+    await apply([{ kind: "create-cell", id: "latch", name: "latch" }]);
+    await drawPins("dff", ["D", "CK", "Q", "QBAR"]);
+    await drawPins("latch", ["D", "EN", "Q"]);
+    await apply([place("d-flip-flop", "X2", 200)]);
+    const target = { kind: "instance", reference: "X2" };
+
+    await apply([{ kind: "set-model", target, model: "DFF_CMOS" }]);
+    expect(instance("X2")).toMatchObject({
+      symbolId: "d-flip-flop",
+      netlist: { binding: { kind: "subcircuit", childDocumentId: "dff" } },
+    });
+    expect(
+      await refuse([{ kind: "set-model", target, model: "latch" }]),
+    ).toContain(
+      "Cell latch does not fit the d-flip-flop: it has no Pins CK and QBAR, and its Pin EN is not one of the flip-flop's.",
+    );
+    await apply([{ kind: "set-model", target, model: "" }]);
+    expect(instance("X2").netlist?.binding).toEqual({
+      kind: "unresolved-subcircuit",
+      name: "d_flip_flop",
+    });
+  });
 });

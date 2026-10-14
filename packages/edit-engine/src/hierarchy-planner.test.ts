@@ -403,7 +403,7 @@ describe("a Library gate takes a standard cell of its function (#1450)", () => {
   });
 });
 
-describe("a Library gate takes a Cell of its Project (#1450)", () => {
+describe("a Library gate or flip-flop takes a Cell of its Project (#1450, #1689)", () => {
   /** A nor-gate X1 wired at A, B and Y, its VDD on Net net-vdda. */
   function gateProject() {
     const project = createEmptyProject("gates", "Gates");
@@ -556,6 +556,104 @@ describe("a Library gate takes a Cell of its Project (#1450)", () => {
     const project = gateProject();
     addCell(project, "nor2", "nor2", ["A", "B", "Y"]);
     expect(pinsOf(bind(project, "nor2"))).toEqual(["A", "B", "Y"]);
+  });
+
+  /** A reset flip-flop X1 wired at every pin, its VDD on Net net-vdd. */
+  function flipFlopProject() {
+    const project = createEmptyProject("flip-flops", "Flip-flops");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: "d-flip-flop-reset",
+      placement: null,
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "d_flip_flop_reset" },
+        parameters: { vt: "10m", td: "10p" },
+      },
+    });
+    document.nets.push(
+      ...["D", "CK", "RST", "Q", "QBAR", "VDD"].map((pin) => ({
+        id: `net-${pin.toLowerCase()}`,
+        terminals: [{ instanceId: "X1", pinName: pin }],
+      })),
+    );
+    return project;
+  }
+
+  it("binds a flip-flop to a transistor-level Cell as a gate, and clears it back to its ideal body (#1689)", () => {
+    const project = flipFlopProject();
+    addCell(project, "dffr", "dffr", [
+      "d",
+      "ck",
+      "rst",
+      "q",
+      "qbar",
+      "VDD",
+      "VSS",
+    ]);
+    expect(
+      gateCellTargets(project, project.topDocumentId, "d-flip-flop-reset").map(
+        (cell) => cell.id,
+      ),
+    ).toEqual(["dffr"]);
+    const bound = bind(project, "DFFR");
+    expect(gate(bound)).toMatchObject({
+      symbolId: "d-flip-flop-reset",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "dffr" },
+        parameters: {},
+      },
+    });
+    expect(pinsOf(bound)).toEqual(["D", "CK", "RST", "Q", "QBAR", "VDD"]);
+    const exported = createDesignNetlistExport(bound, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // The call goes to the Cell in its Pin order, each Pin on the
+    // flip-flop's Net of its name: VDD on net5, then D, CK, RST, Q and QBAR
+    // on net1, net0, net4, net2 and net3 (Nets are numbered by ID).
+    expect(exported.file.text).toMatch(
+      /^\.subckt dffr VDD VSS d ck rst q qbar$/mu,
+    );
+    expect(exported.file.text).toMatch(
+      /^X1 net5 VSS net1 net0 net4 net2 net3 dffr$/mu,
+    );
+
+    const cleared = bind(bound, "");
+    expect(gate(cleared).netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "d_flip_flop_reset" },
+      parameters: { vt: "10m", td: "10p" },
+    });
+  });
+
+  it("refuses a Cell that does not fit a flip-flop, naming its Pins, and a name that is no Cell (#1689)", () => {
+    const project = flipFlopProject();
+    addCell(project, "dff", "dff", ["D", "CK", "Q", "QBAR"]);
+    const plan = (model: string) =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
+    expect(() => plan("dff")).toThrow(
+      "Cell dff does not fit the d-flip-flop-reset: it has no Pin RST. Its Pins must be D, CK, RST, Q and QBAR, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
+    );
+    expect(() => plan("dffr")).toThrow(
+      "dffr is not a Cell of this Project, and no Cell of it fits d-flip-flop-reset",
+    );
+    addCell(project, "dffr", "dffr", ["D", "CK", "RST", "Q", "QBAR", "EN"]);
+    expect(() => plan("dffr")).toThrow(
+      "its Pin EN is not one of the flip-flop's",
+    );
+  });
+
+  it("keeps a bound flip-flop's symbol through a Cell rename, and the Pins it uses (#1689)", () => {
+    const project = flipFlopProject();
+    addCell(project, "dffr", "dffr", ["D", "CK", "RST", "Q", "QBAR"]);
+    const bound = bind(project, "dffr");
+    // The Cell takes its supplies globally: the VDD Net is cleared.
+    expect(pinsOf(bound)).toEqual(["D", "CK", "RST", "Q", "QBAR"]);
+    const renamed = execute(bound, planRenameCell(bound, "dffr", "dff_cmos"));
+    expect(gate(renamed).symbolId).toBe("d-flip-flop-reset");
+    expect(() =>
+      planRenameCellTerminal(renamed, "dffr", "dffr-RST", "clear"),
+    ).toThrow("its RST would have no Pin");
   });
 
   it("stays a gate through a Cell rename, and keeps the Pins it uses", () => {

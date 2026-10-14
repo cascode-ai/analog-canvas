@@ -18,7 +18,7 @@ import type {
 } from "@icm/model";
 import {
   deviceDescriptor,
-  isLibraryLogicGate,
+  bindsProjectCell,
   libraryGateTerminals,
   resolveReviewedExternalBinding,
 } from "@icm/devices";
@@ -432,9 +432,10 @@ export function buildNetContext(
                 instance.symbolId,
               )
             : undefined;
-        // A Library gate bound to a Cell keeps its own pins (#1450).
+        // A Library gate or flip-flop bound to a Cell keeps its own pins
+        // (#1450, #1689).
         const allowedPins = child?.netlist
-          ? isLibraryLogicGate(instance.symbolId)
+          ? bindsProjectCell(instance.symbolId)
             ? libraryGateTerminals(instance.symbolId).map(
                 (gateTerminal) => gateTerminal.pinName,
               )

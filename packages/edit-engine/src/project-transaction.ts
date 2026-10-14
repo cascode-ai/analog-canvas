@@ -24,10 +24,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { routeEnd } from "@icm/model";
-import {
-  isLibraryLogicGate,
-  resolveReviewedExternalBinding,
-} from "@icm/devices";
+import { bindsProjectCell, resolveReviewedExternalBinding } from "@icm/devices";
 import { resolveEndpointPoint } from "@icm/derived";
 import {
   builtInSymbols,
@@ -931,8 +928,9 @@ function applyProjectTransaction(
             binding.childDocumentId !== document.id
           )
             continue;
-          // A Library gate bound to the Cell keeps its symbol (#1450).
-          if (!isLibraryLogicGate(instance.symbolId))
+          // A Library gate or flip-flop bound to the Cell keeps its symbol
+          // (#1450, #1689).
+          if (!bindsProjectCell(instance.symbolId))
             instance.symbolId = hierarchicalSymbolId(edit.name);
           const masterAnnotation = parent.annotations.find(
             (annotation) =>

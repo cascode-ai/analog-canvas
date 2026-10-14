@@ -1,6 +1,6 @@
 import { type CircuitProject, type SchematicDocument } from "@icm/model";
 import {
-  isLibraryLogicGate,
+  bindsProjectCell,
   resolveReviewedLibraryInterface,
 } from "@icm/devices";
 import {
@@ -39,7 +39,7 @@ export function selectedBlockSymbolTarget(
   if (binding?.kind === "subcircuit") {
     // A Library gate bound to the Cell is drawn as the gate, not as the
     // Cell's block (#1450).
-    if (instance && isLibraryLogicGate(instance.symbolId)) return undefined;
+    if (instance && bindsProjectCell(instance.symbolId)) return undefined;
     const cell = project.documents.find(
       (item) => item.id === binding.childDocumentId,
     );

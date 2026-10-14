@@ -123,6 +123,11 @@ is refused with their IDs, never resolved to the first.
     the gate's own Cell is refused, and used Pins cannot be renamed or removed.
 
   An empty model returns the ideal body and default parameters.
+- A D flip-flop (`d-flip-flop`, `d-flip-flop-q`, `d-flip-flop-reset`) binds to
+  a Project Cell the same way, keeping its symbol: the Cell's Pins are `D`,
+  `CK`, `Q`, `QBAR` where the symbol has it and `RST` for the reset form, plus
+  `VDD`/`VSS` unless its supplies are global. It takes no standard cell; an
+  empty model returns its ideal body.
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the

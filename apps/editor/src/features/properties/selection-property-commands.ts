@@ -4,6 +4,7 @@ import {
   type SchematicEdit,
 } from "@icm/edit-engine";
 import {
+  bindsProjectCell,
   reviewedExternalBindingForMaster,
   reviewedExternalModelSuggestions,
 } from "@icm/devices";
@@ -78,6 +79,7 @@ export function createSelectionPropertyCommands({
     if (
       selectedInstanceIsMos ||
       reviewedExternalModelSuggestions(selectedInstance.symbolId).length > 0 ||
+      bindsProjectCell(selectedInstance.symbolId) ||
       selectedInstance.netlist.binding?.kind === "external-subcircuit"
     ) {
       try {
@@ -96,7 +98,8 @@ export function createSelectionPropertyCommands({
                 selectedInstance.symbolId,
               )
             : undefined;
-          // A Library gate bound to a Cell of the Project (#1450).
+          // A Library gate or flip-flop bound to a Cell of the Project
+          // (#1450, #1689).
           const cell = edits.some(
             (edit) =>
               edit.kind === "transact_document" &&

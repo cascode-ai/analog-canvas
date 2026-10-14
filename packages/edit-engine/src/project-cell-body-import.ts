@@ -9,7 +9,7 @@ import {
   resolveMosBulkConnection,
   uniqueInductorCouplingName,
 } from "@icm/derived";
-import { isLibraryLogicGate } from "@icm/devices";
+import { bindsProjectCell } from "@icm/devices";
 import { hierarchicalSymbolId } from "@icm/symbols";
 import {
   planProjectCellImport,
@@ -204,11 +204,12 @@ export function planProjectCellBodyImport(
   if (incoming.sourceBinding) incoming.sourceBinding.cellName = name;
   for (const document of remapped)
     for (const instance of document.instances) {
-      // A Library gate bound to the Cell keeps its symbol (#1450).
+      // A Library gate or flip-flop bound to the Cell keeps its symbol
+      // (#1450, #1689).
       if (
         instance.netlist?.binding?.kind === "subcircuit" &&
         instance.netlist.binding.childDocumentId === target.id &&
-        !isLibraryLogicGate(instance.symbolId)
+        !bindsProjectCell(instance.symbolId)
       )
         instance.symbolId = hierarchicalSymbolId(name);
     }

@@ -3,7 +3,7 @@
 import type { CircuitProject, Instance } from "@icm/model";
 import {
   gateCellBinding,
-  isLibraryLogicGate,
+  bindsProjectCell,
   subcircuitDescriptor,
 } from "@icm/devices";
 import { gateCellTargets } from "@icm/edit-engine";
@@ -22,7 +22,7 @@ export function gateCellChoices(
   documentId: string,
   instance: Instance,
 ): string[] {
-  if (!instance.netlist || !isLibraryLogicGate(instance.symbolId)) return [];
+  if (!instance.netlist || !bindsProjectCell(instance.symbolId)) return [];
   return gateCellTargets(project, documentId, instance.symbolId).map(
     (cell) => cell.netlist.name,
   );

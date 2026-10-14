@@ -70,6 +70,7 @@ import { designNetlistNetName } from "@icm/netlist";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
+  bindsProjectCell,
   reviewedExternalModelSuggestions,
   deviceDescriptor,
 } from "@icm/devices";
@@ -6281,7 +6282,17 @@ function WorkspaceEditor({
                               selectedPropertyDevice?.symbolId ??
                                 selectedInstance.symbolId,
                             ).length > 0 ||
-                            selectedReviewedExternalBinding)
+                            selectedReviewedExternalBinding ||
+                            // A flip-flop takes only Cells: the field shows
+                            // once one fits, or while one is bound (#1689).
+                            (bindsProjectCell(selectedInstance.symbolId) &&
+                              (selectedInstance.netlist.binding?.kind ===
+                                "subcircuit" ||
+                                gateCellChoices(
+                                  project,
+                                  document.id,
+                                  selectedInstance,
+                                ).length > 0)))
                             ? {
                                 defaultValue: selectedModelTargetName,
                                 cells: gateCellChoices(
