@@ -375,6 +375,9 @@ never invents an identifier.
   SPICE keeps an empty first title line; SCS starts with its language line.
 - Blocked output clears the panel and leaves the clipboard unchanged;
   presentation-only edits never change IR or bytes.
+- The `SPICE+RNL` and `Spectre+RNL` formats add RNL records and reorder
+  generated bodies' ports; they follow [RNL interchange](rnl-interchange.md),
+  and the rules above stay those of `SPICE` and `SCS`.
 
 ## Persistence boundary
 
