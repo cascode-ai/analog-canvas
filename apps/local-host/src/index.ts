@@ -12,6 +12,7 @@ const TYPES: Readonly<Record<string, string>> = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".wasm": "application/wasm",
   ".webmanifest": "application/manifest+json",
 };
 
@@ -52,7 +53,8 @@ export async function startLocalHost(
   ): Promise<void> => {
     response.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'",
+      // 'wasm-unsafe-eval' lets bundled WebAssembly compile; no JavaScript eval.
+      "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self'",
     );
     response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     response.setHeader("X-Content-Type-Options", "nosniff");

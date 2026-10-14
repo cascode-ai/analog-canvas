@@ -15,6 +15,7 @@ describe("desktop preview protocol", () => {
       '<html><head><script>console.log("theme")</script></head></html>',
     );
     await writeFile(join(root, "app.js"), "export {};");
+    await writeFile(join(root, "core.wasm"), new Uint8Array([0, 97, 115, 109]));
     const deliver = vi.fn(async () => new Response("export"));
     const handle = await createAppProtocolHandler({
       editorRoot: root,
@@ -28,9 +29,22 @@ describe("desktop preview protocol", () => {
     expect(index.headers.get("content-security-policy")).not.toContain(
       "script-src 'self' 'unsafe-inline'",
     );
+    // WebAssembly may compile; JavaScript still may not eval.
+    expect(index.headers.get("content-security-policy")).toMatch(
+      /script-src [^;]*'wasm-unsafe-eval'/u,
+    );
+    expect(index.headers.get("content-security-policy")).not.toContain(
+      "'unsafe-eval'",
+    );
     expect(
       await (await handle(new Request(`${APP_ORIGIN}/app.js`))).text(),
     ).toBe("export {};");
+    // Served as WebAssembly, so instantiateStreaming accepts it.
+    expect(
+      (await handle(new Request(`${APP_ORIGIN}/core.wasm`))).headers.get(
+        "content-type",
+      ),
+    ).toBe("application/wasm");
     for (const url of [
       `${APP_ORIGIN}/api/auth/me`,
       "app://elsewhere/",

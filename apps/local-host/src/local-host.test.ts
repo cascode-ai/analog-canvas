@@ -13,6 +13,7 @@ describe("portable local host", () => {
       join(root, "index.html"),
       "<!doctype html><title>ICM</title>",
     );
+    await writeFile(join(root, "core.wasm"), new Uint8Array([0, 97, 115, 109]));
     const running = await startLocalHost({ editorRoot: root });
     try {
       expect(running.origin).toMatch(/^http:\/\/127\.0\.0\.1:/u);
@@ -22,6 +23,18 @@ describe("portable local host", () => {
       expect(response.headers.get("content-security-policy")).toContain(
         "default-src 'self'",
       );
+      // WebAssembly may compile; JavaScript still may not eval.
+      expect(response.headers.get("content-security-policy")).toContain(
+        "script-src 'self' 'wasm-unsafe-eval'",
+      );
+      expect(response.headers.get("content-security-policy")).not.toContain(
+        "'unsafe-eval'",
+      );
+      expect(
+        (await fetch(`${running.origin}/core.wasm`)).headers.get(
+          "content-type",
+        ),
+      ).toBe("application/wasm");
       expect(response.headers.get("cache-control")).toBe("no-cache");
       expect(await (await fetch(`${running.origin}/healthz`)).json()).toEqual({
         status: "ok",

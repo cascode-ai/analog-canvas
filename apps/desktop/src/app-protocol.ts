@@ -24,6 +24,7 @@ const TYPES: Readonly<Record<string, string>> = {
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".txt": "text/plain; charset=utf-8",
+  ".wasm": "application/wasm",
   ".webmanifest": "application/manifest+json",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
@@ -76,13 +77,15 @@ export async function createAppProtocolHandler(
   const indexHtml = await readFile(inside(root, "index.html"), "utf8");
   const scriptSources = ["'self'", ...inlineScriptHashes(indexHtml)].join(" ");
   // Upstream dynamic styles/attributes do not carry the fork's style nonces.
-  // Script execution remains self + exact bootstrap hashes; no eval or inline JS.
+  // Script execution remains self + exact bootstrap hashes; no eval or inline
+  // JS. 'wasm-unsafe-eval' lets bundled WebAssembly (the RNL runtime) compile
+  // and nothing else: it admits no JavaScript eval.
   const contentSecurityPolicy = [
     "default-src 'self'",
     "img-src 'self' blob: data:",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
-    `script-src ${scriptSources}`,
+    `script-src ${scriptSources} 'wasm-unsafe-eval'`,
     "worker-src 'self' blob:",
     // The vector PDF renderer reads its bundled period font from a data URL.
     // This admits embedded bytes, never an external network destination.
