@@ -75,25 +75,6 @@
   background: var(--icm-accent);
 }
 
-.arena-gate-dots[data-nudged] > span[aria-hidden] {
-  animation: arena-gate-nudge 320ms ease;
-}
-
-@keyframes arena-gate-nudge {
-  25% {
-    transform: translateX(-3px);
-  }
-  75% {
-    transform: translateX(3px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .arena-gate-dots[data-nudged] > span[aria-hidden] {
-    animation: none;
-  }
-}
-
 .arena-gate-hidden {
   position: absolute;
   width: 1px;
@@ -148,12 +129,6 @@
 .arena-gate-close {
   background: var(--icm-surface);
   color: var(--icm-text);
-}
-
-.arena-gate-close[aria-disabled="true"] {
-  background: var(--icm-surface-muted);
-  color: var(--icm-text-disabled);
-  cursor: not-allowed;
 }
 
 @media (max-width: 480px) {

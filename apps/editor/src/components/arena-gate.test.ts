@@ -4,7 +4,7 @@ import {
   ARENA_GATE_PAGE,
   createArenaGate,
   FAILURES_ALLOWED,
-  gateClosable,
+  gateSettled,
   startArenaGate,
   VOTES_REQUIRED,
 } from "./arena-gate";
@@ -114,7 +114,7 @@ describe("the Arena gate's count", () => {
       voted: 2,
       required: 5,
     });
-    expect(gateClosable(gate.state())).toBe(false);
+    expect(gateSettled(gate.state())).toBe(false);
   });
 
   it("counts by the Battles listed as it opened when Arena gives no time", async () => {
@@ -139,7 +139,7 @@ describe("the Arena gate's count", () => {
     });
   });
 
-  it("unlocks at five new Votes and stays unlocked", async () => {
+  it("settles at five new Votes and stays settled", async () => {
     const five = [5, 4, 3, 2, 1].map((s): [string, string] => [
       `n${s}`,
       after(s),
@@ -158,7 +158,7 @@ describe("the Arena gate's count", () => {
       voted: VOTES_REQUIRED,
       required: VOTES_REQUIRED,
     });
-    expect(gateClosable(gate.state())).toBe(true);
+    expect(gateSettled(gate.state())).toBe(true);
     expect(await gate.recount()).toEqual({
       status: "voting",
       voted: VOTES_REQUIRED,
@@ -231,8 +231,8 @@ describe("the Arena gate's count", () => {
   });
 });
 
-describe("the Arena gate never traps anyone", () => {
-  it("is closable at once when Arena fails or cannot be reached as it opens", async () => {
+describe("the Arena gate stops asking when Arena cannot answer", () => {
+  it("settles at once when Arena fails or cannot be reached as it opens", async () => {
     for (const answer of [
       refusal(503, "arena-unavailable"),
       new TypeError("Failed to fetch"),
@@ -243,11 +243,11 @@ describe("the Arena gate never traps anyone", () => {
       );
       const state = await gate.start();
       expect(state).toEqual({ status: "free", reason: "unavailable" });
-      expect(gateClosable(state)).toBe(true);
+      expect(gateSettled(state)).toBe(true);
     }
   });
 
-  it(`unlocks after ${FAILURES_ALLOWED} failed reads in a row while counting, not after one`, async () => {
+  it(`settles after ${FAILURES_ALLOWED} failed reads in a row while counting, not after one`, async () => {
     const down = new TypeError("Failed to fetch");
     const { fetchLike } = arena({
       past: [past([]), down, past([["n1", after(1)]]), down, down, down],
@@ -308,7 +308,7 @@ describe("the Arena gate never traps anyone", () => {
     });
     const state = await gate.recount();
     expect(state).toEqual({ status: "voting", voted: 3, required: 3 });
-    expect(gateClosable(state)).toBe(true);
+    expect(gateSettled(state)).toBe(true);
   });
 
   it("lets the person go when the battles left run out before the votes are in", async () => {

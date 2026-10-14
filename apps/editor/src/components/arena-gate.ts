@@ -1,21 +1,21 @@
 // The Arena gate's count (#1681): after a manual Cloud Save and whenever the
-// person opens the Cloud shelf, Analog Canvas asks for five Schematic Arena
-// Votes a day before its panel closes: Votes already cast today (the
-// browser's day, by Arena's clock), in the gate or in Arena, count toward
-// them, so the gate opens at most once a day. The person votes in Arena's own window,
-// on chip-arena.com; this side only counts. Arena lists a Voter's voted
-// Battles newest first with the time each Vote was cast
-// (GET /api/arena/battles/past, which this site's Worker forwards with the
-// signed-in account). A Vote counts when its Battle was not listed as the
-// gate opened and it was cast since then, by Arena's own clock.
+// person opens the Cloud shelf, Analog Canvas invites them to cast five
+// Schematic Arena Votes a day. Votes already cast today (the browser's day,
+// by Arena's clock), in the gate or in Arena, count toward them. The person
+// votes in Arena's own window, on chip-arena.com; this side only counts.
+// Arena lists a Voter's voted Battles newest first with the time each Vote
+// was cast (GET /api/arena/battles/past, which this site's Worker forwards
+// with the signed-in account). A Vote counts when its Battle was not listed
+// as the gate opened and it was cast since then, by Arena's own clock.
 //
-// The gate never traps anyone. Arena's session says how many Battles the
-// Voter has left (`battlesLeft`, read-only, chip-arena#238): the gate asks
-// for at most that many Votes, shows nothing when none are left, and lets
-// go when they run out. When Arena fails as it opens or keeps failing while
-// counting, the panel may close at once. Someone Arena will not count
-// (signed out, or an AI account, which may not vote) never sees it, and
-// neither does anyone on a server with no Arena behind it.
+// The gate never holds anyone (#1718): its panel closes whenever the person
+// closes it, and shows at most once a browser day (arena-gate-request.ts).
+// Arena's session says how many Battles the Voter has left (`battlesLeft`,
+// read-only, chip-arena#238): the gate asks for at most that many Votes,
+// shows nothing when none are left, and stops asking when they run out or
+// Arena keeps failing. Someone Arena will not count (signed out, or an AI
+// account, which may not vote) never sees it, and neither does anyone on a
+// server with no Arena behind it.
 
 /**
  * The Schematic Arena's battle page as the gate opens it. On Analog Canvas's
@@ -36,13 +36,13 @@ function sinceLocalMidnight(): number {
   return now.getTime() - midnight.getTime();
 }
 
-/** Failed reads in a row, while counting, after which the panel unlocks. */
+/** Failed reads in a row, while counting, after which the gate stops. */
 export const FAILURES_ALLOWED = 3;
 
 const PAST_PATH = "/api/arena/battles/past";
 const SESSION_PATH = "/api/arena/session";
 
-/** Why the panel may close before the Votes are in. */
+/** Why the gate stopped asking before the Votes were in. */
 export type ArenaGateFreeReason =
   "unavailable" | "no-battle" | "signed-out" | "ai-account";
 
@@ -161,8 +161,8 @@ async function readSession(fetchLike: typeof fetch): Promise<SessionRead> {
   return { kind: "voter", battlesLeft };
 }
 
-/** Whether the panel may close now. */
-export function gateClosable(state: ArenaGateState): boolean {
+/** Whether the gate is done asking: the Votes are in, or it stopped. */
+export function gateSettled(state: ArenaGateState): boolean {
   return (
     state.status === "free" ||
     state.status === "closed" ||
@@ -173,8 +173,8 @@ export function gateClosable(state: ArenaGateState): boolean {
 /**
  * One opening of the gate. `start` notes what Arena listed as it opened and
  * how many Votes to ask for; `recount` reads the count and the Battles left
- * again. A recount asked while one is reading joins it. Once the panel may
- * close, it stays closable.
+ * again. A recount asked while one is reading joins it. Once settled, the
+ * gate stays settled.
  */
 export function createArenaGate(
   fetchLike: typeof fetch = fetch,
@@ -191,7 +191,7 @@ export function createArenaGate(
   let reading: Promise<ArenaGateState> | null = null;
 
   const settle = (next: ArenaGateState) => {
-    if (state.status === "checking" || !gateClosable(state)) state = next;
+    if (state.status === "checking" || !gateSettled(state)) state = next;
     return state;
   };
   const counted = (read: PastRead & { kind: "listed" | "consent" }) => {
@@ -231,7 +231,7 @@ export function createArenaGate(
       voted: counted(read),
       required,
     });
-    if (session.battlesLeft <= 0 && !gateClosable(next))
+    if (session.battlesLeft <= 0 && !gateSettled(next))
       return settle({ status: "free", reason: "no-battle" });
     return next;
   }
@@ -269,7 +269,7 @@ export function createArenaGate(
       return settle({ status: "voting", voted: 0, required });
     },
     recount() {
-      if (state.status !== "voting" || gateClosable(state))
+      if (state.status !== "voting" || gateSettled(state))
         return Promise.resolve(state);
       reading ??= readAgain().finally(() => {
         reading = null;
