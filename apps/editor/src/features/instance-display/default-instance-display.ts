@@ -43,7 +43,7 @@ export interface DefaultInstanceDisplayOptions {
 
 /** Find the visual annotation, without mistaking older hidden defaults for it. */
 export function instanceLabelAnnotationFor(
-  document: SchematicDocument,
+  document: Pick<SchematicDocument, "annotations">,
   instanceId: string,
 ): Annotation | undefined {
   const candidates = document.annotations.filter(

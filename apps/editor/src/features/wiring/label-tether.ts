@@ -1,5 +1,7 @@
 import {
   derivePowerRailComponent,
+  resolveDocumentLogicalNets,
+  resolveDocumentRoutingGeometry,
   resolveEndpointConnection,
   resolveRouteAttachment,
 } from "@icm/derived";
@@ -279,9 +281,19 @@ export function resolveLabelTethers(
   annotationIds: readonly string[],
 ): LabelTether[] {
   const wanted = new Set(annotationIds);
+  let read: LabelTetherContext | undefined;
   return context.document.annotations.flatMap((annotation) => {
     if (!wanted.has(annotation.id) || annotation.visible === false) return [];
-    const tether = tetherFor(context, annotation);
+    // One current query read; no cached geometry on a mutable caller.
+    read ??= {
+      ...context,
+      routingGeometry:
+        context.routingGeometry ??
+        resolveDocumentRoutingGeometry(context.document, context.resolver),
+      logicalNets:
+        context.logicalNets ?? resolveDocumentLogicalNets(context.document),
+    };
+    const tether = tetherFor(read, annotation);
     return tether ? [tether] : [];
   });
 }

@@ -2,6 +2,7 @@ import { createRoutePath } from "@icm/model";
 import { createEmptyDocument } from "@icm/model";
 import type { Rect, SchematicDocument } from "@icm/model";
 import {
+  buildDocumentDerivedContext,
   resolveRouteGeometry,
   resolveSchematicStyleProfile,
 } from "@icm/derived";
@@ -145,6 +146,123 @@ describe("marqueeMode", () => {
 });
 
 describe("marquee window selection (left-to-right)", () => {
+  it("shares the same geometry for unattached current markers too", () => {
+    const { document, records } = fixture();
+    document.annotations = Array.from({ length: 4 }, (_, index) => ({
+      id: `current-${index}`,
+      kind: "route-marker" as const,
+      markerKind: "current" as const,
+      content: { runs: [{ kind: "text" as const, value: "I" }] },
+      anchor: { kind: "free" as const, position: { x: 200, y: 200 } },
+      alignment: "start" as const,
+      rotation: 0 as const,
+      locked: false,
+    }));
+    const originalSet = Map.prototype.set;
+    let geometryWrites = 0;
+    Map.prototype.set = function (this: Map<unknown, unknown>, key, value) {
+      if (value?.routeId === key && Array.isArray(value.centerline))
+        geometryWrites++;
+      return originalSet.call(this, key, value);
+    };
+    let selection: ReturnType<typeof marqueeSelection>;
+    try {
+      selection = marqueeSelection(
+        document,
+        resolver,
+        records,
+        styleProfile,
+        { x: -10, y: -10, width: 450, height: 350 },
+        "window",
+      );
+    } finally {
+      Map.prototype.set = originalSet;
+    }
+    expect(selection.annotationIds).toEqual([
+      "current-0",
+      "current-1",
+      "current-2",
+      "current-3",
+    ]);
+    expect(geometryWrites).toBeLessThanOrEqual(document.routes.length);
+  });
+  it("uses the caller's current shared geometry without resolving wires again", () => {
+    const { document, records } = fixture();
+    const read = buildDocumentDerivedContext(document, resolver);
+    const policy = createSelectionPolicy(document, {
+      ...NO_SELECTION_FILTER,
+      "instance-name": true,
+    });
+    const originalSet = Map.prototype.set;
+    let geometryWrites = 0;
+    Map.prototype.set = function (this: Map<unknown, unknown>, key, value) {
+      if (value?.routeId === key && Array.isArray(value.centerline))
+        geometryWrites++;
+      return originalSet.call(this, key, value);
+    };
+    let selection: ReturnType<typeof marqueeSelection>;
+    try {
+      selection = marqueeSelection(
+        document,
+        resolver,
+        records,
+        styleProfile,
+        { x: -10, y: -10, width: 450, height: 350 },
+        "window",
+        policy,
+        read,
+      );
+    } finally {
+      Map.prototype.set = originalSet;
+    }
+    expect(selection).toEqual({
+      instanceIds: [],
+      routeIds: [],
+      junctionIds: [],
+      annotationIds: [document.annotations[0]!.id],
+      draftingIds: [],
+    });
+    expect(geometryWrites).toBe(0);
+  });
+  it("resolves the complete wire geometry at most once for all text hits", () => {
+    const { document, records } = fixture();
+    const label = document.annotations[0]!;
+    for (let index = 1; index < 8; index++)
+      document.annotations.push({ ...label, id: `label-${index}` });
+    const originalSet = Map.prototype.set;
+    let geometryWrites = 0;
+    Map.prototype.set = function (this: Map<unknown, unknown>, key, value) {
+      if (value?.routeId === key && Array.isArray(value.centerline))
+        geometryWrites++;
+      return originalSet.call(this, key, value);
+    };
+    let selection: ReturnType<typeof marqueeSelection>;
+    try {
+      selection = marqueeSelection(
+        document,
+        resolver,
+        records,
+        styleProfile,
+        { x: -10, y: -10, width: 450, height: 350 },
+        "window",
+      );
+    } finally {
+      Map.prototype.set = originalSet;
+    }
+    expect(selection.instanceIds).toEqual(["M1"]);
+    expect(selection.routeIds).toEqual(["route-1"]);
+    expect(selection.annotationIds).toEqual([
+      label.id,
+      "label-1",
+      "label-2",
+      "label-3",
+      "label-4",
+      "label-5",
+      "label-6",
+      "label-7",
+    ]);
+    expect(geometryWrites).toBeLessThanOrEqual(document.routes.length);
+  });
   it("selects an instance only when its bounds are fully contained", () => {
     const { instanceBounds } = fixtureCache;
     expect(select(grow(instanceBounds, 4), "window").instanceIds).toEqual([

@@ -1,4 +1,8 @@
-import { deriveRoutingAffectedClosure } from "@icm/derived";
+import {
+  deriveRoutingAffectedClosure,
+  type RoutingAffectedClosure,
+} from "@icm/derived";
+import { routeEndpoints } from "@icm/model";
 import type { SchematicDocument, VisualAnchor } from "@icm/model";
 
 import { looseRouteAnchorIds } from "../wiring/route-interaction-geometry";
@@ -49,6 +53,14 @@ function stable(ids: Iterable<string>): string[] {
   );
 }
 
+function firstById<T extends { id: string }>(
+  items: readonly T[],
+): Map<string, T> {
+  const index = new Map<string, T>();
+  for (const item of items) if (!index.has(item.id)) index.set(item.id, item);
+  return index;
+}
+
 function followsTranslatedAnchor(
   anchor: VisualAnchor,
   objectIds: ReadonlySet<string>,
@@ -71,20 +83,45 @@ function followsTranslatedAnchor(
 export function planSelectionMove(
   document: SchematicDocument,
   selection: VisualSelection,
+  preparedClosure?: RoutingAffectedClosure,
 ): SelectionMovePlan {
-  const instanceIds = stable(
-    selection.instanceIds.filter((id) =>
-      document.instances.some(
-        (instance) => instance.id === id && instance.placement,
-      ),
-    ),
+  const placedIds = new Set(
+    document.instances.filter((i) => i.placement).map((i) => i.id),
   );
-  const closure = deriveRoutingAffectedClosure(document, {
-    instanceIds,
-    routeIds: selection.routeIds,
-    junctionIds: selection.junctionIds,
-    annotationIds: selection.annotationIds,
-  });
+  const instanceIds = stable(
+    selection.instanceIds.filter((id) => placedIds.has(id)),
+  );
+  // The caller owns a current same-source closure. A visual selection can
+  // include an unplaced Instance; its movement seed deliberately cannot.
+  const closure =
+    preparedClosure &&
+    preparedClosure.instances.length === instanceIds.length &&
+    preparedClosure.instances.every((id, index) => id === instanceIds[index])
+      ? preparedClosure
+      : deriveRoutingAffectedClosure(document, {
+          instanceIds,
+          routeIds: selection.routeIds,
+          junctionIds: selection.junctionIds,
+          annotationIds: selection.annotationIds,
+        });
+  const routesById = firstById(document.routes);
+  const annotationsById = firstById(document.annotations);
+  const draftingById = firstById(document.drafting?.objects ?? []);
+  const junctionsById = firstById(document.junctions);
+  const routeDegreeByJunctionId = new Map<string, number>();
+  for (const route of document.routes) {
+    // One Route counts once even if an invalid/legacy path repeats an anchor.
+    const ids = new Set(
+      routeEndpoints(route).flatMap((e) =>
+        e.kind === "junction" ? [e.junctionId] : [],
+      ),
+    );
+    for (const id of ids)
+      routeDegreeByJunctionId.set(
+        id,
+        (routeDegreeByJunctionId.get(id) ?? 0) + 1,
+      );
+  }
   const translatedRouteIds = new Set(closure.internalRoutes);
   // The engine closure decides which anchors travel and which arms stretch.
   // A second GUI filter would disagree with both preview and commit.
@@ -93,9 +130,12 @@ export function planSelectionMove(
   const fixedObjectIds = new Set<string>();
 
   for (const routeId of selection.routeIds) {
-    const route = document.routes.find((candidate) => candidate.id === routeId);
+    const route = routesById.get(routeId);
     if (!route) continue;
-    const anchors = looseRouteAnchorIds(document, route);
+    const anchors = looseRouteAnchorIds(document, route, {
+      junctionsById,
+      routeDegreeByJunctionId,
+    });
     if (anchors && translatedRouteIds.has(routeId)) {
       looseRouteIds.add(routeId);
       continue;
@@ -109,8 +149,9 @@ export function planSelectionMove(
     if (!translatedJunctionIds.has(junctionId)) fixedObjectIds.add(junctionId);
   }
 
+  const selectedDraftingIds = new Set(selection.draftingIds);
   const selectedDrafting = (document.drafting?.objects ?? []).filter((object) =>
-    selection.draftingIds.includes(object.id),
+    selectedDraftingIds.has(object.id),
   );
   const movingObjectIds = new Set([
     ...instanceIds,
@@ -146,9 +187,7 @@ export function planSelectionMove(
     .map((annotation) => annotation.id);
   const followingAnnotationIdSet = new Set(followingAnnotationIds);
   const independentAnnotationIds = selection.annotationIds.filter((id) => {
-    const annotation = document.annotations.find(
-      (candidate) => candidate.id === id,
-    );
+    const annotation = annotationsById.get(id);
     if (!annotation) return false;
     if (annotation.locked && !followingAnnotationIdSet.has(id)) {
       fixedObjectIds.add(id);
@@ -161,9 +200,7 @@ export function planSelectionMove(
     return !followingAnnotationIdSet.has(id);
   });
   const draftingIds = selection.draftingIds.filter((id) => {
-    const object = document.drafting?.objects.find(
-      (candidate) => candidate.id === id,
-    );
+    const object = draftingById.get(id);
     if (!object || followingDraftingIdSet.has(id)) return false;
     if (object.locked || !canMoveDraftingIndependently(object)) {
       fixedObjectIds.add(id);

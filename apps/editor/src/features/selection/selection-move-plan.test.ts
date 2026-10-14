@@ -39,6 +39,78 @@ describe("the step a selection moves by", () => {
 });
 
 describe("selection move plan", () => {
+  it("plans selected loose wires without searching every Route per endpoint", () => {
+    const document = createEmptyDocument("loose", "Loose");
+    document.nets.push({ id: "net", terminals: [] });
+    for (let index = 0; index < 3; index++) {
+      document.junctions.push(
+        { id: `a${index}`, netId: "net", position: { x: 0, y: index * 100 } },
+        { id: `b${index}`, netId: "net", position: { x: 100, y: index * 100 } },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: `wire-${index}`,
+          netId: "net",
+          start: { kind: "junction", junctionId: `a${index}` },
+          end: { kind: "junction", junctionId: `b${index}` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    const originalFind = Array.prototype.find;
+    const originalFilter = Array.prototype.filter;
+    let routeSearches = 0;
+    Array.prototype.find = function (
+      this: unknown[],
+      ...args: Parameters<typeof originalFind>
+    ) {
+      if (this === document.routes) routeSearches++;
+      return originalFind.apply(this, args);
+    };
+    Array.prototype.filter = function (
+      this: unknown[],
+      ...args: Parameters<typeof originalFilter>
+    ) {
+      if (this === document.routes) routeSearches++;
+      return originalFilter.apply(this, args);
+    };
+    let result: ReturnType<typeof planSelectionMove>;
+    try {
+      result = planSelectionMove(document, {
+        instanceIds: [],
+        routeIds: ["wire-0", "wire-1", "wire-2"],
+        junctionIds: [],
+        annotationIds: [],
+        draftingIds: [],
+      });
+    } finally {
+      Array.prototype.find = originalFind;
+      Array.prototype.filter = originalFilter;
+    }
+    expect(result).toEqual({
+      intent: "move-selection",
+      instanceIds: [],
+      translatedRouteIds: ["wire-0", "wire-1", "wire-2"],
+      translatedJunctionIds: ["a0", "a1", "a2", "b0", "b1", "b2"],
+      looseRouteIds: ["wire-0", "wire-1", "wire-2"],
+      previewObjectIds: [
+        "a0",
+        "a1",
+        "a2",
+        "b0",
+        "b1",
+        "b2",
+        "wire-0",
+        "wire-1",
+        "wire-2",
+      ],
+      independentAnnotationIds: [],
+      draftingIds: [],
+      fixedObjectIds: [],
+    });
+    expect(routeSearches).toBe(0);
+  });
   it("keeps an internal wire, its Junction, and anchored labels in one visual closure", () => {
     const document = createEmptyDocument("doc", "Doc");
     document.instances.push(

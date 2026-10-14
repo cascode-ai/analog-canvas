@@ -334,7 +334,6 @@ import {
 import {
   groupNamingStatus,
   planGroupNaming,
-  shownPartName,
 } from "../features/properties/group-naming";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import {
@@ -342,13 +341,8 @@ import {
   batchDraftingEdits,
 } from "../features/properties/batch-property-apply";
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
-import {
-  commonGroupValue,
-  groupForeground,
-  groupParameterContext,
-  groupPropertyItems,
-  type GroupPropertyCodeValue,
-} from "../features/properties/group-property-code";
+import type { GroupPropertyCodeValue } from "../features/properties/group-property-code";
+import { readSelectionGroupProperties } from "../features/properties/selection-group-properties";
 import {
   LIBRARY_WIDTH_MAX,
   LIBRARY_WIDTH_MIN,
@@ -364,6 +358,7 @@ import { createSelectionMoveController } from "../features/selection/selection-m
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
 import type { VisualSelectionKind } from "../features/selection/visual-selection";
 import { planSelectionMove } from "../features/selection/selection-move-plan";
+import { createBoxPreviewRuntime } from "../canvas/box-preview-runtime";
 import {
   annotationHitBox,
   isRoutedMarker,
@@ -1336,7 +1331,29 @@ function WorkspaceEditor({
     replaceActiveProject,
     guardDirtyReplacement,
   });
-  const [boxPreview, setBoxPreview] = useState<BoxPreview | null>(null);
+  const boxPreviewRuntime = useMemo(
+    () =>
+      createBoxPreviewRuntime(
+        (callback) => requestAnimationFrame(callback),
+        (frame) => cancelAnimationFrame(frame),
+      ),
+    [document],
+  );
+  const [boxPreview, setPublishedBoxPreview] = useState<BoxPreview | null>(
+    null,
+  );
+  const setBoxPreview = useCallback(
+    (
+      next:
+        BoxPreview | null | ((current: BoxPreview | null) => BoxPreview | null),
+    ) => {
+      const preview =
+        typeof next === "function" ? next(boxPreviewRuntime.current()) : next;
+      boxPreviewRuntime.replace(preview);
+      setPublishedBoxPreview(preview);
+    },
+    [boxPreviewRuntime],
+  );
   const [panPreview, setPanPreview] = useState<PanPreview | null>(null);
   const [wireOptionsOpen, setWireOptionsOpen] = useState(false);
   const [routingGuidanceView, setRoutingGuidanceView] =
@@ -1800,13 +1817,17 @@ function WorkspaceEditor({
     selectedEndpointNetId,
     selectedHighlightNetId,
     selectedHighlightEndpoint,
-  } = deriveSelectionInspectionModel({
-    project,
-    document,
-    resolver,
-    selection: visualSelection,
-    selectedEndpoint,
-  });
+  } = useMemo(
+    () =>
+      deriveSelectionInspectionModel({
+        project,
+        document,
+        resolver,
+        selection: visualSelection,
+        selectedEndpoint,
+      }),
+    [project, document, resolver, visualSelection, selectedEndpoint],
+  );
   useEffect(() => {
     if (
       controlPickState &&
@@ -2251,13 +2272,17 @@ function WorkspaceEditor({
     netNameEditsForAnnotation,
     propertyParametersForInstance,
     instancePropertyEdits,
-  } = createPropertyEditPlanner({
-    project,
-    document,
-    resolver,
-    routeGeometryRecords,
-    setStatus,
-  });
+  } = useMemo(
+    () =>
+      createPropertyEditPlanner({
+        project,
+        document,
+        resolver,
+        routeGeometryRecords,
+        setStatus,
+      }),
+    [project, document, resolver, routeGeometryRecords, setStatus],
+  );
   const {
     referenceLabelVisibilityEdits,
     valueVisibilityEdits,
@@ -2502,124 +2527,81 @@ function WorkspaceEditor({
     selectedControl?.kind === "voltage"
       ? `+ ${logicalNetChoiceForNet(netChoices, selectedControl.positiveNetId)?.label ?? "unset"} · − ${logicalNetChoiceForNet(netChoices, selectedControl.negativeNetId)?.label ?? "unset"}`
       : currentControlSummary;
-  const selectedGroupInstances = selectedIds.flatMap((id) => {
-    const instance = document.instances.find((item) => item.id === id);
-    return instance ? [instance] : [];
-  });
-  const selectedGroupReferenceVisibility = commonGroupValue(
-    selectedIds.map((id) => {
-      const label = instanceLabelAnnotationFor(document, id);
-      return label !== undefined && label.visible !== false;
-    }),
-  );
-  const selectedGroupValueInstances = selectedGroupInstances.filter(
-    (instance) => symbolSupportsValueAnnotation(instance.symbolId),
-  );
-  const selectedGroupValueVisibility =
-    selectedGroupValueInstances.length === 0
-      ? null
-      : commonGroupValue(
-          selectedGroupValueInstances.map((instance) => {
-            const value = instanceValueAnnotation(document, instance.id);
-            return value !== null && value.visible !== false;
-          }),
-        );
-  const selectedGroupForeground = groupForeground(
+  const {
     selectedGroupInstances,
-    styleProfile.foreground,
+    selectedGroupReferenceVisibility,
+    selectedGroupValueInstances,
+    selectedGroupValueVisibility,
+    selectedGroupContext,
+  } = useMemo(
+    () =>
+      readSelectionGroupProperties(
+        document,
+        selectedIds,
+        propertyParametersForInstance,
+        styleProfile.foreground,
+      ),
+    [
+      document,
+      selectedIds,
+      propertyParametersForInstance,
+      styleProfile.foreground,
+    ],
   );
-  const selectedGroupParameters = groupParameterContext(
-    selectedGroupInstances,
-    propertyParametersForInstance,
-  );
-  const selectedGroupContext = {
-    ...selectedGroupParameters,
-    reference: selectedGroupReferenceVisibility,
-    value: selectedGroupValueVisibility,
-    foreground: selectedGroupForeground,
-    // Where the components differ, the batch lists what each one has.
-    items:
-      selectedGroupInstances.length < 2
-        ? []
-        : groupPropertyItems(selectedGroupInstances, {
-            parametersFor: propertyParametersForInstance,
-            parameterKeys: Object.keys(
-              selectedGroupParameters.parameters ?? {},
-            ),
-            nameOf: (instance) =>
-              document.netlist?.terminals.find((terminal) =>
-                terminal.interfaceInstanceIds.includes(instance.id),
-              )?.name ??
-              instance.reference ??
-              instance.id,
-            // What its label shows: a display alias, or its own name.
-            shownNameOf: (instance) => {
-              const name =
-                document.netlist?.terminals.find((terminal) =>
-                  terminal.interfaceInstanceIds.includes(instance.id),
-                )?.name ?? instance.reference;
-              return name === undefined
-                ? null
-                : shownPartName(
-                    instanceLabelAnnotationFor(document, instance.id),
-                    name,
-                  );
-            },
-            referenceVisible: (instance) => {
-              const label = instanceLabelAnnotationFor(document, instance.id);
-              return label !== undefined && label.visible !== false;
-            },
-            valueVisible: (instance) => {
-              if (!symbolSupportsValueAnnotation(instance.symbolId))
-                return null;
-              const value = instanceValueAnnotation(document, instance.id);
-              return value !== null && value.visible !== false;
-            },
-            defaultForeground: styleProfile.foreground,
-          }),
-  };
   const wireUnderSymbolWarnings = useMemo(
     () =>
       deriveWireUnderSymbolWarnings(document, resolver, routeGeometryRecords),
     [document, resolver, routeGeometryRecords],
   );
+  const internalSelection = useMemo(
+    () =>
+      deriveRoutingAffectedClosure(document, {
+        instanceIds: selectedIds,
+        routeIds: visualSelection.routeIds,
+        junctionIds: visualSelection.junctionIds,
+        annotationIds: visualSelection.annotationIds,
+      }),
+    [document, selectedIds, visualSelection],
+  );
   const wouldMoveIds = useMemo(() => {
     const ids = new Set(
-      planSelectionMove(document, visualSelection).previewObjectIds,
+      planSelectionMove(document, visualSelection, internalSelection)
+        .previewObjectIds,
     );
     // Boundary routes stretch rather than translate, but they move all the
     // same — the highlight covers everything a drag would change.
-    const closure = deriveRoutingAffectedClosure(document, {
-      instanceIds: visualSelection.instanceIds,
-      routeIds: visualSelection.routeIds,
-      junctionIds: visualSelection.junctionIds,
-      annotationIds: visualSelection.annotationIds,
-    });
-    for (const routeId of closure.boundaryRoutes) ids.add(routeId);
+    for (const routeId of internalSelection.boundaryRoutes) ids.add(routeId);
     return ids;
-  }, [document, visualSelection]);
+  }, [document, visualSelection, internalSelection]);
   // Each selected label, or the labels of a lone selected part, draws a line
   // to what it belongs to, so a label that ends up near another part still
   // reads as its own.
-  const labelTethers = useMemo(
-    () =>
-      resolveLabelTethers(
-        { document, resolver, styleProfile, routeGeometryRecords, logicalNets },
-        visualSelection.annotationIds.length > 0
-          ? visualSelection.annotationIds
-          : visualSelection.instanceIds.length === 1
-            ? labelsOwnedBy(document, visualSelection.instanceIds[0]!)
-            : [],
-      ),
-    [
-      document,
-      resolver,
-      styleProfile,
-      routeGeometryRecords,
-      logicalNets,
-      visualSelection,
-    ],
-  );
+  const labelTethers = useMemo(() => {
+    const read = projectConnectivityIndex.documents.get(document.id);
+    return resolveLabelTethers(
+      {
+        document,
+        resolver,
+        styleProfile,
+        routeGeometryRecords,
+        logicalNets,
+        ...(read ? { routingGeometry: read.routingGeometry } : {}),
+      },
+      visualSelection.annotationIds.length > 0
+        ? visualSelection.annotationIds
+        : visualSelection.instanceIds.length === 1
+          ? labelsOwnedBy(document, visualSelection.instanceIds[0]!)
+          : [],
+    );
+  }, [
+    document,
+    resolver,
+    styleProfile,
+    routeGeometryRecords,
+    logicalNets,
+    visualSelection,
+    projectConnectivityIndex,
+  ]);
   const labelOwnerIds = useMemo(
     () =>
       labelTethers.flatMap((tether) =>
@@ -3078,16 +3060,6 @@ function WorkspaceEditor({
     textEditingTarget?.owner !== "instance-formula" &&
     Boolean(textEditingTarget?.object.locked);
 
-  const internalSelection = useMemo(
-    () =>
-      deriveRoutingAffectedClosure(document, {
-        instanceIds: selectedIds,
-        routeIds: visualSelection.routeIds,
-        junctionIds: visualSelection.junctionIds,
-        annotationIds: visualSelection.annotationIds,
-      }),
-    [document, selectedIds, visualSelection],
-  );
   const selectedInternalRouteIds = new Set(internalSelection.internalRoutes);
   const selectedInternalJunctionIds = new Set(
     internalSelection.internalJunctions,
@@ -3482,6 +3454,7 @@ function WorkspaceEditor({
       routeGeometryRecords,
       styleProfile,
       selectionPolicy,
+      selectionRead: projectConnectivityIndex.documents.get(document.id),
     },
     viewport: {
       defaultViewBox: DEFAULT_VIEWBOX,
@@ -3505,6 +3478,7 @@ function WorkspaceEditor({
         if (suppressed) setCanvasContextMenu(null);
       },
       boxPreview,
+      boxPreviewRuntime,
       setBoxPreview,
       panPreview,
       setPanPreview,
@@ -4011,6 +3985,7 @@ function WorkspaceEditor({
         currentInteraction.tool === nextTool) ||
       (nextTool === "pointer" && currentInteraction.kind === "idle");
     if (alreadyActive) return;
+    setBoxPreview(null);
     exitCellSymbolLayout();
     if (currentInteraction.kind === "moving-selection") {
       clearCommandMoveSessionFromSelection();
@@ -6555,6 +6530,7 @@ function WorkspaceEditor({
         <EditorCanvasSurface
           shortcutHintsVisible={shortcutHintsVisible}
           cameraRuntime={cameraRuntime}
+          boxPreviewRuntime={boxPreviewRuntime}
           onWheel={handleWheel}
           onPinch={zoomAtClientPoint}
           className={[

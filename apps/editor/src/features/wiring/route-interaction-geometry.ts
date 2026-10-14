@@ -243,30 +243,41 @@ function junctionRouteDegree(
 function isLooseRouteEndpoint(
   document: SchematicDocument,
   endpoint: RouteEndpoint,
+  read?: LooseRouteRead,
 ): boolean {
   if (endpoint.kind !== "junction") return false;
-  const junction = document.junctions.find(
-    (candidate) => candidate.id === endpoint.junctionId,
-  );
+  const junction = read
+    ? read.junctionsById.get(endpoint.junctionId)
+    : document.junctions.find(
+        (candidate) => candidate.id === endpoint.junctionId,
+      );
   if (!junction) return false;
   return (
     junction.role === "route-anchor" ||
     ((junction.role ?? "branch") === "branch" &&
-      junctionRouteDegree(document, junction.id) === 1)
+      (read
+        ? (read.routeDegreeByJunctionId.get(junction.id) ?? 0)
+        : junctionRouteDegree(document, junction.id)) === 1)
   );
+}
+
+interface LooseRouteRead {
+  junctionsById: ReadonlyMap<string, SchematicDocument["junctions"][number]>;
+  routeDegreeByJunctionId: ReadonlyMap<string, number>;
 }
 
 export function looseRouteAnchorIds(
   document: SchematicDocument,
   route: SchematicDocument["routes"][number],
+  read?: LooseRouteRead,
 ): [string, string] | null {
   const end = routeEnd(route);
   if (
     route.start.kind !== "junction" ||
     end.kind !== "junction" ||
     route.start.junctionId === end.junctionId ||
-    !isLooseRouteEndpoint(document, route.start) ||
-    !isLooseRouteEndpoint(document, end)
+    !isLooseRouteEndpoint(document, route.start, read) ||
+    !isLooseRouteEndpoint(document, end, read)
   ) {
     return null;
   }
@@ -604,6 +615,8 @@ export function annotationAnchor(
   annotation: Annotation,
   routeGeometryRecords: readonly RouteGeometryRecord[],
   styleProfile: SchematicStyleProfile,
+  routingGeometry?: ResolvedDocumentRoutingGeometry,
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): Point {
   const attachment = effectiveRouteAttachment(annotation);
   if (!isRoutedMarker(annotation) || !attachment) {
@@ -612,6 +625,8 @@ export function annotationAnchor(
       resolver,
       annotation,
       styleProfile,
+      routingGeometry,
+      logicalNets,
     ).position;
   }
   const record = routeGeometryRecords.find(
@@ -620,8 +635,14 @@ export function annotationAnchor(
   return (
     (record &&
       resolveRouteAttachment(record.geometry, attachment)?.conductorPoint) ??
-    resolveAnnotationPresentation(document, resolver, annotation, styleProfile)
-      .position
+    resolveAnnotationPresentation(
+      document,
+      resolver,
+      annotation,
+      styleProfile,
+      routingGeometry,
+      logicalNets,
+    ).position
   );
 }
 
@@ -676,13 +697,15 @@ export function annotationHitBox(
     annotation,
     routeGeometryRecords,
     styleProfile,
+    routingGeometry,
+    logicalNets,
   );
   const markerProfile = objectStyleProfile(styleProfile, annotation);
   const sizeScale = annotation.sizeScale ?? 1;
   const fontSize =
     schematicTextFontSize(annotation.kind, markerProfile) * sizeScale;
   const textLayout = measureRichTextDocument(
-    resolveAnnotationText(document, annotation),
+    resolveAnnotationText(document, annotation, logicalNets),
     richTextMetrics(markerProfile, "label", sizeScale),
   );
   let labelPosition = anchor;

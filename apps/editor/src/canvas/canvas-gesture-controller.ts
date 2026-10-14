@@ -1,6 +1,9 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 
-import type { SchematicStyleProfile } from "@icm/derived";
+import type {
+  DocumentDerivedContext,
+  SchematicStyleProfile,
+} from "@icm/derived";
 import type {
   DerivedPoint,
   GridRect,
@@ -37,6 +40,7 @@ import {
   updateCanvasPan,
 } from "./canvas-gesture-model";
 import { normalizedRect } from "./canvas-geometry";
+import type { BoxPreviewRuntime } from "./box-preview-runtime";
 import {
   cameraAnchorFromScreen,
   cameraDeltaFromScreen,
@@ -67,6 +71,9 @@ export interface CanvasGestureControllerDependencies {
     routeGeometryRecords: readonly RouteGeometryRecord[];
     styleProfile: SchematicStyleProfile;
     selectionPolicy: SelectionPolicy;
+    selectionRead?:
+      | Pick<DocumentDerivedContext, "routingGeometry" | "logicalNetResolution">
+      | undefined;
   };
   viewport: {
     defaultViewBox: GridRect;
@@ -92,6 +99,7 @@ export interface CanvasGestureControllerDependencies {
   };
   gestureSession: {
     boxPreview: BoxPreview | null;
+    boxPreviewRuntime?: BoxPreviewRuntime;
     setBoxPreview: (preview: BoxPreview | null) => void;
     panPreview: PanPreview | null;
     setPanPreview: (preview: PanPreview | null) => void;
@@ -230,6 +238,7 @@ export function createCanvasGestureController({
     routeGeometryRecords,
     styleProfile,
     selectionPolicy,
+    selectionRead,
   },
   viewport: {
     defaultViewBox,
@@ -246,6 +255,7 @@ export function createCanvasGestureController({
   },
   gestureSession: {
     boxPreview,
+    boxPreviewRuntime,
     setBoxPreview,
     panPreview,
     setPanPreview,
@@ -515,6 +525,9 @@ export function createCanvasGestureController({
   };
 
   const continueGesture = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    const activeBox = boxPreviewRuntime
+      ? boxPreviewRuntime.current()
+      : boxPreview;
     const interactionKind = getInteractionKind();
     if (interactionKind === "moving-selection") {
       updateCommandMovePreview(
@@ -579,15 +592,18 @@ export function createCanvasGestureController({
       paintSnapGuides(snapped.guides);
       return;
     }
-    if (boxPreview?.pointerId === event.pointerId) {
-      setBoxPreview({
-        ...boxPreview,
+    if (activeBox?.pointerId === event.pointerId) {
+      const next = {
+        ...activeBox,
         end: rawPointFromClient(
           event.clientX,
           event.clientY,
           event.currentTarget,
         ),
-      });
+      };
+      if (boxPreviewRuntime && activeBox.intent === "select")
+        boxPreviewRuntime.preview(next);
+      else setBoxPreview(next);
     }
     if (
       tool === "arrow" ||
@@ -629,6 +645,9 @@ export function createCanvasGestureController({
   };
 
   const finish = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    const activeBox = boxPreviewRuntime
+      ? boxPreviewRuntime.current()
+      : boxPreview;
     if (
       event.type === "pointercancel" &&
       cellSymbolLayoutDragPointerId === event.pointerId
@@ -646,10 +665,11 @@ export function createCanvasGestureController({
       setPanPreview(null);
       return;
     }
-    if (boxPreview?.pointerId !== event.pointerId) return;
+    if (activeBox?.pointerId !== event.pointerId) return;
+    boxPreviewRuntime?.flush();
     event.currentTarget.releasePointerCapture(event.pointerId);
-    if (boxPreview.intent === "zoom") {
-      const rect = normalizedRect(boxPreview.start, boxPreview.end);
+    if (activeBox.intent === "zoom") {
+      const rect = normalizedRect(activeBox.start, activeBox.end);
       setBoxPreview(null);
       if (
         rect.width > document.presentation.grid &&
@@ -661,7 +681,7 @@ export function createCanvasGestureController({
       }
       return;
     }
-    const rect = normalizedRect(boxPreview.start, boxPreview.end);
+    const rect = normalizedRect(activeBox.start, activeBox.end);
     const clicked =
       rect.width <= document.presentation.grid &&
       rect.height <= document.presentation.grid;
@@ -673,8 +693,9 @@ export function createCanvasGestureController({
           routeGeometryRecords,
           styleProfile,
           rect,
-          marqueeMode(boxPreview.start, boxPreview.end),
+          marqueeMode(activeBox.start, activeBox.end),
           selectionPolicy,
+          selectionRead,
         );
     replaceSelection(selection);
     clearSelectedEndpoint();

@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode, SVGProps } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
 import { createPointerPreviewFrame } from "./pointer-preview-frame";
+import type { BoxPreviewRuntime } from "./box-preview-runtime";
 import { isDrawingTool } from "../interaction/interaction-state";
 import { schematicRoundPeriodFontFaceCss } from "@icm/derived";
 import { schematicWebFontFaceCss } from "@icm/exporters/browser-fonts";
@@ -72,6 +73,7 @@ export interface EditorCanvasSurfaceProps {
   className: string;
   viewBox: string;
   cameraRuntime: CameraRuntime;
+  boxPreviewRuntime: BoxPreviewRuntime;
   eventHandlers: SVGProps<SVGSVGElement>;
   /**
    * Native wheel handler, attached non-passively. React's onWheel rides the
@@ -130,6 +132,7 @@ export function EditorCanvasSurface({
   className,
   viewBox,
   cameraRuntime,
+  boxPreviewRuntime,
   eventHandlers,
   onWheel,
   onPinch,
@@ -155,6 +158,16 @@ export function EditorCanvasSurface({
   notice,
 }: EditorCanvasSurfaceProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (svg) boxPreviewRuntime.attach(svg);
+  }, [boxPreviewRuntime, interactionPreviews.boxPreview]);
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    return () => {
+      if (svg) boxPreviewRuntime.detach(svg);
+    };
+  }, [boxPreviewRuntime]);
   const onPointerMoveRef = useRef(eventHandlers.onPointerMove);
   onPointerMoveRef.current = eventHandlers.onPointerMove;
   const pointerFrame = useMemo(
@@ -363,7 +376,14 @@ export function EditorCanvasSurface({
           {/* Above the diagnostics so a voltage is never hidden by a marker,
               and below the handles so it never covers something grabbable. */}
           <EditorDraftingHandles {...draftingHandles} />
-          <EditorInteractionPreviews {...interactionPreviews} />
+          <EditorInteractionPreviews
+            {...interactionPreviews}
+            boxPreview={
+              boxPreviewRuntime.current()
+                ? interactionPreviews.boxPreview
+                : null
+            }
+          />
           {cellSymbolLayout ? (
             <EditorCellSymbolLayoutOverlay {...cellSymbolLayout} />
           ) : null}

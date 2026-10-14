@@ -357,7 +357,7 @@ function isCanonicalInstanceLabel(
  * row; not a named parameter's.
  */
 export function instanceValueAnnotation(
-  document: SchematicDocument,
+  document: Pick<SchematicDocument, "annotations">,
   instanceId: string,
 ): Annotation | null {
   return (

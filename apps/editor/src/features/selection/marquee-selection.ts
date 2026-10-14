@@ -1,8 +1,13 @@
 import {
   isSchematicAnnotationVisible,
+  resolveDocumentLogicalNets,
+  resolveDocumentRoutingGeometry,
   resolveDraftingObjectGeometry,
 } from "@icm/derived";
-import type { SchematicStyleProfile } from "@icm/derived";
+import type {
+  DocumentDerivedContext,
+  SchematicStyleProfile,
+} from "@icm/derived";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { VisualSelection } from "./visual-selection";
@@ -56,10 +61,20 @@ export function marqueeSelection(
     document,
     DEFAULT_SELECTION_FILTER,
   ),
+  read?: Pick<
+    DocumentDerivedContext,
+    "routingGeometry" | "logicalNetResolution"
+  >,
 ): VisualSelection {
   const window = mode === "window";
   const boxSelected = (bounds: Rect): boolean =>
     window ? rectContainsRect(rect, bounds) : rectsIntersect(bounds, rect);
+  // One read for this query, never a revision cache on a mutable caller.
+  let routing = read?.routingGeometry;
+  let logical = read?.logicalNetResolution;
+  const routingRead = () =>
+    (routing ??= resolveDocumentRoutingGeometry(document, resolver));
+  const logicalRead = () => (logical ??= resolveDocumentLogicalNets(document));
 
   return {
     instanceIds: (policy.allowsClass("instance", "select")
@@ -99,7 +114,7 @@ export function marqueeSelection(
       .filter(
         (annotation) =>
           policy.allowsAnnotation(annotation, "select") &&
-          isSchematicAnnotationVisible(document, annotation) &&
+          isSchematicAnnotationVisible(document, annotation, logicalRead()) &&
           boxSelected(
             annotationHitBox(
               document,
@@ -107,6 +122,8 @@ export function marqueeSelection(
               annotation,
               routeGeometryRecords,
               styleProfile,
+              routingRead(),
+              logicalRead(),
             ),
           ),
       )
@@ -118,6 +135,7 @@ export function marqueeSelection(
           document,
           resolver,
           object,
+          routingRead(),
         );
         if (geometry.kind === "rectangle") {
           // An outline rectangle is its border: a window must swallow all

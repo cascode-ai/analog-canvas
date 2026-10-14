@@ -22,6 +22,143 @@ import {
   drawWire,
 } from "./canvas-fixtures.js";
 
+test("marquee release uses the last pointer sample before a browser frame", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 400, y: 260 });
+  await placeComponent(page, "resistor", { x: 620, y: 260 });
+  await page.keyboard.press("Control+d");
+  const canvas = page.getByTestId("schematic-canvas");
+  const boxes = await Promise.all([
+    page.getByTestId("hit-R1").boundingBox(),
+    page.getByTestId("hit-R2").boundingBox(),
+  ]);
+  const surface = (await canvas.boundingBox())!;
+  const start = {
+    x: Math.max(surface.x + 10, Math.min(...boxes.map((b) => b!.x)) - 35),
+    y: Math.max(surface.y + 10, Math.min(...boxes.map((b) => b!.y)) - 45),
+  };
+  const end = {
+    x: Math.max(...boxes.map((b) => b!.x + b!.width)) + 35,
+    y: Math.max(...boxes.map((b) => b!.y + b!.height)) + 45,
+  };
+  await canvas.evaluate((element) => {
+    element.addEventListener(
+      "pointerdown",
+      (event) =>
+        element.setAttribute(
+          "data-audit-pointer-id",
+          String((event as PointerEvent).pointerId),
+        ),
+      { once: true },
+    );
+  });
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await expect(page.getByTestId("selection-box")).toBeVisible();
+  await canvas.evaluate(
+    (element, { start, end }) => {
+      const pointerId = Number(element.getAttribute("data-audit-pointer-id"));
+      for (let index = 1; index <= 20; index++) {
+        element.dispatchEvent(
+          new PointerEvent("pointermove", {
+            bubbles: true,
+            pointerId,
+            pointerType: "mouse",
+            isPrimary: true,
+            buttons: 1,
+            clientX: start.x + ((end.x - start.x) * index) / 20,
+            clientY: start.y + ((end.y - start.y) * index) / 20,
+          }),
+        );
+      }
+      // One browser task: no rAF or React publication between the final move
+      // and release. Events go through the real canvas controller.
+      element.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          pointerId,
+          pointerType: "mouse",
+          isPrimary: true,
+          button: 0,
+          buttons: 0,
+          clientX: end.x,
+          clientY: end.y,
+        }),
+      );
+      element.removeAttribute("data-audit-pointer-id");
+    },
+    { start, end },
+  );
+  await page.mouse.up();
+  await expect(page.getByTestId("hit-R1")).toHaveClass(/selected/u);
+  await expect(page.getByTestId("hit-R2")).toHaveClass(/selected/u);
+  await expect(page.getByTestId("selection-box")).toHaveCount(0);
+});
+
+for (const replacement of ["Escape", "w"]) {
+  test(`${replacement} retires queued marquee samples before release`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await placeComponent(page, "resistor", { x: 440, y: 260 });
+    await page.keyboard.press("Control+d");
+    const canvas = page.getByTestId("schematic-canvas");
+    const box = (await page.getByTestId("hit-R1").boundingBox())!;
+    const start = { x: box.x - 40, y: box.y - 40 };
+    const end = { x: box.x + box.width + 40, y: box.y + box.height + 40 };
+    await canvas.evaluate((element) => {
+      element.addEventListener(
+        "pointerdown",
+        (event) =>
+          element.setAttribute(
+            "data-audit-pointer-id",
+            String((event as PointerEvent).pointerId),
+          ),
+        { once: true },
+      );
+    });
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await expect(page.getByTestId("selection-box")).toHaveCount(1);
+    await canvas.evaluate(
+      (element, { end, replacement }) => {
+        const pointerId = Number(element.getAttribute("data-audit-pointer-id"));
+        const sample = {
+          bubbles: true,
+          pointerId,
+          pointerType: "mouse",
+          isPrimary: true,
+          buttons: 1,
+          clientX: end.x,
+          clientY: end.y,
+        };
+        element.dispatchEvent(new PointerEvent("pointermove", sample));
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: replacement,
+            code: replacement === "Escape" ? "Escape" : "KeyW",
+            bubbles: true,
+          }),
+        );
+        element.dispatchEvent(new PointerEvent("pointermove", sample));
+        element.dispatchEvent(
+          new PointerEvent("pointerup", { ...sample, buttons: 0 }),
+        );
+        element.removeAttribute("data-audit-pointer-id");
+      },
+      { end, replacement },
+    );
+    await page.mouse.up();
+    await expect(page.getByTestId("selection-box")).toHaveCount(0);
+    await expect(page.getByTestId("hit-R1")).not.toHaveClass(/selected/u);
+    if (replacement === "w") await page.keyboard.press("Escape");
+    await page.keyboard.press("Control+a");
+    await expect(page.getByTestId("hit-R1")).toHaveClass(/selected/u);
+  });
+}
+
 test("opens circuit Find with Ctrl+F and selects a matching component", async ({
   page,
 }) => {

@@ -126,6 +126,32 @@ function fixture() {
 }
 
 describe("label tethers", () => {
+  it("reads wire geometry once for all selected labels", () => {
+    const { document, context } = fixture();
+    const originalSet = Map.prototype.set;
+    let geometryWrites = 0;
+    Map.prototype.set = function (this: Map<unknown, unknown>, key, value) {
+      if (value?.routeId === key && Array.isArray(value.centerline))
+        geometryWrites++;
+      return originalSet.call(this, key, value);
+    };
+    let result: ReturnType<typeof resolveLabelTethers>;
+    try {
+      result = resolveLabelTethers(context, [
+        "R1-name",
+        "P1-name",
+        "wire-name",
+      ]);
+    } finally {
+      Map.prototype.set = originalSet;
+    }
+    expect(result.map((t) => [t.annotationId, t.kind])).toEqual([
+      ["R1-name", "part"],
+      ["P1-name", "pin"],
+      ["wire-name", "wire"],
+    ]);
+    expect(geometryWrites).toBeLessThanOrEqual(document.routes.length);
+  });
   it("joins a part's name to the part's nearest edge", () => {
     const { document, context } = fixture();
     const [tether] = resolveLabelTethers(context, ["R1-name"]);

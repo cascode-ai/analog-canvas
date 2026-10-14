@@ -59,7 +59,9 @@ export function deriveRoutingAffectedClosure(
 ): RoutingAffectedClosure {
   const knownInstances = new Set(document.instances.map((item) => item.id));
   const knownJunctions = new Set(document.junctions.map((item) => item.id));
-  const knownRoutes = new Set(document.routes.map((item) => item.id));
+  const routesById = new Map<string, SchematicDocument["routes"][number]>();
+  for (const route of document.routes)
+    if (!routesById.has(route.id)) routesById.set(route.id, route);
   const instances = stable(
     seed.instanceIds.filter((id) => knownInstances.has(id)),
   );
@@ -86,8 +88,9 @@ export function deriveRoutingAffectedClosure(
   // Junction where two columns share a bus: the selected wires grew doglegs
   // bending back to a connection point that stayed behind.
   for (const routeId of seed.routeIds) {
-    if (!knownRoutes.has(routeId) || internalRouteIds.has(routeId)) continue;
-    const route = document.routes.find((item) => item.id === routeId)!;
+    if (internalRouteIds.has(routeId)) continue;
+    const route = routesById.get(routeId);
+    if (!route) continue;
     const ends = [route.start, routeEnd(route)];
     const heldByUnselectedInstance = ends.some(
       (endpoint) =>
