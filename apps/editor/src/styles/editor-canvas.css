@@ -363,6 +363,30 @@
   stroke-width: 1.5;
 }
 
+/* What the selection connects to: the halo alone, under the drawing. The
+   group carries the halo's opacity so its overlapping parts stay one tint. */
+.net-highlight-overlay.connected-net-glow {
+  opacity: 0.28;
+}
+
+.net-highlight-overlay.connected-net-glow .net-highlight-halo,
+.net-highlight-overlay.connected-net-glow .connected-net-glow-body {
+  fill: none;
+  stroke: #008ff0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 1;
+}
+
+.net-highlight-overlay.connected-net-glow .connected-net-glow-body {
+  stroke-width: 5;
+}
+
+.net-highlight-overlay.connected-net-glow .net-highlight-endpoint {
+  fill: #008ff0;
+  stroke: none;
+}
+
 .wire-preview {
   fill: none;
   stroke: var(--icm-accent);

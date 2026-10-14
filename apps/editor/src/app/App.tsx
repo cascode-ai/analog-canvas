@@ -316,6 +316,10 @@ import {
   type SelectionFilter,
 } from "../features/selection/selection-filter";
 import { deriveSelectionInspectionModel } from "../features/selection/selection-inspection-model";
+import {
+  selectionNetHighlights,
+  selectionNetIds,
+} from "../features/selection/selection-net-highlights";
 import { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import { deferFocus } from "../interaction/deferred-focus";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
@@ -2093,6 +2097,39 @@ function WorkspaceEditor({
   useEffect(() => {
     setControlOptionPreview(null);
   }, [selectionOpen, documentSettingsOpen, document.id, selectedInstance?.id]);
+  const shownNetHighlight =
+    simulationPickNetsActive || controlPickMode === "net"
+      ? simulationPickHighlight
+      : (controlOptionHighlight ?? codeNetHighlight ?? highlightedNet);
+  // What the selection connects to glows faintly unless a Net is already
+  // highlighted or being picked (2026-10-14).
+  const connectedNetHighlights = useMemo(
+    () =>
+      shownNetHighlight || simulationPickNetsActive || controlPickMode === "net"
+        ? []
+        : selectionNetHighlights(
+            projectConnectivityIndex,
+            document.id,
+            selectionNetIds(
+              document,
+              resolver,
+              visualSelection,
+              selectedEndpoint,
+            ),
+            documentStack,
+          ),
+    [
+      shownNetHighlight,
+      simulationPickNetsActive,
+      controlPickMode,
+      projectConnectivityIndex,
+      document,
+      resolver,
+      visualSelection,
+      selectedEndpoint,
+      documentStack,
+    ],
+  );
   const startControlPick = (): void => {
     if (
       !selectedInstance ||
@@ -6597,12 +6634,13 @@ function WorkspaceEditor({
               : null
           }
           netHighlight={{
-            highlight:
-              simulationPickNetsActive || controlPickMode === "net"
-                ? simulationPickHighlight
-                : (controlOptionHighlight ??
-                  codeNetHighlight ??
-                  highlightedNet),
+            highlight: shownNetHighlight,
+            document,
+            resolver,
+            routeGeometryRecords,
+          }}
+          connectedNets={{
+            highlights: connectedNetHighlights,
             document,
             resolver,
             routeGeometryRecords,

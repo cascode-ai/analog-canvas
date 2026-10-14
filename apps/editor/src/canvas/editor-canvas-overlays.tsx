@@ -153,6 +153,80 @@ export function NetHighlightOverlay({
   );
 }
 
+/**
+ * The nets the selection touches, as the Net highlight's halo alone, under
+ * the drawing: it shows what connects without covering a line (2026-10-14).
+ */
+export function ConnectedNetGlow({
+  highlights,
+  document,
+  resolver,
+  routeGeometryRecords,
+}: {
+  highlights: readonly NetHighlight[];
+  document: SchematicDocument;
+  resolver: SymbolResolver;
+  routeGeometryRecords: readonly {
+    route: RouteBranch;
+    geometry: ResolvedRouteGeometry;
+  }[];
+}) {
+  if (highlights.length === 0) return null;
+  const routeIds = new Set(highlights.flatMap(({ routes }) => routes));
+  const endpoints = new Map(
+    highlights
+      .flatMap(({ visibleEndpoints }) => visibleEndpoints)
+      .map((endpoint) => [endpointKey(endpoint), endpoint] as const),
+  );
+  return (
+    <g
+      data-testid="connected-net-glow"
+      data-net-ids={highlights.map(({ netId }) => netId).join(" ")}
+      className="net-highlight-overlay connected-net-glow"
+      pointerEvents="none"
+      aria-hidden="true"
+    >
+      {routeGeometryRecords
+        .filter(({ route }) => routeIds.has(route.id))
+        .flatMap(({ route, geometry }) => {
+          const points = serializePolylinePoints(geometry.centerline);
+          // A fixed halo shows zoomed out; one that zooms with the wire
+          // still shows past the wire's own width zoomed in.
+          return [
+            <polyline
+              key={route.id}
+              className="net-highlight-halo"
+              points={points}
+            />,
+            <polyline
+              key={`${route.id}-body`}
+              className="connected-net-glow-body"
+              points={points}
+            />,
+          ];
+        })}
+      {[...endpoints].flatMap(([key, endpoint]) => {
+        const connection = resolveEndpointConnection(
+          document,
+          resolver,
+          endpoint,
+        );
+        return connection
+          ? [
+              <circle
+                key={key}
+                className="net-highlight-endpoint"
+                cx={connection.contactPoint.x}
+                cy={connection.contactPoint.y}
+                r="4"
+              />,
+            ]
+          : [];
+      })}
+    </g>
+  );
+}
+
 import type { WireUnderSymbolWarning } from "./wire-under-symbol";
 
 /**

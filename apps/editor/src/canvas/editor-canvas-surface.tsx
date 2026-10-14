@@ -11,6 +11,7 @@ import { schematicWebFontFaceCss } from "@icm/exporters/browser-fonts";
 import {
   CanvasGridOverlay,
   CanvasInputPlanes,
+  ConnectedNetGlow,
   NetHighlightOverlay,
   DiagnosticMarkersOverlay,
   WireUnderSymbolOverlay,
@@ -97,6 +98,7 @@ export interface EditorCanvasSurfaceProps {
   selectionHalo: ComponentProps<typeof EditorSelectionHalo>;
   cellSymbolLayout: ComponentProps<typeof EditorCellSymbolLayoutOverlay> | null;
   netHighlight: ComponentProps<typeof NetHighlightOverlay>;
+  connectedNets: ComponentProps<typeof ConnectedNetGlow>;
   wireUnderSymbol: ComponentProps<typeof WireUnderSymbolOverlay>;
   diagnosticMarkers: ComponentProps<typeof DiagnosticMarkersOverlay>;
   labelTethers: readonly LabelTether[];
@@ -141,6 +143,7 @@ export function EditorCanvasSurface({
   selectionHalo,
   cellSymbolLayout,
   netHighlight,
+  connectedNets,
   wireUnderSymbol,
   diagnosticMarkers,
   labelTethers,
@@ -353,6 +356,7 @@ export function EditorCanvasSurface({
         </style>
         <CanvasGridOverlay {...grid} />
         <EditorSelectionHalo {...selectionHalo} />
+        <ConnectedNetGlow {...connectedNets} />
         <g dangerouslySetInnerHTML={sceneInnerHtml} />
         <NetHighlightOverlay {...netHighlight} />
         <LabelTetherOverlay tethers={labelTethers} />
