@@ -5,6 +5,7 @@ export * from "./document-structural-sharing.js";
 export * from "./route-geometry-edit.js";
 export * from "./angled-wire-repair.js";
 export * from "./route-operations.js";
+/** @internal Stateless routing contract seam; prepared GUI reads stay private. */
 export { proposeWireSegmentDrag } from "./wire-segment-drag.js";
 export * from "./group-rigid-transform.js";
 export * from "./routing-planner.js";

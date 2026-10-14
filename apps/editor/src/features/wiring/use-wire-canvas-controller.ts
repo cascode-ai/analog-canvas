@@ -8,6 +8,8 @@ import type {
   WireSource,
 } from "@icm/edit-engine";
 import {
+  buildDocumentDerivedContext,
+  createElectricalContactResolver,
   endpointKey,
   resolveRouteTap,
   type RoutedComponent,
@@ -172,6 +174,16 @@ export function useWireCanvasController({
       ),
     [document, resolver, routeGeometryRecords, wiringEndpoints],
   );
+  const contactResolver = useMemo(
+    () =>
+      createElectricalContactResolver(
+        document,
+        resolver,
+        contactComponents,
+        () => buildDocumentDerivedContext(document, resolver).routingGeometry,
+      ),
+    [document, resolver, contactComponents],
+  );
 
   useEffect(() => {
     if (tool !== "wire" || wireSource !== null || wireDraftSteps.length > 0) {
@@ -211,6 +223,7 @@ export function useWireCanvasController({
         wireWaypoints: wire.steps.map((step) => step.point),
         captureTolerance: wireCaptureRadius(svg),
         snapIndex: wireCanvasSnapIndex,
+        contactResolver,
       },
       point,
       suppressSnap,

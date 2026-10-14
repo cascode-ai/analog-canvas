@@ -199,6 +199,8 @@ function assertJunctionBranchesStayVisible(
  * Move a visible orthogonal segment perpendicular to itself while preserving
  * connectivity across persisted Route boundaries. The caller commits the
  * returned Junction and Route edits together in one transaction.
+ * @internal Retained to test the uncached contract and rejection of caller
+ * source hints; the GUI calls the owned prepared path instead.
  */
 export function proposeWireSegmentDrag(
   document: SchematicDocument,

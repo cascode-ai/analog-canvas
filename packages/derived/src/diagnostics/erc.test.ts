@@ -107,6 +107,97 @@ function codes(project: CircuitProject): string[] {
   return run(project).map((diagnostic) => diagnostic.code);
 }
 
+function foreignWireProject() {
+  const project = emptyProject();
+  const document = project.documents[0]!;
+  document.instances.push(instance("part"));
+  document.nets.push(
+    { id: "pin", terminals: [{ instanceId: "part", pinName: "L" }] },
+    { id: "wire", terminals: [] },
+  );
+  document.noConnects.push({
+    id: "open-R",
+    endpoint: { kind: "terminal", instanceId: "part", pinName: "R" },
+  });
+  document.junctions.push(
+    { id: "left", netId: "wire", position: { x: -50, y: 0 } },
+    { id: "right", netId: "wire", position: { x: 50, y: 0 } },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "foreign",
+      netId: "wire",
+      start: { kind: "junction", junctionId: "left" },
+      end: { kind: "junction", junctionId: "right" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  return project;
+}
+
+it("checks a foreign wire with the shared index without scanning every Route for each pin", () => {
+  const project = foreignWireProject();
+  const document = project.documents[0]!;
+  const index = buildProjectConnectivityIndex(project, resolver);
+  const routes = index.documents.get(document.id)!.routingGeometry.routes;
+  const originalValues = routes.values;
+  const originalFind = document.instances.find;
+  let fullReads = 0;
+  let instanceReads = 0;
+  document.instances.find = function (
+    this: typeof document.instances,
+    ...args: Parameters<typeof originalFind>
+  ) {
+    instanceReads++;
+    return originalFind.apply(this, args);
+  } as typeof originalFind;
+  routes.values = function () {
+    fullReads++;
+    return originalValues.call(this);
+  };
+  try {
+    const findings = runErcChecks(project, index, resolver).filter(
+      (item) => item.code === "ERC_TOUCHING_NOT_CONNECTED",
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      id: "erc:touching-not-connected:doc:part:L",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      parameters: {
+        instanceId: "part",
+        pinName: "L",
+        routeId: "foreign",
+        netId: "wire",
+      },
+    });
+    expect(fullReads).toBe(0);
+    // The non-geometry ERC producers still inspect the part. Pin geometry
+    // must not add a fourth whole-instance search to those three reads.
+    expect(instanceReads).toBeLessThanOrEqual(3);
+  } finally {
+    routes.values = originalValues;
+    document.instances.find = originalFind;
+  }
+});
+
+it("reads a replaced mutable part even when the caller retains its previous index", () => {
+  const project = foreignWireProject();
+  const document = project.documents[0]!;
+  const index = buildProjectConnectivityIndex(project, resolver);
+  document.instances[0] = {
+    ...document.instances[0]!,
+    placement: { position: { x: 500, y: 0 }, rotation: 0, mirror: "none" },
+  };
+  expect(
+    runErcChecks(project, index, resolver).filter(
+      (item) => item.code === "ERC_TOUCHING_NOT_CONNECTED",
+    ),
+  ).toEqual([]);
+});
+
 function roleRun(project: CircuitProject) {
   return runErcChecks(
     project,

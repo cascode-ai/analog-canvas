@@ -76,6 +76,75 @@ function groups(d: SchematicDocument) {
     .sort();
 }
 describe("connectivity reconstructed from final wire topology", () => {
+  it("adds an independent wire without repeatedly scanning every other Net's Routes", () => {
+    const before = createEmptyDocument("many-nets", "Many Nets");
+    for (let index = 0; index < 30; index++) {
+      const netId = `net-${index}`;
+      before.nets.push({ id: netId, terminals: [] });
+      before.junctions.push(
+        { id: `a-${index}`, netId, position: { x: 0, y: index * 100 } },
+        { id: `b-${index}`, netId, position: { x: 100, y: index * 100 } },
+      );
+      before.routes.push(
+        createRoutePath({
+          id: `route-${index}`,
+          netId,
+          start: { kind: "junction", junctionId: `a-${index}` },
+          end: { kind: "junction", junctionId: `b-${index}` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    const originalFilter = Array.prototype.filter;
+    let fullRouteSweeps = 0;
+    Array.prototype.filter = function (
+      this: unknown[],
+      ...args: Parameters<typeof originalFilter>
+    ) {
+      const first = this[0] as { start?: unknown; legs?: unknown } | undefined;
+      if (this.length >= 30 && first?.start && first.legs) fullRouteSweeps++;
+      return originalFilter.apply(this, args);
+    } as typeof originalFilter;
+    let after: SchematicDocument;
+    try {
+      after = commit(before, [
+        {
+          kind: "add_junction",
+          junctionId: "fresh-a",
+          netId: "fresh",
+          position: { x: 5000, y: 0 },
+          createNet: true,
+        },
+        {
+          kind: "add_junction",
+          junctionId: "fresh-b",
+          netId: "fresh",
+          position: { x: 5100, y: 0 },
+        },
+        {
+          kind: "set_route_path",
+          route: createRoutePath({
+            id: "fresh-wire",
+            netId: "fresh",
+            start: { kind: "junction", junctionId: "fresh-a" },
+            end: { kind: "junction", junctionId: "fresh-b" },
+            bends: [],
+            modes: ["manual"],
+          }),
+        },
+      ]);
+    } finally {
+      Array.prototype.filter = originalFilter;
+    }
+    expect(after.routes.slice(0, 30)).toEqual(before.routes);
+    expect(after.nets).toEqual([
+      ...before.nets,
+      { id: "fresh", terminals: [] },
+    ]);
+    expect(after.revision).toBe(before.revision + 1);
+    expect(fullRouteSweeps).toBeLessThan(20);
+  });
   it("repointing a wire detaches its old pin and connects the new one", () => {
     const before = commit(fixture(), [wire("ab", "a", "b")]);
     const after = commit(before, [wire("ab", "a", "c")]);

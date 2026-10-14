@@ -19,6 +19,7 @@ import {
 } from "@icm/derived";
 import type { DocumentContactEvidence } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
+import { prepareConnectivityPhaseRead } from "./connectivity-phase-read.js";
 
 import type { SchematicEdit } from "./edit-schema.js";
 import { resolveRouteEditPath } from "./route-operations.js";
@@ -76,6 +77,48 @@ export function netEndpointGroups(
   const net = document.nets.find((candidate) => candidate.id === netId);
   if (!net) return [];
   const keys = netEndpoints(document, net).map(endpointKey);
+  const routes = document.routes.filter(
+    (candidate) => candidate.netId === netId,
+  );
+  const contacts = resolver
+    ? (
+        contactEvidence ?? deriveDocumentContactEvidence(document, resolver)
+      ).contacts.filter((contact) => contact.netId === netId)
+    : [];
+  return netEndpointGroupsFromEdges(keys, routes, contacts);
+}
+
+/** One source phase for a full rebuild; no mutable-draft/revision cache. */
+export function prepareNetEndpointGroupRead(
+  read: ReturnType<typeof prepareConnectivityPhaseRead>,
+  contactEvidence: DocumentContactEvidence | undefined,
+) {
+  const contactsByNet = new Map<
+    string,
+    Array<DocumentContactEvidence["contacts"][number]>
+  >();
+  for (const contact of contactEvidence?.contacts ?? []) {
+    const contacts = contactsByNet.get(contact.netId) ?? [];
+    contacts.push(contact);
+    contactsByNet.set(contact.netId, contacts);
+  }
+  return (netId: string): string[][] => {
+    const net = read.netsById.get(netId);
+    return net
+      ? netEndpointGroupsFromEdges(
+          read.netEndpoints(net).map(endpointKey),
+          read.routesByNet.get(netId) ?? [],
+          contactsByNet.get(netId) ?? [],
+        )
+      : [];
+  };
+}
+
+function netEndpointGroupsFromEdges(
+  keys: string[],
+  routes: readonly RouteBranch[],
+  contacts: DocumentContactEvidence["contacts"],
+): string[][] {
   const parent = new Map(keys.map((key) => [key, key]));
   const find = (key: string): string => {
     const current = parent.get(key);
@@ -94,9 +137,7 @@ export function netEndpointGroups(
     );
     parent.set(second!, first!);
   };
-  for (const route of document.routes.filter(
-    (candidate) => candidate.netId === netId,
-  )) {
+  for (const route of routes) {
     const from = endpointKey(route.start);
     const to = endpointKey(routeEnd(route));
     if (parent.has(from) && parent.has(to)) union(from, to);
@@ -106,17 +147,10 @@ export function netEndpointGroups(
   // coincident endpoints. Preserve that contact when a different Route is cut.
   // Name claims and other Logical-Net Evidence are intentionally excluded:
   // they express logical identity, not one physical Base-Net component.
-  if (resolver) {
-    // A caller that already holds this Document's evidence passes it: deriving
-    // it here ran once per call, and the direct-contact reconciliation asks
-    // this question once per lost pair.
-    const evidence =
-      contactEvidence ?? deriveDocumentContactEvidence(document, resolver);
-    for (const contact of evidence.contacts) {
-      if (contact.netId !== netId || contact.endpoints.length < 2) continue;
-      const [first, ...rest] = contact.endpoints.map(endpointKey);
-      for (const key of rest) union(first!, key);
-    }
+  for (const contact of contacts) {
+    if (contact.endpoints.length < 2) continue;
+    const [first, ...rest] = contact.endpoints.map(endpointKey);
+    for (const key of rest) union(first!, key);
   }
   const grouped = new Map<string, string[]>();
   for (const key of keys) {

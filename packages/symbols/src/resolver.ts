@@ -62,7 +62,24 @@ export class InMemorySymbolResolver implements SymbolResolver {
     const variant = this.#variants.get(symbolId)?.get(effectiveVariantId);
     return variant ? { definition, variant } : undefined;
   }
+
+  /** Whether every delegated catalog still reads its owned frozen definitions. */
+  static hasStableDefinitions(resolver: SymbolResolver): boolean {
+    let catalog: SymbolResolver | undefined = resolver;
+    while (catalog) {
+      if (
+        !(catalog instanceof InMemorySymbolResolver) ||
+        !(#base in catalog) ||
+        catalog.resolve !== ownedResolve
+      )
+        return false;
+      catalog = catalog.#base;
+    }
+    return true;
+  }
 }
+
+const ownedResolve = InMemorySymbolResolver.prototype.resolve;
 
 let builtInCatalog: InMemorySymbolResolver | undefined;
 

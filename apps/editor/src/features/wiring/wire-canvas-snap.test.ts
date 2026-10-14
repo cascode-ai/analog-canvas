@@ -1,6 +1,7 @@
-import { createRoutePath } from "@icm/model";
+import { createRoutePath, freezeSnapshot } from "@icm/model";
 import {
   deriveVisibleConnectivity,
+  createElectricalContactResolver,
   resolveDocumentRoutingGeometry,
   resolveEndpointConnection,
 } from "@icm/derived";
@@ -10,6 +11,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildWireCanvasSnapIndex,
   resolveWireCanvasSnap,
   type WireCanvasSnapContext,
 } from "./wire-canvas-snap";
@@ -40,6 +42,129 @@ function source(
 }
 
 describe("wire canvas snap", () => {
+  it.each(["before", "after"])(
+    "keeps contacts fresh when delegated definitions become mutable %s warming",
+    (when) => {
+      const definition = structuredClone(
+        builtInSymbols.find((symbol) => symbol.id === "resistor")!,
+      );
+      definition.pins.find((pin) => pin.name === "1")!.at = { x: 0, y: 0 };
+      let catalog = new InMemorySymbolResolver([definition]);
+      const base = new InMemorySymbolResolver([definition]);
+      const delegate = () => {
+        base.resolve = (...args) => catalog.resolve(...args);
+      };
+      if (when === "before") delegate();
+      const overlay = new InMemorySymbolResolver(
+        [],
+        new InMemorySymbolResolver([], base),
+      );
+      const input = conductorContext();
+      input.document.instances.push({
+        id: "R1",
+        symbolId: "resistor",
+        placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+      });
+      input.document.nets[0]!.terminals.push({
+        instanceId: "R1",
+        pinName: "1",
+      });
+      input.document.routes.push(
+        createRoutePath({
+          id: "second",
+          netId: "net",
+          start: { kind: "junction", junctionId: "a" },
+          end: { kind: "terminal", instanceId: "R1", pinName: "1" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      const document = freezeSnapshot(input.document);
+      const routing = resolveDocumentRoutingGeometry(document, overlay);
+      const context: WireCanvasSnapContext = {
+        ...input,
+        document,
+        resolver: overlay,
+        routeGeometryRecords: document.routes.map((route) => ({
+          route,
+          geometry: routing.routes.get(route.id)!,
+        })),
+        contactResolver: createElectricalContactResolver(document, overlay, []),
+      };
+      expect(
+        resolveWireCanvasSnap(context, { x: 50, y: 0 }, false).route?.routeId,
+      ).toBe("route");
+      if (when === "after") delegate();
+      definition.pins.find((pin) => pin.name === "1")!.at = { x: 0, y: 20 };
+      catalog = new InMemorySymbolResolver([definition]);
+
+      expect(resolveWireCanvasSnap(context, { x: 50, y: 0 }, false)).toEqual({
+        point: { x: 50, y: 0 },
+        ambiguous: true,
+        guides: [],
+      });
+    },
+  );
+  it("keeps a prepared conductor read across pointer hits without resolving all Routes again", () => {
+    const input = conductorContext();
+    input.document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 300, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    input.document.nets[0]!.terminals.push({ instanceId: "R1", pinName: "1" });
+    const route = createRoutePath({
+      id: "remote",
+      netId: "net",
+      start: { kind: "terminal", instanceId: "R1", pinName: "1" },
+      end: { kind: "junction", junctionId: "b" },
+      bends: [{ x: 300, y: 0 }],
+      modes: ["manual", "manual"],
+    });
+    input.document.routes.push(route);
+    const document = freezeSnapshot(input.document);
+    const components = deriveVisibleConnectivity(document, resolver).flatMap(
+      (net) => net.components,
+    );
+    const localResolver = new InMemorySymbolResolver(builtInSymbols);
+    const originalGet = Map.prototype.get;
+    let symbolReads = 0;
+    const context = {
+      ...input,
+      document,
+      resolver: localResolver,
+      contactComponents: components,
+      snapIndex: buildWireCanvasSnapIndex([], input.routeGeometryRecords),
+      contactResolver: createElectricalContactResolver(
+        document,
+        localResolver,
+        components,
+      ),
+    };
+    let answer: ReturnType<typeof resolveWireCanvasSnap>;
+    Map.prototype.get = function (this: Map<unknown, unknown>, key: unknown) {
+      const result = originalGet.call(this, key);
+      if (key === "resistor" && result?.schemaVersion === 1 && result.pins)
+        symbolReads++;
+      return result;
+    };
+    try {
+      resolveWireCanvasSnap(context, { x: 30, y: 1 }, false);
+      expect(symbolReads).toBeGreaterThan(0);
+      symbolReads = 0;
+      answer = resolveWireCanvasSnap(context, { x: 60, y: 1 }, false);
+    } finally {
+      Map.prototype.get = originalGet;
+    }
+    expect(answer.point).toEqual({ x: 60, y: 0 });
+    expect(answer.route).toEqual({
+      routeId: "route",
+      segmentIndex: 0,
+      point: { x: 60, y: 0 },
+    });
+    expect(answer.ambiguous).toBeUndefined();
+    expect(symbolReads).toBe(0);
+  });
   it("selects each dense AND pin independently without joining its neighbors", () => {
     const document = createEmptyDocument("fine-snap", "Fine snap");
     document.instances.push({

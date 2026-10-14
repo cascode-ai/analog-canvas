@@ -1343,6 +1343,16 @@ function reportPinsTouchingAnotherNet(
       logicalId: string | undefined;
     }[]
   >();
+  const endpointLookup =
+    docIndex &&
+    docIndex.instancesById.size === document.instances.length &&
+    docIndex.junctionsById.size === document.junctions.length
+      ? {
+          instancesById: docIndex.instancesById,
+          junctionsById: docIndex.junctionsById,
+          logicalNets,
+        }
+      : undefined;
 
   for (const instance of [...document.instances].sort((left, right) =>
     left.id.localeCompare(right.id, "en"),
@@ -1358,11 +1368,18 @@ function reportPinsTouchingAnotherNet(
       const key = `${instance.id}\u0000${pin.name}`;
       // An author who marked the pin open has already answered for it.
       if (declaredOpen.has(key)) continue;
-      const point = resolveEndpointPoint(document, resolver, {
-        kind: "terminal",
-        instanceId: instance.id,
-        pinName: pin.name,
-      });
+      const point = resolveEndpointPoint(
+        document,
+        resolver,
+        {
+          kind: "terminal",
+          instanceId: instance.id,
+          pinName: pin.name,
+        },
+        endpointLookup?.instancesById.get(instance.id) === instance
+          ? endpointLookup
+          : undefined,
+      );
       if (!point) continue;
       const pinNetId = netIdByTerminalKey.get(key);
       const pinLogicalId = logicalIdOf(pinNetId);
@@ -1376,16 +1393,18 @@ function reportPinsTouchingAnotherNet(
       });
       pinsAtPoint.set(at, here);
       if (!geometry) continue;
-      const foreign = findRouteSegmentsAtPoint(geometry, point).flatMap(
-        (address) => {
-          const route = routeById.get(address.routeId);
-          if (!route) return [];
-          const routeLogicalId = logicalIdOf(route.netId);
-          return routeLogicalId && routeLogicalId !== pinLogicalId
-            ? [{ route, netId: route.netId }]
-            : [];
-        },
-      );
+      const foreign = findRouteSegmentsAtPoint(
+        geometry,
+        point,
+        docIndex?.spatialIndex,
+      ).flatMap((address) => {
+        const route = routeById.get(address.routeId);
+        if (!route) return [];
+        const routeLogicalId = logicalIdOf(route.netId);
+        return routeLogicalId && routeLogicalId !== pinLogicalId
+          ? [{ route, netId: route.netId }]
+          : [];
+      });
       const first = foreign[0];
       if (!first) continue;
       diagnostics.push({

@@ -1,11 +1,17 @@
 import {
+  createElectricalContactResolver,
   resolveElectricalContactTargets,
   type ResolvedRouteGeometry,
   type RoutedComponent,
 } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
-import type { Point, RouteBranch, SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import {
+  isFrozenSnapshot,
+  type Point,
+  type RouteBranch,
+  type SchematicDocument,
+} from "@icm/model";
+import { InMemorySymbolResolver, type SymbolResolver } from "@icm/symbols";
 
 import {
   buildRectangleEdgeSnapAnchors,
@@ -147,6 +153,8 @@ export interface WireCanvasSnapContext {
   wireWaypoints: readonly Point[];
   captureTolerance: number;
   snapIndex?: WireCanvasSnapIndex;
+  /** The editor's stable source read; omitted for stateless/mutable callers. */
+  contactResolver?: ReturnType<typeof createElectricalContactResolver>;
 }
 
 export interface WireCanvasSnapResult {
@@ -169,6 +177,7 @@ export function resolveWireCanvasSnap(
     wireWaypoints,
     captureTolerance,
     snapIndex,
+    contactResolver,
   }: WireCanvasSnapContext,
   point: Point,
   suppressSnap: boolean,
@@ -285,44 +294,52 @@ export function resolveWireCanvasSnap(
     candidate.anchor.id !== activeSourceAnchorId &&
     Math.abs(candidate.anchor.point.x - snappedPoint.x) < 1e-6 &&
     Math.abs(candidate.anchor.point.y - snappedPoint.y) < 1e-6;
-  const contactTargets = resolveElectricalContactTargets(
-    document,
-    resolver,
-    [
-      ...endpointTargets.filter(atPoint).map((candidate) => ({
-        kind: "endpoint" as const,
+  const contactCandidates = [
+    ...endpointTargets.filter(atPoint).map((candidate) => ({
+      kind: "endpoint" as const,
+      id: candidate.anchor.id,
+      point: candidate.anchor.point,
+      netId: candidate.source.netId,
+      endpoint: candidate.source.endpoint,
+    })),
+    // Check electrical ambiguity at the chosen landing as well. A tap
+    // quantized onto a crossing must not silently choose one of its Nets.
+    ...routeTargets
+      .filter((candidate) => {
+        const projection = closestPointOnSegment(
+          snappedPoint,
+          candidate.from,
+          candidate.to,
+        );
+        return (
+          Math.hypot(
+            projection.x - snappedPoint.x,
+            projection.y - snappedPoint.y,
+          ) < 1e-6
+        );
+      })
+      .map((candidate) => ({
+        kind: "route" as const,
         id: candidate.anchor.id,
-        point: candidate.anchor.point,
-        netId: candidate.source.netId,
-        endpoint: candidate.source.endpoint,
+        point: snappedPoint,
+        netId: candidate.netId,
+        routeId: candidate.routeId,
+        segmentIndex: candidate.segmentIndex,
       })),
-      // Check electrical ambiguity at the chosen landing as well. A tap
-      // quantized onto a crossing must not silently choose one of its Nets.
-      ...routeTargets
-        .filter((candidate) => {
-          const projection = closestPointOnSegment(
-            snappedPoint,
-            candidate.from,
-            candidate.to,
-          );
-          return (
-            Math.hypot(
-              projection.x - snappedPoint.x,
-              projection.y - snappedPoint.y,
-            ) < 1e-6
-          );
-        })
-        .map((candidate) => ({
-          kind: "route" as const,
-          id: candidate.anchor.id,
-          point: snappedPoint,
-          netId: candidate.netId,
-          routeId: candidate.routeId,
-          segmentIndex: candidate.segmentIndex,
-        })),
-    ],
-    contactComponents,
-  );
+  ];
+  // Recheck on consumption: a delegated resolver may become mutable after
+  // the memoized reader was warmed without changing the outer identity.
+  const contactTargets =
+    contactResolver &&
+    isFrozenSnapshot(document) &&
+    InMemorySymbolResolver.hasStableDefinitions(resolver)
+      ? contactResolver(contactCandidates)
+      : resolveElectricalContactTargets(
+          document,
+          resolver,
+          contactCandidates,
+          contactComponents,
+        );
   const ambiguous = contactTargets.length > 1;
   const contact = ambiguous ? undefined : contactTargets[0];
   const endpoint = contact?.endpoint

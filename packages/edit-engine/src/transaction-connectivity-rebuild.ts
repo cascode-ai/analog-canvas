@@ -10,16 +10,15 @@ import {
   buildDocumentDerivedContext,
   deriveDocumentContactEvidence,
   endpointKey,
-  netEndpoints,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 import type { EditTransaction } from "./edit-schema.js";
 import {
   addEndpointToNet,
-  endpointOwnerNetId,
-  netEndpointGroups,
+  prepareNetEndpointGroupRead,
 } from "./transaction-routing.js";
+import { prepareConnectivityPhaseRead } from "./connectivity-phase-read.js";
 import {
   mergeBaseNets,
   preferredPhysicalMergeTarget,
@@ -136,6 +135,8 @@ export function rebuildEditedConnectivity(
   changed: Set<string>,
 ): ReturnType<typeof mergeBaseNets> {
   const graph = new ConnectionGraph();
+  let read = prepareConnectivityPhaseRead(draft);
+  const sourceRead = prepareConnectivityPhaseRead(before);
   const endpoints = new Map<string, RouteEndpoint>();
   const remember = (e: RouteEndpoint) => {
     const key = endpointKey(e);
@@ -144,7 +145,7 @@ export function rebuildEditedConnectivity(
     return key;
   };
   for (const net of draft.nets)
-    for (const e of netEndpoints(draft, net)) remember(e);
+    for (const e of read.netEndpoints(net)) remember(e);
   for (const route of draft.routes)
     graph.join(routeEndpoints(route).map(remember));
   // Coincidence of confirmed endpoint contacts is an edge; an interior X is
@@ -167,16 +168,17 @@ export function rebuildEditedConnectivity(
       ? buildDocumentDerivedContext(before, resolver).contactEvidence
       : deriveDocumentContactEvidence(before, resolver)
     : undefined;
+  const sourceGroups = prepareNetEndpointGroupRead(sourceRead, beforeContacts);
   // Legacy/imported Nets can contain intentional, not-yet-routed components.
   // Preserve a bridge between their surviving representatives, not between
   // every member: doing the latter would resurrect a deleted physical wire.
   for (const net of before.nets) {
     if (cutNetIds.has(net.id)) continue;
-    const groups = netEndpointGroups(before, net.id, resolver, beforeContacts);
+    const groups = sourceGroups(net.id);
     const representatives = groups.flatMap((group) => {
       const key = group.find((key) => {
         const e = endpoints.get(key);
-        return e && endpointOwnerNetId(draft, e) !== null;
+        return e && read.ownerOf(e) !== null;
       });
       return key ? [key] : [];
     });
@@ -193,7 +195,8 @@ export function rebuildEditedConnectivity(
         n.terminals.some((t) => t.instanceId === edit.instanceId),
       )) {
         graph.join(
-          netEndpoints(before, net)
+          sourceRead
+            .netEndpoints(net)
             .map(endpointKey)
             .filter((key) => endpoints.has(key)),
         );
@@ -203,7 +206,7 @@ export function rebuildEditedConnectivity(
       // A later disconnect/removal in this transaction owns the final state.
       // Do not replay an earlier logical request over that completed edit.
       const pair = [edit.from, edit.to];
-      if (pair.every((e) => endpointOwnerNetId(draft, e) !== null)) {
+      if (pair.every((e) => read.ownerOf(e) !== null)) {
         graph.join(pair.map(remember));
       }
     }
@@ -226,7 +229,7 @@ export function rebuildEditedConnectivity(
       graph.join(
         before.nets
           .filter((n) => n.id === edit.sourceNetId || n.id === edit.targetNetId)
-          .flatMap((n) => netEndpoints(before, n))
+          .flatMap((n) => sourceRead.netEndpoints(n))
           .map(endpointKey)
           .filter((key) => endpoints.has(key)),
       );
@@ -252,7 +255,8 @@ export function rebuildEditedConnectivity(
   );
   if (boundProperties.size > 0) {
     for (const net of draft.nets) {
-      const keys = netEndpoints(draft, net)
+      const keys = read
+        .netEndpoints(net)
         .map(endpointKey)
         .filter((key) => endpoints.has(key));
       const bound = keys.filter((key) => boundProperties.has(key));
@@ -262,7 +266,7 @@ export function rebuildEditedConnectivity(
     }
   }
   for (const net of [...draft.nets]) {
-    const keys = netEndpoints(draft, net).map(endpointKey);
+    const keys = read.netEndpoints(net).map(endpointKey);
     const groups = graph.groups(keys);
     // Retain the original identity on the authored cut's start side.
     const cutRoute = transaction.edits.flatMap((edit) =>
@@ -281,22 +285,28 @@ export function rebuildEditedConnectivity(
     if (primary !== undefined && primary > 0)
       groups.unshift(...groups.splice(primary, 1));
     partitionNet(draft, net, groups, changed);
+    if (groups.length > 1) read = prepareConnectivityPhaseRead(draft);
   }
   // Existing Net IDs choose stable identities only after the graph is known.
   // Two unconnected paths carrying the same stale hint remain separate.
   const occupiedHints = new Set(draft.nets.map((n) => n.id));
+  const routesByRoot = new Map<string, SchematicDocument["routes"]>();
+  for (const route of draft.routes) {
+    const root = graph.root(endpointKey(route.start));
+    const routes = routesByRoot.get(root) ?? [];
+    routes.push(route);
+    routesByRoot.set(root, routes);
+  }
   for (const keys of graph.groups([...endpoints.keys()])) {
     const groupEndpoints = keys.map((key) => endpoints.get(key)!);
     const owners = [
       ...new Set(
         groupEndpoints
-          .map((e) => endpointOwnerNetId(draft, e))
+          .map((e) => read.ownerOf(e))
           .filter((id): id is string => id !== null),
       ),
     ];
-    const routes = draft.routes.filter(
-      (r) => graph.root(endpointKey(r.start)) === graph.root(keys[0]!),
-    );
+    const routes = routesByRoot.get(graph.root(keys[0]!)) ?? [];
     if (owners.length === 0 && routes.length === 0) continue;
     let netId = owners[0];
     for (const other of owners.slice(1)) {
@@ -307,6 +317,7 @@ export function rebuildEditedConnectivity(
       );
       const result = mergeBaseNets(draft, target, source, changed);
       if (!result.ok) return result;
+      read = prepareConnectivityPhaseRead(draft);
       netId = target;
     }
     if (!netId) {
@@ -319,8 +330,9 @@ export function rebuildEditedConnectivity(
       changed.add(netId);
     }
     for (const e of groupEndpoints) {
-      if (endpointOwnerNetId(draft, e) !== netId) {
+      if (read.ownerOf(e) !== netId) {
         addEndpointToNet(draft, netId, e);
+        read = prepareConnectivityPhaseRead(draft);
         changed.add(netId);
       }
       removeNoConnectForEndpoint(draft, e, changed);
