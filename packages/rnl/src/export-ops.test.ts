@@ -60,6 +60,8 @@ describe("RNL export of the simulation examples", () => {
       expect(diagnostics.filter((item) => item.severity === "error")).toEqual(
         [],
       );
+      // Their symbols all come with rnl-std, so the file names no package.
+      expect(of(ops, "use-package")).toEqual([]);
       const wires = of(ops, "add-wire");
       const routes = documents.flatMap((document) => document.routes);
       expect(wires.length).toBeGreaterThanOrEqual(routes.length);
@@ -280,60 +282,65 @@ describe("what RNL cannot write", () => {
     );
   });
 
-  it("warns of a symbol from the analog-canvas package and uses that package", () => {
-    const project = createEmptyProject("lettered", "Lettered", "dut");
-    const document = project.documents[0]!;
-    document.netlist!.name = "dut";
-    const descriptor = subcircuitDescriptor("opamp-lettered")!;
-    document.instances.push({
-      id: "block",
-      symbolId: "opamp-lettered",
-      reference: "X1",
-      placement: {
-        position: { x: 100, y: 0 },
-        rotation: 0,
-        mirror: "none",
-      },
-      netlist: {
-        binding: { kind: "unresolved-subcircuit", name: descriptor.target },
-        parameters: {},
-      },
-    });
-    for (const port of descriptor.ports.filter((item) => !item.supply)) {
-      const id = `pin-${port.name}`;
-      document.instances.push({ id, symbolId: "port", placement: null });
-      document.nets.push({
-        id: port.name,
-        terminals: [
-          { instanceId: id, pinName: "P" },
-          { instanceId: "block", pinName: port.pinName ?? port.name },
-        ],
+  it.each([
+    ["opamp", "$OPAMP5", "rnl-std-functional", false],
+    ["opamp-lettered", "$AC_OPAMP_LETTERED", "analog-canvas-extensions", true],
+  ] as const)(
+    "declares the package of %s's symbol %s, %s, and warns only of a non-standard one",
+    (symbolId, symbol, name, nonStandard) => {
+      const project = createEmptyProject("block", "Block", "dut");
+      const document = project.documents[0]!;
+      document.netlist!.name = "dut";
+      const descriptor = subcircuitDescriptor(symbolId)!;
+      document.instances.push({
+        id: "block",
+        symbolId,
+        reference: "X1",
+        placement: {
+          position: { x: 100, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "unresolved-subcircuit", name: descriptor.target },
+          parameters: {},
+        },
       });
-      document.netlist!.terminals.push({
-        id: `terminal-${port.name}`,
-        name: port.name,
-        netId: port.name,
-        direction: "inout",
-        interfaceInstanceIds: [id],
-      });
-    }
-    const { ops, diagnostics } = exported(project);
-    expect(diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: "warning",
-        code: "RNL_NOT_STANDARD_SYMBOL",
-        objectIds: ["block"],
-      }),
-    );
-    expect(of(ops, "set")).toContainEqual(
-      expect.objectContaining({
-        object: "#X1",
-        symbol: "$AC_OPAMP_LETTERED",
-        at: [10, 0],
-      }),
-    );
-    expect(of(ops, "use-package").map((op) => op.name)).toEqual([
-      "analog-canvas",
-    ]);
-  });
+      for (const port of descriptor.ports.filter((item) => !item.supply)) {
+        const id = `pin-${port.name}`;
+        document.instances.push({ id, symbolId: "port", placement: null });
+        document.nets.push({
+          id: port.name,
+          terminals: [
+            { instanceId: id, pinName: "P" },
+            { instanceId: "block", pinName: port.pinName ?? port.name },
+          ],
+        });
+        document.netlist!.terminals.push({
+          id: `terminal-${port.name}`,
+          name: port.name,
+          netId: port.name,
+          direction: "inout",
+          interfaceInstanceIds: [id],
+        });
+      }
+      const { ops, diagnostics } = exported(project);
+      expect(
+        diagnostics.filter((item) => item.code === "RNL_NOT_STANDARD_SYMBOL"),
+      ).toEqual(
+        nonStandard
+          ? [
+              expect.objectContaining({
+                severity: "warning",
+                objectIds: ["block"],
+              }),
+            ]
+          : [],
+      );
+      expect(of(ops, "set")).toContainEqual(
+        expect.objectContaining({ object: "#X1", symbol, at: [10, 0] }),
+      );
+      expect(of(ops, "use-package").map((op) => op.name)).toEqual([name]);
+    },
+  );
 });

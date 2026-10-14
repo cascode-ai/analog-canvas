@@ -33,10 +33,12 @@ the RNL language and its runtime belong to rnl.
   blocks signals first and supplies last, transformers dotted end first. A
   body's definition and its calls move together, so the circuit is the same;
   `SPICE` and `SCS` keep the editor's order.
-- Each part is drawn with the RNL symbol the mapping table names, from the
-  standard package or, for an appearance variant, the `analog-canvas`
-  package; it is placed at that symbol's registration point and turned by one
-  of RNL's eight orientations.
+- Each part is drawn with the RNL symbol the mapping table names, from a
+  standard package or, for an appearance variant, the
+  `analog-canvas-extensions` package; it is placed at that symbol's
+  registration point and turned by one of RNL's eight orientations.
+- The file declares each package it uses that `rnl-std` does not bring in by
+  itself, such as `rnl-std-functional` for an op-amp.
 - Ground, supply and Cell Pin markers are written as `$GND`, `$SUPPLY` and
   `$IOPORT`. Wires keep every bend. What the editor joins by contact (a wire
   through a junction or pin, touching endpoints) is joined explicitly, since
@@ -49,8 +51,8 @@ the RNL language and its runtime belong to rnl.
 - Errors leave the RNL format without output and list in the panel's issues:
   a part turned by 45°, 135°, 225° or 315°; a part with no RNL symbol.
 - Warnings keep the output and list there too, one per kind and drawing: a
-  symbol from the `analog-canvas` package (the file then uses that package),
-  labels written as fixed text, hidden labels left out, text placed along a
+  symbol from the `analog-canvas-extensions` package, labels written as fixed
+  text, hidden labels left out, text placed along a
   wire written at a fixed place, formulas written as LaTeX source, tilted text
   written level, drawing objects not exported yet, parts in the tray, drawn
   Cell blocks drawn as RNL's stand-in box.
@@ -92,7 +94,9 @@ the RNL language and its runtime belong to rnl.
 - Reordered bodies keep every port-to-node connection and leave `SPICE` and
   `SCS` byte for byte (`packages/netlist/src/body-port-order.test.ts`).
 - The simulation examples export with no error, every part, glyph, wire, dot
-  and label written (`packages/rnl/src/export-ops.test.ts`).
+  and label written, and name no package; an op-amp names
+  `rnl-std-functional`, an appearance variant `analog-canvas-extensions`
+  (`packages/rnl/src/export-ops.test.ts`).
 - Desktop and local hosts serve `.wasm` as `application/wasm` and allow
   WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`,
   `apps/local-host/src/local-host.test.ts`).

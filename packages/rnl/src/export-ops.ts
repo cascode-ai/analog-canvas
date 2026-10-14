@@ -103,7 +103,7 @@ export interface RnlExportDiagnostic {
 
 /**
  * The RNL definition each drawn glyph stands for: the symbol draws it, the
- * definition says what it is (standard package, `rnl-std-virtual`).
+ * definition says what it is (standard package `rnl-std-basic`).
  */
 const GLYPH_DEFINITIONS: Readonly<Record<string, string>> = {
   $GROUND: "$GND",
@@ -118,8 +118,19 @@ const USAGE_PREFIX: Readonly<Record<string, string>> = {
   $IOPORT: "port",
 };
 
-/** Packages the standard package `rnl-std` brings in by itself (16.3). */
-const IMPLICIT_PACKAGES = new Set(["rnl-std-symbols", "rnl-std-virtual"]);
+/**
+ * Packages the standard package `rnl-std` brings in by itself (16.3): what a
+ * netlist with no RNL needs to be drawn. A file names every other package it
+ * uses. The split is rnl-dev's draft, not yet in the standard.
+ */
+const IMPLICIT_PACKAGES = new Set([
+  "rnl-std-basic",
+  "rnl-std-semiconductors",
+  "rnl-std-marks",
+]);
+
+/** The package of Analog Canvas's appearance variants; not standard. */
+const AC_PACKAGE = "analog-canvas-extensions";
 
 /**
  * A name as RNL writes it after its prefix: plain when it is ASCII letters,
@@ -308,11 +319,11 @@ function exportCell(
       }
       orient = result.orient;
     }
-    if (symbol?.package === "analog-canvas")
+    if (symbol?.package === AC_PACKAGE)
       report(
         "warning",
         "RNL_NOT_STANDARD_SYMBOL",
-        `${describe(instance)} is drawn with ${symbol.symbol} from the analog-canvas package, not the standard package`,
+        `${describe(instance)} is drawn with ${symbol.symbol} from the ${AC_PACKAGE} package, not the standard package`,
         [instance.id],
       );
     if (symbol) packages.add(symbol.package);

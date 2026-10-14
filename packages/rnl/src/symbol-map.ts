@@ -35,7 +35,7 @@ export interface RnlPin {
 export interface RnlSymbol {
   /** The RNL symbol, such as `$NMOS`. */
   symbol: string;
-  /** The RNL package that defines it, such as `rnl-std-symbols`. */
+  /** The RNL package that defines it, such as `rnl-std-basic`. */
   package: string;
   /** The Analog Canvas symbol and variant it draws, or null for RNL-only symbols. */
   ac: string | null;
