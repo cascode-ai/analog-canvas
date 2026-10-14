@@ -5,6 +5,7 @@ export {
   GENERIC_PNP_MODEL,
 } from "./extract-generic-models.js";
 export * from "./export.js";
+export type { BodyPortOrder, GeneratedBody } from "./body-port-order.js";
 export * from "./project-model-source.js";
 export * from "./model-source-transform.js";
 export * from "./draft-preview.js";

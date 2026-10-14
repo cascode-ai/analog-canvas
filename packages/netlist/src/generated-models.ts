@@ -83,8 +83,20 @@ function idealOpampModel(target: IdealOpampBody): BehavioralModel {
   };
 }
 
-/** One family dispatch; printers never own model equations or defaults. */
-export function generatedBehavioralDefinition(target: string): BehavioralModel {
+/**
+ * One family dispatch; printers never own model equations or defaults.
+ * `ports` prints the same body with its ports in another order (see
+ * `withBodyPortOrder`); its elements name ports, never positions.
+ */
+export function generatedBehavioralDefinition(
+  target: string,
+  ports?: readonly string[],
+): BehavioralModel {
+  const model = familyDefinition(target);
+  return ports ? { ...model, ports } : model;
+}
+
+function familyDefinition(target: string): BehavioralModel {
   if (target === IDEAL_CHOPPER_TARGET) return chopperBehavioralDefinition();
   if (isIdealComparatorBody(target)) return idealComparatorModel(target);
   if (isIdealOpampBody(target)) return idealOpampModel(target);
@@ -94,8 +106,16 @@ export function generatedBehavioralDefinition(target: string): BehavioralModel {
   throw new Error(`No generated behavioral model: ${target}`);
 }
 
-export function generatedBehavioralModel(target: string): string[] {
+export function generatedBehavioralModel(
+  target: string,
+  ports?: readonly string[],
+): string[] {
   // SPICE switches the chopper's paths with its native S cards (#1641).
-  if (target === IDEAL_CHOPPER_TARGET) return spiceChopperBody();
-  return printSpiceBehavioralModel(generatedBehavioralDefinition(target));
+  if (target === IDEAL_CHOPPER_TARGET) {
+    if (ports) throw new Error("The SPICE chopper body keeps its own ports");
+    return spiceChopperBody();
+  }
+  return printSpiceBehavioralModel(
+    generatedBehavioralDefinition(target, ports),
+  );
 }

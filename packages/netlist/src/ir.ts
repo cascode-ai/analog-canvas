@@ -148,6 +148,11 @@ export type DesignNetlistGeneratedDefinition =
   | {
       kind: "behavioral";
       name: string;
+      /**
+       * Its ports in the order this netlist prints them, when that is not the
+       * definition's own; only `withBodyPortOrder` sets it.
+       */
+      ports?: readonly string[];
     };
 
 export type NetlistDiagnosticSeverity = "error" | "warning" | "info";

@@ -5,6 +5,7 @@ import {
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
 import type { DesignNetlistIR, NetlistDiagnostic } from "./ir.js";
+import { type BodyPortOrder, withBodyPortOrder } from "./body-port-order.js";
 import {
   printDesignNetlistWithLocations,
   shiftDesignNetlistLocations,
@@ -29,6 +30,8 @@ export type DesignNetlistExportResult = {
       locations: DesignNetlistLocations;
       cellCount: number;
       externalMasterCount: number;
+      /** The IR the file was printed from, when `includeIr` asks for it. */
+      ir?: DesignNetlistIR;
     }
 );
 
@@ -212,6 +215,13 @@ export function createDesignNetlistExport(
     portCase?: NetlistPortCase;
     /** Only interactive source editors need field-level locations. */
     includeLocations?: boolean;
+    /**
+     * Print the bodies the netlist writes itself with their ports in another
+     * order (`withBodyPortOrder`). Only the RNL export modes ask for it.
+     */
+    bodyPortOrder?: BodyPortOrder;
+    /** Return the IR the file was printed from, with its printed names. */
+    includeIr?: boolean;
   } = {},
 ): DesignNetlistExportResult {
   const format = options.format ?? "spice";
@@ -264,10 +274,13 @@ export function createDesignNetlistExport(
   // question, and `unfinishedDrawingDiagnostics` is how a caller asks it.
   const deadEnds = deadEndNodeDiagnostics(project, ir, analysis.diagnostics);
   if (options.portCase) applyPortCase(ir, options.portCase);
+  const printedIr = options.bodyPortOrder
+    ? withBodyPortOrder(ir, options.bodyPortOrder)
+    : ir;
   const printed = options.includeLocations
-    ? printDesignNetlistWithLocations(format, ir)
+    ? printDesignNetlistWithLocations(format, printedIr)
     : null;
-  const file = printed?.file ?? printDesignNetlist(format, ir);
+  const file = printed?.file ?? printDesignNetlist(format, printedIr);
   const originalLength = file.text.length;
   // Presentation export omits the strict printer's title. Keep that printer
   // unchanged for simulation/source offsets; a blank SPICE title below keeps
@@ -288,6 +301,7 @@ export function createDesignNetlistExport(
     locations,
     cellCount: ir.cells.length,
     externalMasterCount: ir.externalMasters?.length ?? 0,
+    ...(options.includeIr ? { ir: printedIr } : {}),
   };
 }
 

@@ -201,7 +201,7 @@ function renderSpice(
     append(
       ...(definition.kind === "magnetic"
         ? spiceMagneticSubcircuit(definition)
-        : generatedBehavioralModel(definition.name)),
+        : generatedBehavioralModel(definition.name, definition.ports)),
     );
   }
   for (const cell of ir.cells) {
@@ -335,7 +335,7 @@ function renderSpectre(
       ...(definition.kind === "magnetic"
         ? spectreMagneticSubcircuit(definition)
         : printSpectreBehavioralModel(
-            generatedBehavioralDefinition(definition.name),
+            generatedBehavioralDefinition(definition.name, definition.ports),
           )),
     );
   let length = lines.join("\n").length;
