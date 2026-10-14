@@ -14,11 +14,13 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@icm/derived": "workspace:*",
     "@icm/model": "workspace:*",
-    "@icm/netlist": "workspace:*"
+    "@icm/netlist": "workspace:*",
+    "@icm/symbols": "workspace:*"
   },
   "devDependencies": {
     "@icm/devices": "workspace:*",
-    "@icm/symbols": "workspace:*"
+    "@icm/project-protocol": "workspace:*"
   }
 }
