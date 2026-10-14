@@ -92,8 +92,59 @@ describe("RNL export of the simulation examples", () => {
       expect(
         of(ops, "add-usage").filter((op) => op.definition === "$GND"),
       ).toHaveLength(grounds.length);
+      for (const label of of(ops, "add-text")) {
+        // A part's or glyph's label hangs on something declared, by key and
+        // offset; a net's stands at an absolute place; a free text on its point.
+        if (label.attach?.startsWith("&")) {
+          expect(label.at).toBeDefined();
+          expect(label.key).toBeUndefined();
+        } else if (label.attach) {
+          expect(levelOf.get(label.level)!.has(label.attach)).toBe(true);
+          expect(label.offset).toBeDefined();
+        } else expect(label.at).toBeDefined();
+        expect(label.lines.flat().length).toBeGreaterThan(0);
+      }
     },
   );
+
+  it("hangs a part's labels on it by key, where Analog Canvas shows them", () => {
+    const { ops, diagnostics } = exported(example("simulation-common-source"));
+    const place = of(ops, "set").find((op) => op.object === "#XM1")!.at!;
+    const name = of(ops, "add-text").find(
+      (op) => op.attach === "#XM1" && op.key === "name",
+    )!;
+    const value = of(ops, "add-text").find(
+      (op) => op.attach === "#XM1" && op.key === "value",
+    )!;
+    expect(name.size).toBeGreaterThan(1);
+    expect(
+      name.lines.flat().map((run) => run.kind === "text" && run.text),
+    ).toEqual(["XM1"]);
+    // W over L, as the value label draws it.
+    expect(value.lines[0]![0]!.kind).toBe("frac");
+    expect(place).toEqual([35, -40]);
+    expect(name.offset).toEqual([-4, -3]);
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "warning",
+        code: "RNL_TEXT_FIXED",
+      }),
+    );
+  });
+
+  it("puts a net's label on the net at its place, and leaves hidden labels out", () => {
+    const { ops, diagnostics } = exported(example("simulation-rlc"));
+    expect(of(ops, "add-text")).toContainEqual(
+      expect.objectContaining({ attach: "&out", at: expect.any(Array) }),
+    );
+    expect(diagnostics.map((item) => item.code)).toEqual(
+      expect.arrayContaining(["RNL_TEXT_HIDDEN", "RNL_TEXT_ALONG_WIRE"]),
+    );
+    // One warning per kind and drawing, naming every object it covers.
+    const hidden = diagnostics.find((item) => item.code === "RNL_TEXT_HIDDEN")!;
+    expect(hidden.objectIds).toHaveLength(2);
+    expect(hidden.message).toMatch(/^2 /);
+  });
 
   it("joins a wire that runs through a junction there, and dots it", () => {
     const project = example("simulation-common-source");
@@ -159,9 +210,13 @@ describe("RNL export of the simulation examples", () => {
 
   it("wires a drawn Cell's block by its printed port positions, in a stand-in box", () => {
     const { ops, diagnostics } = exported(example("simulation-ota"));
-    expect(diagnostics.map((item) => item.code)).toEqual([
-      "RNL_BLOCK_STAND_IN",
-    ]);
+    expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "RNL_BLOCK_STAND_IN",
+        objectIds: ["XDUT"],
+      }),
+    );
     const block = of(ops, "set").find((op) => op.object === "#XDUT")!;
     expect(block.symbol).toBeUndefined();
     const reached = of(ops, "add-wire").flatMap((wire) =>

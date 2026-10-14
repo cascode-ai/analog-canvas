@@ -1,10 +1,18 @@
 import {
   contactRequiresJunctionDot,
   deriveDocumentContactEvidence,
+  isSchematicAnnotationVisible,
+  resolveAnnotationPresentation,
+  resolveAnnotationText,
   resolveDocumentLogicalNets,
+  resolveDocumentRoutingGeometry,
+  resolveDocumentStyleProfile,
   resolveEndpointPoint,
+  resolveVisualAnchor,
+  richTextMetrics,
 } from "@icm/derived";
 import type {
+  Annotation,
   CircuitProject,
   Instance,
   RouteEndpoint,
@@ -15,8 +23,14 @@ import type { DesignNetlistCell, DesignNetlistIR } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import { rnlOrient, type RnlOrient } from "./orientation.js";
-import { rnlPlace, toRnlPoint, type RnlPoint } from "./place.js";
+import {
+  AC_UNITS_PER_RNL_UNIT,
+  rnlPlace,
+  toRnlPoint,
+  type RnlPoint,
+} from "./place.js";
 import { rnlSymbolFor, terminalOfPin } from "./symbol-map.js";
+import { rnlTextLines, type RnlRun } from "./text.js";
 
 /**
  * A vertex of a wire as an RNL edit transaction names it: a terminal, a named
@@ -58,6 +72,24 @@ export type RnlOp = { level: string } & (
     }
   | { op: "remove-from"; items: string[]; set: string }
   | { op: "use-package"; name: string }
+  | {
+      op: "add-text";
+      /** The part, usage or net it is attached to; absent for a text on a point. */
+      attach?: string;
+      /** Its key on that object (`#M1::name`); never for a net or a point. */
+      key?: string;
+      lines: RnlRun[][];
+      /** An absolute anchor, in scene coordinates. */
+      at?: RnlPoint;
+      /** The anchor from the attached object's own point (13.3). */
+      offset?: RnlPoint;
+      halign: "start" | "middle" | "end";
+      valign?: "baseline" | "middle";
+      rotate?: 90 | 180 | 270;
+      /** Text height, the em, in scene units. */
+      size: number;
+      style?: Record<string, string | boolean>;
+    }
 );
 
 export interface RnlExportDiagnostic {
@@ -217,6 +249,8 @@ function exportCell(
     return `%${prefix}${count}`;
   };
   const drawnPorts = new Set<string>();
+  /** Where each drawn part or glyph is registered, and the name RNL knows it by. */
+  const placeOf = new Map<StableId, { object: string; at: RnlPoint }>();
   for (const instance of document.instances) {
     let symbol = rnlSymbolFor(instance.symbolId, instance.symbolVariantId);
     const block = symbol ? undefined : blockTerminals(instance, context);
@@ -309,6 +343,7 @@ function exportCell(
       }
       const name = nextName(USAGE_PREFIX[definition]!);
       usageOf.set(instance.id, name);
+      if (where.at) placeOf.set(instance.id, { object: name, at: where.at });
       if (definition === "$IOPORT") drawnPorts.add(net);
       ops.push({
         level,
@@ -331,10 +366,12 @@ function exportCell(
       );
       continue;
     }
+    const object = rnlName("#", reference);
+    if (where.at) placeOf.set(instance.id, { object, at: where.at });
     ops.push({
       level,
       op: "set",
-      object: rnlName("#", reference),
+      object,
       ...(symbol ? { symbol: symbol.symbol } : {}),
       ...where,
     });
@@ -514,6 +551,235 @@ function exportCell(
       attach: { p: toRnlPoint(contact.point) },
     });
   }
+
+  exportTexts(document, level, {
+    context,
+    logical,
+    placeOf,
+    netOf,
+    report,
+  });
+}
+
+/** A text's size in RNL units: Analog Canvas's em height, ten to a unit. */
+const rnlSize = (fontSize: number) =>
+  Math.round((fontSize / AC_UNITS_PER_RNL_UNIT) * 1e4) / 1e4;
+
+/** A counter-clockwise quarter turn for an Analog Canvas clockwise rotation, or null. */
+function quarterTurn(rotation: number): 0 | 90 | 180 | 270 | null {
+  const turn = (360 - rotation) % 360;
+  return turn % 90 === 0 ? (turn as 0 | 90 | 180 | 270) : null;
+}
+
+function annotationFontSize(
+  annotation: Annotation,
+  profile: ReturnType<typeof resolveDocumentStyleProfile>,
+): number {
+  switch (annotation.kind) {
+    case "instance-label":
+    case "instance-value":
+      return profile.typography.instanceFontSize;
+    case "net-label":
+      return profile.typography.netFontSize;
+    case "power-label":
+      return profile.typography.powerFontSize;
+    case "route-marker":
+      return profile.typography.annotationFontSize;
+  }
+}
+
+/**
+ * Labels and drawing texts. A label bound to a name or value is written as
+ * the text Analog Canvas shows for it, styled as shown (an italic letter, a
+ * subscript), since RNL cannot style part of a referenced name (13.6); it no
+ * longer follows a rename. A part's labels hang on the part by key and
+ * offset, a Net's on the Net at an absolute place, anything else on its point.
+ */
+function exportTexts(
+  document: SchematicDocument,
+  level: string,
+  {
+    context,
+    logical,
+    placeOf,
+    netOf,
+    report,
+  }: {
+    context: ExportContext;
+    logical: ReturnType<typeof resolveDocumentLogicalNets>;
+    placeOf: ReadonlyMap<StableId, { object: string; at: RnlPoint }>;
+    netOf: (baseNetId: string) => string | undefined;
+    report: (
+      severity: RnlExportDiagnostic["severity"],
+      code: string,
+      message: string,
+      objectIds: StableId[],
+    ) => void;
+  },
+): void {
+  const { ops, resolver } = context;
+  const profile = resolveDocumentStyleProfile(document.presentation);
+  const routing = resolveDocumentRoutingGeometry(document, resolver);
+  const fixed: StableId[] = [];
+  const hidden: StableId[] = [];
+  const alongWires: StableId[] = [];
+  const formulas: StableId[] = [];
+  const tilted: StableId[] = [];
+  const drawings: StableId[] = [];
+  const write = (
+    id: StableId,
+    text: Parameters<typeof rnlTextLines>[0],
+    rotation: number,
+    fields: Omit<
+      Extract<RnlOp, { op: "add-text" }>,
+      "level" | "op" | "lines" | "rotate"
+    >,
+  ) => {
+    const { lines, formulas: count } = rnlTextLines(text);
+    if (count) formulas.push(id);
+    const turn = quarterTurn(rotation);
+    if (turn === null) tilted.push(id);
+    ops.push({
+      level,
+      op: "add-text",
+      lines,
+      ...fields,
+      ...(turn ? { rotate: turn } : {}),
+    });
+  };
+
+  for (const annotation of document.annotations) {
+    if (annotation.visible === false) {
+      hidden.push(annotation.id);
+      continue;
+    }
+    const text = resolveAnnotationText(document, annotation, logical);
+    if (!isSchematicAnnotationVisible(document, annotation, logical, text))
+      continue;
+    const shown = resolveAnnotationPresentation(
+      document,
+      resolver,
+      annotation,
+      profile,
+      routing,
+      logical,
+      text,
+    );
+    const anchor = toRnlPoint(shown.position);
+    if (annotation.binding) fixed.push(annotation.id);
+    if (annotation.anchor.kind === "route") alongWires.push(annotation.id);
+    const common = {
+      halign: shown.alignment,
+      size: rnlSize(
+        annotationFontSize(annotation, profile) * (annotation.sizeScale ?? 1),
+      ),
+      ...(annotation.textColor
+        ? { style: { textcolor: annotation.textColor } }
+        : {}),
+    };
+    const owner =
+      annotation.anchor.kind === "object"
+        ? placeOf.get(annotation.anchor.objectId)
+        : undefined;
+    const binding = annotation.binding;
+    if (
+      owner &&
+      (annotation.kind === "instance-label" ||
+        annotation.kind === "instance-value")
+    ) {
+      write(annotation.id, text, shown.rotation, {
+        ...common,
+        attach: owner.object,
+        key:
+          binding?.kind === "instance-value" && binding.parameter
+            ? binding.parameter
+            : annotation.kind === "instance-label"
+              ? "name"
+              : "value",
+        offset: [
+          Math.round((anchor[0] - owner.at[0]) * 1e6) / 1e6 + 0,
+          Math.round((anchor[1] - owner.at[1]) * 1e6) / 1e6 + 0,
+        ],
+      });
+      continue;
+    }
+    const netId =
+      binding?.kind === "net-name" ? binding.netId : annotation.netId;
+    const net =
+      (annotation.kind === "net-label" || annotation.kind === "power-label") &&
+      netId
+        ? netOf(netId)
+        : undefined;
+    write(annotation.id, text, shown.rotation, {
+      ...common,
+      ...(net ? { attach: rnlName("&", net) } : {}),
+      at: anchor,
+    });
+  }
+
+  for (const object of document.drafting?.objects ?? []) {
+    if (object.kind !== "text") {
+      drawings.push(object.id);
+      continue;
+    }
+    const anchor = resolveVisualAnchor(
+      document,
+      resolver,
+      object.anchor,
+      routing,
+    );
+    if (object.anchor.kind === "route") alongWires.push(object.id);
+    if (object.polarity || object.typographyToken) drawings.push(object.id);
+    const style: Record<string, string | boolean> = {};
+    if (object.styleOverride?.weight === "bold") style.bold = true;
+    if (object.styleOverride?.italic) style.italic = true;
+    if (object.styleOverride?.color)
+      style.textcolor = object.styleOverride.color;
+    write(object.id, object.content, anchor.rotation + object.rotation, {
+      at: toRnlPoint(anchor.position),
+      halign: object.alignment,
+      // On an object a drawing text is centred on its anchor; free, it stands on it.
+      valign: object.anchor.kind === "object" ? "middle" : "baseline",
+      size: rnlSize(
+        richTextMetrics(
+          profile,
+          object.typographyToken,
+          object.styleOverride?.sizeScale,
+        ).fontSize,
+      ),
+      ...(Object.keys(style).length ? { style } : {}),
+    });
+  }
+
+  const say = (code: string, ids: StableId[], message: string) => {
+    if (ids.length) report("warning", code, `${ids.length} ${message}`, ids);
+  };
+  say(
+    "RNL_TEXT_FIXED",
+    fixed,
+    "labels are written as the text they show, styled as shown; RNL will not follow a rename",
+  );
+  say("RNL_TEXT_HIDDEN", hidden, "hidden labels are left out");
+  say(
+    "RNL_TEXT_ALONG_WIRE",
+    alongWires,
+    "texts placed along a wire are written at a fixed place; they no longer move with the wire",
+  );
+  say(
+    "RNL_TEXT_FORMULA",
+    formulas,
+    "texts hold formulas, written as their LaTeX source",
+  );
+  say(
+    "RNL_TEXT_TILTED",
+    tilted,
+    "texts are turned by 45°; RNL turns text in quarter turns only, so they are written level",
+  );
+  say(
+    "RNL_DRAWING_NOT_EXPORTED",
+    drawings,
+    "drawing objects (arrows, leaders, callouts, lines, rectangles, circles, symbols, polarity marks, typography tokens) are not exported yet",
+  );
 }
 
 /**
