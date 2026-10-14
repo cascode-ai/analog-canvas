@@ -1,0 +1,24 @@
+{
+  "name": "@icm/rnl",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@icm/model": "workspace:*",
+    "@icm/netlist": "workspace:*"
+  },
+  "devDependencies": {
+    "@icm/devices": "workspace:*",
+    "@icm/symbols": "workspace:*"
+  }
+}
