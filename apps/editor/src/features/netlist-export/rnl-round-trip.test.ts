@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { CircuitProject } from "@icm/model";
+import {
+  resolveAnnotationPresentation,
+  resolveAnnotationText,
+  resolveDocumentLogicalNets,
+  resolveDocumentStyleProfile,
+} from "@icm/derived";
+import { flattenRichText, type CircuitProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import {
@@ -11,7 +17,11 @@ import {
   rnlOrient,
   type RnlSnapshot,
 } from "@icm/rnl";
-import { cellSymbolPinSlots } from "@icm/symbols";
+import {
+  builtInSymbols,
+  cellSymbolPinSlots,
+  createProjectSymbolResolver,
+} from "@icm/symbols";
 import { startCore } from "@rich-netlist/runtime";
 
 import { planRnlImport } from "./rnl-import";
@@ -116,6 +126,167 @@ describe("RNL round trip", () => {
     ).toEqual([]);
   });
 
+  it.each(["simulation-rc", "simulation-ota", "simulation-common-source"])(
+    "shows %s's names and net labels where it showed them",
+    async (name) => {
+      const project = example(name);
+      const { project: drawn } = await roundTrip(project);
+      const cards = new Map(cardNames(project).map((item) => [item.id, item]));
+      /** Each shown label by what it shows and where, as text. */
+      const shown = (from: CircuitProject, rename: (id: string) => string) =>
+        from.documents.flatMap((document) => {
+          const resolver = createProjectSymbolResolver(from, builtInSymbols);
+          const profile = resolveDocumentStyleProfile(document.presentation);
+          const logical = resolveDocumentLogicalNets(document);
+          return document.annotations
+            .filter(
+              (annotation) =>
+                annotation.kind === "net-label" ||
+                (annotation.kind === "instance-label" &&
+                  annotation.binding?.kind === "instance-reference"),
+            )
+            .map((annotation) => {
+              const text = resolveAnnotationText(document, annotation, logical);
+              const where = resolveAnnotationPresentation(
+                document,
+                resolver,
+                annotation,
+                profile,
+              );
+              const owner =
+                annotation.binding?.kind === "instance-reference"
+                  ? rename(annotation.binding.instanceId)
+                  : "";
+              return `${document.netlist?.name.toLowerCase()} ${annotation.kind} ${owner} ${flattenRichText(text)} at ${Math.round(where.position.x)},${Math.round(where.position.y)} ${where.alignment}`;
+            });
+        });
+      const printed = new Set(
+        [...cards.values()].map((item) => item.cell.toLowerCase()),
+      );
+      const original = shown(project, (id) => cards.get(id)?.card ?? id).filter(
+        (line) => printed.has(line.split(" ")[0]!),
+      );
+      expect(original.length).toBeGreaterThan(0);
+      expect(shown(drawn, (id) => id).sort()).toEqual(
+        expect.arrayContaining(original.sort()),
+      );
+    },
+  );
+
+  it("reads back rectangles, circles, curves and arrows", async () => {
+    const project = example("simulation-rc");
+    const document = project.documents.find(
+      (item) => item.id === project.topDocumentId,
+    )!;
+    const free = (x: number, y: number) =>
+      ({ kind: "free", position: { x, y } }) as const;
+    const base = (id: string, zIndex: number) => ({
+      id,
+      locked: false,
+      zIndex,
+      anchor: free(0, 0),
+    });
+    document.drafting = {
+      objects: [
+        {
+          ...base("back", 0),
+          kind: "rectangle",
+          center: { x: 500, y: -150 },
+          width: 160,
+          height: 80,
+          rotation: 0,
+          lineStyle: "dashed",
+          layer: "background",
+          styleOverride: { fillColor: "#eef4ff" },
+        },
+        {
+          ...base("slanted", 1),
+          kind: "rectangle",
+          center: { x: 860, y: -150 },
+          width: 80,
+          height: 40,
+          rotation: 30,
+          lineStyle: "solid",
+        },
+        {
+          ...base("circle", 2),
+          kind: "circle",
+          center: { x: 1000, y: -150 },
+          radius: 30,
+          lineStyle: "dotted",
+          styleOverride: { color: "#cc0000" },
+        },
+        {
+          ...base("curve", 3),
+          kind: "construction-line",
+          points: [
+            { x: 400, y: -300 },
+            { x: 500, y: -300 },
+            { x: 600, y: -250 },
+          ],
+          curveControls: [null, { x: 580, y: -310 }],
+          lineStyle: "dashed",
+        },
+        {
+          ...base("arrow", 4),
+          kind: "arrow",
+          from: free(400, -400),
+          to: free(560, -400),
+          styleOverride: { arrowEnd: "medium-arrow" },
+        },
+      ],
+    };
+    const { project: drawn } = await roundTrip(project);
+    const cell = drawn.documents.find(
+      (item) => item.netlist?.name === document.netlist?.name,
+    )!;
+    const objects = (cell.drafting?.objects ?? []).filter(
+      (object) => object.kind !== "text",
+    );
+    expect(objects).toEqual([
+      expect.objectContaining({
+        kind: "rectangle",
+        center: { x: 500, y: -150 },
+        width: 160,
+        height: 80,
+        rotation: 0,
+        lineStyle: "dashed",
+        layer: "background",
+        styleOverride: { fillColor: "#eef4ff" },
+      }),
+      expect.objectContaining({
+        kind: "rectangle",
+        center: { x: 860, y: -150 },
+        width: 80,
+        height: 40,
+        rotation: 30,
+      }),
+      expect.objectContaining({
+        kind: "circle",
+        center: { x: 1000, y: -150 },
+        radius: 30,
+        lineStyle: "dotted",
+        styleOverride: { color: "#cc0000" },
+      }),
+      expect.objectContaining({
+        kind: "construction-line",
+        points: [
+          { x: 400, y: -300 },
+          { x: 500, y: -300 },
+          { x: 600, y: -250 },
+        ],
+        curveControls: [null, { x: 580, y: -310 }],
+        lineStyle: "dashed",
+      }),
+      expect.objectContaining({
+        kind: "arrow",
+        from: free(400, -400),
+        to: free(560, -400),
+        styleOverride: { arrowEnd: "medium-arrow" },
+      }),
+    ]);
+  });
+
   it("lays out a Cell's block as the RNL draws it", async () => {
     const project = example("simulation-ota");
     const { project: drawn } = await roundTrip(project);
@@ -213,7 +384,11 @@ describe("RNL round trip", () => {
         },
       ],
     });
-    expect(cell.drafting?.objects).toEqual([
+    expect(
+      cell.drafting?.objects.filter(
+        (object) => object.kind === "floating-symbol",
+      ),
+    ).toEqual([
       expect.objectContaining({
         kind: "floating-symbol",
         symbolId: "resistor",

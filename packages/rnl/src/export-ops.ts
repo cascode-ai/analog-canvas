@@ -894,6 +894,9 @@ function exportTexts(
     ) {
       write(annotation.id, text, shown.rotation, {
         ...common,
+        // A key's text takes what the scene leaves unsaid from the symbol's
+        // own label (13.3); Analog Canvas's labels stand on their baseline.
+        valign: "baseline",
         attach: owner.object,
         key:
           binding?.kind === "instance-value" && binding.parameter

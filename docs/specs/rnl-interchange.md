@@ -108,10 +108,21 @@ the RNL language and its runtime belong to rnl.
   - wires with every bend, a route from each pin or point to the next;
     junctions at named points; wires of no length, which join what touches,
     are left to touching;
-  - wire direction arrows, current markers and floating symbols.
-- Not read back yet: labels and texts (parts get their default labels),
-  drawing shapes, voltage markers, and Analog Canvas's own bodies, such as
-  an op-amp's, which come back as Cells.
+  - wire direction arrows, current markers and floating symbols;
+  - labels where RNL shows them: a part's name and values bound to it, a
+    Cell Pin's name, a net's name as a net label claiming the net by the
+    name it has; any other text as a drawing text; a label a symbol alone
+    gives is left to the symbol, and a part with no label gets its default;
+  - drawing shapes: rectangles (a closed line round a turned rectangle as a
+    turned one), circles, lines and curves (a cubic leg as the quadratic it
+    was raised from, or the nearest), arrows; the bottom layer is the
+    background plane.
+- Not read back yet: voltage markers (their texts come in as texts), what
+  only an Analog Canvas object kind says (a callout, a leader, an open or
+  dotted arrow head, an outlined arrow, polarity marks: they come in as the
+  shapes and texts they draw), ellipses and arcs. A file holding Analog
+  Canvas's own bodies, such as an op-amp's, does not import yet: the SPICE /
+  SCS importer refuses the behavioral source the body is written with.
 - A part RNL does not place keeps the importer's placement, and a net it does
   not wire keeps its guide lines. A place or corner off Analog Canvas's grid
   (10 for a part, 2 for a corner) is moved onto it.

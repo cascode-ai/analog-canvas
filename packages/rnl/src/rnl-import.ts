@@ -1,9 +1,11 @@
 import {
   resolveDocumentStyleProfile,
+  richTextMetrics,
   supplyMarkerForSymbol,
 } from "@icm/derived";
 import {
   deriveStableId,
+  flattenRichText,
   type CircuitProject,
   type Instance,
   type RouteBranch,
@@ -61,7 +63,23 @@ export interface RnlLevelSnapshot {
     }[];
     wires: readonly RnlWireView[];
     texts: readonly RnlTextView[];
+    /** A subcircuit's own symbol, by its id in `symbols`. */
+    symbol?: Slot<string>;
+    /** The scene's graphics (13.4), in the order written. */
+    shapes?: readonly RnlShapeView[];
   };
+}
+
+export interface RnlShapeView {
+  id: string;
+  /** line, rectangle, circle, ellipse, arc or bezier. */
+  shape: string;
+  /** A centred shape's centre, else its points. */
+  points: readonly Point[];
+  params: Readonly<Record<string, string | number>>;
+  style: Readonly<Record<string, string | number | boolean>>;
+  /** bottom, middle or top. */
+  layer: string;
 }
 
 export interface RnlSymbolRef {
@@ -362,9 +380,28 @@ function applyLevel(
     return { x, y };
   };
 
+  // The Cell's own block, as its level's symbol draws it (9.2.6), or as a
+  // call of it is drawn.
+  const laidOut = new Set<string>();
+  const layOut = (
+    cell: SchematicDocument,
+    definition: RnlSymbolDefinitionView,
+  ) => {
+    if (laidOut.has(cell.id)) return;
+    laidOut.add(cell.id);
+    const layout = cellSymbolOf(cell, definition);
+    cell.presentation.cellSymbol = layout.cellSymbol;
+    if (!layout.exact)
+      warn(
+        "RNL_IMPORT_BLOCK_APPROXIMATE",
+        `${cell.name}'s block is drawn as a box: RNL draws it otherwise, or off the grid`,
+      );
+  };
+  const own = model.symbol?.value ? symbols.get(model.symbol.value) : null;
+  if (own?.definition) layOut(document, own.definition);
+
   // Parts: placed, turned and in the variant their symbol stands for.
   const unplaced: string[] = [];
-  const laidOut = new Set<string>();
   for (const object of model.objects) {
     if (object.kind !== "instance") continue;
     const name = rnlIdName(object.host[0] ?? object.id, "#");
@@ -418,16 +455,7 @@ function applyLevel(
       symbol?.definition && binding?.kind === "subcircuit"
         ? project.documents.find((item) => item.id === binding.childDocumentId)
         : undefined;
-    if (child && symbol?.definition && !laidOut.has(child.id)) {
-      laidOut.add(child.id);
-      const layout = cellSymbolOf(child, symbol.definition);
-      child.presentation.cellSymbol = layout.cellSymbol;
-      if (!layout.exact)
-        warn(
-          "RNL_IMPORT_BLOCK_APPROXIMATE",
-          `${child.name}'s block is drawn as a box: RNL draws it otherwise, or off the grid`,
-        );
-    }
+    if (child && symbol?.definition) layOut(child, symbol.definition);
   }
   if (unplaced.length)
     warn(
@@ -706,7 +734,8 @@ function applyLevel(
       `${skipped} wires end somewhere Analog Canvas cannot name, or join several nets; they are left out`,
     );
 
-  // Marks on wires, and figures.
+  // Marks on wires, and figures. A current marker's label is the marker's.
+  const consumed = new Set<string>();
   const headLength = resolveDocumentStyleProfile(document.presentation)
     .annotations.arrowHeadLength;
   /** The route leg a point lies on, and how far along it. */
@@ -826,17 +855,474 @@ function applyLevel(
       locked: false,
       markerKind: "current",
     });
+    consumed.add(label!.id);
   }
   for (const [definition, count] of marks)
     warn(
       "RNL_IMPORT_MARK_SKIPPED",
       `${count} ${definition} marks are not read back yet`,
     );
+
+  importTexts(document, level, model, {
+    consumed,
+    glyphOf,
+    instanceOf,
+    netOf,
+  });
+  const unread = importShapes(document, level, model.shapes ?? []);
+  if (unread)
+    warn(
+      "RNL_IMPORT_SHAPE_SKIPPED",
+      `${unread} ellipses and arcs are not read back yet`,
+    );
   if (snapped)
     warn(
       "RNL_IMPORT_SNAPPED",
       `${snapped} places and corners RNL puts off Analog Canvas's grid are moved onto it`,
     );
+}
+
+/**
+ * The texts a level's RNL writes, as Analog Canvas labels and texts: a
+ * part's name and values as its bound labels, a Cell Pin's name as its pin
+ * label, a net's as a net label claiming the net by its own name, anything
+ * else as a drawing text. Each stands where RNL puts it, on its baseline;
+ * a label its symbol alone gives is left to the symbol.
+ */
+function importTexts(
+  document: SchematicDocument,
+  level: RnlLevelSnapshot,
+  model: NonNullable<RnlLevelSnapshot["model"]>,
+  {
+    consumed,
+    glyphOf,
+    instanceOf,
+    netOf,
+  }: {
+    consumed: ReadonlySet<string>;
+    glyphOf: ReadonlyMap<string, { instanceId: string; pinName: string }>;
+    instanceOf: (name: string) => Instance | undefined;
+    netOf: (id: string) => string | undefined;
+  },
+): void {
+  const profile = resolveDocumentStyleProfile(document.presentation);
+  const scaled = (size: number | null, base: number) => {
+    const scale = size === null ? 1 : (size * AC_UNITS_PER_RNL_UNIT) / base;
+    return Math.abs(scale - 1) > 1e-3
+      ? { sizeScale: Math.round(scale * 1e4) / 1e4 }
+      : {};
+  };
+  const labelled = new Set(
+    document.annotations.flatMap((item) =>
+      item.anchor.kind === "object" ? [item.anchor.objectId] : [],
+    ),
+  );
+  model.texts.forEach((text, index) => {
+    if (!text.written || consumed.has(text.id)) return;
+    const content = acRichText(text.lines);
+    if (!content) return;
+    // Labels and texts stand on whole units.
+    const exact = acPoint(text.anchor);
+    const at = { x: Math.round(exact.x) + 0, y: Math.round(exact.y) + 0 };
+    const id = deriveStableId("annotation", document.id, level.id, text.id);
+    const rotation = ((360 - text.rotate) % 360) as 0 | 90 | 180 | 270;
+    const alignment = (
+      ["start", "middle", "end"].includes(text.halign) ? text.halign : "start"
+    ) as "start" | "middle" | "end";
+    const color =
+      typeof text.style["textcolor"] === "string"
+        ? { textColor: text.style["textcolor"] }
+        : {};
+    const shown = flattenRichText(content);
+    const onObject = (instance: Instance) =>
+      instance.placement
+        ? {
+            kind: "object" as const,
+            objectId: instance.id,
+            localOffset: {
+              x: at.x - instance.placement.position.x,
+              y: at.y - instance.placement.position.y,
+            },
+            fallbackPosition: at,
+          }
+        : { kind: "free" as const, position: at };
+    const common = {
+      alignment,
+      rotation,
+      locked: false,
+      ...color,
+    };
+
+    // A part's labels, bound to its name or values.
+    const part = text.attach && rnlIdName(text.attach, "#");
+    const instance = part ? instanceOf(part) : undefined;
+    const glyph = text.attach ? glyphOf.get(text.attach) : undefined;
+    const pin = glyph && instanceOf(glyph.instanceId);
+    const terminal = pin
+      ? document.netlist?.terminals.find((item) =>
+          item.interfaceInstanceIds.includes(pin.id),
+        )
+      : undefined;
+    if (instance && text.key === "name" && !labelled.has(instance.id)) {
+      labelled.add(instance.id);
+      document.annotations.push({
+        id: `instance-label-${instance.id}`,
+        kind: "instance-label",
+        binding: { kind: "instance-reference", instanceId: instance.id },
+        ...(shown === instance.reference ? { formatOverride: content } : {}),
+        anchor: onObject(instance),
+        ...common,
+        ...scaled(text.size, profile.typography.instanceFontSize),
+      });
+      return;
+    }
+    const parameter =
+      text.key && text.key !== "value" && text.key !== "name"
+        ? text.key
+        : undefined;
+    if (
+      instance &&
+      (text.key === "value" ||
+        (parameter && instance.netlist?.parameters[parameter] !== undefined))
+    ) {
+      document.annotations.push({
+        id,
+        kind: "instance-value",
+        binding: {
+          kind: "instance-value",
+          instanceId: instance.id,
+          ...(parameter ? { parameter } : {}),
+        },
+        anchor: onObject(instance),
+        ...common,
+        ...scaled(text.size, profile.typography.instanceFontSize),
+      });
+      return;
+    }
+    if (pin && terminal && text.key === "name" && !labelled.has(pin.id)) {
+      labelled.add(pin.id);
+      document.annotations.push({
+        id: `instance-label-${pin.id}`,
+        kind: "instance-label",
+        binding: { kind: "cell-terminal-name", terminalId: terminal.id },
+        ...(shown === terminal.name ? { formatOverride: content } : {}),
+        anchor: onObject(pin),
+        ...common,
+        ...scaled(text.size, profile.typography.instanceFontSize),
+      });
+      return;
+    }
+
+    // A net's label: the net named by its own name, which it already has.
+    const netId = text.attach ? netOf(text.attach) : undefined;
+    const named = document.importReference?.nets.find(
+      (item) => item.id === netId,
+    );
+    if (netId && named) {
+      document.annotations.push({
+        id,
+        kind: "net-label",
+        binding: { kind: "net-name", netId },
+        netId,
+        ...(shown === named.name ? { formatOverride: content } : {}),
+        anchor: { kind: "free", position: at },
+        ...common,
+        ...scaled(text.size, profile.typography.netFontSize),
+      });
+      document.connectivityEvidence.push({
+        id: deriveStableId("connectivity-evidence", document.id, id),
+        kind: "name-claim",
+        netId,
+        name: named.name,
+        owner: { kind: "net-label", annotationId: id },
+        scope: named.scope,
+      });
+      return;
+    }
+
+    // Anything else is a drawing text, bold unless RNL sets it plain.
+    document.drafting ??= { objects: [] };
+    const bold = text.style["bold"] === true || boldThroughout(text.lines);
+    document.drafting.objects.push({
+      id: deriveStableId(
+        "drafting",
+        document.id,
+        level.id,
+        text.id,
+        String(index),
+      ),
+      locked: false,
+      zIndex: document.drafting.objects.length,
+      anchor: { kind: "free", position: at },
+      kind: "text",
+      content,
+      alignment,
+      rotation,
+      ...(bold && !text.style["italic"] && !color.textColor && !text.size
+        ? {}
+        : {
+            styleOverride: {
+              ...(bold ? {} : { weight: "normal" as const }),
+              ...(text.style["italic"] === true ? { italic: true } : {}),
+              ...(color.textColor ? { color: color.textColor } : {}),
+              ...scaled(text.size, richTextMetrics(profile).fontSize),
+            },
+          }),
+    });
+  });
+}
+
+/**
+ * The scene's graphics as drawing objects, in the order RNL draws them: a
+ * rectangle or circle as one, a closed line that is a turned rectangle as a
+ * turned rectangle, a line or curve with an arrow as an arrow, any other as
+ * a construction line (a cubic leg as the quadratic it was raised from, or
+ * the nearest one). The bottom layer is the background plane. Ellipses and
+ * arcs are not read yet; the count of them is returned.
+ */
+function importShapes(
+  document: SchematicDocument,
+  level: RnlLevelSnapshot,
+  shapes: readonly RnlShapeView[],
+): number {
+  if (!shapes.length) return 0;
+  const profile = resolveDocumentStyleProfile(document.presentation);
+  let unread = 0;
+  document.drafting ??= { objects: [] };
+  const objects = document.drafting.objects;
+  const whole = ([x, y]: Point) => {
+    const point = acPoint([x, y]);
+    return { x: Math.round(point.x) + 0, y: Math.round(point.y) + 0 };
+  };
+  for (const shape of shapes) {
+    const style = shape.style;
+    const lineStyle =
+      style["linestyle"] === "dashed" || style["linestyle"] === "dotted"
+        ? style["linestyle"]
+        : "solid";
+    const color =
+      typeof style["linecolor"] === "string" ? style["linecolor"] : undefined;
+    const fillColor =
+      shape.params["fill"] === "fillcolor" &&
+      typeof style["fillcolor"] === "string"
+        ? style["fillcolor"]
+        : shape.params["fill"] === "linecolor"
+          ? (color ?? profile.foreground)
+          : undefined;
+    const width = Number(style["linewidth"]);
+    const strokeScale =
+      width > 0
+        ? Math.min(
+            4,
+            Math.max(
+              0.25,
+              (width * AC_UNITS_PER_RNL_UNIT) / profile.strokes.annotation,
+            ),
+          )
+        : undefined;
+    const styleOverride = {
+      ...(color ? { color } : {}),
+      ...(strokeScale && Math.abs(strokeScale - 1) > 1e-3
+        ? { strokeScale: Math.round(strokeScale * 1e3) / 1e3 }
+        : {}),
+    };
+    const base = (anchor: { x: number; y: number }) => ({
+      id: deriveStableId("drafting", document.id, level.id, shape.id),
+      locked: false,
+      zIndex: objects.length,
+      anchor: { kind: "free" as const, position: anchor },
+    });
+    const layer =
+      shape.layer === "bottom" ? { layer: "background" as const } : {};
+    const filled = fillColor ? { fillColor } : {};
+    const points = shape.points.map(whole);
+    if (shape.shape === "rectangle" || shape.shape === "circle") {
+      const center = points[0]!;
+      const size = (key: string) =>
+        Math.max(
+          1,
+          Math.round(Number(shape.params[key]) * AC_UNITS_PER_RNL_UNIT),
+        );
+      objects.push(
+        shape.shape === "rectangle"
+          ? {
+              ...base(center),
+              kind: "rectangle",
+              center,
+              width: size("width"),
+              height: size("height"),
+              rotation: 0,
+              lineStyle,
+              ...layer,
+              styleOverride: { ...styleOverride, ...filled },
+            }
+          : {
+              ...base(center),
+              kind: "circle",
+              center,
+              radius: size("radius"),
+              lineStyle,
+              ...layer,
+              styleOverride: { ...styleOverride, ...filled },
+            },
+      );
+      continue;
+    }
+    if (shape.shape !== "line" && shape.shape !== "bezier") {
+      unread += 1;
+      continue;
+    }
+    const turned =
+      shape.shape === "line"
+        ? turnedRectangle(shape.points.map((point) => acPoint(point)))
+        : null;
+    if (turned) {
+      objects.push({
+        ...base(turned.center),
+        kind: "rectangle",
+        ...turned,
+        lineStyle,
+        ...layer,
+        styleOverride: { ...styleOverride, ...filled },
+      });
+      continue;
+    }
+    const path =
+      shape.shape === "bezier"
+        ? quadraticPath(points)
+        : { points, controls: [] as ({ x: number; y: number } | null)[] };
+    const arrow = String(shape.params["arrow"] ?? "none");
+    if (arrow !== "none" && path.points.length >= 2) {
+      const ends = {
+        ...(arrow === "start" || arrow === "both"
+          ? { arrowStart: "medium-arrow" as const }
+          : {}),
+        ...(arrow === "end" || arrow === "both"
+          ? { arrowEnd: "medium-arrow" as const }
+          : { arrowEnd: "none" as const }),
+      };
+      objects.push({
+        ...base(path.points[0]!),
+        kind: "arrow",
+        from: { kind: "free", position: path.points[0]! },
+        to: { kind: "free", position: path.points.at(-1)! },
+        ...(path.points.length > 2
+          ? { waypoints: path.points.slice(1, -1) }
+          : {}),
+        ...(path.controls.some(Boolean)
+          ? { curveControls: path.controls }
+          : {}),
+        styleOverride: { ...styleOverride, ...ends },
+      });
+      continue;
+    }
+    objects.push({
+      ...base(path.points[0]!),
+      kind: "construction-line",
+      points: path.points,
+      ...(path.controls.some(Boolean) ? { curveControls: path.controls } : {}),
+      lineStyle,
+      ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
+    });
+  }
+  return unread;
+}
+
+/** A closed line round four right-angled corners, as a turned rectangle. */
+function turnedRectangle(points: readonly { x: number; y: number }[]): {
+  center: { x: number; y: number };
+  width: number;
+  height: number;
+  rotation: number;
+} | null {
+  if (points.length !== 5) return null;
+  const [a, b, c, d, e] = points as [
+    { x: number; y: number },
+    { x: number; y: number },
+    { x: number; y: number },
+    { x: number; y: number },
+    { x: number; y: number },
+  ];
+  if (Math.abs(a.x - e.x) > 1 || Math.abs(a.y - e.y) > 1) return null;
+  const side = (p: typeof a, q: typeof a) => ({ x: q.x - p.x, y: q.y - p.y });
+  const ab = side(a, b);
+  const bc = side(b, c);
+  const cd = side(c, d);
+  const right = (u: typeof ab, v: typeof ab) =>
+    Math.abs(u.x * v.x + u.y * v.y) <=
+    2 * (Math.hypot(u.x, u.y) + Math.hypot(v.x, v.y));
+  if (
+    !right(ab, bc) ||
+    !right(bc, cd) ||
+    Math.abs(ab.x + cd.x) > 2 ||
+    Math.abs(ab.y + cd.y) > 2
+  )
+    return null;
+  const width = Math.round(Math.hypot(ab.x, ab.y));
+  const height = Math.round(Math.hypot(bc.x, bc.y));
+  if (!width || !height) return null;
+  const degrees = (Math.atan2(ab.y, ab.x) * 180) / Math.PI;
+  return {
+    center: {
+      x: Math.round((a.x + c.x) / 2) + 0,
+      y: Math.round((a.y + c.y) / 2) + 0,
+    },
+    width,
+    height,
+    rotation: Math.round(((degrees % 360) + 360) % 360) % 360,
+  };
+}
+
+/**
+ * A cubic Bézier path as Analog Canvas's: its ends, each leg's quadratic
+ * control (null for a straight leg), the one a raised quadratic came from
+ * or the nearest.
+ */
+function quadraticPath(points: readonly { x: number; y: number }[]): {
+  points: { x: number; y: number }[];
+  controls: ({ x: number; y: number } | null)[];
+} {
+  const ends = [points[0]!];
+  const controls: ({ x: number; y: number } | null)[] = [];
+  for (let index = 0; index + 3 < points.length; index += 3) {
+    const [from, c1, c2, to] = points.slice(index, index + 4) as [
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+    ];
+    const third = (t: number) => ({
+      x: from.x + (to.x - from.x) * t,
+      y: from.y + (to.y - from.y) * t,
+    });
+    const near = (p: typeof from, q: typeof from) =>
+      Math.abs(p.x - q.x) <= 1 && Math.abs(p.y - q.y) <= 1;
+    const straight = near(c1, third(1 / 3)) && near(c2, third(2 / 3));
+    ends.push(to);
+    controls.push(
+      straight
+        ? null
+        : {
+            x:
+              Math.round(
+                (from.x + 1.5 * (c1.x - from.x) + to.x + 1.5 * (c2.x - to.x)) /
+                  2,
+              ) + 0,
+            y:
+              Math.round(
+                (from.y + 1.5 * (c1.y - from.y) + to.y + 1.5 * (c2.y - to.y)) /
+                  2,
+              ) + 0,
+          },
+    );
+  }
+  return { points: ends, controls };
+}
+
+/** Whether every run of a text is bold, as a drawing text is by default. */
+function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
+  const runs = lines.flat();
+  return runs.length > 0 && runs.every((run) => run.style.bold);
 }
 
 /**
