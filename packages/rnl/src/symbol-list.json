@@ -1,6 +1,7 @@
 [
   {
     "symbol": "$RESISTOR",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "resistor",
     "variant": null,
@@ -40,6 +41,7 @@
   },
   {
     "symbol": "$VARIABLE_RESISTOR",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "variable-resistor",
     "variant": null,
@@ -79,6 +81,7 @@
   },
   {
     "symbol": "$CAPACITOR",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "capacitor",
     "variant": null,
@@ -118,6 +121,7 @@
   },
   {
     "symbol": "$VARIABLE_CAPACITOR",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "variable-capacitor",
     "variant": null,
@@ -157,6 +161,7 @@
   },
   {
     "symbol": "$INDUCTOR",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "inductor-compact",
     "variant": null,
@@ -196,6 +201,7 @@
   },
   {
     "symbol": "$VARIABLE_INDUCTOR",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "variable-inductor",
     "variant": null,
@@ -235,6 +241,7 @@
   },
   {
     "symbol": "$TRANSFORMER",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "xfmr",
     "variant": null,
@@ -298,6 +305,7 @@
   },
   {
     "symbol": "$TRANSMISSION_LINE",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -332,6 +340,7 @@
   },
   {
     "symbol": "$RC_LINE",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -361,6 +370,7 @@
   },
   {
     "symbol": "$VOLTAGE_SOURCE",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "voltage-source",
     "variant": null,
@@ -400,6 +410,7 @@
   },
   {
     "symbol": "$CURRENT_SOURCE",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "current-source",
     "variant": null,
@@ -439,6 +450,7 @@
   },
   {
     "symbol": "$BATTERY",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "battery",
     "variant": null,
@@ -478,6 +490,7 @@
   },
   {
     "symbol": "$RF_PORT",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -502,6 +515,7 @@
   },
   {
     "symbol": "$VCVS",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "vcvs",
     "variant": null,
@@ -551,6 +565,7 @@
   },
   {
     "symbol": "$VCVS_4TERM",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -585,6 +600,7 @@
   },
   {
     "symbol": "$VCCS",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "vccs",
     "variant": null,
@@ -634,6 +650,7 @@
   },
   {
     "symbol": "$VCCS_4TERM",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -668,6 +685,7 @@
   },
   {
     "symbol": "$CCCS",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "cccs",
     "variant": null,
@@ -707,6 +725,7 @@
   },
   {
     "symbol": "$CCVS",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "ccvs",
     "variant": null,
@@ -746,6 +765,7 @@
   },
   {
     "symbol": "$BEHAVIORAL_SOURCE",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -770,6 +790,7 @@
   },
   {
     "symbol": "$SWITCH",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "ideal-switch",
     "variant": null,
@@ -819,6 +840,7 @@
   },
   {
     "symbol": "$CLOSED_SWITCH",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "closed-switch",
     "variant": null,
@@ -868,6 +890,7 @@
   },
   {
     "symbol": "$EXTERNALLY_CONTROLLED_SWITCH",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "externally-controlled-switch",
     "variant": null,
@@ -924,6 +947,7 @@
   },
   {
     "symbol": "$VOLTAGE_CONTROLLED_SWITCH",
+    "definition": null,
     "package": "rnl-std-basic",
     "ac": "voltage-controlled-switch",
     "variant": null,
@@ -986,7 +1010,8 @@
     "note": "S 卡片四端都画"
   },
   {
-    "symbol": "$SPDT_SWITCH",
+    "symbol": "$SPDT_SWITCH_SYMBOL",
+    "definition": "$SPDT_SWITCH",
     "package": "rnl-std-basic",
     "ac": "spdt-switch",
     "variant": null,
@@ -1038,6 +1063,7 @@
   },
   {
     "symbol": "$GROUND_SYMBOL",
+    "definition": "$GROUND",
     "package": "rnl-std-basic",
     "ac": "ground",
     "variant": null,
@@ -1061,10 +1087,11 @@
     "undrawn_pins": [],
     "box": [-1.2, -2.7, 1.2, 0.4],
     "ac_netlist_order": null,
-    "note": "用于 $GROUND"
+    "note": ""
   },
   {
     "symbol": "$SUPPLY_SYMBOL",
+    "definition": "$SUPPLY",
     "package": "rnl-std-basic",
     "ac": "vdd-port",
     "variant": null,
@@ -1088,10 +1115,11 @@
     "undrawn_pins": [],
     "box": [-1.2, -0.4, 1.2, 2.2],
     "ac_netlist_order": null,
-    "note": "用于 $SUPPLY"
+    "note": ""
   },
   {
     "symbol": "$IO_PORT_SYMBOL",
+    "definition": "$IO_PORT",
     "package": "rnl-std-basic",
     "ac": "port",
     "variant": null,
@@ -1115,10 +1143,11 @@
     "undrawn_pins": [],
     "box": [-1.4, -0.7, 0.4, 0.7],
     "ac_netlist_order": null,
-    "note": "用于 $IO_PORT"
+    "note": ""
   },
   {
     "symbol": "$JUNCTION_SYMBOL",
+    "definition": "$JUNCTION",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -1128,10 +1157,11 @@
     "undrawn_pins": [],
     "box": null,
     "ac_netlist_order": null,
-    "note": "标记：AC 推出的圆点，用于 $JUNCTION"
+    "note": "标记：AC 推出的圆点"
   },
   {
     "symbol": "$NO_CONNECT_SYMBOL",
+    "definition": "$NO_CONNECT",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -1141,10 +1171,11 @@
     "undrawn_pins": [],
     "box": null,
     "ac_netlist_order": null,
-    "note": "标记：AC 的 NoConnect，用于 $NO_CONNECT"
+    "note": "标记：AC 的 NoConnect"
   },
   {
     "symbol": "$CURRENT_ARROW_SYMBOL",
+    "definition": "$CURRENT_ARROW",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -1154,10 +1185,11 @@
     "undrawn_pins": [],
     "box": null,
     "ac_netlist_order": null,
-    "note": "标记：AC 的电流标记，用于 $CURRENT_ARROW"
+    "note": "标记：AC 的电流标记"
   },
   {
     "symbol": "$DIODE",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "diode",
     "variant": null,
@@ -1197,6 +1229,7 @@
   },
   {
     "symbol": "$ZENER_DIODE",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "zener-diode",
     "variant": null,
@@ -1236,6 +1269,7 @@
   },
   {
     "symbol": "$NMOS",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "nmos",
     "variant": "textbook-3terminal",
@@ -1298,6 +1332,7 @@
   },
   {
     "symbol": "$NMOS_4TERM",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "nmos",
     "variant": null,
@@ -1361,6 +1396,7 @@
   },
   {
     "symbol": "$PMOS",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "pmos",
     "variant": "textbook-3terminal",
@@ -1423,6 +1459,7 @@
   },
   {
     "symbol": "$PMOS_4TERM",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "pmos",
     "variant": null,
@@ -1486,6 +1523,7 @@
   },
   {
     "symbol": "$DEPLETION_NMOS",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "depletion-nmos",
     "variant": "textbook-3terminal",
@@ -1548,6 +1586,7 @@
   },
   {
     "symbol": "$DEPLETION_NMOS_4TERM",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "depletion-nmos",
     "variant": null,
@@ -1611,6 +1650,7 @@
   },
   {
     "symbol": "$DEPLETION_PMOS",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "depletion-pmos",
     "variant": "textbook-3terminal",
@@ -1673,6 +1713,7 @@
   },
   {
     "symbol": "$DEPLETION_PMOS_4TERM",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "depletion-pmos",
     "variant": null,
@@ -1736,6 +1777,7 @@
   },
   {
     "symbol": "$NDMOS",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "ndmos",
     "variant": "standard-3terminal",
@@ -1798,6 +1840,7 @@
   },
   {
     "symbol": "$NDMOS_4TERM",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "ndmos",
     "variant": null,
@@ -1861,6 +1904,7 @@
   },
   {
     "symbol": "$PDMOS",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "pdmos",
     "variant": "standard-3terminal",
@@ -1923,6 +1967,7 @@
   },
   {
     "symbol": "$PDMOS_4TERM",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "pdmos",
     "variant": null,
@@ -1986,6 +2031,7 @@
   },
   {
     "symbol": "$NPN",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "npn",
     "variant": null,
@@ -2042,6 +2088,7 @@
   },
   {
     "symbol": "$PNP",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": "pnp",
     "variant": null,
@@ -2098,6 +2145,7 @@
   },
   {
     "symbol": "$NJFET",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": null,
     "variant": null,
@@ -2127,6 +2175,7 @@
   },
   {
     "symbol": "$PJFET",
+    "definition": null,
     "package": "rnl-std-semiconductors",
     "ac": null,
     "variant": null,
@@ -2156,6 +2205,7 @@
   },
   {
     "symbol": "$OPAMP",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": null,
     "variant": null,
@@ -2185,6 +2235,7 @@
   },
   {
     "symbol": "$OPAMP_5TERM",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": "opamp",
     "variant": null,
@@ -2246,6 +2297,7 @@
   },
   {
     "symbol": "$DIFFERENTIAL_OPAMP",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": "opamp-differential",
     "variant": null,
@@ -2319,6 +2371,7 @@
   },
   {
     "symbol": "$COMPARATOR",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": null,
     "variant": null,
@@ -2348,6 +2401,7 @@
   },
   {
     "symbol": "$COMPARATOR_5TERM",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": "comparator",
     "variant": null,
@@ -2409,6 +2463,7 @@
   },
   {
     "symbol": "$VOLTAGE_AMPLIFIER",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": "voltage-amplifier",
     "variant": null,
@@ -2458,6 +2513,7 @@
   },
   {
     "symbol": "$TRANSCONDUCTOR",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": "transconductance",
     "variant": null,
@@ -2507,6 +2563,7 @@
   },
   {
     "symbol": "$DIFFERENTIAL_TRANSCONDUCTOR",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": "differential-transconductance",
     "variant": null,
@@ -2568,6 +2625,7 @@
   },
   {
     "symbol": "$ADC",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": "adc",
     "variant": null,
@@ -2617,6 +2675,7 @@
   },
   {
     "symbol": "$DAC",
+    "definition": null,
     "package": "rnl-std-functional",
     "ac": "dac",
     "variant": null,
@@ -2666,6 +2725,7 @@
   },
   {
     "symbol": "$CENTER_TAP_INDUCTOR",
+    "definition": null,
     "package": "rnl-std-rf",
     "ac": "center-tap-inductor",
     "variant": null,
@@ -2717,6 +2777,7 @@
   },
   {
     "symbol": "$T_COIL",
+    "definition": null,
     "package": "rnl-std-rf",
     "ac": "tcoil",
     "variant": null,
@@ -2768,6 +2829,7 @@
   },
   {
     "symbol": "$AND_2INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "and-gate",
     "variant": null,
@@ -2829,6 +2891,7 @@
   },
   {
     "symbol": "$AND_3INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "and-gate-3",
     "variant": null,
@@ -2902,6 +2965,7 @@
   },
   {
     "symbol": "$AND_4INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "and-gate-4",
     "variant": null,
@@ -2987,6 +3051,7 @@
   },
   {
     "symbol": "$NAND_2INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "nand-gate",
     "variant": null,
@@ -3048,6 +3113,7 @@
   },
   {
     "symbol": "$NAND_3INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "nand-gate-3",
     "variant": null,
@@ -3121,6 +3187,7 @@
   },
   {
     "symbol": "$NAND_4INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "nand-gate-4",
     "variant": null,
@@ -3206,6 +3273,7 @@
   },
   {
     "symbol": "$OR_2INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "or-gate",
     "variant": null,
@@ -3267,6 +3335,7 @@
   },
   {
     "symbol": "$OR_3INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "or-gate-3",
     "variant": null,
@@ -3340,6 +3409,7 @@
   },
   {
     "symbol": "$OR_4INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "or-gate-4",
     "variant": null,
@@ -3425,6 +3495,7 @@
   },
   {
     "symbol": "$NOR_2INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "nor-gate",
     "variant": null,
@@ -3486,6 +3557,7 @@
   },
   {
     "symbol": "$NOR_3INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "nor-gate-3",
     "variant": null,
@@ -3559,6 +3631,7 @@
   },
   {
     "symbol": "$NOR_4INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "nor-gate-4",
     "variant": null,
@@ -3644,6 +3717,7 @@
   },
   {
     "symbol": "$XOR_2INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "xor-gate",
     "variant": null,
@@ -3705,6 +3779,7 @@
   },
   {
     "symbol": "$XOR_3INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "xor-gate-3",
     "variant": null,
@@ -3778,6 +3853,7 @@
   },
   {
     "symbol": "$XOR_4INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "xor-gate-4",
     "variant": null,
@@ -3863,6 +3939,7 @@
   },
   {
     "symbol": "$XNOR_2INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "xnor-gate",
     "variant": null,
@@ -3924,6 +4001,7 @@
   },
   {
     "symbol": "$XNOR_3INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "xnor-gate-3",
     "variant": null,
@@ -3997,6 +4075,7 @@
   },
   {
     "symbol": "$XNOR_4INPUT",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "xnor-gate-4",
     "variant": null,
@@ -4082,6 +4161,7 @@
   },
   {
     "symbol": "$BUFFER",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "buffer",
     "variant": null,
@@ -4131,6 +4211,7 @@
   },
   {
     "symbol": "$INVERTER",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "inverter",
     "variant": null,
@@ -4180,6 +4261,7 @@
   },
   {
     "symbol": "$D_FLIP_FLOP",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "d-flip-flop",
     "variant": null,
@@ -4253,6 +4335,7 @@
   },
   {
     "symbol": "$D_FLIP_FLOP_Q_ONLY",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "d-flip-flop-q",
     "variant": null,
@@ -4314,6 +4397,7 @@
   },
   {
     "symbol": "$D_FLIP_FLOP_WITH_RESET",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "d-flip-flop-reset",
     "variant": null,
@@ -4398,7 +4482,8 @@
     "note": ""
   },
   {
-    "symbol": "$DELAY_CELL",
+    "symbol": "$DELAY_CELL_SYMBOL",
+    "definition": "$DELAY_CELL",
     "package": "rnl-std-logic",
     "ac": "delay-cell",
     "variant": null,
@@ -4438,6 +4523,7 @@
   },
   {
     "symbol": "$ADDER",
+    "definition": null,
     "package": "rnl-std-signal-flow",
     "ac": "adder",
     "variant": null,
@@ -4499,6 +4585,7 @@
   },
   {
     "symbol": "$MULTIPLIER",
+    "definition": null,
     "package": "rnl-std-signal-flow",
     "ac": "multiplier",
     "variant": null,
@@ -4559,7 +4646,8 @@
     "note": ""
   },
   {
-    "symbol": "$INTEGRATOR",
+    "symbol": "$INTEGRATOR_SYMBOL",
+    "definition": "$INTEGRATOR",
     "package": "rnl-std-signal-flow",
     "ac": "integrator",
     "variant": null,
@@ -4598,7 +4686,8 @@
     "note": "纯画图：AC 不进网表"
   },
   {
-    "symbol": "$DISCRETE_TIME_INTEGRATOR",
+    "symbol": "$DISCRETE_TIME_INTEGRATOR_SYMBOL",
+    "definition": "$DISCRETE_TIME_INTEGRATOR",
     "package": "rnl-std-signal-flow",
     "ac": "discrete-time-integrator",
     "variant": null,
@@ -4637,7 +4726,8 @@
     "note": "纯画图：AC 不进网表"
   },
   {
-    "symbol": "$QUANTIZER",
+    "symbol": "$QUANTIZER_SYMBOL",
+    "definition": "$QUANTIZER",
     "package": "rnl-std-signal-flow",
     "ac": "quantizer",
     "variant": null,
@@ -4676,7 +4766,8 @@
     "note": "纯画图：AC 不进网表"
   },
   {
-    "symbol": "$UNIT_DELAY",
+    "symbol": "$UNIT_DELAY_SYMBOL",
+    "definition": "$UNIT_DELAY",
     "package": "rnl-std-signal-flow",
     "ac": "unit-delay",
     "variant": null,
@@ -4716,6 +4807,7 @@
   },
   {
     "symbol": "$CANVAS_COMPARATOR_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "comparator-inputs-swapped",
     "variant": null,
@@ -4777,6 +4869,7 @@
   },
   {
     "symbol": "$CANVAS_COMPARATOR_UNMARKED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "comparator-unmarked",
     "variant": null,
@@ -4838,6 +4931,7 @@
   },
   {
     "symbol": "$CANVAS_COMPARATOR_UNMARKED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "comparator-unmarked-inputs-swapped",
     "variant": null,
@@ -4899,6 +4993,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-crossed",
     "variant": null,
@@ -4972,6 +5067,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-crossed-inputs-swapped",
     "variant": null,
@@ -5045,6 +5141,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_LETTERED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-crossed-lettered",
     "variant": null,
@@ -5118,6 +5215,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_LETTERED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-crossed-lettered-inputs-swapped",
     "variant": null,
@@ -5191,6 +5289,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-inputs-swapped",
     "variant": null,
@@ -5264,6 +5363,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-lettered",
     "variant": null,
@@ -5337,6 +5437,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-lettered-inputs-swapped",
     "variant": null,
@@ -5410,6 +5511,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-wide",
     "variant": null,
@@ -5483,6 +5585,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-wide-crossed",
     "variant": null,
@@ -5556,6 +5659,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-wide-crossed-inputs-swapped",
     "variant": null,
@@ -5629,6 +5733,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_LETTERED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-wide-crossed-lettered",
     "variant": null,
@@ -5702,6 +5807,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_LETTERED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-wide-crossed-lettered-inputs-swapped",
     "variant": null,
@@ -5775,6 +5881,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-wide-inputs-swapped",
     "variant": null,
@@ -5848,6 +5955,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_LETTERED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-wide-lettered",
     "variant": null,
@@ -5921,6 +6029,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_LETTERED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-differential-wide-lettered-inputs-swapped",
     "variant": null,
@@ -5994,6 +6103,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-inputs-swapped",
     "variant": null,
@@ -6055,6 +6165,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_LETTERED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-lettered",
     "variant": null,
@@ -6116,6 +6227,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_LETTERED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-lettered-inputs-swapped",
     "variant": null,
@@ -6177,6 +6289,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-wide",
     "variant": null,
@@ -6238,6 +6351,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-wide-inputs-swapped",
     "variant": null,
@@ -6299,6 +6413,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE_LETTERED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-wide-lettered",
     "variant": null,
@@ -6360,6 +6475,7 @@
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE_LETTERED_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "opamp-wide-lettered-inputs-swapped",
     "variant": null,
@@ -6421,6 +6537,7 @@
   },
   {
     "symbol": "$CANVAS_VOLTAGE_AMPLIFIER_LETTERED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "voltage-amplifier-lettered",
     "variant": null,
@@ -6470,6 +6587,7 @@
   },
   {
     "symbol": "$CANVAS_DIFFERENTIAL_TRANSCONDUCTANCE_INPUTS_SWAPPED",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "differential-transconductance-inputs-swapped",
     "variant": null,
@@ -6531,6 +6649,7 @@
   },
   {
     "symbol": "$CANVAS_INDUCTOR_LARGE",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "inductor",
     "variant": null,
@@ -6570,6 +6689,7 @@
   },
   {
     "symbol": "$CANVAS_SIMPLE_SWITCH",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "simple-switch",
     "variant": null,
@@ -6619,6 +6739,7 @@
   },
   {
     "symbol": "$CANVAS_SIMPLE_SPDT_SWITCH",
+    "definition": "$SPDT_SWITCH",
     "package": "analog-canvas-extensions",
     "ac": "simple-spdt-switch",
     "variant": null,
@@ -6670,6 +6791,7 @@
   },
   {
     "symbol": "$CANVAS_PORT_FILLED",
+    "definition": "$IO_PORT",
     "package": "analog-canvas-extensions",
     "ac": "port-filled",
     "variant": null,
@@ -6693,10 +6815,11 @@
     "undrawn_pins": [],
     "box": [-1.4, -0.7, 0.4, 0.7],
     "ac_netlist_order": null,
-    "note": "边界：用于 $IO_PORT"
+    "note": "边界"
   },
   {
     "symbol": "$CANVAS_CURRENT_SOURCE_DIAMOND",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "current-source",
     "variant": "diamond",
@@ -6736,6 +6859,7 @@
   },
   {
     "symbol": "$CANVAS_VCCS_DIAMOND",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "vccs",
     "variant": "diamond",
@@ -6785,6 +6909,7 @@
   },
   {
     "symbol": "$CANVAS_CCCS_DIAMOND",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "cccs",
     "variant": "diamond",
@@ -6824,6 +6949,7 @@
   },
   {
     "symbol": "$CANVAS_PULSE_VOLTAGE_SOURCE",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "pulse-voltage-source",
     "variant": null,
@@ -6863,6 +6989,7 @@
   },
   {
     "symbol": "$CANVAS_CHOPPER",
+    "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "chopper",
     "variant": null,

@@ -102,16 +102,10 @@ export interface RnlExportDiagnostic {
 }
 
 /**
- * The RNL definition each drawn glyph stands for: the symbol draws it, the
- * definition says what it is (standard package `rnl-std-basic`).
+ * The virtual elements a glyph stands for (standard package `rnl-std-basic`),
+ * with the prefix of their usages' names. The mapping table says which
+ * definition a glyph's symbol draws.
  */
-const GLYPH_DEFINITIONS: Readonly<Record<string, string>> = {
-  $GROUND_SYMBOL: "$GROUND",
-  $SUPPLY_SYMBOL: "$SUPPLY",
-  $IO_PORT_SYMBOL: "$IO_PORT",
-  $CANVAS_PORT_FILLED: "$IO_PORT",
-};
-
 const USAGE_PREFIX: Readonly<Record<string, string>> = {
   $GROUND: "gnd",
   $SUPPLY: "vdd",
@@ -336,8 +330,8 @@ function exportCell(
             orient,
           }
         : {};
-    const definition = symbol && GLYPH_DEFINITIONS[symbol.symbol];
-    if (symbol && definition) {
+    const definition = symbol?.definition;
+    if (symbol && definition && USAGE_PREFIX[definition]) {
       const pin = symbol.pins[0]?.acPin;
       const net = pin ? netOfPin(instance.id, pin) : undefined;
       if (!net) {

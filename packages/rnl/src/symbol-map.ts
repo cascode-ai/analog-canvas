@@ -35,6 +35,12 @@ export interface RnlPin {
 export interface RnlSymbol {
   /** The RNL symbol, such as `$NMOS`. */
   symbol: string;
+  /**
+   * The definition whose usages the symbol draws, such as `$GROUND` for
+   * `$GROUND_SYMBOL`: a virtual element, a mark or a drawing-only part. Null
+   * for a device's symbol, which RNL sets on the netlist's own instance.
+   */
+  definition: string | null;
   /** The RNL package that defines it, such as `rnl-std-basic`. */
   package: string;
   /** The Analog Canvas symbol and variant it draws, or null for RNL-only symbols. */
@@ -61,6 +67,7 @@ export interface RnlSymbol {
 
 interface ListEntry {
   symbol: string;
+  definition: string | null;
   package: string;
   ac: string | null;
   variant: string | null;
@@ -81,6 +88,7 @@ const point = (values: readonly number[]): RnlPoint => [values[0]!, values[1]!];
 export const RNL_SYMBOLS: readonly RnlSymbol[] = (list as ListEntry[]).map(
   (entry) => ({
     symbol: entry.symbol,
+    definition: entry.definition,
     package: entry.package,
     ac: entry.ac,
     variant: entry.variant,

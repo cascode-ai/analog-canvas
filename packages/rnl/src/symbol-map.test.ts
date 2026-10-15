@@ -73,6 +73,19 @@ describe("the RNL symbol list", () => {
     expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");
   });
 
+  it("names the definition a glyph or a drawing-only part draws", () => {
+    expect(rnlSymbolFor("ground")).toMatchObject({
+      symbol: "$GROUND_SYMBOL",
+      definition: "$GROUND",
+    });
+    expect(rnlSymbolFor("port-filled")?.definition).toBe("$IO_PORT");
+    expect(rnlSymbolFor("spdt-switch")).toMatchObject({
+      symbol: "$SPDT_SWITCH_SYMBOL",
+      definition: "$SPDT_SWITCH",
+    });
+    expect(rnlSymbolFor("resistor")?.definition).toBeNull();
+  });
+
   it("registers each symbol by the agreed rules", () => {
     for (const entry of drawnFromCanvas)
       expect(entry.offset, entry.symbol).toEqual(registration(entry.ac!));
