@@ -109,7 +109,7 @@ const GLYPH_DEFINITIONS: Readonly<Record<string, string>> = {
   $GROUND: "$GND",
   $SUPPLY_BAR: "$SUPPLY",
   $PORT_TAG: "$IOPORT",
-  $AC_PORT_FILLED: "$IOPORT",
+  $CANVAS_PORT_FILLED: "$IOPORT",
 };
 
 const USAGE_PREFIX: Readonly<Record<string, string>> = {
@@ -119,17 +119,14 @@ const USAGE_PREFIX: Readonly<Record<string, string>> = {
 };
 
 /**
- * Packages the standard package `rnl-std` brings in by itself (16.3): what a
- * netlist with no RNL needs to be drawn. A file names every other package it
- * uses. The split is rnl-dev's draft, not yet in the standard.
+ * Packages the standard package `rnl-std` brings in by itself (16.3): they
+ * draw every element SPICE and Spectre read natively, all but subcircuit
+ * calls. A file names every other package it uses. The split is rnl-dev's
+ * draft, not yet in the standard.
  */
-const IMPLICIT_PACKAGES = new Set([
-  "rnl-std-basic",
-  "rnl-std-semiconductors",
-  "rnl-std-marks",
-]);
+const IMPLICIT_PACKAGES = new Set(["rnl-std-basic", "rnl-std-semiconductors"]);
 
-/** The package of Analog Canvas's appearance variants; not standard. */
+/** The package of Analog Canvas's appearance variants and chopper; not standard. */
 const AC_PACKAGE = "analog-canvas-extensions";
 
 /**

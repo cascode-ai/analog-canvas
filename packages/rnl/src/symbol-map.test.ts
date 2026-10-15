@@ -61,6 +61,18 @@ describe("the RNL symbol list", () => {
     ).toEqual([]);
   });
 
+  it("takes the chopper and appearance variants from Analog Canvas's package", () => {
+    expect(rnlSymbolFor("chopper")).toMatchObject({
+      symbol: "$CANVAS_CHOPPER",
+      package: "analog-canvas-extensions",
+    });
+    expect(rnlSymbolFor("opamp")).toMatchObject({
+      symbol: "$OPAMP5",
+      package: "rnl-std-functional",
+    });
+    expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");
+  });
+
   it("registers each symbol by the agreed rules", () => {
     for (const entry of drawnFromCanvas)
       expect(entry.offset, entry.symbol).toEqual(registration(entry.ac!));

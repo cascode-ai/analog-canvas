@@ -34,7 +34,7 @@ the RNL language and its runtime belong to rnl.
   body's definition and its calls move together, so the circuit is the same;
   `SPICE` and `SCS` keep the editor's order.
 - Each part is drawn with the RNL symbol the mapping table names, from a
-  standard package or, for an appearance variant, the
+  standard package or, for an appearance variant or the chopper, the
   `analog-canvas-extensions` package; it is placed at that symbol's
   registration point and turned by one of RNL's eight orientations.
 - The file declares each package it uses that `rnl-std` does not bring in by

@@ -284,7 +284,12 @@ describe("what RNL cannot write", () => {
 
   it.each([
     ["opamp", "$OPAMP5", "rnl-std-functional", false],
-    ["opamp-lettered", "$AC_OPAMP_LETTERED", "analog-canvas-extensions", true],
+    [
+      "opamp-lettered",
+      "$CANVAS_OPAMP_LETTERED",
+      "analog-canvas-extensions",
+      true,
+    ],
   ] as const)(
     "declares the package of %s's symbol %s, %s, and warns only of a non-standard one",
     (symbolId, symbol, name, nonStandard) => {
