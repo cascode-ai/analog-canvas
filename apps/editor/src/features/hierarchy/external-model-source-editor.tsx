@@ -820,40 +820,6 @@ export function ExternalModelSourceEditor({
         className="external-model-source-view"
         hidden={customSymbols && view !== "circuit"}
       >
-        {customSymbols && !existing && !selected ? (
-          <label className="component-definition-template">
-            Start from{" "}
-            <select
-              aria-label="Circuit template"
-              value=""
-              onChange={(event) => {
-                const template = event.currentTarget.value;
-                if (!template) return;
-                onRequestLeave(() =>
-                  editDraft({
-                    language: "spice",
-                    entryPath: "model.spice",
-                    files: [
-                      {
-                        path: "model.spice",
-                        text:
-                          template === "rc"
-                            ? ".subckt rc_lowpass IN OUT VSS params: R=10k C=10n\nR1 IN OUT {R}\nC1 OUT VSS {C}\n.ends rc_lowpass\n"
-                            : ".subckt finite_gain IN OUT VSS params: GAIN=10\nE1 OUT VSS IN VSS {GAIN}\nRin IN VSS 1T\n.ends finite_gain\n",
-                      },
-                    ],
-                    dependencies: [],
-                    entry: "",
-                  }),
-                );
-              }}
-            >
-              <option value="">Blank source</option>
-              <option value="rc">RC low-pass (SPICE)</option>
-              <option value="gain">Finite-gain amplifier (SPICE)</option>
-            </select>
-          </label>
-        ) : null}
         <div className="netlist-code-controls">
           <div className="netlist-code-selects">
             <NetlistCodeSelect

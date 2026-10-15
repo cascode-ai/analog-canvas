@@ -987,16 +987,13 @@ export default function ComponentDefinitionEditor(
       ) : null}
       {!native ? (
         <>
-          <p className="component-definition-note">
-            {parsed.definition &&
-            componentCapability({ definition: parsed.definition }) ===
-              "symbol-only"
-              ? "Symbol only · add a circuit implementation to simulate."
-              : import.meta.env?.ICM_DESKTOP
-                ? "Apply the definition, then save it to the local library for reuse."
-                : "Apply locally; Publish shares an applied version in User Defined."}
-            {!user && authReady ? " Sign in to Publish." : ""}
-          </p>
+          {parsed.definition &&
+          componentCapability({ definition: parsed.definition }) ===
+            "symbol-only" ? (
+            <p className="component-definition-note">
+              Symbol only · add a circuit implementation to simulate.
+            </p>
+          ) : null}
           {parsed.definition ? (
             <label className="component-definition-name">
               Display name{" "}
@@ -1067,10 +1064,6 @@ export default function ComponentDefinitionEditor(
                       ))}
                     </ul>
                   ) : null}
-                  <small>
-                    {previewDefinition.symbol.primitives.length} drawing
-                    primitives · {previewDefinition.symbol.pins.length} pins
-                  </small>
                 </>
               ) : (
                 <p>Fix the code to update the preview.</p>
@@ -1116,56 +1109,34 @@ export default function ComponentDefinitionEditor(
           </footer>
         </>
       ) : null}
-      {native ? (
-        <>
-          <p className="component-definition-note">
-            {import.meta.env?.ICM_DESKTOP
-              ? nativeDirty || !nativeReady
-                ? "Apply a complete definition before saving to the local library."
-                : "Save this applied version to reuse it in other local projects."
-              : authReady && !user
-                ? "Sign in to publish."
-                : nativeDirty || !nativeReady
-                  ? "Apply a complete definition before publishing."
-                  : "Publish shares this applied version in User Defined."}
-          </p>
-          {notice ? <p role="status">{notice}</p> : null}
-        </>
-      ) : null}
-      {!import.meta.env?.ICM_DESKTOP && (
+      {native && notice ? <p role="status">{notice}</p> : null}
+      {!import.meta.env?.ICM_DESKTOP &&
+      props.mode === "instance" &&
+      !props.definition.libraryOrigin ? (
         <div
           className="component-publication-destination"
           role="group"
-          aria-label="Publication destination"
+          aria-label="Publication association"
         >
-          <small>
-            {publication.kind === "new"
-              ? "New component"
-              : "Updating my component"}
-          </small>
           <details>
-            <summary>Details</summary>
-            <code>{id}</code>
-            {revision ? <span> · Revision {revision}</span> : null}
-            {props.mode === "instance" && !props.definition.libraryOrigin ? (
-              <label>
-                Existing component ID{" "}
-                <input
-                  value={linkId}
-                  onChange={(event) => setLinkId(event.currentTarget.value)}
-                />
-                <button
-                  type="button"
-                  disabled={busy || !linkId}
-                  onClick={() => void associateExisting(linkId)}
-                >
-                  Associate existing
-                </button>
-              </label>
-            ) : null}
+            <summary>Associate existing publication</summary>
+            <label>
+              Existing component ID{" "}
+              <input
+                value={linkId}
+                onChange={(event) => setLinkId(event.currentTarget.value)}
+              />
+              <button
+                type="button"
+                disabled={busy || !linkId}
+                onClick={() => void associateExisting(linkId)}
+              >
+                Associate existing
+              </button>
+            </label>
           </details>
         </div>
-      )}
+      ) : null}
       {!import.meta.env?.ICM_DESKTOP && duplicate ? (
         <div
           className="component-definition-actions"

@@ -1286,6 +1286,16 @@ test("new circuit authoring starts with native source and places a complete six-
   await button(page, "Create Component…").click();
   const editor = componentEditor(page);
   await expect(editor.getByLabel("Definition type")).toHaveValue("circuit");
+  await expect(editor.getByLabel("Circuit template")).toHaveCount(0);
+  await expect(editor.getByLabel("Publication destination")).toHaveCount(0);
+  await expect(
+    editor.getByText(
+      /^(Apply a complete definition before publishing\.|Sign in to publish\.)$/,
+    ),
+  ).toHaveCount(0);
+  await expect(netlist(editor)).toContainText(
+    "* .subckt my_cell PIN1 PIN2 params: PARAM1=1",
+  );
   await expect(editor.getByLabel("Legacy implementation repair")).toHaveCount(
     0,
   );
