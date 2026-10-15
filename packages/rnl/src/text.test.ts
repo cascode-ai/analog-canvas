@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { rnlTextLines } from "./text.js";
+import { acRichText, rnlTextLines } from "./text.js";
 
 const plain = { level: 0, bold: false, italic: false, overline: false };
 
@@ -122,5 +122,50 @@ describe("rich text as RNL runs", () => {
       lines: [[{ kind: "text", text: "\\omega_0", style: plain }]],
       formulas: 1,
     });
+  });
+});
+
+describe("RNL runs as rich text", () => {
+  it("reads back what it writes: styles, scripts, fractions and lines", () => {
+    const lines = [
+      [
+        {
+          kind: "text" as const,
+          text: "V",
+          style: { ...plain, bold: true, italic: true },
+        },
+        {
+          kind: "text" as const,
+          text: "DD",
+          style: { ...plain, level: -1, overline: true },
+        },
+      ],
+      [
+        {
+          kind: "frac" as const,
+          num: [{ kind: "text" as const, text: "1", style: plain }],
+          den: [{ kind: "text" as const, text: "sC", style: plain }],
+          style: plain,
+        },
+      ],
+    ];
+    const text = acRichText(lines)!;
+    expect(text.runs[0]).toEqual({
+      kind: "span",
+      style: "bold",
+      children: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [{ kind: "text", value: "V" }],
+        },
+      ],
+    });
+    expect(text.runs[2]).toEqual({ kind: "line-break" });
+    expect(rnlTextLines(text).lines).toEqual(lines);
+  });
+
+  it("is nothing for text with nothing to show", () => {
+    expect(acRichText([[{ kind: "text", text: "", style: plain }]])).toBeNull();
   });
 });

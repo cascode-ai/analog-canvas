@@ -1,4 +1,4 @@
-import type { RnlWriteRequest } from "@icm/rnl";
+import type { RnlSnapshot, RnlWriteRequest } from "@icm/rnl";
 
 import { importChunk } from "../../components/chunk-import";
 
@@ -26,6 +26,16 @@ export interface RnlRuntime {
     svg?: boolean;
     primitives?: boolean;
   }): Promise<RnlWritten>;
+  /**
+   * How the runtime reads a rich netlist: each level's host circuit and the
+   * drawing its RNL makes of it (rnl-dev `spec-draft.md`, 3).
+   */
+  snapshot(request: {
+    entry: string;
+    files: Record<string, string>;
+    dialect: "spice" | "spectre";
+    parts: { drawing: false; host: true; model: true };
+  }): Promise<RnlSnapshot>;
 }
 
 let started: Promise<RnlRuntime | null> | null = null;
@@ -47,6 +57,9 @@ export function loadRnlRuntime(): Promise<RnlRuntime | null> {
         // points and the runtime's point arrays are the same thing.
         write: (request) =>
           core.write(request as unknown as Parameters<typeof core.write>[0]),
+        // The import reads the part of the snapshot it declares.
+        snapshot: (request) =>
+          core.snapshot(request) as unknown as Promise<RnlSnapshot>,
       } satisfies RnlRuntime;
     },
     (error: unknown) => {

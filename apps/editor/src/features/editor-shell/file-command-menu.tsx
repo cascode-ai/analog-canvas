@@ -37,6 +37,8 @@ export interface FileCommandMenuProps {
     files: FileList | null,
     namingProfile?: "native" | "cadence-bang",
   ) => void;
+  /** SPICE or Spectre with RNL: the netlist, drawn as its RNL draws it. */
+  onImportRnl?: (files: FileList | null) => void;
   onExportProject: () => void;
   onExportSvg: () => void;
   onExportRaster: (format: "png" | "pdf") => void;
@@ -141,6 +143,7 @@ export function FileCommandMenu({
   onSave,
   onImportProject,
   onImportSpice,
+  onImportRnl,
   onExportProject,
   onExportSvg,
   onExportRaster,
@@ -253,6 +256,22 @@ export function FileCommandMenu({
               }
             />
           </label>
+          {onImportRnl ? (
+            <label
+              className="file-import"
+              tabIndex={0}
+              onKeyDown={activateFileLabel}
+            >
+              RNL…
+              <input
+                data-testid="rnl-files"
+                type="file"
+                accept=".spi,.cir,.sp,.scs,.inc,.lib,.rnl"
+                multiple
+                onChange={(event) => onImportRnl(event.currentTarget.files)}
+              />
+            </label>
+          ) : null}
         </CommandSubmenu>
       </div>
       <div>

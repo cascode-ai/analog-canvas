@@ -45,11 +45,7 @@ export function rnlPlace(
   return [clean(x + dx), clean(y + dy)];
 }
 
-/**
- * The Analog Canvas origin of a part RNL places at `place`.
- * @internal The RNL import reads placements back with it; until then its
- * test pins the round trip.
- */
+/** The Analog Canvas origin of a part RNL places at `place`. */
 export function acPosition(
   place: RnlPoint,
   orient: RnlOrient,

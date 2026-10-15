@@ -30,7 +30,7 @@ export type RnlWriteState =
 /** Write an export with the runtime, or say why there is nothing to show. */
 export async function writeRnlExport(
   exported: Extract<RnlExport, { status: "ready" }>,
-  runtime: RnlRuntime | null,
+  runtime: Pick<RnlRuntime, "write"> | null,
 ): Promise<RnlWriteState> {
   if (!runtime) return { status: "no-runtime" };
   try {

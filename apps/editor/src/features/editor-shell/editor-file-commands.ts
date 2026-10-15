@@ -11,6 +11,7 @@ import {
   netlistModeParts,
   type NetlistMode,
 } from "../netlist-export/netlist-mode";
+import { planRnlImport } from "../netlist-export/rnl-import";
 import { loadRnlRuntime } from "../netlist-export/rnl-runtime";
 
 import {
@@ -226,11 +227,9 @@ export function createEditorFileCommands({
     }
   };
 
-  const importSpiceFiles = async (
-    files: FileList | null,
-    namingProfile: "native" | "cadence-bang" = "native",
-  ): Promise<void> => {
-    if (!files || files.length === 0) return;
+  /** The chosen files and the one entry among them, or null after saying why. */
+  const readSources = async (files: FileList | null) => {
+    if (!files || files.length === 0) return null;
     const sourceInputs = await Promise.all(
       [...files].map(async (file) => ({
         path: file.webkitRelativePath || file.name,
@@ -251,8 +250,76 @@ export function createEditorFileCommands({
       setStatus(
         `Select one unambiguous .cir, .sp, .spi, or .scs entry and its local include files; found ${entryCandidates.length}`,
       );
-      return;
+      return null;
     }
+    return { sourceInputs, entryCandidates };
+  };
+
+  /** Replace the open Project with an imported one, and open its report. */
+  const installImport = async (
+    label: string,
+    importedProject: CircuitProject,
+    report: SpiceImportReport,
+  ) => {
+    const instanceCount = importedProject.documents.reduce(
+      (count, candidate) => count + candidate.instances.length,
+      0,
+    );
+    await guardDirtyReplacement(label, () => {
+      replaceActiveProject(importedProject, defaultViewBox, {
+        source: "spice-import",
+      });
+      setImportReport(report);
+      setImportReviewOpen(true);
+      setSelectionOpen(true);
+      const documents = importedProject.documents.length;
+      setStatus(
+        `Imported ${documents} ${documents === 1 ? "Document" : "Documents"} and ${instanceCount} structural ${instanceCount === 1 ? "instance" : "instances"}`,
+      );
+    });
+  };
+
+  /** Show an import that failed, with its findings. */
+  const reportFailedImport = (report: SpiceImportReport, message: string) => {
+    setImportReport(report);
+    setImportReviewOpen(true);
+    setSelectionOpen(true);
+    setStatus(message);
+  };
+
+  const importRnlFiles = async (files: FileList | null): Promise<void> => {
+    const sources = await readSources(files);
+    if (!sources) return;
+    const entryPath = sources.entryCandidates[0]!.path;
+    setStatus("Importing RNL sources");
+    try {
+      const plan = await planRnlImport({
+        inputs: sources.sourceInputs,
+        entryPath,
+        runtime: await loadRnlRuntime(),
+      });
+      const report = { entryPath, diagnostics: plan.diagnostics };
+      if (plan.status === "failed") {
+        reportFailedImport(report, plan.message);
+        return;
+      }
+      await installImport(
+        "Import RNL sources",
+        withImportedInstanceDisplays(plan.project),
+        report,
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "RNL import failed");
+    }
+  };
+
+  const importSpiceFiles = async (
+    files: FileList | null,
+    namingProfile: "native" | "cadence-bang" = "native",
+  ): Promise<void> => {
+    const sources = await readSources(files);
+    if (!sources) return;
+    const { sourceInputs, entryCandidates } = sources;
     setStatus("Importing SPICE sources");
     try {
       const result = await importSpiceSources(
@@ -266,32 +333,20 @@ export function createEditorFileCommands({
         diagnostics: result.diagnostics,
       };
       if (!result.project || !result.successful) {
-        setImportReport(nextImportReport);
-        setImportReviewOpen(true);
-        setSelectionOpen(true);
         const firstError = result.diagnostics.find(
           (item) => item.severity === "error",
         );
-        setStatus(firstError?.message ?? "SPICE import failed");
+        reportFailedImport(
+          nextImportReport,
+          firstError?.message ?? "SPICE import failed",
+        );
         return;
       }
-      const importedProject = withImportedInstanceDisplays(result.project);
-      const instanceCount = importedProject.documents.reduce(
-        (count, candidate) => count + candidate.instances.length,
-        0,
+      await installImport(
+        "Import SPICE sources",
+        withImportedInstanceDisplays(result.project),
+        nextImportReport,
       );
-      await guardDirtyReplacement("Import SPICE sources", () => {
-        replaceActiveProject(importedProject, defaultViewBox, {
-          source: "spice-import",
-        });
-        setImportReport(nextImportReport);
-        setImportReviewOpen(true);
-        setSelectionOpen(true);
-        const documents = importedProject.documents.length;
-        setStatus(
-          `Imported ${documents} ${documents === 1 ? "Document" : "Documents"} and ${instanceCount} structural ${instanceCount === 1 ? "instance" : "instances"}`,
-        );
-      });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "SPICE import failed");
     }
@@ -302,5 +357,6 @@ export function createEditorFileCommands({
     exportDesignNetlist,
     exportRaster,
     importSpiceFiles,
+    importRnlFiles,
   };
 }

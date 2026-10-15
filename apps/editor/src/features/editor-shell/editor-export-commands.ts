@@ -138,7 +138,7 @@ export async function planRnlNetlistExport({
   namingProfile?: NetlistNamingProfile;
   electricalWarningsPresent?: boolean;
   rootDocumentId?: string;
-  runtime: RnlRuntime | null;
+  runtime: Pick<RnlRuntime, "write"> | null;
 }): Promise<DesignNetlistExportPlan> {
   const exported = createRnlExport(project, {
     format,

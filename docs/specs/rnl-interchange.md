@@ -87,17 +87,39 @@ the RNL language and its runtime belong to rnl.
 
 - File → Import → `RNL…` reads a rich netlist with its includes and package
   files. Project File, SPICE / SCS and Cadence SPICE are unchanged.
-- The electrical import is the SPICE / SCS importer, called unchanged. RNL
-  adds placement, wires and labels as a separate layer: CircuitIR never
-  carries geometry ([circuit IR](circuit-ir.md)).
+- The electrical import is the SPICE / SCS importer, called unchanged. The
+  rnl runtime reads the same files (its snapshot, rnl-dev's editor-interface
+  draft) and the drawing is laid over the imported circuit as a separate
+  layer: CircuitIR never carries geometry ([circuit IR](circuit-ir.md)).
+- Read back so far:
+  - each part's place, orientation and variant, through the mapping table;
+    a symbol two Analog Canvas variants draw, one flipped, reads back as the
+    variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
+    default op-amp, unturned the inputs-swapped one;
+  - a Cell's block as the symbol the file defines for it: each pin's side and
+    place, and the body;
+  - Cell Pins, the importer's own, moved where RNL draws `$IO_PORT` (or a
+    supply drawn on a port); ground glyphs on ground, supply glyphs claiming
+    their net by its own name; a glyph anywhere else is drawn as a floating
+    symbol, which the netlist does not read;
+  - the ground pin the export adds (`VSS`, or `GND`, `GND__n`, drawn as
+    ground rather than as a port) is ground again, and its callers stop
+    passing a node to it, as before the export;
+  - wires with every bend, a route from each pin or point to the next;
+    junctions at named points; wires of no length, which join what touches,
+    are left to touching;
+  - wire direction arrows, current markers and floating symbols.
+- Not read back yet: labels and texts (parts get their default labels),
+  drawing shapes, voltage markers, and Analog Canvas's own bodies, such as
+  an op-amp's, which come back as Cells.
 - A part RNL does not place keeps the importer's placement, and a net it does
-  not wire keeps its guide lines.
-- A symbol two Analog Canvas variants draw, one flipped, reads back as the
-  variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
-  default op-amp, unturned the inputs-swapped one.
-- The imported Project's netlist is electrically equal to the source file's.
+  not wire keeps its guide lines. A place or corner off Analog Canvas's grid
+  (10 for a part, 2 for a corner) is moved onto it.
+- The imported Project's netlist is electrically equal to the plain SPICE /
+  SCS import of the same files; a drawing that would change it is left out,
+  and the circuit comes in undrawn with an error saying so.
 - The imported Project replaces the active one with recovery source
-  `rnl-import`.
+  `spice-import`; findings list in the import report.
 
 ## Contract
 

@@ -4374,32 +4374,36 @@ function WorkspaceEditor({
     paintSnapGuides,
     visualClipboard,
   });
-  const { exportSvg, exportDesignNetlist, exportRaster, importSpiceFiles } =
-    createEditorFileCommands({
-      project,
-      document,
-      resolver,
-      exportDelivery,
-      defaultViewBox: DEFAULT_VIEWBOX,
-      // Asked at export time, which is one of the moments an
-      // electrical verdict belongs to.
-      electricalWarningsPresent: () =>
-        requestElectricalDiagnostics().length > 0,
-      netlistRootDocumentId,
-      netlistConfigurationError: netlistPreferences.error,
-      guardDirtyReplacement,
-      replaceActiveProject,
-      showNetlist: (mode, namingProfile) => {
-        netlistPreferences.selectMode(mode);
-        setNetlistNamingProfile(namingProfile);
-        showProjectPanel("netlist");
-      },
-      setImportReport,
-      setImportReviewOpen,
-      setSelectionOpen,
-      setStatus,
-      onChunkLoadFailure: setChunkLoadFailure,
-    });
+  const {
+    exportSvg,
+    exportDesignNetlist,
+    exportRaster,
+    importSpiceFiles,
+    importRnlFiles,
+  } = createEditorFileCommands({
+    project,
+    document,
+    resolver,
+    exportDelivery,
+    defaultViewBox: DEFAULT_VIEWBOX,
+    // Asked at export time, which is one of the moments an
+    // electrical verdict belongs to.
+    electricalWarningsPresent: () => requestElectricalDiagnostics().length > 0,
+    netlistRootDocumentId,
+    netlistConfigurationError: netlistPreferences.error,
+    guardDirtyReplacement,
+    replaceActiveProject,
+    showNetlist: (mode, namingProfile) => {
+      netlistPreferences.selectMode(mode);
+      setNetlistNamingProfile(namingProfile);
+      showProjectPanel("netlist");
+    },
+    setImportReport,
+    setImportReviewOpen,
+    setSelectionOpen,
+    setStatus,
+    onChunkLoadFailure: setChunkLoadFailure,
+  });
 
   // Single entry point for selecting a drafting object. Editing is opened
   // separately (double-click/Enter) so selection and text caret ownership do
@@ -5025,6 +5029,7 @@ function WorkspaceEditor({
         placeCellInstance={placeCellInstance}
         editorCommands={editorCommands}
         importSpiceFiles={importSpiceFiles}
+        importRnlFiles={importRnlFiles}
         exportSvg={exportSvg}
         exportRaster={exportRaster}
         exportDesignNetlist={exportDesignNetlist}

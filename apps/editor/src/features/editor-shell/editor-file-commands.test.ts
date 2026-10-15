@@ -263,6 +263,7 @@ describe("netlist delivery", () => {
 describe("RNL netlist copy", () => {
   const written = (text: string) => ({
     write: vi.fn(async () => ({ text, document: { diagnostics: [] } })),
+    snapshot: vi.fn(),
   });
 
   it("starts the copy inside the click and fills it in once the runtime has written", async () => {

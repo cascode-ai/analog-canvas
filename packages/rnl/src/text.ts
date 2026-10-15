@@ -114,6 +114,46 @@ export function rnlTextLines(text: RichTextDocument): {
   return { lines, formulas };
 }
 
+/**
+ * RNL lines of runs as an Analog Canvas rich text, as `rnlTextLines` reads
+ * one: each run in its spans, bold outside italic outside overbar outside
+ * its scripts, and the lines broken where RNL breaks them. Null when there
+ * is nothing to show.
+ */
+export function acRichText(
+  lines: readonly (readonly RnlRun[])[],
+): RichTextDocument | null {
+  const runs: RichTextRun[] = [];
+  lines.forEach((line, index) => {
+    if (index) runs.push({ kind: "line-break" });
+    for (const run of line) {
+      if (run.kind === "text") {
+        if (run.text)
+          runs.push(spanned({ kind: "text", value: run.text }, run.style));
+        continue;
+      }
+      const numerator = acRichText([run.num]);
+      const denominator = acRichText([run.den]);
+      if (numerator && denominator)
+        runs.push(
+          spanned({ kind: "fraction", numerator, denominator }, run.style),
+        );
+    }
+  });
+  return runs.some((run) => run.kind !== "line-break") ? { runs } : null;
+}
+
+function spanned(run: RichTextRun, style: RnlRunStyle): RichTextRun {
+  let out = run;
+  const script = style.level < 0 ? "subscript" : "superscript";
+  for (let step = 0; step < Math.abs(style.level); step++)
+    out = { kind: "span", style: script, children: [out] };
+  if (style.overline) out = { kind: "span", style: "overbar", children: [out] };
+  if (style.italic) out = { kind: "span", style: "italic", children: [out] };
+  if (style.bold) out = { kind: "span", style: "bold", children: [out] };
+  return out;
+}
+
 function styled(style: RnlRunStyle, mark: string): RnlRunStyle {
   switch (mark) {
     case "italic":
