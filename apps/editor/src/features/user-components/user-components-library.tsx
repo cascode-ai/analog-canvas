@@ -22,6 +22,47 @@ const capabilityLabel = (entry: ComponentLibrarySummary) =>
     : entry.capability === "needs-repair"
       ? "Needs repair"
       : null;
+
+async function loadCatalog(
+  query: string,
+  deleted: boolean,
+  signal: AbortSignal,
+  receive: (page: ComponentLibrarySummaryPage) => void,
+  previous?: ComponentLibrarySummaryPage,
+) {
+  if (previous && !previous.nextCursor) return;
+  let page = previous;
+  let cursor = previous?.nextCursor ?? null;
+  const visited = new Set<string>();
+  do {
+    if (cursor) {
+      if (visited.has(cursor))
+        throw Error("Component library returned a repeated page. Try again.");
+      visited.add(cursor);
+    }
+    const next = await loadSharedComponentSummaries(
+      query,
+      cursor,
+      deleted,
+      signal,
+    );
+    signal.throwIfAborted();
+    page = {
+      entries: [
+        ...new Map(
+          [...(page?.entries ?? []), ...next.entries].map((entry) => [
+            entry.id,
+            entry,
+          ]),
+        ).values(),
+      ],
+      nextCursor: next.nextCursor,
+    };
+    receive(page);
+    cursor = next.nextCursor;
+  } while (cursor);
+}
+
 export default function UserComponentsLibrary({
   open,
   onClose,
@@ -55,6 +96,7 @@ export default function UserComponentsLibrary({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [attempt, setAttempt] = useState(0);
   const [detail, setDetail] = useState<{
     summary: ComponentLibrarySummary;
     entry: SharedComponent;
@@ -68,17 +110,28 @@ export default function UserComponentsLibrary({
     new LibraryCache<{ page: ComponentLibrarySummaryPage; scroll: number }>(
       8,
       1024 * 1024,
+      Infinity,
     ),
   );
-  const generation = useRef(0);
+  const retained = useRef<{
+    key: string;
+    value: { page: ComponentLibrarySummaryPage; scroll: number };
+  } | null>(null);
   const request = useRef<AbortController | null>(null);
   const selection = useRef<AbortController | null>(null);
-  const failedCursor = useRef<string | null>(null);
   const grid = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const scroll = useRef(0);
   const listIdentity = useRef("");
   const key = JSON.stringify([refresh, retry, query.trim().toLowerCase()]);
+  function showPage(next: ComponentLibrarySummaryPage) {
+    setPage(next);
+    if (!deleted) {
+      const value = { page: next, scroll: scroll.current };
+      retained.current = { key, value };
+      cache.current.set(key, value);
+    }
+  }
   useEffect(() => {
     if (open && detail) {
       // Do not retain old details while their current access and revision are checked.
@@ -90,6 +143,7 @@ export default function UserComponentsLibrary({
   useEffect(() => {
     cache.current.clear();
     details.current.clear();
+    retained.current = null;
   }, [refresh, retry, user?.id]);
   useEffect(() => {
     if (!open) return;
@@ -108,37 +162,33 @@ export default function UserComponentsLibrary({
     if (!open) return;
     const controller = new AbortController();
     request.current = controller;
-    generation.current += 1;
-    failedCursor.current = null;
     setError(null);
     setNotice(null);
     setBusy(false);
-    const cached = !deleted ? cache.current.get(key) : undefined;
+    const cached = !deleted
+      ? (cache.current.get(key) ??
+        (retained.current?.key === key ? retained.current.value : undefined))
+      : undefined;
     const identity = JSON.stringify([query.trim().toLowerCase(), deleted]);
     if (cached) setPage(cached.page);
     else if (deleted || identity !== listIdentity.current)
       setPage({ entries: [], nextCursor: null });
     listIdentity.current = identity;
     scroll.current = cached?.scroll ?? 0;
-    setLoading(!cached);
+    setLoading(!cached || !!cached.page.nextCursor);
     if (cached)
       requestAnimationFrame(() => {
         if (grid.current) grid.current.scrollTop = scroll.current;
       });
     const timer = setTimeout(
       () => {
-        if (cached) return;
-        void loadSharedComponentSummaries(
+        void loadCatalog(
           query.trim(),
-          null,
           deleted,
           controller.signal,
+          showPage,
+          cached?.page,
         )
-          .then((next) => {
-            if (controller.signal.aborted) return;
-            setPage(next);
-            if (!deleted) cache.current.set(key, { page: next, scroll: 0 });
-          })
           .catch((error: unknown) => {
             if (!controller.signal.aborted)
               setError(error instanceof Error ? error.message : String(error));
@@ -153,43 +203,8 @@ export default function UserComponentsLibrary({
       clearTimeout(timer);
       controller.abort();
       selection.current?.abort();
-      generation.current += 1;
     };
-  }, [open, key, deleted]);
-  async function more() {
-    const current = generation.current;
-    setLoading(true);
-    setError(null);
-    try {
-      const next = await loadSharedComponentSummaries(
-        query.trim(),
-        page.nextCursor,
-        deleted,
-        request.current?.signal,
-      );
-      if (current !== generation.current) return;
-      const merged = {
-        entries: [
-          ...page.entries,
-          ...next.entries.filter(
-            (entry) => !page.entries.some((item) => item.id === entry.id),
-          ),
-        ],
-        nextCursor: next.nextCursor,
-      };
-      setPage(merged);
-      if (!deleted)
-        cache.current.set(key, { page: merged, scroll: scroll.current });
-      failedCursor.current = null;
-    } catch (error) {
-      if (current === generation.current) {
-        failedCursor.current = page.nextCursor;
-        setError(error instanceof Error ? error.message : String(error));
-      }
-    } finally {
-      if (current === generation.current) setLoading(false);
-    }
-  }
+  }, [open, key, deleted, attempt]);
   async function choose(
     summary: ComponentLibrarySummary,
     action: "details" | "place" | "new" | "update" | "raw",
@@ -236,17 +251,22 @@ export default function UserComponentsLibrary({
         setNotice(error instanceof Error ? error.message : String(error));
         setDetail(null);
         if (error instanceof ComponentLibraryError && error.status === 409) {
+          request.current?.abort();
+          setLoading(false);
           cache.current.clear();
           details.current.clear();
+          retained.current = null;
           setDetail(null);
           // Refresh only this immutable selection; never silently place a newer revision.
-          const updated = await loadSharedComponentSummaries(
+          await loadCatalog(
             query.trim(),
-            null,
             deleted,
             controller.signal,
-          ).catch(() => null);
-          if (updated && !controller.signal.aborted) setPage(updated);
+            showPage,
+          ).catch((error: unknown) => {
+            if (!controller.signal.aborted)
+              setError(error instanceof Error ? error.message : String(error));
+          });
         }
       }
     } finally {
@@ -399,10 +419,7 @@ export default function UserComponentsLibrary({
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (failedCursor.current) void more();
-                    else setRetry((value) => value + 1);
-                  }}
+                  onClick={() => setAttempt((value) => value + 1)}
                 >
                   Try Again
                 </button>
@@ -421,6 +438,8 @@ export default function UserComponentsLibrary({
               onScroll={(event) => {
                 scroll.current = event.currentTarget.scrollTop;
                 if (!deleted) {
+                  if (retained.current?.key === key)
+                    retained.current.value.scroll = scroll.current;
                   const cached = cache.current.get(key);
                   if (cached) cached.scroll = scroll.current;
                 }
@@ -586,11 +605,6 @@ export default function UserComponentsLibrary({
           ) : (
             <span />
           )}
-          {page.nextCursor && !loading && !detail ? (
-            <button type="button" onClick={() => void more()}>
-              Load More
-            </button>
-          ) : null}
         </footer>
       </section>
     </div>

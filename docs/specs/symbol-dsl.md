@@ -101,8 +101,13 @@ owns visual authority.
 - Discovery derives capability from the validated definition (**Symbol
   only**, **Needs repair**, **Not applied**; none certifies an engine).
   Invalid historical records stay visible but unplaceable and never block
-  valid ones or pagination; summaries carry no executable source; selection
+  valid ones; summaries carry no executable source; selection
   re-reads the full record and checks its revision.
+- The GUI loads every summary automatically, displays arrivals progressively,
+  and retains bounded public-list caches for the Editor session. Refresh,
+  publication and account changes invalidate them; interrupted public loads
+  resume at their remaining page. Previews load near the visible area. The
+  Agent/HTTP cursor interface remains paginated.
 - GUI placement uses the Agent insert planner: capture, instance and
   annotations commit together; cancel leaves nothing; one Undo; the snapshot
   never advances to newer cloud content.

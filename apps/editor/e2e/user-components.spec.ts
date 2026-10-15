@@ -499,6 +499,51 @@ test("library selection refuses a revision changed during preview and editing re
     text(dialog, "This component changed. Refresh before selecting it."),
   ).toBeVisible();
 });
+test("a revision conflict can retry an interrupted catalog refresh", async ({
+  page,
+  context,
+  service,
+}) => {
+  const definition = service.seedPublished("recovery-guard", "Recovery guard");
+  for (let index = 0; index < 22; index += 1)
+    service.seedPublished(
+      `recovery-z-${String(index).padStart(2, "0")}`,
+      `Device ${index}`,
+    );
+  await service.openEditorAs(page, "alice");
+  const dialog = await openUserComponents(page);
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(23);
+  expect(
+    await putComponent(page, "recovery-guard", {
+      revision: 1,
+      definition: {
+        ...definition,
+        symbol: { ...definition.symbol, name: "Recovery guard changed" },
+      },
+    }),
+  ).toBe(200);
+  let failNextPage = true;
+  await context.route("**/api/components?**", async (route) => {
+    if (
+      new URL(route.request().url()).searchParams.has("cursor") &&
+      failNextPage
+    )
+      await route.fulfill({
+        status: 503,
+        json: { error: "Service unavailable" },
+      });
+    else await route.fallback();
+  });
+  await button(dialog, "Details for Recovery guard").click();
+  await expect(button(dialog, "Try Again")).toBeVisible();
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(20);
+  failNextPage = false;
+  await button(dialog, "Try Again").click();
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(23);
+  await expect(button(dialog, "Place Recovery guard changed")).toBeVisible();
+  await expect(button(dialog, "Try Again")).toHaveCount(0);
+});
+
 async function editDefinition(page: Page, name: string) {
   await expect(componentEditor(page)).toBeVisible();
   const mode = page.getByLabel("Definition type", { exact: true });
@@ -553,11 +598,13 @@ const finiteGainSource = [
   "",
 ].join("\n");
 
-test("reopening User Components retains loaded cards without another list request", async ({
+test("reopening User Components retains the session catalog beyond a minute without another list request", async ({
   page,
   context,
   service,
 }) => {
+  const startedAt = Date.now();
+  await page.clock.setFixedTime(startedAt);
   await service.openEditorAs(page, "alice");
   await publishComponent(
     page,
@@ -572,6 +619,7 @@ test("reopening User Components retains loaded cards without another list reques
   const dialog = await openUserComponents(page);
   await expect(button(dialog, "Place Reusable device")).toBeVisible();
   await button(dialog, "Close").click();
+  await page.clock.setFixedTime(startedAt + 120_000);
   await context.route("**/api/components?**", (route) => route.abort("failed"));
   await openUserComponents(page);
   await expect(button(dialog, "Place Reusable device")).toBeVisible();
@@ -660,7 +708,7 @@ test("reopening deleted components after sign-out does not retain administrator 
   await expect(button(dialog, "Show available components")).toHaveCount(0);
 });
 
-test("a failed first or next page retains cards and Try Again retries that page", async ({
+test("automatically loads all components and retries an interrupted page without losing cards", async ({
   page,
   context,
   service,
@@ -668,7 +716,7 @@ test("a failed first or next page retains cards and Try Again retries that page"
   await service.openEditorAs(page, "alice");
   const definition = { symbol: newComponentDefinition().symbol };
   await page.evaluate(async (definition) => {
-    for (let index = 0; index < 23; index += 1) {
+    for (let index = 0; index < 43; index += 1) {
       const next = structuredClone(definition);
       next.symbol.name = `Device ${index}`;
       const response = await fetch(
@@ -686,7 +734,7 @@ test("a failed first or next page retains cards and Try Again retries that page"
     "legacy-paged-interface",
     "Legacy paged device",
   );
-  service.seedHistoricalDefinition("paged-device-23", legacy);
+  service.seedHistoricalDefinition("paged-device-43", legacy);
   let failNextPage = true;
   let failFirstPage = true;
   const cursors: (string | null)[] = [];
@@ -709,34 +757,84 @@ test("a failed first or next page retains cards and Try Again retries that page"
   failFirstPage = false;
   await button(dialog, "Try Again").click();
   await expect(dialog.locator(".user-component-tile")).toHaveCount(20);
-  await button(dialog, "Load More").click();
+  await expect(button(dialog, "Load More")).toHaveCount(0);
   await expect(refreshFailed).toBeVisible();
   await expect(dialog.locator(".user-component-tile")).toHaveCount(20);
   failNextPage = false;
   await button(dialog, "Try Again").click();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
-  await expect(dialog.locator(".user-component-place")).toHaveCount(23);
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(44);
+  await expect(dialog.locator(".user-component-place")).toHaveCount(43);
   const rejected = dialog.getByTestId("rejected-user-component");
   await expect(rejected).toContainText("Legacy paged device");
   await expect(rejected).toContainText("OUT");
   await expect(button(dialog, "Try Again")).toHaveCount(0);
-  expect(cursors).toEqual([null, null, "paged-device-19", "paged-device-19"]);
+  expect(cursors).toEqual([
+    null,
+    null,
+    "paged-device-19",
+    "paged-device-19",
+    "paged-device-39",
+  ]);
   await button(dialog, "Close").click();
   await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(44);
   await expect(rejected).toContainText("OUT");
-  expect(cursors).toHaveLength(4);
+  expect(cursors).toHaveLength(5);
   failFirstPage = true;
   await button(dialog, "Refresh").click();
   await expect(refreshFailed).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(24);
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(44);
   await expect(rejected).toContainText("OUT");
   expect(cursors).toEqual([
     null,
     null,
     "paged-device-19",
     "paged-device-19",
+    "paged-device-39",
     null,
+  ]);
+});
+
+test("a catalog larger than the session cache retries from its retained last page", async ({
+  page,
+  context,
+  service,
+}) => {
+  const definition = { symbol: newComponentDefinition().symbol };
+  for (let index = 0; index < 61; index += 1) {
+    const next = structuredClone(definition);
+    // Valid historical names can make summaries exceed the bounded session cache.
+    next.symbol.name = `Device ${index} ${"x".repeat(18_000)}`;
+    service.seedHistoricalDefinition(
+      `large-device-${String(index).padStart(2, "0")}`,
+      next,
+    );
+  }
+  let failLastPage = true;
+  const cursors: (string | null)[] = [];
+  await service.openEditorAs(page, "alice");
+  await context.route("**/api/components?**", async (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    cursors.push(cursor);
+    if (cursor === "large-device-59" && failLastPage)
+      await route.fulfill({
+        status: 503,
+        json: { error: "Service unavailable" },
+      });
+    else await route.fallback();
+  });
+  const dialog = await openUserComponents(page);
+  await expect(button(dialog, "Try Again")).toBeVisible();
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(60);
+  failLastPage = false;
+  await button(dialog, "Try Again").click();
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(61);
+  expect(cursors).toEqual([
+    null,
+    "large-device-19",
+    "large-device-39",
+    "large-device-59",
+    "large-device-59",
   ]);
 });
 

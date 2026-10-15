@@ -7,6 +7,7 @@ export class LibraryCache<T> {
   constructor(
     private readonly maxEntries: number,
     private readonly maxBytes: number,
+    private readonly maxAgeMs = 60_000,
   ) {}
   get(key: string): T | undefined {
     const item = this.entries.get(key);
@@ -20,7 +21,11 @@ export class LibraryCache<T> {
     const bytes = new TextEncoder().encode(JSON.stringify(value)).length;
     this.entries.delete(key);
     if (bytes > this.maxBytes) return;
-    this.entries.set(key, { value, bytes, expires: Date.now() + 60_000 });
+    this.entries.set(key, {
+      value,
+      bytes,
+      expires: Date.now() + this.maxAgeMs,
+    });
     while (
       this.entries.size > this.maxEntries ||
       [...this.entries.values()].reduce((sum, item) => sum + item.bytes, 0) >
