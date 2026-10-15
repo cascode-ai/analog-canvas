@@ -311,7 +311,7 @@ export function measureRichTextDocument(
 }
 
 /** Space left between one line's ink and the next one's, in em. */
-const LINE_INK_GAP_EM = 0.12;
+const LINE_INK_GAP_EM = 0.2;
 const CJK_TEXT =
   /[\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFFEF]/u;
 const DESCENDING_TEXT = /[gjpqyQ(),;[\]{}|/_@$βγζημξρφχψ]/u;

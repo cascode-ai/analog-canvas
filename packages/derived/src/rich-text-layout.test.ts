@@ -416,7 +416,7 @@ describe("lines that hold scripts or CJK text (2026-10-15)", () => {
       metrics.subscriptScale * metrics.subscriptBaselineShiftEm * em;
     const cjkTop = 0.88 * em;
     expect(pitch).toBeGreaterThan(plainStep);
-    expect(pitch! - cjkTop - subscriptBottom).toBeGreaterThanOrEqual(0.1 * em);
+    expect(pitch! - cjkTop - subscriptBottom).toBeGreaterThanOrEqual(0.18 * em);
     // The text's height counts the room it gained over the first line.
     const spaced = measureRichTextDocument(title, metrics);
     expect(spaced.height).toBeCloseTo(
@@ -432,6 +432,6 @@ describe("lines that hold scripts or CJK text (2026-10-15)", () => {
       runs: [text("采样与保持"), { kind: "line-break" }, text("窗口参考")],
     } as RichTextDocument;
     const [pitch] = richTextLinePitches(cjk, metrics);
-    expect(pitch! - 0.88 * em - 0.12 * em).toBeGreaterThanOrEqual(0.1 * em);
+    expect(pitch! - 0.88 * em - 0.12 * em).toBeGreaterThanOrEqual(0.18 * em);
   });
 });
