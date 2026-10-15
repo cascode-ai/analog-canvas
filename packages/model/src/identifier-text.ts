@@ -5,6 +5,22 @@ import {
   rewriteRichTextPlainText,
 } from "./rich-text.js";
 
+/** Whether any nonblank character is drawn under an overbar. */
+export function hasRichTextOverbar(content: RichTextDocument): boolean {
+  const visit = (runs: readonly RichTextRun[], overbar = false): boolean =>
+    runs.some((run) =>
+      run.kind === "span"
+        ? visit(run.children, overbar || run.style === "overbar")
+        : run.kind === "text"
+          ? overbar && run.value.trim().length > 0
+          : run.kind === "fraction"
+            ? visit(run.numerator.runs, overbar) ||
+              visit(run.denominator.runs, overbar)
+            : false,
+    );
+  return visit(content.runs);
+}
+
 /** Electrical spelling of a styled identifier: subscripts introduce `_`, and
  * an overbar marks the whole identifier with a trailing `_bar`. Weight,
  * slant, color and superscripts remain presentation. */

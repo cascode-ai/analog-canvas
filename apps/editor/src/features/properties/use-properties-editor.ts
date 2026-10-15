@@ -1,4 +1,5 @@
 import {
+  hasRichTextOverbar,
   rewriteRichTextIdentifier,
   labelTypography,
   labelTextDocument,
@@ -858,13 +859,17 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     content: RichTextDocument;
     formatOverride?: RichTextDocument;
   } => {
-    // The Net's name is the characters typed; styling them (a subscript,
-    // an overbar) is the label's look and never inserts an underscore.
+    // Like editing a signal label, adding an overbar names its complement.
+    // Other styling preserves the characters typed.
     const plainText = flattenRichText(placement.content);
     const typography = labelTypography(options.document.presentation);
-    const name = plainText.trim();
+    const typedName = plainText.trim();
+    const name =
+      hasRichTextOverbar(placement.content) && !typedName.endsWith("_bar")
+        ? `${typedName}_bar`
+        : typedName;
     const content =
-      plainText === name && !plainText.includes("_")
+      plainText === typedName && !plainText.includes("_")
         ? placement.content
         : rewriteRichTextIdentifier(placement.content, name, {
             underscoreSubscript:

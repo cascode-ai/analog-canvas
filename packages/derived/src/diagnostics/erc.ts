@@ -1,4 +1,10 @@
-import { flattenRichText, projectCellInterface, routeEnd } from "@icm/model";
+import {
+  boundAnnotationName,
+  flattenRichText,
+  hasRichTextOverbar,
+  projectCellInterface,
+  routeEnd,
+} from "@icm/model";
 import type { CircuitProject, RouteEndpoint } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -677,6 +683,7 @@ export function runErcChecks(
     );
     reportDanglingWires(document, diagnostics);
     reportNetLabelsNamingNothing(document, diagnostics);
+    reportOverbarNameMismatches(document, diagnostics);
     reportLabelsNamingAnotherPart(document, diagnostics);
     reportShortedTwoPinParts(document, logicalNets, resolver, diagnostics);
     reportNetPiecesJoinedOnlyInData(
@@ -1206,6 +1213,38 @@ function reportNetLabelsNamingNothing(
       primary: directObjectLocator(document.id, "annotation", annotation.id),
       related: [directObjectLocator(document.id, "net", netId)],
       parameters: { annotationId: annotation.id, netId },
+    });
+  }
+}
+
+/** Legacy presentation is not a rename: flag ambiguous signals, never infer
+ * connectivity from their RichText or from a device Reference's styling. */
+function reportOverbarNameMismatches(
+  document: CircuitProject["documents"][number],
+  diagnostics: ErcDiagnostic[],
+): void {
+  for (const annotation of document.annotations) {
+    const binding = annotation.binding;
+    if (
+      (binding?.kind !== "net-name" &&
+        binding?.kind !== "cell-terminal-name") ||
+      !annotation.formatOverride ||
+      !hasRichTextOverbar(annotation.formatOverride)
+    )
+      continue;
+    const name = boundAnnotationName(document, annotation);
+    if (!name || name.endsWith("_bar")) continue;
+    diagnostics.push({
+      id: `erc:overbar-name-mismatch:${document.id}:${annotation.id}`,
+      domain: "erc",
+      code: "ERC_OVERBAR_NAME_MISMATCH",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `Label draws ${name} with an overbar, but its electrical name is ${name}; it still connects by that name. Rename it to ${name}_bar if it denotes a separate signal`,
+      primary: directObjectLocator(document.id, "annotation", annotation.id),
+      related: [],
+      parameters: { annotationId: annotation.id, name },
     });
   }
 }
