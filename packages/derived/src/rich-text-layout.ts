@@ -296,12 +296,116 @@ export function measureRichTextDocument(
     ...metrics,
     fractionText: metrics.fractionText || containsFractionRun(document),
   });
+  // A line spaced further from the one above it takes that room as well.
+  const spacing = richTextLinePitches(document, metrics).reduce(
+    (sum, pitch, index) =>
+      sum + Math.max(0, pitch - (lines[index]?.height ?? 0)),
+    0,
+  );
   return {
     width: Math.max(0, ...lines.map((line) => line.width)),
-    height: lines.reduce((sum, line) => sum + line.height, 0),
+    height: lines.reduce((sum, line) => sum + line.height, 0) + spacing,
     lineWidths: lines.map((line) => line.width),
     lineHeights: lines.map((line) => line.height),
   };
+}
+
+/** Space left between one line's ink and the next one's, in em. */
+const LINE_INK_GAP_EM = 0.12;
+const CJK_TEXT =
+  /[\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFFEF]/u;
+const DESCENDING_TEXT = /[gjpqyQ(),;[\]{}|/_@$βγζημξρφχψ]/u;
+
+/** How far a line's ink reaches above and below its baseline, in em. */
+interface LineReach {
+  ascent: number;
+  descent: number;
+  /** Holds a script, a CJK character or a formula. */
+  tall: boolean;
+}
+
+function lineReaches(
+  runs: readonly RichTextRun[],
+  metrics: RichTextMetrics,
+): LineReach[] {
+  const lines: LineReach[] = [{ ascent: 0, descent: 0, tall: false }];
+  const reach = (ascent: number, descent: number, tall: boolean) => {
+    const line = lines[lines.length - 1] as LineReach;
+    line.ascent = Math.max(line.ascent, ascent);
+    line.descent = Math.max(line.descent, descent);
+    line.tall ||= tall;
+  };
+  /** `scale` of the base size, its baseline `drop` em below the line's. */
+  const visit = (
+    children: readonly RichTextRun[],
+    scale: number,
+    drop: number,
+  ): void => {
+    for (const run of children) {
+      if (run.kind === "line-break") {
+        lines.push({ ascent: 0, descent: 0, tall: false });
+      } else if (run.kind === "text") {
+        if (!run.value.trim()) continue;
+        const cjk = CJK_TEXT.test(run.value);
+        reach(
+          scale * (cjk ? 0.88 : 0.72) - drop,
+          scale * (DESCENDING_TEXT.test(run.value) ? 0.21 : cjk ? 0.12 : 0.02) +
+            drop,
+          cjk || scale < 1,
+        );
+      } else if (run.kind === "span") {
+        const script = run.style === "subscript" || run.style === "superscript";
+        const childScale = script ? scale * metrics.subscriptScale : scale;
+        const shift = script
+          ? childScale * metrics.subscriptBaselineShiftEm
+          : 0;
+        visit(
+          run.children,
+          childScale,
+          run.style === "subscript" ? drop + shift : drop - shift,
+        );
+      } else {
+        // A fraction or a formula stands about the baseline by the room it
+        // takes beyond one line.
+        const height =
+          measureRun(run, {
+            ...metrics,
+            fontSize: metrics.fontSize * scale,
+          })[0]?.height ?? 0;
+        const extra = Math.max(
+          0,
+          height / metrics.fontSize - scale * metrics.lineHeight,
+        );
+        reach(scale * 0.72 + extra / 2 - drop, extra / 2 + drop, true);
+      }
+    }
+  };
+  visit(runs, 1, 0);
+  return lines;
+}
+
+/**
+ * The distance from each line's baseline to the next one's, one per line
+ * break in document order (2026-10-15). Plain lines keep the profile's line
+ * height, so drawings of plain text stay as they were. A line with a script,
+ * a CJK character or a formula, or one under such a line, moves down until
+ * its ink clears the ink above: a subscript no longer runs into the line
+ * below it.
+ */
+export function richTextLinePitches(
+  document: RichTextDocument,
+  metrics: RichTextMetrics,
+): number[] {
+  const lines = lineReaches(document.runs, metrics);
+  const plain = metrics.fontSize * metrics.lineHeight;
+  return lines.slice(1).map((next, index) => {
+    const above = lines[index] ?? next;
+    if (!above.tall && !next.tall) return plain;
+    return Math.max(
+      plain,
+      metrics.fontSize * (above.descent + next.ascent + LINE_INK_GAP_EM),
+    );
+  });
 }
 
 /**

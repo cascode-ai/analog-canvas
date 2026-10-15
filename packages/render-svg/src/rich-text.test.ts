@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { renderRichTextDocument } from "./rich-text.js";
-import { razaviTextbookProfile, schematicTextAdvanceEm } from "@icm/derived";
+import {
+  razaviTextbookProfile,
+  richTextLinePitches,
+  richTextMetrics,
+  schematicTextAdvanceEm,
+} from "@icm/derived";
 
 describe("renderRichTextDocument", () => {
   it("renders a plain text run escaped", () => {
@@ -220,5 +225,39 @@ describe("fraction rendering", () => {
     expect(svg).toContain('data-text-run="denominator"');
     expect(svg).toContain(">10um</tspan>");
     expect(svg).toContain(">150nm</tspan>");
+  });
+});
+
+describe("line breaks under a subscript (2026-10-15)", () => {
+  it("move the next line down by the shared line pitch", () => {
+    const document = {
+      runs: [
+        { kind: "text", value: "V" },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "OC" }],
+        },
+        { kind: "text", value: "采样与" },
+        { kind: "line-break" },
+        { kind: "text", value: "窗口参考" },
+      ],
+    } as const;
+    const markup = renderRichTextDocument(
+      document as never,
+      razaviTextbookProfile,
+    );
+    const [pitch] = richTextLinePitches(
+      document as never,
+      richTextMetrics(razaviTextbookProfile),
+    );
+    const dy = /data-text-run="line-break" x="0" dy="([^"]+)"/u.exec(
+      markup,
+    )?.[1];
+    // The CJK text before the break is back on the line's baseline.
+    expect(Number(dy)).toBeCloseTo(pitch!, 2);
+    expect(pitch).toBeGreaterThan(
+      razaviTextbookProfile.typography.annotationFontSize,
+    );
   });
 });

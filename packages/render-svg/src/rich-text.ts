@@ -4,6 +4,7 @@ import {
   fractionPartBaselines,
   fractionPartScale,
   measureLabelText,
+  richTextLinePitches,
   richTextMetrics,
 } from "@icm/derived";
 import { flattenRichText } from "@icm/model";
@@ -22,6 +23,9 @@ interface RenderContext {
 
 interface RenderState {
   currentBaselineOffset: number;
+  /** Each line break's baseline-to-baseline distance, in document order. */
+  linePitches?: readonly number[];
+  lineBreaks?: number;
 }
 
 function escapeXml(value: string): string {
@@ -60,7 +64,18 @@ export function renderRichTextDocument(
     fontSize: options.fontSize ?? profile.typography.annotationFontSize,
     baselineOffset: 0,
   };
-  return renderRuns(document.runs, context, { currentBaselineOffset: 0 });
+  const typography = profile.typography;
+  return renderRuns(document.runs, context, {
+    currentBaselineOffset: 0,
+    linePitches: richTextLinePitches(document, {
+      fontSize: context.fontSize,
+      lineHeight: typography.lineHeight,
+      subscriptScale: typography.subscriptScale,
+      subscriptBaselineShiftEm: typography.subscriptBaselineShiftEm,
+      subscriptHorizontalGapEm: typography.subscriptHorizontalGapEm,
+    }),
+    lineBreaks: 0,
+  });
 }
 
 function renderRuns(
@@ -80,10 +95,11 @@ function renderRuns(
     }
     if (run.kind === "line-break") {
       if (lineOpen) output += "</tspan>";
-      const dy =
-        ctx.fontSize * ctx.profile.typography.lineHeight +
-        ctx.baselineOffset -
-        state.currentBaselineOffset;
+      const pitch =
+        state.linePitches?.[state.lineBreaks ?? 0] ??
+        ctx.fontSize * ctx.profile.typography.lineHeight;
+      state.lineBreaks = (state.lineBreaks ?? 0) + 1;
+      const dy = pitch + ctx.baselineOffset - state.currentBaselineOffset;
       state.currentBaselineOffset = ctx.baselineOffset;
       output += `<tspan data-text-run="line-break" x="${ctx.lineOriginX}" dy="${number(dy)}">`;
       lineOpen = true;

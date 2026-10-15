@@ -15,6 +15,7 @@ import {
   measureLabelText,
   measureRichTextDocument,
   richTextAdvanceEm,
+  richTextLinePitches,
   richTextMetrics,
 } from "./rich-text-layout.js";
 import { razaviTextbookProfile } from "./style-profile.js";
@@ -372,5 +373,65 @@ describe("label text as drawn", () => {
         },
       },
     ]);
+  });
+});
+
+describe("lines that hold scripts or CJK text (2026-10-15)", () => {
+  const sub = (value: string) => ({
+    kind: "span" as const,
+    style: "subscript" as const,
+    children: [{ kind: "text" as const, value }],
+  });
+  const text = (value: string) => ({ kind: "text" as const, value });
+  const metrics = richTextMetrics(razaviTextbookProfile);
+  const em = metrics.fontSize;
+  const plainStep = em * metrics.lineHeight;
+
+  it("keeps plain lines at the profile's line height", () => {
+    const plain = {
+      runs: [text("Vout gain"), { kind: "line-break" }, text("Bias input")],
+    } as RichTextDocument;
+    expect(richTextLinePitches(plain, metrics)).toEqual([plainStep]);
+  });
+
+  it("sets a line below one with subscripts and CJK text far enough that their ink never meets", () => {
+    // "V_OC/V_PV 采样与" over "V_MPP 窗口参考生成模块", as a user drew it.
+    const title = {
+      runs: [
+        text("V"),
+        sub("OC"),
+        text("/V"),
+        sub("PV"),
+        text("采样与"),
+        { kind: "line-break" },
+        text("V"),
+        sub("MPP"),
+        text("窗口参考生成模块"),
+      ],
+    } as RichTextDocument;
+    const [pitch] = richTextLinePitches(title, metrics);
+    // The subscript hangs its script baseline below the line's; the CJK
+    // characters below reach almost a full em above theirs.
+    const subscriptBottom =
+      metrics.subscriptScale * metrics.subscriptBaselineShiftEm * em;
+    const cjkTop = 0.88 * em;
+    expect(pitch).toBeGreaterThan(plainStep);
+    expect(pitch! - cjkTop - subscriptBottom).toBeGreaterThanOrEqual(0.1 * em);
+    // The text's height counts the room it gained over the first line.
+    const spaced = measureRichTextDocument(title, metrics);
+    expect(spaced.height).toBeCloseTo(
+      spaced.lineHeights[0]! +
+        spaced.lineHeights[1]! +
+        Math.max(0, pitch! - spaced.lineHeights[0]!),
+      6,
+    );
+  });
+
+  it("spaces two lines of CJK text apart", () => {
+    const cjk = {
+      runs: [text("采样与保持"), { kind: "line-break" }, text("窗口参考")],
+    } as RichTextDocument;
+    const [pitch] = richTextLinePitches(cjk, metrics);
+    expect(pitch! - 0.88 * em - 0.12 * em).toBeGreaterThanOrEqual(0.1 * em);
   });
 });
