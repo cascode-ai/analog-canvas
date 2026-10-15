@@ -22,7 +22,7 @@ import type {
 import type { DesignNetlistCell, DesignNetlistIR } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
-import { rnlOrient, type RnlOrient } from "./orientation.js";
+import { composeOrient, rnlOrient, type RnlOrient } from "./orientation.js";
 import {
   AC_UNITS_PER_RNL_UNIT,
   rnlPlace,
@@ -343,7 +343,8 @@ function exportCell(
       placement && orient
         ? {
             at: rnlPlace(placement.position, orient, symbol?.offset ?? [0, 0]),
-            orient,
+            // a drawing that is the symbol flipped turns with the part
+            orient: composeOrient(orient, symbol?.orient ?? "R0"),
           }
         : {};
     const definition = symbol?.definition;

@@ -346,7 +346,13 @@ describe("what RNL cannot write", () => {
           : [],
       );
       expect(of(ops, "set")).toContainEqual(
-        expect.objectContaining({ object: "#X1", symbol, at: [10, 0] }),
+        // Both draw − on top: the + on top symbol, flipped.
+        expect.objectContaining({
+          object: "#X1",
+          symbol,
+          at: [10, 0],
+          orient: "MX",
+        }),
       );
       expect(
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),

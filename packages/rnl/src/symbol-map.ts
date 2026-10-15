@@ -2,6 +2,7 @@ import type { CircuitProject, StableId } from "@icm/model";
 import type { BodyPortOrder } from "@icm/netlist";
 
 import list from "./symbol-list.json";
+import type { RnlOrient } from "./orientation.js";
 import type { RnlPoint } from "./place.js";
 
 /** One terminal of an RNL symbol, in the instance line's node order. */
@@ -36,6 +37,12 @@ export interface RnlSymbol {
   /** The RNL symbol, such as `$NMOS`. */
   symbol: string;
   /**
+   * How Analog Canvas's drawing turns the symbol: `R0`, or `MX` for the
+   * variants that draw it flipped top to bottom (the op-amp kinds with − on
+   * top; RNL's have + on top). The export turns the part by this first.
+   */
+  orient: RnlOrient;
+  /**
    * The definition whose usages the symbol draws, such as `$GROUND` for
    * `$GROUND_SYMBOL`: a virtual element, a mark or a drawing-only part. Null
    * for a device's symbol, which RNL sets on the netlist's own instance.
@@ -67,6 +74,7 @@ export interface RnlSymbol {
 
 interface ListEntry {
   symbol: string;
+  orient: RnlOrient;
   definition: string | null;
   package: string;
   ac: string | null;
@@ -88,6 +96,7 @@ const point = (values: readonly number[]): RnlPoint => [values[0]!, values[1]!];
 export const RNL_SYMBOLS: readonly RnlSymbol[] = (list as ListEntry[]).map(
   (entry) => ({
     symbol: entry.symbol,
+    orient: entry.orient,
     definition: entry.definition,
     package: entry.package,
     ac: entry.ac,

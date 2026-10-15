@@ -4,6 +4,7 @@ import { transformPoint, type Mirror, type Orientation } from "@icm/model";
 
 import {
   acOrientation,
+  composeOrient,
   orientPoint,
   rnlOrient,
   type RnlOrient,
@@ -70,6 +71,15 @@ describe("orientations", () => {
   it("reads every code back as an Analog Canvas orientation drawing the same", () => {
     for (const orient of CODES)
       expect(rnlOrient(acOrientation(orient))).toEqual({ ok: true, orient });
+  });
+
+  it("turns by the inner orientation first when composing two", () => {
+    for (const outer of CODES)
+      for (const inner of CODES)
+        expect(
+          orientPoint(composeOrient(outer, inner), [2, 1]),
+          `${outer} ${inner}`,
+        ).toEqual(orientPoint(outer, orientPoint(inner, [2, 1])));
   });
 });
 

@@ -5,6 +5,7 @@
     "package": "rnl-std-basic",
     "ac": "resistor",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -45,6 +46,7 @@
     "package": "rnl-std-basic",
     "ac": "variable-resistor",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -85,6 +87,7 @@
     "package": "rnl-std-basic",
     "ac": "capacitor",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -125,6 +128,7 @@
     "package": "rnl-std-basic",
     "ac": "variable-capacitor",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -165,6 +169,7 @@
     "package": "rnl-std-basic",
     "ac": "inductor-compact",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -205,6 +210,7 @@
     "package": "rnl-std-basic",
     "ac": "variable-inductor",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -245,6 +251,7 @@
     "package": "rnl-std-basic",
     "ac": "xfmr",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -309,6 +316,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -344,6 +352,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -374,6 +383,7 @@
     "package": "rnl-std-basic",
     "ac": "voltage-source",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -414,6 +424,7 @@
     "package": "rnl-std-basic",
     "ac": "current-source",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -454,6 +465,7 @@
     "package": "rnl-std-basic",
     "ac": "battery",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -494,6 +506,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -519,6 +532,7 @@
     "package": "rnl-std-basic",
     "ac": "vcvs",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -569,6 +583,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -604,6 +619,7 @@
     "package": "rnl-std-basic",
     "ac": "vccs",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -654,6 +670,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -689,6 +706,7 @@
     "package": "rnl-std-basic",
     "ac": "cccs",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -729,6 +747,7 @@
     "package": "rnl-std-basic",
     "ac": "ccvs",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -769,6 +788,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -794,6 +814,7 @@
     "package": "rnl-std-basic",
     "ac": "ideal-switch",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -844,6 +865,7 @@
     "package": "rnl-std-basic",
     "ac": "closed-switch",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -894,6 +916,7 @@
     "package": "rnl-std-basic",
     "ac": "externally-controlled-switch",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -951,6 +974,7 @@
     "package": "rnl-std-basic",
     "ac": "voltage-controlled-switch",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1015,6 +1039,7 @@
     "package": "rnl-std-basic",
     "ac": "spdt-switch",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1067,6 +1092,7 @@
     "package": "rnl-std-basic",
     "ac": "ground",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1095,6 +1121,7 @@
     "package": "rnl-std-basic",
     "ac": "vdd-port",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1123,6 +1150,7 @@
     "package": "rnl-std-basic",
     "ac": "port",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1151,6 +1179,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [],
     "offset": [0, 0],
     "pins": [],
@@ -1165,6 +1194,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [],
     "offset": [0, 0],
     "pins": [],
@@ -1179,6 +1209,7 @@
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [],
     "offset": [0, 0],
     "pins": [],
@@ -1193,6 +1224,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "diode",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1233,6 +1265,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "zener-diode",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1273,6 +1306,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "nmos",
     "variant": "textbook-3terminal",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1336,6 +1370,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "nmos",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1400,6 +1435,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "pmos",
     "variant": "textbook-3terminal",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1463,6 +1499,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "pmos",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1527,6 +1564,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "depletion-nmos",
     "variant": "textbook-3terminal",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1590,6 +1628,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "depletion-nmos",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1654,6 +1693,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "depletion-pmos",
     "variant": "textbook-3terminal",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1717,6 +1757,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "depletion-pmos",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1781,6 +1822,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "ndmos",
     "variant": "standard-3terminal",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1844,6 +1886,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "ndmos",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1908,6 +1951,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "pdmos",
     "variant": "standard-3terminal",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -1971,6 +2015,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "pdmos",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2035,6 +2080,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "npn",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2092,6 +2138,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "pnp",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2149,6 +2196,7 @@
     "package": "rnl-std-semiconductors",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2179,6 +2227,7 @@
     "package": "rnl-std-semiconductors",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2209,6 +2258,7 @@
     "package": "rnl-std-functional",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2237,8 +2287,9 @@
     "symbol": "$OPAMP_5TERM",
     "definition": null,
     "package": "rnl-std-functional",
-    "ac": "opamp",
+    "ac": "opamp-inputs-swapped",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2272,14 +2323,14 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, -1],
+        "at": [-4, 1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, 1],
+        "at": [-4, -1],
         "dir": 180
       },
       {
@@ -2293,14 +2344,78 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "宏模型顺序；电源不画"
+    "note": "宏模型顺序；电源不画；+ 在上"
+  },
+  {
+    "symbol": "$OPAMP_5TERM",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "opamp",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": false
+      },
+      {
+        "n": 5,
+        "name": "out",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "out",
+        "ac_pin": "OUT",
+        "at": [3, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
+    "note": "opamp 画成本符号上下翻转（MX）"
   },
   {
     "symbol": "$DIFFERENTIAL_OPAMP",
     "definition": null,
     "package": "rnl-std-functional",
-    "ac": "opamp-differential",
+    "ac": "opamp-differential-crossed-inputs-swapped",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2339,35 +2454,110 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, -1],
+        "at": [-4, 1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, 1],
+        "at": [-4, -1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "outp",
         "ac_pin": "OUT+",
-        "at": [3, -1],
+        "at": [3, 1],
         "dir": 0
       },
       {
         "terminal": 4,
         "name": "outn",
         "ac_pin": "OUT-",
-        "at": [3, 1],
+        "at": [3, -1],
         "dir": 0
       }
     ],
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "电源不画"
+    "note": "电源不画；输入、输出都 + 在上"
+  },
+  {
+    "symbol": "$DIFFERENTIAL_OPAMP",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "opamp-differential",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -1],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential 画成本符号上下翻转（MX）"
   },
   {
     "symbol": "$COMPARATOR",
@@ -2375,6 +2565,7 @@
     "package": "rnl-std-functional",
     "ac": null,
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2403,8 +2594,9 @@
     "symbol": "$COMPARATOR_5TERM",
     "definition": null,
     "package": "rnl-std-functional",
-    "ac": "comparator",
+    "ac": "comparator-inputs-swapped",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2438,14 +2630,14 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, -1],
+        "at": [-4, 1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, 1],
+        "at": [-4, -1],
         "dir": 180
       },
       {
@@ -2459,7 +2651,70 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "宏模型顺序；电源不画"
+    "note": "宏模型顺序；电源不画；+ 在上"
+  },
+  {
+    "symbol": "$COMPARATOR_5TERM",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "comparator",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": false
+      },
+      {
+        "n": 5,
+        "name": "out",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "out",
+        "ac_pin": "OUT",
+        "at": [3, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
+    "note": "comparator 画成本符号上下翻转（MX）"
   },
   {
     "symbol": "$VOLTAGE_AMPLIFIER",
@@ -2467,6 +2722,7 @@
     "package": "rnl-std-functional",
     "ac": "voltage-amplifier",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2517,6 +2773,7 @@
     "package": "rnl-std-functional",
     "ac": "transconductance",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2565,8 +2822,9 @@
     "symbol": "$DIFFERENTIAL_TRANSCONDUCTOR",
     "definition": null,
     "package": "rnl-std-functional",
-    "ac": "differential-transconductance",
+    "ac": "differential-transconductance-inputs-swapped",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2600,14 +2858,14 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-3, -1],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-3, 1],
+        "at": [-3, -1],
         "dir": 180
       },
       {
@@ -2621,7 +2879,70 @@
     "undrawn_pins": [],
     "box": [-3.4, -3.9, 3.4, 3.9],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": ""
+    "note": "+ 在上"
+  },
+  {
+    "symbol": "$DIFFERENTIAL_TRANSCONDUCTOR",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "differential-transconductance",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 5,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-3, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-3, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "out",
+        "ac_pin": "OUT",
+        "at": [3, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-3.4, -3.9, 3.4, 3.9],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
+    "note": "differential-transconductance 画成本符号上下翻转（MX）"
   },
   {
     "symbol": "$ADC",
@@ -2629,6 +2950,7 @@
     "package": "rnl-std-functional",
     "ac": "adc",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2679,6 +3001,7 @@
     "package": "rnl-std-functional",
     "ac": "dac",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2729,6 +3052,7 @@
     "package": "rnl-std-rf",
     "ac": "center-tap-inductor",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2781,6 +3105,7 @@
     "package": "rnl-std-rf",
     "ac": "tcoil",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2833,6 +3158,7 @@
     "package": "rnl-std-logic",
     "ac": "and-gate",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2895,6 +3221,7 @@
     "package": "rnl-std-logic",
     "ac": "and-gate-3",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -2969,6 +3296,7 @@
     "package": "rnl-std-logic",
     "ac": "and-gate-4",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3055,6 +3383,7 @@
     "package": "rnl-std-logic",
     "ac": "nand-gate",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3117,6 +3446,7 @@
     "package": "rnl-std-logic",
     "ac": "nand-gate-3",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3191,6 +3521,7 @@
     "package": "rnl-std-logic",
     "ac": "nand-gate-4",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3277,6 +3608,7 @@
     "package": "rnl-std-logic",
     "ac": "or-gate",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3339,6 +3671,7 @@
     "package": "rnl-std-logic",
     "ac": "or-gate-3",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3413,6 +3746,7 @@
     "package": "rnl-std-logic",
     "ac": "or-gate-4",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3499,6 +3833,7 @@
     "package": "rnl-std-logic",
     "ac": "nor-gate",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3561,6 +3896,7 @@
     "package": "rnl-std-logic",
     "ac": "nor-gate-3",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3635,6 +3971,7 @@
     "package": "rnl-std-logic",
     "ac": "nor-gate-4",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3721,6 +4058,7 @@
     "package": "rnl-std-logic",
     "ac": "xor-gate",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3783,6 +4121,7 @@
     "package": "rnl-std-logic",
     "ac": "xor-gate-3",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3857,6 +4196,7 @@
     "package": "rnl-std-logic",
     "ac": "xor-gate-4",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -3943,6 +4283,7 @@
     "package": "rnl-std-logic",
     "ac": "xnor-gate",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4005,6 +4346,7 @@
     "package": "rnl-std-logic",
     "ac": "xnor-gate-3",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4079,6 +4421,7 @@
     "package": "rnl-std-logic",
     "ac": "xnor-gate-4",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4165,6 +4508,7 @@
     "package": "rnl-std-logic",
     "ac": "buffer",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4215,6 +4559,7 @@
     "package": "rnl-std-logic",
     "ac": "inverter",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4265,6 +4610,7 @@
     "package": "rnl-std-logic",
     "ac": "d-flip-flop",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4339,6 +4685,7 @@
     "package": "rnl-std-logic",
     "ac": "d-flip-flop-q",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4401,6 +4748,7 @@
     "package": "rnl-std-logic",
     "ac": "d-flip-flop-reset",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4487,6 +4835,7 @@
     "package": "rnl-std-logic",
     "ac": "delay-cell",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4527,6 +4876,7 @@
     "package": "rnl-std-signal-flow",
     "ac": "adder",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4589,6 +4939,7 @@
     "package": "rnl-std-signal-flow",
     "ac": "multiplier",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4651,6 +5002,7 @@
     "package": "rnl-std-signal-flow",
     "ac": "integrator",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4691,6 +5043,7 @@
     "package": "rnl-std-signal-flow",
     "ac": "discrete-time-integrator",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4731,6 +5084,7 @@
     "package": "rnl-std-signal-flow",
     "ac": "quantizer",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4771,6 +5125,7 @@
     "package": "rnl-std-signal-flow",
     "ac": "unit-delay",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4806,11 +5161,12 @@
     "note": "纯画图：AC 不进网表"
   },
   {
-    "symbol": "$CANVAS_COMPARATOR_INPUTS_SWAPPED",
+    "symbol": "$CANVAS_OPAMP_LETTERED",
     "definition": null,
     "package": "analog-canvas-extensions",
-    "ac": "comparator-inputs-swapped",
+    "ac": "opamp-lettered-inputs-swapped",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -4865,1303 +5221,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $COMPARATOR_5TERM"
-  },
-  {
-    "symbol": "$CANVAS_COMPARATOR_UNMARKED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "comparator-unmarked",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 4,
-        "name": "vn",
-        "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "out",
-        "drawn": true
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 5,
-        "name": "out",
-        "ac_pin": "OUT",
-        "at": [3, 0],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $COMPARATOR_5TERM"
-  },
-  {
-    "symbol": "$CANVAS_COMPARATOR_UNMARKED_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "comparator-unmarked-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 4,
-        "name": "vn",
-        "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "out",
-        "drawn": true
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 5,
-        "name": "out",
-        "ac_pin": "OUT",
-        "at": [3, 0],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $COMPARATOR_5TERM"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-crossed",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, 1],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, -1],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-crossed-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, 1],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, -1],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_LETTERED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-crossed-lettered",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, 1],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, -1],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_LETTERED_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-crossed-lettered-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, 1],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, -1],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, -1],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, 1],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-lettered",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, -1],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, 1],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-lettered-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, -1],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, 1],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-wide",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, -2],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, 2],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, -2],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, 2],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-wide-crossed",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, -2],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, 2],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, 2],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, -2],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-wide-crossed-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 2],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -2],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, 2],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, -2],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_LETTERED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-wide-crossed-lettered",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, -2],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, 2],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, 2],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, -2],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_LETTERED_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-wide-crossed-lettered-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 2],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -2],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, 2],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, -2],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-wide-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 2],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -2],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, -2],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, 2],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_LETTERED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-wide-lettered",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, -2],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, 2],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, -2],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, 2],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_LETTERED_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-differential-wide-lettered-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "outp",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "outn",
-        "drawn": true
-      },
-      {
-        "n": 5,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 6,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 2],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -2],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "outp",
-        "ac_pin": "OUT+",
-        "at": [3, -2],
-        "dir": 0
-      },
-      {
-        "terminal": 4,
-        "name": "outn",
-        "ac_pin": "OUT-",
-        "at": [3, 2],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $DIFFERENTIAL_OPAMP"
-  },
-  {
-    "symbol": "$CANVAS_OPAMP_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "opamp-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 4,
-        "name": "vn",
-        "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "out",
-        "drawn": true
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-4, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-4, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 5,
-        "name": "out",
-        "ac_pin": "OUT",
-        "at": [3, 0],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-4.4, -3.4, 4.4, 3.4],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM"
+    "note": "同 $OPAMP_5TERM 的端子；+ 在上"
   },
   {
     "symbol": "$CANVAS_OPAMP_LETTERED",
@@ -6169,6 +5229,7 @@
     "package": "analog-canvas-extensions",
     "ac": "opamp-lettered",
     "variant": null,
+    "orient": "MX",
     "terminals": [
       {
         "n": 1,
@@ -6202,14 +5263,14 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, -1],
+        "at": [-4, 1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, 1],
+        "at": [-4, -1],
         "dir": 180
       },
       {
@@ -6223,14 +5284,15 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM"
+    "note": "opamp-lettered 画成本符号上下翻转（MX）"
   },
   {
-    "symbol": "$CANVAS_OPAMP_LETTERED_INPUTS_SWAPPED",
+    "symbol": "$CANVAS_OPAMP_WIDE",
     "definition": null,
     "package": "analog-canvas-extensions",
-    "ac": "opamp-lettered-inputs-swapped",
+    "ac": "opamp-wide-inputs-swapped",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6264,14 +5326,14 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, 1],
+        "at": [-4, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, -1],
+        "at": [-4, -2],
         "dir": 180
       },
       {
@@ -6285,7 +5347,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM"
+    "note": "同 $OPAMP_5TERM 的端子；+ 在上"
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE",
@@ -6293,6 +5355,7 @@
     "package": "analog-canvas-extensions",
     "ac": "opamp-wide",
     "variant": null,
+    "orient": "MX",
     "terminals": [
       {
         "n": 1,
@@ -6326,14 +5389,14 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, -2],
+        "at": [-4, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, 2],
+        "at": [-4, -2],
         "dir": 180
       },
       {
@@ -6347,14 +5410,15 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM"
+    "note": "opamp-wide 画成本符号上下翻转（MX）"
   },
   {
-    "symbol": "$CANVAS_OPAMP_WIDE_INPUTS_SWAPPED",
+    "symbol": "$CANVAS_OPAMP_WIDE_LETTERED",
     "definition": null,
     "package": "analog-canvas-extensions",
-    "ac": "opamp-wide-inputs-swapped",
+    "ac": "opamp-wide-lettered-inputs-swapped",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6409,7 +5473,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM"
+    "note": "同 $OPAMP_5TERM 的端子；+ 在上"
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE_LETTERED",
@@ -6417,6 +5481,7 @@
     "package": "analog-canvas-extensions",
     "ac": "opamp-wide-lettered",
     "variant": null,
+    "orient": "MX",
     "terminals": [
       {
         "n": 1,
@@ -6450,14 +5515,14 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, -2],
+        "at": [-4, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, 2],
+        "at": [-4, -2],
         "dir": 180
       },
       {
@@ -6471,14 +5536,15 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM"
+    "note": "opamp-wide-lettered 画成本符号上下翻转（MX）"
   },
   {
-    "symbol": "$CANVAS_OPAMP_WIDE_LETTERED_INPUTS_SWAPPED",
+    "symbol": "$CANVAS_COMPARATOR_UNMARKED",
     "definition": null,
     "package": "analog-canvas-extensions",
-    "ac": "opamp-wide-lettered-inputs-swapped",
+    "ac": "comparator-unmarked-inputs-swapped",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6512,14 +5578,14 @@
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, 2],
+        "at": [-4, 1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, -2],
+        "at": [-4, -1],
         "dir": 180
       },
       {
@@ -6533,7 +5599,1120 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM"
+    "note": "同 $COMPARATOR_5TERM 的端子；+ 在上，不画 + −"
+  },
+  {
+    "symbol": "$CANVAS_COMPARATOR_UNMARKED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "comparator-unmarked",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": false
+      },
+      {
+        "n": 5,
+        "name": "out",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "out",
+        "ac_pin": "OUT",
+        "at": [3, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
+    "note": "comparator-unmarked 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-inputs-swapped",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 1],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-crossed",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 1],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-crossed 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-crossed-lettered-inputs-swapped",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -1],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入、输出都 + 在上"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-lettered",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -1],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-lettered 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_LETTERED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-lettered-inputs-swapped",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 1],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_LETTERED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-crossed-lettered",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 1],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-crossed-lettered 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-wide-crossed-inputs-swapped",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -2],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 2],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -2],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入、输出都 + 在上"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-wide",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -2],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 2],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -2],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-wide 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-wide-inputs-swapped",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -2],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -2],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 2],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-wide-crossed",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -2],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -2],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 2],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-wide-crossed 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_LETTERED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-wide-crossed-lettered-inputs-swapped",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -2],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 2],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -2],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入、输出都 + 在上"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_LETTERED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-wide-lettered",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -2],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 2],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -2],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-wide-lettered 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_LETTERED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-wide-lettered-inputs-swapped",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -2],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -2],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 2],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
+  },
+  {
+    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_LETTERED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "opamp-differential-wide-crossed-lettered",
+    "variant": null,
+    "orient": "MX",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -2],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -2],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 2],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -3.4, 4.4, 3.4],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-wide-crossed-lettered 画成本符号上下翻转（MX）"
   },
   {
     "symbol": "$CANVAS_VOLTAGE_AMPLIFIER_LETTERED",
@@ -6541,6 +6720,7 @@
     "package": "analog-canvas-extensions",
     "ac": "voltage-amplifier-lettered",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6586,73 +6766,12 @@
     "note": "同 $VOLTAGE_AMPLIFIER"
   },
   {
-    "symbol": "$CANVAS_DIFFERENTIAL_TRANSCONDUCTANCE_INPUTS_SWAPPED",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "differential-transconductance-inputs-swapped",
-    "variant": null,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "out",
-        "drawn": true
-      },
-      {
-        "n": 4,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "vn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "inp",
-        "ac_pin": "IN+",
-        "at": [-3, 1],
-        "dir": 180
-      },
-      {
-        "terminal": 2,
-        "name": "inn",
-        "ac_pin": "IN-",
-        "at": [-3, -1],
-        "dir": 180
-      },
-      {
-        "terminal": 3,
-        "name": "out",
-        "ac_pin": "OUT",
-        "at": [3, 0],
-        "dir": 0
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-3.4, -3.9, 3.4, 3.9],
-    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $DIFFERENTIAL_TRANSCONDUCTOR"
-  },
-  {
     "symbol": "$CANVAS_INDUCTOR_LARGE",
     "definition": null,
     "package": "analog-canvas-extensions",
     "ac": "inductor",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6693,6 +6812,7 @@
     "package": "analog-canvas-extensions",
     "ac": "simple-switch",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6743,6 +6863,7 @@
     "package": "analog-canvas-extensions",
     "ac": "simple-spdt-switch",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6795,6 +6916,7 @@
     "package": "analog-canvas-extensions",
     "ac": "port-filled",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6823,6 +6945,7 @@
     "package": "analog-canvas-extensions",
     "ac": "current-source",
     "variant": "diamond",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6863,6 +6986,7 @@
     "package": "analog-canvas-extensions",
     "ac": "vccs",
     "variant": "diamond",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6913,6 +7037,7 @@
     "package": "analog-canvas-extensions",
     "ac": "cccs",
     "variant": "diamond",
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6953,6 +7078,7 @@
     "package": "analog-canvas-extensions",
     "ac": "pulse-voltage-source",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,
@@ -6993,6 +7119,7 @@
     "package": "analog-canvas-extensions",
     "ac": "chopper",
     "variant": null,
+    "orient": "R0",
     "terminals": [
       {
         "n": 1,

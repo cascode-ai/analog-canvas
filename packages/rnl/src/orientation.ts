@@ -66,6 +66,16 @@ export function acOrientation(orient: RnlOrient): Orientation {
   return found!;
 }
 
+/** The orientation that turns a point by `inner`, then by `outer`. */
+export function composeOrient(outer: RnlOrient, inner: RnlOrient): RnlOrient {
+  const [a, b, c, d] = MATRICES[outer];
+  const [e, f, g, h] = MATRICES[inner];
+  const product = [a * e + b * g, a * f + b * h, c * e + d * g, c * f + d * h];
+  return CODES.find((code) =>
+    MATRICES[code].every((value, index) => value === product[index]),
+  )!;
+}
+
 /** A point in a symbol's own frame turned by an RNL orientation, y up. */
 export function orientPoint(
   orient: RnlOrient,

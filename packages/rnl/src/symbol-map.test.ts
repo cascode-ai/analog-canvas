@@ -5,6 +5,7 @@ import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { builtInSymbols } from "@icm/symbols";
 
+import { orientPoint } from "./orientation.js";
 import { toRnlPoint } from "./place.js";
 import {
   RNL_SYMBOLS,
@@ -73,6 +74,23 @@ describe("the RNL symbol list", () => {
     expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");
   });
 
+  it("draws the op-amp kinds with + on top, Analog Canvas's − on top ones flipped", () => {
+    expect(rnlSymbolFor("opamp-inputs-swapped")).toMatchObject({
+      symbol: "$OPAMP_5TERM",
+      orient: "R0",
+    });
+    expect(rnlSymbolFor("opamp")).toMatchObject({
+      symbol: "$OPAMP_5TERM",
+      orient: "MX",
+    });
+    expect(rnlSymbolFor("opamp-differential")).toMatchObject({
+      symbol: "$DIFFERENTIAL_OPAMP",
+      orient: "MX",
+    });
+    for (const entry of RNL_SYMBOLS)
+      expect(["R0", "MX"], entry.symbol).toContain(entry.orient);
+  });
+
   it("names the definition a glyph or a drawing-only part draws", () => {
     expect(rnlSymbolFor("ground")).toMatchObject({
       symbol: "$GROUND_SYMBOL",
@@ -106,9 +124,15 @@ describe("the RNL symbol list", () => {
         const [x, y] = toRnlPoint(
           shown.find((item) => item.name === pin.acPin)!.at,
         );
+        // Analog Canvas draws the symbol turned by entry.orient (R0 or MX,
+        // each its own inverse) about the registration point.
+        const [sx, sy] = orientPoint(entry.orient, [
+          x - entry.offset[0],
+          y - entry.offset[1],
+        ]);
         expect(pin.at, `${entry.symbol} ${pin.acPin}`).toEqual([
-          Math.round((x - entry.offset[0]) * 1e6) / 1e6 + 0,
-          Math.round((y - entry.offset[1]) * 1e6) / 1e6 + 0,
+          Math.round(sx * 1e6) / 1e6 + 0,
+          Math.round(sy * 1e6) / 1e6 + 0,
         ]);
         expect(entry.terminals[pin.terminal - 1]!.drawn).toBe(true);
       }
