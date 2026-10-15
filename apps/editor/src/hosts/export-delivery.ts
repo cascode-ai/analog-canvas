@@ -17,5 +17,9 @@ export type ExportFileDeliveryResult =
  */
 export interface EditorExportDelivery {
   deliverFile(file: ExportFile): Promise<ExportFileDeliveryResult>;
-  copyText(text: string): Promise<void>;
+  /**
+   * A promise is text still being written: the copy starts at once and
+   * takes the text when it is ready, so it still counts as the click's.
+   */
+  copyText(text: string | Promise<string>): Promise<void>;
 }

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hierarchyParameterFixture } from "../../../../../netlists/hierarchy-parameters/fixture";
 import { ChunkLoadError } from "../../components/chunk-import";
 import type { EditorExportDelivery } from "../../hosts/export-delivery";
+import { loadRnlRuntime } from "../netlist-export/rnl-runtime";
 import {
   createEditorFileCommands,
   type EditorFileCommandDependencies,
@@ -20,6 +21,7 @@ vi.mock("./editor-export-commands", async (importOriginal) => ({
   createSvgExportArtifact: vi.fn(),
   createVisualExportArtifact: vi.fn(),
 }));
+vi.mock("../netlist-export/rnl-runtime", () => ({ loadRnlRuntime: vi.fn() }));
 
 function commands(overrides: Partial<EditorFileCommandDependencies> = {}) {
   const project =
@@ -255,5 +257,55 @@ describe("netlist delivery", () => {
       "Clipboard unavailable; select the netlist in the sidebar and copy it",
     );
     expect(target.deliverFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("RNL netlist copy", () => {
+  const written = (text: string) => ({
+    write: vi.fn(async () => ({ text, document: { diagnostics: [] } })),
+  });
+
+  it("starts the copy inside the click and fills it in once the runtime has written", async () => {
+    const runtime = Promise.withResolvers<ReturnType<typeof written>>();
+    vi.mocked(loadRnlRuntime).mockReturnValue(runtime.promise);
+    const target = commands();
+    const completed = target.exportDesignNetlist("spice+rnl");
+    expect(target.copyText).toHaveBeenCalledOnce();
+    const text = target.copyText.mock.calls[0]![0];
+    expect(text).toBeInstanceOf(Promise);
+    runtime.resolve(written("* written"));
+    await completed;
+    await expect(text).resolves.toBe("* written");
+    expect(target.dependencies.setStatus).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^SPICE\+RNL netlist copied/u),
+    );
+  });
+
+  it("says why a blocked RNL netlist was not copied", async () => {
+    vi.mocked(loadRnlRuntime).mockResolvedValue(null);
+    const target = commands();
+    await target.exportDesignNetlist("spectre+rnl");
+    await expect(target.copyText.mock.calls[0]![0]).rejects.toThrow(
+      "rnl runtime",
+    );
+    expect(target.dependencies.setStatus).toHaveBeenLastCalledWith(
+      "RNL formats need the rnl runtime, which this build lacks",
+    );
+  });
+
+  it("names the runtime's failure and keeps the clipboard fallback for a refused copy", async () => {
+    vi.mocked(loadRnlRuntime).mockRejectedValue(new Error("no Worker"));
+    const failed = commands();
+    await failed.exportDesignNetlist("spice+rnl");
+    expect(failed.dependencies.setStatus).toHaveBeenLastCalledWith(
+      "RNL: no Worker",
+    );
+    vi.mocked(loadRnlRuntime).mockResolvedValue(written("* written"));
+    const refused = commands();
+    refused.copyText.mockRejectedValue(new Error("Not allowed"));
+    await refused.exportDesignNetlist("spice+rnl");
+    expect(refused.dependencies.setStatus).toHaveBeenLastCalledWith(
+      "Clipboard unavailable; select the netlist in the sidebar and copy it",
+    );
   });
 });

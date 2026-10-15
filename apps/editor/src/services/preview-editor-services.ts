@@ -1,4 +1,5 @@
 import type { EditorServices } from "./editor-services";
+import { writeClipboardText } from "../hosts/clipboard-text";
 import { NativeFileCommands } from "../hosts/native-file-commands";
 import { NativeProjectHome } from "../hosts/native-project-home";
 import { createNativeProjectStore } from "../hosts/native-project-store";
@@ -44,7 +45,7 @@ export function createPreviewEditorServices(): EditorServices {
           return { status: result.status };
         throw new Error(result.message ?? "File export failed");
       },
-      copyText: (text) => navigator.clipboard.writeText(text),
+      copyText: writeClipboardText,
     },
   };
 }

@@ -19,8 +19,12 @@ import {
   describeExportFailure,
   planDesignNetlistExport,
   planRnlNetlistExport,
+  type DesignNetlistExportPlan,
   type EditorExportArtifact,
 } from "./editor-export-commands";
+
+const CLIPBOARD_FALLBACK =
+  "Clipboard unavailable; select the netlist in the sidebar and copy it";
 
 type SpiceImportResult = Awaited<ReturnType<typeof importSpiceSources>>;
 export interface SpiceImportReport {
@@ -99,6 +103,42 @@ export function createEditorFileCommands({
     }
   };
 
+  /** The status when the rnl runtime fails to load or to write. */
+  const rnlFailure = (error: unknown) =>
+    error instanceof Error
+      ? `RNL: ${error.message}`
+      : "The rnl runtime could not write this netlist";
+
+  /**
+   * Copies an RNL netlist. The copy starts now and takes the text once the
+   * runtime's Worker has written it: Safari refuses a clipboard write that
+   * starts after that wait.
+   */
+  const copyRnlNetlist = async (
+    options: Omit<Parameters<typeof planRnlNetlistExport>[0], "runtime">,
+  ): Promise<void> => {
+    const planned: Promise<DesignNetlistExportPlan> = loadRnlRuntime()
+      .then((runtime) => planRnlNetlistExport({ ...options, runtime }))
+      .catch((error: unknown) => ({
+        status: "blocked",
+        message: rnlFailure(error),
+      }));
+    const text = planned.then((plan) =>
+      plan.status === "ready"
+        ? String(plan.artifact.bytes)
+        : Promise.reject(new Error(plan.message)),
+    );
+    // A blocked plan fails the copy too; the plan says why, below.
+    text.catch(() => {});
+    const copied = exportDelivery.copyText(text).then(
+      () => true,
+      () => false,
+    );
+    const plan = await planned;
+    if (plan.status === "blocked") setStatus(plan.message);
+    else setStatus((await copied) ? plan.artifact.report : CLIPBOARD_FALLBACK);
+  };
+
   const exportDesignNetlist = async (
     mode: NetlistMode,
     namingProfile: NetlistNamingProfile = "native",
@@ -119,6 +159,10 @@ export function createEditorFileCommands({
         : {}),
       electricalWarningsPresent: electricalWarningsPresent(),
     };
+    if (rnl && destination === "clipboard") {
+      await copyRnlNetlist(options);
+      return;
+    }
     let plan;
     try {
       plan = rnl
@@ -128,11 +172,7 @@ export function createEditorFileCommands({
           })
         : planDesignNetlistExport(options);
     } catch (error) {
-      setStatus(
-        error instanceof Error
-          ? `RNL: ${error.message}`
-          : "The rnl runtime could not write this netlist",
-      );
+      setStatus(rnlFailure(error));
       return;
     }
     if (plan.status === "blocked") {
@@ -164,7 +204,7 @@ export function createEditorFileCommands({
           ? error instanceof Error
             ? error.message
             : "Netlist file export failed"
-          : "Clipboard unavailable; select the netlist in the sidebar and copy it",
+          : CLIPBOARD_FALLBACK,
       );
     }
   };

@@ -1,3 +1,4 @@
+import { writeClipboardText } from "./clipboard-text";
 import type { EditorExportDelivery } from "./export-delivery";
 
 /** Current Web delivery. No native filesystem or Project-save authority. */
@@ -16,7 +17,5 @@ export const browserExportDelivery: EditorExportDelivery = {
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
     }
   },
-  async copyText(text) {
-    await navigator.clipboard.writeText(text);
-  },
+  copyText: writeClipboardText,
 };
