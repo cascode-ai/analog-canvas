@@ -3,16 +3,32 @@ import {
   createDefaultNetlistExportPreferences,
   parseNetlistExportPreferences,
   readNetlistExportPreferences,
-  selectNetlistExportFormat,
+  selectNetlistExportMode,
   selectNetlistExportProfile,
   setNetlistExportDeviceTarget,
 } from "./netlist-export-preferences.js";
 
 describe("netlist authoring preferences", () => {
+  it("remembers an RNL mode as its dialect and a flag, and drops the flag again", () => {
+    const rnl = selectNetlistExportMode(
+      createDefaultNetlistExportPreferences(),
+      "spectre+rnl",
+    );
+    expect(rnl.format).toBe("spectre");
+    expect(rnl.rnl).toBe(true);
+    expect(readNetlistExportPreferences(JSON.stringify(rnl))).toEqual(rnl);
+    const plain = selectNetlistExportMode(rnl, "spice");
+    expect(plain.format).toBe("spice");
+    expect(plain).not.toHaveProperty("rnl");
+    expect(() =>
+      parseNetlistExportPreferences(JSON.stringify({ ...rnl, rnl: "yes" })),
+    ).toThrow("rnl must be true or false.");
+  });
+
   it("remembers format, process and device choices independently", () => {
     const preferences = setNetlistExportDeviceTarget(
       selectNetlistExportProfile(
-        selectNetlistExportFormat(
+        selectNetlistExportMode(
           createDefaultNetlistExportPreferences(),
           "spectre",
         ),
@@ -29,7 +45,7 @@ describe("netlist authoring preferences", () => {
     expect(preferences.profiles.sky130.devices.nmos.target).toBe(
       "sky130_fd_pr__nfet_01v8_lvt",
     );
-    expect(selectNetlistExportFormat(preferences, "spice").selected).toBe(
+    expect(selectNetlistExportMode(preferences, "spice").selected).toBe(
       "sky130",
     );
   });

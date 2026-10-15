@@ -16,7 +16,7 @@ describe("live netlist controls", () => {
         selectedProcess="abstract"
         onProcessChange={vi.fn()}
         onDeviceTargetChange={vi.fn()}
-        onFormatChange={vi.fn()}
+        onModeChange={vi.fn()}
         onApply={vi.fn()}
         onFocusInstance={vi.fn()}
         onReset={vi.fn()}
@@ -50,6 +50,34 @@ describe("live netlist controls", () => {
     expect(markup).not.toContain("<h2>Netlist</h2>");
   });
 
+  it("offers the RNL modes beside SPICE and SCS, and shows one read-only", () => {
+    const markup = renderToStaticMarkup(
+      <NetlistCodePanel
+        project={createEmptyProject("project", "Project")}
+        format="spice"
+        rnl
+        namingProfile="native"
+        profiles={createDefaultNetlistExportPreferences().profiles}
+        selectedProcess="abstract"
+        onProcessChange={vi.fn()}
+        onDeviceTargetChange={vi.fn()}
+        onModeChange={vi.fn()}
+        onApply={vi.fn()}
+        onFocusInstance={vi.fn()}
+        onReset={vi.fn()}
+        onCopy={vi.fn()}
+        configurationError={null}
+      />,
+    );
+    for (const label of ["SPICE", "SCS", "SPICE+RNL", "Spectre+RNL"])
+      expect(markup).toContain(`>${label}</option>`);
+    expect(markup).toContain('value="spice+rnl" selected=""');
+    // The runtime writes after the first paint; the editable code is gone.
+    expect(markup).toContain('aria-label="RNL netlist"');
+    expect(markup).toContain("Writing RNL…");
+    expect(markup).not.toContain('aria-label="Netlist code"');
+  });
+
   it("lists every blocking finding, each with the part it names", () => {
     const project = createEmptyProject("project", "Project");
     for (const [index, [id, symbolId]] of (
@@ -77,7 +105,7 @@ describe("live netlist controls", () => {
         selectedProcess="abstract"
         onProcessChange={vi.fn()}
         onDeviceTargetChange={vi.fn()}
-        onFormatChange={vi.fn()}
+        onModeChange={vi.fn()}
         onApply={vi.fn()}
         onFocusInstance={vi.fn()}
         onNavigateDiagnostic={vi.fn()}

@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createEmptyProject } from "@icm/model";
+import { parseProject } from "@icm/project-protocol";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   describeExportFailure,
   planDesignNetlistExport,
+  planRnlNetlistExport,
 } from "./editor-export-commands";
 import { importChunk } from "../../components/chunk-import";
 import { hierarchyParameterFixture } from "../../../../../netlists/hierarchy-parameters/fixture";
@@ -97,6 +101,78 @@ describe("editor export commands", () => {
     expect(plan.artifact.extension).toBe("spi");
     expect(plan.artifact.mediaType).toBe("application/x-spice");
     expect(plan.artifact.report).toBe("SPICE netlist copied");
+  });
+});
+
+describe("RNL netlist export", () => {
+  const rc = () =>
+    parseProject(
+      readFileSync(
+        resolve(
+          import.meta.dirname,
+          "../../examples/simulation-rc.icproj.json",
+        ),
+        "utf8",
+      ),
+    );
+  const runtime = (
+    text: string,
+    diagnostics: { severity: string; message: string }[] = [],
+  ) => ({
+    write: vi.fn(async () => ({ text, document: { diagnostics } })),
+  });
+
+  it("copies what the rnl runtime writes, named for its mode", async () => {
+    const written = runtime("// written");
+    const plan = await planRnlNetlistExport({
+      format: "spectre",
+      project: rc(),
+      runtime: written,
+    });
+    expect(plan.status).toBe("ready");
+    if (plan.status !== "ready") return;
+    expect(plan.artifact.bytes).toBe("// written");
+    expect(plan.artifact.extension).toBe("scs");
+    expect(plan.artifact.report).toMatch(/^Spectre\+RNL netlist copied/u);
+    expect(written.write).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks without the rnl runtime", async () => {
+    const plan = await planRnlNetlistExport({
+      format: "spice",
+      project: rc(),
+      runtime: null,
+    });
+    expect(plan).toEqual({
+      status: "blocked",
+      message: "RNL formats need the rnl runtime, which this build lacks",
+    });
+  });
+
+  it("blocks on an RNL error before asking the runtime", async () => {
+    const project = rc();
+    project.documents[0]!.instances.find(
+      (instance) => instance.placement,
+    )!.placement!.rotation = 45;
+    const written = runtime("unused");
+    const plan = await planRnlNetlistExport({
+      format: "spice",
+      project,
+      runtime: written,
+    });
+    expect(plan.status).toBe("blocked");
+    if (plan.status === "blocked")
+      expect(plan.message).toContain("quarter turns");
+    expect(written.write).not.toHaveBeenCalled();
+  });
+
+  it("blocks when the written file has an error", async () => {
+    const plan = await planRnlNetlistExport({
+      format: "spice",
+      project: rc(),
+      runtime: runtime("bad", [{ severity: "error", message: "no symbol" }]),
+    });
+    expect(plan).toEqual({ status: "blocked", message: "RNL: no symbol" });
   });
 });
 

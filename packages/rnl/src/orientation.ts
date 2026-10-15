@@ -57,6 +57,8 @@ const CANONICAL: readonly Orientation[] = ([0, 90, 180, 270] as const).flatMap(
  * The Analog Canvas orientation drawing a part as an RNL code does, written
  * as a quarter turn with no mirror or a left-right mirror; Analog Canvas
  * spells some of these with a vertical mirror too, which draws the same.
+ * @internal The RNL import reads orientations back with it; until then its
+ * test pins the round trip.
  */
 export function acOrientation(orient: RnlOrient): Orientation {
   const found = CANONICAL.find((orientation) => {

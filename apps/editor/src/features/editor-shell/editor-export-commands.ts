@@ -3,10 +3,17 @@ import {
   createDesignNetlistExport,
   unfinishedDrawingDiagnostics,
 } from "@icm/netlist";
-import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
+import type {
+  NetlistDiagnostic,
+  NetlistFormat,
+  NetlistNamingProfile,
+} from "@icm/netlist";
+import { createRnlExport } from "@icm/rnl";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../text-editing/formula-artifacts";
+import { netlistMode, netlistModeLabel } from "../netlist-export/netlist-mode";
+import type { RnlRuntime } from "../netlist-export/rnl-runtime";
 import {
   ChunkLoadError,
   chunkLoadStatus,
@@ -81,18 +88,8 @@ export function planDesignNetlistExport({
       message: "Resolve the Check Report findings before export",
     };
   }
-  // A node only one pin reaches is not a complete circuit, so this netlist is
-  // not something to hand out even after strict extraction succeeds.
-  const unfinished = unfinishedDrawingDiagnostics(result.diagnostics);
-  if (unfinished.length > 0) {
-    return {
-      status: "blocked",
-      message:
-        unfinished.length === 1
-          ? unfinished[0]!.message
-          : `${unfinished.length} dead-end nodes. ${unfinished[0]!.message}`,
-    };
-  }
+  const unfinished = unfinishedMessage(result.diagnostics);
+  if (unfinished) return { status: "blocked", message: unfinished };
   const printed = result.file;
   const note =
     result.diagnostics.length || electricalWarningsPresent
@@ -105,6 +102,91 @@ export function planDesignNetlistExport({
       mediaType: printed.mediaType,
       extension: printed.extension.slice(1),
       report: `${format === "spice" ? "SPICE" : "Spectre"} netlist copied${note}`,
+    },
+  };
+}
+
+/**
+ * A node only one pin reaches is not a complete circuit, so a netlist that
+ * has one is not something to hand out even after strict extraction succeeds.
+ */
+function unfinishedMessage(
+  diagnostics: readonly NetlistDiagnostic[],
+): string | null {
+  const unfinished = unfinishedDrawingDiagnostics([...diagnostics]);
+  if (unfinished.length === 0) return null;
+  return unfinished.length === 1
+    ? unfinished[0]!.message
+    : `${unfinished.length} dead-end nodes. ${unfinished[0]!.message}`;
+}
+
+/**
+ * The SPICE+RNL or Spectre+RNL netlist: that dialect's netlist with the
+ * drawing written in by the rnl runtime. It blocks where the plain netlist
+ * does, on an RNL error, and when the runtime is missing or refuses the file.
+ */
+export async function planRnlNetlistExport({
+  format,
+  project,
+  namingProfile = "native",
+  electricalWarningsPresent = false,
+  rootDocumentId,
+  runtime,
+}: {
+  format: NetlistFormat;
+  project: CircuitProject;
+  namingProfile?: NetlistNamingProfile;
+  electricalWarningsPresent?: boolean;
+  rootDocumentId?: string;
+  runtime: RnlRuntime | null;
+}): Promise<DesignNetlistExportPlan> {
+  const exported = createRnlExport(project, {
+    format,
+    namingProfile,
+    ...(rootDocumentId ? { rootDocumentId } : {}),
+  });
+  if (exported.status === "blocked") {
+    const error = exported.diagnostics.find(
+      (item) => item.severity === "error",
+    );
+    return {
+      status: "blocked",
+      message: error
+        ? error.message
+        : "Resolve the Check Report findings before export",
+    };
+  }
+  const unfinished = unfinishedMessage(exported.netlistDiagnostics);
+  if (unfinished) return { status: "blocked", message: unfinished };
+  if (!runtime)
+    return {
+      status: "blocked",
+      message: "RNL formats need the rnl runtime, which this build lacks",
+    };
+  const written = await runtime.write({
+    write: exported.request,
+    svg: false,
+    primitives: false,
+  });
+  const error = written.document.diagnostics.find(
+    (item) => item.severity === "error",
+  );
+  if (error) return { status: "blocked", message: `RNL: ${error.message}` };
+  const notes = [
+    exported.netlistDiagnostics.length || electricalWarningsPresent
+      ? "see Check Report for findings"
+      : null,
+    exported.diagnostics.length ? "RNL warnings in the Netlist panel" : null,
+  ].filter(Boolean);
+  return {
+    status: "ready",
+    artifact: {
+      bytes: written.text,
+      mediaType: exported.file.mediaType,
+      extension: exported.file.extension.slice(1),
+      report: `${netlistModeLabel(netlistMode(format, true))} netlist copied${
+        notes.length ? `; ${notes.join("; ")}` : ""
+      }`,
     },
   };
 }

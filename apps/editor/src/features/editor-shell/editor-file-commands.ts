@@ -1,5 +1,5 @@
 import { convertImportSources } from "../netlist-export/convert-import-sources";
-import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
+import type { NetlistNamingProfile } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
@@ -7,12 +7,18 @@ import { safeExportBaseName } from "@icm/exporters";
 import type { EditorExportDelivery } from "../../hosts/export-delivery";
 
 import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
+import {
+  netlistModeParts,
+  type NetlistMode,
+} from "../netlist-export/netlist-mode";
+import { loadRnlRuntime } from "../netlist-export/rnl-runtime";
 
 import {
   createVisualExportArtifact,
   createSvgExportArtifact,
   describeExportFailure,
   planDesignNetlistExport,
+  planRnlNetlistExport,
   type EditorExportArtifact,
 } from "./editor-export-commands";
 
@@ -40,10 +46,7 @@ export interface EditorFileCommandDependencies {
     viewBox: GridRect,
     options: { source: "spice-import" },
   ) => void;
-  showNetlist: (
-    format: NetlistFormat,
-    namingProfile: NetlistNamingProfile,
-  ) => void;
+  showNetlist: (mode: NetlistMode, namingProfile: NetlistNamingProfile) => void;
   setImportReport: (report: SpiceImportReport | null) => void;
   setImportReviewOpen: (open: boolean) => void;
   setSelectionOpen: (open: boolean) => void;
@@ -97,16 +100,17 @@ export function createEditorFileCommands({
   };
 
   const exportDesignNetlist = async (
-    format: NetlistFormat,
+    mode: NetlistMode,
     namingProfile: NetlistNamingProfile = "native",
     destination: "clipboard" | "file" = "clipboard",
   ): Promise<void> => {
-    showNetlist(format, namingProfile);
+    showNetlist(mode, namingProfile);
     if (netlistConfigurationError) {
       setStatus(`Fix Netlist configuration: ${netlistConfigurationError}`);
       return;
     }
-    const plan = planDesignNetlistExport({
+    const { format, rnl } = netlistModeParts(mode);
+    const options = {
       format,
       project,
       namingProfile,
@@ -114,7 +118,23 @@ export function createEditorFileCommands({
         ? { rootDocumentId: netlistRootDocumentId }
         : {}),
       electricalWarningsPresent: electricalWarningsPresent(),
-    });
+    };
+    let plan;
+    try {
+      plan = rnl
+        ? await planRnlNetlistExport({
+            ...options,
+            runtime: await loadRnlRuntime(),
+          })
+        : planDesignNetlistExport(options);
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? `RNL: ${error.message}`
+          : "The rnl runtime could not write this netlist",
+      );
+      return;
+    }
     if (plan.status === "blocked") {
       setStatus(plan.message);
       return;

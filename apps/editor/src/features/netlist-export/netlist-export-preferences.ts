@@ -9,6 +9,11 @@ import {
   type NetlistQuickTargetFamily,
 } from "./netlist-process-presets";
 import type { NetlistFormat } from "@icm/netlist";
+import {
+  netlistMode,
+  netlistModeParts,
+  type NetlistMode,
+} from "./netlist-mode";
 
 const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
 
@@ -27,6 +32,11 @@ export interface NetlistExportPreferences {
   /** The default-process generation this preference has been moved to. */
   defaultProcess?: number;
   format: NetlistFormat;
+  /**
+   * Write the drawing into the netlist as RNL: the read-only SPICE+RNL and
+   * Spectre+RNL formats. Left out when false.
+   */
+  rnl?: boolean;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
 }
 
@@ -84,6 +94,8 @@ export function parseNetlistExportPreferences(
     );
   if (parsed.format !== "spice" && parsed.format !== "spectre")
     throw new Error("format must be spice or spectre.");
+  if (parsed.rnl !== undefined && typeof parsed.rnl !== "boolean")
+    throw new Error("rnl must be true or false.");
   if ("portCase" in parsed)
     throw new Error("Port names keep their authored case; remove portCase.");
   if (
@@ -117,11 +129,13 @@ export function selectNetlistExportProfile(
   return { ...preferences, selected };
 }
 
-export function selectNetlistExportFormat(
+export function selectNetlistExportMode(
   preferences: NetlistExportPreferences,
-  format: NetlistFormat,
+  mode: NetlistMode,
 ): NetlistExportPreferences {
-  return { ...preferences, format };
+  const { format, rnl } = netlistModeParts(mode);
+  const { rnl: _was, ...rest } = preferences;
+  return rnl ? { ...rest, format, rnl } : { ...rest, format };
 }
 
 export function setNetlistExportDeviceTarget(
@@ -185,8 +199,8 @@ export function useNetlistExportPreferences() {
     setText(source);
     setError(null);
   };
-  const selectFormat = (format: NetlistFormat) => {
-    const next = selectNetlistExportFormat(preferences, format);
+  const selectMode = (mode: NetlistMode) => {
+    const next = selectNetlistExportMode(preferences, mode);
     const source = JSON.stringify(next, null, 2);
     setPreferences(next);
     setText(source);
@@ -218,12 +232,14 @@ export function useNetlistExportPreferences() {
     preferences,
     selected: preferences.selected,
     format: preferences.format,
+    rnl: preferences.rnl === true,
+    mode: netlistMode(preferences.format, preferences.rnl === true),
     profile: preferences.profiles[preferences.selected],
     text,
     error,
     changeText,
     selectProfile,
-    selectFormat,
+    selectMode,
     setDeviceTarget,
     reset,
   };

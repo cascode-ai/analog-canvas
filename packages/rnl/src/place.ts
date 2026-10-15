@@ -23,7 +23,7 @@ export function toRnlPoint(point: { x: number; y: number }): RnlPoint {
 }
 
 /** An RNL scene point back in Analog Canvas coordinates. */
-export function fromRnlPoint([x, y]: RnlPoint): { x: number; y: number } {
+function fromRnlPoint([x, y]: RnlPoint): { x: number; y: number } {
   return {
     x: clean(x * AC_UNITS_PER_RNL_UNIT),
     y: clean(-y * AC_UNITS_PER_RNL_UNIT),
@@ -45,7 +45,11 @@ export function rnlPlace(
   return [clean(x + dx), clean(y + dy)];
 }
 
-/** The Analog Canvas origin of a part RNL places at `place`. */
+/**
+ * The Analog Canvas origin of a part RNL places at `place`.
+ * @internal The RNL import reads placements back with it; until then its
+ * test pins the round trip.
+ */
 export function acPosition(
   place: RnlPoint,
   orient: RnlOrient,

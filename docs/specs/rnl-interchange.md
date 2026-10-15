@@ -20,6 +20,8 @@ the RNL language and its runtime belong to rnl.
   snapshot, so an rnl upgrade changes the written RNL without editor changes.
 - WebAssembly stays out of packages the Worker and MCP bundles import
   (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.
+- Without the runtime, the RNL formats say so and copy nothing; the other
+  formats are unaffected.
 
 ### Export formats
 

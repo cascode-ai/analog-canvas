@@ -4389,8 +4389,8 @@ function WorkspaceEditor({
       netlistConfigurationError: netlistPreferences.error,
       guardDirtyReplacement,
       replaceActiveProject,
-      showNetlist: (format, namingProfile) => {
-        netlistPreferences.selectFormat(format);
+      showNetlist: (mode, namingProfile) => {
+        netlistPreferences.selectMode(mode);
         setNetlistNamingProfile(namingProfile);
         showProjectPanel("netlist");
       },
@@ -5428,7 +5428,8 @@ function WorkspaceEditor({
                       )
                     }
                     namingProfile={netlistNamingProfile}
-                    onFormatChange={netlistPreferences.selectFormat}
+                    rnl={netlistPreferences.rnl}
+                    onModeChange={netlistPreferences.selectMode}
                     profiles={netlistPreferences.preferences.profiles}
                     selectedProcess={netlistPreferences.selected}
                     onProcessChange={netlistPreferences.selectProfile}
@@ -5436,7 +5437,7 @@ function WorkspaceEditor({
                     onReset={netlistPreferences.reset}
                     onCopy={() =>
                       void exportDesignNetlist(
-                        netlistPreferences.format,
+                        netlistPreferences.mode,
                         netlistNamingProfile,
                       )
                     }
@@ -5444,7 +5445,7 @@ function WorkspaceEditor({
                       ? {
                           onSaveFile: () =>
                             void exportDesignNetlist(
-                              netlistPreferences.format,
+                              netlistPreferences.mode,
                               netlistNamingProfile,
                               "file",
                             ),

@@ -3,6 +3,7 @@ import {
   createDesignNetlistExport,
   type DesignNetlistAnalysisOptions,
   type NetlistDiagnostic,
+  type NetlistFileDescriptor,
   type NetlistFormat,
 } from "@icm/netlist";
 
@@ -32,6 +33,8 @@ export type RnlExport =
   | {
       status: "ready";
       request: RnlWriteRequest;
+      /** The netlist file's kind: an RNL file is a netlist of the same dialect. */
+      file: Pick<NetlistFileDescriptor, "mediaType" | "extension">;
       /** What the netlist printer found; the caller decides what blocks. */
       netlistDiagnostics: NetlistDiagnostic[];
       diagnostics: RnlExportDiagnostic[];
@@ -76,6 +79,10 @@ export function createRnlExport(
     };
   return {
     status: "ready",
+    file: {
+      mediaType: result.file.mediaType,
+      extension: result.file.extension,
+    },
     request: {
       dialect: options.format,
       netlist: result.file.text,

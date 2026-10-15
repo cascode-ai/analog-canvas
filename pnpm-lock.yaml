@@ -150,6 +150,9 @@ importers:
       '@icm/render-svg':
         specifier: workspace:*
         version: link:../../packages/render-svg
+      '@icm/rnl':
+        specifier: workspace:*
+        version: link:../../packages/rnl
       '@icm/simulation-service':
         specifier: workspace:*
         version: link:../../packages/simulation-service
