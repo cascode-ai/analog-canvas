@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import react from "@vitejs/plugin-react";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from "vite";
 
 import { localNetlistConversion } from "./dev/netlist-conversion";
 import { localAgentRelay } from "./dev/agent-relay";
@@ -11,6 +14,22 @@ import { localSimulation } from "./dev/local-simulation.js";
 import { localReplica } from "./dev/local-replica";
 import { editorPreload } from "./build/editor-preload";
 import { galleryEarlyFetch } from "./build/gallery-early-fetch";
+
+/**
+ * The folder the rnl runtime's files are really in. A linked build of rnl
+ * lives outside this workspace, and the dev server serves the runtime's
+ * Worker and WebAssembly only from folders it allows.
+ */
+function rnlRuntimeFolders(): string[] {
+  try {
+    const manifest = createRequire(import.meta.url).resolve(
+      "@rich-netlist/runtime/package.json",
+    );
+    return [dirname(realpathSync(manifest))];
+  } catch {
+    return [];
+  }
+}
 
 function isolateDevDependencyCache(): Plugin {
   return {
@@ -59,6 +78,20 @@ function versionStaticServiceWorker(): Plugin {
 export default defineConfig({
   // The Worker serves the editor from a domain root, so assets are absolute.
   base: "/",
+  // The rnl runtime's Worker awaits at its top level, so Workers bundle as
+  // ES modules; every Worker here is a module Worker already.
+  worker: { format: "es" },
+  // Pre-bundling would rewrite the runtime's import.meta.url for its Worker
+  // and WebAssembly; serve it as the package ships it.
+  optimizeDeps: { exclude: ["@rich-netlist/runtime"] },
+  server: {
+    fs: {
+      allow: [
+        searchForWorkspaceRoot(fileURLToPath(new URL(".", import.meta.url))),
+        ...rnlRuntimeFolders(),
+      ],
+    },
+  },
   plugins: [
     isolateDevDependencyCache(),
     react(),

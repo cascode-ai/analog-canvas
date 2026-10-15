@@ -165,6 +165,9 @@ importers:
       '@lezer/json':
         specifier: 1.0.3
         version: 1.0.3
+      '@rich-netlist/runtime':
+        specifier: link:D:/repositories/rnl/.claude/worktrees/rel/packages/runtime/dist
+        version: link:../../../../../rnl/.claude/worktrees/rel/packages/runtime/dist
       fflate:
         specifier: 0.8.3
         version: 0.8.3

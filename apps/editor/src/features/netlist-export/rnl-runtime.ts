@@ -1,5 +1,7 @@
 import type { RnlWriteRequest } from "@icm/rnl";
 
+import { importChunk } from "../../components/chunk-import";
+
 /** A finding of the rnl runtime about the file it wrote (rnl standard, ch. 7). */
 export interface RnlRuntimeDiagnostic {
   /** "error", "warning" or "hint". */
@@ -14,9 +16,9 @@ export interface RnlWritten {
 }
 
 /**
- * The rnl runtime (rnl's bindings/runtime-wasm), running in a Worker: it
- * writes a drawing's operations into its netlist as RNL. The editor never
- * spells RNL itself.
+ * The rnl runtime (`@rich-netlist/runtime`), running in a Worker: it writes a
+ * drawing's operations into its netlist as RNL. The editor never spells RNL
+ * itself.
  */
 export interface RnlRuntime {
   write(request: {
@@ -26,11 +28,31 @@ export interface RnlRuntime {
   }): Promise<RnlWritten>;
 }
 
+let started: Promise<RnlRuntime | null> | null = null;
+
 /**
- * The rnl runtime, started on first use. rnl's package is not linked into
- * this build yet, so there is none: the RNL formats say so instead of
- * writing.
+ * The rnl runtime, loaded on first use: its module, Worker and WebAssembly
+ * stay out of the editor until an RNL format asks for them, and one Worker
+ * serves every request after. A failed load is tried again next time.
  */
 export function loadRnlRuntime(): Promise<RnlRuntime | null> {
-  return Promise.resolve(null);
+  started ??= importChunk(
+    "RNL formats",
+    () => import("@rich-netlist/runtime"),
+  ).then(
+    ({ startCore }) => {
+      const core = startCore();
+      return {
+        // The Worker takes the request as JSON, where this editor's readonly
+        // points and the runtime's point arrays are the same thing.
+        write: (request) =>
+          core.write(request as unknown as Parameters<typeof core.write>[0]),
+      } satisfies RnlRuntime;
+    },
+    (error: unknown) => {
+      started = null;
+      throw error;
+    },
+  );
+  return started;
 }

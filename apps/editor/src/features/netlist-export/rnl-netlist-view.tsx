@@ -111,7 +111,16 @@ export function RnlNetlistView({
     let live = true;
     setState({ status: "writing" });
     void loadRnlRuntime()
-      .then((runtime) => writeRnlExport(exported, runtime))
+      .then(
+        (runtime) => writeRnlExport(exported, runtime),
+        (error: unknown): RnlWriteState => ({
+          status: "failed",
+          message:
+            error instanceof Error
+              ? error.message
+              : "The rnl runtime could not load",
+        }),
+      )
       .then((next) => {
         if (live) setState(next);
       });
