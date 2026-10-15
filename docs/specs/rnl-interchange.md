@@ -37,8 +37,10 @@ the RNL language and its runtime belong to rnl.
   standard package or, for an appearance variant or the chopper, the
   `analog-canvas-extensions` package; it is placed at that symbol's
   registration point and turned by one of RNL's eight orientations.
-- The file declares each package it uses that `rnl-std` does not bring in by
-  itself, such as `rnl-std-functional` for an op-amp.
+- The header pins the standard series, `rnl-std` 0.3, and declares with its
+  version each package the drawing uses that `rnl-std` does not bring in by
+  itself, such as `rnl-std-functional` for an op-amp. A tool without that
+  version then says so at the first statement.
 - Ground, supply and Cell Pin markers are written as `$GROUND`, `$SUPPLY` and
   `$IO_PORT`. Wires keep every bend. What the editor joins by contact (a wire
   through a junction or pin, touching endpoints) is joined explicitly, since

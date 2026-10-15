@@ -71,7 +71,7 @@ export type RnlOp = { level: string } & (
       style?: Record<string, string>;
     }
   | { op: "remove-from"; items: string[]; set: string }
-  | { op: "use-package"; name: string }
+  | { op: "use-package"; name: string; version: string }
   | {
       op: "add-text";
       /** The part, usage or net it is attached to; absent for a text on a point. */
@@ -114,14 +114,20 @@ const USAGE_PREFIX: Readonly<Record<string, string>> = {
 
 /**
  * Packages the standard package `rnl-std` brings in by itself (16.3): they
- * draw every element SPICE and Spectre read natively, all but subcircuit
- * calls. A file names every other package it uses. The split is rnl-dev's
- * draft, not yet in the standard.
+ * hold the symbols for every element SPICE and Spectre read natively, all but
+ * subcircuit calls. A file names every other package it uses. The rules that
+ * pick those symbols by default come with the netlist dialect's own standard
+ * package; the export needs none, since it sets every symbol itself. The
+ * split is rnl-dev's draft, not yet in the standard.
  */
 const IMPLICIT_PACKAGES = new Set(["rnl-std-basic", "rnl-std-semiconductors"]);
 
+/** The standard series the export writes for; the header pins it (16.3). */
+const STD_VERSION = "0.3";
+
 /** The package of Analog Canvas's appearance variants and chopper; not standard. */
 const AC_PACKAGE = "analog-canvas-extensions";
+const AC_PACKAGE_VERSION = "0.1";
 
 /**
  * A name as RNL writes it after its prefix: plain when it is ASCII letters,
@@ -137,11 +143,12 @@ export function rnlName(prefix: string, name: string): string {
  * The edit transaction's operations that draw a netlisted Project as Analog
  * Canvas draws it: each part's symbol, place and orientation, the ground,
  * supply and Cell Pin glyphs, every wire with all its bends, junctions and
- * the dots Analog Canvas draws, and the contacts it makes by touching.
+ * the dots Analog Canvas draws, the contacts it makes by touching, and its
+ * labels and texts. The header pins the standard series and every other
+ * package the drawing uses.
  *
  * `ir` is the IR the netlist was printed from (`includeIr`), with the body
  * port order `rnlBodyPortOrder` gives, so names and terminals match the file.
- * Texts are not written yet.
  */
 export function rnlExportOps(
   project: CircuitProject,
@@ -165,14 +172,15 @@ export function rnlExportOps(
       resolver,
     });
   }
-  const header: RnlOp[] = [...packages]
-    .filter((name) => !IMPLICIT_PACKAGES.has(name))
-    .sort()
-    .map((name) => ({
-      level: top ? `subckt:${top.name}` : "",
-      op: "use-package",
-      name,
-    }));
+  const header: RnlOp[] = [
+    "rnl-std",
+    ...[...packages].filter((name) => !IMPLICIT_PACKAGES.has(name)).sort(),
+  ].map((name) => ({
+    level: top ? `subckt:${top.name}` : "",
+    op: "use-package",
+    name,
+    version: name === AC_PACKAGE ? AC_PACKAGE_VERSION : STD_VERSION,
+  }));
   return { ops: [...header, ...ops], diagnostics };
 }
 

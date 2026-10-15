@@ -60,8 +60,11 @@ describe("RNL export of the simulation examples", () => {
       expect(diagnostics.filter((item) => item.severity === "error")).toEqual(
         [],
       );
-      // Their symbols all come with rnl-std, so the file names no package.
-      expect(of(ops, "use-package")).toEqual([]);
+      // Their symbols all come with rnl-std: the file pins it and names no
+      // other package.
+      expect(
+        of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
+      ).toEqual(["rnl-std 0.3"]);
       const wires = of(ops, "add-wire");
       const routes = documents.flatMap((document) => document.routes);
       expect(wires.length).toBeGreaterThanOrEqual(routes.length);
@@ -283,16 +286,16 @@ describe("what RNL cannot write", () => {
   });
 
   it.each([
-    ["opamp", "$OPAMP_5TERM", "rnl-std-functional", false],
+    ["opamp", "$OPAMP_5TERM", "rnl-std-functional 0.3", false],
     [
       "opamp-lettered",
       "$CANVAS_OPAMP_LETTERED",
-      "analog-canvas-extensions",
+      "analog-canvas-extensions 0.1",
       true,
     ],
   ] as const)(
     "declares the package of %s's symbol %s, %s, and warns only of a non-standard one",
-    (symbolId, symbol, name, nonStandard) => {
+    (symbolId, symbol, pinned, nonStandard) => {
       const project = createEmptyProject("block", "Block", "dut");
       const document = project.documents[0]!;
       document.netlist!.name = "dut";
@@ -345,7 +348,9 @@ describe("what RNL cannot write", () => {
       expect(of(ops, "set")).toContainEqual(
         expect.objectContaining({ object: "#X1", symbol, at: [10, 0] }),
       );
-      expect(of(ops, "use-package").map((op) => op.name)).toEqual([name]);
+      expect(
+        of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
+      ).toEqual(["rnl-std 0.3", pinned]);
     },
   );
 });
