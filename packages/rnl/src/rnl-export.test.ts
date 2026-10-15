@@ -46,7 +46,8 @@ describe("the SPICE+RNL and Spectre+RNL exports", () => {
           ),
         );
       for (const op of request.ops) {
-        if (op.op === "set" && op.object.startsWith("#"))
+        // A lone `#` is the Cell itself, which takes its block symbol.
+        if (op.op === "set" && op.object.startsWith("#") && op.object !== "#")
           expect(prints(op.object.slice(1)), op.object).toBe(true);
         if (op.op === "add-wire")
           for (const net of op.nets)

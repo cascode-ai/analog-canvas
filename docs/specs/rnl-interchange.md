@@ -60,18 +60,16 @@ the RNL language and its runtime belong to rnl.
   a `$CURRENT_ARROW` mark with its label hung on it, and a voltage marker its
   label with + and − beside it, all where the editor draws them. A floating
   symbol is a `$FIGURE` mark drawn with the part's RNL symbol.
-- Pending the rnl writer (the export already builds these, behind an option
-  the RNL formats leave off):
-  - A drawn Cell's block is a symbol defined in the Cell's own level and set
-    on the Cell itself, so every call is drawn with it; its pins name the
-    printed ports and show their names. An external subcircuit's block is
-    defined once in the file level, its pins numbered, and set on each call.
-  - Drawing objects are RNL shapes in their stacking order: rectangles,
-    circles, lines and curves (a quadratic leg as the cubic that draws it),
-    arrows with their heads, dots and outlines, leaders and callouts, and
-    polarity marks; a rectangle or circle on the background plane is drawn
-    under the circuit. Anything anchored to a part or a wire is written at
-    its place.
+- A drawn Cell's block is a symbol defined in the Cell's own level and set on
+  the Cell itself, so every call is drawn with it; its pins name the printed
+  ports and show their names. An external subcircuit's block is defined once
+  in the file level, its pins numbered, and set on each call.
+- Drawing objects are RNL shapes in their stacking order: rectangles,
+  circles, lines and curves (a quadratic leg as the cubic that draws it),
+  arrows with their heads, dots and outlines, leaders and callouts, and
+  polarity marks; a rectangle or circle on the background plane is drawn
+  under the circuit. Anything anchored to a part or a wire is written at its
+  place.
 
 ### Failures
 
@@ -81,9 +79,9 @@ the RNL language and its runtime belong to rnl.
   symbol from the `analog-canvas-extensions` package, labels written as fixed
   text, hidden labels left out, text placed along a
   wire written at a fixed place, formulas written as LaTeX source, tilted text
-  written level, drawing objects not exported yet, parts in the tray, drawn
-  Cell blocks drawn as RNL's stand-in box, a direction arrow on a slanted
-  wire.
+  written level, a floating symbol with no RNL symbol, a typography token
+  written as its size, parts in the tray, a block whose artwork RNL cannot
+  take drawn as RNL's stand-in box, a direction arrow on a slanted wire.
 
 ### Import
 

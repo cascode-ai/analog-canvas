@@ -10,7 +10,6 @@ import {
 import {
   rnlExportOps,
   type RnlExportDiagnostic,
-  type RnlExportOptions,
   type RnlOp,
 } from "./export-ops.js";
 import { rnlBodyPortOrder } from "./symbol-map.js";
@@ -55,11 +54,10 @@ export type RnlExport =
  */
 export function createRnlExport(
   project: CircuitProject,
-  {
-    symbolsAndShapes,
-    ...options
-  }: Pick<DesignNetlistAnalysisOptions, "namingProfile" | "rootDocumentId"> &
-    RnlExportOptions & { format: NetlistFormat },
+  options: Pick<
+    DesignNetlistAnalysisOptions,
+    "namingProfile" | "rootDocumentId"
+  > & { format: NetlistFormat },
 ): RnlExport {
   const result = createDesignNetlistExport(project, {
     ...options,
@@ -72,9 +70,7 @@ export function createRnlExport(
       netlistDiagnostics: result.diagnostics,
       diagnostics: [],
     };
-  const { ops, diagnostics } = rnlExportOps(project, result.ir!, {
-    symbolsAndShapes: symbolsAndShapes ?? false,
-  });
+  const { ops, diagnostics } = rnlExportOps(project, result.ir!);
   if (diagnostics.some((item) => item.severity === "error"))
     return {
       status: "blocked",

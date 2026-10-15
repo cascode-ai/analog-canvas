@@ -116,15 +116,6 @@ export type RnlOp = { level: string } & (
   | ({ op: "define-symbol" } & RnlSymbolDefinition)
 );
 
-export interface RnlExportOptions {
-  /**
-   * Write blocks' symbols (define-symbol) and drawing objects (add-shape).
-   * Off until the rnl runtime's writer takes these operations; the
-   * stand-in writer used to check the export takes them already.
-   */
-  symbolsAndShapes?: boolean;
-}
-
 export interface RnlExportDiagnostic {
   /** An error leaves the drawing out of the export; a warning only reports. */
   severity: "error" | "warning";
@@ -171,13 +162,12 @@ const AC_PACKAGE_VERSION = "0.1";
 
 /**
  * The edit transaction's operations that draw a netlisted Project as Analog
- * Canvas draws it: each part's symbol, place and orientation, the ground,
- * supply and Cell Pin glyphs, every wire with all its bends and direction
- * arrows, junctions and the dots Analog Canvas draws, the contacts it makes
- * by touching, its labels and texts, and the current and voltage marks on
- * wires. With `symbolsAndShapes`, also each block's symbol and the drawing
- * objects. The header pins the standard series and every other package the
- * drawing uses.
+ * Canvas draws it: each part's symbol, place and orientation, each block's
+ * symbol, the ground, supply and Cell Pin glyphs, every wire with all its
+ * bends and direction arrows, junctions and the dots Analog Canvas draws, the
+ * contacts it makes by touching, its labels and texts, the current and
+ * voltage marks on wires, and the drawing objects. The header pins the
+ * standard series and every other package the drawing uses.
  *
  * `ir` is the IR the netlist was printed from (`includeIr`), with the body
  * port order `rnlBodyPortOrder` gives, so names and terminals match the file.
@@ -185,16 +175,12 @@ const AC_PACKAGE_VERSION = "0.1";
 export function rnlExportOps(
   project: CircuitProject,
   ir: DesignNetlistIR,
-  options: RnlExportOptions = {},
 ): { ops: RnlOp[]; diagnostics: RnlExportDiagnostic[] } {
   const ops: RnlOp[] = [];
   const diagnostics: RnlExportDiagnostic[] = [];
   const packages = new Set<string>();
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
-  const symbolsAndShapes = options.symbolsAndShapes ?? false;
-  const blocks = symbolsAndShapes
-    ? blockSymbols(project, ir, resolver)
-    : { cells: new Map(), externals: new Map() };
+  const blocks = blockSymbols(project, ir, resolver);
   const top = ir.cells.find((cell) => cell.id === ir.topCellId);
   for (const cell of ir.cells) {
     if (cell.origin === "generated-model") continue;
@@ -208,7 +194,6 @@ export function rnlExportOps(
       packages,
       resolver,
       blocks,
-      symbolsAndShapes,
     });
   }
   const header: RnlOp[] = [
@@ -238,7 +223,6 @@ interface ExportContext {
   resolver: ReturnType<typeof createProjectSymbolResolver>;
   /** The symbols written for blocks: a Cell's by its Document, an external one's by definition. */
   blocks: ReturnType<typeof blockSymbols>;
-  symbolsAndShapes: boolean;
 }
 
 function exportCell(
@@ -344,11 +328,7 @@ function exportCell(
       report(
         "warning",
         "RNL_BLOCK_STAND_IN",
-        `${describe(instance)} is drawn with RNL's stand-in box: ${
-          context.symbolsAndShapes
-            ? "its block's artwork has a shape RNL cannot take yet"
-            : "its block symbol is not exported yet"
-        }`,
+        `${describe(instance)} is drawn with RNL's stand-in box: its block's artwork has a shape RNL cannot take yet`,
         [instance.id],
       );
     const hidden = symbol?.undrawnPins.find((pin) =>
@@ -782,7 +762,7 @@ function exportTexts(
     ) => void;
   },
 ): void {
-  const { ops, resolver, symbolsAndShapes } = context;
+  const { ops, resolver } = context;
   const profile = resolveDocumentStyleProfile(document.presentation);
   const fixed: StableId[] = [];
   const hidden: StableId[] = [];
@@ -954,9 +934,7 @@ function exportTexts(
       object,
       routing,
     );
-    const shapes = symbolsAndShapes
-      ? draftingShapes(object, geometry, objectProfile)
-      : null;
+    const shapes = draftingShapes(object, geometry, objectProfile);
     for (const shape of shapes ?? [])
       ops.push({
         level,
@@ -988,7 +966,7 @@ function exportTexts(
       continue;
     }
     if (object.kind === "callout") {
-      // Its words wait for its leader, which is a shape.
+      // Its leader is drawn above; its words go with it.
       if (!shapes || geometry.kind !== "callout") {
         drawings.push(object.id);
         continue;
@@ -1082,9 +1060,7 @@ function exportTexts(
   say(
     "RNL_DRAWING_NOT_EXPORTED",
     drawings,
-    symbolsAndShapes
-      ? "drawing objects keep only part of their look: a floating symbol with no RNL symbol is left out, and a typography token is written as its size"
-      : "drawing objects (arrows, leaders, callouts, lines, rectangles, circles, symbols, polarity marks, typography tokens) are not exported yet",
+    "drawing objects keep only part of their look: a floating symbol with no RNL symbol is left out, and a typography token is written as its size",
   );
 }
 

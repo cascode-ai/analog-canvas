@@ -20,12 +20,7 @@ import {
   externalSubcircuitSymbolId,
 } from "@icm/symbols";
 
-import {
-  rnlExportOps,
-  type RnlExportOptions,
-  type RnlOp,
-  type RnlVertex,
-} from "./export-ops.js";
+import { rnlExportOps, type RnlOp, type RnlVertex } from "./export-ops.js";
 import { rnlBodyPortOrder } from "./symbol-map.js";
 
 const example = (name: string): CircuitProject =>
@@ -36,7 +31,7 @@ const example = (name: string): CircuitProject =>
     ),
   );
 
-function exported(project: CircuitProject, options: RnlExportOptions = {}) {
+function exported(project: CircuitProject) {
   const result = createDesignNetlistExport(project, {
     bodyPortOrder: rnlBodyPortOrder(project),
     includeIr: true,
@@ -48,7 +43,7 @@ function exported(project: CircuitProject, options: RnlExportOptions = {}) {
   return {
     text: result.file.text,
     documents: project.documents.filter((document) => printed.has(document.id)),
-    ...rnlExportOps(project, result.ir!, options),
+    ...rnlExportOps(project, result.ir!),
   };
 }
 
@@ -226,15 +221,9 @@ describe("RNL export of the simulation examples", () => {
     ]);
   });
 
-  it("wires a drawn Cell's block by its printed port positions, in a stand-in box", () => {
+  it("wires a drawn Cell's block by its printed port positions", () => {
     const { ops, diagnostics } = exported(example("simulation-ota"));
     expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: "RNL_BLOCK_STAND_IN",
-        objectIds: ["XDUT"],
-      }),
-    );
     const block = of(ops, "set").find((op) => op.object === "#XDUT")!;
     expect(block.symbol).toBeUndefined();
     const reached = of(ops, "add-wire").flatMap((wire) =>
@@ -376,9 +365,7 @@ describe("what RNL cannot write", () => {
 
 describe("blocks' symbols", () => {
   it("defines a drawn Cell's block in its own level, its pins on the printed ports", () => {
-    const { ops, diagnostics } = exported(example("simulation-ota"), {
-      symbolsAndShapes: true,
-    });
+    const { ops, diagnostics } = exported(example("simulation-ota"));
     expect(diagnostics.map((item) => item.code)).not.toContain(
       "RNL_BLOCK_STAND_IN",
     );
@@ -417,7 +404,7 @@ describe("blocks' symbols", () => {
       if (binding?.kind !== "external-subcircuit") throw new Error(id);
       mos.symbolId = externalSubcircuitSymbolId(binding.definitionId);
     }
-    const { ops } = exported(project, { symbolsAndShapes: true });
+    const { ops } = exported(project);
     const files = of(ops, "define-symbol").filter((op) => op.level === "file");
     expect(files.map((op) => op.name)).toEqual([
       "$sky130_fd_pr__nfet_01v8_SYMBOL",
@@ -432,12 +419,6 @@ describe("blocks' symbols", () => {
       expect(of(ops, "set").find((op) => op.object === id)?.symbol).toBe(
         "$sky130_fd_pr__nfet_01v8_SYMBOL",
       );
-  });
-
-  it("keeps the stand-in box until the writer takes symbols", () => {
-    const { ops } = exported(example("simulation-ota"));
-    expect(of(ops, "define-symbol")).toEqual([]);
-    expect(of(ops, "set").find((op) => op.object === "#")).toBeUndefined();
   });
 });
 
@@ -601,9 +582,7 @@ const firstText = (op: Op<"add-text">) => {
 
 describe("drawing objects", () => {
   it("draws each object as its RNL shapes, stacked as Analog Canvas stacks them", () => {
-    const { ops, diagnostics } = exported(drawings(), {
-      symbolsAndShapes: true,
-    });
+    const { ops, diagnostics } = exported(drawings());
     expect(diagnostics.map((item) => item.code)).not.toContain(
       "RNL_DRAWING_NOT_EXPORTED",
     );
@@ -699,17 +678,24 @@ describe("drawing objects", () => {
     expect(signs).toHaveLength(2);
   });
 
-  it("leaves shapes out until the writer takes them, but draws a floating symbol", () => {
-    const { ops, diagnostics } = exported(drawings());
-    expect(of(ops, "add-shape")).toEqual([]);
+  it("leaves out a floating symbol with no RNL symbol, and says so", () => {
+    const project = drawings();
+    const document = project.documents.find(
+      (item) => item.id === project.topDocumentId,
+    )!;
+    const figure = document.drafting!.objects.find(
+      (object) => object.kind === "floating-symbol",
+    )!;
+    if (figure.kind === "floating-symbol") figure.symbolId = "no-such-symbol";
+    const { ops, diagnostics } = exported(project);
     expect(
       of(ops, "add-usage").filter((op) => op.definition === "$FIGURE"),
-    ).toHaveLength(1);
-    expect(
-      of(ops, "add-text").find((op) => firstText(op) === "Load"),
-    ).toBeUndefined();
+    ).toEqual([]);
     expect(diagnostics).toContainEqual(
-      expect.objectContaining({ code: "RNL_DRAWING_NOT_EXPORTED" }),
+      expect.objectContaining({
+        code: "RNL_DRAWING_NOT_EXPORTED",
+        objectIds: ["figure"],
+      }),
     );
   });
 });
