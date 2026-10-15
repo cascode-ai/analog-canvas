@@ -125,6 +125,13 @@ const IMPLICIT_PACKAGES = new Set(["rnl-std-basic", "rnl-std-semiconductors"]);
 /** The standard series the export writes for; the header pins it (16.3). */
 const STD_VERSION = "0.3";
 
+/**
+ * The standard package that clears the labels symbols bring with them (name,
+ * value, model; a usage's name), so a file shows only the labels it writes.
+ * Formulas stay: Analog Canvas shows them.
+ */
+const NO_LABELS_PACKAGE = "rnl-std-no-labels";
+
 /** The package of Analog Canvas's appearance variants and chopper; not standard. */
 const AC_PACKAGE = "analog-canvas-extensions";
 const AC_PACKAGE_VERSION = "0.1";
@@ -174,6 +181,7 @@ export function rnlExportOps(
   }
   const header: RnlOp[] = [
     "rnl-std",
+    NO_LABELS_PACKAGE,
     ...[...packages].filter((name) => !IMPLICIT_PACKAGES.has(name)).sort(),
   ].map((name) => ({
     level: top ? `subckt:${top.name}` : "",

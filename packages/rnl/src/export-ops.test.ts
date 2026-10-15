@@ -60,11 +60,11 @@ describe("RNL export of the simulation examples", () => {
       expect(diagnostics.filter((item) => item.severity === "error")).toEqual(
         [],
       );
-      // Their symbols all come with rnl-std: the file pins it and names no
-      // other package.
+      // Their symbols all come with rnl-std: the file pins it, clears the
+      // symbols' own labels and names no other package.
       expect(
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
-      ).toEqual(["rnl-std 0.3"]);
+      ).toEqual(["rnl-std 0.3", "rnl-std-no-labels 0.3"]);
       const wires = of(ops, "add-wire");
       const routes = documents.flatMap((document) => document.routes);
       expect(wires.length).toBeGreaterThanOrEqual(routes.length);
@@ -350,7 +350,7 @@ describe("what RNL cannot write", () => {
       );
       expect(
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
-      ).toEqual(["rnl-std 0.3", pinned]);
+      ).toEqual(["rnl-std 0.3", "rnl-std-no-labels 0.3", pinned]);
     },
   );
 });

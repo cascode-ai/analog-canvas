@@ -41,6 +41,9 @@ the RNL language and its runtime belong to rnl.
   version each package the drawing uses that `rnl-std` does not bring in by
   itself, such as `rnl-std-functional` for an op-amp. A tool without that
   version then says so at the first statement.
+- The header also uses `rnl-std-no-labels`, which clears the labels symbols
+  bring with them (name, value, model), so the drawing shows only the labels
+  the editor writes; formulas stay.
 - Ground, supply and Cell Pin markers are written as `$GROUND`, `$SUPPLY` and
   `$IO_PORT`. Wires keep every bend. What the editor joins by contact (a wire
   through a junction or pin, touching endpoints) is joined explicitly, since
