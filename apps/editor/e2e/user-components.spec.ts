@@ -1411,10 +1411,7 @@ test("Agent and GUI share the open candidate while applied netlists advance only
   await button(page, "Create Component…").click();
   const editor = componentEditor(page);
   await editor.getByText("Use Agent", { exact: true }).click();
-  await button(editor, "Copy task").click();
-  const taskText = await page.evaluate(() => navigator.clipboard.readText());
-  expect(taskText).toContain("Authoring target:");
-  expect(taskText).not.toMatch(/claimCode|bearer|Claim:/);
+  await expect(button(editor, "Copy task")).toHaveCount(0);
   await button(editor, "Connect Agent").click();
   const panel = editor.getByTestId("connect-agent-panel");
   const handoff = panel.getByTestId("agent-copy-text");

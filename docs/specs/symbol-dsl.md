@@ -125,8 +125,7 @@ owns visual authority.
   clicked trigger without moving focus; Escape cancels the pending exit.
   Save must succeed before leaving. Discard preserves earlier saved/applied
   checkpoints. Publish is independent of leaving. Use Agent reuses the page's
-  connection inside the editor; Copy task contains target identity, no Claim
-  or credentials.
+  connection inside the editor.
 - Public-library editing uses an isolated snapshot in the Project's
   non-executable drafts at its fixed library revision, never replacing
   drawing captures; destination and write rules are in
