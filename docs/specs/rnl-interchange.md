@@ -39,8 +39,8 @@ the RNL language and its runtime belong to rnl.
   registration point and turned by one of RNL's eight orientations.
 - The file declares each package it uses that `rnl-std` does not bring in by
   itself, such as `rnl-std-functional` for an op-amp.
-- Ground, supply and Cell Pin markers are written as `$GND`, `$SUPPLY` and
-  `$IOPORT`. Wires keep every bend. What the editor joins by contact (a wire
+- Ground, supply and Cell Pin markers are written as `$GROUND`, `$SUPPLY` and
+  `$IO_PORT`. Wires keep every bend. What the editor joins by contact (a wire
   through a junction or pin, touching endpoints) is joined explicitly, since
   RNL never connects by position; the dots the editor draws are written.
 - Labels are written as the text they show, styled as shown; RNL cannot style

@@ -1,6 +1,6 @@
 [
   {
-    "symbol": "$RES",
+    "symbol": "$RESISTOR",
     "package": "rnl-std-basic",
     "ac": "resistor",
     "variant": null,
@@ -39,7 +39,7 @@
     "note": ""
   },
   {
-    "symbol": "$RES_VAR",
+    "symbol": "$VARIABLE_RESISTOR",
     "package": "rnl-std-basic",
     "ac": "variable-resistor",
     "variant": null,
@@ -78,7 +78,7 @@
     "note": ""
   },
   {
-    "symbol": "$CAP",
+    "symbol": "$CAPACITOR",
     "package": "rnl-std-basic",
     "ac": "capacitor",
     "variant": null,
@@ -117,7 +117,7 @@
     "note": ""
   },
   {
-    "symbol": "$CAP_VAR",
+    "symbol": "$VARIABLE_CAPACITOR",
     "package": "rnl-std-basic",
     "ac": "variable-capacitor",
     "variant": null,
@@ -156,7 +156,7 @@
     "note": ""
   },
   {
-    "symbol": "$IND",
+    "symbol": "$INDUCTOR",
     "package": "rnl-std-basic",
     "ac": "inductor-compact",
     "variant": null,
@@ -195,7 +195,7 @@
     "note": ""
   },
   {
-    "symbol": "$IND_VAR",
+    "symbol": "$VARIABLE_INDUCTOR",
     "package": "rnl-std-basic",
     "ac": "variable-inductor",
     "variant": null,
@@ -234,7 +234,7 @@
     "note": ""
   },
   {
-    "symbol": "$XFMR",
+    "symbol": "$TRANSFORMER",
     "package": "rnl-std-basic",
     "ac": "xfmr",
     "variant": null,
@@ -360,7 +360,7 @@
     "note": "新画：AC 没有。U（均匀分布 RC 线）"
   },
   {
-    "symbol": "$VSRC",
+    "symbol": "$VOLTAGE_SOURCE",
     "package": "rnl-std-basic",
     "ac": "voltage-source",
     "variant": null,
@@ -399,7 +399,7 @@
     "note": ""
   },
   {
-    "symbol": "$ISRC",
+    "symbol": "$CURRENT_SOURCE",
     "package": "rnl-std-basic",
     "ac": "current-source",
     "variant": null,
@@ -550,7 +550,7 @@
     "note": "控制端 cp、cn 不画（AC 的画法）"
   },
   {
-    "symbol": "$VCVS4",
+    "symbol": "$VCVS_4TERM",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -633,7 +633,7 @@
     "note": "控制端不画"
   },
   {
-    "symbol": "$VCCS4",
+    "symbol": "$VCCS_4TERM",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -769,7 +769,7 @@
     "note": "新画：AC 没有。B（Spectre 的 bsource）。是电压源还是电流源由参数 V=、I= 定，选择条件分不出来，先用一个符号"
   },
   {
-    "symbol": "$SW",
+    "symbol": "$SWITCH",
     "package": "rnl-std-basic",
     "ac": "ideal-switch",
     "variant": null,
@@ -818,7 +818,7 @@
     "note": "常开；控制取标签上的时钟相位。也画 W（流控开关，控制是电压源的名字）"
   },
   {
-    "symbol": "$SW_CLOSED",
+    "symbol": "$CLOSED_SWITCH",
     "package": "rnl-std-basic",
     "ac": "closed-switch",
     "variant": null,
@@ -867,7 +867,7 @@
     "note": "常闭"
   },
   {
-    "symbol": "$SW_CTRL",
+    "symbol": "$EXTERNALLY_CONTROLLED_SWITCH",
     "package": "rnl-std-basic",
     "ac": "externally-controlled-switch",
     "variant": null,
@@ -923,7 +923,7 @@
     "note": "控制脚画出，对地"
   },
   {
-    "symbol": "$VSW",
+    "symbol": "$VOLTAGE_CONTROLLED_SWITCH",
     "package": "rnl-std-basic",
     "ac": "voltage-controlled-switch",
     "variant": null,
@@ -986,7 +986,7 @@
     "note": "S 卡片四端都画"
   },
   {
-    "symbol": "$SPDT",
+    "symbol": "$SPDT_SWITCH",
     "package": "rnl-std-basic",
     "ac": "spdt-switch",
     "variant": null,
@@ -1037,7 +1037,7 @@
     "note": "纯画图：AC 不进网表"
   },
   {
-    "symbol": "$GROUND",
+    "symbol": "$GROUND_SYMBOL",
     "package": "rnl-std-basic",
     "ac": "ground",
     "variant": null,
@@ -1061,10 +1061,10 @@
     "undrawn_pins": [],
     "box": [-1.2, -2.7, 1.2, 0.4],
     "ac_netlist_order": null,
-    "note": "用于 $GND"
+    "note": "用于 $GROUND"
   },
   {
-    "symbol": "$SUPPLY_BAR",
+    "symbol": "$SUPPLY_SYMBOL",
     "package": "rnl-std-basic",
     "ac": "vdd-port",
     "variant": null,
@@ -1091,7 +1091,7 @@
     "note": "用于 $SUPPLY"
   },
   {
-    "symbol": "$PORT_TAG",
+    "symbol": "$IO_PORT_SYMBOL",
     "package": "rnl-std-basic",
     "ac": "port",
     "variant": null,
@@ -1115,10 +1115,10 @@
     "undrawn_pins": [],
     "box": [-1.4, -0.7, 0.4, 0.7],
     "ac_netlist_order": null,
-    "note": "用于 $IOPORT"
+    "note": "用于 $IO_PORT"
   },
   {
-    "symbol": "$JUNCTION_DOT",
+    "symbol": "$JUNCTION_SYMBOL",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -1131,7 +1131,7 @@
     "note": "标记：AC 推出的圆点，用于 $JUNCTION"
   },
   {
-    "symbol": "$NC_CROSS",
+    "symbol": "$NO_CONNECT_SYMBOL",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -1141,10 +1141,10 @@
     "undrawn_pins": [],
     "box": null,
     "ac_netlist_order": null,
-    "note": "标记：AC 的 NoConnect，用于 $NC"
+    "note": "标记：AC 的 NoConnect，用于 $NO_CONNECT"
   },
   {
-    "symbol": "$CURRENT_ARROW_SYM",
+    "symbol": "$CURRENT_ARROW_SYMBOL",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -1196,7 +1196,7 @@
     "note": ""
   },
   {
-    "symbol": "$ZENER",
+    "symbol": "$ZENER_DIODE",
     "package": "rnl-std-semiconductors",
     "ac": "zener-diode",
     "variant": null,
@@ -1297,7 +1297,7 @@
     "note": "AC 的默认变体；衬底不画"
   },
   {
-    "symbol": "$NMOS4",
+    "symbol": "$NMOS_4TERM",
     "package": "rnl-std-semiconductors",
     "ac": "nmos",
     "variant": null,
@@ -1422,7 +1422,7 @@
     "note": "AC 的默认变体；衬底不画"
   },
   {
-    "symbol": "$PMOS4",
+    "symbol": "$PMOS_4TERM",
     "package": "rnl-std-semiconductors",
     "ac": "pmos",
     "variant": null,
@@ -1485,7 +1485,7 @@
     "note": ""
   },
   {
-    "symbol": "$NMOS_DEP",
+    "symbol": "$DEPLETION_NMOS",
     "package": "rnl-std-semiconductors",
     "ac": "depletion-nmos",
     "variant": "textbook-3terminal",
@@ -1547,7 +1547,7 @@
     "note": ""
   },
   {
-    "symbol": "$NMOS4_DEP",
+    "symbol": "$DEPLETION_NMOS_4TERM",
     "package": "rnl-std-semiconductors",
     "ac": "depletion-nmos",
     "variant": null,
@@ -1610,7 +1610,7 @@
     "note": ""
   },
   {
-    "symbol": "$PMOS_DEP",
+    "symbol": "$DEPLETION_PMOS",
     "package": "rnl-std-semiconductors",
     "ac": "depletion-pmos",
     "variant": "textbook-3terminal",
@@ -1672,7 +1672,7 @@
     "note": ""
   },
   {
-    "symbol": "$PMOS4_DEP",
+    "symbol": "$DEPLETION_PMOS_4TERM",
     "package": "rnl-std-semiconductors",
     "ac": "depletion-pmos",
     "variant": null,
@@ -1797,7 +1797,7 @@
     "note": ""
   },
   {
-    "symbol": "$NDMOS4",
+    "symbol": "$NDMOS_4TERM",
     "package": "rnl-std-semiconductors",
     "ac": "ndmos",
     "variant": null,
@@ -1922,7 +1922,7 @@
     "note": ""
   },
   {
-    "symbol": "$PDMOS4",
+    "symbol": "$PDMOS_4TERM",
     "package": "rnl-std-semiconductors",
     "ac": "pdmos",
     "variant": null,
@@ -2184,7 +2184,7 @@
     "note": "理想运放，三端；AC 不用"
   },
   {
-    "symbol": "$OPAMP5",
+    "symbol": "$OPAMP_5TERM",
     "package": "rnl-std-functional",
     "ac": "opamp",
     "variant": null,
@@ -2245,7 +2245,7 @@
     "note": "宏模型顺序；电源不画"
   },
   {
-    "symbol": "$OPAMP_DIFF",
+    "symbol": "$DIFFERENTIAL_OPAMP",
     "package": "rnl-std-functional",
     "ac": "opamp-differential",
     "variant": null,
@@ -2347,7 +2347,7 @@
     "note": "三端；AC 不用"
   },
   {
-    "symbol": "$COMPARATOR5",
+    "symbol": "$COMPARATOR_5TERM",
     "package": "rnl-std-functional",
     "ac": "comparator",
     "variant": null,
@@ -2408,7 +2408,7 @@
     "note": "宏模型顺序；电源不画"
   },
   {
-    "symbol": "$AMP",
+    "symbol": "$VOLTAGE_AMPLIFIER",
     "package": "rnl-std-functional",
     "ac": "voltage-amplifier",
     "variant": null,
@@ -2457,7 +2457,7 @@
     "note": ""
   },
   {
-    "symbol": "$GM",
+    "symbol": "$TRANSCONDUCTOR",
     "package": "rnl-std-functional",
     "ac": "transconductance",
     "variant": null,
@@ -2506,7 +2506,7 @@
     "note": ""
   },
   {
-    "symbol": "$GM_DIFF",
+    "symbol": "$DIFFERENTIAL_TRANSCONDUCTOR",
     "package": "rnl-std-functional",
     "ac": "differential-transconductance",
     "variant": null,
@@ -2665,7 +2665,7 @@
     "note": ""
   },
   {
-    "symbol": "$IND_CT",
+    "symbol": "$CENTER_TAP_INDUCTOR",
     "package": "rnl-std-rf",
     "ac": "center-tap-inductor",
     "variant": null,
@@ -2716,7 +2716,7 @@
     "note": "AC 归在无源件里；AC 印成子电路 ct_inductor"
   },
   {
-    "symbol": "$TCOIL",
+    "symbol": "$T_COIL",
     "package": "rnl-std-rf",
     "ac": "tcoil",
     "variant": null,
@@ -2767,7 +2767,7 @@
     "note": "AC 归在无源件里；AC 印成子电路 tcoil"
   },
   {
-    "symbol": "$AND2",
+    "symbol": "$AND_2INPUT",
     "package": "rnl-std-logic",
     "ac": "and-gate",
     "variant": null,
@@ -2828,7 +2828,7 @@
     "note": ""
   },
   {
-    "symbol": "$AND3",
+    "symbol": "$AND_3INPUT",
     "package": "rnl-std-logic",
     "ac": "and-gate-3",
     "variant": null,
@@ -2901,7 +2901,7 @@
     "note": ""
   },
   {
-    "symbol": "$AND4",
+    "symbol": "$AND_4INPUT",
     "package": "rnl-std-logic",
     "ac": "and-gate-4",
     "variant": null,
@@ -2986,7 +2986,7 @@
     "note": ""
   },
   {
-    "symbol": "$NAND2",
+    "symbol": "$NAND_2INPUT",
     "package": "rnl-std-logic",
     "ac": "nand-gate",
     "variant": null,
@@ -3047,7 +3047,7 @@
     "note": ""
   },
   {
-    "symbol": "$NAND3",
+    "symbol": "$NAND_3INPUT",
     "package": "rnl-std-logic",
     "ac": "nand-gate-3",
     "variant": null,
@@ -3120,7 +3120,7 @@
     "note": ""
   },
   {
-    "symbol": "$NAND4",
+    "symbol": "$NAND_4INPUT",
     "package": "rnl-std-logic",
     "ac": "nand-gate-4",
     "variant": null,
@@ -3205,7 +3205,7 @@
     "note": ""
   },
   {
-    "symbol": "$OR2",
+    "symbol": "$OR_2INPUT",
     "package": "rnl-std-logic",
     "ac": "or-gate",
     "variant": null,
@@ -3266,7 +3266,7 @@
     "note": ""
   },
   {
-    "symbol": "$OR3",
+    "symbol": "$OR_3INPUT",
     "package": "rnl-std-logic",
     "ac": "or-gate-3",
     "variant": null,
@@ -3339,7 +3339,7 @@
     "note": ""
   },
   {
-    "symbol": "$OR4",
+    "symbol": "$OR_4INPUT",
     "package": "rnl-std-logic",
     "ac": "or-gate-4",
     "variant": null,
@@ -3424,7 +3424,7 @@
     "note": ""
   },
   {
-    "symbol": "$NOR2",
+    "symbol": "$NOR_2INPUT",
     "package": "rnl-std-logic",
     "ac": "nor-gate",
     "variant": null,
@@ -3485,7 +3485,7 @@
     "note": ""
   },
   {
-    "symbol": "$NOR3",
+    "symbol": "$NOR_3INPUT",
     "package": "rnl-std-logic",
     "ac": "nor-gate-3",
     "variant": null,
@@ -3558,7 +3558,7 @@
     "note": ""
   },
   {
-    "symbol": "$NOR4",
+    "symbol": "$NOR_4INPUT",
     "package": "rnl-std-logic",
     "ac": "nor-gate-4",
     "variant": null,
@@ -3643,7 +3643,7 @@
     "note": ""
   },
   {
-    "symbol": "$XOR2",
+    "symbol": "$XOR_2INPUT",
     "package": "rnl-std-logic",
     "ac": "xor-gate",
     "variant": null,
@@ -3704,7 +3704,7 @@
     "note": ""
   },
   {
-    "symbol": "$XOR3",
+    "symbol": "$XOR_3INPUT",
     "package": "rnl-std-logic",
     "ac": "xor-gate-3",
     "variant": null,
@@ -3777,7 +3777,7 @@
     "note": ""
   },
   {
-    "symbol": "$XOR4",
+    "symbol": "$XOR_4INPUT",
     "package": "rnl-std-logic",
     "ac": "xor-gate-4",
     "variant": null,
@@ -3862,7 +3862,7 @@
     "note": ""
   },
   {
-    "symbol": "$XNOR2",
+    "symbol": "$XNOR_2INPUT",
     "package": "rnl-std-logic",
     "ac": "xnor-gate",
     "variant": null,
@@ -3923,7 +3923,7 @@
     "note": ""
   },
   {
-    "symbol": "$XNOR3",
+    "symbol": "$XNOR_3INPUT",
     "package": "rnl-std-logic",
     "ac": "xnor-gate-3",
     "variant": null,
@@ -3996,7 +3996,7 @@
     "note": ""
   },
   {
-    "symbol": "$XNOR4",
+    "symbol": "$XNOR_4INPUT",
     "package": "rnl-std-logic",
     "ac": "xnor-gate-4",
     "variant": null,
@@ -4081,7 +4081,7 @@
     "note": ""
   },
   {
-    "symbol": "$BUF",
+    "symbol": "$BUFFER",
     "package": "rnl-std-logic",
     "ac": "buffer",
     "variant": null,
@@ -4130,7 +4130,7 @@
     "note": ""
   },
   {
-    "symbol": "$INV",
+    "symbol": "$INVERTER",
     "package": "rnl-std-logic",
     "ac": "inverter",
     "variant": null,
@@ -4179,7 +4179,7 @@
     "note": ""
   },
   {
-    "symbol": "$DFF",
+    "symbol": "$D_FLIP_FLOP",
     "package": "rnl-std-logic",
     "ac": "d-flip-flop",
     "variant": null,
@@ -4252,7 +4252,7 @@
     "note": ""
   },
   {
-    "symbol": "$DFF_Q",
+    "symbol": "$D_FLIP_FLOP_Q_ONLY",
     "package": "rnl-std-logic",
     "ac": "d-flip-flop-q",
     "variant": null,
@@ -4313,7 +4313,7 @@
     "note": ""
   },
   {
-    "symbol": "$DFF_R",
+    "symbol": "$D_FLIP_FLOP_WITH_RESET",
     "package": "rnl-std-logic",
     "ac": "d-flip-flop-reset",
     "variant": null,
@@ -4598,7 +4598,7 @@
     "note": "纯画图：AC 不进网表"
   },
   {
-    "symbol": "$DT_INTEGRATOR",
+    "symbol": "$DISCRETE_TIME_INTEGRATOR",
     "package": "rnl-std-signal-flow",
     "ac": "discrete-time-integrator",
     "variant": null,
@@ -4773,7 +4773,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $COMPARATOR5"
+    "note": "同 $COMPARATOR_5TERM"
   },
   {
     "symbol": "$CANVAS_COMPARATOR_UNMARKED",
@@ -4834,7 +4834,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $COMPARATOR5"
+    "note": "同 $COMPARATOR_5TERM"
   },
   {
     "symbol": "$CANVAS_COMPARATOR_UNMARKED_INPUTS_SWAPPED",
@@ -4895,7 +4895,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $COMPARATOR5"
+    "note": "同 $COMPARATOR_5TERM"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED",
@@ -4968,7 +4968,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_INPUTS_SWAPPED",
@@ -5041,7 +5041,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_LETTERED",
@@ -5114,7 +5114,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED_LETTERED_INPUTS_SWAPPED",
@@ -5187,7 +5187,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_INPUTS_SWAPPED",
@@ -5260,7 +5260,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED",
@@ -5333,7 +5333,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED_INPUTS_SWAPPED",
@@ -5406,7 +5406,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE",
@@ -5479,7 +5479,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED",
@@ -5552,7 +5552,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_INPUTS_SWAPPED",
@@ -5625,7 +5625,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_LETTERED",
@@ -5698,7 +5698,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_CROSSED_LETTERED_INPUTS_SWAPPED",
@@ -5771,7 +5771,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_INPUTS_SWAPPED",
@@ -5844,7 +5844,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_LETTERED",
@@ -5917,7 +5917,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_WIDE_LETTERED_INPUTS_SWAPPED",
@@ -5990,7 +5990,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
-    "note": "同 $OPAMP_DIFF"
+    "note": "同 $DIFFERENTIAL_OPAMP"
   },
   {
     "symbol": "$CANVAS_OPAMP_INPUTS_SWAPPED",
@@ -6051,7 +6051,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP5"
+    "note": "同 $OPAMP_5TERM"
   },
   {
     "symbol": "$CANVAS_OPAMP_LETTERED",
@@ -6112,7 +6112,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP5"
+    "note": "同 $OPAMP_5TERM"
   },
   {
     "symbol": "$CANVAS_OPAMP_LETTERED_INPUTS_SWAPPED",
@@ -6173,7 +6173,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP5"
+    "note": "同 $OPAMP_5TERM"
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE",
@@ -6234,7 +6234,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP5"
+    "note": "同 $OPAMP_5TERM"
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE_INPUTS_SWAPPED",
@@ -6295,7 +6295,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP5"
+    "note": "同 $OPAMP_5TERM"
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE_LETTERED",
@@ -6356,7 +6356,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP5"
+    "note": "同 $OPAMP_5TERM"
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE_LETTERED_INPUTS_SWAPPED",
@@ -6417,7 +6417,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP5"
+    "note": "同 $OPAMP_5TERM"
   },
   {
     "symbol": "$CANVAS_VOLTAGE_AMPLIFIER_LETTERED",
@@ -6466,7 +6466,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "in", "out"],
-    "note": "同 $AMP"
+    "note": "同 $VOLTAGE_AMPLIFIER"
   },
   {
     "symbol": "$CANVAS_DIFFERENTIAL_TRANSCONDUCTANCE_INPUTS_SWAPPED",
@@ -6527,7 +6527,7 @@
     "undrawn_pins": [],
     "box": [-3.4, -3.9, 3.4, 3.9],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $GM_DIFF"
+    "note": "同 $DIFFERENTIAL_TRANSCONDUCTOR"
   },
   {
     "symbol": "$CANVAS_INDUCTOR_LARGE",
@@ -6615,7 +6615,7 @@
     "undrawn_pins": [],
     "box": [-3.4, -1.2, 3.4, 1.8],
     "ac_netlist_order": null,
-    "note": "同 $SW"
+    "note": "同 $SWITCH"
   },
   {
     "symbol": "$CANVAS_SIMPLE_SPDT_SWITCH",
@@ -6693,7 +6693,7 @@
     "undrawn_pins": [],
     "box": [-1.4, -0.7, 0.4, 0.7],
     "ac_netlist_order": null,
-    "note": "边界：用于 $IOPORT"
+    "note": "边界：用于 $IO_PORT"
   },
   {
     "symbol": "$CANVAS_CURRENT_SOURCE_DIAMOND",
@@ -6732,7 +6732,7 @@
     "undrawn_pins": [],
     "box": [-1.5, -2.4, 1.5, 2.4],
     "ac_netlist_order": null,
-    "note": "同 $ISRC"
+    "note": "同 $CURRENT_SOURCE"
   },
   {
     "symbol": "$CANVAS_VCCS_DIAMOND",
@@ -6859,7 +6859,7 @@
     "undrawn_pins": [],
     "box": [-2.4, -2.4, 1.5, 2.4],
     "ac_netlist_order": null,
-    "note": "边界：同 $VSRC"
+    "note": "边界：同 $VOLTAGE_SOURCE"
   },
   {
     "symbol": "$CANVAS_CHOPPER",

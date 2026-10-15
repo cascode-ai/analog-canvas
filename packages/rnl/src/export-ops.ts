@@ -106,16 +106,16 @@ export interface RnlExportDiagnostic {
  * definition says what it is (standard package `rnl-std-basic`).
  */
 const GLYPH_DEFINITIONS: Readonly<Record<string, string>> = {
-  $GROUND: "$GND",
-  $SUPPLY_BAR: "$SUPPLY",
-  $PORT_TAG: "$IOPORT",
-  $CANVAS_PORT_FILLED: "$IOPORT",
+  $GROUND_SYMBOL: "$GROUND",
+  $SUPPLY_SYMBOL: "$SUPPLY",
+  $IO_PORT_SYMBOL: "$IO_PORT",
+  $CANVAS_PORT_FILLED: "$IO_PORT",
 };
 
 const USAGE_PREFIX: Readonly<Record<string, string>> = {
-  $GND: "gnd",
+  $GROUND: "gnd",
   $SUPPLY: "vdd",
-  $IOPORT: "port",
+  $IO_PORT: "port",
 };
 
 /**
@@ -352,7 +352,7 @@ function exportCell(
       const name = nextName(USAGE_PREFIX[definition]!);
       usageOf.set(instance.id, name);
       if (where.at) placeOf.set(instance.id, { object: name, at: where.at });
-      if (definition === "$IOPORT") drawnPorts.add(net);
+      if (definition === "$IO_PORT") drawnPorts.add(net);
       ops.push({
         level,
         op: "add-usage",

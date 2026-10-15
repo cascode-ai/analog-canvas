@@ -67,7 +67,7 @@ describe("the RNL symbol list", () => {
       package: "analog-canvas-extensions",
     });
     expect(rnlSymbolFor("opamp")).toMatchObject({
-      symbol: "$OPAMP5",
+      symbol: "$OPAMP_5TERM",
       package: "rnl-std-functional",
     });
     expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");

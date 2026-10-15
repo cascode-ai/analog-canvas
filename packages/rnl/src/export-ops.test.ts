@@ -92,7 +92,7 @@ describe("RNL export of the simulation examples", () => {
         document.instances.filter((instance) => instance.symbolId === "ground"),
       );
       expect(
-        of(ops, "add-usage").filter((op) => op.definition === "$GND"),
+        of(ops, "add-usage").filter((op) => op.definition === "$GROUND"),
       ).toHaveLength(grounds.length);
       for (const label of of(ops, "add-text")) {
         // A part's or glyph's label hangs on something declared, by key and
@@ -199,7 +199,7 @@ describe("RNL export of the simulation examples", () => {
   it("draws ground on the Cell's ground pin and keeps a port tag off it", () => {
     const { ops } = exported(example("simulation-common-source"));
     for (const op of of(ops, "add-usage").filter(
-      (item) => item.definition === "$GND",
+      (item) => item.definition === "$GROUND",
     ))
       expect(op.attach).toEqual({ p: "&VSS" });
     expect(of(ops, "remove-from")).toEqual([
@@ -278,12 +278,12 @@ describe("what RNL cannot write", () => {
       "RNL_HIDDEN_PIN_WIRED",
     );
     expect(of(ops, "set").find((op) => op.object === "#XM1")?.symbol).toBe(
-      "$NMOS4",
+      "$NMOS_4TERM",
     );
   });
 
   it.each([
-    ["opamp", "$OPAMP5", "rnl-std-functional", false],
+    ["opamp", "$OPAMP_5TERM", "rnl-std-functional", false],
     [
       "opamp-lettered",
       "$CANVAS_OPAMP_LETTERED",
