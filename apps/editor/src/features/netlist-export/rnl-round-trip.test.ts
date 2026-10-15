@@ -287,6 +287,32 @@ describe("RNL round trip", () => {
     ]);
   });
 
+  it("draws a port drawn several times with as many Cell Pins", async () => {
+    const project = parseProject(
+      readFileSync(
+        resolve(
+          import.meta.dirname,
+          "../../../../../fixtures/projects/port-nets/project.icproj.json",
+        ),
+        "utf8",
+      ),
+    );
+    const { project: drawn, diagnostics } = await roundTrip(project);
+    const pins = (from: CircuitProject) =>
+      from.documents
+        .flatMap((document) =>
+          (document.netlist?.terminals ?? []).map(
+            (terminal) =>
+              `${terminal.name} ${terminal.interfaceInstanceIds.length}`,
+          ),
+        )
+        .sort();
+    expect(pins(drawn)).toEqual(pins(project));
+    expect(diagnostics.filter((item) => item.code.startsWith("RNL_"))).toEqual(
+      [],
+    );
+  });
+
   it("lays out a Cell's block as the RNL draws it", async () => {
     const project = example("simulation-ota");
     const { project: drawn } = await roundTrip(project);

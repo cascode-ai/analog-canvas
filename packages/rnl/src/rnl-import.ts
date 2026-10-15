@@ -548,6 +548,32 @@ function applyLevel(
         pin.placement = placementOf() ?? pin.placement;
         continue;
       }
+      // The same port drawn again: one more Cell terminal of the port's name,
+      // which joins it in the one port the netlist prints.
+      const drawn = document.netlist?.terminals.find(
+        (item) => item.netId === netId,
+      );
+      if (object.definition === "$IO_PORT" && drawn && netId) {
+        const id = deriveStableId("cell-pin", document.id, level.id, object.id);
+        document.instances.push({
+          id,
+          symbolId: mapped?.row.ac ?? "port",
+          placement: placementOf(),
+        });
+        document.nets
+          .find((item) => item.id === netId)
+          ?.terminals.push({ instanceId: id, pinName: "P" });
+        document.netlist!.terminals.push({
+          id: deriveStableId("cell-terminal", document.id, level.id, object.id),
+          name: drawn.name,
+          netId,
+          direction: drawn.direction,
+          interfaceInstanceIds: [id],
+        });
+        movedPins.add(id);
+        glyphOf.set(object.id, { instanceId: id, pinName: "P" });
+        continue;
+      }
       if (object.definition === "$IO_PORT") {
         warn(
           "RNL_IMPORT_PORT_UNMATCHED",
