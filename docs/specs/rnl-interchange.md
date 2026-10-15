@@ -58,7 +58,8 @@ the RNL language and its runtime belong to rnl.
   part of a referenced name, so a written label does not follow a rename.
 - A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
   a `$CURRENT_ARROW` mark with its label hung on it, and a voltage marker its
-  label with + and − beside it, all where the editor draws them.
+  label with + and − beside it, all where the editor draws them. A floating
+  symbol is a `$FIGURE` mark drawn with the part's RNL symbol.
 - Pending the rnl writer (the export already builds these, behind an option
   the RNL formats leave off):
   - A drawn Cell's block is a symbol defined in the Cell's own level and set
@@ -69,8 +70,7 @@ the RNL language and its runtime belong to rnl.
     circles, lines and curves (a quadratic leg as the cubic that draws it),
     arrows with their heads, dots and outlines, leaders and callouts, and
     polarity marks; a rectangle or circle on the background plane is drawn
-    under the circuit. A floating symbol is a `$FIGURE` mark drawn with the
-    part's RNL symbol. Anything anchored to a part or a wire is written at
+    under the circuit. Anything anchored to a part or a wire is written at
     its place.
 
 ### Failures

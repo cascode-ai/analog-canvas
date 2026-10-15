@@ -118,10 +118,9 @@ export type RnlOp = { level: string } & (
 
 export interface RnlExportOptions {
   /**
-   * Write blocks' symbols (define-symbol) and drawing objects (add-shape,
-   * and floating symbols as `$FIGURE` usages). Off until the rnl runtime's
-   * writer takes these operations; the stand-in writer used to check the
-   * export takes them already.
+   * Write blocks' symbols (define-symbol) and drawing objects (add-shape).
+   * Off until the rnl runtime's writer takes these operations; the
+   * stand-in writer used to check the export takes them already.
    */
   symbolsAndShapes?: boolean;
 }
@@ -949,10 +948,15 @@ function exportTexts(
   );
   for (const object of objects) {
     const objectProfile = objectStyleProfile(profile, object);
-    const geometry = symbolsAndShapes
-      ? resolveDraftingObjectGeometry(document, resolver, object, routing)
+    const geometry = resolveDraftingObjectGeometry(
+      document,
+      resolver,
+      object,
+      routing,
+    );
+    const shapes = symbolsAndShapes
+      ? draftingShapes(object, geometry, objectProfile)
       : null;
-    const shapes = geometry && draftingShapes(object, geometry, objectProfile);
     for (const shape of shapes ?? [])
       ops.push({
         level,
@@ -966,7 +970,7 @@ function exportTexts(
       // $FIGURE, which takes any symbol (rnl-dev ops draft, 3.4).
       const symbol = rnlSymbolFor(object.symbolId, null);
       const turn = rnlOrient(object.transform);
-      if (geometry?.kind !== "floating-symbol" || !symbol || !turn.ok) {
+      if (geometry.kind !== "floating-symbol" || !symbol || !turn.ok) {
         drawings.push(object.id);
         continue;
       }
@@ -984,7 +988,8 @@ function exportTexts(
       continue;
     }
     if (object.kind === "callout") {
-      if (geometry?.kind !== "callout") {
+      // Its words wait for its leader, which is a shape.
+      if (!shapes || geometry.kind !== "callout") {
         drawings.push(object.id);
         continue;
       }

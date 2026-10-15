@@ -699,12 +699,15 @@ describe("drawing objects", () => {
     expect(signs).toHaveLength(2);
   });
 
-  it("leaves drawing objects out until the writer takes shapes", () => {
+  it("leaves shapes out until the writer takes them, but draws a floating symbol", () => {
     const { ops, diagnostics } = exported(drawings());
     expect(of(ops, "add-shape")).toEqual([]);
     expect(
       of(ops, "add-usage").filter((op) => op.definition === "$FIGURE"),
-    ).toEqual([]);
+    ).toHaveLength(1);
+    expect(
+      of(ops, "add-text").find((op) => firstText(op) === "Load"),
+    ).toBeUndefined();
     expect(diagnostics).toContainEqual(
       expect.objectContaining({ code: "RNL_DRAWING_NOT_EXPORTED" }),
     );
