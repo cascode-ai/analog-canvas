@@ -21,6 +21,11 @@ const PLAIN: RnlRunStyle = {
   overline: false,
 };
 
+/** A plain one-line text as RNL lines of runs. */
+export const plainLines = (text: string): RnlRun[][] => [
+  [{ kind: "text", text, style: PLAIN }],
+];
+
 type Casing = "lowercase" | "uppercase" | null;
 
 /**

@@ -2,14 +2,19 @@ import {
   contactRequiresJunctionDot,
   deriveDocumentContactEvidence,
   isSchematicAnnotationVisible,
+  objectStyleProfile,
   resolveAnnotationPresentation,
   resolveAnnotationText,
   resolveDocumentLogicalNets,
   resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
+  resolveDraftingObjectGeometry,
   resolveEndpointPoint,
+  resolveRouteAttachment,
   resolveVisualAnchor,
   richTextMetrics,
+  type AnnotationPresentation,
+  type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import type {
   Annotation,
@@ -22,6 +27,12 @@ import type {
 import type { DesignNetlistCell, DesignNetlistIR } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
+import {
+  blockSymbols,
+  blockTerminals,
+  type RnlSymbolDefinition,
+} from "./block-symbols.js";
+import { draftingLayer, draftingShapes } from "./drawing-ops.js";
 import { composeOrient, rnlOrient, type RnlOrient } from "./orientation.js";
 import {
   AC_UNITS_PER_RNL_UNIT,
@@ -29,8 +40,10 @@ import {
   toRnlPoint,
   type RnlPoint,
 } from "./place.js";
+import { rnlName } from "./rnl-name.js";
+import type { RnlShape } from "./shapes.js";
 import { rnlSymbolFor, terminalOfPin } from "./symbol-map.js";
-import { rnlTextLines, type RnlRun } from "./text.js";
+import { plainLines, rnlTextLines, type RnlRun } from "./text.js";
 
 /**
  * A vertex of a wire as an RNL edit transaction names it: a terminal, a named
@@ -43,7 +56,11 @@ export type RnlVertex =
   | { usage: string; role: string }
   | { at: RnlPoint };
 
-/** One operation of an RNL edit transaction (the same draft, 4.1). */
+/**
+ * One operation of an RNL edit transaction (the same draft, 4.1, and
+ * `ops-draft-blocks-and-drawings.md` beside it). `level` is `subckt:<name>`,
+ * or `file` for the file level.
+ */
 export type RnlOp = { level: string } & (
   | {
       op: "set";
@@ -90,7 +107,24 @@ export type RnlOp = { level: string } & (
       size: number;
       style?: Record<string, string | boolean>;
     }
+  | ({
+      op: "add-shape";
+      /** Drawn under the circuit, or over it (11.6). */
+      layer: "bottom" | "top";
+    } & RnlShape)
+  /** A symbol, defined in the level; `set` on `#` makes it a Cell's look. */
+  | ({ op: "define-symbol" } & RnlSymbolDefinition)
 );
+
+export interface RnlExportOptions {
+  /**
+   * Write blocks' symbols (define-symbol) and drawing objects (add-shape,
+   * and floating symbols as `$FIGURE` usages). Off until the rnl runtime's
+   * writer takes these operations; the stand-in writer used to check the
+   * export takes them already.
+   */
+  symbolsAndShapes?: boolean;
+}
 
 export interface RnlExportDiagnostic {
   /** An error leaves the drawing out of the export; a warning only reports. */
@@ -137,22 +171,14 @@ const AC_PACKAGE = "analog-canvas-extensions";
 const AC_PACKAGE_VERSION = "0.1";
 
 /**
- * A name as RNL writes it after its prefix: plain when it is ASCII letters,
- * digits and underscores, otherwise in double quotes with `"` doubled (3.6).
- */
-function rnlName(prefix: string, name: string): string {
-  return /^[A-Za-z0-9_]+$/.test(name)
-    ? `${prefix}${name}`
-    : `${prefix}"${name.replaceAll('"', '""')}"`;
-}
-
-/**
  * The edit transaction's operations that draw a netlisted Project as Analog
  * Canvas draws it: each part's symbol, place and orientation, the ground,
- * supply and Cell Pin glyphs, every wire with all its bends, junctions and
- * the dots Analog Canvas draws, the contacts it makes by touching, and its
- * labels and texts. The header pins the standard series and every other
- * package the drawing uses.
+ * supply and Cell Pin glyphs, every wire with all its bends and direction
+ * arrows, junctions and the dots Analog Canvas draws, the contacts it makes
+ * by touching, its labels and texts, and the current and voltage marks on
+ * wires. With `symbolsAndShapes`, also each block's symbol and the drawing
+ * objects. The header pins the standard series and every other package the
+ * drawing uses.
  *
  * `ir` is the IR the netlist was printed from (`includeIr`), with the body
  * port order `rnlBodyPortOrder` gives, so names and terminals match the file.
@@ -160,11 +186,16 @@ function rnlName(prefix: string, name: string): string {
 export function rnlExportOps(
   project: CircuitProject,
   ir: DesignNetlistIR,
+  options: RnlExportOptions = {},
 ): { ops: RnlOp[]; diagnostics: RnlExportDiagnostic[] } {
   const ops: RnlOp[] = [];
   const diagnostics: RnlExportDiagnostic[] = [];
   const packages = new Set<string>();
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
+  const symbolsAndShapes = options.symbolsAndShapes ?? false;
+  const blocks = symbolsAndShapes
+    ? blockSymbols(project, ir, resolver)
+    : { cells: new Map(), externals: new Map() };
   const top = ir.cells.find((cell) => cell.id === ir.topCellId);
   for (const cell of ir.cells) {
     if (cell.origin === "generated-model") continue;
@@ -177,6 +208,8 @@ export function rnlExportOps(
       diagnostics,
       packages,
       resolver,
+      blocks,
+      symbolsAndShapes,
     });
   }
   const header: RnlOp[] = [
@@ -189,7 +222,12 @@ export function rnlExportOps(
     name,
     version: name === AC_PACKAGE ? AC_PACKAGE_VERSION : STD_VERSION,
   }));
-  return { ops: [...header, ...ops], diagnostics };
+  const fileSymbols: RnlOp[] = [...blocks.externals.values()].map((symbol) => ({
+    level: "file",
+    op: "define-symbol",
+    ...symbol,
+  }));
+  return { ops: [...header, ...fileSymbols, ...ops], diagnostics };
 }
 
 interface ExportContext {
@@ -199,6 +237,9 @@ interface ExportContext {
   diagnostics: RnlExportDiagnostic[];
   packages: Set<string>;
   resolver: ReturnType<typeof createProjectSymbolResolver>;
+  /** The symbols written for blocks: a Cell's by its Document, an external one's by definition. */
+  blocks: ReturnType<typeof blockSymbols>;
+  symbolsAndShapes: boolean;
 }
 
 function exportCell(
@@ -206,8 +247,16 @@ function exportCell(
   cell: DesignNetlistCell,
   context: ExportContext,
 ): void {
-  const { ops, diagnostics, packages } = context;
+  const { ops, diagnostics, packages, blocks } = context;
   const level = `subckt:${cell.name}`;
+
+  // The Cell's own block symbol: how every call of it is drawn (9.2.6).
+  const own = blocks.cells.get(document.id);
+  if (own)
+    ops.push(
+      { level, op: "define-symbol", ...own },
+      { level, op: "set", object: "#", symbol: own.name },
+    );
   const report = (
     severity: RnlExportDiagnostic["severity"],
     code: string,
@@ -271,7 +320,9 @@ function exportCell(
   const placeOf = new Map<StableId, { object: string; at: RnlPoint }>();
   for (const instance of document.instances) {
     let symbol = rnlSymbolFor(instance.symbolId, instance.symbolVariantId);
-    const block = symbol ? undefined : blockTerminals(instance, context);
+    const block = symbol
+      ? undefined
+      : blockTerminals(instance, context.project, context.ir);
     if (!symbol && !block) {
       report(
         "error",
@@ -281,11 +332,24 @@ function exportCell(
       );
       continue;
     }
-    if (block)
+    // A Cell's symbol is its own look; an external block's is set on each call.
+    const binding = instance.netlist?.binding;
+    const blockSymbol = !block
+      ? undefined
+      : binding?.kind === "subcircuit"
+        ? blocks.cells.get(binding.childDocumentId)
+        : binding?.kind === "external-subcircuit"
+          ? blocks.externals.get(binding.definitionId)
+          : undefined;
+    if (block && !blockSymbol)
       report(
         "warning",
         "RNL_BLOCK_STAND_IN",
-        `${describe(instance)} is drawn with RNL's stand-in box: its block symbol is not exported yet`,
+        `${describe(instance)} is drawn with RNL's stand-in box: ${
+          context.symbolsAndShapes
+            ? "its block's artwork has a shape RNL cannot take yet"
+            : "its block symbol is not exported yet"
+        }`,
         [instance.id],
       );
     const hidden = symbol?.undrawnPins.find((pin) =>
@@ -391,7 +455,11 @@ function exportCell(
       level,
       op: "set",
       object,
-      ...(symbol ? { symbol: symbol.symbol } : {}),
+      ...(symbol
+        ? { symbol: symbol.symbol }
+        : blockSymbol && binding?.kind === "external-subcircuit"
+          ? { symbol: blockSymbol.name }
+          : {}),
       ...where,
     });
   }
@@ -471,6 +539,8 @@ function exportCell(
   }
   const pointOfEndpoint = (endpoint: RouteEndpoint) =>
     resolveEndpointPoint(document, context.resolver, endpoint);
+  const routing = resolveDocumentRoutingGeometry(document, context.resolver);
+  const profile = resolveDocumentStyleProfile(document.presentation);
 
   // Wires, every bend written, so RNL draws them as drawn.
   for (const route of document.routes) {
@@ -520,13 +590,6 @@ function exportCell(
     if (route.styleOverride?.lineStyle)
       style.linestyle = route.styleOverride.lineStyle;
     if (route.styleOverride?.color) style.linecolor = route.styleOverride.color;
-    if (route.styleOverride?.arrow)
-      report(
-        "warning",
-        "RNL_WIRE_ARROW",
-        `Wire ${route.id} shows a direction arrow, which RNL wires do not draw`,
-        [route.id],
-      );
     ops.push({
       level,
       op: "add-wire",
@@ -534,6 +597,31 @@ function exportCell(
       via: via as RnlVertex[],
       mode: "straight",
       ...(Object.keys(style).length ? { style } : {}),
+    });
+    // RNL wires take no arrow (13.1): the head is an arrow usage on the wire.
+    const placement = route.styleOverride?.arrow;
+    if (!placement) continue;
+    const arrow = wireArrow(
+      routing.routes.get(route.id)?.centerline ?? [],
+      placement,
+      objectStyleProfile(profile, route).annotations.arrowHeadLength,
+    );
+    if (!arrow) {
+      report(
+        "warning",
+        "RNL_WIRE_ARROW",
+        `Wire ${route.id} shows a direction arrow on a slanted run, which RNL cannot turn to`,
+        [route.id],
+      );
+      continue;
+    }
+    ops.push({
+      level,
+      op: "add-usage",
+      name: nextName("arrow"),
+      definition: "$ARROW",
+      attach: { p: arrow.at },
+      ...(arrow.orient === "R0" ? {} : { orient: arrow.orient }),
     });
   }
 
@@ -574,10 +662,65 @@ function exportCell(
   exportTexts(document, level, {
     context,
     logical,
+    routing,
     placeOf,
     netOf,
+    nextName,
     report,
   });
+}
+
+/**
+ * Where the arrow usage of a wire's direction arrow goes, and how it turns:
+ * Analog Canvas puts the head's tip at the middle or the end of the wire's
+ * run, on the segment it reaches there, and the arrow symbol is centred on
+ * its point, its tip half a head ahead. Null on a slanted segment.
+ */
+function wireArrow(
+  centerline: readonly { x: number; y: number }[],
+  placement: "middle" | "end",
+  headLength: number,
+): { at: RnlPoint; orient: RnlOrient } | null {
+  const segments = centerline.slice(1).flatMap((to, index) => {
+    const from = centerline[index]!;
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    return length > 0 ? [{ from, to, length }] : [];
+  });
+  const total = segments.reduce((sum, segment) => sum + segment.length, 0);
+  if (!total) return null;
+  const target = placement === "end" ? total : total / 2;
+  let before = 0;
+  let segment = segments.at(-1)!;
+  for (const candidate of segments) {
+    if (target <= before + candidate.length) {
+      segment = candidate;
+      break;
+    }
+    before += candidate.length;
+  }
+  if (placement === "end") before = total - segment.length;
+  const along = Math.min(segment.length, Math.max(0, target - before));
+  const ux = (segment.to.x - segment.from.x) / segment.length;
+  const uy = (segment.to.y - segment.from.y) / segment.length;
+  const orient: RnlOrient | null =
+    ux === 1
+      ? "R0"
+      : ux === -1
+        ? "R180"
+        : uy === -1
+          ? "R90"
+          : uy === 1
+            ? "R270"
+            : null;
+  if (!orient) return null;
+  const back = along - headLength / 2;
+  return {
+    at: toRnlPoint({
+      x: segment.from.x + ux * back,
+      y: segment.from.y + uy * back,
+    }),
+    orient,
+  };
 }
 
 /** A text's size in RNL units: Analog Canvas's em height, ten to a unit. */
@@ -620,14 +763,18 @@ function exportTexts(
   {
     context,
     logical,
+    routing,
     placeOf,
     netOf,
+    nextName,
     report,
   }: {
     context: ExportContext;
     logical: ReturnType<typeof resolveDocumentLogicalNets>;
+    routing: ResolvedDocumentRoutingGeometry;
     placeOf: ReadonlyMap<StableId, { object: string; at: RnlPoint }>;
     netOf: (baseNetId: string) => string | undefined;
+    nextName: (prefix: string) => string;
     report: (
       severity: RnlExportDiagnostic["severity"],
       code: string,
@@ -636,9 +783,8 @@ function exportTexts(
     ) => void;
   },
 ): void {
-  const { ops, resolver } = context;
+  const { ops, resolver, symbolsAndShapes } = context;
   const profile = resolveDocumentStyleProfile(document.presentation);
-  const routing = resolveDocumentRoutingGeometry(document, resolver);
   const fixed: StableId[] = [];
   const hidden: StableId[] = [];
   const alongWires: StableId[] = [];
@@ -696,6 +842,67 @@ function exportTexts(
         ? { style: { textcolor: annotation.textColor } }
         : {}),
     };
+    if (annotation.kind === "route-marker") {
+      const marker = routeMarkerPlacement(annotation, shown, routing);
+      const markerProfile = objectStyleProfile(profile, annotation);
+      if (annotation.markerKind === "current") {
+        // The arrow's head alone, on the wire that is its shaft (15.2); the
+        // label stands centred beside it, level.
+        const turn = quarterTurn(marker.rotation);
+        let name: string | undefined;
+        if (turn === null) tilted.push(annotation.id);
+        else {
+          name = nextName("current");
+          ops.push({
+            level,
+            op: "add-usage",
+            name,
+            definition: "$CURRENT_ARROW",
+            attach: { p: toRnlPoint(marker.position) },
+            ...(turn ? { orient: `R${turn}` as RnlOrient } : {}),
+          });
+        }
+        write(annotation.id, text, 0, {
+          ...common,
+          halign: "middle",
+          ...(name ? { attach: name } : {}),
+          at: toRnlPoint(marker.labelPosition),
+        });
+        continue;
+      }
+      if (annotation.markerKind === "voltage") {
+        // The label on the wire, with + and − beside it as Analog Canvas
+        // writes them, in plain type.
+        write(annotation.id, text, 0, {
+          ...common,
+          halign: annotation.alignment,
+          at: toRnlPoint(marker.position),
+        });
+        const { polarityOffsetX, polarityHalfGap } = markerProfile.annotations;
+        for (const [sign, side] of [
+          ["+", -1],
+          ["−", 1],
+        ] as const) {
+          const offset = turned(
+            { x: -polarityOffsetX, y: side * polarityHalfGap },
+            marker.rotation,
+          );
+          ops.push({
+            level,
+            op: "add-text",
+            lines: plainLines(sign),
+            at: toRnlPoint({
+              x: marker.position.x + offset.x,
+              y: marker.position.y + offset.y + 4,
+            }),
+            halign: "middle",
+            size: rnlSize(markerProfile.typography.polarityFontSize),
+            ...(common.style ? { style: common.style } : {}),
+          });
+        }
+        continue;
+      }
+    }
     const owner =
       annotation.anchor.kind === "object"
         ? placeOf.get(annotation.anchor.objectId)
@@ -736,29 +943,102 @@ function exportTexts(
     });
   }
 
-  for (const object of document.drafting?.objects ?? []) {
-    if (object.kind !== "text") {
-      drawings.push(object.id);
+  // Drawing objects, in the order Analog Canvas stacks them.
+  const objects = [...(document.drafting?.objects ?? [])].sort(
+    (a, b) => a.zIndex - b.zIndex,
+  );
+  for (const object of objects) {
+    const objectProfile = objectStyleProfile(profile, object);
+    const geometry = symbolsAndShapes
+      ? resolveDraftingObjectGeometry(document, resolver, object, routing)
+      : null;
+    const shapes = geometry && draftingShapes(object, geometry, objectProfile);
+    for (const shape of shapes ?? [])
+      ops.push({
+        level,
+        op: "add-shape",
+        layer: draftingLayer(object),
+        ...shape,
+      });
+    if (object.anchor.kind === "route") alongWires.push(object.id);
+    if (object.kind === "floating-symbol") {
+      // A symbol drawn as a picture: a usage of the point definition
+      // $FIGURE, which takes any symbol (rnl-dev ops draft, 3.4).
+      const symbol = rnlSymbolFor(object.symbolId, null);
+      const turn = rnlOrient(object.transform);
+      if (geometry?.kind !== "floating-symbol" || !symbol || !turn.ok) {
+        drawings.push(object.id);
+        continue;
+      }
+      context.packages.add(symbol.package);
+      const orient = composeOrient(turn.orient, symbol.orient);
+      ops.push({
+        level,
+        op: "add-usage",
+        name: nextName("figure"),
+        definition: "$FIGURE",
+        attach: { p: rnlPlace(geometry.position, turn.orient, symbol.offset) },
+        symbol: symbol.symbol,
+        ...(orient === "R0" ? {} : { orient }),
+      });
       continue;
     }
+    if (object.kind === "callout") {
+      if (geometry?.kind !== "callout") {
+        drawings.push(object.id);
+        continue;
+      }
+      // Its leader is drawn above; its words are bold unless set plain.
+      const style: Record<string, string | boolean> = {};
+      if (object.styleOverride?.weight !== "normal") style.bold = true;
+      if (object.styleOverride?.italic) style.italic = true;
+      if (object.styleOverride?.color)
+        style.textcolor = object.styleOverride.color;
+      if (object.typographyToken) drawings.push(object.id);
+      write(object.id, object.content, geometry.rotation, {
+        at: toRnlPoint(geometry.textPosition),
+        halign: object.alignment,
+        size: rnlSize(
+          richTextMetrics(
+            objectProfile,
+            object.typographyToken,
+            object.styleOverride?.sizeScale,
+          ).fontSize,
+        ),
+        ...(Object.keys(style).length ? { style } : {}),
+      });
+      continue;
+    }
+    if (object.kind !== "text") {
+      if (!shapes) drawings.push(object.id);
+      continue;
+    }
+    // A one-sided polarity text is its mark alone: it shows no words.
+    if (object.polarity && !shapes) drawings.push(object.id);
+    if (object.polarity === "positive" || object.polarity === "negative")
+      continue;
     const anchor = resolveVisualAnchor(
       document,
       resolver,
       object.anchor,
       routing,
     );
-    if (object.anchor.kind === "route") alongWires.push(object.id);
-    if (object.polarity || object.typographyToken) drawings.push(object.id);
+    if (object.typographyToken) drawings.push(object.id);
+    // Analog Canvas draws drawing text bold unless it is set plain.
     const style: Record<string, string | boolean> = {};
-    if (object.styleOverride?.weight === "bold") style.bold = true;
+    if (object.styleOverride?.weight !== "normal") style.bold = true;
     if (object.styleOverride?.italic) style.italic = true;
     if (object.styleOverride?.color)
       style.textcolor = object.styleOverride.color;
     write(object.id, object.content, anchor.rotation + object.rotation, {
       at: toRnlPoint(anchor.position),
       halign: object.alignment,
-      // On an object a drawing text is centred on its anchor; free, it stands on it.
-      valign: object.anchor.kind === "object" ? "middle" : "baseline",
+      // On an object, or between polarity marks, a drawing text is centred
+      // on its anchor; free, it stands on it.
+      valign:
+        object.anchor.kind === "object" || object.polarity
+          ? "middle"
+          : "baseline",
       size: rnlSize(
         richTextMetrics(
           profile,
@@ -797,52 +1077,60 @@ function exportTexts(
   say(
     "RNL_DRAWING_NOT_EXPORTED",
     drawings,
-    "drawing objects (arrows, leaders, callouts, lines, rectangles, circles, symbols, polarity marks, typography tokens) are not exported yet",
+    symbolsAndShapes
+      ? "drawing objects keep only part of their look: a floating symbol with no RNL symbol is left out, and a typography token is written as its size"
+      : "drawing objects (arrows, leaders, callouts, lines, rectangles, circles, symbols, polarity marks, typography tokens) are not exported yet",
   );
 }
 
 /**
- * For a block with no RNL symbol of its own — a drawn Cell or an external
- * subcircuit — the terminal each pin connects: its port's position in the
- * printed `.subckt`, whose ports RNL reads from the netlist.
+ * Where a route marker's arrow or sign is drawn, and its label, as Analog
+ * Canvas draws them: on a wire, at the conductor, the label on its offset
+ * (level when the marker is set horizontal); anywhere else at its anchor.
  */
-function blockTerminals(
-  instance: Instance,
-  { project, ir }: ExportContext,
-): ((pin: string) => number | undefined) | undefined {
-  const binding = instance.netlist?.binding;
-  if (binding?.kind === "subcircuit") {
-    const child = project.documents.find(
-      (document) => document.id === binding.childDocumentId,
-    );
-    const printed = ir.cells.find(
-      (cell) => cell.id === binding.childDocumentId,
-    );
-    if (!child || !printed) return undefined;
-    // A printed port is keyed by its logical Net; the block's pin by its Cell Pin.
-    const logical = resolveDocumentLogicalNets(child);
-    return (pin) => {
-      const terminal = child.netlist?.terminals.find(
-        (item) => item.name === pin,
-      );
-      const net = terminal && logical.byBaseNetId.get(terminal.netId)?.id;
-      const index = printed.ports.findIndex(
-        (port) => port.id === net || (!net && port.name === pin),
-      );
-      return index < 0 ? undefined : index + 1;
-    };
+function routeMarkerPlacement(
+  annotation: Annotation,
+  shown: AnnotationPresentation,
+  routing: ResolvedDocumentRoutingGeometry,
+): {
+  position: { x: number; y: number };
+  labelPosition: { x: number; y: number };
+  rotation: number;
+} {
+  const anchor = annotation.anchor;
+  if (anchor.kind !== "route") {
+    const position =
+      anchor.kind === "free" ? anchor.position : shown.anchor.position;
+    return { position, labelPosition: position, rotation: 0 };
   }
-  if (binding?.kind === "external-subcircuit") {
-    const master = ir.externalMasters?.find(
-      (item) => item.id === binding.definitionId,
-    );
-    if (!master) return undefined;
-    return (pin) => {
-      const index = master.terminals.findIndex((item) => item.name === pin);
-      return index < 0 ? undefined : index + 1;
+  const route = routing.routes.get(anchor.routeId);
+  const placement = route && resolveRouteAttachment(route, anchor);
+  if (!placement)
+    return {
+      position: anchor.fallbackPosition,
+      labelPosition: anchor.fallbackPosition,
+      rotation: 0,
     };
-  }
-  return undefined;
+  const level = anchor.orientation === "horizontal";
+  return {
+    position: placement.conductorPoint,
+    labelPosition: level ? placement.conductorPoint : placement.labelPoint,
+    rotation: level ? 0 : placement.rotation,
+  };
+}
+
+/** An offset turned clockwise by `rotation` degrees, y down, as Analog Canvas turns. */
+function turned(
+  offset: { x: number; y: number },
+  rotation: number,
+): { x: number; y: number } {
+  const radians = (rotation * Math.PI) / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return {
+    x: offset.x * cosine - offset.y * sine,
+    y: offset.x * sine + offset.y * cosine,
+  };
 }
 
 function sameEndpoint(a: RouteEndpoint, b: RouteEndpoint): boolean {
