@@ -889,6 +889,85 @@ function applyLevel(
       `${count} ${definition} marks are not read back yet`,
     );
 
+  // Voltage markers: a label on a wire with + and − beside it, where
+  // Analog Canvas puts them, is the marker it wrote.
+  const polarity = resolveDocumentStyleProfile(
+    document.presentation,
+  ).annotations;
+  const plainText = (text: RnlTextView) => {
+    const run = text.lines.length === 1 ? text.lines[0]![0] : undefined;
+    return text.lines[0]!.length === 1 && run?.kind === "text"
+      ? run.text
+      : null;
+  };
+  const signs = model.texts.filter(
+    (text) =>
+      text.attach === null &&
+      text.written &&
+      ["+", "−", "-"].includes(plainText(text) ?? ""),
+  );
+  for (const text of model.texts) {
+    if (text.attach !== null || !text.written || signs.includes(text)) continue;
+    const point = acPoint(text.anchor);
+    const leg = legAt(point);
+    const content = acRichText(text.lines);
+    if (!leg || !content) continue;
+    const angle =
+      (Math.atan2(leg.to.y - leg.from.y, leg.to.x - leg.from.x) * 180) /
+      Math.PI;
+    for (const way of [
+      { rotation: angle, direction: "forward", orientation: "follow" },
+      { rotation: angle + 180, direction: "reverse", orientation: "follow" },
+      { rotation: 0, direction: "forward", orientation: "horizontal" },
+    ] as const) {
+      const besideAt = (side: number) => {
+        const offset = turnedBy(
+          { x: -polarity.polarityOffsetX, y: side * polarity.polarityHalfGap },
+          way.rotation,
+        );
+        return { x: point.x + offset.x, y: point.y + offset.y + 4 };
+      };
+      const signAt = (place: { x: number; y: number }, plus: boolean) =>
+        signs.find((sign) => {
+          const at = acPoint(sign.anchor);
+          return (
+            !consumed.has(sign.id) &&
+            (plainText(sign) === "+") === plus &&
+            Math.abs(at.x - place.x) < 0.6 &&
+            Math.abs(at.y - place.y) < 0.6
+          );
+        });
+      const plus = signAt(besideAt(-1), true);
+      const minus = signAt(besideAt(1), false);
+      if (!plus || !minus) continue;
+      document.annotations.push({
+        id: deriveStableId("annotation", document.id, level.id, text.id),
+        kind: "route-marker",
+        content,
+        anchor: {
+          kind: "route",
+          routeId: leg.route.id,
+          legId: leg.route.legs[leg.index]!.id,
+          t: Math.round(leg.t * 1e9) / 1e9,
+          normalOffset: 0,
+          direction: way.direction,
+          orientation: way.orientation,
+          fallbackPosition: point,
+        },
+        alignment: (["start", "middle", "end"].includes(text.halign)
+          ? text.halign
+          : "middle") as "start" | "middle" | "end",
+        rotation: 0,
+        locked: false,
+        markerKind: "voltage",
+      });
+      consumed.add(text.id);
+      consumed.add(plus.id);
+      consumed.add(minus.id);
+      break;
+    }
+  }
+
   importTexts(document, level, model, {
     consumed,
     glyphOf,
@@ -1448,6 +1527,18 @@ function cellSymbolOf(
         : {}),
     },
     exact,
+  };
+}
+
+/** An offset turned clockwise by `rotation` degrees, y down, as Analog Canvas turns. */
+function turnedBy(
+  offset: { x: number; y: number },
+  rotation: number,
+): { x: number; y: number } {
+  const radians = (rotation * Math.PI) / 180;
+  return {
+    x: offset.x * Math.cos(radians) - offset.y * Math.sin(radians),
+    y: offset.x * Math.sin(radians) + offset.y * Math.cos(radians),
   };
 }
 

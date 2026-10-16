@@ -381,10 +381,37 @@ describe("RNL round trip", () => {
       locked: false,
       markerKind: "current",
     });
+    document.annotations.push({
+      id: "voltage",
+      kind: "route-marker",
+      content: { runs: [{ kind: "text", value: "Vin" }] },
+      anchor: {
+        kind: "route",
+        routeId: second!.id,
+        legId: second!.legs[0]!.id,
+        t: 0.5,
+        normalOffset: 0,
+        direction: "forward",
+        orientation: "follow",
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+      markerKind: "voltage",
+    });
     const { project: drawn } = await roundTrip(project);
     const cell = drawn.documents.find(
       (item) => item.netlist?.name === document.netlist?.name,
     )!;
+    expect(
+      cell.annotations.find((item) => item.markerKind === "voltage"),
+    ).toMatchObject({
+      kind: "route-marker",
+      content: { runs: [{ kind: "text", value: "Vin" }] },
+      alignment: "start",
+      anchor: { t: 0.5, direction: "forward", orientation: "follow" },
+    });
     expect(
       cell.routes.map((route) => route.styleOverride?.arrow).filter(Boolean),
     ).toEqual(["middle", "end"]);
