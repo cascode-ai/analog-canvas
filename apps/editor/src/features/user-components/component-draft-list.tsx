@@ -12,11 +12,13 @@ export function ComponentDraftList({
   onOpen,
   onDelete,
   previewDeletion,
+  expanded = false,
 }: {
   catalog: ComponentDraftCatalog;
   onOpen(target: ComponentDraftTarget): void;
   onDelete?: ((targets: ComponentDraftTarget[]) => string | null) | undefined;
   previewDeletion?: ((targets: ComponentDraftTarget[]) => number) | undefined;
+  expanded?: boolean;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [manage, setManage] = useState(false);
@@ -33,10 +35,14 @@ export function ComponentDraftList({
       setAnchor(null);
     }
   }
-  if (!catalog.entries.length && !message) return null;
+  if (!expanded && !catalog.entries.length && !message) return null;
+  const Container = expanded ? "section" : "details";
+  const Heading = expanded ? "h3" : "summary";
   return (
-    <details className="component-project-drafts">
-      <summary>Project drafts ({catalog.entries.length})</summary>
+    <Container
+      className={`component-project-drafts${expanded ? " is-expanded" : ""}`}
+    >
+      <Heading>Project drafts ({catalog.entries.length})</Heading>
       <div className="component-draft-summary">
         <small>
           {size(catalog.bytes)} stored · shared sources counted once
@@ -128,6 +134,6 @@ export function ComponentDraftList({
         </ComponentPopover>
       ) : null}
       {message ? <small role="status">{message}</small> : null}
-    </details>
+    </Container>
   );
 }

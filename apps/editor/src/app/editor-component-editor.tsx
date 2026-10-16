@@ -9,6 +9,7 @@ import type { SharedDefinitionPayload } from "../features/user-components/compon
 import {
   lazy,
   useRef,
+  useEffect,
   useMemo,
   Suspense,
   type Dispatch,
@@ -53,7 +54,11 @@ import {
   reloadedLibraryDraft,
   isLibraryAuthoringDraft,
 } from "../features/user-components/library-circuit-authoring";
-import { LazyComponentDefinitionEditor as ComponentDefinitionEditor } from "./lazy-editor-dialogs";
+import {
+  LazyComponentDefinitionEditor as ComponentDefinitionEditor,
+  preloadComponentDefinitionEditor,
+} from "./lazy-editor-dialogs";
+import { ComponentEditorLoading } from "../features/user-components/component-editor-loading";
 
 const UserComponentsLibrary = import.meta.env?.ICM_DESKTOP
   ? lazy(() => import("../hosts/native-components-library"))
@@ -119,6 +124,9 @@ export function EditorComponentEditor({
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
 }) {
   const returnToLibrary = useRef(false);
+  useEffect(() => {
+    if (userComponentsOpen) preloadComponentDefinitionEditor();
+  }, [userComponentsOpen]);
   const draftCatalog = useMemo(
     () => (userComponentsOpen ? componentDraftCatalog(project) : undefined),
     [
@@ -504,7 +512,16 @@ export function EditorComponentEditor({
     <>
       {(capabilities.community || capabilities.localComponents) &&
       componentEditor ? (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <ComponentEditorLoading
+              onCancel={() => {
+                setComponentEditor(null);
+                if (returnToLibrary.current) setUserComponentsOpen(true);
+              }}
+            />
+          }
+        >
           <ComponentDefinitionEditor
             key={componentEditor.key}
             authoringIdentity={{
