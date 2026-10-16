@@ -30,6 +30,7 @@ import {
   builtInSymbols,
   cellSymbolPinSlots,
   createProjectSymbolResolver,
+  externalSubcircuitSymbolId,
 } from "@icm/symbols";
 import { startCore } from "@rich-netlist/runtime";
 
@@ -72,15 +73,29 @@ async function roundTrip(
   const exported = createRnlExport(project, { format });
   if (exported.status !== "ready") throw new Error("export blocked");
   const written = await runtime.write({ write: exported.request, svg: false });
-  const path = format === "spice" ? "circuit.sp" : "circuit.scs";
+  return importRnl(written.text, format);
+}
+
+const pathOf = (format: "spice" | "spectre") =>
+  format === "spice" ? "circuit.sp" : "circuit.scs";
+
+/** Import a rich netlist as File > Import > RNL... does. */
+async function importRnl(text: string, format: "spice" | "spectre") {
+  const path = pathOf(format);
   const plan = await planRnlImport({
-    inputs: [{ path, bytes: new TextEncoder().encode(written.text) }],
+    inputs: [{ path, bytes: new TextEncoder().encode(text) }],
     entryPath: path,
     runtime,
   });
   if (plan.status !== "ready") throw new Error(plan.message);
   return plan;
 }
+
+/** Diagnostics that say the drawing did not come back as written. */
+const failures = (plan: Awaited<ReturnType<typeof importRnl>>) =>
+  plan.diagnostics.filter(
+    (item) => item.severity === "error" || item.code === "RNL_IMPORT_RNL_ERROR",
+  );
 
 /** What RNL writes for a placed part: its symbol, place and orientation. */
 function rnlPart(instance: Instance) {
@@ -1038,4 +1053,286 @@ describe("RNL round trip of switches", () => {
       }
     },
   );
+});
+
+const GATES_4 = ["and", "nand", "or", "nor", "xor", "xnor"] as const;
+
+/**
+ * The six 4-input gates in Cell `dut`, one above another, each pin wired
+ * straight across to a Cell Pin level with it.
+ */
+function gates4(): CircuitProject {
+  const project = createEmptyProject("gates", "Gates", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const symbols = new Map(builtInSymbols.map((symbol) => [symbol.id, symbol]));
+  const portPin = symbols.get("port")!.pins[0]!.at;
+  const at = (x: number, y: number) =>
+    ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+  GATES_4.forEach((gate, row) => {
+    const symbolId = `${gate}-gate-4`;
+    const reference = `X${row + 1}`;
+    const position = { x: 200, y: 100 + row * 100 };
+    document.instances.push({
+      id: reference,
+      symbolId,
+      reference,
+      placement: at(position.x, position.y),
+      netlist: {
+        binding: {
+          kind: "unresolved-subcircuit",
+          name: subcircuitDescriptor(symbolId)!.target,
+        },
+        parameters: {},
+      },
+    });
+    for (const pin of symbols.get(symbolId)!.pins) {
+      const node = `n_${reference}_${pin.name}`.toLowerCase();
+      const port = `pin-${node}`;
+      const x = position.x + pin.at.x + (pin.at.x < 0 ? -60 : 60);
+      const y = position.y + pin.at.y;
+      document.instances.push({
+        id: port,
+        symbolId: "port",
+        placement: at(x - portPin.x, y - portPin.y),
+      });
+      document.nets.push({
+        id: node,
+        terminals: [
+          { instanceId: port, pinName: "P" },
+          { instanceId: reference, pinName: pin.name },
+        ],
+      });
+      document.netlist!.terminals.push({
+        id: `terminal-${node}`,
+        name: node,
+        netId: node,
+        direction: "inout",
+        interfaceInstanceIds: [port],
+      });
+      document.routes.push({
+        id: `route-${node}`,
+        netId: node,
+        start: { kind: "terminal", instanceId: port, pinName: "P" },
+        legs: [
+          {
+            id: `leg-${node}`,
+            to: {
+              kind: "endpoint",
+              endpoint: {
+                kind: "terminal",
+                instanceId: reference,
+                pinName: pin.name,
+              },
+            },
+            mode: "manual",
+          },
+        ],
+      });
+    }
+  });
+  return project;
+}
+
+describe("RNL round trip of 4-input gates", () => {
+  it.each(["spice", "spectre"] as const)(
+    "draws Analog Canvas's own gates, every wire level, and brings them back (%s)",
+    async (format) => {
+      const project = gates4();
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      for (const gate of GATES_4)
+        expect(written.text).toContain(
+          `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
+        );
+      expect(written.text).toContain(
+        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.1")',
+      );
+      // RNL's standard gates have their inputs elsewhere; Analog Canvas's
+      // own keep each wire level, in RNL as in the editor.
+      const path = pathOf(format);
+      const snapshot = await runtime.snapshot({
+        entry: path,
+        files: { [path]: written.text },
+        dialect: format,
+        parts: { drawing: false, host: true, model: true },
+      });
+      expect(
+        snapshot.diagnostics.filter((item) => item.severity === "error"),
+      ).toEqual([]);
+      const wires = snapshot.levels.flatMap(
+        (level) => level.model?.wires ?? [],
+      );
+      expect(wires).toHaveLength(30);
+      expect(
+        wires.filter(
+          (wire) => new Set(wire.points.map((point) => point?.[1])).size !== 1,
+        ),
+      ).toEqual([]);
+
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      const parts = plan.project.documents.flatMap(
+        (document) => document.instances,
+      );
+      for (const original of project.documents[0]!.instances) {
+        if (!original.reference) continue;
+        const part = parts.find(
+          (instance) => instance.reference === original.reference,
+        );
+        expect(part?.symbolId).toBe(original.symbolId);
+        expect(part && rnlPart(part)).toEqual(rnlPart(original));
+      }
+      expect(
+        plan.project.documents.flatMap((document) => document.routes),
+      ).toHaveLength(30);
+      const before = createDesignNetlistExport(project, { format });
+      const after = createDesignNetlistExport(plan.project, { format });
+      expect(after.status === "ready" && after.file.text).toBe(
+        before.status === "ready" && before.file.text,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "reads RNL's standard 4-input gates back as Analog Canvas's own (%s)",
+    async (format) => {
+      const project = gates4();
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      // The same drawing as another tool writes it, with RNL's own gates.
+      const request = JSON.parse(
+        JSON.stringify(exported.request)
+          .replaceAll("$CANVAS_", "$")
+          .replace(
+            '"name":"analog-canvas-extensions","version":"0.1"',
+            '"name":"rnl-std-logic","version":"0.3"',
+          ),
+      ) as typeof exported.request;
+      const written = await runtime.write({ write: request, svg: false });
+      expect(written.text).not.toContain("$CANVAS_");
+      expect(written.text).toContain("@SET-SYMBOL $AND_4INPUT");
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      const parts = plan.project.documents.flatMap(
+        (document) => document.instances,
+      );
+      for (const original of project.documents[0]!.instances) {
+        if (!original.reference) continue;
+        const part = parts.find(
+          (instance) => instance.reference === original.reference,
+        );
+        expect(part?.symbolId).toBe(original.symbolId);
+        expect(part?.placement).toEqual(original.placement);
+      }
+      const before = createDesignNetlistExport(project, { format });
+      const after = createDesignNetlistExport(plan.project, { format });
+      expect(after.status === "ready" && after.file.text).toBe(
+        before.status === "ready" && before.file.text,
+      );
+    },
+  );
+});
+
+/**
+ * Two calls of a subcircuit a Spectre model source defines in a SPICE
+ * section, placed in the top Cell, their pins left unconnected.
+ */
+function spiceModelSource(): CircuitProject {
+  const project = createEmptyProject("owned-model", "Owned model");
+  project.modelSources = [
+    {
+      id: "source",
+      language: "spectre",
+      revision: 1,
+      entry: "gain.scs",
+      dependencies: [],
+      files: [
+        {
+          path: "gain.scs",
+          text: "simulator lang=spice\n.subckt gain_block A B params: gain=2\nRLOAD A B {gain*1k}\n.ends gain_block\nsimulator lang=spectre\n",
+        },
+      ],
+    },
+  ];
+  project.externalSubcircuitDefinitions = [
+    {
+      id: "gain",
+      name: "gain_block",
+      interfaceStatus: "declared",
+      terminals: [
+        { id: "a", name: "A", direction: "input" },
+        { id: "b", name: "B", direction: "output" },
+      ],
+      formalParameters: [{ name: "gain", defaultValue: "2" }],
+      implementation: {
+        kind: "source",
+        sourceId: "source",
+        entry: "gain_block",
+      },
+    },
+  ];
+  const document = project.documents[0]!;
+  for (const id of ["X1", "X2"]) {
+    document.instances.push({
+      id,
+      reference: id,
+      symbolId: externalSubcircuitSymbolId("gain"),
+      placement: {
+        position: { x: 200, y: id === "X1" ? 160 : 280 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "gain" },
+        parameters: {},
+      },
+    });
+    for (const pinName of ["A", "B"])
+      document.noConnects.push({
+        id: id + pinName,
+        endpoint: { kind: "terminal", instanceId: id, pinName },
+      });
+  }
+  return project;
+}
+
+describe("RNL round trip of a Spectre netlist with a SPICE section", () => {
+  it("writes no record inside the SPICE section, and reads the calls back", async () => {
+    const project = spiceModelSource();
+    const exported = createRnlExport(project, { format: "spectre" });
+    if (exported.status !== "ready")
+      throw new Error(
+        `export blocked: ${JSON.stringify([...exported.netlistDiagnostics, ...exported.diagnostics].filter((item) => item.severity === "error"))}`,
+      );
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    const lines = written.text.split(/\r?\n/u);
+    const start = lines.indexOf("simulator lang=spice");
+    const end = lines.indexOf("simulator lang=spectre", start);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    expect(
+      lines
+        .slice(start, end)
+        .filter((line) => /^(\*|\/\/).*@[A-Z]/u.test(line)),
+    ).toEqual([]);
+    const plan = await importRnl(written.text, "spectre");
+    expect(failures(plan)).toEqual([]);
+    const parts = plan.project.documents.flatMap(
+      (document) => document.instances,
+    );
+    // The import makes its own external definition; each call stands where
+    // it was drawn.
+    for (const original of project.documents[0]!.instances) {
+      const part = parts.find((instance) => instance.reference === original.id);
+      expect(part?.placement, original.id).toEqual(original.placement);
+    }
+  });
 });

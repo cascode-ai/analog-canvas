@@ -91,6 +91,34 @@ describe("the RNL symbol list", () => {
       expect(["R0", "MX"], entry.symbol).toContain(entry.orient);
   });
 
+  it("draws the 4-input gates as Analog Canvas does, and reads RNL's standard ones back", () => {
+    for (const gate of ["and", "nand", "or", "nor", "xor", "xnor"]) {
+      const name = gate.toUpperCase();
+      expect(rnlSymbolFor(`${gate}-gate-4`)).toMatchObject({
+        symbol: `$CANVAS_${name}_4INPUT`,
+        package: "analog-canvas-extensions",
+        importOnly: false,
+      });
+      // RNL puts the standard gate's inputs on whole grid points.
+      const standard = RNL_SYMBOLS.find(
+        (entry) => entry.symbol === `$${name}_4INPUT`,
+      );
+      expect(standard).toMatchObject({
+        ac: `${gate}-gate-4`,
+        importOnly: true,
+      });
+      expect(
+        standard!.pins.filter((pin) => pin.acPin !== "Y").map((pin) => pin.at),
+      ).toEqual([
+        [-3, 2],
+        [-3, 1],
+        [-3, -1],
+        [-3, -2],
+      ]);
+    }
+    expect(RNL_SYMBOLS.filter((entry) => entry.importOnly)).toHaveLength(6);
+  });
+
   it("names the definition a glyph or a drawing-only part draws", () => {
     expect(rnlSymbolFor("ground")).toMatchObject({
       symbol: "$GROUND_SYMBOL",
@@ -121,6 +149,9 @@ describe("the RNL symbol list", () => {
         shown.map((pin) => pin.name).sort(),
       );
       for (const pin of entry.pins) {
+        expect(entry.terminals[pin.terminal - 1]!.drawn).toBe(true);
+        // A row that only reads files back has its pins where RNL's symbol does.
+        if (entry.importOnly) continue;
         const [x, y] = toRnlPoint(
           shown.find((item) => item.name === pin.acPin)!.at,
         );
@@ -134,7 +165,6 @@ describe("the RNL symbol list", () => {
           Math.round(sx * 1e6) / 1e6 + 0,
           Math.round(sy * 1e6) / 1e6 + 0,
         ]);
-        expect(entry.terminals[pin.terminal - 1]!.drawn).toBe(true);
       }
       expect(
         entry.undrawnPins.map((pin) => pin.acPin).sort(),

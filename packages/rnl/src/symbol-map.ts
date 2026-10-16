@@ -43,6 +43,14 @@ export interface RnlSymbol {
    */
   orient: RnlOrient;
   /**
+   * The row only reads other tools' files back: a standard symbol drawn
+   * otherwise than Analog Canvas draws its part (the 4-input gates, whose
+   * inputs RNL puts on whole grid points), so the export draws the part with
+   * Analog Canvas's own symbol instead. Its pins are where the RNL symbol
+   * has them.
+   */
+  importOnly: boolean;
+  /**
    * The definition whose usages the symbol draws, such as `$GROUND` for
    * `$GROUND_SYMBOL`: a virtual element, a mark or a drawing-only part. Null
    * for a device's symbol, which RNL sets on the netlist's own instance.
@@ -75,6 +83,7 @@ export interface RnlSymbol {
 interface ListEntry {
   symbol: string;
   orient: RnlOrient;
+  import_only?: boolean;
   definition: string | null;
   package: string;
   ac: string | null;
@@ -97,6 +106,7 @@ export const RNL_SYMBOLS: readonly RnlSymbol[] = (list as ListEntry[]).map(
   (entry) => ({
     symbol: entry.symbol,
     orient: entry.orient,
+    importOnly: entry.import_only ?? false,
     definition: entry.definition,
     package: entry.package,
     ac: entry.ac,
@@ -130,13 +140,16 @@ export function terminalOfPin(
 
 /**
  * The RNL symbol drawing an Analog Canvas symbol in a variant. A variant with
- * no symbol of its own draws as the plain symbol.
+ * no symbol of its own draws as the plain symbol; a row that only reads
+ * files back draws nothing.
  */
 export function rnlSymbolFor(
   symbolId: string,
   variantId?: string | null,
 ): RnlSymbol | undefined {
-  const drawn = RNL_SYMBOLS.filter((entry) => entry.ac === symbolId);
+  const drawn = RNL_SYMBOLS.filter(
+    (entry) => entry.ac === symbolId && !entry.importOnly,
+  );
   return (
     drawn.find((entry) => entry.variant === (variantId ?? null)) ??
     drawn.find((entry) => entry.variant === null)

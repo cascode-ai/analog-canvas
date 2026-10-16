@@ -3307,6 +3307,7 @@
     "ac": "and-gate-4",
     "variant": null,
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -3350,28 +3351,28 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-3, 1.2],
+        "at": [-3, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "b",
         "ac_pin": "B",
-        "at": [-3, 0.4],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "c",
         "ac_pin": "C",
-        "at": [-3, -0.4],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 4,
         "name": "d",
         "ac_pin": "D",
-        "at": [-3, -1.2],
+        "at": [-3, -2],
         "dir": 180
       },
       {
@@ -3385,7 +3386,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
-    "note": ""
+    "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_AND_4INPUT"
   },
   {
     "symbol": "$NAND_2INPUT",
@@ -3532,6 +3533,7 @@
     "ac": "nand-gate-4",
     "variant": null,
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -3575,28 +3577,28 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-3, 1.2],
+        "at": [-3, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "b",
         "ac_pin": "B",
-        "at": [-3, 0.4],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "c",
         "ac_pin": "C",
-        "at": [-3, -0.4],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 4,
         "name": "d",
         "ac_pin": "D",
-        "at": [-3, -1.2],
+        "at": [-3, -2],
         "dir": 180
       },
       {
@@ -3610,7 +3612,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
-    "note": ""
+    "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_NAND_4INPUT"
   },
   {
     "symbol": "$OR_2INPUT",
@@ -3757,6 +3759,7 @@
     "ac": "or-gate-4",
     "variant": null,
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -3800,28 +3803,28 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-3, 1.2],
+        "at": [-3, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "b",
         "ac_pin": "B",
-        "at": [-3, 0.4],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "c",
         "ac_pin": "C",
-        "at": [-3, -0.4],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 4,
         "name": "d",
         "ac_pin": "D",
-        "at": [-3, -1.2],
+        "at": [-3, -2],
         "dir": 180
       },
       {
@@ -3835,7 +3838,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
-    "note": ""
+    "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_OR_4INPUT"
   },
   {
     "symbol": "$NOR_2INPUT",
@@ -3982,6 +3985,7 @@
     "ac": "nor-gate-4",
     "variant": null,
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -4025,28 +4029,28 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-3, 1.2],
+        "at": [-3, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "b",
         "ac_pin": "B",
-        "at": [-3, 0.4],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "c",
         "ac_pin": "C",
-        "at": [-3, -0.4],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 4,
         "name": "d",
         "ac_pin": "D",
-        "at": [-3, -1.2],
+        "at": [-3, -2],
         "dir": 180
       },
       {
@@ -4060,7 +4064,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
-    "note": ""
+    "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_NOR_4INPUT"
   },
   {
     "symbol": "$XOR_2INPUT",
@@ -4207,6 +4211,7 @@
     "ac": "xor-gate-4",
     "variant": null,
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -4250,28 +4255,28 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-3, 1.2],
+        "at": [-3, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "b",
         "ac_pin": "B",
-        "at": [-3, 0.4],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "c",
         "ac_pin": "C",
-        "at": [-3, -0.4],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 4,
         "name": "d",
         "ac_pin": "D",
-        "at": [-3, -1.2],
+        "at": [-3, -2],
         "dir": 180
       },
       {
@@ -4285,7 +4290,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
-    "note": ""
+    "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_XOR_4INPUT"
   },
   {
     "symbol": "$XNOR_2INPUT",
@@ -4432,6 +4437,7 @@
     "ac": "xnor-gate-4",
     "variant": null,
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -4475,28 +4481,28 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-3, 1.2],
+        "at": [-3, 2],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "b",
         "ac_pin": "B",
-        "at": [-3, 0.4],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "c",
         "ac_pin": "C",
-        "at": [-3, -0.4],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 4,
         "name": "d",
         "ac_pin": "D",
-        "at": [-3, -1.2],
+        "at": [-3, -2],
         "dir": 180
       },
       {
@@ -4510,7 +4516,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
-    "note": ""
+    "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_XNOR_4INPUT"
   },
   {
     "symbol": "$BUFFER",
@@ -7192,5 +7198,527 @@
     "box": [-2.4, -3.4, 2.4, 3.4],
     "ac_netlist_order": null,
     "note": "AC 的扩展：开关端在前、时钟在后（与 S 一致）；AC 印成子电路 ideal_chopper；时钟不画"
+  },
+  {
+    "symbol": "$CANVAS_AND_4INPUT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "and-gate-4",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "b",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "c",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "y",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 7,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-3, 1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [-3, 0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "c",
+        "ac_pin": "C",
+        "at": [-3, -0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 4,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [-3, -1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "y",
+        "ac_pin": "Y",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -2.4, 4.4, 2.4],
+    "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
+    "note": "同 $AND_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
+  },
+  {
+    "symbol": "$CANVAS_NAND_4INPUT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "nand-gate-4",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "b",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "c",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "y",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 7,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-3, 1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [-3, 0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "c",
+        "ac_pin": "C",
+        "at": [-3, -0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 4,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [-3, -1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "y",
+        "ac_pin": "Y",
+        "at": [3, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -2.4, 4.4, 2.4],
+    "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
+    "note": "同 $NAND_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
+  },
+  {
+    "symbol": "$CANVAS_OR_4INPUT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "or-gate-4",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "b",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "c",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "y",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 7,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-3, 1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [-3, 0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "c",
+        "ac_pin": "C",
+        "at": [-3, -0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 4,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [-3, -1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "y",
+        "ac_pin": "Y",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -2.4, 4.4, 2.4],
+    "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
+    "note": "同 $OR_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
+  },
+  {
+    "symbol": "$CANVAS_NOR_4INPUT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "nor-gate-4",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "b",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "c",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "y",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 7,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-3, 1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [-3, 0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "c",
+        "ac_pin": "C",
+        "at": [-3, -0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 4,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [-3, -1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "y",
+        "ac_pin": "Y",
+        "at": [3, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -2.4, 4.4, 2.4],
+    "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
+    "note": "同 $NOR_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
+  },
+  {
+    "symbol": "$CANVAS_XOR_4INPUT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "xor-gate-4",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "b",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "c",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "y",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 7,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-3, 1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [-3, 0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "c",
+        "ac_pin": "C",
+        "at": [-3, -0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 4,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [-3, -1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "y",
+        "ac_pin": "Y",
+        "at": [3, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -2.4, 4.4, 2.4],
+    "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
+    "note": "同 $XOR_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
+  },
+  {
+    "symbol": "$CANVAS_XNOR_4INPUT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "xnor-gate-4",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "b",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "c",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "y",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 7,
+        "name": "vn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-3, 1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [-3, 0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "c",
+        "ac_pin": "C",
+        "at": [-3, -0.4],
+        "dir": 180
+      },
+      {
+        "terminal": 4,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [-3, -1.2],
+        "dir": 180
+      },
+      {
+        "terminal": 5,
+        "name": "y",
+        "ac_pin": "Y",
+        "at": [4, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-4.4, -2.4, 4.4, 2.4],
+    "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
+    "note": "同 $XNOR_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
   }
 ]
