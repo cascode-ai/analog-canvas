@@ -196,3 +196,7 @@ the RNL language and its runtime belong to rnl.
 - Each built-in block's body, in either dialect and in RNL's port order,
   imports as the block and exports again unchanged
   (`packages/netlist/src/built-in-bodies.test.ts`).
+- In the built editor, the Netlist panel copies `SPICE+RNL` and `Spectre+RNL`
+  as the runtime writes them in its Worker, and File → Import → `RNL…` brings
+  the copied file back with every part where it was drawn and the same netlist
+  (`apps/editor/e2e/rnl-interchange.spec.ts`).
