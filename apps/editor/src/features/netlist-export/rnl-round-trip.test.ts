@@ -334,6 +334,116 @@ describe("RNL round trip", () => {
     ]);
   });
 
+  it("reads back ellipses as circles or curves, and arcs as curves", async () => {
+    // Analog Canvas writes neither; another tool's file may hold both.
+    const exported = createRnlExport(example("simulation-rc"), {
+      format: "spice",
+    });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const level = exported.request.ops.find((op) => op.op === "set")!.level;
+    const request = {
+      ...exported.request,
+      ops: [
+        ...exported.request.ops,
+        ...[
+          {
+            shape: "ellipse",
+            points: [[100, -15]],
+            params: { width: 6, height: 6 },
+          },
+          {
+            shape: "ellipse",
+            points: [[110, -15]],
+            params: { width: 8, height: 4, fill: "linecolor" },
+          },
+          {
+            shape: "arc",
+            points: [
+              [120, -10],
+              [122, -12],
+              [124, -10],
+            ],
+            params: { arrow: "end" },
+          },
+          {
+            shape: "arc",
+            points: [
+              [130, -10],
+              [132, -8],
+              [134, -10],
+            ],
+          },
+        ].map((shape) => ({ level, op: "add-shape", ...shape })),
+      ],
+    } as unknown as typeof exported.request;
+    const written = await runtime.write({ write: request, svg: false });
+    const plan = await planRnlImport({
+      inputs: [
+        { path: "circuit.sp", bytes: new TextEncoder().encode(written.text) },
+      ],
+      entryPath: "circuit.sp",
+      runtime,
+    });
+    if (plan.status !== "ready") throw new Error(plan.message);
+    const objects = plan.project.documents.flatMap(
+      (document) => document.drafting?.objects ?? [],
+    );
+    expect(objects.find((object) => object.kind === "circle")).toMatchObject({
+      center: { x: 1000, y: 150 },
+      radius: 30,
+    });
+    // An eighth of a turn a leg, each quadratic within 0.3 % of the curve.
+    const oval = objects.find(
+      (object) =>
+        object.kind === "construction-line" && object.points.length === 9,
+    );
+    expect(oval).toMatchObject({
+      points: [
+        { x: 1140, y: 150 },
+        { x: 1128, y: 164 },
+        { x: 1100, y: 170 },
+        { x: 1072, y: 164 },
+        { x: 1060, y: 150 },
+        { x: 1072, y: 136 },
+        { x: 1100, y: 130 },
+        { x: 1128, y: 136 },
+        { x: 1140, y: 150 },
+      ],
+    });
+    expect(
+      oval?.kind === "construction-line" && oval.curveControls?.every(Boolean),
+    ).toBe(true);
+    expect(objects.find((object) => object.kind === "arrow")).toMatchObject({
+      from: { kind: "free", position: { x: 1200, y: 100 } },
+      to: { kind: "free", position: { x: 1240, y: 100 } },
+      waypoints: [
+        { x: 1206, y: 114 },
+        { x: 1220, y: 120 },
+        { x: 1234, y: 114 },
+      ],
+      styleOverride: { arrowEnd: "medium-arrow" },
+    });
+    expect(
+      objects.find(
+        (object) =>
+          object.kind === "construction-line" && object.points.length === 5,
+      ),
+    ).toMatchObject({
+      points: [
+        { x: 1300, y: 100 },
+        { x: 1306, y: 86 },
+        { x: 1320, y: 80 },
+        { x: 1334, y: 86 },
+        { x: 1340, y: 100 },
+      ],
+    });
+    expect(
+      plan.diagnostics.filter((item) =>
+        item.code.startsWith("RNL_IMPORT_SHAPE"),
+      ),
+    ).toEqual([expect.objectContaining({ code: "RNL_IMPORT_SHAPE_UNFILLED" })]);
+  });
+
   it("draws a port drawn several times with as many Cell Pins", async () => {
     const project = parseProject(
       readFileSync(

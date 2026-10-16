@@ -121,7 +121,12 @@ the RNL language and its runtime belong to rnl.
   - drawing shapes: rectangles (a closed line round a turned rectangle as a
     turned one), circles, lines and curves (a cubic leg as the quadratic it
     was raised from, or the nearest), arrows; the bottom layer is the
-    background plane.
+    background plane;
+  - ellipses and arcs, which Analog Canvas does not draw itself: a round
+    ellipse as a circle, any other ellipse or arc as the curve that draws it,
+    legs of at most an eighth of a turn each the quadratic through its ends,
+    an arc with a head as an arrow along it; a fill they have is left out,
+    with a warning (`RNL_IMPORT_SHAPE_UNFILLED`).
 - Analog Canvas's own bodies (an op-amp's, a gate's, an ideal block's) come
   back as the blocks that write them, as the SPICE / SCS import brings them
   ([SPICE frontend](spice-frontend.md)), in the port order the export wrote.
@@ -135,7 +140,7 @@ the RNL language and its runtime belong to rnl.
   found by its part's reference.
 - Not read back yet: what only an Analog Canvas object kind says (a callout, a leader, an open or
   dotted arrow head, an outlined arrow, polarity marks: they come in as the
-  shapes and texts they draw), ellipses and arcs.
+  shapes and texts they draw).
 - A part RNL does not place keeps the importer's placement, and a net it does
   not wire keeps its guide lines. A place or corner off Analog Canvas's grid
   (10 for a part, 2 for a corner) is moved onto it.

@@ -1145,11 +1145,20 @@ function applyLevel(
       visible: false,
     });
   }
-  const unread = importShapes(document, level, model.shapes ?? []);
+  const { unread, unfilled } = importShapes(
+    document,
+    level,
+    model.shapes ?? [],
+  );
   if (unread)
     warn(
       "RNL_IMPORT_SHAPE_SKIPPED",
-      `${unread} ellipses and arcs are not read back yet`,
+      `${unread} shapes RNL draws are of no kind Analog Canvas reads back`,
+    );
+  if (unfilled)
+    warn(
+      "RNL_IMPORT_SHAPE_UNFILLED",
+      `${unfilled} filled ellipses and arcs are drawn as curves without their fill: Analog Canvas fills only rectangles and circles`,
     );
   if (snapped)
     warn(
@@ -1383,10 +1392,11 @@ function importShapes(
   document: SchematicDocument,
   level: RnlLevelSnapshot,
   shapes: readonly RnlShapeView[],
-): number {
-  if (!shapes.length) return 0;
+): { unread: number; unfilled: number } {
+  if (!shapes.length) return { unread: 0, unfilled: 0 };
   const profile = resolveDocumentStyleProfile(document.presentation);
   let unread = 0;
+  let unfilled = 0;
   document.drafting ??= { objects: [] };
   const objects = document.drafting.objects;
   const whole = ([x, y]: Point) => {
@@ -1435,12 +1445,22 @@ function importShapes(
       shape.layer === "bottom" ? { layer: "background" as const } : {};
     const filled = fillColor ? { fillColor } : {};
     const points = shape.points.map(whole);
-    if (shape.shape === "rectangle" || shape.shape === "circle") {
+    // An ellipse as wide as it is high is a circle.
+    const round =
+      shape.shape === "ellipse" &&
+      Math.abs(Number(shape.params["width"]) - Number(shape.params["height"])) *
+        AC_UNITS_PER_RNL_UNIT <
+        1;
+    if (shape.shape === "rectangle" || shape.shape === "circle" || round) {
       const center = points[0]!;
       const size = (key: string) =>
         Math.max(
           1,
-          Math.round(Number(shape.params[key]) * AC_UNITS_PER_RNL_UNIT),
+          Math.round(
+            Number(shape.params[key]) *
+              AC_UNITS_PER_RNL_UNIT *
+              (round ? 0.5 : 1),
+          ),
         );
       objects.push(
         shape.shape === "rectangle"
@@ -1459,7 +1479,7 @@ function importShapes(
               ...base(center),
               kind: "circle",
               center,
-              radius: size("radius"),
+              radius: size(round ? "width" : "radius"),
               lineStyle,
               ...layer,
               styleOverride: { ...styleOverride, ...filled },
@@ -1467,10 +1487,14 @@ function importShapes(
       );
       continue;
     }
-    if (shape.shape !== "line" && shape.shape !== "bezier") {
+    if (!["line", "bezier", "ellipse", "arc"].includes(shape.shape)) {
       unread += 1;
       continue;
     }
+    // Analog Canvas draws no ellipse or arc of its own, nor fills a curve:
+    // each is the curve that draws it, without its fill.
+    if ((shape.shape === "ellipse" || shape.shape === "arc") && fillColor)
+      unfilled += 1;
     const turned =
       shape.shape === "line"
         ? turnedRectangle(shape.points.map((point) => acPoint(point)))
@@ -1489,7 +1513,17 @@ function importShapes(
     const path =
       shape.shape === "bezier"
         ? quadraticPath(points)
-        : { points, controls: [] as ({ x: number; y: number } | null)[] };
+        : shape.shape === "ellipse"
+          ? ellipticCurve(
+              points[0] ?? { x: 0, y: 0 },
+              (Number(shape.params["width"]) * AC_UNITS_PER_RNL_UNIT) / 2,
+              (Number(shape.params["height"]) * AC_UNITS_PER_RNL_UNIT) / 2,
+              0,
+              2 * Math.PI,
+            )
+          : shape.shape === "arc"
+            ? arcCurve(shape.points.map((point) => acPoint(point)))
+            : { points, controls: [] as ({ x: number; y: number } | null)[] };
     const arrow = String(shape.params["arrow"] ?? "none");
     if (arrow !== "none" && path.points.length >= 2) {
       const ends = {
@@ -1524,7 +1558,86 @@ function importShapes(
       ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
     });
   }
-  return unread;
+  return { unread, unfilled };
+}
+
+/** A point on Analog Canvas's whole units. */
+const onUnits = (point: { x: number; y: number }) => ({
+  x: Math.round(point.x) + 0,
+  y: Math.round(point.y) + 0,
+});
+
+/**
+ * An elliptic arc as Analog Canvas's curve: legs of at most an eighth of a
+ * turn, each the quadratic through its ends whose control is where their
+ * tangents meet, within a third of a percent of the arc. The radii run
+ * along the axes; the arc runs from `start` by `sweep`, in radians.
+ */
+function ellipticCurve(
+  center: { x: number; y: number },
+  rx: number,
+  ry: number,
+  start: number,
+  sweep: number,
+): {
+  points: { x: number; y: number }[];
+  controls: ({ x: number; y: number } | null)[];
+} {
+  const legs = Math.max(1, Math.ceil(Math.abs(sweep) / (Math.PI / 4) - 1e-9));
+  const step = sweep / legs;
+  const at = (angle: number, reach = 1) =>
+    onUnits({
+      x: center.x + rx * reach * Math.cos(angle),
+      y: center.y + ry * reach * Math.sin(angle),
+    });
+  return {
+    points: Array.from({ length: legs + 1 }, (_, leg) =>
+      at(start + leg * step),
+    ),
+    controls: Array.from({ length: legs }, (_, leg) =>
+      at(start + (leg + 0.5) * step, 1 / Math.cos(step / 2)),
+    ),
+  };
+}
+
+/**
+ * A circular arc from its first point through its second to its third, as
+ * Analog Canvas's curve; three points in a line are the line through them.
+ */
+function arcCurve(points: readonly { x: number; y: number }[]): {
+  points: { x: number; y: number }[];
+  controls: ({ x: number; y: number } | null)[];
+} {
+  const [a, b, c] = points as [
+    { x: number; y: number },
+    { x: number; y: number },
+    { x: number; y: number },
+  ];
+  const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+  if (Math.abs(d) < 1e-6)
+    return { points: [a, b, c].map(onUnits), controls: [null, null] };
+  const square = (p: typeof a) => p.x * p.x + p.y * p.y;
+  const center = {
+    x:
+      (square(a) * (b.y - c.y) +
+        square(b) * (c.y - a.y) +
+        square(c) * (a.y - b.y)) /
+      d,
+    y:
+      (square(a) * (c.x - b.x) +
+        square(b) * (a.x - c.x) +
+        square(c) * (b.x - a.x)) /
+      d,
+  };
+  const radius = Math.hypot(a.x - center.x, a.y - center.y);
+  const angle = (p: typeof a) => Math.atan2(p.y - center.y, p.x - center.x);
+  const turn = 2 * Math.PI;
+  const onward = (from: number, to: number) =>
+    (((to - from) % turn) + turn) % turn;
+  // The way from the first point to the third that passes the second.
+  const ahead = onward(angle(a), angle(c));
+  const sweep = onward(angle(a), angle(b)) <= ahead ? ahead : ahead - turn;
+  return ellipticCurve(center, radius, radius, angle(a), sweep);
 }
 
 /** A closed line round four right-angled corners, as a turned rectangle. */
