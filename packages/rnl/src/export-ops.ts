@@ -32,7 +32,7 @@ import {
   blockTerminals,
   type RnlSymbolDefinition,
 } from "./block-symbols.js";
-import { draftingLayer, draftingShapes } from "./drawing-ops.js";
+import { draftingLayer, draftingShapes, drawingGroup } from "./drawing-ops.js";
 import { composeOrient, rnlOrient, type RnlOrient } from "./orientation.js";
 import {
   AC_UNITS_PER_RNL_UNIT,
@@ -91,6 +91,8 @@ export type RnlOp = { level: string } & (
   | { op: "use-package"; name: string; version: string }
   | {
       op: "add-text";
+      /** Its name in the level, for a text of a drawing object's group. */
+      name?: string;
       /** The part, usage or net it is attached to; absent for a text on a point. */
       attach?: string;
       /** Its key on that object (`#M1::name`); never for a net or a point. */
@@ -111,6 +113,8 @@ export type RnlOp = { level: string } & (
       op: "add-shape";
       /** Drawn under the circuit, or over it (11.6). */
       layer: "bottom" | "top";
+      /** Its name in the level, for a shape of a drawing object's group. */
+      name?: string;
     } & RnlShape)
   /** A symbol, defined in the level; `set` on `#` makes it a Cell's look. */
   | ({ op: "define-symbol" } & RnlSymbolDefinition)
@@ -938,12 +942,19 @@ function exportTexts(
       routing,
     );
     const shapes = draftingShapes(object, geometry, objectProfile);
-    for (const shape of shapes ?? [])
+    // An object of a kind RNL has no form for is a group of shapes and
+    // texts, named after it and each by its part, for the import to join.
+    const kind = drawingGroup(object);
+    const group = kind && shapes ? nextName(kind) : null;
+    const named = (role: string | null) =>
+      group ? { name: role ? `${group}_${role}` : group } : {};
+    for (const { role, shape } of shapes ?? [])
       ops.push({
         level,
         op: "add-shape",
         layer: draftingLayer(object),
         ...shape,
+        ...named(role),
       });
     if (object.anchor.kind === "route") alongWires.push(object.id);
     if (object.kind === "floating-symbol") {
@@ -982,6 +993,7 @@ function exportTexts(
         style.textcolor = object.styleOverride.color;
       if (object.typographyToken) drawings.push(object.id);
       write(object.id, object.content, geometry.rotation, {
+        ...named("text"),
         at: toRnlPoint(geometry.textPosition),
         halign: object.alignment,
         size: rnlSize(
@@ -1017,6 +1029,7 @@ function exportTexts(
     if (object.styleOverride?.color)
       style.textcolor = object.styleOverride.color;
     write(object.id, object.content, anchor.rotation + object.rotation, {
+      ...named(null),
       at: toRnlPoint(anchor.position),
       halign: object.alignment,
       // On an object, or between polarity marks, a drawing text is centred

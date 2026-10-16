@@ -1,4 +1,5 @@
 import {
+  arrowArtwork,
   drawnSwitchControl,
   resolveDocumentStyleProfile,
   richTextMetrics,
@@ -1160,6 +1161,12 @@ function applyLevel(
       "RNL_IMPORT_SHAPE_UNFILLED",
       `${unfilled} filled ellipses and arcs are drawn as curves without their fill: Analog Canvas fills only rectangles and circles`,
     );
+  const unjoined = regroupDrawings(document, level, model);
+  if (unjoined)
+    warn(
+      "RNL_IMPORT_DRAWING_UNJOINED",
+      `${unjoined} drawing objects named as Analog Canvas writes them do not read back as one; their shapes and texts stay as drawn`,
+    );
   if (snapped)
     warn(
       "RNL_IMPORT_SNAPPED",
@@ -1560,6 +1567,452 @@ function importShapes(
   }
   return { unread, unfilled };
 }
+
+/**
+ * The name the export writes a drawing object's shapes and texts under, for
+ * a kind RNL has no form of its own for: the object's (`%arrow3`), and each
+ * part's after it (`%arrow3_end`, `%callout1_text`, `%polarity2_plus1`).
+ */
+const DRAWING_GROUP =
+  /^%(arrow|leader|callout|polarity)(\d+)(?:_([a-z]+\d*))?$/u;
+
+type DraftingObject = NonNullable<
+  SchematicDocument["drafting"]
+>["objects"][number];
+type XY = { x: number; y: number };
+
+/** A drawing object's path: a construction line's or an arrow's points. */
+function pathOf(
+  object: DraftingObject,
+): { points: XY[]; controls: (XY | null)[] } | null {
+  if (object.kind === "construction-line")
+    return {
+      points: [...object.points],
+      controls: [...(object.curveControls ?? [])],
+    };
+  if (
+    object.kind === "arrow" &&
+    object.from.kind === "free" &&
+    object.to.kind === "free"
+  )
+    return {
+      points: [
+        object.from.position,
+        ...(object.waypoints ?? []),
+        object.to.position,
+      ],
+      controls: [...(object.curveControls ?? [])],
+    };
+  return null;
+}
+
+/** A line's look, as a drawing object other than a closed shape keeps it. */
+function lineLook(object: DraftingObject) {
+  const lineStyle =
+    object.kind === "construction-line" ||
+    object.kind === "rectangle" ||
+    object.kind === "circle"
+      ? object.lineStyle
+      : object.styleOverride?.lineStyle;
+  return {
+    ...(object.styleOverride?.color
+      ? { color: object.styleOverride.color }
+      : {}),
+    ...(object.styleOverride?.strokeScale
+      ? { strokeScale: object.styleOverride.strokeScale }
+      : {}),
+    ...(lineStyle && lineStyle !== "solid" ? { lineStyle } : {}),
+  };
+}
+
+/** An arrow head's style for its size against the drawing's own. */
+function headStyle(
+  scale: number,
+): "small-arrow" | "medium-arrow" | "large-arrow" {
+  return scale < 0.875
+    ? "small-arrow"
+    : scale > 1.25
+      ? "large-arrow"
+      : "medium-arrow";
+}
+
+/**
+ * Drawing objects of kinds RNL has no form for, which the export writes as
+ * shapes and texts named after the object (`DRAWING_GROUP`): what the
+ * import made of each group becomes the one object again, where it stood
+ * in the stacking order. An arrow's heads and dots are its ends' styles, an
+ * outlined arrow the outline it draws, a callout its line and text, a
+ * polarity text its words and marks. Returns how many groups stay as drawn.
+ */
+function regroupDrawings(
+  document: SchematicDocument,
+  level: RnlLevelSnapshot,
+  model: NonNullable<RnlLevelSnapshot["model"]>,
+): number {
+  const objects = document.drafting?.objects;
+  if (!objects?.length) return 0;
+  const profile = resolveDocumentStyleProfile(document.presentation);
+  type Member = {
+    role: string | null;
+    object: DraftingObject;
+    shape?: RnlShapeView;
+  };
+  const groups = new Map<string, { kind: string; members: Member[] }>();
+  const byId = new Map(objects.map((object) => [object.id, object]));
+  const join = (rnlId: string, objectId: string, shape?: RnlShapeView) => {
+    const match = DRAWING_GROUP.exec(rnlId);
+    const object = byId.get(objectId);
+    if (!match || !object) return;
+    const name = `%${match[1]}${match[2]}`;
+    const group = groups.get(name) ?? { kind: match[1] ?? "", members: [] };
+    group.members.push({
+      role: match[3] ?? null,
+      object,
+      ...(shape ? { shape } : {}),
+    });
+    groups.set(name, group);
+  };
+  for (const shape of model.shapes ?? [])
+    join(
+      shape.id,
+      deriveStableId("drafting", document.id, level.id, shape.id),
+      shape,
+    );
+  model.texts.forEach((text, index) =>
+    join(
+      text.id,
+      deriveStableId("drafting", document.id, level.id, text.id, String(index)),
+    ),
+  );
+  const free = (position: XY) => ({ kind: "free" as const, position });
+  const near = (a: XY, b: XY, by: number) =>
+    Math.abs(a.x - b.x) <= by && Math.abs(a.y - b.y) <= by;
+  const mid = (a: XY, b: XY) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const span = (a: XY, b: XY) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  const rebuild = (
+    name: string,
+    kind: string,
+    members: readonly Member[],
+  ): DraftingObject | null => {
+    const part = (role: string | null) =>
+      members.find((member) => member.role === role);
+    const common = (anchor: XY) => ({
+      id: deriveStableId("drafting", document.id, level.id, name),
+      locked: false,
+      zIndex: 0,
+      anchor: free(onUnits(anchor)),
+    });
+    const line = part(null)?.object;
+    const path = line ? pathOf(line) : null;
+    const first = path?.points[0];
+    const last = path?.points.at(-1);
+    // An arrow's end with a dot drawn there is a dot, whatever else it is.
+    const ends = (start: ArrowEnd, end: ArrowEnd) =>
+      ({
+        arrowStart: part("start")?.object.kind === "circle" ? "dot" : start,
+        arrowEnd: part("end")?.object.kind === "circle" ? "dot" : end,
+      }) satisfies Record<string, ArrowEnd>;
+    switch (kind) {
+      case "leader":
+        if (!line || !first || !last) return null;
+        return {
+          ...common(first),
+          kind: "leader",
+          target: free(last),
+          ...(Object.keys(lineLook(line)).length
+            ? { styleOverride: lineLook(line) }
+            : {}),
+        };
+      case "callout": {
+        const text = part("text")?.object;
+        if (!line || !last || text?.kind !== "text") return null;
+        const { color, ...stroke } = lineLook(line);
+        const style = {
+          ...text.styleOverride,
+          ...stroke,
+          ...(color && !text.styleOverride?.color ? { color } : {}),
+        };
+        return {
+          ...common(last),
+          anchor: text.anchor,
+          kind: "callout",
+          content: text.content,
+          alignment: text.alignment,
+          rotation: text.rotation,
+          target: free(last),
+          ...(Object.keys(style).length ? { styleOverride: style } : {}),
+        };
+      }
+      case "polarity": {
+        const plus = members.some((member) => member.role?.startsWith("plus"));
+        const minus = members.some((member) => member.role === "minus");
+        const polarity =
+          plus && minus
+            ? "both"
+            : plus
+              ? "positive"
+              : minus
+                ? "negative"
+                : null;
+        if (!polarity) return null;
+        if (line?.kind === "text")
+          return { ...line, id: common(first ?? { x: 0, y: 0 }).id, polarity };
+        // A mark alone: its stroke across, centred on its anchor, is as
+        // long as its words' size makes it.
+        const mark = (part("plus1") ?? part("minus"))?.object;
+        const [from, to] = (mark && pathOf(mark)?.points) ?? [];
+        if (!mark || !from || !to) return null;
+        const fontSize = span(from, to) / 2 / 0.23;
+        const sizeScale =
+          Math.round((fontSize / richTextMetrics(profile).fontSize) * 1e3) /
+          1e3;
+        const { color } = lineLook(mark);
+        const style = {
+          ...(Math.abs(sizeScale - 1) > 1e-3 ? { sizeScale } : {}),
+          ...(color ? { color } : {}),
+        };
+        return {
+          ...common(mid(from, to)),
+          kind: "text",
+          content: { runs: [{ kind: "line-break" as const }] },
+          alignment: "middle",
+          rotation: 0,
+          polarity,
+          ...(Object.keys(style).length ? { styleOverride: style } : {}),
+        };
+      }
+      case "arrow": {
+        const outline = part("outline");
+        if (outline?.shape) return outlined(outline, outline.shape);
+        if (!line || !path || !first || !last) return null;
+        // A filled head is the shaft's own, its size the larger head's.
+        const drawn = part(null)?.shape;
+        const filled = String(drawn?.params["arrow"] ?? "none");
+        const scale =
+          (Number(drawn?.style["arrowsize"]) * AC_UNITS_PER_RNL_UNIT) /
+          (profile.annotations.arrowHeadLength *
+            (line.styleOverride?.strokeScale ?? 1));
+        const tips = { start: first, end: last };
+        const end = (which: "start" | "end"): ArrowEnd => {
+          const object = part(which)?.object;
+          const tip = object && pathOf(object)?.points;
+          // An open head is drawn by itself, the shaft ending at its base.
+          if (tip && tip.length >= 4 && tip[0]) {
+            tips[which] = tip[0];
+            return "open-arrow";
+          }
+          return filled === which || filled === "both"
+            ? headStyle(scale > 0 ? scale : 1)
+            : "none";
+        };
+        const styles = ends(end("start"), end("end"));
+        return {
+          ...common(tips.start),
+          kind: "arrow",
+          from: free(tips.start),
+          to: free(tips.end),
+          ...(path.points.length > 2
+            ? { waypoints: path.points.slice(1, -1) }
+            : {}),
+          ...(path.controls.some(Boolean)
+            ? { curveControls: path.controls }
+            : {}),
+          styleOverride: { ...lineLook(line), ...styles },
+        };
+      }
+      default:
+        return null;
+    }
+
+    /**
+     * An outlined arrow from the outline it draws: its tips and the ends of
+     * its shaft are where the outline says, read each way it could be and
+     * kept where Analog Canvas draws that arrow so again.
+     */
+    function outlined(
+      outline: Member,
+      shape: RnlShapeView,
+    ): DraftingObject | null {
+      const arrow = (
+        from: XY,
+        to: XY,
+        width: number,
+        styles: { arrowStart: ArrowEnd; arrowEnd: ArrowEnd },
+      ) => ({
+        ...common(from),
+        kind: "arrow" as const,
+        from: free(onUnits(from)),
+        to: free(onUnits(to)),
+        outline: { width: Math.round(width * 100) / 100 },
+        styleOverride: { ...lineLook(outline.object), ...styles },
+      });
+      const [center] = shape.points;
+      if (shape.shape === "rectangle" && center) {
+        // A shaft with no heads, square to the axes, is written as a
+        // rectangle: its longer side runs from its start to its end, which
+        // a dot at either end tells apart.
+        const at = acPoint(center);
+        const size = (key: string) =>
+          Number(shape.params[key]) * AC_UNITS_PER_RNL_UNIT;
+        const long = size("width") >= size("height");
+        const half = size(long ? "width" : "height") / 2;
+        const a = long
+          ? { x: at.x - half, y: at.y }
+          : { x: at.x, y: at.y - half };
+        const b = long
+          ? { x: at.x + half, y: at.y }
+          : { x: at.x, y: at.y + half };
+        const dot = (role: string) => {
+          const object = part(role)?.object;
+          return object?.kind === "circle" ? object.center : null;
+        };
+        const startDot = dot("start");
+        const endDot = dot("end");
+        const reversed = startDot
+          ? span(startDot, b) < span(startDot, a)
+          : endDot
+            ? span(endDot, a) < span(endDot, b)
+            : false;
+        const [from, to] = reversed ? [b, a] : [a, b];
+        return arrow(
+          from,
+          to,
+          size(long ? "height" : "width") / 0.4,
+          ends("none", "none"),
+        );
+      }
+      const drawn = shape.points.map((point) => acPoint(point));
+      const [head] = drawn;
+      const tail = drawn.at(-1);
+      if (head && tail && drawn.length > 1 && near(head, tail, 1e-3))
+        drawn.pop();
+      // The neck is a fifth of the width each side of the shaft; a head is
+      // its scale times the width across.
+      const neck = (a: XY, b: XY) => span(a, b) / 0.4;
+      const readings: {
+        from: XY;
+        to: XY;
+        width: number;
+        start: number;
+        end: number;
+      }[] = [];
+      if (drawn.length === 4) {
+        const [a, b, c, d] = drawn as [XY, XY, XY, XY];
+        readings.push({
+          from: mid(a, d),
+          to: mid(b, c),
+          width: neck(a, d),
+          start: 0,
+          end: 0,
+        });
+      }
+      if (drawn.length === 7) {
+        const [a, b, c, d, e, , g] = drawn as [XY, XY, XY, XY, XY, XY, XY];
+        const toHead = neck(a, g);
+        readings.push({
+          from: mid(a, g),
+          to: d,
+          width: toHead,
+          start: 0,
+          end: span(c, e) / toHead,
+        });
+        const [, , , , p, q, r] = drawn as [XY, XY, XY, XY, XY, XY, XY];
+        const fromHead = neck(b, c);
+        readings.push({
+          from: q,
+          to: mid(b, c),
+          width: fromHead,
+          start: span(p, r) / fromHead,
+          end: 0,
+        });
+      }
+      if (drawn.length === 10) {
+        const [, b, c, d, e, f, , h, i, j] = drawn as [
+          XY,
+          XY,
+          XY,
+          XY,
+          XY,
+          XY,
+          XY,
+          XY,
+          XY,
+          XY,
+        ];
+        const both = neck(b, f);
+        readings.push({
+          from: i,
+          to: d,
+          width: both,
+          start: span(h, j) / both,
+          end: span(c, e) / both,
+        });
+      }
+      for (const reading of readings) {
+        const candidate = arrow(
+          reading.from,
+          reading.to,
+          reading.width,
+          ends(
+            reading.start ? headStyle(reading.start) : "none",
+            reading.end ? headStyle(reading.end) : "none",
+          ),
+        );
+        const again = arrowArtwork(
+          candidate,
+          [reading.from, reading.to],
+          [],
+          profile,
+        ).outline;
+        if (
+          again?.length === drawn.length &&
+          again.every((point, index) => {
+            const other = drawn[index];
+            return other !== undefined && near(point, other, 1.5);
+          })
+        )
+          return candidate;
+      }
+      return null;
+    }
+  };
+
+  let unjoined = 0;
+  for (const [name, group] of groups) {
+    const object = rebuild(name, group.kind, group.members);
+    if (!object) {
+      unjoined += 1;
+      continue;
+    }
+    // It stands where its first shape stood: shapes come in the order RNL
+    // draws them, texts all before them.
+    const gone = new Set(group.members.map((member) => member.object));
+    const shapes = group.members.filter((member) => member.shape);
+    const first = Math.min(
+      ...(shapes.length ? shapes : group.members).map((member) =>
+        objects.indexOf(member.object),
+      ),
+    );
+    const at = objects.slice(0, first).filter((item) => !gone.has(item)).length;
+    const kept = objects.filter((item) => !gone.has(item));
+    objects.splice(
+      0,
+      objects.length,
+      ...kept.slice(0, at),
+      object,
+      ...kept.slice(at),
+    );
+  }
+  objects.forEach((object, index) => {
+    object.zIndex = index;
+  });
+  return unjoined;
+}
+
+type ArrowEnd = NonNullable<
+  NonNullable<DraftingObject["styleOverride"]>["arrowStart"]
+>;
 
 /** A point on Analog Canvas's whole units. */
 const onUnits = (point: { x: number; y: number }) => ({

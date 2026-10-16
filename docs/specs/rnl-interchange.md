@@ -71,7 +71,11 @@ the RNL language and its runtime belong to rnl.
   arrows with their heads, dots and outlines, leaders and callouts, and
   polarity marks; a rectangle or circle on the background plane is drawn
   under the circuit. Anything anchored to a part or a wire is written at its
-  place.
+  place. An object of a kind RNL has no form for (an arrow, a leader, a
+  callout, a polarity text) is its shapes and texts named after it, each by
+  its part: `%arrow3` its shaft or `%arrow3_outline`, `%arrow3_start` and
+  `%arrow3_end` a head or dot, `%callout1_text`, `%polarity2_plus1`; the
+  import joins them again.
 
 ### Failures
 
@@ -138,9 +142,13 @@ the RNL language and its runtime belong to rnl.
   label naming the node its card's control met. A chopper's label is its
   clock's likewise. A card the conversion from Spectre renamed (`XS1`) is
   found by its part's reference.
-- Not read back yet: what only an Analog Canvas object kind says (a callout, a leader, an open or
-  dotted arrow head, an outlined arrow, polarity marks: they come in as the
-  shapes and texts they draw).
+- An object the export wrote as a named group comes back as that object, where
+  its first shape stood: an arrow with each end's style (a filled head's size
+  from the shaft's, the larger where both ends have one; an open head; a
+  dot), an outlined arrow read from its outline and kept only where Analog
+  Canvas draws the same outline again, a leader, a callout, a polarity text
+  (marks alone as the sign they show). A group that does not read back as
+  one stays as drawn, with a warning (`RNL_IMPORT_DRAWING_UNJOINED`).
 - A part RNL does not place keeps the importer's placement, and a net it does
   not wire keeps its guide lines. A place or corner off Analog Canvas's grid
   (10 for a part, 2 for a corner) is moved onto it.

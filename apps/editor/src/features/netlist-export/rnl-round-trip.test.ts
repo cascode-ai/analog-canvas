@@ -36,6 +36,15 @@ import { startCore } from "@rich-netlist/runtime";
 import { planRnlImport } from "./rnl-import";
 import type { RnlRuntime } from "./rnl-runtime";
 
+/** An arrow end's style, as a drawing object keeps it. */
+type ArrowEnd =
+  | "small-arrow"
+  | "medium-arrow"
+  | "large-arrow"
+  | "dot"
+  | "none"
+  | "open-arrow";
+
 // The rnl runtime's own core, in a worker thread: the editor's write and read.
 const core = startCore();
 afterAll(() => core.terminate());
@@ -329,9 +338,160 @@ describe("RNL round trip", () => {
         kind: "arrow",
         from: free(400, -400),
         to: free(560, -400),
-        styleOverride: { arrowEnd: "medium-arrow" },
+        styleOverride: { arrowStart: "none", arrowEnd: "medium-arrow" },
       }),
     ]);
+  });
+
+  it("reads back leaders, callouts, polarity marks and arrows as Analog Canvas drew them", async () => {
+    const project = example("simulation-rc");
+    const document = project.documents.find(
+      (item) => item.id === project.topDocumentId,
+    )!;
+    const free = (x: number, y: number) =>
+      ({ kind: "free", position: { x, y } }) as const;
+    const base = (id: string, zIndex: number, x: number, y: number) => ({
+      id,
+      locked: false,
+      zIndex,
+      anchor: free(x, y),
+    });
+    const words = (value: string) => ({
+      runs: [{ kind: "text" as const, value }],
+    });
+    const bare = { runs: [{ kind: "line-break" as const }] };
+    const arrow = (
+      id: string,
+      zIndex: number,
+      [x1, y1, x2, y2]: [number, number, number, number],
+      arrowStart: ArrowEnd,
+      arrowEnd: ArrowEnd,
+      width?: number,
+    ) => ({
+      ...base(id, zIndex, x1, y1),
+      kind: "arrow" as const,
+      from: free(x1, y1),
+      to: free(x2, y2),
+      ...(width ? { outline: { width } } : {}),
+      styleOverride: { arrowStart, arrowEnd },
+    });
+    document.drafting = {
+      objects: [
+        {
+          ...base("lead", 0, 400, -500),
+          kind: "leader",
+          target: free(500, -560),
+          styleOverride: { lineStyle: "dashed", color: "#cc0000" },
+        },
+        {
+          ...base("call", 1, 600, -500),
+          kind: "callout",
+          content: words("bias"),
+          alignment: "start",
+          rotation: 0,
+          target: free(700, -560),
+        },
+        {
+          ...base("both", 2, 800, -500),
+          kind: "text",
+          content: words("Vx"),
+          alignment: "middle",
+          rotation: 0,
+          polarity: "both",
+        },
+        {
+          ...base("plus", 3, 900, -500),
+          kind: "text",
+          content: bare,
+          alignment: "middle",
+          rotation: 0,
+          polarity: "positive",
+        },
+        {
+          ...base("minus", 4, 950, -500),
+          kind: "text",
+          content: bare,
+          alignment: "middle",
+          rotation: 0,
+          polarity: "negative",
+        },
+        arrow("open", 5, [400, -650, 560, -650], "none", "open-arrow"),
+        arrow("dot", 6, [600, -650, 760, -650], "dot", "small-arrow"),
+        arrow("big", 7, [800, -650, 960, -650], "large-arrow", "large-arrow"),
+        arrow("fat", 8, [400, -800, 600, -800], "none", "medium-arrow", 30),
+        arrow(
+          "fat2",
+          9,
+          [650, -800, 850, -800],
+          "medium-arrow",
+          "medium-arrow",
+          30,
+        ),
+        arrow("bar", 10, [900, -800, 1000, -800], "none", "none", 30),
+      ],
+    };
+    const { project: drawn, diagnostics } = await roundTrip(project);
+    const cell = drawn.documents.find(
+      (item) => item.netlist?.name === document.netlist?.name,
+    )!;
+    // The example's own drawing text comes back too; these all have marks.
+    const objects = (cell.drafting?.objects ?? []).filter(
+      (object) => object.kind !== "text" || object.polarity,
+    );
+    expect(
+      diagnostics.filter((item) => item.code === "RNL_IMPORT_DRAWING_UNJOINED"),
+    ).toEqual([]);
+    // Each comes back as one object of its own kind, in its stacking order.
+    expect(objects.map((object) => object.kind)).toEqual(
+      document.drafting.objects.map((object) => object.kind),
+    );
+    const [lead, call, both, plus, minus, open, dot, big, fat, fat2, bar] =
+      objects;
+    expect(lead).toMatchObject({
+      anchor: free(400, -500),
+      target: free(500, -560),
+      styleOverride: { lineStyle: "dashed", color: "#cc0000" },
+    });
+    expect(call).toMatchObject({
+      anchor: free(600, -500),
+      target: free(700, -560),
+      content: words("bias"),
+      alignment: "start",
+    });
+    expect(both).toMatchObject({ content: words("Vx"), polarity: "both" });
+    expect(plus).toMatchObject({
+      anchor: free(900, -500),
+      content: bare,
+      polarity: "positive",
+    });
+    expect(minus).toMatchObject({
+      anchor: free(950, -500),
+      polarity: "negative",
+    });
+    expect(open).toMatchObject({
+      from: free(400, -650),
+      to: free(560, -650),
+      styleOverride: { arrowStart: "none", arrowEnd: "open-arrow" },
+    });
+    expect(dot).toMatchObject({
+      from: free(600, -650),
+      to: free(760, -650),
+      styleOverride: { arrowStart: "dot", arrowEnd: "small-arrow" },
+    });
+    expect(big).toMatchObject({
+      styleOverride: { arrowStart: "large-arrow", arrowEnd: "large-arrow" },
+    });
+    for (const [back, from, to, start, end] of [
+      [fat, 400, 600, "none", "medium-arrow"],
+      [fat2, 650, 850, "medium-arrow", "medium-arrow"],
+      [bar, 900, 1000, "none", "none"],
+    ] as const)
+      expect(back).toMatchObject({
+        from: free(from, -800),
+        to: free(to, -800),
+        outline: { width: 30 },
+        styleOverride: { arrowStart: start, arrowEnd: end },
+      });
   });
 
   it("reads back ellipses as circles or curves, and arcs as curves", async () => {
