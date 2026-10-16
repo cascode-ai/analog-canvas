@@ -118,11 +118,12 @@ the RNL language and its runtime belong to rnl.
     turned one), circles, lines and curves (a cubic leg as the quadratic it
     was raised from, or the nearest), arrows; the bottom layer is the
     background plane.
+- Analog Canvas's own bodies (an op-amp's, a gate's, an ideal block's) come
+  back as the blocks that write them, as the SPICE / SCS import brings them
+  ([SPICE frontend](spice-frontend.md)), in the port order the export wrote.
 - Not read back yet: what only an Analog Canvas object kind says (a callout, a leader, an open or
   dotted arrow head, an outlined arrow, polarity marks: they come in as the
-  shapes and texts they draw), ellipses and arcs. A file holding Analog
-  Canvas's own bodies, such as an op-amp's, does not import yet: the SPICE /
-  SCS importer refuses the behavioral source the body is written with.
+  shapes and texts they draw), ellipses and arcs.
 - A part RNL does not place keeps the importer's placement, and a net it does
   not wire keeps its guide lines. A place or corner off Analog Canvas's grid
   (10 for a part, 2 for a corner) is moved onto it.
@@ -164,3 +165,9 @@ the RNL language and its runtime belong to rnl.
 - Desktop and local hosts serve `.wasm` as `application/wasm` and allow
   WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`,
   `apps/local-host/src/local-host.test.ts`).
+- A file the export wrote imports with every part where it was drawn, its
+  labels, block layout, marks and shapes, and the same netlist
+  (`apps/editor/src/features/netlist-export/rnl-round-trip.test.ts`).
+- Each built-in block's body, in either dialect and in RNL's port order,
+  imports as the block and exports again unchanged
+  (`packages/netlist/src/built-in-bodies.test.ts`).

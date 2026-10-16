@@ -21,6 +21,7 @@ import { createSimulationProjectFileHost } from "../features/simulation/project-
 import { createBrowserFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import { findBuiltInBodies } from "@icm/netlist";
 import { importSpiceSources } from "@icm/spice";
 import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
 import type { SymbolResolver } from "@icm/symbols";
@@ -462,11 +463,24 @@ export class BrowserAgentFileHost {
             "FILE_CONTENT_INVALID",
             "Structural SPICE requires entryPath or exactly one .cir/.sp/.spi source",
           );
+        const inputs = decoded.files.map((file) => ({
+          path: file.name,
+          bytes: file.bytes,
+        }));
         const result = await importSpiceSources(
-          decoded.files.map((file) => ({ path: file.name, bytes: file.bytes })),
+          inputs,
           entryPath,
           {},
-          { namingProfile: request.namingProfile ?? "native" },
+          {
+            namingProfile: request.namingProfile ?? "native",
+            builtInBodies: inputs.flatMap(
+              (input) =>
+                findBuiltInBodies(
+                  new TextDecoder().decode(input.bytes),
+                  "spice",
+                ).bodies,
+            ),
+          },
         );
         diagnostics = result.diagnostics.flatMap((item) =>
           item.severity === "warning" || item.severity === "error"

@@ -8,13 +8,20 @@ import {
   resolveDocumentLogicalNets,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
-import { flattenRichText, type CircuitProject } from "@icm/model";
+import {
+  flattenRichText,
+  type CircuitProject,
+  type Instance,
+} from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import {
+  composeOrient,
   createRnlExport,
   rnlBodyPortOrder,
   rnlOrient,
+  rnlPlace,
+  rnlSymbolFor,
   type RnlSnapshot,
 } from "@icm/rnl";
 import {
@@ -64,6 +71,18 @@ async function roundTrip(
   return plan;
 }
 
+/** What RNL writes for a placed part: its symbol, place and orientation. */
+function rnlPart(instance: Instance) {
+  const symbol = rnlSymbolFor(instance.symbolId, instance.symbolVariantId);
+  const turn = instance.placement ? rnlOrient(instance.placement) : undefined;
+  if (!symbol || !turn?.ok) return { symbolId: instance.symbolId };
+  return {
+    symbol: symbol.symbol,
+    at: rnlPlace(instance.placement!.position, turn.orient, symbol.offset),
+    orient: composeOrient(turn.orient, symbol.orient),
+  };
+}
+
 /** Each printed part's card name in its Cell, by its Analog Canvas instance. */
 function cardNames(project: CircuitProject) {
   const result = createDesignNetlistExport(project, {
@@ -88,6 +107,7 @@ describe("RNL round trip", () => {
       "simulation-rlc",
       "simulation-ota",
       "five-transistor-ota-sky130",
+      "two-stage-op-amp",
     ].flatMap((name) => [[name, "spice"] as const, [name, "spectre"] as const]),
   )("places every part of %s (%s) where it was drawn", async (name, format) => {
     const project = example(name);
@@ -105,14 +125,12 @@ describe("RNL round trip", () => {
       const part = document?.instances.find(
         (instance) => instance.id.toLowerCase() === card.toLowerCase(),
       );
+      // Two variants one RNL symbol draws, one flipped, are one drawing to
+      // RNL: an op-amp flipped top to bottom reads back as the variant with
+      // its inputs swapped, unflipped.
       const same =
         part?.placement &&
-        part.placement.position.x === original.placement.position.x &&
-        part.placement.position.y === original.placement.position.y &&
-        JSON.stringify(rnlOrient(part.placement)) ===
-          JSON.stringify(rnlOrient(original.placement)) &&
-        part.symbolId === original.symbolId &&
-        (part.symbolVariantId ?? null) === (original.symbolVariantId ?? null);
+        JSON.stringify(rnlPart(part)) === JSON.stringify(rnlPart(original));
       if (!same)
         misplaced.push(
           `${cell}/${card}: ${JSON.stringify(original.placement)} ${original.symbolId}/${original.symbolVariantId ?? "-"} -> ${JSON.stringify(part?.placement)} ${part?.symbolId}/${part?.symbolVariantId ?? "-"}`,

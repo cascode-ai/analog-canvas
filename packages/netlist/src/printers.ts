@@ -312,6 +312,14 @@ function spectreCell(
   return lines;
 }
 
+/** A Cell the netlist generates, an ideal block's body, as a file holds it. */
+export function printGeneratedCell(
+  cell: DesignNetlistCell,
+  format: NetlistFormat,
+): string[] {
+  return format === "spice" ? spiceCell(cell) : spectreCell(cell);
+}
+
 function renderSpectre(
   ir: DesignNetlistIR,
   locations = false,

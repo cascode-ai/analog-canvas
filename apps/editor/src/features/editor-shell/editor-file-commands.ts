@@ -1,4 +1,4 @@
-import { convertImportSources } from "../netlist-export/convert-import-sources";
+import { prepareImportSources } from "../netlist-export/convert-import-sources";
 import type { NetlistNamingProfile } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
@@ -322,11 +322,16 @@ export function createEditorFileCommands({
     const { sourceInputs, entryCandidates } = sources;
     setStatus("Importing SPICE sources");
     try {
+      const prepared = prepareImportSources(sourceInputs);
       const result = await importSpiceSources(
-        convertImportSources(sourceInputs),
+        prepared.inputs,
         entryCandidates[0]!.path,
         {},
-        { namingProfile, originalSources: sourceInputs },
+        {
+          namingProfile,
+          originalSources: sourceInputs,
+          builtInBodies: prepared.builtInBodies,
+        },
       );
       const nextImportReport: SpiceImportReport = {
         entryPath: entryCandidates[0]!.path,

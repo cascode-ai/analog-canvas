@@ -7,7 +7,10 @@ import {
   type SpiceSourceInput,
 } from "@icm/spice";
 
-import { convertImportSources } from "./convert-import-sources";
+import {
+  isSpectreSource,
+  prepareImportSources,
+} from "./convert-import-sources";
 import type { RnlRuntime } from "./rnl-runtime";
 
 export type RnlImportPlan =
@@ -18,15 +21,6 @@ export type RnlImportPlan =
       diagnostics: SpiceDiagnostic[];
     }
   | { status: "failed"; message: string; diagnostics: SpiceDiagnostic[] };
-
-/** Whether a source is Spectre, as the SPICE / SCS import tells it. */
-function isSpectre(input: SpiceSourceInput): boolean {
-  const prefix = new TextDecoder().decode(input.bytes.subarray(0, 512));
-  return (
-    /\.scs$/iu.test(input.path) ||
-    /^\s*(?:simulator\s+lang\s*=\s*spectre|subckt\s)/imu.test(prefix)
-  );
-}
 
 /** An RNL finding as the import report lists findings. */
 const reported = (item: RnlImportDiagnostic): SpiceDiagnostic => ({
@@ -67,14 +61,19 @@ export async function planRnlImport({
         new TextDecoder().decode(input.bytes),
       ]),
     ),
-    dialect: isSpectre(entry) ? "spectre" : "spice",
+    dialect: isSpectreSource(entry) ? "spectre" : "spice",
     parts: { drawing: false, host: true, model: true },
   });
+  const prepared = prepareImportSources(inputs);
   const imported = await importSpiceSources(
-    convertImportSources(inputs),
+    prepared.inputs,
     entryPath,
     {},
-    { namingProfile: "native", originalSources: inputs },
+    {
+      namingProfile: "native",
+      originalSources: inputs,
+      builtInBodies: prepared.builtInBodies,
+    },
   );
   if (!imported.project || !imported.successful)
     return {

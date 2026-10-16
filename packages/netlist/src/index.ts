@@ -51,3 +51,4 @@ export * from "./vacask-model-symbols.js";
 export * from "./simulation-native-migration.js";
 export { isVacaskStatement } from "./vacask-statement.js";
 export * from "./instance-source.js";
+export * from "./built-in-bodies.js";
