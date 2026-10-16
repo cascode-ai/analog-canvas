@@ -47,6 +47,7 @@ interface ProjectFileDocumentLike {
 }
 
 export interface ProjectFileServiceSeams {
+  serializeProject?: (project: CircuitProject) => string;
   getDocument?: () => ProjectFileDocumentLike | null;
   createObjectURL?: (blob: Blob) => string;
   revokeObjectURL?: (url: string) => void;
@@ -81,7 +82,7 @@ export function requestProjectDownload(
 ) {
   let text: string;
   try {
-    text = serializeProject(project);
+    text = (seams.serializeProject ?? serializeProject)(project);
   } catch (error) {
     return { status: "failed" as const, message: errorMessage(error) };
   }

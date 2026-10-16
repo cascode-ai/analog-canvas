@@ -1175,6 +1175,7 @@ function WorkspaceEditor({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
+    serializeSnapshot: snapshotSerializer.serialize,
     projectStore,
     ...(nativeProjectStore ? { nativeProjectStore } : {}),
     exportDelivery,
@@ -1437,11 +1438,11 @@ function WorkspaceEditor({
           cornerOrder: "auto" as const,
         };
   };
-  // Already derived for this revision by the connectivity index above; the
-  // routing plan gate would otherwise derive it again over the same Document.
-  const documentContactEvidence = projectConnectivityIndex.documents.get(
+  // The gate, ordinary commits and interaction readers share this exact snapshot.
+  const documentConnectivity = projectConnectivityIndex.documents.get(
     document.id,
-  )?.contactEvidence;
+  );
+  const documentContactEvidence = documentConnectivity?.contactEvidence;
   const [interfaceConfirmation, setInterfaceConfirmation] = useState<{
     request: CellInterfaceConfirmation;
     snapshot: typeof project;
@@ -1848,18 +1849,6 @@ function WorkspaceEditor({
     () => keptDocumentStyleOfSelection(document, visualSelection),
     [document, visualSelection],
   );
-  const selectedComponentSourceCode = useMemo(
-    () =>
-      selectedInstance
-        ? componentSourceCode(
-            project,
-            document.id,
-            selectedInstance.id,
-            resolver,
-          )
-        : null,
-    [document.id, project, resolver, selectedInstance],
-  );
   const selectedAnnotationOwnerInstance = selectedAnnotationOwnerInstanceId
     ? document.instances.find(
         (instance) => instance.id === selectedAnnotationOwnerInstanceId,
@@ -1932,8 +1921,14 @@ function WorkspaceEditor({
     selectedNetNameProjection?.preferredSpelling ??
     selectedNetNameLogical?.name;
   const sceneSnapTargetIndex = useMemo(
-    () => buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
-    [document, resolver, visibleEndpoints],
+    () =>
+      buildSceneSnapTargetIndex(
+        document,
+        resolver,
+        visibleEndpoints,
+        documentConnectivity?.routingGeometry,
+      ),
+    [document, resolver, visibleEndpoints, documentConnectivity],
   );
   const draftingCreateSnapIndex = useMemo(
     () =>
@@ -3934,6 +3929,22 @@ function WorkspaceEditor({
     selectedReviewedExternalBinding?.terminals.find(
       (terminal) => terminal.interaction === "property" && !terminal.supply,
     );
+  // Only the property-terminal identity card displays this source. Ordinary
+  // component controls use their own editable property code, not this projection.
+  const componentSourceVisible =
+    selectionOpen && Boolean(selectedPropertyOnlyTerminal);
+  const selectedComponentSourceCode = useMemo(
+    () =>
+      componentSourceVisible && selectedInstance
+        ? componentSourceCode(
+            project,
+            document.id,
+            selectedInstance.id,
+            resolver,
+          )
+        : null,
+    [document.id, project, resolver, selectedInstance, componentSourceVisible],
+  );
   const selectedPropertyOnlyTerminalNet =
     selectedInstance && selectedPropertyOnlyTerminal
       ? document.nets.find((net) =>
@@ -5516,6 +5527,7 @@ function WorkspaceEditor({
                 ) : (
                   <ProjectCodePanel
                     key={projectSessionId}
+                    serializeProject={snapshotSerializer.serialize}
                     onDirtyChange={noteCodeDraftDirty}
                     project={project}
                     selection={{
@@ -6222,7 +6234,7 @@ function WorkspaceEditor({
                         : null,
                       identity: {
                         instance: selectedInstance,
-                        sourceCode: selectedComponentSourceCode!,
+                        sourceCode: selectedComponentSourceCode,
                         revision: document.revision,
                         targetDescription:
                           selectedInstance.netlist &&

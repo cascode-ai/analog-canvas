@@ -8,7 +8,10 @@ let committed = new WeakMap<
 >();
 
 /** UI-only reader. Mutable commit plans continue through the uncached parser. */
-export function createProjectCodeReader(project: CircuitProject) {
+export function createProjectCodeReader(
+  project: CircuitProject,
+  serialize = formatProjectCode,
+) {
   function validate(source: string): Validation {
     const result = validateProjectCode(source, project.id);
     // Never share the parsed mutable Project with the commit planner.
@@ -16,7 +19,7 @@ export function createProjectCodeReader(project: CircuitProject) {
   }
   let baseline = committed.get(project);
   if (!baseline) {
-    const source = formatProjectCode(project);
+    const source = serialize(project);
     baseline = { source, validation: validate(source) };
     // Share the latest owner across panel remounts, not every version held by
     // Undo history. Each live reader independently keeps only its own draft.

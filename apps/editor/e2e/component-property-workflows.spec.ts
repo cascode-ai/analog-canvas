@@ -312,6 +312,26 @@ test("live typing preserves the caret, local undo and incomplete JSON", async ({
   await expect(code).not.toBeFocused();
   await expect(lastValid).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText(revision!);
+  // Suspending the hidden source projection must not unmount the live draft.
+  await closeSelectionShelf(page);
+  await expect(code).not.toBeVisible();
+  await openSelectionShelf(page);
+  await expect(lastValid).toBeVisible();
+  // Native editor copy reads the draft without replacing its error status with
+  // the Copy JSON button's acknowledgement. Keep the repair assertion below live.
+  await code.press("ControlOrMeta+a");
+  await code.press("ControlOrMeta+c");
+  await expect
+    .poll(async () =>
+      // Native Windows clipboard copy uses CRLF; CodeMirror stores LF.
+      (await page.evaluate(() => navigator.clipboard.readText())).replace(
+        /\r\n/g,
+        "\n",
+      ),
+    )
+    .toBe(raw.slice(0, -1).replace(/\r\n/g, "\n"));
+  await expect(lastValid).toBeVisible();
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
   await code.press("ControlOrMeta+End");
   await code.press("}");
   await expect(lastValid).toHaveCount(0);

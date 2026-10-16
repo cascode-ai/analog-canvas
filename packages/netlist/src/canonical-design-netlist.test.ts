@@ -6,7 +6,10 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { createDesignNetlistExport } from "./export.js";
-import { analyzeDesignNetlist } from "./extract.js";
+import {
+  analyzeDesignNetlist,
+  analyzeDesignNetlistForAuthoring,
+} from "./extract.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { ngspiceSimulationDevices } from "./simulation-ngspice-devices.js";
 
@@ -61,6 +64,42 @@ function instanceCards(text: string): string[] {
 }
 
 describe("canonical design-netlist authority", () => {
+  it("preserves complete results across semantic option spellings and print-only options", () => {
+    const { project } = copiedExternalMosProject();
+    const owned = freezeSnapshot(project);
+    for (const format of ["spice", "spectre"] as const) {
+      for (const groundPin of ["global", "pin"] as const) {
+        for (const analyze of [
+          analyzeDesignNetlist,
+          analyzeDesignNetlistForAuthoring,
+        ]) {
+          const expected = analyze(structuredClone(owned), {
+            format,
+            groundPin,
+          });
+          const first = analyze(owned, { format, groundPin });
+          expect(first).toEqual(expected);
+          if (first.ir) first.ir.cells[0]!.name = "caller mutation";
+          expect(
+            analyze(owned, {
+              format,
+              groundPin,
+              rootDocumentId: owned.topDocumentId,
+              rootAsTopLevel: false,
+              namingProfile: "native",
+              deckSources: [],
+            }),
+          ).toEqual(expected);
+        }
+        for (const includeLocations of [true, false, true]) {
+          const options = { format, groundPin, includeLocations };
+          expect(createDesignNetlistExport(owned, options)).toEqual(
+            createDesignNetlistExport(structuredClone(owned), options),
+          );
+        }
+      }
+    }
+  });
   it("isolates repeated analysis outputs and exports changed snapshot parameters freshly", () => {
     const { project } = copiedExternalMosProject();
     const owned = freezeSnapshot(project);

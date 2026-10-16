@@ -418,10 +418,10 @@ export function buildSceneSnapTargetIndex(
   document: SchematicDocument,
   resolver: SymbolResolver,
   visibleEndpoints: readonly WireSource[],
+  routingGeometry = resolveDocumentRoutingGeometry(document, resolver),
 ): SceneSnapTargetIndex {
   // One derivation for every drafting object below. Without it each object
   // re-resolved the whole Document's route geometry, which dominated a commit.
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   const targets: IndexedSceneSnapTarget[] = [];
   for (const instance of document.instances) {
     for (const anchor of buildInstanceGeometryAnchors(instance, resolver)) {

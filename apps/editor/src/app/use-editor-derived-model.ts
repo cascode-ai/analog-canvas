@@ -317,7 +317,12 @@ export function useEditorDerivedModel({
     wireSource?.netId,
   ]);
   const crossings = useMemo(
-    () => editorSnapshotDerived.crossings(document, resolver),
+    () =>
+      editorSnapshotDerived.crossings(
+        document,
+        resolver,
+        documentConnectivity?.routingGeometry,
+      ),
     [document, documentConnectivity, resolver],
   );
   const endpointIndex = useMemo(

@@ -108,6 +108,8 @@ type RecoveryLifecycle = Pick<
 };
 
 export interface UseProjectFileLifecycleOptions {
+  /** Reuse canonical bytes for the exact committed snapshot; never acknowledges a save. */
+  serializeSnapshot?: (project: CircuitProject) => string;
   nativeProjectStore?: NativeProjectStore;
   projectStore: CloudProjectStore | null;
   exportDelivery?: EditorExportDelivery;
@@ -153,6 +155,7 @@ export interface UseProjectFileLifecycleOptions {
 }
 
 export function useProjectFileLifecycle({
+  serializeSnapshot = serializeProject,
   projectStore,
   nativeProjectStore,
   exportDelivery,
@@ -566,7 +569,7 @@ export function useProjectFileLifecycle({
       const fileName = `${projectFileBaseName(snapshot.name)}.icproj.json`;
       try {
         const result = await exportDelivery.deliverFile({
-          bytes: serializeProject(snapshot),
+          bytes: serializeSnapshot(snapshot),
           mediaType: "application/json",
           suggestedName: fileName,
         });
@@ -588,7 +591,9 @@ export function useProjectFileLifecycle({
       }
       return;
     }
-    const outcome = requestProjectDownload(snapshot);
+    const outcome = requestProjectDownload(snapshot, {
+      serializeProject: serializeSnapshot,
+    });
     if (outcome.status !== "download-requested") {
       setStatus(`Export failed: ${outcome.message}`);
       return;
@@ -609,7 +614,7 @@ export function useProjectFileLifecycle({
     if (!snapshot) return;
     let projectText: string;
     try {
-      projectText = serializeProject(snapshot);
+      projectText = serializeSnapshot(snapshot);
     } catch (error) {
       setStatus(
         `Backup failed: ${error instanceof Error ? error.message : "serialization failed"}`,

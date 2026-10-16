@@ -1,4 +1,5 @@
 import { buildProjectConnectivityIndex, deriveCrossings } from "@icm/derived";
+import type { ResolvedDocumentRoutingGeometry } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -24,11 +25,15 @@ export function createEditorSnapshotDerivedCache() {
       contexts.set(resolver, result);
       return result;
     },
-    crossings(document: SchematicDocument, resolver: SymbolResolver) {
+    crossings(
+      document: SchematicDocument,
+      resolver: SymbolResolver,
+      geometry?: ResolvedDocumentRoutingGeometry,
+    ) {
       let contexts = documents.get(document);
       const cached = contexts?.get(resolver);
       if (cached) return cached;
-      const result = deriveCrossings(document, resolver);
+      const result = deriveCrossings(document, resolver, geometry);
       if (!contexts) documents.set(document, (contexts = new WeakMap()));
       contexts.set(resolver, result);
       return result;

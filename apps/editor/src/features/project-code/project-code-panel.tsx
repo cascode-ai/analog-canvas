@@ -23,11 +23,14 @@ export interface ProjectCodeApplyOutcome {
 export function ProjectCodePanel({
   project,
   selection,
+  serializeProject = formatProjectCode,
   onDirtyChange,
   onApply,
 }: {
   onDirtyChange?(dirty: boolean): void;
   project: CircuitProject;
+  /** The session's canonical serializer; validation still belongs to the reader. */
+  serializeProject?: typeof formatProjectCode;
   /** Parts selected on the canvas, whose whole JSON the code lights. */
   selection?: { documentId: string; instanceIds: readonly string[] };
   onApply(
@@ -39,7 +42,10 @@ export function ProjectCodePanel({
     },
   ): ProjectCodeApplyOutcome;
 }) {
-  const reader = useMemo(() => createProjectCodeReader(project), [project]);
+  const reader = useMemo(
+    () => createProjectCodeReader(project, serializeProject),
+    [project, serializeProject],
+  );
   const baseline = reader.baseline;
   const [draft, setDraft] = useState(baseline);
   const [editBaseline, setEditBaseline] = useState(baseline);
@@ -103,7 +109,7 @@ export function ProjectCodePanel({
       return;
     }
     const outcome = onApply(draft, editBaseline, {
-      formatProjectCode,
+      formatProjectCode: serializeProject,
       planProjectCodeCommit,
     });
     if (!outcome.ok) {

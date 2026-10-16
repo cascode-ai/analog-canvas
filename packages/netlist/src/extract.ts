@@ -290,18 +290,26 @@ function analyzeSnapshot(
   options: DesignNetlistAnalysisOptions,
   authoring: boolean,
 ): DesignNetlistAnalysisResult {
+  const resolvedOptions: ResolvedDesignNetlistAnalysisOptions = {
+    format: options.format ?? "spice",
+    namingProfile: options.namingProfile ?? "native",
+    rootDocumentId: options.rootDocumentId ?? project.topDocumentId,
+    rootAsTopLevel: options.rootAsTopLevel ?? false,
+    groundPin: options.groundPin ?? "global",
+    deckSources: options.deckSources ?? [],
+  };
   // Mutable authoring callers may change a model without advancing a revision.
   // Only owned immutable Project snapshots can share their electrical analysis.
   if (!isFrozenSnapshot(project))
-    return analyzeDesign(project, options, authoring);
-  const key = JSON.stringify([authoring, options]);
+    return analyzeDesign(project, resolvedOptions, authoring);
+  const key = JSON.stringify([authoring, resolvedOptions]);
   const cache =
     analysisCache.get(project) ??
     new Map<string, DesignNetlistAnalysisResult>();
   analysisCache.set(project, cache);
   const cached = cache.get(key);
   if (cached) return structuredClone(cached);
-  const result = analyzeDesign(project, options, authoring);
+  const result = analyzeDesign(project, resolvedOptions, authoring);
   if (cache.size >= 16) cache.delete(cache.keys().next().value!);
   cache.set(key, freezeSnapshot(structuredClone(result)));
   return result;
@@ -309,7 +317,7 @@ function analyzeSnapshot(
 
 function analyzeDesign(
   project: CircuitProject,
-  options: DesignNetlistAnalysisOptions,
+  resolvedOptions: ResolvedDesignNetlistAnalysisOptions,
   authoring: boolean,
 ): DesignNetlistAnalysisResult {
   const interfaceDiagnostics: NetlistDiagnostic[] = [];
@@ -322,7 +330,7 @@ function analyzeDesign(
     for (const issue of componentInterfaceIssues(definition))
       diagnostic(
         interfaceDiagnostics,
-        callerDocument?.id ?? options.rootDocumentId ?? project.topDocumentId,
+        callerDocument?.id ?? resolvedOptions.rootDocumentId,
         "INVALID_COMPONENT_INTERFACE",
         `Component ${definition.symbol.id}: ${issue.message}`,
         callerDocument?.instances
@@ -332,14 +340,6 @@ function analyzeDesign(
   }
   if (interfaceDiagnostics.length)
     return { ir: null, diagnostics: interfaceDiagnostics };
-  const resolvedOptions: ResolvedDesignNetlistAnalysisOptions = {
-    format: options.format ?? "spice",
-    namingProfile: options.namingProfile ?? "native",
-    rootDocumentId: options.rootDocumentId ?? project.topDocumentId,
-    rootAsTopLevel: options.rootAsTopLevel ?? false,
-    groundPin: options.groundPin ?? "global",
-    deckSources: options.deckSources ?? [],
-  };
   const projection = withImplicitMosSupplies(project, resolvedOptions);
   project = projection.project;
   const diagnostics: NetlistDiagnostic[] = [];

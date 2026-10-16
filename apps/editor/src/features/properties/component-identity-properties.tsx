@@ -207,7 +207,8 @@ export function ComponentIdentityProperties({
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
   propertyTerminal?: PropertyNetTerminalView | null;
   modelTarget: ComponentModelTargetView | null;
-  sourceCode: ComponentSourceCode;
+  /** Null while its Properties dock is hidden; other draft controls stay mounted. */
+  sourceCode: ComponentSourceCode | null;
   onEditAnnotation?: () => void;
   onReferenceChange: (value: string) => boolean | void;
   onModelTargetChange: (value: string) => void;
@@ -330,14 +331,16 @@ export function ComponentIdentityProperties({
           ) : null}
         </div>
       ) : null}
-      <div
-        className="component-source-code"
-        aria-label="SPICE component code"
-        data-exact={sourceCode.exact}
-      >
-        <code>{sourceCode.code}</code>
-        {sourceCode.note ? <small>{sourceCode.note}</small> : null}
-      </div>
+      {sourceCode ? (
+        <div
+          className="component-source-code"
+          aria-label="SPICE component code"
+          data-exact={sourceCode.exact}
+        >
+          <code>{sourceCode.code}</code>
+          {sourceCode.note ? <small>{sourceCode.note}</small> : null}
+        </div>
+      ) : null}
     </>
   );
 }
