@@ -115,7 +115,9 @@ the RNL language and its runtime belong to rnl.
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has; any other text as a drawing text; a label a symbol alone
-    gives is left to the symbol, and a part with no label gets its default;
+    gives is left to the symbol; a part the drawing places without its name
+    or values keeps the editor's default labels for them hidden, in their
+    usual place, since the export writes every label it shows;
   - drawing shapes: rectangles (a closed line round a turned rectangle as a
     turned one), circles, lines and curves (a cubic leg as the quadratic it
     was raised from, or the nearest), arrows; the bottom layer is the

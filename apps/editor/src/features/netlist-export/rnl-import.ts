@@ -1,11 +1,17 @@
 import type { CircuitProject } from "@icm/model";
 import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
-import { applyRnlSnapshot, type RnlImportDiagnostic } from "@icm/rnl";
+import {
+  applyRnlSnapshot,
+  type RnlHiddenLabels,
+  type RnlImportDiagnostic,
+} from "@icm/rnl";
 import {
   importSpiceSources,
   type SpiceDiagnostic,
   type SpiceSourceInput,
 } from "@icm/spice";
+
+import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
 
 import {
   isSpectreSource,
@@ -31,11 +37,41 @@ const reported = (item: RnlImportDiagnostic): SpiceDiagnostic => ({
 });
 
 /**
+ * The labels the editor gives each imported part by default, hidden where
+ * the drawing places the part without them: what RNL draws is what shows,
+ * and a hidden label keeps its usual place for when it is shown.
+ */
+function hideLabels(
+  project: CircuitProject,
+  hidden: readonly RnlHiddenLabels[],
+): CircuitProject {
+  if (!hidden.length) return project;
+  const next = structuredClone(project);
+  for (const { documentId, instanceId, name, values } of hidden) {
+    const document = next.documents.find((item) => item.id === documentId);
+    for (const annotation of document?.annotations ?? []) {
+      const binding = annotation.binding;
+      if (
+        (name &&
+          binding?.kind === "instance-reference" &&
+          binding.instanceId === instanceId) ||
+        (values &&
+          binding?.kind === "instance-value" &&
+          binding.instanceId === instanceId)
+      )
+        annotation.visible = false;
+    }
+  }
+  return next;
+}
+
+/**
  * A rich netlist as a Project (Analog Canvas `docs/specs/rnl-interchange.md`,
  * Import): the SPICE / SCS import builds the circuit, unchanged, and the rnl
- * runtime's reading of the same files draws it. A drawing that would change
- * the netlist is left out, and the circuit comes in as the plain import
- * would bring it.
+ * runtime's reading of the same files draws it, with the labels the editor
+ * gives imported parts where the drawing shows them. A drawing that would
+ * change the netlist is left out, and the circuit comes in as the plain
+ * import would bring it.
  */
 export async function planRnlImport({
   inputs,
@@ -106,7 +142,12 @@ export async function planRnlImport({
   ];
   return {
     status: "ready",
-    project: changed ? imported.project : drawn.project,
+    project: changed
+      ? withImportedInstanceDisplays(imported.project)
+      : hideLabels(
+          withImportedInstanceDisplays(drawn.project),
+          drawn.hiddenLabels,
+        ),
     diagnostics,
   };
 }

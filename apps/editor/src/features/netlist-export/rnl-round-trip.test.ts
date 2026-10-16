@@ -146,8 +146,13 @@ describe("RNL round trip", () => {
     ).toEqual([]);
   });
 
-  it.each(["simulation-rc", "simulation-ota", "simulation-common-source"])(
-    "shows %s's names and net labels where it showed them",
+  it.each([
+    "simulation-rc",
+    "simulation-ota",
+    "simulation-common-source",
+    "two-stage-op-amp",
+  ])(
+    "shows %s's names and net labels where it showed them, and no others",
     async (name) => {
       const project = example(name);
       const { project: drawn } = await roundTrip(project);
@@ -161,9 +166,10 @@ describe("RNL round trip", () => {
           return document.annotations
             .filter(
               (annotation) =>
-                annotation.kind === "net-label" ||
-                (annotation.kind === "instance-label" &&
-                  annotation.binding?.kind === "instance-reference"),
+                annotation.visible !== false &&
+                (annotation.kind === "net-label" ||
+                  (annotation.kind === "instance-label" &&
+                    annotation.binding?.kind === "instance-reference")),
             )
             .map((annotation) => {
               const text = resolveAnnotationText(document, annotation, logical);
@@ -187,11 +193,32 @@ describe("RNL round trip", () => {
         (line) => printed.has(line.split(" ")[0]!),
       );
       expect(original.length).toBeGreaterThan(0);
-      expect(shown(drawn, (id) => id).sort()).toEqual(
-        expect.arrayContaining(original.sort()),
-      );
+      expect(shown(drawn, (id) => id).sort()).toEqual(original.sort());
     },
   );
+
+  it("keeps a name the drawing does not show hidden, in its usual place", async () => {
+    const { project: drawn } = await roundTrip(example("two-stage-op-amp"));
+    const names = drawn.documents
+      .flatMap((document) => document.annotations)
+      .flatMap((annotation) =>
+        annotation.kind === "instance-label" &&
+        annotation.binding?.kind === "instance-reference" &&
+        ["X1", "X2"].includes(annotation.binding.instanceId)
+          ? [
+              {
+                part: annotation.binding.instanceId,
+                visible: annotation.visible,
+                placed: annotation.anchor.kind === "object",
+              },
+            ]
+          : [],
+      );
+    expect(names.sort((a, b) => a.part.localeCompare(b.part))).toEqual([
+      { part: "X1", visible: false, placed: true },
+      { part: "X2", visible: false, placed: true },
+    ]);
+  });
 
   it("reads back rectangles, circles, curves and arrows", async () => {
     const project = example("simulation-rc");
@@ -477,6 +504,7 @@ describe("RNL round trip", () => {
  * pin on a Cell Pin and, when `powered`, its VDD too.
  */
 function comparator(
+  symbolId: string,
   parameters: Record<string, string>,
   powered: boolean,
 ): CircuitProject {
@@ -485,7 +513,7 @@ function comparator(
   document.netlist!.name = "dut";
   document.instances.push({
     id: "block",
-    symbolId: "comparator",
+    symbolId,
     reference: "X1",
     placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
     netlist: {
@@ -517,17 +545,31 @@ function comparator(
 }
 
 describe("RNL round trip of built-in blocks", () => {
-  it.each([
-    ["icm_ideal_comparator", { vhigh: "1" }, false],
-    ["icm_ideal_comparator_vdd", {}, true],
-  ] as const)(
-    "draws a comparator calling %s and brings it back",
-    async (body, parameters, powered) => {
+  it.each(
+    (["comparator", "comparator-unmarked"] as const).flatMap((symbolId) =>
+      (
+        [
+          ["icm_ideal_comparator", { vhigh: "1" }, false],
+          ["icm_ideal_comparator_vdd", {}, true],
+        ] as const
+      ).map(
+        ([body, parameters, powered]) =>
+          [symbolId, body, parameters, powered] as const,
+      ),
+    ),
+  )(
+    "draws a %s calling %s and brings it back",
+    async (symbolId, body, parameters, powered) => {
       for (const format of ["spice", "spectre"] as const) {
-        const project = comparator(parameters, powered);
+        const project = comparator(symbolId, parameters, powered);
         const plan = await roundTrip(project, format);
+        // RNL's own errors, such as a pin on a terminal the call lacks,
+        // come in as warnings.
         expect(
-          plan.diagnostics.filter((item) => item.severity === "error"),
+          plan.diagnostics.filter(
+            (item) =>
+              item.severity === "error" || item.code === "RNL_IMPORT_RNL_ERROR",
+          ),
         ).toEqual([]);
         const part = plan.project.documents
           .flatMap((document) => document.instances)

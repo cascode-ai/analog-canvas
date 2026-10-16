@@ -303,11 +303,7 @@ export function createEditorFileCommands({
         reportFailedImport(report, plan.message);
         return;
       }
-      await installImport(
-        "Import RNL sources",
-        withImportedInstanceDisplays(plan.project),
-        report,
-      );
+      await installImport("Import RNL sources", plan.project, report);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "RNL import failed");
     }

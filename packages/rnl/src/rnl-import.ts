@@ -283,15 +283,20 @@ function documentOf(
 export function applyRnlSnapshot(
   project: CircuitProject,
   snapshot: RnlSnapshot,
-): { project: CircuitProject; diagnostics: RnlImportDiagnostic[] } {
+): {
+  project: CircuitProject;
+  diagnostics: RnlImportDiagnostic[];
+  hiddenLabels: RnlHiddenLabels[];
+} {
   const diagnostics: RnlImportDiagnostic[] = [];
+  const hiddenLabels: RnlHiddenLabels[] = [];
   if (snapshot.failed) {
     diagnostics.push({
       severity: "error",
       code: "RNL_IMPORT_UNREADABLE",
       message: `RNL could not read the file: ${snapshot.failed}`,
     });
-    return { project, diagnostics };
+    return { project, diagnostics, hiddenLabels };
   }
   for (const item of snapshot.diagnostics)
     if (item.severity === "error")
@@ -324,9 +329,21 @@ export function applyRnlSnapshot(
         });
       continue;
     }
-    applyLevel(next, document, level, level.model, diagnostics);
+    applyLevel(next, document, level, level.model, diagnostics, hiddenLabels);
   }
-  return { project: next, diagnostics };
+  return { project: next, diagnostics, hiddenLabels };
+}
+
+/**
+ * A part the drawing places but shows without its name, its values or both.
+ * A file Analog Canvas writes shows each label it showed and clears those its
+ * standard symbols bring, so a label missing from the drawing was hidden.
+ */
+export interface RnlHiddenLabels {
+  documentId: string;
+  instanceId: string;
+  name: boolean;
+  values: boolean;
 }
 
 function applyLevel(
@@ -335,6 +352,7 @@ function applyLevel(
   level: RnlLevelSnapshot,
   model: NonNullable<RnlLevelSnapshot["model"]>,
   diagnostics: RnlImportDiagnostic[],
+  hiddenLabels: RnlHiddenLabels[],
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -402,6 +420,7 @@ function applyLevel(
 
   // Parts: placed, turned and in the variant their symbol stands for.
   const unplaced: string[] = [];
+  const placed: Instance[] = [];
   for (const object of model.objects) {
     if (object.kind !== "instance") continue;
     const name = rnlIdName(object.host[0] ?? object.id, "#");
@@ -448,6 +467,7 @@ function applyLevel(
       ),
       ...acOrientation(turn),
     };
+    placed.push(instance);
     // A Cell's call drawn with the symbol the file defines for it: the
     // Cell's block takes that layout, its pins where the symbol has them.
     const binding = instance.netlist?.binding;
@@ -462,6 +482,32 @@ function applyLevel(
       "RNL_IMPORT_UNPLACED",
       `${unplaced.length} parts have no place in the RNL and stay on the shelf: ${unplaced.join(", ")}`,
     );
+  // The labels the drawing shows on each part it places, written or its
+  // symbol's own; whatever it does not show stays hidden.
+  const shows = new Map<string, { name: boolean; values: boolean }>();
+  for (const text of model.texts) {
+    const part = text.attach ? rnlIdName(text.attach, "#") : null;
+    const instance = part === null ? undefined : instanceOf(part);
+    if (!instance || !acRichText(text.lines)) continue;
+    const shown = shows.get(instance.id) ?? { name: false, values: false };
+    if (text.key === "name") shown.name = true;
+    else if (
+      text.key === "value" ||
+      (text.key && instance.netlist?.parameters[text.key] !== undefined)
+    )
+      shown.values = true;
+    shows.set(instance.id, shown);
+  }
+  for (const instance of placed) {
+    const shown = shows.get(instance.id);
+    if (!shown?.name || !shown.values)
+      hiddenLabels.push({
+        documentId: document.id,
+        instanceId: instance.id,
+        name: !shown?.name,
+        values: !shown?.values,
+      });
+  }
 
   // Ground pins Analog Canvas adds: a Cell printed as a subcircuit that meets
   // ground takes a pin for it, VSS (or GND, GND__2 …), which its drawing

@@ -443,17 +443,17 @@ function exportCell(
     });
   }
 
-  // A Cell Pin drawn as ground or supply, or not drawn at all, gets no port tag.
-  const undrawnPorts = cell.ports
-    .map((port) => port.name)
-    .filter((name) => !drawnPorts.has(name));
-  if (undrawnPorts.length)
-    ops.push({
-      level,
-      op: "remove-from",
-      items: undrawnPorts.map((name) => rnlName("&", name)),
-      set: "$PORT_FILL_SET",
-    });
+  // A Cell Pin drawn as ground or supply, or not drawn at all, gets no port
+  // tag: each leaves the fill's set on its own, since RNL removes several
+  // nets only as one set of them (5.2.2).
+  for (const port of cell.ports)
+    if (!drawnPorts.has(port.name))
+      ops.push({
+        level,
+        op: "remove-from",
+        items: [rnlName("&", port.name)],
+        set: "$PORT_FILL_SET",
+      });
 
   // Junctions are named points; the dots come below.
   const pointOf = new Map<StableId, string>();
