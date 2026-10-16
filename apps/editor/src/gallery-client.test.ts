@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   announceGalleryChange,
   galleryCountLabel,
+  galleryQueryFromFilters,
+  galleryFeedQueryKey,
   galleryPreviewUrl,
   loadGalleryEntry,
   loadGalleryFeed,
@@ -15,6 +17,27 @@ import {
   WARMED_GALLERY_PREVIEWS,
   type GalleryFeedEntry,
 } from "./gallery-client";
+import { resolveGalleryFilters } from "./gallery-filters";
+
+it("loads the linked wall's complete query, including source, text and both negative filters", async () => {
+  const filters = resolveGalleryFilters(
+    "?source=analoggenie&q=mirror&netlist=0&ai=dataset&owner=alice&author=Old&tags=bias&parts=6-10&liked=1&attention=1&reason=unrouted",
+    null,
+  );
+  const query = galleryQueryFromFilters(filters, {
+    order: "random",
+    seed: "fixed",
+  });
+  expect(galleryFeedQueryKey(query)).toBe(
+    "source=analoggenie&q=mirror&attention=1&reason=unrouted&owner=alice&tags=bias&netlistable=0&ai=dataset&liked=1&parts=6-10&order=random&seed=fixed",
+  );
+  const asked: string[] = [];
+  await loadGalleryFeed(async (url) => {
+    asked.push(String(url));
+    return Response.json({ entries: [], nextCursor: null });
+  }, query);
+  expect(asked).toEqual([`/api/gallery?${galleryFeedQueryKey(query)}`]);
+});
 
 class FakeBroadcastChannel {
   static readonly channels = new Map<string, Set<FakeBroadcastChannel>>();

@@ -6,6 +6,116 @@ import {
 } from "./component-library.test-support";
 
 describe("public component catalog queries", () => {
+  it("bounds accumulated summary bytes without truncating metadata or skipping the next row", async () => {
+    const route = componentLibraryHarness();
+    const symbol = { symbol: builtInSymbols.find((s) => s.id === "resistor")! };
+    // Historical bylines can be larger than today's editor permits.
+    for (let i = 0; i < 6; i++)
+      route.seed({
+        id: `wide-${i}`,
+        authorId: "alice",
+        author: "长".repeat(24000),
+        definition: symbol,
+      });
+    const first = await (
+      await route("GET", "?view=summary&catalog=1&limit=128")
+    ).json();
+    expect(first.entries).toHaveLength(3);
+    expect(
+      new TextEncoder().encode(JSON.stringify(first.entries)).length,
+    ).toBeLessThanOrEqual(256 * 1024);
+    const second = await (
+      await route(
+        "GET",
+        `?view=summary&catalog=1&limit=128&cursor=${encodeURIComponent(first.nextCursor)}`,
+      )
+    ).json();
+    expect(
+      [...first.entries, ...second.entries].map((e: { id: string }) => e.id),
+    ).toEqual(["wide-0", "wide-1", "wide-2", "wide-3", "wide-4", "wide-5"]);
+    expect(second.nextCursor).toBeNull();
+    expect(first.entries[0].author).toBe("长".repeat(24000));
+  });
+  it("returns the same complete catalog with bounded larger pages and unchanged cursors", async () => {
+    const route = componentLibraryHarness();
+    const symbol = { symbol: builtInSymbols.find((s) => s.id === "resistor")! };
+    for (let i = 0; i < 121; i++)
+      route.seed({
+        id: `summary-${String(i).padStart(3, "0")}`,
+        authorId: "alice",
+        definition: symbol,
+      });
+    const read = async (limit: number) => {
+      const entries: unknown[] = [];
+      let cursor: string | null = null;
+      let requests = 0;
+      do {
+        const page = await (
+          await route(
+            "GET",
+            `?view=summary&catalog=1&limit=${limit}` +
+              (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""),
+          )
+        ).json();
+        entries.push(...page.entries);
+        cursor = page.nextCursor;
+        requests++;
+      } while (cursor);
+      return { entries, requests };
+    };
+    const before = await read(20);
+    const after = await read(128);
+    expect(after.entries).toEqual(before.entries);
+    expect(before.requests).toBe(7);
+    expect(after.requests).toBe(1);
+    for (let i = 121; i < 129; i++)
+      route.seed({
+        id: `summary-${String(i).padStart(3, "0")}`,
+        authorId: "alice",
+        definition: symbol,
+      });
+    const capped = await (
+      await route("GET", "?view=summary&catalog=1&limit=99999")
+    ).json();
+    expect(capped.entries).toHaveLength(128);
+    expect(capped.entries.slice(0, 121)).toEqual(after.entries);
+    const tail = await (
+      await route(
+        "GET",
+        `?view=summary&catalog=1&cursor=${encodeURIComponent(capped.nextCursor)}`,
+      )
+    ).json();
+    expect(tail.entries.map((e: { id: string }) => e.id)).toEqual([
+      "summary-128",
+    ]);
+    expect(tail.nextCursor).toBeNull();
+  });
+  it("advances past one oversized historical row without dropping it or its successor", async () => {
+    const route = componentLibraryHarness();
+    const definition = {
+      symbol: builtInSymbols.find((s) => s.id === "resistor")!,
+    };
+    const author = "长".repeat(90000);
+    route.seed({ id: "a-large", authorId: "alice", author, definition });
+    route.seed({ id: "b-small", authorId: "bob", definition });
+    const first = await (
+      await route("GET", "?view=summary&catalog=1&limit=128")
+    ).json();
+    expect(first.entries).toHaveLength(1);
+    expect(first.entries[0]).toMatchObject({ id: "a-large", author });
+    expect(
+      new TextEncoder().encode(JSON.stringify(first.entries)).length,
+    ).toBeGreaterThan(256 * 1024);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    const next = await (
+      await route(
+        "GET",
+        `?view=summary&catalog=1&cursor=${encodeURIComponent(first.nextCursor)}`,
+      )
+    ).json();
+    expect(next.entries.map((e: { id: string }) => e.id)).toEqual(["b-small"]);
+    expect(next.nextCursor).toBeNull();
+  });
   it("keeps creation order, same-name author identities and administrator visibility distinct", async () => {
     const route = componentLibraryHarness();
     const symbol = { symbol: builtInSymbols.find((s) => s.id === "resistor")! };

@@ -22,6 +22,18 @@ consume.
   baseline is unchanged.
 - Legacy Agent snapshots omit it; `inspect` exposes the association.
 
+## Catalog reads
+
+- `GET /api/components?view=summary&catalog=1` keeps the same filter, order,
+  revision and opaque cursor contract for all page sizes. The default remains
+  20; explicit limits are capped at 128. Legacy reads without `catalog=1`
+  keep their existing limits.
+- Summary entries stop at 256 KiB of UTF-8 JSON per page; one oversized
+  historical entry travels alone, unchanged, so the cursor can advance.
+  Author aggregates are separate from this entry budget. Clients follow the
+  returned cursor, not the requested page size, until complete; catalog
+  changes still reject mixed-revision pages.
+
 ## Destination
 
 - New and Create from stay new through sign-in and draft recovery, even for

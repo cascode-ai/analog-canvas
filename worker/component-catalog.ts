@@ -195,7 +195,7 @@ export class ComponentCatalog {
       bindings.push(cursor.time, cursor.time, cursor.id);
     }
     const limit = Math.min(
-      30,
+      128,
       Math.max(1, Math.floor(Number(body.limit) || 20)),
     );
     const order =
@@ -208,14 +208,25 @@ export class ComponentCatalog {
         limit + 1,
       )
       .toArray();
-    const page = rows.slice(0, limit);
+    // Keep ordinary summaries in one bounded read. Historical metadata is
+    // never truncated; one oversized row travels alone so paging progresses.
+    const page: typeof rows = [];
+    const encoder = new TextEncoder();
+    let bytes = 2;
+    for (const row of rows.slice(0, limit)) {
+      const size =
+        encoder.encode(row.summary).byteLength + Number(page.length > 0);
+      if (page.length && bytes + size > 256 * 1024) break;
+      page.push(row);
+      bytes += size;
+    }
     const last = page.at(-1);
     return Response.json({
       entries: page.map((row) => JSON.parse(row.summary)),
       catalogRevision: revision,
       authors,
       nextCursor:
-        rows.length > limit && last
+        rows.length > page.length && last
           ? encodeURIComponent(
               JSON.stringify({
                 version: 1,

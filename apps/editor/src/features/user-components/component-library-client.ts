@@ -130,7 +130,7 @@ export async function loadSharedComponentSummaries(
 ): Promise<ComponentLibrarySummaryPage> {
   const params = new URLSearchParams({
     q: query,
-    limit: "20",
+    limit: catalog ? "128" : "20",
     view: "summary",
   });
   if (cursor) params.set("cursor", cursor);

@@ -131,12 +131,14 @@ export function withGalleryLike(
 }
 
 export function useGalleryWall({
+  active,
   preload,
   feedQuery,
   searchQuery,
   serverSearch,
   likedOnly,
 }: {
+  active: boolean;
   preload: GalleryLandingPreload | undefined;
   feedQuery: GalleryFeedQuery;
   searchQuery: string;
@@ -161,6 +163,7 @@ export function useGalleryWall({
   // Keyed by the scope, not the query: choosing a tag changes the wall but
   // not the counts beside it.
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     const apply = (payload: GalleryTagSummary) => {
       setTagOptions(payload.tags);
@@ -174,6 +177,7 @@ export function useGalleryWall({
     const request =
       refreshSignal === 0 &&
       tagCountsRefresh === 0 &&
+      tagCountsScope === null &&
       preload &&
       (preload.tagsScope ?? "") === tagScope
         ? preload.tags
@@ -184,7 +188,7 @@ export function useGalleryWall({
     return () => {
       cancelled = true;
     };
-  }, [preload, refreshSignal, tagCountsRefresh, tagScope]);
+  }, [active, preload, refreshSignal, tagCountsRefresh, tagScope]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
     entries: [],
@@ -259,6 +263,7 @@ export function useGalleryWall({
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     const generation = ++feedGenerationRef.current;
     firstPageLoadingRef.current = true;
@@ -332,14 +337,16 @@ export function useGalleryWall({
     });
     return () => {
       cancelled = true;
+      feedGenerationRef.current += 1;
     };
-  }, [feedQuery, preload, refreshSignal]);
+  }, [active, feedQuery, preload, refreshSignal]);
 
   // Appends the page after `cursor` unless a page is already on its way, and
   // says whether it started one. The sentinel calls it as the wall's end comes
   // into view; a linked circuit's search calls it until that circuit loads.
   const loadPageAfterRef = useRef<(cursor: string) => boolean>(() => false);
   loadPageAfterRef.current = (cursor: string): boolean => {
+    if (!active) return false;
     if (firstPageLoadingRef.current) return false;
     if (loadingMoreRef.current) return false;
     // Words the server has not been asked yet: it will answer them over the
@@ -390,6 +397,7 @@ export function useGalleryWall({
   // Once the server returns no cursor, the wall is complete and stops.
   const { nextCursor } = state;
   useEffect(() => {
+    if (!active) return;
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     if (nextCursor === null) return;
@@ -400,7 +408,7 @@ export function useGalleryWall({
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [nextCursor, feedQuery]);
+  }, [active, nextCursor, feedQuery]);
 
   function removeManagedEntry(entry: GalleryFeedEntry): void {
     setState((previous) => ({

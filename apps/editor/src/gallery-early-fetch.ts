@@ -46,10 +46,12 @@ const OPENS_UNFILTERED =
   `function(search,raw){if(search)return false;var s;` +
   `try{s=raw&&JSON.parse(raw)}catch(e){return true}` +
   `if(!s||typeof s!=="object"||Array.isArray(s))return true;` +
-  `function text(v){return typeof v==="string"&&v.trim()!==""}` +
-  `function list(v){return Array.isArray(v)&&v.length>0}` +
-  `return!(text(s.author)||text(s.ownerUserId)||text(s.source)||list(s.tags)||` +
-  `list(s.parts)||s.netlistable===true||s.liked===true||s.attention===true)}`;
+  // Conservatively defer any kept choice to the canonical filter reader.
+  // Unknown future filters must not start a different, unfiltered request.
+  `return Object.keys(s).every(function(k){var v=s[k];` +
+  `if(k==="search")return true;` +
+  `if(k==="view")return v==="gallery";` +
+  `return v==null||v===false||v===""||(Array.isArray(v)&&v.length===0)})}`;
 
 /**
  * The address's query as the wall reads it: a reload drops the text search

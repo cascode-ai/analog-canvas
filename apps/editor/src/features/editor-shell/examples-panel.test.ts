@@ -217,6 +217,39 @@ describe("gallery panel view", () => {
     expect(done.showGallery).toBe(true);
     expect(done.emptyMessage).toBe("No circuits match these filters.");
     expect(done.countLabel).toBe("120 circuits · 0 matches");
+    const serverFiltered = deriveGalleryPanelView(
+      { ...feed, entries: [], requestedTags: ["adc"] },
+      filters,
+    );
+    expect(serverFiltered).toMatchObject({
+      showGallery: true,
+      emptyMessage: "No circuits match these filters.",
+      countLabel: "120 circuits · 0 matches",
+    });
+  });
+
+  it("does not treat the previous tag's exhausted page as the next tag's answer", () => {
+    const view = deriveGalleryPanelView(
+      { ...feed, entries: [feed.entries[0]!], requestedTags: ["clock"] },
+      { searchQuery: "", selectedTags: ["bias"] },
+    );
+    expect(view.emptyMessage).toBe(
+      "No matches yet — searching older circuits…",
+    );
+    expect(view.countLabel).toBe("120 circuits · 0 matches so far");
+    // An exhausted unfiltered feed can answer every tag locally.
+    expect(
+      deriveGalleryPanelView(
+        { ...feed, requestedTags: [] },
+        { searchQuery: "", selectedTags: ["adc"] },
+      ).countLabel,
+    ).toBe("120 circuits · 0 matches");
+    expect(
+      deriveGalleryPanelView(
+        { ...feed, requestedTags: ["bias", "clock"] },
+        { searchQuery: "", selectedTags: ["clock", "bias"] },
+      ).countLabel,
+    ).toBe("120 circuits · 2 matches");
   });
 
   it("stands the bundled circuits in while the feed is unavailable", () => {

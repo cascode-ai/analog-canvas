@@ -146,13 +146,13 @@ const galleryReaders = new Map<
 >();
 async function galleryReaderOf(
   request: Request,
-  env: GalleryEnv,
+  readSession: () => Promise<SessionUser | null>,
 ): Promise<SessionUser | null> {
   const cookie = request.headers.get("Cookie") ?? "";
   const now = Date.now();
   const remembered = galleryReaders.get(cookie);
   if (remembered && remembered.expires > now) return remembered.user;
-  const user = await sessionUserOf(request, env);
+  const user = await readSession();
   if (user) {
     if (galleryReaders.size >= 256)
       galleryReaders.delete(galleryReaders.keys().next().value!);
@@ -431,6 +431,10 @@ export async function routeGalleryRequest(
   if (cloudProjects) return cloudProjects;
   if (!url.pathname.startsWith("/api/gallery")) return null;
   const segments = url.pathname.split("/").filter(Boolean).slice(2);
+  // Only a fresh read from this HTTP request is reusable for personal data.
+  // The preview gate's one-minute cache must not supply list permissions.
+  let session: Promise<SessionUser | null> | undefined;
+  const readSession = () => (session ??= sessionUserOf(request, env));
   // The Community Gallery is for signed-in readers. Without a session or the
   // read-only Gallery credential every read asks to sign in: the list and its
   // search, an entry, its Project and its preview alike. The one exception is
@@ -441,7 +445,7 @@ export async function routeGalleryRequest(
     (request.method === "GET" || request.method === "HEAD") &&
     !hasGalleryReadToken(request, env) &&
     !(isAutomatedBackup(segments) && hasStoreBackupToken(request, env)) &&
-    !(await galleryReaderOf(request, env))
+    !(await galleryReaderOf(request, readSession))
   ) {
     // The wall's order and shuffle (#1615) change nothing here: a
     // signed-out visitor sees the newest twelve whichever order is asked.
@@ -539,7 +543,7 @@ export async function routeGalleryRequest(
   if (segments.length === 0 && request.method === "GET") {
     // Signed in, the feed says which circuits this account has already
     // thumbed; signed out it simply carries the counts.
-    const viewer = await sessionUserOf(request, env);
+    const viewer = await readSession();
     const filters = wallFilters(url);
     if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -636,9 +640,7 @@ export async function routeGalleryRequest(
     // personal two need the session; the public counts stay a plain read.
     const filters = wallFilters(url);
     const viewer =
-      filters.attention || filters.liked
-        ? await sessionUserOf(request, env)
-        : null;
+      filters.attention || filters.liked ? await readSession() : null;
     if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
     const counting = {

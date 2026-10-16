@@ -25,9 +25,11 @@ export function useGalleryDatasets(
   source: string | null,
   showEmpty: boolean,
   fetchLike: typeof fetch = fetch,
+  active = true,
 ): GalleryDatasetCount[] {
   const [sources, setSources] = useState<GalleryDatasetCount[]>([]);
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     void fetchLike("/api/gallery/sources", { credentials: "same-origin" })
       .then((response) => (response.ok ? response.json() : null))
@@ -39,7 +41,7 @@ export function useGalleryDatasets(
     return () => {
       cancelled = true;
     };
-  }, [fetchLike]);
+  }, [fetchLike, active]);
   return offeredGallerySources(sources, source, showEmpty);
 }
 

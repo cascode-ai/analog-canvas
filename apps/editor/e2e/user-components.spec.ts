@@ -42,6 +42,7 @@ import {
 /** Browser journeys use the real HTTP policy and SQLite storage, with isolated test sessions. */
 function library() {
   let dropPublicationResponse = false;
+  let catalogPageSize: number | undefined;
   const db = new DatabaseSync(":memory:");
   const durable = new ComponentLibraryDO({
     storage: {
@@ -60,6 +61,11 @@ function library() {
     },
   });
   return {
+    // Fault journeys need several pages even when the client requests a
+    // larger batch. The real server still owns rows, cursors and revisions.
+    limitCatalogPages(size: number) {
+      catalogPageSize = size;
+    },
     seedHistoricalDefinition(id: string, definition: unknown) {
       db.prepare(
         `INSERT INTO components
@@ -108,8 +114,11 @@ function library() {
           ...route.request().headers(),
           ...(identity ? { cookie: `icm_session=${identity}` } : {}),
         };
+        const address = new URL(route.request().url());
+        if (catalogPageSize && address.searchParams.has("catalog"))
+          address.searchParams.set("limit", String(catalogPageSize));
         const response = await routeComponentLibraryRequest(
-          new Request(route.request().url(), {
+          new Request(address, {
             method: route.request().method(),
             headers,
             ...(route.request().postData()
@@ -521,6 +530,7 @@ test("a revision conflict can retry an interrupted catalog refresh", async ({
   context,
   service,
 }) => {
+  service.limitCatalogPages(20);
   const definition = service.seedPublished("recovery-guard", "Recovery guard");
   for (let index = 0; index < 22; index += 1)
     service.seedPublished(
@@ -739,11 +749,38 @@ test("reopening deleted components after sign-out does not retain administrator 
   await expect(button(dialog, "Show available components")).toHaveCount(0);
 });
 
+test("a 121-component catalog loads completely in one summary request without changing its controls", async ({
+  page,
+  service,
+}) => {
+  for (let index = 0; index < 121; index++)
+    service.seedPublished(
+      `batch-${String(index).padStart(3, "0")}`,
+      `Batch ${index}`,
+    );
+  const reads: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/components" && url.searchParams.has("catalog"))
+      reads.push(url.search);
+  });
+  await service.openEditorAs(page, "alice");
+  const dialog = await openUserComponents(page);
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(121);
+  expect(reads).toHaveLength(1);
+  await expect(dialog.getByLabel("Component order")).toHaveValue(
+    "circuit-first",
+  );
+  await expect(button(dialog, "Load More")).toHaveCount(0);
+  await expect(button(dialog, "Refresh")).toHaveCount(0);
+});
+
 test("automatically loads all components and retries an interrupted page without losing cards", async ({
   page,
   context,
   service,
 }) => {
+  service.limitCatalogPages(20);
   await service.openEditorAs(page, "alice");
   const definition = { symbol: newComponentDefinition().symbol };
   await page.evaluate(async (definition) => {
@@ -827,6 +864,7 @@ test("a catalog larger than the session cache retries from its retained last pag
   context,
   service,
 }) => {
+  service.limitCatalogPages(10);
   const definition = { symbol: newComponentDefinition().symbol };
   for (let index = 0; index < 61; index += 1) {
     const next = structuredClone(definition);
@@ -843,7 +881,7 @@ test("a catalog larger than the session cache retries from its retained last pag
   await context.route("**/api/components?**", async (route) => {
     const cursor = new URL(route.request().url()).searchParams.get("cursor");
     cursors.push(cursor);
-    if (cursor && cursors.length >= 4 && failLastPage)
+    if (cursor && cursors.length >= 7 && failLastPage)
       await route.fulfill({
         status: 503,
         json: { error: "Service unavailable" },
@@ -862,8 +900,11 @@ test("a catalog larger than the session cache retries from its retained last pag
     expect.any(String),
     expect.any(String),
     expect.any(String),
+    expect.any(String),
+    expect.any(String),
+    expect.any(String),
   ]);
-  expect(cursors[3]).toBe(cursors[4]);
+  expect(cursors[6]).toBe(cursors[7]);
 });
 
 test("library preview fits actual off-viewBox artwork without changing the stored definition", async ({
@@ -1359,6 +1400,7 @@ test("an interrupted background refresh retains visible cards and resumes its bu
   context,
   service,
 }) => {
+  service.limitCatalogPages(20);
   for (let index = 0; index < 35; index++)
     service.seedHistoricalDefinition(
       `refresh-resume-${String(index).padStart(2, "0")}`,
@@ -3775,6 +3817,7 @@ test("managing a component refreshes a complete catalog without dropping its car
   context,
   service,
 }) => {
+  service.limitCatalogPages(20);
   for (let index = 0; index < 35; index++)
     service.seedHistoricalDefinition(
       `managed-${String(index).padStart(2, "0")}`,

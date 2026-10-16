@@ -56,6 +56,72 @@ async function serveWall(
 const previewSrc = (revision: string) =>
   `/api/gallery/${ENTRY.id}/preview.svg?v=${revision}&render=formula-label-v5`;
 
+test("Shelf defers Gallery reads until its tab is opened", async ({ page }) => {
+  const reads: string[] = [];
+  await signIn(page, sessionUser());
+  await page.route("**/api/projects*", (route) =>
+    route.fulfill({ json: { projects: [] } }),
+  );
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    reads.push(url.pathname);
+    return route.fulfill({
+      json: url.pathname.endsWith("/sources")
+        ? { sources: [] }
+        : url.pathname.endsWith("/tags")
+          ? { tags: [], groups: [] }
+          : { entries: [ENTRY], nextCursor: null, total: 1 },
+    });
+  });
+  await page.goto("/?view=shelf");
+  await expect(page.getByTestId("gallery-view-shelf")).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByTestId("gallery-view-gallery")).toBeVisible();
+  await awaitTwoFrames(page);
+  expect(reads).toEqual([]);
+  await page.getByTestId("gallery-view-gallery").click();
+  await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toBeVisible();
+  expect(reads.filter((path) => path === "/api/gallery")).toHaveLength(1);
+});
+
+test("leaving Gallery before its landing feed answers does not warm hidden previews", async ({
+  page,
+}) => {
+  await signIn(page, sessionUser());
+  await page.route("**/api/projects*", (route) =>
+    route.fulfill({ json: { projects: [] } }),
+  );
+  await page.route("**/api/gallery/tags*", (route) =>
+    route.fulfill({ json: { tags: [] } }),
+  );
+  let answer!: () => Promise<void>;
+  await page.route(galleryListUrl, (route) => {
+    answer = () =>
+      route.fulfill({ json: { entries: [ENTRY], nextCursor: null, total: 1 } });
+  });
+  const previews: string[] = [];
+  await page.route("**/api/gallery/*/preview.svg*", (route) => {
+    previews.push(route.request().url());
+    return route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    });
+  });
+  await page.goto("/");
+  await expect.poll(() => typeof answer).toBe("function");
+  await page.getByTestId("gallery-view-shelf").click();
+  await expect(page).toHaveURL(/view=shelf/);
+  const response = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/gallery",
+  );
+  await answer();
+  await (await response).finished();
+  await awaitTwoFrames(page);
+  expect(previews).toEqual([]);
+});
+
 test("the site lands on the full-screen gallery feed and states its size", async ({
   page,
 }) => {
@@ -814,7 +880,12 @@ test("a remembered narrowing loads the wall with its one early request", async (
   await page.addInitScript(() =>
     localStorage.setItem(
       "icm.gallery-filters.v1",
-      JSON.stringify({ parts: ["6-10"] }),
+      JSON.stringify({
+        parts: ["6-10"],
+        withoutNetlist: true,
+        ai: "human",
+        source: "analoggenie",
+      }),
     ),
   );
   await page.goto("/");
@@ -822,7 +893,7 @@ test("a remembered narrowing loads the wall with its one early request", async (
   // The landing preload asked the remembered query before the wall's code
   // arrived, and the wall took that answer instead of asking again.
   await page.waitForLoadState("networkidle");
-  expect(lists).toEqual(["?parts=6-10"]);
+  expect(lists).toEqual(["?source=analoggenie&netlistable=0&ai=0&parts=6-10"]);
   expect(firstListAsked).toBeLessThan(wallCodeArrived);
 });
 
@@ -1369,6 +1440,23 @@ test("Editor Gallery gives tags one column only after widening beyond three circ
     groups: [{ group: "Bias & references", count: 1 }],
   };
   await mockGalleryApi(page, summary, async (url, route) => {
+    if (url.searchParams.get("tags")?.split(",").includes("bandgap")) {
+      return route.fulfill({
+        json: {
+          entries: [
+            {
+              ...ENTRY,
+              id: "bias",
+              name: "Bandgap reference",
+              author: "Lin",
+              tags: ["bandgap"],
+            },
+          ],
+          total: 1,
+          nextCursor: null,
+        },
+      });
+    }
     const older = url.searchParams.has("cursor");
     if (older) olderRequests++;
     return route.fulfill({
@@ -1436,7 +1524,7 @@ test("Editor Gallery gives tags one column only after widening beyond three circ
     .click();
   await tags.getByTestId("gallery-tag-option-bandgap").click();
   await expect(panel.getByTestId("gallery-example-bias")).toBeVisible();
-  expect(olderRequests).toBe(1);
+  expect(olderRequests).toBe(0);
   await expect(cards).toHaveCount(1);
   await expect(panel.getByTestId("examples-panel-count")).toHaveText(
     "31 circuits · 1 match",
@@ -1447,6 +1535,9 @@ test("Editor Gallery gives tags one column only after widening beyond three circ
   await expect(panel.getByTestId("gallery-example-bias")).toBeVisible();
   await expect(panel.getByTestId("examples-panel-search")).toBeVisible();
   await panel.getByTestId("examples-panel-clear-tags").click();
+  await panel.locator(".examples-panel-results").evaluate((e) => {
+    e.scrollTop = e.scrollHeight;
+  });
   await expect(cards).toHaveCount(31);
   await resize(900);
   await expect(tags).toBeVisible();
@@ -1454,6 +1545,9 @@ test("Editor Gallery gives tags one column only after widening beyond three circ
   await bias.click();
   await expect(cards).toHaveCount(1);
   await bias.click();
+  await panel.locator(".examples-panel-results").evaluate((e) => {
+    e.scrollTop = e.scrollHeight;
+  });
   await expect(cards).toHaveCount(31);
 });
 

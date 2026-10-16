@@ -6,6 +6,7 @@ import { EditorErrorBoundary } from "../components/editor-error-boundary";
 import { guardedRouteChunk } from "../components/route-chunk-loader";
 import {
   galleryFeedQueryKey,
+  galleryQueryFromFilters,
   loadGalleryEntry,
   loadGalleryFeed,
   galleryTagScope,
@@ -98,19 +99,12 @@ export function mountWebEditor() {
     // The wall's first page starts here for the filters it will open with,
     // whether a link or a remembered choice sets them; a reader who once
     // narrowed the wall no longer waits for the wall's own code to ask.
-    const query = {
-      author: filters.author,
-      ownerUserId: filters.ownerUserId,
-      tags: filters.tags,
-      netlistable: filters.netlistable,
-      liked: filters.liked,
-      attention: filters.attention,
-      attentionKind: filters.attentionKind,
-      parts: filters.parts,
+    if (filters.view !== "gallery") return undefined;
+    const query = galleryQueryFromFilters(filters, {
       // The order the wall opens with (#1615), and its shuffle.
       order: galleryOrderPreference(),
       seed: galleryShuffleSeed(),
-    };
+    });
     // index.html already asked for the unfiltered wall's first page and
     // tags (#1592); the loaders take those answers when they ask the same.
     const early = earlyGalleryFetch();
@@ -133,7 +127,15 @@ export function mountWebEditor() {
   // Its first previews start when that page answers, not after the wall's
   // code has loaded and rendered the tiles (#1590).
   void initialGalleryPreload?.feed
-    ?.then(warmGalleryPreviews)
+    ?.then((page) => {
+      // The pending landing request can outlive a switch to Shelf. The URL
+      // is the wall's shared current-view state, including Back navigation.
+      if (
+        /^\/?$/.test(window.location.pathname) &&
+        resolveGalleryFilters(window.location.search, null).view === "gallery"
+      )
+        warmGalleryPreviews(page);
+    })
     .catch(() => undefined);
 
   // The editor routes load the Agent workspace and the editor as one chunk
