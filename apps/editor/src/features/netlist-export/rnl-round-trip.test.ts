@@ -8,7 +8,9 @@ import {
   resolveDocumentLogicalNets,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
+import { IDEAL_COMPARATOR_TARGET, subcircuitDescriptor } from "@icm/devices";
 import {
+  createEmptyProject,
   flattenRichText,
   type CircuitProject,
   type Instance,
@@ -468,4 +470,76 @@ describe("RNL round trip", () => {
       }),
     ]);
   });
+});
+
+/**
+ * A comparator placed in Cell `dut`, bound as a placed one is, each signal
+ * pin on a Cell Pin and, when `powered`, its VDD too.
+ */
+function comparator(
+  parameters: Record<string, string>,
+  powered: boolean,
+): CircuitProject {
+  const project = createEmptyProject("comparator", "Comparator", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  document.instances.push({
+    id: "block",
+    symbolId: "comparator",
+    reference: "X1",
+    placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "unresolved-subcircuit", name: IDEAL_COMPARATOR_TARGET },
+      parameters,
+    },
+  });
+  for (const port of subcircuitDescriptor("comparator")!.ports) {
+    const pinName = port.pinName ?? port.supply;
+    if (port.supply && !(powered && port.supply === "VDD")) continue;
+    const id = `pin-${port.name}`;
+    document.instances.push({ id, symbolId: "port", placement: null });
+    document.nets.push({
+      id: port.name,
+      terminals: [
+        { instanceId: id, pinName: "P" },
+        { instanceId: "block", pinName },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: `terminal-${port.name}`,
+      name: port.name,
+      netId: port.name,
+      direction: "inout",
+      interfaceInstanceIds: [id],
+    });
+  }
+  return project;
+}
+
+describe("RNL round trip of built-in blocks", () => {
+  it.each([
+    ["icm_ideal_comparator", { vhigh: "1" }, false],
+    ["icm_ideal_comparator_vdd", {}, true],
+  ] as const)(
+    "draws a comparator calling %s and brings it back",
+    async (body, parameters, powered) => {
+      for (const format of ["spice", "spectre"] as const) {
+        const project = comparator(parameters, powered);
+        const plan = await roundTrip(project, format);
+        expect(
+          plan.diagnostics.filter((item) => item.severity === "error"),
+        ).toEqual([]);
+        const part = plan.project.documents
+          .flatMap((document) => document.instances)
+          .find((instance) => instance.reference === "X1")!;
+        expect(rnlPart(part)).toEqual(
+          rnlPart(project.documents[0]!.instances[0]!),
+        );
+        const again = createDesignNetlistExport(plan.project, { format });
+        expect(again.status === "ready" && again.file.text).toMatch(
+          new RegExp(`^X1 .* ${body}( |$)`, "mu"),
+        );
+      }
+    },
+  );
 });

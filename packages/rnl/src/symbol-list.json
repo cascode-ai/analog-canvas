@@ -2563,37 +2563,6 @@
     "symbol": "$COMPARATOR",
     "definition": null,
     "package": "rnl-std-functional",
-    "ac": null,
-    "variant": null,
-    "orient": "R0",
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "out",
-        "drawn": true
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [],
-    "undrawn_pins": [],
-    "box": null,
-    "ac_netlist_order": null,
-    "note": "三端；AC 不用"
-  },
-  {
-    "symbol": "$COMPARATOR_5TERM",
-    "definition": null,
-    "package": "rnl-std-functional",
     "ac": "comparator-inputs-swapped",
     "variant": null,
     "orient": "R0",
@@ -2610,18 +2579,18 @@
       },
       {
         "n": 3,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 4,
         "name": "vp",
         "drawn": false
       },
       {
-        "n": 4,
+        "n": 5,
         "name": "vn",
         "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "out",
-        "drawn": true
       }
     ],
     "offset": [0, 0],
@@ -2641,7 +2610,7 @@
         "dir": 180
       },
       {
-        "terminal": 5,
+        "terminal": 3,
         "name": "out",
         "ac_pin": "OUT",
         "at": [3, 0],
@@ -2651,10 +2620,10 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "宏模型顺序；电源不画；+ 在上"
+    "note": "信号在前、电源在后，电源不画：AC 的理想比较器调三端（阈值是数）或四端（阈值取自 VDD）的方框，都合用；+ 在上"
   },
   {
-    "symbol": "$COMPARATOR_5TERM",
+    "symbol": "$COMPARATOR",
     "definition": null,
     "package": "rnl-std-functional",
     "ac": "comparator",
@@ -2673,18 +2642,18 @@
       },
       {
         "n": 3,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 4,
         "name": "vp",
         "drawn": false
       },
       {
-        "n": 4,
+        "n": 5,
         "name": "vn",
         "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "out",
-        "drawn": true
       }
     ],
     "offset": [0, 0],
@@ -2704,7 +2673,7 @@
         "dir": 180
       },
       {
-        "terminal": 5,
+        "terminal": 3,
         "name": "out",
         "ac_pin": "OUT",
         "at": [3, 0],
@@ -2715,6 +2684,47 @@
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "comparator 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$COMPARATOR_5TERM",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": null,
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": false
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": false
+      },
+      {
+        "n": 5,
+        "name": "out",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [],
+    "undrawn_pins": [],
+    "box": null,
+    "ac_netlist_order": null,
+    "note": "宏模型顺序；AC 不用"
   },
   {
     "symbol": "$VOLTAGE_AMPLIFIER",
@@ -5558,18 +5568,18 @@
       },
       {
         "n": 3,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 4,
         "name": "vp",
         "drawn": false
       },
       {
-        "n": 4,
+        "n": 5,
         "name": "vn",
         "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "out",
-        "drawn": true
       }
     ],
     "offset": [0, 0],
@@ -5589,7 +5599,7 @@
         "dir": 180
       },
       {
-        "terminal": 5,
+        "terminal": 3,
         "name": "out",
         "ac_pin": "OUT",
         "at": [3, 0],
@@ -5599,7 +5609,7 @@
     "undrawn_pins": [],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $COMPARATOR_5TERM 的端子；+ 在上，不画 + −"
+    "note": "同 $COMPARATOR 的端子；+ 在上，不画 + −"
   },
   {
     "symbol": "$CANVAS_COMPARATOR_UNMARKED",
@@ -5621,18 +5631,18 @@
       },
       {
         "n": 3,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 4,
         "name": "vp",
         "drawn": false
       },
       {
-        "n": 4,
+        "n": 5,
         "name": "vn",
         "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "out",
-        "drawn": true
       }
     ],
     "offset": [0, 0],
@@ -5652,7 +5662,7 @@
         "dir": 180
       },
       {
-        "terminal": 5,
+        "terminal": 3,
         "name": "out",
         "ac_pin": "OUT",
         "at": [3, 0],

@@ -31,8 +31,10 @@ the RNL language and its runtime belong to rnl.
 - An RNL format is read-only in the panel; Copy and Save take its text.
 - Bodies the netlist writes itself (ideal blocks, magnetics) print their ports
   in the terminal order of their RNL symbol: SPICE primitives in SPICE order,
-  op-amps and comparators as their macromodels do (in+ in− V+ V− out), other
-  blocks signals first and supplies last, transformers dotted end first. A
+  op-amps as their macromodels do (in+ in− V+ V− out), other blocks signals
+  first and supplies last, transformers dotted end first. Comparators are
+  drawn as `$COMPARATOR` (in+ in− out) and print as other blocks do: their
+  bodies take no VSS, and the one with a numeric high level no VDD. A
   body's definition and its calls move together, so the circuit is the same;
   `SPICE` and `SCS` keep the editor's order.
 - Each part is drawn with the RNL symbol the mapping table names, from a

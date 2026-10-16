@@ -144,6 +144,33 @@ export function rnlSymbolFor(
 }
 
 /**
+ * The terminal each of a body's ports meets, from the terminals in the order
+ * Analog Canvas prints its block's ports. A body takes every port of its
+ * block, or all but supplies it does not read, as an ideal comparator's body
+ * does: its supplies, VDD and VSS, then meet their terminals by name and its
+ * signals the rest in order. Null when the ports fit neither.
+ */
+function bodyTerminals(
+  ports: readonly string[],
+  order: readonly string[],
+): readonly string[] | null {
+  if (ports.length === order.length) return order;
+  const supplies: Readonly<Record<string, string>> = { VDD: "vp", VSS: "vn" };
+  const signals = order.filter(
+    (terminal) => !Object.values(supplies).includes(terminal),
+  );
+  let next = 0;
+  const terminals = ports.map((port) => supplies[port] ?? signals[next++]);
+  return next === signals.length &&
+    terminals.every(
+      (terminal): terminal is string =>
+        terminal !== undefined && order.includes(terminal),
+    )
+    ? terminals
+    : null;
+}
+
+/**
  * The netlist port order that lets RNL symbols bind to terminal positions: each
  * body Analog Canvas writes itself, printed in its symbol's terminal order.
  * The parts calling one body must agree, and a body no mapped part calls keeps
@@ -166,12 +193,13 @@ export function rnlBodyPortOrder(project: CircuitProject): BodyPortOrder {
       const entry = part && rnlSymbolFor(part.symbolId, part.variant);
       const order = entry?.acNetlistOrder;
       if (!entry || !order) continue;
-      if (order.length !== ports.length)
+      const terminals = bodyTerminals(ports, order);
+      if (!terminals)
         throw new Error(
           `${entry.symbol} reads ${order.length} terminals, but ${name} has ${ports.length} ports`,
         );
-      const next = entry.terminals.map(
-        (terminal) => ports[order.indexOf(terminal.name)]!,
+      const next = entry.terminals.flatMap((terminal) =>
+        ports.filter((_, index) => terminals[index] === terminal.name),
       );
       if (wanted && wanted.join(" ") !== next.join(" "))
         throw new Error(
