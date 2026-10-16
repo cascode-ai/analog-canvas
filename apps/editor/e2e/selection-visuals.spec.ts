@@ -424,11 +424,16 @@ test("a Net highlight set from the Check Report can always be cleared", async ({
 
   // The finding navigation selected the net's route, so H toggles the
   // highlight off, back on, and off again.
+  // Unhighlighted, the selected wire's Net still glows faintly; the
+  // highlight replaces the glow while it shows (2026-10-14).
+  const glow = page.getByTestId("connected-net-glow");
   await page.keyboard.press("h");
   await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
   await expect(page.getByTestId("status")).toHaveText(/Cleared Net highlight/);
+  await expect(glow).toBeVisible();
   await page.keyboard.press("h");
   await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+  await expect(glow).toHaveCount(0);
 
   // Escape clears it too, selection or not.
   await page.keyboard.press("Escape");

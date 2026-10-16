@@ -31,6 +31,17 @@ export function parseSharedComponentMetadata(
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     status: value.status,
+    ...(isRecord(value.deletion) &&
+    (value.deletion.by === "author" || value.deletion.by === "admin") &&
+    (value.deletion.previousStatus === "shared" ||
+      value.deletion.previousStatus === "official")
+      ? {
+          deletion: {
+            by: value.deletion.by,
+            previousStatus: value.deletion.previousStatus,
+          },
+        }
+      : {}),
   };
 }
 export function parseSharedComponentEntry(value: unknown): SharedComponent {

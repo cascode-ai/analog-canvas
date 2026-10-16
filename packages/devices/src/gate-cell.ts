@@ -1,5 +1,6 @@
-// A Library logic gate implemented by a Cell of its Project (#1450): the gate
-// keeps its symbol, and its call goes to the Cell's subcircuit.
+// A Library logic gate (#1450) or D flip-flop (#1689) implemented by a Cell
+// of its Project: the part keeps its symbol, and its call goes to the Cell's
+// subcircuit.
 import {
   foldNetName,
   projectCellInterface,
@@ -11,11 +12,26 @@ import type { ParameterOwner } from "./instance-parameters.js";
 import { subcircuitDescriptor } from "./registry.js";
 import { isLibraryLogicGate } from "./reviewed-external.js";
 
+/** The Library D flip-flops, which a Cell implements as it does a gate. */
+const CELL_FLIP_FLOPS: ReadonlySet<string> = new Set([
+  "d-flip-flop",
+  "d-flip-flop-q",
+  "d-flip-flop-reset",
+]);
+
+/**
+ * Whether a Library symbol keeps its look while a Cell of its Project
+ * implements it: the logic gates (#1450) and the D flip-flops (#1689).
+ */
+export function bindsProjectCell(symbolId: string): boolean {
+  return isLibraryLogicGate(symbolId) || CELL_FLIP_FLOPS.has(symbolId);
+}
+
 /** One Pin of the Cell a gate calls, and the gate terminal on it. */
 export interface GateCellPin {
   /** The Cell's Pin, as its `.subckt` line spells it. */
   readonly portName: string;
-  /** The gate's pin (A, B, Y), or its VDD or VSS terminal. */
+  /** The part's pin (A, B, Y; D, CK, Q), or its VDD or VSS terminal. */
   readonly pinName: string;
   readonly supply?: "VDD" | "VSS";
 }
@@ -35,11 +51,11 @@ export type GateCellPinMatch = {
     }
 );
 
-/** A Library gate's pins, then its VDD and VSS terminals. */
+/** A Library gate's or flip-flop's pins, then its VDD and VSS terminals. */
 export function libraryGateTerminals(
   symbolId: string,
 ): readonly { readonly pinName: string; readonly supply?: "VDD" | "VSS" }[] {
-  if (!isLibraryLogicGate(symbolId)) return [];
+  if (!bindsProjectCell(symbolId)) return [];
   return (subcircuitDescriptor(symbolId)?.ports ?? []).map((port) =>
     port.supply
       ? { pinName: port.supply, supply: port.supply }
@@ -92,7 +108,7 @@ export function matchGateCellPins(
             extra,
             "is not one",
             "are not",
-          )} of the gate's`,
+          )} of the ${CELL_FLIP_FLOPS.has(symbolId) ? "flip-flop" : "gate"}'s`,
         ]
       : []),
   ];
@@ -116,7 +132,7 @@ export function gateCellBinding(
   instance: ParameterOwner,
 ): { cell: SchematicDocument; match: GateCellPinMatch } | undefined {
   const binding = instance.netlist?.binding;
-  if (binding?.kind !== "subcircuit" || !isLibraryLogicGate(instance.symbolId))
+  if (binding?.kind !== "subcircuit" || !bindsProjectCell(instance.symbolId))
     return undefined;
   const cell = project.documents.find(
     (document) => document.id === binding.childDocumentId,

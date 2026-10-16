@@ -10,6 +10,7 @@ import type { SharedComponent } from "./component-library-contract";
 import { parseSharedDefinition } from "./component-library-contract";
 import type { CircuitComponentAuthoring } from "./native-component-editor";
 import { definitionError } from "./component-definition-error";
+import { componentDraftCheckpoint } from "./component-draft-checkpoint";
 import {
   ComponentDefinitionSchema,
   createEmptyProject,
@@ -158,7 +159,11 @@ export function useLibraryCircuitAuthoring(
   );
   current.current = project;
   if (!project) return undefined;
-  function commit(edits: ProjectStructureEdit[], definitionId: string) {
+  function commit(
+    edits: ProjectStructureEdit[],
+    definitionId: string,
+    dryRun = false,
+  ) {
     const source = current.current!;
     try {
       const result = executeProjectTransaction(source, {
@@ -167,8 +172,9 @@ export function useLibraryCircuitAuthoring(
         expectedStructureRevision: source.structureRevision,
         actor: { kind: "human", id: "human-local" },
         edits,
+        dryRun,
       });
-      if (result.ok) {
+      if (result.ok && !dryRun) {
         const error = persistence.onSave(
           JSON.stringify({
             entry,
@@ -185,6 +191,14 @@ export function useLibraryCircuitAuthoring(
       return {
         ok: result.ok,
         definitionId,
+        ...(result.ok
+          ? {
+              draftCheckpoint: componentDraftCheckpoint(
+                result.project,
+                definitionId,
+              ),
+            }
+          : {}),
         message: result.ok
           ? "Applied component definition"
           : (result.diagnostics[0]?.message ?? result.error.message),
@@ -196,15 +210,16 @@ export function useLibraryCircuitAuthoring(
   return {
     project,
     definitionId,
-    onRepair: (edits, definitionId, expectedProject) =>
+    onRepair: (edits, definitionId, expectedProject, dryRun) =>
       JSON.stringify(current.current) === JSON.stringify(expectedProject)
-        ? commit(edits, definitionId)
+        ? commit(edits, definitionId, dryRun)
         : {
             ok: false,
             message:
               "The Project changed. Reopen the component before repairing.",
           },
-    onApply: (edit) => commit([edit], edit.definitions[0]!.definitionId),
+    onApply: (edit, dryRun) =>
+      commit([edit], edit.definitions[0]!.definitionId, dryRun),
     onSaveDraft: commit,
     onSetDefinition: (definition) =>
       commit(

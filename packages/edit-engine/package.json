@@ -8,6 +8,11 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./component-drafts": {
+      "development": "./src/component-draft-management.ts",
+      "types": "./dist/component-draft-management.d.ts",
+      "default": "./dist/component-draft-management.js"
     }
   },
   "scripts": {

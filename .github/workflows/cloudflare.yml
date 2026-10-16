@@ -212,7 +212,16 @@ jobs:
             echo "robots.txt still permits indexing the suspended Gallery documents."
             exit 1
           fi
-          for path in sitemap.xml llms.txt g/7dgn5b2e74/project.icproj.json g/7dgn5b2e74/netlist.sp g/7dgn5b2e74/netlist.scs g/7dgn5b2e74/preview.svg; do
+          # llms.txt states the usage policy and lists no Gallery resource.
+          llms="$(curl --fail --silent --show-error \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            --max-time 20 \
+            https://analog-canvas.tokenzhang.com/llms.txt)"
+          if ! grep -q 'site author' <<<"$llms" || grep -q '/g/' <<<"$llms"; then
+            echo "llms.txt does not state the usage policy, or lists Gallery resources."
+            exit 1
+          fi
+          for path in sitemap.xml g/7dgn5b2e74/project.icproj.json g/7dgn5b2e74/netlist.sp g/7dgn5b2e74/netlist.scs g/7dgn5b2e74/preview.svg; do
             status="$(curl --silent --show-error --max-time 20 \
               --output /dev/null --write-out '%{http_code}' \
               "https://analog-canvas.tokenzhang.com/$path")"

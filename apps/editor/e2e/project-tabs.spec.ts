@@ -541,7 +541,7 @@ test("the Shelf appends a Cloud Project tab, deduplicates and saves Cloud identi
   ).toHaveCount(0);
 });
 
-test("the Arena gate opens after a manual Cloud Save or a Shelf opening until the day's five votes are in, sends the person to Arena's window, and closes after them or when Arena has nothing to offer (#1681)", async ({
+test("the Arena gate invites once a day after a manual Cloud Save or a Shelf opening until the day's five votes are in, sends the person to Arena's window, and closes whenever the person closes it (#1681, #1718)", async ({
   context,
   page,
 }) => {
@@ -625,13 +625,17 @@ test("the Arena gate opens after a manual Cloud Save or a Shelf opening until th
   await awaitEditorReady(page);
   const gate = page.getByTestId("arena-gate");
   const close = gate.getByRole("button", { name: "Close", exact: true });
+  const notNow = gate.getByRole("button", { name: "Not now", exact: true });
   const count = page.getByTestId("arena-gate-count");
+  // A new browser day, as far as the gate's once-a-day memory goes.
+  const nextDay = () =>
+    page.evaluate(() => localStorage.removeItem("icm.arena-gate-day"));
 
-  // The save completes first; then the gate opens and holds.
+  // The save completes first; then the gate invites.
   await page.keyboard.press("ControlOrMeta+s");
   await expect(gate).toBeVisible();
   expect(revision).toBe(1);
-  await expect(gate).toContainText("Vote on 5 Battles to continue");
+  await expect(gate).toContainText("Vote on 5 Battles in the Schematic Arena");
   // Five dots, none filled; readers hear the count.
   await expect(count.locator("[aria-hidden]")).toHaveCount(5);
   await expect(count.locator("[data-filled]")).toHaveCount(0);
@@ -642,7 +646,6 @@ test("the Arena gate opens after a manual Cloud Save or a Shelf opening until th
     "https://chip-arena.com/schematic/preview",
   );
   await expect.poll(() => previews).toBeGreaterThan(0);
-  await expect(close).toHaveAttribute("aria-disabled", "true");
   await expect
     .poll(() =>
       page.evaluate(
@@ -651,11 +654,36 @@ test("the Arena gate opens after a manual Cloud Save or a Shelf opening until th
       ),
     )
     .toBe(true);
-  // Neither Escape, Close nor the backdrop gets past it yet.
+  // Not now closes it at once, and the editor is the person's again.
+  await notNow.click();
+  await expect(gate).toHaveCount(0);
+  await expect(page.locator("[inert]")).toHaveCount(0);
+  // It showed today: a later save that day saves and asks nothing.
+  await placeComponentAt(page, "resistor", { x: 300, y: 240 });
+  const readsBeforeSecondSave = pastReads;
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect.poll(() => revision).toBe(2);
+  await awaitTwoFrames(page);
+  await expect(gate).toHaveCount(0);
+  expect(pastReads).toBe(readsBeforeSecondSave);
+
+  // Another day: the Shelf invites again, and Escape or the backdrop close
+  // it as well.
+  await nextDay();
+  const shelf = page.getByLabel("Open Shelf project in tab", { exact: true });
+  await shelf.click();
+  await expect(gate).toBeVisible();
   await page.keyboard.press("Escape");
-  // Playwright waits for an aria-disabled button; a person can still press it.
-  await close.click({ force: true });
+  await expect(gate).toHaveCount(0);
+  await shelf.click();
+  await nextDay();
+  await shelf.click();
+  await expect(gate).toBeVisible();
   await page.mouse.click(4, 4);
+  await expect(gate).toHaveCount(0);
+  await shelf.click();
+  await nextDay();
+  await shelf.click();
   await expect(gate).toBeVisible();
 
   // The battle page opens in a window of its own, marked as the gate's.
@@ -673,12 +701,13 @@ test("the Arena gate opens after a manual Cloud Save or a Shelf opening until th
   await page.bringToFront();
   await expect(count).toHaveText("Voted 5 of 5", { timeout: 10_000 });
   await expect(count.locator("[data-filled]")).toHaveCount(5);
-  await expect(close).toHaveAttribute("aria-disabled", "false");
-  await page.keyboard.press("Escape");
+  await expect(close).toBeVisible();
+  await close.click();
   await expect(gate).toHaveCount(0);
+  await shelf.click();
 
   // The day's five are in: opening the Shelf asks Arena and shows nothing.
-  const shelf = page.getByLabel("Open Shelf project in tab", { exact: true });
+  await nextDay();
   const readsAfterVoting = pastReads;
   await shelf.click();
   await expect.poll(() => pastReads).toBe(readsAfterVoting + 1);
@@ -691,8 +720,9 @@ test("the Arena gate opens after a manual Cloud Save or a Shelf opening until th
   // person go.
   votes.splice(0, votes.length, earlier);
   battlesLeft = 3;
+  await nextDay();
   await shelf.click();
-  await expect(gate).toContainText("Vote on 3 Battles to continue");
+  await expect(gate).toContainText("Vote on 3 Battles in the Schematic Arena");
   await expect(count).toHaveText("Voted 0 of 3");
   await expect(count.locator("[aria-hidden]")).toHaveCount(3);
   battlesLeft = 0;
@@ -704,37 +734,40 @@ test("the Arena gate opens after a manual Cloud Save or a Shelf opening until th
   await expect(gate).toHaveCount(0);
   // With none left, opening the Shelf (shut, then open) shows no panel.
   await shelf.click();
+  await nextDay();
   const sessionReadsBefore = sessionReads;
   await shelf.click();
   await expect.poll(() => sessionReads).toBe(sessionReadsBefore + 1);
   await awaitTwoFrames(page);
   await expect(gate).toHaveCount(0);
 
-  // An unreachable Arena never traps anyone either.
+  // An unreachable Arena says so and asks for nothing.
   battlesLeft = 40;
   await placeComponentAt(page, "resistor", { x: 400, y: 240 });
   arenaUp = false;
+  await nextDay();
   await page.keyboard.press("ControlOrMeta+s");
   await expect(gate).toContainText("Arena can't be reached right now.");
   await expect(gate.getByRole("link")).toHaveCount(0);
   await close.click();
   await expect(gate).toHaveCount(0);
-  expect(revision).toBe(2);
+  expect(revision).toBe(3);
 
   // An AI account, which may not vote, saves without any panel.
   await placeComponentAt(page, "resistor", { x: 500, y: 240 });
   arenaUp = true;
   aiAccount = true;
+  await nextDay();
   const readsBefore = pastReads;
   await page.keyboard.press("ControlOrMeta+s");
   await expect.poll(() => pastReads).toBe(readsBefore + 1);
-  await expect.poll(() => revision).toBe(3);
+  await expect.poll(() => revision).toBe(4);
   await awaitTwoFrames(page);
   await expect(gate).toHaveCount(0);
   expect(unmountWarnings).toEqual([]);
 });
 
-test("only the person's own opening of the Cloud shelf opens the Arena gate, so a reload always ends one (#1681)", async ({
+test("only the person's own opening of the Cloud shelf opens the Arena gate, never a page load (#1681)", async ({
   page,
 }) => {
   // The hosted Gallery, as gallery-test.ts selects it, has My shelf.
@@ -773,14 +806,13 @@ test("only the person's own opening of the Cloud shelf opens the Arena gate, so 
   await shelfTab.click();
   await expect(gate).toBeVisible();
   expect(reads).toBe(1);
-  await page.keyboard.press("Escape");
-  await expect(gate).toBeVisible();
   // A reload, still on My shelf, ends it and opens none.
   await page.reload();
   await expect(shelfTab).toHaveAttribute("aria-selected", "true");
   await expect(gate).toHaveCount(0);
 
-  // So too the account page's Cloud Projects.
+  // So too the account page's Cloud Projects, on another browser day.
+  await page.evaluate(() => localStorage.removeItem("icm.arena-gate-day"));
   await page.goto("/account?tab=projects");
   const projectsTab = page.getByTestId("account-tab-projects");
   await expect(projectsTab).toHaveAttribute("aria-selected", "true");

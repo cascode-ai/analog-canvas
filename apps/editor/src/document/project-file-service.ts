@@ -7,6 +7,8 @@ import {
   tryParseProjectWithMetadata,
 } from "@icm/project-protocol";
 
+import { downloadBlob } from "../hosts/download-link";
+
 export interface ProjectFileOpenDiagnostic {
   code:
     | "READ_FAILED"
@@ -36,13 +38,16 @@ interface ProjectFileAnchorLike {
   href: string;
   download: string;
   click(): void;
+  remove?(): void;
 }
 
 interface ProjectFileDocumentLike {
   createElement(tagName: "a"): ProjectFileAnchorLike;
+  body?: { append(node: never): void } | null;
 }
 
 export interface ProjectFileServiceSeams {
+  serializeProject?: (project: CircuitProject) => string;
   getDocument?: () => ProjectFileDocumentLike | null;
   createObjectURL?: (blob: Blob) => string;
   revokeObjectURL?: (url: string) => void;
@@ -77,7 +82,7 @@ export function requestProjectDownload(
 ) {
   let text: string;
   try {
-    text = serializeProject(project);
+    text = (seams.serializeProject ?? serializeProject)(project);
   } catch (error) {
     return { status: "failed" as const, message: errorMessage(error) };
   }
@@ -107,12 +112,13 @@ export function downloadTextArtifact(
   const schedule =
     seams.setTimeout ??
     ((handler: () => void, ms: number) => globalThis.setTimeout(handler, ms));
-  const url = createUrl(new Blob([text], { type: "application/json" }));
-  const anchor = documentLike.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  schedule(() => revokeUrl(url), 0);
+  downloadBlob(new Blob([text], { type: "application/json" }), fileName, {
+    createElement: (tag) => documentLike.createElement(tag),
+    append: (anchor) => documentLike.body?.append(anchor as never),
+    createObjectURL: createUrl,
+    revokeObjectURL: revokeUrl,
+    setTimeout: schedule,
+  });
   return {
     status: "download-requested",
     fileName,

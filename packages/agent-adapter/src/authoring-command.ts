@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ApplyModelSourceEditSchema } from "@icm/edit-engine";
 import {
   CellSymbolSideSchema,
   PointSchema,
@@ -8,6 +9,7 @@ import {
   InstancePlacementRequestSchema,
   InstanceNetlistDataSchema,
   SignalFlowParametersSchema,
+  ComponentDefinitionSchema,
 } from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
@@ -330,6 +332,20 @@ export function isBatchableAuthoringCommand(command: {
   );
 }
 export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("apply-component-artwork"),
+    instanceId: StableIdSchema,
+    definition: ComponentDefinitionSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("create-component-variant"),
+    instanceId: StableIdSchema,
+    identity: StableIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("apply-component-definition"),
+    edit: ApplyModelSourceEditSchema,
+  }),
   ...BatchItemSchema.options,
   z
     .strictObject({

@@ -6,6 +6,9 @@ import type {
 import { AgentCommandPlanningError } from "@icm/agent-adapter";
 import {
   planSetDeviceModelTarget,
+  prepareComponentVariant,
+  planComponentDefinitionApply,
+  planComponentArtworkApply,
   executeProjectTransaction,
   type ProjectStructureEdit,
   planRoutingTransform,
@@ -1491,6 +1494,29 @@ export function planBrowserAgentCommand(
         ),
       };
     }
+    case "create-component-variant":
+      return {
+        structureEdits: prepareComponentVariant(
+          project,
+          documentId,
+          command.instanceId,
+          command.identity,
+        ).edits,
+      };
+    case "apply-component-artwork": {
+      return {
+        structureEdits: planComponentArtworkApply(
+          project,
+          documentId,
+          command.instanceId,
+          command.definition,
+        ),
+      };
+    }
+    case "apply-component-definition":
+      return {
+        structureEdits: [planComponentDefinitionApply(project, command.edit)],
+      };
     case "create-cell": {
       const child = createCellDocument(
         command.id,

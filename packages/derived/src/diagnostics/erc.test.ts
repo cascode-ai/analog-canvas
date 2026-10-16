@@ -107,6 +107,128 @@ function codes(project: CircuitProject): string[] {
   return run(project).map((diagnostic) => diagnostic.code);
 }
 
+describe("signal overbars", () => {
+  it.each(["net-name", "cell-terminal-name"] as const)(
+    "warns about a legacy barred %s without reinterpreting its electrical name",
+    (kind) => {
+      const project = emptyProject();
+      const document = project.documents[0]!;
+      document.nets.push({ id: "q", terminals: [] });
+      const label: Annotation = {
+        id: "q-label",
+        kind: "net-label",
+        binding:
+          kind === "net-name"
+            ? { kind, netId: "q" }
+            : { kind, terminalId: "q-pin" },
+        netId: "q",
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        formatOverride: {
+          runs: [
+            {
+              kind: "span",
+              style: "overbar",
+              children: [{ kind: "text", value: "Q" }],
+            },
+          ],
+        },
+      };
+      document.annotations.push(label);
+      const claim = {
+        id: "q-claim",
+        kind: "name-claim" as const,
+        netId: "q",
+        name: "Q",
+        scope: "local" as const,
+        owner: { kind: "net-label" as const, annotationId: label.id },
+      };
+      document.connectivityEvidence.push(claim);
+      const pin = {
+        id: "q-pin",
+        name: "Q",
+        netId: "q",
+        direction: "output" as const,
+        interfaceInstanceIds: [],
+        interfaceAnnotationId: label.id,
+      };
+      document.netlist!.terminals.push(pin);
+      const before = structuredClone(project);
+      const overbarWarnings = () =>
+        run(project).filter(
+          (item) => item.code === "ERC_OVERBAR_NAME_MISMATCH",
+        );
+
+      expect(overbarWarnings()).toEqual([
+        expect.objectContaining({
+          domain: "erc",
+          severity: "warning",
+          gateEligible: false,
+          message: expect.stringMatching(/electrical name is Q.*Q_bar/u),
+          primary: expect.objectContaining({
+            kind: "annotation",
+            objectId: label.id,
+          }),
+        }),
+      ]);
+      expect(project).toEqual(before);
+
+      // The name, not the drawing, resolves the warning. Other styles do not
+      // denote a separate signal.
+      claim.name = pin.name = "Q_bar";
+      expect(overbarWarnings()).toEqual([]);
+      claim.name = pin.name = "Q";
+      label.formatOverride = {
+        runs: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: "Q" }],
+          },
+        ],
+      };
+      expect(overbarWarnings()).toEqual([]);
+    },
+  );
+
+  it("leaves Reference styling and literal aliases outside signal naming", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances.push(instance("part", "R1"));
+    const label: Annotation = {
+      id: "reference",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "part" },
+      formatOverride: {
+        runs: [
+          {
+            kind: "span",
+            style: "overbar",
+            children: [{ kind: "text", value: "R1" }],
+          },
+        ],
+      },
+      anchor: {
+        kind: "object",
+        objectId: "part",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(label);
+    expect(codes(project)).not.toContain("ERC_OVERBAR_NAME_MISMATCH");
+    label.content = label.formatOverride;
+    delete label.binding;
+    delete label.formatOverride;
+    expect(codes(project)).not.toContain("ERC_OVERBAR_NAME_MISMATCH");
+  });
+});
+
 function foreignWireProject() {
   const project = emptyProject();
   const document = project.documents[0]!;

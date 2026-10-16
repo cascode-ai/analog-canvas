@@ -16,6 +16,7 @@ import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { InteractionMode } from "../interaction/interaction-state";
+import type { EditorContactEvidence } from "../document/document-controller";
 
 interface TransactionOptions {
   completesWireSession?: boolean;
@@ -43,7 +44,10 @@ export interface EditorTransactionCommandDependencies {
     request: ProjectTransaction,
     activeDocumentId?: string,
   ) => ProjectTransactionResult;
-  transactDocument: (edits: readonly SchematicEdit[]) => EditTransactionResult;
+  transactDocument: (
+    edits: readonly SchematicEdit[],
+    evidence?: EditorContactEvidence,
+  ) => EditTransactionResult;
   getCurrentInteractionKind: () => InteractionMode;
   cancelAllTransientInteraction: () => void;
   setStatus: (status: string) => void;
@@ -143,7 +147,12 @@ export function createEditorTransactionCommands({
   ): EditTransactionResult => {
     let result: EditTransactionResult;
     try {
-      result = transactDocument(edits);
+      result = transactDocument(
+        edits,
+        contactEvidence && resolver
+          ? { document, resolver, evidence: contactEvidence }
+          : undefined,
+      );
     } catch (error) {
       cancelAllTransientInteraction();
       const message =

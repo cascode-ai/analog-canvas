@@ -1,4 +1,5 @@
 import {
+  hasRichTextOverbar,
   richTextIdentifier,
   richTextPresentsIdentifier,
   rewriteRichTextIdentifier,
@@ -278,23 +279,6 @@ export function spliceVisibleEdit(
   ].join("");
 }
 
-/** Whether any character of a label is drawn under an overbar. */
-function carriesOverbar(
-  runs: readonly RichTextDocument["runs"][number][],
-  overbar = false,
-): boolean {
-  return runs.some((run) =>
-    run.kind === "span"
-      ? carriesOverbar(run.children, overbar || run.style === "overbar")
-      : run.kind === "text"
-        ? overbar && run.value.trim().length > 0
-        : run.kind === "fraction"
-          ? carriesOverbar(run.numerator.runs, overbar) ||
-            carriesOverbar(run.denominator.runs, overbar)
-          : false,
-  );
-}
-
 /**
  * The name an edited bound label now spells, for an Instance, Net or Cell
  * terminal alike. Changed characters rename exactly as typed: nothing is
@@ -325,8 +309,8 @@ export function editedBoundAnnotationName(
     annotation.binding?.kind === "net-name" ||
     annotation.binding?.kind === "cell-terminal-name";
   if (!signal) return name;
-  const wasComplement = carriesOverbar(original.runs);
-  const isComplement = carriesOverbar(session.content.runs);
+  const wasComplement = hasRichTextOverbar(original);
+  const isComplement = hasRichTextOverbar(session.content);
   if (isComplement && !wasComplement && !name.endsWith("_bar"))
     return `${name}_bar`;
   if (wasComplement && !isComplement && name.endsWith("_bar"))

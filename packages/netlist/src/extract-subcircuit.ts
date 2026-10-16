@@ -14,7 +14,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
-  isLibraryLogicGate,
+  bindsProjectCell,
   matchGateCellPins,
   projectLengthToSky130Micrometres,
   resolveReviewedExternalBinding,
@@ -127,7 +127,7 @@ export function extractHierarchyInstance(
   const childPorts = projectCellInterface(child.netlist).ports;
   // A Library gate bound to the Cell keeps its own pins, and meets the
   // Cell's Pins by name (#1450).
-  const gate = isLibraryLogicGate(instance.symbolId)
+  const gate = bindsProjectCell(instance.symbolId)
     ? matchGateCellPins(instance.symbolId, {
         name: child.netlist.name,
         portNames: childPorts.map((port) => port.name),

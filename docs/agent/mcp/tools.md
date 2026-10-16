@@ -229,6 +229,14 @@ answering each with one line.
 
 The tool description lists actions and write fields; additionally:
 
+- For the open GUI candidate use `authoring-read/update/save/apply`; send the
+  returned `target` and `expectedCandidateRevision` on writes. Update takes a
+  complete `candidate`; Apply takes `dryRun`. See the shared
+  [authoring rules](../shared/authoring.md#external-model-sources).
+- `browse` with `catalog:{version:1,type,authorId?,order}` filters/sorts the
+  whole library before paging. `ifCatalogRevision` revalidates a complete
+  cached query; `notModified` carries no entries. Cursors bind the query and
+  catalog generation; a changed generation requires restarting the query.
 - `browse` entries carry an optional diagnostic (component IDs, field paths,
   source spans, `edit-definition` recovery) to locate a strict read/insert
   refusal. `needs-repair` entries never block `nextCursor`. Older Editors have

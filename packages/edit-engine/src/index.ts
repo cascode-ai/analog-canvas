@@ -53,6 +53,8 @@ export * from "./transaction-preflight.js";
 export * from "./project-transaction.js";
 export * from "./project-snapshot.js";
 export * from "./circuit-authoring.js";
+export * from "./component-authoring-target.js";
+export * from "./component-draft-management.js";
 export * from "./project-cell-import.js";
 export * from "./project-cell-body-import.js";
 export * from "./power-rail-label.js";
@@ -69,3 +71,5 @@ export * from "./cell-reset-planner.js";
 export * from "./pin-anchor-placement.js";
 export * from "./route-net-planner.js";
 export * from "./conductor-topology.js";
+
+export { ApplyModelSourceEditSchema } from "./project-transaction.js";

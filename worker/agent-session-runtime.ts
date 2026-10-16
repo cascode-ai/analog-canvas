@@ -504,10 +504,23 @@ export function projectOperationScopes(
     case "components":
       return request.request.action === "list" ||
         request.request.action === "read" ||
+        request.request.action === "record" ||
         request.request.action === "browse" ||
+        request.request.action === "authoring-read" ||
+        request.request.action === "drafts" ||
+        (request.request.action === "delete-drafts" &&
+          request.request.dryRun) ||
+        (request.request.action === "authoring-apply" &&
+          request.request.dryRun) ||
         request.request.action === "inspect"
         ? ["circuit.snapshot"]
-        : request.request.action === "insert"
+        : [
+              "insert",
+              "authoring-update",
+              "authoring-save",
+              "delete-drafts",
+              "authoring-apply",
+            ].includes(request.request.action)
           ? [
               "project.import",
               "circuit.edit.geometry",

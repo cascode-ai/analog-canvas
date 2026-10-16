@@ -8,6 +8,35 @@ import {
 } from "./component-identity-properties";
 
 describe("component identity properties", () => {
+  it("can suspend hidden source text without removing the existing identity controls", () => {
+    const props = {
+      instance: {
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: null,
+      },
+      revision: 0,
+      targetDescription: null,
+      capacitorPlateRows: null,
+      modelTarget: null,
+      onReferenceChange() {},
+      onModelTargetChange() {},
+    };
+    const hidden = renderToStaticMarkup(
+      <ComponentIdentityProperties {...props} sourceCode={null} />,
+    );
+    expect(hidden).toContain('value="R1"');
+    expect(hidden).not.toContain('aria-label="SPICE component code"');
+    const visible = renderToStaticMarkup(
+      <ComponentIdentityProperties
+        {...props}
+        sourceCode={{ code: "R1 a b 1k", exact: true, note: null }}
+      />,
+    );
+    expect(visible).toContain("R1 a b 1k");
+    expect(visible).toContain('data-exact="true"');
+  });
   it("omits the internal target description for a built-in primitive", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {

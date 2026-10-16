@@ -25,6 +25,8 @@ import {
   freezeSnapshot,
 } from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type { DocumentContactEvidence } from "@icm/derived";
+import type { SymbolResolver } from "@icm/symbols";
 import {
   builtInSymbols,
   createSymbolCatalog,
@@ -41,6 +43,13 @@ import {
 } from "./editor-session";
 
 type ProjectSymbolResolver = ReturnType<typeof createProjectSymbolResolver>;
+
+/** Trusted editor read context; never persisted or accepted as transaction JSON. */
+export interface EditorContactEvidence {
+  document: SchematicDocument;
+  resolver: SymbolResolver;
+  evidence: DocumentContactEvidence;
+}
 
 /** Model Documents are validated JSON. Preserve serialization equality (key
  * order included), but shared subtrees need no second serialization. */
@@ -384,7 +393,10 @@ export class EditorDocumentController {
     return result;
   }
 
-  transact(edits: readonly SchematicEdit[]): EditTransactionResult {
+  transact(
+    edits: readonly SchematicEdit[],
+    evidence?: EditorContactEvidence,
+  ): EditTransactionResult {
     this.transactionCounter += 1;
     // GUI undo follows the working copy's timeline, regardless of the viewed Cell.
     const edit = edits.length === 1 ? edits[0] : undefined;
@@ -398,21 +410,25 @@ export class EditorDocumentController {
       this.projectValue.documents.find(
         (item) => item.id === entry?.documentId,
       ) ?? this.document;
-    return this.dispatchTransaction({
-      transactionId: `transaction-ui-${this.transactionCounter}`,
-      documentId: document.id,
-      expectedRevision: document.revision,
-      expectedStructureRevision: this.projectValue.structureRevision,
-      actor: { kind: "human", id: "human-local" },
-      edits,
-    });
+    return this.dispatchTransaction(
+      {
+        transactionId: `transaction-ui-${this.transactionCounter}`,
+        documentId: document.id,
+        expectedRevision: document.revision,
+        expectedStructureRevision: this.projectValue.structureRevision,
+        actor: { kind: "human", id: "human-local" },
+        edits,
+      },
+      evidence,
+    );
   }
 
   /** Validate the complete candidate before either Project or history changes. */
   dispatchTransaction(
     request: EditorTransactionRequest,
+    evidence?: EditorContactEvidence,
   ): EditTransactionResult {
-    const result = this.applyTransaction(request);
+    const result = this.applyTransaction(request, evidence);
     return isFrozenSnapshot(result.document)
       ? { ...result, document: structuredClone(result.document) }
       : result;
@@ -420,6 +436,7 @@ export class EditorDocumentController {
 
   private applyTransaction(
     request: EditorTransactionRequest,
+    evidence?: EditorContactEvidence,
   ): EditTransactionResult {
     const document = this.projectValue.documents.find(
       (item) => item.id === request.documentId,
@@ -451,6 +468,10 @@ export class EditorDocumentController {
       const { expectedStructureRevision: _, ...envelope } = request;
       result = executeTransaction(document, envelope, {
         symbolResolver: this.resolverValue,
+        ...(evidence?.document === document &&
+        evidence.resolver === this.resolverValue
+          ? { beforeContactEvidence: evidence }
+          : {}),
         externalSubcircuitDefinitions:
           this.projectValue.externalSubcircuitDefinitions,
       });
@@ -764,8 +785,11 @@ export function useDocumentController(
         onCommittedRef.current(controller.project);
       return document;
     },
-    transact: (edits: readonly SchematicEdit[]) => {
-      const result = controller.transact(edits);
+    transact: (
+      edits: readonly SchematicEdit[],
+      evidence?: EditorContactEvidence,
+    ) => {
+      const result = controller.transact(edits, evidence);
       if (result.ok && result.applied) {
         synchronize();
         if (controllerRef.current === controller)

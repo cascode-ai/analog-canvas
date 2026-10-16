@@ -44,12 +44,11 @@ export async function routeComponentLibraryRequest(
       });
   if (request.method === "GET") {
     const deleted = url.searchParams.get("status") === "deleted";
-    const admin = deleted
-      ? (await sessionUserOf(request, env))?.isAdmin === true
-      : false;
-    if (deleted && !admin)
+    const user = await sessionUserOf(request, env);
+    const admin = user?.isAdmin === true;
+    if (deleted && !user)
       return Response.json(
-        { error: "Administrator access required" },
+        { error: "Sign in to manage deleted components" },
         { status: 403 },
       );
     return isList
@@ -58,11 +57,29 @@ export async function routeComponentLibraryRequest(
           cursor: url.searchParams.get("cursor"),
           limit: url.searchParams.get("limit"),
           deleted,
+          ownerOnly: deleted && !admin,
+          userId: user?.id,
           summary: url.searchParams.get("view") === "summary",
+          ...(url.searchParams.has("catalog")
+            ? {
+                catalog: {
+                  version: Number(url.searchParams.get("catalog")),
+                  type: url.searchParams.get("type") ?? "all",
+                  order: url.searchParams.get("order") ?? "circuit-first",
+                  ...(url.searchParams.has("author")
+                    ? { authorId: url.searchParams.get("author") }
+                    : {}),
+                },
+                ...(url.searchParams.has("since")
+                  ? { ifCatalogRevision: Number(url.searchParams.get("since")) }
+                  : {}),
+              }
+            : {}),
         })
       : call("get", {
           id,
           admin,
+          userId: user?.id,
           preview: url.searchParams.get("view") === "preview",
           identity: url.searchParams.get("view") === "identity",
           revision: Number(url.searchParams.get("revision")),
@@ -85,11 +102,6 @@ export async function routeComponentLibraryRequest(
     return Response.json(
       { error: "Sign in to save a component to the public library" },
       { status: 401 },
-    );
-  if (request.method === "PATCH" && !user.isAdmin)
-    return Response.json(
-      { error: "Administrator access required" },
-      { status: 403 },
     );
   const text = await request.text();
   if (
@@ -124,7 +136,11 @@ export async function routeComponentLibraryRequest(
       });
       body.definition = parsed.definition;
       body.circuit = parsed.circuit;
-    } else if (!["shared", "official", "deleted"].includes(String(body.status)))
+    } else if (
+      body.action !== "delete" &&
+      body.action !== "restore" &&
+      !["shared", "official", "deleted"].includes(String(body.status))
+    )
       throw new Error("Invalid component status");
   } catch (error) {
     return Response.json(
@@ -143,6 +159,7 @@ export async function routeComponentLibraryRequest(
     definition: body.definition,
     circuit: body.circuit,
     status: body.status,
+    action: body.action,
     userId: user.id,
     author: user.displayName,
     admin: user.isAdmin === true,

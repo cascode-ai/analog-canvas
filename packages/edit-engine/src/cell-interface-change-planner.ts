@@ -1,7 +1,7 @@
 // Changes to a Cell's formal interface (Pin renames, label formats and
 // removals) and how every caller's symbol, Nets and wires follow them.
 import type { Annotation, CircuitProject, SchematicDocument } from "@icm/model";
-import { isLibraryLogicGate, libraryGateTerminals } from "@icm/devices";
+import { bindsProjectCell, libraryGateTerminals } from "@icm/devices";
 import {
   canonicalPortTextDocument,
   deriveStableId,
@@ -177,7 +177,7 @@ export function planCallerInterfaceChanges(
       // A Library gate bound to the Cell keeps its own pins (#1450). The
       // change goes ahead while each pin it uses keeps a Pin of its name;
       // whether the Cell still fits the gate, export says.
-      if (!external && isLibraryLogicGate(instance.symbolId)) {
+      if (!external && bindsProjectCell(instance.symbolId)) {
         const pinsAfter = (gatePinsAfter ??= new Set(
           projectCellInterface(
             requireDocument(project, childDocumentId).netlist,

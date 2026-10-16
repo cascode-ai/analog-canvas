@@ -86,6 +86,9 @@ export function componentLibraryHarness() {
       definition: unknown;
       revision?: number;
       status?: string;
+      author?: string;
+      createdAt?: string;
+      updatedAt?: string;
     }) => {
       db.prepare(
         "INSERT INTO components (id,revision,author_id,author,status,created_at,updated_at,name,definition) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -93,10 +96,10 @@ export function componentLibraryHarness() {
         row.id,
         row.revision ?? 1,
         row.authorId,
-        row.authorId,
+        row.author ?? row.authorId,
         row.status ?? "shared",
-        "2026-01-01T00:00:00Z",
-        "2026-01-01T00:00:00Z",
+        row.createdAt ?? "2026-01-01T00:00:00Z",
+        row.updatedAt ?? row.createdAt ?? "2026-01-01T00:00:00Z",
         "Historical",
         JSON.stringify(row.definition),
       );

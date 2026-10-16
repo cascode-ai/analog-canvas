@@ -62,10 +62,10 @@ export function CircuitInterfaceEditor({
         ))}
       </div>
       {!component ? (
-        <p role="status">Fix Symbol JSON to edit pin mapping.</p>
+        <p>Fix Symbol JSON to edit pin mapping.</p>
       ) : (
         <details open={invalid || undefined}>
-          <summary>Pin mapping{invalid ? " · needs repair" : ""}</summary>
+          <summary>Pin mapping{invalid ? " · incomplete" : ""}</summary>
           {automatic ? (
             <>
               <p>Pins follow the native interface.</p>

@@ -4,6 +4,7 @@ import type { GalleryEntryContext } from "./gallery-example-commands";
 import type { CloudProjectBinding } from "./cloud-projects";
 import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
+import { isDailyAllowanceRefusal } from "../../daily-allowance";
 
 /**
  * Client for the documented gallery submissions endpoint
@@ -253,7 +254,8 @@ async function sendGalleryProject(
   }
   if (response.status === 401) return { status: "unauthorized" };
   if (response.status === 413) return { status: "too-large" };
-  if (response.status === 429) return { status: "rate-limited" };
+  if (await isDailyAllowanceRefusal(response))
+    return { status: "rate-limited" };
   const payload = (await response.json().catch(() => null)) as {
     error?: unknown;
   } | null;

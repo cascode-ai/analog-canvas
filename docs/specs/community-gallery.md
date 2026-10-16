@@ -41,6 +41,26 @@ restrictive CSP.
   the day (`gallery_entry_opens`: entry, day, count; never who; not backed
   up), which only `owner-data` reports.
 
+## Crawlers, AI and floods
+
+- `robots.txt` states the usage policy (occasional manual use of single
+  circuits is welcome; bulk collection, scraping or AI training needs the
+  site author's permission, zzhishuai@ethz.ch), closes the site to AI
+  training and answer-engine crawlers (`worker/usage-policy.ts`), and asks
+  everyone else for `Content-Signal: search=yes, ai-train=no` with
+  `Disallow: /g/`. A user's own assistant fetching one page is not refused.
+  `llms.txt` states the same policy to AI agents and lists no resource while
+  public Gallery documents are off; `sitemap.xml` stays 404. The Agent's
+  Gallery tool description carries the same sentence.
+- `/api/*` has a flood limit of 1200 requests a minute per client address
+  (Workers rate limiting, `API_RATE_LIMITER`). Past it:
+  `429 {"error":"too-many-requests","retryAfterSeconds":60,"usage":…}` with
+  `Retry-After: 60`. It is neither a quota nor a daily allowance; clients
+  show their daily-limit messages only for other `429`s. Uncounted: the
+  Owner's backup and smoke credentials, requests with no client address, and
+  `/api/arena/…`, which is forwarded unchanged. A failing limiter lets
+  requests through.
+
 ## Public surface
 
 ### List
@@ -133,7 +153,7 @@ preloads it. "Open the editor anyway" opens it for that tab
   never unpublish or change Project, name, owner, likes, preview or statistics.
 - `PATCH /api/gallery/<id>/curation` (same-origin; author or administrator):
   `tags`, `attention` (`null` or `{status: "needs-attention" | "resolved",
-  issues: [{kind, detail}]}`), `expectedPreviewRevision`,
+issues: [{kind, detail}]}`), `expectedPreviewRevision`,
   `expectedCurationRevision`. Empty pending findings are invalid; stale
   revisions answer 409. Metadata changes snapshot a version; curation is backed up.
 - [`curate-gallery.mjs`](../../scripts/curate-gallery.mjs) validates bulk audits
@@ -161,7 +181,7 @@ preloads it. "Open the editor anyway" opens it for that tab
 - Quota: 100 per UTC day (500 for AI seats), counting the day's entries outside
   the bin (withdraw/delete frees, restore spends, rejected keeps). Admins and
   moderators are exempt. `GET /api/gallery/quota` → `{limit, used, remaining,
-  resetsAt, exempt}`. Updates spend nothing.
+resetsAt, exempt}`. Updates spend nothing.
 - Entries record `owner_user_id`, `submitter_email`, `submitter_provider`; email
   and provider go only to moderators and admins.
 
@@ -264,7 +284,7 @@ A circuit's testbench (`simulationFolders`) is its author's (owner decision).
   (`{"backup": "store-<time>Z-<run>-<attempt>"}` from
   `node scripts/gallery-private-snapshot.mjs --store`; >24 h old is 400
   `invalid-backup`; earlier `apply` is 409 `backup-required`). Answers `{backup,
-  applied, moved, remaining, legacy, failures}`; the scheduled pass moves 25 rows
+applied, moved, remaining, legacy, failures}`; the scheduled pass moves 25 rows
   a tick and `{"apply": true, "limit": n}` (n ≤ 200) a batch. Rows must
   round-trip byte-identically with only the testbench changed, else stay in
   `failures`; pre-schema-42 `legacy` rows move after `schema-current`.
@@ -289,7 +309,7 @@ completed, and every stated Spec passed.
   same run; a run ending without a result is `error`; an erring or failing folder
   ends the check.
 - `simulation_check_json` on the entry holds `{status, checkedAt, rule,
-  simulator, reason?, folders}` with per-Spec condition, value, unit and
+simulator, reason?, folders}` with per-Spec condition, value, unit and
   judgment. Any Project or testbench change clears it; a mid-run change
   restarts. The queue is not backed up.
 - `GET /api/gallery/<id>/simulation-check` answers `{check, waiting}` to
@@ -318,7 +338,7 @@ completed, and every stated Spec passed.
   datasets, Owner accounts all.
 - `POST /api/gallery/sources/<key>/entries` (same-origin, Owner account, else 403
   `owner-only`): `{entries: [{id, name, description?, tags?, projectText,
-  createdAt?}]}` (≤10), validated like submissions with the prefix
+createdAt?}]}` (≤10), validated like submissions with the prefix
   (`invalid-id`); existing ids are replaced in place (version kept); per-entry
   `{id, ok, created, previewRevision}` or `{id, ok: false, error}`. It runs from
   the Owner's browser, so no new secret exists.
@@ -393,7 +413,7 @@ else 401.
 - `POST …/schema-current`: `{apply: false}` validates; `{apply: true}` converges
   every Project to `CURRENT_PROJECT_FILE_VERSION` only if all are valid.
 - `POST …/netlist-badges` (`{limit?: 1..200}` → `{scanned, changed, unreadable,
-  ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
+ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
   (bump it whenever stored answers can go stale); unreadable Projects keep their
   mark and are stamped; it also runs from `triggers.crons`.
 - `POST …/label-looks` (same-origin, ≤20 ids; fields below) brings labels to

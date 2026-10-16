@@ -217,6 +217,28 @@ export function tryParseProjectWithMetadata(
   let current: Record<string, unknown>;
   try {
     if (
+      sourceSchemaVersion < 71 &&
+      Array.isArray(parsed.modelSources) &&
+      parsed.modelSources.some(
+        (source) =>
+          isRecord(source) &&
+          isRecord(source.draft) &&
+          Array.isArray(source.draft.authoring) &&
+          source.draft.authoring.some(
+            (candidate) =>
+              isRecord(candidate) &&
+              Object.hasOwn(candidate, "artworkInitialized"),
+          ),
+      )
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "Custom artwork initialization requires Project schema 71",
+          path: ["modelSources"],
+        },
+      ]);
+    if (
       sourceSchemaVersion < 68 &&
       (Object.hasOwn(parsed, "componentAuthoringDrafts") ||
         (Array.isArray(parsed.modelSources) &&

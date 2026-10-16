@@ -7,7 +7,10 @@ import {
   semanticTextDocument,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
-import { diagnoseProjectSnapshot } from "@icm/derived";
+import {
+  diagnoseProjectSnapshot,
+  deriveDocumentContactEvidence,
+} from "@icm/derived";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
 import { EditorDocumentController } from "./document-controller";
@@ -34,6 +37,79 @@ function hierarchicalProject() {
 }
 
 describe("EditorDocumentController", () => {
+  it("reuses current contact evidence without changing transforms, refusals or history", () => {
+    const project = createEmptyProject("contact", "Contact");
+    const document = project.documents[0]!;
+    document.instances = ["A", "B"].map((id) => ({
+      id,
+      reference: id,
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    }));
+    document.nets = ["1", "2"].map((pinName) => ({
+      id: `n${pinName}`,
+      terminals: ["A", "B"].map((instanceId) => ({ instanceId, pinName })),
+    }));
+    const plain = new EditorDocumentController(project);
+    const hinted = new EditorDocumentController(project);
+    let reads = 0;
+    const evidence = deriveDocumentContactEvidence(
+      hinted.document,
+      hinted.resolver,
+    );
+    const hint = {
+      document: hinted.document,
+      resolver: hinted.resolver,
+      get evidence() {
+        reads++;
+        return evidence;
+      },
+    };
+    for (const edits of [
+      [{ kind: "move_instance", instanceId: "A", position: { x: 40, y: 0 } }],
+      [{ kind: "move_instance", instanceId: "A", position: { x: 80, y: 0 } }],
+      [{ kind: "undo" }],
+      [{ kind: "redo" }],
+      [
+        {
+          kind: "move_instance",
+          instanceId: "absent",
+          position: { x: 0, y: 0 },
+        },
+      ],
+    ] as const) {
+      expect(hinted.transact(edits, hint)).toEqual(plain.transact(edits));
+      expect(hinted.project).toEqual(plain.project);
+      expect([hinted.canUndo, hinted.canRedo]).toEqual([
+        plain.canUndo,
+        plain.canRedo,
+      ]);
+    }
+    expect(reads).toBeGreaterThan(0);
+    const foreign = {
+      document: hinted.document,
+      resolver: plain.resolver,
+      get evidence(): never {
+        throw new Error("foreign resolver evidence");
+      },
+    };
+    expect(
+      hinted.transact(
+        [
+          {
+            kind: "move_instance",
+            instanceId: "A",
+            position: { x: 120, y: 0 },
+          },
+        ],
+        foreign,
+      ),
+    ).toEqual(
+      plain.transact([
+        { kind: "move_instance", instanceId: "A", position: { x: 120, y: 0 } },
+      ]),
+    );
+  });
   it("compares shared history without serializing whole Documents", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     controller.transact([{ kind: "add_instance", instance: instance("Rtop") }]);

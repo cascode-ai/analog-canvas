@@ -123,6 +123,11 @@ is refused with their IDs, never resolved to the first.
     the gate's own Cell is refused, and used Pins cannot be renamed or removed.
 
   An empty model returns the ideal body and default parameters.
+- A D flip-flop (`d-flip-flop`, `d-flip-flop-q`, `d-flip-flop-reset`) binds to
+  a Project Cell the same way, keeping its symbol: the Cell's Pins are `D`,
+  `CK`, `Q`, `QBAR` where the symbol has it and `RST` for the reset form, plus
+  `VDD`/`VSS` unless its supplies are global. It takes no standard cell; an
+  empty model returns its ideal body.
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the
@@ -398,6 +403,61 @@ means deleting the Cell.
 
 ## External model sources
 
+When a User Component editor is open, collaborate on its current candidate
+through `user_components` authoring actions. `authoring-read` discovers the
+workspace and returns its raw candidate, diagnostics, protected owner context
+and `candidateRevision`, saved/applied checkpoint matches and publication
+destination; no open editor returns `workspace:null`. Confirm the returned
+`capabilities.version:1`; older Editors need an update. If the MCP tool lacks
+authoring actions, update the adapter before editing. `open:false` requires a
+person to open the intended GUI editor. Use that
+exact Project session, draft and open-session target for every write. A GUI
+edit, Undo/Redo or reopened editor invalidates older handles/revisions;
+composition refuses concurrent input. Reread and reconcile rather than
+overwriting. Keep inactive Custom artwork and unfinished text intact.
+
+`authoring-update` replaces the raw candidate visible in the GUI, including
+invalid text; it never changes executable facts. `authoring-save` saves the
+non-executable draft. `authoring-apply` with `dryRun:true` validates through the
+GUI planner without writing; actual Apply advances the same applied facts
+used by placement, netlist copy/export and simulation. Validation may be
+pending just after an update; wait for the Editor and reread. Library editing
+is isolated from drawing captures. Applying and saving do not publish.
+
+For example, call `user_components` with
+`{"request":{"action":"authoring-read"}}`, copy its candidate and change an
+owned source file's `text`. Send `authoring-update` with that complete
+`candidate`, the returned `target` and `expectedCandidateRevision`. Reread until
+validation is ready, then send `authoring-apply` with the new revision and
+`dryRun:true`; commit with `dryRun:false` only for the intended change. Let the
+user inspect it in the same editor. Place captures the applied definition;
+public publishing remains a separate action.
+
+Use `read` to inspect an accessible valid definition, including an owned or
+administrator-managed deleted record. `record` reads the raw record at
+`componentId` and `expectedLibraryRevision`; set `deleted:true` for a deleted
+selection. It remains available for malformed definitions without validating or
+applying their circuit. Both reads use the same server permissions as GUI Details.
+
+Manage Project checkpoints with `user_components` `drafts` and the current
+`projectId`/`projectSessionId`. It returns typed targets, capacity limits and
+`structureRevision`. `delete-drafts` takes those exact `targets`, the same session
+and `expectedStructureRevision`; `dryRun:true` returns reclaimable bytes without
+writing. Committed deletion is one Project Undo step; it keeps applied circuit
+facts and current unsaved input. Shared source bodies are retained until explicitly
+selected as a source draft. Read the open candidate again after deletion.
+`discard_model_source_draft` with `definitionIds` removes only those authoring
+candidates after checking `expectedDraft`; it preserves the source text and
+original `baseRevision`. Omit `definitionIds` only to discard the whole draft.
+
+Library `delete`/`restore` take `componentId` and `expectedLibraryRevision`;
+`browse` with `deleted:true` lists manageable removals. They require
+`components.publish`, use authenticated ownership, and return metadata even for
+malformed definitions. Authors may restore their own withdrawals; administrator
+removals require an administrator. Library lifecycle never changes placed copies.
+Draft reads and dry runs require `circuit.snapshot`; committed draft deletion uses
+the same Project edit scopes as authoring-save.
+
 `advanced_transact` `structureEdits` `apply_model_source` defines a
 Project-owned SPICE or Spectre source (files, entry, pinned dependencies) and
 `definitions:[{definitionId,entry,portMap?}]`; optional
@@ -417,6 +477,18 @@ names map automatically when artwork has no binding). Never combine it with
 compiled `symbol` or ID-keyed directions on one target; the edit schema covers
 `artworkOrigin` and caller migrations. Validate with `dryRun:true`, then commit
 at the same revisions.
+
+For project definition editing use `apply_actions` command
+`apply-component-definition` with `edit: {kind:"apply_model_source", ...}`.
+It resolves all callers of the exact native owner, matching GUI Edit definition.
+`apply-component-artwork` takes `instanceId` and a complete `definition` for
+captured primitive or Symbol-only definitions. `create-component-variant` takes
+`instanceId` and a fresh `identity`; it clones owned resources and rebinds only
+that instance in one transaction. Inspect the resulting source/owner IDs before
+editing the variant. Declarations and references are namespaced using parsed
+source spans; global parameters or ambiguous opaque references require manual
+source isolation. Display names may remain identical. These operations do not
+publish. Dry-run and revision guards apply as for other authoring commands.
 
 Only reviewed core SKY130 1.8 V and IHP SG13G2 low-voltage MOS conversions
 exist; others refuse without partial change; converted spans cannot be reverse

@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import {
   ARENA_GATE_PAGE,
   createArenaGate,
-  gateClosable,
+  gateSettled,
   startArenaGate,
   VOTES_REQUIRED,
   type ArenaGate,
@@ -31,8 +31,8 @@ const PREVIEW = { width: 832, height: 520 };
  * Asks Arena first, and shows the gate over the page only when there is a
  * panel to show, in a root of its own, so every page that opens it (the
  * editor, the Gallery's shelf, the account page) shows the same panel.
- * While it shows, the rest of the page is inert, so focus and pointer stay
- * in the panel. Nothing of it is kept: a reload ends it.
+ * While it shows, the rest of the page is inert, as under any dialog; Not
+ * now, Close, Escape and the backdrop all close it (#1718).
  */
 export async function mountArenaGate({
   saved,
@@ -83,7 +83,7 @@ export async function mountArenaGate({
   if (!showed) closed();
 }
 
-/** Why the gate let the person go before the Votes were in. */
+/** Why the gate stopped asking before the Votes were in. */
 const FREE_REASONS: Record<
   Extract<ArenaGateState, { status: "free" }>["reason"],
   string
@@ -142,7 +142,6 @@ export function ArenaGateView({
   state,
   required,
   saved,
-  nudged,
   onClose,
   dialogRef,
 }: {
@@ -150,13 +149,11 @@ export function ArenaGateView({
   /** The Votes this gate asks for: five, or the Battles left if fewer. */
   required: number;
   saved: boolean;
-  /** A locked Close or Escape was just pressed. */
-  nudged: boolean;
   onClose(): void;
   /** The dialog, which takes focus as it shows. */
   dialogRef?: Ref<HTMLElement>;
 }) {
-  const closable = gateClosable(state);
+  const asking = state.status === "voting" && !gateSettled(state);
   const voted = state.status === "voting" ? Math.min(state.voted, required) : 0;
   return (
     <section
@@ -169,15 +166,11 @@ export function ArenaGateView({
       data-testid="arena-gate"
     >
       <h2 id="arena-gate-title">
-        {`Vote on ${required} Battle${required === 1 ? "" : "s"} to continue`}
+        {`Vote on ${required} Battle${required === 1 ? "" : "s"} in the Schematic Arena`}
       </h2>
       <ArenaPreview />
       {state.status === "voting" ? (
-        <div
-          className="arena-gate-dots"
-          data-nudged={nudged && !closable ? "" : undefined}
-          data-testid="arena-gate-count"
-        >
+        <div className="arena-gate-dots" data-testid="arena-gate-count">
           {Array.from({ length: required }, (_, index) => (
             <span
               key={index}
@@ -190,8 +183,8 @@ export function ArenaGateView({
           </span>
         </div>
       ) : null}
-      {/* Always there, so a reason that appears as the gate lets the
-          person go is announced. */}
+      {/* Always there, so a reason that appears as the gate stops is
+          announced. */}
       <p className="arena-gate-note" aria-live="polite">
         {state.status === "free"
           ? FREE_REASONS[state.reason]
@@ -200,7 +193,7 @@ export function ArenaGateView({
             : ""}
       </p>
       <div className="arena-gate-actions">
-        {state.status === "voting" && !closable ? (
+        {asking ? (
           // A link opened by the person's own click: a new tab or window
           // that no popup blocker stops, on chip-arena.com signed in.
           <a
@@ -212,18 +205,8 @@ export function ArenaGateView({
             Start voting →
           </a>
         ) : null}
-        <button
-          type="button"
-          className="arena-gate-close"
-          aria-disabled={!closable}
-          title={
-            closable
-              ? "Close"
-              : `Close unlocks after ${required} new vote${required === 1 ? "" : "s"}`
-          }
-          onClick={onClose}
-        >
-          Close
+        <button type="button" className="arena-gate-close" onClick={onClose}>
+          {asking ? "Not now" : "Close"}
         </button>
       </div>
     </section>
@@ -242,13 +225,11 @@ function ArenaGatePanel({
   onClose(): void;
 }) {
   const [state, setState] = useState(first);
-  const [nudged, setNudged] = useState(false);
   const dialogRef = useRef<HTMLElement | null>(null);
   useEffect(() => dialogRef.current?.focus(), []);
 
-  const closable = gateClosable(state);
   const required = first.status === "voting" ? first.required : VOTES_REQUIRED;
-  const counting = state.status === "voting" && !closable;
+  const counting = state.status === "voting" && !gateSettled(state);
   const recount = useCallback(() => {
     void gate.recount().then(setState);
   }, [gate]);
@@ -270,19 +251,18 @@ function ArenaGatePanel({
       document.removeEventListener("visibilitychange", returned);
     };
   }, [counting, recount]);
-  // Escape, wherever focus is, is the gate's: it waits while locked and
-  // closes once the gate may close. No page under it sees the key.
+  // Escape, wherever focus is, closes the gate. No page under it sees the
+  // key.
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      if (closable) onClose();
-      else setNudged(true);
+      onClose();
     };
     window.addEventListener("keydown", escape, true);
     return () => window.removeEventListener("keydown", escape, true);
-  }, [closable, onClose]);
+  }, [onClose]);
 
   return (
     <div
@@ -292,19 +272,15 @@ function ArenaGatePanel({
         if (event.target === event.currentTarget) event.preventDefault();
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget && closable) onClose();
+        if (event.target === event.currentTarget) onClose();
       }}
     >
       <ArenaGateView
         state={state}
         required={required}
         saved={saved}
-        nudged={nudged}
         dialogRef={dialogRef}
-        onClose={() => {
-          if (closable) onClose();
-          else setNudged(true);
-        }}
+        onClose={onClose}
       />
     </div>
   );

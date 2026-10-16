@@ -48,6 +48,8 @@ export interface ExternalDefinitionResult {
   message: string;
   definitionId?: string;
   sourceRevision?: number;
+  /** Authoring callbacks return the actual saved checkpoint after a successful commit. */
+  draftCheckpoint?: string;
 }
 
 export interface ProjectStructureCommandDependencies {

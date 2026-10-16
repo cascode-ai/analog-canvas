@@ -448,15 +448,34 @@ describe("suspended public Gallery documents", () => {
     }
   });
 
-  it("does not advertise or serve crawler and Agent discovery documents", async () => {
+  it("lists no resources for crawlers or Agents, and llms.txt states only the usage policy", async () => {
     const env = environment();
-    const robots = await route(env, new Request(`${ORIGIN}/robots.txt`));
-    expect(await robots.text()).toContain("Disallow: /g/");
-    for (const path of ["/sitemap.xml", "/llms.txt"]) {
-      const response = await route(env, new Request(`${ORIGIN}${path}`));
-      expect(response.status).toBe(404);
-      expect(response.headers.get("cache-control")).toBe("no-store");
-    }
+    const sitemap = await route(env, new Request(`${ORIGIN}/sitemap.xml`));
+    expect(sitemap.status).toBe(404);
+    expect(sitemap.headers.get("cache-control")).toBe("no-store");
+    // llms.txt states the usage policy and lists no resources.
+    const llms = await route(env, new Request(`${ORIGIN}/llms.txt`));
+    expect(llms.status).toBe(200);
+    const policy = await llms.text();
+    expect(policy).toContain("manual use of individual circuits is welcome");
+    expect(policy).toContain("zzhishuai@ethz.ch");
+    expect(policy).not.toContain("/g/");
+  });
+
+  it("asks AI crawlers to stay out and points bulk collection to the author", async () => {
+    const env = environment();
+    const robots = await (
+      await route(env, new Request(`${ORIGIN}/robots.txt`))
+    ).text();
+    expect(robots).toMatch(
+      /User-agent: GPTBot\n(?:User-agent: .+\n)*Disallow: \/\n/u,
+    );
+    expect(robots).toMatch(
+      /User-agent: \*\nContent-Signal: search=yes, ai-train=no\nDisallow: \/g\/\n/u,
+    );
+    expect(robots).toContain("zzhishuai@ethz.ch");
+    // A user's own assistant fetching one page is not refused.
+    expect(robots).not.toContain("ChatGPT-User");
   });
 });
 

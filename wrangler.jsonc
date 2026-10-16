@@ -70,6 +70,16 @@
   // account, which Arena trusts because only this binding reaches it
   // (docs/specs/analog-arena.md). Only Production holds it.
   "services": [{ "binding": "ARENA", "service": "analog-arena" }],
+  // Flood protection for /api/* per client address: 1200 requests a minute,
+  // room for a class behind one address (worker/api-rate-limit.ts). The
+  // per-account limits stay the real bounds.
+  "ratelimits": [
+    {
+      "name": "API_RATE_LIMITER",
+      "namespace_id": "16471",
+      "simple": { "limit": 1200, "period": 60 },
+    },
+  ],
   "durable_objects": {
     "bindings": [
       { "name": "TOPOLOGY_TASK", "class_name": "TopologyTaskDO" },

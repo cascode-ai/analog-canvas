@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { EditorDocumentController } from "./document-controller";
+import { createProjectSnapshotSerializer } from "./project-snapshot-serializer";
 
 import { createEmptyProject } from "@icm/model";
 import {
@@ -43,6 +45,35 @@ function downloadSeams() {
 }
 
 describe("portable Project files", () => {
+  it("downloads the shared canonical snapshot and retains serialization failure handling", async () => {
+    const controller = new EditorDocumentController(project);
+    const encode = vi.fn(serializeProject);
+    const cache = createProjectSnapshotSerializer(encode);
+    const expected = cache.serialize(controller.project);
+    const { seams } = downloadSeams();
+    let blob: Blob | undefined;
+    const read = vi.fn(cache.serialize);
+    const outcome = requestProjectDownload(controller.project, {
+      ...seams,
+      serializeProject: read,
+      createObjectURL: (value) => {
+        blob = value;
+        return "blob:export";
+      },
+    });
+    expect(outcome.status).toBe("download-requested");
+    expect(await blob!.text()).toBe(expected);
+    expect(read).toHaveBeenCalledWith(controller.project);
+    expect(encode).toHaveBeenCalledTimes(1);
+    expect(
+      requestProjectDownload(controller.project, {
+        ...seams,
+        serializeProject: () => {
+          throw new Error("encoding failed");
+        },
+      }),
+    ).toEqual({ status: "failed", message: "encoding failed" });
+  });
   it("sanitizes names and requests canonical export bytes", () => {
     expect(projectFileBaseName(project.name)).toBe("Alpha-Amp -One-");
     const { seams, anchors, urls } = downloadSeams();

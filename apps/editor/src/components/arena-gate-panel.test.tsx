@@ -16,7 +16,6 @@ function render(
       state={state}
       required={required}
       saved={saved}
-      nudged={false}
       onClose={() => {}}
     />,
   );
@@ -69,15 +68,16 @@ describe("the Arena gate's dialog (#1683)", () => {
     expect(attribute(frame, "referrerPolicy")).toBe("no-referrer");
   });
 
-  it("holds the title, a dot per Vote asked for with the new ones filled, Start voting and Close", () => {
+  it("holds the title, a dot per Vote asked for with the new ones filled, Start voting and Not now (#1718)", () => {
     const dialog = render({ status: "voting", voted: 2, required: 5 });
-    expect(dialog.title).toBe("Vote on 5 Battles to continue");
+    expect(dialog.title).toBe("Vote on 5 Battles in the Schematic Arena");
     expect(dialog.dots).toEqual([true, true, false, false, false]);
     // Readers hear the count the dots show.
     expect(dialog.spoken).toBe("Voted 2 of 5");
+    // Not now closes it at once: nothing is locked.
     expect(dialog.controls).toEqual([
       ["Start voting →", null],
-      ["Close", "true"],
+      ["Not now", null],
     ]);
     expect(dialog.links).toEqual(["/schematic?from=canvas-gate"]);
     // At most one short line; the old sentence is gone.
@@ -90,22 +90,22 @@ describe("the Arena gate's dialog (#1683)", () => {
       { status: "voting", voted: 0, required: 1 },
       { required: 1, saved: false },
     );
-    expect(dialog.title).toBe("Vote on 1 Battle to continue");
+    expect(dialog.title).toBe("Vote on 1 Battle in the Schematic Arena");
     expect(dialog.dots).toEqual([false]);
     expect(dialog.text).not.toContain("Your work is saved.");
   });
 
-  it("unlocks at the last Vote, with Close and no Start voting", () => {
+  it("offers Close and no Start voting at the last Vote", () => {
     const dialog = render({ status: "voting", voted: 5, required: 5 });
     expect(dialog.dots).toEqual([true, true, true, true, true]);
-    expect(dialog.controls).toEqual([["Close", "false"]]);
+    expect(dialog.controls).toEqual([["Close", null]]);
   });
 
-  it("says why only when it lets the person go before the Votes are in", () => {
+  it("says why only when it stops asking before the Votes are in", () => {
     const dialog = render({ status: "free", reason: "unavailable" });
     expect(dialog.text).toContain("Arena can't be reached right now.");
     expect(dialog.dots).toBeNull();
-    expect(dialog.controls).toEqual([["Close", "false"]]);
+    expect(dialog.controls).toEqual([["Close", null]]);
   });
 
   it("keeps its title, dots and buttons out of the frame, so a frame that fails changes nothing", () => {
@@ -119,10 +119,10 @@ describe("the Arena gate's dialog (#1683)", () => {
     expect(preview).toMatch(/^<iframe[^>]*><\/iframe>$/u);
     const outside = markup.replace(preview, "");
     for (const part of [
-      "Vote on 5 Battles to continue",
+      "Vote on 5 Battles in the Schematic Arena",
       'data-testid="arena-gate-count"',
       "Start voting →",
-      ">Close<",
+      ">Not now<",
     ])
       expect(outside).toContain(part);
   });

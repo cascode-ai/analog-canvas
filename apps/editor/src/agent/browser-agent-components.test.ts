@@ -17,6 +17,35 @@ import {
 } from "../../../../worker/component-library.test-support";
 
 describe("Agent User Components", () => {
+  it("discovers that no authoring workspace is open without reading the public library", async () => {
+    const project = createEmptyProject("draft-project", "Draft");
+    const host = new BrowserAgentProjectHost({
+      getProject: () => project,
+      getProjectSessionId: () => "draft-session",
+      getActiveDocumentId: () => project.topDocumentId,
+      commitProjectStructure: () => {
+        throw Error("Discovery must not commit");
+      },
+      dispatchProjectTransaction: () => {
+        throw Error("Discovery must not transact");
+      },
+      fetch: async () => {
+        throw Error("Discovery must not fetch the public library");
+      },
+    });
+    const response = await host.handle(
+      AgentProjectResourceRequestSchema.parse({
+        apiVersion: AGENT_API_VERSION,
+        operation: "components",
+        requestId: "draft-discovery",
+        request: { action: "authoring-read" },
+      }),
+    );
+    expect(AgentProjectResourceResponseSchema.parse(response)).toMatchObject({
+      ok: true,
+      result: { action: "authoring-read", workspace: null },
+    });
+  });
   it("captures a public symbol and connects coincident pins in the same insertion transaction", async () => {
     const library = componentLibraryHarness();
     const definition = newComponentDefinition();

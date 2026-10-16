@@ -116,6 +116,33 @@ describe("component definition authoring", () => {
       definition.symbol.id,
     );
   });
+  it("edits the shared captured definition while preserving per-instance parameters", () => {
+    const project = fixture();
+    const doc = project.documents[0]!;
+    const definition = publishedDefinition(
+      project.componentDefinitions![0]!,
+      "shared-edit",
+      1,
+    );
+    definition.symbol.name = "Shared edited resistor";
+    doc.instances[1]!.netlist!.parameters.value = "7k";
+    const plan = planComponentDefinitionEdit(
+      project,
+      doc.id,
+      doc.instances[0]!.id,
+      doc.instances[0]!,
+      definition,
+      "definition",
+    );
+    if (!plan.ok) throw Error(plan.message);
+    expect(plan.project.documents[0]!.instances.map((i) => i.symbolId)).toEqual(
+      [definition.symbol.id, definition.symbol.id],
+    );
+    expect(
+      plan.project.documents[0]!.instances[1]!.netlist!.parameters.value,
+    ).toBe("7k");
+  });
+
   it("does not replace a changed instance or drop a connected pin", () => {
     const project = fixture();
     const document = project.documents[0]!;

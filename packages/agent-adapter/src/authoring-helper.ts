@@ -795,6 +795,9 @@ export function compileActions(
       case "rename-cell-terminal":
       case "set-cell-symbol-pins":
       case "bind-cell-parameter":
+      case "create-component-variant":
+      case "apply-component-definition":
+      case "apply-component-artwork":
       case "rename-cell-parameter":
       case "set-cell-parameter-default":
       case "remove-cell-parameter":

@@ -17,6 +17,7 @@ const ModelSourceAuthoringDraftSchema = z.strictObject({
   entry: z.string().max(128),
   symbolMode: z.enum(["automatic", "custom"]),
   artworkText: z.string().max(MAX_SIMULATION_INPUT_BYTES),
+  artworkInitialized: z.boolean().optional(),
   // Preview cache only; never used to Apply or generate an executable package.
   lastValidArtwork: ComponentDefinitionSchema.optional(),
   // Copy provenance translates raw JSON identities without rewriting unfinished text.

@@ -47,6 +47,68 @@ function legacyDefinition() {
 }
 
 describe("legacy authoring candidates", () => {
+  it("adds an authored circuit to Symbol only without inventing or mutating its original definition", () => {
+    const { subcircuit: _interface, ...baseline } = legacyDefinition();
+    const project = createEmptyProject("symbol-only", "Symbol only");
+    project.componentDefinitions = [baseline];
+    project.documents[0]!.instances.push({
+      id: "X1",
+      symbolId: baseline.symbol.id,
+      placement: null,
+    });
+    project.documents[0]!.noConnects.push({
+      id: "nc",
+      endpoint: { kind: "terminal", instanceId: "X1", pinName: "OUT" },
+    });
+    const before = structuredClone(project);
+    const candidate = prepareLegacyCircuitRepair(
+      project,
+      baseline,
+      "add-circuit",
+    );
+    expect(project).toEqual(before);
+    const symbol = candidate.project.componentDefinitions!.find(
+      (d) => d.symbol.id === candidate.symbolId,
+    )!;
+    const applied = prepareLegacyCircuitRepair(
+      project,
+      baseline,
+      "add-circuit",
+      {
+        implementation: {
+          kind: "apply_model_source",
+          source: {
+            id: "native",
+            revision: 0,
+            language: "spice",
+            entry: "model.sp",
+            dependencies: [],
+            files: [
+              {
+                path: "model.sp",
+                text: ".subckt stage IN OUT\nR1 IN OUT 1k\n.ends stage\n",
+              },
+            ],
+          },
+          definitions: [
+            { definitionId: candidate.definitionId, entry: "stage", symbol },
+          ],
+        },
+      },
+    );
+    expect(project).toEqual(before);
+    expect(
+      applied.project.documents[0]!.instances[0]!.netlist!.binding!.kind,
+    ).toBe("external-subcircuit");
+    expect(applied.project.documents[0]!.noConnects).toEqual(
+      before.documents[0]!.noConnects,
+    );
+    expect(
+      applied.project.componentDefinitions!.find(
+        (d) => d.symbol.id === baseline.symbol.id,
+      ),
+    ).toEqual(baseline);
+  });
   it("limits an explicit selected-instance capture to that instance while preserving a wired legacy peer", () => {
     const baseline = legacyDefinition();
     const project = createEmptyProject("selected-repair", "Selected repair");

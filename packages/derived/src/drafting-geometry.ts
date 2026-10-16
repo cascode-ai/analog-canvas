@@ -21,6 +21,7 @@ import {
   fractionExtraAscentEm,
   fractionPartScale,
   measureRichTextDocument,
+  richTextLinePitches,
   richTextMetrics,
   wrapRichTextDocument,
 } from "./rich-text-layout.js";
@@ -943,14 +944,15 @@ export function centeredFirstBaselineY(
   fontSize: number,
   profile: SchematicStyleProfile,
 ): number {
-  const lineCount =
-    content.runs.filter((run) => run.kind === "line-break").length + 1;
-  const lineStep = fontSize * profile.typography.lineHeight;
-  return (
-    centerY -
-    ((lineCount - 1) / 2) * lineStep +
-    CENTERED_CAP_BASELINE_RATIO * fontSize
-  );
+  // The lines stand about the centre by the distances they are set apart.
+  const span = richTextLinePitches(content, {
+    fontSize,
+    lineHeight: profile.typography.lineHeight,
+    subscriptScale: profile.typography.subscriptScale,
+    subscriptBaselineShiftEm: profile.typography.subscriptBaselineShiftEm,
+    subscriptHorizontalGapEm: profile.typography.subscriptHorizontalGapEm,
+  }).reduce((sum, pitch) => sum + pitch, 0);
+  return centerY - span / 2 + CENTERED_CAP_BASELINE_RATIO * fontSize;
 }
 
 function rotatedRectBounds(

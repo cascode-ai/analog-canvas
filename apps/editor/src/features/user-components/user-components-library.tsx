@@ -1,27 +1,36 @@
 import { parseSharedComponentEntry } from "./component-library-entry";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentLibrarySummary } from "@icm/agent-adapter";
-import { fetchSessionUser, type SessionUser } from "../../components/account";
+import { readSessionUser, type SessionUser } from "../../components/account";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import type {
   ComponentLibrarySummaryPage,
   SharedComponent,
 } from "./component-library-contract";
 import {
-  loadSharedComponentSummaries,
   readSharedComponentRecord,
   ComponentLibraryError,
   checkSharedComponentRevision,
+  changeComponentLifecycle,
 } from "./component-library-client";
 import { LibraryCache } from "./library-cache";
-import { LibraryPreview } from "./library-preview";
+import { ComponentLibraryCard } from "./component-library-card";
+import { ComponentDraftList } from "./component-draft-list";
+import type {
+  ComponentDraftCatalog,
+  ComponentDraftTarget,
+} from "@icm/edit-engine";
+import { loadComponentCatalog as loadCatalog } from "./component-catalog-loading";
+import { ComponentCatalogControls } from "./component-catalog-controls";
+import type { ComponentCatalogQuery } from "./component-library-contract";
 
 const capabilityLabel = (entry: ComponentLibrarySummary) =>
   entry.capability === "symbol-only"
     ? "Symbol only"
     : entry.capability === "needs-repair"
       ? "Needs repair"
-      : null;
+      : "With circuit";
+
 export default function UserComponentsLibrary({
   open,
   onClose,
@@ -29,7 +38,9 @@ export default function UserComponentsLibrary({
   onEdit,
   onInsert,
   refresh,
-  drafts = [],
+  drafts,
+  onDeleteDrafts,
+  previewDraftDeletion,
   onOpenDraft,
 }: {
   open: boolean;
@@ -41,10 +52,15 @@ export default function UserComponentsLibrary({
   ): void | Promise<void>;
   onInsert(entry: SharedComponent): void | Promise<void>;
   refresh: number;
-  drafts?: { id: string; label: string }[];
-  onOpenDraft?(id: string): void;
+  drafts?: ComponentDraftCatalog;
+  onOpenDraft?(target: ComponentDraftTarget): void;
+  onDeleteDrafts?(targets: ComponentDraftTarget[]): string | null;
+  previewDraftDeletion?(targets: ComponentDraftTarget[]): number;
 }) {
   const [user, setUser] = useState<SessionUser | null>(null);
+  const accountIdentity = useRef<string | null>(null);
+  accountIdentity.current = user?.id ?? null;
+  const [authReady, setAuthReady] = useState(false);
   const [query, setQuery] = useState("");
   const [deleted, setDeleted] = useState(false);
   const [page, setPage] = useState<ComponentLibrarySummaryPage>({
@@ -54,7 +70,15 @@ export default function UserComponentsLibrary({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [retry, setRetry] = useState(0);
+  const [restorable, setRestorable] = useState<
+    Awaited<ReturnType<typeof changeComponentLifecycle>>["entry"] | null
+  >(null);
+  const [attempt, setAttempt] = useState(0);
+  const [catalog, setCatalog] = useState<ComponentCatalogQuery>({
+    version: 1,
+    type: "all",
+    order: "circuit-first",
+  });
   const [detail, setDetail] = useState<{
     summary: ComponentLibrarySummary;
     entry: SharedComponent;
@@ -68,17 +92,51 @@ export default function UserComponentsLibrary({
     new LibraryCache<{ page: ComponentLibrarySummaryPage; scroll: number }>(
       8,
       1024 * 1024,
+      Infinity,
     ),
   );
-  const generation = useRef(0);
+  const retained = useRef<{
+    key: string;
+    value: { page: ComponentLibrarySummaryPage; scroll: number };
+  } | null>(null);
   const request = useRef<AbortController | null>(null);
+  const bufferedRefresh = useRef<{
+    key: string;
+    page: ComponentLibrarySummaryPage;
+  } | null>(null);
   const selection = useRef<AbortController | null>(null);
-  const failedCursor = useRef<string | null>(null);
   const grid = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const scroll = useRef(0);
   const listIdentity = useRef("");
-  const key = JSON.stringify([refresh, retry, query.trim().toLowerCase()]);
+  const key = JSON.stringify([
+    user?.id ?? null,
+    query.trim().toLowerCase(),
+    catalog,
+  ]);
+  function catalogProgress(signal: AbortSignal) {
+    const identity = JSON.stringify([key, deleted]);
+    return {
+      resume:
+        bufferedRefresh.current?.key === identity
+          ? bufferedRefresh.current.page
+          : undefined,
+      retain(next: ComponentLibrarySummaryPage | undefined) {
+        if (signal.aborted) return;
+        if (next) bufferedRefresh.current = { key: identity, page: next };
+        else if (bufferedRefresh.current?.key === identity)
+          bufferedRefresh.current = null;
+      },
+    };
+  }
+  function showPage(next: ComponentLibrarySummaryPage) {
+    setPage(next);
+    if (!deleted) {
+      const value = { page: next, scroll: scroll.current };
+      retained.current = { key, value };
+      cache.current.set(key, value);
+    }
+  }
   useEffect(() => {
     if (open && detail) {
       // Do not retain old details while their current access and revision are checked.
@@ -88,15 +146,52 @@ export default function UserComponentsLibrary({
     }
   }, [open, refresh]);
   useEffect(() => {
+    details.current.clear();
+  }, [refresh]);
+  useEffect(() => {
     cache.current.clear();
     details.current.clear();
-  }, [refresh, retry, user?.id]);
+    selection.current?.abort();
+    setDetail(null);
+    retained.current = null;
+    bufferedRefresh.current = null;
+    setRestorable(null);
+    setNotice(null);
+  }, [user?.id]);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    const refreshVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void readSessionUser(fetch, true).then((result) => {
+        if (!active) return;
+        if (result.available) {
+          setUser(result.user);
+          if (!result.user) setDeleted(false);
+        }
+        if (!request.current) setAttempt((value) => value + 1);
+      });
+    };
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     let active = true;
     const frame = requestAnimationFrame(() => search.current?.focus());
-    void fetchSessionUser().then((next) => {
-      if (active) setUser(next);
+    void readSessionUser(fetch, true).then((result) => {
+      if (active) {
+        if (result.available) {
+          setUser(result.user);
+          if (!result.user) setDeleted(false);
+        }
+        setAuthReady(true);
+      }
     });
     return () => {
       active = false;
@@ -105,46 +200,49 @@ export default function UserComponentsLibrary({
     };
   }, [open, refresh]);
   useEffect(() => {
-    if (!open) return;
+    if (!open || !authReady) return;
     const controller = new AbortController();
     request.current = controller;
-    generation.current += 1;
-    failedCursor.current = null;
     setError(null);
-    setNotice(null);
     setBusy(false);
-    const cached = !deleted ? cache.current.get(key) : undefined;
-    const identity = JSON.stringify([query.trim().toLowerCase(), deleted]);
+    const cached = !deleted
+      ? (cache.current.get(key) ??
+        (retained.current?.key === key ? retained.current.value : undefined))
+      : undefined;
+    const identity = JSON.stringify([
+      query.trim().toLowerCase(),
+      deleted,
+      catalog,
+      user?.id ?? null,
+    ]);
     if (cached) setPage(cached.page);
     else if (deleted || identity !== listIdentity.current)
       setPage({ entries: [], nextCursor: null });
     listIdentity.current = identity;
     scroll.current = cached?.scroll ?? 0;
-    setLoading(!cached);
+    setLoading(!cached || !!cached.page.nextCursor);
     if (cached)
       requestAnimationFrame(() => {
         if (grid.current) grid.current.scrollTop = scroll.current;
       });
     const timer = setTimeout(
       () => {
-        if (cached) return;
-        void loadSharedComponentSummaries(
+        void loadCatalog(
           query.trim(),
-          null,
           deleted,
+          catalog,
           controller.signal,
+          showPage,
+          cached?.page,
+          catalogProgress(controller.signal),
         )
-          .then((next) => {
-            if (controller.signal.aborted) return;
-            setPage(next);
-            if (!deleted) cache.current.set(key, { page: next, scroll: 0 });
-          })
           .catch((error: unknown) => {
             if (!controller.signal.aborted)
               setError(error instanceof Error ? error.message : String(error));
           })
           .finally(() => {
             if (!controller.signal.aborted) setLoading(false);
+            if (request.current === controller) request.current = null;
           });
       },
       query ? 150 : 0,
@@ -152,44 +250,10 @@ export default function UserComponentsLibrary({
     return () => {
       clearTimeout(timer);
       controller.abort();
+      if (request.current === controller) request.current = null;
       selection.current?.abort();
-      generation.current += 1;
     };
-  }, [open, key, deleted]);
-  async function more() {
-    const current = generation.current;
-    setLoading(true);
-    setError(null);
-    try {
-      const next = await loadSharedComponentSummaries(
-        query.trim(),
-        page.nextCursor,
-        deleted,
-        request.current?.signal,
-      );
-      if (current !== generation.current) return;
-      const merged = {
-        entries: [
-          ...page.entries,
-          ...next.entries.filter(
-            (entry) => !page.entries.some((item) => item.id === entry.id),
-          ),
-        ],
-        nextCursor: next.nextCursor,
-      };
-      setPage(merged);
-      if (!deleted)
-        cache.current.set(key, { page: merged, scroll: scroll.current });
-      failedCursor.current = null;
-    } catch (error) {
-      if (current === generation.current) {
-        failedCursor.current = page.nextCursor;
-        setError(error instanceof Error ? error.message : String(error));
-      }
-    } finally {
-      if (current === generation.current) setLoading(false);
-    }
-  }
+  }, [open, key, deleted, attempt, authReady, refresh]);
   async function choose(
     summary: ComponentLibrarySummary,
     action: "details" | "place" | "new" | "update" | "raw",
@@ -236,17 +300,23 @@ export default function UserComponentsLibrary({
         setNotice(error instanceof Error ? error.message : String(error));
         setDetail(null);
         if (error instanceof ComponentLibraryError && error.status === 409) {
-          cache.current.clear();
+          request.current?.abort();
+          setLoading(false);
           details.current.clear();
           setDetail(null);
           // Refresh only this immutable selection; never silently place a newer revision.
-          const updated = await loadSharedComponentSummaries(
+          await loadCatalog(
             query.trim(),
-            null,
             deleted,
+            catalog,
             controller.signal,
-          ).catch(() => null);
-          if (updated && !controller.signal.aborted) setPage(updated);
+            showPage,
+            page,
+            catalogProgress(controller.signal),
+          ).catch((error: unknown) => {
+            if (!controller.signal.aborted)
+              setError(error instanceof Error ? error.message : String(error));
+          });
         }
       }
     } finally {
@@ -299,14 +369,37 @@ export default function UserComponentsLibrary({
             >
               Create Component…
             </button>
-            <button type="button" onClick={onClose}>
-              Close
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              title="Close"
+            >
+              ×
             </button>
           </div>
         </header>
         {notice ? (
           <p role="status" className="component-definition-note">
             {notice}
+            {restorable ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void changeComponentLifecycle(restorable, "restore")
+                    .then(() => {
+                      cache.current.clear();
+                      retained.current = null;
+                      setRestorable(null);
+                      setNotice("Restored to library.");
+                      setAttempt((value) => value + 1);
+                    })
+                    .catch((e) => setNotice(String(e)));
+                }}
+              >
+                Restore
+              </button>
+            ) : null}
           </p>
         ) : null}
         {detail ? (
@@ -369,16 +462,38 @@ export default function UserComponentsLibrary({
           </section>
         ) : (
           <>
-            <input
-              ref={search}
-              aria-label="Search User Defined components"
-              autoComplete="off"
-              className="user-components-search"
-              placeholder="Find a component…"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            {user?.isAdmin ? (
+            <div className="component-catalog-controls">
+              <input
+                ref={search}
+                aria-label="Search User Defined components"
+                autoComplete="off"
+                className="user-components-search"
+                placeholder="Find a component…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <ComponentCatalogControls
+                value={catalog}
+                authors={page.authors}
+                onChange={setCatalog}
+              />
+              {query || catalog.type !== "all" || catalog.authorId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setCatalog({
+                      version: 1,
+                      type: "all",
+                      order: catalog.order,
+                    });
+                  }}
+                >
+                  Clear filters
+                </button>
+              ) : null}
+            </div>
+            {user ? (
               <button
                 type="button"
                 className="user-components-deleted-toggle"
@@ -399,10 +514,7 @@ export default function UserComponentsLibrary({
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (failedCursor.current) void more();
-                    else setRetry((value) => value + 1);
-                  }}
+                  onClick={() => setAttempt((value) => value + 1)}
                 >
                   Try Again
                 </button>
@@ -421,163 +533,74 @@ export default function UserComponentsLibrary({
               onScroll={(event) => {
                 scroll.current = event.currentTarget.scrollTop;
                 if (!deleted) {
+                  if (retained.current?.key === key)
+                    retained.current.value.scroll = scroll.current;
                   const cached = cache.current.get(key);
                   if (cached) cached.scroll = scroll.current;
                 }
               }}
             >
               {page.entries.map((entry) => (
-                <article
-                  className="user-component-tile"
+                <ComponentLibraryCard
                   key={entry.id + ":" + entry.revision}
-                  data-testid={
-                    entry.capability === "needs-repair"
-                      ? "rejected-user-component"
-                      : undefined
+                  entry={entry}
+                  user={user}
+                  busy={busy}
+                  choose={(action) => void choose(entry, action)}
+                  filter={() =>
+                    setCatalog({ ...catalog, authorId: entry.authorId })
                   }
-                >
-                  {entry.capability === "needs-repair" ? (
-                    <div className="user-component-caption">
-                      <strong title={entry.name}>{entry.name}</strong>
-                      <small>{entry.author}</small>
-                      <small>Needs repair</small>
-                      <small title={entry.diagnostic}>{entry.diagnostic}</small>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="user-component-place"
-                      disabled={deleted || busy}
-                      aria-label={"Place " + entry.name}
-                      title={entry.name + " · " + entry.author}
-                      onClick={() => void choose(entry, "place")}
-                    >
-                      <LibraryPreview entry={entry} />
-                      <span className="user-component-caption">
-                        <strong title={entry.name}>{entry.name}</strong>
-                        <small title={entry.author}>
-                          {entry.author.trim() || "Unknown author"}
-                        </small>
-                        {entry.status === "official" ? (
-                          <small>Official</small>
-                        ) : null}
-                        {capabilityLabel(entry) ? (
-                          <small>{capabilityLabel(entry)}</small>
-                        ) : null}
-                      </span>
-                    </button>
-                  )}
-                  <div className="user-component-actions">
-                    {entry.capability === "needs-repair" ? (
-                      <button
-                        type="button"
-                        className="user-component-edit"
-                        aria-label={"Copy raw record for " + entry.name}
-                        disabled={busy}
-                        onClick={() => void choose(entry, "raw")}
-                      >
-                        Copy raw record
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="user-component-edit"
-                          aria-label={"Details for " + entry.name}
-                          disabled={busy}
-                          onClick={() => void choose(entry, "details")}
-                        >
-                          Details
-                        </button>
-                        <details className="user-component-menu">
-                          <summary aria-label={"Actions for " + entry.name}>
-                            •••
-                          </summary>
-                          <div>
-                            {entry.authorId === user?.id &&
-                            entry.status === "shared" ? (
-                              <button
-                                type="button"
-                                className="user-component-edit"
-                                aria-label={
-                                  "Edit " + entry.name + " definition"
-                                }
-                                disabled={busy}
-                                onClick={() => void choose(entry, "update")}
-                              >
-                                Edit
-                              </button>
-                            ) : null}
-                            {!deleted ? (
-                              <button
-                                type="button"
-                                className="user-component-edit"
-                                aria-label={"Create from " + entry.name}
-                                disabled={busy}
-                                onClick={() => void choose(entry, "new")}
-                              >
-                                Create from…
-                              </button>
-                            ) : null}
-                            {user?.isAdmin ? (
-                              <button
-                                type="button"
-                                className="user-component-edit"
-                                aria-label={
-                                  (deleted ? "Review " : "Manage ") + entry.name
-                                }
-                                disabled={busy}
-                                onClick={() => void choose(entry, "update")}
-                              >
-                                {deleted ? "Review" : "Manage (admin)"}
-                              </button>
-                            ) : null}
-                          </div>
-                        </details>
-                      </>
-                    )}
-                  </div>
-                </article>
+                  manage={async (action) => {
+                    const account = accountIdentity.current;
+                    const result = await changeComponentLifecycle(
+                      entry,
+                      action,
+                    );
+                    if (accountIdentity.current !== account) return;
+                    request.current?.abort();
+                    details.current.clear();
+                    cache.current.clear();
+                    retained.current = null;
+                    bufferedRefresh.current = null;
+                    setPage((current) => ({
+                      ...current,
+                      entries: current.entries.filter((e) => e.id !== entry.id),
+                    }));
+                    setNotice(
+                      action === "delete"
+                        ? "Removed from library. Placed copies are unchanged."
+                        : "Restored to library.",
+                    );
+                    setRestorable(action === "delete" ? result.entry : null);
+                    setAttempt((value) => value + 1);
+                  }}
+                />
               ))}
               {!loading && !page.entries.length && !error ? (
                 <p className="user-components-empty">
                   {query
                     ? "No user components match this search."
-                    : deleted
-                      ? "No deleted components."
-                      : "No user components yet."}
+                    : catalog.type !== "all" || catalog.authorId
+                      ? "No components match these filters."
+                      : deleted
+                        ? "No deleted components."
+                        : "No user components yet."}
                 </p>
               ) : null}
             </div>
           </>
         )}
         <footer className="user-components-footer">
-          <button
-            type="button"
-            disabled={loading || busy}
-            onClick={() => {
-              setDetail(null);
-              setRetry((value) => value + 1);
-            }}
-          >
-            Refresh
-          </button>
-          {drafts.length ? (
-            <details>
-              <summary>Project drafts ({drafts.length})</summary>
-              {drafts.map((draft) => (
-                <button
-                  type="button"
-                  key={draft.id}
-                  onClick={() => {
-                    onClose();
-                    onOpenDraft?.(draft.id);
-                  }}
-                >
-                  {draft.label}
-                </button>
-              ))}
-            </details>
+          {drafts ? (
+            <ComponentDraftList
+              catalog={drafts}
+              onOpen={(target) => {
+                onClose();
+                onOpenDraft?.(target);
+              }}
+              onDelete={onDeleteDrafts}
+              previewDeletion={previewDraftDeletion}
+            />
           ) : null}
           {loading || busy ? (
             <small role="status">
@@ -586,11 +609,6 @@ export default function UserComponentsLibrary({
           ) : (
             <span />
           )}
-          {page.nextCursor && !loading && !detail ? (
-            <button type="button" onClick={() => void more()}>
-              Load More
-            </button>
-          ) : null}
         </footer>
       </section>
     </div>

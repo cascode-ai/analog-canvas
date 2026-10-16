@@ -7,12 +7,14 @@ export {
 export * from "./export.js";
 export type { BodyPortOrder } from "./body-port-order.js";
 export * from "./project-model-source.js";
+export * from "./model-source-variant.js";
 export * from "./model-source-transform.js";
 export * from "./draft-preview.js";
 export * from "./ir.js";
 export * from "./equivalence.js";
 export * from "./topology-correspondence.js";
 export * from "./net-name-codec.js";
+export * from "./net-export-name.js";
 export * from "./printers.js";
 export * from "./printed-netlist.js";
 export * from "./parameter-projection.js";

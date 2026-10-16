@@ -336,6 +336,8 @@ function createEditorShortcutHandler({
       return;
     if (componentEditor) return;
     if (userComponentsOpen) {
+      if (globalThis.document.querySelector(".component-popover:popover-open"))
+        return;
       if (event.key === "Escape") setUserComponentsOpen(false);
       return;
     }

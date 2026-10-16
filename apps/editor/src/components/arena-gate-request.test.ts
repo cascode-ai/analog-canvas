@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ARENA_GATE_DAY_KEY,
   cloudShelfOpened,
   gateAfterManualCloudSave,
 } from "./arena-gate-request";
@@ -21,7 +22,20 @@ function panel() {
 
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+/** This browser's storage, as the gate keeps its day in it. */
+function storage() {
+  const items = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => void items.set(key, value),
+  });
+  return items;
+}
 
 describe("opening the Arena gate", () => {
   it("opens once a manual Cloud Save has completed, saying the work is saved", async () => {
@@ -51,6 +65,30 @@ describe("opening the Arena gate", () => {
     await settled();
     expect(mounted.map((gate) => gate.saved)).toEqual([false]);
     mounted[0]!.closed();
+    cloudShelfOpened(load);
+    await settled();
+    expect(mounted).toHaveLength(2);
+    mounted[1]!.closed();
+  });
+
+  it("shows at most once a browser day, however it was closed (#1718)", async () => {
+    vi.stubGlobal("document", {});
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 14, 9));
+    const items = storage();
+    const { mounted, load } = panel();
+    cloudShelfOpened(load);
+    await settled();
+    mounted[0]!.shown();
+    mounted[0]!.closed();
+    expect(items.get(ARENA_GATE_DAY_KEY)).toBe("2026-10-14");
+    // Later that day, a save or a shelf opening asks for nothing.
+    gateAfterManualCloudSave({ status: "saved" }, load);
+    cloudShelfOpened(load);
+    await settled();
+    expect(mounted).toHaveLength(1);
+    // The next day it may show again.
+    vi.setSystemTime(new Date(2026, 9, 15, 9));
     cloudShelfOpened(load);
     await settled();
     expect(mounted).toHaveLength(2);

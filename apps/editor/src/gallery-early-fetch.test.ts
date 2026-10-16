@@ -125,9 +125,12 @@ describe("the landing page's early Gallery requests (#1592)", () => {
       ["", null, true],
       ["", "{}", true],
       ["", "not json", true],
-      // A reader who cleared every filter, or only chose the shelf view.
+      // A reader who cleared every filter; a Shelf does not need wall data.
       ["", saved({}), true],
-      ["", saved({ view: "shelf" }), true],
+      ["", saved({ view: "shelf" }), false],
+      ["", saved({ withoutNetlist: true }), false],
+      ["", saved({ ai: "human" }), false],
+      ["", saved({ ai: "dataset" }), false],
       ["", saved({ tags: ["amplifier"] }), false],
       ["", saved({ netlistable: true }), false],
       ["", saved({ liked: true }), false],

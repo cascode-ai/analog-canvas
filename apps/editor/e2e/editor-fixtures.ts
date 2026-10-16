@@ -215,7 +215,10 @@ export async function clickDrawTool(page: Page, tool: DrawTool): Promise<void> {
     await page.getByTestId(`draw-tool-${tool}`).click();
     return;
   }
-  const libraryToggle = page.getByTestId("library-toggle");
+  const libraryToggle = page.getByRole("button", {
+    name: "Component library",
+    exact: true,
+  });
   const chip = page.getByTestId(`shapes-chip-${symbolId}`);
   if ((await libraryToggle.getAttribute("aria-expanded")) !== "true") {
     await libraryToggle.click();

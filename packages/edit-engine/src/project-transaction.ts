@@ -24,10 +24,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { routeEnd } from "@icm/model";
-import {
-  isLibraryLogicGate,
-  resolveReviewedExternalBinding,
-} from "@icm/devices";
+import { bindsProjectCell, resolveReviewedExternalBinding } from "@icm/devices";
 import { resolveEndpointPoint } from "@icm/derived";
 import {
   builtInSymbols,
@@ -72,6 +69,52 @@ import type {
   EditTransactionResult,
 } from "./transaction-result.js";
 
+export const ApplyModelSourceEditSchema = z.strictObject({
+  kind: z.literal("apply_model_source"),
+  source: ProjectModelSourceSchema,
+  // Interface synchronization can include siblings whose authoring is unapplied.
+  authoringDefinitionIds: z.array(z.string().min(1)).max(256).optional(),
+  transform: z
+    .strictObject({
+      language: z.enum(["spice", "spectre"]).optional(),
+      process: z
+        .enum(["abstract", "sky130", "sg13g2", "tsmc28", "tsmc180", "custom"])
+        .optional(),
+    })
+    .optional(),
+  definitions: z
+    .array(
+      z.strictObject({
+        definitionId: z.string().min(1),
+        entry: z.string().min(1),
+        portMap: z
+          .record(z.string().min(1), z.string().min(1).nullable())
+          .optional(),
+        symbol: ComponentDefinitionSchema.nullable().optional(),
+        authoring: CircuitAuthoringInputSchema.optional(),
+        terminalDirections: z
+          .record(
+            z.string().min(1),
+            z.enum(["input", "output", "inout", "passive"]),
+          )
+          .optional(),
+        presentation: CellSymbolPresentationSchema.optional(),
+        callers: z
+          .array(
+            z.strictObject({
+              documentId: z.string().min(1),
+              instanceId: z.string().min(1),
+              expectedSymbolId: z.string().min(1),
+            }),
+          )
+          .max(1024)
+          .optional(),
+      }),
+    )
+    .min(1)
+    .max(256),
+});
+
 export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("associate_component_library"),
@@ -85,6 +128,7 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     sourceId: z.string().min(1),
     expectedRevision: z.number().int().nonnegative(),
     expectedDraft: ModelSourceDraftSchema,
+    definitionIds: z.array(z.string().min(1)).min(1).max(256).optional(),
   }),
   z.strictObject({
     kind: z.literal("save_component_authoring_draft"),
@@ -100,51 +144,7 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     kind: z.literal("capture_component_definition"),
     definition: ComponentDefinitionSchema,
   }),
-  z.strictObject({
-    kind: z.literal("apply_model_source"),
-    source: ProjectModelSourceSchema,
-    // Interface synchronization can include siblings whose authoring is unapplied.
-    authoringDefinitionIds: z.array(z.string().min(1)).max(256).optional(),
-    transform: z
-      .strictObject({
-        language: z.enum(["spice", "spectre"]).optional(),
-        process: z
-          .enum(["abstract", "sky130", "sg13g2", "tsmc28", "tsmc180", "custom"])
-          .optional(),
-      })
-      .optional(),
-    definitions: z
-      .array(
-        z.strictObject({
-          definitionId: z.string().min(1),
-          entry: z.string().min(1),
-          portMap: z
-            .record(z.string().min(1), z.string().min(1).nullable())
-            .optional(),
-          symbol: ComponentDefinitionSchema.nullable().optional(),
-          authoring: CircuitAuthoringInputSchema.optional(),
-          terminalDirections: z
-            .record(
-              z.string().min(1),
-              z.enum(["input", "output", "inout", "passive"]),
-            )
-            .optional(),
-          presentation: CellSymbolPresentationSchema.optional(),
-          callers: z
-            .array(
-              z.strictObject({
-                documentId: z.string().min(1),
-                instanceId: z.string().min(1),
-                expectedSymbolId: z.string().min(1),
-              }),
-            )
-            .max(1024)
-            .optional(),
-        }),
-      )
-      .min(1)
-      .max(256),
-  }),
+  ApplyModelSourceEditSchema,
   z.strictObject({
     kind: z.literal("upsert_model_source"),
     source: ProjectModelSourceSchema,
@@ -705,7 +705,24 @@ function applyProjectTransaction(
           "EDIT_PRECONDITION",
           "The model draft changed; reread before discarding.",
         );
-      delete source.draft;
+      if (edit.definitionIds) {
+        const selected = new Set(edit.definitionIds);
+        if (
+          selected.size !== edit.definitionIds.length ||
+          edit.definitionIds.some(
+            (id) =>
+              !source.draft?.authoring?.some((d) => d.definitionId === id),
+          )
+        )
+          return rejectProjectTransaction(
+            project,
+            "EDIT_PRECONDITION",
+            "The authoring draft selection changed; reread before deleting.",
+          );
+        source.draft!.authoring = source.draft!.authoring!.filter(
+          (d) => !selected.has(d.definitionId),
+        );
+      } else delete source.draft;
       structuralChange = true;
       continue;
     }
@@ -931,8 +948,9 @@ function applyProjectTransaction(
             binding.childDocumentId !== document.id
           )
             continue;
-          // A Library gate bound to the Cell keeps its symbol (#1450).
-          if (!isLibraryLogicGate(instance.symbolId))
+          // A Library gate or flip-flop bound to the Cell keeps its symbol
+          // (#1450, #1689).
+          if (!bindsProjectCell(instance.symbolId))
             instance.symbolId = hierarchicalSymbolId(edit.name);
           const masterAnnotation = parent.annotations.find(
             (annotation) =>

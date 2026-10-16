@@ -43,6 +43,34 @@ function fixture() {
   return project;
 }
 describe("Model source persistence", () => {
+  it.each([false, true])(
+    "keeps Custom initialization %s distinct from authored empty text with a versioned boundary",
+    (artworkInitialized) => {
+      const project = fixture();
+      project.modelSources![0]!.draft!.authoring = [
+        {
+          definitionId: "amp",
+          entry: "amp",
+          symbolMode: "automatic",
+          artworkText: "",
+          artworkInitialized,
+          portMaps: {},
+        },
+      ];
+      const encoded = JSON.parse(serializeProject(project));
+      expect(encoded.schemaVersion).toBe(71);
+      expect(parseProject(JSON.stringify(encoded)).modelSources).toEqual(
+        project.modelSources,
+      );
+      encoded.schemaVersion = 70;
+      expect(() => parseProject(JSON.stringify(encoded))).toThrow(/schema 71/);
+      delete encoded.modelSources[0].draft.authoring[0].artworkInitialized;
+      expect(
+        parseProject(JSON.stringify(encoded)).modelSources![0]!.draft!
+          .authoring![0]!.artworkText,
+      ).toBe("");
+    },
+  );
   it("preserves authoring candidates without executable changes and requires their portable schema", () => {
     const project = fixture();
     project.modelSources![0]!.draft!.authoring = [

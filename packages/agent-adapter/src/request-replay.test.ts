@@ -23,6 +23,29 @@ describe("request replay classification", () => {
       } as AgentCircuitRequest),
     ).toBe(false);
   });
+  it("rereads the open candidate and dry runs while retaining mutation replay protection", () => {
+    for (const request of [
+      { action: "authoring-read" },
+      { action: "authoring-apply", dryRun: true },
+    ])
+      expect(
+        isReadOnlyProjectRequest({
+          operation: "components",
+          request,
+        } as AgentProjectResourceRequest),
+      ).toBe(true);
+    for (const request of [
+      { action: "authoring-update" },
+      { action: "authoring-save" },
+      { action: "authoring-apply", dryRun: false },
+    ])
+      expect(
+        isReadOnlyProjectRequest({
+          operation: "components",
+          request,
+        } as AgentProjectResourceRequest),
+      ).toBe(false);
+  });
 
   it("keeps source updates and download publication durable", () => {
     expect(

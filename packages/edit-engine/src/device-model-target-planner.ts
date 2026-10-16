@@ -10,6 +10,7 @@ import { pdkSubstrateDefaultNet } from "@icm/derived";
 import {
   builtInModelDefaults,
   deviceDescriptor,
+  bindsProjectCell,
   matchGateCellPins,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
@@ -160,9 +161,9 @@ function cellPinMatch(cell: Cell, symbolId: string) {
 }
 
 /**
- * The Cells of the Project a Library gate drawn in this Document may call
- * (#1450): those whose Pins fit the gate, and none that would call the
- * Document itself.
+ * The Cells of the Project a Library gate or flip-flop drawn in this
+ * Document may call (#1450, #1689): those whose Pins fit it, and none that
+ * would call the Document itself.
  */
 export function gateCellTargets(
   project: CircuitProject,
@@ -193,9 +194,9 @@ function projectCellNamed(
 }
 
 /**
- * Binds a Library gate to a transistor-level Cell of its Project (#1450).
- * The gate keeps its symbol and pins; its call goes to the Cell, Pin by
- * name. Its own parameters give way to the Cell's, and a VDD or VSS Net it
+ * Binds a Library gate or flip-flop to a transistor-level Cell of its
+ * Project (#1450, #1689). The part keeps its symbol and pins; its call goes
+ * to the Cell, Pin by name. Its own parameters give way to the Cell's, and a VDD or VSS Net it
  * was given is cleared where the Cell takes that supply globally.
  */
 function planGateCellBinding(
@@ -301,7 +302,8 @@ export function planSetDeviceModelTarget(
   const sourceDescriptor = deviceDescriptor(sourceSymbolId);
   // A Library logic gate has no device descriptor; its reviewed targets are
   // standard cells of its function, and clearing returns it to its ideal
-  // body with that body's parameters (#1450).
+  // body with that body's parameters (#1450). A flip-flop takes Cells of
+  // the Project alone, and clears the same way (#1689).
   const gate = sourceDescriptor
     ? undefined
     : subcircuitDescriptor(sourceSymbolId, project);
@@ -316,7 +318,7 @@ export function planSetDeviceModelTarget(
         ? standardCellBindingForMaster(normalizedName)
         : undefined))
     : undefined;
-  if (gate && gateTargets.length > 0) {
+  if (gate && (gateTargets.length > 0 || bindsProjectCell(sourceSymbolId))) {
     // A Cell of the Project comes first: the Project defines that name.
     const cell = normalizedName
       ? projectCellNamed(project, normalizedName)
@@ -334,7 +336,11 @@ export function planSetDeviceModelTarget(
         (candidate) => candidate.netlist.name,
       );
       throw new Error(
-        `${normalizedName} is neither a Cell of this Project nor a reviewed standard cell for ${sourceSymbolId}; use ${[...cells, ...gateTargets].join(", ")}`,
+        gateTargets.length > 0
+          ? `${normalizedName} is neither a Cell of this Project nor a reviewed standard cell for ${sourceSymbolId}; use ${[...cells, ...gateTargets].join(", ")}`
+          : cells.length > 0
+            ? `${normalizedName} is not a Cell of this Project; for ${sourceSymbolId} use ${cells.join(", ")}`
+            : `${normalizedName} is not a Cell of this Project, and no Cell of it fits ${sourceSymbolId}`,
       );
     }
     if (!targetBinding) {

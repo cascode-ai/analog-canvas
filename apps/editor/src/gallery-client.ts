@@ -437,6 +437,23 @@ export interface GalleryFeedQuery {
   seed?: string;
 }
 
+/** The entry preload and mounted wall ask for exactly the same slice. */
+export function galleryQueryFromFilters(
+  {
+    view: _view,
+    search,
+    ...filters
+  }: import("./gallery-filters").GalleryFilterState,
+  ordering: Pick<GalleryFeedQuery, "order" | "seed">,
+): GalleryFeedQuery {
+  return {
+    ...filters,
+    author: filters.ownerUserId ? null : filters.author,
+    q: search.trim(),
+    ...ordering,
+  };
+}
+
 function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   const params = new URLSearchParams();
   if (query.source) params.set("source", query.source);

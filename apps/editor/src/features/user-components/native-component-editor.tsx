@@ -10,13 +10,20 @@ import {
   type ApplyModelSourceEdit,
 } from "../hierarchy/external-model-source-editor";
 import type { ExternalDefinitionResult } from "../hierarchy/project-structure-commands";
+import type { ComponentAuthoringWorkspace } from "./component-authoring-workspace";
+import type { ComponentAuthoringSnapshot } from "@icm/agent-adapter/component-resource";
 
 export interface CircuitComponentAuthoring {
   project: CircuitProject;
+  sourceId?: string | undefined;
   definitionId?: string | undefined;
   symbolId?: string | undefined;
   pendingRepair?: boolean;
-  onApply(edit: ApplyModelSourceEdit): ExternalDefinitionResult;
+  pendingVariant?: boolean;
+  onApply(
+    edit: ApplyModelSourceEdit,
+    dryRun?: boolean,
+  ): ExternalDefinitionResult;
   onSaveDraft(
     edits: ProjectStructureEdit[],
     definitionId: string,
@@ -31,6 +38,7 @@ export interface CircuitComponentAuthoring {
     edits: ProjectStructureEdit[],
     definitionId: string,
     expectedProject: CircuitProject,
+    dryRun?: boolean,
   ): ExternalDefinitionResult;
 }
 
@@ -43,8 +51,12 @@ export function NativeComponentEditor({
   onAppliedViewChange,
   publicationAction,
   legacyDefinition,
+  workspace,
+  publication,
 }: {
   authoring: CircuitComponentAuthoring;
+  workspace?: ComponentAuthoringWorkspace;
+  publication?: ComponentAuthoringSnapshot["publication"];
   publicationAction?: ReactNode;
   legacyDefinition?: ComponentDefinition | undefined;
   onDirtyChange(dirty: boolean): void;
@@ -79,10 +91,14 @@ export function NativeComponentEditor({
     <div className="component-definition-native">
       <ExternalModelSourceEditor
         customSymbols
+        workspace={workspace}
+        publication={publication}
+        onValidate={(edit) => authoring.onApply(edit, true)}
         publicationAction={publicationAction}
         legacyDefinition={legacyDefinition}
-        canPlace={!authoring.pendingRepair}
+        canPlace={!authoring.pendingRepair && !authoring.pendingVariant}
         initialSymbolId={authoring.symbolId}
+        initialSourceId={authoring.sourceId}
         allowOwnerChange={!!authoring.pendingRepair}
         project={authoring.project}
         definition={definition}

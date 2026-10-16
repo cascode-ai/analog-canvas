@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Portable file schema: `70`; normalized editor model schema: `58`.
+Portable file schema: `71`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec);
 `packages/model` validates the decoded editor model.
@@ -17,12 +17,12 @@ preserves.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project file schema 24 through 70
--> migrate old files or decode 59–70 -> strict runtime model validation -> install unbound
-export -> validate -> encode file schema 70 -> readable canonical JSON -> download
+import text -> parse JSON -> require Project file schema 24 through 71
+-> migrate old files or decode 59–71 -> strict runtime model validation -> install unbound
+export -> validate -> encode file schema 71 -> readable canonical JSON -> download
 ```
 
-- `parseProject` reads schemas 24–70; writers always emit 70. Envelope
+- `parseProject` reads schemas 24–71; writers always emit 71. Envelope
   metadata uses `CURRENT_PROJECT_FILE_VERSION`, never the model version.
   Optional additions keep model 58; older envelopes cannot carry them.
 - The reader rejects mixed legacy/current field names, conflicting endpoints,
@@ -44,7 +44,7 @@ export -> validate -> encode file schema 70 -> readable canonical JSON -> downlo
   existing endpoint contact); parsing, Cloud open and recovery stay exact.
 - Canonical serialization ends with one newline and is byte-stable across
   serialize/parse/serialize. `fixtures/projects/compatibility-corpus.json`:
-  `current` entries are already canonical 70; `migrated` witnesses keep source
+  `current` entries are already canonical 71; `migrated` witnesses keep source
   bytes and version and load/save byte-stable; the rejected corpus names
   expected failures.
 - A migrated imported file is dirty; the browser-selected source is never
@@ -104,6 +104,11 @@ Cloud or recovery data.
   twice; names unique case-insensitively); omitted when empty so uncoupled
   files keep their bytes.
 
+- 71: optional `draft.authoring[].artworkInitialized` distinguishes untouched
+  Automatic artwork from deliberately empty Custom JSON. Earlier envelopes
+  cannot carry the field; older drafts infer initialization from Custom mode
+  or non-empty artwork text.
+
 ## One connection source
 
 - Routes hold only endpoints and geometry, never `netId`; Junctions hold
@@ -152,13 +157,13 @@ Cloud or recovery data.
 
 Optional fields by first schema (older envelopes cannot carry them):
 
-| Schema | Field                                                                                      |
-| ------ | ------------------------------------------------------------------------------------------ |
+| Schema | Field                                                                                                                       |
+| ------ | --------------------------------------------------------------------------------------------------------------------------- |
 | 63     | `source.files[].content`/`originalContent`, Document `importReference` (source Net names and immutable terminal membership) |
-| 66     | Project `modelSources`, external-definition `implementation` binding or placeholder         |
-| 67     | `spectre` sources, draft `language` (absent inherits the applied one)                      |
-| 68     | `draft.authoring` per owner, `componentAuthoringDrafts` (library snapshots at a fixed revision) |
-| 69     | `componentDefinitions[].libraryOrigin` ([publication](component-publication.md))           |
+| 66     | Project `modelSources`, external-definition `implementation` binding or placeholder                                         |
+| 67     | `spectre` sources, draft `language` (absent inherits the applied one)                                                       |
+| 68     | `draft.authoring` per owner, `componentAuthoringDrafts` (library snapshots at a fixed revision)                             |
+| 69     | `componentDefinitions[].libraryOrigin` ([publication](component-publication.md))                                            |
 
 - `importReference` is never guessed for older files; source text is kept by
   private saves and backups, omitted from Gallery, and never a netlist export

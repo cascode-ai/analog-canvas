@@ -2,10 +2,15 @@
 // an overbar names.
 
 import { expect, test } from "@playwright/test";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 import {
   placeText,
   editComponentPropertyCode,
   openEditor,
+  openProject,
+  exportedProject,
+  clickNetlistWorkflowCommand,
+  expectStatus,
 } from "./editor-fixtures.js";
 import {
   placeComponent,
@@ -16,6 +21,86 @@ import {
   selectRichTextOffsets,
   drawWire,
 } from "./canvas-fixtures.js";
+
+test("creates a barred Net Label as a separate signal from its unbarred name", async ({
+  page,
+}) => {
+  await openEditor(page);
+  for (const y of [180, 380]) {
+    await placeComponent(page, "resistor", { x: 280, y });
+    await placeComponent(page, "resistor", { x: 480, y });
+  }
+  await drawWire(page, "R1-2", "R2-1");
+  await drawWire(page, "R3-2", "R4-1");
+  for (const [routeId, barred] of [
+    ["route-ui-1", false],
+    ["route-ui-2", true],
+  ] as const) {
+    await clickRoute(page, routeId, 0.5, 0);
+    await page.keyboard.press("l");
+    const dialog = page.getByTestId("net-label-editor");
+    const editor = dialog.getByRole("textbox", { name: "Canvas text editor" });
+    await editor.fill("Q");
+    if (barred) {
+      await editor.press("ControlOrMeta+A");
+      await dialog.getByRole("button", { name: "Overbar" }).click();
+    }
+    await dialog.getByRole("button", { name: "Apply text changes" }).click();
+  }
+  const project = await exportedProject(page);
+  const document = project.documents[0]!;
+  const names = document.connectivityEvidence.filter(
+    (item: { kind: string }) => item.kind === "name-claim",
+  );
+  expect(names.map((item: { name: string }) => item.name).sort()).toEqual([
+    "Q",
+    "Q_bar",
+  ]);
+  const logical = resolveDocumentLogicalNets(document);
+  expect(logical.byBaseNetId.get(names[0]!.netId)!.id).not.toBe(
+    logical.byBaseNetId.get(names[1]!.netId)!.id,
+  );
+  await expect(
+    page.locator(
+      '[data-object-id="net-label-route-ui-2"] [data-text-run="overbar"]',
+    ),
+  ).toHaveCount(1);
+
+  // Historical files can draw the same bar while still naming Q. Opening
+  // them must not silently reconnect the circuit; the existing Issues path
+  // explains the mismatch and navigates to the label.
+  const barredClaim = names.find(
+    (item: { name: string }) => item.name === "Q_bar",
+  )!;
+  barredClaim.name = "Q";
+  const barredLabel = document.annotations.find(
+    (item: { id: string }) => item.id === "net-label-route-ui-2",
+  )!;
+  barredLabel.formatOverride = {
+    runs: [
+      {
+        kind: "span",
+        style: "overbar",
+        children: [{ kind: "text", value: "Q" }],
+      },
+    ],
+  };
+  await openProject(page, project);
+  await clickNetlistWorkflowCommand(page, "check-and-save");
+  await page.getByTestId("statusbar-issues").click();
+  const warning = page.getByTestId("project-diagnostics").getByRole("button", {
+    name: /ERC_OVERBAR_NAME_MISMATCH/u,
+  });
+  await expect(warning).toContainText("electrical name is Q");
+  await warning.click();
+  await expectStatus(page, "ERC_OVERBAR_NAME_MISMATCH");
+  const reopened = await exportedProject(page);
+  expect(
+    reopened.documents[0].connectivityEvidence
+      .filter((item: { kind: string }) => item.kind === "name-claim")
+      .map((item: { name: string }) => item.name),
+  ).toEqual(["Q", "Q"]);
+});
 
 // The looks themselves are label-typography's and rich-text's; this is the
 // toolbar reading and writing them through a real selection.

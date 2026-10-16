@@ -10,7 +10,11 @@ it("reuses derived geometry across tab returns and invalidates real edits and sy
   );
   const cache = createEditorSnapshotDerivedCache();
   const first = cache.connectivity(controller.project, controller.resolver);
-  const crossings = cache.crossings(controller.document, controller.resolver);
+  const crossings = cache.crossings(
+    controller.document,
+    controller.resolver,
+    first.documents.get(controller.document.id)!.routingGeometry,
+  );
   expect(cache.connectivity(controller.project, controller.resolver)).toBe(
     first,
   );

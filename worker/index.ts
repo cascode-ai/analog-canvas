@@ -12,6 +12,7 @@ import {
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
 } from "./agent-session";
+import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
 import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
 import {
   galleryReadableDocument,
@@ -88,7 +89,8 @@ type Env = TopologyTaskEnv &
     ADMIN_EMAILS?: string;
     ADMIN_EMAILS_EXTRA?: string;
   } & AnalyticsRouteEnv &
-  ArenaEnv;
+  ArenaEnv &
+  ApiRateLimitEnv;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -132,6 +134,9 @@ async function route(request: Request, env: Env): Promise<Response> {
   // The Arena host serves only AnalogArena; the former /arena pages move there.
   const hostRedirect = routeArenaHosts(request);
   if (hostRedirect) return hostRedirect;
+
+  const flood = await refuseApiFlood(request, env);
+  if (flood) return flood;
 
   const conversion = await handleNetlistConversionRequest(request);
   if (conversion) return conversion;

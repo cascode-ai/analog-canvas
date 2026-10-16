@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 
+import { isDailyAllowanceRefusal } from "../daily-allowance";
+
 const AccountMenuView = /* @__PURE__ */ lazy(
   () => import("./account-menu-view"),
 );
@@ -45,9 +47,11 @@ const NO_PROVIDERS: AuthProviders = {
 };
 
 const SESSION_CACHE_MS = 30_000;
+type SessionUserResult =
+  { available: true; user: SessionUser | null } | { available: false };
 const sessionRequests = /* @__PURE__ */ new WeakMap<
   typeof fetch,
-  { expiresAt: number; request: Promise<SessionUser | null> }
+  { expiresAt: number; request: Promise<SessionUserResult> }
 >();
 
 export function cacheSessionUser(
@@ -56,7 +60,7 @@ export function cacheSessionUser(
 ): void {
   sessionRequests.set(fetchLike, {
     expiresAt: Date.now() + SESSION_CACHE_MS,
-    request: Promise.resolve(user),
+    request: Promise.resolve({ available: true, user }),
   });
 }
 
@@ -64,18 +68,27 @@ export function cacheSessionUser(
 export async function fetchSessionUser(
   fetchLike: typeof fetch = fetch,
 ): Promise<SessionUser | null> {
+  const result = await readSessionUser(fetchLike);
+  return result.available ? result.user : null;
+}
+
+/** A failed revalidation does not establish that an existing user signed out. */
+export async function readSessionUser(
+  fetchLike: typeof fetch = fetch,
+  fresh = false,
+): Promise<SessionUserResult> {
   const cached = sessionRequests.get(fetchLike);
-  if (cached && cached.expiresAt > Date.now()) return cached.request;
-  const request = (async (): Promise<SessionUser | null> => {
+  if (!fresh && cached && cached.expiresAt > Date.now()) return cached.request;
+  const request = (async (): Promise<SessionUserResult> => {
     try {
       const response = await fetchLike("/api/auth/me", {
         credentials: "same-origin",
       });
-      if (!response.ok) return null;
+      if (!response.ok) return { available: false };
       const payload = (await response.json()) as { user?: SessionUser | null };
-      return payload.user ?? null;
+      return { available: true, user: payload.user ?? null };
     } catch {
-      return null;
+      return { available: false };
     }
   })();
   sessionRequests.set(fetchLike, {
@@ -121,7 +134,7 @@ export async function requestEmailCode(
       body: JSON.stringify({ email }),
     });
     if (response.status === 202) return { ok: true };
-    if (response.status === 429)
+    if (await isDailyAllowanceRefusal(response))
       return { ok: false, message: "Daily limit reached — try tomorrow." };
     if (response.status === 400)
       return { ok: false, message: "That email address looks invalid." };

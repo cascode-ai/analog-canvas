@@ -1,4 +1,5 @@
 import { createEmptyDocument } from "@icm/model";
+import { resolveDocumentRoutingGeometry } from "@icm/derived";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -101,6 +102,14 @@ describe("snap candidate builder", () => {
     );
     const resolver = new InMemorySymbolResolver(builtInSymbols);
     const index = buildSceneSnapTargetIndex(document, resolver, []);
+    expect(
+      buildSceneSnapTargetIndex(
+        document,
+        resolver,
+        [],
+        resolveDocumentRoutingGeometry(document, resolver),
+      ),
+    ).toEqual(index);
 
     const indexed = sceneSnapTargetsExcluding(index, new Set(["R1"]));
     const rebuilt = buildSceneSnapTargets(

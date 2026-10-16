@@ -296,7 +296,14 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
       request.operation === "import-cell" ||
       request.operation === "insert-gallery-entry" ||
       (request.operation === "components" &&
-        ["insert", "publish", "update"].includes(request.request.action)) ||
+        [
+          "insert",
+          "publish",
+          "update",
+          "authoring-apply",
+          "authoring-save",
+          "delete-drafts",
+        ].includes(request.request.action)) ||
       request.operation === "replace-project-code" ||
       request.operation === "replace-netlist" ||
       (request.operation === "workspace" && request.request.action !== "list");

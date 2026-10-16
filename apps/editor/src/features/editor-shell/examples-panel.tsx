@@ -51,6 +51,8 @@ interface FeedState {
   search?: string;
   /** Request owner, including servers that do not implement search yet. */
   requestedSearch?: string;
+  /** Tags answered by this page; total still names the untagged search. */
+  requestedTags?: readonly string[];
 }
 
 const EMPTY_FEED: FeedState = {
@@ -84,7 +86,13 @@ export interface GalleryPanelView {
 export function deriveGalleryPanelView(
   feed: Pick<
     FeedState,
-    "status" | "entries" | "nextCursor" | "total" | "search" | "requestedSearch"
+    | "status"
+    | "entries"
+    | "nextCursor"
+    | "total"
+    | "search"
+    | "requestedSearch"
+    | "requestedTags"
   >,
   options: { searchQuery: string; selectedTags?: readonly string[] },
 ): GalleryPanelView {
@@ -99,7 +107,10 @@ export function deriveGalleryPanelView(
     !!normalizedQuery && feed.search === options.searchQuery.trim();
   const showGallery =
     feed.status === "ready" &&
-    (feed.entries.length > 0 || answered || pendingQuery);
+    (feed.entries.length > 0 ||
+      answered ||
+      pendingQuery ||
+      !!feed.requestedTags?.length);
   const filtering = (!!normalizedQuery && !answered) || selectedTags.length > 0;
   const visibleEntries = feed.entries.filter(
     (entry) =>
@@ -107,7 +118,14 @@ export function deriveGalleryPanelView(
       (!selectedTags.length ||
         selectedTags.some((tag) => entry.tags?.includes(tag))),
   );
-  const exhausted = feed.nextCursor === null;
+  // A complete unfiltered feed can answer every tag locally. A filtered
+  // page, however, says nothing about exhaustion of a different tag query.
+  const pendingTags =
+    feed.requestedTags !== undefined &&
+    !(feed.requestedTags.length === 0 && feed.nextCursor === null) &&
+    (feed.requestedTags.length !== selectedTags.length ||
+      selectedTags.some((tag) => !feed.requestedTags!.includes(tag)));
+  const exhausted = feed.nextCursor === null && !pendingTags;
   return {
     showGallery,
     visibleEntries,
@@ -204,6 +222,12 @@ function GalleryPanel({
   const firstPagePendingRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const baseCountRef = useRef<{
+    loader: typeof loader;
+    search: string;
+    total?: number | null;
+    feed?: FeedState;
+  } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -225,16 +249,52 @@ function GalleryPanel({
   // The first page of the current Gallery, or of the circuits a search
   // finds: the server searches the whole Gallery before it pages.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      baseCountRef.current = null;
+      return;
+    }
     const generation = ++loadGenerationRef.current;
     firstPagePendingRef.current = true;
     loadingMoreRef.current = false;
-    setFeed(EMPTY_FEED);
+    if (
+      baseCountRef.current?.loader !== loader ||
+      baseCountRef.current.search !== serverSearch
+    ) {
+      baseCountRef.current = { loader, search: serverSearch };
+      setFeed(EMPTY_FEED);
+    }
     const query = serverSearch ? { q: serverSearch } : {};
-    void loader.feed(query).then((page) => {
+    const baseCount = baseCountRef.current;
+    // Clearing tags restores the already loaded wall immediately, as local
+    // filtering did. A complete base feed needs no remote tag lookup at all.
+    if (
+      baseCount.feed &&
+      (!selectedTags.length || baseCount.feed.nextCursor === null)
+    ) {
+      firstPagePendingRef.current = false;
+      setFeed(baseCount.feed);
+      return () => {
+        loadGenerationRef.current = generation + 1;
+      };
+    }
+    // Preserve the panel's base total; tags narrow the pages, not that count.
+    const basePage =
+      selectedTags.length && baseCount.total === undefined
+        ? loader.feed(query)
+        : Promise.resolve(null);
+    void Promise.all([
+      loader.feed({ ...query, tags: selectedTags }),
+      basePage,
+    ]).then(([page, base]) => {
       if (generation !== loadGenerationRef.current) return;
       firstPagePendingRef.current = false;
-      setFeed(
+      if (base === GALLERY_SIGN_IN_REQUIRED) page = GALLERY_SIGN_IN_REQUIRED;
+      if (page && page !== GALLERY_SIGN_IN_REQUIRED) {
+        if (!selectedTags.length) baseCount.total = page.total;
+        else if (base && base !== GALLERY_SIGN_IN_REQUIRED)
+          baseCount.total = base.total;
+      }
+      const next: FeedState =
         page === GALLERY_SIGN_IN_REQUIRED
           ? { ...EMPTY_FEED, status: "signed-out" }
           : page === null
@@ -243,21 +303,23 @@ function GalleryPanel({
                 status: "ready",
                 entries: page.entries,
                 nextCursor: page.nextCursor,
-                total: page.total,
+                total: baseCount.total ?? null,
                 // Only a server that says it searched has answered it.
                 search: page.search ?? "",
                 requestedSearch: serverSearch,
-              },
-      );
+                requestedTags: selectedTags,
+              };
+      if (!selectedTags.length && next.status === "ready")
+        baseCount.feed = next;
+      setFeed(next);
     });
     return () => {
       loadGenerationRef.current = generation + 1;
     };
-  }, [open, loader, serverSearch]);
+  }, [open, loader, serverSearch, selectedTags]);
 
-  // More pages arrive as the sentinel comes into view. A filtered list stays
-  // short, so the sentinel keeps showing and the feed keeps arriving until it
-  // is exhausted — which is what lets the empty state below tell the truth.
+  // Read more matching pages when the sentinel comes into view. Older APIs
+  // without server search still use the same local-narrowing fallback.
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (
@@ -284,6 +346,7 @@ function GalleryPanel({
       void loader
         .feed({
           ...(serverSearch ? { q: serverSearch } : {}),
+          tags: selectedTags,
           cursor,
         })
         .then((page) => {
@@ -293,12 +356,24 @@ function GalleryPanel({
             generation !== loadGenerationRef.current
           )
             return;
-          setFeed((previous) => ({
-            ...previous,
-            entries: [...previous.entries, ...page.entries],
-            nextCursor: page.nextCursor,
-            total: page.total ?? previous.total,
-          }));
+          setFeed((previous) => {
+            const next = {
+              ...previous,
+              entries: [...previous.entries, ...page.entries],
+              nextCursor: page.nextCursor,
+              total: selectedTags.length
+                ? previous.total
+                : (page.total ?? previous.total),
+            };
+            if (
+              !selectedTags.length &&
+              baseCountRef.current?.loader === loader
+            ) {
+              baseCountRef.current.feed = next;
+              baseCountRef.current.total = next.total;
+            }
+            return next;
+          });
         })
         .finally(() => {
           if (generation === loadGenerationRef.current)
@@ -307,7 +382,15 @@ function GalleryPanel({
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [open, loader, feed.status, feed.nextCursor, serverSearch]);
+  }, [
+    open,
+    loader,
+    feed.status,
+    feed.entries,
+    feed.nextCursor,
+    serverSearch,
+    selectedTags,
+  ]);
 
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
     deriveGalleryPanelView(feed, { searchQuery, selectedTags });

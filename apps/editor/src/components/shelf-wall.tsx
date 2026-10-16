@@ -20,6 +20,7 @@ import {
   type VersionHistorySource,
 } from "./version-history-dialog";
 import { Masonry } from "./masonry";
+import { downloadBlob } from "../hosts/download-link";
 
 /**
  * "My shelf": a member's own saved circuits as a wall rather than a list of
@@ -198,14 +199,10 @@ export function ShelfWall() {
         const loaded = await openCloudProject(project.id);
         if (loaded.status !== "opened")
           throw new Error("Could not load the Project for export. Try again.");
-        const url = URL.createObjectURL(
+        downloadBlob(
           new Blob([loaded.project.projectText], { type: "application/json" }),
+          `${loaded.project.name.replace(/[\\/:*?"<>|]/gu, "_")}.icproj.json`,
         );
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${loaded.project.name.replace(/[\\/:*?"<>|]/gu, "_")}.icproj.json`;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
       } else {
         const result = await editShelfProject(
           project.id,

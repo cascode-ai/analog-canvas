@@ -1,14 +1,17 @@
 import {
   ComponentDefinitionSchema,
   type ComponentDefinition,
-  type Instance,
 } from "@icm/model";
 import {
   parseCircuitComponentPackage,
   type CircuitComponentResources,
 } from "@icm/edit-engine";
 import { hasBuiltInSubcircuitInterface } from "@icm/devices";
-import type { ComponentLibrarySummary } from "@icm/agent-adapter";
+import type {
+  ComponentLibrarySummary,
+  ComponentCatalogQuery,
+} from "@icm/agent-adapter";
+export type { ComponentCatalogQuery };
 import {
   definitionError,
   componentDefinitionDiagnostics,
@@ -21,6 +24,7 @@ export interface SharedComponent {
   authorId: string;
   author: string;
   status: ComponentLibraryStatus;
+  deletion?: { by: "author" | "admin"; previousStatus: "shared" | "official" };
   createdAt: string;
   updatedAt: string;
   definition: ComponentDefinition;
@@ -34,6 +38,9 @@ export interface ComponentLibraryPage {
 export interface ComponentLibrarySummaryPage {
   entries: ComponentLibrarySummary[];
   nextCursor: string | null;
+  catalogRevision?: number;
+  notModified?: boolean;
+  authors?: { authorId: string; author: string; count: number }[];
 }
 
 /** Derived capabilities do not imply qualification for a simulation engine. */
@@ -179,33 +186,4 @@ export function publishedComponentPayload(
   return parseSharedComponentPayload(snapshot);
 }
 
-export function sharedComponentNetlist(
-  definition: ComponentDefinition,
-): Instance["netlist"] {
-  const electrical = definition.electrical;
-  if (!electrical && !definition.subcircuit) return undefined;
-  return {
-    ...(definition.subcircuit
-      ? {
-          binding: {
-            kind: "unresolved-subcircuit" as const,
-            name: definition.subcircuit.target,
-          },
-        }
-      : electrical?.targetPolicy === "builtin"
-        ? {
-            binding: {
-              kind: "primitive" as const,
-              deviceClass: electrical.deviceClass,
-            },
-          }
-        : {}),
-    parameters: Object.fromEntries(
-      (electrical?.parameters ?? []).flatMap((parameter) =>
-        parameter.defaultValue === undefined
-          ? []
-          : [[parameter.name, parameter.defaultValue]],
-      ),
-    ),
-  };
-}
+export { componentDefaultNetlist as sharedComponentNetlist } from "@icm/edit-engine";

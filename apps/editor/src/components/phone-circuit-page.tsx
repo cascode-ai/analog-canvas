@@ -10,6 +10,7 @@ import "../styles/phone-circuit.css";
 import { useEffect, useState } from "react";
 
 import { usePageTitle } from "../app/use-page-title";
+import { isDailyAllowanceRefusal } from "../daily-allowance";
 import { galleryPreviewUrl } from "../gallery-client";
 import { openEditorOnPhone } from "../phone-viewing";
 import { GalleryChrome } from "./gallery-chrome";
@@ -208,7 +209,7 @@ export function PhoneCircuitPage({
       credentials: "same-origin",
     })
       .then(async (response): Promise<PhoneNetlist> => {
-        if (response.status === 429)
+        if (await isDailyAllowanceRefusal(response))
           return {
             status: "unavailable",
             message:

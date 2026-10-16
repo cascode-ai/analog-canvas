@@ -9,6 +9,7 @@ import {
 import { instanceReferencesPin } from "./cell-interface-change-planner.js";
 import { planTerminalDeletion } from "./instance-lifecycle.js";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import { createReferenceIndex, nextReference } from "@icm/devices";
 import {
   executeProjectTransaction,
   type ProjectStructureEdit,
@@ -35,6 +36,35 @@ export interface LegacyCircuitRepairOptions {
     { kind: "apply_model_source" }
   >;
   disconnectPorts?: string[];
+}
+
+/** An interface proposal from authored pins carries no executable implementation. */
+function componentInterface(component: ComponentDefinition) {
+  if (
+    component.electrical ||
+    component.circuitBinding ||
+    component.generatedFrom
+  )
+    throw Error(
+      "Select Symbol only or an interface-only component to add a circuit",
+    );
+  return (
+    component.subcircuit ?? {
+      id: deriveStableId("component-interface", component.symbol.id),
+      symbolId: component.symbol.id,
+      target:
+        "component_" +
+        deriveStableId("interface", component.symbol.id).replaceAll("-", "_"),
+      ports: component.symbol.pins.map((pin) => ({
+        name: pin.name,
+        pinName: pin.name,
+        direction:
+          (["input", "output", "inout"] as const).find(
+            (role) => role === pin.role,
+          ) ?? ("passive" as const),
+      })),
+    }
+  );
 }
 
 /** Persist a repair candidate without capturing artwork or changing legacy instances. */
@@ -118,25 +148,24 @@ export function prepareLegacyCircuitRepair(
   options: LegacyCircuitRepairOptions = {},
 ): LegacyCircuitRepair {
   legacy = ComponentDefinitionSchema.parse(legacy);
-  if (!legacy.subcircuit || legacy.circuitBinding || legacy.electrical)
-    throw Error("Select an interface-only circuit component to repair.");
+  const legacyInterface = componentInterface(legacy);
   const definitionId = deriveStableId("repaired-model", identity);
   const symbolId = deriveStableId("repaired-artwork", identity);
   const savedOwner = project.externalSubcircuitDefinitions.find(
     (owner) => owner.id === definitionId,
   );
-  let name = legacy.subcircuit.target;
+  let name = legacyInterface.target;
   let suffix = 0;
   while (
     project.externalSubcircuitDefinitions.some(
       (d) => d.name.toLowerCase() === name.toLowerCase(),
     )
   )
-    name = `${legacy.subcircuit.target}_repair${++suffix}`;
+    name = `${legacyInterface.target}_repair${++suffix}`;
   const definition: ExternalSubcircuitDefinition = {
     id: definitionId,
     name,
-    terminals: legacy.subcircuit.ports.map((port) => ({
+    terminals: legacyInterface.ports.map((port) => ({
       id: deriveStableId("legacy-terminal", definitionId, port.name),
       name: port.name,
       direction: port.direction,
@@ -165,7 +194,7 @@ export function prepareLegacyCircuitRepair(
     symbol: { ...structuredClone(legacy.symbol), id: symbolId },
     circuitBinding: {
       definitionId,
-      terminals: legacy.subcircuit.ports.map((port, index) => ({
+      terminals: legacyInterface.ports.map((port, index) => ({
         terminalId: definition.terminals[index]!.id,
         ...("pinName" in port
           ? { pinName: port.pinName }
@@ -201,8 +230,7 @@ function prepareLegacyCircuitApplication(
   placeholder?: ExternalSubcircuitDefinition,
   disconnectPorts: string[] = [],
 ): LegacyCircuitRepair {
-  if (!baseline.subcircuit || baseline.circuitBinding || baseline.electrical)
-    throw Error("Select an interface-only circuit component to repair.");
+  const originalInterface = componentInterface(baseline);
   const target = implementation.definitions[0];
   if (!target) throw Error("Repair one explicitly selected circuit owner.");
   const edits: ProjectStructureEdit[] = [];
@@ -234,11 +262,11 @@ function prepareLegacyCircuitApplication(
   const names: Record<string, string | null> = {};
   if (
     disconnectPorts.some(
-      (name) => !baseline.subcircuit!.ports.some((port) => port.name === name),
+      (name) => !originalInterface.ports.some((port) => port.name === name),
     )
   )
     throw Error("Choose an existing legacy port to disconnect.");
-  for (const port of baseline.subcircuit.ports) {
+  for (const port of originalInterface.ports) {
     if (disconnectPorts.includes(port.name)) {
       names[port.name] = null;
       continue;
@@ -392,6 +420,7 @@ function finishRepair(
   names: Record<string, string | null> = {},
   selected?: { documentId: string; instanceId: string },
 ): LegacyCircuitRepair {
+  const legacyInterface = componentInterface(legacy);
   const captured = project.componentDefinitions?.find(
     (d) => d.symbol.id === legacy.symbol.id,
   );
@@ -412,6 +441,8 @@ function finishRepair(
     throw Error("The selected component changed. Reopen it before repairing.");
   for (const document of project.documents) {
     const changes: SchematicEdit[] = [];
+    const references = createReferenceIndex(document, project);
+    const reservedReferences = new Set<string>();
     for (const instance of document.instances.filter(
       (i) =>
         i.symbolId === legacy.symbol.id &&
@@ -420,16 +451,29 @@ function finishRepair(
             i.id === selected.instanceId)),
     )) {
       const binding = instance.netlist?.binding;
+      if (!instance.reference) {
+        const reference = nextReference(
+          references,
+          { kind: "required", prefix: "X" },
+          { reservedReferences },
+        )!;
+        reservedReferences.add(reference.toLowerCase());
+        changes.push({
+          kind: "set_instance_reference",
+          instanceId: instance.id,
+          reference,
+        });
+      }
       if (
         binding &&
         (binding.kind !== "unresolved-subcircuit" ||
-          binding.name !== legacy.subcircuit!.target)
+          binding.name !== legacyInterface.target)
       )
         throw Error(
           "This captured class is already bound. Reopen its native definition.",
         );
       const pinMap = Object.fromEntries(
-        legacy.subcircuit!.ports.flatMap((port) => {
+        legacyInterface.ports.flatMap((port) => {
           if (names[port.name] === null) return [];
           const old = "pinName" in port ? port.pinName : port.supply;
           const name = names[port.name] ?? port.name;
@@ -439,8 +483,8 @@ function finishRepair(
             : [];
         }),
       );
-      const removed = legacy
-        .subcircuit!.ports.filter((port) => names[port.name] === null)
+      const removed = legacyInterface.ports
+        .filter((port) => names[port.name] === null)
         .map((port) => ({
           instanceId: instance.id,
           pinName: "pinName" in port ? port.pinName : port.supply,
@@ -455,6 +499,15 @@ function finishRepair(
           ),
         );
       changes.push(
+        ...(!instance.netlist
+          ? [
+              {
+                kind: "set_instance_netlist" as const,
+                instanceId: instance.id,
+                netlist: { parameters: {} },
+              },
+            ]
+          : []),
         {
           kind: "set_instance_symbol",
           instanceId: instance.id,

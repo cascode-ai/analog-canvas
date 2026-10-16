@@ -114,6 +114,9 @@ export interface UseWireInteractionOptions {
     visibleEndpoints: readonly WireSource[];
     routeGeometryRecords: readonly RouteGeometryRecord[];
     contactComponents: Parameters<typeof resolveElectricalContactTargets>[3];
+    /** The name the netlist writes a Net under, which a clicked wire is
+     * called by. */
+    netNameOf: (netId: string) => string | null;
   };
   selection: {
     selectedInstance: SchematicDocument["instances"][number] | undefined;
@@ -448,7 +451,13 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     options.selectOnly("route", [routeId]);
     options.setSelectedRouteSegmentIndex(segmentIndex);
     options.setSelectedEndpoint(null);
-    options.setStatus(`Selected route ${routeId}, segment ${segmentIndex + 1}`);
+    const netId = options.document.routes.find(
+      (route) => route.id === routeId,
+    )?.netId;
+    const netName = netId ? options.netNameOf(netId) : null;
+    options.setStatus(
+      netName ? `Selected wire on ${netName}` : "Selected wire",
+    );
   };
 
   const completeRouteStretch = (

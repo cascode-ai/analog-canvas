@@ -71,6 +71,7 @@ import { SimulationActionIcon } from "./simulation-action-icon";
 import { flushSelectedFolders } from "./flush-selected-folders";
 import { isVisibleSimulationSource } from "./simulation-source-visibility";
 import { directObjectLocator } from "@icm/derived";
+import { downloadBlob } from "../../hosts/download-link";
 
 /**
  * The generated Circuit source, or why it cannot be shown. A projection that
@@ -1165,14 +1166,10 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         props.onProblem(bundle.error);
         return;
       }
-      const url = URL.createObjectURL(
+      downloadBlob(
         new Blob([bundle.bytes as BlobPart], { type: "application/zip" }),
+        `${props.folder.name}-selected-files.zip`,
       );
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${props.folder.name}-selected-files.zip`;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
     };
     const saveState =
       saveRequested || saving

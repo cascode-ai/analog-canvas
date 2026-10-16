@@ -151,6 +151,38 @@ it("authorizes Gallery, Project Code and Netlist operations by their real effect
       }),
     );
   expect(scopes({ operation: "list-gallery" })).toEqual(["circuit.snapshot"]);
+  const target = {
+    projectId: "project",
+    projectSessionId: "session",
+    draftId: "draft",
+    sessionId: "open-epoch",
+  };
+  expect(
+    scopes({ operation: "components", request: { action: "authoring-read" } }),
+  ).toEqual(["circuit.snapshot"]);
+  expect(
+    scopes({
+      operation: "components",
+      request: {
+        action: "authoring-apply",
+        target,
+        expectedCandidateRevision: 0,
+        dryRun: true,
+      },
+    }),
+  ).toEqual(["circuit.snapshot"]);
+  for (const action of ["authoring-save", "authoring-apply"])
+    expect(
+      scopes({
+        operation: "components",
+        request: { action, target, expectedCandidateRevision: 0 },
+      }),
+    ).toEqual([
+      "project.import",
+      "circuit.edit.geometry",
+      "circuit.edit.connectivity",
+      "circuit.edit.presentation",
+    ]);
   expect(
     scopes({
       operation: "components",

@@ -5976,6 +5976,9 @@
           "type": "string",
           "maxLength": 1048576
         },
+        "artworkInitialized": {
+          "type": "boolean"
+        },
         "lastValidArtwork": {
           "$ref": "#/$defs/__schema88"
         },

@@ -1,3 +1,4 @@
+import { ComponentDraftList } from "../features/user-components/component-draft-list";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import { SymbolArtwork } from "../features/component-insert/symbol-artwork";
@@ -28,7 +29,9 @@ export default function NativeComponentsLibrary({
   onEdit,
   onInsert,
   refresh,
-  drafts = [],
+  drafts,
+  onDeleteDrafts,
+  previewDraftDeletion,
   onOpenDraft,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -280,22 +283,16 @@ export default function NativeComponentsLibrary({
               : "Create or import a definition to reuse it across projects."}
         </p>
       ) : null}
-      {drafts.length ? (
-        <details>
-          <summary>Drafts in this project ({drafts.length})</summary>
-          {drafts.map((draft) => (
-            <button
-              key={draft.id}
-              disabled={busy}
-              onClick={() => {
-                onClose();
-                onOpenDraft?.(draft.id);
-              }}
-            >
-              {draft.label}
-            </button>
-          ))}
-        </details>
+      {drafts ? (
+        <ComponentDraftList
+          catalog={drafts}
+          onOpen={(target) => {
+            onClose();
+            onOpenDraft?.(target);
+          }}
+          onDelete={onDeleteDrafts}
+          previewDeletion={previewDraftDeletion}
+        />
       ) : null}
       <footer className="native-library-note">
         Placed components are captured in the project file. Editing the library

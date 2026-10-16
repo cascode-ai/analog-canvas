@@ -202,6 +202,12 @@ export function useWorkspaceAgentRuntime(): AgentRuntime | null {
   return useContext(WorkspaceAgent)?.runtime ?? null;
 }
 
+/** Reuse the page connection inside an editor without rebinding its hosts. */
+export function useWorkspaceAgentConnection(): UseAgentSessionResult | null {
+  const shared = useContext(WorkspaceAgent);
+  return shared?.enabled ? shared.session : null;
+}
+
 /**
  * Binds an editor's hosts to the workspace session. Null options (the
  * runtime has not loaded, so there are no hosts yet) bind nothing.

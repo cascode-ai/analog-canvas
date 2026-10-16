@@ -5,6 +5,7 @@ import type {
   ComponentAuthoringDraft,
 } from "@icm/model";
 import type { SharedComponent } from "../features/user-components/component-library-contract";
+import type { prepareComponentVariant } from "@icm/edit-engine";
 
 export interface ComponentEditorSession {
   key: string;
@@ -14,6 +15,11 @@ export interface ComponentEditorSession {
   entry?: SharedComponent;
   publicationIntent?: "new" | "update";
   draft?: ComponentAuthoringDraft;
-  externalDefinitionId?: string;
+  externalSourceId?: string | undefined;
+  externalDefinitionId?: string | undefined;
+  variant?: ReturnType<typeof prepareComponentVariant> & {
+    baseRevision: number;
+  };
+  variantArtworkText?: string | undefined;
   target?: { projectSessionId: string; documentId: string; instance: Instance };
 }

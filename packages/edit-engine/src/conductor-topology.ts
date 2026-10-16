@@ -233,6 +233,9 @@ export function normalizeSameNetConductorTopology(
   const changedObjectIds = new Set<string>();
   const coalescedEndpoints = new Map<string, string>();
   let changed = false;
+  // An explicit empty affected set is a no-op; omission still normalizes all Nets.
+  if (netIds?.size === 0)
+    return { changed, changedRouteIds, changedObjectIds, coalescedEndpoints };
   const occupiedIds = new Set([
     ...document.instances.map((instance) => instance.id),
     ...document.nets.map((net) => net.id),

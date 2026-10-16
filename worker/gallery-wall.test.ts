@@ -23,6 +23,46 @@ import {
   submitOne,
 } from "./gallery.test-support";
 
+it("reads a fresh list identity once per request, including after the read-gate cache warms", async () => {
+  const env = environment();
+  const cookie = await makerOf(env);
+  const original = env.AUTH!;
+  let calls = 0;
+  env.AUTH = {
+    getByName: (name) => ({
+      fetch: (input, init) => {
+        calls++;
+        return original.getByName(name).fetch(input, init);
+      },
+    }),
+  };
+  for (let read = 0; read < 2; read++) {
+    calls = 0;
+    const response = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery`, {
+        headers: cookieHeaders(cookie),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(calls).toBe(1);
+  }
+  const logout = await env.authDurable.fetch(
+    new Request(`${ORIGIN}/api/auth/logout`, {
+      method: "POST",
+      headers: cookieHeaders(cookie),
+    }),
+  );
+  expect(logout.status).toBe(200);
+  const refused = await route(
+    env,
+    new Request(`${ORIGIN}/api/gallery?attention=1`, {
+      headers: cookieHeaders(cookie),
+    }),
+  );
+  expect(refused.status).toBe(401);
+});
+
 /** Counts per part-count size, with `small` drawings of at most five parts. */
 function sizes(small: number, rest: Partial<Record<string, number>> = {}) {
   return { "0-5": small, "6-10": 0, "11-15": 0, "16-25": 0, "26-": 0, ...rest };

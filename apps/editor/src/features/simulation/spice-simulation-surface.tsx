@@ -66,6 +66,7 @@ import {
   restoreSimulationRunArchive,
   type SimulationRunArchiveSummary,
 } from "./simulation-run-archive";
+import { downloadBlob } from "../../hosts/download-link";
 
 type ResultTab = SimulationCodeWorkspaceProps["outputPane"];
 
@@ -725,14 +726,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       setProblem(result.error);
       return;
     }
-    const url = URL.createObjectURL(
+    downloadBlob(
       new Blob([result.bytes as BlobPart], { type: "application/zip" }),
+      `simulation-${key}.zip`,
     );
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `simulation-${key}.zip`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
   const archiveCurrentRun = async () => {
     if (
@@ -964,14 +961,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           setProblem(result.error);
           return;
         }
-        const url = URL.createObjectURL(
+        downloadBlob(
           new Blob([result.bytes as BlobPart], { type: "application/zip" }),
+          "project-with-results.zip",
         );
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = "project-with-results.zip";
-        anchor.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
       },
     },
     {

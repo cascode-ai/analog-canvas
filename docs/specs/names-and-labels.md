@@ -66,18 +66,22 @@ redraws seen drawings), whether the name was typed, connected or generated:
   edit.
 - Styling-only changes never rename; a hidden character left with nothing to
   hide it is shown, not dropped.
-- An overbar on a Net or Cell Pin label renames (`D` ↔ `D_bar`, the
-  complement); on a device Reference it is styling. Labels an older drawing
-  barred without `_bar` keep that look until edited.
+- Adding/removing an overbar in the Net or Cell Pin label editor renames
+  (`D` ↔ `D_bar`); creating a barred Net Label follows the same rule, without
+  doubling `_bar`. This names a separate signal, not an automatic inverter.
+  On a device Reference an overbar is styling. An older bound signal label
+  barred without `_bar` keeps its name and look; existing ERC reports the
+  mismatch and suggests an explicit rename. Loading, copying and Project Code
+  format changes never infer a rename from the bar.
 - A still-standard label regenerates for its new name after any rename
   (text, Properties, netlist code, Agent, clipboard); a spelling without a
   standard form returns to the historical rule; an authored format keeps its
   styling around new text. A renamed Cell Pin whose unlocked label has no or
   only the automatic look takes the look a newly placed Pin with that name
   gets.
-- Placing a Cell Pin, Net label or supply never alters its name. The explicit
-  whole-drawing `labels` action is the only operation that may change names,
-  and only subscript case (undoable). The first-letter convention (off for new
+- Placement preserves the authored name, including the label editor's
+  explicit overbar naming rule above. The whole-drawing `labels` action may
+  change only subscript case (undoable). The first-letter convention (off for new
   drawings) only changes drawing: `Start` draws S + subscript tart and stays
   `Start`; standard looks are untouched.
 - An override equal to the fallback may be omitted. Creation, editing,

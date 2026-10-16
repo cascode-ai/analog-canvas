@@ -36,6 +36,58 @@ async function openPropertiesWithQ(
   );
 }
 
+test("Properties resumes displayed PDK source on opening and changing the selection", async ({
+  page,
+}) => {
+  const project = createEmptyProject("source-demand", "Source demand");
+  project.externalSubcircuitDefinitions.push({
+    id: "sky-res",
+    name: "sky130_fd_pr__res_high_po",
+    interfaceStatus: "declared",
+    terminals: ["R0", "R1", "B"].map((name) => ({
+      id: `sky-res-${name}`,
+      name,
+      direction: "passive",
+    })),
+    formalParameters: [],
+  });
+  project.documents[0]!.instances.push(
+    {
+      ...placedInstance("XR1", "resistor", 300, 220),
+      reference: "XR1",
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "sky-res" },
+        parameters: { w: "1u", l: "5.5u", mult: "1" },
+      },
+    },
+    {
+      ...placedInstance("R2", "resistor", 500, 220),
+      reference: "R2",
+      netlist: { parameters: { value: "1k" } },
+    },
+  );
+  await openProject(page, project, "source-demand.icproj.json");
+  await page.getByTestId("hit-XR1").click({ force: true });
+  await closeSelectionShelf(page);
+  const source = page.getByLabel("SPICE component code");
+  await expect(source).toHaveCount(0);
+  await page.keyboard.press("q");
+  await expect(page.getByLabel("Substrate Net", { exact: true })).toBeVisible();
+  // This intentionally unwired part uses the existing placeholder preview.
+  await expect(source.locator("code")).toHaveText(
+    "XR1 <unconnected:1> <unconnected:2> <value> l=5.5u mult=1 w=1u",
+  );
+  await expect(source).toHaveAttribute("data-exact", "false");
+  const text = await source.innerText();
+  await page.getByTestId("hit-R2").click({ force: true });
+  await expect(source).toHaveCount(0);
+  await page.getByTestId("hit-XR1").click({ force: true });
+  await expect(source).toHaveText(text, { useInnerText: true });
+  await closeSelectionShelf(page);
+  await page.keyboard.press("q");
+  await expect(source).toHaveText(text, { useInnerText: true });
+});
+
 test("placed parts, the VDD marker and a legacy clock use the text-first Properties surface", async ({
   page,
 }) => {

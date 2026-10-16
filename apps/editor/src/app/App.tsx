@@ -66,9 +66,11 @@ import {
   LINEAR_CONTROLLED_SOURCE_KINDS,
   controlledSourceExpressionSource,
 } from "@icm/model";
+import { designNetlistNetName } from "@icm/netlist";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
+  bindsProjectCell,
   reviewedExternalModelSuggestions,
   deviceDescriptor,
 } from "@icm/devices";
@@ -316,6 +318,10 @@ import {
   type SelectionFilter,
 } from "../features/selection/selection-filter";
 import { deriveSelectionInspectionModel } from "../features/selection/selection-inspection-model";
+import {
+  selectionNetHighlights,
+  selectionNetIds,
+} from "../features/selection/selection-net-highlights";
 import { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import { deferFocus } from "../interaction/deferred-focus";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
@@ -1169,6 +1175,7 @@ function WorkspaceEditor({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
+    serializeSnapshot: snapshotSerializer.serialize,
     projectStore,
     ...(nativeProjectStore ? { nativeProjectStore } : {}),
     exportDelivery,
@@ -1431,11 +1438,11 @@ function WorkspaceEditor({
           cornerOrder: "auto" as const,
         };
   };
-  // Already derived for this revision by the connectivity index above; the
-  // routing plan gate would otherwise derive it again over the same Document.
-  const documentContactEvidence = projectConnectivityIndex.documents.get(
+  // The gate, ordinary commits and interaction readers share this exact snapshot.
+  const documentConnectivity = projectConnectivityIndex.documents.get(
     document.id,
-  )?.contactEvidence;
+  );
+  const documentContactEvidence = documentConnectivity?.contactEvidence;
   const [interfaceConfirmation, setInterfaceConfirmation] = useState<{
     request: CellInterfaceConfirmation;
     snapshot: typeof project;
@@ -1842,18 +1849,6 @@ function WorkspaceEditor({
     () => keptDocumentStyleOfSelection(document, visualSelection),
     [document, visualSelection],
   );
-  const selectedComponentSourceCode = useMemo(
-    () =>
-      selectedInstance
-        ? componentSourceCode(
-            project,
-            document.id,
-            selectedInstance.id,
-            resolver,
-          )
-        : null,
-    [document.id, project, resolver, selectedInstance],
-  );
   const selectedAnnotationOwnerInstance = selectedAnnotationOwnerInstanceId
     ? document.instances.find(
         (instance) => instance.id === selectedAnnotationOwnerInstanceId,
@@ -1926,8 +1921,14 @@ function WorkspaceEditor({
     selectedNetNameProjection?.preferredSpelling ??
     selectedNetNameLogical?.name;
   const sceneSnapTargetIndex = useMemo(
-    () => buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
-    [document, resolver, visibleEndpoints],
+    () =>
+      buildSceneSnapTargetIndex(
+        document,
+        resolver,
+        visibleEndpoints,
+        documentConnectivity?.routingGeometry,
+      ),
+    [document, resolver, visibleEndpoints, documentConnectivity],
   );
   const draftingCreateSnapIndex = useMemo(
     () =>
@@ -2093,6 +2094,39 @@ function WorkspaceEditor({
   useEffect(() => {
     setControlOptionPreview(null);
   }, [selectionOpen, documentSettingsOpen, document.id, selectedInstance?.id]);
+  const shownNetHighlight =
+    simulationPickNetsActive || controlPickMode === "net"
+      ? simulationPickHighlight
+      : (controlOptionHighlight ?? codeNetHighlight ?? highlightedNet);
+  // What the selection connects to glows faintly unless a Net is already
+  // highlighted or being picked (2026-10-14).
+  const connectedNetHighlights = useMemo(
+    () =>
+      shownNetHighlight || simulationPickNetsActive || controlPickMode === "net"
+        ? []
+        : selectionNetHighlights(
+            projectConnectivityIndex,
+            document.id,
+            selectionNetIds(
+              document,
+              resolver,
+              visualSelection,
+              selectedEndpoint,
+            ),
+            documentStack,
+          ),
+    [
+      shownNetHighlight,
+      simulationPickNetsActive,
+      controlPickMode,
+      projectConnectivityIndex,
+      document,
+      resolver,
+      visualSelection,
+      selectedEndpoint,
+      documentStack,
+    ],
+  );
   const startControlPick = (): void => {
     if (
       !selectedInstance ||
@@ -2629,6 +2663,11 @@ function WorkspaceEditor({
       visibleEndpoints,
       routeGeometryRecords,
       contactComponents,
+      netNameOf: (netId) =>
+        designNetlistNetName(project, document.id, netId, {
+          format: netlistPreferences.format,
+          namingProfile: netlistNamingProfile,
+        }),
     },
     selection: {
       selectedInstance,
@@ -3890,6 +3929,22 @@ function WorkspaceEditor({
     selectedReviewedExternalBinding?.terminals.find(
       (terminal) => terminal.interaction === "property" && !terminal.supply,
     );
+  // Only the property-terminal identity card displays this source. Ordinary
+  // component controls use their own editable property code, not this projection.
+  const componentSourceVisible =
+    selectionOpen && Boolean(selectedPropertyOnlyTerminal);
+  const selectedComponentSourceCode = useMemo(
+    () =>
+      componentSourceVisible && selectedInstance
+        ? componentSourceCode(
+            project,
+            document.id,
+            selectedInstance.id,
+            resolver,
+          )
+        : null,
+    [document.id, project, resolver, selectedInstance, componentSourceVisible],
+  );
   const selectedPropertyOnlyTerminalNet =
     selectedInstance && selectedPropertyOnlyTerminal
       ? document.nets.find((net) =>
@@ -5478,6 +5533,7 @@ function WorkspaceEditor({
                 ) : (
                   <ProjectCodePanel
                     key={projectSessionId}
+                    serializeProject={snapshotSerializer.serialize}
                     onDirtyChange={noteCodeDraftDirty}
                     project={project}
                     selection={{
@@ -6184,7 +6240,7 @@ function WorkspaceEditor({
                         : null,
                       identity: {
                         instance: selectedInstance,
-                        sourceCode: selectedComponentSourceCode!,
+                        sourceCode: selectedComponentSourceCode,
                         revision: document.revision,
                         targetDescription:
                           selectedInstance.netlist &&
@@ -6244,7 +6300,17 @@ function WorkspaceEditor({
                               selectedPropertyDevice?.symbolId ??
                                 selectedInstance.symbolId,
                             ).length > 0 ||
-                            selectedReviewedExternalBinding)
+                            selectedReviewedExternalBinding ||
+                            // A flip-flop takes only Cells: the field shows
+                            // once one fits, or while one is bound (#1689).
+                            (bindsProjectCell(selectedInstance.symbolId) &&
+                              (selectedInstance.netlist.binding?.kind ===
+                                "subcircuit" ||
+                                gateCellChoices(
+                                  project,
+                                  document.id,
+                                  selectedInstance,
+                                ).length > 0)))
                             ? {
                                 defaultValue: selectedModelTargetName,
                                 cells: gateCellChoices(
@@ -6603,12 +6669,13 @@ function WorkspaceEditor({
               : null
           }
           netHighlight={{
-            highlight:
-              simulationPickNetsActive || controlPickMode === "net"
-                ? simulationPickHighlight
-                : (controlOptionHighlight ??
-                  codeNetHighlight ??
-                  highlightedNet),
+            highlight: shownNetHighlight,
+            document,
+            resolver,
+            routeGeometryRecords,
+          }}
+          connectedNets={{
+            highlights: connectedNetHighlights,
             document,
             resolver,
             routeGeometryRecords,
@@ -7155,7 +7222,6 @@ function WorkspaceEditor({
         setComponentLibraryRefresh={setComponentLibraryRefresh}
         userComponentsOpen={userComponentsOpen}
         setUserComponentsOpen={setUserComponentsOpen}
-        commitProjectStructure={commitProjectStructure}
         editorDocumentController={editorDocumentController}
         synchronizeExternalCommit={synchronizeExternalCommit}
         definitionProjectRef={definitionProjectRef}

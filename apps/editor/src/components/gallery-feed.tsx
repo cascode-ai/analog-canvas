@@ -5,6 +5,7 @@ import "../styles/gallery-entry.css";
 import {
   announceGalleryChange,
   galleryAuthorsOf,
+  galleryQueryFromFilters,
   galleryNarrowedByline,
   galleryPreviewUrl,
   loadGalleryFeed,
@@ -181,22 +182,11 @@ export function GalleryFeed({
   }
   // One query for the first page, every later page and the landing preload.
   const feedQuery = useMemo<GalleryFeedQuery>(
-    () => ({
-      source,
-      author: queriedAuthor,
-      ownerUserId,
-      tags: selectedTags,
-      netlistable: netlistableOnly,
-      withoutNetlist: withoutNetlistOnly,
-      ai: aiFilter,
-      liked: likedOnly,
-      attention: attentionOnly,
-      attentionKind,
-      parts: selectedParts,
-      ...(serverSearch ? { q: serverSearch } : {}),
-      order,
-      seed,
-    }),
+    () =>
+      galleryQueryFromFilters(
+        { ...filters, search: serverSearch },
+        { order, seed },
+      ),
     [
       order,
       seed,
@@ -249,6 +239,7 @@ export function GalleryFeed({
     toggleLike,
     removeManagedEntry,
   } = useGalleryWall({
+    active: view === "gallery",
     preload,
     feedQuery,
     searchQuery,
@@ -346,7 +337,12 @@ export function GalleryFeed({
   const narrowedName = narrowedToAuthor
     ? (byline ?? "this contributor")
     : (datasetWall?.name ?? null);
-  const offeredDatasets = useGalleryDatasets(source, isOwner);
+  const offeredDatasets = useGalleryDatasets(
+    source,
+    isOwner,
+    fetch,
+    view === "gallery",
+  );
   // On the community wall, each dataset counts the circuits it adds to the
   // filtered wall (#1697), as the authors beside it do.
   const wallSources = source === null ? state.sources : undefined;

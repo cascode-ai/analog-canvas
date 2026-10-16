@@ -76,8 +76,10 @@ owns visual authority.
   Formal direction (input/output/inout/passive) is separate from geometric
   side and JSON roles (gate/bulk); direction edits keep roles and mode.
   Customize symbol captures generated artwork before exceptional mapping;
-  returning to Automatic is explicit with the dirty-change safeguard. Display
-  name edits change `symbol.name`, not the source entry.
+  switching Automatic/Custom is immediate and keeps inactive JSON in the draft.
+  Inactive JSON never blocks Automatic Apply or enters executable output.
+  Reset custom symbol confirms only the artwork reset. Display name edits
+  change `symbol.name`, not the source entry.
 - Invalid artwork stays a draft (source and directions stay editable); stale
   previews are labelled and never applied.
 - `apply_model_source.definitions[].authoring` (GUI and Agent): `symbolMode`,
@@ -90,19 +92,75 @@ owns visual authority.
   it); a mode change resets to Automatic. `authoringDefinitionIds` default to
   the explicitly supplied targets; other shared-source entries keep their
   drafts at the new revision. Transient input, no parallel fact store.
+- Create and Create from edit detached candidates. Edit definition follows the
+  native owner across the Project (captured symbol identity for primitives and
+  Symbol only). Create variant installs independent resources and rebinds only
+  the selected instance on Apply; cancel and draft save leave instances alone.
+  Apply is one Undo; variants start with new publication intent. Mutating a
+  source also used by other owners requires explicit shared-source editing in
+  Cell Manager or an isolated variant. Unsafe namespace rewrites refuse with a
+  location; ordinary source editing retains the full supported language.
+- GUI and Agent share these planners through `apply-component-definition`,
+  `apply-component-artwork` and `create-component-variant`. Existing explicit
+  caller/scope operations retain their original meaning. Targets use stable
+  IDs and transaction revisions, never display-name matching.
+- One main diagnostic prioritizes conflicts and blocking errors over operation
+  results and empty help. Normal creation has no repair or scope selector;
+  connection migration appears only where a connected contact changes.
+  Circuit owns interfaces; Symbol owns geometry. Advanced source files,
+  dependencies and raw primitive/artwork editing remain available.
 - Save draft keeps the whole candidate, invalid text included, apart from
   applied facts. Local Apply and Place need no account and never publish;
   Place applies pending changes first. Interface-only definitions refuse
   execution.
+- The open authoring workspace owns raw GUI/Agent input and shared Undo/Redo.
+  Its Project session, draft ID, open-session epoch and monotonic candidate
+  revision guard writes; stale handles and active composition refuse them.
+  Publication blocks overlapping saves and applies; its completion checkpoints
+  only the raw input actually saved, preserving later input as unsaved.
+  Applied definitions remain the executable authority. Agent calls and
+  permissions are in [authoring](../agent/shared/authoring.md#external-model-sources).
+- Back, Close and definition-type changes leave untouched, applied or saved candidates directly.
+  Unsaved input offers Save draft & leave, Discard changes and Keep editing in
+  an anchored menu beside the return arrow or clicked trigger, without resizing
+  the editor. Outside press or Escape cancels; Escape returns focus to the trigger.
+  Save must succeed before leaving. Discard preserves earlier saved/applied
+  checkpoints. Publish is independent of leaving. Use Agent reuses the page's
+  connection inside the editor.
 - Public-library editing uses an isolated snapshot in the Project's
   non-executable drafts at its fixed library revision, never replacing
   drawing captures; destination and write rules are in
   [publication](component-publication.md).
-- Discovery derives capability from the validated definition (**Symbol
-  only**, **Needs repair**, **Not applied**; none certifies an engine).
+- Project drafts have typed component/source/candidate identities. GUI and Agent
+  share their catalog, existing limits (characters, bytes and counts) and atomic
+  Undoable deletion planner. Shared source bodies count once; deleting a candidate
+  keeps its shared source and original base revision as a source draft, available
+  to open or explicitly remove even without an external definition.
+  Applied sources and definitions stay intact. No automatic eviction occurs.
+  Removing an open candidate's saved checkpoint keeps its raw input, invalidates
+  old Agent revisions and marks it unsaved. Overlapping publication refuses deletion.
+- Discovery derives capability from the validated definition (**Circuit**,
+  **Symbol only**, **Invalid**; none certifies an engine). Cards place these compact
+  tags beside the title and retain the author below; artwork occupies its own fitted
+  preview. Details and other actions use a top-right anchored menu; authorized
+  removal uses a separate × and a compact confirmation.
   Invalid historical records stay visible but unplaceable and never block
-  valid ones or pagination; summaries carry no executable source; selection
+  valid ones; summaries carry no executable source; selection
   re-reads the full record and checks its revision.
+- Catalog search, capability, stable author ID and creation-time order apply
+  before pagination. Default Circuit first groups electrical implementations,
+  symbol-only and needs-repair, then sorts each by createdAt descending and ID.
+  Newest/Oldest use createdAt alone with an ID tie-breaker. Authors come from
+  the full visible query, excluding the selected author filter.
+- The GUI automatically loads summaries progressively into bounded session
+  caches and retains filters and scroll on return. Open, focus, visibility,
+  publication and account changes revalidate the catalog revision; unchanged
+  catalogs send no summary bodies. Changed generations replace the cached
+  result together; interrupted initial loads resume their valid cursor.
+  Late responses cannot change another query. Failures retain loaded cards
+  with Try Again; Refresh and Load more are absent. Previews load near the
+  visible area. Agent/HTTP catalog queries use the same paginated ordering;
+  older queries without the versioned catalog option retain ID cursors.
 - GUI placement uses the Agent insert planner: capture, instance and
   annotations commit together; cancel leaves nothing; one Undo; the snapshot
   never advances to newer cloud content.
