@@ -49,13 +49,17 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
 }
 
 /** A Cell's own model cards, each `.model NAME TYPE(PARAM=VALUE …)`. */
+/** A model a Cell carries, as the SPICE card its body holds. */
+export function spiceModelCard(
+  model: NonNullable<DesignNetlistCell["models"]>[number],
+): string {
+  return `.model ${model.name} ${model.type}(${model.parameters
+    .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
+    .join(" ")})`;
+}
+
 function spiceModels(cell: DesignNetlistCell): string[] {
-  return (cell.models ?? []).map(
-    (model) =>
-      `.model ${model.name} ${model.type}(${model.parameters
-        .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
-        .join(" ")})`,
-  );
+  return (cell.models ?? []).map(spiceModelCard);
 }
 
 /**

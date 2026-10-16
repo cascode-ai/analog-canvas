@@ -91,6 +91,21 @@ revision; it never silently changes `ngspice-46-core`.
   call passes `0`, as an unbound one exports, and a ground no pin then
   reaches goes too. A native Spectre body found so reaches the converter
   without its statements, so its behavioral sources never need converting.
+- The chopper's body is such a body: a call of it imports as the chopper,
+  clocked by the phase its label names, a label naming the node the call
+  passes as its clock.
+- An `S` card naming Analog Canvas's ideal switch (its model card exactly as
+  Analog Canvas prints it; in Spectre, the ideal switch each Cell defines)
+  imports as the switch with a CTRL pin, on the card's control node. Every
+  switch Analog Canvas draws prints that card, whether the phase its label
+  names or its CTRL pin closes it, so each comes back with a CTRL pin (an
+  RNL drawing says which it was). The node the card reads its control
+  against is the Cell's ground: a node other than `0`, a subcircuit's ground
+  pin, takes a ground claim. Any other `S` card imports as the
+  voltage-controlled switch bound to its model, as the catalog maps `S`.
+  Spectre has each Cell define the ideal switch again, which the converter
+  refuses, so those definitions reach it as one empty one; a card it names
+  `XS1` keeps the reference `S1`.
 - No device simulation, analyses or control commands are executed.
 
 Diagnostics have a stable code (distinct prefixes for source, syntax, bind,

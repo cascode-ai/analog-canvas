@@ -15,12 +15,12 @@
   },
   "dependencies": {
     "@icm/derived": "workspace:*",
+    "@icm/devices": "workspace:*",
     "@icm/model": "workspace:*",
     "@icm/netlist": "workspace:*",
     "@icm/symbols": "workspace:*"
   },
   "devDependencies": {
-    "@icm/devices": "workspace:*",
     "@icm/project-protocol": "workspace:*"
   }
 }

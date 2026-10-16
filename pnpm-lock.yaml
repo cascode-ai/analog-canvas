@@ -457,6 +457,9 @@ importers:
       '@icm/derived':
         specifier: workspace:*
         version: link:../derived
+      '@icm/devices':
+        specifier: workspace:*
+        version: link:../devices
       '@icm/model':
         specifier: workspace:*
         version: link:../model
@@ -467,9 +470,6 @@ importers:
         specifier: workspace:*
         version: link:../symbols
     devDependencies:
-      '@icm/devices':
-        specifier: workspace:*
-        version: link:../devices
       '@icm/project-protocol':
         specifier: workspace:*
         version: link:../project-protocol

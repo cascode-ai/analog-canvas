@@ -1,8 +1,10 @@
 import {
+  drawnSwitchControl,
   resolveDocumentStyleProfile,
   richTextMetrics,
   supplyMarkerForSymbol,
 } from "@icm/derived";
+import { deviceDescriptor } from "@icm/devices";
 import {
   deriveStableId,
   flattenRichText,
@@ -255,6 +257,35 @@ function acSymbolFor(
   return ranked[0] ?? null;
 }
 
+/** What closes a switch Analog Canvas draws: the phase its label names, its CTRL pin, or a chopper's clock. */
+const switchControl = (symbolId: string) => {
+  const definition = deviceDescriptor(symbolId);
+  return definition ? drawnSwitchControl(definition) : null;
+};
+
+/** Whether a part is clocked by the phase its label names, as switches and choppers are. */
+const clockedByLabel = (instance: Pick<Instance, "symbolId">) => {
+  const control = switchControl(instance.symbolId);
+  return control === "phase" || control === "chopper";
+};
+
+/**
+ * The symbol of a switch the netlist import brought in with a CTRL pin that
+ * RNL draws as one its label clocks: every switch Analog Canvas draws prints
+ * the same card, so only the drawing says which it was.
+ */
+function phaseSwitchSymbol(
+  symbol: RnlSymbolRef,
+  orient: RnlOrient,
+  instance: Pick<Instance, "symbolId">,
+): { row: RnlSymbol; orient: RnlOrient } | null {
+  if (switchControl(instance.symbolId) !== "pin") return null;
+  const found = acSymbolFor(symbol, orient, instance, ["1", "2"]);
+  return found?.row.ac && switchControl(found.row.ac) === "phase"
+    ? found
+    : null;
+}
+
 /**
  * The standard package and its parts are one family: a build may bring them
  * as one file, as the toolkit's preview does, and their names never clash.
@@ -365,9 +396,64 @@ function applyLevel(
   const byName = new Map(
     document.instances.map((instance) => [instance.id.toLowerCase(), instance]),
   );
+  // A card the conversion from Spectre renamed (S1 as XS1) is found by the
+  // part's reference, which the import keeps as the card was written.
+  const byReference = new Map(
+    document.instances.flatMap((instance) =>
+      instance.reference
+        ? [[instance.reference.toLowerCase(), instance] as const]
+        : [],
+    ),
+  );
   const instanceOf = (name: string) =>
     document.instances.find((instance) => instance.id === name) ??
-    byName.get(name.toLowerCase());
+    byName.get(name.toLowerCase()) ??
+    byReference.get(name.toLowerCase());
+
+  /**
+   * A switch the import brought in with a CTRL pin, drawn as one its label
+   * clocks: its switched pins are 1 and 2, and the net its CTRL pin met is
+   * the phase its label names (`phaseNets`); a net nothing else meets goes.
+   */
+  const phaseNets = new Map<string, string>();
+  const clockByLabel = (instance: Instance) => {
+    const pins: Readonly<Record<string, string>> = { P: "1", N: "2" };
+    const controls = new Set<string>();
+    for (const net of document.nets) {
+      net.terminals = net.terminals.flatMap((terminal) => {
+        if (terminal.instanceId !== instance.id) return [terminal];
+        if (terminal.pinName === "CTRL") {
+          controls.add(net.id);
+          return [];
+        }
+        const pinName = pins[terminal.pinName];
+        return [pinName ? { ...terminal, pinName } : terminal];
+      });
+    }
+    for (const id of controls) {
+      const name = document.importReference?.nets.find(
+        (item) => item.id === id,
+      )?.name;
+      if (name) phaseNets.set(instance.id, name);
+    }
+    const emptied = new Set(
+      document.nets
+        .filter((net) => controls.has(net.id) && !net.terminals.length)
+        .map((net) => net.id),
+    );
+    document.nets = document.nets.filter((net) => !emptied.has(net.id));
+    document.connectivityEvidence = document.connectivityEvidence.filter(
+      (evidence) => !emptied.has(evidence.netId),
+    );
+    const provenance = instance.importProvenance;
+    if (provenance?.terminalMapping)
+      provenance.terminalMapping = provenance.terminalMapping.flatMap(
+        (entry) => {
+          const pinName = pins[entry.pinName];
+          return pinName ? [{ ...entry, pinName }] : [];
+        },
+      );
+  };
 
   // Nets by their RNL name, from the import's own record of the names.
   const nets = new Map(
@@ -447,7 +533,8 @@ function applyLevel(
       ) ?? [];
     const mapped =
       symbol && !symbol.default && !symbol.level
-        ? acSymbolFor(symbol, orient, instance, pinNames)
+        ? (acSymbolFor(symbol, orient, instance, pinNames) ??
+          phaseSwitchSymbol(symbol, orient, instance))
         : null;
     if (symbol && !mapped && !symbol.default && !symbol.level)
       warn(
@@ -455,9 +542,12 @@ function applyLevel(
         `${instance.id} is drawn with ${symbol.name}, which Analog Canvas has no symbol for; it keeps its own`,
       );
     if (mapped) {
+      const pinSwitch = switchControl(instance.symbolId) === "pin";
       instance.symbolId = mapped.row.ac!;
       if (mapped.row.variant) instance.symbolVariantId = mapped.row.variant;
       else delete instance.symbolVariantId;
+      if (pinSwitch && switchControl(instance.symbolId) === "phase")
+        clockByLabel(instance);
     }
     const turn = mapped?.orient ?? orient;
     instance.placement = {
@@ -1020,6 +1110,41 @@ function applyLevel(
     instanceOf,
     netOf,
   });
+  // A label the drawing does not show still names a part's clock: the one
+  // the import gave it stays, hidden; a switch that had a CTRL pin takes the
+  // name of the net that pin met.
+  for (const instance of placed) {
+    if (!clockedByLabel(instance) || shows.get(instance.id)?.name) continue;
+    const own = document.annotations.find(
+      (item) =>
+        item.kind === "instance-label" &&
+        !item.binding &&
+        item.anchor.kind === "object" &&
+        item.anchor.objectId === instance.id,
+    );
+    if (own) {
+      own.visible = false;
+      continue;
+    }
+    const phase = phaseNets.get(instance.id);
+    const at = instance.placement?.position;
+    if (!phase || phase === instance.reference || !at) continue;
+    document.annotations.push({
+      id: `instance-label-${instance.id}`,
+      kind: "instance-label",
+      content: { runs: [{ kind: "text", value: phase }] },
+      anchor: {
+        kind: "object",
+        objectId: instance.id,
+        localOffset: { x: 0, y: -4 * PART_GRID },
+        fallbackPosition: { x: at.x, y: at.y - 4 * PART_GRID },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+      visible: false,
+    });
+  }
   const unread = importShapes(document, level, model.shapes ?? []);
   if (unread)
     warn(
@@ -1114,6 +1239,29 @@ function importTexts(
           item.interfaceInstanceIds.includes(pin.id),
         )
       : undefined;
+    // A switch or chopper is clocked by the phase its label names: the label
+    // holds that text itself, in place of one the import gave it.
+    if (instance && text.key === "name" && clockedByLabel(instance)) {
+      document.annotations = document.annotations.filter(
+        (item) =>
+          !(
+            item.kind === "instance-label" &&
+            !item.binding &&
+            item.anchor.kind === "object" &&
+            item.anchor.objectId === instance.id
+          ),
+      );
+      labelled.add(instance.id);
+      document.annotations.push({
+        id: `instance-label-${instance.id}`,
+        kind: "instance-label",
+        content,
+        anchor: onObject(instance),
+        ...common,
+        ...scaled(text.size, profile.typography.instanceFontSize),
+      });
+      return;
+    }
     if (instance && text.key === "name" && !labelled.has(instance.id)) {
       labelled.add(instance.id);
       document.annotations.push({

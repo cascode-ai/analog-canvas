@@ -324,7 +324,7 @@ Q2 collector base emitter QPREF
     });
   });
 
-  it("preserves mixed-device IR but rejects devices outside the Razavi catalog", async () => {
+  it("preserves mixed-device IR and imports its switch as the catalog maps S cards", async () => {
     const entry = resolve(
       process.cwd(),
       "netlists/mixed-device-acceptance/circuit.spi",
@@ -358,17 +358,22 @@ Q2 collector base emitter QPREF
       top.instances[0]!.terminals.map((terminal) => terminal.name),
     ).toEqual(["IN", "OUT", "VSS"]);
 
+    // Its one S card was the device the import once refused; the catalog
+    // maps S cards to the voltage-controlled switch, bound to the card's model.
     const imported = importCompileResult(compiled);
-    expect(imported.successful).toBe(false);
-    expect(imported.project).toBeNull();
-    const unsupported = imported.diagnostics.filter(
-      (item) => item.code === "SPICE_IMPORT_UNSUPPORTED_SYMBOL",
-    );
-    expect(unsupported.length).toBeGreaterThan(0);
-    expect(unsupported.every((item) => item.severity === "error")).toBe(true);
-    expect(unsupported.some((item) => item.message.includes("Razavi"))).toBe(
+    expect(imported.successful, JSON.stringify(imported.diagnostics)).toBe(
       true,
     );
+    expect(
+      imported.project?.documents
+        .flatMap((document) => document.instances)
+        .find((instance) => instance.reference === "SROUTE"),
+    ).toMatchObject({
+      symbolId: "voltage-controlled-switch",
+      netlist: {
+        binding: { kind: "model", deviceClass: "switch", name: "SWACC" },
+      },
+    });
   });
 
   it("imports reviewed inductors with the scale-reconciled Razavi symbol", async () => {

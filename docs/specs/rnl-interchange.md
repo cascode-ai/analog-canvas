@@ -125,6 +125,14 @@ the RNL language and its runtime belong to rnl.
 - Analog Canvas's own bodies (an op-amp's, a gate's, an ideal block's) come
   back as the blocks that write them, as the SPICE / SCS import brings them
   ([SPICE frontend](spice-frontend.md)), in the port order the export wrote.
+- Switches come back as their symbols show them. The SPICE / SCS import
+  brings every switch Analog Canvas draws in with a CTRL pin, since each
+  prints the same card; one RNL draws without a control pin (`$SWITCH`, its
+  closed and simple kin) is the switch its label clocks again, its pins 1
+  and 2, its label the text RNL shows, or, where RNL shows none, a hidden
+  label naming the node its card's control met. A chopper's label is its
+  clock's likewise. A card the conversion from Spectre renamed (`XS1`) is
+  found by its part's reference.
 - Not read back yet: what only an Analog Canvas object kind says (a callout, a leader, an open or
   dotted arrow head, an outlined arrow, polarity marks: they come in as the
   shapes and texts they draw), ellipses and arcs.

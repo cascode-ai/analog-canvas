@@ -245,14 +245,19 @@ export function electricalGraphFromIR(
         const symmetric =
           instance.invocationKind === "primitive" &&
           ["resistor", "capacitor", "inductor"].includes(instance.deviceClass);
+        // External black boxes bind by position, and so does a switch's S
+        // card, whichever symbol drew it (a CTRL pin or a phase label); MOS
+        // D/G/S/B are distinct.
+        const positional =
+          instance.invocationKind === "subcircuit" ||
+          instance.deviceClass === "switch";
         instance.nodes.forEach((node, index) => {
-          // External black boxes bind by position; MOS D/G/S/B are distinct.
           const pin = vertex(
-            `pin:${symmetric ? "passive" : instance.invocationKind === "subcircuit" ? index : node.pinName}`,
+            `pin:${symmetric ? "passive" : positional ? index : node.pinName}`,
             reviewed
               ? topologyLabel(`pin:${reviewed.terminals[index]!.pinName}`)
               : topologyLabel(
-                  `pin:${symmetric ? "passive" : instance.invocationKind === "subcircuit" ? index : node.pinName}`,
+                  `pin:${symmetric ? "passive" : positional ? index : node.pinName}`,
                 ),
           );
           edge(device, pin);

@@ -585,3 +585,187 @@ describe("RNL round trip of built-in blocks", () => {
     },
   );
 });
+
+/**
+ * Switches placed in Cell `dut` with a ground: S1 clocked by the phase its
+ * label names, S2 by its own name, S3 by its CTRL pin, and a chopper
+ * clocked by its label.
+ */
+function switches(): CircuitProject {
+  const project = createEmptyProject("switches", "Switches", "main");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const at = (x: number, y: number) =>
+    ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+  const port = (id: string, name: string, net: string, x: number) => {
+    document.instances.push({ id, symbolId: "port", placement: at(x, 0) });
+    document.netlist!.terminals.push({
+      id: `terminal-${id}`,
+      name,
+      netId: net,
+      direction: "inout",
+      interfaceInstanceIds: [id],
+    });
+    return { instanceId: id, pinName: "P" };
+  };
+  document.instances.push(
+    { id: "GND1", symbolId: "ground", placement: at(600, 300) },
+    {
+      id: "C1",
+      symbolId: "capacitor",
+      reference: "C1",
+      placement: at(600, 200),
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "capacitor" },
+        // As the conversion from Spectre spells it, so both dialects compare.
+        parameters: { value: "1e-12" },
+      },
+    },
+    {
+      id: "S1",
+      symbolId: "simple-switch",
+      reference: "S1",
+      placement: at(100, 100),
+    },
+    {
+      id: "S2",
+      symbolId: "ideal-switch",
+      reference: "S2",
+      placement: at(200, 100),
+    },
+    {
+      id: "S3",
+      symbolId: "externally-controlled-switch",
+      reference: "S3",
+      placement: at(300, 100),
+    },
+    {
+      id: "CH1",
+      symbolId: "chopper",
+      reference: "CH1",
+      placement: at(450, 100),
+    },
+  );
+  document.nets.push(
+    {
+      id: "a",
+      terminals: [
+        port("PA", "A", "a", 0),
+        { instanceId: "S1", pinName: "1" },
+        { instanceId: "S2", pinName: "1" },
+        { instanceId: "S3", pinName: "P" },
+        { instanceId: "CH1", pinName: "INP" },
+      ],
+    },
+    {
+      id: "b",
+      terminals: [
+        port("PB", "B", "b", 50),
+        { instanceId: "S1", pinName: "2" },
+        { instanceId: "S2", pinName: "2" },
+        { instanceId: "S3", pinName: "N" },
+        { instanceId: "CH1", pinName: "INN" },
+        { instanceId: "C1", pinName: "1" },
+      ],
+    },
+    {
+      id: "c",
+      terminals: [
+        port("PC", "C", "c", 700),
+        { instanceId: "S3", pinName: "CTRL" },
+        { instanceId: "CH1", pinName: "OUTP" },
+      ],
+    },
+    {
+      id: "d",
+      terminals: [
+        port("PD", "D", "d", 750),
+        { instanceId: "CH1", pinName: "OUTN" },
+      ],
+    },
+    {
+      id: "gnd",
+      terminals: [
+        { instanceId: "GND1", pinName: "0" },
+        { instanceId: "C1", pinName: "2" },
+      ],
+    },
+  );
+  document.connectivityEvidence.push({
+    id: "gnd-claim",
+    kind: "name-claim",
+    netId: "gnd",
+    name: "0",
+    scope: "global",
+    powerDomain: "ground",
+    owner: { kind: "power-marker", objectId: "GND1" },
+  });
+  for (const [id, text] of [
+    ["S1", "Φ1"],
+    ["CH1", "Φ2"],
+  ] as const)
+    document.annotations.push({
+      id: `label-${id}`,
+      kind: "instance-label",
+      content: { runs: [{ kind: "text", value: text }] },
+      anchor: {
+        kind: "object",
+        objectId: id,
+        localOffset: { x: 0, y: -30 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+  return project;
+}
+
+describe("RNL round trip of switches", () => {
+  it.each(["spice", "spectre"] as const)(
+    "brings each switch back clocked as it was drawn (%s)",
+    async (format) => {
+      const project = switches();
+      const plan = await roundTrip(project, format);
+      expect(
+        plan.diagnostics.filter(
+          (item) =>
+            item.severity === "error" || item.code === "RNL_IMPORT_RNL_ERROR",
+        ),
+      ).toEqual([]);
+      const parts = plan.project.documents.flatMap(
+        (document) => document.instances,
+      );
+      for (const reference of ["S1", "S2", "S3", "CH1"]) {
+        const original = project.documents[0]!.instances.find(
+          (instance) => instance.reference === reference,
+        )!;
+        const part = parts.find((instance) => instance.reference === reference);
+        expect(part && rnlPart(part)).toEqual(rnlPart(original));
+        expect(part?.symbolId).toBe(original.symbolId);
+      }
+      // Each part its label clocks names its phase in its label again.
+      const phases = plan.project.documents.flatMap((document) =>
+        document.annotations.flatMap((annotation) =>
+          annotation.kind === "instance-label" &&
+          !annotation.binding &&
+          annotation.content &&
+          annotation.anchor.kind === "object"
+            ? [
+                `${parts.find((part) => part.id === (annotation.anchor as { objectId: string }).objectId)?.reference} ${flattenRichText(annotation.content)}`,
+              ]
+            : [],
+        ),
+      );
+      expect(phases.sort()).toEqual(["CH1 Φ2", "S1 Φ1"]);
+      for (const spice of [false, true]) {
+        const options = { format: spice ? "spice" : format } as const;
+        const before = createDesignNetlistExport(project, options);
+        const after = createDesignNetlistExport(plan.project, options);
+        expect(after.status === "ready" && after.file.text).toBe(
+          before.status === "ready" && before.file.text,
+        );
+      }
+    },
+  );
+});
