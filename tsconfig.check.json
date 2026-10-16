@@ -24,6 +24,9 @@
       "@icm/spice-run": ["./packages/spice-run/src/index.ts"],
       "@icm/devices": ["./packages/devices/src/index.ts"],
       "@icm/edit-engine": ["./packages/edit-engine/src/index.ts"],
+      "@icm/edit-engine/component-drafts": [
+        "./packages/edit-engine/src/component-draft-management.ts"
+      ],
       "@icm/exporters": ["./packages/exporters/src/index.ts"],
       "@icm/exporters/browser-fonts": [
         "./packages/exporters/src/browser-fonts.ts"
