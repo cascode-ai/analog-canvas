@@ -114,10 +114,11 @@ function unfinishedMessage(
   diagnostics: readonly NetlistDiagnostic[],
 ): string | null {
   const unfinished = unfinishedDrawingDiagnostics([...diagnostics]);
-  if (unfinished.length === 0) return null;
+  const [first] = unfinished;
+  if (!first) return null;
   return unfinished.length === 1
-    ? unfinished[0]!.message
-    : `${unfinished.length} dead-end nodes. ${unfinished[0]!.message}`;
+    ? first.message
+    : `${unfinished.length} dead-end nodes. ${first.message}`;
 }
 
 /**

@@ -290,7 +290,10 @@ export function createEditorFileCommands({
   const importRnlFiles = async (files: FileList | null): Promise<void> => {
     const sources = await readSources(files);
     if (!sources) return;
-    const entryPath = sources.entryCandidates[0]!.path;
+    // readSources returns only with exactly one entry.
+    const [entry] = sources.entryCandidates;
+    if (!entry) return;
+    const entryPath = entry.path;
     setStatus("Importing RNL sources");
     try {
       const plan = await planRnlImport({

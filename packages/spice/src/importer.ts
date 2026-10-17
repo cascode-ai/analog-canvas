@@ -1075,10 +1075,17 @@ function importDocument(
     instances,
     DOCUMENT_GRID,
     new Map(
-      formalTerminals.map((terminal) => [
-        terminal.interfaceInstanceIds[0]!,
-        cellPinSide(terminal.name, terminal.netId, nets, instances),
-      ]),
+      formalTerminals.flatMap((terminal) => {
+        const [pin] = terminal.interfaceInstanceIds;
+        return pin
+          ? [
+              [
+                pin,
+                cellPinSide(terminal.name, terminal.netId, nets, instances),
+              ] as const,
+            ]
+          : [];
+      }),
     ),
   );
   const labelOffset = { x: 0, y: -4 * DOCUMENT_GRID };
@@ -1090,8 +1097,10 @@ function importDocument(
     sourceStatus: "in-sync",
     importReference: {
       files: [],
-      nets: nets.map((net) => {
-        const source = cell.nets.find((candidate) => candidate.id === net.id)!;
+      // Every net kept is one of the Cell's.
+      nets: nets.flatMap((net) => {
+        const source = cell.nets.find((candidate) => candidate.id === net.id);
+        if (!source) return [];
         const name = importedNetName(source.name, source.scope, namingProfile);
         return {
           id: source.id,
