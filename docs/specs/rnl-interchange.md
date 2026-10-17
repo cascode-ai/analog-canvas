@@ -29,6 +29,11 @@ the RNL language and its runtime belong to rnl.
   `SCS`. They print the same circuit with RNL records added; `SPICE` and `SCS`
   are unchanged. Another netlist dialect gets its own `<dialect>+RNL` format.
 - An RNL format is read-only in the panel; Copy and Save take its text.
+- Under an RNL format the panel carries an "About RNL" link to the
+  introduction to RNL (<https://rich-netlist.github.io/rnl/en/>): a new tab in
+  a browser, the system browser in the desktop app, which opens only its fixed
+  list of links (`rnl` among them). The link is left out where the build links
+  nowhere outside itself. The editor has one language, so there is one page.
 - Bodies the netlist writes itself (ideal blocks, magnetics) print their ports
   in the terminal order of their RNL symbol: SPICE primitives in SPICE order,
   op-amps as their macromodels do (in+ in− V+ V− out), other blocks signals
@@ -238,6 +243,11 @@ the RNL language and its runtime belong to rnl.
   wire through a junction as one) and each power label a power label
   (`apps/editor/e2e/rnl-interchange.spec.ts`; the same in Node, with the
   editor's entry step, in `rnl-round-trip.test.ts`).
+- Under an RNL format the panel shows the "About RNL" link, to the
+  introduction page in a new tab, and under no other format; the desktop app's
+  list of links has it (`apps/editor/e2e/rnl-interchange.spec.ts`,
+  `apps/desktop/src/external-links.test.ts`,
+  `apps/editor/src/features/netlist-export/about-rnl-link.test.tsx`).
 - The library's five examples (Common-Source Amplifier, Two-Stage Op Amp,
   Current-Mirror-Loaded Differential Pair, Fully Differential Two-Stage Op
   Amp, Five-Transistor OTA) in either process and either format come back

@@ -581,6 +581,7 @@ function WorkspaceEditor({
     NativeProjectHome,
     exportDelivery,
     capabilities,
+    openExternalLink,
   } = useEditorServices();
   const publicAgentUiEnabled =
     !import.meta.env?.ICM_DESKTOP && capabilities.agent && requestedAgentUi;
@@ -5508,6 +5509,15 @@ function WorkspaceEditor({
                               netlistPreferences.mode,
                               netlistNamingProfile,
                               "file",
+                            ),
+                        }
+                      : {})}
+                    externalLinksEnabled={capabilities.externalLinks}
+                    {...(openExternalLink
+                      ? {
+                          onOpenExternalLink: (target) =>
+                            void openExternalLink(target).catch((error) =>
+                              setStatus(String(error)),
                             ),
                         }
                       : {})}

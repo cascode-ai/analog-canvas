@@ -25,6 +25,7 @@ import {
   netlistModeOptions,
   type NetlistMode,
 } from "./netlist-mode";
+import type { NativeExternalTarget } from "../../hosts/native-external-links";
 import { RnlNetlistView } from "./rnl-netlist-view";
 import {
   inferNetlistProcess,
@@ -101,6 +102,8 @@ export function NetlistCodePanel({
   onReset,
   onCopy,
   onSaveFile,
+  externalLinksEnabled,
+  onOpenExternalLink,
   configurationError,
   onApply,
   onFocusInstance,
@@ -124,6 +127,9 @@ export function NetlistCodePanel({
   /** Puts the current netlist on the clipboard, as the Netlist menu's Copy does. */
   onCopy(): void;
   onSaveFile?(): void;
+  /** Whether the build may link outside itself; the RNL view's About link. */
+  externalLinksEnabled?: boolean | undefined;
+  onOpenExternalLink?: ((target: NativeExternalTarget) => void) | undefined;
   configurationError: string | null;
   onApply(edits: ProjectStructureEdit[]): boolean;
   onFocusInstance(instance: PrintedNetlistInstance | null): void;
@@ -553,6 +559,8 @@ export function NetlistCodePanel({
           format={format}
           namingProfile={namingProfile}
           rootDocumentId={rootDocumentId}
+          externalLinksEnabled={externalLinksEnabled}
+          onOpenExternalLink={onOpenExternalLink}
         />
       ) : (
         <div

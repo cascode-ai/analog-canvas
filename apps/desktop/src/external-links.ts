@@ -10,6 +10,7 @@ export function createExternalLinkHandler(
     owner: "https://tokenzhang.com",
     repository: "https://github.com/cascode-ai/analog-canvas",
     source: `https://github.com/cascode-ai/analog-canvas/commit/${commit}`,
+    rnl: "https://rich-netlist.github.io/rnl/en/",
   };
   return async (request: Request): Promise<Response> => {
     const origin =
@@ -21,7 +22,7 @@ export function createExternalLinkHandler(
       return Response.json({ message: "POST required" }, { status: 405 });
     try {
       const { target } = z
-        .object({ target: z.enum(["owner", "repository", "source"]) })
+        .object({ target: z.enum(["owner", "repository", "source", "rnl"]) })
         .strict()
         .parse(await request.json());
       if (target === "source" && !/^[a-f0-9]{40}$/u.test(commit))

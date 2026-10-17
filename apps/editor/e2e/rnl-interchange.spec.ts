@@ -113,6 +113,42 @@ test("writes SPICE+RNL and Spectre+RNL, and imports the file it wrote as it was 
   expect(await copiedNetlist(page, "spice")).toBe(spice);
 });
 
+// The RNL formats say what RNL is: a link to its introduction, in a new tab.
+test("links the RNL formats to the introduction to RNL, and only them", async ({
+  page,
+}) => {
+  const introduction = "https://rich-netlist.github.io/rnl/en/";
+  // The page itself is not this test's business: answer it from here.
+  await page.context().route("https://rich-netlist.github.io/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<title>RNL</title><p>About RNL</p>",
+    }),
+  );
+  await openEditor(page, "/editor?example=two-stage-op-amp");
+  const panel = await showNetlistPanel(page);
+  const about = panel.getByRole("link", { name: /^About RNL/u });
+  for (const plain of ["spice", "spectre"] as const) {
+    await panel.getByLabel("Netlist format").selectOption(plain);
+    await expect(about).toHaveCount(0);
+  }
+  for (const mode of ["spice+rnl", "spectre+rnl"] as const) {
+    await panel.getByLabel("Netlist format").selectOption(mode);
+    await expect(about).toBeVisible();
+    await expect(about).toHaveAttribute("href", introduction);
+    await expect(about).toHaveAttribute("target", "_blank");
+    await expect(about).toHaveAttribute("rel", /noopener/u);
+  }
+  const opened = page.context().waitForEvent("page");
+  await about.click();
+  const tab = await opened;
+  await tab.waitForLoadState("domcontentloaded");
+  expect(tab.url()).toBe(introduction);
+  // The drawing stays open here.
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+});
+
 interface CensusProject {
   documents: {
     name: string;

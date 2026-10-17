@@ -21,6 +21,10 @@ it("opens fixed product links in the system browser and refuses arbitrary destin
   expect(open).toHaveBeenLastCalledWith(
     `https://github.com/cascode-ai/analog-canvas/commit/${"a".repeat(40)}`,
   );
+  expect((await handle(request({ target: "rnl" }))).ok).toBe(true);
+  expect(open).toHaveBeenLastCalledWith(
+    "https://rich-netlist.github.io/rnl/en/",
+  );
   expect(
     (await handle(request({ target: "https://example.com" }))).status,
   ).toBe(400);
@@ -31,5 +35,5 @@ it("opens fixed product links in the system browser and refuses arbitrary destin
   expect(
     (await handle(request({ target: "owner" }, "https://example.com"))).status,
   ).toBe(403);
-  expect(open).toHaveBeenCalledTimes(3);
+  expect(open).toHaveBeenCalledTimes(4);
 });
