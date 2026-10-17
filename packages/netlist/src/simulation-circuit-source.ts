@@ -9,7 +9,8 @@ import {
   parameterExpressionBody,
   type DeviceParameterDefinition,
 } from "@icm/devices";
-import { parseNgspiceSourceParameters, parseSpiceNumber } from "@icm/spice";
+import { parseSpiceNumber } from "@icm/spice";
+import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
 import {
   printedParameterConversion,
   restorePrintedParameter,

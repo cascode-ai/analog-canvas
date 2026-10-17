@@ -1,9 +1,9 @@
 import type { ProjectModelSource, SourceSpan } from "@icm/model";
 import {
   inspectSimulationSource,
-  parseNgspiceSourceParameters,
   type SubcircuitStartStatement,
 } from "@icm/spice";
+import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import type {
   PrintedProjectModelSource,
