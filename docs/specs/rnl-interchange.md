@@ -212,6 +212,10 @@ the RNL language and its runtime belong to rnl.
 
 - The mapping table draws every built-in symbol, follows the registration
   rules and matches each symbol's pins (`packages/rnl/src/symbol-map.test.ts`).
+- Every symbol of the mapping table is in the package the rnl runtime's
+  catalog says defines it, with each pin where the runtime puts it and
+  leaving the way it says, so an rnl upgrade that moves a pin fails there
+  (`apps/editor/src/features/netlist-export/rnl-symbol-catalog.test.ts`).
 - Orientations and registration put every pin where the editor draws it in all
   sixteen orientations (`packages/rnl/src/orientation.test.ts`).
 - Reordered bodies keep every port-to-node connection and leave `SPICE` and
