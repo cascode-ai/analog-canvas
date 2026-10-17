@@ -57,7 +57,7 @@ const undefinedFindings = (
 ) => diagnostics.filter((item) => item.code === "GENERIC_MODEL_UNDEFINED");
 
 describe("a generic target the netlist does not define (#1420)", () => {
-  it("says the SPICE netlist needs NMOS, PMOS and SW cards, as information", () => {
+  it("carries NMOS and PMOS stand-ins in a netlist handed out, and says SW needs a card", () => {
     const project = mosProject([
       { id: "m2", symbolId: "nmos", model: "NMOS" },
       { id: "m1", symbolId: "nmos", model: "NMOS" },
@@ -89,20 +89,36 @@ describe("a generic target the netlist does not define (#1420)", () => {
     const result = createDesignNetlistExport(project);
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    // Nothing is invented: the netlist names the targets as before.
+    // The netlist names the targets as before, and defines NMOS and PMOS
+    // with stand-in cards, so it reads back with each part's channel.
     expect(result.file.text).toContain("M1 drain gate source body NMOS");
-    expect(result.file.text).not.toContain(".model");
+    expect(result.file.text).toContain(".model NMOS nmos\n");
+    expect(result.file.text).toContain(".model PMOS pmos\n");
+    expect(result.file.text).not.toContain(".model SW");
     expect(undefinedFindings(result.diagnostics)).toEqual([
       expect.objectContaining({
         severity: "info",
-        objectIds: ["m1", "m2", "m3", "s1"],
+        objectIds: ["s1"],
         message:
-          "M1 and M2 name NMOS, M3 names PMOS and S1 names SW, generic models the netlist does not define: add .model cards for NMOS, PMOS and SW to the simulation folder before simulating, or set a real model",
+          "S1 names SW, a generic model the netlist does not define: add a .model SW card to the simulation folder before simulating, or set a real model",
+      }),
+    ]);
+    expect(
+      result.diagnostics.filter((item) => item.code === "GENERIC_MOS_MODEL"),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "info",
+        objectIds: ["m1", "m2", "m3"],
+        message:
+          "M1 and M2 name NMOS and M3 names PMOS, which the netlist defines with stand-in cards (.model NMOS nmos, .model PMOS pmos) so it reads back; set a model for a real device before simulating",
       }),
     ]);
     expect(designExtractsNetlist(project)).toBe(true);
-    // Spectre netlists run against model includes: nothing to say there.
+    // Spectre reads the stand-ins in a SPICE section.
     const spectre = createDesignNetlistExport(project, { format: "spectre" });
+    expect(spectre.status === "ready" && spectre.file.text).toContain(
+      "simulator lang=spice\n.model NMOS nmos\n",
+    );
     expect(undefinedFindings(spectre.diagnostics)).toEqual([]);
   });
 
@@ -135,14 +151,22 @@ describe("a generic target the netlist does not define (#1420)", () => {
       hash: "deck",
       content: { text: ".MODEL nmos nmos(level=1)\n", encoding: "utf-8" },
     });
+    // A netlist handed out defines the PMOS stand-in; the NMOS is the
+    // author's own and gets no card.
+    const exported = createDesignNetlistExport(project);
+    expect(undefinedFindings(exported.diagnostics)).toEqual([]);
+    expect(exported.status === "ready" && exported.file.text).not.toContain(
+      ".model NMOS",
+    );
     expect(
-      undefinedFindings(createDesignNetlistExport(project).diagnostics),
+      exported.diagnostics.filter((item) => item.code === "GENERIC_MOS_MODEL"),
     ).toEqual([
       expect.objectContaining({
-        message:
-          "M2 names PMOS, a generic model the netlist does not define: add a .model PMOS card to the simulation folder before simulating, or set a real model",
+        objectIds: ["m2"],
+        message: expect.stringMatching(/^M2 names PMOS, which the netlist/u),
       }),
     ]);
+    // A run's deck carries no stand-in (#1420) and says what it needs.
     const folder = (id: string, card?: string) => {
       const created = createSimulationFolder({
         id,

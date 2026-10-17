@@ -1560,7 +1560,8 @@ describe("RNL round trip of examples as the editor opens them", () => {
 
   // The editor binds an example's devices to the chosen process when it
   // opens one (prepareNetlistExample); these examples print only then, and
-  // draw copied ground glyphs, SKY130 subcircuit MOS and nets named Vin+.
+  // draw copied ground glyphs, SKY130 subcircuit MOS, Abstract's NMOS and
+  // PMOS (on their stand-in cards) and nets named Vin+.
   it.each(
     [
       "common-source-amplifier",
@@ -1568,13 +1569,18 @@ describe("RNL round trip of examples as the editor opens them", () => {
       "fully-differential-two-stage-op-amp",
       "simulation-common-source",
       "two-stage-op-amp",
-    ].flatMap((name) => [[name, "spice"] as const, [name, "spectre"] as const]),
+    ].flatMap((name) =>
+      (["sky130", "abstract"] as const).flatMap((process) => [
+        [name, process, "spice"] as const,
+        [name, process, "spectre"] as const,
+      ]),
+    ),
   )(
-    "brings %s (%s) back with every part, ground, wire and junction",
-    async (name, format) => {
+    "brings %s (%s, %s) back with every part, ground, wire and junction",
+    async (name, process, format) => {
       const project = prepareNetlistExample(
         example(name),
-        createDefaultNetlistExportPreferences().profiles.sky130,
+        createDefaultNetlistExportPreferences().profiles[process],
       );
       const exported = createRnlExport(project, { format });
       if (exported.status !== "ready") throw new Error("export blocked");

@@ -86,7 +86,8 @@ describe("a body that takes the conventional supply says so (#1302)", () => {
     expect(result.file.text).toMatch(/MP d g s VDD PMOS/u);
     expect(
       result.diagnostics.filter(
-        (item) => item.code !== "GENERIC_MODEL_UNDEFINED",
+        (item) =>
+          !["GENERIC_MODEL_UNDEFINED", "GENERIC_MOS_MODEL"].includes(item.code),
       ),
     ).toEqual([
       expect.objectContaining({

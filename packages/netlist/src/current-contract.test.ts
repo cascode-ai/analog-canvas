@@ -463,10 +463,13 @@ describe("current formal cell interface", () => {
       }
       const before = structuredClone(project);
       const result = analyzeDesignNetlist(project, { format });
-      // The generic NMOS card is the reader's to add (#1420).
+      // The NMOS stand-in card is information, as a run's missing card is.
       expect(
         result.diagnostics.filter(
-          (item) => item.code !== "GENERIC_MODEL_UNDEFINED",
+          (item) =>
+            !["GENERIC_MODEL_UNDEFINED", "GENERIC_MOS_MODEL"].includes(
+              item.code,
+            ),
         ),
       ).toEqual([]);
       const cell = result.ir!.cells.find((item) => item.id === child.id)!;

@@ -53,6 +53,8 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
 export function spiceModelCard(
   model: NonNullable<DesignNetlistCell["models"]>[number],
 ): string {
+  // A stand-in that states no parameter is the bare card, `.model NMOS nmos`.
+  if (!model.parameters.length) return `.model ${model.name} ${model.type}`;
   return `.model ${model.name} ${model.type}(${model.parameters
     .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
     .join(" ")})`;
@@ -300,6 +302,14 @@ function spectreCell(
     if (model.type === "SW")
       lines.push(
         ...printSpectreBehavioralModel(switchBehavioralDefinition(model)),
+      );
+    // A MOS stand-in is SPICE's card, which Spectre reads in a SPICE
+    // section, as the conversion writes a SPICE model card.
+    if (model.type === "nmos" || model.type === "pmos")
+      lines.push(
+        "simulator lang=spice",
+        spiceModelCard(model),
+        "simulator lang=spectre",
       );
   }
   let offset = lines.join("\n").length + 1;

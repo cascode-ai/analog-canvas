@@ -140,6 +140,30 @@ export function reportGenericDiodes(
 }
 
 /**
+ * The stand-ins a MOS takes in a netlist the editor hands out (its panel,
+ * copy and save, SPICE+RNL and Spectre+RNL among them) from a Process with no
+ * MOS of its own: Abstract binds each NMOS and PMOS placed from the library to
+ * `NMOS` and `PMOS`, names no library defines, so that netlist left them
+ * undefined and reading it back could not tell an n-channel part from a
+ * p-channel one (the user's choice after a hands-on test, 2026-10-17). They
+ * are carried and replaced as the generic diode is. A simulation run's deck
+ * carries none (#1420): no one card suits every simulator, as a level-1 card
+ * refuses the nf every MOS carries, and the run says it needs one.
+ */
+export const GENERIC_NMOS_MODEL: DesignNetlistModel = {
+  name: "NMOS",
+  type: "nmos",
+  parameters: [],
+  authoredName: true,
+};
+export const GENERIC_PMOS_MODEL: DesignNetlistModel = {
+  name: "PMOS",
+  type: "pmos",
+  parameters: [],
+  authoredName: true,
+};
+
+/**
  * The generic targets the editor binds that a SPICE netlist names but does
  * not define (#1420): Abstract's NMOS and PMOS, and SW for a voltage-
  * controlled switch. No one card suits every simulator, as a level-1 card
@@ -159,8 +183,11 @@ export function reportUndefinedGenericModels(
   instances: readonly DesignNetlistInstance[],
   deckSources: readonly string[],
   diagnostics: NetlistDiagnostic[],
+  /** Names this netlist carries a stand-in card for. */
+  carried: ReadonlySet<string> = new Set(),
 ): void {
   const named = UNDEFINED_GENERIC_TARGETS.flatMap(({ name, deviceClass }) => {
+    if (carried.has(name)) return [];
     // SPICE reads model names in any case. Only a device of that class names
     // the model: a call to a Cell named sw names the Cell.
     const parts = instances.filter(
@@ -188,6 +215,36 @@ export function reportUndefinedGenericModels(
     document.id,
     "GENERIC_MODEL_UNDEFINED",
     `${partList(uses)}, ${models.length === 1 ? "a generic model" : "generic models"} the netlist does not define: add ${models.length === 1 ? `a .model ${models[0]!} card` : `.model cards for ${partList(models)}`} to the simulation folder before simulating, or set a real model`,
+    named.flatMap(({ parts }) => parts.map((part) => part.id)),
+    "info",
+  );
+}
+
+/**
+ * Which MOS parts a netlist handed out names on the stand-in cards: one
+ * finding for the Cell, information, as for its diodes and transistors.
+ */
+export function reportGenericMos(
+  document: SchematicDocument,
+  used: ReadonlyArray<{
+    model: DesignNetlistModel;
+    parts: readonly DesignNetlistInstance[];
+  }>,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const named = used.map(({ model, parts }) => ({
+    model,
+    parts: namedParts(document, parts),
+  }));
+  const uses = named.map(
+    ({ model, parts }) =>
+      `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "names" : "name"} ${model.name}`,
+  );
+  diagnostic(
+    diagnostics,
+    document.id,
+    "GENERIC_MOS_MODEL",
+    `${partList(uses)}, which the netlist defines with ${named.length === 1 ? "a stand-in card" : "stand-in cards"} (${named.map(({ model }) => `.model ${model.name} ${model.type}`).join(", ")}) so it reads back; set a model for a real device before simulating`,
     named.flatMap(({ parts }) => parts.map((part) => part.id)),
     "info",
   );

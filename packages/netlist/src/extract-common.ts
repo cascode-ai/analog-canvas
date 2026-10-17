@@ -36,4 +36,10 @@ export function diagnostic(
 }
 
 export type ResolvedDesignNetlistAnalysisOptions =
-  Required<DesignNetlistAnalysisOptions>;
+  Required<DesignNetlistAnalysisOptions> & {
+    /**
+     * A simulation run's deck, which names its folder's files (`deckSources`),
+     * rather than a netlist the editor hands out.
+     */
+    run: boolean;
+  };

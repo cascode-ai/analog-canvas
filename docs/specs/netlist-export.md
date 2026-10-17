@@ -171,7 +171,12 @@ declares fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
 - A same-name model in the imported SPICE suppresses the card everywhere; one in
   a folder's files only for that folder's runs. VACASK prints `sp_diode`/`sp_bjt`
   (`type=±1`); cards are SPICE-only.
-- Generic `NMOS`/`PMOS` and `SW` get no card; SPICE reports information
+- A netlist handed out (panel, copy, save, `SPICE+RNL`, `Spectre+RNL`) carries
+  stand-ins for generic `NMOS`/`PMOS`, `.model NMOS nmos` and `.model PMOS pmos`
+  in each Cell naming them (information `GENERIC_MOS_MODEL`), so it reads back
+  with each part's channel; Spectre has them in a `simulator lang=spice`
+  section. A run's deck carries none (#1420: a level-1 card refuses the `nf`
+  every MOS carries) and, like `SW` everywhere, SPICE reports information
   `GENERIC_MODEL_UNDEFINED`, silenced likewise.
 
 ### Magnetics

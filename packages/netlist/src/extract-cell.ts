@@ -60,12 +60,15 @@ import {
 } from "./extract-findings.js";
 import {
   GENERIC_DIODE_MODEL,
+  GENERIC_NMOS_MODEL,
   GENERIC_NPN_MODEL,
+  GENERIC_PMOS_MODEL,
   GENERIC_PNP_MODEL,
   definesGenericModel,
   reportGenericDiodes,
   reportUndefinedGenericModels,
   reportGenericBjts,
+  reportGenericMos,
 } from "./extract-generic-models.js";
 
 const MAX_INSTANCES_PER_CELL = 100_000;
@@ -432,16 +435,21 @@ export function extractCell(
   // The parts a generic card stands in for, and the Cell then carries it.
   // SPICE only (VACASK prints them from the SPICE cards). A Spectre export
   // still names DIODE, NPN and PNP for the reader's libraries to define.
+  // A MOS stand-in goes in either dialect and names its model in any case,
+  // as SPICE reads model names.
   const carryGenericCard = (
     model: DesignNetlistModel,
     deviceClass: DesignNetlistDeviceClass,
+    everyFormat = false,
   ): DesignNetlistInstance[] => {
     const parts =
-      options.format === "spice"
+      everyFormat || options.format === "spice"
         ? instances.filter(
             (instance) =>
               instance.deviceClass === deviceClass &&
-              instance.target === model.name,
+              (everyFormat
+                ? instance.target?.toUpperCase() === model.name
+                : instance.target === model.name),
           )
         : [];
     if (
@@ -465,6 +473,17 @@ export function extractCell(
     .map((model) => ({ model, parts: carryGenericCard(model, "bjt") }))
     .filter(({ parts }) => parts.length);
   if (genericBjts.length) reportGenericBjts(document, genericBjts, diagnostics);
+  // A netlist handed out carries the MOS stand-ins, in either dialect, so it
+  // reads back with each part's channel; a run's deck does not (#1420).
+  const genericMos = options.run
+    ? []
+    : [GENERIC_NMOS_MODEL, GENERIC_PMOS_MODEL]
+        .map((model) => ({
+          model,
+          parts: carryGenericCard(model, "mos", true),
+        }))
+        .filter(({ parts }) => parts.length);
+  if (genericMos.length) reportGenericMos(document, genericMos, diagnostics);
   if (options.format === "spice")
     reportUndefinedGenericModels(
       project,
@@ -472,6 +491,7 @@ export function extractCell(
       instances,
       options.deckSources,
       diagnostics,
+      new Set(genericMos.map(({ model }) => model.name)),
     );
   for (const extracted of instances) {
     const source = document.instances.find(

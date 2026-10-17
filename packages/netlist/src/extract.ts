@@ -297,6 +297,7 @@ function analyzeSnapshot(
     rootAsTopLevel: options.rootAsTopLevel ?? false,
     groundPin: options.groundPin ?? "global",
     deckSources: options.deckSources ?? [],
+    run: options.deckSources !== undefined,
   };
   // Mutable authoring callers may change a model without advancing a revision.
   // Only owned immutable Project snapshots can share their electrical analysis.
