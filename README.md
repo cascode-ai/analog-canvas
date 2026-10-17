@@ -8,7 +8,7 @@ edit model.
 
 [Browse the Gallery](https://analog-canvas.tokenzhang.com/) ·
 [Open the editor](https://analog-canvas.tokenzhang.com/editor) ·
-[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-6aa378b047e6-7/analog-canvas-desktop-windows-x64.zip) ·
+[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-9174bd37ff7f-8/analog-canvas-desktop-windows-x64-9174bd37ff7f.zip) ·
 [Documentation](docs/README.md) ·
 [GitHub repository](https://github.com/cascode-ai/analog-canvas)
 
@@ -89,12 +89,12 @@ describe how the local registration works.
 
 ## Windows desktop preview
 
-[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-6aa378b047e6-7/analog-canvas-desktop-windows-x64.zip)
-· [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-6aa378b047e6-7)
+[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-9174bd37ff7f-8/analog-canvas-desktop-windows-x64-9174bd37ff7f.zip)
+· [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-9174bd37ff7f-8)
 
 1. Download and extract the **whole ZIP**.
-2. Open the extracted preview directory and run
-   `Analog Canvas Preview/Analog Canvas Preview.exe`. Keep its sibling resources
+2. Open the extracted `Analog-Canvas-Windows-x64` directory and run
+   `Analog Canvas Preview.exe`. Keep its sibling resources
    together; the `.exe` alone will not work. No Node.js, pnpm or developer tools
    are required.
 3. Draw a new project and press **Ctrl+S**. It saves automatically in
@@ -132,9 +132,10 @@ and credential/private-file scanning. It includes corresponding source,
 attribution, `ACCEPTANCE.json` and `SECURITY.json` tied to the same source commit.
 See the [security audit and its limitations](docs/desktop-distribution-security.md).
 
-This ZIP is **169.1 MiB** (about **389.7 MiB** extracted). Most is Electron's
-Chromium/runtime and language packs; the rest is the editor, desktop host,
-corresponding source, licenses and acceptance records. It contains no developer
+This ZIP is **155.2 MiB** (about **343.5 MiB** extracted). Most is Electron's
+Chromium/runtime, retaining English and Simplified/Traditional Chinese resources.
+The rest is the editor, desktop host, corresponding source, licenses and
+acceptance records. It contains no developer
 `node_modules` or user projects. Keep the bundled runtime and resources together.
 
 ## Run locally
