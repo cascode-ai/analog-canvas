@@ -5,6 +5,7 @@ import {
   exampleProject,
   expectStatus,
   exportedProject,
+  openEditor,
   openProject,
   showNetlistPanel,
 } from "./editor-fixtures.js";
@@ -96,3 +97,110 @@ test("writes SPICE+RNL and Spectre+RNL, and imports the file it wrote as it was 
   ).toEqual(["opamp-inputs-swapped", "voltage-amplifier"]);
   expect(await copyNetlistText(page, "spice")).toBe(spice);
 });
+
+interface CensusProject {
+  documents: {
+    name: string;
+    netlist?: { name: string };
+    instances: { id: string; symbolId: string }[];
+    junctions: unknown[];
+    routes: {
+      start: { kind: string; instanceId?: string; pinName?: string };
+      legs: {
+        to:
+          | {
+              kind: "endpoint";
+              endpoint: { kind: string; instanceId?: string; pinName?: string };
+            }
+          | { kind: string };
+      }[];
+    }[];
+  }[];
+}
+
+/**
+ * What a drawing must keep through RNL, Cell by Cell: its parts by kind (the
+ * two op-amp variants RNL draws alike count as one), its junctions, and the
+ * pins its wires reach, by part kind and pin. A wire through a junction may
+ * come back as one wire to each side of it, so wires count by the pins they
+ * reach.
+ */
+function drawingCensus(project: CensusProject) {
+  const kind = (symbolId: string) =>
+    symbolId === "opamp-inputs-swapped" ? "opamp" : symbolId;
+  const tally = (keys: readonly string[]) => {
+    const counts = new Map<string, number>();
+    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+    return [...counts].sort().map(([key, count]) => `${key}:${count}`);
+  };
+  return Object.fromEntries(
+    project.documents.map((document) => {
+      const symbolOf = new Map(
+        document.instances.map((instance) => [
+          instance.id,
+          kind(instance.symbolId),
+        ]),
+      );
+      const reached = document.routes.flatMap((route) =>
+        [
+          route.start,
+          ...route.legs.flatMap((leg) =>
+            "endpoint" in leg.to ? [leg.to.endpoint] : [],
+          ),
+        ].flatMap((endpoint) =>
+          endpoint.kind === "terminal"
+            ? [`${symbolOf.get(endpoint.instanceId!)}.${endpoint.pinName}`]
+            : [],
+        ),
+      );
+      return [
+        (document.netlist?.name ?? document.name).toLowerCase(),
+        {
+          parts: tally(
+            document.instances.map((instance) => kind(instance.symbolId)),
+          ),
+          junctions: document.junctions.length,
+          wiredPins: tally(reached),
+        },
+      ];
+    }),
+  );
+}
+
+// The path a reader takes: an example opened from the library (its devices
+// bound to the process), its RNL copied from the Netlist panel, and that file
+// imported again. Copied ground glyphs, SKY130 subcircuit MOS and nets named
+// Vin+ come back as drawn.
+for (const example of [
+  "common-source-amplifier",
+  "current-mirror-loaded-differential-pair",
+  "fully-differential-two-stage-op-amp",
+])
+  for (const mode of ["spice+rnl", "spectre+rnl"] as const)
+    test(`brings ${example} back through ${mode} with every part, ground and wire`, async ({
+      page,
+    }) => {
+      await openEditor(page, `/editor?example=${example}`);
+      const panel = await showNetlistPanel(page);
+      await panel.getByLabel("Netlist process").selectOption("sky130");
+      const before = drawingCensus(await exportedProject(page));
+      const text = await copyRnlText(page, mode);
+      await page.getByTestId("rnl-files").setInputFiles({
+        name: `${example}.${mode === "spice+rnl" ? "sp" : "scs"}`,
+        mimeType: "text/plain",
+        buffer: Buffer.from(text),
+      });
+      // An example the reader changed asks before the import replaces it.
+      const unsaved = page.getByRole("dialog", { name: "Unsaved changes" });
+      const imported = page
+        .getByTestId("status")
+        .filter({ hasText: /^Imported 1 Document/u });
+      await expect(unsaved.or(imported)).toBeVisible();
+      if (await unsaved.isVisible())
+        await unsaved
+          .getByRole("button", { name: "Continue without saving" })
+          .click();
+      await expectStatus(page, /^Imported 1 Document/u);
+      const after = drawingCensus(await exportedProject(page));
+      expect(after.main).toEqual(before.main);
+    });

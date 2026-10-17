@@ -34,6 +34,9 @@ import {
 } from "@icm/symbols";
 import { startCore } from "@rich-netlist/runtime";
 
+import { materializeRazaviProjectBulkConnections } from "../../presentation/razavi-presentation";
+import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
+import { prepareNetlistExample } from "./netlist-process";
 import { planRnlImport } from "./rnl-import";
 import type { RnlRuntime } from "./rnl-runtime";
 
@@ -1483,6 +1486,110 @@ describe("RNL round trip of controlled sources drawn as diamonds", () => {
       expect(after.status === "ready" && after.file.text).toBe(
         before.status === "ready" && before.file.text,
       );
+    },
+  );
+});
+
+/**
+ * What a drawing must keep through RNL, Cell by Cell: its parts by kind (the
+ * two op-amp variants RNL draws alike count as one), its junctions, and the
+ * pins its wires reach, by part kind and pin. A wire through a junction may
+ * come back as one wire to each side of it, so wires count by the pins they
+ * reach.
+ */
+function drawingCensus(project: CircuitProject) {
+  const kind = (symbolId: string) =>
+    symbolId === "opamp-inputs-swapped" ? "opamp" : symbolId;
+  const tally = (keys: readonly string[]) => {
+    const counts = new Map<string, number>();
+    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+    return [...counts].sort().map(([key, count]) => `${key}:${count}`);
+  };
+  return Object.fromEntries(
+    project.documents.map((document) => {
+      const symbolOf = new Map(
+        document.instances.map((instance) => [
+          instance.id,
+          kind(instance.symbolId),
+        ]),
+      );
+      const reached = document.routes.flatMap((route) =>
+        [
+          route.start,
+          ...route.legs.flatMap((leg) =>
+            leg.to.kind === "endpoint" ? [leg.to.endpoint] : [],
+          ),
+        ].flatMap((endpoint) =>
+          endpoint.kind === "terminal"
+            ? [`${symbolOf.get(endpoint.instanceId)}.${endpoint.pinName}`]
+            : [],
+        ),
+      );
+      return [
+        (document.netlist?.name ?? document.name).toLowerCase(),
+        {
+          parts: tally(
+            document.instances.map((instance) => kind(instance.symbolId)),
+          ),
+          junctions: document.junctions.length,
+          wiredPins: tally(reached),
+        },
+      ];
+    }),
+  );
+}
+
+describe("RNL round trip of examples as the editor opens them", () => {
+  // The editor binds an example's devices to the chosen process when it
+  // opens one (prepareNetlistExample); these examples print only then, and
+  // draw copied ground glyphs, SKY130 subcircuit MOS and nets named Vin+.
+  it.each(
+    [
+      "common-source-amplifier",
+      "current-mirror-loaded-differential-pair",
+      "fully-differential-two-stage-op-amp",
+      "simulation-common-source",
+      "two-stage-op-amp",
+    ].flatMap((name) => [[name, "spice"] as const, [name, "spectre"] as const]),
+  )(
+    "brings %s (%s) back with every part, ground, wire and junction",
+    async (name, format) => {
+      const project = prepareNetlistExample(
+        example(name),
+        createDefaultNetlistExportPreferences().profiles.sky130,
+      );
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      // Nothing the drawing shows is left out of the file.
+      expect(
+        exported.diagnostics
+          .filter((item) =>
+            ["RNL_GLYPH_UNCONNECTED", "RNL_WIRE_UNNAMED"].includes(item.code),
+          )
+          .map((item) => item.message),
+      ).toEqual([]);
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      const plan = await importRnl(written.text, format);
+      expect(
+        plan.diagnostics
+          .filter((item) => item.severity !== "info")
+          .map((item) => `${item.code}: ${item.message}`),
+      ).toEqual([]);
+      // The editor takes the Project in as it takes any: valid, with its
+      // MOS bulk defaults made explicit.
+      expect(parseProject(JSON.stringify(plan.project))).toBeTruthy();
+      expect(() =>
+        materializeRazaviProjectBulkConnections(plan.project),
+      ).not.toThrow();
+      const before = drawingCensus(project);
+      const after = drawingCensus(plan.project);
+      for (const cell of cardNames(project).map((item) =>
+        item.cell.toLowerCase(),
+      ))
+        expect(after[cell], cell).toEqual(before[cell]);
     },
   );
 });

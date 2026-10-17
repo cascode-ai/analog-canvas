@@ -1,6 +1,6 @@
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import type { CircuitProject, Instance, StableId } from "@icm/model";
-import type { DesignNetlistIR } from "@icm/netlist";
+import type { DesignNetlistIR, NetlistFormat } from "@icm/netlist";
 import type { SymbolDefinition, SymbolResolver } from "@icm/symbols";
 
 import { toRnlPoint, type RnlPoint } from "./place.js";
@@ -131,6 +131,7 @@ export function blockSymbols(
   project: CircuitProject,
   ir: DesignNetlistIR,
   resolver: SymbolResolver,
+  format: NetlistFormat = "spice",
 ): {
   cells: Map<StableId, RnlSymbolDefinition>;
   externals: Map<StableId, RnlSymbolDefinition>;
@@ -166,9 +167,11 @@ export function blockSymbols(
           definition,
           (pin) => {
             const index = terminalOf(pin);
-            return index === undefined
-              ? undefined
-              : printed.ports[index - 1]!.name;
+            if (index === undefined) return undefined;
+            // A Spectre netlist escapes a port's other characters (`Vin\+`);
+            // the pin shows the name it means.
+            const name = printed.ports[index - 1]!.name;
+            return format === "spectre" ? name.replace(/\\(.)/gu, "$1") : name;
           },
         );
         if (symbol) cells.set(binding.childDocumentId, symbol);

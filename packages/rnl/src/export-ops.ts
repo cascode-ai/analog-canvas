@@ -5,6 +5,7 @@ import {
   objectStyleProfile,
   resolveAnnotationPresentation,
   resolveAnnotationText,
+  resolveCommittedDocumentLogicalNets,
   resolveDocumentLogicalNets,
   resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
@@ -24,7 +25,12 @@ import type {
   SchematicDocument,
   StableId,
 } from "@icm/model";
-import type { DesignNetlistCell, DesignNetlistIR } from "@icm/netlist";
+import {
+  withNetlistPowerMarkerClaims,
+  type DesignNetlistCell,
+  type DesignNetlistIR,
+  type NetlistFormat,
+} from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import {
@@ -174,17 +180,19 @@ const AC_PACKAGE_VERSION = "0.1";
  * standard series and every other package the drawing uses.
  *
  * `ir` is the IR the netlist was printed from (`includeIr`), with the body
- * port order `rnlBodyPortOrder` gives, so names and terminals match the file.
+ * port order `rnlBodyPortOrder` gives, so names and terminals match the file;
+ * `format` is the netlist's dialect, whose escaped names RNL reads plain.
  */
 export function rnlExportOps(
   project: CircuitProject,
   ir: DesignNetlistIR,
+  format: NetlistFormat = "spice",
 ): { ops: RnlOp[]; diagnostics: RnlExportDiagnostic[] } {
   const ops: RnlOp[] = [];
   const diagnostics: RnlExportDiagnostic[] = [];
   const packages = new Set<string>();
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
-  const blocks = blockSymbols(project, ir, resolver);
+  const blocks = blockSymbols(project, ir, resolver, format);
   const top = ir.cells.find((cell) => cell.id === ir.topCellId);
   for (const cell of ir.cells) {
     if (cell.origin === "generated-model") continue;
@@ -193,6 +201,7 @@ export function rnlExportOps(
     exportCell(document, cell, {
       project,
       ir,
+      format,
       ops,
       diagnostics,
       packages,
@@ -221,6 +230,7 @@ export function rnlExportOps(
 interface ExportContext {
   project: CircuitProject;
   ir: DesignNetlistIR;
+  format: NetlistFormat;
   ops: RnlOp[];
   diagnostics: RnlExportDiagnostic[];
   packages: Set<string>;
@@ -263,9 +273,21 @@ function exportCell(
     cell.instances.map((instance) => [instance.id, instance.reference]),
   );
   const logical = resolveDocumentLogicalNets(document);
-  const printedNets = new Map(cell.nets.map((net) => [net.id, net.name]));
+  // The netlist joins supply markers by name before it names Nets (a copied
+  // ground glyph carries no claim of its own), so a Net prints under the name
+  // of the group that joining makes, as designNetlistNetName finds it.
+  const electrical = resolveCommittedDocumentLogicalNets(
+    withNetlistPowerMarkerClaims(document, context.project),
+  );
+  // A Spectre netlist escapes a name's other characters (`Vin\+`); RNL reads
+  // the name the netlist means, `Vin+`.
+  const plain = (name: string) =>
+    context.format === "spectre" ? name.replace(/\\(.)/gu, "$1") : name;
+  const printedNets = new Map(
+    cell.nets.map((net) => [net.id, plain(net.name)]),
+  );
   const netOf = (baseNetId: string): string | undefined => {
-    const id = logical.byBaseNetId.get(baseNetId)?.id;
+    const id = electrical.byBaseNetId.get(baseNetId)?.id;
     return id ? printedNets.get(id) : undefined;
   };
   const netOfPin = (instanceId: string, pinName: string) => {
@@ -451,11 +473,11 @@ function exportCell(
   // tag: each leaves the fill's set on its own, since RNL removes several
   // nets only as one set of them (5.2.2).
   for (const port of cell.ports)
-    if (!drawnPorts.has(port.name))
+    if (!drawnPorts.has(plain(port.name)))
       ops.push({
         level,
         op: "remove-from",
-        items: [rnlName("&", port.name)],
+        items: [rnlName("&", plain(port.name))],
         set: "$PORT_FILL_SET",
       });
 

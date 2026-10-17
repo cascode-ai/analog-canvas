@@ -406,10 +406,22 @@ function applyLevel(
         : [],
     ),
   );
+  // The conversion from Spectre also puts a card's designator before a name
+  // that lacks it (M1 as XM1 when its master is a subcircuit, a resistor
+  // load as Rload); such a card is found by the name after its first letter,
+  // where that names one card only.
+  const byConvertedName = new Map<string, Instance | null>();
+  for (const instance of document.instances) {
+    if (instance.id.length < 2) continue;
+    const key = instance.id.slice(1).toLowerCase();
+    byConvertedName.set(key, byConvertedName.has(key) ? null : instance);
+  }
   const instanceOf = (name: string) =>
     document.instances.find((instance) => instance.id === name) ??
     byName.get(name.toLowerCase()) ??
-    byReference.get(name.toLowerCase());
+    byReference.get(name.toLowerCase()) ??
+    byConvertedName.get(name.toLowerCase()) ??
+    undefined;
 
   /**
    * A switch the import brought in with a CTRL pin, drawn as one its label
@@ -456,13 +468,15 @@ function applyLevel(
       );
   };
 
-  // Nets by their RNL name, from the import's own record of the names.
-  const nets = new Map(
-    (document.importReference?.nets ?? []).map((net) => [
-      net.name.toLowerCase(),
-      net.id,
-    ]),
-  );
+  // Nets by their RNL name, from the import's own record of the names. A
+  // Spectre netlist escapes a name's other characters (`Vin\+`), which the
+  // SCS import keeps; RNL names the net it means (`Vin+`).
+  const nets = new Map<string, StableId>();
+  for (const net of document.importReference?.nets ?? []) {
+    nets.set(net.name.toLowerCase(), net.id);
+    const plain = net.name.replace(/\\(.)/gu, "$1").toLowerCase();
+    if (!nets.has(plain)) nets.set(plain, net.id);
+  }
   const netOf = (id: string) => {
     const name = rnlIdName(id, "&");
     return name === null ? undefined : nets.get(name.toLowerCase());
@@ -1011,7 +1025,7 @@ function applyLevel(
         direction: along < 0 ? "reverse" : "forward",
         // An arrow across its wire is the one set level.
         orientation: Math.abs(along) > 0.5 ? "follow" : "horizontal",
-        fallbackPosition: point,
+        fallbackPosition: { x: Math.round(point.x), y: Math.round(point.y) },
       },
       alignment: "middle",
       rotation: 0,
@@ -1089,7 +1103,7 @@ function applyLevel(
           normalOffset: 0,
           direction: way.direction,
           orientation: way.orientation,
-          fallbackPosition: point,
+          fallbackPosition: { x: Math.round(point.x), y: Math.round(point.y) },
         },
         alignment: (["start", "middle", "end"].includes(text.halign)
           ? text.halign

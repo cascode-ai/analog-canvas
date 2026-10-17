@@ -70,7 +70,11 @@ export function createRnlExport(
       netlistDiagnostics: result.diagnostics,
       diagnostics: [],
     };
-  const { ops, diagnostics } = rnlExportOps(project, result.ir!);
+  const { ops, diagnostics } = rnlExportOps(
+    project,
+    result.ir!,
+    options.format,
+  );
   if (diagnostics.some((item) => item.severity === "error"))
     return {
       status: "blocked",

@@ -59,6 +59,10 @@ the RNL language and its runtime belong to rnl.
   `$IO_PORT`. Wires keep every bend. What the editor joins by contact (a wire
   through a junction or pin, touching endpoints) is joined explicitly, since
   RNL never connects by position; the dots the editor draws are written.
+  Every marker and wire is written on the net the netlist prints it on: the
+  netlist joins supply markers by name first (a copied ground glyph carries no
+  claim of its own), and so does the export. A net's name is the one the
+  netlist means: Spectre's escapes (`Vin\+`) are written plain (`Vin+`).
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename.
 - A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
@@ -144,8 +148,10 @@ the RNL language and its runtime belong to rnl.
   closed and simple kin) is the switch its label clocks again, its pins 1
   and 2, its label the text RNL shows, or, where RNL shows none, a hidden
   label naming the node its card's control met. A chopper's label is its
-  clock's likewise. A card the conversion from Spectre renamed (`XS1`) is
-  found by its part's reference.
+  clock's likewise. A card the conversion from Spectre renamed is found by
+  its part's reference (`S1` for `XS1`) or by the name it was given (`XM1` for
+  a SKY130 MOS `M1`); a net the SCS import keeps escaped (`Vin\+`) is found by
+  the name RNL gives it (`Vin+`).
 - An object the export wrote as a named group comes back as that object, where
   its first shape stood: an arrow with each end's style (a filled head's size
   from the shaft's, the larger where both ends have one; an open head; a
@@ -209,5 +215,8 @@ the RNL language and its runtime belong to rnl.
   (`packages/netlist/src/built-in-bodies.test.ts`).
 - In the built editor, the Netlist panel copies `SPICE+RNL` and `Spectre+RNL`
   as the runtime writes them in its Worker, and File → Import → `RNL…` brings
-  the copied file back with every part where it was drawn and the same netlist
-  (`apps/editor/e2e/rnl-interchange.spec.ts`).
+  the copied file back with every part where it was drawn and the same netlist;
+  examples opened from the library, their devices bound to the process, come
+  back through either format with every part, ground, junction and wired pin
+  (`apps/editor/e2e/rnl-interchange.spec.ts`; the same in Node, with the
+  editor's entry step, in `rnl-round-trip.test.ts`).
