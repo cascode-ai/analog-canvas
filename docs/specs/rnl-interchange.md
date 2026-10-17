@@ -63,6 +63,10 @@ the RNL language and its runtime belong to rnl.
   netlist joins supply markers by name first (a copied ground glyph carries no
   claim of its own), and so does the export. A net's name is the one the
   netlist means: Spectre's escapes (`Vin\+`) are written plain (`Vin+`).
+- A wire is written as drawn: a power rail bold, a body tie dashed, and a
+  color or line style set on the wire as set. A wire through a junction stays
+  one wire through it. A power label is written as a label on its net, named
+  so the import knows it as a power label.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename.
 - A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
@@ -119,17 +123,21 @@ the RNL language and its runtime belong to rnl.
   - the ground pin the export adds (`VSS`, or `GND`, `GND__n`, drawn as
     ground rather than as a port) is ground again, and its callers stop
     passing a node to it, as before the export;
-  - wires with every bend, a route from each pin or point to the next;
-    junctions at named points; wires of no length, which join what touches,
-    are left to touching;
+  - wires with every bend, a route from each pin or point to the next, a
+    wire running straight through a point one route; a bold wire as a power
+    rail, a dashed one to a MOS body as a body tie, any other line style or
+    color as the wire's own; junctions at named points; wires of no length,
+    which join what touches, are left to touching;
   - wire direction arrows, current and voltage markers (a label on a wire
     with + and − where the export puts them), and floating symbols;
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
-    name it has; any other text as a drawing text; a label a symbol alone
-    gives is left to the symbol; a part the drawing places without its name
-    or values keeps the editor's default labels for them hidden, in their
-    usual place, since the export writes every label it shows;
+    name it has, or as a power label where the export wrote one, hung on the
+    junction it was drawn at; any other text as a drawing text; a label a
+    symbol alone gives is left to the symbol; a part the drawing places
+    without its name or values keeps the editor's default labels for them
+    hidden, in their usual place, since the export writes every label it
+    shows;
   - drawing shapes: rectangles (a closed line round a turned rectangle as a
     turned one), circles, lines and curves (a cubic leg as the quadratic it
     was raised from, or the nearest), arrows; the bottom layer is the
@@ -217,6 +225,8 @@ the RNL language and its runtime belong to rnl.
   as the runtime writes them in its Worker, and File → Import → `RNL…` brings
   the copied file back with every part where it was drawn and the same netlist;
   examples opened from the library, their devices bound to the process, come
-  back through either format with every part, ground, junction and wired pin
+  back through either format, in SKY130 and Abstract, with every part, ground,
+  junction and wired pin, each wire drawn as it was (power rails, body ties, a
+  wire through a junction as one) and each power label a power label
   (`apps/editor/e2e/rnl-interchange.spec.ts`; the same in Node, with the
   editor's entry step, in `rnl-round-trip.test.ts`).

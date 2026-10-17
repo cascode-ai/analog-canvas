@@ -1492,10 +1492,9 @@ describe("RNL round trip of controlled sources drawn as diamonds", () => {
 
 /**
  * What a drawing must keep through RNL, Cell by Cell: its parts by kind (the
- * two op-amp variants RNL draws alike count as one), its junctions, and the
- * pins its wires reach, by part kind and pin. A wire through a junction may
- * come back as one wire to each side of it, so wires count by the pins they
- * reach.
+ * two op-amp variants RNL draws alike count as one), its junctions, the pins
+ * its wires reach by part kind and pin, its wires by how they are drawn, and
+ * its net and power labels.
  */
 function drawingCensus(project: CircuitProject) {
   const kind = (symbolId: string) =>
@@ -1533,6 +1532,20 @@ function drawingCensus(project: CircuitProject) {
           ),
           junctions: document.junctions.length,
           wiredPins: tally(reached),
+          // Each wire as drawn, a power rail as a rail; a wire through a
+          // junction stays one wire.
+          wires: tally(
+            document.routes.map((route) => route.presentation ?? "wire"),
+          ),
+          labels: tally(
+            document.annotations
+              .filter(
+                (annotation) =>
+                  annotation.kind === "net-label" ||
+                  annotation.kind === "power-label",
+              )
+              .map((annotation) => annotation.kind),
+          ),
         },
       ];
     }),

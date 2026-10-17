@@ -947,6 +947,11 @@ function exportTexts(
     write(annotation.id, text, shown.rotation, {
       ...common,
       ...(net ? { attach: rnlName("&", net) } : {}),
+      // A power label is named for what it is, which RNL has no kind for:
+      // the import makes it one again.
+      ...(annotation.kind === "power-label" && net
+        ? { name: nextName("power") }
+        : {}),
       at: anchor,
     });
   }

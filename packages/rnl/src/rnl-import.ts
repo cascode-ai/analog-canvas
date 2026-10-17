@@ -839,16 +839,49 @@ function applyLevel(
       skipped += 1;
       return;
     }
-    // Every vertex that is a pin or point ends one route and starts the next.
+    // Every vertex that is a pin or point ends one route and starts the next,
+    // but one the wire runs straight through: the export names it so RNL
+    // joins it, where Analog Canvas joins it by touching, as drawn.
+    const through = (index: number) => {
+      const [before, at, after] = [index - 1, index, index + 1].map(
+        (item) => wire.points[item],
+      );
+      if (!before || !at || !after) return false;
+      const cross =
+        (at[0] - before[0]) * (after[1] - before[1]) -
+        (at[1] - before[1]) * (after[0] - before[0]);
+      const along =
+        (at[0] - before[0]) * (after[0] - at[0]) +
+        (at[1] - before[1]) * (after[1] - at[1]);
+      return Math.abs(cross) < 1e-9 && along > 0;
+    };
     const runs: number[][] = [];
     let run: number[] = [];
     wire.via.forEach((vertex, index) => {
       run.push(index);
-      if (!("at" in vertex) && run.length > 1) {
+      if (
+        !("at" in vertex) &&
+        run.length > 1 &&
+        (index === wire.via.length - 1 || !through(index))
+      ) {
         runs.push(run);
         run = [index];
       }
     });
+    // A bold wire is a power rail; a dashed, dotted or coloured one keeps its
+    // look.
+    const look = wire.style;
+    const lineStyle =
+      look["linestyle"] === "dashed" || look["linestyle"] === "dotted"
+        ? look["linestyle"]
+        : undefined;
+    const color =
+      typeof look["linecolor"] === "string" &&
+      /^#[0-9a-f]{6}$/iu.test(look["linecolor"])
+        ? look["linecolor"]
+        : undefined;
+    const presentation =
+      look["linestyle"] === "bold" ? ("power-rail" as const) : undefined;
     runs.forEach((indices, runIndex) => {
       const vertices = indices.map((index) => wire.via[index]!);
       // A wire of no length joins things that touch; Analog Canvas joins
@@ -872,6 +905,21 @@ function applyLevel(
         .flatMap((vertex) =>
           "at" in vertex ? [snap(acPoint(vertex.at), CORNER_GRID)] : [],
         );
+      // A dashed wire to a MOS body is Analog Canvas's body tie.
+      const bodyTie =
+        lineStyle === "dashed" &&
+        [start, end].some(
+          (endpoint) =>
+            endpoint.kind === "terminal" &&
+            endpoint.pinName === "B" &&
+            deviceDescriptor(
+              document.instances.find(
+                (instance) => instance.id === endpoint.instanceId,
+              )?.symbolId ?? "",
+            )?.deviceClass === "mos",
+        );
+      const drawnAs = bodyTie ? ("bulk-dashed" as const) : presentation;
+      const lineOverride = bodyTie ? undefined : lineStyle;
       const id = (part: string, index = 0) =>
         deriveStableId(
           part,
@@ -897,6 +945,15 @@ function applyLevel(
             mode: "manual" as const,
           },
         ],
+        ...(drawnAs ? { presentation: drawnAs } : {}),
+        ...(lineOverride || color
+          ? {
+              styleOverride: {
+                ...(color ? { color } : {}),
+                ...(lineOverride ? { lineStyle: lineOverride } : {}),
+              },
+            }
+          : {}),
       };
       document.routes.push(route);
       drawn.push({
@@ -1342,8 +1399,44 @@ function importTexts(
       return;
     }
 
-    // A net's label: the net named by its own name, which it already has.
+    // A power label, which the export names for what it is: on the junction
+    // of its net it stands beside, as Analog Canvas keeps one.
     const netId = text.attach ? netOf(text.attach) : undefined;
+    if (netId && /^%power\d+$/u.test(text.id)) {
+      const near = document.junctions
+        .filter((junction) => junction.netId === netId)
+        .map((junction) => ({
+          junction,
+          distance: Math.hypot(
+            junction.position.x - at.x,
+            junction.position.y - at.y,
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance)[0];
+      document.annotations.push({
+        id,
+        kind: "power-label",
+        netId,
+        content,
+        anchor:
+          near && near.distance <= 4 * PART_GRID
+            ? {
+                kind: "object",
+                objectId: near.junction.id,
+                localOffset: {
+                  x: at.x - near.junction.position.x,
+                  y: at.y - near.junction.position.y,
+                },
+                fallbackPosition: at,
+              }
+            : { kind: "free", position: at },
+        ...common,
+        ...scaled(text.size, profile.typography.powerFontSize),
+      });
+      return;
+    }
+
+    // A net's label: the net named by its own name, which it already has.
     const named = document.importReference?.nets.find(
       (item) => item.id === netId,
     );
