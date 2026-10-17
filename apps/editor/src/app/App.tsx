@@ -5029,6 +5029,7 @@ function WorkspaceEditor({
         projectPanel={projectPanel}
         setProjectPanel={setProjectPanel}
         netlistPreferences={netlistPreferences}
+        netlistNamingProfile={netlistNamingProfile}
         documentSettingsOpen={documentSettingsOpen}
         setDocumentSettingsOpen={setDocumentSettingsOpen}
         setProjectInfoOpen={setProjectInfoOpen}

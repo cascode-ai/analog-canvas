@@ -19,6 +19,8 @@ describe("FileCommandMenu", () => {
         onExportProject={vi.fn()}
         onExportSvg={vi.fn()}
         onExportRaster={vi.fn()}
+        onExportNetlist={vi.fn()}
+        netlistLabel="SPICE"
         onRevert={vi.fn()}
         onOpenRecovery={vi.fn()}
         onOpenInfo={vi.fn()}
@@ -41,6 +43,10 @@ describe("FileCommandMenu", () => {
     expect(markup).toContain('data-testid="cadence-spice-files"');
     expect(markup).toContain(">Export<");
     expect(markup).toContain("Drawing as SVG");
+    // The Export group saves the netlist the Netlist panel shows, named by
+    // its format.
+    expect(markup).toContain('aria-label="Export Netlist"');
+    expect(markup).toContain("Netlist as SPICE");
     expect(markup).toContain("Recover Unsaved Work…");
     expect(markup).not.toContain("Refresh app");
     expect(markup).not.toContain("Copy SPICE netlist");
