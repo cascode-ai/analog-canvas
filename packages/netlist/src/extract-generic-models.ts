@@ -146,20 +146,23 @@ export function reportGenericDiodes(
  * `NMOS` and `PMOS`, names no library defines, so that netlist left them
  * undefined and reading it back could not tell an n-channel part from a
  * p-channel one (the user's choice after a hands-on test, 2026-10-17). They
- * are carried and replaced as the generic diode is. A simulation run's deck
- * carries none (#1420): no one card suits every simulator, as a level-1 card
- * refuses the nf every MOS carries, and the run says it needs one.
+ * are BSIM4 with its defaults, which take the nf every MOS carries where a
+ * level-1 card refuses it: level 54 in SPICE, Spectre's own `bsim4`, so the
+ * netlist reads in ngspice and Spectre alike (no other simulator is
+ * promised). They are carried and replaced as the generic diode is. A
+ * simulation run's deck carries none (#1420): VACASK has no mapping for a
+ * Cell's own MOS card, and the run says it needs one.
  */
 export const GENERIC_NMOS_MODEL: DesignNetlistModel = {
   name: "NMOS",
   type: "nmos",
-  parameters: [],
+  parameters: [{ name: "level", rawValue: "54" }],
   authoredName: true,
 };
 export const GENERIC_PMOS_MODEL: DesignNetlistModel = {
   name: "PMOS",
   type: "pmos",
-  parameters: [],
+  parameters: [{ name: "level", rawValue: "54" }],
   authoredName: true,
 };
 
@@ -244,7 +247,7 @@ export function reportGenericMos(
     diagnostics,
     document.id,
     "GENERIC_MOS_MODEL",
-    `${partList(uses)}, which the netlist defines with ${named.length === 1 ? "a stand-in card" : "stand-in cards"} (${named.map(({ model }) => `.model ${model.name} ${model.type}`).join(", ")}) so it reads back; set a model for a real device before simulating`,
+    `${partList(uses)}, which the netlist defines with ${named.length === 1 ? "a stand-in model" : "stand-in models"}, BSIM4 with its defaults rather than any real device, so it reads back and runs in ngspice and Spectre; set a model for a real device before simulating`,
     named.flatMap(({ parts }) => parts.map((part) => part.id)),
     "info",
   );

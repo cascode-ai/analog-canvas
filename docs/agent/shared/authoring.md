@@ -143,9 +143,11 @@ is refused with their IDs, never resolved to the first.
   (`GENERIC_DIODE_MODEL`); BJTs in Abstract or Custom, or `set-model`
   `NPN`/`PNP`, get `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` /
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (`GENERIC_BJT_MODEL`); generic
-  `NMOS`/`PMOS` get `.model NMOS nmos` / `.model PMOS pmos` stand-ins in a
-  netlist handed out, SPICE or Spectre (`GENERIC_MOS_MODEL`), and none in a
-  run's deck; there, and for the switch's `SW`, the netlist reports
+  `NMOS`/`PMOS` get BSIM4 stand-ins in a netlist handed out,
+  `.model NMOS nmos level=54` / `.model PMOS pmos level=54` in SPICE and
+  `model NMOS bsim4 type=n` / `model PMOS bsim4 type=p` in Spectre
+  (`GENERIC_MOS_MODEL`), and none in a run's deck; there, and for the
+  switch's `SW`, the netlist reports
   `GENERIC_MODEL_UNDEFINED`. A
   same-name `.model` in a simulation folder's files replaces or supplies it for
   that folder. For a real device, `set-model` it.

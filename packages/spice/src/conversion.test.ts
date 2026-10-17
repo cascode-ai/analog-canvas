@@ -217,6 +217,25 @@ describe("netlist-crawler structural conversion", () => {
       'simulator lang=spice\n.lib "models.lib" tt\nsimulator lang=spectre',
     );
     expect(converted(scs)).toContain(".model N nmos level=1");
+    // Spectre's own BSIM4, as the editor writes a MOS stand-in, is SPICE's
+    // level 54, and its instances are MOS.
+    const bsim4 = converted(
+      [
+        "model NMOS bsim4 type=n",
+        "model PMOS bsim4 type=p vth0=-0.4",
+        "M1 (d g 0 0) NMOS w=2u l=150n nf=2",
+      ].join("\n"),
+    );
+    expect(bsim4).toContain(".model NMOS nmos level=54");
+    expect(bsim4).toContain(".model PMOS pmos level=54 vth0=-0.4");
+    expect(bsim4).toContain("M1 d g 0 0 NMOS w=0.000002 l=1.5e-7 nf=2");
+    expect(
+      convertNetlist({
+        text: "model N bsim3v3 type=n",
+        source: "spectre",
+        target: "spice",
+      }),
+    ).toMatchObject({ status: "blocked" });
     expect(
       converted(
         "V1 (a 0) vsource type=sine dc=0.5 ampl=0.1 freq=1k damp=2 sinephase=45",

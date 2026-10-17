@@ -608,6 +608,20 @@ function translate(s: Statement, ctx: Context): string[] {
       noParameters(p, s);
       return [out];
     }
+    if (head === "model") {
+      // Spectre's BSIM4, as a netlist this editor hands out defines a MOS
+      // stand-in: SPICE's BSIM4 is level 54. No other native model has a
+      // reviewed mapping.
+      if (f[2]?.toLowerCase() !== "bsim4")
+        refuse(s, `Unsupported native Spectre model ${f[2] ?? ""}.`);
+      const p = parameters(f.slice(3), s);
+      const type = take(p, "type", s).toLowerCase();
+      if (type !== "n" && type !== "p")
+        refuse(s, "A bsim4 model needs type=n or type=p.");
+      return [
+        `.model ${f[1]} ${type === "n" ? "nmos" : "pmos"} level=54${p.size ? " " + emitParameters(p, s) : ""}`,
+      ];
+    }
     if (f[1]?.toLowerCase() === "mutual_inductor") {
       // A coupling has no terminals: it names two inductor instances, which
       // SPICE spells with their L-prefixed names.
@@ -876,6 +890,13 @@ export function convertNetlist(
               : undefined;
         if (designator) ctx.models.set(f[1].toLowerCase(), designator);
       }
+      if (
+        s.dialect === "spectre" &&
+        f[0]?.toLowerCase() === "model" &&
+        f[1] &&
+        f[2]?.toLowerCase() === "bsim4"
+      )
+        ctx.models.set(f[1].toLowerCase(), "M");
     }
     const out = [
       target === "spectre"

@@ -90,10 +90,11 @@ describe("a generic target the netlist does not define (#1420)", () => {
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
     // The netlist names the targets as before, and defines NMOS and PMOS
-    // with stand-in cards, so it reads back with each part's channel.
+    // with BSIM4 stand-ins, so it reads back with each part's channel and
+    // runs with the nf each part carries.
     expect(result.file.text).toContain("M1 drain gate source body NMOS");
-    expect(result.file.text).toContain(".model NMOS nmos\n");
-    expect(result.file.text).toContain(".model PMOS pmos\n");
+    expect(result.file.text).toContain(".model NMOS nmos level=54\n");
+    expect(result.file.text).toContain(".model PMOS pmos level=54\n");
     expect(result.file.text).not.toContain(".model SW");
     expect(undefinedFindings(result.diagnostics)).toEqual([
       expect.objectContaining({
@@ -110,14 +111,14 @@ describe("a generic target the netlist does not define (#1420)", () => {
         severity: "info",
         objectIds: ["m1", "m2", "m3"],
         message:
-          "M1 and M2 name NMOS and M3 names PMOS, which the netlist defines with stand-in cards (.model NMOS nmos, .model PMOS pmos) so it reads back; set a model for a real device before simulating",
+          "M1 and M2 name NMOS and M3 names PMOS, which the netlist defines with stand-in models, BSIM4 with its defaults rather than any real device, so it reads back and runs in ngspice and Spectre; set a model for a real device before simulating",
       }),
     ]);
     expect(designExtractsNetlist(project)).toBe(true);
-    // Spectre reads the stand-ins in a SPICE section.
+    // Spectre has its own BSIM4.
     const spectre = createDesignNetlistExport(project, { format: "spectre" });
     expect(spectre.status === "ready" && spectre.file.text).toContain(
-      "simulator lang=spice\n.model NMOS nmos\n",
+      "model NMOS bsim4 type=n\nmodel PMOS bsim4 type=p\n",
     );
     expect(undefinedFindings(spectre.diagnostics)).toEqual([]);
   });

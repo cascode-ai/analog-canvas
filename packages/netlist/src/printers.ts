@@ -53,11 +53,13 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
 export function spiceModelCard(
   model: NonNullable<DesignNetlistCell["models"]>[number],
 ): string {
-  // A stand-in that states no parameter is the bare card, `.model NMOS nmos`.
-  if (!model.parameters.length) return `.model ${model.name} ${model.type}`;
-  return `.model ${model.name} ${model.type}(${model.parameters
+  const values = model.parameters
     .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
-    .join(" ")})`;
+    .join(" ");
+  // A MOS stand-in reads as decks write one, `.model NMOS nmos level=54`.
+  if (model.type === "nmos" || model.type === "pmos")
+    return `.model ${model.name} ${model.type} ${values}`;
+  return `.model ${model.name} ${model.type}(${values})`;
 }
 
 function spiceModels(cell: DesignNetlistCell): string[] {
@@ -303,13 +305,10 @@ function spectreCell(
       lines.push(
         ...printSpectreBehavioralModel(switchBehavioralDefinition(model)),
       );
-    // A MOS stand-in is SPICE's card, which Spectre reads in a SPICE
-    // section, as the conversion writes a SPICE model card.
+    // A MOS stand-in is Spectre's own BSIM4, as SPICE's is level 54.
     if (model.type === "nmos" || model.type === "pmos")
       lines.push(
-        "simulator lang=spice",
-        spiceModelCard(model),
-        "simulator lang=spectre",
+        `model ${model.name} bsim4 type=${model.type === "nmos" ? "n" : "p"}`,
       );
   }
   let offset = lines.join("\n").length + 1;

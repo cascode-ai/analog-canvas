@@ -172,12 +172,15 @@ declares fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
   a folder's files only for that folder's runs. VACASK prints `sp_diode`/`sp_bjt`
   (`type=±1`); cards are SPICE-only.
 - A netlist handed out (panel, copy, save, `SPICE+RNL`, `Spectre+RNL`) carries
-  stand-ins for generic `NMOS`/`PMOS`, `.model NMOS nmos` and `.model PMOS pmos`
-  in each Cell naming them (information `GENERIC_MOS_MODEL`), so it reads back
-  with each part's channel; Spectre has them in a `simulator lang=spice`
-  section. A run's deck carries none (#1420: a level-1 card refuses the `nf`
-  every MOS carries) and, like `SW` everywhere, SPICE reports information
-  `GENERIC_MODEL_UNDEFINED`, silenced likewise.
+  BSIM4 stand-ins for generic `NMOS`/`PMOS` in each Cell naming them
+  (information `GENERIC_MOS_MODEL`), so it reads back with each part's channel
+  and runs: `.model NMOS nmos level=54` and `.model PMOS pmos level=54` in
+  SPICE, `model NMOS bsim4 type=n` and `model PMOS bsim4 type=p` in Spectre.
+  BSIM4 takes the `nf` every MOS carries, which a level-1 card refuses; only
+  ngspice and Spectre are promised to read them. A run's deck carries none
+  (#1420: VACASK has no mapping for a Cell's own MOS card) and, like `SW`
+  everywhere, SPICE reports information `GENERIC_MODEL_UNDEFINED`, silenced
+  likewise.
 
 ### Magnetics
 
