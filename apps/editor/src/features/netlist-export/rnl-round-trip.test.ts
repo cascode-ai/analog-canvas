@@ -34,6 +34,7 @@ import {
 } from "@icm/symbols";
 import { startCore } from "@rich-netlist/runtime";
 
+import { labelCensus, labelDifferences } from "../../../e2e/label-census";
 import { materializeRazaviProjectBulkConnections } from "../../presentation/razavi-presentation";
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import { prepareNetlistExample } from "./netlist-process";
@@ -1582,6 +1583,7 @@ describe("RNL round trip of examples as the editor opens them", () => {
       "fully-differential-two-stage-op-amp",
       "simulation-common-source",
       "two-stage-op-amp",
+      "five-transistor-ota-sky130",
     ].flatMap((name) =>
       (["sky130", "abstract"] as const).flatMap((process) => [
         [name, process, "spice"] as const,
@@ -1627,6 +1629,44 @@ describe("RNL round trip of examples as the editor opens them", () => {
         item.cell.toLowerCase(),
       ))
         expect(after[cell], cell).toEqual(before[cell]);
+    },
+  );
+  // The library's five examples as the editor opens them: every label comes
+  // back where it was, as big, with the text it showed, and none twice.
+  it.each(
+    [
+      "common-source-amplifier",
+      "two-stage-op-amp",
+      "current-mirror-loaded-differential-pair",
+      "fully-differential-two-stage-op-amp",
+      "five-transistor-ota-sky130",
+    ].flatMap((name) =>
+      (["sky130", "abstract"] as const).flatMap((process) => [
+        [name, process, "spice"] as const,
+        [name, process, "spectre"] as const,
+      ]),
+    ),
+  )(
+    "brings every label of %s (%s, %s) back as drawn",
+    async (name, process, format) => {
+      const project = prepareNetlistExample(
+        example(name),
+        createDefaultNetlistExportPreferences().profiles[process],
+      );
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      const plan = await importRnl(written.text, format);
+      expect(
+        labelDifferences(
+          labelCensus(project, format),
+          labelCensus(plan.project, format),
+          format,
+        ),
+      ).toEqual([]);
     },
   );
 });

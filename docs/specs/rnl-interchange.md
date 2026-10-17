@@ -137,7 +137,15 @@ the RNL language and its runtime belong to rnl.
     symbol alone gives is left to the symbol; a part the drawing places
     without its name or values keeps the editor's default labels for them
     hidden, in their usual place, since the export writes every label it
-    shows;
+    shows, and so does a Cell Pin the drawing names only by a net label
+    beside it;
+  - a label as it was drawn: a part's name that is not its reference (M1 on
+    the card XM1) is the label's own text; a net label stands on the Cell
+    Pin it names when it is within four grid steps of one, else on the wire
+    it stands beside (three grid steps), else where it stands; a current or
+    voltage marker's label keeps its size and colour; scripts stand outside
+    bold (`bold`, `italic`, then the scripts), so a subscript and the
+    superscript after it stay stacked;
   - drawing shapes: rectangles (a closed line round a turned rectangle as a
     turned one), circles, lines and curves (a cubic leg as the quadratic it
     was raised from, or the nearest), arrows; the bottom layer is the
@@ -230,3 +238,16 @@ the RNL language and its runtime belong to rnl.
   wire through a junction as one) and each power label a power label
   (`apps/editor/e2e/rnl-interchange.spec.ts`; the same in Node, with the
   editor's entry step, in `rnl-round-trip.test.ts`).
+- The library's five examples (Common-Source Amplifier, Two-Stage Op Amp,
+  Current-Mirror-Loaded Differential Pair, Fully Differential Two-Stage Op
+  Amp, Five-Transistor OTA) in either process and either format come back
+  with every label as it was drawn, in the editor and in Node: the same
+  count (none shown twice), text, anchor point, alignment, turn, size and
+  ink, anchored to the same kind of object, and a hidden label still hidden
+  (`apps/editor/e2e/label-census.ts`, run by both). Three differences are
+  exempt, and named there: the value of a source or, in Spectre, of any
+  part reads as Analog Canvas's own SPICE and SCS imports read it (Spectre's
+  numbers as plain decimals, 15u as 0.000015; a source's whole card in its
+  value, 0.9 as 0.9 AC 1 0 PULSE(...)); a net label reads a Spectre-escaped
+  name with its escape (Vin\+); and a Cell Pin's alignment, until the rnl
+  runtime writes a start alignment on a key's text (preview.10).

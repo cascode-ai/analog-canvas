@@ -143,14 +143,20 @@ export function acRichText(
   return runs.some((run) => run.kind !== "line-break") ? { runs } : null;
 }
 
+/**
+ * A run in the spans its style names: italic innermost, then bold, then the
+ * scripts, then the overbar. A script stands outside bold as the editor
+ * keeps it, since a subscript wrapped in bold is no longer stacked with the
+ * superscript after it.
+ */
 function spanned(run: RichTextRun, style: RnlRunStyle): RichTextRun {
   let out = run;
+  if (style.italic) out = { kind: "span", style: "italic", children: [out] };
+  if (style.bold) out = { kind: "span", style: "bold", children: [out] };
   const script = style.level < 0 ? "subscript" : "superscript";
   for (let step = 0; step < Math.abs(style.level); step++)
     out = { kind: "span", style: script, children: [out] };
   if (style.overline) out = { kind: "span", style: "overbar", children: [out] };
-  if (style.italic) out = { kind: "span", style: "italic", children: [out] };
-  if (style.bold) out = { kind: "span", style: "bold", children: [out] };
   return out;
 }
 

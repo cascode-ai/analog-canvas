@@ -8,6 +8,7 @@ import {
   openProject,
   showNetlistPanel,
 } from "./editor-fixtures.js";
+import { labelCensus, labelDifferences } from "./label-census.js";
 
 /**
  * A netlist as the Netlist panel's Copy hands it out, in one of its formats,
@@ -203,8 +204,10 @@ function drawingCensus(project: CensusProject) {
 // and PMOS, nets named Vin+, power labels and rails come back as drawn.
 for (const example of [
   "common-source-amplifier",
+  "two-stage-op-amp",
   "current-mirror-loaded-differential-pair",
   "fully-differential-two-stage-op-amp",
+  "five-transistor-ota-sky130",
 ])
   for (const process of ["sky130", "abstract"] as const)
     for (const mode of ["spice+rnl", "spectre+rnl"] as const)
@@ -214,10 +217,7 @@ for (const example of [
         await openEditor(page, `/editor?example=${example}`);
         const panel = await showNetlistPanel(page);
         await panel.getByLabel("Netlist process").selectOption(process);
-        const before = drawingCensus(await exportedProject(page)).main!;
-        // Each example draws its supply as a power label on a rail.
-        expect(before.labels.join()).toContain("power-label:");
-        expect(before.wires.join()).toContain("power-rail:");
+        const drawn = await exportedProject(page);
         const text = await copiedNetlist(page, mode);
         await page.getByTestId("rnl-files").setInputFiles({
           name: `${example}.${mode === "spice+rnl" ? "sp" : "scs"}`,
@@ -228,20 +228,36 @@ for (const example of [
         const unsaved = page.getByRole("dialog", { name: "Unsaved changes" });
         const imported = page
           .getByTestId("status")
-          .filter({ hasText: /^Imported 1 Document/u });
+          .filter({ hasText: /^Imported \d+ Documents?/u });
         await expect(unsaved.or(imported)).toBeVisible();
         if (await unsaved.isVisible())
           await unsaved
             .getByRole("button", { name: "Continue without saving" })
             .click();
-        await expectStatus(page, /^Imported 1 Document/u);
-        const after = drawingCensus(await exportedProject(page)).main!;
-        for (const item of [
-          "parts",
-          "junctions",
-          "wiredPins",
-          "wires",
-          "labels",
-        ] as const)
-          expect(after[item], item).toEqual(before[item]);
+        await expectStatus(page, /^Imported \d+ Documents?/u);
+        const read = await exportedProject(page);
+        // Each Cell the file carries is drawn as it was: parts, junctions,
+        // wired pins, wires and net and power labels counted ...
+        const was = drawingCensus(drawn);
+        const now = drawingCensus(read);
+        expect(Object.keys(now).length).toBeGreaterThan(0);
+        for (const [cell, census] of Object.entries(now))
+          for (const item of [
+            "parts",
+            "junctions",
+            "wiredPins",
+            "wires",
+            "labels",
+          ] as const)
+            expect(census[item], `${cell} ${item}`).toEqual(was[cell]?.[item]);
+        // ... and every label of them, where it was, as big, with its text
+        // and none twice (the known exemptions are in label-census.ts).
+        const format = mode === "spice+rnl" ? "spice" : "spectre";
+        expect(
+          labelDifferences(
+            labelCensus(drawn, format),
+            labelCensus(read, format),
+            format,
+          ),
+        ).toEqual([]);
       });

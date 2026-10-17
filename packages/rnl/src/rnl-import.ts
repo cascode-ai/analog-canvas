@@ -972,6 +972,17 @@ function applyLevel(
   const consumed = new Set<string>();
   const headLength = resolveDocumentStyleProfile(document.presentation)
     .annotations.arrowHeadLength;
+  /** A marker's label size and colour, as the export wrote them. */
+  const markerLook = (text: RnlTextView) => ({
+    ...(typeof text.style["textcolor"] === "string"
+      ? { textColor: text.style["textcolor"] }
+      : {}),
+    ...sizeScale(
+      text.size,
+      resolveDocumentStyleProfile(document.presentation).typography
+        .annotationFontSize,
+    ),
+  });
   /** The route leg a point lies on, and how far along it. */
   const legAt = (point: { x: number; y: number }) => {
     for (const { route, corners } of drawn)
@@ -996,6 +1007,49 @@ function applyLevel(
           return { route, corners, index, from, to, length, t: along / length };
       }
     return null;
+  };
+  /**
+   * The leg of a net's wires nearest a point within reach, with the point
+   * where it stands from the leg: how far along, and how far to the left of
+   * its way (Analog Canvas's normal offset).
+   */
+  const legNear = (
+    point: { x: number; y: number },
+    netId: string,
+    reach: number,
+  ) => {
+    let best: {
+      route: RouteBranch;
+      index: number;
+      t: number;
+      normalOffset: number;
+    } | null = null;
+    for (const { route, corners } of drawn) {
+      if (route.netId !== netId) continue;
+      for (let index = 0; index + 1 < corners.length; index++) {
+        const from = corners[index]!;
+        const to = corners[index + 1]!;
+        const length = Math.hypot(to.x - from.x, to.y - from.y);
+        if (!length) continue;
+        const along =
+          ((point.x - from.x) * (to.x - from.x) +
+            (point.y - from.y) * (to.y - from.y)) /
+          length;
+        const across =
+          ((to.x - from.x) * (point.y - from.y) -
+            (to.y - from.y) * (point.x - from.x)) /
+          length;
+        if (
+          along < -NEAR ||
+          along > length + NEAR ||
+          Math.abs(across) > reach + NEAR ||
+          (best && Math.abs(across) >= Math.abs(best.normalOffset))
+        )
+          continue;
+        best = { route, index, t: along / length, normalOffset: across };
+      }
+    }
+    return best;
   };
   for (const object of later) {
     const at = object.at.value ?? null;
@@ -1088,6 +1142,7 @@ function applyLevel(
       rotation: 0,
       locked: false,
       markerKind: "current",
+      ...markerLook(label!),
     });
     consumed.add(label!.id);
   }
@@ -1168,6 +1223,7 @@ function applyLevel(
         rotation: 0,
         locked: false,
         markerKind: "voltage",
+        ...markerLook(text),
       });
       consumed.add(text.id);
       consumed.add(plus.id);
@@ -1181,7 +1237,30 @@ function applyLevel(
     glyphOf,
     instanceOf,
     netOf,
+    legNear,
   });
+  // A Cell Pin the drawing places but gives no name of its own keeps the
+  // editor's default name label hidden, as a part's labels are; a net label
+  // beside it may be what shows the name.
+  for (const id of movedPins) {
+    const terminal = document.netlist?.terminals.find((item) =>
+      item.interfaceInstanceIds.includes(id),
+    );
+    if (
+      terminal &&
+      !document.annotations.some(
+        (item) =>
+          item.binding?.kind === "cell-terminal-name" &&
+          item.binding.terminalId === terminal.id,
+      )
+    )
+      hiddenLabels.push({
+        documentId: document.id,
+        instanceId: id,
+        name: true,
+        values: false,
+      });
+  }
   // A label the drawing does not show still names a part's clock: the one
   // the import gave it stays, hidden; a switch that had a CTRL pin takes the
   // name of the net that pin met.
@@ -1252,6 +1331,14 @@ function applyLevel(
  * else as a drawing text. Each stands where RNL puts it, on its baseline;
  * a label its symbol alone gives is left to the symbol.
  */
+/** A text's size as the scale of the size Analog Canvas gives that label. */
+function sizeScale(size: number | null, base: number) {
+  const scale = size === null ? 1 : (size * AC_UNITS_PER_RNL_UNIT) / base;
+  return Math.abs(scale - 1) > 1e-3
+    ? { sizeScale: Math.round(scale * 1e4) / 1e4 }
+    : {};
+}
+
 function importTexts(
   document: SchematicDocument,
   level: RnlLevelSnapshot,
@@ -1261,20 +1348,26 @@ function importTexts(
     glyphOf,
     instanceOf,
     netOf,
+    legNear,
   }: {
     consumed: ReadonlySet<string>;
     glyphOf: ReadonlyMap<string, { instanceId: string; pinName: string }>;
     instanceOf: (name: string) => Instance | undefined;
     netOf: (id: string) => string | undefined;
+    legNear: (
+      point: { x: number; y: number },
+      netId: string,
+      reach: number,
+    ) => {
+      route: RouteBranch;
+      index: number;
+      t: number;
+      normalOffset: number;
+    } | null;
   },
 ): void {
   const profile = resolveDocumentStyleProfile(document.presentation);
-  const scaled = (size: number | null, base: number) => {
-    const scale = size === null ? 1 : (size * AC_UNITS_PER_RNL_UNIT) / base;
-    return Math.abs(scale - 1) > 1e-3
-      ? { sizeScale: Math.round(scale * 1e4) / 1e4 }
-      : {};
-  };
+  const scaled = sizeScale;
   const labelled = new Set(
     document.annotations.flatMap((item) =>
       item.anchor.kind === "object" ? [item.anchor.objectId] : [],
@@ -1354,8 +1447,17 @@ function importTexts(
       document.annotations.push({
         id: `instance-label-${instance.id}`,
         kind: "instance-label",
-        binding: { kind: "instance-reference", instanceId: instance.id },
-        ...(shown === instance.reference ? { formatOverride: content } : {}),
+        // Bound to the part's reference when it reads as that; a name drawn
+        // otherwise (M1 on the card XM1) is the label's own text, as drawn.
+        ...(shown === instance.reference
+          ? {
+              binding: {
+                kind: "instance-reference" as const,
+                instanceId: instance.id,
+              },
+              formatOverride: content,
+            }
+          : { content }),
         anchor: onObject(instance),
         ...common,
         ...scaled(text.size, profile.typography.instanceFontSize),
@@ -1417,6 +1519,8 @@ function importTexts(
         id,
         kind: "power-label",
         netId,
+        // Not bound to its net: a binding takes its name from a claim the
+        // junction would have to own, which the netlist import has not made.
         content,
         anchor:
           near && near.distance <= 4 * PART_GRID
@@ -1441,13 +1545,42 @@ function importTexts(
       (item) => item.id === netId,
     );
     if (netId && named) {
+      // Where the editor keeps it: on the Cell Pin it names, else on the wire
+      // it stands beside, else where it stands.
+      const pin = document.netlist?.terminals
+        .filter((item) => item.netId === netId)
+        .flatMap((item) => item.interfaceInstanceIds)
+        .flatMap((pinId) => {
+          const owner = instanceOf(pinId);
+          const place = owner?.placement?.position;
+          return owner && place
+            ? [{ owner, distance: Math.hypot(place.x - at.x, place.y - at.y) }]
+            : [];
+        })
+        .sort((a, b) => a.distance - b.distance)[0];
+      const wire = legNear(exact, netId, 3 * PART_GRID);
+      const anchor =
+        pin && pin.distance <= 4 * PART_GRID + NEAR
+          ? onObject(pin.owner)
+          : wire
+            ? {
+                kind: "route" as const,
+                routeId: wire.route.id,
+                legId: wire.route.legs[wire.index]!.id,
+                t: Math.round(wire.t * 1e9) / 1e9,
+                normalOffset: Math.round(wire.normalOffset * 1e6) / 1e6 + 0,
+                direction: "forward" as const,
+                orientation: "follow" as const,
+                fallbackPosition: at,
+              }
+            : { kind: "free" as const, position: at };
       document.annotations.push({
         id,
         kind: "net-label",
         binding: { kind: "net-name", netId },
         netId,
         ...(shown === named.name ? { formatOverride: content } : {}),
-        anchor: { kind: "free", position: at },
+        anchor,
         ...common,
         ...scaled(text.size, profile.typography.netFontSize),
       });

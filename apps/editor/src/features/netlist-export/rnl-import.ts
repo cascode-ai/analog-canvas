@@ -39,7 +39,9 @@ const reported = (item: RnlImportDiagnostic): SpiceDiagnostic => ({
 /**
  * The labels the editor gives each imported part by default, hidden where
  * the drawing places the part without them: what RNL draws is what shows,
- * and a hidden label keeps its usual place for when it is shown.
+ * and a hidden label keeps its usual place for when it is shown. A Cell Pin
+ * the drawing names by a net label beside it keeps its own name label
+ * hidden, so the name shows once.
  */
 function hideLabels(
   project: CircuitProject,
@@ -55,6 +57,14 @@ function hideLabels(
         (name &&
           binding?.kind === "instance-reference" &&
           binding.instanceId === instanceId) ||
+        // A Cell Pin's name, when the drawing gives it no label of its own.
+        (name &&
+          binding?.kind === "cell-terminal-name" &&
+          document?.netlist?.terminals.some(
+            (terminal) =>
+              terminal.id === binding.terminalId &&
+              terminal.interfaceInstanceIds.includes(instanceId),
+          )) ||
         (values &&
           binding?.kind === "instance-value" &&
           binding.instanceId === instanceId)
