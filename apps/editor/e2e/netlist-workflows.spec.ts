@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { resolve } from "node:path";
 import { inflateSync } from "node:zlib";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
@@ -117,12 +116,21 @@ test("keeps rejected SPICE import diagnostics in a historical report", async ({
 }) => {
   await page.goto("/editor");
   await openMenu(page, "File");
-  await page
-    .getByTestId("spice-files")
-    .setInputFiles([
-      resolve(process.cwd(), "netlists/mixed-device-acceptance/circuit.spi"),
-      resolve(process.cwd(), "netlists/mixed-device-acceptance/models.inc"),
-    ]);
+  // A JFET has no symbol in the approved catalog. (The mixed-device acceptance
+  // netlist used to be refused for its switch; that card imports now.)
+  await page.getByTestId("spice-files").setInputFiles({
+    name: "jfet.spi",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      [
+        ".subckt top d g s",
+        "J1 d g s jm",
+        ".ends top",
+        ".model jm njf",
+        "",
+      ].join("\n"),
+    ),
+  });
 
   await expectStatus(page, "approved Razavi catalog has no symbol");
   const telemetry = page.getByTestId("editor-test-telemetry");
