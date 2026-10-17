@@ -378,7 +378,7 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
 });
 
 /**
- * The File > Export > Netlist item, opened: it names the format it saves.
+ * The File > Export > Netlist item, opened.
  */
 async function exportNetlistItem(page: Page) {
   const details = await openMenu(page, "File");
@@ -406,17 +406,17 @@ test("File > Export > Netlist saves the netlist the Netlist panel shows, in the 
   page,
 }) => {
   await openEditor(page, "/editor");
-  // Before the panel has been opened the item follows the saved choice,
-  // SPICE by default, and says so.
-  await expect(await exportNetlistItem(page)).toHaveText("Netlist as SPICE");
+  // The item is the same words whichever format the panel shows; before the
+  // panel has been opened it saves the saved choice, SPICE by default.
+  await expect(await exportNetlistItem(page)).toHaveText("Netlist…");
   const panel = await showNetlistPanel(page);
   const code = panel.getByRole("textbox", {
     name: "Netlist code",
     exact: true,
   });
-  for (const [format, label, extension] of [
-    ["spice", "SPICE", ".spi"],
-    ["spectre", "SCS", ".scs"],
+  for (const [format, extension] of [
+    ["spice", ".spi"],
+    ["spectre", ".scs"],
   ] as const) {
     await panel.getByLabel("Netlist format").selectOption(format);
     await expect(code).toContainText(
@@ -426,7 +426,7 @@ test("File > Export > Netlist saves the netlist the Netlist panel shows, in the 
     // breaks of its own in Chromium.
     const shown = (await code.locator(".cm-line").allTextContents()).join("\n");
     const item = await exportNetlistItem(page);
-    await expect(item).toHaveText(`Netlist as ${label}`);
+    await expect(item).toHaveText("Netlist…");
     const saved = await savedBy(page, item);
     expect(saved.name.endsWith(extension)).toBe(true);
     // The file ends in a line break the panel does not show.

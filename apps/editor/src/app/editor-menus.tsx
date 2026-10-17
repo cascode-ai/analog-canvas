@@ -24,7 +24,6 @@ import {
   hasResettableLabels,
   resetLabelLookEdits,
 } from "../features/instance-display/reset-label-look";
-import { netlistFormatLabel } from "../features/netlist-export/netlist-code-controls";
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
 import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
@@ -451,7 +450,6 @@ export function EditorMenuBar({
             netlistNamingProfile,
             "file",
           ),
-        netlistLabel: netlistFormatLabel(netlistPreferences.format),
         onRevert: revertToSavedProjectBaseline,
         onOpenRecovery: openRecoveryDialog,
         onOpenInfo: () => setProjectInfoOpen(true),

@@ -42,10 +42,9 @@ export interface FileCommandMenuProps {
   onExportRaster: (format: "png" | "pdf") => void;
   /**
    * Saves the netlist the Netlist panel shows, in the format it shows it in,
-   * as a file; `netlistLabel` names that format on the menu item.
+   * as a file.
    */
   onExportNetlist: () => void;
-  netlistLabel: string;
   onRevert: () => void;
   onOpenRecovery: () => void;
   /** Opens Project Info, where the circuit and its Cell are named. */
@@ -151,7 +150,6 @@ export function FileCommandMenu({
   onExportSvg,
   onExportRaster,
   onExportNetlist,
-  netlistLabel,
   onRevert,
   onOpenRecovery,
   onOpenInfo,
@@ -304,7 +302,7 @@ export function FileCommandMenu({
             aria-label="Export Netlist"
             onClick={onExportNetlist}
           >
-            Netlist as {netlistLabel}
+            Netlist…
           </button>
         </CommandSubmenu>
       </div>

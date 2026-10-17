@@ -1,5 +1,3 @@
-import type { NetlistFormat } from "@icm/netlist";
-
 /** The same small controls serve schematic output and native external models.
  * Their owners supply the operation scope and rejection policy. */
 export function NetlistCodeSelect({
@@ -40,14 +38,6 @@ export const netlistFormatOptions = [
   { value: "spice", label: "SPICE" },
   { value: "spectre", label: "SCS" },
 ] as const;
-
-/** The name the Netlist panel gives a format. */
-export function netlistFormatLabel(format: NetlistFormat): string {
-  return (
-    netlistFormatOptions.find((option) => option.value === format)?.label ??
-    format
-  );
-}
 
 export function NetlistCopyButton({
   label = "Copy netlist",
