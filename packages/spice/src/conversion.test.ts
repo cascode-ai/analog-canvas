@@ -209,6 +209,32 @@ describe("netlist-crawler structural conversion", () => {
       expect(result.issues[0]?.line).toBeGreaterThan(0);
     },
   );
+  it("reads Spectre's escapes in names, so the SPICE it becomes names the net Vin+", () => {
+    const spice = converted(
+      [
+        "global vdd!",
+        "subckt amp (Vin\\+ Vin\\- D\\<3\\> D\\[4\\] a\\.b x\\/y p\\:q vdd!)",
+        "R\\+1 (Vin\\+ D\\<3\\>) resistor r=1k",
+        "R2 (Vin\\- vdd!) resistor r=2k",
+        "ends amp",
+        "X1 (a b c d e f g vdd!) amp",
+      ].join("\n"),
+    );
+    expect(spice).toContain(".global vdd!");
+    expect(spice).toContain(".subckt amp Vin+ Vin- D<3> D[4] a.b x/y p:q vdd!");
+    expect(spice).toContain("R+1 Vin+ D<3> 1000");
+    expect(spice).toContain("R2 Vin- vdd! 2000");
+    expect(spice).not.toContain("\\");
+  });
+  it("leaves quoted text as written", () => {
+    const spice = converted(
+      [String.raw`include "C:\models\a\+b.scs"`, "R1 (a b) resistor r=1k"].join(
+        "\n",
+      ),
+    );
+    expect(spice).toContain(String.raw`.include "C:\models\a\+b.scs"`);
+    expect(spice).toContain("R1 a b 1000");
+  });
   it("preserves SPICE model/library dialects and the editor's sine offset", () => {
     const model =
       '.lib "models.lib" tt\n.model N nmos level=1\nM1 d g 0 0 N w=2u l=150n';

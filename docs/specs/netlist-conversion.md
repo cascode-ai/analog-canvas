@@ -44,6 +44,13 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
 - Quoted local includes are kept unopened. SPICE model/library declarations go
   in a `simulator lang=spice` section for SCS (no translation or
   qualification); existing SPICE sections stay SPICE.
+- Spectre's name escapes are read, since SPICE has none: `Vin\+` is the net
+  `Vin+`, `D\<3\>` the bus bit `D<3>`, in node lists, instance, subcircuit
+  and port names alike, so the import names a Cell Pin and its Net as the
+  drawing does, and the SCS export writes the escapes back. Quoted text
+  (paths, strings) is untouched, as is a backslash before a space, a
+  parenthesis, a brace, a quote or another backslash, which escapes no name.
+  SPICE→Spectre does not add escapes.
 - Spectre instance names gain the SPICE prefix if needed (collisions block);
   declared subcircuits and reviewed SKY130 wrappers use X even when named M…;
   undeclared M/D/Q follow model designators; other masters need an explicit X
