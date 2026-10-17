@@ -96,10 +96,10 @@ real.
 
 - Independent sources use their circular defaults and expose no Shape choice
   in Properties or Agent `set-properties`.
-- VCCS and CCCS default to a circle with the existing current arrow;
-  `appearance.shape` selects `circle` or `diamond` on the same Instance.
-- VCVS and CCVS use the existing source diamond outline with external positive
-  and negative marks and no arrow. They expose no Shape choice.
+- VCCS, CCCS, VCVS and CCVS default to a circle; `appearance.shape` selects
+  `circle` or the existing `diamond` outline on the same Instance.
+- VCCS and CCCS retain the existing current arrow. VCVS and CCVS retain
+  external positive and negative marks, with no arrow in either outline.
 - Source outlines and leads use the normal stroke. Shape selection preserves
   pins, Net membership, control bindings and authored Annotation anchors.
   These controlled-source compositions are house artwork, not new textbook

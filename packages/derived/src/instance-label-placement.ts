@@ -8,12 +8,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import type { ResolvedSymbol } from "@icm/symbols";
-import {
-  builtInSymbols,
-  createSymbolCatalog,
-  getRazaviCatalogEntry,
-  withInputSigns,
-} from "@icm/symbols";
+import { getRazaviCatalogEntry, withInputSigns } from "@icm/symbols";
 
 import {
   objectStyleProfile,
@@ -372,19 +367,6 @@ export function instanceLabelInkBounds(
   resolved: ResolvedSymbol,
   signalFlowParameters?: Parameters<typeof visibleSymbolInkBounds>[1],
 ): Rect {
-  // Only unchanged catalog artwork keeps the previous circular-source slots.
-  // Project-owned artwork and variants keep their own measured geometry.
-  if (resolved.definition.id === "vcvs" || resolved.definition.id === "ccvs") {
-    const catalog = createSymbolCatalog(builtInSymbols);
-    if (
-      !resolved.variant &&
-      JSON.stringify(resolved.definition) ===
-        JSON.stringify(catalog.resolve(resolved.definition.id)?.definition)
-    ) {
-      const source = catalog.resolve("voltage-source");
-      if (source) return visibleSymbolInkBounds(source);
-    }
-  }
   const withBounds = (
     primitives: ResolvedSymbol["definition"]["primitives"],
   ): ResolvedSymbol["definition"]["primitives"] =>

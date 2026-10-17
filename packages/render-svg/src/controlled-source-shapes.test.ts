@@ -7,15 +7,30 @@ const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("controlled voltage source artwork", () => {
   it.each(["vcvs", "ccvs"])(
-    "%s renders a normal-stroke diamond with voltage polarity and unchanged terminals",
+    "%s defaults to a circle and optionally renders a diamond with unchanged voltage polarity and terminals",
     (symbolId) => {
       const symbol = resolver.resolve(symbolId)!.definition;
       const voltage = resolver.resolve("voltage-source")!.definition;
-      const svg = renderSymbolDefinitionBody(symbol);
+      const circleSvg = renderSymbolDefinitionBody(symbol);
+      expect(circleSvg).toContain("<circle");
+      expect(circleSvg).not.toContain("<polygon");
+      expect(
+        symbol.primitives.find((primitive) => primitive.kind === "circle"),
+      ).toMatchObject(
+        voltage.primitives.find((primitive) => primitive.kind === "circle")!,
+      );
+      const variant = resolver.resolve(symbolId, "diamond")!.variant!;
+      const svg = renderSymbolDefinitionBody(
+        symbol,
+        variant.hiddenPrimitiveParts,
+        variant.additionalPrimitives,
+      );
       expect(svg).toContain("<polygon");
       expect(svg).not.toContain("<circle");
       expect(
-        symbol.primitives.filter((primitive) => primitive.kind === "polygon"),
+        variant.additionalPrimitives!.filter(
+          (primitive) => primitive.kind === "polygon",
+        ),
       ).toEqual([
         expect.objectContaining({
           points: [

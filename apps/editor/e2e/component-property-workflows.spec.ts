@@ -27,7 +27,7 @@ import {
 } from "./manual-editor-fixtures.js";
 import { closeSelectionShelf, placedInstance } from "./canvas-fixtures.js";
 
-test("source Shape controls apply only to controlled current sources", async ({
+test("source Shape controls apply only to controlled sources", async ({
   page,
 }) => {
   await openPlacedProperties(
@@ -60,7 +60,12 @@ test("source Shape controls apply only to controlled current sources", async ({
   await placeComponent(page, "vcvs", { x: 640, y: 200 });
   await page.getByTestId("hit-E1").click();
   await openSelectionShelf(page);
-  expect(await readComponentCode(page)).not.toHaveProperty("appearance.shape");
+  await expectComponentCodeField(page, "appearance.shape", "circle");
+  await expect(
+    page.locator('[data-layer="symbols"] [data-object-id="E1"] circle'),
+  ).toHaveCount(1);
+  const voltageBefore = await exportedDocument(page);
+  await setComponentCodeField(page, "appearance.shape", "diamond");
   await expect(
     page.locator(
       '[data-layer="symbols"] [data-object-id="E1"] polygon[fill="none"]',
@@ -69,7 +74,14 @@ test("source Shape controls apply only to controlled current sources", async ({
   await expect(
     page
       .getByRole("button", { name: "Place VCVS", exact: true })
-      .locator('polygon[fill="none"]'),
+      .locator("circle"),
+  ).toHaveCount(1);
+  const voltageAfter = await exportedDocument(page);
+  expect(voltageAfter.annotations).toEqual(voltageBefore.annotations);
+  expect(voltageAfter.nets).toEqual(voltageBefore.nets);
+  await setComponentCodeField(page, "appearance.shape", "circle");
+  await expect(
+    page.locator('[data-layer="symbols"] [data-object-id="E1"] circle'),
   ).toHaveCount(1);
 });
 

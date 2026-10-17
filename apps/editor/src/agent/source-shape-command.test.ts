@@ -17,21 +17,29 @@ describe("an Agent's set-properties shape", () => {
     return value;
   }
 
-  it("draws a current source as a diamond as Properties does", () => {
-    const plan = planBrowserAgentCommand(project("vccs"), "main", resolver, {
-      kind: "set-properties",
-      instanceId: "x1",
-      shape: "diamond",
-    });
-    expect("edits" in plan ? plan.edits : []).toContainEqual({
-      kind: "set_instance_symbol",
-      instanceId: "x1",
-      symbolId: "vccs",
-      symbolVariantId: "diamond",
-    });
-  });
+  it.each(["vccs", "cccs", "vcvs", "ccvs"])(
+    "draws %s as a diamond as Properties does",
+    (symbolId) => {
+      const plan = planBrowserAgentCommand(
+        project(symbolId),
+        "main",
+        resolver,
+        {
+          kind: "set-properties",
+          instanceId: "x1",
+          shape: "diamond",
+        },
+      );
+      expect("edits" in plan ? plan.edits : []).toContainEqual({
+        kind: "set_instance_symbol",
+        instanceId: "x1",
+        symbolId,
+        symbolVariantId: "diamond",
+      });
+    },
+  );
 
-  it.each(["resistor", "current-source", "voltage-source", "vcvs", "ccvs"])(
+  it.each(["resistor", "current-source", "voltage-source"])(
     "refuses a shape choice for %s",
     (symbolId) => {
       expect(() =>
@@ -40,7 +48,7 @@ describe("an Agent's set-properties shape", () => {
           instanceId: "x1",
           shape: "diamond",
         }),
-      ).toThrow("shape is for vccs and cccs");
+      ).toThrow("shape is for vccs, cccs, vcvs and ccvs");
     },
   );
 });

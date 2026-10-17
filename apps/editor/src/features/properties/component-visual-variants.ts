@@ -116,11 +116,11 @@ export function symbolForOutputsSwapped(
 }
 
 /**
- * The controlled current sources a reader may draw as a diamond: the same
+ * The controlled sources a reader may draw as a diamond: the same
  * part in its "diamond" variant, so its netlist, pins and wiring never
  * change. A circle is the default.
  */
-const SHAPED_SOURCES = new Set(["vccs", "cccs"]);
+const SHAPED_SOURCES = new Set(["vccs", "cccs", "vcvs", "ccvs"]);
 export const DIAMOND_SOURCE_VARIANT = "diamond";
 export type SourceShape = "circle" | "diamond";
 

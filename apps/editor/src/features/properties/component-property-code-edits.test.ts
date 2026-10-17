@@ -335,7 +335,7 @@ describe("planComponentPropertyCodeEdits", () => {
     },
   );
 
-  it.each(["current-source", "voltage-source", "vcvs", "ccvs"])(
+  it.each(["current-source", "voltage-source"])(
     "rejects a shape edit for %s without a shape choice",
     (symbolId) => {
       const document = createEmptyDocument("main", "Main");
@@ -350,9 +350,9 @@ describe("planComponentPropertyCodeEdits", () => {
     },
   );
 
-  it("draws a controlled current source as a diamond and back, the same part throughout", () => {
+  it("draws a controlled source as a diamond and back, the same part throughout", () => {
     const resolver = new InMemorySymbolResolver(builtInSymbols);
-    for (const symbolId of ["vccs", "cccs"]) {
+    for (const symbolId of ["vccs", "cccs", "vcvs", "ccvs"]) {
       let document = createEmptyDocument("main", "Main");
       document.instances.push({
         id: "I1",

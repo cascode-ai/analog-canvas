@@ -2645,7 +2645,7 @@ export const agentRazaviAuthoringCatalog = {
       bounds: {
         x: -20.06,
         y: -20,
-        width: 32.56,
+        width: 30.82,
         height: 40,
       },
       pins: [
@@ -2670,7 +2670,18 @@ export const agentRazaviAuthoringCatalog = {
           },
         },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "diamond",
+          hiddenPinNames: [],
+          bounds: {
+            x: -20.06,
+            y: -20,
+            width: 32.56,
+            height: 40,
+          },
+        },
+      ],
     },
     {
       symbolId: "ccvs",
@@ -2683,7 +2694,7 @@ export const agentRazaviAuthoringCatalog = {
       bounds: {
         x: -20.06,
         y: -20,
-        width: 32.56,
+        width: 30.82,
         height: 40,
       },
       pins: [
@@ -2708,7 +2719,18 @@ export const agentRazaviAuthoringCatalog = {
           },
         },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "diamond",
+          hiddenPinNames: [],
+          bounds: {
+            x: -20.06,
+            y: -20,
+            width: 32.56,
+            height: 40,
+          },
+        },
+      ],
     },
     {
       symbolId: "xnor-gate",

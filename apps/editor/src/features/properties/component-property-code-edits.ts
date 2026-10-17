@@ -326,7 +326,7 @@ export function planComponentPropertyCodeEdits(
       instanceId: instance.id,
       symbolId: nextSymbolId,
     });
-  // A controlled current source's outline is its variant; the part stays the same.
+  // A controlled source's outline is its variant; the part stays the same.
   if (value.appearance.shape !== undefined) {
     const currentShape = componentSourceShape(instance);
     if (currentShape === undefined)
