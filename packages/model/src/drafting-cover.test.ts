@@ -13,10 +13,13 @@ describe("drafting that would cover the drawing (2026-10-13)", () => {
       });
     expect(of("#ffffff")).toBe("#ffffff");
     expect(of("#FFF")).toBe("#FFF");
-    expect(of("#f0f0f0")).toBe("#f0f0f0");
+    expect(of("#f8f8f8")).toBe("#f8f8f8");
     expect(of(undefined, "#fefefe")).toBe("#fefefe");
-    // Any channel below 0xF0 is a color the sheet shows.
-    expect(of("#efffff")).toBeNull();
+    // Any channel below 0xF8 is a color the sheet shows: a pale panel such
+    // as #F0FDFA is drawn on purpose (2026-10-17).
+    expect(of(undefined, "#f0fdfa")).toBeNull();
+    expect(of("#f0f0f0")).toBeNull();
+    expect(of("#f7ffff")).toBeNull();
     expect(of("#e0e0e0")).toBeNull();
     expect(of("#000000", "#ffcc00")).toBeNull();
     expect(of()).toBeNull();

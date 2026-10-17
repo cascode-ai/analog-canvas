@@ -124,7 +124,11 @@ export function createGalleryExampleCommands({
       return true;
     }
     setStatus(
-      `Place ${label} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
+      `Place ${label} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels${
+        drawing.coversLeftOut
+          ? ` · left out ${drawing.coversLeftOut} white mask${drawing.coversLeftOut === 1 ? "" : "s"}`
+          : ""
+      }`,
     );
     return true;
   };

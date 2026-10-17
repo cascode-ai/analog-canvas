@@ -170,7 +170,7 @@ issues: [{kind, detail}]}`), `expectedPreviewRevision`,
 - A session is the whole gate; quality advice never vetoes. `author` is the
   session display name; updates never re-attribute except AI take-over.
 - One veto: drafting in the white sheet's own color (stroke or fill, every
-  channel ≥ 0xF0) only covers the drawing, as hand-made wire hops masked the
+  channel ≥ 0xF8; a pale tint shows and is allowed) only covers the drawing, as hand-made wire hops masked the
   wires they crossed. A submission or update holding one answers 400
   `drafting-cover` with a `message`; the edit engine refuses creating one or
   turning an object that color (an older one keeps its color and still moves).

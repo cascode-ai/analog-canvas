@@ -71,7 +71,7 @@ describe("drafting and guide edits", () => {
         ),
       );
     // White or nearly, stroke or fill: refused, with the reason.
-    for (const color of ["#ffffff", "#FFF", "#f4f4f2"]) {
+    for (const color of ["#ffffff", "#FFF", "#fafaf9"]) {
       const refused = upsert(createEmptyDocument("doc", "Mask"), line(color));
       expect(refused.ok).toBe(false);
       expect(JSON.stringify(refused)).toContain("needs no hop");
