@@ -1061,10 +1061,12 @@ export default function ComponentDefinitionEditor(
           {!import.meta.env?.ICM_DESKTOP && !user && authReady ? (
             <AccountMenu inEditor />
           ) : null}
-          <ComponentAgentControls
-            workspace={workspace}
-            label={props.definition.symbol.name}
-          />
+          {!import.meta.env?.ICM_DESKTOP && (
+            <ComponentAgentControls
+              workspace={workspace}
+              label={props.definition.symbol.name}
+            />
+          )}
           <div className="component-exit">
             <button
               type="button"

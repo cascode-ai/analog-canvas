@@ -401,4 +401,46 @@ describe("Gallery and example commands", () => {
       "This gallery entry is unavailable",
     );
   });
+
+  it("opens a circuit drawn on a finer grid in a new tab instead of failing at the click (2026-10-17)", async () => {
+    const project = createEmptyProject("fine-grid", "Fine grid LDO");
+    const document = project.documents[0]!;
+    document.presentation.grid = 1;
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 123, y: 47 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "1k" },
+      },
+    });
+    const projectText = serializeProject(project);
+    const input = {
+      ...dependencies(
+        vi.fn<typeof fetch>(async () =>
+          Response.json({ entry: { name: "Fine grid LDO" }, projectText }),
+        ),
+      ),
+      beginCopyPlacement: vi.fn(() => {
+        throw new Error(
+          "Source geometry is incompatible with target grid 10; composition does not rescale or snap electrical geometry",
+        );
+      }),
+      openProjectInTab: vi.fn(async () => true),
+    };
+
+    await createGalleryExampleCommands(input).insertGalleryEntryById("fine");
+
+    expect(input.openProjectInTab).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "fine-grid" }),
+      defaultViewBox,
+      expect.objectContaining({ id: "fine" }),
+    );
+    expect(input.replaceActiveProject).not.toHaveBeenCalled();
+    expect(input.setStatus).toHaveBeenLastCalledWith(
+      "Fine grid LDO is drawn on grid 1, finer than this canvas's grid 10, so it cannot be placed here; it opened in a new tab",
+    );
+  });
 });

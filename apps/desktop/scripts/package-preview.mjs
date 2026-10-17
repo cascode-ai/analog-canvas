@@ -1,4 +1,11 @@
-import { cp, mkdir, rename, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readdir,
+  rename,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
@@ -28,14 +35,24 @@ const sourcePaths = execFileSync(
 for (const path of sourcePaths) assertPublicDistributionPath(path);
 
 // Unique output: never recursively remove a previous package or user data.
-const output = join(
+const staging = join(
   root,
   "output",
   `desktop-preview-${new Date().toISOString().replace(/[:.]/g, "-")}`,
 );
-const application = join(output, "Analog Canvas Preview");
+const output = join(staging, "Analog-Canvas-Windows-x64");
+const application = output;
 await mkdir(application, { recursive: true });
 await cp(dirname(require("electron")), application, { recursive: true });
+// Preserve Electron's English fallback and both Chinese locale resources.
+// All runtime libraries, fonts and original notices remain intact.
+for (const entry of await readdir(join(application, "locales"))) {
+  if (
+    entry.endsWith(".pak") &&
+    !["en-US.pak", "zh-CN.pak", "zh-TW.pak"].includes(entry)
+  )
+    await unlink(join(application, "locales", entry));
+}
 await rename(
   join(application, "electron.exe"),
   join(application, "Analog Canvas Preview.exe"),
@@ -88,6 +105,11 @@ await writeFile(
       output,
       executable: join(application, "Analog Canvas Preview.exe"),
       commit,
+      archive: join(
+        root,
+        "output",
+        `analog-canvas-desktop-windows-x64-${commit.slice(0, 12)}.zip`,
+      ),
     },
     null,
     2,

@@ -53,6 +53,8 @@ export interface PasteProposal {
   instanceIds: string[];
   errors: string[];
   idRemap: OperationIdRemap;
+  /** The finer grid the target Cell takes so the paste fits, if any. */
+  adoptedGrid?: number;
   /**
    * Non-electrical provenance for this one flattened Document insertion.
    * It can identify two imports of the same source without changing target
@@ -66,6 +68,10 @@ export interface PasteProposal {
   };
   operationPlan: RoutingOperationPlan;
 }
+
+/** How a paste says its geometry is off the target Document's grid. */
+export const GRID_INCOMPATIBLE =
+  "Source geometry is incompatible with target grid";
 
 export function proposePaste(
   document: SchematicDocument,
@@ -909,14 +915,27 @@ export function proposePaste(
       },
     });
   }
+  let adoptedGrid: number | undefined;
   if (clipboard.intent === "compose-document" || clipboard.context) {
-    const gridErrors = edits.flatMap((edit) =>
-      gridAlignmentDiagnostics(edit, document.presentation.grid),
-    );
-    if (gridErrors.length > 0) {
-      errors.push(
-        `Source geometry is incompatible with target grid ${document.presentation.grid}; composition does not rescale or snap electrical geometry`,
-      );
+    const target = document.presentation.grid;
+    const fits = (grid: number) =>
+      edits.every((edit) => gridAlignmentDiagnostics(edit, grid).length === 0);
+    if (!fits(target)) {
+      // A paste never moves electrical geometry; a drawing on a finer grid
+      // makes the canvas take the coarsest grid that holds it instead, a
+      // divisor of its own so everything on it stays put (2026-10-17).
+      adoptedGrid = Array.from(
+        { length: target - 1 },
+        (_, index) => target - 1 - index,
+      )
+        .filter((grid) => grid > 0 && target % grid === 0)
+        .find(fits);
+      if (adoptedGrid)
+        edits.unshift({ kind: "set_document_grid", grid: adoptedGrid });
+      else
+        errors.push(
+          `${GRID_INCOMPATIBLE} ${target}; composition does not rescale or snap electrical geometry`,
+        );
     }
   }
   const operationPlan = createRoutingOperationPlan(document, {
@@ -957,6 +976,7 @@ export function proposePaste(
     instanceIds: [...instanceIds.values()],
     errors,
     idRemap,
+    ...(adoptedGrid ? { adoptedGrid } : {}),
     ...(compositionOccurrenceId
       ? {
           compositionOccurrence: {

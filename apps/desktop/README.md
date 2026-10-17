@@ -1,6 +1,7 @@
 # Analog Canvas internal desktop preview
 
-Windows x64, unsigned unpacked application. Run `Analog Canvas Preview/Analog Canvas Preview.exe` from the generated folder. Keep that entire folder together.
+Windows x64, unsigned unpacked application. Extract the ZIP and run
+`Analog-Canvas-Windows-x64/Analog Canvas Preview.exe`. Keep that entire folder together.
 
 This README describes the source implementation. Each published ZIP contains
 only the features of its recorded commit; see its `ACCEPTANCE.json`.
@@ -88,15 +89,12 @@ active; no Project bytes, file paths or credentials are passed to those links.
 
 ## Package size
 
-The `27fd0221abfd` preview ZIP is 169 MiB (390 MiB extracted). Compressed
-contents: Electron runtime 142 MiB, runtime language packs 13 MiB, corresponding
-source 9 MiB, editor assets 4 MiB, and the small host/notices/acceptance records.
-The executable alone includes 235 MiB of Electron/Chromium before compression.
-The package contains no developer `node_modules`, user profiles or local
-Projects. Runtime DLLs/fonts and license notices belong with the application;
-the corresponding source and attribution are required distribution material.
-Reducing language packs saves only a small share. A substantially smaller host
-would need a separate compatibility/security and deployment decision.
+The ZIP contains one stable application directory with the executable at its
+top level. Its name includes Windows x64 and the source commit. It retains
+Electron runtime libraries, fonts, English and Chinese locale resources,
+corresponding source, original notices and acceptance/security records.
+It contains no developer dependencies or user data. Updates replace the
+application directory; saved Projects and app data stay in their user locations.
 
 ## Build and validate
 
@@ -112,15 +110,24 @@ pnpm --filter @icm/desktop package:preview
 pnpm --filter @icm/desktop test:preview
 # Install Gitleaks 8.30.1; set GITLEAKS_BINARY if it is not on PATH.
 pnpm --filter @icm/desktop security:preview
+pnpm --filter @icm/desktop archive:preview
 ```
 
-The package script writes a new timestamped folder under `output/`, retains Electron's license files, and includes `source.zip`, `LICENSE.md`, the original fork notice and the [source/adaptation inventory](SOURCES.md). `plan/preview-package.json` identifies the latest local package for acceptance. The acceptance script uses an isolated application-data directory, intercepts native dialog choices in the test process, writes real files and relaunches the packaged executable.
+Assembly uses a unique staging directory under `output/` and records it in
+`plan/preview-package.json`. Archiving requires packaged acceptance and security
+records for that exact source and preserves existing ZIPs. The acceptance script
+uses isolated app data, intercepts native dialog choices, writes real files and
+relaunches the packaged executable. [Source/adaptation inventory](SOURCES.md).
 
 The shell is adapted from **LXY-freshman / Schematic Draft** under AGPL-3.0-only. [The retained original notice](upstream-NOTICE.md) describes that historical fork, not the current preview's feature set. See [SOURCES.md](SOURCES.md) for fixed source links and attribution.
 
 ## Preview distribution
 
-Download `analog-canvas-desktop-windows-x64.zip` from a **Desktop Preview** entry in [GitHub Releases](https://github.com/cascode-ai/analog-canvas/releases). Extract the whole ZIP, then run `Analog Canvas Preview/Analog Canvas Preview.exe` inside the extracted preview directory. No Node.js, pnpm or developer tools are required. The executable needs its sibling resources; distributing the `.exe` alone will not work. GitHub's automatically generated source archives are source code, not the runnable application.
+Download the Windows x64 ZIP from a **Desktop Preview** entry in
+[GitHub Releases](https://github.com/cascode-ai/analog-canvas/releases), following
+the extraction instructions above. No Node.js, pnpm or developer tools are
+required. The executable needs its sibling resources; distributing the `.exe`
+alone will not work. GitHub's generated source archives are not the application.
 
 The [Windows packaging and acceptance workflow](../../.github/workflows/desktop-preview.yml) runs when a preview is released, not on every merge: no merge ships the desktop preview, so the Web merge queue does not package it. It checks the real packaged executable before anything is uploaded.
 

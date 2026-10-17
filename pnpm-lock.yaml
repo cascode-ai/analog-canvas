@@ -74,6 +74,9 @@ importers:
 
   apps/desktop:
     devDependencies:
+      "@icm/edit-engine":
+        specifier: workspace:*
+        version: link:../../packages/edit-engine
       "@icm/project-protocol":
         specifier: workspace:*
         version: link:../../packages/project-protocol
@@ -83,6 +86,9 @@ importers:
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       rcedit:
         specifier: 5.0.2
         version: 5.0.2

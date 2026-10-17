@@ -25,7 +25,9 @@ let running;
 const errors = [];
 const auditFiles = [];
 const deliberateProbes = new Set();
+let stage = "startup";
 async function launch(name, options = {}) {
+  stage = name;
   const audit = join(output, `${name}.jsonl`);
   auditFiles.push(audit);
   const env = {
@@ -823,6 +825,22 @@ try {
   }
   console.log(`PASS: ${output}`);
 } catch (error) {
+  // Keep CI evidence even when the successful result was never reached.
+  // Full profiles, source text and error payloads stay out of the artifact.
+  await writeFile(
+    join(output, "result.json"),
+    JSON.stringify(
+      {
+        status: "failed",
+        stage,
+        packaged: !dev,
+        source: manifest?.commit,
+        error: error instanceof Error ? error.name : "Error",
+      },
+      null,
+      2,
+    ),
+  );
   if (running) {
     const page = running.windows()[0];
     if (page) {

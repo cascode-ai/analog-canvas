@@ -1,10 +1,12 @@
 import type { CircuitProject, DraftingObject } from "./schema.js";
 
 /**
- * Whether a drafting color is the sheet's own: white or nearly (every
- * channel at least 0xF0). The sheet is white, so such a stroke or fill
- * draws nothing; it only covers the drawing under it, as hand-made wire
- * "hops" masked the wires they crossed (2026-10-13). Never allowed.
+ * Whether a drafting color is the sheet's own: white or so nearly that no
+ * eye tells it from the sheet (every channel at least 0xF8). Such a stroke
+ * or fill draws nothing; it only covers the drawing under it, as hand-made
+ * wire "hops" masked the wires they crossed (2026-10-13). Never allowed. A
+ * pale tint such as #F0FDFA shows on the sheet and stays allowed: 0xF0 also
+ * refused panels people draw on purpose (2026-10-17).
  */
 function sheetColored(color: string | undefined): boolean {
   if (!color) return false;
@@ -12,7 +14,7 @@ function sheetColored(color: string | undefined): boolean {
   const full =
     hex.length === 3 ? [...hex].map((digit) => digit + digit).join("") : hex;
   return [0, 2, 4].every(
-    (offset) => Number.parseInt(full.slice(offset, offset + 2), 16) >= 0xf0,
+    (offset) => Number.parseInt(full.slice(offset, offset + 2), 16) >= 0xf8,
   );
 }
 
