@@ -40,12 +40,28 @@
     ],
     "primitives": [
       {
-        "kind": "circle",
-        "center": {
-          "x": 0,
-          "y": 0
-        },
-        "radius": 10.755814,
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 0,
+            "y": -12.5
+          },
+          {
+            "x": 12.5,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 12.5
+          },
+          {
+            "x": -12.5,
+            "y": 0
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "part": "diamond-body",
         "style": {
           "strokeRole": "normal",
           "lineCap": "butt",
@@ -107,7 +123,7 @@
         "kind": "line",
         "from": {
           "x": 0,
-          "y": -10.755814
+          "y": -12.5
         },
         "to": {
           "x": 0,
@@ -123,7 +139,7 @@
         "kind": "line",
         "from": {
           "x": 0,
-          "y": 10.755814
+          "y": 12.5
         },
         "to": {
           "x": 0,
@@ -172,7 +188,7 @@
     "category": "source",
     "reviewStatus": "reviewed",
     "provenance": "house",
-    "houseReason": "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed voltage-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+    "houseReason": "The user-approved controlled voltage source combines the existing source diamond outline with the reviewed voltage-source pins, normal stroke and external polarity marks. It is product artwork and does not claim an exact textbook witness.",
     "pinOrder": ["+", "-"],
     "palette": true,
     "automaticMappings": ["spice:H"],

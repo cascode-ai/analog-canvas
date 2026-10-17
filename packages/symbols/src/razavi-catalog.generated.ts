@@ -2578,13 +2578,13 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     reviewStatus: "reviewed",
     provenance: "house",
     houseReason:
-      "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed voltage-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+      "The user-approved controlled voltage source combines the existing source diamond outline with the reviewed voltage-source pins, normal stroke and external polarity marks. It is product artwork and does not claim an exact textbook witness.",
     pinOrder: ["+", "-"],
     palette: true,
     automaticMappings: ["spice:E"],
     assetPath: "vcvs.json",
     assetHash:
-      "f02cf669cffd01856c3109ec31dcb1dc8981a70cdceb3c7ec8256e38ccad941d",
+      "0d390a297f41c9e0e07ba78c157ddf9ee0c0c887c80f6d51d8d025b4dfee899e",
   },
   {
     symbolId: "ccvs",
@@ -2593,13 +2593,13 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     reviewStatus: "reviewed",
     provenance: "house",
     houseReason:
-      "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed voltage-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+      "The user-approved controlled voltage source combines the existing source diamond outline with the reviewed voltage-source pins, normal stroke and external polarity marks. It is product artwork and does not claim an exact textbook witness.",
     pinOrder: ["+", "-"],
     palette: true,
     automaticMappings: ["spice:H"],
     assetPath: "ccvs.json",
     assetHash:
-      "405c41f95c517785cdbc434c7e8ad3bc2490f2b6188e46d6ff16538717541cfd",
+      "d5b218350041a18750d2a9f4f6e9a73984320e6cc036855013aa00085e4fd29d",
   },
   {
     symbolId: "xnor-gate",
@@ -17885,12 +17885,28 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     ],
     primitives: [
       {
-        kind: "circle",
-        center: {
-          x: 0,
-          y: 0,
-        },
-        radius: 10.755814,
+        kind: "polygon",
+        points: [
+          {
+            x: 0,
+            y: -12.5,
+          },
+          {
+            x: 12.5,
+            y: 0,
+          },
+          {
+            x: 0,
+            y: 12.5,
+          },
+          {
+            x: -12.5,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        part: "diamond-body",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -17952,7 +17968,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: 0,
-          y: -10.755814,
+          y: -12.5,
         },
         to: {
           x: 0,
@@ -17968,7 +17984,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: 0,
-          y: 10.755814,
+          y: 12.5,
         },
         to: {
           x: 0,
@@ -18023,12 +18039,28 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     ],
     primitives: [
       {
-        kind: "circle",
-        center: {
-          x: 0,
-          y: 0,
-        },
-        radius: 10.755814,
+        kind: "polygon",
+        points: [
+          {
+            x: 0,
+            y: -12.5,
+          },
+          {
+            x: 12.5,
+            y: 0,
+          },
+          {
+            x: 0,
+            y: 12.5,
+          },
+          {
+            x: -12.5,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        part: "diamond-body",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -18090,7 +18122,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: 0,
-          y: -10.755814,
+          y: -12.5,
         },
         to: {
           x: 0,
@@ -18106,7 +18138,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: 0,
-          y: 10.755814,
+          y: 12.5,
         },
         to: {
           x: 0,

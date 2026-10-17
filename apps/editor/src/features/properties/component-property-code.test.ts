@@ -36,6 +36,29 @@ const context = {
 };
 
 describe("component property code", () => {
+  it.each(["current-source", "voltage-source", "pulse-voltage-source"])(
+    "%s exposes no shape choice and rejects one in property JSON",
+    (symbolId) => {
+      const sourceContext = {
+        ...context,
+        instance: {
+          ...instance,
+          symbolId,
+          netlist: initialInstanceNetlist(symbolId, {})!,
+        },
+      };
+      const code = JSON.parse(formatComponentPropertyCode(sourceContext));
+      expect(code.appearance).not.toHaveProperty("shape");
+      code.appearance.shape = "diamond";
+      expect(
+        parseComponentPropertyCode(JSON.stringify(code), sourceContext),
+      ).toMatchObject({
+        ok: false,
+        message: "appearance.shape is not a supported property",
+      });
+    },
+  );
+
   it("round-trips hidden supplies in JSON, with Auto and logical Net previews", () => {
     const supplyContext = {
       ...context,

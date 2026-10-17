@@ -68,6 +68,23 @@ function placedDefaultLabel(
 }
 
 describe("instance label placement", () => {
+  it.each(["vcvs", "ccvs"])(
+    "measures project-owned %s artwork instead of the catalog label reference",
+    (symbolId) => {
+      const custom = new InMemorySymbolResolver([
+        {
+          ...resolver.resolve(symbolId)!.definition,
+          primitives: [{ kind: "circle", center: { x: 0, y: 0 }, radius: 80 }],
+        },
+      ]).resolve(symbolId)!;
+      expect(instanceLabelInkBounds(custom)).toEqual({
+        x: -80,
+        y: -80,
+        width: 160,
+        height: 160,
+      });
+    },
+  );
   const metrics = instanceLabelMetrics(profile);
   // Every family a label is drawn for: Analog Blocks, gates, registers, delay
   // cells, converters and the devices.

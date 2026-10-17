@@ -92,6 +92,19 @@ real.
   fidelity baselines together; profile selection never changes global
   typography.
 
+## Source symbols
+
+- Independent sources use their circular defaults and expose no Shape choice
+  in Properties or Agent `set-properties`.
+- VCCS and CCCS default to a circle with the existing current arrow;
+  `appearance.shape` selects `circle` or `diamond` on the same Instance.
+- VCVS and CCVS use the existing source diamond outline with external positive
+  and negative marks and no arrow. They expose no Shape choice.
+- Source outlines and leads use the normal stroke. Shape selection preserves
+  pins, Net membership, control bindings and authored Annotation anchors.
+  These controlled-source compositions are house artwork, not new textbook
+  evidence.
+
 ## Analog transconductance blocks
 
 Right-tapered trapezoid with centred renderer-owned formula, default `g_m`

@@ -2645,7 +2645,7 @@ export const agentRazaviAuthoringCatalog = {
       bounds: {
         x: -20.06,
         y: -20,
-        width: 30.82,
+        width: 32.56,
         height: 40,
       },
       pins: [
@@ -2683,7 +2683,7 @@ export const agentRazaviAuthoringCatalog = {
       bounds: {
         x: -20.06,
         y: -20,
-        width: 30.82,
+        width: 32.56,
         height: 40,
       },
       pins: [

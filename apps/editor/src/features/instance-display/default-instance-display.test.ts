@@ -59,8 +59,8 @@ describe("default instance display annotations", () => {
       });
       const controlledSymbol = resolver.resolve(symbolId)!.definition;
       const ordinarySymbol = resolver.resolve(sourceId)!.definition;
-      expect(controlledSymbol.primitives).toEqual(ordinarySymbol.primitives);
       expect(controlledSymbol.pins).toEqual(ordinarySymbol.pins);
+      expect(controlledSymbol.viewBox).toEqual(ordinarySymbol.viewBox);
       const controlledAnnotations = defaultInstanceDisplayAnnotations(
         document,
         controlled,
@@ -91,6 +91,44 @@ describe("default instance display annotations", () => {
       expect(controlledSourceExpressionSource(controlledLabel.content!)).toBe(
         expression,
       );
+    },
+  );
+  it.each(
+    ["vcvs", "ccvs"].flatMap((symbolId) =>
+      ([0, 90, 180, 270] as const).map((rotation) => ({ symbolId, rotation })),
+    ),
+  )(
+    "keeps $symbolId's label slot after changing its outline at $rotation degrees",
+    ({ symbolId, rotation }) => {
+      const document = createEmptyDocument("source-label", "Source label");
+      const instance = createNewInstance(document, {
+        symbolId,
+        placement: { position: { x: 100, y: 100 }, rotation, mirror: "none" },
+        netlist: initialInstanceNetlist(symbolId, {}),
+      });
+      const profile = resolveSchematicStyleProfile(
+        document.presentation.styleProfileId,
+      );
+      const originalOutline = new InMemorySymbolResolver(
+        builtInSymbols.map((symbol) =>
+          symbol.id === symbolId
+            ? {
+                ...symbol,
+                primitives:
+                  resolver.resolve("voltage-source")!.definition.primitives,
+              }
+            : symbol,
+        ),
+      );
+      const labels = (symbols: InMemorySymbolResolver) =>
+        defaultInstanceDisplayAnnotations(
+          document,
+          instance,
+          symbols,
+          profile,
+          { showValue: true },
+        );
+      expect(labels(resolver)).toEqual(labels(originalOutline));
     },
   );
   it.each([

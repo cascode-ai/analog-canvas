@@ -31,13 +31,16 @@ describe("an Agent's set-properties shape", () => {
     });
   });
 
-  it("refuses a shape for a part that has none", () => {
-    expect(() =>
-      planBrowserAgentCommand(project("resistor"), "main", resolver, {
-        kind: "set-properties",
-        instanceId: "x1",
-        shape: "diamond",
-      }),
-    ).toThrow("shape is for current-source, vccs and cccs");
-  });
+  it.each(["resistor", "current-source", "voltage-source", "vcvs", "ccvs"])(
+    "refuses a shape choice for %s",
+    (symbolId) => {
+      expect(() =>
+        planBrowserAgentCommand(project(symbolId), "main", resolver, {
+          kind: "set-properties",
+          instanceId: "x1",
+          shape: "diamond",
+        }),
+      ).toThrow("shape is for vccs and cccs");
+    },
+  );
 });
