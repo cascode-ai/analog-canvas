@@ -10,6 +10,7 @@ import {
   dailyOpenLimit,
   type GalleryDailyOpenLimit,
 } from "../../gallery-client";
+import { GRID_INCOMPATIBLE } from "../clipboard/paste-proposal";
 import { captureGalleryDrawing } from "./gallery-import";
 
 export interface GalleryEntryContext {
@@ -108,20 +109,28 @@ export function createGalleryExampleCommands({
       createProjectSymbolResolver(imported, builtInSymbols),
     ).project;
 
-  const beginProjectImportPlacement = (
+  /**
+   * Starts placing `imported`: "placing", "none" when it has nothing to
+   * place, or the grid a drawing on a finer grid than this canvas cannot be
+   * placed on.
+   */
+  const startProjectImportPlacement = (
     imported: CircuitProject,
     label: string,
-  ): boolean => {
+  ): "placing" | "none" | { targetGrid: number } => {
     const drawing = captureGalleryDrawing(imported);
-    if (!drawing) return false;
+    if (!drawing) return "none";
     try {
       cancelAllTransientInteraction();
       beginCopyPlacement(drawing.clipboard, drawing.anchor);
     } catch (error) {
-      setStatus(
-        `Cannot copy ${label}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return true;
+      const message = error instanceof Error ? error.message : String(error);
+      const grid = message.includes(GRID_INCOMPATIBLE)
+        ? /target grid (\d+)/u.exec(message)?.[1]
+        : undefined;
+      if (grid) return { targetGrid: Number(grid) };
+      setStatus(`Cannot copy ${label}: ${message}`);
+      return "placing";
     }
     setStatus(
       `Place ${label} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels${
@@ -130,7 +139,19 @@ export function createGalleryExampleCommands({
           : ""
       }`,
     );
-    return true;
+    return "placing";
+  };
+
+  const beginProjectImportPlacement = (
+    imported: CircuitProject,
+    label: string,
+  ): boolean => {
+    const placement = startProjectImportPlacement(imported, label);
+    if (typeof placement === "object")
+      setStatus(
+        `Cannot copy ${label}: it is drawn off this canvas's grid ${placement.targetGrid}`,
+      );
+    return placement !== "none";
   };
 
   const installGalleryEntry = async (
@@ -289,7 +310,21 @@ export function createGalleryExampleCommands({
       }
       const imported = parseProject(payload.projectText);
       const label = payload.entry?.name ?? imported.name;
-      if (beginProjectImportPlacement(imported, label)) return;
+      const placement = startProjectImportPlacement(imported, label);
+      if (placement === "placing") return;
+      if (typeof placement === "object") {
+        // A drawing on a finer grid has parts off this canvas's grid, and a
+        // placement never moves electrical geometry to fit: it opens beside
+        // the canvas instead of failing at the click (2026-10-17).
+        const sourceGrid = imported.documents.find(
+          (document) => document.id === imported.topDocumentId,
+        )?.presentation.grid;
+        await openGalleryEntryById(entryId, true, true);
+        setStatus(
+          `${label} is drawn on grid ${sourceGrid ?? "?"}, finer than this canvas's grid ${placement.targetGrid}, so it cannot be placed here; it opened in a new tab`,
+        );
+        return;
+      }
       // An empty scene has no placeable fragment; it can still be opened.
       await openGalleryEntryById(entryId);
     } catch {

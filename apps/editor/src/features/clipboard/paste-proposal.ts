@@ -67,6 +67,10 @@ export interface PasteProposal {
   operationPlan: RoutingOperationPlan;
 }
 
+/** How a paste says its geometry is off the target Document's grid. */
+export const GRID_INCOMPATIBLE =
+  "Source geometry is incompatible with target grid";
+
 export function proposePaste(
   document: SchematicDocument,
   clipboard: SchematicClipboard,
@@ -915,7 +919,7 @@ export function proposePaste(
     );
     if (gridErrors.length > 0) {
       errors.push(
-        `Source geometry is incompatible with target grid ${document.presentation.grid}; composition does not rescale or snap electrical geometry`,
+        `${GRID_INCOMPATIBLE} ${document.presentation.grid}; composition does not rescale or snap electrical geometry`,
       );
     }
   }
