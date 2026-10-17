@@ -272,7 +272,16 @@ async function openUserComponents(page: Page) {
   const dialog = libraryDialog(page);
   await clickCommand(page, "Edit", "User Components…");
   await expect(dialog).toBeVisible();
+  await dialog.getByRole("tab", { name: "Library", exact: true }).click();
   return dialog;
+}
+async function openShelf(
+  page: Page,
+  section: "Project drafts" | "Deleted" | "Deleted (all)",
+) {
+  const dialog = libraryDialog(page);
+  await dialog.getByRole("tab", { name: "My shelf", exact: true }).click();
+  await dialog.getByRole("tab", { name: section, exact: true }).click();
 }
 /** Places the named library component from a newly opened User Components. */
 async function placeFromLibrary(
@@ -288,7 +297,7 @@ async function placeFromLibrary(
 /** Reopens the Project's one draft from User Components. */
 async function openProjectDraft(page: Page, name: string | RegExp) {
   if (!(await libraryDialog(page).isVisible())) await openUserComponents(page);
-  await text(page, "Project drafts (1)").click();
+  await openShelf(page, "Project drafts");
   await page.locator(".component-draft-name").filter({ hasText: name }).click();
 }
 /** Publishes revision 1 of `definition` through the real library API. */
@@ -736,7 +745,7 @@ test("reopening deleted components after sign-out does not retain administrator 
   );
   expect(await deleteComponent(page, "deleted-device")).toBe(200);
   const dialog = await openUserComponents(page);
-  await button(dialog, "Review deleted components").click();
+  await openShelf(page, "Deleted (all)");
   await expect(button(dialog, "Place Deleted device")).toBeVisible();
   await page.clock.install();
   await button(dialog, "Close").click();
@@ -2125,7 +2134,7 @@ test("legacy four-to-six repair uses the full native pin editor, keeps a saved d
     '{"symbol": unfinished',
   );
   await openUserComponents(page);
-  await page.getByText(/Project drafts/).click();
+  await openShelf(page, "Project drafts");
   await page.getByRole("button", { name: /^Circuit draft / }).click();
   await authoringView(editor, "Symbol");
   await expect(json).toContainText('{"symbol": unfinished');
@@ -3066,7 +3075,7 @@ test("live preview and the administrator lifecycle keep captured Projects", asyn
   expect((await readProject(page)).componentDefinitions).toEqual(captured);
   await openUserComponents(page);
   await expect(button(page, "Place Shared amplifier")).toHaveCount(0);
-  await button(page, "Review deleted components").click();
+  await openShelf(page, "Deleted (all)");
   await button(page, "Actions for Shared amplifier").click();
   await button(page, "Restore").click();
   await expect(page.getByText("Restored to library.")).toBeVisible();
@@ -4018,7 +4027,15 @@ test("project drafts can be deleted, undone, redone and saved without touching a
   ];
   await openProjectFile(page, project);
   const dialog = await openUserComponents(page);
-  await text(dialog, "Project drafts (2)").click();
+  await openShelf(page, "Project drafts");
+  const auth = page.waitForResponse((response) =>
+    response.url().endsWith("/api/auth/me"),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await auth;
+  await expect(
+    dialog.getByRole("tab", { name: "Project drafts", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
   await button(dialog, "Select").click();
   await dialog
     .getByLabel("Select Artwork draft draft-a", { exact: true })
@@ -4103,7 +4120,7 @@ test("opens a retained source draft without an external owner and keeps its raw 
   ];
   await openProjectFile(page, project);
   const library = await openUserComponents(page);
-  await text(library, "Project drafts (1)").click();
+  await openShelf(page, "Project drafts");
   await button(library, "Source model.spice").click();
   const editor = componentEditor(page);
   await expect(netlist(editor)).toBeVisible();
@@ -4113,4 +4130,180 @@ test("opens a retained source draft without an external owner and keeps its raw 
   const after = await readProject(page);
   expect(after.modelSources).toEqual(project.modelSources);
   expect(after.externalSubcircuitDefinitions).toEqual([]);
+});
+
+test("Library keeps management in My shelf without persistent repair banners", async ({
+  page,
+  service,
+}) => {
+  service.seedPublished("community", "Community module");
+  await service.openEditorAs(page, "bob");
+  await publishComponent(
+    page,
+    "own-shelf",
+    symbolDefinition("My shelf module"),
+  );
+  const project = createEmptyProject("shelf-project", "Shelf project");
+  project.componentAuthoringDrafts = [
+    { id: "shelf-draft", text: "{ unfinished" },
+  ];
+  await openProjectFile(page, project);
+  const dialog = await openUserComponents(page);
+  await expect(button(dialog, "Place Community module")).toBeVisible();
+  await expect(dialog.locator(".component-project-drafts")).toHaveCount(0);
+  await expect(button(dialog, "Review deleted components")).toHaveCount(0);
+  await dialog.getByRole("tab", { name: "My shelf", exact: true }).click();
+  await expect(button(dialog, "Place My shelf module")).toBeVisible();
+  await expect(button(dialog, "Place Community module")).toHaveCount(0);
+  await dialog
+    .getByRole("tab", { name: "Project drafts", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("button", { name: /^Artwork draft shelf/ }),
+  ).toBeVisible();
+  await dialog.getByRole("tab", { name: "Published", exact: true }).click();
+  await page.clock.install();
+  await button(dialog, "Delete My shelf module").click();
+  await button(dialog, "Delete").click();
+  await expect(dialog.locator(".component-library-feedback")).toContainText(
+    "Removed from library.",
+  );
+  await page.clock.fastForward(6100);
+  await expect(dialog.locator(".component-library-feedback")).toHaveCount(0);
+  await dialog.getByRole("tab", { name: "Deleted", exact: true }).click();
+  await button(dialog, "Actions for My shelf module").click();
+  await dialog
+    .getByRole("group", { name: "Component actions" })
+    .getByRole("button", { name: "Restore", exact: true })
+    .click();
+  await dialog.getByRole("tab", { name: "Library", exact: true }).click();
+  await expect(button(dialog, "Place My shelf module")).toBeVisible();
+  await expect(button(dialog, "Place Community module")).toBeVisible();
+});
+
+test("slow Create loading stays modal and cancellation ignores the late module", async ({
+  page,
+  service,
+}) => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requested = false;
+  await page.route("**/component-definition-editor-*.js", async (route) => {
+    requested = true;
+    await held;
+    await route.continue();
+  });
+  try {
+    await service.openEditorAs(page, null);
+    const library = await openUserComponents(page);
+    await expect.poll(() => requested).toBe(true);
+    await button(library, "Create Component…").click();
+    const loading = page.getByRole("dialog", {
+      name: "Loading component editor",
+      exact: true,
+    });
+    await expect(loading).toBeVisible();
+    await button(loading, "Cancel").click();
+    await expect(library).toBeVisible();
+    await button(library, "Create Component…").click();
+    await expect(loading).toBeVisible();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    expect(
+      await loading.evaluate(
+        (e) =>
+          document.activeElement === document.body ||
+          e.contains(document.activeElement),
+      ),
+    ).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(library).toBeVisible();
+    const response = page.waitForResponse(/component-definition-editor-.*\.js/);
+    release();
+    await response;
+    await expect(componentEditor(page)).toHaveCount(0);
+    await expect(library).toBeVisible();
+    await button(library, "Create Component…").click();
+    const editor = componentEditor(page);
+    await expect(netlist(editor)).toBeVisible();
+    await button(editor, "Back to library").click();
+    await expect(library).toBeVisible();
+    await expect(editor).toHaveCount(0);
+  } finally {
+    release();
+  }
+});
+
+test("Library and My shelf stay compact at narrow widths without global repair notices", async ({
+  page,
+  service,
+}, testInfo) => {
+  service.seedPublished(
+    "compact-module",
+    "Reusable module with a long display name",
+  );
+  service.seedHistoricalDefinition("invalid-module", {
+    symbol: { name: "Legacy definition", id: "broken" },
+  });
+  await service.openEditorAs(page, "alice");
+  const dialog = await openUserComponents(page);
+  await expect(dialog.getByTestId("rejected-user-component")).toBeVisible();
+  await expect(
+    dialog.getByRole("status").filter({ hasText: /need.*repair/i }),
+  ).toHaveCount(0);
+  for (const [width, zoom] of [
+    [1440, 1],
+    [900, 1.25],
+    [640, 1.5],
+  ]) {
+    await page.setViewportSize({ width: width!, height: 1000 });
+    await page.evaluate((z) => {
+      document.body.style.zoom = String(z);
+    }, zoom);
+    await expect(
+      dialog.getByRole("tab", { name: "My shelf", exact: true }),
+    ).toBeInViewport();
+    await expect(button(dialog, "Create Component…")).toBeInViewport();
+    expect(
+      await dialog.evaluate((e) => e.scrollWidth > e.clientWidth + 1),
+    ).toBe(false);
+    await page.screenshot({
+      path: testInfo.outputPath(`library-${width}.png`),
+    });
+    await openShelf(page, "Project drafts");
+    await expect(
+      dialog.getByRole("heading", { name: "Project drafts (0)", exact: true }),
+    ).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`shelf-${width}.png`) });
+    await dialog.getByRole("tab", { name: "Library", exact: true }).click();
+  }
+});
+
+test("reselecting a Library tab cancels pending detail reads without leaving cards busy", async ({
+  page,
+  service,
+}) => {
+  service.seedPublished("slow-detail", "Slow detail");
+  await service.openEditorAs(page, null);
+  const dialog = await openUserComponents(page);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/components/slow-detail", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  try {
+    await button(dialog, "Actions for Slow detail").click();
+    await button(dialog, "Details for Slow detail").click();
+    await expect(button(dialog, "Place Slow detail")).toBeDisabled();
+    await dialog.getByRole("tab", { name: "Library", exact: true }).click();
+    await expect(button(dialog, "Place Slow detail")).toBeEnabled();
+  } finally {
+    release();
+  }
 });

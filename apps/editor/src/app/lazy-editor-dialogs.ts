@@ -172,9 +172,16 @@ export const LazyExamplesPanel = import.meta.env?.ICM_DESKTOP
       })),
     );
 
+const loadComponentDefinitionEditor = () =>
+  import("../features/user-components/component-definition-editor");
+
+/** Warm authoring only after the user opens its Library; failures retain the scoped lazy fallback. */
+export function preloadComponentDefinitionEditor() {
+  void loadComponentDefinitionEditor().catch(() => undefined);
+}
 export const LazyComponentDefinitionEditor = lazyChunk(
   "dialog",
-  () => import("../features/user-components/component-definition-editor"),
+  loadComponentDefinitionEditor,
 );
 
 export const LazyAgentPropertiesSection = import.meta.env?.ICM_DESKTOP

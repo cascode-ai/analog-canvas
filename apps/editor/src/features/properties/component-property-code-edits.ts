@@ -326,18 +326,20 @@ export function planComponentPropertyCodeEdits(
       instanceId: instance.id,
       symbolId: nextSymbolId,
     });
-  // A current source's outline is its variant; the part stays the same.
-  if (
-    value.appearance.shape !== undefined &&
-    value.appearance.shape !== componentSourceShape(instance)
-  )
-    edits.push({
-      kind: "set_instance_symbol",
-      instanceId: instance.id,
-      symbolId: instance.symbolId,
-      symbolVariantId:
-        value.appearance.shape === "diamond" ? DIAMOND_SOURCE_VARIANT : null,
-    });
+  // A controlled source's outline is its variant; the part stays the same.
+  if (value.appearance.shape !== undefined) {
+    const currentShape = componentSourceShape(instance);
+    if (currentShape === undefined)
+      throw new Error(`${instance.symbolId} has no shape choice`);
+    if (value.appearance.shape !== currentShape)
+      edits.push({
+        kind: "set_instance_symbol",
+        instanceId: instance.id,
+        symbolId: instance.symbolId,
+        symbolVariantId:
+          value.appearance.shape === "diamond" ? DIAMOND_SOURCE_VARIANT : null,
+      });
+  }
   if (nextSymbolId !== instance.symbolId && value.inputs !== undefined) {
     const oldTarget = subcircuitDescriptor(instance.symbolId)?.target;
     const nextTarget = subcircuitDescriptor(nextSymbolId)?.target;

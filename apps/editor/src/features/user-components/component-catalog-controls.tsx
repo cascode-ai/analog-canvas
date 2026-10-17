@@ -9,7 +9,9 @@ export function ComponentCatalogControls({
   value,
   authors = [],
   onChange,
+  hideAuthors = false,
 }: {
+  hideAuthors?: boolean;
   value: ComponentCatalogQuery;
   authors: NonNullable<ComponentLibrarySummaryPage["authors"]> | undefined;
   onChange(value: ComponentCatalogQuery): void;
@@ -47,45 +49,49 @@ export function ComponentCatalogControls({
         <option value="symbol-only">Symbol only</option>
         <option value="needs-repair">Needs repair</option>
       </select>
-      <details className="component-catalog-authors" ref={menu}>
-        <summary aria-label="Component author">
-          {value.authorId ? authorName || "Selected author" : "All authors"}
-        </summary>
-        <div
-          className="component-catalog-author-options"
-          role="group"
-          aria-label="Authors"
-        >
-          <input
-            aria-label="Search authors"
-            placeholder="Find an author…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <button
-            type="button"
-            aria-pressed={!value.authorId}
-            onClick={() => chooseAuthor()}
+      {!hideAuthors ? (
+        <details className="component-catalog-authors" ref={menu}>
+          <summary aria-label="Component author">
+            {value.authorId ? authorName || "Selected author" : "All authors"}
+          </summary>
+          <div
+            className="component-catalog-author-options"
+            role="group"
+            aria-label="Authors"
           >
-            All authors
-          </button>
-          {authors
-            .filter((author) =>
-              author.author.toLowerCase().includes(search.trim().toLowerCase()),
-            )
-            .map((author) => (
-              <button
-                type="button"
-                key={author.authorId}
-                aria-pressed={author.authorId === value.authorId}
-                onClick={() => chooseAuthor(author.authorId)}
-              >
-                <span>{author.author || "Unknown author"}</span>
-                <small>{author.count}</small>
-              </button>
-            ))}
-        </div>
-      </details>
+            <input
+              aria-label="Search authors"
+              placeholder="Find an author…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <button
+              type="button"
+              aria-pressed={!value.authorId}
+              onClick={() => chooseAuthor()}
+            >
+              All authors
+            </button>
+            {authors
+              .filter((author) =>
+                author.author
+                  .toLowerCase()
+                  .includes(search.trim().toLowerCase()),
+              )
+              .map((author) => (
+                <button
+                  type="button"
+                  key={author.authorId}
+                  aria-pressed={author.authorId === value.authorId}
+                  onClick={() => chooseAuthor(author.authorId)}
+                >
+                  <span>{author.author || "Unknown author"}</span>
+                  <small>{author.count}</small>
+                </button>
+              ))}
+          </div>
+        </details>
+      ) : null}
       <select
         aria-label="Component order"
         value={value.order}

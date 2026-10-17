@@ -131,6 +131,15 @@ owns visual authority.
   non-executable drafts at its fixed library revision, never replacing
   drawing captures; destination and write rules are in
   [publication](component-publication.md).
+- Library shows public discovery. **My shelf** holds personal publications, Project
+  drafts/capacity and authorized deleted records; administrators can review all
+  removals. Management results use one dismissible message without resizing the
+  grid; successful deletion/restoration messages expire and recovery remains in
+  the shelf. Invalid cards retain diagnostics without a global repair banner.
+  Public and shelf discovery filters are independent.
+- Opening Library warms the split authoring editor without adding it to initial
+  shell loading. Cold Create loading remains modal and cancelable; a late chunk
+  never reopens a canceled candidate.
 - Project drafts have typed component/source/candidate identities. GUI and Agent
   share their catalog, existing limits (characters, bytes and counts) and atomic
   Undoable deletion planner. Shared source bodies count once; deleting a candidate

@@ -61,24 +61,58 @@ export default function UserComponentsLibrary({
   const accountIdentity = useRef<string | null>(null);
   accountIdentity.current = user?.id ?? null;
   const [authReady, setAuthReady] = useState(false);
-  const [query, setQuery] = useState("");
-  const [deleted, setDeleted] = useState(false);
+  const [queries, setQueries] = useState({ library: "", shelf: "" });
+  const [view, setView] = useState<
+    "library" | "published" | "drafts" | "deleted"
+  >("library");
+  const deleted = view === "deleted";
+  const shelf = view !== "library";
   const [page, setPage] = useState<ComponentLibrarySummaryPage>({
     entries: [],
     nextCursor: null,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    text: string;
+    transient: boolean;
+  } | null>(null);
+  function showNotice(text: string | null, transient = false) {
+    setNotice(text === null ? null : { text, transient });
+  }
   const [restorable, setRestorable] = useState<
     Awaited<ReturnType<typeof changeComponentLifecycle>>["entry"] | null
   >(null);
   const [attempt, setAttempt] = useState(0);
-  const [catalog, setCatalog] = useState<ComponentCatalogQuery>({
-    version: 1,
-    type: "all",
-    order: "circuit-first",
+  const [catalogs, setCatalogs] = useState<
+    Record<"library" | "shelf", ComponentCatalogQuery>
+  >({
+    library: { version: 1, type: "all", order: "circuit-first" },
+    shelf: { version: 1, type: "all", order: "circuit-first" },
   });
+  const scope = shelf ? "shelf" : "library";
+  const query = queries[scope];
+  const catalog = catalogs[scope];
+  const setQuery = (value: string) =>
+    setQueries((current) => ({ ...current, [scope]: value }));
+  const setCatalog = (value: ComponentCatalogQuery) =>
+    setCatalogs((current) => ({ ...current, [scope]: value }));
+  const catalogQuery =
+    view === "published" && user ? { ...catalog, authorId: user.id } : catalog;
+  function switchView(next: typeof view) {
+    selection.current?.abort();
+    setBusy(false);
+    setDetail(null);
+    setView(next);
+  }
+  useEffect(() => {
+    if (!notice?.transient) return;
+    const timer = setTimeout(() => {
+      showNotice(null);
+      setRestorable(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [notice, restorable]);
   const [detail, setDetail] = useState<{
     summary: ComponentLibrarySummary;
     entry: SharedComponent;
@@ -112,7 +146,7 @@ export default function UserComponentsLibrary({
   const key = JSON.stringify([
     user?.id ?? null,
     query.trim().toLowerCase(),
-    catalog,
+    catalogQuery,
   ]);
   function catalogProgress(signal: AbortSignal) {
     const identity = JSON.stringify([key, deleted]);
@@ -156,7 +190,7 @@ export default function UserComponentsLibrary({
     retained.current = null;
     bufferedRefresh.current = null;
     setRestorable(null);
-    setNotice(null);
+    showNotice(null);
   }, [user?.id]);
   useEffect(() => {
     if (!open) return;
@@ -167,7 +201,12 @@ export default function UserComponentsLibrary({
         if (!active) return;
         if (result.available) {
           setUser(result.user);
-          if (!result.user) setDeleted(false);
+          if (!result.user)
+            setView((current) =>
+              current === "published" || current === "deleted"
+                ? "library"
+                : current,
+            );
         }
         if (!request.current) setAttempt((value) => value + 1);
       });
@@ -188,7 +227,12 @@ export default function UserComponentsLibrary({
       if (active) {
         if (result.available) {
           setUser(result.user);
-          if (!result.user) setDeleted(false);
+          if (!result.user)
+            setView((current) =>
+              current === "published" || current === "deleted"
+                ? "library"
+                : current,
+            );
         }
         setAuthReady(true);
       }
@@ -200,7 +244,7 @@ export default function UserComponentsLibrary({
     };
   }, [open, refresh]);
   useEffect(() => {
-    if (!open || !authReady) return;
+    if (!open || !authReady || view === "drafts") return;
     const controller = new AbortController();
     request.current = controller;
     setError(null);
@@ -212,7 +256,7 @@ export default function UserComponentsLibrary({
     const identity = JSON.stringify([
       query.trim().toLowerCase(),
       deleted,
-      catalog,
+      catalogQuery,
       user?.id ?? null,
     ]);
     if (cached) setPage(cached.page);
@@ -230,7 +274,7 @@ export default function UserComponentsLibrary({
         void loadCatalog(
           query.trim(),
           deleted,
-          catalog,
+          catalogQuery,
           controller.signal,
           showPage,
           cached?.page,
@@ -253,7 +297,7 @@ export default function UserComponentsLibrary({
       if (request.current === controller) request.current = null;
       selection.current?.abort();
     };
-  }, [open, key, deleted, attempt, authReady, refresh]);
+  }, [open, key, view, attempt, authReady, refresh]);
   async function choose(
     summary: ComponentLibrarySummary,
     action: "details" | "place" | "new" | "update" | "raw",
@@ -262,7 +306,8 @@ export default function UserComponentsLibrary({
     const controller = new AbortController();
     selection.current = controller;
     setBusy(true);
-    setNotice(null);
+    showNotice(null);
+    setRestorable(null);
     try {
       const detailKey = `${summary.id}:${summary.revision}`;
       const cached =
@@ -282,7 +327,7 @@ export default function UserComponentsLibrary({
       if (controller.signal.aborted) return;
       if (action === "raw") {
         await navigator.clipboard.writeText(JSON.stringify(record, null, 2));
-        setNotice(
+        showNotice(
           "Copied raw record. Repair the source before creating a component.",
         );
         return;
@@ -297,7 +342,7 @@ export default function UserComponentsLibrary({
       }
     } catch (error) {
       if (!controller.signal.aborted) {
-        setNotice(error instanceof Error ? error.message : String(error));
+        showNotice(error instanceof Error ? error.message : String(error));
         setDetail(null);
         if (error instanceof ComponentLibraryError && error.status === 409) {
           request.current?.abort();
@@ -308,7 +353,7 @@ export default function UserComponentsLibrary({
           await loadCatalog(
             query.trim(),
             deleted,
-            catalog,
+            catalogQuery,
             controller.signal,
             showPage,
             page,
@@ -329,9 +374,6 @@ export default function UserComponentsLibrary({
       if (grid.current) grid.current.scrollTop = scroll.current;
     });
   };
-  const rejected = page.entries.filter(
-    (entry) => entry.capability === "needs-repair",
-  );
   if (!open) return null;
   return (
     <div
@@ -359,6 +401,28 @@ export default function UserComponentsLibrary({
             <p>Component Library</p>
             <h2 id="user-components-title">User Components</h2>
           </div>
+          <div
+            className="component-library-tabs"
+            role="tablist"
+            aria-label="Component library views"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!shelf}
+              onClick={() => switchView("library")}
+            >
+              Library
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={shelf}
+              onClick={() => switchView(user ? "published" : "drafts")}
+            >
+              My shelf
+            </button>
+          </div>
           <div className="user-components-actions">
             <button
               type="button"
@@ -379,9 +443,56 @@ export default function UserComponentsLibrary({
             </button>
           </div>
         </header>
+        {shelf ? (
+          <div
+            className="component-library-tabs component-shelf-tabs"
+            role="tablist"
+            aria-label="My shelf"
+          >
+            {user ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "published"}
+                onClick={() => switchView("published")}
+              >
+                Published
+              </button>
+            ) : null}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "drafts"}
+              onClick={() => switchView("drafts")}
+            >
+              Project drafts
+            </button>
+            {user ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={deleted}
+                onClick={() => switchView("deleted")}
+              >
+                {user.isAdmin ? "Deleted (all)" : "Deleted"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {notice ? (
-          <p role="status" className="component-definition-note">
-            {notice}
+          <div role="status" className="component-library-feedback">
+            <span>{notice.text}</span>
+            <button
+              type="button"
+              aria-label="Dismiss message"
+              title="Dismiss"
+              onClick={() => {
+                showNotice(null);
+                setRestorable(null);
+              }}
+            >
+              ×
+            </button>
             {restorable ? (
               <button
                 type="button"
@@ -391,18 +502,38 @@ export default function UserComponentsLibrary({
                       cache.current.clear();
                       retained.current = null;
                       setRestorable(null);
-                      setNotice("Restored to library.");
+                      showNotice("Restored to library.", true);
                       setAttempt((value) => value + 1);
                     })
-                    .catch((e) => setNotice(String(e)));
+                    .catch((e) => showNotice(String(e)));
                 }}
               >
                 Restore
               </button>
             ) : null}
-          </p>
+          </div>
         ) : null}
-        {detail ? (
+        {view === "drafts" ? (
+          <section
+            className="component-shelf-drafts"
+            aria-label="Project drafts"
+          >
+            {drafts ? (
+              <ComponentDraftList
+                expanded
+                catalog={drafts}
+                onOpen={(target) => {
+                  onClose();
+                  onOpenDraft?.(target);
+                }}
+                onDelete={onDeleteDrafts}
+                previewDeletion={previewDraftDeletion}
+              />
+            ) : (
+              <p>No project drafts.</p>
+            )}
+          </section>
+        ) : detail ? (
           <section className="user-component-detail">
             <div className="user-components-actions">
               <button type="button" onClick={back}>
@@ -475,6 +606,7 @@ export default function UserComponentsLibrary({
               <ComponentCatalogControls
                 value={catalog}
                 authors={page.authors}
+                hideAuthors={view === "published"}
                 onChange={setCatalog}
               />
               {query || catalog.type !== "all" || catalog.authorId ? (
@@ -493,18 +625,6 @@ export default function UserComponentsLibrary({
                 </button>
               ) : null}
             </div>
-            {user ? (
-              <button
-                type="button"
-                className="user-components-deleted-toggle"
-                aria-pressed={deleted}
-                onClick={() => setDeleted((value) => !value)}
-              >
-                {deleted
-                  ? "Show available components"
-                  : "Review deleted components"}
-              </button>
-            ) : null}
             {error ? (
               <div className="user-components-message" role="status">
                 <span>
@@ -519,13 +639,6 @@ export default function UserComponentsLibrary({
                   Try Again
                 </button>
               </div>
-            ) : null}
-            {rejected.length ? (
-              <p className="component-definition-note" role="status">
-                {rejected.length}{" "}
-                {rejected.length === 1 ? "component needs" : "components need"}{" "}
-                repair.
-              </p>
             ) : null}
             <div
               className="user-components-grid"
@@ -547,9 +660,13 @@ export default function UserComponentsLibrary({
                   user={user}
                   busy={busy}
                   choose={(action) => void choose(entry, action)}
-                  filter={() =>
-                    setCatalog({ ...catalog, authorId: entry.authorId })
-                  }
+                  filter={() => {
+                    switchView("library");
+                    setCatalogs((current) => ({
+                      ...current,
+                      library: { ...current.library, authorId: entry.authorId },
+                    }));
+                  }}
                   manage={async (action) => {
                     const account = accountIdentity.current;
                     const result = await changeComponentLifecycle(
@@ -566,10 +683,11 @@ export default function UserComponentsLibrary({
                       ...current,
                       entries: current.entries.filter((e) => e.id !== entry.id),
                     }));
-                    setNotice(
+                    showNotice(
                       action === "delete"
-                        ? "Removed from library. Placed copies are unchanged."
+                        ? "Removed from library."
                         : "Restored to library.",
+                      true,
                     );
                     setRestorable(action === "delete" ? result.entry : null);
                     setAttempt((value) => value + 1);
@@ -590,26 +708,13 @@ export default function UserComponentsLibrary({
             </div>
           </>
         )}
-        <footer className="user-components-footer">
-          {drafts ? (
-            <ComponentDraftList
-              catalog={drafts}
-              onOpen={(target) => {
-                onClose();
-                onOpenDraft?.(target);
-              }}
-              onDelete={onDeleteDrafts}
-              previewDeletion={previewDraftDeletion}
-            />
-          ) : null}
-          {loading || busy ? (
+        {(loading || busy) && view !== "drafts" ? (
+          <footer className="user-components-footer">
             <small role="status">
               {busy ? "Reading component…" : "Loading components…"}
             </small>
-          ) : (
-            <span />
-          )}
-        </footer>
+          </footer>
+        ) : null}
       </section>
     </div>
   );

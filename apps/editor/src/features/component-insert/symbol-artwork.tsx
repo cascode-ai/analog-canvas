@@ -203,6 +203,8 @@ export function SymbolArtwork({
                     primitives: symbol.primitives.filter(
                       (primitive) =>
                         primitive.kind === "circle" ||
+                        (primitive.kind === "polygon" &&
+                          primitive.fill === "none") ||
                         (primitive.kind === "line" &&
                           symbol.pins.some(
                             (pin) =>

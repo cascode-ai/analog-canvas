@@ -335,9 +335,24 @@ describe("planComponentPropertyCodeEdits", () => {
     },
   );
 
-  it("draws a current source as a diamond and back, the same part throughout", () => {
+  it.each(["current-source", "voltage-source"])(
+    "rejects a shape edit for %s without a shape choice",
+    (symbolId) => {
+      const document = createEmptyDocument("main", "Main");
+      const instance = { id: "source", symbolId, placement: null };
+      document.instances.push(instance);
+      expect(() =>
+        planComponentPropertyCodeEdits(document, instance, {
+          placement: null,
+          appearance: { color: "auto", shape: "diamond" },
+        }),
+      ).toThrow("has no shape choice");
+    },
+  );
+
+  it("draws a controlled source as a diamond and back, the same part throughout", () => {
     const resolver = new InMemorySymbolResolver(builtInSymbols);
-    for (const symbolId of ["current-source", "vccs", "cccs"]) {
+    for (const symbolId of ["vccs", "cccs", "vcvs", "ccvs"]) {
       let document = createEmptyDocument("main", "Main");
       document.instances.push({
         id: "I1",
@@ -349,6 +364,26 @@ describe("planComponentPropertyCodeEdits", () => {
           mirror: "none",
         },
       });
+      document.nets.push({
+        id: "out",
+        terminals: [{ instanceId: "I1", pinName: "+" }],
+      });
+      document.annotations.push({
+        id: "name",
+        kind: "instance-label",
+        binding: { kind: "instance-reference", instanceId: "I1" },
+        anchor: {
+          kind: "object",
+          objectId: "I1",
+          localOffset: { x: 60, y: 15 },
+          fallbackPosition: { x: 160, y: 115 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      const annotations = structuredClone(document.annotations);
+      const nets = structuredClone(document.nets);
       const shape = (next: "circle" | "diamond") => {
         const instance = document.instances[0]!;
         const edits = planComponentPropertyCodeEdits(document, instance, {
@@ -392,6 +427,8 @@ describe("planComponentPropertyCodeEdits", () => {
         symbolId,
         symbolVariantId: "diamond",
       });
+      expect(document.annotations).toEqual(annotations);
+      expect(document.nets).toEqual(nets);
       expect(
         resolver.resolve(symbolId, "diamond")!.definition.pins,
         symbolId,

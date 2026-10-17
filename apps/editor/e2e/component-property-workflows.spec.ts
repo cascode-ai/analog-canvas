@@ -27,6 +27,64 @@ import {
 } from "./manual-editor-fixtures.js";
 import { closeSelectionShelf, placedInstance } from "./canvas-fixtures.js";
 
+test("source Shape controls apply only to controlled sources", async ({
+  page,
+}) => {
+  await openPlacedProperties(
+    page,
+    "current-source",
+    { x: 280, y: 200 },
+    "hit-I1",
+  );
+  expect(await readComponentCode(page)).not.toHaveProperty("appearance.shape");
+
+  await placeComponent(page, "vccs", { x: 460, y: 200 });
+  await page.getByTestId("hit-G1").click();
+  await openSelectionShelf(page);
+  await expectComponentCodeField(page, "appearance.shape", "circle");
+  const before = await exportedDocument(page);
+  await setComponentCodeField(page, "appearance.shape", "diamond");
+  await expect(
+    page.locator(
+      '[data-layer="symbols"] [data-object-id="G1"] polygon[fill="none"]',
+    ),
+  ).toHaveCount(1);
+  const after = await exportedDocument(page);
+  expect(after.annotations).toEqual(before.annotations);
+  expect(after.nets).toEqual(before.nets);
+  await setComponentCodeField(page, "appearance.shape", "circle");
+  await expect(
+    page.locator('[data-layer="symbols"] [data-object-id="G1"] circle'),
+  ).toHaveCount(1);
+
+  await placeComponent(page, "vcvs", { x: 640, y: 200 });
+  await page.getByTestId("hit-E1").click();
+  await openSelectionShelf(page);
+  await expectComponentCodeField(page, "appearance.shape", "circle");
+  await expect(
+    page.locator('[data-layer="symbols"] [data-object-id="E1"] circle'),
+  ).toHaveCount(1);
+  const voltageBefore = await exportedDocument(page);
+  await setComponentCodeField(page, "appearance.shape", "diamond");
+  await expect(
+    page.locator(
+      '[data-layer="symbols"] [data-object-id="E1"] polygon[fill="none"]',
+    ),
+  ).toHaveCount(1);
+  await expect(
+    page
+      .getByRole("button", { name: "Place VCVS", exact: true })
+      .locator("circle"),
+  ).toHaveCount(1);
+  const voltageAfter = await exportedDocument(page);
+  expect(voltageAfter.annotations).toEqual(voltageBefore.annotations);
+  expect(voltageAfter.nets).toEqual(voltageBefore.nets);
+  await setComponentCodeField(page, "appearance.shape", "circle");
+  await expect(
+    page.locator('[data-layer="symbols"] [data-object-id="E1"] circle'),
+  ).toHaveCount(1);
+});
+
 test("Rail Properties switches Cell Pin and Global atomically, survives reload and undo", async ({
   page,
 }) => {

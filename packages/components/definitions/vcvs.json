@@ -50,7 +50,8 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "body"
       },
       {
         "kind": "line",
@@ -117,7 +118,8 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "lead-positive"
       },
       {
         "kind": "line",
@@ -133,10 +135,82 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "lead-negative"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "diamond",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": ["body", "lead-positive", "lead-negative"],
+        "additionalPrimitives": [
+          {
+            "kind": "polygon",
+            "points": [
+              {
+                "x": 0,
+                "y": -12.5
+              },
+              {
+                "x": 12.5,
+                "y": 0
+              },
+              {
+                "x": 0,
+                "y": 12.5
+              },
+              {
+                "x": -12.5,
+                "y": 0
+              }
+            ],
+            "fill": "none",
+            "stroke": "foreground",
+            "part": "diamond-body",
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            }
+          },
+          {
+            "kind": "line",
+            "from": {
+              "x": 0,
+              "y": -12.5
+            },
+            "to": {
+              "x": 0,
+              "y": -20
+            },
+            "part": "diamond-lead-positive",
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            }
+          },
+          {
+            "kind": "line",
+            "from": {
+              "x": 0,
+              "y": 12.5
+            },
+            "to": {
+              "x": 0,
+              "y": 20
+            },
+            "part": "diamond-lead-negative",
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            }
+          }
+        ]
+      }
+    ]
   },
   "electrical": {
     "id": "vcvs",
@@ -171,7 +245,7 @@
     "category": "source",
     "reviewStatus": "reviewed",
     "provenance": "house",
-    "houseReason": "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed voltage-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+    "houseReason": "The controlled voltage source reuses the reviewed voltage-source circle, pins, normal stroke and external polarity marks, with the existing source diamond as an optional outline. It is product artwork and does not claim an exact textbook witness.",
     "pinOrder": ["+", "-"],
     "palette": true,
     "automaticMappings": ["spice:E"],

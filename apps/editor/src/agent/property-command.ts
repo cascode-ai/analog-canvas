@@ -235,10 +235,10 @@ export function planSetProperties(
     },
   };
   if (command.shape !== undefined) {
-    // A current source's outline is its Properties Shape choice.
+    // A controlled source's outline is its Properties Shape choice.
     if (componentSourceShape(instance) === undefined)
       throw new Error(
-        `${name} (${instance.symbolId}) has no shape choice; shape is for current-source, vccs and cccs`,
+        `${name} (${instance.symbolId}) has no shape choice; shape is for vccs, cccs, vcvs and ccvs`,
       );
     value.appearance.shape = command.shape;
   }

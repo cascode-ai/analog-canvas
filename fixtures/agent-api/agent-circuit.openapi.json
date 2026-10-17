@@ -8734,7 +8734,7 @@
             ]
           },
           "__schema264": {
-            "description": "A current source's outline (current-source, vccs, cccs): circle, the default, or diamond. Its netlist, pins and wires stay.",
+            "description": "A controlled source's outline (vccs, cccs, vcvs, ccvs): circle, the default, or diamond. Its netlist, pins and wires stay.",
             "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema265"
           },
           "__schema265": {

@@ -30,6 +30,7 @@
   white-space: nowrap;
 }
 .user-components-dialog {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
@@ -159,20 +160,6 @@
   text-align: left;
 }
 .user-component-author:hover {
-  color: var(--icm-accent);
-}
-.user-components-deleted-toggle {
-  align-self: flex-start;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  color: var(--icm-text-muted);
-  background: transparent;
-  box-shadow: none;
-  font-size: var(--icm-font-sm);
-}
-.user-components-deleted-toggle:hover,
-.user-components-deleted-toggle[aria-pressed="true"] {
   color: var(--icm-accent);
 }
 .user-components-message {
@@ -793,6 +780,10 @@
 .component-project-drafts summary {
   cursor: pointer;
 }
+.component-project-drafts:not(.is-expanded) .component-draft-rows {
+  max-height: 9rem;
+  overflow: auto;
+}
 .component-draft-summary,
 .component-draft-row {
   display: flex;
@@ -803,10 +794,7 @@
 .component-draft-summary {
   justify-content: space-between;
 }
-.component-draft-rows {
-  max-height: 9rem;
-  overflow: auto;
-}
+
 .component-draft-name {
   flex: 1;
   min-width: 0;
@@ -821,4 +809,68 @@
 }
 .component-draft-row > button:last-child {
   flex: none;
+}
+
+.component-library-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--icm-space-2);
+}
+.component-library-tabs button {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0.3rem 0.65rem;
+  color: var(--icm-text-muted);
+}
+.component-library-tabs button[aria-selected="true"] {
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+}
+.component-shelf-tabs {
+  font-size: var(--icm-font-sm);
+}
+.component-shelf-drafts {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.component-project-drafts h3 {
+  margin: 0 0 0.4rem;
+  font-size: var(--icm-font-sm);
+}
+.component-library-feedback {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: calc(100% - 2rem);
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+  font-size: var(--icm-font-sm);
+}
+.component-library-feedback span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.component-editor-loading > p {
+  display: grid;
+  place-items: center;
+  flex: 1;
+}
+@media (max-width: 700px) {
+  .user-components-header {
+    flex-wrap: wrap;
+  }
+  .user-components-header > .component-library-tabs {
+    order: 1;
+    width: 100%;
+  }
 }

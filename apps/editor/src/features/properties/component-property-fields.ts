@@ -176,7 +176,7 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
       { value: "diamond", label: "Diamond" },
     ],
     description: "",
-    help: "Draw the current source as a circle or a diamond. Only the outline changes: its netlist, pins and wiring stay the same.",
+    help: "Draw the controlled source as a circle or a diamond. Only the outline changes: its netlist, pins and wiring stay the same.",
   },
 ];
 

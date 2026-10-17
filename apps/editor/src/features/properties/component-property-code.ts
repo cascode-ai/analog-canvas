@@ -67,7 +67,7 @@ export interface ComponentPropertyCodeValue
     inputPolarity?: boolean;
     inputsSwapped?: boolean;
     outputsSwapped?: boolean;
-    /** A current source drawn as a circle or a diamond; nothing else. */
+    /** A controlled source drawn as a circle or a diamond. */
     shape?: SourceShape;
   };
 }
