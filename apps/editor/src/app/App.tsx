@@ -279,6 +279,10 @@ import {
 const HostAgentProvider = !import.meta.env?.ICM_DESKTOP
   ? WorkspaceAgentProvider
   : ({ children }: Parameters<typeof WorkspaceAgentProvider>[0]) => children;
+// The build profile is fixed; each render uses the same host hook.
+const useHostAgentRuntime = import.meta.env?.ICM_DESKTOP
+  ? () => null
+  : useWorkspaceAgentRuntime;
 export { WorkspaceAgentProvider } from "../agent/workspace-agent";
 import { referencedDocumentId } from "../document/editor-session";
 import { useInteractionState } from "../interaction/interaction-state";
@@ -745,7 +749,7 @@ function WorkspaceEditor({
   });
   const openWorkingCopyIdsRef = useRef<() => readonly string[]>(() => []);
   // The Agent's hosts are built from its runtime, which loads on demand.
-  const agentRuntime = useWorkspaceAgentRuntime();
+  const agentRuntime = useHostAgentRuntime();
   const agentStartupRecovery = useAgentStartupRecovery({
     capabilities,
     restoredWorkspace,

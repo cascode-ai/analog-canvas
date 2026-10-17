@@ -48,14 +48,14 @@ jobs:
         run: |
           tag="desktop-preview-${SOURCE_SHA:0:12}-${RUN_NUMBER}"
           cat > release-notes.md <<'EOF'
-          Windows x64 desktop preview. Download analog-canvas-desktop-windows-x64.zip, extract the entire folder, and run Analog Canvas Preview.exe inside it. No Node.js or development tools are required. Keep the application and its accompanying resources together.
+          Windows x64 desktop preview. Download the analog-canvas-desktop-windows-x64-<source>.zip asset, extract the entire folder, and run Analog Canvas Preview.exe in Analog-Canvas-Windows-x64. No Node.js or development tools are required. Keep the application and its accompanying resources together.
 
           Feature availability, file-saving behavior and limitations for this source revision are described in the README.md included in the ZIP. This offline preview is unsigned and has no installer or automatic updater.
 
           The ZIP includes corresponding source, licenses, the fork source/adaptation inventory and packaged acceptance evidence. Desktop shell source: LXY-freshman/Schematic Draft; architecture discussion: Arcadia-1 and Issue #1003. Larger fork features remain deferred.
           EOF
           printf '\nSource commit: %s\n' "$SOURCE_SHA" >> release-notes.md
-          gh release create "$tag" release-assets/analog-canvas-desktop-windows-x64.zip \
+          gh release create "$tag" release-assets/analog-canvas-desktop-windows-x64-*.zip \
             --target "$SOURCE_SHA" --prerelease --latest=false \
             --title "Analog Canvas Desktop Preview ${SOURCE_SHA:0:8}" \
             --notes-file release-notes.md

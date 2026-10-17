@@ -12,13 +12,16 @@
     "build:preview": "node scripts/build.mjs",
     "start": "electron .",
     "package:preview": "node scripts/package-preview.mjs",
+    "archive:preview": "node scripts/archive-preview.mjs",
     "test:preview": "node scripts/accept-preview.mjs",
     "security:preview": "node ../../scripts/desktop-package-security.mjs"
   },
   "devDependencies": {
+    "@icm/edit-engine": "workspace:*",
     "@icm/project-protocol": "workspace:*",
     "electron": "44.4.2",
     "esbuild": "0.28.1",
+    "fflate": "0.8.3",
     "rcedit": "5.0.2",
     "zod": "4.4.3"
   }

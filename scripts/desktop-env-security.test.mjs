@@ -1,9 +1,28 @@
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { build } from "vite";
 import { expect, it } from "vitest";
 import desktopConfig from "../apps/editor/vite.desktop.config.ts";
+
+it("builds the real offline editor without Agent or Arena implementations, including lazy chunks", async () => {
+  const result = await build({
+    ...desktopConfig,
+    configFile: false,
+    root: resolve("apps/editor"),
+    logLevel: "silent",
+    build: { ...desktopConfig.build, write: false },
+  });
+  const inventory = JSON.parse(
+    result.output.find((item) => item.fileName === "desktop-modules.json")
+      .source,
+  );
+  expect(inventory.length).toBeGreaterThan(0);
+  for (const path of inventory) {
+    expect(path).not.toMatch(/\/src\/agent\//u);
+    expect(path).not.toMatch(/\/components\/arena-gate(?:-panel)?\.tsx?$/u);
+  }
+}, 60000);
 
 it("does not embed local env-file or ambient VITE values in desktop output", async () => {
   const directory = await mkdtemp(join(tmpdir(), "desktop-env-"));

@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { open, realpath, rename, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { APP_ORIGIN } from "./app-protocol.js";
+import { executeProjectTransaction } from "@icm/edit-engine";
 import type { ProjectLibrary } from "./project-library.js";
 import { projectHistory } from "./project-history.js";
 import {
@@ -494,11 +495,18 @@ export function createProjectFileHandler(
               body.name.trim().length > 120
             )
               throw new Error("Use a name between 1 and 120 characters");
-            project.name = body.name.trim();
+            const renamed = executeProjectTransaction(project, {
+              transactionId: randomUUID(),
+              projectId: project.id,
+              expectedStructureRevision: project.structureRevision,
+              actor: { kind: "human", id: "desktop" },
+              edits: [{ kind: "rename_project", name: body.name.trim() }],
+            });
+            if (!renamed.ok) throw new Error(renamed.error.message);
             await commitProjectFile(
               entry.path,
               before,
-              Buffer.from(serializeProject(project)),
+              Buffer.from(serializeProject(renamed.project)),
               library,
             );
           } else {

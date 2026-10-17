@@ -5,6 +5,7 @@ export function isOnlineImplementation(id: string): boolean {
   const path = id.replaceAll("\\", "/").split("?")[0] ?? "";
   return (
     /\/src\/agent\//u.test(path) ||
+    /\/src\/components\/arena-gate(?:-panel)?\.[jt]sx?$/u.test(path) ||
     /\/src\/components\/(?:account|account-menu-view|version-history-dialog|gallery-version-project)\.[jt]sx?$/u.test(
       path,
     ) ||
@@ -12,7 +13,7 @@ export function isOnlineImplementation(id: string): boolean {
     /\/src\/features\/editor-shell\/(?:cloud-projects|gallery-publish|publish-gallery-dialog|gallery-topology-task|gallery-topology-task-notice|gallery-topology-check|gallery-published-notice|examples-panel)\.[jt]sx?$/u.test(
       path,
     ) ||
-    /\/src\/features\/user-components\/(?:component-library-client|user-components-library)\.[jt]sx?$/u.test(
+    /\/src\/features\/user-components\/(?:component-agent-controls|component-library-client|user-components-library)\.[jt]sx?$/u.test(
       path,
     ) ||
     /\/src\/features\/hierarchy\/cloud-cell-import\.ts$/u.test(path) ||

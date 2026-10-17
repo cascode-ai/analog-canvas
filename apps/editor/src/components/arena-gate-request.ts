@@ -9,7 +9,9 @@ import type { mountArenaGate } from "./arena-gate-panel";
 /** Loads the panel's code; tests hand in their own. */
 type PanelLoader = () => Promise<{ mountArenaGate: typeof mountArenaGate }>;
 
-const loadPanel: PanelLoader = () => import("./arena-gate-panel");
+const loadPanel: PanelLoader | null = import.meta.env?.ICM_DESKTOP
+  ? null
+  : () => import("./arena-gate-panel");
 
 let gate: "idle" | "deciding" | "shown" = "idle";
 
@@ -41,8 +43,16 @@ function noteShown(): void {
  * Opens the Arena gate over whatever page is showing, after a Cloud Save or
  * as the Cloud shelf opens.
  */
-function requestArenaGate(after: "save" | "shelf", load: PanelLoader): void {
-  if (gate !== "idle" || typeof document === "undefined" || shownToday())
+function requestArenaGate(
+  after: "save" | "shelf",
+  load: PanelLoader | null,
+): void {
+  if (
+    !load ||
+    gate !== "idle" ||
+    typeof document === "undefined" ||
+    shownToday()
+  )
     return;
   gate = "deciding";
   void load()
@@ -78,7 +88,7 @@ export function arenaGateShown(): boolean {
  */
 export function gateAfterManualCloudSave<Outcome extends { status: string }>(
   outcome: Outcome,
-  load: PanelLoader = loadPanel,
+  load: PanelLoader | null = loadPanel,
 ): Outcome {
   if (outcome.status === "saved") requestArenaGate("save", load);
   return outcome;
@@ -91,6 +101,6 @@ export function gateAfterManualCloudSave<Outcome extends { status: string }>(
  * already showed today. A page that loads on the shelf, as on a reload,
  * does not call this.
  */
-export function cloudShelfOpened(load: PanelLoader = loadPanel): void {
+export function cloudShelfOpened(load: PanelLoader | null = loadPanel): void {
   requestArenaGate("shelf", load);
 }

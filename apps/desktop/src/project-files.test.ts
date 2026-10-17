@@ -612,6 +612,9 @@ describe("native Project storage", () => {
         })
       ).status,
     ).toBe("done");
+    expect(
+      parseProject(await readFile(entry.path, "utf8")).structureRevision,
+    ).toBe(project.structureRevision + 1);
     await call("library-action", {
       id: entry.id,
       action: "favorite",
