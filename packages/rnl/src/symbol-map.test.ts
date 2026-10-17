@@ -72,6 +72,13 @@ describe("the RNL symbol list", () => {
       package: "rnl-std-functional",
     });
     expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");
+    for (const source of ["vcvs", "vccs", "ccvs", "cccs"]) {
+      expect(rnlSymbolFor(source, "diamond")).toMatchObject({
+        symbol: `$CANVAS_${source.toUpperCase()}_DIAMOND`,
+        package: "analog-canvas-extensions",
+      });
+      expect(rnlSymbolFor(source)?.symbol).toBe(`$${source.toUpperCase()}`);
+    }
   });
 
   it("draws the op-amp kinds with + on top, Analog Canvas's − on top ones flipped", () => {

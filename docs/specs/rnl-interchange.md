@@ -199,8 +199,10 @@ the RNL language and its runtime belong to rnl.
 - A file the export wrote imports with every part where it was drawn, its
   labels, block layout, marks and shapes, and the same netlist; 4-input gates
   are drawn with Analog Canvas's own symbols, every wire as drawn, and RNL's
-  standard ones read back as Analog Canvas's; a Spectre netlist with a SPICE
-  section keeps every record out of it
+  standard ones read back as Analog Canvas's; controlled sources drawn as
+  diamonds come back as diamonds (in Spectre the voltage-controlled ones, as
+  the Spectre import reads no native `ccvs` or `cccs`); a Spectre netlist with
+  a SPICE section keeps every record out of it
   (`apps/editor/src/features/netlist-export/rnl-round-trip.test.ts`).
 - Each built-in block's body, in either dialect and in RNL's port order,
   imports as the block and exports again unchanged

@@ -1336,3 +1336,153 @@ describe("RNL round trip of a Spectre netlist with a SPICE section", () => {
     }
   });
 });
+
+/** A primitive's device class, as an instance binds it. */
+type PrimitiveClass = Extract<
+  NonNullable<NonNullable<Instance["netlist"]>["binding"]>,
+  { kind: "primitive" }
+>["deviceClass"];
+
+const DIAMOND_KINDS = ["vcvs", "vccs", "ccvs", "cccs"];
+
+/**
+ * The four controlled sources drawn as diamonds, each into its own load: the
+ * voltage-controlled ones sense V1's voltage, the current-controlled ones
+ * its current.
+ */
+function diamonds(kinds: readonly string[] = DIAMOND_KINDS): CircuitProject {
+  const project = createEmptyProject("diamonds", "Diamonds");
+  const document = project.documents[0]!;
+  const at = (x: number, y: number) =>
+    ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+  const part = (
+    id: string,
+    symbolId: string,
+    deviceClass: PrimitiveClass,
+    x: number,
+    parameters: Record<string, string>,
+    more: Partial<Instance> = {},
+  ): Instance => ({
+    id,
+    symbolId,
+    reference: id,
+    placement: at(x, 100),
+    netlist: { binding: { kind: "primitive", deviceClass }, parameters },
+    ...more,
+  });
+  const diamond = { symbolVariantId: "diamond" };
+  // Values as the conversion from Spectre spells them, so both dialects
+  // compare.
+  const sources = [
+    [
+      "E1",
+      "vcvs",
+      { gain: "2" },
+      { kind: "voltage", positiveNetId: "a", negativeNetId: "gnd" },
+    ],
+    [
+      "G1",
+      "vccs",
+      { gm: "0.001" },
+      { kind: "voltage", positiveNetId: "a", negativeNetId: "gnd" },
+    ],
+    ["H1", "ccvs", { rm: "1000" }, { kind: "current", sensorInstanceId: "V1" }],
+    ["F1", "cccs", { gain: "2" }, { kind: "current", sensorInstanceId: "V1" }],
+  ] as const;
+  document.instances.push(
+    { id: "GND1", symbolId: "ground", placement: at(100, 300) },
+    part("V1", "voltage-source", "voltage-source", 100, { dc: "1" }),
+    part("R1", "resistor", "resistor", 200, { value: "1000" }),
+  );
+  const gnd = [
+    { instanceId: "GND1", pinName: "0" },
+    { instanceId: "V1", pinName: "-" },
+    { instanceId: "R1", pinName: "2" },
+  ];
+  document.nets.push({
+    id: "a",
+    terminals: [
+      { instanceId: "V1", pinName: "+" },
+      { instanceId: "R1", pinName: "1" },
+    ],
+  });
+  sources
+    .filter(([, kind]) => kinds.includes(kind))
+    .forEach(([id, kind, parameters, control], index) => {
+      const x = 300 + index * 200;
+      const load = `R${id}`;
+      const source = part(id, kind, kind, x, parameters, diamond);
+      source.netlist!.control = control;
+      document.instances.push(
+        source,
+        part(load, "resistor", "resistor", x + 100, { value: "1000" }),
+      );
+      document.nets.push({
+        id: id.toLowerCase(),
+        terminals: [
+          { instanceId: id, pinName: "+" },
+          { instanceId: load, pinName: "1" },
+        ],
+      });
+      gnd.push(
+        { instanceId: id, pinName: "-" },
+        { instanceId: load, pinName: "2" },
+      );
+    });
+  document.nets.push({ id: "gnd", terminals: gnd });
+  document.connectivityEvidence.push({
+    id: "gnd-claim",
+    kind: "name-claim",
+    netId: "gnd",
+    name: "0",
+    scope: "global",
+    powerDomain: "ground",
+    owner: { kind: "power-marker", objectId: "GND1" },
+  });
+  return project;
+}
+
+describe("RNL round trip of controlled sources drawn as diamonds", () => {
+  // Analog Canvas's Spectre import reads no native ccvs or cccs, so Spectre
+  // brings back the voltage-controlled ones.
+  it.each([
+    ["spice", DIAMOND_KINDS],
+    ["spectre", ["vcvs", "vccs"]],
+  ] as const)(
+    "draws each with Analog Canvas's diamond and brings it back as one (%s)",
+    async (format, kinds) => {
+      const project = diamonds(kinds);
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      for (const kind of kinds)
+        expect(written.text).toContain(
+          `@SET-SYMBOL $CANVAS_${kind.toUpperCase()}_DIAMOND`,
+        );
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      const parts = plan.project.documents.flatMap(
+        (document) => document.instances,
+      );
+      for (const original of project.documents[0]!.instances) {
+        if (!original.reference) continue;
+        const part = parts.find(
+          (instance) => instance.reference === original.reference,
+        );
+        expect(part?.symbolId, original.reference).toBe(original.symbolId);
+        expect(part?.symbolVariantId, original.reference).toBe(
+          original.symbolVariantId,
+        );
+        expect(part && rnlPart(part)).toEqual(rnlPart(original));
+      }
+      const before = createDesignNetlistExport(project, { format });
+      const after = createDesignNetlistExport(plan.project, { format });
+      expect(after.status === "ready" && after.file.text).toBe(
+        before.status === "ready" && before.file.text,
+      );
+    },
+  );
+});
