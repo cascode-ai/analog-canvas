@@ -228,7 +228,11 @@ Printers are pure functions of a validated IR.
   stimuli or `.end`.
 - Spectre: version comment, `simulator lang=spectre`, sorted `global`,
   dependency-first `subckt`/`ends`, parenthesized nodes, Cell-local `parameters`;
-  never includes, sections, options, analyses, stimuli or saves.
+  never includes, sections, options, analyses, stimuli or saves. An independent
+  source the SPICE import kept as written, its AC and PULSE, SIN or PWL in its
+  dc text (`0.9 AC 1 0 PULSE(…)`), prints in Spectre's terms
+  (`type=pulse val0=… dc=0.9 mag=1 phase=0`), read as the VACASK projection
+  reads it; SPICE prints the text unchanged.
 
 ## Diagnostics and failure behavior
 

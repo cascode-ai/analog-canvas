@@ -1,6 +1,7 @@
 import type { DesignNetlistInstance, DesignNetlistParameter } from "./ir.js";
 import type { PrintedNetlistField } from "./printed-netlist.js";
 import type { NetlistFormat } from "./net-name-codec.js";
+import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { signedControlGain } from "./controlled-current.js";
 import { printedParameterConversion } from "./parameter-projection.js";
@@ -25,6 +26,42 @@ function join(parts: Text[], separator = ""): Text {
     offset += part.text.length;
   }
   return { text: parts.map((part) => part.text).join(separator), fields };
+}
+
+/**
+ * The fields of an independent source whose dc text carries the rest of its
+ * SPICE value (AC, PULSE, SIN or PWL), as the SPICE import keeps it; null for
+ * a source authored in fields or a text this reading does not cover.
+ */
+function sourceFieldsFromText(
+  parameters: readonly DesignNetlistParameter[],
+): DesignNetlistParameter[] | null {
+  // Extraction names a source with no waveform of its own dc.
+  if (
+    parameters.some(
+      (p) =>
+        p.name.toLowerCase() === "waveform" &&
+        p.rawValue.trim().toLowerCase() !== "dc",
+    )
+  )
+    return null;
+  const dc = parameters.find((p) => p.name.toLowerCase() === "dc");
+  if (!dc || !/\b(?:AC|PULSE|SIN|PWL)\b/iu.test(dc.rawValue)) return null;
+  const text = dc.rawValue.trim();
+  const parsed = parseNgspiceSourceParameters(
+    /^(?:PULSE|SIN|PWL)\s*\(/iu.test(text) ? text : `DC ${text}`,
+    { requireDc: false },
+  );
+  if (!parsed.ok) return null;
+  return [
+    ...Object.entries(parsed.parameters).map(([name, rawValue]) => ({
+      name,
+      rawValue,
+    })),
+    ...parameters.filter(
+      (p) => !["dc", "waveform"].includes(p.name.toLowerCase()),
+    ),
+  ];
 }
 
 /** Single card emission: field provenance travels with the existing tokens,
@@ -93,12 +130,23 @@ export function printInstanceCard(
       .map((p) => join([plain(`${p.name}=`), parameterValue(p)]));
   };
   const sourceValues = () => {
-    const source = normalizeIndependentSource(instance.parameters);
+    // A source the SPICE import kept as written has its AC and waveform in
+    // its dc text (`0.9 AC 1 0 PULSE(...)`). Spectre has no such tail, so it
+    // is read into fields as the VACASK projection reads it, and printed as
+    // plain text: no authored parameter owns those fields.
+    const read =
+      format === "spectre" ? sourceFieldsFromText(instance.parameters) : null;
+    const sourceList = read ?? instance.parameters;
+    const source = normalizeIndependentSource(sourceList);
     const sourceParameters = new Map(
-      instance.parameters.map((p) => [p.name.toLowerCase(), p]),
+      sourceList.map((p) => [p.name.toLowerCase(), p]),
     );
-    const value = (name: string, rendered?: string): Text =>
-      parameterValue(sourceParameters.get(name.toLowerCase()), rendered);
+    const value = (name: string, rendered?: string): Text => {
+      const p = sourceParameters.get(name.toLowerCase());
+      return read
+        ? plain(rendered ?? p?.rawValue ?? "undefined")
+        : parameterValue(p, rendered);
+    };
     const assignment = (printedName: string, name: string, rendered?: string) =>
       join([plain(`${printedName}=`), value(name, rendered)]);
     const t = source.transient;

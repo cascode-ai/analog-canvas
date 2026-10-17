@@ -1540,6 +1540,24 @@ function drawingCensus(project: CircuitProject) {
 }
 
 describe("RNL round trip of examples as the editor opens them", () => {
+  it("writes a Project the SPICE import brought in as Spectre the import reads again", async () => {
+    // The SPICE import keeps a source's value as written (VINP's AC and
+    // PULSE in its dc text); Spectre must print it in Spectre's own terms.
+    const project = prepareNetlistExample(
+      example("five-transistor-ota-sky130"),
+      createDefaultNetlistExportPreferences().profiles.sky130,
+    );
+    const fromSpice = await roundTrip(project, "spice");
+    const again = await roundTrip(fromSpice.project, "spectre");
+    expect(failures(again)).toEqual([]);
+    const spectre = createDesignNetlistExport(again.project, {
+      format: "spectre",
+    });
+    expect(spectre.status === "ready" && spectre.file.text).toMatch(
+      /^VINP \(.*\) vsource type=pulse val0=0\.9 val1=0\.91 /mu,
+    );
+  });
+
   // The editor binds an example's devices to the chosen process when it
   // opens one (prepareNetlistExample); these examples print only then, and
   // draw copied ground glyphs, SKY130 subcircuit MOS and nets named Vin+.

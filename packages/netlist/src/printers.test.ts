@@ -469,6 +469,32 @@ describe("design netlist printers", () => {
     expect(spectre).not.toContain("VSELECTED (vin 0) vsource type=pulse");
   });
 
+  it("prints a source the SPICE import kept as written as Spectre reads it", () => {
+    // The SPICE import keeps a source's value as written: its AC and its
+    // waveform ride in the dc text, which SPICE prints back unchanged.
+    const ir = structuralIr();
+    ir.cells[1]!.instances.push(
+      device("vinp", "VINP", "voltage-source", ["vinp", "0"], null, [
+        ["dc", "0.9 AC 1 0 PULSE(0.9 0.91 1u 1n 1n 1u 3u)"],
+        ["waveform", "dc"],
+      ]),
+      device("vsin", "VSIN", "voltage-source", ["vsin", "0"], null, [
+        ["dc", "0 SIN(0.9 10m 1Meg)"],
+      ]),
+    );
+    expect(printSpiceNetlist(ir)).toContain(
+      "VINP vinp 0 DC 0.9 AC 1 0 PULSE(0.9 0.91 1u 1n 1n 1u 3u)",
+    );
+    const spectre = printSpectreNetlist(ir);
+    expect(spectre).toContain(
+      "VINP (vinp 0) vsource type=pulse val0=0.9 val1=0.91 delay=1u rise=1n fall=1n width=1u period=3u dc=0.9 mag=1 phase=0",
+    );
+    expect(spectre).toContain(
+      "VSIN (vsin 0) vsource type=sine dc=0.9 ampl=10m freq=1Meg",
+    );
+    expect(spectre).not.toMatch(/\bPULSE\(|\bSIN\(|\bAC 1/u);
+  });
+
   it("prints an independent source's AC magnitude and phase after its DC value", () => {
     const ir = structuralIr();
     // The extractor sorts parameters by name, so `acMagnitude` precedes `dc`
