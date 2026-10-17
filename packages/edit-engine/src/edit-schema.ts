@@ -350,6 +350,15 @@ const RemoveNoConnectEditSchema = z.strictObject({
   kind: z.literal("remove_no_connect"),
   noConnectId: StableIdSchema,
 });
+/**
+ * Makes the Cell's grid finer: the new grid divides the old one, so every
+ * point on the old grid stays on it (2026-10-17). A Gallery circuit drawn on
+ * a finer grid is placed this way.
+ */
+const SetDocumentGridEditSchema = z.strictObject({
+  kind: z.literal("set_document_grid"),
+  grid: z.number().int().positive(),
+});
 const SetPresentationStyleEditSchema = z.strictObject({
   kind: z.literal("set_presentation_style"),
   styleProfileId: StableIdSchema,
@@ -468,6 +477,7 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   SetInductorCouplingEditSchema,
   RemoveInductorCouplingEditSchema,
   SetPresentationStyleEditSchema,
+  SetDocumentGridEditSchema,
   SetCellSymbolPresentationEditSchema,
   UpsertSchematicAnnotationEditSchema,
   RemoveSchematicAnnotationEditSchema,

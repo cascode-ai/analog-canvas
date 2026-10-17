@@ -32,6 +32,7 @@ type PresentationLayoutEdit = Extract<
   {
     kind:
       | "set_presentation_style"
+      | "set_document_grid"
       | "set_cell_symbol_presentation"
       | "upsert_schematic_annotation"
       | "remove_schematic_annotation"
@@ -70,6 +71,18 @@ export function applyPresentationLayoutEdit(
           edit.styleOverrides,
         );
       }
+      changedObjectIds.add(draft.id);
+      return { ok: true, connectivityChanged: false };
+    case "set_document_grid":
+      if (draft.presentation.grid % edit.grid !== 0)
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            `Grid ${edit.grid} does not divide this Cell's grid ${draft.presentation.grid}: a grid may only become finer`,
+          ),
+        };
+      draft.presentation.grid = edit.grid;
       changedObjectIds.add(draft.id);
       return { ok: true, connectivityChanged: false };
     case "set_cell_symbol_presentation":

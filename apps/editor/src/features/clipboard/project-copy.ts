@@ -1019,6 +1019,7 @@ export function planProjectCopyPlacement(
     },
     baseProject: prepared.baseProject,
     preparedTransactions,
+    ...(proposal.adoptedGrid ? { adoptedGrid: proposal.adoptedGrid } : {}),
   };
 }
 

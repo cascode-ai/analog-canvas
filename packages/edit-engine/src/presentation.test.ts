@@ -19,6 +19,28 @@ function transaction(
 }
 
 describe("presentation and layout edits", () => {
+  it("makes a Cell's grid finer, never coarser, and undoably (2026-10-17)", () => {
+    const document = createEmptyDocument("doc", "Grid");
+    const history = new DocumentHistory(document);
+    expect(history.document.presentation.grid).toBe(10);
+    for (const grid of [20, 3])
+      expect(
+        history.transact(
+          transaction("doc", [{ kind: "set_document_grid", grid }]),
+        ),
+      ).toMatchObject({ ok: false });
+    expect(
+      history.transact(
+        transaction("doc", [{ kind: "set_document_grid", grid: 5 }]),
+      ),
+    ).toMatchObject({ ok: true, applied: true });
+    expect(history.document.presentation.grid).toBe(5);
+    history.transact(
+      transaction("doc", [{ kind: "undo" }], history.document.revision),
+    );
+    expect(history.document.presentation.grid).toBe(10);
+  });
+
   it("sets, preserves, and clears document style overrides undoably", () => {
     const document = createEmptyDocument("doc", "Presentation");
     const history = new DocumentHistory(document);

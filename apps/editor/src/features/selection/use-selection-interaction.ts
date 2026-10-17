@@ -1341,7 +1341,11 @@ export function useSelectionInteraction(
       options.selectOnly("instance", proposal.instanceIds);
       options.setCopyPreviewPoint(point);
       options.setStatus(
-        `Copied ${proposal.instanceIds.length} components · click to place another · Esc exits`,
+        `Copied ${proposal.instanceIds.length} components · click to place another · Esc exits${
+          proposal.adoptedGrid
+            ? ` · this canvas now uses grid ${proposal.adoptedGrid}, the copy's own`
+            : ""
+        }`,
       );
     }
   };

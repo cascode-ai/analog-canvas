@@ -2258,7 +2258,7 @@ describe("captureDocumentComposition", () => {
     ]);
   });
 
-  it("reports formal-parameter and target-grid conflicts before the transaction", () => {
+  it("reports formal-parameter conflicts before the transaction and makes the target grid fine enough (2026-10-17)", () => {
     const source = createEmptyDocument("source-document", "Source");
     source.presentation.grid = 5;
     source.instances.push({
@@ -2288,12 +2288,13 @@ describe("captureDocumentComposition", () => {
       { x: 0, y: 0 },
       1,
     );
-    expect(proposal.errors).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("formal parameter conflict"),
-        expect.stringContaining("incompatible with target grid 10"),
-      ]),
-    );
+    expect(proposal.errors).toEqual([
+      expect.stringContaining("formal parameter conflict"),
+    ]);
+    // The source's grid 5 geometry stays where it is: the target takes grid
+    // 5, first, in the same transaction.
+    expect(proposal.adoptedGrid).toBe(5);
+    expect(proposal.edits[0]).toEqual({ kind: "set_document_grid", grid: 5 });
     expect(
       proposal.edits.find((edit) => edit.kind === "add_instance"),
     ).toMatchObject({

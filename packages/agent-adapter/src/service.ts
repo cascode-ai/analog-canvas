@@ -306,6 +306,7 @@ export function agentEditCategory(
     case "upsert_drafting_object":
     case "remove_drafting_object":
     case "set_presentation_style":
+    case "set_document_grid":
     case "set_cell_symbol_presentation":
     case "set_layout_group":
     case "remove_layout_group":

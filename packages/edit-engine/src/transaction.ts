@@ -547,6 +547,7 @@ export function executeTransaction(
         break;
       }
       case "set_presentation_style":
+      case "set_document_grid":
       case "set_cell_symbol_presentation":
       case "upsert_schematic_annotation":
       case "remove_schematic_annotation":
