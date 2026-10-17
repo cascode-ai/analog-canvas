@@ -1,12 +1,34 @@
 import { parameterExpressionBody } from "@icm/devices";
-import { parseSpiceNumber, splitSpiceFields } from "@icm/spice";
-import {
-  PULSE_PARAMETER_NAMES,
-  SIN_REQUIRED_PARAMETER_NAMES,
-  SIN_OPTIONAL_PARAMETER_NAMES,
-} from "./source-waveform.js";
+import { parseSpiceNumber } from "./expression.js";
+import { splitSpiceFields } from "./syntax.js";
 
-/** The reversible Canvas subset, not a general native-SPICE parser. */
+/** The fields of an independent source's transient waveform, in card order. */
+export const PULSE_PARAMETER_NAMES = [
+  "low",
+  "high",
+  "delay",
+  "rise",
+  "fall",
+  "width",
+  "period",
+] as const;
+export const SIN_REQUIRED_PARAMETER_NAMES = [
+  "offset",
+  "amplitude",
+  "frequency",
+] as const;
+export const SIN_OPTIONAL_PARAMETER_NAMES = [
+  "delay",
+  "damping",
+  "phase",
+] as const;
+
+/**
+ * An independent source's card tail (`0.9 AC 1 0 PULSE(...)`) as the fields a
+ * Canvas source keeps: `dc`, `acMagnitude`, `acPhase`, and a `waveform`
+ * (`pulse`, `sin`, `pwl`) with its arguments. The reversible Canvas subset,
+ * not a general native-SPICE parser.
+ */
 export function parseNgspiceSourceParameters(
   text: string,
   options: { requireDc?: boolean } = {},

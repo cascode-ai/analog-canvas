@@ -16,6 +16,6 @@ it("routes netlist conversion before any account, storage or simulator binding",
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({
     status: "converted",
-    text: expect.stringContaining("R1 a 0 1000"),
+    text: expect.stringContaining("R1 a 0 1k"),
   });
 });

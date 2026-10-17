@@ -9,7 +9,7 @@ import {
   parameterExpressionBody,
   type DeviceParameterDefinition,
 } from "@icm/devices";
-import { parseSpiceNumber } from "@icm/spice";
+import { parseNgspiceSourceParameters, parseSpiceNumber } from "@icm/spice";
 import {
   printedParameterConversion,
   restorePrintedParameter,
@@ -21,7 +21,6 @@ import {
 } from "./extract.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
 import { printSpiceWithLocations } from "./printers.js";
-import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
 import { inspectVacaskSource } from "./vacask-source.js";
 import { vacaskValueToProject } from "./vacask-values.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
