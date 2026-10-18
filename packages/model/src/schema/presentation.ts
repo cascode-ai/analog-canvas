@@ -94,6 +94,8 @@ export const PresentationIntentSchema = z.strictObject({
   labelSubscriptAfterFirst: z.boolean().optional(),
   /** Slant of the leading character, independent of the subscript. */
   labelFirstLetterItalic: z.boolean().optional(),
+  /** The one font of all the Document's text; absent means Metropolis. */
+  textFace: z.enum(["serif"]).optional(),
   flow: z
     .strictObject({
       power: z.literal("top").optional(),

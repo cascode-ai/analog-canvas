@@ -5631,17 +5631,27 @@ function WorkspaceEditor({
                       },
                       onApply: (value, current, applyLabelSubscriptCase) => {
                         const edits: SchematicEdit[] = [];
-                        if (
+                        const appearanceChanged =
                           JSON.stringify(value.appearance) !==
-                          JSON.stringify(current.appearance)
-                        ) {
+                          JSON.stringify(current.appearance);
+                        if (appearanceChanged || value.font !== current.font) {
                           edits.push({
                             kind: "set_presentation_style",
                             styleProfileId:
                               document.presentation.styleProfileId,
-                            styleOverrides: normalizedStyleOverrides(
-                              value.appearance,
-                            ),
+                            ...(appearanceChanged
+                              ? {
+                                  styleOverrides: normalizedStyleOverrides(
+                                    value.appearance,
+                                  ),
+                                }
+                              : {}),
+                            ...(value.font !== current.font
+                              ? {
+                                  textFace:
+                                    value.font === "serif" ? "serif" : null,
+                                }
+                              : {}),
                           });
                         }
                         if (
@@ -6471,6 +6481,30 @@ function WorkspaceEditor({
                     }
                   : null
               }
+              canvasFont={
+                selectedInstance ||
+                selectedAnnotation ||
+                selectedDrafting?.kind === "text" ||
+                selectedDrafting?.kind === "callout"
+                  ? {
+                      font: document.presentation.textFace ?? "metropolis",
+                      onChange: (font) => {
+                        const result = transact([
+                          {
+                            kind: "set_presentation_style",
+                            styleProfileId:
+                              document.presentation.styleProfileId,
+                            textFace: font === "serif" ? "serif" : null,
+                          },
+                        ]);
+                        if (result.ok)
+                          setStatus(
+                            `Canvas font: ${font === "serif" ? "Times (Liberation Serif)" : "Metropolis"}`,
+                          );
+                      },
+                    }
+                  : null
+              }
               placementTray={{
                 document,
                 unplaced,
@@ -6632,6 +6666,11 @@ function WorkspaceEditor({
         />
         <EditorCanvasSurface
           shortcutHintsVisible={shortcutHintsVisible}
+          textFontFamily={
+            styleProfile.typography.face === "serif"
+              ? styleProfile.typography.fontFamily
+              : null
+          }
           cameraRuntime={cameraRuntime}
           boxPreviewRuntime={boxPreviewRuntime}
           onWheel={handleWheel}

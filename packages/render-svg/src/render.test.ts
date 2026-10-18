@@ -4,11 +4,12 @@ import {
   resolveAnnotationPresentation,
   resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
+  SERIF_FONT_FAMILY,
 } from "@icm/derived";
 import { InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { buildSvgScene } from "./render.js";
+import { buildSvgScene, renderDocumentSvg } from "./render.js";
 
 const definition = {
   schemaVersion: 1 as const,
@@ -545,5 +546,20 @@ describe("render svg", () => {
     );
     expect(scene.formalBody).toContain('data-role="formula-subscript"');
     expect(scene.formalBody).toContain(">mL</tspan>");
+  });
+});
+
+describe("the Document's font (#1725)", () => {
+  it("names the serif stack and marks the root only for a serif Document", () => {
+    const resolver = new InMemorySymbolResolver([]);
+    const document = createEmptyDocument("doc", "Font");
+    const plain = renderDocumentSvg(document, resolver);
+    expect(plain).not.toContain("data-text-face");
+    expect(plain).toContain("text{font-family:'ICM Round Period','Metropolis'");
+
+    document.presentation.textFace = "serif";
+    const serif = renderDocumentSvg(document, resolver);
+    expect(serif).toMatch(/^<svg [^>]* data-text-face="serif">/u);
+    expect(serif).toContain(`text{font-family:${SERIF_FONT_FAMILY}}`);
   });
 });

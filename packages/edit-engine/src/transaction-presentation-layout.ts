@@ -71,6 +71,8 @@ export function applyPresentationLayoutEdit(
           edit.styleOverrides,
         );
       }
+      if (edit.textFace === null) delete draft.presentation.textFace;
+      else if (edit.textFace) draft.presentation.textFace = edit.textFace;
       changedObjectIds.add(draft.id);
       return { ok: true, connectivityChanged: false };
     case "set_document_grid":

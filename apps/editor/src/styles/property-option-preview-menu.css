@@ -67,6 +67,18 @@
   font-size: 1.2rem;
   line-height: 1;
 }
+.cm-property-option-preview-font {
+  font-family:
+    "ICM Round Period", "Metropolis", "DejaVu Sans", Arial, "Helvetica Neue",
+    Helvetica, sans-serif;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+.cm-property-option-preview-font[data-face="serif"] {
+  font-family:
+    "ICM Serif", "Liberation Serif", "Times New Roman", Times, "DejaVu Sans",
+    serif;
+}
 .cm-property-label-preview-first {
   font-weight: 700;
 }

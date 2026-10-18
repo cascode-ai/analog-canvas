@@ -39,6 +39,7 @@ export type CanvasPropertyOptionPreview =
       device: "NMOS" | "PMOS";
       rail: "VSS" | "VDD";
     }
+  | { kind: "font"; face: "metropolis" | "serif" }
   | { kind: "grid"; enabled: boolean; spacing: 1 | 5 | 10 }
   | { kind: "angle"; mode: "free" | "45" | "orthogonal" }
   | { kind: "scroll"; mode: "auto" | "zoom" | "pan" };

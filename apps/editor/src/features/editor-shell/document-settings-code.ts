@@ -14,7 +14,11 @@ export interface CanvasPreferenceCodeValue {
   scrollBehavior: "auto" | "zoom" | "pan";
 }
 
+/** The one font of every text on the canvas and in its exports (#1725). */
+export type DocumentFontCode = "metropolis" | "serif";
+
 export interface DocumentSettingsCodeValue {
+  font: DocumentFontCode;
   appearance: Record<keyof StyleOverrides, number>;
   bulkDefaults: {
     nmos: string;
@@ -76,6 +80,7 @@ export function documentSettingsCodeValue(
       : configured.netId;
   };
   return {
+    font: document.presentation.textFace ?? "metropolis",
     appearance: styleOverrideDraft(document.presentation.styleOverrides),
     bulkDefaults: {
       nmos: bulkValue("nmos"),
@@ -133,6 +138,7 @@ export function defaultDocumentSettingsCode(
   const current = documentSettingsCodeValue(document, canvas);
   return serializeDocumentSettingsCode({
     ...current,
+    font: "metropolis",
     appearance: Object.fromEntries(
       STYLE_KNOBS.map((knob) => [knob.key, 1]),
     ) as DocumentSettingsCodeValue["appearance"],
@@ -178,6 +184,7 @@ function parseSettingsCode(
   const rootError = exactKeys(
     raw,
     [
+      ...(raw.font !== undefined ? ["font"] : []),
       "appearance",
       "bulkDefaults",
       "canvas",
@@ -186,6 +193,9 @@ function parseSettingsCode(
     "properties",
   );
   if (rootError) return { ok: false, message: rootError };
+  const font = raw.font ?? document.presentation.textFace ?? "metropolis";
+  if (font !== "metropolis" && font !== "serif")
+    return { ok: false, message: 'font must be "metropolis" or "serif"' };
 
   if (!isRecord(raw.appearance))
     return { ok: false, message: "appearance must be an object" };
@@ -318,6 +328,7 @@ function parseSettingsCode(
   return {
     ok: true,
     value: {
+      font,
       appearance,
       bulkDefaults,
       labels: {

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { FormalExportSource, RasterExport } from "./index.js";
 import { DEFAULT_EXPORT_SCALE } from "./index.js";
 import { createPdfFromPng } from "./pdf.js";
-import { globalSchematicTypography } from "@icm/derived";
+import { globalSchematicTypography, SERIF_FONT_FAMILY } from "@icm/derived";
 
 const BUNDLED_FONT_PACKAGE = fileURLToPath(
   import.meta.resolve("dejavu-fonts-ttf/package.json"),
@@ -28,6 +28,14 @@ const SCHEMATIC_FONTS = ["Regular", "Bold", "RegularItalic", "BoldItalic"].map(
       new URL(`../fonts/ICMSchematic-${face}.ttf`, import.meta.url),
     ),
 );
+const SERIF_FONTS = ["Regular", "Bold", "Italic", "BoldItalic"].map((face) =>
+  fileURLToPath(
+    new URL(
+      `../fonts/liberation-serif/LiberationSerif-${face}.ttf`,
+      import.meta.url,
+    ),
+  ),
+);
 
 export interface NodeExportArtifacts {
   svg: Uint8Array;
@@ -39,16 +47,22 @@ export interface NodeExportArtifacts {
  * face keeps each style's Latin, symbols and period together. */
 function withHeadlessTextCompatibility(svg: string): string {
   const document = new DOMParser().parseFromString(svg, "image/svg+xml");
-  const family = globalSchematicTypography.fontFamily;
+  // A Times-style Document (#1725) draws in Liberation Serif, then DejaVu.
+  const families = [
+    [globalSchematicTypography.fontFamily, '"ICM Schematic"'],
+    [SERIF_FONT_FAMILY, '"Liberation Serif","DejaVu Sans"'],
+  ] as const;
   for (const style of Array.from(document.getElementsByTagName("style")))
-    style.textContent =
-      style.textContent?.replaceAll(
-        `font-family:${family}`,
-        'font-family:"ICM Schematic"',
-      ) ?? "";
+    for (const [family, headless] of families)
+      style.textContent =
+        style.textContent?.replaceAll(
+          `font-family:${family}`,
+          `font-family:${headless}`,
+        ) ?? "";
   for (const element of Array.from(document.getElementsByTagName("*")))
-    if (element.getAttribute("font-family") === family)
-      element.setAttribute("font-family", "ICM Schematic");
+    for (const [family, headless] of families)
+      if (element.getAttribute("font-family") === family)
+        element.setAttribute("font-family", headless.replaceAll('"', ""));
   // resvg 2.6 ignores relative glyph spacing when measuring a text anchor.
   // Label formulas use flat flowing runs; include their dx in the anchor so
   // operators clear adjoining fraction bars and scripts remain centered.
@@ -82,7 +96,7 @@ function resvg(svg: string, fitTo: { mode: "zoom" | "width"; value: number }) {
       // Formal export goldens must not depend on whichever fonts happen to be
       // installed on the developer machine or GitHub runner.
       loadSystemFonts: false,
-      fontFiles: [...SCHEMATIC_FONTS, ...BUNDLED_FONTS],
+      fontFiles: [...SCHEMATIC_FONTS, ...SERIF_FONTS, ...BUNDLED_FONTS],
       defaultFontFamily: "ICM Schematic",
       sansSerifFamily: "ICM Schematic",
       serifFamily: "DejaVu Serif",

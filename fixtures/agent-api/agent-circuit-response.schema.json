@@ -1288,6 +1288,12 @@
                     "labelFirstLetterItalic": {
                       "type": "boolean"
                     },
+                    "textFace": {
+                      "type": "string",
+                      "enum": [
+                        "serif"
+                      ]
+                    },
                     "flow": {
                       "type": "object",
                       "properties": {

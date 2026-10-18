@@ -1,6 +1,7 @@
 import type { FormalExportSource, RasterExport } from "./index.js";
 import { DEFAULT_EXPORT_SCALE } from "./index.js";
 import {
+  formalSvgTextFace,
   inlineSchematicWebFontFaceCss,
   withSchematicFontFaces,
 } from "./browser-fonts.js";
@@ -51,7 +52,10 @@ export async function rasterizeFormalSvgInBrowser(
   // An SVG drawn as an image loads no font, so it carries its own: the PNG
   // shows the face its labels were measured in, on any system (#1413).
   // Without them it still draws, in whatever the system has.
-  const fonts = await inlineSchematicWebFontFaceCss().catch(() => "");
+  const fonts = await inlineSchematicWebFontFaceCss(
+    fetch,
+    formalSvgTextFace(source.svg),
+  ).catch(() => "");
   let canvas: HTMLCanvasElement | undefined;
   const svgUrl = URL.createObjectURL(
     new Blob([fonts ? withSchematicFontFaces(source.svg, fonts) : source.svg], {

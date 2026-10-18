@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useMemo } from "react";
-import type { ComponentProps, ReactNode, SVGProps } from "react";
+import type { ComponentProps, CSSProperties, ReactNode, SVGProps } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
 import { createPointerPreviewFrame } from "./pointer-preview-frame";
@@ -72,6 +72,8 @@ function ownEventHandlers(
 export interface EditorCanvasSurfaceProps {
   shortcutHintsVisible: boolean;
   className: string;
+  /** The Document's chosen font stack, or null for the default Metropolis. */
+  textFontFamily: string | null;
   viewBox: string;
   cameraRuntime: CameraRuntime;
   boxPreviewRuntime: BoxPreviewRuntime;
@@ -132,6 +134,7 @@ function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
 export function EditorCanvasSurface({
   shortcutHintsVisible,
   className,
+  textFontFamily,
   viewBox,
   cameraRuntime,
   boxPreviewRuntime,
@@ -316,6 +319,13 @@ export function EditorCanvasSurface({
         ref={svgRef}
         className={className}
         data-testid="schematic-canvas"
+        style={
+          textFontFamily
+            ? ({
+                "--schematic-font-family": textFontFamily,
+              } as CSSProperties)
+            : undefined
+        }
         role="img"
         aria-label="Schematic canvas"
         aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
