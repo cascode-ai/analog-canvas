@@ -9,6 +9,7 @@ import {
   normalizeVisualSelection,
   pruneVisualSelection,
   replaceVisualSelectionKind,
+  unionSelections,
 } from "./visual-selection";
 import type { VisualSelection } from "./visual-selection";
 
@@ -90,5 +91,31 @@ describe("VisualSelection", () => {
       annotationIds: ["label-1"],
     });
     expect(pruneVisualSelection(pruned, document)).toBe(pruned);
+  });
+});
+
+describe("a Shift or Ctrl/Cmd box adds to the selection (2026-10-18)", () => {
+  it("keeps what was selected and adds each boxed object once", () => {
+    const base = {
+      instanceIds: ["R1", "R2"],
+      routeIds: ["w1"],
+      junctionIds: [],
+      annotationIds: [],
+      draftingIds: [],
+    };
+    const boxed = {
+      instanceIds: ["R2", "R3"],
+      routeIds: [],
+      junctionIds: ["j1"],
+      annotationIds: ["label-1"],
+      draftingIds: [],
+    };
+    expect(unionSelections(base, boxed)).toEqual({
+      instanceIds: ["R1", "R2", "R3"],
+      routeIds: ["w1"],
+      junctionIds: ["j1"],
+      annotationIds: ["label-1"],
+      draftingIds: [],
+    });
   });
 });

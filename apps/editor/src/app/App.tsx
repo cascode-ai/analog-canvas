@@ -3545,6 +3545,7 @@ function WorkspaceEditor({
     selection: {
       updateCommandMovePreview: updateCommandMovePreviewFromSelection,
       replaceSelection,
+      currentSelection: () => visualSelection,
       clearSelectedEndpoint: () => setSelectedEndpoint(null),
     },
     placement: {
@@ -6374,6 +6375,38 @@ function WorkspaceEditor({
                           );
                         return result;
                       },
+                      // A Net Label's name renames its Net in its code too,
+                      // the way editing its text does (2026-10-18).
+                      ...(selectedAnnotation.kind === "net-label" &&
+                      selectedAnnotation.binding?.kind === "net-name"
+                        ? {
+                            onRename: (name: string) => {
+                              const anchor = selectedAnnotation.anchor;
+                              const route =
+                                anchor.kind === "route"
+                                  ? document.routes.find(
+                                      (item) => item.id === anchor.routeId,
+                                    )
+                                  : undefined;
+                              const edits = route
+                                ? netLabelEditsForRoute(route, name)
+                                : netNameEditsForAnnotation(
+                                    selectedAnnotation,
+                                    name,
+                                  );
+                              if (!edits)
+                                return {
+                                  ok: false,
+                                  message: `Could not rename this label to ${name}`,
+                                };
+                              if (!edits.length) return { ok: true };
+                              const result = transact(edits);
+                              if (result.ok)
+                                setStatus(`Renamed the Net to ${name}`);
+                              return result;
+                            },
+                          }
+                        : {}),
                     }
                   : null
               }

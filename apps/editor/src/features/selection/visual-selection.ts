@@ -105,3 +105,20 @@ export function pruneVisualSelection(
   );
   return unchanged ? selection : next;
 }
+
+/** Both selections at once, each object once, `base`'s first. */
+export function unionSelections(
+  base: VisualSelection,
+  added: VisualSelection,
+): VisualSelection {
+  const merge = (left: readonly string[], right: readonly string[]) => [
+    ...new Set([...left, ...right]),
+  ];
+  return {
+    instanceIds: merge(base.instanceIds, added.instanceIds),
+    routeIds: merge(base.routeIds, added.routeIds),
+    junctionIds: merge(base.junctionIds, added.junctionIds),
+    annotationIds: merge(base.annotationIds, added.annotationIds),
+    draftingIds: merge(base.draftingIds, added.draftingIds),
+  };
+}

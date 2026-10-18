@@ -23,6 +23,7 @@ import {
 } from "../features/selection/selection-filter";
 import {
   EMPTY_VISUAL_SELECTION,
+  unionSelections,
   type VisualSelection,
 } from "../features/selection/visual-selection";
 import type { RouteGeometryRecord } from "../features/wiring/route-interaction-geometry";
@@ -127,6 +128,8 @@ export interface CanvasGestureControllerDependencies {
       suppressSnap: boolean,
     ) => void;
     replaceSelection: (selection: VisualSelection) => void;
+    /** The selection a Shift or Ctrl/Cmd box adds to. */
+    currentSelection: () => VisualSelection;
     clearSelectedEndpoint: () => void;
   };
   placement: {
@@ -269,6 +272,7 @@ export function createCanvasGestureController({
   selection: {
     updateCommandMovePreview,
     replaceSelection,
+    currentSelection,
     clearSelectedEndpoint,
   },
   placement: {
@@ -521,6 +525,11 @@ export function createCanvasGestureController({
       end: point,
       pointerId: event.pointerId,
       intent: "select",
+      // Shift or Ctrl/Cmd adds the box to the selection, as those keys add a
+      // clicked object (2026-10-18).
+      ...(event.shiftKey || event.ctrlKey || event.metaKey
+        ? { additive: true }
+        : {}),
     });
   };
 
@@ -685,7 +694,7 @@ export function createCanvasGestureController({
     const clicked =
       rect.width <= document.presentation.grid &&
       rect.height <= document.presentation.grid;
-    const selection = clicked
+    const boxed = clicked
       ? EMPTY_VISUAL_SELECTION
       : marqueeSelection(
           document,
@@ -697,6 +706,9 @@ export function createCanvasGestureController({
           selectionPolicy,
           selectionRead,
         );
+    const selection = activeBox.additive
+      ? unionSelections(currentSelection(), boxed)
+      : boxed;
     replaceSelection(selection);
     clearSelectedEndpoint();
     setBoxPreview(null);
