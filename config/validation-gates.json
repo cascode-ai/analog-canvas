@@ -421,7 +421,10 @@
       "apps/editor/e2e/netlist-workflows.spec.ts",
       "apps/editor/e2e/netlist-conversion.spec.ts",
       "apps/editor/e2e/manual-editor-fixtures.ts",
-      "apps/editor/e2e/canvas-fixtures.ts"
+      "apps/editor/e2e/canvas-fixtures.ts",
+      "packages/rnl/**",
+      "apps/editor/e2e/rnl-interchange.spec.ts",
+      "apps/editor/e2e/label-census.ts"
     ]
   },
   "gates": [
@@ -653,13 +656,15 @@
         "test:e2e:local",
         "apps/editor/e2e/netlist-code-edit.spec.ts",
         "apps/editor/e2e/netlist-workflows.spec.ts",
-        "apps/editor/e2e/netlist-conversion.spec.ts"
+        "apps/editor/e2e/netlist-conversion.spec.ts",
+        "apps/editor/e2e/rnl-interchange.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/netlist-code-edit.spec.ts",
           "apps/editor/e2e/netlist-workflows.spec.ts",
-          "apps/editor/e2e/netlist-conversion.spec.ts"
+          "apps/editor/e2e/netlist-conversion.spec.ts",
+          "apps/editor/e2e/rnl-interchange.spec.ts"
         ]
       }
     },

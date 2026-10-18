@@ -35,6 +35,7 @@ import {
 import { startCore } from "@rich-netlist/runtime";
 
 import { labelCensus, labelDifferences } from "../../../e2e/label-census";
+import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
 import { materializeRazaviProjectBulkConnections } from "../../presentation/razavi-presentation";
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import { prepareNetlistExample } from "./netlist-process";
@@ -1347,14 +1348,17 @@ type PrimitiveClass = Extract<
   { kind: "primitive" }
 >["deviceClass"];
 
-const DIAMOND_KINDS = ["vcvs", "vccs", "ccvs", "cccs"];
+const CONTROLLED_SOURCE_KINDS = ["vcvs", "vccs", "ccvs", "cccs"];
 
 /**
- * The four controlled sources drawn as diamonds, each into its own load: the
+ * The four controlled sources in either appearance, each into its own load: the
  * voltage-controlled ones sense V1's voltage, the current-controlled ones
  * its current.
  */
-function diamonds(kinds: readonly string[] = DIAMOND_KINDS): CircuitProject {
+function controlledSources(
+  kinds: readonly string[] = CONTROLLED_SOURCE_KINDS,
+  shape: "circle" | "diamond" = "diamond",
+): CircuitProject {
   const project = createEmptyProject("diamonds", "Diamonds");
   const document = project.documents[0]!;
   const at = (x: number, y: number) =>
@@ -1374,7 +1378,7 @@ function diamonds(kinds: readonly string[] = DIAMOND_KINDS): CircuitProject {
     netlist: { binding: { kind: "primitive", deviceClass }, parameters },
     ...more,
   });
-  const diamond = { symbolVariantId: "diamond" };
+  const appearance = shape === "diamond" ? { symbolVariantId: "diamond" } : {};
   // Values as the conversion from Spectre spells them, so both dialects
   // compare.
   const sources = [
@@ -1415,7 +1419,7 @@ function diamonds(kinds: readonly string[] = DIAMOND_KINDS): CircuitProject {
     .forEach(([id, kind, parameters, control], index) => {
       const x = 300 + index * 200;
       const load = `R${id}`;
-      const source = part(id, kind, kind, x, parameters, diamond);
+      const source = part(id, kind, kind, x, parameters, appearance);
       source.netlist!.control = control;
       document.instances.push(
         source,
@@ -1446,20 +1450,98 @@ function diamonds(kinds: readonly string[] = DIAMOND_KINDS): CircuitProject {
   return project;
 }
 
-describe("RNL round trip of controlled sources drawn as diamonds", () => {
-  // Analog Canvas's Spectre import reads no native ccvs or cccs, so Spectre
-  // brings back the voltage-controlled ones.
+describe.each(["circle", "diamond"] as const)(
+  "RNL round trip of controlled sources drawn as %s",
+  (shape) => {
+    // Analog Canvas's Spectre import reads no native ccvs or cccs, so Spectre
+    // brings back the voltage-controlled ones.
+    it.each([
+      ["spice", CONTROLLED_SOURCE_KINDS],
+      ["spectre", ["vcvs", "vccs"]],
+    ] as const)(
+      "exports standard symbols and imports each as a diamond (%s)",
+      async (format, kinds) => {
+        const project = withImportedInstanceDisplays(
+          controlledSources(kinds, shape),
+        );
+        const exported = createRnlExport(project, { format });
+        if (exported.status !== "ready") throw new Error("export blocked");
+        const written = await runtime.write({
+          write: exported.request,
+          svg: false,
+        });
+        for (const kind of kinds)
+          expect(written.text).toContain(`@SET-SYMBOL $${kind.toUpperCase()}`);
+        expect(written.text).not.toContain("$CANVAS_");
+        expect(exported.diagnostics.map((item) => item.code)).not.toContain(
+          "RNL_NOT_STANDARD_SYMBOL",
+        );
+        const plan = await importRnl(written.text, format);
+        expect(failures(plan)).toEqual([]);
+        expect(
+          labelCensus(project, format).filter((label) => !label.hidden).length,
+        ).toBeGreaterThan(kinds.length);
+        expect(
+          labelDifferences(
+            labelCensus(project, format),
+            labelCensus(plan.project, format),
+            format,
+          ),
+        ).toEqual([]);
+        const parts = plan.project.documents.flatMap(
+          (document) => document.instances,
+        );
+        for (const original of project.documents[0]!.instances) {
+          if (!original.reference) continue;
+          const part = parts.find(
+            (instance) => instance.reference === original.reference,
+          );
+          expect(part?.symbolId, original.reference).toBe(original.symbolId);
+          expect(part?.symbolVariantId, original.reference).toBe(
+            kinds.some((kind) => kind === original.symbolId)
+              ? "diamond"
+              : original.symbolVariantId,
+          );
+          expect(part && rnlPart(part)).toEqual(rnlPart(original));
+        }
+        const before = createDesignNetlistExport(project, { format });
+        const after = createDesignNetlistExport(plan.project, { format });
+        expect(after.status === "ready" && after.file.text).toBe(
+          before.status === "ready" && before.file.text,
+        );
+      },
+    );
+  },
+);
+
+describe("legacy controlled-source diamond symbols", () => {
   it.each([
-    ["spice", DIAMOND_KINDS],
+    ["spice", CONTROLLED_SOURCE_KINDS],
     ["spectre", ["vcvs", "vccs"]],
   ] as const)(
-    "draws each with Analog Canvas's diamond and brings it back as one (%s)",
+    "imports the old aliases as diamonds (%s)",
     async (format, kinds) => {
-      const project = diamonds(kinds);
+      const project = withImportedInstanceDisplays(controlledSources(kinds));
       const exported = createRnlExport(project, { format });
       if (exported.status !== "ready") throw new Error("export blocked");
+      const standard = new Set(kinds.map((kind) => `$${kind.toUpperCase()}`));
       const written = await runtime.write({
-        write: exported.request,
+        write: {
+          ...exported.request,
+          ops: [
+            ...exported.request.ops.map((op) =>
+              op.op === "set" && op.symbol && standard.has(op.symbol)
+                ? { ...op, symbol: `$CANVAS_${op.symbol.slice(1)}_DIAMOND` }
+                : op,
+            ),
+            {
+              op: "use-package",
+              level: "subckt:dut",
+              name: "analog-canvas-extensions",
+              version: "0.1",
+            },
+          ],
+        },
         svg: false,
       });
       for (const kind of kinds)
@@ -1468,20 +1550,18 @@ describe("RNL round trip of controlled sources drawn as diamonds", () => {
         );
       const plan = await importRnl(written.text, format);
       expect(failures(plan)).toEqual([]);
-      const parts = plan.project.documents.flatMap(
-        (document) => document.instances,
-      );
-      for (const original of project.documents[0]!.instances) {
-        if (!original.reference) continue;
-        const part = parts.find(
-          (instance) => instance.reference === original.reference,
-        );
-        expect(part?.symbolId, original.reference).toBe(original.symbolId);
-        expect(part?.symbolVariantId, original.reference).toBe(
-          original.symbolVariantId,
-        );
-        expect(part && rnlPart(part)).toEqual(rnlPart(original));
-      }
+      const sources = plan.project.documents
+        .flatMap((document) => document.instances)
+        .filter((part) => kinds.some((kind) => kind === part.symbolId));
+      expect(sources).toHaveLength(kinds.length);
+      for (const part of sources) expect(part.symbolVariantId).toBe("diamond");
+      expect(
+        labelDifferences(
+          labelCensus(project, format),
+          labelCensus(plan.project, format),
+          format,
+        ),
+      ).toEqual([]);
       const before = createDesignNetlistExport(project, { format });
       const after = createDesignNetlistExport(plan.project, { format });
       expect(after.status === "ready" && after.file.text).toBe(

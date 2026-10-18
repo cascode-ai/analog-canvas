@@ -6,6 +6,8 @@ import { isOnlineImplementation } from "./build/desktop-module-policy";
 /** Separate composition entry/output: Web routes, telemetry and SW never boot. */
 export default defineConfig({
   base: "/",
+  // The RNL runtime Worker uses top-level await in the offline editor too.
+  worker: { format: "es" },
   // Offline artifacts never inherit local .env files or public-prefixed values.
   // Hosted feature flags and credentials belong to the Web/server composition.
   envDir: false,

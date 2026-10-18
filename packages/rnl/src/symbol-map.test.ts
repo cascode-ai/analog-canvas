@@ -72,12 +72,26 @@ describe("the RNL symbol list", () => {
       package: "rnl-std-functional",
     });
     expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");
+  });
+
+  it("exports both controlled-source shapes as standard diamonds and reads legacy aliases", () => {
     for (const source of ["vcvs", "vccs", "ccvs", "cccs"]) {
-      expect(rnlSymbolFor(source, "diamond")).toMatchObject({
-        symbol: `$CANVAS_${source.toUpperCase()}_DIAMOND`,
-        package: "analog-canvas-extensions",
+      for (const variant of [null, "diamond"])
+        expect(rnlSymbolFor(source, variant)).toMatchObject({
+          symbol: `$${source.toUpperCase()}`,
+          package: "rnl-std-basic",
+          variant: "diamond",
+          importOnly: false,
+        });
+      expect(
+        RNL_SYMBOLS.find(
+          (entry) => entry.symbol === `$CANVAS_${source.toUpperCase()}_DIAMOND`,
+        ),
+      ).toMatchObject({
+        ac: source,
+        variant: "diamond",
+        importOnly: true,
       });
-      expect(rnlSymbolFor(source)?.symbol).toBe(`$${source.toUpperCase()}`);
     }
   });
 
@@ -123,7 +137,7 @@ describe("the RNL symbol list", () => {
         [-3, -2],
       ]);
     }
-    expect(RNL_SYMBOLS.filter((entry) => entry.importOnly)).toHaveLength(6);
+    expect(RNL_SYMBOLS.filter((entry) => entry.importOnly)).toHaveLength(10);
   });
 
   it("names the definition a glyph or a drawing-only part draws", () => {

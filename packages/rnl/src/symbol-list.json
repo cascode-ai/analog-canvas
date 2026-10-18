@@ -531,7 +531,7 @@
     "definition": null,
     "package": "rnl-std-basic",
     "ac": "vcvs",
-    "variant": null,
+    "variant": "diamond",
     "orient": "R0",
     "terminals": [
       {
@@ -618,7 +618,7 @@
     "definition": null,
     "package": "rnl-std-basic",
     "ac": "vccs",
-    "variant": null,
+    "variant": "diamond",
     "orient": "R0",
     "terminals": [
       {
@@ -705,7 +705,7 @@
     "definition": null,
     "package": "rnl-std-basic",
     "ac": "cccs",
-    "variant": null,
+    "variant": "diamond",
     "orient": "R0",
     "terminals": [
       {
@@ -746,7 +746,7 @@
     "definition": null,
     "package": "rnl-std-basic",
     "ac": "ccvs",
-    "variant": null,
+    "variant": "diamond",
     "orient": "R0",
     "terminals": [
       {
@@ -7003,6 +7003,7 @@
     "ac": "vccs",
     "variant": "diamond",
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -7054,6 +7055,7 @@
     "ac": "cccs",
     "variant": "diamond",
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -7095,6 +7097,7 @@
     "ac": "vcvs",
     "variant": "diamond",
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,
@@ -7146,6 +7149,7 @@
     "ac": "ccvs",
     "variant": "diamond",
     "orient": "R0",
+    "import_only": true,
     "terminals": [
       {
         "n": 1,

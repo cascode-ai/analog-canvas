@@ -81,4 +81,23 @@ describe("the mapping table against the rnl runtime's catalog", () => {
     expect(RNL_SYMBOLS.length).toBeGreaterThan(100);
     expect(compared).toBeGreaterThan(200);
   });
+
+  it("keeps standard controlled-source diamonds compatible with the legacy symbols", async () => {
+    const catalog = await core.catalog({ catalog: {} });
+    for (const kind of ["VCVS", "VCCS", "CCVS", "CCCS"]) {
+      const standard = catalog.symbols.find(
+        (symbol) =>
+          symbol.package === "rnl-std-basic" && symbol.symbol === `$${kind}`,
+      );
+      const legacy = catalog.symbols.find(
+        (symbol) =>
+          symbol.package === "analog-canvas-extensions" &&
+          symbol.symbol === `$CANVAS_${kind}_DIAMOND`,
+      );
+      expect(standard, kind).toBeDefined();
+      expect(legacy, kind).toBeDefined();
+      expect(standard!.pins, kind).toEqual(legacy!.pins);
+      expect(standard!.box, kind).toEqual(legacy!.box);
+    }
+  });
 });
