@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { SCHEMATIC_MEASURED_GLYPHS } from "../packages/derived/src/fraction-text-metrics.ts";
+import { schematicSerifTextMetrics } from "../packages/derived/src/schematic-serif-text-metrics.generated.ts";
+import { schematicTextMetrics } from "../packages/derived/src/schematic-text-metrics.generated.ts";
 import { SCHEMATIC_FONT_UNICODE_RANGE } from "../packages/exporters/src/browser-fonts.ts";
 import { SCHEMATIC_FONT_UNICODES } from "./generate-schematic-fonts.mjs";
 
@@ -19,9 +20,12 @@ describe("the served schematic font (#1413)", () => {
     );
   });
 
-  it("holds every character label measurement measures", () => {
+  it.each([
+    ["Metropolis", schematicTextMetrics],
+    ["the serif", schematicSerifTextMetrics],
+  ])("holds every character %s label measurement measures", (_, table) => {
     const served = ranges(SCHEMATIC_FONT_UNICODE_RANGE);
-    const missing = [...SCHEMATIC_MEASURED_GLYPHS].filter((glyph) => {
+    const missing = [...table.glyphs].filter((glyph) => {
       const point = glyph.codePointAt(0);
       return !served.some(([first, last]) => point >= first && point <= last);
     });

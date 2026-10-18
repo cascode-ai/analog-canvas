@@ -3546,6 +3546,7 @@ function WorkspaceEditor({
     selection: {
       updateCommandMovePreview: updateCommandMovePreviewFromSelection,
       replaceSelection,
+      currentSelection: () => visualSelection,
       clearSelectedEndpoint: () => setSelectedEndpoint(null),
     },
     placement: {
@@ -5646,17 +5647,27 @@ function WorkspaceEditor({
                       },
                       onApply: (value, current, applyLabelSubscriptCase) => {
                         const edits: SchematicEdit[] = [];
-                        if (
+                        const appearanceChanged =
                           JSON.stringify(value.appearance) !==
-                          JSON.stringify(current.appearance)
-                        ) {
+                          JSON.stringify(current.appearance);
+                        if (appearanceChanged || value.font !== current.font) {
                           edits.push({
                             kind: "set_presentation_style",
                             styleProfileId:
                               document.presentation.styleProfileId,
-                            styleOverrides: normalizedStyleOverrides(
-                              value.appearance,
-                            ),
+                            ...(appearanceChanged
+                              ? {
+                                  styleOverrides: normalizedStyleOverrides(
+                                    value.appearance,
+                                  ),
+                                }
+                              : {}),
+                            ...(value.font !== current.font
+                              ? {
+                                  textFace:
+                                    value.font === "serif" ? "serif" : null,
+                                }
+                              : {}),
                           });
                         }
                         if (
@@ -6390,6 +6401,38 @@ function WorkspaceEditor({
                           );
                         return result;
                       },
+                      // A Net Label's name renames its Net in its code too,
+                      // the way editing its text does (2026-10-18).
+                      ...(selectedAnnotation.kind === "net-label" &&
+                      selectedAnnotation.binding?.kind === "net-name"
+                        ? {
+                            onRename: (name: string) => {
+                              const anchor = selectedAnnotation.anchor;
+                              const route =
+                                anchor.kind === "route"
+                                  ? document.routes.find(
+                                      (item) => item.id === anchor.routeId,
+                                    )
+                                  : undefined;
+                              const edits = route
+                                ? netLabelEditsForRoute(route, name)
+                                : netNameEditsForAnnotation(
+                                    selectedAnnotation,
+                                    name,
+                                  );
+                              if (!edits)
+                                return {
+                                  ok: false,
+                                  message: `Could not rename this label to ${name}`,
+                                };
+                              if (!edits.length) return { ok: true };
+                              const result = transact(edits);
+                              if (result.ok)
+                                setStatus(`Renamed the Net to ${name}`);
+                              return result;
+                            },
+                          }
+                        : {}),
                     }
                   : null
               }
@@ -6451,6 +6494,30 @@ function WorkspaceEditor({
                       },
                       onStackingChange: setDraftingStacking,
                       onToggleLock: () => toggleDraftingLock(selectedDrafting),
+                    }
+                  : null
+              }
+              canvasFont={
+                selectedInstance ||
+                selectedAnnotation ||
+                selectedDrafting?.kind === "text" ||
+                selectedDrafting?.kind === "callout"
+                  ? {
+                      font: document.presentation.textFace ?? "metropolis",
+                      onChange: (font) => {
+                        const result = transact([
+                          {
+                            kind: "set_presentation_style",
+                            styleProfileId:
+                              document.presentation.styleProfileId,
+                            textFace: font === "serif" ? "serif" : null,
+                          },
+                        ]);
+                        if (result.ok)
+                          setStatus(
+                            `Canvas font: ${font === "serif" ? "Times (Liberation Serif)" : "Metropolis"}`,
+                          );
+                      },
                     }
                   : null
               }
@@ -6615,6 +6682,11 @@ function WorkspaceEditor({
         />
         <EditorCanvasSurface
           shortcutHintsVisible={shortcutHintsVisible}
+          textFontFamily={
+            styleProfile.typography.face === "serif"
+              ? styleProfile.typography.fontFamily
+              : null
+          }
           cameraRuntime={cameraRuntime}
           boxPreviewRuntime={boxPreviewRuntime}
           onWheel={handleWheel}

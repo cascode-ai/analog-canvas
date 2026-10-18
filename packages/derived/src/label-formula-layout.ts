@@ -70,7 +70,12 @@ class Layout {
     italic ||= this.options.italic === true;
     // Italic letters use their face's own advances.
     const width =
-      schematicTextAdvanceEm(text, bold ? "bold" : "plain", italic) * size;
+      schematicTextAdvanceEm(
+        text,
+        bold ? "bold" : "plain",
+        italic,
+        this.options.face,
+      ) * size;
     const chars = [...text];
     const ascent = chars.some((char) => TALL.test(char))
       ? 0.74 * size

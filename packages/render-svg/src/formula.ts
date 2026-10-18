@@ -170,6 +170,7 @@ export function renderFormulaDocument(
     subscriptScale: profile.typography.subscriptScale,
     subscriptBaselineShiftEm: profile.typography.subscriptBaselineShiftEm,
     subscriptHorizontalGapEm: profile.typography.subscriptHorizontalGapEm,
+    ...(profile.typography.face ? { face: profile.typography.face } : {}),
   });
   if (label) return renderLabelFormula(label, profile, options);
   const request = {

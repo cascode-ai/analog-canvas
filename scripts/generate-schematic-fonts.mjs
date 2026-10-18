@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * Browser subsets and shared metrics for Metropolis and its DejaVu Sans
- * symbol fallback. Also writes the authored round-period face for Node.
+ * symbol fallback, and for the Times-style serif a Document may choose
+ * instead (Liberation Serif, served as ICM Serif; #1725). Also writes the
+ * authored round-period face for Node.
  *
  *   node scripts/generate-schematic-fonts.mjs [--check]
  *
@@ -42,6 +44,23 @@ export const SCHEMATIC_FONT_FACES = [
   "DejaVuSans-Oblique",
   "DejaVuSans-BoldOblique",
 ];
+
+/**
+ * The serif choice's browser subsets: Liberation Serif's faces renamed ICM
+ * Serif, since the OFL reserves "Liberation" for unmodified copies.
+ */
+export const SERIF_FONT_FACES = [
+  ["LiberationSerif-Regular", "ICMSerif-Regular"],
+  ["LiberationSerif-Bold", "ICMSerif-Bold"],
+  ["LiberationSerif-Italic", "ICMSerif-Italic"],
+  ["LiberationSerif-BoldItalic", "ICMSerif-BoldItalic"],
+];
+const SERIF_METRIC_FILES = {
+  plain: "LiberationSerif-Regular.ttf",
+  bold: "LiberationSerif-Bold.ttf",
+  italic: "LiberationSerif-Italic.ttf",
+  boldItalic: "LiberationSerif-BoldItalic.ttf",
+};
 
 const NODE_FONT_FACES = ["Regular", "RegularItalic", "Bold", "BoldItalic"].map(
   (style) => `ICMSchematic-${style}.ttf`,
@@ -86,13 +105,14 @@ function unkernedMetropolis() {
   return directory;
 }
 
-function subset(face, directory, metropolis) {
+function subset(face, directory, metropolis, source) {
   const result = spawnSync(
     "python3",
     [
       "-m",
       "fontTools.subset",
-      join(face.startsWith("Metropolis-") ? metropolis : ttf, `${face}.ttf`),
+      source ??
+        join(face.startsWith("Metropolis-") ? metropolis : ttf, `${face}.ttf`),
       `--unicodes=${SCHEMATIC_FONT_UNICODES.join(",")}`,
       // WOFF2 is about a quarter smaller than WOFF, and every browser the
       // editor supports reads it (#1673).
@@ -138,6 +158,34 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       )
         stale.push(name);
     }
+    for (const [source, face] of SERIF_FONT_FACES) {
+      subset(
+        face,
+        directory,
+        metropolis,
+        join(output, "liberation-serif", `${source}.ttf`),
+      );
+      const name = `${face}.schematic.woff2`;
+      const renamed = spawnSync(
+        "python3",
+        [
+          join(root, "scripts/rename-font-family.py"),
+          join(directory, name),
+          "Liberation Serif",
+          "ICM Serif",
+        ],
+        { encoding: "utf8" },
+      );
+      if (renamed.status !== 0)
+        throw new Error(`Cannot rename ${name}: ${renamed.stderr}`);
+      if (
+        check &&
+        !readFileSync(join(directory, name)).equals(
+          readFileSync(join(output, name)),
+        )
+      )
+        stale.push(name);
+    }
     const nodeFaces = spawnSync(
       "python3",
       [
@@ -172,6 +220,20 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (tables.status !== 0)
       throw new Error(`Cannot read schematic metrics: ${tables.stderr}`);
     const { metrics, primaryGlyphs } = JSON.parse(tables.stdout);
+    const serifTables = spawnSync(
+      "python3",
+      [
+        join(root, "scripts/generate-schematic-metrics.py"),
+        join(output, "liberation-serif"),
+        ttf,
+        JSON.stringify(SCHEMATIC_FONT_UNICODES),
+        JSON.stringify(SERIF_METRIC_FILES),
+      ],
+      { encoding: "utf8" },
+    );
+    if (serifTables.status !== 0)
+      throw new Error(`Cannot read serif metrics: ${serifTables.stderr}`);
+    const serif = JSON.parse(serifTables.stdout);
     for (const [path, declaration] of [
       [
         "packages/derived/src/schematic-text-metrics.generated.ts",
@@ -180,6 +242,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       [
         "packages/exporters/src/metropolis-coverage.generated.ts",
         `export const metropolisGlyphs = ${JSON.stringify(primaryGlyphs)};`,
+      ],
+      [
+        "packages/derived/src/schematic-serif-text-metrics.generated.ts",
+        `export const schematicSerifTextMetrics = ${JSON.stringify(serif.metrics)};`,
+      ],
+      [
+        "packages/exporters/src/serif-coverage.generated.ts",
+        `export const serifGlyphs = ${JSON.stringify(serif.primaryGlyphs)};`,
       ],
     ]) {
       const content = await format(
@@ -198,7 +268,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       process.exitCode = 1;
     } else
       console.log(
-        `Schematic fonts: ${SCHEMATIC_FONT_FACES.length} faces ${check ? "current" : "written"}`,
+        `Schematic fonts: ${SCHEMATIC_FONT_FACES.length + SERIF_FONT_FACES.length} faces ${check ? "current" : "written"}`,
       );
   } finally {
     if (check) rmSync(directory, { recursive: true, force: true });

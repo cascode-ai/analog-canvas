@@ -217,6 +217,23 @@ export function tryParseProjectWithMetadata(
   let current: Record<string, unknown>;
   try {
     if (
+      sourceSchemaVersion < 72 &&
+      Array.isArray(parsed.documents) &&
+      parsed.documents.some(
+        (document: unknown) =>
+          isRecord(document) &&
+          isRecord(document.presentation) &&
+          Object.hasOwn(document.presentation, "textFace"),
+      )
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "A Document font requires Project schema 72",
+          path: ["documents"],
+        },
+      ]);
+    if (
       sourceSchemaVersion < 71 &&
       Array.isArray(parsed.modelSources) &&
       parsed.modelSources.some(

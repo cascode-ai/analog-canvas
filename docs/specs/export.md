@@ -33,6 +33,13 @@ and diagnostics never enter a formal artifact.
   slant across mixed runs). Browser PNG inlines the faces (an SVG image loads
   no external font), falling back to system faces if unreadable. Downloaded
   SVG names the stack and carries only the period face.
+- A Document with `presentation.textFace: "serif"` sets every text in
+  Liberation Serif (Times New Roman's metrics) instead, everywhere above: the
+  browser serves renamed subsets as **ICM Serif** (OFL Reserved Font Name),
+  measured from the same tables; the formal SVG root carries
+  `data-text-face="serif"` and names the serif stack; PNG inlines ICM Serif
+  and DejaVu only; PDF embeds the unmodified Liberation Serif files. No round
+  period. One face per Document; Metropolis stays the default.
 - PDF selects Metropolis, DejaVu or the period face per glyph and embeds each
   used weight/slant as a subset (PDF has no CSS fallback); faces are loaded
   for measurement and removed after. A missing required face fails the

@@ -4446,6 +4446,19 @@
                     "type": "null"
                   }
                 ]
+              },
+              "textFace": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "serif"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -11041,6 +11054,12 @@
               "labelFirstLetterItalic": {
                 "type": "boolean"
               },
+              "textFace": {
+                "type": "string",
+                "enum": [
+                  "serif"
+                ]
+              },
               "flow": {
                 "type": "object",
                 "properties": {
@@ -12555,6 +12574,12 @@
                           },
                           "labelFirstLetterItalic": {
                             "type": "boolean"
+                          },
+                          "textFace": {
+                            "type": "string",
+                            "enum": [
+                              "serif"
+                            ]
                           },
                           "flow": {
                             "type": "object",

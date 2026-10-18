@@ -1,5 +1,5 @@
 import { measureRichTextDocument, schematicTextAdvanceEm } from "@icm/derived";
-import type { SchematicStyleProfile } from "@icm/derived";
+import type { SchematicStyleProfile, SchematicTextFace } from "@icm/derived";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
 import { renderRichTextDocument } from "./rich-text.js";
@@ -103,12 +103,14 @@ function segmentWidth(
   segment: TextSegment,
   fontSize: number,
   scale: number,
+  face?: SchematicTextFace,
 ): number {
   return (
     schematicTextAdvanceEm(
       segment.text,
       segment.bold ? "bold" : "plain",
       segment.italic,
+      face,
     ) *
     fontSize *
     scale
@@ -119,9 +121,10 @@ function segmentsWidth(
   segments: TextSegment[],
   fontSize: number,
   scale: number,
+  face?: SchematicTextFace,
 ): number {
   return segments.reduce(
-    (sum, segment) => sum + segmentWidth(segment, fontSize, scale),
+    (sum, segment) => sum + segmentWidth(segment, fontSize, scale, face),
     0,
   );
 }
@@ -147,7 +150,12 @@ function renderSegments(
   let x = options.x;
   let output = "";
   for (const segment of segments) {
-    const width = segmentWidth(segment, options.fontSize, options.scale);
+    const width = segmentWidth(
+      segment,
+      options.fontSize,
+      options.scale,
+      options.profile.typography.face,
+    );
     output += `<tspan data-text-run="${options.run}" data-text-advance="${number(width)}" x="${number(x)}" y="${number(options.y)}" text-anchor="start" font-size="${number(options.fontSize * options.scale)}" style="${styleAttribute(segment, options.profile)}">${escapeXml(segment.text)}</tspan>`;
     x += width;
   }
@@ -208,10 +216,20 @@ function overbarLayout(
     : [];
   if (!base || !subscript || !superscript) return null;
 
-  const scale = profile.typography.subscriptScale;
-  const baseWidth = segmentsWidth(base, options.fontSize, 1);
-  const subscriptWidth = segmentsWidth(subscript, options.fontSize, scale);
-  const superscriptWidth = segmentsWidth(superscript, options.fontSize, scale);
+  const { face, subscriptScale: scale } = profile.typography;
+  const baseWidth = segmentsWidth(base, options.fontSize, 1, face);
+  const subscriptWidth = segmentsWidth(
+    subscript,
+    options.fontSize,
+    scale,
+    face,
+  );
+  const superscriptWidth = segmentsWidth(
+    superscript,
+    options.fontSize,
+    scale,
+    face,
+  );
   const attachmentGap =
     scripts.length > 0
       ? options.fontSize * profile.typography.subscriptHorizontalGapEm

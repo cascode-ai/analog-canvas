@@ -18,7 +18,7 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 71;
+export const CURRENT_PROJECT_FILE_VERSION = 72;
 type Value = Record<string, any>;
 
 /** An object's kept Document style first appears in schema 64. */

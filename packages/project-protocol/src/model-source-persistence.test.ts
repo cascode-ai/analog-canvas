@@ -58,7 +58,7 @@ describe("Model source persistence", () => {
         },
       ];
       const encoded = JSON.parse(serializeProject(project));
-      expect(encoded.schemaVersion).toBe(71);
+      expect(encoded.schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
       expect(parseProject(JSON.stringify(encoded)).modelSources).toEqual(
         project.modelSources,
       );

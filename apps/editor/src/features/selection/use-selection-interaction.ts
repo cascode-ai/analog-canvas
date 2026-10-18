@@ -56,6 +56,14 @@ import type {
   ResolvedSelectionMove,
 } from "./selection-move-controller";
 
+/**
+ * How far a Shift- or Ctrl/Cmd-press must travel before it duplicates or
+ * detaches instead of adding to the selection (2026-10-18). A hand's click
+ * drifts 3–5 px, which crossed the 4 px a plain drag uses and made a
+ * Shift-click copy the selection.
+ */
+const MODIFIER_DRAG_THRESHOLD_PX = 10;
+
 type TransactionResult = { ok: boolean; revision: number };
 
 interface MoveProjectionInput {
@@ -450,6 +458,7 @@ export function useSelectionInteraction(
     source: SchematicDocument,
     prefixEdits: SchematicEdit[],
     onFinish?: (dragged: boolean) => void,
+    thresholdPx = 4,
   ): void => {
     options.canvasDragSessionRef.current?.cancel();
     const svg = (hitTarget.ownerSVGElement ?? hitTarget) as SVGSVGElement;
@@ -465,7 +474,7 @@ export function useSelectionInteraction(
       target: hitTarget,
       pointerId: event.pointerId,
       startClient: { x: event.clientX, y: event.clientY },
-      thresholdPx: 4,
+      thresholdPx,
       onPreview: (client) => {
         paintMoveFrame(
           session,
@@ -794,6 +803,17 @@ export function useSelectionInteraction(
     options.updateInstanceSelection(instanceId, additive);
   };
 
+  /** A modifier-click that never moved adds the part, or takes it back out. */
+  const toggleInstance = (instanceId: string): void => {
+    const selected = options.selectedIds.includes(instanceId);
+    selectInstance(instanceId, true);
+    options.setStatus(
+      selected
+        ? `Removed ${instanceId} from the selection`
+        : `Added ${instanceId} to the selection`,
+    );
+  };
+
   /**
    * Shift-drag duplicates, the way Virtuoso does. The copy rides the existing
    * copy-placement preview so it snaps and renders like any other paste, and
@@ -820,7 +840,7 @@ export function useSelectionInteraction(
       target: hitTarget,
       pointerId: event.pointerId,
       startClient: { x: event.clientX, y: event.clientY },
-      thresholdPx: 4,
+      thresholdPx: MODIFIER_DRAG_THRESHOLD_PX,
       onPreview: (client) => {
         const point = options.pointFromClient(client.x, client.y, svg, false);
         if (!started) {
@@ -846,8 +866,7 @@ export function useSelectionInteraction(
         options.canvasDragSessionRef.current = null;
         if (!dragged || !started) {
           // A modifier-click that never moved keeps its toggle meaning.
-          selectInstance(instanceId, true);
-          options.setStatus(`Selected ${instanceId}`);
+          toggleInstance(instanceId);
           return;
         }
         commitCopyPlacement(
@@ -959,11 +978,9 @@ export function useSelectionInteraction(
       detachEdits,
       (dragged) => {
         if (dragged && detachDrag) selectInstance(instanceId, false);
-        else if (!dragged && detachDrag) {
-          selectInstance(instanceId, true);
-          options.setStatus(`Selected ${instanceId}`);
-        }
+        else if (!dragged && detachDrag) toggleInstance(instanceId);
       },
+      detachDrag ? MODIFIER_DRAG_THRESHOLD_PX : undefined,
     );
   };
 
