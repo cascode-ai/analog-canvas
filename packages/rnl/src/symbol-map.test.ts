@@ -74,15 +74,20 @@ describe("the RNL symbol list", () => {
     expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");
   });
 
-  it("exports both controlled-source shapes as standard diamonds and reads legacy aliases", () => {
+  it("preserves controlled-source circles and diamonds and reads legacy aliases", () => {
     for (const source of ["vcvs", "vccs", "ccvs", "cccs"]) {
-      for (const variant of [null, "diamond"])
-        expect(rnlSymbolFor(source, variant)).toMatchObject({
-          symbol: `$${source.toUpperCase()}`,
-          package: "rnl-std-basic",
-          variant: "diamond",
-          importOnly: false,
-        });
+      expect(rnlSymbolFor(source, "diamond")).toMatchObject({
+        symbol: `$${source.toUpperCase()}`,
+        package: "rnl-std-basic",
+        variant: "diamond",
+        importOnly: false,
+      });
+      expect(rnlSymbolFor(source)).toMatchObject({
+        symbol: `$CANVAS_${source.toUpperCase()}_CIRCLE`,
+        package: "analog-canvas-extensions",
+        variant: null,
+        importOnly: false,
+      });
       expect(
         RNL_SYMBOLS.find(
           (entry) => entry.symbol === `$CANVAS_${source.toUpperCase()}_DIAMOND`,

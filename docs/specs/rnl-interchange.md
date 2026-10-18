@@ -49,9 +49,10 @@ the RNL language and its runtime belong to rnl.
   standard 4-input gates put their inputs on whole grid points, Analog
   Canvas's 0.8 apart, so its own (`$CANVAS_AND_4INPUT` and the rest) keep
   each wire as drawn.
-- Both circle and diamond appearances of VCVS, VCCS, CCVS and CCCS export
-  as the standard `$VCVS`, `$VCCS`, `$CCVS` and `$CCCS` diamonds. Their pins
-  and control connections stay the same; they need no extension package.
+- Diamond appearances of VCVS, VCCS, CCVS and CCCS export as the standard
+  `$VCVS`, `$VCCS`, `$CCVS` and `$CCCS` symbols. Default circle appearances
+  export as `$CANVAS_*_CIRCLE` from `analog-canvas-extensions`. Both preserve
+  their appearance, pin positions and control connections through import.
 - RNL's op-amp kinds (op-amps, comparators, differential transconductors) put
   - on top, at the inputs and at a differential op-amp's outputs. An Analog
     Canvas variant with − on top is that symbol flipped top to bottom: it is
@@ -122,9 +123,10 @@ the RNL language and its runtime belong to rnl.
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
     default op-amp, unturned the inputs-swapped one; RNL's standard 4-input
     gates read back as Analog Canvas's own, their wires ending at its pins;
-  - controlled sources as diamonds, from both the standard two-terminal
-    symbols and the legacy `$CANVAS_*_DIAMOND` aliases; exporting a circle
-    and importing it back intentionally changes its appearance to a diamond;
+  - controlled sources as diamonds from the standard two-terminal symbols
+    and the legacy `$CANVAS_*_DIAMOND` aliases, and as circles from
+    `$CANVAS_*_CIRCLE`; legacy diamond aliases are read-only and export again
+    as the standard symbols;
   - a Cell's block as the symbol the file defines for it: each pin's side and
     place, and the body;
   - Cell Pins, the importer's own, moved where RNL draws `$IO_PORT` (or a
@@ -237,7 +239,7 @@ the RNL language and its runtime belong to rnl.
   labels, block layout, marks and shapes, and the same netlist; 4-input gates
   are drawn with Analog Canvas's own symbols, every wire as drawn, and RNL's
   standard ones read back as Analog Canvas's; controlled sources drawn as
-  circles or diamonds export standard symbols and come back as diamonds,
+  circles or diamonds keep their appearance through their canonical symbols,
   and legacy diamond aliases remain readable (in Spectre the voltage-controlled
   ones, as the Spectre import reads no native `ccvs` or `cccs`); a Spectre netlist with
   a SPICE section keeps every record out of it

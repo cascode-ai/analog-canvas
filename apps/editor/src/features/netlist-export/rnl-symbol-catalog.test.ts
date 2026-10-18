@@ -82,7 +82,7 @@ describe("the mapping table against the rnl runtime's catalog", () => {
     expect(compared).toBeGreaterThan(200);
   });
 
-  it("keeps standard controlled-source diamonds compatible with the legacy symbols", async () => {
+  it("keeps controlled-source circles and legacy diamonds pin-compatible with the standard symbols", async () => {
     const catalog = await core.catalog({ catalog: {} });
     for (const kind of ["VCVS", "VCCS", "CCVS", "CCCS"]) {
       const standard = catalog.symbols.find(
@@ -94,6 +94,13 @@ describe("the mapping table against the rnl runtime's catalog", () => {
           symbol.package === "analog-canvas-extensions" &&
           symbol.symbol === `$CANVAS_${kind}_DIAMOND`,
       );
+      const circle = catalog.symbols.find(
+        (symbol) =>
+          symbol.package === "analog-canvas-extensions" &&
+          symbol.symbol === `$CANVAS_${kind}_CIRCLE`,
+      );
+      expect(circle, kind).toBeDefined();
+      expect(circle!.pins, kind).toEqual(standard?.pins);
       expect(standard, kind).toBeDefined();
       expect(legacy, kind).toBeDefined();
       expect(standard!.pins, kind).toEqual(legacy!.pins);

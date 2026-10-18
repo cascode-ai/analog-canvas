@@ -1359,7 +1359,10 @@ function controlledSources(
   kinds: readonly string[] = CONTROLLED_SOURCE_KINDS,
   shape: "circle" | "diamond" = "diamond",
 ): CircuitProject {
-  const project = createEmptyProject("diamonds", "Diamonds");
+  const project = createEmptyProject(
+    "controlled-sources",
+    "Controlled Sources",
+  );
   const document = project.documents[0]!;
   const at = (x: number, y: number) =>
     ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
@@ -1459,7 +1462,7 @@ describe.each(["circle", "diamond"] as const)(
       ["spice", CONTROLLED_SOURCE_KINDS],
       ["spectre", ["vcvs", "vccs"]],
     ] as const)(
-      "exports standard symbols and imports each as a diamond (%s)",
+      "preserves each source appearance through its canonical symbol (%s)",
       async (format, kinds) => {
         const project = withImportedInstanceDisplays(
           controlledSources(kinds, shape),
@@ -1470,12 +1473,19 @@ describe.each(["circle", "diamond"] as const)(
           write: exported.request,
           svg: false,
         });
-        for (const kind of kinds)
-          expect(written.text).toContain(`@SET-SYMBOL $${kind.toUpperCase()}`);
-        expect(written.text).not.toContain("$CANVAS_");
-        expect(exported.diagnostics.map((item) => item.code)).not.toContain(
-          "RNL_NOT_STANDARD_SYMBOL",
-        );
+        for (const kind of kinds) {
+          const symbol =
+            shape === "diamond"
+              ? `$${kind.toUpperCase()}`
+              : `$CANVAS_${kind.toUpperCase()}_CIRCLE`;
+          expect(written.text).toContain(`@SET-SYMBOL ${symbol}`);
+        }
+        expect(written.text.includes("$CANVAS_")).toBe(shape === "circle");
+        expect(
+          exported.diagnostics.some(
+            (item) => item.code === "RNL_NOT_STANDARD_SYMBOL",
+          ),
+        ).toBe(shape === "circle");
         const plan = await importRnl(written.text, format);
         expect(failures(plan)).toEqual([]);
         expect(
@@ -1498,9 +1508,7 @@ describe.each(["circle", "diamond"] as const)(
           );
           expect(part?.symbolId, original.reference).toBe(original.symbolId);
           expect(part?.symbolVariantId, original.reference).toBe(
-            kinds.some((kind) => kind === original.symbolId)
-              ? "diamond"
-              : original.symbolVariantId,
+            original.symbolVariantId,
           );
           expect(part && rnlPart(part)).toEqual(rnlPart(original));
         }
@@ -1554,7 +1562,23 @@ describe("legacy controlled-source diamond symbols", () => {
         .flatMap((document) => document.instances)
         .filter((part) => kinds.some((kind) => kind === part.symbolId));
       expect(sources).toHaveLength(kinds.length);
-      for (const part of sources) expect(part.symbolVariantId).toBe("diamond");
+      for (const part of sources) {
+        expect(part.symbolVariantId).toBe("diamond");
+        const original = project.documents[0]!.instances.find(
+          (instance) => instance.reference === part.reference,
+        );
+        if (!original) throw new Error("original source missing");
+        expect(rnlPart(part)).toEqual(rnlPart(original));
+      }
+      const reexported = createRnlExport(plan.project, { format });
+      if (reexported.status !== "ready") throw new Error("re-export blocked");
+      const rewritten = await runtime.write({
+        write: reexported.request,
+        svg: false,
+      });
+      expect(rewritten.text).not.toContain("$CANVAS_");
+      for (const kind of kinds)
+        expect(rewritten.text).toContain(`@SET-SYMBOL $${kind.toUpperCase()}`);
       expect(
         labelDifferences(
           labelCensus(project, format),

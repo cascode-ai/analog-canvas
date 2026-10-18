@@ -7185,6 +7185,190 @@
     "note": "同 $CCVS"
   },
   {
+    "symbol": "$CANVAS_VCVS_CIRCLE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "vcvs",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "cp",
+        "drawn": false
+      },
+      {
+        "n": 4,
+        "name": "cn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2.4, -2.4, 1.5, 2.4],
+    "ac_netlist_order": null,
+    "note": "AC 的圆圈画法；菱形用标准符号"
+  },
+  {
+    "symbol": "$CANVAS_VCCS_CIRCLE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "vccs",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "cp",
+        "drawn": false
+      },
+      {
+        "n": 4,
+        "name": "cn",
+        "drawn": false
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.5, -2.4, 1.5, 2.4],
+    "ac_netlist_order": null,
+    "note": "AC 的圆圈画法；菱形用标准符号"
+  },
+  {
+    "symbol": "$CANVAS_CCVS_CIRCLE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "ccvs",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2.4, -2.4, 1.5, 2.4],
+    "ac_netlist_order": null,
+    "note": "AC 的圆圈画法；菱形用标准符号"
+  },
+  {
+    "symbol": "$CANVAS_CCCS_CIRCLE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "cccs",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.5, -2.4, 1.5, 2.4],
+    "ac_netlist_order": null,
+    "note": "AC 的圆圈画法；菱形用标准符号"
+  },
+  {
     "symbol": "$CANVAS_PULSE_VOLTAGE_SOURCE",
     "definition": null,
     "package": "analog-canvas-extensions",

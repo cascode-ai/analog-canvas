@@ -138,9 +138,8 @@ export function terminalOfPin(
 
 /**
  * The RNL symbol drawing an Analog Canvas symbol in a variant. A variant with
- * no symbol of its own uses the plain row, or the first exportable row
- * when its canonical drawing is a variant (controlled-source diamonds).
- * A row that only reads files back draws nothing.
+ * no symbol of its own uses the plain row. A row that only reads files back
+ * draws nothing.
  */
 export function rnlSymbolFor(
   symbolId: string,
@@ -151,8 +150,7 @@ export function rnlSymbolFor(
   );
   return (
     drawn.find((entry) => entry.variant === (variantId ?? null)) ??
-    drawn.find((entry) => entry.variant === null) ??
-    drawn[0]
+    drawn.find((entry) => entry.variant === null)
   );
 }
 
