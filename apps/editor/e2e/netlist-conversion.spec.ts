@@ -26,7 +26,7 @@ test("imports SCS and local includes, copies SPICE, and retains the circuit afte
   expect(text).toMatch(/\.subckt top z a/iu);
   expect(text).toMatch(/X1 z a leaf scale=2/iu);
   expect(text).toMatch(/\.subckt leaf out in params: scale=1/iu);
-  expect(text).toMatch(/R1 out in 1000/iu);
+  expect(text).toMatch(/R1 out in 1k/iu);
   await page.getByTestId("spice-files").setInputFiles({
     name: "broken.scs",
     mimeType: "text/plain",

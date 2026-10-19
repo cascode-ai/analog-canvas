@@ -3,6 +3,7 @@ import {
   inspectSimulationSource,
   type SubcircuitStartStatement,
 } from "@icm/spice";
+import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import type {
   PrintedProjectModelSource,
@@ -16,7 +17,6 @@ import {
 } from "./vacask-printer.js";
 import { inspectVacaskSource } from "./vacask-source.js";
 import { inspectModelSourceFile } from "./model-source-syntax.js";
-import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 
 /** A bounded, execution-only projection. Native ownership is never replaced by

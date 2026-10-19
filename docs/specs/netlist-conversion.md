@@ -35,7 +35,12 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
   behavioral expressions are outside the subset.
 - Ordered subcircuit interfaces, globals, scalar parameters, common
   arithmetic; Spectre port parentheses are dropped for SPICE. Suffixes are
-  explicit (Spectre `M` = mega, SPICE `M` = milli).
+  explicit (Spectre `M` = mega, SPICE `M` = milli). Reading Spectre, a number
+  keeps its digits and its suffix (`96u`, `1p`, `1.50k` stay as written, so
+  a value label reads as drawn), spelled as SPICE reads it: Spectre `M`
+  (mega) becomes `Meg`, `K` becomes `k`, `m` (milli) stays `m`. Spectre's atto
+  (`a`) has no SPICE suffix, so that number is written out as a plain
+  exponent (`1a` as `1e-18`). SPICE→Spectre writes plain decimals.
   Meaning-changing node case aliases are rejected; SPICE→Spectre also rejects
   case-mismatched calls, closing names, parameter references and known formal
   overrides (local/global scope; overrides in the caller's scope). Owned model

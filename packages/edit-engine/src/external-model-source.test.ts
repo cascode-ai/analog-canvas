@@ -684,7 +684,7 @@ describe("Project-owned external model source", () => {
     expect(out.locations?.modelSources?.[0]?.sourceId).toBe("owner");
     const edit = planMappedProjectModelEdit(
       out.file.text,
-      out.file.text.replace("R1 a 0 1000", "R1 a 0 2000"),
+      out.file.text.replace("R1 a 0 1k", "R1 a 0 2k"),
       out.locations!.modelSources!,
       project.modelSources!,
     );
@@ -899,7 +899,7 @@ describe("Project-owned external model source", () => {
     expect(spice.status, JSON.stringify(spice)).toBe("ready");
     expect(spectre.status, JSON.stringify(spectre)).toBe("ready");
     if (spice.status === "ready")
-      expect(spice.file.text).toContain(".subckt rc A B params: RVAL=1000");
+      expect(spice.file.text).toContain(".subckt rc A B params: RVAL=1k");
     if (spectre.status === "ready") expect(spectre.file.text).toContain(text);
     expect(next.modelSources![0]!.files[0]!.text).toBe(text);
   });

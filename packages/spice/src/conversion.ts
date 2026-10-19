@@ -234,6 +234,27 @@ function statements(text: string, source: NetlistDialect): Statement[] {
     );
   return result;
 }
+/**
+ * How SPICE spells a Spectre scale suffix, so a number keeps the digits and
+ * the suffix it was written with (96u stays 96u, not 0.000096). The two
+ * dialects spell some scales differently: Spectre's M is mega and its m
+ * milli, where SPICE reads both m and M as milli and writes mega as Meg. A
+ * suffix SPICE has no spelling for (atto, `a`) is not listed: that number
+ * is written out as a plain decimal (1a as 1e-18) instead.
+ */
+const SPICE_SUFFIX: Record<string, string> = {
+  "": "",
+  T: "T",
+  G: "G",
+  M: "Meg",
+  K: "k",
+  k: "k",
+  m: "m",
+  u: "u",
+  n: "n",
+  p: "p",
+  f: "f",
+};
 function value(
   raw: string,
   source: Statement["dialect"],
@@ -280,6 +301,8 @@ function value(
       refuse(s, `Unsupported numeric suffix in ${raw}.`, "UNSUPPORTED_VALUE");
     const n = Number(base) * factor;
     if (!Number.isFinite(n)) refuse(s, `Non-finite numeric value ${raw}.`);
+    const spelled = source === "spectre" ? SPICE_SUFFIX[suffix] : undefined;
+    if (spelled !== undefined) return `${base}${spelled}`;
     return Number(n.toPrecision(15)).toString();
   };
   if (number) return numeric(number[1]!, number[2]!);

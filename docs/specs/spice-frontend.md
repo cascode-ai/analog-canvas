@@ -68,7 +68,14 @@ revision; it never silently changes `ngspice-46-core`.
 ## Expressions and elaboration
 
 - Official T/G/Meg/K/mil/m/u/n/p/f/a scale factors; raw expressions stay
-  authoritative. A bounded evaluator handles conditions; an unevaluable
+  authoritative.
+- An independent V or I source's card tail is split into the fields a Canvas
+  source keeps: `dc`, `acMagnitude`/`acPhase`, and `waveform` (`pulse`, `sin`,
+  `pwl`) with its arguments, so its value label shows the DC value, not the
+  card. A plain DC value stays `dc` alone, with no waveform. A tail that fits
+  no field (EXP, a PULSE with defaulted arguments, a parameter reference)
+  stays whole as written. The SCS import reaches the same fields through its
+  SPICE conversion; the export prints them as the same card. A bounded evaluator handles conditions; an unevaluable
   condition excludes all its branches with a warning.
 - Identifiers match case-insensitively, keeping display spelling and order.
   Ports and terminals are contiguous and zero-based.
