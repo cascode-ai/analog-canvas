@@ -36,6 +36,7 @@ const canvas: CanvasPreferenceCodeValue = {
 
 function editableValue(): DocumentSettingsCodeValue {
   return {
+    font: "metropolis",
     appearance: {
       fontScale: 1,
       wireStrokeScale: 1,
@@ -304,6 +305,7 @@ describe("document Style code", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({ id: "net-ground", terminals: [] });
     const value = editableValue();
+    value.font = "serif";
     value.appearance.fontScale = 1.5;
     value.bulkDefaults.nmos = "net-ground";
     value.canvas = {
@@ -318,7 +320,18 @@ describe("document Style code", () => {
     ).toEqual({ ok: true, value });
   });
 
+  it("keeps the canvas font when pasted code leaves it out", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.presentation.textFace = "serif";
+    const { font: _font, ...withoutFont } = editableValue();
+
+    expect(
+      parseDocumentSettingsCode(JSON.stringify(withoutFont), document),
+    ).toEqual({ ok: true, value: { ...editableValue(), font: "serif" } });
+  });
+
   it.each([
+    ["font", "times", 'must be "metropolis" or "serif"'],
     ["appearance.fontScale", 0.49, "from 0.5 to 2"],
     ["appearance.wireStrokeScale", 2.01, "from 0.5 to 2"],
     ["canvas.annotationGrid", 2, "must be 1, 5, or 10"],
@@ -365,6 +378,7 @@ describe("document Style code", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({ id: "net-ground", terminals: [] });
     document.presentation.styleOverrides = { fontScale: 1.5 };
+    document.presentation.textFace = "serif";
     document.mosBulkDefaults = { nmosNetId: "net-ground" };
     const changedCanvas: CanvasPreferenceCodeValue = {
       showGrid: false,
@@ -388,7 +402,19 @@ describe("document Style code", () => {
     const source = serializeDocumentSettingsCode(editableValue());
     const spans = documentSettingsCodeSpans(source, document);
 
-    expect(spans).toHaveLength(16);
+    expect(spans).toHaveLength(17);
+    expect(
+      spans.find((span) => span.field.path === "font")?.field.options,
+    ).toEqual([
+      expect.objectContaining({
+        value: "metropolis",
+        preview: { kind: "font", face: "metropolis" },
+      }),
+      expect.objectContaining({
+        value: "serif",
+        preview: { kind: "font", face: "serif" },
+      }),
+    ]);
     expect(
       spans.find((span) => span.field.path === "appearance.fontScale")?.field
         .options,

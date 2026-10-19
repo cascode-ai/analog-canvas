@@ -10,8 +10,16 @@ from pathlib import Path
 
 from fontTools.ttLib import TTFont
 
-primary_dir, fallback_dir, ranges_json = sys.argv[1:]
+primary_dir, fallback_dir, ranges_json, *rest = sys.argv[1:]
 ranges = json.loads(ranges_json)
+# The primary face's file for each style; Metropolis unless named (the
+# serif choice of #1725 passes Liberation Serif's).
+primary_files = json.loads(rest[0]) if rest else {
+    "plain": "Metropolis-Regular.ttf",
+    "bold": "Metropolis-Bold.ttf",
+    "italic": "Metropolis-RegularItalic.ttf",
+    "boldItalic": "Metropolis-BoldItalic.ttf",
+}
 
 
 def served(codepoint):
@@ -23,15 +31,15 @@ def served(codepoint):
 
 
 faces = [
-    ("plain", "Regular", ""),
-    ("bold", "Bold", "-Bold"),
-    ("italic", "RegularItalic", "-Oblique"),
-    ("boldItalic", "BoldItalic", "-BoldOblique"),
+    ("plain", ""),
+    ("bold", "-Bold"),
+    ("italic", "-Oblique"),
+    ("boldItalic", "-BoldOblique"),
 ]
 fonts = {}
-for style, primary, fallback in faces:
+for style, fallback in faces:
     fonts[style] = (
-        TTFont(Path(primary_dir) / f"Metropolis-{primary}.ttf"),
+        TTFont(Path(primary_dir) / primary_files[style]),
         TTFont(Path(fallback_dir) / f"DejaVuSans{fallback}.ttf"),
     )
 
@@ -41,7 +49,7 @@ primary_coverage = sorted(
 for style, (primary, _) in fonts.items():
     assert primary_coverage == sorted(
         point for point in primary.getBestCmap() if served(point)
-    ), f"Metropolis {style} has different coverage"
+    ), f"{primary_files[style]} has different coverage"
 
 # Keep the previously measured Greek and math symbols; Latin now covers the
 # entire served primary face, including accents and the micro sign.

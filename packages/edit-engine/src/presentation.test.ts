@@ -106,6 +106,61 @@ describe("presentation and layout edits", () => {
     });
   });
 
+  it("sets one font for the whole Document and returns to Metropolis, undoably (#1725)", () => {
+    const history = new DocumentHistory(
+      createEmptyDocument("doc", "Presentation"),
+    );
+    const set = history.transact(
+      transaction("doc", [
+        {
+          kind: "set_presentation_style",
+          styleProfileId: "razavi-textbook-v1",
+          textFace: "serif",
+        },
+      ]),
+    );
+    expect(set).toMatchObject({ ok: true, applied: true });
+    expect(history.document.presentation.textFace).toBe("serif");
+
+    const cleared = history.transact(
+      transaction(
+        "doc",
+        [
+          {
+            kind: "set_presentation_style",
+            styleProfileId: "razavi-textbook-v1",
+            textFace: null,
+          },
+        ],
+        history.document.revision,
+      ),
+    );
+    expect(cleared).toMatchObject({ ok: true, applied: true });
+    expect(Object.hasOwn(history.document.presentation, "textFace")).toBe(
+      false,
+    );
+
+    history.transact(
+      transaction("doc", [{ kind: "undo" }], history.document.revision),
+    );
+    expect(history.document.presentation.textFace).toBe("serif");
+    expect(
+      history.transact(
+        transaction(
+          "doc",
+          [
+            {
+              kind: "set_presentation_style",
+              styleProfileId: "razavi-textbook-v1",
+              textFace: "times",
+            },
+          ],
+          history.document.revision,
+        ),
+      ).ok,
+    ).toBe(false);
+  });
+
   it("rejects out-of-range style override factors", () => {
     const document = createEmptyDocument("doc", "Presentation");
     const history = new DocumentHistory(document);

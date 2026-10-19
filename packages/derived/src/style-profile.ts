@@ -1,5 +1,6 @@
 import type { SymbolStrokeRole } from "@icm/symbols";
 
+import type { SchematicTextFace } from "./fraction-text-metrics.js";
 import { razaviPeripheralGeometry } from "./razavi-peripheral-geometry.generated.js";
 import { withSchematicRoundPeriodFont } from "./schematic-font.js";
 
@@ -51,7 +52,17 @@ export interface SchematicTypography {
   readonly subscriptHorizontalGapEm: number;
   readonly labelGap: number;
   readonly lineHeight: number;
+  /** The face text is set and measured in; Metropolis when absent. */
+  readonly face?: SchematicTextFace;
 }
+
+/**
+ * The serif choice's stack (#1725): ICM Serif, the served subset of
+ * Liberation Serif; Liberation Serif or Times New Roman where a viewer has
+ * them and not ICM Serif; DejaVu Sans for symbols none of them draw.
+ */
+export const SERIF_FONT_FAMILY =
+  "'ICM Serif','Liberation Serif','Times New Roman',Times,'DejaVu Sans',serif";
 
 /** The one typography system shared by all presentation profiles. */
 export const globalSchematicTypography: SchematicTypography = {
@@ -135,9 +146,28 @@ export interface StyleOverridablePresentation {
         readonly junctionRadiusScale?: number | undefined;
       }
     | undefined;
+  /** The whole canvas's face: the serif, or Metropolis when absent (#1725). */
+  readonly textFace?: "serif" | undefined;
 }
 
 const overriddenProfiles = new WeakMap<object, SchematicStyleProfile>();
+const serifProfiles = new WeakMap<object, SchematicStyleProfile>();
+
+/** `profile` set in the serif face, one object per profile. */
+function withSerifFace(profile: SchematicStyleProfile): SchematicStyleProfile {
+  const cached = serifProfiles.get(profile);
+  if (cached) return cached;
+  const serif: SchematicStyleProfile = {
+    ...profile,
+    typography: {
+      ...profile.typography,
+      face: "serif",
+      fontFamily: SERIF_FONT_FAMILY,
+    },
+  };
+  serifProfiles.set(profile, serif);
+  return serif;
+}
 
 /**
  * The document-facing profile resolution: the approved base profile with the
@@ -149,6 +179,14 @@ const overriddenProfiles = new WeakMap<object, SchematicStyleProfile>();
  * object so repeated resolutions stay referentially stable.
  */
 export function resolveDocumentStyleProfile(
+  presentation: StyleOverridablePresentation,
+): SchematicStyleProfile {
+  const scaled = scaledDocumentStyleProfile(presentation);
+  // One face for the whole canvas: the serif when the Document chose it.
+  return presentation.textFace === "serif" ? withSerifFace(scaled) : scaled;
+}
+
+function scaledDocumentStyleProfile(
   presentation: StyleOverridablePresentation,
 ): SchematicStyleProfile {
   const base = resolveSchematicStyleProfile(presentation.styleProfileId);
@@ -211,6 +249,10 @@ export function objectStyleProfile(
     ? resolveDocumentStyleProfile({
         styleProfileId: documentProfile.id,
         styleOverrides: kept,
+        // A kept style scales; the face stays the canvas's.
+        ...(documentProfile.typography.face === "serif"
+          ? { textFace: "serif" as const }
+          : {}),
       })
     : documentProfile;
 }

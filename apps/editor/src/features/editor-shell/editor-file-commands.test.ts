@@ -183,6 +183,27 @@ describe("netlist delivery", () => {
     expect(refused.deliverFile).not.toHaveBeenCalled();
   });
   it.each(["spice", "spectre"] as const)(
+    "saves exactly the %s text that Copy puts on the clipboard, named by the format",
+    async (format) => {
+      const project = hierarchyParameterFixture();
+      const copying = commands({
+        project,
+        netlistRootDocumentId: "resistors",
+      });
+      await copying.exportDesignNetlist(format, "native");
+      const saving = commands({
+        project,
+        netlistRootDocumentId: "resistors",
+      });
+      await saving.exportDesignNetlist(format, "native", "file");
+      const saved = saving.deliverFile.mock.calls[0]![0];
+      expect(saved.bytes).toBe(String(copying.copyText.mock.calls[0]![0]));
+      expect(saved.suggestedName).toMatch(
+        format === "spice" ? /\.spi$/u : /\.scs$/u,
+      );
+    },
+  );
+  it.each(["spice", "spectre"] as const)(
     "copies the current %s plan with the chosen root and warnings through the host",
     async (format) => {
       const project = hierarchyParameterFixture();

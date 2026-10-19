@@ -125,7 +125,7 @@ export async function clickCommand(
   const details = await openMenu(page, menu);
   if (
     menu === "File" &&
-    /^Export (?:Project File…|SVG|PNG|PDF)$/u.test(button)
+    /^Export (?:Project File…|SVG|PNG|PDF|Netlist)$/u.test(button)
   ) {
     const group = details.getByRole("button", {
       name: "Export",

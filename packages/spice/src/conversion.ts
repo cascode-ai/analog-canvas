@@ -118,6 +118,39 @@ function fields(text: string, s: Statement): string[] {
   if (buffer) result.push(buffer);
   return result;
 }
+/**
+ * A Spectre name with its escapes read: `\+` is the character `+`, as in
+ * `Vin\+` or `D\<3\>`. Spectre escapes a character a name could not hold
+ * with a backslash, and SPICE has no such escape, so the SPICE the statement
+ * becomes names the net `Vin+`. Quoted text (an include path, a string) is
+ * left as written, and so is a backslash before a space or the end of the
+ * line, which escapes no name, and one before a character that shapes the
+ * statement (a parenthesis, a brace, a quote, another backslash).
+ */
+const KEPT = /[\s(){}"'\\]/u;
+function unescapeSpectreNames(text: string): string {
+  const chars = [...text];
+  let out = "",
+    quote = "";
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i] ?? "";
+    const next = chars[i + 1];
+    if (quote) {
+      out += c;
+      if (c === "\\" && next !== undefined) {
+        out += next;
+        i++;
+      } else if (c === quote) quote = "";
+    } else if (c === '"' || c === "'") {
+      quote = c;
+      out += c;
+    } else if (c === "\\" && next !== undefined && !KEPT.test(next)) {
+      out += next;
+      i++;
+    } else out += c;
+  }
+  return out;
+}
 function uncomment(text: string, dialect: Statement["dialect"]): string {
   let quote = "",
     depth = 0;
@@ -183,7 +216,8 @@ function statements(text: string, source: NetlistDialect): Statement[] {
       continue;
     }
     const continued = dialect === "spectre" && code.endsWith("\\");
-    const next = continued ? code.slice(0, -1).trimEnd() : code;
+    const joined = continued ? code.slice(0, -1).trimEnd() : code;
+    const next = dialect === "spectre" ? unescapeSpectreNames(joined) : joined;
     if (pending) pending.text += " " + next;
     else pending = { line, text: next, dialect };
     if (!continued) {

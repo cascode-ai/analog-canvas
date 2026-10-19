@@ -1,5 +1,6 @@
 import { Suspense, useMemo, type ComponentProps, type RefObject } from "react";
 
+import { CanvasFontSection } from "../features/editor-shell/canvas-font-section";
 import { KeptDocumentStyleSection } from "../features/editor-shell/kept-document-style-section";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { PlacementTrayPanel } from "../features/component-insert/placement-tray-panel";
@@ -55,6 +56,8 @@ export interface EditorPropertiesDockProps {
   annotationText: ComponentProps<typeof AnnotationColorProperties> | null;
   netName: ComponentProps<typeof NetNameProperties> | null;
   drafting: ComponentProps<typeof DraftingPropertiesPanel> | null;
+  /** Shown while a text or a part is selected. */
+  canvasFont: ComponentProps<typeof CanvasFontSection> | null;
   placementTray: ComponentProps<typeof PlacementTrayPanel>;
   routeActions: ComponentProps<typeof RouteActionsSection>;
   endpointActions: ComponentProps<typeof EndpointActionsSection>;
@@ -82,6 +85,7 @@ export function EditorPropertiesDock({
   annotationText,
   netName,
   drafting,
+  canvasFont,
   placementTray,
   routeActions,
   endpointActions,
@@ -202,6 +206,7 @@ export function EditorPropertiesDock({
                 />
               </Suspense>
             ) : null}
+            {canvasFont ? <CanvasFontSection {...canvasFont} /> : null}
             <PlacementTrayPanel {...placementTray} />
             {!groupProperties.active ? (
               <>

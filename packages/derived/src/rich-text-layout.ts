@@ -9,6 +9,7 @@ import type { SchematicStyleProfile } from "./style-profile.js";
 import {
   schematicTextAdvanceEm,
   schematicTextInkEm,
+  type SchematicTextFace,
 } from "./fraction-text-metrics.js";
 import {
   layoutLabelFormula,
@@ -29,6 +30,7 @@ export function labelFormulaLayout(
     subscriptScale: metrics.subscriptScale,
     subscriptBaselineShiftEm: metrics.subscriptBaselineShiftEm,
     subscriptHorizontalGapEm: metrics.subscriptHorizontalGapEm,
+    ...(metrics.face ? { face: metrics.face } : {}),
   });
 }
 
@@ -73,6 +75,8 @@ export interface RichTextMetrics {
   fractionText?: boolean;
   bold?: boolean;
   italic?: boolean;
+  /** The face text is measured in; Metropolis when absent (#1725). */
+  face?: SchematicTextFace;
 }
 
 export interface RichTextLayout {
@@ -284,6 +288,7 @@ export function richTextMetrics(
     subscriptScale: profile.typography.subscriptScale,
     subscriptBaselineShiftEm: profile.typography.subscriptBaselineShiftEm,
     subscriptHorizontalGapEm: profile.typography.subscriptHorizontalGapEm,
+    ...(profile.typography.face ? { face: profile.typography.face } : {}),
   };
 }
 
@@ -769,12 +774,12 @@ function measureRun(run: RichTextRun, metrics: RunMetrics): Line[] {
         : label.lower
           ? run.value.toLowerCase()
           : run.value;
-      const ink = schematicTextInkEm(value, weight, label.italic);
+      const ink = schematicTextInkEm(value, weight, label.italic, metrics.face);
       return [
         {
           width:
             metrics.fontSize *
-            schematicTextAdvanceEm(value, weight, label.italic),
+            schematicTextAdvanceEm(value, weight, label.italic, metrics.face),
           height: metrics.fontSize * metrics.lineHeight,
           ...(ink
             ? {
@@ -796,6 +801,7 @@ function measureRun(run: RichTextRun, metrics: RunMetrics): Line[] {
                 run.value,
                 metrics.bold === false ? "plain" : "bold",
                 metrics.italic,
+                metrics.face,
               )
             : [...run.value].length * 0.6),
         height: metrics.fontSize * metrics.lineHeight,

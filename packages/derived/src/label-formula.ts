@@ -1,3 +1,4 @@
+import type { SchematicTextFace } from "./fraction-text-metrics.js";
 import { layout } from "./label-formula-layout.js";
 import { Unsupported } from "./label-formula-nodes.js";
 import { parse } from "./label-formula-parser.js";
@@ -86,6 +87,8 @@ export interface LabelFormulaLayout {
 export interface LabelFormulaOptions {
   fontSize: number;
   bold: boolean;
+  /** The face glyphs are measured in; Metropolis when absent (#1725). */
+  face?: SchematicTextFace;
   /** A whole-text slant override, applied before glyph measurement. */
   italic?: boolean;
   display: "inline" | "block";

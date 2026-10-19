@@ -8,6 +8,8 @@ export interface BoxPreview {
   end: Point;
   pointerId: number;
   intent: "select" | "zoom";
+  /** Shift or Ctrl/Cmd was held: the box adds to the selection. */
+  additive?: boolean;
 }
 
 export interface PanPreview {

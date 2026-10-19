@@ -1,12 +1,20 @@
+import { schematicSerifTextMetrics } from "./schematic-serif-text-metrics.generated.js";
 import { schematicTextMetrics } from "./schematic-text-metrics.generated.js";
 
-/** Glyphs measured from the same Metropolis / DejaVu faces the editor serves. */
-export const SCHEMATIC_MEASURED_GLYPHS = schematicTextMetrics.glyphs;
+/**
+ * The face a Document's text is set in: Metropolis, or the Times-style serif
+ * (Liberation Serif, served as ICM Serif) a Document may choose (#1725).
+ */
+export type SchematicTextFace = "metropolis" | "serif";
 
-function faceMetrics(style: "plain" | "bold" | "italic" | "boldItalic") {
-  const face = schematicTextMetrics[style];
+type MetricTable = typeof schematicTextMetrics;
+function faceMetrics(
+  table: MetricTable,
+  style: "plain" | "bold" | "italic" | "boldItalic",
+) {
+  const face = table[style];
   return new Map(
-    [...SCHEMATIC_MEASURED_GLYPHS].map((glyph, index) => [
+    [...table.glyphs].map((glyph, index) => [
       glyph,
       {
         advance: face.advances[index]!,
@@ -16,14 +24,24 @@ function faceMetrics(style: "plain" | "bold" | "italic" | "boldItalic") {
     ]),
   );
 }
+const tableFaces = (table: MetricTable) => ({
+  plain: faceMetrics(table, "plain"),
+  bold: faceMetrics(table, "bold"),
+  italic: faceMetrics(table, "italic"),
+  boldItalic: faceMetrics(table, "boldItalic"),
+});
 const faces = {
-  plain: faceMetrics("plain"),
-  bold: faceMetrics("bold"),
-  italic: faceMetrics("italic"),
-  boldItalic: faceMetrics("boldItalic"),
+  metropolis: tableFaces(schematicTextMetrics),
+  serif: tableFaces(schematicSerifTextMetrics),
 };
-function metricsFor(weight: "plain" | "bold", italic: boolean) {
-  return faces[italic ? (weight === "bold" ? "boldItalic" : "italic") : weight];
+function metricsFor(
+  weight: "plain" | "bold",
+  italic: boolean,
+  face: SchematicTextFace,
+) {
+  return faces[face][
+    italic ? (weight === "bold" ? "boldItalic" : "italic") : weight
+  ];
 }
 /** The round period's dot stands 0.105 em into its 0.36 em advance. */
 const roundPeriod = { advance: 0.36, left: 0.105, right: 0.105 };
@@ -31,8 +49,10 @@ const roundPeriod = { advance: 0.36, left: 0.105, right: 0.105 };
 function glyphAdvanceEm(
   glyph: string,
   widths: ReadonlyMap<string, { advance: number }>,
+  face: SchematicTextFace,
 ): number {
-  return glyph === "."
+  // The round period stands in for Metropolis's square one only.
+  return glyph === "." && face === "metropolis"
     ? roundPeriod.advance
     : (widths.get(glyph)?.advance ??
         (/\p{Mark}/u.test(glyph)
@@ -48,10 +68,11 @@ export function schematicTextAdvanceEm(
   value: string,
   weight: "plain" | "bold",
   italic = false,
+  face: SchematicTextFace = "metropolis",
 ): number {
-  const widths = metricsFor(weight, italic);
+  const widths = metricsFor(weight, italic, face);
   return [...value].reduce(
-    (width, glyph) => width + glyphAdvanceEm(glyph, widths),
+    (width, glyph) => width + glyphAdvanceEm(glyph, widths, face),
     0,
   );
 }
@@ -67,16 +88,17 @@ export function schematicTextInkEm(
   value: string,
   weight: "plain" | "bold",
   italic = false,
+  face: SchematicTextFace = "metropolis",
 ): { left: number; right: number } | null {
-  const widths = metricsFor(weight, italic);
+  const widths = metricsFor(weight, italic, face);
   let x = 0;
   let left = Infinity;
   let right = -Infinity;
   for (const glyph of value) {
-    const advance = glyphAdvanceEm(glyph, widths);
+    const advance = glyphAdvanceEm(glyph, widths, face);
     if (advance > 0 && !/\s/u.test(glyph)) {
       const side =
-        glyph === "."
+        glyph === "." && face === "metropolis"
           ? roundPeriod
           : (widths.get(glyph) ?? { left: 0, right: 0 });
       left = Math.min(left, x + side.left);

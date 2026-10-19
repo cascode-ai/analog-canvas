@@ -186,7 +186,7 @@ test("Shift+M arms for the next click and carries a whole selection off its wire
 // Virtuoso's pairing for the two modified drags: Ctrl/Cmd moves a part off its
 // wires, and Shift duplicates. A stationary Shift+click must keep meaning
 // "add to selection".
-test("Shift+drag drops a copy, and a still Shift+click adds to the selection", async ({
+test("Shift+drag drops a copy, and a Shift+click adds to the selection even as the hand drifts", async ({
   page,
 }) => {
   const { ids, wireBefore } = await wiredPair(page);
@@ -195,9 +195,13 @@ test("Shift+drag drops a copy, and a still Shift+click adds to the selection", a
 
   await top.click();
   const still = (await bottom.boundingBox())!;
-  await shiftDrag(page, centre(still), centre(still));
+  // A click drifts a few pixels; it still adds the part instead of copying
+  // it (2026-10-18: 4 px of drift copied the selection).
+  const press = centre(still);
+  await shiftDrag(page, press, { x: press.x + 6, y: press.y + 3 });
   await expect(top).toHaveClass(/selected/);
   await expect(bottom).toHaveClass(/selected/);
+  expect(await instanceIds(page)).toHaveLength(2);
   expect(Math.abs((await bottom.boundingBox())!.x - still.x)).toBeLessThan(2);
   await deselect(page);
 

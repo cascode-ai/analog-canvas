@@ -6,11 +6,18 @@ import metropolisUrl from "../fonts/Metropolis-Regular.schematic.woff2?url";
 import metropolisBoldUrl from "../fonts/Metropolis-Bold.schematic.woff2?url";
 import metropolisItalicUrl from "../fonts/Metropolis-RegularItalic.schematic.woff2?url";
 import metropolisBoldItalicUrl from "../fonts/Metropolis-BoldItalic.schematic.woff2?url";
+import serifUrl from "../fonts/ICMSerif-Regular.schematic.woff2?url";
+import serifBoldUrl from "../fonts/ICMSerif-Bold.schematic.woff2?url";
+import serifItalicUrl from "../fonts/ICMSerif-Italic.schematic.woff2?url";
+import serifBoldItalicUrl from "../fonts/ICMSerif-BoldItalic.schematic.woff2?url";
+import type { SchematicTextFace } from "@icm/derived";
 
 /**
- * Metropolis approximates the reference textbook's Proxima Nova lettering.
- * DejaVu supplies Greek and math glyphs missing from Metropolis. Both are
- * served and measured from the same pinned files, on every operating system.
+ * Metropolis approximates the reference textbook's Proxima Nova lettering;
+ * ICM Serif (Liberation Serif, renamed) is the Times-style face a Document can
+ * choose instead (#1725). DejaVu supplies Greek and math glyphs either lacks.
+ * All are served and measured from the same pinned files, on every operating
+ * system.
  */
 
 /** The characters the faces hold, as their generator subsets them. */
@@ -35,6 +42,12 @@ const FACES = [
     { url: metropolisItalicUrl, weight: 400, style: "italic" },
     { url: metropolisBoldItalicUrl, weight: 700, style: "italic" },
   ].map((face) => ({ ...face, family: "Metropolis" })),
+  ...[
+    { url: serifUrl, weight: 400, style: "normal" },
+    { url: serifBoldUrl, weight: 700, style: "normal" },
+    { url: serifItalicUrl, weight: 400, style: "italic" },
+    { url: serifBoldItalicUrl, weight: 700, style: "italic" },
+  ].map((face) => ({ ...face, family: "ICM Serif" })),
   ...[
     { url: sansUrl, weight: 400, style: "normal" },
     {
@@ -73,18 +86,32 @@ export const schematicWebFontFaceCss = FACES.map((face) =>
   fontFaceRule(face, `url("${face.url}") format("woff2")`),
 ).join("");
 
-let inlined: Promise<string> | undefined;
+/** The face a formal SVG's text is set in, as its root element says. */
+export function formalSvgTextFace(svg: string): SchematicTextFace {
+  return /^\s*<svg\b[^>]*\sdata-text-face="serif"/u.test(svg)
+    ? "serif"
+    : "metropolis";
+}
+
+const inlined = new Map<SchematicTextFace, Promise<string>>();
 
 /**
  * The same faces inside the CSS itself, for an SVG drawn as an image, which
  * loads nothing: a PNG of a schematic then shows the face its labels were
- * measured in. Read once per page; a failed read is tried again next time.
+ * measured in. Only `face` and DejaVu are carried. Read once per page; a
+ * failed read is tried again next time.
  */
 export function inlineSchematicWebFontFaceCss(
   fetchLike: typeof fetch = fetch,
+  textFace: SchematicTextFace = "metropolis",
 ): Promise<string> {
-  inlined ??= Promise.all(
-    FACES.map(async (face) => {
+  const primary = textFace === "serif" ? "ICM Serif" : "Metropolis";
+  const cached = inlined.get(textFace);
+  if (cached) return cached;
+  const read = Promise.all(
+    FACES.filter(
+      (face) => face.family === primary || face.family === "DejaVu Sans",
+    ).map(async (face) => {
       const response = await fetchLike(face.url);
       if (!response.ok)
         throw new Error(`Schematic font unavailable (HTTP ${response.status})`);
@@ -100,10 +127,11 @@ export function inlineSchematicWebFontFaceCss(
   )
     .then((rules) => rules.join(""))
     .catch((error: unknown) => {
-      inlined = undefined;
+      inlined.delete(textFace);
       throw error;
     });
-  return inlined;
+  inlined.set(textFace, read);
+  return read;
 }
 
 /** An SVG document with these rules as the first thing it styles. */

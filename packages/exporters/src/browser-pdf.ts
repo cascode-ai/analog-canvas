@@ -8,11 +8,17 @@ import metropolisUrl from "../fonts/metropolis/Metropolis-Regular.ttf?url";
 import metropolisBoldUrl from "../fonts/metropolis/Metropolis-Bold.ttf?url";
 import metropolisItalicUrl from "../fonts/metropolis/Metropolis-RegularItalic.ttf?url";
 import metropolisBoldItalicUrl from "../fonts/metropolis/Metropolis-BoldItalic.ttf?url";
+import serifUrl from "../fonts/liberation-serif/LiberationSerif-Regular.ttf?url";
+import serifBoldUrl from "../fonts/liberation-serif/LiberationSerif-Bold.ttf?url";
+import serifItalicUrl from "../fonts/liberation-serif/LiberationSerif-Italic.ttf?url";
+import serifBoldItalicUrl from "../fonts/liberation-serif/LiberationSerif-BoldItalic.ttf?url";
 import { metropolisGlyphs } from "./metropolis-coverage.generated.js";
+import { serifGlyphs } from "./serif-coverage.generated.js";
 
 import type { FormalExportSource, RasterExport } from "./index.js";
 import { EXPORT_VERSION } from "./index.js";
 import { rasterizeFormalSvgInBrowser } from "./browser-raster.js";
+import { formalSvgTextFace } from "./browser-fonts.js";
 import {
   normalizeFormalSvgForSvg2Pdf,
   setTextInFamilies,
@@ -21,9 +27,12 @@ import {
 
 /**
  * Embed the same stack the canvas draws: Metropolis, DejaVu for glyphs it
- * lacks, and the round period. Load only the faces used by this export.
+ * lacks, and the round period; or, for a Document set in the Times-style
+ * face, unmodified Liberation Serif and DejaVu. Load only the faces used by
+ * this export.
  */
 const SCHEMATIC_FAMILY = "ICM Schematic";
+const SERIF_FAMILY = "ICM Schematic Serif";
 const SYMBOL_FAMILY = "ICM Symbols";
 const PERIOD_FAMILY = "ICM Round Period";
 const periodUrl = `data:font/ttf;base64,${schematicRoundPeriodFontBase64}`;
@@ -33,6 +42,12 @@ const SCHEMATIC_FACES: Record<string, Record<PdfFontStyle, string>> = {
     bold: metropolisBoldUrl,
     italic: metropolisItalicUrl,
     bolditalic: metropolisBoldItalicUrl,
+  },
+  [SERIF_FAMILY]: {
+    normal: serifUrl,
+    bold: serifBoldUrl,
+    italic: serifItalicUrl,
+    bolditalic: serifBoldItalicUrl,
   },
   [SYMBOL_FAMILY]: {
     normal: dejaVuSansUrl,
@@ -54,6 +69,10 @@ function familyForGlyph(glyph: string): string {
     : primaryGlyphs.has(glyph)
       ? SCHEMATIC_FAMILY
       : SYMBOL_FAMILY;
+}
+const serifPrimaryGlyphs = new Set(serifGlyphs);
+function serifFamilyForGlyph(glyph: string): string {
+  return serifPrimaryGlyphs.has(glyph) ? SERIF_FAMILY : SYMBOL_FAMILY;
 }
 
 function base64(bytes: Uint8Array): string {
@@ -167,7 +186,12 @@ export async function vectorizeFormalSvgInBrowser(
   try {
     releaseFaces = await embedSchematicFaces(
       pdf,
-      setTextInFamilies(svg, familyForGlyph),
+      setTextInFamilies(
+        svg,
+        formalSvgTextFace(source.svg) === "serif"
+          ? serifFamilyForGlyph
+          : familyForGlyph,
+      ),
     );
     // svg2pdf's published UMD entry reads browser globals while it is loaded.
     // Loading it only for an actual browser PDF request keeps the exporter

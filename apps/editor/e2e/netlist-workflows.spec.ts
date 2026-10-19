@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 import { inflateSync } from "node:zlib";
 import { createEmptyProject } from "@icm/model";
@@ -375,6 +375,64 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
     "sky130_fd_pr__nfet_01v8",
   );
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
+});
+
+/**
+ * The File > Export > Netlist item, opened.
+ */
+async function exportNetlistItem(page: Page) {
+  const details = await openMenu(page, "File");
+  const group = details.getByRole("button", { name: "Export", exact: true });
+  if ((await group.getAttribute("aria-expanded")) !== "true")
+    await group.click();
+  return details.getByRole("button", { name: "Export Netlist", exact: true });
+}
+
+/** The file a click on `item` downloads: its name and text. */
+async function savedBy(page: Page, item: Locator) {
+  const download = page.waitForEvent("download");
+  await item.click();
+  const file = await download;
+  const chunks: Buffer[] = [];
+  for await (const chunk of await file.createReadStream())
+    chunks.push(Buffer.from(chunk));
+  return {
+    name: file.suggestedFilename(),
+    text: Buffer.concat(chunks).toString("utf8"),
+  };
+}
+
+test("File > Export > Netlist saves the netlist the Netlist panel shows, in the format it shows", async ({
+  page,
+}) => {
+  await openEditor(page, "/editor");
+  // The item is the same words whichever format the panel shows; before the
+  // panel has been opened it saves the saved choice, SPICE by default.
+  await expect(await exportNetlistItem(page)).toHaveText("Netlist…");
+  const panel = await showNetlistPanel(page);
+  const code = panel.getByRole("textbox", {
+    name: "Netlist code",
+    exact: true,
+  });
+  for (const [format, extension] of [
+    ["spice", ".spi"],
+    ["spectre", ".scs"],
+  ] as const) {
+    await panel.getByLabel("Netlist format").selectOption(format);
+    await expect(code).toContainText(
+      format === "spice" ? ".subckt dut" : "subckt dut",
+    );
+    // The editor's lines one by one: its element text as a whole gains line
+    // breaks of its own in Chromium.
+    const shown = (await code.locator(".cm-line").allTextContents()).join("\n");
+    const item = await exportNetlistItem(page);
+    await expect(item).toHaveText("Netlist…");
+    const saved = await savedBy(page, item);
+    expect(saved.name.endsWith(extension)).toBe(true);
+    // The file ends in a line break the panel does not show.
+    expect(saved.text.replaceAll("\r", "").trimEnd()).toBe(shown.trimEnd());
+    await expectStatus(page, /netlist (?:saved|download requested)/iu);
+  }
 });
 
 test("grows and shrinks the live netlist with content, scrolling only at the viewport limit, with aligned controls", async ({

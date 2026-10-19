@@ -368,6 +368,11 @@ const SetPresentationStyleEditSchema = z.strictObject({
    * it whole.
    */
   styleOverrides: StyleOverridesSchema.nullable().optional(),
+  /**
+   * The one font of all the Document's text: omitted leaves it, `null`
+   * returns to Metropolis, "serif" sets the Times-style face.
+   */
+  textFace: z.enum(["serif"]).nullable().optional(),
 });
 const SetCellSymbolPresentationEditSchema = z.strictObject({
   kind: z.literal("set_cell_symbol_presentation"),

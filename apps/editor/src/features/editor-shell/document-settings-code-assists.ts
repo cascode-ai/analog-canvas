@@ -16,6 +16,27 @@ import {
 } from "./document-settings-code";
 import { STYLE_KNOBS, STYLE_SCALE_OPTIONS } from "./style-knobs";
 
+/** The canvas-wide font choice; objects' Properties offer the same two. */
+const DOCUMENT_FONT_FIELD: CanvasPropertyField = {
+  path: "font",
+  label: "Canvas font",
+  kind: "choice",
+  options: [
+    {
+      value: "metropolis",
+      label: "Metropolis",
+      preview: { kind: "font", face: "metropolis" },
+    },
+    {
+      value: "serif",
+      label: "Times (Liberation Serif)",
+      preview: { kind: "font", face: "serif" },
+    },
+  ],
+  description: "",
+  help: "One font for every text on this canvas and in its SVG, PNG and PDF exports",
+};
+
 function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
   const labelPreview = (
     overrides: Partial<Extract<CanvasPropertyOptionPreview, { kind: "label" }>>,
@@ -64,6 +85,7 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
     ];
   };
   return [
+    DOCUMENT_FONT_FIELD,
     {
       path: "labels.first_letter_italic",
       label: "First letter",

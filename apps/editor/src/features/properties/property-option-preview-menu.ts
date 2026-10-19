@@ -66,6 +66,11 @@ function renderPreview(preview: CanvasPropertyOptionPreview): HTMLElement {
     }
     return root;
   }
+  if (preview.kind === "font") {
+    root.dataset.face = preview.face;
+    root.textContent = "Aa Vout";
+    return root;
+  }
   if (preview.kind === "grid") {
     root.dataset.enabled = String(preview.enabled);
     root.dataset.spacing = String(preview.spacing);
