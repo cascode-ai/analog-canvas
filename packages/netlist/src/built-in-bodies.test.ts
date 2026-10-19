@@ -85,7 +85,8 @@ async function imported(
   text: string,
   format: NetlistFormat,
 ): Promise<CircuitProject> {
-  const found = findBuiltInBodies(text, format);
+  const path = format === "spice" ? "circuit.sp" : "circuit.scs";
+  const found = findBuiltInBodies(text, format, path);
   let source = text;
   if (format === "spectre") {
     const converted = convertNetlist({
@@ -93,12 +94,16 @@ async function imported(
       source: "spectre",
       target: "spice",
       fragment: true,
+      withLineOrigins: true,
     });
     if (converted.status === "blocked")
       throw new Error(JSON.stringify(converted.issues));
     source = converted.text;
+    found.bodies = found.bodies.flatMap((body) => {
+      const line = converted.lineOrigins?.indexOf(body.source.line) ?? -1;
+      return line < 0 ? [] : [{ ...body, source: { path, line: line + 1 } }];
+    });
   }
-  const path = format === "spice" ? "circuit.sp" : "circuit.scs";
   const result = await importSpiceSources(
     [{ path, bytes: new TextEncoder().encode(source) }],
     path,
@@ -143,7 +148,7 @@ describe("built-in bodies on import", () => {
       const text = exported(block(symbolId), format);
       const call = /^X1 .*?(\S+)$/mu.exec(text.replace(/[()]/gu, ""))![1]!;
       const printed = new RegExp(`^\\.?subckt ${call}\\b`, "mu").test(text);
-      const found = findBuiltInBodies(text, format);
+      const found = findBuiltInBodies(text, format, "circuit.sp");
       expect(found.bodies.map((body) => body.name)).toEqual(
         printed ? [call] : [],
       );
@@ -223,7 +228,9 @@ describe("built-in bodies on import", () => {
         block("voltage-amplifier"),
       ]) {
         const text = exported(project, format, rnlOrder);
-        expect(findBuiltInBodies(text, format).bodies).toHaveLength(1);
+        expect(
+          findBuiltInBodies(text, format, "circuit.sp").bodies,
+        ).toHaveLength(1);
         expect(exported(await imported(text, format), format, rnlOrder)).toBe(
           text,
         );
@@ -236,7 +243,9 @@ describe("built-in bodies on import", () => {
       "params: gain=1e6",
       "params: gain=1e5",
     );
-    expect(findBuiltInBodies(changed, "spice").bodies).toEqual([]);
+    expect(findBuiltInBodies(changed, "spice", "circuit.sp").bodies).toEqual(
+      [],
+    );
     const text = [
       ".subckt opamp VDD VSS VIP VIN VOUT",
       "R1 VIP VOUT 1k",
@@ -245,7 +254,7 @@ describe("built-in bodies on import", () => {
       "X1 0 0 n_VIP n_VIN n_VOUT opamp",
       ".ends dut",
     ].join("\n");
-    expect(findBuiltInBodies(text, "spice").bodies).toEqual([]);
+    expect(findBuiltInBodies(text, "spice", "circuit.sp").bodies).toEqual([]);
     const project = await imported(text, "spice");
     expect(
       project.documents.map((document) => document.netlist?.name).sort(),
@@ -443,7 +452,7 @@ describe("switches on import", () => {
       ".model ideal_switch SW(RON=2 ROFF=1e12 VT=0.5 VH=0)",
       "S1 a b c 0 ideal_switch",
     ].join("\n");
-    expect(findBuiltInBodies(text, "spice").bodies).toEqual([]);
+    expect(findBuiltInBodies(text, "spice", "circuit.sp").bodies).toEqual([]);
     const project = await imported(text, "spice");
     expect(
       project.documents[0]!.instances.find((item) => item.id === "S1"),

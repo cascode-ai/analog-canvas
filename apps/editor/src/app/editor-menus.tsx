@@ -8,6 +8,7 @@ import {
 } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type { NetlistNamingProfile } from "@icm/netlist";
 import type { createEditorCommandRouter } from "../commands/editor-command";
 import type { UseRecoveryCoordinatorResult } from "../document/recovery-coordinator";
 import type { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
@@ -99,6 +100,7 @@ export function EditorMenuBar({
   projectPanel,
   setProjectPanel,
   netlistPreferences,
+  netlistNamingProfile,
   documentSettingsOpen,
   setDocumentSettingsOpen,
   setProjectInfoOpen,
@@ -203,6 +205,7 @@ export function EditorMenuBar({
   projectPanel: EditorProjectPanelMode | null;
   setProjectPanel: Dispatch<SetStateAction<EditorProjectPanelMode | null>>;
   netlistPreferences: ReturnType<typeof useNetlistExportPreferences>;
+  netlistNamingProfile: NetlistNamingProfile;
   documentSettingsOpen: boolean;
   setDocumentSettingsOpen: Dispatch<SetStateAction<boolean>>;
   setProjectInfoOpen: Dispatch<SetStateAction<boolean>>;
@@ -443,6 +446,13 @@ export function EditorMenuBar({
         onExportProject: () => void exportProjectFile(),
         onExportSvg: () => void exportSvg(),
         onExportRaster: (format) => void exportRaster(format),
+        // The file the Netlist panel's Save writes, whichever format it shows.
+        onExportNetlist: () =>
+          void exportDesignNetlist(
+            netlistPreferences.mode,
+            netlistNamingProfile,
+            "file",
+          ),
         onRevert: revertToSavedProjectBaseline,
         onOpenRecovery: openRecoveryDialog,
         onOpenInfo: () => setProjectInfoOpen(true),

@@ -169,7 +169,7 @@ function chopperBody(
   header: { name: string },
   body: readonly Statement[],
   format: NetlistFormat,
-): SpiceBuiltInBody | null {
+): Omit<SpiceBuiltInBody, "source"> | null {
   const name = format === "spice" ? header.name.toLowerCase() : header.name;
   if (name !== IDEAL_CHOPPER_TARGET) return null;
   const printed =
@@ -202,7 +202,7 @@ function builtInBody(
   header: { name: string; ports: readonly string[] },
   body: readonly Statement[],
   format: NetlistFormat,
-): SpiceBuiltInBody | null {
+): Omit<SpiceBuiltInBody, "source"> | null {
   const name = format === "spice" ? header.name.toLowerCase() : header.name;
   const behavioral =
     isIdealOpampBody(name) ||
@@ -310,6 +310,7 @@ function builtInBody(
 export function findBuiltInBodies(
   source: string,
   format: NetlistFormat,
+  path: string,
 ): { bodies: SpiceBuiltInBody[]; text: string } {
   const lines = source.split(/(?<=\n)/u);
   const all = statements(lines, format);
@@ -326,8 +327,12 @@ export function findBuiltInBodies(
     // A SPICE Cell holding switches carries the ideal switch's model card.
     if (format === "spice" && isIdealSwitchCard(statement.text)) {
       const name = statement.text.split(/\s+/u)[1] ?? IDEAL_SWITCH_MODEL.name;
-      if (!bodies.some((body) => body.kind === "model"))
-        bodies.push({ name, kind: "model", ...SWITCH_PART });
+      bodies.push({
+        name,
+        kind: "model",
+        ...SWITCH_PART,
+        source: { path, line: statement.first + 1 },
+      });
       continue;
     }
     const opens = subcircuitHeader(statement.text, format);
@@ -356,7 +361,6 @@ export function findBuiltInBodies(
       blank(block[0] ?? statement, statement);
       if (switchBody === null) {
         switchBody = closed.header.name;
-        bodies.push({ name: switchBody, kind: "subcircuit", ...SWITCH_PART });
       }
       continue;
     }
@@ -366,7 +370,7 @@ export function findBuiltInBodies(
       builtInBody(closed.header, block, format) ??
       chopperBody(closed.header, block, format);
     if (!body) continue;
-    bodies.push(body);
+    bodies.push({ ...body, source: { path, line: block[0]!.first + 1 } });
     if (format !== "spectre") continue;
     for (const inner of block.slice(1, -1)) {
       if (!inner.comment && /^parameters\s/u.test(inner.text)) continue;
@@ -374,6 +378,17 @@ export function findBuiltInBodies(
     }
   }
   const text = lines.join("");
+  if (switchBody !== null) {
+    bodies.push({
+      name: switchBody,
+      kind: "subcircuit",
+      ...SWITCH_PART,
+      source: {
+        path,
+        line: text.split("\n").length + (text && !text.endsWith("\n") ? 1 : 0),
+      },
+    });
+  }
   return {
     bodies,
     text:

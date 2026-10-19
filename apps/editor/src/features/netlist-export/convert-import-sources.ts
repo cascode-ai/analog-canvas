@@ -29,8 +29,11 @@ export function prepareImportSources(inputs: SpiceSourceInput[]): {
   const prepared = inputs.map((input) => {
     if (!isSpectreSource(input)) {
       builtInBodies.push(
-        ...findBuiltInBodies(new TextDecoder().decode(input.bytes), "spice")
-          .bodies,
+        ...findBuiltInBodies(
+          new TextDecoder().decode(input.bytes),
+          "spice",
+          input.path,
+        ).bodies,
       );
       return input;
     }
@@ -44,18 +47,26 @@ export function prepareImportSources(inputs: SpiceSourceInput[]): {
     }
     // A body Analog Canvas writes itself goes to the converter without the
     // behavioral sources it has no SPICE for.
-    const found = findBuiltInBodies(text, "spectre");
-    builtInBodies.push(...found.bodies);
+    const found = findBuiltInBodies(text, "spectre", input.path);
     const converted = convertNetlist({
       text: found.text,
       source: "spectre",
       target: "spice",
       fragment: true,
+      withLineOrigins: true,
     });
     if (converted.status === "blocked") {
       const issue = converted.issues[0]!;
       throw new Error(`${input.path}:${issue.line}: ${issue.message}`);
     }
+    builtInBodies.push(
+      ...found.bodies.flatMap((body) => {
+        const line = converted.lineOrigins?.indexOf(body.source.line) ?? -1;
+        return line < 0
+          ? []
+          : [{ ...body, source: { path: input.path, line: line + 1 } }];
+      }),
+    );
     return {
       path: input.path,
       bytes: new TextEncoder().encode(converted.text),

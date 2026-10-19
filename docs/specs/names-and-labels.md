@@ -143,6 +143,9 @@ refusals) apply only inside that export, never written back.
 - Bus brackets stay in drawing, name and Spectre (escaped `DATA\<3\>`);
   SPICE writes each bracket as `_` (`DATA<3>`→`DATA_3_`) because ngspice's
   control language reads `<>` as redirection and `[]` as indexing.
+- Importing SCS reads the escapes back: `DATA\<3\>` and `Vin\+` name the
+  Nets `DATA<3>` and `Vin+`, as the drawing does, and the SCS export writes
+  them again.
 - Hand-written ngspice source follows the same rules when run and writes any
   other non-ASCII character as `u` + hex code point (`输入`→`u8f93u5165`)
   since ngspice reads such bytes as `_`; the source text is unchanged.

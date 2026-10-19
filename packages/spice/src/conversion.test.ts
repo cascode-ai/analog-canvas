@@ -82,7 +82,7 @@ describe("netlist-crawler structural conversion", () => {
         `simulator lang=spectre\nsubckt amp ${ports}\nparameters gain=2\nR1 (z a) resistor r=(gain*1k)\nends amp`,
       );
       expect(spice).toContain(".subckt amp z a params: gain=2\n");
-      expect(spice).toContain("R1 z a {(gain*1000)}");
+      expect(spice).toContain("R1 z a {(gain*1k)}");
       const imported = await importSpiceSources(
         [{ path: "circuit.spi", bytes: new TextEncoder().encode(spice) }],
         "circuit.spi",
@@ -123,21 +123,62 @@ describe("netlist-crawler structural conversion", () => {
       converted(
         "W1 (a b) inductor l=1n\nW2 (c d) inductor l=2n\nM0 mutual_inductor coupling=0.5 ind1=W1 ind2=W2",
       ),
-    ).toContain("LW1 a b 1e-9\nLW2 c d 2e-9\nKM0 LW1 LW2 0.5");
+    ).toContain("LW1 a b 1n\nLW2 c d 2n\nKM0 LW1 LW2 0.5");
     for (const text of ["K1 L1 L2 L3 0.9", "K1 L1 0.9"])
       expect(
         convertNetlist({ text, source: "spice", target: "spectre" }).status,
       ).toBe("blocked");
   });
+  it("keeps the digits and the suffix of a Spectre number, spelled as SPICE reads it", () => {
+    const spice = converted(
+      [
+        "R1 (a b) resistor r=15u",
+        "R2 (b c) resistor r=1.50k",
+        "R3 (c d) resistor r=1M",
+        "R4 (d e) resistor r=2m",
+        "R5 (e f) resistor r=3K",
+        "R6 (f g) resistor r=4T",
+        "R7 (g h) resistor r=5G",
+        "R8 (h i) resistor r=1e-12",
+        "R9 (i j) resistor r=-5m",
+        "R10 (j k) resistor r=7p",
+        "R11 (k l) resistor r=1f",
+        "R12 (l m) resistor r=6n",
+        "R13 (m n) resistor r=1a",
+      ].join("\n"),
+    );
+    for (const card of [
+      "R1 a b 15u",
+      "R2 b c 1.50k",
+      // Spectre's M is mega, which SPICE spells Meg; its m is milli in both.
+      "R3 c d 1Meg",
+      "R4 d e 2m",
+      "R5 e f 3k",
+      "R6 f g 4T",
+      "R7 g h 5G",
+      "R8 h i 1e-12",
+      "R9 i j -5m",
+      "R10 j k 7p",
+      "R11 k l 1f",
+      "R12 l m 6n",
+      // SPICE has no atto: that number is written out.
+      "R13 m n 1e-18",
+    ])
+      expect(spice).toContain(card);
+    // Inside an expression, and in a parameter.
+    expect(converted("M1 (d g s b) NMOS w=(size*2u) l=150n m=2M")).toContain(
+      "w={(size*2u)} l=150n m=2Meg",
+    );
+  });
   it("distinguishes mega and milli and translates arithmetic coefficients", () => {
     expect(
       converted("R1 (a b) resistor r=1M\nR2 (b 0) resistor r=1m"),
-    ).toContain("R1 a b 1000000\nR2 b 0 0.001");
+    ).toContain("R1 a b 1Meg\nR2 b 0 1m");
     expect(converted("R1 a b 1Meg\nR2 b 0 1M", "spice")).toContain(
       "r=1000000\nR2 (b 0) resistor r=0.001",
     );
     expect(converted("M1 (d g s b) NMOS w=(size*2u) l=150n")).toContain(
-      "w={(size*0.000002)} l=1.5e-7",
+      "w={(size*2u)} l=150n",
     );
   });
   it.each([
@@ -157,7 +198,7 @@ describe("netlist-crawler structural conversion", () => {
       'include "models/a//b.scs" section=tt // local library\nM1 (d g s b) NMOS w=2u \\\n l=150n',
     );
     expect(spice).toContain('.lib "models/a//b.scs" tt');
-    expect(spice).toContain("w=0.000002 l=1.5e-7");
+    expect(spice).toContain("w=2u l=150n");
     expect(
       converted(
         "M1 d g s b NMOS\n* comment between continuation\n+ w=2u l=150n",
@@ -209,6 +250,32 @@ describe("netlist-crawler structural conversion", () => {
       expect(result.issues[0]?.line).toBeGreaterThan(0);
     },
   );
+  it("reads Spectre's escapes in names, so the SPICE it becomes names the net Vin+", () => {
+    const spice = converted(
+      [
+        "global vdd!",
+        "subckt amp (Vin\\+ Vin\\- D\\<3\\> D\\[4\\] a\\.b x\\/y p\\:q vdd!)",
+        "R\\+1 (Vin\\+ D\\<3\\>) resistor r=1k",
+        "R2 (Vin\\- vdd!) resistor r=2k",
+        "ends amp",
+        "X1 (a b c d e f g vdd!) amp",
+      ].join("\n"),
+    );
+    expect(spice).toContain(".global vdd!");
+    expect(spice).toContain(".subckt amp Vin+ Vin- D<3> D[4] a.b x/y p:q vdd!");
+    expect(spice).toContain("R+1 Vin+ D<3> 1k");
+    expect(spice).toContain("R2 Vin- vdd! 2k");
+    expect(spice).not.toContain("\\");
+  });
+  it("leaves quoted text as written", () => {
+    const spice = converted(
+      [String.raw`include "C:\models\a\+b.scs"`, "R1 (a b) resistor r=1k"].join(
+        "\n",
+      ),
+    );
+    expect(spice).toContain(String.raw`.include "C:\models\a\+b.scs"`);
+    expect(spice).toContain("R1 a b 1k");
+  });
   it("preserves SPICE model/library dialects and the editor's sine offset", () => {
     const model =
       '.lib "models.lib" tt\n.model N nmos level=1\nM1 d g 0 0 N w=2u l=150n';
@@ -228,7 +295,7 @@ describe("netlist-crawler structural conversion", () => {
     );
     expect(bsim4).toContain(".model NMOS nmos level=54");
     expect(bsim4).toContain(".model PMOS pmos level=54 vth0=-0.4");
-    expect(bsim4).toContain("M1 d g 0 0 NMOS w=0.000002 l=1.5e-7 nf=2");
+    expect(bsim4).toContain("M1 d g 0 0 NMOS w=2u l=150n nf=2");
     expect(
       convertNetlist({
         text: "model N bsim3v3 type=n",
@@ -240,7 +307,7 @@ describe("netlist-crawler structural conversion", () => {
       converted(
         "V1 (a 0) vsource type=sine dc=0.5 ampl=0.1 freq=1k damp=2 sinephase=45",
       ),
-    ).toContain("DC 0.5 SIN(0.5 0.1 1000 0 2 45)");
+    ).toContain("DC 0.5 SIN(0.5 0.1 1k 0 2 45)");
   });
   it.each([
     ["R1 (Out 0) resistor r=1k\nR2 (out 0) resistor r=2k", "spectre"],

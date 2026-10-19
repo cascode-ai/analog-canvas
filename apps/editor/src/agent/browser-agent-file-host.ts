@@ -478,6 +478,7 @@ export class BrowserAgentFileHost {
                 findBuiltInBodies(
                   new TextDecoder().decode(input.bytes),
                   "spice",
+                  input.path,
                 ).bodies,
             ),
           },

@@ -1,26 +1,11 @@
+import {
+  PULSE_PARAMETER_NAMES,
+  SIN_OPTIONAL_PARAMETER_NAMES,
+  SIN_REQUIRED_PARAMETER_NAMES,
+} from "@icm/spice";
 import type { DesignNetlistParameter } from "./ir.js";
 
 export type IndependentSourceWaveform = "dc" | "pulse" | "sin" | "pwl";
-
-export const PULSE_PARAMETER_NAMES = [
-  "low",
-  "high",
-  "delay",
-  "rise",
-  "fall",
-  "width",
-  "period",
-] as const;
-export const SIN_REQUIRED_PARAMETER_NAMES = [
-  "offset",
-  "amplitude",
-  "frequency",
-] as const;
-export const SIN_OPTIONAL_PARAMETER_NAMES = [
-  "delay",
-  "damping",
-  "phase",
-] as const;
 const AC_PARAMETER_NAMES = ["acMagnitude", "acPhase"] as const;
 const SOURCE_PARAMETER_NAMES = [
   "waveform",

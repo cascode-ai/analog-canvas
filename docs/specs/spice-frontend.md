@@ -68,7 +68,14 @@ revision; it never silently changes `ngspice-46-core`.
 ## Expressions and elaboration
 
 - Official T/G/Meg/K/mil/m/u/n/p/f/a scale factors; raw expressions stay
-  authoritative. A bounded evaluator handles conditions; an unevaluable
+  authoritative.
+- An independent V or I source's card tail is split into the fields a Canvas
+  source keeps: `dc`, `acMagnitude`/`acPhase`, and `waveform` (`pulse`, `sin`,
+  `pwl`) with its arguments, so its value label shows the DC value, not the
+  card. A plain DC value stays `dc` alone, with no waveform. A tail that fits
+  no field (EXP, a PULSE with defaulted arguments, a parameter reference)
+  stays whole as written. The SCS import reaches the same fields through its
+  SPICE conversion; the export prints them as the same card. A bounded evaluator handles conditions; an unevaluable
   condition excludes all its branches with a warning.
 - Identifiers match case-insensitively, keeping display spelling and order.
   Ports and terminals are contiguous and zero-based.
@@ -87,7 +94,10 @@ revision; it never silently changes `ngspice-46-core`.
   the body's name. A body is told from an author's subcircuit of its name by
   printing it again with the ports its definition lists and comparing every
   statement (`findBuiltInBodies` in `@icm/netlist`); any other statement
-  leaves it a Cell. A supply the body does not read stays unbound where the
+  leaves it a Cell. Recognition belongs to the active declaration's file and
+  line, including after Spectre conversion. Unreferenced files and inactive
+  definitions cannot authorize replacement of another definition.
+  A supply the body does not read stays unbound where the
   call passes `0`, as an unbound one exports, and a ground no pin then
   reaches goes too. A native Spectre body found so reaches the converter
   without its statements, so its behavioral sources never need converting.
@@ -103,6 +113,8 @@ revision; it never silently changes `ngspice-46-core`.
   against is the Cell's ground: a node other than `0`, a subcircuit's ground
   pin, takes a ground claim. Any other `S` card imports as the
   voltage-controlled switch bound to its model, as the catalog maps `S`.
+  When a model name has both custom and built-in active definitions, all
+  calls retain ordinary model bindings instead of sharing a built-in mapping.
   Spectre has each Cell define the ideal switch again, which the converter
   refuses, so those definitions reach it as one empty one; a card it names
   `XS1` keeps the reference `S1`.

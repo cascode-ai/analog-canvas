@@ -287,13 +287,8 @@ for (const example of [
           ] as const)
             expect(census[item], `${cell} ${item}`).toEqual(was[cell]?.[item]);
         // ... and every label of them, where it was, as big, with its text
-        // and none twice (the known exemptions are in label-census.ts).
-        const format = mode === "spice+rnl" ? "spice" : "spectre";
-        expect(
-          labelDifferences(
-            labelCensus(drawn, format),
-            labelCensus(read, format),
-            format,
-          ),
-        ).toEqual([]);
+        // and none twice, including source values and decoded net names.
+        expect(labelDifferences(labelCensus(drawn), labelCensus(read))).toEqual(
+          [],
+        );
       });

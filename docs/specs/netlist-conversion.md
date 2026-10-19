@@ -35,7 +35,12 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
   behavioral expressions are outside the subset.
 - Ordered subcircuit interfaces, globals, scalar parameters, common
   arithmetic; Spectre port parentheses are dropped for SPICE. Suffixes are
-  explicit (Spectre `M` = mega, SPICE `M` = milli).
+  explicit (Spectre `M` = mega, SPICE `M` = milli). Reading Spectre, a number
+  keeps its digits and its suffix (`96u`, `1p`, `1.50k` stay as written, so
+  a value label reads as drawn), spelled as SPICE reads it: Spectre `M`
+  (mega) becomes `Meg`, `K` becomes `k`, `m` (milli) stays `m`. Spectre's atto
+  (`a`) has no SPICE suffix, so that number is written out as a plain
+  exponent (`1a` as `1e-18`). SPICE→Spectre writes plain decimals.
   Meaning-changing node case aliases are rejected; SPICE→Spectre also rejects
   case-mismatched calls, closing names, parameter references and known formal
   overrides (local/global scope; overrides in the caller's scope). Owned model
@@ -44,6 +49,13 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
 - Quoted local includes are kept unopened. SPICE model/library declarations go
   in a `simulator lang=spice` section for SCS (no translation or
   qualification); existing SPICE sections stay SPICE.
+- Spectre's name escapes are read, since SPICE has none: `Vin\+` is the net
+  `Vin+`, `D\<3\>` the bus bit `D<3>`, in node lists, instance, subcircuit
+  and port names alike, so the import names a Cell Pin and its Net as the
+  drawing does, and the SCS export writes the escapes back. Quoted text
+  (paths, strings) is untouched, as is a backslash before a space, a
+  parenthesis, a brace, a quote or another backslash, which escapes no name.
+  SPICE→Spectre does not add escapes.
 - Spectre instance names gain the SPICE prefix if needed (collisions block);
   declared subcircuits and reviewed SKY130 wrappers use X even when named M…;
   undeclared M/D/Q follow model designators; other masters need an explicit X

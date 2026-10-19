@@ -118,6 +118,39 @@ function fields(text: string, s: Statement): string[] {
   if (buffer) result.push(buffer);
   return result;
 }
+/**
+ * A Spectre name with its escapes read: `\+` is the character `+`, as in
+ * `Vin\+` or `D\<3\>`. Spectre escapes a character a name could not hold
+ * with a backslash, and SPICE has no such escape, so the SPICE the statement
+ * becomes names the net `Vin+`. Quoted text (an include path, a string) is
+ * left as written, and so is a backslash before a space or the end of the
+ * line, which escapes no name, and one before a character that shapes the
+ * statement (a parenthesis, a brace, a quote, another backslash).
+ */
+const KEPT = /[\s(){}"'\\]/u;
+function unescapeSpectreNames(text: string): string {
+  const chars = [...text];
+  let out = "",
+    quote = "";
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i] ?? "";
+    const next = chars[i + 1];
+    if (quote) {
+      out += c;
+      if (c === "\\" && next !== undefined) {
+        out += next;
+        i++;
+      } else if (c === quote) quote = "";
+    } else if (c === '"' || c === "'") {
+      quote = c;
+      out += c;
+    } else if (c === "\\" && next !== undefined && !KEPT.test(next)) {
+      out += next;
+      i++;
+    } else out += c;
+  }
+  return out;
+}
 function uncomment(text: string, dialect: Statement["dialect"]): string {
   let quote = "",
     depth = 0;
@@ -183,7 +216,8 @@ function statements(text: string, source: NetlistDialect): Statement[] {
       continue;
     }
     const continued = dialect === "spectre" && code.endsWith("\\");
-    const next = continued ? code.slice(0, -1).trimEnd() : code;
+    const joined = continued ? code.slice(0, -1).trimEnd() : code;
+    const next = dialect === "spectre" ? unescapeSpectreNames(joined) : joined;
     if (pending) pending.text += " " + next;
     else pending = { line, text: next, dialect };
     if (!continued) {
@@ -200,6 +234,27 @@ function statements(text: string, source: NetlistDialect): Statement[] {
     );
   return result;
 }
+/**
+ * How SPICE spells a Spectre scale suffix, so a number keeps the digits and
+ * the suffix it was written with (96u stays 96u, not 0.000096). The two
+ * dialects spell some scales differently: Spectre's M is mega and its m
+ * milli, where SPICE reads both m and M as milli and writes mega as Meg. A
+ * suffix SPICE has no spelling for (atto, `a`) is not listed: that number
+ * is written out as a plain decimal (1a as 1e-18) instead.
+ */
+const SPICE_SUFFIX: Record<string, string> = {
+  "": "",
+  T: "T",
+  G: "G",
+  M: "Meg",
+  K: "k",
+  k: "k",
+  m: "m",
+  u: "u",
+  n: "n",
+  p: "p",
+  f: "f",
+};
 function value(
   raw: string,
   source: Statement["dialect"],
@@ -246,6 +301,8 @@ function value(
       refuse(s, `Unsupported numeric suffix in ${raw}.`, "UNSUPPORTED_VALUE");
     const n = Number(base) * factor;
     if (!Number.isFinite(n)) refuse(s, `Non-finite numeric value ${raw}.`);
+    const spelled = source === "spectre" ? SPICE_SUFFIX[suffix] : undefined;
+    if (spelled !== undefined) return `${base}${spelled}`;
     return Number(n.toPrecision(15)).toString();
   };
   if (number) return numeric(number[1]!, number[2]!);

@@ -1,6 +1,6 @@
 import { resolveSimulationInputPath, type SourceSpan } from "@icm/model";
 import { diagnostic, type SpiceDiagnostic } from "./diagnostics.js";
-import { parseSpiceSource, splitSpiceFields } from "./syntax.js";
+import { parseSpiceSource } from "./syntax.js";
 import type { SpiceSourceFile } from "./source-types.js";
 
 export type SimulationLanguageContext =
@@ -429,5 +429,3 @@ export function resolveSimulationInclude(
 export function unquoteSimulationToken(value: string): string {
   return /^(["'])[\s\S]*\1$/u.test(value) ? value.slice(1, -1) : value;
 }
-
-export { splitSpiceFields };

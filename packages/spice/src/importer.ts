@@ -34,6 +34,7 @@ import type { CircuitCellIR, CircuitIR, CircuitInstanceIR } from "./ir.js";
 import type { SourceBundle, SpiceSourceInput } from "./source-types.js";
 import { compileSpiceSources } from "./compiler.js";
 import { decodeSourceContent, normalizeSourcePath } from "./source.js";
+import { parseNgspiceSourceParameters } from "./source-parameters.js";
 
 export interface SpiceImportResult extends SpiceCompileResult {
   project: CircuitProject | null;
@@ -47,6 +48,8 @@ export interface SpiceImportResult extends SpiceCompileResult {
  * (`findBuiltInBodies`); the importer only reads what it found.
  */
 export interface SpiceBuiltInBody {
+  /** The verified declaration in the prepared source, not just its name. */
+  readonly source: { readonly path: string; readonly line: number };
   /** The body's name, as the sources spell it. */
   readonly name: string;
   /**
@@ -513,6 +516,31 @@ function undeclaredModelMessage(
   return `${instance.name} uses model ${model}, which no .model card declares, so its device type is unknown. Add ${types.map((type) => `".model ${model} ${type}"`).join(" or ")}.`;
 }
 
+/**
+ * An independent source's card tail comes in as one value (`0.9 AC 1 0
+ * PULSE(0.9 0.91 1u 1n 1n 1u 3u)`, kept whole in `dc` after a DC keyword, or in
+ * `value` without one). A Canvas source keeps it apart: the DC value, the AC
+ * magnitude and phase, and the transient function with its arguments, and its
+ * value label shows the DC value, not the card. A tail that is only a DC
+ * value, or that does not fit those fields (an EXP function, a PULSE with
+ * defaulted arguments, a parameter reference), stays as written.
+ */
+function structureSourceTail(parameters: Record<string, string>): void {
+  const key = ["dc", "value"].find((name) => parameters[name] !== undefined);
+  if (key === undefined) return;
+  const parsed = parseNgspiceSourceParameters(parameters[key]!, {
+    requireDc: false,
+  });
+  if (!parsed.ok) return;
+  const fields = Object.keys(parsed.parameters).filter(
+    (name) => name !== "dc" && name !== "waveform",
+  );
+  if (!fields.length && parsed.parameters.waveform === "dc") return;
+  delete parameters[key];
+  // A DC-only waveform is the plain source: it names no waveform.
+  const { waveform, ...rest } = parsed.parameters;
+  Object.assign(parameters, rest, waveform === "dc" ? {} : { waveform });
+}
 function importInstance(
   instance: CircuitInstanceIR,
   diagnostics: SpiceDiagnostic[],
@@ -586,6 +614,11 @@ function importInstance(
         }
       }),
   );
+  if (
+    mapping.symbolId === "voltage-source" ||
+    mapping.symbolId === "current-source"
+  )
+    structureSourceTail(parameters);
   return {
     id: instance.id,
     symbolId: mapping.symbolId,
@@ -1402,10 +1435,39 @@ function importCircuitIR(
     ]),
   );
   const builtInBodies = new Map(
-    (options.builtInBodies ?? []).map((body) => [
-      builtInBodyKey(body.kind, body.name),
-      body,
-    ]),
+    (options.builtInBodies ?? [])
+      .filter((body) => {
+        const definitions = (
+          body.kind === "subcircuit" ? ir.cells : ir.models
+        ).filter(
+          (definition) =>
+            definition.name.toLowerCase() === body.name.toLowerCase(),
+        );
+        const matches = (
+          candidate: SpiceBuiltInBody,
+          definition: (typeof definitions)[number],
+        ) =>
+          bundle.files.some(
+            (file) =>
+              file.id === definition.sourceRef.fileId &&
+              file.path === normalizeSourcePath(candidate.source.path),
+          ) && definition.sourceRef.start.line === candidate.source.line;
+        // Only the active definition may authorize a built-in. Model names can
+        // occur in several Cells: keep ordinary bindings if any definition is
+        // custom, rather than applying one Cell's model to another.
+        return (
+          definitions.some((definition) => matches(body, definition)) &&
+          definitions.every((definition) =>
+            (options.builtInBodies ?? []).some(
+              (candidate) =>
+                candidate.kind === body.kind &&
+                candidate.name.toLowerCase() === body.name.toLowerCase() &&
+                matches(candidate, definition),
+            ),
+          )
+        );
+      })
+      .map((body) => [builtInBodyKey(body.kind, body.name), body]),
   );
   // A built-in body imports as the part each call of it is, not as a Cell.
   const isBody = (name: string) =>

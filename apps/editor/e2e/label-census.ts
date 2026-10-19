@@ -36,10 +36,7 @@ export interface LabelRecord {
   symbol: string;
 }
 
-export function labelCensus(
-  project: CircuitProject,
-  format: "spice" | "spectre",
-): LabelRecord[] {
+export function labelCensus(project: CircuitProject): LabelRecord[] {
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   return project.documents.flatMap((document) => {
     const profile = resolveDocumentStyleProfile(document.presentation);
@@ -66,13 +63,7 @@ export function labelCensus(
         text,
       );
       const binding = annotation.binding;
-      // Analog Canvas's SCS import keeps a net's Spectre escape (Vin\+) in
-      // its name, and a net label reads the name: the escape is not the
-      // drawing's.
-      const flat =
-        format === "spectre" && annotation.kind === "net-label"
-          ? flattenRichText(text).replaceAll("\\", "")
-          : flattenRichText(text);
+      const flat = flattenRichText(text);
       const part =
         binding && "instanceId" in binding
           ? placeOf(binding.instanceId)
@@ -120,29 +111,12 @@ export function labelCensus(
  * How each label differs after the round trip, as lines to read; none when
  * every label is where, as big as, and what it was drawn, and none is shown
  * twice.
- *
- * Two kinds of value label are exempt from their text and the ink it
- * covers, as Analog Canvas's own SPICE and SCS imports change them whatever
- * the RNL says: Spectre's numbers come back as plain decimals (15u as
- * 0.000015), and a source the SPICE import reads keeps the rest of its card
- * in its value (0.9 as 0.9 AC 1 0 PULSE(...)). So is the ink of a net label
- * that reads a Spectre-escaped name.
  */
 export function labelDifferences(
   before: readonly LabelRecord[],
   after: readonly LabelRecord[],
-  format: "spice" | "spectre",
 ): string[] {
   const printed = new Set(after.map((label) => label.cell));
-  const exempt = (label: LabelRecord) => ({
-    textual:
-      label.binding === "instance-value" &&
-      (format === "spectre" ||
-        ["voltage-source", "current-source"].includes(label.symbol)),
-    // A net label reads the net's name, escape and all (Vin\+), so its ink
-    // is wider than the drawn Vin+.
-    escaped: format === "spectre" && label.kind === "net-label",
-  });
   const shown = (labels: readonly LabelRecord[]) =>
     labels.filter((label) => !label.hidden && printed.has(label.cell));
   const group = (labels: readonly LabelRecord[]) => {
@@ -172,20 +146,15 @@ export function labelDifferences(
     }
     expected.forEach((label, index) => {
       const other = actual[index]!;
-      const skip = exempt(label);
       const problems = [
-        !skip.textual && label.text !== other.text && "text",
+        label.text !== other.text && "text",
         (Math.abs(label.at[0] - other.at[0]) > 0.15 ||
           Math.abs(label.at[1] - other.at[1]) > 0.15) &&
           "anchor point",
         label.alignment !== other.alignment && "alignment",
         label.rotation !== other.rotation && "turn",
         label.scale !== other.scale && "size",
-        !skip.textual &&
-          !skip.escaped &&
-          label.ink.some(
-            (value, at) => Math.abs(value - other.ink[at]!) > 1.1,
-          ) &&
+        label.ink.some((value, at) => Math.abs(value - other.ink[at]!) > 1.1) &&
           "ink",
         label.anchor !== other.anchor && "anchor kind",
       ].filter(Boolean);
