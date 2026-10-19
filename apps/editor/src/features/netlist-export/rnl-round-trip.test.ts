@@ -1489,12 +1489,12 @@ describe.each(["circle", "diamond"] as const)(
         const plan = await importRnl(written.text, format);
         expect(failures(plan)).toEqual([]);
         expect(
-          labelCensus(project, format).filter((label) => !label.hidden).length,
+          labelCensus(project).filter((label) => !label.hidden).length,
         ).toBeGreaterThan(kinds.length);
         expect(
           labelDifferences(
-            labelCensus(project, format),
-            labelCensus(plan.project, format),
+            labelCensus(project),
+            labelCensus(plan.project),
             format,
           ),
         ).toEqual([]);
@@ -1581,8 +1581,8 @@ describe("legacy controlled-source diamond symbols", () => {
         expect(rewritten.text).toContain(`@SET-SYMBOL $${kind.toUpperCase()}`);
       expect(
         labelDifferences(
-          labelCensus(project, format),
-          labelCensus(plan.project, format),
+          labelCensus(project),
+          labelCensus(plan.project),
           format,
         ),
       ).toEqual([]);
@@ -1766,8 +1766,8 @@ describe("RNL round trip of examples as the editor opens them", () => {
       const plan = await importRnl(written.text, format);
       expect(
         labelDifferences(
-          labelCensus(project, format),
-          labelCensus(plan.project, format),
+          labelCensus(project),
+          labelCensus(plan.project),
           format,
         ),
       ).toEqual([]);
