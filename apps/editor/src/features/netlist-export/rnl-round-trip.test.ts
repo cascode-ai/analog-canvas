@@ -1492,11 +1492,7 @@ describe.each(["circle", "diamond"] as const)(
           labelCensus(project).filter((label) => !label.hidden).length,
         ).toBeGreaterThan(kinds.length);
         expect(
-          labelDifferences(
-            labelCensus(project),
-            labelCensus(plan.project),
-            format,
-          ),
+          labelDifferences(labelCensus(project), labelCensus(plan.project)),
         ).toEqual([]);
         const parts = plan.project.documents.flatMap(
           (document) => document.instances,
@@ -1580,11 +1576,7 @@ describe("legacy controlled-source diamond symbols", () => {
       for (const kind of kinds)
         expect(rewritten.text).toContain(`@SET-SYMBOL $${kind.toUpperCase()}`);
       expect(
-        labelDifferences(
-          labelCensus(project),
-          labelCensus(plan.project),
-          format,
-        ),
+        labelDifferences(labelCensus(project), labelCensus(plan.project)),
       ).toEqual([]);
       const before = createDesignNetlistExport(project, { format });
       const after = createDesignNetlistExport(plan.project, { format });
@@ -1765,11 +1757,7 @@ describe("RNL round trip of examples as the editor opens them", () => {
       });
       const plan = await importRnl(written.text, format);
       expect(
-        labelDifferences(
-          labelCensus(project),
-          labelCensus(plan.project),
-          format,
-        ),
+        labelDifferences(labelCensus(project), labelCensus(plan.project)),
       ).toEqual([]);
     },
   );

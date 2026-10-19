@@ -295,7 +295,7 @@ describe("netlist-crawler structural conversion", () => {
     );
     expect(bsim4).toContain(".model NMOS nmos level=54");
     expect(bsim4).toContain(".model PMOS pmos level=54 vth0=-0.4");
-    expect(bsim4).toContain("M1 d g 0 0 NMOS w=0.000002 l=1.5e-7 nf=2");
+    expect(bsim4).toContain("M1 d g 0 0 NMOS w=2u l=150n nf=2");
     expect(
       convertNetlist({
         text: "model N bsim3v3 type=n",

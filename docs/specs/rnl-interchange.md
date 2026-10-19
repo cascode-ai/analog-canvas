@@ -267,8 +267,6 @@ the RNL language and its runtime belong to rnl.
   with every label as it was drawn, in the editor and in Node: the same
   count (none shown twice), text, anchor point, alignment, turn, size and
   ink, anchored to the same kind of object, and a hidden label still hidden
-  (`apps/editor/e2e/label-census.ts`, run by both). One difference is
-  exempt, and named there: the value of a source or, in Spectre, of any
-  part reads as Analog Canvas's own SPICE and SCS imports read it (Spectre's
-  numbers as plain decimals, 15u as 0.000015; a source's whole card in its
-  value, 0.9 as 0.9 AC 1 0 PULSE(...)).
+  (`apps/editor/e2e/label-census.ts`, run by both). No difference is
+  exempt: a value label reads the live parameter, which the SPICE and SCS
+  imports keep as written (15u stays 15u, a source's DC value is its label).

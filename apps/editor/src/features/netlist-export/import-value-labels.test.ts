@@ -6,7 +6,7 @@ import { createDesignNetlistExport } from "@icm/netlist";
 import { importSpiceSources } from "@icm/spice";
 
 import { createLibraryExampleProject } from "../../examples/library-examples";
-import { convertImportSources } from "./convert-import-sources";
+import { prepareImportSources } from "./convert-import-sources";
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import { prepareNetlistExample } from "./netlist-process";
 
@@ -50,7 +50,7 @@ describe("the value labels of a circuit imported from the netlist it was exporte
       const path = format === "spice" ? "circuit.sp" : "circuit.scs";
       const inputs = [{ path, bytes: new TextEncoder().encode(out.file.text) }];
       const result = await importSpiceSources(
-        convertImportSources(inputs),
+        prepareImportSources(inputs).inputs,
         path,
         {},
         { namingProfile: "native", originalSources: inputs },
@@ -89,7 +89,7 @@ describe("the value labels of a circuit imported from the netlist it was exporte
         { path, bytes: new TextEncoder().encode(first.file.text) },
       ];
       const imported = await importSpiceSources(
-        convertImportSources(inputs),
+        prepareImportSources(inputs).inputs,
         path,
         {},
         { namingProfile: "native", originalSources: inputs },
