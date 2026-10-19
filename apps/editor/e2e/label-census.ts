@@ -32,8 +32,6 @@ export interface LabelRecord {
   ink: number[];
   anchor: string;
   hidden: boolean;
-  /** The part the label stands for, by symbol. */
-  symbol: string;
 }
 
 export function labelCensus(project: CircuitProject): LabelRecord[] {
@@ -101,7 +99,6 @@ export function labelCensus(project: CircuitProject): LabelRecord[] {
           logical,
           text,
         ),
-        symbol: part?.symbol ?? "",
       };
     });
   });

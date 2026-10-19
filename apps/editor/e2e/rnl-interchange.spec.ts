@@ -5,6 +5,7 @@ import {
   expectStatus,
   exportedProject,
   openEditor,
+  openMenu,
   openProject,
   showNetlistPanel,
 } from "./editor-fixtures.js";
@@ -111,6 +112,41 @@ test("writes SPICE+RNL and Spectre+RNL, and imports the file it wrote as it was 
       .sort(),
   ).toEqual(["opamp-inputs-swapped", "voltage-amplifier"]);
   expect(await copiedNetlist(page, "spice")).toBe(spice);
+});
+
+// File > Export > Netlist saves what the panel shows, and the RNL formats are
+// among them: the file is the RNL text, named for its dialect.
+test("File > Export > Netlist saves SPICE+RNL and Spectre+RNL as they are shown", async ({
+  page,
+}) => {
+  await openEditor(page, "/editor?example=two-stage-op-amp");
+  const panel = await showNetlistPanel(page);
+  for (const [mode, extension, header] of [
+    ["spice+rnl", ".spi", '* @RNL(type="header")'],
+    ["spectre+rnl", ".scs", '// @RNL(type="header")'],
+  ] as const) {
+    await panel.getByLabel("Netlist format").selectOption(mode);
+    await expect(
+      panel.getByRole("textbox", { name: "RNL netlist code", exact: true }),
+    ).toBeVisible();
+    const details = await openMenu(page, "File");
+    const group = details.getByRole("button", { name: "Export", exact: true });
+    if ((await group.getAttribute("aria-expanded")) !== "true")
+      await group.click();
+    const item = details.getByRole("button", {
+      name: "Export Netlist",
+      exact: true,
+    });
+    await expect(item).toHaveText("Netlist…");
+    const download = page.waitForEvent("download");
+    await item.click();
+    const file = await download;
+    const chunks: Buffer[] = [];
+    for await (const chunk of await file.createReadStream())
+      chunks.push(Buffer.from(chunk));
+    expect(file.suggestedFilename().endsWith(extension)).toBe(true);
+    expect(Buffer.concat(chunks).toString("utf8")).toContain(header);
+  }
 });
 
 // The RNL formats say what RNL is: a link to its introduction, in a new tab.
