@@ -458,6 +458,8 @@ describe("suspended public Gallery documents", () => {
     expect(llms.status).toBe(200);
     const policy = await llms.text();
     expect(policy).toContain("manual use of individual circuits is welcome");
+    expect(policy).toContain("strictly prohibited");
+    expect(policy).toContain("lawyer's letter");
     expect(policy).toContain("zzhishuai@ethz.ch");
     expect(policy).not.toContain("/g/");
   });
@@ -473,6 +475,8 @@ describe("suspended public Gallery documents", () => {
     expect(robots).toMatch(
       /User-agent: \*\nContent-Signal: search=yes, ai-train=no\nDisallow: \/g\/\n/u,
     );
+    expect(robots).toContain("STRICTLY PROHIBITED");
+    expect(robots).toContain("lawyer's letter");
     expect(robots).toContain("zzhishuai@ethz.ch");
     // A user's own assistant fetching one page is not refused.
     expect(robots).not.toContain("ChatGPT-User");

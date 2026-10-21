@@ -44,8 +44,9 @@ restrictive CSP.
 ## Crawlers, AI and floods
 
 - `robots.txt` states the usage policy (occasional manual use of single
-  circuits is welcome; bulk collection, scraping or AI training needs the
-  site author's permission, zzhishuai@ethz.ch), closes the site to AI
+  circuits is welcome; bulk collection, scraping, mirroring or AI training
+  without the site author's permission, zzhishuai@ethz.ch, is strictly
+  prohibited and answered with a lawyer's letter), closes the site to AI
   training and answer-engine crawlers (`worker/usage-policy.ts`), and asks
   everyone else for `Content-Signal: search=yes, ai-train=no` with
   `Disallow: /g/`. A user's own assistant fetching one page is not refused.
