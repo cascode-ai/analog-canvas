@@ -67,6 +67,17 @@ describe("privacy notice", () => {
     expect(markup).toContain("Do Not Track or Global");
   });
 
+  it("says a drawing leaves the browser for the RNL Viewer only when asked", () => {
+    const markup = renderToStaticMarkup(<PrivacyPage />);
+    expect(markup).toContain("or open one in the RNL Viewer");
+    expect(markup).toContain(
+      "<strong>The RNL Viewer</strong> (rich-netlist.github.io)",
+    );
+    expect(markup).toContain(
+      "<strong>Open RNL Viewer</strong> in the Netlist panel",
+    );
+  });
+
   it("describes AnalogArena as its Consent does: what it keeps, the IP hash, publication and account deletion", () => {
     const markup = renderToStaticMarkup(<PrivacyPage />);
     expect(markup).toContain("<h2>AnalogArena</h2>");

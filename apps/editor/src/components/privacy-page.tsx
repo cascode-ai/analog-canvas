@@ -13,7 +13,7 @@ import {
 } from "./site-resource-links";
 
 /** When the notice last changed; update it with the text. */
-export const PRIVACY_UPDATED = "21 October 2026";
+export const PRIVACY_UPDATED = "23 October 2026";
 
 /**
  * Every cookie the site sets. All but `canvas_vid` belong to a feature you
@@ -150,10 +150,10 @@ export function PrivacyPage() {
         </p>
         <p>
           In short: you can draw without an account, and your drawings stay in
-          your browser until you save them to the cloud or publish them. The
-          site counts returning visitors with one cookie of its own, which you
-          can refuse. It has no advertising, no third-party trackers, and no
-          cookie that follows you across sites.
+          your browser until you save them to the cloud, publish them, or open
+          one in the RNL Viewer. The site counts returning visitors with one
+          cookie of its own, which you can refuse. It has no advertising, no
+          third-party trackers, and no cookie that follows you across sites.
         </p>
 
         <h2>Visit statistics</h2>
@@ -406,6 +406,13 @@ export function PrivacyPage() {
           <li>
             <strong>GitHub</strong> and <strong>Google</strong>, only if you
             sign in with them.
+          </li>
+          <li>
+            <strong>The RNL Viewer</strong> (rich-netlist.github.io), a separate
+            project on GitHub Pages that this site does not run, receives a
+            circuit&rsquo;s netlist and drawing only when you choose{" "}
+            <strong>Open RNL Viewer</strong> in the Netlist panel. Its own terms
+            apply there.
           </li>
           <li>
             <strong>GitHub</strong> also hosts the{" "}
