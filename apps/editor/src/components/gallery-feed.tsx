@@ -68,6 +68,7 @@ import {
 } from "./gallery-feed-count-panel";
 import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
 import { GalleryWallTile } from "./gallery-feed-tile";
+import { GalleryWallEmpty } from "./gallery-feed-empty";
 
 /**
  * Heights of the grey stand-in tiles behind the sign-in invitation, for a
@@ -323,7 +324,7 @@ export function GalleryFeed({
   const refreshing = state.status === "loading" && heldWall.length > 0;
   shownWallRef.current = refreshing ? heldWall : visibleEntries;
 
-  const { linkedId, focusMissing } = useGalleryFocusLink({
+  const { linkedId, focusFailure } = useGalleryFocusLink({
     preload,
     state,
     setState,
@@ -704,9 +705,9 @@ export function GalleryFeed({
                 </button>
               </aside>
             ) : null}
-            {focusMissing ? (
+            {focusFailure ? (
               <p className="gallery-status" data-testid="gallery-focus-missing">
-                That circuit is not on the wall. It may have been removed.
+                {focusFailure}
               </p>
             ) : null}
             {state.status === "loading" && !refreshing ? (
@@ -760,86 +761,13 @@ export function GalleryFeed({
                 />
                 {refreshing ? null : (
                   <>
-                    {entries.length === 0 &&
-                    selectedTags.length > 0 &&
-                    !narrowedToAuthor ? (
-                      <p
-                        className="gallery-status"
-                        data-testid="gallery-tags-empty"
-                      >
-                        No circuits match the selected tags.
-                      </p>
-                    ) : null}
-                    {entries.length === 0 && narrowedToAuthor ? (
-                      <p
-                        className="gallery-status"
-                        data-testid="gallery-filter-empty"
-                      >
-                        No public circuits by {narrowedName} yet.
-                      </p>
-                    ) : null}
-                    {entries.length === 0 &&
-                    !narrowedToAuthor &&
-                    selectedTags.length === 0 &&
-                    !netlistableOnly &&
-                    !withoutNetlistOnly &&
-                    aiFilter === null &&
-                    !likedOnly &&
-                    selectedParts.length > 0 ? (
-                      <p
-                        className="gallery-status"
-                        data-testid="gallery-parts-empty"
-                      >
-                        No circuits of the chosen sizes.
-                      </p>
-                    ) : null}
-                    {entries.length === 0 &&
-                    !narrowedToAuthor &&
-                    (netlistableOnly ||
-                      withoutNetlistOnly ||
-                      aiFilter !== null ||
-                      likedOnly) ? (
-                      <p
-                        className="gallery-status"
-                        data-testid="gallery-mark-empty"
-                      >
-                        {likedOnly && !signedIn
-                          ? "Sign in to collect the circuits you like."
-                          : likedOnly && netlistableOnly
-                            ? "None of the circuits you liked extracts to a netlist yet."
-                            : likedOnly &&
-                                !withoutNetlistOnly &&
-                                aiFilter === null
-                              ? "You have not liked any circuits yet."
-                              : likedOnly ||
-                                  [
-                                    netlistableOnly,
-                                    withoutNetlistOnly,
-                                    aiFilter !== null,
-                                  ].filter(Boolean).length > 1
-                                ? "No circuits match these filters."
-                                : netlistableOnly
-                                  ? "No circuits here extract to a netlist yet."
-                                  : withoutNetlistOnly
-                                    ? "Every circuit here extracts to a netlist."
-                                    : aiFilter === "ai"
-                                      ? "No AI-generated circuits here yet."
-                                      : aiFilter === "dataset"
-                                        ? "No dataset circuits here yet."
-                                        : "No circuits made by hand here yet."}
-                      </p>
-                    ) : null}
-                    {entries.length === 0 &&
-                    !galleryFiltersNarrowQuery(filters) ? (
-                      <p className="gallery-status" data-testid="gallery-empty">
-                        {state.status === "unavailable"
-                          ? (state.failure ??
-                            "Gallery is unavailable. Try again later.")
-                          : datasetWall
-                            ? `No ${datasetWall.name} circuits imported yet.`
-                            : "No published circuits yet."}
-                      </p>
-                    ) : null}
+                    <GalleryWallEmpty
+                      state={state}
+                      filters={filters}
+                      narrowedName={narrowedName}
+                      signedIn={signedIn}
+                      datasetName={datasetWall?.name ?? null}
+                    />
                     {/* Two empty states, because only one of them is a verdict:
                   while the cursor chain is unexhausted the true sentence is
                   "nothing in what has loaded", not "nothing". The sentinel

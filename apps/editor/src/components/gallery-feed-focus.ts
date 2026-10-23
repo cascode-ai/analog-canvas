@@ -14,6 +14,7 @@ import {
   galleryFocusPlacement,
   withoutGalleryFocus,
 } from "../gallery-focus";
+import { isRequestFailure, type RequestFailure } from "../request-failure";
 
 export function useGalleryFocusLink({
   preload,
@@ -36,10 +37,11 @@ export function useGalleryFocusLink({
       : galleryFocusEntryId(window.location.search),
   );
   const [focusEntry, setFocusEntry] = useState<
-    GalleryFeedEntry | null | undefined
+    GalleryFeedEntry | RequestFailure | undefined
   >(undefined);
   const [linkedId, setLinkedId] = useState<string | null>(null);
-  const [focusMissing, setFocusMissing] = useState(false);
+  // Why the linked circuit is not shown, once that is known.
+  const [focusFailure, setFocusFailure] = useState<string | null>(null);
   useEffect(() => {
     if (focusId === null) return;
     let cancelled = false;
@@ -59,7 +61,7 @@ export function useGalleryFocusLink({
     const placement = galleryFocusPlacement(
       visibleEntries.map((entry) => entry.id),
       focusId,
-      focusEntry === undefined ? undefined : focusEntry !== null,
+      focusEntry === undefined ? undefined : !isRequestFailure(focusEntry),
     );
     if (placement === undefined) return;
     setFocusId(null);
@@ -69,10 +71,10 @@ export function useGalleryFocusLink({
       window.location.pathname + withoutGalleryFocus(window.location.search),
     );
     if (placement === "missing") {
-      setFocusMissing(true);
+      setFocusFailure(isRequestFailure(focusEntry) ? focusEntry.message : null);
       return;
     }
-    if (placement === "first" && focusEntry)
+    if (placement === "first" && focusEntry && !isRequestFailure(focusEntry))
       setState((previous) => ({
         ...previous,
         entries: [focusEntry, ...previous.entries],
@@ -129,5 +131,5 @@ export function useGalleryFocusLink({
         window.removeEventListener(type, readerScroll, { capture: true });
     };
   }, [linkedId]);
-  return { linkedId, focusMissing };
+  return { linkedId, focusFailure };
 }

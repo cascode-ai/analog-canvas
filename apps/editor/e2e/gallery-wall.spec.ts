@@ -285,24 +285,23 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
 test("a next page that fails says why and loads on Retry (2026-10-23)", async ({
   page,
 }) => {
-  let refuse = true;
-  await page.route(galleryListUrl, (route) => {
-    const second =
-      new URL(route.request().url()).searchParams.get("cursor") === "c1";
-    if (second && refuse)
-      return route.fulfill({
-        status: 429,
-        headers: { "retry-after": "60" },
-        json: { error: "too-many-requests", retryAfterSeconds: 60 },
-      });
-    return route.fulfill({
-      json: {
-        entries: (second ? ["p2-a"] : ["p1-a"]).map((id) => tile(id)),
-        nextCursor: second ? null : "c1",
-      },
-    });
+  await serveWall(page, (url) => {
+    const second = url.searchParams.get("cursor") === "c1";
+    return {
+      entries: (second ? ["p2-a"] : ["p1-a"]).map((id) => tile(id)),
+      nextCursor: second ? null : "c1",
+    };
   });
-  await mockPreviews(page);
+  let refuse = true;
+  await page.route(galleryListUrl, (route) =>
+    refuse && new URL(route.request().url()).searchParams.get("cursor") === "c1"
+      ? route.fulfill({
+          status: 429,
+          headers: { "retry-after": "60" },
+          json: { error: "too-many-requests", retryAfterSeconds: 60 },
+        })
+      : route.fallback(),
+  );
 
   await page.goto("/");
   const failed = page.getByTestId("gallery-more-failed");
@@ -411,8 +410,14 @@ test("a View in Gallery link shows its circuit at once, centres it and rings it"
     page.locator('[data-testid^="gallery-tile-"]').first(),
   ).toHaveAttribute("data-testid", "gallery-tile-a-0");
 
+  await page.route(
+    (url) => url.pathname === "/api/gallery/gone",
+    (route) => route.fulfill({ status: 404, json: { error: "not-found" } }),
+  );
   await page.goto("/?entry=gone");
-  await expect(page.getByTestId("gallery-focus-missing")).toBeVisible();
+  await expect(page.getByTestId("gallery-focus-missing")).toHaveText(
+    "That circuit is not on the wall. It may have been removed.",
+  );
 });
 
 test("a Gallery link opened again selects its own tab and keeps a changed copy", async ({
@@ -591,6 +596,9 @@ test("hosted Gallery never falls back to local examples when unreachable", async
     page.getByTestId("gallery-bundled-two-stage-op-amp"),
   ).toHaveCount(0);
   await expect(page.getByTestId("gallery-feed")).toBeVisible();
+  await expect(page.getByTestId("gallery-unavailable")).toHaveText(
+    "The server could not answer (502). Try again later.",
+  );
 });
 
 test("a gallery tile opens its circuit in the editor", async ({ page }) => {

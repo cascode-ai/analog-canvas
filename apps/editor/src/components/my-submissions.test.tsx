@@ -51,16 +51,6 @@ describe("loadMySubmissions", () => {
   it("says what failed instead of calling a signed-in reader signed out (2026-10-23)", async () => {
     expect(
       await loadMySubmissions(
-        signedIn(async () =>
-          Response.json({ error: "account-blocked" }, { status: 403 }),
-        ),
-      ),
-    ).toMatchObject({
-      status: "failed",
-      message: expect.stringMatching(/^This account is blocked/),
-    });
-    expect(
-      await loadMySubmissions(
         signedIn(async () => new Response("", { status: 503 })),
       ),
     ).toEqual({

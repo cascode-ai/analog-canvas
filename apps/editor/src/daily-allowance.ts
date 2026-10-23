@@ -13,3 +13,11 @@ export async function isDailyAllowanceRefusal(
     .catch(() => null)) as { error?: unknown } | null;
   return body?.error !== "too-many-requests";
 }
+
+/** A daily allowance's reset time in the reader's own clock, hh:mm. */
+export function dailyOpenResetTime(limit: { resetAt: string }): string {
+  return new Date(limit.resetAt).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

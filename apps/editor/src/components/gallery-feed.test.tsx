@@ -17,6 +17,8 @@ import {
 } from "./gallery-feed-count-panel";
 import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
 import { GalleryWallTile } from "./gallery-feed-tile";
+import { GalleryWallEmpty } from "./gallery-feed-empty";
+import { createDefaultGalleryFilters } from "../gallery-filters";
 import { GalleryTileMenu } from "./gallery-owner-controls";
 
 import {
@@ -27,6 +29,7 @@ import {
   removeGalleryAuthorEntry,
   type GalleryFeedEntry,
 } from "../gallery-client";
+import { isRequestFailure, OFFLINE_FAILURE } from "../request-failure";
 
 describe("Gallery landing preload", () => {
   const defaultFilters = {
@@ -98,7 +101,7 @@ function fetchReturning(payload: unknown): typeof fetch {
 
 /** A page, or null for anything that is not one. */
 const pageOf = (result: Awaited<ReturnType<typeof loadGalleryFeed>>) =>
-  typeof result === "string" || "failure" in result ? null : result;
+  typeof result === "string" || isRequestFailure(result) ? null : result;
 
 describe("loadGalleryFeed", () => {
   it("says a signed-out reader must sign in instead of calling the Gallery unavailable", async () => {
@@ -111,19 +114,12 @@ describe("loadGalleryFeed", () => {
     });
   });
 
-  it("keeps a blocked account and a thrown fetch apart from an outage (2026-10-23)", async () => {
-    expect(
-      await loadGalleryFeed((async () =>
-        Response.json(
-          { error: "account-blocked" },
-          { status: 403 },
-        )) as typeof fetch),
-    ).toMatchObject({ failure: "blocked" });
+  it("reads a thrown fetch as offline", async () => {
     expect(
       await loadGalleryFeed((async () => {
         throw new TypeError("Failed to fetch");
       }) as typeof fetch),
-    ).toMatchObject({ failure: "offline" });
+    ).toBe(OFFLINE_FAILURE);
   });
 
   it("gives a signed-out visitor's first circuits to the landing wall only", async () => {
@@ -525,6 +521,40 @@ describe("GalleryFeed", () => {
       markup.indexOf('data-testid="gallery-analytics"'),
     );
     expect(markup).toContain('data-testid="gallery-loading"');
+  });
+});
+
+describe("GalleryWallEmpty", () => {
+  const empty = (
+    state: Parameters<typeof GalleryWallEmpty>[0]["state"],
+    filters = createDefaultGalleryFilters(),
+  ) =>
+    renderToStaticMarkup(
+      createElement(GalleryWallEmpty, {
+        state,
+        filters,
+        narrowedName: null,
+        signedIn: true,
+        datasetName: null,
+      }),
+    );
+
+  it("says why a filtered wall could not load instead of claiming nothing matches (2026-10-23)", () => {
+    const filtered = {
+      ...createDefaultGalleryFilters(),
+      tags: ["ldo"],
+      attention: true,
+    };
+    const markup = empty(
+      { status: "unavailable", failure: "Too many requests.", entries: [] },
+      filtered,
+    );
+    expect(markup).toContain('data-testid="gallery-unavailable"');
+    expect(markup).toContain("Too many requests.");
+    expect(markup).not.toContain("No circuits match");
+    expect(empty({ status: "ready", entries: [] }, filtered)).toContain(
+      "No circuits match the selected tags.",
+    );
   });
 });
 

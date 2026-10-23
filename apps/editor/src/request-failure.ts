@@ -1,10 +1,10 @@
 // What a failed request to the Worker came to, as one short line a screen can
 // show. The Worker's refusals stay distinct (worker/api-rate-limit.ts,
 // worker/gallery.ts) instead of all reading as "unavailable".
+import { dailyOpenResetTime, isDailyAllowanceRefusal } from "./daily-allowance";
 import { SITE_USAGE_CONTACT } from "./usage-policy-note";
 
 export type RequestFailureKind =
-  | "signed-out"
   | "blocked"
   | "rate-limited"
   | "daily-limit"
@@ -15,6 +15,11 @@ export type RequestFailureKind =
 export interface RequestFailure {
   failure: RequestFailureKind;
   message: string;
+}
+
+/** Whether a read's answer is a failure rather than what it asked for. */
+export function isRequestFailure(value: unknown): value is RequestFailure {
+  return typeof value === "object" && value !== null && "failure" in value;
 }
 
 /** A fetch that threw: the browser never reached the Worker. */
@@ -39,7 +44,10 @@ function retrySeconds(response: Response, body: unknown): number {
     : 60;
 }
 
-/** Classifies a reply that is not OK. */
+/**
+ * Classifies a reply that is not OK. Each caller answers a 401 itself, with
+ * its own sign-in line.
+ */
 export async function requestFailureOf(
   response: Response,
 ): Promise<RequestFailure> {
@@ -48,30 +56,25 @@ export async function requestFailureOf(
     .json()
     .catch(() => null)) as { error?: unknown; resetAt?: unknown } | null;
   const { status } = response;
-  if (status === 401)
-    return { failure: "signed-out", message: "Sign in to continue." };
   if (status === 403 && body?.error === "account-blocked")
     return {
       failure: "blocked",
       message: `This account is blocked from the Gallery for bulk collection. To appeal, write to ${SITE_USAGE_CONTACT}.`,
     };
-  if (status === 429 && body?.error === "too-many-requests")
+  if (await isDailyAllowanceRefusal(response)) {
+    const resetAt = typeof body?.resetAt === "string" ? body.resetAt : "";
+    return {
+      failure: "daily-limit",
+      message: Number.isNaN(Date.parse(resetAt))
+        ? "Today's limit is reached. Try again tomorrow."
+        : `Today's limit is reached. Try again after ${dailyOpenResetTime({ resetAt })}.`,
+    };
+  }
+  if (status === 429)
     return {
       failure: "rate-limited",
       message: `Too many requests. Wait ${retrySeconds(response, body)} seconds and try again.`,
     };
-  if (status === 429) {
-    // Every other 429 is one of the Worker's daily allowances.
-    const resetAt =
-      typeof body?.resetAt === "string" ? new Date(body.resetAt) : null;
-    return {
-      failure: "daily-limit",
-      message:
-        resetAt && !Number.isNaN(resetAt.getTime())
-          ? `Today's limit is reached. Try again after ${resetAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`
-          : "Today's limit is reached. Try again tomorrow.",
-    };
-  }
   if (status === 404) return { failure: "not-found", message: "Not found." };
   return {
     failure: "server-error",

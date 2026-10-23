@@ -26,7 +26,7 @@ describe("requestFailureOf", () => {
     expect(failure.message).toContain(SITE_USAGE_CONTACT);
   });
 
-  it("tells a daily allowance from the other refusals", async () => {
+  it("gives a daily allowance its reset time", async () => {
     const opens = await requestFailureOf(
       Response.json(
         {
@@ -41,20 +41,11 @@ describe("requestFailureOf", () => {
     expect(opens.message).toMatch(
       /^Today's limit is reached\. Try again after/,
     );
-    expect(
-      await requestFailureOf(
-        Response.json({ error: "rate-limited" }, { status: 429 }),
-      ),
-    ).toEqual({
-      failure: "daily-limit",
-      message: "Today's limit is reached. Try again tomorrow.",
-    });
   });
 
-  it("keeps signed out, not found and server errors apart", async () => {
+  it("keeps not found and server errors apart", async () => {
     const kind = async (status: number) =>
       (await requestFailureOf(new Response("", { status }))).failure;
-    expect(await kind(401)).toBe("signed-out");
     expect(await kind(404)).toBe("not-found");
     expect(await kind(403)).toBe("server-error");
     expect(await kind(503)).toBe("server-error");

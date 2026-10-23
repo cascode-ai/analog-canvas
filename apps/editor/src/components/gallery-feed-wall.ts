@@ -20,6 +20,7 @@ import {
   type GalleryQuickFilterCounts,
   type GalleryTagSummary,
 } from "../gallery-client";
+import { isRequestFailure } from "../request-failure";
 
 /**
  * The eager landing request is one-use: the wall takes it only for its first
@@ -293,7 +294,7 @@ export function useGalleryWall({
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
       setHeldWall([]);
-      if (page !== GALLERY_SIGN_IN_REQUIRED && "failure" in page) {
+      if (isRequestFailure(page)) {
         if (!changingQuery) return;
         loadedQueryRef.current = queryKey;
         setState({
@@ -369,7 +370,7 @@ export function useGalleryWall({
         });
         return;
       }
-      if ("failure" in page) {
+      if (isRequestFailure(page)) {
         // The wall stays; the reader sees why it stopped and retries.
         setState((previous) =>
           previous.status === "ready" && previous.nextCursor === cursor
@@ -481,8 +482,9 @@ export function useGalleryWall({
     removeManagedEntry,
     retryNextPage: () => {
       if (state.nextCursor === null) return;
-      setState((previous) => ({ ...previous, failure: undefined }));
-      loadPageAfterRef.current(state.nextCursor);
+      // The reason stays unless a request has started in its place.
+      if (loadPageAfterRef.current(state.nextCursor))
+        setState((previous) => ({ ...previous, failure: undefined }));
     },
   };
 }

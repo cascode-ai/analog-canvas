@@ -1,9 +1,7 @@
 import type { MouseEvent } from "react";
 
-import {
-  dailyOpenResetTime,
-  type GalleryDailyOpenLimit,
-} from "../../gallery-client";
+import { dailyOpenResetTime } from "../../daily-allowance";
+import type { GalleryDailyOpenLimit } from "../../gallery-client";
 
 /**
  * Shown in the middle of the canvas when a Gallery circuit cannot open

@@ -411,11 +411,6 @@ describe("Gallery and example commands", () => {
     };
     expect(
       await statusFor(async () =>
-        Response.json({ error: "account-blocked" }, { status: 403 }),
-      ),
-    ).toMatch(/^This account is blocked/);
-    expect(
-      await statusFor(async () =>
         Response.json(
           { error: "too-many-requests", retryAfterSeconds: 60 },
           { status: 429 },

@@ -14,6 +14,7 @@ import { galleryEntryMatchesQuery } from "../../gallery-search";
 import { requestSignIn } from "../../components/sign-in-request";
 import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
 import { createGalleryPanelLoader } from "./gallery-panel-loader";
+import { isRequestFailure } from "../../request-failure";
 
 const ExamplesPanelTags = lazy(() =>
   import("./examples-panel-tags").then((module) => ({
@@ -291,15 +292,19 @@ function GalleryPanel({
       if (generation !== loadGenerationRef.current) return;
       firstPagePendingRef.current = false;
       if (base === GALLERY_SIGN_IN_REQUIRED) page = GALLERY_SIGN_IN_REQUIRED;
-      if (page !== GALLERY_SIGN_IN_REQUIRED && !("failure" in page)) {
+      if (page !== GALLERY_SIGN_IN_REQUIRED && !isRequestFailure(page)) {
         if (!selectedTags.length) baseCount.total = page.total;
-        else if (base && base !== GALLERY_SIGN_IN_REQUIRED && "entries" in base)
+        else if (
+          base &&
+          base !== GALLERY_SIGN_IN_REQUIRED &&
+          !isRequestFailure(base)
+        )
           baseCount.total = base.total;
       }
       const next: FeedState =
         page === GALLERY_SIGN_IN_REQUIRED
           ? { ...EMPTY_FEED, status: "signed-out" }
-          : "failure" in page
+          : isRequestFailure(page)
             ? { ...EMPTY_FEED, status: "unavailable", failure: page.message }
             : {
                 status: "ready",
@@ -354,7 +359,7 @@ function GalleryPanel({
         .then((page) => {
           if (
             page === GALLERY_SIGN_IN_REQUIRED ||
-            "failure" in page ||
+            isRequestFailure(page) ||
             generation !== loadGenerationRef.current
           )
             return;

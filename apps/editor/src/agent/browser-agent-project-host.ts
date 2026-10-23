@@ -35,6 +35,7 @@ import {
   loadGalleryFeed,
   type GalleryFeedEntry,
 } from "../gallery-client";
+import { isRequestFailure } from "../request-failure";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
 import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
@@ -164,7 +165,7 @@ export class BrowserAgentProjectHost {
           "sign-in",
         );
       }
-      if ("failure" in page) {
+      if (isRequestFailure(page)) {
         return this.error(
           request,
           "GALLERY_UNAVAILABLE",

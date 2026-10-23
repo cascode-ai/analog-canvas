@@ -1,7 +1,9 @@
 import type { GalleryOrder } from "./gallery-order";
 import type { GalleryAttention } from "../../../worker/gallery-curation";
 import { withoutReservedEntries } from "./gallery-reserved-ids";
+import { dailyOpenResetTime } from "./daily-allowance";
 import {
+  isRequestFailure,
   OFFLINE_FAILURE,
   requestFailureOf,
   UNREADABLE_REPLY,
@@ -86,7 +88,7 @@ export function warmGalleryPreviews(
     image.src = url;
   },
 ): void {
-  if (result === GALLERY_SIGN_IN_REQUIRED || "failure" in result) return;
+  if (result === GALLERY_SIGN_IN_REQUIRED || isRequestFailure(result)) return;
   for (const entry of result.entries.slice(0, WARMED_GALLERY_PREVIEWS))
     load(galleryPreviewUrl(entry.id, entry.previewRevision));
 }
@@ -327,7 +329,7 @@ export interface GalleryLandingPreload {
   /** The filters the preloaded tag counts answer; see galleryTagScope. */
   tagsScope?: string;
   /** The circuit a "View in Gallery" link names, looked up by its id. */
-  focus?: { id: string; entry: Promise<GalleryFeedEntry | null> };
+  focus?: { id: string; entry: Promise<GalleryFeedEntry | RequestFailure> };
 }
 
 /**
@@ -655,14 +657,6 @@ export async function dailyOpenLimit(
   }
 }
 
-/** The reset time in the reader's own clock, hours and minutes. */
-export function dailyOpenResetTime(limit: GalleryDailyOpenLimit): string {
-  return new Date(limit.resetAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 /** The same refusal as one line, for a dialog or an Agent; null otherwise. */
 export async function dailyOpenLimitMessage(
   response: Response,
@@ -673,32 +667,42 @@ export async function dailyOpenLimitMessage(
     : null;
 }
 
+/** A linked circuit the public wall does not hold. */
+export const GALLERY_ENTRY_MISSING: RequestFailure = {
+  failure: "not-found",
+  message: "That circuit is not on the wall. It may have been removed.",
+};
+
 /**
  * One circuit on the public wall, found by its id: what a "View in Gallery"
- * link shows at once, however far down the wall it would sit. Null when the
- * circuit is not on the public wall (withdrawn, rejected, unknown) or cannot
- * be read. It asks for the tile only, which costs no daily open.
+ * link shows at once, however far down the wall it would sit. Only a circuit
+ * not on the public wall (withdrawn, rejected, unknown) reads as missing;
+ * any other failure says what it was. It asks for the tile only, which costs
+ * no daily open.
  */
 export async function loadGalleryEntry(
   fetchLike: typeof fetch,
   id: string,
-): Promise<GalleryFeedEntry | null> {
+): Promise<GalleryFeedEntry | RequestFailure> {
+  let response: Response;
   try {
-    const response = await fetchLike(
+    response = await fetchLike(
       `/api/gallery/${encodeURIComponent(id)}?summary=1`,
       { credentials: "same-origin" },
     );
-    if (!response.ok) return null;
-    const payload = (await response.json()) as {
-      entry?: GalleryFeedEntry;
-      status?: string;
-    };
-    return payload.status === "public" && payload.entry?.id === id
-      ? payload.entry
-      : null;
   } catch {
-    return null;
+    return OFFLINE_FAILURE;
   }
+  if (response.status === 404) return GALLERY_ENTRY_MISSING;
+  if (!response.ok) return requestFailureOf(response);
+  const payload = (await response.json().catch(() => null)) as {
+    entry?: GalleryFeedEntry;
+    status?: string;
+  } | null;
+  if (!payload) return UNREADABLE_REPLY;
+  return payload.status === "public" && payload.entry?.id === id
+    ? payload.entry
+    : GALLERY_ENTRY_MISSING;
 }
 
 /** The grouped tag menu. An unreachable worker leaves the menu empty. */
