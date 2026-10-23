@@ -41,6 +41,11 @@ function ciPlan(paths, options) {
   return planCiValidation(planValidation(paths, catalog), options);
 }
 
+const properties = "apps/editor/e2e/component-property-workflows.spec.ts";
+const netlist = "apps/editor/e2e/netlist-workflows.spec.ts";
+const conversion = "apps/editor/e2e/netlist-conversion.spec.ts";
+const rnl = "apps/editor/e2e/rnl-interchange.spec.ts";
+
 describe("CI validation planning", () => {
   it("sizes the browser shards to the tests selected, from two to eight", () => {
     const shards = (counts, mode = "focused") =>
@@ -231,7 +236,6 @@ describe("CI validation planning", () => {
       e2eArgs: [
         "apps/editor/e2e/component-insert.spec.ts",
         "apps/editor/e2e/component-properties-catalog.spec.ts",
-        "apps/editor/e2e/component-property-workflows.spec.ts",
         ...gallerySpecs,
       ],
     });
@@ -248,9 +252,6 @@ describe("CI validation planning", () => {
   });
 
   it("selects the extracted workflows from their production owners and shared dependencies", () => {
-    const properties = "apps/editor/e2e/component-property-workflows.spec.ts";
-    const netlist = "apps/editor/e2e/netlist-workflows.spec.ts";
-    const conversion = "apps/editor/e2e/netlist-conversion.spec.ts";
     expect(
       ciPlan(["apps/editor/src/features/properties/component-property-code.ts"])
         .e2eArgs,
@@ -273,24 +274,49 @@ describe("CI validation planning", () => {
       for (const spec of editingSpecs)
         expect(plan.e2eArgs, path).not.toContain(spec);
     }
+    // Editor-wide code is left to the editing workflows; the property and
+    // netlist workflows run for their own features and fixtures.
     for (const path of [
       "apps/editor/src/app/App.tsx",
       "apps/editor/src/canvas/editor-canvas-surface.tsx",
       "apps/editor/src/features/text-editing/canvas-text-editor.tsx",
       "apps/editor/src/features/drafting/drafting-properties-panel.tsx",
-      "apps/editor/e2e/manual-editor-fixtures.ts",
     ]) {
       const plan = ciPlan([path]);
       expect(plan.mode, path).toBe("focused");
-      expect(plan.e2eArgs, path).toEqual(
-        expect.arrayContaining([
-          properties,
-          netlist,
-          conversion,
-          ...editingSpecs,
-        ]),
-      );
+      expect(plan.e2eArgs, path).toEqual(expect.arrayContaining(editingSpecs));
+      for (const spec of [properties, netlist, conversion, rnl])
+        expect(plan.e2eArgs, path).not.toContain(spec);
     }
+    const fixturePlan = ciPlan(["apps/editor/e2e/manual-editor-fixtures.ts"]);
+    expect(fixturePlan.mode).toBe("focused");
+    expect(fixturePlan.e2eArgs).toEqual(
+      expect.arrayContaining([properties, netlist, ...editingSpecs]),
+    );
+    for (const path of [
+      "apps/editor/src/app/editor-properties-dock.tsx",
+      "apps/editor/src/features/instance-display/instance-parameter-display.ts",
+      "apps/editor/src/features/component-insert/component-parameters.ts",
+    ])
+      expect(ciPlan([path]).e2eArgs, path).toContain(properties);
+  });
+
+  it("runs the RNL workflows alone for the RNL package and its fixtures", () => {
+    for (const path of [
+      "packages/rnl/src/place.ts",
+      "apps/editor/e2e/label-census.ts",
+      "apps/editor/e2e/bipolar-project.ts",
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("focused");
+      expect(plan.e2eArgs, path).toEqual([rnl]);
+    }
+    const panel = ciPlan([
+      "apps/editor/src/features/netlist-export/netlist-code-panel.tsx",
+    ]);
+    expect(panel.e2eArgs).toEqual(
+      expect.arrayContaining([properties, netlist, conversion, rnl]),
+    );
   });
 
   it("keeps editable netlists and bundled examples on their browser regressions", () => {

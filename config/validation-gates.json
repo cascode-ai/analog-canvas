@@ -378,60 +378,69 @@
       "scripts/lib/validation-gates*.mjs"
     ],
     "editorProperties": [
-      "apps/editor/src/app/**",
-      "apps/editor/src/canvas/**",
-      "apps/editor/src/commands/**",
-      "apps/editor/src/interaction/**",
-      "apps/editor/src/presentation/**",
-      "apps/editor/src/snap/**",
-      "apps/editor/src/features/clipboard/**",
-      "apps/editor/src/features/drafting/**",
-      "apps/editor/src/features/instance-display/**",
-      "apps/editor/src/features/netlist-export/**",
+      "apps/editor/src/app/editor-properties-dock.tsx",
       "apps/editor/src/features/properties/**",
-      "apps/editor/src/features/search/**",
-      "apps/editor/src/features/selection/**",
-      "apps/editor/src/features/text-editing/**",
-      "apps/editor/src/features/component-insert/**",
+      "apps/editor/src/features/netlist-export/**",
+      "apps/editor/src/features/instance-display/**",
+      "apps/editor/src/features/component-insert/component-parameters*",
+      "apps/editor/src/features/component-insert/placed-instance-netlist*",
+      "apps/editor/src/features/editor-shell/differential-input-swap*",
+      "apps/editor/src/features/editor-shell/differential-output-swap*",
+      "apps/editor/src/features/editor-shell/switch-contact-style*",
+      "apps/editor/src/features/logical-net-choices*",
       "apps/editor/e2e/component-property-workflows.spec.ts",
       "apps/editor/e2e/manual-editor-fixtures.ts",
       "apps/editor/e2e/canvas-fixtures.ts",
       "apps/editor/e2e/editor-fixtures.ts"
     ],
     "editorNetlist": [
-      "apps/editor/src/app/**",
-      "apps/editor/src/canvas/**",
-      "apps/editor/src/commands/**",
-      "apps/editor/src/interaction/**",
-      "apps/editor/src/presentation/**",
-      "apps/editor/src/snap/**",
-      "apps/editor/src/features/clipboard/**",
-      "apps/editor/src/features/drafting/**",
-      "apps/editor/src/features/instance-display/**",
       "apps/editor/src/features/netlist-export/**",
       "apps/editor/src/features/properties/**",
-      "apps/editor/src/features/search/**",
-      "apps/editor/src/features/selection/**",
-      "apps/editor/src/features/text-editing/**",
-      "apps/editor/src/document/**",
-      "apps/editor/src/examples/*.icproj.json",
+      "apps/editor/src/features/instance-display/imported-instance-displays*",
+      "apps/editor/src/features/component-insert/placed-instance-netlist*",
+      "apps/editor/src/features/editor-shell/editor-export-commands*",
+      "apps/editor/src/features/editor-shell/editor-file-commands*",
+      "apps/editor/src/features/editor-shell/file-command-menu*",
       "apps/editor/src/features/editor-shell/gallery-example-commands.ts",
+      "apps/editor/src/examples/*.icproj.json",
+      "apps/editor/src/examples/library-examples*",
       "apps/editor/src/features/project-code/project-text-editor.tsx",
+      "apps/editor/src/features/project-code/static-code-view*",
+      "packages/spice/src/conversion*.ts",
+      "packages/spice/src/importer.ts",
       "packages/spice/src/syntax.ts",
       "packages/netlist/src/extract*.ts",
       "packages/netlist/src/export.ts",
       "packages/netlist/src/printed-netlist.ts",
       "packages/netlist/src/printers.ts",
       "packages/derived/src/mos-bulk.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
       "apps/editor/e2e/netlist-code-edit.spec.ts",
       "apps/editor/e2e/netlist-workflows.spec.ts",
       "apps/editor/e2e/netlist-conversion.spec.ts",
+      "apps/editor/e2e/editor-fixtures.ts",
       "apps/editor/e2e/manual-editor-fixtures.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
+      "apps/editor/e2e/canvas-fixtures.ts"
+    ],
+    "editorRnl": [
       "packages/rnl/**",
+      "apps/editor/src/features/netlist-export/**",
+      "apps/editor/src/features/instance-display/imported-instance-displays*",
+      "apps/editor/src/features/editor-shell/editor-export-commands*",
+      "apps/editor/src/features/editor-shell/editor-file-commands*",
+      "apps/editor/src/features/editor-shell/gallery-example-commands.ts",
+      "apps/editor/src/examples/*.icproj.json",
+      "apps/editor/src/examples/library-examples*",
+      "packages/spice/src/conversion*.ts",
+      "packages/spice/src/importer.ts",
+      "packages/netlist/src/extract*.ts",
+      "packages/netlist/src/export.ts",
+      "packages/netlist/src/printed-netlist.ts",
+      "packages/netlist/src/printers.ts",
+      "packages/derived/src/mos-bulk.ts",
       "apps/editor/e2e/rnl-interchange.spec.ts",
-      "apps/editor/e2e/label-census.ts"
+      "apps/editor/e2e/label-census.ts",
+      "apps/editor/e2e/bipolar-project.ts",
+      "apps/editor/e2e/editor-fixtures.ts"
     ]
   },
   "gates": [
@@ -677,16 +686,28 @@
         "test:e2e:local",
         "apps/editor/e2e/netlist-code-edit.spec.ts",
         "apps/editor/e2e/netlist-workflows.spec.ts",
-        "apps/editor/e2e/netlist-conversion.spec.ts",
-        "apps/editor/e2e/rnl-interchange.spec.ts"
+        "apps/editor/e2e/netlist-conversion.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/netlist-code-edit.spec.ts",
           "apps/editor/e2e/netlist-workflows.spec.ts",
-          "apps/editor/e2e/netlist-conversion.spec.ts",
-          "apps/editor/e2e/rnl-interchange.spec.ts"
+          "apps/editor/e2e/netlist-conversion.spec.ts"
         ]
+      }
+    },
+    {
+      "id": "editor-rnl-browser",
+      "stage": "affected",
+      "groups": ["editorRnl"],
+      "description": "Validate RNL export, import, the Canvas package and the Viewer.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/rnl-interchange.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": ["apps/editor/e2e/rnl-interchange.spec.ts"]
       }
     },
     {
@@ -881,7 +902,8 @@
         "release-verification",
         "branch-verification",
         "editor-properties-browser",
-        "editor-netlist-browser"
+        "editor-netlist-browser",
+        "editor-rnl-browser"
       ]
     }
   ],

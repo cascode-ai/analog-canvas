@@ -81,7 +81,6 @@ describe("validation gate planning", () => {
       "test-impact",
       "workspace-unit",
       "component-insert-browser",
-      "editor-properties-browser",
     ]);
   });
 
