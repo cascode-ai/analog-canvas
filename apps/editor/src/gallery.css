@@ -636,6 +636,14 @@
   background: var(--icm-surface);
 }
 
+.gallery-footnote p {
+  margin: 0;
+}
+
+.gallery-footnote p + p {
+  margin-top: 4px;
+}
+
 /* Pinterest-style wall: CSS columns give a dependency-free masonry. */
 .gallery-wall {
   padding: 18px 22px;

@@ -67,6 +67,7 @@ import {
 } from "./gallery-feed-count-panel";
 import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
 import { GalleryWallTile } from "./gallery-feed-tile";
+import { SITE_USAGE_NOTE } from "../usage-policy-note";
 
 /**
  * Heights of the grey stand-in tiles behind the sign-in invitation, for a
@@ -876,8 +877,11 @@ export function GalleryFeed({
       ) : null}
       {state.status === "signed-out" ? null : (
         <footer className="gallery-footnote" data-testid="gallery-footnote">
-          Open any circuit to edit your own copy; publish your own from the
-          editor.
+          <p>
+            Open any circuit to edit your own copy; publish your own from the
+            editor.
+          </p>
+          <p data-testid="gallery-usage-note">{SITE_USAGE_NOTE}</p>
         </footer>
       )}
       {rejecting ? (

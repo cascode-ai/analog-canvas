@@ -31,7 +31,7 @@ import {
   type BlockEvidence,
 } from "./account-blocks";
 import { unlinkArenaVoter, type ArenaService } from "./arena-account";
-import { USAGE_CONTACT } from "./usage-policy";
+import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import {
   ARENA_ORIGIN,
   CANVAS_HOST,
@@ -702,7 +702,7 @@ export class AuthDO {
         owed.email,
         body.subject,
         body.text,
-        USAGE_CONTACT,
+        SITE_USAGE_CONTACT,
       ))
     )
       return Response.json({ error: "send-failed" }, { status: 502 });
@@ -762,7 +762,7 @@ export class AuthDO {
     let sent = 0;
     for (const row of unsentNotices(this.sql)) {
       const { subject, text } = blockNotice(row);
-      if (!(await this.sendEmail(USAGE_CONTACT, subject, text))) break;
+      if (!(await this.sendEmail(SITE_USAGE_CONTACT, subject, text))) break;
       markNotified(this.sql, row.id, this.now().toISOString());
       sent += 1;
     }

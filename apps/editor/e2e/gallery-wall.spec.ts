@@ -138,8 +138,11 @@ test("the site lands on the full-screen gallery feed and states its size", async
   );
   await page.goto("/");
   await expect(page.getByTestId("gallery-feed")).toBeVisible();
-  await expect(page.getByTestId("gallery-footnote")).toHaveText(
+  await expect(page.getByTestId("gallery-footnote")).toContainText(
     "Open any circuit to edit your own copy; publish your own from the editor.",
+  );
+  await expect(page.getByTestId("gallery-usage-note")).toContainText(
+    "Bulk collection is strictly prohibited",
   );
   const brand = page.getByTestId("gallery-editor-link");
   await expect(brand).toHaveCSS("display", "flex");

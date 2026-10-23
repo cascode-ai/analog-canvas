@@ -20,7 +20,8 @@ import {
   wallTagCounts,
 } from "./gallery-wall-merge";
 import { sameOrigin } from "./same-origin";
-import { BULK_ACCESS_NOTE, llmsUsagePolicy, robotsTxt } from "./usage-policy";
+import { SITE_USAGE_NOTE } from "../apps/editor/src/usage-policy-note";
+import { llmsUsagePolicy, robotsTxt } from "./usage-policy";
 import {
   readsTraps,
   trapOf,
@@ -526,7 +527,7 @@ export async function routeGalleryRequest(
   // none of it.
   if ((await galleryReaderOf(request, readSession))?.blocked)
     return Response.json(
-      { error: "account-blocked", usage: BULK_ACCESS_NOTE },
+      { error: "account-blocked", usage: SITE_USAGE_NOTE },
       { status: 403, headers: { "cache-control": "no-store" } },
     );
   // A trap circuit (gallery-traps.ts): only a program walking the list

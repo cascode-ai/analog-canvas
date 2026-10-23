@@ -1,5 +1,5 @@
 import { bearerMatches } from "./bearer";
-import { BULK_ACCESS_NOTE } from "./usage-policy";
+import { SITE_USAGE_NOTE } from "../apps/editor/src/usage-policy-note";
 
 /** Cloudflare's Workers rate limiting binding (`ratelimits` in wrangler.jsonc). */
 type RateLimiterLike = {
@@ -52,7 +52,7 @@ export async function refuseApiFlood(
     {
       error: "too-many-requests",
       retryAfterSeconds: 60,
-      usage: BULK_ACCESS_NOTE,
+      usage: SITE_USAGE_NOTE,
     },
     {
       status: 429,
