@@ -675,7 +675,7 @@ function exportCell(
       name: nextName("arrow"),
       definition: "$ARROW",
       attach: { p: arrow.at },
-      ...(arrow.orient === "R0" ? {} : { orient: arrow.orient }),
+      orient: arrow.orient,
     });
   }
 
@@ -913,7 +913,7 @@ function exportTexts(
             name,
             definition: "$CURRENT_ARROW",
             attach: { p: toRnlPoint(marker.position) },
-            ...(turn ? { orient: `R${turn}` as RnlOrient } : {}),
+            orient: `R${turn}` as RnlOrient,
           });
         }
         write(annotation.id, text, 0, {
@@ -1051,7 +1051,7 @@ function exportTexts(
         definition: "$FIGURE",
         attach: { p: rnlPlace(geometry.position, turn.orient, symbol.offset) },
         symbol: symbol.symbol,
-        ...(orient === "R0" ? {} : { orient }),
+        orient,
       });
       continue;
     }
