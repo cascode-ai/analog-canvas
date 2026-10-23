@@ -10,7 +10,7 @@
 //
 // A budget is a ceiling, not an exact manifest: content hashes move on every
 // unrelated build, so an exact comparison would fail constantly and be
-// ignored. Ceilings sit 10% above the measured payload, a tripwire for a
+// ignored. Ceilings sit SLACK above the measured payload, a tripwire for a
 // heavy library pulled into first paint, not a pin on today's size that every
 // feature trips. Raising a ceiling still needs a recorded reason in the
 // commit, the same policy `docs/specs/performance.md` states for the timing
@@ -20,6 +20,10 @@ import { basename, join, resolve } from "node:path";
 import { brotliCompressSync, gzipSync } from "node:zlib";
 
 const check = process.argv.includes("--check");
+// Ordinary features stay inside the ceilings; a heavy dependency on the
+// first-paint path trips them.
+const SLACK = 0.1;
+const slackPercent = `${Math.round(SLACK * 100)}%`;
 const distDir = resolve(
   process.argv.find((argument) => argument.startsWith("--dist="))?.slice(7) ??
     "apps/editor/dist",
@@ -102,9 +106,7 @@ for (const [route, { rows, totals }] of Object.entries(measuredRoutes)) {
 }
 
 if (!check) {
-  // Ceilings carry 10% slack: ordinary features stay inside, and a heavy
-  // dependency on the first-paint path trips them.
-  const ceiling = (value) => Math.ceil(value * 1.1);
+  const ceiling = (value) => Math.ceil(value * (1 + SLACK));
   const routeReport = (totals) => ({
     budget: {
       files: ceiling(totals.files),
@@ -116,7 +118,7 @@ if (!check) {
   });
   const report = {
     version: "0.3.0",
-    note: "Ceilings for the /editor and / Gallery first-paint payloads, 10% above the measured payload so a heavy dependency on first paint trips them. Raising one requires a recorded reason; a faster or slower machine is not one.",
+    note: `Ceilings for the /editor and / Gallery first-paint payloads, ${slackPercent} above the measured payload so a heavy dependency on first paint trips them. Raising one requires a recorded reason; a faster or slower machine is not one.`,
     routes: {
       editor: routeReport(measuredRoutes.editor.totals),
       gallery: routeReport(measuredRoutes.gallery.totals),

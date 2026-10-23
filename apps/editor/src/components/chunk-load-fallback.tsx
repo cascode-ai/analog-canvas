@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { lazy, type ComponentType } from "react";
 
 import { REFRESH_RESTORE_STORAGE_KEY } from "../document/use-project-file-lifecycle";
 
@@ -26,7 +26,7 @@ export function refreshWithRestore(): void {
  * schematic keeps running, and the remedy is a refresh that restores the
  * current work, not the whole-editor crash screen.
  */
-export function createChunkLoadFallback(
+function createChunkLoadFallback(
   variant: "dialog" | "inline",
   error: unknown,
 ): ComponentType<ChunkLoadFallbackProps> {
@@ -140,5 +140,28 @@ export function ChunkLoadBanner({
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * A rejected dynamic import would otherwise re-throw through Suspense into
+ * the root error boundary and unmount the whole editor — the classic failure
+ * is a tab that survived a redeploy asking for chunk names that no longer
+ * exist. Resolving to a scoped fallback keeps the schematic alive and offers
+ * the refresh (with automatic restore) that actually fixes it.
+ */
+export function lazyChunk<Component extends ComponentType<any>>(
+  variant: "dialog" | "inline",
+  load: () => Promise<{ default: Component }>,
+) {
+  return lazy(() =>
+    load().catch((error: unknown) => {
+      console.error("Editor chunk failed to load:", error);
+      // The fallback ignores unknown props, so standing in for the real
+      // component is safe even though the prop types differ.
+      return {
+        default: createChunkLoadFallback(variant, error),
+      } as unknown as { default: Component };
+    }),
   );
 }

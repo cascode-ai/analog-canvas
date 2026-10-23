@@ -26,7 +26,7 @@ import {
   type NetlistMode,
 } from "./netlist-mode";
 import type { NativeExternalTarget } from "../../hosts/native-external-links";
-import { LazyRnlNetlistView } from "../../app/lazy-editor-dialogs";
+import { lazyChunk } from "../../components/chunk-load-fallback";
 import {
   inferNetlistProcess,
   preparedNetlistDefaults,
@@ -55,6 +55,13 @@ import { StaticCodeView } from "../project-code/static-code-view";
 
 const ProjectTextEditor = lazy(
   () => import("../project-code/project-text-editor"),
+);
+
+// RNL's writer and symbol table load with the first RNL netlist mode.
+const RnlNetlistView = lazyChunk("inline", () =>
+  import("./rnl-netlist-view").then((module) => ({
+    default: module.RnlNetlistView,
+  })),
 );
 
 /**
@@ -561,7 +568,7 @@ export function NetlistCodePanel({
             </div>
           }
         >
-          <LazyRnlNetlistView
+          <RnlNetlistView
             project={project}
             format={format}
             namingProfile={namingProfile}

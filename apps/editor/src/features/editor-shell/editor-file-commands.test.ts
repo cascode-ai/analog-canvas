@@ -331,3 +331,45 @@ describe("RNL netlist copy", () => {
     );
   });
 });
+
+describe("RNL chunk failures", () => {
+  afterEach(() => {
+    vi.doUnmock("@icm/rnl");
+    vi.doUnmock("../netlist-export/rnl-import");
+  });
+
+  it("keeps the chunk refresh remedy when the RNL writer cannot load", async () => {
+    vi.doMock("@icm/rnl", () => {
+      throw new Error("missing chunk");
+    });
+    vi.mocked(loadRnlRuntime).mockResolvedValue(null);
+    for (const destination of ["clipboard", "file"] as const) {
+      const target = commands();
+      await target.exportDesignNetlist("spice+rnl", "native", destination);
+      expect(target.deliverFile).not.toHaveBeenCalled();
+      expect(target.dependencies.onChunkLoadFailure).toHaveBeenCalledWith(
+        "RNL formats",
+      );
+      expect(target.dependencies.setStatus).toHaveBeenLastCalledWith(
+        expect.stringContaining("Refresh"),
+      );
+    }
+  });
+
+  it("keeps the chunk refresh remedy when the RNL importer cannot load", async () => {
+    vi.doMock("../netlist-export/rnl-import", () => {
+      throw new Error("missing chunk");
+    });
+    const target = commands();
+    await target.importRnlFiles([
+      new File(["* rnl\n"], "circuit.sp"),
+    ] as unknown as FileList);
+    expect(target.dependencies.replaceActiveProject).not.toHaveBeenCalled();
+    expect(target.dependencies.onChunkLoadFailure).toHaveBeenCalledWith(
+      "RNL import",
+    );
+    expect(target.dependencies.setStatus).toHaveBeenLastCalledWith(
+      expect.stringContaining("Refresh"),
+    );
+  });
+});

@@ -8,7 +8,7 @@
  * "Failed to fetch dynamically imported module: …". That string must never
  * be the user's answer; callers catch {@link ChunkLoadError} and show the
  * refresh remedy instead. React.lazy surfaces use `lazyChunk` in
- * app/lazy-editor-dialogs.ts; this is the same contract for plain
+ * components/chunk-load-fallback.tsx; this is the same contract for plain
  * `await import()` call sites.
  */
 export class ChunkLoadError extends Error {

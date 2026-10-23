@@ -9,15 +9,14 @@
   "editorStylesLoaded": true,
   "galleryPdfRuntimeLoaded": false,
   "editorPdfRuntimeLoaded": false,
-  "editorLoadingScreens": [
-    "Loading editor…"
-  ],
+  "editorLoadingScreens": ["Loading editor…"],
   "editorNetlistLayoutChangedOnLoad": false,
   "editorSimulationServiceLoaded": false,
   "editorAgentRuntimeLoaded": false,
   "editorAgentRuntimePreloaded": false,
   "routePreloadBeforeStylesheets": true,
   "editorFirstLoadJsonParser": false,
+  "editorFirstLoadRnl": false,
   "editorJsonParserLoaded": false,
   "editorSchematicFonts": [
     "Metropolis-Bold.schematic.woff2 link",

@@ -414,6 +414,14 @@ async function main() {
     "editor",
     "JsonText",
   );
+  // @icm/rnl (writer, importer and symbol table) loads with the first RNL
+  // use (#1749 put it on first load). "rnl-std-basic" names the table's
+  // RNL standard package.
+  const editorFirstLoadRnl = await routePreloadContains(
+    builtHtml,
+    "editor",
+    "rnl-std-basic",
+  );
   // Nor does the /editor route preload list name the runtime's chunk.
   const editorRoutePreload =
     /const editorResources = (\[\[.*?\]\]);/su.exec(builtHtml)?.[1] ?? "";
@@ -438,6 +446,7 @@ async function main() {
     editorAgentRuntimePreloaded,
     routePreloadBeforeStylesheets,
     editorFirstLoadJsonParser,
+    editorFirstLoadRnl,
     editorJsonParserLoaded,
     editorSchematicFonts,
     artifactCodecWorkerBundlesModel,
@@ -492,6 +501,9 @@ async function main() {
   }
   if (report.editorFirstLoadJsonParser) {
     throw new Error("Editor first load includes the JSON property-code parser");
+  }
+  if (report.editorFirstLoadRnl) {
+    throw new Error("Editor first load includes @icm/rnl");
   }
   if (report.editorJsonParserLoaded) {
     throw new Error("Opening the editor loaded the JSON parser");

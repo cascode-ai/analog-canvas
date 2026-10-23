@@ -12,7 +12,11 @@ import {
   type NetlistMode,
 } from "../netlist-export/netlist-mode";
 import { loadRnlRuntime } from "../netlist-export/rnl-runtime";
-import { importChunk } from "../../components/chunk-import";
+import {
+  ChunkLoadError,
+  chunkLoadStatus,
+  importChunk,
+} from "../../components/chunk-import";
 
 import {
   createVisualExportArtifact,
@@ -104,11 +108,19 @@ export function createEditorFileCommands({
     }
   };
 
-  /** The status when the rnl runtime fails to load or to write. */
-  const rnlFailure = (error: unknown) =>
-    error instanceof Error
+  /**
+   * The status when RNL code fails to load or the rnl runtime fails to
+   * write. A missing chunk raises the refresh banner, as for PNG and PDF.
+   */
+  const rnlFailure = (error: unknown) => {
+    if (error instanceof ChunkLoadError) {
+      onChunkLoadFailure?.(error.feature);
+      return chunkLoadStatus(error.feature);
+    }
+    return error instanceof Error
       ? `RNL: ${error.message}`
       : "The rnl runtime could not write this netlist";
+  };
 
   /**
    * Copies an RNL netlist. The copy starts now and takes the text once the
@@ -312,6 +324,11 @@ export function createEditorFileCommands({
       }
       await installImport("Import RNL sources", plan.project, report);
     } catch (error) {
+      if (error instanceof ChunkLoadError) {
+        setStatus(chunkLoadStatus(error.feature));
+        onChunkLoadFailure?.(error.feature);
+        return;
+      }
       setStatus(error instanceof Error ? error.message : "RNL import failed");
     }
   };

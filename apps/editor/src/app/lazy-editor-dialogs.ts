@@ -1,29 +1,6 @@
-import { lazy, type ComponentProps, type ComponentType } from "react";
+import type { ComponentProps } from "react";
 
-import { createChunkLoadFallback } from "../components/chunk-load-fallback";
-
-/**
- * A rejected dynamic import would otherwise re-throw through Suspense into
- * the root error boundary and unmount the whole editor — the classic failure
- * is a tab that survived a redeploy asking for chunk names that no longer
- * exist. Resolving to a scoped fallback keeps the schematic alive and offers
- * the refresh (with automatic restore) that actually fixes it.
- */
-function lazyChunk<Component extends ComponentType<any>>(
-  variant: "dialog" | "inline",
-  load: () => Promise<{ default: Component }>,
-) {
-  return lazy(() =>
-    load().catch((error: unknown) => {
-      console.error("Editor dialog chunk failed to load:", error);
-      // The fallback ignores unknown props, so standing in for the real
-      // component is safe even though the prop types differ.
-      return {
-        default: createChunkLoadFallback(variant, error),
-      } as unknown as { default: Component };
-    }),
-  );
-}
+import { lazyChunk } from "../components/chunk-load-fallback";
 
 export const LazyCellManagerDialog = lazyChunk("dialog", () =>
   import("../features/hierarchy/cell-manager-dialog").then((module) => ({
@@ -58,13 +35,6 @@ export const LazySpiceSimulationSurface = import.meta.env?.ICM_DESKTOP
         }),
       ),
     );
-
-// RNL's writer and symbol table load with the first RNL netlist mode.
-export const LazyRnlNetlistView = lazyChunk("inline", () =>
-  import("../features/netlist-export/rnl-netlist-view").then((module) => ({
-    default: module.RnlNetlistView,
-  })),
-);
 
 export const LazyNetlistPreflightDialog = lazyChunk("dialog", () =>
   import("../features/netlist-export/netlist-preflight-dialog").then(
