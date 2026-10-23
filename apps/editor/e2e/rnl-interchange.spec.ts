@@ -536,61 +536,52 @@ function drawingCensus(project: CensusProject) {
 }
 
 // The path a reader takes: an example opened from the library (its devices
-// bound to the process), its RNL copied from the Netlist panel, and that file
-// imported again. Copied ground glyphs, SKY130 subcircuit MOS, generic NMOS
-// and PMOS, nets named Vin+, power labels and rails come back as drawn.
-for (const example of [
-  "common-source-amplifier",
-  "two-stage-op-amp",
-  "current-mirror-loaded-differential-pair",
-  "fully-differential-two-stage-op-amp",
-  "five-transistor-ota-sky130",
-])
-  for (const process of ["sky130", "abstract"] as const)
-    for (const mode of ["spice+rnl", "spectre+rnl"] as const)
-      test(`brings ${example} (${process}) back through ${mode} with every part, ground, wire and label`, async ({
-        page,
-      }) => {
-        await openEditor(page, `/editor?example=${example}`);
-        await expectStatus(page, /^Opened example:/u);
-        const panel = await showNetlistPanel(page);
-        await panel.getByLabel("Netlist process").selectOption(process);
-        const drawn = await exportedProject(page);
-        const text = await copiedNetlist(page, mode);
-        await page.getByTestId("rnl-files").setInputFiles({
-          name: `${example}.${mode === "spice+rnl" ? "sp" : "scs"}`,
-          mimeType: "text/plain",
-          buffer: Buffer.from(text),
-        });
-        // An example the reader changed asks before the import replaces it.
-        const unsaved = page.getByRole("dialog", { name: "Unsaved changes" });
-        const imported = page
-          .getByTestId("status")
-          .filter({ hasText: /^Imported \d+ Documents?/u });
-        await expect(unsaved.or(imported)).toBeVisible();
-        if (await unsaved.isVisible())
-          await unsaved
-            .getByRole("button", { name: "Continue without saving" })
-            .click();
-        await expectStatus(page, /^Imported \d+ Documents?/u);
-        const read = await exportedProject(page);
-        // Each Cell the file carries is drawn as it was: parts, junctions,
-        // wired pins, wires and net and power labels counted ...
-        const was = drawingCensus(drawn);
-        const now = drawingCensus(read);
-        expect(Object.keys(now).length).toBeGreaterThan(0);
-        for (const [cell, census] of Object.entries(now))
-          for (const item of [
-            "parts",
-            "junctions",
-            "wiredPins",
-            "wires",
-            "labels",
-          ] as const)
-            expect(census[item], `${cell} ${item}`).toEqual(was[cell]?.[item]);
-        // ... and every label of them, where it was, as big, with its text
-        // and none twice, including source values and decoded net names.
-        expect(labelDifferences(labelCensus(drawn), labelCensus(read))).toEqual(
-          [],
-        );
-      });
+// bound to the default process), switched to another process in the Netlist
+// panel, its RNL copied from the panel, and that file imported again. One
+// multi-Cell example carries this GUI wiring; rnl-round-trip.test.ts brings
+// every library example back under each process and format, including this
+// switch, with the same census and label checks.
+test("brings five-transistor-ota-sky130 (abstract) back through spectre+rnl with every part, ground, wire and label", async ({
+  page,
+}) => {
+  await openEditor(page, "/editor?example=five-transistor-ota-sky130");
+  await expectStatus(page, /^Opened example:/u);
+  const panel = await showNetlistPanel(page);
+  await panel.getByLabel("Netlist process").selectOption("abstract");
+  const drawn = await exportedProject(page);
+  const text = await copiedNetlist(page, "spectre+rnl");
+  await page.getByTestId("rnl-files").setInputFiles({
+    name: "five-transistor-ota-sky130.scs",
+    mimeType: "text/plain",
+    buffer: Buffer.from(text),
+  });
+  // An example the reader changed asks before the import replaces it.
+  const unsaved = page.getByRole("dialog", { name: "Unsaved changes" });
+  const imported = page
+    .getByTestId("status")
+    .filter({ hasText: /^Imported \d+ Documents?/u });
+  await expect(unsaved.or(imported)).toBeVisible();
+  if (await unsaved.isVisible())
+    await unsaved
+      .getByRole("button", { name: "Continue without saving" })
+      .click();
+  await expectStatus(page, /^Imported \d+ Documents?/u);
+  const read = await exportedProject(page);
+  // Each Cell the file carries is drawn as it was: parts, junctions,
+  // wired pins, wires and net and power labels counted ...
+  const was = drawingCensus(drawn);
+  const now = drawingCensus(read);
+  expect(Object.keys(now).length).toBeGreaterThan(0);
+  for (const [cell, census] of Object.entries(now))
+    for (const item of [
+      "parts",
+      "junctions",
+      "wiredPins",
+      "wires",
+      "labels",
+    ] as const)
+      expect(census[item], `${cell} ${item}`).toEqual(was[cell]?.[item]);
+  // ... and every label of them, where it was, as big, with its text
+  // and none twice, including source values and decoded net names.
+  expect(labelDifferences(labelCensus(drawn), labelCensus(read))).toEqual([]);
+});

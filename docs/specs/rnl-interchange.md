@@ -286,11 +286,13 @@ the RNL language and its runtime belong to rnl.
   as the runtime writes them in its Worker, and File → Import → `RNL…` brings
   the copied file back with every part where it was drawn and the same netlist;
   examples opened from the library, their devices bound to the process, come
-  back through either format, in SKY130 and Abstract, with every part, ground,
-  junction and wired pin, each wire drawn as it was (power rails, body ties, a
-  wire through a junction as one) and each power label a power label
-  (`apps/editor/e2e/rnl-interchange.spec.ts`; the same in Node, with the
-  editor's entry step, in `rnl-round-trip.test.ts`).
+  back through either format, in SKY130 and Abstract (opened under it, or
+  opened under SKY130 and switched in the Netlist panel), with every part,
+  ground, junction and wired pin, each wire drawn as it was (power rails, body
+  ties, a wire through a junction as one), each power label a power label and
+  no Cell added (`rnl-round-trip.test.ts`, with the editor's entry step; one
+  multi-Cell example switched to Abstract and imported through the panel in
+  `apps/editor/e2e/rnl-interchange.spec.ts`).
 - Under an RNL format the panel shows the "About RNL" link, to the
   introduction page in a new tab, and under no other format; the desktop app's
   list of links has it (`apps/editor/e2e/rnl-interchange.spec.ts`,
@@ -299,9 +301,10 @@ the RNL language and its runtime belong to rnl.
 - The library's five examples (Common-Source Amplifier, Two-Stage Op Amp,
   Current-Mirror-Loaded Differential Pair, Fully Differential Two-Stage Op
   Amp, Five-Transistor OTA) in either process and either format come back
-  with every label as it was drawn, in the editor and in Node: the same
-  count (none shown twice), text, anchor point, alignment, turn, size and
-  ink, anchored to the same kind of object, and a hidden label still hidden
+  with every label as it was drawn, in Node and, for one of them, in the
+  editor: the same count (none shown twice), text, anchor point, alignment,
+  turn, size and ink, anchored to the same kind of object, and a hidden label
+  still hidden
   (`apps/editor/e2e/label-census.ts`, run by both). Source values, engineering
   suffixes and decoded Spectre names follow the SPICE frontend contract;
   their labels receive the same text and ink checks as other labels.

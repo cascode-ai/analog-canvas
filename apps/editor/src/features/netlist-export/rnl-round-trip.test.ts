@@ -9,6 +9,7 @@ import {
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { IDEAL_COMPARATOR_TARGET, subcircuitDescriptor } from "@icm/devices";
+import { executeProjectTransaction } from "@icm/edit-engine";
 import {
   createEmptyProject,
   flattenRichText,
@@ -43,7 +44,7 @@ import { bipolarProject } from "../../../e2e/bipolar-project";
 import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
 import { materializeRazaviProjectBulkConnections } from "../../presentation/razavi-presentation";
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
-import { prepareNetlistExample } from "./netlist-process";
+import { planNetlistProcess, prepareNetlistExample } from "./netlist-process";
 import { planRnlImport } from "./rnl-import";
 import type { RnlRuntime } from "./rnl-runtime";
 import { delayCellFixture } from "../../../../../packages/netlist/src/delay-cell-fixture.test-support.js";
@@ -1909,6 +1910,31 @@ function drawingCensus(project: CircuitProject) {
   );
 }
 
+/**
+ * How a reader comes to an example under a process: opened under it, or
+ * opened under the default SKY130 and then switched in the Netlist panel,
+ * whose Process select rebinds every device (planNetlistProcess).
+ */
+const openings = ["sky130", "abstract", "sky130 then abstract"] as const;
+
+function openedExample(name: string, opening: (typeof openings)[number]) {
+  const profiles = createDefaultNetlistExportPreferences().profiles;
+  if (opening !== "sky130 then abstract")
+    return prepareNetlistExample(example(name), profiles[opening]);
+  const opened = prepareNetlistExample(example(name), profiles.sky130);
+  const edits = planNetlistProcess(opened, profiles.abstract);
+  if (!edits.length) return opened;
+  const switched = executeProjectTransaction(opened, {
+    transactionId: "switch-netlist-process",
+    projectId: opened.id,
+    expectedStructureRevision: opened.structureRevision,
+    actor: { kind: "human", id: "netlist-process" },
+    edits,
+  });
+  if (!switched.ok) throw new Error(switched.error.message);
+  return switched.project;
+}
+
 describe("RNL round trip of examples as the editor opens them", () => {
   it("writes a Project the SPICE import brought in as Spectre the import reads again", async () => {
     // The SPICE import keeps a source's value as written (VINP's AC and
@@ -1941,18 +1967,15 @@ describe("RNL round trip of examples as the editor opens them", () => {
       "two-stage-op-amp",
       "five-transistor-ota-sky130",
     ].flatMap((name) =>
-      (["sky130", "abstract"] as const).flatMap((process) => [
-        [name, process, "spice"] as const,
-        [name, process, "spectre"] as const,
+      openings.flatMap((opening) => [
+        [name, opening, "spice"] as const,
+        [name, opening, "spectre"] as const,
       ]),
     ),
   )(
     "brings %s (%s, %s) back with every part, ground, wire and junction",
-    async (name, process, format) => {
-      const project = prepareNetlistExample(
-        example(name),
-        createDefaultNetlistExportPreferences().profiles[process],
-      );
+    async (name, opening, format) => {
+      const project = openedExample(name, opening);
       const exported = createRnlExport(project, { format });
       if (exported.status !== "ready") throw new Error("export blocked");
       // Nothing the drawing shows is left out of the file.
@@ -1985,6 +2008,10 @@ describe("RNL round trip of examples as the editor opens them", () => {
         item.cell.toLowerCase(),
       ))
         expect(after[cell], cell).toEqual(before[cell]);
+      // ... and the file brings back no Cell the drawing did not have.
+      expect(Object.keys(after).length).toBeGreaterThan(0);
+      for (const [cell, census] of Object.entries(after))
+        expect(census, cell).toEqual(before[cell]);
     },
   );
   // The library's five examples as the editor opens them: every label comes
@@ -1997,18 +2024,15 @@ describe("RNL round trip of examples as the editor opens them", () => {
       "fully-differential-two-stage-op-amp",
       "five-transistor-ota-sky130",
     ].flatMap((name) =>
-      (["sky130", "abstract"] as const).flatMap((process) => [
-        [name, process, "spice"] as const,
-        [name, process, "spectre"] as const,
+      openings.flatMap((opening) => [
+        [name, opening, "spice"] as const,
+        [name, opening, "spectre"] as const,
       ]),
     ),
   )(
     "brings every label of %s (%s, %s) back as drawn",
-    async (name, process, format) => {
-      const project = prepareNetlistExample(
-        example(name),
-        createDefaultNetlistExportPreferences().profiles[process],
-      );
+    async (name, opening, format) => {
+      const project = openedExample(name, opening);
       const exported = createRnlExport(project, { format });
       if (exported.status !== "ready") throw new Error("export blocked");
       const written = await runtime.write({
