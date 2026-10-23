@@ -10,7 +10,7 @@ import { localAgentRelay } from "./dev/agent-relay";
 import { localSimulation } from "./dev/local-simulation.js";
 import { localReplica } from "./dev/local-replica";
 import { editorPreload } from "./build/editor-preload";
-import { usagePolicyHead } from "./build/usage-policy-head";
+import { usagePolicyShell } from "./build/usage-policy-shell";
 import { galleryEarlyFetch } from "./build/gallery-early-fetch";
 import { lockedCanvasPackage } from "./build/rnl-canvas-package";
 
@@ -77,7 +77,7 @@ export default defineConfig({
     // After the Agent relay, whose narrower /api/agent/ proxy must win.
     localReplica(),
     editorPreload(),
-    usagePolicyHead(),
+    usagePolicyShell(),
     galleryEarlyFetch(),
     versionStaticServiceWorker(),
   ],

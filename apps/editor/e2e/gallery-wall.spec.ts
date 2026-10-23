@@ -138,7 +138,9 @@ test("the site lands on the full-screen gallery feed and states its size", async
   );
   await page.goto("/");
   await expect(page.getByTestId("gallery-feed")).toBeVisible();
-  await expect(page.getByTestId("gallery-footnote")).toContainText(
+  await expect(
+    page.getByTestId("gallery-footnote").locator("p").first(),
+  ).toHaveText(
     "Open any circuit to edit your own copy; publish your own from the editor.",
   );
   await expect(page.getByTestId("gallery-usage-note")).toContainText(

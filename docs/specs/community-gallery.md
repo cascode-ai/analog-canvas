@@ -56,7 +56,7 @@ restrictive CSP.
   Gallery tool description carries the same sentence. The page shell carries
   `<meta name="robots" content="noai, noimageai">` and a `<noscript>` note,
   and the signed-in Gallery's footnote shows the note
-  (`apps/editor/src/usage-policy-note.ts`, the one source of its wording).
+  (`apps/editor/src/usage-policy-note.ts`, the one source of that line).
 - Trap circuits (`worker/gallery-traps.ts`): a signed-in member's list page
   (`GET /api/gallery`, six circuits or more) carries one circuit whose id is
   reserved (`apps/editor/src/gallery-reserved-ids.ts`). The client drops
@@ -67,7 +67,7 @@ restrictive CSP.
   blocks the member's account (AuthDO `account_blocks`, matched by account
   or email) when it comes from a program (no browser User-Agent, or a known
   automation one), or when a browser has read the circuits (`GET
-/api/gallery/<id>`, not `summary=1`) of two different traps within 24 h.
+  /api/gallery/<id>`, not `summary=1`) of two different traps within 24 h.
   A browser's previews and summaries never count: a page left open across a
   deploy shows trap tiles (2026-10-22). Every later `/api/gallery` request
   of the account is

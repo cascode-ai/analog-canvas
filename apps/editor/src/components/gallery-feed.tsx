@@ -57,6 +57,7 @@ import {
   type GalleryOrder,
 } from "../gallery-order";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "../gallery-sources";
+import { SITE_USAGE_NOTE } from "../usage-policy-note";
 import { useGalleryFilters } from "./gallery-feed-filters";
 import { useGalleryWall } from "./gallery-feed-wall";
 import { useGalleryOwnerTools } from "./gallery-feed-owner-tools";
@@ -67,7 +68,6 @@ import {
 } from "./gallery-feed-count-panel";
 import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
 import { GalleryWallTile } from "./gallery-feed-tile";
-import { SITE_USAGE_NOTE } from "../usage-policy-note";
 
 /**
  * Heights of the grey stand-in tiles behind the sign-in invitation, for a
