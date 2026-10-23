@@ -13,6 +13,7 @@ import {
   type AgentSessionNamespaceLike,
 } from "./agent-session";
 import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
+import { brotliContentType, serveBrotliSibling } from "./brotli-assets";
 import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
 import {
   galleryReadableDocument,
@@ -250,6 +251,8 @@ async function servePublicDocument(
   return new Response(html, { status: response.status, headers });
 }
 
+const IMMUTABLE_ASSET = "public, max-age=31536000, immutable";
+
 /**
  * Serve a static asset, and let a missing one be missing.
  *
@@ -269,10 +272,25 @@ async function servePublicDocument(
  *
  * Detection is by content type rather than by comparing bytes: a real file
  * under /assets/ is script, style, font or image, and never text/html.
+ *
+ * A client that accepts brotli gets a hashed asset's pre-compressed sibling
+ * when the deploy carries one (./brotli-assets.ts).
  */
 async function serveAsset(request: Request, env: Env): Promise<Response> {
-  const response = await env.ASSETS.fetch(request);
   const path = new URL(request.url).pathname;
+  const hashed =
+    path.startsWith("/assets/") && /\/[\w.-]+-[\w-]{8,}\.[\w]+$/.test(path);
+  const brotliType = hashed ? brotliContentType(path) : undefined;
+  if (brotliType) {
+    const compressed = await serveBrotliSibling(
+      request,
+      env.ASSETS,
+      brotliType,
+      IMMUTABLE_ASSET,
+    );
+    if (compressed) return compressed;
+  }
+  const response = await env.ASSETS.fetch(request);
   if (!path.startsWith("/assets/")) return response;
   const isShellFallback = (response.headers.get("content-type") ?? "")
     .toLowerCase()
@@ -283,12 +301,14 @@ async function serveAsset(request: Request, env: Env): Promise<Response> {
     const policy = response.headers.get("cache-control") ?? "";
     if (
       response.status === 200 &&
-      /\/[\w.-]+-[\w-]{8,}\.[\w]+$/.test(path) &&
+      hashed &&
       !/\b(no-store|private)\b/i.test(policy) &&
       !response.headers.has("set-cookie")
     ) {
       const headers = new Headers(response.headers);
-      headers.set("cache-control", "public, max-age=31536000, immutable");
+      headers.set("cache-control", IMMUTABLE_ASSET);
+      // The same name may also be answered in brotli.
+      if (brotliType) headers.append("vary", "Accept-Encoding");
       return new Response(response.body, { status: response.status, headers });
     }
     return response;

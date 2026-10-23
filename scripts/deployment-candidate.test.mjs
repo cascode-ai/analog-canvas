@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { brotliDecompressSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
@@ -28,8 +29,9 @@ async function fixture() {
   );
   await writeFile(
     join(editor, "assets", "app-test.js"),
-    "const ready = true;\n",
+    "const ready = true;\n".repeat(64),
   );
+  await writeFile(join(editor, "assets", "font-test.woff2"), "woff2");
   const manifest = await createDeploymentCandidate({
     outputDirectory: output,
     workerBundleDirectory: worker,
@@ -57,13 +59,28 @@ describe("deployment candidate", () => {
     await expect(verifyDeploymentCandidate(output, COMMIT)).rejects.toThrow();
   });
 
+  it("carries a brotli sibling for compressible assets only", async () => {
+    const { output, manifest } = await fixture();
+    const assets = join(output, "editor", "assets");
+    expect((await readdir(assets)).sort()).toEqual([
+      "app-test.js",
+      "app-test.js.br",
+      "font-test.woff2",
+    ]);
+    expect(
+      brotliDecompressSync(await readFile(join(assets, "app-test.js.br"))),
+    ).toEqual(await readFile(join(assets, "app-test.js")));
+    expect(manifest.fileCount).toBe(5);
+  });
+
   it("proves that the deployed editor serves the accepted entry bytes", async () => {
     const { output } = await fixture();
     const shell = await readFile(join(output, "editor", "index.html"), "utf8");
     const entry = await readFile(
       join(output, "editor", "assets", "app-test.js"),
     );
-    const fetchImpl = async (url) => {
+    // fetch() decodes the body, so the bytes compare against the original.
+    const serve = (encoding) => async (url) => {
       if (url.pathname === "/editor")
         return new Response(shell, {
           status: 200,
@@ -72,16 +89,26 @@ describe("deployment candidate", () => {
       if (url.pathname === "/assets/app-test.js")
         return new Response(entry, {
           status: 200,
-          headers: { "content-type": "text/javascript" },
+          headers: {
+            "content-type": "text/javascript",
+            ...(encoding ? { "content-encoding": encoding } : {}),
+          },
         });
       return new Response("missing", { status: 404 });
     };
     await expect(
-      verifyDeployedCandidate(output, "https://candidate.example", fetchImpl),
+      verifyDeployedCandidate(output, "https://candidate.example", serve("br")),
     ).resolves.toEqual({
       commit: COMMIT,
       version: "1.2.3",
       entry: "/assets/app-test.js",
     });
+    await expect(
+      verifyDeployedCandidate(
+        output,
+        "https://candidate.example",
+        serve("gzip"),
+      ),
+    ).rejects.toThrow(/brotli/u);
   });
 });

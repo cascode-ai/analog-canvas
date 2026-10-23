@@ -77,6 +77,14 @@ deploy served within 7 days (`scripts/retain-previous-assets.mjs`, at most
 missing history or file is reported, never fatal; the first deploy starts the
 history.
 
+The candidate (and only the candidate, never `apps/editor/dist`) carries a
+brotli-11 `<file>.br` beside each compressible asset where it is smaller. The
+Worker serves a content-hashed asset from its sibling to a client that accepts
+`br` and sends no `Range`, with the original's content type, `Vary:
+Accept-Encoding` and the immutable policy; otherwise it serves the original
+([worker/brotli-assets.ts](../worker/brotli-assets.ts)). Live verification
+requires the entry to arrive as `br`.
+
 ### Where the credentials live
 
 Environment secrets are reachable only from `main` (and `v*` tags).

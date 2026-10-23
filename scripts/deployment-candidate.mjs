@@ -7,8 +7,13 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { basename, join, relative, resolve, sep } from "node:path";
+import { availableParallelism } from "node:os";
+import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+import { brotliCompress, constants } from "node:zlib";
+
+import { BROTLI_CONTENT_TYPES } from "../worker/brotli-assets.ts";
 
 const MANIFEST_NAME = "candidate.json";
 const WORKER_ENTRY = "worker/index.js";
@@ -32,6 +37,38 @@ async function payloadFiles(root, directory = root) {
     else throw new Error(`Candidate payload cannot contain ${relativePath}`);
   }
   return files;
+}
+
+const compress = promisify(brotliCompress);
+
+/**
+ * Write a quality-11 `<file>.br` beside each compressible asset of the
+ * candidate, where it is smaller. Only the candidate gets them: every other
+ * consumer of apps/editor/dist sees the plain build (worker/brotli-assets.ts).
+ */
+async function compressAssets(assets) {
+  const names = (await readdir(assets, { withFileTypes: true }))
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        Object.hasOwn(BROTLI_CONTENT_TYPES, extname(entry.name).slice(1)),
+    )
+    .map((entry) => entry.name);
+  await Promise.all(
+    Array.from({ length: availableParallelism() }, async () => {
+      for (let name = names.shift(); name; name = names.shift()) {
+        const bytes = await readFile(join(assets, name));
+        const compressed = await compress(bytes, {
+          params: {
+            [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
+            [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
+          },
+        });
+        if (compressed.byteLength < bytes.byteLength)
+          await writeFile(join(assets, `${name}.br`), compressed);
+      }
+    }),
+  );
 }
 
 async function payloadInventory(root) {
@@ -67,6 +104,7 @@ export async function createDeploymentCandidate({
   await cp(resolve(editorDirectory), join(output, EDITOR_DIRECTORY), {
     recursive: true,
   });
+  await compressAssets(join(output, EDITOR_DIRECTORY, "assets"));
   const worker = await stat(join(output, WORKER_ENTRY));
   assert(worker.isFile(), `Candidate is missing ${WORKER_ENTRY}`);
   const editor = await stat(join(output, EDITOR_DIRECTORY, "index.html"));
@@ -139,15 +177,29 @@ export async function verifyDeployedCandidate(
   );
   const entryResponse = await fetchImpl(new URL(entry, baseUrl), {
     cache: "no-store",
+    headers: { "accept-encoding": "br" },
   });
   assert.equal(
     entryResponse.status,
     200,
     "Deployed candidate entry is unavailable",
   );
-  const localEntry = await readFile(
-    join(output, manifest.editorDirectory, entry.replace(/^\//u, "")),
+  const entryPath = join(
+    output,
+    manifest.editorDirectory,
+    entry.replace(/^\//u, ""),
   );
+  const localEntry = await readFile(entryPath);
+  const compressed = await stat(`${entryPath}.br`).then(
+    () => true,
+    () => false,
+  );
+  if (compressed)
+    assert.equal(
+      entryResponse.headers.get("content-encoding"),
+      "br",
+      "Deployment is not serving the candidate's brotli entry",
+    );
   assert.deepEqual(
     Buffer.from(await entryResponse.arrayBuffer()),
     localEntry,
