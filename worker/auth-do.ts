@@ -31,6 +31,7 @@ import {
   type BlockEvidence,
 } from "./account-blocks";
 import { unlinkArenaVoter, type ArenaService } from "./arena-account";
+import { exemptFromTraps } from "./trap-exempt";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import {
   ARENA_ORIGIN,
@@ -729,8 +730,7 @@ export class AuthDO {
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
     const user = this.publicUser(row);
-    if (user.isOwner || user.isAdmin || user.seat || user.role === "moderator")
-      return noStoreJson({ blocked: false });
+    if (exemptFromTraps(user)) return noStoreJson({ blocked: false });
     const script = body.kind !== "read";
     if (
       !script &&
@@ -836,7 +836,9 @@ export class AuthDO {
       return null;
     }
     const user = this.publicUser(row);
-    return isBlocked(this.sql, row.id, row.email)
+    // A block by email never reaches the Owner, an admin, a moderator or an
+    // AI seat: they cannot be blocked, whatever another account did.
+    return !exemptFromTraps(user) && isBlocked(this.sql, row.id, row.email)
       ? { ...user, blocked: true }
       : user;
   }

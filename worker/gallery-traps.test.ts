@@ -16,6 +16,7 @@ import {
   route,
   submitOne,
 } from "./gallery.test-support";
+import { ensureAccountBlockTables } from "./account-blocks";
 
 /** Emails the AuthDO sends from now on: recipient, subject and text. */
 function outbox(env: Harness, ok = true) {
@@ -141,6 +142,29 @@ describe("trap circuits", () => {
     );
     expect(await lifted.json()).toEqual({ unblocked: true });
     expect((await wall(env, cookieHeaders(maker))).status).toBe(200);
+  });
+
+  it("never block the Owner, not even by a block recorded under the Owner's email", async () => {
+    const env = environment();
+    await sevenCircuits(env);
+    const owner = await ownerAccountOf(env);
+    // Another account under the Owner's email (a second sign-in method) was
+    // blocked; the block holds by email, but never against the Owner.
+    ensureAccountBlockTables(env.authSql);
+    env.authSql.exec(
+      `INSERT INTO account_blocks
+         (user_id, email, display_name, provider, blocked_at, entry_id, path, reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      "github:second-sign-in",
+      "zhishuai@example.com",
+      "Second sign-in",
+      "github",
+      new Date().toISOString(),
+      "trap",
+      "/api/gallery/trap",
+      "script",
+    );
+    expect((await wall(env, cookieHeaders(owner))).status).toBe(200);
   });
 
   it("block a browser only once it has read two different traps' circuits in a day, never for a preview", async () => {

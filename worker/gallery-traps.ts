@@ -17,6 +17,7 @@ import commonSource from "../apps/editor/src/examples/common-source-amplifier.ic
 import diffPair from "../apps/editor/src/examples/current-mirror-loaded-differential-pair.icproj.json";
 import twoStage from "../apps/editor/src/examples/two-stage-op-amp.icproj.json";
 import type { SessionUser } from "./auth";
+import { exemptFromTraps } from "./trap-exempt";
 import { renderPreview } from "./gallery-requests";
 import type { GalleryEntrySummary } from "./gallery-store";
 
@@ -90,13 +91,7 @@ export function trapReadKind(
  * seat, whose own tools read the Gallery in bulk.
  */
 export function readsTraps(user: SessionUser | null): user is SessionUser {
-  return (
-    user !== null &&
-    !user.isOwner &&
-    !user.isAdmin &&
-    !user.seat &&
-    user.role !== "moderator"
-  );
+  return user !== null && !exemptFromTraps(user);
 }
 
 function hashOf(text: string): number {

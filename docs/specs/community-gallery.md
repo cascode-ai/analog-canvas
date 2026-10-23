@@ -62,7 +62,8 @@ restrictive CSP.
   reserved (`apps/editor/src/gallery-reserved-ids.ts`). The client drops
   reserved ids and no real circuit gets one, so only a program walking the
   list reads it. The Owner, curators, moderators, AI seats and the read
-  credential meet none; to them a trap id is `404`.
+  credential meet none; to them a trap id is `404`. They are never blocked,
+  not even by a block recorded under their email (`worker/trap-exempt.ts`).
 - A request under a trap id is answered like an ordinary circuit, and
   blocks the member's account (AuthDO `account_blocks`, matched by account
   or email) when it comes from a program (no browser User-Agent, or a known
