@@ -9,10 +9,53 @@ function implementationPaths(plan) {
   return plan.paths.filter((path) => !documentation.has(path));
 }
 
-const fallbackBrowserArgs = [
-  "apps/editor/e2e/component-insert.spec.ts",
-  "apps/editor/e2e/runtime-crash-safety.spec.ts",
+/**
+ * The browser smoke for product paths no focused route covers: scoped crash
+ * recovery, and two cases that start a new circuit with its Library and live
+ * Netlist and place a part that connects to a pin, through the edit engine,
+ * derived connectivity and the saved Project. A case is named by its title;
+ * Playwright selects one test by its file and line.
+ */
+const fallbackBrowserSpecs = ["apps/editor/e2e/runtime-crash-safety.spec.ts"];
+const fallbackBrowserTests = [
+  [
+    "apps/editor/e2e/component-insert.spec.ts",
+    "a part set down beside a pin is pulled onto it and connects",
+  ],
+  [
+    "apps/editor/e2e/component-insert.spec.ts",
+    "new circuits open Library and Netlist, keep the saved preference, and mirror Library annotations in the menu",
+  ],
 ];
+
+/**
+ * The `file:line` argument that selects the test a spec declares under
+ * `title`. A renamed or removed test fails the plan instead of silently
+ * selecting nothing.
+ */
+export function locateSpecTest(
+  spec,
+  title,
+  read = (path) => readFileSync(path, "utf8"),
+) {
+  const declaration = `test(${JSON.stringify(title)},`;
+  const index = read(spec)
+    .split("\n")
+    .findIndex((line) => line.trim().startsWith(declaration));
+  if (index < 0) throw new Error(`${spec} declares no test "${title}"`);
+  return `${spec}:${index + 1}`;
+}
+
+function fallbackBrowserArgs(focusedArgs) {
+  const selected = new Set(focusedArgs);
+  return [
+    ...fallbackBrowserSpecs,
+    // A spec the focused routes already run whole needs no single case.
+    ...fallbackBrowserTests
+      .filter(([spec]) => !selected.has(spec))
+      .map(([spec, title]) => locateSpecTest(spec, title)),
+  ];
+}
 
 function canAffectBrowser(path) {
   // Unit/module tests and package metadata do not ship to the browser. Their
@@ -110,7 +153,10 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
       heavy: true,
       browser: true,
       mode: "fallback",
-      e2eArgs: unique([...focusedArgs, ...fallbackBrowserArgs]).sort(),
+      e2eArgs: unique([
+        ...focusedArgs,
+        ...fallbackBrowserArgs(focusedArgs),
+      ]).sort(),
       reasons: [
         ...focusedArgs.map((arg) => `focused browser contract: ${arg}`),
         "the small browser fallback covers unmapped product impact",
@@ -162,8 +208,18 @@ export function browserShardMatrix(plan, countTests = countSpecTests) {
       ? readdirSync(E2E_DIRECTORY)
           .filter((name) => name.endsWith(".spec.ts"))
           .map((name) => `${E2E_DIRECTORY}/${name}`)
-      : plan.e2eArgs.filter((argument) => argument.endsWith(".spec.ts"));
-  const tests = specs.reduce((sum, spec) => sum + countTests(spec), 0);
+      : plan.e2eArgs;
+  // A `file:line` argument selects one test.
+  const tests = specs.reduce(
+    (sum, argument) =>
+      sum +
+      (argument.endsWith(".spec.ts")
+        ? countTests(argument)
+        : /\.spec\.ts:\d+$/u.test(argument)
+          ? 1
+          : 0),
+    0,
+  );
   const count = Math.min(
     MAX_BROWSER_SHARDS,
     Math.max(MIN_BROWSER_SHARDS, Math.ceil(tests / BROWSER_TESTS_PER_SHARD)),

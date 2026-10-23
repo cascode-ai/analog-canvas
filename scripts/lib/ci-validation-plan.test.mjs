@@ -6,6 +6,7 @@ import {
   browserShardMatrix,
   countSpecTests,
   formatCiValidationPlan,
+  locateSpecTest,
   planCiValidation,
 } from "./ci-validation-plan.mjs";
 import { loadGateCatalog, planValidation } from "./validation-gates.mjs";
@@ -46,6 +47,22 @@ const netlist = "apps/editor/e2e/netlist-workflows.spec.ts";
 const conversion = "apps/editor/e2e/netlist-conversion.spec.ts";
 const rnl = "apps/editor/e2e/rnl-interchange.spec.ts";
 
+// The browser smoke for unmapped product paths: crash recovery and two
+// component-insert cases located by their titles.
+const placementSmoke = locateSpecTest(
+  "apps/editor/e2e/component-insert.spec.ts",
+  "a part set down beside a pin is pulled onto it and connects",
+);
+const newCircuitSmoke = locateSpecTest(
+  "apps/editor/e2e/component-insert.spec.ts",
+  "new circuits open Library and Netlist, keep the saved preference, and mirror Library annotations in the menu",
+);
+const fallbackSpecs = [
+  placementSmoke,
+  newCircuitSmoke,
+  "apps/editor/e2e/runtime-crash-safety.spec.ts",
+];
+
 describe("CI validation planning", () => {
   it("sizes the browser shards to the tests selected, from two to eight", () => {
     const shards = (counts, mode = "focused") =>
@@ -61,6 +78,16 @@ describe("CI validation planning", () => {
     ).toEqual(["1/5", "2/5", "3/5", "4/5", "5/5"]);
     // Arguments that are not spec files select nothing to count.
     expect(shards({ "--grep=x": 500 })).toHaveLength(2);
+    // A spec file and line selects one test.
+    expect(
+      browserShardMatrix(
+        {
+          mode: "fallback",
+          e2eArgs: Array.from({ length: 51 }, (_, line) => `a.spec.ts:${line}`),
+        },
+        () => 500,
+      ),
+    ).toHaveLength(3);
     // Every spec is capped at eight.
     expect(
       browserShardMatrix({ mode: "full", e2eArgs: [] }, () => 100),
@@ -426,7 +453,8 @@ describe("CI validation planning", () => {
     ]);
     expect(plan.mode).toBe("fallback");
     expect(plan.e2eArgs).toEqual([
-      "apps/editor/e2e/component-insert.spec.ts",
+      placementSmoke,
+      newCircuitSmoke,
       ...gallerySpecs,
       "apps/editor/e2e/runtime-crash-safety.spec.ts",
     ]);
@@ -441,13 +469,7 @@ describe("CI validation planning", () => {
       ["apps/editor/e2e/component-property-workflows.spec.ts"],
     ],
     ["worker/gallery.ts", gallerySpecs],
-    [
-      "apps/editor/src/lib/new-helper.ts",
-      [
-        "apps/editor/e2e/component-insert.spec.ts",
-        "apps/editor/e2e/runtime-crash-safety.spec.ts",
-      ],
-    ],
+    ["apps/editor/src/lib/new-helper.ts", fallbackSpecs],
   ])(
     "does not let non-shipping tests widen browser impact for %s",
     (path, specs) => {
@@ -473,18 +495,54 @@ describe("CI validation planning", () => {
     );
   });
 
+  it("runs crash recovery and two located smoke cases for unmapped engine, worker and netlist paths", () => {
+    for (const path of [
+      "packages/edit-engine/src/transaction.ts",
+      "packages/derived/src/connection-graph.ts",
+      "worker/arena.ts",
+      "packages/netlist/src/ir.ts",
+      "packages/spice/src/expression.ts",
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("fallback");
+      expect(plan.e2eArgs, path).toEqual(fallbackSpecs);
+    }
+  });
+
+  it("locates a smoke case by its title and refuses a missing one", () => {
+    const source = [
+      'import { test } from "@playwright/test";',
+      "",
+      'test("first", async () => {});',
+      'test("second case", async ({',
+      "  page,",
+      "}) => {});",
+    ].join("\r\n");
+    expect(locateSpecTest("a.spec.ts", "second case", () => source)).toBe(
+      "a.spec.ts:4",
+    );
+    expect(() => locateSpecTest("a.spec.ts", "second", () => source)).toThrow(
+      'a.spec.ts declares no test "second"',
+    );
+  });
+
   it("deduplicates fallback specs already selected by a mixed batch", () => {
     const plan = ciPlan([
       "apps/editor/e2e/component-insert.spec.ts",
       "apps/editor/e2e/gallery-wall.spec.ts",
       "apps/editor/src/lib/new-helper.ts",
     ]);
+    expect(plan.mode).toBe("fallback");
     expect(plan.e2eArgs).toContain("apps/editor/e2e/gallery-wall.spec.ts");
+    expect(plan.e2eArgs).toContain(
+      "apps/editor/e2e/runtime-crash-safety.spec.ts",
+    );
+    // The whole spec runs, so its single cases are not added again.
     expect(
-      plan.e2eArgs.filter(
-        (arg) => arg === "apps/editor/e2e/component-insert.spec.ts",
+      plan.e2eArgs.filter((arg) =>
+        arg.startsWith("apps/editor/e2e/component-insert.spec.ts"),
       ),
-    ).toHaveLength(1);
+    ).toEqual(["apps/editor/e2e/component-insert.spec.ts"]);
   });
 
   it("keeps every browser spec reachable through a focused route", async () => {
