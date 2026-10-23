@@ -108,6 +108,12 @@ describe("explicit Canvas package workspace", () => {
     },
   );
 
+  it("indexes the library with the Canvas package in its pool", async () => {
+    expect(
+      await core.library({ library: { reload: true }, pool: [], files }),
+    ).toEqual([]);
+  });
+
   it("requires the optional package on a standard-only core", async () => {
     const request = {
       write: { ...write, netlist: "\nE1 out 0 in 0 2\n.end\n" },
