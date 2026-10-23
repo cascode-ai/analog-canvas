@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650" viewBox="0 0 1000 650" role="img" aria-labelledby="title desc">
+  <title id="title">Recommended PMOS-input folded-cascode arrangement</title>
+  <desc id="desc">Connected eleven-device example. The M6 M7 input pair and Iss are together on the left. Adjacent main stacks are M2 M4 M10 M8 and M3 M5 M11 M9. M6 drains into the M10 source and M8 drain node; M7 drains separately into the M11 source and M9 drain node. Outputs are between M4 and M10, and between M5 and M11. Dots are junctions; the wire hop is not a connection. Body ties are omitted.</desc>
+  <defs>
+    <g id="nmos" fill="none" stroke="currentColor" stroke-width="2.3">
+      <path d="M0-28V-12H-10 M-10-15V15 M-10 12H0V28 M-18-15V15 M-36 0H-18"/>
+    </g>
+    <g id="pmos" fill="none" stroke="currentColor" stroke-width="2.3">
+      <path d="M0-28V-12H-10 M-10-15V15 M-10 12H0V28 M-18-15V15 M-36 0H-29 M-21 0H-18"/>
+      <circle cx="-25" cy="0" r="4"/>
+    </g>
+  </defs>
+  <rect width="1000" height="650" fill="white"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#17252b">
+    <text x="36" y="34" font-size="14" font-weight="700" fill="#14705b">RECOMMENDED</text>
+    <text x="36" y="66" font-size="25" font-weight="700">Input pair beside two adjacent folded branches</text>
+    <g fill="none" stroke="#17252b" stroke-width="2.3" color="#17252b">
+      <path d="M530 105H790 M560 105V142 M760 105V142 M560 198V217 M760 198V217 M560 273V337 M760 273V337 M560 393V472 M760 393V472 M560 528V555H760V528"/>
+      <path d="M596 170H724 M596 245H724 M596 365H724 M596 500H724"/>
+      <use href="#pmos" transform="translate(560 170) scale(-1 1)"/>
+      <use href="#pmos" transform="translate(760 170)"/>
+      <use href="#pmos" transform="translate(560 245) scale(-1 1)"/>
+      <use href="#pmos" transform="translate(760 245)"/>
+      <use href="#nmos" transform="translate(560 365) scale(-1 1)"/>
+      <use href="#nmos" transform="translate(760 365)"/>
+      <use href="#nmos" transform="translate(560 500) scale(-1 1)"/>
+      <use href="#nmos" transform="translate(760 500)"/>
+      <path d="M240 222V242 M224 222H256 M240 274V305 M180 337V305H300V337"/>
+      <circle cx="240" cy="258" r="16"/>
+      <path d="M240 248V267 M235 260L240 267 245 260"/>
+      <use href="#pmos" transform="translate(180 365)"/>
+      <use href="#pmos" transform="translate(300 365) scale(-1 1)"/>
+      <path d="M110 365H144 M336 365H390 M180 393V425H292 Q300 409 308 425H560 M300 393V445H552 Q560 429 568 445H760 M560 315H475 M760 315H845"/>
+      <circle cx="110" cy="365" r="3" fill="white"/>
+      <circle cx="390" cy="365" r="3" fill="white"/>
+      <circle cx="475" cy="315" r="3" fill="white"/>
+      <circle cx="845" cy="315" r="3" fill="white"/>
+    </g>
+    <g fill="#17252b">
+      <circle cx="240" cy="305" r="4"/>
+      <circle cx="560" cy="315" r="4"/><circle cx="760" cy="315" r="4"/>
+      <circle cx="560" cy="425" r="4"/><circle cx="760" cy="445" r="4"/>
+    </g>
+    <g font-size="18">
+      <text x="800" y="111">VDD</text><text x="775" y="562">VSS</text>
+      <text x="660" y="159" text-anchor="middle">VB4</text>
+      <text x="660" y="234" text-anchor="middle">VB3</text>
+      <text x="660" y="354" text-anchor="middle">VB2</text>
+      <text x="660" y="489" text-anchor="middle">VB1</text>
+      <text x="526" y="176" text-anchor="end">M2</text><text x="782" y="176">M3</text>
+      <text x="526" y="251" text-anchor="end">M4</text><text x="782" y="251">M5</text>
+      <text x="526" y="371" text-anchor="end">M10</text><text x="782" y="371">M11</text>
+      <text x="526" y="506" text-anchor="end">M8</text><text x="782" y="506">M9</text>
+      <text x="240" y="209" text-anchor="middle">VDD</text><text x="266" y="264">Iss</text>
+      <text x="202" y="359">M6</text><text x="278" y="359" text-anchor="end">M7</text>
+      <text x="98" y="371" text-anchor="end">Vinp</text><text x="402" y="371">Vinn</text>
+      <text x="475" y="303" text-anchor="middle">Voutp</text><text x="845" y="303" text-anchor="middle">Voutn</text>
+    </g>
+    <g font-size="15" fill="#14705b">
+      <text x="420" y="414">fold A</text><text x="650" y="434">fold B</text>
+      <text x="240" y="514" text-anchor="middle">Local input-pair symmetry</text>
+    </g>
+    <path d="M36 587H964" stroke="#d6dfe1"/>
+    <text x="36" y="612" font-size="15">Outputs leave the middle of the stacks. The two input drains enter separate lower folding nodes.</text>
+    <text x="36" y="634" font-size="14" fill="#54666c">PMOS: gate bubble. NMOS: no bubble. Dots join wires; a hop does not. Body ties omitted in this illustration.</text>
+  </g>
+</svg>

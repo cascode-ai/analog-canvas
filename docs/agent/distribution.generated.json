@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "7a1c63b8c1af55e3f573c952a4ecbfb75562baf4cc94ebae341301c5f0e8b724",
+  "registrySha256": "b4d84d5d4c58dc1f856d0e541b3ea80e8c1a0e45e9f831481533f2067cf3ff10",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -37,7 +37,15 @@
     },
     {
       "source": "docs/agent/circuit-style-knowledge.md",
-      "sha256": "d20c15d3b94ac77bd6fcf3acbddaa7e9fa2d7b62ab2267097f355064b194bcd4"
+      "sha256": "c899984f33f3c6b0b7dc723a5eaea5e79217d361749784bd0d4d4a265bd7100e"
+    },
+    {
+      "source": "docs/agent/assets/folded-cascode-recommended.svg",
+      "sha256": "f368149e7e5b246b490eab980ba947dc73ead4302890a347b7abc55347ae73ca"
+    },
+    {
+      "source": "docs/agent/assets/folded-cascode-not-recommended.svg",
+      "sha256": "1f39c5d60856a4ee2f33a68bd08a5bf50666042897df0e450a6f04980224dd2f"
     },
     {
       "source": "docs/agent/shared/diagnostics.md",
@@ -261,6 +269,34 @@
       "requires": [],
       "uri": "analog-canvas://reference/razavi-style",
       "kitPath": "references/circuit-style-knowledge.md"
+    },
+    {
+      "id": "reference/folded-cascode-recommended",
+      "source": "docs/agent/assets/folded-cascode-recommended.svg",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
+      "task": "Inspect the folded-cascode placement example",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/folded-cascode-recommended",
+      "kitPath": "references/assets/folded-cascode-recommended.svg"
+    },
+    {
+      "id": "reference/folded-cascode-not-recommended",
+      "source": "docs/agent/assets/folded-cascode-not-recommended.svg",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
+      "task": "Compare folded-cascode placement examples",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/folded-cascode-not-recommended",
+      "kitPath": "references/assets/folded-cascode-not-recommended.svg"
     },
     {
       "id": "reference/diagnostics",
@@ -589,6 +625,8 @@
         "docs/agent/tool-behavior.md",
         "docs/agent/response-semantics.md",
         "docs/agent/circuit-style-knowledge.md",
+        "docs/agent/assets/folded-cascode-recommended.svg",
+        "docs/agent/assets/folded-cascode-not-recommended.svg",
         "docs/agent/shared/diagnostics.md",
         "docs/agent/circuit-style-knowledge.md",
         "fixtures/agent-api/agent-circuit-request.schema.json",
@@ -606,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "680af471160bc0b024e9f192789938349175392313b67a5293e436dc0b971d48"
+      "sha256": "28437c09105eb4a79c8ec374726b4002c1d5fb6ffaeb2d209b03a7fc3bc44900"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -620,6 +658,8 @@
         "docs/agent/tool-behavior.md",
         "docs/agent/response-semantics.md",
         "docs/agent/circuit-style-knowledge.md",
+        "docs/agent/assets/folded-cascode-recommended.svg",
+        "docs/agent/assets/folded-cascode-not-recommended.svg",
         "docs/agent/shared/diagnostics.md",
         "docs/agent/circuit-style-knowledge.md",
         "fixtures/agent-api/agent-circuit-request.schema.json",
@@ -636,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "c29f74a6339dd6adc8ebbe9fefab3080914e7cd3280bf5dd6b5439eafe2c3e7b"
+      "sha256": "b559896e45d93f5922031717f920d0db4a837a4927089cfab74696940b6b5689"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

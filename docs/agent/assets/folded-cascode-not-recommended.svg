@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650" viewBox="0 0 1000 650" role="img" aria-labelledby="title desc">
+  <title id="title">Non-recommended placement of the same folded-cascode circuit</title>
+  <desc id="desc">The same eleven devices and connections as the recommended example, but M6 M7 and Iss occupy the wide gap between the two main stacks. Common bias nets use repeated labels. The left fold node connects M6 M10 M8; the right connects M7 M11 M9. This is a less readable placement, not an electrically incorrect circuit. Body ties are omitted.</desc>
+  <defs>
+    <g id="nmos" fill="none" stroke="currentColor" stroke-width="2.3">
+      <path d="M0-28V-12H-10 M-10-15V15 M-10 12H0V28 M-18-15V15 M-36 0H-18"/>
+    </g>
+    <g id="pmos" fill="none" stroke="currentColor" stroke-width="2.3">
+      <path d="M0-28V-12H-10 M-10-15V15 M-10 12H0V28 M-18-15V15 M-36 0H-29 M-21 0H-18"/>
+      <circle cx="-25" cy="0" r="4"/>
+    </g>
+  </defs>
+  <rect width="1000" height="650" fill="white"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#17252b">
+    <text x="36" y="34" font-size="14" font-weight="700" fill="#b64242">NOT RECOMMENDED</text>
+    <text x="36" y="66" font-size="25" font-weight="700">Input group splits the related main branches</text>
+    <g fill="none" stroke="#17252b" stroke-width="2.3" color="#17252b">
+      <path d="M160 105H840 M200 105V142 M800 105V142 M200 198V217 M800 198V217 M200 273V337 M800 273V337 M200 393V472 M800 393V472 M200 528V555H800V528"/>
+      <use href="#pmos" transform="translate(200 170)"/><use href="#pmos" transform="translate(800 170) scale(-1 1)"/>
+      <use href="#pmos" transform="translate(200 245)"/><use href="#pmos" transform="translate(800 245) scale(-1 1)"/>
+      <use href="#nmos" transform="translate(200 365)"/><use href="#nmos" transform="translate(800 365) scale(-1 1)"/>
+      <use href="#nmos" transform="translate(200 500)"/><use href="#nmos" transform="translate(800 500) scale(-1 1)"/>
+      <path d="M130 170H164 M130 245H164 M130 365H164 M130 500H164 M836 170H870 M836 245H870 M836 365H870 M836 500H870"/>
+      <path d="M480 222V242 M464 222H496 M480 274V305 M420 337V305H540V337"/>
+      <circle cx="480" cy="258" r="16"/><path d="M480 248V267 M475 260L480 267 485 260"/>
+      <use href="#pmos" transform="translate(420 365)"/><use href="#pmos" transform="translate(540 365) scale(-1 1)"/>
+      <path d="M350 365H384 M576 365H630 M420 393V425H200 M540 393V445H800 M200 315H280 M800 315H720"/>
+      <circle cx="350" cy="365" r="3" fill="white"/><circle cx="630" cy="365" r="3" fill="white"/>
+      <circle cx="280" cy="315" r="3" fill="white"/><circle cx="720" cy="315" r="3" fill="white"/>
+    </g>
+    <g fill="#17252b">
+      <circle cx="480" cy="305" r="4"/><circle cx="200" cy="315" r="4"/><circle cx="800" cy="315" r="4"/>
+      <circle cx="200" cy="425" r="4"/><circle cx="800" cy="445" r="4"/>
+    </g>
+    <g font-size="18">
+      <text x="850" y="111">VDD</text><text x="815" y="562">VSS</text>
+      <text x="118" y="176" text-anchor="end">VB4</text><text x="882" y="176">VB4</text>
+      <text x="118" y="251" text-anchor="end">VB3</text><text x="882" y="251">VB3</text>
+      <text x="118" y="371" text-anchor="end">VB2</text><text x="882" y="371">VB2</text>
+      <text x="118" y="506" text-anchor="end">VB1</text><text x="882" y="506">VB1</text>
+      <text x="222" y="176">M2</text><text x="778" y="176" text-anchor="end">M3</text>
+      <text x="222" y="251">M4</text><text x="778" y="251" text-anchor="end">M5</text>
+      <text x="222" y="371">M10</text><text x="778" y="371" text-anchor="end">M11</text>
+      <text x="222" y="506">M8</text><text x="778" y="506" text-anchor="end">M9</text>
+      <text x="480" y="209" text-anchor="middle">VDD</text><text x="506" y="264">Iss</text>
+      <text x="442" y="359">M6</text><text x="518" y="359" text-anchor="end">M7</text>
+      <text x="338" y="371" text-anchor="end">Vinp</text><text x="642" y="371">Vinn</text>
+      <text x="280" y="303" text-anchor="middle">Voutp</text><text x="720" y="303" text-anchor="middle">Voutn</text>
+    </g>
+    <g font-size="15" fill="#b64242">
+      <text x="290" y="414">fold A</text><text x="645" y="434">fold B</text>
+      <text x="500" y="514" text-anchor="middle">Input group occupies the gap between main stacks</text>
+    </g>
+    <path d="M36 587H964" stroke="#d6dfe1"/>
+    <text x="36" y="612" font-size="15">Same connections, less readable grouping: the input pair pushes the two related stacks apart.</text>
+    <text x="36" y="634" font-size="14" fill="#54666c">PMOS: gate bubble. NMOS: no bubble. Equal bias labels denote the same Net. Body ties omitted.</text>
+  </g>
+</svg>

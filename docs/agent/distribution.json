@@ -163,6 +163,40 @@
       "kitPath": "references/circuit-style-knowledge.md"
     },
     {
+      "id": "reference/folded-cascode-recommended",
+      "source": "docs/agent/assets/folded-cascode-recommended.svg",
+      "name": "Folded-cascode placement: recommended",
+      "description": "Connected PMOS-input example: input pair beside adjacent stacks, separate folding nodes and mid-stack outputs. Body ties omitted.",
+      "mimeType": "image/svg+xml",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
+      "task": "Inspect the folded-cascode placement example",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/folded-cascode-recommended",
+      "kitPath": "references/assets/folded-cascode-recommended.svg"
+    },
+    {
+      "id": "reference/folded-cascode-not-recommended",
+      "source": "docs/agent/assets/folded-cascode-not-recommended.svg",
+      "name": "Folded-cascode placement: not recommended",
+      "description": "The same circuit with the input pair splitting the main stacks. A readability contrast, not an electrical failure.",
+      "mimeType": "image/svg+xml",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
+      "task": "Compare folded-cascode placement examples",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/folded-cascode-not-recommended",
+      "kitPath": "references/assets/folded-cascode-not-recommended.svg"
+    },
+    {
       "id": "reference/diagnostics",
       "source": "docs/agent/shared/diagnostics.md",
       "name": "Routing and diagnostics",
