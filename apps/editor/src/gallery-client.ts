@@ -1,6 +1,12 @@
 import type { GalleryOrder } from "./gallery-order";
 import type { GalleryAttention } from "../../../worker/gallery-curation";
 import { withoutReservedEntries } from "./gallery-reserved-ids";
+import {
+  OFFLINE_FAILURE,
+  requestFailureOf,
+  UNREADABLE_REPLY,
+  type RequestFailure,
+} from "./request-failure";
 
 export { localhostExamplesEnabled } from "./gallery-source";
 
@@ -80,7 +86,7 @@ export function warmGalleryPreviews(
     image.src = url;
   },
 ): void {
-  if (!result || result === GALLERY_SIGN_IN_REQUIRED) return;
+  if (result === GALLERY_SIGN_IN_REQUIRED || "failure" in result) return;
   for (const entry of result.entries.slice(0, WARMED_GALLERY_PREVIEWS))
     load(galleryPreviewUrl(entry.id, entry.previewRevision));
 }
@@ -276,11 +282,14 @@ export interface GalleryFeedPage {
 
 /** A Gallery read's answer when only signed-in readers may see the Gallery. */
 export const GALLERY_SIGN_IN_REQUIRED = "sign-in-required";
+/** A page, a request to sign in, or what the read failed on. */
 export type GalleryFeedResult =
-  GalleryFeedPage | null | typeof GALLERY_SIGN_IN_REQUIRED;
+  GalleryFeedPage | RequestFailure | typeof GALLERY_SIGN_IN_REQUIRED;
 
 export interface GalleryFeedState {
   status: "loading" | "ready" | "unavailable" | "signed-out";
+  /** Why the wall is unavailable, or why its next page did not load. */
+  failure?: string | undefined;
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
@@ -511,14 +520,18 @@ export async function loadGalleryFeed(
   if (options.cursor) params.set("cursor", options.cursor);
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   const query = params.toString();
+  let response: Response;
   try {
-    const response = await fetchLike(
-      `/api/gallery${query ? `?${query}` : ""}`,
-      { credentials: "same-origin" },
-    );
-    // The Gallery is for signed-in readers; say so instead of "unavailable".
-    if (response.status === 401) return GALLERY_SIGN_IN_REQUIRED;
-    if (!response.ok) return null;
+    response = await fetchLike(`/api/gallery${query ? `?${query}` : ""}`, {
+      credentials: "same-origin",
+    });
+  } catch {
+    return OFFLINE_FAILURE;
+  }
+  // The Gallery is for signed-in readers; say so instead of "unavailable".
+  if (response.status === 401) return GALLERY_SIGN_IN_REQUIRED;
+  if (!response.ok) return requestFailureOf(response);
+  try {
     const payload = (await response.json()) as {
       entries?: GalleryFeedEntry[];
       nextCursor?: unknown;
@@ -611,7 +624,7 @@ export async function loadGalleryFeed(
         : {}),
     };
   } catch {
-    return null;
+    return UNREADABLE_REPLY;
   }
 }
 

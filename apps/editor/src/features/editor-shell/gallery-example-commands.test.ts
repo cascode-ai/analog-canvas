@@ -402,6 +402,38 @@ describe("Gallery and example commands", () => {
     );
   });
 
+  it("says what failed instead of calling every failure unavailable (2026-10-23)", async () => {
+    const statusFor = async (fetchImpl: typeof fetch) => {
+      const input = dependencies(vi.fn<typeof fetch>(fetchImpl));
+      await createGalleryExampleCommands(input).openGalleryEntryById("g1");
+      expect(input.replaceActiveProject).not.toHaveBeenCalled();
+      return input.setStatus.mock.calls.at(-1)?.[0];
+    };
+    expect(
+      await statusFor(async () =>
+        Response.json({ error: "account-blocked" }, { status: 403 }),
+      ),
+    ).toMatch(/^This account is blocked/);
+    expect(
+      await statusFor(async () =>
+        Response.json(
+          { error: "too-many-requests", retryAfterSeconds: 60 },
+          { status: 429 },
+        ),
+      ),
+    ).toBe("Too many requests. Wait 60 seconds and try again.");
+    expect(
+      await statusFor(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    ).toBe("Could not reach the server. Check your connection and try again.");
+    expect(
+      await statusFor(async () =>
+        Response.json({ projectText: "{ not a project" }),
+      ),
+    ).toMatch(/^This gallery entry could not be opened: /);
+  });
+
   it("opens a circuit drawn on a finer grid in a new tab instead of failing at the click (2026-10-17)", async () => {
     const project = createEmptyProject("fine-grid", "Fine grid LDO");
     const document = project.documents[0]!;

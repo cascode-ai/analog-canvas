@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { RECYCLED_KEEP_COUNT, recycledRetentionNote } from "./my-submissions";
+import {
+  loadMySubmissions,
+  RECYCLED_KEEP_COUNT,
+  recycledRetentionNote,
+} from "./my-submissions";
 
 describe("recycledRetentionNote", () => {
   // The bin holds a fixed number of withdrawals per account and expires
@@ -34,5 +38,39 @@ describe("recycledRetentionNote", () => {
       withdrawnByCurator: true,
     });
     expect(note).toBe("Withdrawn by the Owner. Only the Owner can restore it.");
+  });
+});
+
+describe("loadMySubmissions", () => {
+  const signedIn = (mine: () => Promise<Response>) =>
+    (async (url: string) =>
+      url === "/api/auth/me"
+        ? Response.json({ user: { id: "u1", displayName: "U" } })
+        : mine()) as unknown as typeof fetch;
+
+  it("says what failed instead of calling a signed-in reader signed out (2026-10-23)", async () => {
+    expect(
+      await loadMySubmissions(
+        signedIn(async () =>
+          Response.json({ error: "account-blocked" }, { status: 403 }),
+        ),
+      ),
+    ).toMatchObject({
+      status: "failed",
+      message: expect.stringMatching(/^This account is blocked/),
+    });
+    expect(
+      await loadMySubmissions(
+        signedIn(async () => new Response("", { status: 503 })),
+      ),
+    ).toEqual({
+      status: "failed",
+      message: "The server could not answer (503). Try again later.",
+    });
+    expect(
+      await loadMySubmissions(
+        signedIn(async () => new Response("", { status: 401 })),
+      ),
+    ).toEqual({ status: "signed-out" });
   });
 });

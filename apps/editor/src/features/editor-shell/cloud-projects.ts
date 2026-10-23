@@ -5,6 +5,11 @@ import {
   parseProject,
   serializeProject,
 } from "@icm/project-protocol";
+import {
+  OFFLINE_FAILURE,
+  requestFailureOf,
+  UNREADABLE_REPLY,
+} from "../../request-failure";
 
 /** Private formal Project storage. One id owns one mutable current revision. */
 export const CLOUD_PROJECT_LIMIT = 20;
@@ -218,14 +223,18 @@ export async function openCloudProject(
     response = await fetchLike(`${ENDPOINT}/${encodeURIComponent(projectId)}`, {
       credentials: "same-origin",
     });
-  } catch (error) {
-    return {
-      status: "unreachable",
-      message: error instanceof Error ? error.message : "Network error",
-    };
+  } catch {
+    return { status: "unreachable", message: OFFLINE_FAILURE.message };
   }
   if (response.status === 401) return { status: "signed-out" };
-  if (!response.ok) return { status: "not-found" };
+  // Only a 404 says the Project is gone; a caller forgets it on "not-found",
+  // so a passing limit or server error must not read as one.
+  if (response.status === 404) return { status: "not-found" };
+  if (!response.ok)
+    return {
+      status: "unreachable",
+      message: (await requestFailureOf(response)).message,
+    };
   const payload = (await response.json().catch(() => null)) as {
     project?: unknown;
   } | null;
@@ -235,7 +244,7 @@ export async function openCloudProject(
       ? (payload.project as Record<string, unknown>).projectText
       : null;
   if (!summary || typeof projectText !== "string") {
-    return { status: "not-found" };
+    return { status: "unreachable", message: UNREADABLE_REPLY.message };
   }
   return { status: "opened", project: { ...summary, projectText } };
 }

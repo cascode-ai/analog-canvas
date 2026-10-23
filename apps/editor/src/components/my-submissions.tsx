@@ -5,7 +5,12 @@ import {
   announceGalleryChange,
   subscribeGalleryRefresh,
 } from "../gallery-client";
-import { fetchSessionUser } from "./account";
+import {
+  OFFLINE_FAILURE,
+  requestFailureOf,
+  UNREADABLE_REPLY,
+} from "../request-failure";
+import { readSessionUser } from "./account";
 import { EntryCard } from "./entry-card";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
@@ -61,23 +66,36 @@ export function recycledRetentionNote(
 type MineState =
   | { status: "loading" }
   | { status: "signed-out" }
+  | { status: "failed"; message: string }
   | { status: "ready"; entries: MineEntry[] };
 
 export async function loadMySubmissions(
   fetchLike: typeof fetch = fetch,
 ): Promise<MineState> {
-  const user = await fetchSessionUser(fetchLike);
-  if (!user) return { status: "signed-out" };
+  // Only a session read that answered says the reader is signed out; when it
+  // did not answer, the list's own reply says what failed.
+  const session = await readSessionUser(fetchLike);
+  if (session.available && !session.user) return { status: "signed-out" };
+  let response: Response;
   try {
-    const response = await fetchLike("/api/gallery/mine", {
+    response = await fetchLike("/api/gallery/mine", {
       credentials: "same-origin",
     });
-    if (!response.ok) return { status: "signed-out" };
-    const payload = (await response.json()) as { entries?: MineEntry[] };
-    return { status: "ready", entries: payload.entries ?? [] };
   } catch {
-    return { status: "signed-out" };
+    return { status: "failed", message: OFFLINE_FAILURE.message };
   }
+  if (response.status === 401) return { status: "signed-out" };
+  if (!response.ok)
+    return {
+      status: "failed",
+      message: (await requestFailureOf(response)).message,
+    };
+  const payload = (await response.json().catch(() => null)) as {
+    entries?: MineEntry[];
+  } | null;
+  return payload
+    ? { status: "ready", entries: payload.entries ?? [] }
+    : { status: "failed", message: UNREADABLE_REPLY.message };
 }
 
 /** Owner lifecycle action; the worker checks ownership per entry. */
@@ -190,6 +208,10 @@ export function MySubmissionsContent() {
         ) : state.status === "signed-out" ? (
           <p className="gallery-status" data-testid="mine-signed-out">
             Sign in (top right) to see your submissions.
+          </p>
+        ) : state.status === "failed" ? (
+          <p className="gallery-status" data-testid="mine-failed">
+            {state.message}
           </p>
         ) : state.entries.length === 0 ? (
           <p className="gallery-status">

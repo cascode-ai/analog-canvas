@@ -44,6 +44,8 @@ export interface ExamplesPanelProps {
 
 interface FeedState {
   status: "loading" | "ready" | "unavailable" | "signed-out";
+  /** Why the feed is unavailable. */
+  failure?: string;
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
@@ -289,16 +291,16 @@ function GalleryPanel({
       if (generation !== loadGenerationRef.current) return;
       firstPagePendingRef.current = false;
       if (base === GALLERY_SIGN_IN_REQUIRED) page = GALLERY_SIGN_IN_REQUIRED;
-      if (page && page !== GALLERY_SIGN_IN_REQUIRED) {
+      if (page !== GALLERY_SIGN_IN_REQUIRED && !("failure" in page)) {
         if (!selectedTags.length) baseCount.total = page.total;
-        else if (base && base !== GALLERY_SIGN_IN_REQUIRED)
+        else if (base && base !== GALLERY_SIGN_IN_REQUIRED && "entries" in base)
           baseCount.total = base.total;
       }
       const next: FeedState =
         page === GALLERY_SIGN_IN_REQUIRED
           ? { ...EMPTY_FEED, status: "signed-out" }
-          : page === null
-            ? { ...EMPTY_FEED, status: "unavailable" }
+          : "failure" in page
+            ? { ...EMPTY_FEED, status: "unavailable", failure: page.message }
             : {
                 status: "ready",
                 entries: page.entries,
@@ -351,8 +353,8 @@ function GalleryPanel({
         })
         .then((page) => {
           if (
-            page === null ||
             page === GALLERY_SIGN_IN_REQUIRED ||
+            "failure" in page ||
             generation !== loadGenerationRef.current
           )
             return;
@@ -536,7 +538,7 @@ function GalleryPanel({
             {!showGallery && feed.status !== "signed-out" ? (
               <p className="examples-panel-empty">
                 {feed.status === "unavailable"
-                  ? "Gallery is unavailable. Try again later."
+                  ? (feed.failure ?? "Gallery is unavailable. Try again later.")
                   : feed.status === "loading"
                     ? "Loading gallery…"
                     : "No published circuits yet."}

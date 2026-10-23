@@ -164,11 +164,11 @@ export class BrowserAgentProjectHost {
           "sign-in",
         );
       }
-      if (!page) {
+      if ("failure" in page) {
         return this.error(
           request,
           "GALLERY_UNAVAILABLE",
-          "The public Gallery could not be read",
+          `The public Gallery could not be read: ${page.message}`,
           "retry",
         );
       }

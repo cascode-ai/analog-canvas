@@ -27,7 +27,9 @@ describe("reserved Gallery ids", () => {
       }),
     );
     expect(
-      feed && typeof feed === "object" && feed.entries.map(({ id }) => id),
+      typeof feed === "object" &&
+        "entries" in feed &&
+        feed.entries.map(({ id }) => id),
     ).toEqual(["a2b3c4d5e6", "f7g8h9j2k3"]);
   });
 });

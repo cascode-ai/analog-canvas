@@ -19,7 +19,7 @@ export async function loadCloudProjectForCellImport(
           ? "Sign in again to import Cloud Project Cells"
           : fetched.status === "not-found"
             ? "That Cloud Project no longer exists"
-            : `Could not reach Cloud Projects (${fetched.message})`,
+            : `Could not open the Cloud Project: ${fetched.message}`,
     };
   }
   const staged = await stageProjectFile(

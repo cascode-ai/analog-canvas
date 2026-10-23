@@ -239,6 +239,7 @@ export function GalleryFeed({
     sentinelRef,
     toggleLike,
     removeManagedEntry,
+    retryNextPage,
   } = useGalleryWall({
     active: view === "gallery",
     preload,
@@ -832,7 +833,8 @@ export function GalleryFeed({
                     !galleryFiltersNarrowQuery(filters) ? (
                       <p className="gallery-status" data-testid="gallery-empty">
                         {state.status === "unavailable"
-                          ? "Gallery is unavailable. Try again later."
+                          ? (state.failure ??
+                            "Gallery is unavailable. Try again later.")
                           : datasetWall
                             ? `No ${datasetWall.name} circuits imported yet.`
                             : "No published circuits yet."}
@@ -866,6 +868,14 @@ export function GalleryFeed({
                 )}
               </section>
             )}
+            {state.status === "ready" && state.failure ? (
+              <p className="gallery-status" data-testid="gallery-more-failed">
+                {state.failure}{" "}
+                <button type="button" onClick={retryNextPage}>
+                  Retry
+                </button>
+              </p>
+            ) : null}
             <div
               ref={sentinelRef}
               className="gallery-sentinel"

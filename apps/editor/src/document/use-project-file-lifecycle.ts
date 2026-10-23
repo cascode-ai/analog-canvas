@@ -980,7 +980,7 @@ export function useProjectFileLifecycle({
           ? "Sign in again to open Cloud Projects"
           : fetched.status === "not-found"
             ? "That Cloud Project no longer exists"
-            : `Could not reach Cloud Projects (${fetched.message})`,
+            : `Could not open the Cloud Project: ${fetched.message}`,
       );
       return { applied: false, message: `Cloud open ${fetched.status}` };
     }

@@ -18,6 +18,7 @@ import {
   type GalleryFeedEntry,
 } from "./gallery-client";
 import { resolveGalleryFilters } from "./gallery-filters";
+import { OFFLINE_FAILURE } from "./request-failure";
 
 it("loads the linked wall's complete query, including source, text and both negative filters", async () => {
   const filters = resolveGalleryFilters(
@@ -228,7 +229,7 @@ describe("Gallery preview caching", () => {
     expect(loaded[0]).toBe(galleryPreviewUrl("e0", "r0"));
     // A signed-out or failed first page starts nothing.
     warmGalleryPreviews(GALLERY_SIGN_IN_REQUIRED, (url) => loaded.push(url));
-    warmGalleryPreviews(null, (url) => loaded.push(url));
+    warmGalleryPreviews(OFFLINE_FAILURE, (url) => loaded.push(url));
     expect(loaded).toHaveLength(WARMED_GALLERY_PREVIEWS);
   });
 

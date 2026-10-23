@@ -282,6 +282,40 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
   expect([...seeds]).toEqual([expect.stringMatching(/^[a-z0-9]{1,16}$/u)]);
 });
 
+test("a next page that fails says why and loads on Retry (2026-10-23)", async ({
+  page,
+}) => {
+  let refuse = true;
+  await page.route(galleryListUrl, (route) => {
+    const second =
+      new URL(route.request().url()).searchParams.get("cursor") === "c1";
+    if (second && refuse)
+      return route.fulfill({
+        status: 429,
+        headers: { "retry-after": "60" },
+        json: { error: "too-many-requests", retryAfterSeconds: 60 },
+      });
+    return route.fulfill({
+      json: {
+        entries: (second ? ["p2-a"] : ["p1-a"]).map((id) => tile(id)),
+        nextCursor: second ? null : "c1",
+      },
+    });
+  });
+  await mockPreviews(page);
+
+  await page.goto("/");
+  const failed = page.getByTestId("gallery-more-failed");
+  await expect(failed).toContainText(
+    "Too many requests. Wait 60 seconds and try again.",
+  );
+  await expect(page.getByTestId("gallery-tile-p1-a")).toBeVisible();
+  refuse = false;
+  await failed.getByRole("button", { name: "Retry" }).click();
+  await expect(page.getByTestId("gallery-tile-p2-a")).toBeVisible();
+  await expect(failed).toHaveCount(0);
+});
+
 test("the feed scrolls inside its shell despite the locked app root", async ({
   page,
 }) => {

@@ -146,6 +146,19 @@ describe("Cloud Project client", () => {
       project: { ...summary, projectText: "{}" },
     });
     expect(opened.calls[0]!.url).toBe("/api/projects/cloud%201");
+    // Its caller forgets a "not-found" Project, so only a 404 is one.
+    expect(
+      await openCloudProject("cloud 1", respondWith(404, {}).fetchLike),
+    ).toEqual({ status: "not-found" });
+    for (const [status, body] of [
+      [429, { error: "too-many-requests", retryAfterSeconds: 60 }],
+      [503, {}],
+      [200, { project: null }],
+    ] as const)
+      expect(
+        (await openCloudProject("cloud 1", respondWith(status, body).fetchLike))
+          .status,
+      ).toBe("unreachable");
 
     const deleted = respondWith(200, { projects: [] });
     expect(await deleteCloudProject("cloud 1", deleted.fetchLike)).toEqual({

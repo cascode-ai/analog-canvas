@@ -11,6 +11,7 @@ import {
   type GalleryDailyOpenLimit,
 } from "../../gallery-client";
 import { GRID_INCOMPATIBLE } from "../clipboard/paste-proposal";
+import { OFFLINE_FAILURE, requestFailureOf } from "../../request-failure";
 import { captureGalleryDrawing } from "./gallery-import";
 
 export interface GalleryEntryContext {
@@ -198,6 +199,57 @@ export function createGalleryExampleCommands({
     }
   };
 
+  /**
+   * The entry's stored text, or null once the status line (or the daily
+   * limit card) says why it could not be read.
+   */
+  const readGalleryEntry = async (
+    entryId: string,
+    signInStatus: string,
+  ): Promise<(GalleryEntryPayload & { projectText: string }) | null> => {
+    let response: Response;
+    try {
+      response = await fetchImpl(`/api/gallery/${entryId}`, {
+        credentials: "same-origin",
+      });
+    } catch {
+      setStatus(OFFLINE_FAILURE.message);
+      return null;
+    }
+    if (response.status === 401) {
+      setStatus(signInStatus);
+      return null;
+    }
+    const limited = await dailyOpenLimit(response);
+    if (limited) {
+      setDailyOpenLimit(limited);
+      return null;
+    }
+    if (!response.ok) {
+      const failure = await requestFailureOf(response);
+      setStatus(
+        failure.failure === "not-found"
+          ? "This gallery entry is unavailable"
+          : failure.message,
+      );
+      return null;
+    }
+    const payload = (await response
+      .json()
+      .catch(() => null)) as GalleryEntryPayload | null;
+    if (!payload?.projectText) {
+      setStatus("This gallery entry is unavailable");
+      return null;
+    }
+    return { ...payload, projectText: payload.projectText };
+  };
+
+  /** A circuit that arrived but could not be opened says what is wrong. */
+  const unopenable = (error: unknown) =>
+    setStatus(
+      `This gallery entry could not be opened: ${error instanceof Error ? error.message : String(error)}`,
+    );
+
   const openGalleryEntryById = async (
     entryId: string,
     protectCurrentProject = true,
@@ -205,28 +257,12 @@ export function createGalleryExampleCommands({
   ): Promise<void> => {
     if (import.meta.env?.ICM_DESKTOP) return;
     setDailyOpenLimit(null);
+    const payload = await readGalleryEntry(
+      entryId,
+      "Sign in to open Community Gallery circuits",
+    );
+    if (!payload) return;
     try {
-      const response = await fetchImpl(`/api/gallery/${entryId}`, {
-        credentials: "same-origin",
-      });
-      if (response.status === 401) {
-        setStatus("Sign in to open Community Gallery circuits");
-        return;
-      }
-      const limited = await dailyOpenLimit(response);
-      if (limited) {
-        setDailyOpenLimit(limited);
-        return;
-      }
-      if (!response.ok) {
-        setStatus("This gallery entry is unavailable");
-        return;
-      }
-      const payload = (await response.json()) as GalleryEntryPayload;
-      if (!payload.projectText) {
-        setStatus("This gallery entry is unavailable");
-        return;
-      }
       await installGalleryEntry(
         entryId,
         payload.projectText,
@@ -235,8 +271,8 @@ export function createGalleryExampleCommands({
         (name) => `Opened gallery circuit: ${name}`,
         inTab,
       );
-    } catch {
-      setStatus("This gallery entry is unavailable");
+    } catch (error) {
+      unopenable(error);
     }
   };
 
@@ -288,26 +324,12 @@ export function createGalleryExampleCommands({
   const insertGalleryEntryById = async (entryId: string): Promise<void> => {
     if (import.meta.env?.ICM_DESKTOP) return;
     setDailyOpenLimit(null);
+    const payload = await readGalleryEntry(
+      entryId,
+      "Sign in to insert Community Gallery circuits",
+    );
+    if (!payload) return;
     try {
-      const response = await fetchImpl(`/api/gallery/${entryId}`, {
-        credentials: "same-origin",
-      });
-      if (response.status === 401) {
-        setStatus("Sign in to insert Community Gallery circuits");
-        return;
-      }
-      const limited = await dailyOpenLimit(response);
-      if (limited) {
-        setDailyOpenLimit(limited);
-        return;
-      }
-      const payload = response.ok
-        ? ((await response.json()) as GalleryEntryPayload)
-        : null;
-      if (!payload?.projectText) {
-        setStatus("This gallery entry is unavailable");
-        return;
-      }
       const imported = parseProject(payload.projectText);
       const label = payload.entry?.name ?? imported.name;
       const placement = startProjectImportPlacement(imported, label);
@@ -327,8 +349,8 @@ export function createGalleryExampleCommands({
       }
       // An empty scene has no placeable fragment; it can still be opened.
       await openGalleryEntryById(entryId);
-    } catch {
-      setStatus("This gallery entry is unavailable");
+    } catch (error) {
+      unopenable(error);
     }
   };
 

@@ -293,7 +293,17 @@ export function useGalleryWall({
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
       setHeldWall([]);
-      if (page === GALLERY_SIGN_IN_REQUIRED || page?.signedOut) {
+      if (page !== GALLERY_SIGN_IN_REQUIRED && "failure" in page) {
+        if (!changingQuery) return;
+        loadedQueryRef.current = queryKey;
+        setState({
+          status: "unavailable",
+          failure: page.message,
+          entries: [],
+          nextCursor: null,
+          total: null,
+        });
+      } else if (page === GALLERY_SIGN_IN_REQUIRED || page.signedOut) {
         // Signed out, the server shows at most the wall's first circuits,
         // which the veil draws dimmed; refused outright, it shows none.
         loadedQueryRef.current = queryKey;
@@ -325,14 +335,6 @@ export function useGalleryWall({
               }
             : { status: "ready", ...page, search },
         );
-      } else if (changingQuery) {
-        loadedQueryRef.current = queryKey;
-        setState({
-          status: "unavailable",
-          entries: [],
-          nextCursor: null,
-          total: null,
-        });
       }
     });
     return () => {
@@ -367,11 +369,20 @@ export function useGalleryWall({
         });
         return;
       }
-      if (!page) return;
+      if ("failure" in page) {
+        // The wall stays; the reader sees why it stopped and retries.
+        setState((previous) =>
+          previous.status === "ready" && previous.nextCursor === cursor
+            ? { ...previous, failure: page.message }
+            : previous,
+        );
+        return;
+      }
       setState((previous) =>
         previous.status === "ready" && previous.nextCursor === cursor
           ? {
               ...previous,
+              failure: undefined,
               // A linked circuit shown first stays only there when its own
               // page arrives.
               entries: [
@@ -468,5 +479,10 @@ export function useGalleryWall({
     sentinelRef,
     toggleLike,
     removeManagedEntry,
+    retryNextPage: () => {
+      if (state.nextCursor === null) return;
+      setState((previous) => ({ ...previous, failure: undefined }));
+      loadPageAfterRef.current(state.nextCursor);
+    },
   };
 }
