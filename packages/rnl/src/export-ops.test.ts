@@ -105,6 +105,13 @@ describe("RNL export of the simulation examples", () => {
       expect(
         of(ops, "add-usage").filter((op) => op.definition === "$GROUND"),
       ).toHaveLength(grounds.length);
+      // Without ORIENT the solver may turn what is drawn (RNL 11.2), so every
+      // placed part and every mark but a round dot says how it is turned.
+      for (const op of of(ops, "set"))
+        if (op.at) expect(op.orient, op.object).toBeDefined();
+      for (const op of of(ops, "add-usage"))
+        if (op.definition !== "$JUNCTION")
+          expect(op.orient, op.name).toBeDefined();
       for (const label of of(ops, "add-text")) {
         // A part's or glyph's label hangs on something declared, by key and
         // offset; a net's stands at an absolute place; a free text on its point.
@@ -667,7 +674,7 @@ describe("drawing objects", () => {
     );
     const usages = of(ops, "add-usage");
     const arrows = usages.filter((op) => op.definition === "$ARROW");
-    expect(arrows.map((op) => op.orient ?? "R0")).toEqual(["R0", "R270"]);
+    expect(arrows.map((op) => op.orient)).toEqual(["R0", "R270"]);
     const current = usages.find((op) => op.definition === "$CURRENT_ARROW")!;
     expect(current.orient).toBe("R90");
     const label = of(ops, "add-text").find((op) => firstText(op) === "I1");
