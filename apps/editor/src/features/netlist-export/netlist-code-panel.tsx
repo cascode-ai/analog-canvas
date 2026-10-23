@@ -26,7 +26,7 @@ import {
   type NetlistMode,
 } from "./netlist-mode";
 import type { NativeExternalTarget } from "../../hosts/native-external-links";
-import { RnlNetlistView } from "./rnl-netlist-view";
+import { LazyRnlNetlistView } from "../../app/lazy-editor-dialogs";
 import {
   inferNetlistProcess,
   preparedNetlistDefaults,
@@ -554,14 +554,22 @@ export function NetlistCodePanel({
         </div>
       </div>
       {rnl ? (
-        <RnlNetlistView
-          project={project}
-          format={format}
-          namingProfile={namingProfile}
-          rootDocumentId={rootDocumentId}
-          externalLinksEnabled={externalLinksEnabled}
-          onOpenExternalLink={onOpenExternalLink}
-        />
+        <Suspense
+          fallback={
+            <div className="rnl-netlist" aria-label="RNL netlist">
+              <p className="netlist-edit-hint">Writing RNL…</p>
+            </div>
+          }
+        >
+          <LazyRnlNetlistView
+            project={project}
+            format={format}
+            namingProfile={namingProfile}
+            rootDocumentId={rootDocumentId}
+            externalLinksEnabled={externalLinksEnabled}
+            onOpenExternalLink={onOpenExternalLink}
+          />
+        </Suspense>
       ) : (
         <div
           className="netlist-code-viewport"

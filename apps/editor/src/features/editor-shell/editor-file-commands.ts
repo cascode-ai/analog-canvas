@@ -11,8 +11,8 @@ import {
   netlistModeParts,
   type NetlistMode,
 } from "../netlist-export/netlist-mode";
-import { planRnlImport } from "../netlist-export/rnl-import";
 import { loadRnlRuntime } from "../netlist-export/rnl-runtime";
+import { importChunk } from "../../components/chunk-import";
 
 import {
   createVisualExportArtifact,
@@ -296,6 +296,10 @@ export function createEditorFileCommands({
     const entryPath = entry.path;
     setStatus("Importing RNL sources");
     try {
+      const { planRnlImport } = await importChunk(
+        "RNL import",
+        () => import("../netlist-export/rnl-import"),
+      );
       const plan = await planRnlImport({
         inputs: sources.sourceInputs,
         entryPath,

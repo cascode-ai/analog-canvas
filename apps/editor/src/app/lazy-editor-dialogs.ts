@@ -59,6 +59,13 @@ export const LazySpiceSimulationSurface = import.meta.env?.ICM_DESKTOP
       ),
     );
 
+// RNL's writer and symbol table load with the first RNL netlist mode.
+export const LazyRnlNetlistView = lazyChunk("inline", () =>
+  import("../features/netlist-export/rnl-netlist-view").then((module) => ({
+    default: module.RnlNetlistView,
+  })),
+);
+
 export const LazyNetlistPreflightDialog = lazyChunk("dialog", () =>
   import("../features/netlist-export/netlist-preflight-dialog").then(
     (module) => ({ default: module.NetlistPreflightDialog }),

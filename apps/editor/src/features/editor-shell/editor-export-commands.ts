@@ -8,7 +8,6 @@ import type {
   NetlistFormat,
   NetlistNamingProfile,
 } from "@icm/netlist";
-import { createRnlExport } from "@icm/rnl";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../text-editing/formula-artifacts";
@@ -141,6 +140,11 @@ export async function planRnlNetlistExport({
   rootDocumentId?: string;
   runtime: Pick<RnlRuntime, "write"> | null;
 }): Promise<DesignNetlistExportPlan> {
+  // The RNL writer and its symbol table stay off the first load.
+  const { createRnlExport } = await importChunk(
+    "RNL formats",
+    () => import("@icm/rnl"),
+  );
   const exported = createRnlExport(project, {
     format,
     namingProfile,
