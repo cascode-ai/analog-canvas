@@ -16,9 +16,14 @@ import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { eachConcurrently } from "./lib/each-concurrently.mjs";
+
 export const KEEP_DAYS = 7;
 const KEEP_MS = KEEP_DAYS * 86_400_000;
-/** Far below the platform's per-version file limit. */
+/**
+ * With this build and its brotli siblings (only this build's assets get one),
+ * still far below the platform's per-version file limit.
+ */
 export const MAX_RETAINED_FILES = 6000;
 export const HISTORY_FILE = "asset-history.json";
 const ASSET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
@@ -96,21 +101,16 @@ export async function retainPreviousAssets(
   const plan = planAssetRetention({ previous, current, now });
   const failed = [];
   let bytes = 0;
-  const queue = [...plan.retain];
-  await Promise.all(
-    Array.from({ length: 8 }, async () => {
-      for (let item = queue.shift(); item; item = queue.shift()) {
-        const target = join(assets, item.name);
-        try {
-          await download(origin, item.name, target, fetchLike);
-          bytes += (await stat(target)).size;
-        } catch (error) {
-          failed.push(item.name);
-          log(`Could not keep ${item.name}: ${error.message}`);
-        }
-      }
-    }),
-  );
+  await eachConcurrently(plan.retain, 8, async (item) => {
+    const target = join(assets, item.name);
+    try {
+      await download(origin, item.name, target, fetchLike);
+      bytes += (await stat(target)).size;
+    } catch (error) {
+      failed.push(item.name);
+      log(`Could not keep ${item.name}: ${error.message}`);
+    }
+  });
   for (const name of failed) delete plan.history.assets[name];
   await writeFile(
     join(dist, HISTORY_FILE),

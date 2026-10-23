@@ -6,6 +6,7 @@ import { brotliDecompressSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 
 import {
+  compressBuildAssets,
   createDeploymentCandidate,
   verifyDeployedCandidate,
   verifyDeploymentCandidate,
@@ -32,10 +33,18 @@ async function fixture() {
     "const ready = true;\n".repeat(64),
   );
   await writeFile(join(editor, "assets", "font-test.woff2"), "woff2");
+  const brotli = join(root, "brotli");
+  await compressBuildAssets(editor, brotli);
+  // An earlier deploy's asset, retained after this build was compressed.
+  await writeFile(
+    join(editor, "assets", "old-test.js"),
+    "const old = true;\n".repeat(64),
+  );
   const manifest = await createDeploymentCandidate({
     outputDirectory: output,
     workerBundleDirectory: worker,
     editorDirectory: editor,
+    brotliDirectory: brotli,
     commit: COMMIT,
     version: "1.2.3",
   });
@@ -59,18 +68,19 @@ describe("deployment candidate", () => {
     await expect(verifyDeploymentCandidate(output, COMMIT)).rejects.toThrow();
   });
 
-  it("carries a brotli sibling for compressible assets only", async () => {
+  it("carries a brotli sibling for this build's compressible assets only", async () => {
     const { output, manifest } = await fixture();
     const assets = join(output, "editor", "assets");
     expect((await readdir(assets)).sort()).toEqual([
       "app-test.js",
       "app-test.js.br",
       "font-test.woff2",
+      "old-test.js",
     ]);
     expect(
       brotliDecompressSync(await readFile(join(assets, "app-test.js.br"))),
     ).toEqual(await readFile(join(assets, "app-test.js")));
-    expect(manifest.fileCount).toBe(5);
+    expect(manifest.fileCount).toBe(6);
   });
 
   it("proves that the deployed editor serves the accepted entry bytes", async () => {
@@ -79,8 +89,9 @@ describe("deployment candidate", () => {
     const entry = await readFile(
       join(output, "editor", "assets", "app-test.js"),
     );
-    // fetch() decodes the body, so the bytes compare against the original.
-    const serve = (encoding) => async (url) => {
+    // fetch() decodes the body, so the bytes compare against the original;
+    // `encode` picks the Content-Encoding for the request's Accept-Encoding.
+    const serve = (encode) => async (url, init) => {
       if (url.pathname === "/editor")
         return new Response(shell, {
           status: 200,
@@ -91,24 +102,23 @@ describe("deployment candidate", () => {
           status: 200,
           headers: {
             "content-type": "text/javascript",
-            ...(encoding ? { "content-encoding": encoding } : {}),
+            "content-encoding": encode(init.headers["accept-encoding"]),
           },
         });
       return new Response("missing", { status: 404 });
     };
-    await expect(
-      verifyDeployedCandidate(output, "https://candidate.example", serve("br")),
-    ).resolves.toEqual({
+    const verify = (encode) =>
+      verifyDeployedCandidate(
+        output,
+        "https://candidate.example",
+        serve(encode),
+      );
+    await expect(verify((accepted) => accepted)).resolves.toEqual({
       commit: COMMIT,
       version: "1.2.3",
       entry: "/assets/app-test.js",
     });
-    await expect(
-      verifyDeployedCandidate(
-        output,
-        "https://candidate.example",
-        serve("gzip"),
-      ),
-    ).rejects.toThrow(/brotli/u);
+    await expect(verify(() => "gzip")).rejects.toThrow(/brotli entry/u);
+    await expect(verify(() => "br")).rejects.toThrow(/does not accept/u);
   });
 });

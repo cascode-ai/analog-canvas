@@ -39,6 +39,10 @@ runs:
         VITE_ICM_SIMULATION_TRANSPORT: managed
         # The accepted v4 reader supports both original identity and private gzip.
         VITE_SIMULATION_GZIP: "1"
+    # Before retention, so only this build's assets get a brotli sibling.
+    - name: Compress this build's assets
+      shell: bash
+      run: node scripts/deployment-candidate.mjs compress "$RUNNER_TEMP/analog-canvas-brotli"
     # Bundle the Worker once. The channel deploys these exact bytes with
     # --no-bundle, and a successful Preview run preserves them for promotion.
     - name: Keep recent deploys' assets for tabs opened before this one
@@ -61,4 +65,5 @@ runs:
           --dry-run \
           --outdir "$WORKER_BUNDLE_DIR"
         node scripts/deployment-candidate.mjs create \
-          "$CANDIDATE_DIR" "$RELEASE_SHA" "$WORKER_BUNDLE_DIR"
+          "$CANDIDATE_DIR" "$RELEASE_SHA" "$WORKER_BUNDLE_DIR" \
+          "$RUNNER_TEMP/analog-canvas-brotli"

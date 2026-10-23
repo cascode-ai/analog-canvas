@@ -55,12 +55,13 @@ rollback does not touch it.
 ## Deploy, verify, recover
 
 Production records its rollback target before deploying, then verifies served
-entry bytes against the candidate, shell/editor/analytics, public routes, MCP
-manifest, stale-asset handling, one Agent session create/remove, and an
-OP/TRAN/DC/Noise simulation smoke. If secret sync or verification fails it
-restores the recorded Worker version, verifies it and still fails the run;
-without a rollback target it reports that a human must intervene. The
-simulator token is required before deploying.
+entry bytes against the candidate (as brotli to a brotli client, never brotli
+to a gzip client), shell/editor/analytics, public routes, MCP manifest,
+stale-asset handling, one Agent session create/remove, and an OP/TRAN/DC/Noise
+simulation smoke. If secret sync or verification fails it restores the recorded
+Worker version, verifies it and still fails the run; without a rollback target
+it reports that a human must intervene. The simulator token is required before
+deploying.
 
 A Worker revert does not revert Durable Objects, D1, R2, KV, data migrations
 or the separately operated simulator: data changes need their own backup plan,
@@ -72,18 +73,16 @@ behavior.
 
 Each deploy publishes `/asset-history.json` (every served asset with the last
 deploy that served it) and uploads, beside its own build, the earlier assets a
-deploy served within 7 days (`scripts/retain-previous-assets.mjs`, at most
-6000 files), so a tab opened before the deploy still loads what it needs. A
-missing history or file is reported, never fatal; the first deploy starts the
-history.
+deploy served within 7 days (`scripts/retain-previous-assets.mjs`, at most 6000
+files, which get no brotli sibling), so a tab opened before the deploy still
+loads what it needs. A missing history or file is reported, never fatal; the
+first deploy starts the history.
 
-The candidate (and only the candidate, never `apps/editor/dist`) carries a
-brotli-11 `<file>.br` beside each compressible asset where it is smaller. The
-Worker serves a content-hashed asset from its sibling to a client that accepts
-`br` and sends no `Range`, with the original's content type, `Vary:
-Accept-Encoding` and the immutable policy; otherwise it serves the original
-([worker/brotli-assets.ts](../worker/brotli-assets.ts)). Live verification
-requires the entry to arrive as `br`.
+Only the deploy candidate, never `apps/editor/dist`, carries pre-compressed
+brotli siblings, and only for its own build's compressible assets. A client
+that accepts brotli gets a content-hashed asset from its sibling; every other
+request is answered from the original as before
+([worker/static-assets.ts](../worker/static-assets.ts)).
 
 ### Where the credentials live
 

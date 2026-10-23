@@ -143,119 +143,32 @@ describe("hashed asset HTTP caching", () => {
   });
 });
 
-describe("pre-compressed hashed assets", () => {
-  // The candidate writes `<file>.br` beside a compressible asset; the asset
-  // layer serves that file like any other and answers a miss with the shell.
-  const files: Record<string, { body: string; type: string }> = {
-    "/assets/App-abcdefgh.js": {
-      body: "identity",
-      type: "text/javascript; charset=utf-8",
-    },
-    "/assets/App-abcdefgh.js.br": {
-      body: "brotli",
-      type: "application/octet-stream",
-    },
-    "/assets/Lazy-abcdefgh.js": {
-      body: "identity",
-      type: "text/javascript; charset=utf-8",
-    },
-  };
+// The brotli path itself runs in workerd (static-assets.test.ts); these pin
+// which requests never cost the asset layer a sibling lookup.
+describe("brotli sibling lookups", () => {
   const requested: string[] = [];
   const env = {
     ASSETS: {
       fetch: async (request: Request) => {
-        const path = new URL(request.url).pathname;
-        requested.push(`${request.method} ${path}`);
-        const file = files[path];
-        const etag = `"${path}"`;
-        const headers = { "content-type": file?.type ?? "text/html", etag };
-        if (file && request.headers.get("if-none-match") === etag)
-          return new Response(null, { status: 304, headers });
-        return new Response(
-          request.method === "HEAD" ? null : (file?.body ?? SHELL),
-          { headers },
-        );
+        requested.push(`${request.method} ${new URL(request.url).pathname}`);
+        return new Response("body", {
+          headers: { "content-type": "text/javascript" },
+        });
       },
     },
   } as unknown as Parameters<typeof workerEntry.fetch>[1];
-  const fetchAsset = (path: string, headers: Record<string, string> = {}) =>
-    workerEntry.fetch(
+
+  it.each([
+    ["/assets/App-abcdefgh.js", { "accept-encoding": "gzip, deflate" }],
+    ["/assets/font-abcdefgh.woff2", { "accept-encoding": "br" }],
+    ["/assets/plain.js", { "accept-encoding": "br" }],
+    ["/editor", { "accept-encoding": "br" }],
+  ])("%s with %o asks for the file alone", async (path, headers) => {
+    requested.length = 0;
+    await workerEntry.fetch(
       new Request(`https://example.test${path}`, { headers }),
       env,
     );
-
-  it("serves the brotli sibling with the original's type and policy", async () => {
-    const response = await fetchAsset("/assets/App-abcdefgh.js", {
-      "accept-encoding": "gzip, deflate, br, zstd",
-    });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-encoding")).toBe("br");
-    expect(response.headers.get("content-type")).toBe("text/javascript");
-    expect(response.headers.get("vary")).toBe("Accept-Encoding");
-    expect(response.headers.get("cache-control")).toBe(
-      "public, max-age=31536000, immutable",
-    );
-    expect(response.headers.get("etag")).toBe('"/assets/App-abcdefgh.js.br"');
-    expect(await response.text()).toBe("brotli");
-  });
-
-  it("answers HEAD and a matching validator from the sibling", async () => {
-    const head = await workerEntry.fetch(
-      new Request("https://example.test/assets/App-abcdefgh.js", {
-        method: "HEAD",
-        headers: { "accept-encoding": "br" },
-      }),
-      env,
-    );
-    expect(head.headers.get("content-encoding")).toBe("br");
-    expect(await head.text()).toBe("");
-    const revalidated = await fetchAsset("/assets/App-abcdefgh.js", {
-      "accept-encoding": "br",
-      "if-none-match": '"/assets/App-abcdefgh.js.br"',
-    });
-    expect(revalidated.status).toBe(304);
-    expect(revalidated.headers.get("content-encoding")).toBe("br");
-  });
-
-  it.each([
-    ["no brotli", { "accept-encoding": "gzip, deflate" }],
-    ["brotli refused", { "accept-encoding": "gzip, br;q=0" }],
-    ["a range", { "accept-encoding": "br", range: "bytes=0-3" }],
-  ])("serves the original for %s", async (_case, headers) => {
-    requested.length = 0;
-    const response = await fetchAsset("/assets/App-abcdefgh.js", headers);
-    expect(response.headers.get("content-encoding")).toBeNull();
-    expect(response.headers.get("content-type")).toContain("javascript");
-    expect(response.headers.get("vary")).toBe("Accept-Encoding");
-    expect(await response.text()).toBe("identity");
-    expect(requested).toEqual(["GET /assets/App-abcdefgh.js"]);
-  });
-
-  it("serves the original when the sibling is missing", async () => {
-    const response = await fetchAsset("/assets/Lazy-abcdefgh.js", {
-      "accept-encoding": "br",
-    });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-encoding")).toBeNull();
-    expect(response.headers.get("cache-control")).toBe(
-      "public, max-age=31536000, immutable",
-    );
-    expect(await response.text()).toBe("identity");
-  });
-
-  it("still answers a retired name with 404", async () => {
-    const response = await fetchAsset("/assets/App-retired1.js", {
-      "accept-encoding": "br",
-    });
-    expect(response.status).toBe(404);
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(response.headers.get("content-encoding")).toBeNull();
-  });
-
-  it("never looks for a sibling of the shell", async () => {
-    requested.length = 0;
-    const response = await fetchAsset("/editor", { "accept-encoding": "br" });
-    expect(response.headers.get("content-type")).toContain("text/html");
-    expect(requested).toEqual(["GET /editor"]);
+    expect(requested).toEqual([`GET ${path}`]);
   });
 });
