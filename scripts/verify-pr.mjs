@@ -174,9 +174,18 @@ const browserEnv = {
   ICM_E2E_ISOLATED: "1",
   ICM_E2E_PORT: process.env.ICM_E2E_PORT ?? "4191",
 };
-const queued = ciPlan.browser
-  ? ciPlan.e2eArgs.filter((arg) => arg.endsWith(".spec.ts")).length
-  : 0;
+const queuedArgs = ciPlan.browser ? ciPlan.e2eArgs : [];
+const queuedFiles = queuedArgs.filter((arg) => arg.endsWith(".spec.ts")).length;
+// The fallback names single cases by file and line.
+const queuedCases = queuedArgs.filter((arg) =>
+  /\.spec\.ts:\d+$/u.test(arg),
+).length;
+const queued = [
+  `${queuedFiles} mapped spec file${queuedFiles === 1 ? "" : "s"}`,
+  ...(queuedCases
+    ? [`${queuedCases} single case${queuedCases === 1 ? "" : "s"}`]
+    : []),
+].join(" and ");
 if (!withBrowser) skip("browser", "--no-browser");
 else if (mapped) {
   if (!ciPlan.browser)
@@ -186,10 +195,7 @@ else if (mapped) {
 } else {
   const cases = changedCases();
   if (!cases.length)
-    skip(
-      "browser",
-      `no browser case changed; the merge queue runs ${queued} mapped spec file${queued === 1 ? "" : "s"}`,
-    );
+    skip("browser", `no browser case changed; the merge queue runs ${queued}`);
   else step("browser", "pnpm", ["test:e2e:local", ...cases], browserEnv);
 }
 

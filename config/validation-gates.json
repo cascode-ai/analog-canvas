@@ -394,6 +394,8 @@
       "apps/editor/e2e/editor-fixtures.ts"
     ],
     "editorNetlist": [
+      "apps/editor/src/app/editor-app-chrome.tsx",
+      "apps/editor/src/app/editor-menus.tsx",
       "apps/editor/src/features/netlist-export/**",
       "apps/editor/src/features/properties/**",
       "apps/editor/src/features/instance-display/imported-instance-displays*",
@@ -423,10 +425,12 @@
     ],
     "editorRnl": [
       "packages/rnl/**",
+      "apps/editor/src/app/editor-menus.tsx",
       "apps/editor/src/features/netlist-export/**",
       "apps/editor/src/features/instance-display/imported-instance-displays*",
       "apps/editor/src/features/editor-shell/editor-export-commands*",
       "apps/editor/src/features/editor-shell/editor-file-commands*",
+      "apps/editor/src/features/editor-shell/file-command-menu*",
       "apps/editor/src/features/editor-shell/gallery-example-commands.ts",
       "apps/editor/src/examples/*.icproj.json",
       "apps/editor/src/examples/library-examples*",

@@ -195,10 +195,30 @@ const E2E_DIRECTORY = "apps/editor/e2e";
 const BROWSER_TESTS_PER_SHARD = 25;
 const MIN_BROWSER_SHARDS = 2;
 const MAX_BROWSER_SHARDS = 8;
+/** A selection this small runs on one shard; a second would run nothing. */
+const SINGLE_SHARD_TESTS = 8;
+
+/**
+ * Tests the browser arguments select: a spec file counts its declared
+ * tests, a `file:line` argument one, and anything else none.
+ */
+function countSelectedTests(e2eArgs, countTests = countSpecTests) {
+  return e2eArgs.reduce(
+    (sum, argument) =>
+      sum +
+      (argument.endsWith(".spec.ts")
+        ? countTests(argument)
+        : /\.spec\.ts:\d+$/u.test(argument)
+          ? 1
+          : 0),
+    0,
+  );
+}
 
 /**
  * Size the browser shards to the tests selected, about 25 to a shard, from
- * two for a small change up to eight. The slowest shard sets the queue's
+ * two for a small change up to eight; a selection of a few tests runs on
+ * one. The slowest shard sets the queue's
  * pace, and Playwright splits the selected tests into equal runs, so a large
  * selection on few shards made one of them wait on a whole slow spec.
  */
@@ -209,21 +229,17 @@ export function browserShardMatrix(plan, countTests = countSpecTests) {
           .filter((name) => name.endsWith(".spec.ts"))
           .map((name) => `${E2E_DIRECTORY}/${name}`)
       : plan.e2eArgs;
-  // A `file:line` argument selects one test.
-  const tests = specs.reduce(
-    (sum, argument) =>
-      sum +
-      (argument.endsWith(".spec.ts")
-        ? countTests(argument)
-        : /\.spec\.ts:\d+$/u.test(argument)
-          ? 1
-          : 0),
-    0,
-  );
-  const count = Math.min(
-    MAX_BROWSER_SHARDS,
-    Math.max(MIN_BROWSER_SHARDS, Math.ceil(tests / BROWSER_TESTS_PER_SHARD)),
-  );
+  const tests = countSelectedTests(specs, countTests);
+  const count =
+    tests <= SINGLE_SHARD_TESTS
+      ? 1
+      : Math.min(
+          MAX_BROWSER_SHARDS,
+          Math.max(
+            MIN_BROWSER_SHARDS,
+            Math.ceil(tests / BROWSER_TESTS_PER_SHARD),
+          ),
+        );
   return Array.from({ length: count }, (_, index) => `${index + 1}/${count}`);
 }
 

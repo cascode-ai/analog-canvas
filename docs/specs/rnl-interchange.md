@@ -291,8 +291,8 @@ the RNL language and its runtime belong to rnl.
   ground, junction and wired pin, each wire drawn as it was (power rails, body
   ties, a wire through a junction as one), each power label a power label and
   no Cell added (`rnl-round-trip.test.ts`, with the editor's entry step; one
-  multi-Cell example switched to Abstract and imported through the panel in
-  `apps/editor/e2e/rnl-interchange.spec.ts`).
+  multi-Cell example switched to Abstract, copied from the panel and imported
+  through File → Import → `RNL…` in `apps/editor/e2e/rnl-interchange.spec.ts`).
 - Under an RNL format the panel shows the "About RNL" link, to the
   introduction page in a new tab, and under no other format; the desktop app's
   list of links has it (`apps/editor/e2e/rnl-interchange.spec.ts`,

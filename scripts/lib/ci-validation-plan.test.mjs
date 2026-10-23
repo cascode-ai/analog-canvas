@@ -70,14 +70,17 @@ describe("CI validation planning", () => {
         { mode, e2eArgs: Object.keys(counts) },
         (spec) => counts[spec] ?? 0,
       );
-    // A small selection still uses two runners.
+    // A small selection still uses two runners ...
     expect(shards({ "a.spec.ts": 10 })).toEqual(["1/2", "2/2"]);
+    // ... and a few tests, such as the fallback smoke, one.
+    expect(shards({ "a.spec.ts": 8 })).toEqual(["1/1"]);
+    expect(browserShardMatrix(ciPlan(["worker/arena.ts"]))).toEqual(["1/1"]);
     // About 25 tests to a shard: 43 + 73 + 5 selected tests take five.
     expect(
       shards({ "a.spec.ts": 43, "b.spec.ts": 73, "c.spec.ts": 5 }),
     ).toEqual(["1/5", "2/5", "3/5", "4/5", "5/5"]);
     // Arguments that are not spec files select nothing to count.
-    expect(shards({ "--grep=x": 500 })).toHaveLength(2);
+    expect(shards({ "--grep=x": 500, "a.spec.ts": 9 })).toHaveLength(2);
     // A spec file and line selects one test.
     expect(
       browserShardMatrix(
@@ -318,7 +321,12 @@ describe("CI validation planning", () => {
     const fixturePlan = ciPlan(["apps/editor/e2e/manual-editor-fixtures.ts"]);
     expect(fixturePlan.mode).toBe("focused");
     expect(fixturePlan.e2eArgs).toEqual(
-      expect.arrayContaining([properties, netlist, ...editingSpecs]),
+      expect.arrayContaining([
+        properties,
+        netlist,
+        conversion,
+        ...editingSpecs,
+      ]),
     );
     for (const path of [
       "apps/editor/src/app/editor-properties-dock.tsx",
@@ -344,6 +352,26 @@ describe("CI validation planning", () => {
     expect(panel.e2eArgs).toEqual(
       expect.arrayContaining([properties, netlist, conversion, rnl]),
     );
+    // The editor glue only these workflows drive: File > Import > RNL… and
+    // File > Export > Netlist… (menus), Netlist Settings… (chrome) and the
+    // RNL file input (file menu).
+    for (const [path, specs] of [
+      ["apps/editor/src/app/editor-menus.tsx", [netlist, conversion, rnl]],
+      ["apps/editor/src/app/editor-app-chrome.tsx", [netlist, conversion]],
+      [
+        "apps/editor/src/features/editor-shell/file-command-menu.tsx",
+        [netlist, conversion, rnl],
+      ],
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("focused");
+      expect(plan.e2eArgs, path).toEqual(
+        expect.arrayContaining([
+          ...specs,
+          "apps/editor/e2e/netlist-code-edit.spec.ts",
+        ]),
+      );
+    }
   });
 
   it("keeps editable netlists and bundled examples on their browser regressions", () => {
