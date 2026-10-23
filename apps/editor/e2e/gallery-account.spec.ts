@@ -50,6 +50,7 @@ test("signed out, the wall and the editor's Gallery panel are grey with a way to
   await expect(page.locator(".masonry")).toHaveCount(0);
   await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
   await expect(page.getByTestId("gallery-empty")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-unavailable")).toHaveCount(0);
   // The prompt says everything; no footnote promises browsing without it.
   await expect(page.getByTestId("gallery-footnote")).toHaveCount(0);
   // The invitation opens the header's sign-in choices.
