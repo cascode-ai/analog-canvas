@@ -64,6 +64,7 @@ export function withCanvasPackage(core: CoreWorker, text: string): CoreWorker {
     catalog: (request) => core.catalog(workspace(request, text)),
     drawings: (request) => core.drawings(request),
     library: (request) => core.library(workspace(request, text)),
+    formats: (request) => core.formats(request),
     terminate: () => core.terminate(),
   };
 }

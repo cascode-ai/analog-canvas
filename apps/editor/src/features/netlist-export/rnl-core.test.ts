@@ -114,6 +114,16 @@ describe("explicit Canvas package workspace", () => {
     ).toEqual([]);
   });
 
+  it("lists the formats and detects a file's", async () => {
+    const { list, detected } = await core.formats({
+      formats: { detect: { "/a.scs": "r1 (a 0) resistor r=1k\n" } },
+    });
+    expect(list.map((format) => format.name)).toEqual(
+      expect.arrayContaining(["spice", "spectre"]),
+    );
+    expect(detected["/a.scs"]).toBe("spectre");
+  });
+
   it("requires the optional package on a standard-only core", async () => {
     const request = {
       write: { ...write, netlist: "\nE1 out 0 in 0 2\n.end\n" },
