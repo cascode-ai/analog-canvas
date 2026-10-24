@@ -22,5 +22,5 @@ it("shares concurrent requests only within one panel refresh, and retries after 
   const retry = loader.feed({ q: "ota" });
   expect(requests).toHaveLength(3);
   replies[2]!(new Response("", { status: 503 }));
-  expect(await retry).toBeNull();
+  expect(await retry).toMatchObject({ failure: "server-error" });
 });
