@@ -171,8 +171,8 @@ importers:
         specifier: 1.0.3
         version: 1.0.3
       "@rich-netlist/runtime":
-        specifier: 0.1.0-preview.14
-        version: 0.1.0-preview.14
+        specifier: 0.4.0
+        version: 0.4.0
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -2004,10 +2004,10 @@ packages:
       }
     engines: { node: ">= 10" }
 
-  "@rich-netlist/runtime@0.1.0-preview.14":
+  "@rich-netlist/runtime@0.4.0":
     resolution:
       {
-        integrity: sha512-/lbeJaVdD7a9ZpulJjN8ClsbDJC7JN2DaxonjtL/gP4b28WcChYVsPpuZ0vj7tYGS/y3En2kmCWv+RIzQYwBiw==,
+        integrity: sha512-dXIpU8CPb9Yr9UvZtuRGUJhQQPSVmnz5QIO856NLcK/Dt7AQJGKMiklJ3Iul9JHA5gitpiqbfEjzjLz/wh2VJg==,
       }
 
   "@rolldown/binding-android-arm64@1.2.3":
@@ -4289,7 +4289,7 @@ snapshots:
       "@resvg/resvg-js-win32-ia32-msvc": 2.6.2
       "@resvg/resvg-js-win32-x64-msvc": 2.6.2
 
-  "@rich-netlist/runtime@0.1.0-preview.14": {}
+  "@rich-netlist/runtime@0.4.0": {}
 
   "@rolldown/binding-android-arm64@1.2.3":
     optional: true
