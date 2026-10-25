@@ -496,6 +496,68 @@ it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () =
 });
 
 it.each(["spice", "spectre"] as const)(
+  "reads a gate whose Cell prints its supplies first back as the Library gate through %s+RNL",
+  async (format) => {
+    // An inverter on a Cell whose Pins are VDD, VSS, A, Y: the export draws
+    // it with each pin on the position the call prints it at (#1788).
+    const project = delayCellFixture(true);
+    const gate = project.documents[0]!.instances.find((i) => i.id === "X1")!;
+    gate.symbolId = "inverter";
+    // The Cell keeps its Pins and C2, and a resistor from A to Y stands for
+    // its transistors, which would need model cards.
+    const cell = project.documents.find((d) => d.id === "delay_cmos")!;
+    const kept = new Set(["pin-VDD", "pin-VSS", "pin-A", "pin-Y", "C2"]);
+    cell.instances = cell.instances.filter((i) => kept.has(i.id));
+    cell.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: { parameters: { value: "1k" } },
+    });
+    for (const net of cell.nets) {
+      net.terminals = net.terminals.filter((t) => kept.has(t.instanceId));
+      if (net.id === "A" || net.id === "Y")
+        net.terminals.push({
+          instanceId: "R1",
+          pinName: net.id === "A" ? "1" : "2",
+        });
+    }
+    cell.nets = cell.nets.filter((net) => net.terminals.length);
+    cell.connectivityEvidence = cell.connectivityEvidence.filter((evidence) =>
+      cell.nets.some((net) => net.id === evidence.netId),
+    );
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain("$CANVAS_CALL_INVERTER__0_0_1_2");
+    const result = await importRnl(written.text, format);
+    expect(failures(result)).toEqual([]);
+    const top = result.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    const part = top.instances.find((instance) => instance.reference === "X1");
+    expect(part?.symbolId).toBe("inverter");
+    expect(part?.placement).toEqual(gate.placement);
+    expect(
+      top.nets
+        .flatMap((net) => net.terminals)
+        .filter((terminal) => terminal.instanceId === part!.id)
+        .map((terminal) => terminal.pinName)
+        .sort(),
+    ).toEqual(["A", "VDD", "VSS", "Y"]);
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(result.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
   "reads a part calling a model no card declares as the type it is drawn as through %s+RNL",
   async (format) => {
     // A deck's models usually come from a PDK the netlist does not include.

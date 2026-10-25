@@ -64,7 +64,7 @@ describe("RNL shapes", () => {
     expect(slanted.points.at(-1)).toEqual(slanted.points[0]);
   });
 
-  it("takes a symbol's lines, outlines, circles and straight SVG paths", () => {
+  it("takes a symbol's lines, outlines, circles and absolute SVG paths", () => {
     expect(
       symbolShapes([
         { kind: "line", from: { x: 0, y: 0 }, to: { x: 10, y: 0 } },
@@ -123,8 +123,31 @@ describe("RNL shapes", () => {
         ],
       },
     ]);
+    // A cubic leg is drawn as it is; a straight leg beside it is a cubic
+    // with its controls on the leg, and Z closes the outline.
     expect(
-      symbolShapes([{ kind: "path", data: "M 0 0 C 1 2 3 4 5 6" }]),
+      symbolShapes([
+        { kind: "path", data: "M 0 0 C 10 20 30 40 50 60 L 0 0 Z" },
+      ]),
+    ).toEqual([
+      {
+        shape: "bezier",
+        points: [
+          [0, 0],
+          [1, -2],
+          [3, -4],
+          [5, -6],
+          [3.333333, -4],
+          [1.666667, -2],
+          [0, 0],
+        ],
+      },
+    ]);
+    expect(
+      symbolShapes([{ kind: "path", data: "M 0 0 A 5 5 0 0 1 10 0" }]),
+    ).toBeNull();
+    expect(
+      symbolShapes([{ kind: "path", data: "m 0 0 c 1 2 3 4 5 6" }]),
     ).toBeNull();
   });
 });

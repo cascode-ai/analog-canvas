@@ -5,6 +5,87 @@ import { AC_UNITS_PER_RNL_UNIT, toRnlPoint, type RnlPoint } from "./place.js";
 type Point = { readonly x: number; readonly y: number };
 
 /**
+ * An SVG path of absolute M, L, C and Z commands as RNL shapes, one for each
+ * subpath: straight legs only make a line; with a cubic leg, a Bézier whose
+ * straight legs are cubics with their controls on the leg, so the curve is
+ * the one drawn, not an approximation. Any other command (relative, H, V, S,
+ * Q, A) gives null.
+ */
+function pathShapes(data: string): RnlShape[] | null {
+  const tokens = data.match(
+    /[A-Za-z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/gu,
+  );
+  if (!tokens) return null;
+  const shapes: RnlShape[] = [];
+  let points: Point[] = [];
+  let controls: (readonly [Point, Point] | null)[] = [];
+  const flush = () => {
+    if (points.length < 2) return;
+    if (!controls.some(Boolean)) {
+      shapes.push(pathShape(points));
+      return;
+    }
+    const cubic: RnlPoint[] = [toRnlPoint(points[0]!)];
+    points.slice(1).forEach((to, index) => {
+      const from = points[index]!;
+      const [a, b] = controls[index] ?? [
+        between(from, to, 1 / 3),
+        between(from, to, 2 / 3),
+      ];
+      cubic.push(toRnlPoint(a), toRnlPoint(b), toRnlPoint(to));
+    });
+    shapes.push({ shape: "bezier", points: cubic });
+  };
+  let index = 0;
+  let command = "";
+  const point = (): Point | null => {
+    const x = Number(tokens[index]);
+    const y = Number(tokens[index + 1]);
+    index += 2;
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+  };
+  while (index < tokens.length) {
+    if (/^[A-Za-z]$/u.test(tokens[index]!)) command = tokens[index++]!;
+    if (command === "Z") {
+      const [first] = points;
+      const last = points.at(-1);
+      if (points.length > 1 && (first!.x !== last!.x || first!.y !== last!.y)) {
+        points.push(points[0]!);
+        controls.push(null);
+      }
+      flush();
+      points = [];
+      controls = [];
+      command = "";
+      continue;
+    }
+    if (command === "M") {
+      flush();
+      const start = point();
+      if (!start) return null;
+      points = [start];
+      controls = [];
+      // Further pairs after M are line legs.
+      command = "L";
+    } else if (command === "L") {
+      const to = point();
+      if (!to || !points.length) return null;
+      points.push(to);
+      controls.push(null);
+    } else if (command === "C") {
+      const a = point();
+      const b = point();
+      const to = point();
+      if (!a || !b || !to || !points.length) return null;
+      points.push(to);
+      controls.push([a, b]);
+    } else return null;
+  }
+  flush();
+  return shapes.length ? shapes : null;
+}
+
+/**
  * A drawing primitive (language standard 9.2.5) as an edit transaction gives
  * it, in a symbol's frame or in the scene (rnl-dev
  * `notes/rnl-editor-interface/ops-draft-blocks-and-drawings.md`, 2.1):
@@ -149,31 +230,9 @@ export function symbolShapes(
         );
         break;
       case "path": {
-        // The analog triangles and transfer glyphs use explicit absolute
-        // M/L/Z strokes. Reject the rest rather than approximating curves.
-        const number = "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?";
-        const pair = `${number}[ ,]+${number}`;
-        if (
-          !new RegExp(
-            `^\\s*M\\s*${pair}(?:\\s*L\\s*${pair})+(?:\\s*Z)?\\s*$`,
-            "u",
-          ).test(primitive.data)
-        )
-          return null;
-        const points = Array.from(
-          primitive.data.matchAll(
-            new RegExp(`[ML]\\s*(${number})[ ,]+(${number})`, "gu"),
-          ),
-          (match) => ({ x: Number(match[1]), y: Number(match[2]) }),
-        );
-        if (
-          points.some(
-            (point) => !Number.isFinite(point.x) || !Number.isFinite(point.y),
-          )
-        )
-          return null;
-        if (/Z\s*$/u.test(primitive.data)) points.push(points[0]!);
-        shapes.push(pathShape(points));
+        const path = pathShapes(primitive.data);
+        if (!path) return null;
+        shapes.push(...path);
         break;
       }
     }

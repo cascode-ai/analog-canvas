@@ -1,0 +1,17 @@
+simulator lang=spectre
+// Topology-only rejection fixture: symbol terminal 3 is not the RESET node.
+// @RNL(type="header") {
+// @VERSION("0.3");
+// @USE-PACKAGE(name="rnl-std", version="0.3");
+// @USE-PACKAGE(name="rnl-std-no-labels", version="0.3");
+// @USE-PACKAGE(name="rnl-std-logic", version="0.3")
+// }
+subckt dut (VDD VSS D1 CLK RESET Q1 QB1 D2 Q2 QB2)
+X1 (VDD VSS D1 CLK RESET Q1 QB1) d_flip_flop_reset
+X2 (VDD VSS D2 CLK RESET Q2 QB2) d_flip_flop_reset
+// @RNL {
+// #X1 @SET-SYMBOL $D_FLIP_FLOP_WITH_RESET => @PLACE(20, -20);
+// #X2 @SET-SYMBOL $D_FLIP_FLOP_WITH_RESET => @PLACE(40, -20);
+// &RESET @WIRE(mode="straight") {#X1:3 #X2:3}
+// }
+ends dut
