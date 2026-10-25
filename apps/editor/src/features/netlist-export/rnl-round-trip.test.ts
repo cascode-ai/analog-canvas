@@ -130,6 +130,94 @@ it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () =
   expect(codes).not.toContain("RNL_IMPORT_PACKAGE_VERSION");
 });
 
+it.each(["spice", "spectre"] as const)(
+  "reads back a varactor, a tunable resistor and an NPN as drawn through %s+RNL (#1786)",
+  async (format) => {
+    // The netlist import names their pins as a plain part's (1, 2 for a
+    // capacitor); RNL binds them by terminal.
+    const project = createEmptyProject("tunables", "Tunables", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    const parts = [
+      ["C1", "variable-capacitor", "capacitor", { value: "1p" }, ["P1", "P2"]],
+      ["R1", "variable-resistor", "resistor", { value: "1k" }, ["P1", "P2"]],
+      ["Q1", "npn", "bjt", {}, ["C", "B", "E"]],
+    ] as const;
+    parts.forEach(([id, symbolId, deviceClass, parameters, pins], index) => {
+      document.instances.push({
+        id,
+        reference: id,
+        symbolId,
+        placement: {
+          position: { x: 200 + index * 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding:
+            deviceClass === "bjt"
+              ? { kind: "model", deviceClass, name: "NPN" }
+              : { kind: "primitive", deviceClass },
+          parameters: { ...parameters },
+        },
+      });
+      for (const pinName of pins)
+        document.noConnects.push({
+          id: `${id}${pinName}`,
+          endpoint: { kind: "terminal", instanceId: id, pinName },
+        });
+    });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(
+      plan.diagnostics.filter(
+        (item) => item.code === "RNL_IMPORT_UNMAPPED_SYMBOL",
+      ),
+    ).toEqual([]);
+    const back = plan.project.documents.flatMap((d) => d.instances);
+    // The import compares the circuits itself (no failures above); the NPN
+    // stand-in card is a separate matter (#1789).
+    for (const [id, symbolId] of parts)
+      expect(back.find((i) => i.reference === id)?.symbolId).toBe(symbolId);
+  },
+);
+
+it("keeps a wire RNL draws on a Cell's GND, which it reads as ground (#1784)", async () => {
+  const written = await runtime.write({
+    write: {
+      dialect: "spice",
+      netlist: "\n.subckt dut a GND\nR1 a GND 1k\n.ends dut\n",
+      author: "test",
+      ops: [
+        {
+          op: "set",
+          level: "subckt:dut",
+          object: "#R1",
+          symbol: "$RESISTOR",
+          at: [0, 0],
+          orient: "R0",
+        },
+        { op: "add-point", level: "subckt:dut", name: "%g", at: [0, -6] },
+        {
+          op: "add-wire",
+          level: "subckt:dut",
+          nets: ["&GND"],
+          via: [{ terminal: "#R1:2" }, { point: "%g" }],
+          mode: "straight",
+        },
+      ],
+    } as never,
+    svg: false,
+  });
+  const plan = await importRnl(written.text, "spice");
+  expect(failures(plan)).toEqual([]);
+  expect(plan.diagnostics.map((item) => item.code)).not.toContain(
+    "RNL_IMPORT_WIRE_SKIPPED",
+  );
+  const dut = plan.project.documents.find((d) => d.netlist?.name === "dut")!;
+  expect(dut.routes).toHaveLength(1);
+});
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",

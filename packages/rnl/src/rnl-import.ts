@@ -239,33 +239,85 @@ const isOrient = (value: string | null): value is RnlOrient =>
 function acSymbolFor(
   symbol: RnlSymbolRef,
   orient: RnlOrient,
-  instance: Pick<Instance, "symbolId">,
+  instance: Pick<Instance, "symbolId"> &
+    Partial<Pick<Instance, "importProvenance">>,
   pinNames: readonly string[],
-): { row: RnlSymbol; orient: RnlOrient } | null {
-  const rows = RNL_SYMBOLS.filter(
-    (row) =>
-      row.ac !== null &&
-      row.symbol === symbol.name &&
-      (row.inline
-        ? symbol.package === null &&
-          symbol.level !== null &&
-          matchesInlineRnlSymbol(row, symbol.definition)
-        : family(row.package) === family(symbol.package)) &&
-      pinNames.every(
-        (pin) =>
-          row.pins.some((item) => item.acPin === pin) ||
-          row.undrawnPins.some((item) => item.acPin === pin),
-      ),
-  );
+): {
+  row: RnlSymbol;
+  orient: RnlOrient;
+  /** The part's pins by the names this symbol gives them, where they differ. */
+  pins?: ReadonlyMap<string, string>;
+} | null {
+  const rows: { row: RnlSymbol; pins?: ReadonlyMap<string, string> }[] =
+    RNL_SYMBOLS.flatMap((row) => {
+      if (
+        row.ac === null ||
+        row.symbol !== symbol.name ||
+        !(row.inline
+          ? symbol.package === null &&
+            symbol.level !== null &&
+            matchesInlineRnlSymbol(row, symbol.definition)
+          : family(row.package) === family(symbol.package))
+      )
+        return [];
+      if (
+        pinNames.every(
+          (pin) =>
+            row.pins.some((item) => item.acPin === pin) ||
+            row.undrawnPins.some((item) => item.acPin === pin),
+        )
+      )
+        return [{ row }];
+      const pins = positionalPins(row, instance);
+      return pins ? [{ row, pins }] : [];
+    });
   const ranked = rows
-    .map((row) => ({ row, orient: composeOrient(orient, inverse(row.orient)) }))
+    .map((found) => ({
+      ...found,
+      orient: composeOrient(orient, inverse(found.row.orient)),
+    }))
     .sort(
       (a, b) =>
         Number(a.orient.startsWith("M")) - Number(b.orient.startsWith("M")) ||
+        Number(a.pins !== undefined) - Number(b.pins !== undefined) ||
         Number(a.row.ac !== instance.symbolId) -
           Number(b.row.ac !== instance.symbolId),
     );
   return ranked[0] ?? null;
+}
+
+/**
+ * A part's pins as a symbol of the same kind of device names them, by the
+ * terminal each is printed at, as RNL binds pins (9.2.4): the netlist import
+ * names a capacitor's 1 and 2 where a varactor's are P1 and P2. Only where
+ * that symbol's own netlist order prints each pin at the same place, so the
+ * netlist stays the same; null otherwise.
+ */
+function positionalPins(
+  row: RnlSymbol,
+  instance: Pick<Instance, "symbolId"> &
+    Partial<Pick<Instance, "importProvenance">>,
+): ReadonlyMap<string, string> | null {
+  const printed = instance.importProvenance?.terminalMapping;
+  const target = row.ac ? deviceDescriptor(row.ac) : undefined;
+  const source = deviceDescriptor(instance.symbolId);
+  if (
+    !printed?.length ||
+    !target ||
+    !source ||
+    target.deviceClass !== source.deviceClass ||
+    target.pinOrder.length !== printed.length
+  )
+    return null;
+  const names = new Map<string, string>();
+  for (const { sourcePosition, pinName } of printed) {
+    const pin = [...row.pins, ...row.undrawnPins].find(
+      (item) => item.terminal === sourcePosition + 1,
+    );
+    if (!pin || target.pinOrder[sourcePosition] !== pin.acPin) return null;
+    names.set(pinName, pin.acPin);
+  }
+  return new Set(names.values()).size === names.size ? names : null;
 }
 
 /** What closes a switch Analog Canvas draws: the phase its label names, its CTRL pin, or a chopper's clock. */
@@ -289,7 +341,7 @@ function phaseSwitchSymbol(
   symbol: RnlSymbolRef,
   orient: RnlOrient,
   instance: Pick<Instance, "symbolId">,
-): { row: RnlSymbol; orient: RnlOrient } | null {
+): ReturnType<typeof acSymbolFor> {
   if (switchControl(instance.symbolId) !== "pin") return null;
   const found = acSymbolFor(symbol, orient, instance, ["1", "2"]);
   return found?.row.ac && switchControl(found.row.ac) === "phase"
@@ -478,6 +530,31 @@ function applyLevel(
       );
   };
 
+  /** Renames a part's pins, wherever the import has them, by `names`. */
+  const renamePins = (
+    instance: Instance,
+    names: ReadonlyMap<string, string>,
+  ) => {
+    const rename = <T extends { instanceId: string; pinName: string }>(
+      terminal: T,
+    ): T =>
+      terminal.instanceId === instance.id && names.has(terminal.pinName)
+        ? { ...terminal, pinName: names.get(terminal.pinName)! }
+        : terminal;
+    for (const net of document.nets) net.terminals = net.terminals.map(rename);
+    for (const net of document.importReference?.nets ?? [])
+      net.terminals = net.terminals.map((terminal) =>
+        "pinName" in terminal ? rename(terminal) : terminal,
+      );
+    const provenance = instance.importProvenance;
+    if (provenance?.terminalMapping)
+      provenance.terminalMapping = provenance.terminalMapping.map((entry) =>
+        names.has(entry.pinName)
+          ? { ...entry, pinName: names.get(entry.pinName)! }
+          : entry,
+      );
+  };
+
   // Nets by their RNL name, from the import's own record of the names. A
   // Spectre netlist escapes a name's other characters (`Vin\+`), which the
   // SCS import keeps; RNL names the net it means (`Vin+`).
@@ -487,6 +564,11 @@ function applyLevel(
     const plain = net.name.replace(/\\(.)/gu, "$1").toLowerCase();
     if (!nets.has(plain)) nets.set(plain, net.id);
   }
+  // RNL reads SPICE's GND as ground, as ngspice does, where the import keeps
+  // a Cell's GND as a net of that name (#1784): a wire RNL draws on 0 is on
+  // that net, in a Cell that has no 0 of its own.
+  const gnd = nets.get("gnd");
+  if (!nets.has("0") && gnd !== undefined) nets.set("0", gnd);
   const netOf = (id: string) => {
     const name = rnlIdName(id, "&");
     return name === null ? undefined : nets.get(name.toLowerCase());
@@ -579,6 +661,7 @@ function applyLevel(
       else delete instance.symbolVariantId;
       if (pinSwitch && switchControl(instance.symbolId) === "phase")
         clockByLabel(instance);
+      if (mapped.pins) renamePins(instance, mapped.pins);
     }
     const turn = mapped?.orient ?? orient;
     instance.placement = {

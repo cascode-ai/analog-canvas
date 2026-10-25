@@ -161,6 +161,10 @@ the RNL language and its runtime belong to rnl.
     `$CANVAS_NAME` (Canvas 0.2): `XM1` named `M1` is M1 again; a name another
     part of the Cell has keeps the card's, with `RNL_IMPORT_NAME_TAKEN`;
   - each part's place, orientation and variant, through the mapping table;
+    a symbol whose pins the netlist import names otherwise (a varactor's P1
+    and P2 on a capacitor's 1 and 2) by terminal, as RNL binds pins, where
+    it is the same kind of device and its own netlist order prints each pin
+    at the same place; the part's pins take the symbol's names;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
     default op-amp, unturned the inputs-swapped one; RNL's standard 4-input
@@ -178,6 +182,9 @@ the RNL language and its runtime belong to rnl.
   - the ground pin the export adds (`VSS`, or `GND`, `GND__n`, drawn as
     ground rather than as a port) is ground again, and its callers stop
     passing a node to it, as before the export;
+  - a wire RNL draws on ground (0) in a Cell with a net named GND and none
+    named 0: RNL reads SPICE's GND as ground, as ngspice does, where the
+    import keeps it a net of that name (#1784);
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a point one route; a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, any other line style or
