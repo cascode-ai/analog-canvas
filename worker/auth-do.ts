@@ -18,6 +18,10 @@
 import {
   BROWSER_TRAP_READS,
   blockNotice,
+  markMemberNotified,
+  memberBlockNotice,
+  memberNoticeRequested,
+  unsentMemberNotices,
   ensureAccountBlockTables,
   isBlocked,
   listBlocks,
@@ -671,6 +675,21 @@ export class AuthDO {
         return Response.json({ error: "owner-only" }, { status: 403 });
       return this.apologize(request);
     }
+    if (route === "blocked/notify" && method === "POST") {
+      if (!sameOrigin(request))
+        return Response.json({ error: "forbidden" }, { status: 403 });
+      if (!(await this.sessionUser(request))?.isOwner)
+        return Response.json({ error: "owner-only" }, { status: 403 });
+      const body = (await request.json().catch(() => null)) as {
+        userId?: unknown;
+      } | null;
+      if (typeof body?.userId !== "string")
+        return Response.json({ error: "invalid-user" }, { status: 400 });
+      if (!memberNoticeRequested(this.sql, body.userId))
+        return Response.json({ error: "no-notice-owed" }, { status: 409 });
+      // Unsent now, the scheduled pass retries it.
+      return noStoreJson({ sent: (await this.sendBlockNotices()) > 0 });
+    }
     return Response.json({ error: "not-found" }, { status: 404 });
   }
 
@@ -717,8 +736,8 @@ export class AuthDO {
    * A trap circuit read (`trapReadKind` in gallery-traps.ts): a program's
    * blocks the account at once, a browser's once it has read two different
    * traps within the day. Never the Owner's own tools, which may read in
-   * bulk. The Owner is told at once; the scheduled pass retries an unsent
-   * notice.
+   * bulk. The Owner and the member are told at once; the scheduled pass
+   * retries an unsent notice.
    */
   private async blockAccount(request: Request): Promise<Response> {
     const body = (await request.json().catch(() => null)) as
@@ -757,13 +776,25 @@ export class AuthDO {
     return noStoreJson({ blocked: true });
   }
 
-  /** Emails the Owner every block not yet told; returns how many were. */
+  /**
+   * Emails the Owner, and the member with replies going to the Owner, every
+   * block not yet told; returns how many emails went.
+   */
   private async sendBlockNotices(): Promise<number> {
     let sent = 0;
     for (const row of unsentNotices(this.sql)) {
       const { subject, text } = blockNotice(row);
       if (!(await this.sendEmail(SITE_USAGE_CONTACT, subject, text))) break;
       markNotified(this.sql, row.id, this.now().toISOString());
+      sent += 1;
+    }
+    for (const row of unsentMemberNotices(this.sql)) {
+      const { subject, text } = memberBlockNotice(row);
+      if (
+        !(await this.sendEmail(row.email!, subject, text, SITE_USAGE_CONTACT))
+      )
+        break;
+      markMemberNotified(this.sql, row.id, this.now().toISOString());
       sent += 1;
     }
     return sent;

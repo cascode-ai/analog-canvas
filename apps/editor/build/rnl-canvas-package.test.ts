@@ -4,6 +4,10 @@ import { join, resolve } from "node:path";
 import { build } from "vite";
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
+import {
+  canvasPackageFile,
+  canvasPackageLock,
+} from "../src/features/netlist-export/rnl-canvas-package";
 import webConfig from "../vite.config";
 import desktopConfig from "../vite.desktop.config";
 
@@ -19,7 +23,8 @@ it.each(compositions)(
     try {
       const feature = join(directory, "src/features/netlist-export");
       await mkdir(feature, { recursive: true });
-      await writeFile(join(feature, "analog-canvas-extensions.rnl"), "changed");
+      for (const { version } of canvasPackageLock.versions)
+        await writeFile(join(feature, canvasPackageFile(version)), "changed");
       const entry = join(directory, "entry.js");
       await writeFile(entry, "export const ready = true;");
       await expect(
@@ -40,7 +45,7 @@ it.each(compositions)(
 );
 
 it.each(compositions)(
-  "ships the locked raw bytes with the %s runtime",
+  "ships each locked version's raw bytes with the %s runtime",
   async (_name, config) => {
     const result = await build({
       ...config,
@@ -58,14 +63,16 @@ it.each(compositions)(
     });
     if (Array.isArray(result) || !("output" in result))
       throw new Error("Expected one production bundle");
-    const asset = result.output.find((item) =>
-      /^assets\/analog-canvas-extensions-[^/]+\.rnl$/u.test(item.fileName),
+    const shipped = result.output.flatMap((item) =>
+      item.type === "asset" &&
+      /^assets\/analog-canvas-extensions-[^/]+\.rnl$/u.test(item.fileName)
+        ? [createHash("sha256").update(item.source).digest("hex")]
+        : [],
     );
-    if (!asset || asset.type !== "asset")
-      throw new Error("Missing Canvas package asset");
-    expect(createHash("sha256").update(asset.source).digest("hex")).toBe(
+    expect(shipped.sort()).toEqual([
       "3738e1ce0c5d6fca3e13ad44faac8bd54f5eeb70577a22e412f5858f21f86711",
-    );
+      "b9da7bd01b85ec1108546770cb0a845a85627a2b4879de8fc7351006f19cde7e",
+    ]);
   },
   60000,
 );

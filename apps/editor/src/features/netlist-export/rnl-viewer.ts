@@ -1,3 +1,5 @@
+import { canvasPackageLock, canvasPackageVersion } from "./rnl-canvas-package";
+
 export const RNL_VIEWER_URL = "https://rich-netlist.github.io/rnl/viewer/";
 const viewerOrigin = new URL(RNL_VIEWER_URL).origin;
 const requiredFeatures = ["requestId", "packages", "opener"];
@@ -162,7 +164,9 @@ export function openRnlViewer(file: {
         token: current.token,
         requestId: id,
         ...file,
-        packages: [{ name: "analog-canvas-extensions", version: "0.1" }],
+        packages: [
+          { name: canvasPackageLock.name, version: canvasPackageVersion },
+        ],
       },
       timer: setTimeout(() => {
         finish(

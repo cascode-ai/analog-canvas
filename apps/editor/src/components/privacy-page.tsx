@@ -13,7 +13,7 @@ import {
 } from "./site-resource-links";
 
 /** When the notice last changed; update it with the text. */
-export const PRIVACY_UPDATED = "23 October 2026";
+export const PRIVACY_UPDATED = "25 October 2026";
 
 /**
  * Every cookie the site sets. All but `canvas_vid` belong to a feature you
@@ -251,8 +251,9 @@ export function PrivacyPage() {
             method, with the time, the IP address, country and browser
             identification of that request) and emails it to the site&rsquo;s
             operator. The record is kept, also after the account is deleted, as
-            evidence for enforcing the usage policy. Write to {contact} if you
-            think a block is a mistake.
+            evidence for enforcing the usage policy. The account is told by
+            email; reply to it, or write to {contact}, if you think a block is a
+            mistake.
           </li>
           <li>
             <strong>Backups</strong> of the Gallery and Cloud Projects, with the
