@@ -2833,7 +2833,8 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
  * Cells it calls, a switch it draws or a MOS body left unwired; VDD where a
  * PMOS body is left unwired; the phase a switch's label clocks it by. The
  * drawing shows none of them, so the pin is undrawn and alone on its net
- * but for those bodies once its children's pins are gone. Where the Cell
+ * but for those bodies, and the rails of the Library gates it draws, once
+ * its children's pins are gone. Where the Cell
  * prints the same pin again without it, it goes, the bodies unwired again
  * as drawn, and then a caller's pin it left alone in turn. A pin the Cell
  * would print under another name, or not at all, is the author's and stays.
@@ -2853,7 +2854,7 @@ function removeAddedPins(
           !pins.size ||
           [...pins].some((id) => !undrawnPins.has(id)) ||
           !net.terminals.every(
-            (item) => pins.has(item.instanceId) || unwiredBody(item),
+            (item) => pins.has(item.instanceId) || unwiredSupply(item),
           ) ||
           document.annotations.some(
             (item) => "netId" in item && item.netId === net.id,
@@ -2891,13 +2892,24 @@ function removeAddedPins(
       }
   }
 
-  /** A MOS body the drawing leaves unwired, as the netlist import binds it. */
-  function unwiredBody(item: { instanceId: string; pinName: string }) {
-    if (item.pinName !== "B") return false;
+  /**
+   * A pin no drawing wires, which takes the Cell's supply when left alone:
+   * a MOS body left unwired, as the netlist import binds it, or the rail of
+   * a Library gate drawn on a Cell of the Project, which its symbol draws no
+   * pin for (#1450).
+   */
+  function unwiredSupply(item: { instanceId: string; pinName: string }) {
     const instance = project.documents
       .flatMap((document) => document.instances)
       .find((candidate) => candidate.id === item.instanceId);
-    return !!instance && !!mosBulkKind(instance) && !instance.mosBulkBinding;
+    if (!instance) return false;
+    if (item.pinName === "B")
+      return !!mosBulkKind(instance) && !instance.mosBulkBinding;
+    return (
+      (item.pinName === "VDD" || item.pinName === "VSS") &&
+      instance.netlist?.binding?.kind === "subcircuit" &&
+      bindsProjectCell(instance.symbolId)
+    );
   }
 }
 

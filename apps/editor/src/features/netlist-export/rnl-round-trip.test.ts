@@ -593,6 +593,66 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "takes no Cell Pin for the supplies a Library gate's rails print through %s+RNL",
+  async (format) => {
+    // The gate's rails left to the Cell, as a gate is drawn: dut prints VDD
+    // and its ground for them, which no drawing shows (#1787).
+    const project = delayCellFixture(true);
+    const top = project.documents[0]!;
+    top.instances.find((i) => i.id === "X1")!.symbolId = "inverter";
+    for (const net of top.nets)
+      net.terminals = net.terminals.filter(
+        (t) =>
+          t.instanceId !== "X1" || (t.pinName !== "VDD" && t.pinName !== "VSS"),
+      );
+    top.nets = top.nets.filter((net) => net.terminals.length);
+    top.connectivityEvidence = top.connectivityEvidence.filter((evidence) =>
+      top.nets.some((net) => net.id === evidence.netId),
+    );
+    const cell = project.documents.find((d) => d.id === "delay_cmos")!;
+    const kept = new Set(["pin-VDD", "pin-VSS", "pin-A", "pin-Y", "C2"]);
+    cell.instances = cell.instances.filter((i) => kept.has(i.id));
+    cell.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: { parameters: { value: "1k" } },
+    });
+    for (const net of cell.nets) {
+      net.terminals = net.terminals.filter((t) => kept.has(t.instanceId));
+      if (net.id === "A" || net.id === "Y")
+        net.terminals.push({
+          instanceId: "R1",
+          pinName: net.id === "A" ? "1" : "2",
+        });
+    }
+    cell.nets = cell.nets.filter((net) => net.terminals.length);
+    cell.connectivityEvidence = cell.connectivityEvidence.filter((evidence) =>
+      cell.nets.some((net) => net.id === evidence.netId),
+    );
+    const exported = createRnlExport(project, { format });
+    expect(exported.status === "ready" && exported.request.netlist).toMatch(
+      /subckt dut \(?VDD VSS\b/u,
+    );
+    const result = await roundTrip(project, format);
+    expect(failures(result)).toEqual([]);
+    const dut = result.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    expect(dut.netlist!.terminals.map((t) => t.name)).toEqual([]);
+    expect(
+      dut.instances.find((instance) => instance.reference === "X1")?.symbolId,
+    ).toBe("inverter");
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(result.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",

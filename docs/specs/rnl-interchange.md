@@ -211,8 +211,9 @@ the RNL language and its runtime belong to rnl.
     ground prints because a Cell it calls, a switch it draws or a MOS body
     it leaves unwired meets ground, the VDD pin an unwired PMOS body gives
     it, and the pin a switch's label clocks it by: undrawn and alone on its
-    net but for such bodies, the pin goes where the Cell would print it
-    again under the same name, and the bodies are unwired again (#1787);
+    net but for such bodies and the rails of the Library gates it draws on
+    Cells, the pin goes where the Cell would print it again under the same
+    name, and the bodies and rails are left to the Cell again (#1787);
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a point one route; a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, any other line style or
