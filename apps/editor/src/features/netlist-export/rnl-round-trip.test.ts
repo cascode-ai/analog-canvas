@@ -14,6 +14,7 @@ import {
   createEmptyProject,
   flattenRichText,
   type CircuitProject,
+  type Annotation,
   type Instance,
 } from "@icm/model";
 import {
@@ -30,6 +31,7 @@ import {
   rnlPlace,
   rnlSymbolFor,
   type RnlSnapshot,
+  type RnlWriteRequest,
 } from "@icm/rnl";
 import {
   builtInSymbols,
@@ -97,6 +99,369 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+/**
+ * An nmos M1 that calls a model source's subcircuit, so SPICE prints it as
+ * XM1, in a Cell with its own naming typography.
+ */
+function namedSubcircuitPart(): CircuitProject {
+  const project = createEmptyProject("named-part", "Named part");
+  project.modelSources = [
+    {
+      id: "source",
+      language: "spice",
+      revision: 1,
+      entry: "nch.spice",
+      dependencies: [],
+      files: [
+        {
+          path: "nch.spice",
+          text: ".subckt nch_mac D G S B\nRDS D S 1k\n.ends nch_mac\n",
+        },
+      ],
+    },
+  ];
+  project.externalSubcircuitDefinitions = [
+    {
+      id: "nch",
+      name: "nch_mac",
+      interfaceStatus: "declared",
+      terminals: ["D", "G", "S", "B"].map((name) => ({
+        id: name,
+        name,
+        direction: "inout" as const,
+      })),
+      formalParameters: [],
+      implementation: { kind: "source", sourceId: "source", entry: "nch_mac" },
+    },
+  ];
+  const document = project.documents[0]!;
+  document.presentation.labelSubscriptItalic = false;
+  document.presentation.textFace = "serif";
+  document.instances.push({
+    id: "M1",
+    reference: "M1",
+    symbolId: "nmos",
+    placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "external-subcircuit", definitionId: "nch" },
+      parameters: {},
+    },
+  });
+  for (const pinName of ["D", "G", "S", "B"])
+    document.noConnects.push({
+      id: `M1${pinName}`,
+      endpoint: { kind: "terminal", instanceId: "M1", pinName },
+    });
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "writes a part's name and a Cell's typography, and reads the typography back, through %s+RNL",
+  async (format) => {
+    const project = namedSubcircuitPart();
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(
+        JSON.stringify(
+          [...exported.netlistDiagnostics, ...exported.diagnostics].filter(
+            (item) => item.severity === "error",
+          ),
+        ),
+      );
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    // Each setting other than Analog Canvas's default.
+    expect(written.text).toContain(
+      '$CANVAS_TYPESETTING @ATTACH(subscript_italic=false, face="serif") #(level)',
+    );
+    // Spectre prints M1 as M1; only SPICE needs the name.
+    expect(written.text.includes('$CANVAS_NAME @ATTACH(name="M1")')).toBe(
+      format === "spice",
+    );
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const document = plan.project.documents.find((d) =>
+      d.instances.some((i) => i.symbolId === "nmos"),
+    )!;
+    // The import brings nch_mac in as a Cell, whose calls take names
+    // starting with X, so XM1 keeps its card's name for now (#1789).
+    expect(
+      plan.diagnostics.some((item) => item.code === "RNL_IMPORT_NAME_REFUSED"),
+    ).toBe(format === "spice");
+    expect(document.presentation.labelSubscriptItalic).toBe(false);
+    expect(document.presentation.textFace).toBe("serif");
+    expect(document.presentation.labelFirstLetterItalic).toBeUndefined();
+  },
+);
+
+/**
+ * Labels the import cannot tell from their text alone: a Cell Pin drawn as
+ * a supply whose power label shows the Pin's name, a resistor whose name
+ * label is its own text, and a parameter shown without its value.
+ */
+function boundLabels(): CircuitProject {
+  const project = createEmptyProject("labels", "Labels", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const at = (x: number, y: number) =>
+    ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+  const label = (
+    id: string,
+    kind: "instance-label" | "instance-value" | "power-label",
+    objectId: string,
+    offset: { x: number; y: number },
+    text: Partial<Annotation>,
+  ): Annotation =>
+    ({
+      id,
+      kind,
+      anchor: {
+        kind: "object",
+        objectId,
+        localOffset: offset,
+        fallbackPosition: offset,
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+      ...text,
+    }) as Annotation;
+  document.instances.push(
+    { id: "VDD1", symbolId: "vdd-port", placement: at(200, 100) },
+    {
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: at(200, 200),
+      netlist: { parameters: { value: "1k" } },
+    },
+    {
+      id: "C1",
+      reference: "C1",
+      symbolId: "capacitor",
+      placement: at(400, 200),
+      netlist: { parameters: { value: "1p" } },
+    },
+  );
+  document.nets.push({
+    id: "vdd",
+    terminals: [
+      { instanceId: "VDD1", pinName: "P" },
+      { instanceId: "R1", pinName: "1" },
+      { instanceId: "C1", pinName: "1" },
+    ],
+  });
+  document.netlist!.terminals.push({
+    id: "terminal-vdd",
+    name: "VDD",
+    netId: "vdd",
+    direction: "inout",
+    interfaceInstanceIds: ["VDD1"],
+  });
+  for (const [id, part] of [
+    ["R12", "R1"],
+    ["C12", "C1"],
+  ] as const)
+    document.noConnects.push({
+      id,
+      endpoint: { kind: "terminal", instanceId: part, pinName: "2" },
+    });
+  document.annotations.push(
+    label(
+      "vdd-label",
+      "power-label",
+      "VDD1",
+      { x: 20, y: 10 },
+      {
+        netId: "vdd",
+        binding: { kind: "cell-terminal-name", terminalId: "terminal-vdd" },
+      },
+    ),
+    // Its own text, which reads as the name it has.
+    label(
+      "r1-name",
+      "instance-label",
+      "R1",
+      { x: 15, y: 5 },
+      {
+        content: { runs: [{ kind: "text", value: "R1" }] },
+      },
+    ),
+    label(
+      "c1-name",
+      "instance-label",
+      "C1",
+      { x: 15, y: 5 },
+      {
+        binding: { kind: "instance-reference", instanceId: "C1" },
+      },
+    ),
+    label(
+      "c1-value",
+      "instance-value",
+      "C1",
+      { x: 15, y: 20 },
+      {
+        binding: {
+          kind: "instance-value",
+          instanceId: "C1",
+          parameter: "value",
+          showValue: false,
+        },
+      },
+    ),
+  );
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "says what each bound label shows, and reads it back, through %s+RNL",
+  async (format) => {
+    const project = boundLabels();
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(
+        JSON.stringify(
+          [...exported.netlistDiagnostics, ...exported.diagnostics].filter(
+            (item) => item.severity === "error",
+          ),
+        ),
+      );
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain(
+      '$CANVAS_LABEL @ATTACH(bind="port") %power1(label)',
+    );
+    expect(written.text).toContain(
+      '$CANVAS_LABEL @ATTACH(bind="name") #C1::name(label)',
+    );
+    expect(written.text).toContain(
+      '$CANVAS_LABEL @ATTACH(bind="parameter", parameter="value", show_value=false) #C1::value(label)',
+    );
+    // A label that holds its own text says nothing.
+    expect(written.text).not.toContain("#R1::name(label)");
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const document = plan.project.documents.find(
+      (d) => d.netlist?.name === "dut",
+    )!;
+    const ownerOf = ({ anchor }: Annotation) =>
+      anchor.kind === "object"
+        ? document.instances.find((i) => i.id === anchor.objectId)
+        : undefined;
+    const power = document.annotations.find((a) => a.kind === "power-label");
+    expect(power?.binding?.kind).toBe("cell-terminal-name");
+    expect(power && ownerOf(power)?.symbolId).toBe("vdd-port");
+    const shownBy = (reference: string, kind: Annotation["kind"]) =>
+      document.annotations.filter(
+        (a) =>
+          a.kind === kind &&
+          a.visible !== false &&
+          ownerOf(a)?.reference === reference,
+      );
+    expect(shownBy("R1", "instance-label").map((a) => a.binding)).toEqual([
+      undefined,
+    ]);
+    expect(shownBy("C1", "instance-label").map((a) => a.binding)).toEqual([
+      { kind: "instance-reference", instanceId: expect.any(String) },
+    ]);
+    expect(shownBy("C1", "instance-value").map((a) => a.binding)).toEqual([
+      {
+        kind: "instance-value",
+        instanceId: expect.any(String),
+        parameter: "value",
+        showValue: false,
+      },
+    ]);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "keeps the author's text of a value the netlist writes otherwise through %s+RNL",
+  async (format) => {
+    const project = boundLabels();
+    const parts = project.documents[0]!.instances;
+    parts.find((i) => i.id === "C1")!.netlist!.parameters.value = "100fF";
+    parts.find((i) => i.id === "R1")!.netlist!.parameters.value = "2.2MegΩ";
+    // A pulse source, its fields named as Spectre names them.
+    parts.push({
+      id: "V1",
+      reference: "V1",
+      symbolId: "voltage-source",
+      placement: { position: { x: 600, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: {
+        parameters: {
+          waveform: "pulse",
+          low: "0",
+          high: "1.8V",
+          delay: "1ns",
+          rise: "50ps",
+          fall: "50ps",
+          width: "5ns",
+          period: "10ns",
+          dc: "0",
+        },
+      },
+    });
+    const document = project.documents[0]!;
+    document.nets
+      .find((net) => net.id === "vdd")!
+      .terminals.push({
+        instanceId: "V1",
+        pinName: "+",
+      });
+    document.noConnects.push({
+      id: "V1-",
+      endpoint: { kind: "terminal", instanceId: "V1", pinName: "-" },
+    });
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    // Spectre reads 100f and 2.2M; SPICE writes the text as it is.
+    expect(written.text.includes("c=100f")).toBe(format === "spectre");
+    expect(
+      written.text.includes(
+        '$CANVAS_PARAMETER_TEXT @ATTACH(name="c", text="100fF") #C1(part)',
+      ),
+    ).toBe(format === "spectre");
+    expect(
+      written.text.includes(
+        '$CANVAS_PARAMETER_TEXT @ATTACH(name="r", text="2.2MegΩ") #R1(part)',
+      ),
+    ).toBe(format === "spectre");
+    const plan = await importRnl(written.text, format);
+    expect(
+      failures(plan).map((item) => `${item.code}: ${item.message}`),
+    ).toEqual([]);
+    const back = plan.project.documents.flatMap((d) => d.instances);
+    expect(
+      back.find((i) => i.reference === "C1")?.netlist?.parameters.value,
+    ).toBe("100fF");
+    expect(
+      back.find((i) => i.reference === "R1")?.netlist?.parameters.value,
+    ).toBe("2.2MegΩ");
+    expect(
+      back.find((i) => i.reference === "V1")?.netlist?.parameters,
+    ).toMatchObject({ high: "1.8V", delay: "1ns", rise: "50ps", width: "5ns" });
+    if (format === "spectre")
+      expect(written.text).toContain(
+        '$CANVAS_PARAMETER_TEXT @ATTACH(name="val1", text="1.8V") #V1(part)',
+      );
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
   // SPICE starts a subcircuit call's card with X: a part Analog Canvas
   // names otherwise prints as X and its name.
@@ -129,6 +494,68 @@ it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () =
   expect(codes).toContain("RNL_IMPORT_NAME_TAKEN");
   expect(codes).not.toContain("RNL_IMPORT_PACKAGE_VERSION");
 });
+
+it.each(["spice", "spectre"] as const)(
+  "reads a gate whose Cell prints its supplies first back as the Library gate through %s+RNL",
+  async (format) => {
+    // An inverter on a Cell whose Pins are VDD, VSS, A, Y: the export draws
+    // it with each pin on the position the call prints it at (#1788).
+    const project = delayCellFixture(true);
+    const gate = project.documents[0]!.instances.find((i) => i.id === "X1")!;
+    gate.symbolId = "inverter";
+    // The Cell keeps its Pins and C2, and a resistor from A to Y stands for
+    // its transistors, which would need model cards.
+    const cell = project.documents.find((d) => d.id === "delay_cmos")!;
+    const kept = new Set(["pin-VDD", "pin-VSS", "pin-A", "pin-Y", "C2"]);
+    cell.instances = cell.instances.filter((i) => kept.has(i.id));
+    cell.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: { parameters: { value: "1k" } },
+    });
+    for (const net of cell.nets) {
+      net.terminals = net.terminals.filter((t) => kept.has(t.instanceId));
+      if (net.id === "A" || net.id === "Y")
+        net.terminals.push({
+          instanceId: "R1",
+          pinName: net.id === "A" ? "1" : "2",
+        });
+    }
+    cell.nets = cell.nets.filter((net) => net.terminals.length);
+    cell.connectivityEvidence = cell.connectivityEvidence.filter((evidence) =>
+      cell.nets.some((net) => net.id === evidence.netId),
+    );
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain("$CANVAS_CALL_INVERTER__0_0_1_2");
+    const result = await importRnl(written.text, format);
+    expect(failures(result)).toEqual([]);
+    const top = result.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    const part = top.instances.find((instance) => instance.reference === "X1");
+    expect(part?.symbolId).toBe("inverter");
+    expect(part?.placement).toEqual(gate.placement);
+    expect(
+      top.nets
+        .flatMap((net) => net.terminals)
+        .filter((terminal) => terminal.instanceId === part!.id)
+        .map((terminal) => terminal.pinName)
+        .sort(),
+    ).toEqual(["A", "VDD", "VSS", "Y"]);
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(result.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
 
 it.each(["spice", "spectre"] as const)(
   "reads back a varactor, a tunable resistor and an NPN as drawn through %s+RNL (#1786)",
@@ -375,6 +802,25 @@ const failures = (plan: Awaited<ReturnType<typeof importRnl>>) =>
   plan.diagnostics.filter(
     (item) => item.severity === "error" || item.code === "RNL_IMPORT_RNL_ERROR",
   );
+
+/**
+ * A write request as another tool, or Analog Canvas before Canvas 0.2,
+ * writes the drawing: without what only Analog Canvas keeps.
+ */
+function withoutCanvasMeaning(request: RnlWriteRequest): RnlWriteRequest {
+  return {
+    ...request,
+    ops: request.ops.filter(
+      (op) =>
+        !(
+          op.op === "add-usage" &&
+          ["$CANVAS_NAME", "$CANVAS_TYPESETTING", "$CANVAS_LABEL"].includes(
+            op.definition,
+          )
+        ),
+    ),
+  };
+}
 
 /** What RNL writes for a placed part: its symbol, place and orientation. */
 function rnlPart(instance: Instance) {
@@ -1593,7 +2039,7 @@ describe("RNL round trip of 4-input gates", () => {
       if (exported.status !== "ready") throw new Error("export blocked");
       // The same drawing as another tool writes it, with RNL's own gates.
       const request = JSON.parse(
-        JSON.stringify(exported.request)
+        JSON.stringify(withoutCanvasMeaning(exported.request))
           .replaceAll("$CANVAS_", "$")
           .replace(
             '"name":"analog-canvas-extensions","version":"0.2"',
@@ -1862,7 +2308,9 @@ describe.each(["circle", "diamond"] as const)(
               : `$CANVAS_${kind.toUpperCase()}_CIRCLE`;
           expect(written.text).toContain(`@SET-SYMBOL ${symbol}`);
         }
-        expect(written.text.includes("$CANVAS_")).toBe(shape === "circle");
+        expect(written.text.includes("@SET-SYMBOL $CANVAS_")).toBe(
+          shape === "circle",
+        );
         expect(
           exported.diagnostics.some(
             (item) => item.code === "RNL_NOT_STANDARD_SYMBOL",
@@ -1911,14 +2359,19 @@ describe("legacy controlled-source diamond symbols", () => {
       const exported = createRnlExport(project, { format });
       if (exported.status !== "ready") throw new Error("export blocked");
       const standard = new Set(kinds.map((kind) => `$${kind.toUpperCase()}`));
+      // A file Analog Canvas wrote with Canvas 0.1.
+      const old = withoutCanvasMeaning(exported.request);
       const written = await runtime.write({
         write: {
-          ...exported.request,
+          ...old,
           ops: [
-            ...exported.request.ops.map((op) =>
+            ...old.ops.flatMap((op) =>
               op.op === "set" && op.symbol && standard.has(op.symbol)
-                ? { ...op, symbol: `$CANVAS_${op.symbol.slice(1)}_DIAMOND` }
-                : op,
+                ? [{ ...op, symbol: `$CANVAS_${op.symbol.slice(1)}_DIAMOND` }]
+                : op.op === "use-package" &&
+                    op.name === "analog-canvas-extensions"
+                  ? []
+                  : [op],
             ),
             {
               op: "use-package",
@@ -1954,7 +2407,7 @@ describe("legacy controlled-source diamond symbols", () => {
         write: reexported.request,
         svg: false,
       });
-      expect(rewritten.text).not.toContain("$CANVAS_");
+      expect(rewritten.text).not.toContain("@SET-SYMBOL $CANVAS_");
       for (const kind of kinds)
         expect(rewritten.text).toContain(`@SET-SYMBOL $${kind.toUpperCase()}`);
       expect(

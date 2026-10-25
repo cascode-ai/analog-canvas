@@ -4,7 +4,10 @@ import type { NetlistFormat } from "./net-name-codec.js";
 import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { signedControlGain } from "./controlled-current.js";
-import { printedParameterConversion } from "./parameter-projection.js";
+import {
+  printedParameterConversion,
+  spectreNumber,
+} from "./parameter-projection.js";
 
 type Field = Omit<PrintedNetlistField, "documentId" | "instanceId">;
 interface Text {
@@ -82,10 +85,13 @@ export function printInstanceCard(
     text: string,
     kind: Field["kind"],
     parameter?: string,
+    converted?: "spectre-number",
   ): Text => {
-    const conversion = parameter
-      ? printedParameterConversion(instance, parameter)
-      : "identity";
+    const conversion =
+      converted ??
+      (parameter
+        ? printedParameterConversion(instance, parameter)
+        : "identity");
     return {
       text,
       fields:
@@ -109,6 +115,18 @@ export function printInstanceCard(
   ): Text => {
     const text =
       rendered ?? p?.rawValue ?? (format === "spectre" ? "undefined" : "");
+    if (format === "spectre") {
+      // Spectre reads its own numbers: 100fF is written 100f.
+      const number = spectreNumber(text);
+      if (
+        p &&
+        text === p.rawValue &&
+        number !== text &&
+        printedParameterConversion(instance, p.name) === "identity"
+      )
+        return owned(number, "parameter", p.name, "spectre-number");
+      if (number !== text && !(p && text === p.rawValue)) return plain(number);
+    }
     return p && text === p.rawValue
       ? owned(text, "parameter", p.name)
       : plain(text);
@@ -144,7 +162,7 @@ export function printInstanceCard(
     const value = (name: string, rendered?: string): Text => {
       const p = sourceParameters.get(name.toLowerCase());
       return read
-        ? plain(rendered ?? p?.rawValue ?? "undefined")
+        ? plain(spectreNumber(rendered ?? p?.rawValue ?? "undefined"))
         : parameterValue(p, rendered);
     };
     const assignment = (printedName: string, name: string, rendered?: string) =>
@@ -245,7 +263,9 @@ export function printInstanceCard(
     if (t.kind === "pwl")
       return [
         plain("type=pwl"),
-        plain(`wave=[${t.points.flatMap((p) => [p.time, p.value]).join(" ")}]`),
+        plain(
+          `wave=[${t.points.flatMap((p) => [spectreNumber(p.time), spectreNumber(p.value)]).join(" ")}]`,
+        ),
         ...dc,
         ...ac,
         ...extra,
