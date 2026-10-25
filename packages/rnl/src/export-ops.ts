@@ -299,6 +299,33 @@ function canvasTypesetting(
   );
 }
 
+/**
+ * What a bound label shows, as `$CANVAS_LABEL` says it: the part's name, its
+ * value or one parameter (shown without its value, or with it), a Cell Pin's
+ * name or a net's. Null for a label that holds its own text.
+ */
+function canvasLabel(
+  binding: Annotation["binding"],
+): Record<string, string | boolean> | null {
+  if (!binding) return null;
+  switch (binding.kind) {
+    case "instance-reference":
+      return { bind: "name" };
+    case "instance-value":
+      return binding.parameter
+        ? {
+            bind: "parameter",
+            parameter: binding.parameter,
+            ...(binding.showValue === false ? { show_value: false } : {}),
+          }
+        : { bind: "value" };
+    case "cell-terminal-name":
+      return { bind: "port" };
+    case "net-name":
+      return { bind: "net" };
+  }
+}
+
 function exportCell(
   document: SchematicDocument,
   cell: DesignNetlistCell,
@@ -904,6 +931,23 @@ function exportTexts(
   const formulas: StableId[] = [];
   const tilted: StableId[] = [];
   const drawings: StableId[] = [];
+  // Each bound label says what it shows, so the import binds it again; a
+  // label without one holds its own text. Two labels of one part with the
+  // same key are one text to RNL, so only the first says it.
+  const said = new Set<string>();
+  const bindLabel = (label: string, binding: Annotation["binding"]) => {
+    const params = canvasLabel(binding);
+    if (!params || said.has(label)) return;
+    said.add(label);
+    context.packages.add(AC_PACKAGE);
+    ops.push({
+      level,
+      op: "add-usage",
+      definition: "$CANVAS_LABEL",
+      attach: { label },
+      params,
+    });
+  };
   const write = (
     id: StableId,
     text: Parameters<typeof rnlTextLines>[0],
@@ -1026,23 +1070,25 @@ function exportTexts(
       (annotation.kind === "instance-label" ||
         annotation.kind === "instance-value")
     ) {
+      const key =
+        binding?.kind === "instance-value" && binding.parameter
+          ? binding.parameter
+          : annotation.kind === "instance-label"
+            ? "name"
+            : "value";
       write(annotation.id, text, shown.rotation, {
         ...common,
         // A key's text takes what the scene leaves unsaid from the symbol's
         // own label (13.3); Analog Canvas's labels stand on their baseline.
         valign: "baseline",
         attach: owner.object,
-        key:
-          binding?.kind === "instance-value" && binding.parameter
-            ? binding.parameter
-            : annotation.kind === "instance-label"
-              ? "name"
-              : "value",
+        key,
         offset: [
           Math.round((anchor[0] - owner.at[0]) * 1e6) / 1e6 + 0,
           Math.round((anchor[1] - owner.at[1]) * 1e6) / 1e6 + 0,
         ],
       });
+      bindLabel(`${owner.object}::${key}`, binding);
       continue;
     }
     const netId =
@@ -1052,16 +1098,21 @@ function exportTexts(
       netId
         ? netOf(netId)
         : undefined;
+    // A power label is named for what it is, which RNL has no kind for: the
+    // import makes it one again. A bound net label is named to say so.
+    const name =
+      annotation.kind === "power-label" && net
+        ? nextName("power")
+        : net && canvasLabel(binding)
+          ? nextName("label")
+          : undefined;
     write(annotation.id, text, shown.rotation, {
       ...common,
       ...(net ? { attach: rnlName("&", net) } : {}),
-      // A power label is named for what it is, which RNL has no kind for:
-      // the import makes it one again.
-      ...(annotation.kind === "power-label" && net
-        ? { name: nextName("power") }
-        : {}),
+      ...(name ? { name } : {}),
       at: anchor,
     });
+    if (name) bindLabel(name, binding);
   }
 
   // Drawing objects, in the order Analog Canvas stacks them.

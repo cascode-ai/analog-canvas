@@ -14,6 +14,7 @@ import {
   createEmptyProject,
   flattenRichText,
   type CircuitProject,
+  type Annotation,
   type Instance,
 } from "@icm/model";
 import {
@@ -192,6 +193,190 @@ it.each(["spice", "spectre"] as const)(
     expect(document.presentation.labelSubscriptItalic).toBe(false);
     expect(document.presentation.textFace).toBe("serif");
     expect(document.presentation.labelFirstLetterItalic).toBeUndefined();
+  },
+);
+
+/**
+ * Labels the import cannot tell from their text alone: a Cell Pin drawn as
+ * a supply whose power label shows the Pin's name, a resistor whose name
+ * label is its own text, and a parameter shown without its value.
+ */
+function boundLabels(): CircuitProject {
+  const project = createEmptyProject("labels", "Labels", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const at = (x: number, y: number) =>
+    ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+  const label = (
+    id: string,
+    kind: "instance-label" | "instance-value" | "power-label",
+    objectId: string,
+    offset: { x: number; y: number },
+    text: Partial<Annotation>,
+  ): Annotation =>
+    ({
+      id,
+      kind,
+      anchor: {
+        kind: "object",
+        objectId,
+        localOffset: offset,
+        fallbackPosition: offset,
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+      ...text,
+    }) as Annotation;
+  document.instances.push(
+    { id: "VDD1", symbolId: "vdd-port", placement: at(200, 100) },
+    {
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: at(200, 200),
+      netlist: { parameters: { value: "1k" } },
+    },
+    {
+      id: "C1",
+      reference: "C1",
+      symbolId: "capacitor",
+      placement: at(400, 200),
+      netlist: { parameters: { value: "1p" } },
+    },
+  );
+  document.nets.push({
+    id: "vdd",
+    terminals: [
+      { instanceId: "VDD1", pinName: "P" },
+      { instanceId: "R1", pinName: "1" },
+      { instanceId: "C1", pinName: "1" },
+    ],
+  });
+  document.netlist!.terminals.push({
+    id: "terminal-vdd",
+    name: "VDD",
+    netId: "vdd",
+    direction: "inout",
+    interfaceInstanceIds: ["VDD1"],
+  });
+  for (const [id, part] of [
+    ["R12", "R1"],
+    ["C12", "C1"],
+  ] as const)
+    document.noConnects.push({
+      id,
+      endpoint: { kind: "terminal", instanceId: part, pinName: "2" },
+    });
+  document.annotations.push(
+    label(
+      "vdd-label",
+      "power-label",
+      "VDD1",
+      { x: 20, y: 10 },
+      {
+        netId: "vdd",
+        binding: { kind: "cell-terminal-name", terminalId: "terminal-vdd" },
+      },
+    ),
+    // Its own text, which reads as the name it has.
+    label(
+      "r1-name",
+      "instance-label",
+      "R1",
+      { x: 15, y: 5 },
+      {
+        content: { runs: [{ kind: "text", value: "R1" }] },
+      },
+    ),
+    label(
+      "c1-name",
+      "instance-label",
+      "C1",
+      { x: 15, y: 5 },
+      {
+        binding: { kind: "instance-reference", instanceId: "C1" },
+      },
+    ),
+    label(
+      "c1-value",
+      "instance-value",
+      "C1",
+      { x: 15, y: 20 },
+      {
+        binding: {
+          kind: "instance-value",
+          instanceId: "C1",
+          parameter: "value",
+          showValue: false,
+        },
+      },
+    ),
+  );
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "says what each bound label shows, and reads it back, through %s+RNL",
+  async (format) => {
+    const project = boundLabels();
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(
+        JSON.stringify(
+          [...exported.netlistDiagnostics, ...exported.diagnostics].filter(
+            (item) => item.severity === "error",
+          ),
+        ),
+      );
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain(
+      '$CANVAS_LABEL @ATTACH(bind="port") %power1(label)',
+    );
+    expect(written.text).toContain(
+      '$CANVAS_LABEL @ATTACH(bind="name") #C1::name(label)',
+    );
+    expect(written.text).toContain(
+      '$CANVAS_LABEL @ATTACH(bind="parameter", parameter="value", show_value=false) #C1::value(label)',
+    );
+    // A label that holds its own text says nothing.
+    expect(written.text).not.toContain("#R1::name(label)");
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const document = plan.project.documents.find(
+      (d) => d.netlist?.name === "dut",
+    )!;
+    const ownerOf = ({ anchor }: Annotation) =>
+      anchor.kind === "object"
+        ? document.instances.find((i) => i.id === anchor.objectId)
+        : undefined;
+    const power = document.annotations.find((a) => a.kind === "power-label");
+    expect(power?.binding?.kind).toBe("cell-terminal-name");
+    expect(power && ownerOf(power)?.symbolId).toBe("vdd-port");
+    const shownBy = (reference: string, kind: Annotation["kind"]) =>
+      document.annotations.filter(
+        (a) =>
+          a.kind === kind &&
+          a.visible !== false &&
+          ownerOf(a)?.reference === reference,
+      );
+    expect(shownBy("R1", "instance-label").map((a) => a.binding)).toEqual([
+      undefined,
+    ]);
+    expect(shownBy("C1", "instance-label").map((a) => a.binding)).toEqual([
+      { kind: "instance-reference", instanceId: expect.any(String) },
+    ]);
+    expect(shownBy("C1", "instance-value").map((a) => a.binding)).toEqual([
+      {
+        kind: "instance-value",
+        instanceId: expect.any(String),
+        parameter: "value",
+        showValue: false,
+      },
+    ]);
   },
 );
 
@@ -397,7 +582,9 @@ function withoutCanvasMeaning(request: RnlWriteRequest): RnlWriteRequest {
       (op) =>
         !(
           op.op === "add-usage" &&
-          ["$CANVAS_NAME", "$CANVAS_TYPESETTING"].includes(op.definition)
+          ["$CANVAS_NAME", "$CANVAS_TYPESETTING", "$CANVAS_LABEL"].includes(
+            op.definition,
+          )
         ),
     ),
   };

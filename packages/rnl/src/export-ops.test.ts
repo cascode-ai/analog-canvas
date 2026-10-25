@@ -123,9 +123,12 @@ describe("RNL export of the simulation examples", () => {
       // A round dot and the usages of meaning only draw nothing to turn.
       for (const op of of(ops, "add-usage"))
         if (
-          !["$JUNCTION", "$CANVAS_NAME", "$CANVAS_TYPESETTING"].includes(
-            op.definition,
-          )
+          ![
+            "$JUNCTION",
+            "$CANVAS_NAME",
+            "$CANVAS_TYPESETTING",
+            "$CANVAS_LABEL",
+          ].includes(op.definition)
         )
           expect(op.orient, op.name).toBeDefined();
       for (const label of of(ops, "add-text")) {

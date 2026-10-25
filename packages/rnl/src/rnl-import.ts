@@ -1,5 +1,6 @@
 import {
   arrowArtwork,
+  resolveAnnotationText,
   drawnSwitchControl,
   resolveDocumentStyleProfile,
   richTextMetrics,
@@ -9,6 +10,9 @@ import { createReferenceIndex, deviceDescriptor } from "@icm/devices";
 import {
   deriveStableId,
   flattenRichText,
+  labelTextDocument,
+  sameStyledText,
+  type Annotation,
   type CircuitProject,
   type Instance,
   type RouteBranch,
@@ -749,6 +753,7 @@ function applyLevel(
       typesetAgain(object);
       continue;
     }
+    if (object.definition === "$CANVAS_LABEL") continue; // read with the labels
     if (LATER.has(object.definition)) {
       later.push(object);
       continue;
@@ -1468,10 +1473,61 @@ function importTexts(
       item.anchor.kind === "object" ? [item.anchor.objectId] : [],
     ),
   );
+  // What each label shows, where Analog Canvas wrote the level with Canvas
+  // 0.2 (it says how the level sets names): the binding `$CANVAS_LABEL`
+  // states, and a label without one holds its own text. A level another
+  // tool wrote is read as its texts read.
+  const canvasWritten = model.objects.some(
+    (object) =>
+      object.kind === "usage" && object.definition === "$CANVAS_TYPESETTING",
+  );
+  const statedOf = new Map(
+    model.objects.flatMap((object) =>
+      object.kind === "usage" &&
+      object.definition === "$CANVAS_LABEL" &&
+      typeof object.attach?.["label"] === "string"
+        ? [[object.attach["label"], object.params ?? {}] as const]
+        : [],
+    ),
+  );
+  /** Undefined where the drawing does not say, null for its own text. */
+  const stated = (text: RnlTextView) => {
+    if (!canvasWritten) return undefined;
+    const params = statedOf.get(text.id);
+    return params && typeof params["bind"] === "string"
+      ? (params as Readonly<Record<string, unknown>> & { bind: string })
+      : null;
+  };
+  /**
+   * The drawn text as a format of a bound label, where it differs from what
+   * the binding shows anyway: the same text with other styles.
+   */
+  const formatted = (
+    annotation: Omit<
+      Annotation,
+      "id" | "anchor" | "alignment" | "rotation" | "locked"
+    >,
+    content: NonNullable<Annotation["content"]>,
+  ) =>
+    sameStyledText(
+      resolveAnnotationText(document, {
+        id: "",
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        ...annotation,
+      }),
+      content,
+    )
+      ? {}
+      : { formatOverride: content };
+
   model.texts.forEach((text, index) => {
     if (!text.written || consumed.has(text.id)) return;
     const content = acRichText(text.lines);
     if (!content) return;
+    const says = stated(text);
     // Labels and texts stand on whole units.
     const exact = acPoint(text.anchor);
     const at = { x: Math.round(exact.x) + 0, y: Math.round(exact.y) + 0 };
@@ -1539,18 +1595,21 @@ function importTexts(
     }
     if (instance && text.key === "name" && !labelled.has(instance.id)) {
       labelled.add(instance.id);
+      const binding = {
+        kind: "instance-reference" as const,
+        instanceId: instance.id,
+      };
       document.annotations.push({
         id: `instance-label-${instance.id}`,
         kind: "instance-label",
-        // Bound to the part's reference when it reads as that; a name drawn
-        // otherwise (M1 on the card XM1) is the label's own text, as drawn.
-        ...(shown === instance.reference
+        // Bound to the part's reference when it reads as that and the
+        // drawing does not say otherwise; a name drawn otherwise (M1 on the
+        // card XM1) is the label's own text, as drawn.
+        ...(shown === instance.reference &&
+        (says === undefined || says?.bind === "name")
           ? {
-              binding: {
-                kind: "instance-reference" as const,
-                instanceId: instance.id,
-              },
-              formatOverride: content,
+              binding,
+              ...formatted({ kind: "instance-label", binding }, content),
             }
           : { content }),
         anchor: onObject(instance),
@@ -1568,14 +1627,29 @@ function importTexts(
       (text.key === "value" ||
         (parameter && instance.netlist?.parameters[parameter] !== undefined))
     ) {
+      // A parameter the drawing names says so, also one named `value`.
+      const named =
+        says?.bind === "parameter" && typeof says["parameter"] === "string"
+          ? says["parameter"]
+          : undefined;
+      const shows = says === undefined ? parameter : named;
+      const bound =
+        says === undefined || says?.bind === "value" || named !== undefined;
       document.annotations.push({
         id,
         kind: "instance-value",
-        binding: {
-          kind: "instance-value",
-          instanceId: instance.id,
-          ...(parameter ? { parameter } : {}),
-        },
+        ...(bound
+          ? {
+              binding: {
+                kind: "instance-value" as const,
+                instanceId: instance.id,
+                ...(shows ? { parameter: shows } : {}),
+                ...(shows && says?.["show_value"] === false
+                  ? { showValue: false as const }
+                  : {}),
+              },
+            }
+          : { content }),
         anchor: onObject(instance),
         ...common,
         ...scaled(text.size, profile.typography.instanceFontSize),
@@ -1584,11 +1658,21 @@ function importTexts(
     }
     if (pin && terminal && text.key === "name" && !labelled.has(pin.id)) {
       labelled.add(pin.id);
+      const binding = {
+        kind: "cell-terminal-name" as const,
+        terminalId: terminal.id,
+      };
       document.annotations.push({
         id: `instance-label-${pin.id}`,
         kind: "instance-label",
-        binding: { kind: "cell-terminal-name", terminalId: terminal.id },
-        ...(shown === terminal.name ? { formatOverride: content } : {}),
+        ...(says === undefined || says?.bind === "port"
+          ? {
+              binding,
+              ...(shown === terminal.name
+                ? formatted({ kind: "instance-label", binding }, content)
+                : {}),
+            }
+          : { content }),
         anchor: onObject(pin),
         ...common,
         ...scaled(text.size, profile.typography.instanceFontSize),
@@ -1600,35 +1684,54 @@ function importTexts(
     // of its net it stands beside, as Analog Canvas keeps one.
     const netId = text.attach ? netOf(text.attach) : undefined;
     if (netId && /^%power\d+$/u.test(text.id)) {
-      const near = document.junctions
-        .filter((junction) => junction.netId === netId)
-        .map((junction) => ({
-          junction,
-          distance: Math.hypot(
-            junction.position.x - at.x,
-            junction.position.y - at.y,
-          ),
+      // One that names the Cell Pin of its net shows that Pin's name.
+      const port =
+        says?.bind === "port"
+          ? document.netlist?.terminals.find((item) => item.netId === netId)
+          : undefined;
+      // It hangs on the junction of its net it stands beside, else on the
+      // Cell Pin it names, drawn as a supply, as Analog Canvas keeps one.
+      const junction = document.junctions
+        .filter((item) => item.netId === netId)
+        .map((item) => ({
+          id: item.id,
+          at: item.position,
+          distance: Math.hypot(item.position.x - at.x, item.position.y - at.y),
         }))
         .sort((a, b) => a.distance - b.distance)[0];
+      const portPin = port?.interfaceInstanceIds
+        .map((pinId) => instanceOf(pinId))
+        .find((owner) => owner?.placement);
+      const near =
+        junction && junction.distance <= 4 * PART_GRID
+          ? junction
+          : portPin?.placement
+            ? { id: portPin.id, at: portPin.placement.position }
+            : undefined;
+      const binding = port
+        ? { kind: "cell-terminal-name" as const, terminalId: port.id }
+        : undefined;
       document.annotations.push({
         id,
         kind: "power-label",
         netId,
-        // Not bound to its net: a binding takes its name from a claim the
-        // junction would have to own, which the netlist import has not made.
-        content,
-        anchor:
-          near && near.distance <= 4 * PART_GRID
-            ? {
-                kind: "object",
-                objectId: near.junction.id,
-                localOffset: {
-                  x: at.x - near.junction.position.x,
-                  y: at.y - near.junction.position.y,
-                },
-                fallbackPosition: at,
-              }
-            : { kind: "free", position: at },
+        // Otherwise not bound to its net: a binding takes its name from a
+        // claim the junction would have to own, which the netlist import
+        // has not made.
+        ...(binding && shown === port?.name
+          ? {
+              binding,
+              ...formatted({ kind: "power-label", netId, binding }, content),
+            }
+          : { content }),
+        anchor: near
+          ? {
+              kind: "object",
+              objectId: near.id,
+              localOffset: { x: at.x - near.at.x, y: at.y - near.at.y },
+              fallbackPosition: at,
+            }
+          : { kind: "free", position: at },
         ...common,
         ...scaled(text.size, profile.typography.powerFontSize),
       });
@@ -1674,7 +1777,14 @@ function importTexts(
         kind: "net-label",
         binding: { kind: "net-name", netId },
         netId,
-        ...(shown === named.name ? { formatOverride: content } : {}),
+        // The name its claim gives the net, set as the Cell sets names.
+        ...(shown === named.name &&
+        !sameStyledText(
+          labelTextDocument(named.name, document.presentation),
+          content,
+        )
+          ? { formatOverride: content }
+          : {}),
         anchor,
         ...common,
         ...scaled(text.size, profile.typography.netFontSize),
