@@ -2,7 +2,7 @@ import type { RnlSnapshot, RnlWriteRequest } from "@icm/rnl";
 
 import { importChunk } from "../../components/chunk-import";
 import { withCanvasPackage, type RnlWorkspace } from "./rnl-core";
-import { decodeCanvasPackage } from "./rnl-canvas-package";
+import { canvasPackageLock, decodeCanvasPackage } from "./rnl-canvas-package";
 
 /** A finding of the rnl runtime about the file it wrote (rnl standard, ch. 7). */
 export interface RnlRuntimeDiagnostic {
@@ -44,6 +44,35 @@ export interface RnlRuntime {
   ): Promise<RnlSnapshot>;
 }
 
+/** Each locked Canvas package version's asset, by version. */
+const packageUrls: Readonly<
+  Record<string, () => Promise<{ default: string }>>
+> = {
+  "0.1": () => import("./analog-canvas-extensions-0.1.rnl?url"),
+  "0.2": () => import("./analog-canvas-extensions-0.2.rnl?url"),
+};
+
+/** A locked Canvas package version, from the editor's own asset. */
+async function loadCanvasPackage(version: string, url: string) {
+  try {
+    // A retry must replace bad cached bytes; the shell keeps an offline fallback.
+    const response = await fetch(url, { cache: "reload" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return {
+      version,
+      text: await decodeCanvasPackage(
+        new Uint8Array(await response.arrayBuffer()),
+        version,
+      ),
+    };
+  } catch (cause) {
+    throw new Error(
+      `RNL Canvas package could not load from ${url}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+  }
+}
+
 let started: Promise<RnlRuntime | null> | null = null;
 
 /**
@@ -53,29 +82,23 @@ let started: Promise<RnlRuntime | null> | null = null;
  */
 export function loadRnlRuntime(): Promise<RnlRuntime | null> {
   started ??= (async () => {
-    const [{ startCore }, { default: packageUrl }] = await importChunk(
-      "RNL formats",
-      () =>
-        Promise.all([
-          import("@rich-netlist/runtime"),
-          import("./analog-canvas-extensions.rnl?url"),
-        ]),
+    const [{ startCore }, urls] = await importChunk("RNL formats", () =>
+      Promise.all([
+        import("@rich-netlist/runtime"),
+        Promise.all(
+          canvasPackageLock.versions.map(async ({ version }) => {
+            const asset = packageUrls[version];
+            if (!asset)
+              throw new Error(`Canvas package ${version} is not shipped`);
+            return { version, url: (await asset()).default };
+          }),
+        ),
+      ]),
     );
-    let text: string;
-    try {
-      // A retry must replace bad cached bytes; the shell keeps an offline fallback.
-      const response = await fetch(packageUrl, { cache: "reload" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      text = await decodeCanvasPackage(
-        new Uint8Array(await response.arrayBuffer()),
-      );
-    } catch (cause) {
-      throw new Error(
-        `RNL Canvas package could not load from ${packageUrl}: ${cause instanceof Error ? cause.message : String(cause)}`,
-        { cause },
-      );
-    }
-    const core = withCanvasPackage(startCore(), text);
+    const packages = await Promise.all(
+      urls.map(({ version, url }) => loadCanvasPackage(version, url)),
+    );
+    const core = withCanvasPackage(startCore(), packages);
     return {
       // The Worker takes the request as JSON, where this editor's readonly
       // points and the runtime's point arrays are the same thing.

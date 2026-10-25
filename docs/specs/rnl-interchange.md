@@ -22,17 +22,20 @@ the RNL language and its runtime belong to rnl.
   (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.
 - Without the runtime, the RNL formats say so and copy nothing; the other
   formats are unaffected.
-- Canvas extensions are supplied explicitly at a private virtual path in
-  `files` and `pool` for every build, snapshot and rebuild; write and catalog
-  also receive its `package_dirs`. The adapter preserves the caller's files,
-  includes and search order. One package fetch serves the shared Worker;
-  fetch failures identify the package and can be retried.
-- Canvas 0.1 is locked by name, version, URL and raw-byte SHA-256 against the
-  public [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json).
-  Refreshing the vendored asset rejects changed catalog records or byte hashes.
-  Web and desktop builds verify and ship those bytes as a local Vite asset;
+- Canvas extensions are supplied explicitly, each version at a private
+  virtual path of its own, in `files` and `pool` for every build, snapshot
+  and rebuild; write and catalog also receive their `package_dirs`. The
+  adapter preserves the caller's files, includes and search order. One fetch
+  of each version serves the shared Worker; fetch failures identify the
+  package and can be retried.
+- Every Canvas version the editor ships, 0.1 and 0.2, is locked by name,
+  version, URL and raw-byte SHA-256 against the public
+  [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json),
+  so a file written with any of them reads; the editor writes the newest.
+  Refreshing the vendored assets rejects changed catalog records or byte hashes.
+  Web and desktop builds verify and ship those bytes as local Vite assets;
   runtime loading verifies them before decoding, without contacting the catalog.
-  The static shell caches the same-origin hashed package, Worker and WebAssembly
+  The static shell caches the same-origin hashed packages, Worker and WebAssembly
   after use; package reloads refresh cached bytes with an offline fallback.
   Imported package files remain outside that cache.
 
@@ -51,7 +54,8 @@ the RNL language and its runtime belong to rnl.
   RNL. It is enabled only for the current completed RNL export. A synchronous
   click opens the full online Viewer, reusing its connected tab without
   navigating away from Viewer edits, and sends the `.sp` or `.scs` text with
-  `analog-canvas-extensions` 0.1 through the Viewer `rnl: 1` API. Both sides
+  the `analog-canvas-extensions` version it writes through the Viewer `rnl: 1`
+  API. Both sides
   check origin, window identity, launch token and request ID. Netlist text
   stays out of URLs and upload services. Popup blocking, missing capabilities,
   import errors and timeouts are reported with retry available. The desktop
@@ -113,6 +117,18 @@ the RNL language and its runtime belong to rnl.
   so the import knows it as a power label.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename.
+- What only the editor keeps is written with the meaning-only definitions of
+  `analog-canvas-extensions` 0.2, which draw nothing: a part's name where the
+  card spells it otherwise (`$CANVAS_NAME`, SPICE's `XM1` for M1), in each
+  Cell's own record how the Cell sets names in labels (`$CANVAS_TYPESETTING`
+  on `#`), each setting other than the editor's default, none included, and
+  on each bound label what it shows (`$CANVAS_LABEL`: the part's name, its
+  value, one parameter with or without its value, a Cell Pin's name or a
+  net's); a bound net label is named for it to hang on. A label that holds
+  its own text says nothing. A Spectre file also gives, on a part, the
+  author's text of each value Spectre writes otherwise
+  (`$CANVAS_PARAMETER_TEXT`, `100fF` where it reads `100f`), named as the
+  card names it (`c`, `val1`); a source's fields only for its waveform.
 - A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
   a `$CURRENT_ARROW` mark with its label hung on it, and a voltage marker its
   label with + and − beside it, all where the editor draws them. A floating
@@ -153,6 +169,14 @@ the RNL language and its runtime belong to rnl.
   draft) and the drawing is laid over the imported circuit as a separate
   layer: CircuitIR never carries geometry ([circuit IR](circuit-ir.md)).
 - Read back so far:
+  - a part's name where the netlist spells it otherwise, from
+    `$CANVAS_NAME` (Canvas 0.2): `XM1` named `M1` is M1 again; a name that
+    would give the part a Reference issue keeps the card's, with
+    `RNL_IMPORT_NAME_TAKEN` (another part has it) or `RNL_IMPORT_NAME_REFUSED`
+    (the part as read takes names of another prefix);
+  - a Cell's naming typography, from `$CANVAS_TYPESETTING` on its level: each
+    setting written, the default for each left out; a level without it keeps
+    the import's own;
   - each part's place, orientation and variant, through the mapping table;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
@@ -187,6 +211,18 @@ the RNL language and its runtime belong to rnl.
     hidden, in their usual place, since the export writes every label it
     shows, and so does a Cell Pin the drawing names only by a net label
     beside it;
+  - in a level written with Canvas 0.2 (it has `$CANVAS_TYPESETTING`), what
+    each label shows as `$CANVAS_LABEL` says, a label without one its own
+    text; a power label that shows a Cell Pin's name is bound to that Pin and
+    hangs on the junction it stands beside, else on the Pin; a drawn name
+    still binds only where it reads as the part's name; a level another tool
+    wrote is read from its texts as above;
+  - a bound label keeps the drawn styles as its format only where they
+    differ from what the binding shows anyway;
+  - a value's text the author wrote (`$CANVAS_PARAMETER_TEXT`) where it is
+    the number the part has, written as Spectre writes it; it belongs to the
+    part, so it stands whether the drawing comes in or not, and another
+    text leaves the netlist's with `RNL_IMPORT_PARAMETER_TEXT`;
   - a label as it was drawn: a part's name that is not its reference (M1 on
     the card XM1) is the label's own text; a net label stands on the Cell
     Pin it names when it is within four grid steps of one, else on the wire

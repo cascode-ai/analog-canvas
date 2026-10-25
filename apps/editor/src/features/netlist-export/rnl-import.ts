@@ -4,6 +4,7 @@ import { serializeProject } from "@icm/project-protocol";
 import {
   applyRnlSnapshot,
   type RnlHiddenLabels,
+  type RnlParameterText,
   type RnlImportDiagnostic,
 } from "@icm/rnl";
 import {
@@ -216,9 +217,39 @@ async function buildImportPlan({
           }),
         ]),
   ];
+  // The author's parameter texts belong to the parts, drawn or not.
   if ("project" in kept)
-    return { status: "ready", project: kept.project, diagnostics };
-  const undrawn = withImportedInstanceDisplays(imported.project);
+    return {
+      status: "ready",
+      project: withParameterTexts(kept.project, drawn.parameterTexts),
+      diagnostics,
+    };
+  const undrawn = withParameterTexts(
+    withImportedInstanceDisplays(imported.project),
+    drawn.parameterTexts,
+  );
   serializeProject(undrawn);
   return { status: "ready", project: undrawn, diagnostics };
+}
+
+/**
+ * The author's text of each parameter the netlist writes otherwise (100fF
+ * where Spectre reads 100f): the same number, so the circuit is the same,
+ * whether the drawing comes in or not.
+ */
+function withParameterTexts(
+  project: CircuitProject,
+  texts: readonly RnlParameterText[],
+): CircuitProject {
+  if (!texts.length) return project;
+  const next = structuredClone(project);
+  for (const { documentId, instanceId, parameter, text } of texts) {
+    const parameters = next.documents
+      .find((document) => document.id === documentId)
+      ?.instances.find((instance) => instance.id === instanceId)
+      ?.netlist?.parameters;
+    if (parameters && parameters[parameter] !== undefined)
+      parameters[parameter] = text;
+  }
+  return next;
 }
