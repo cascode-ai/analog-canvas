@@ -265,6 +265,48 @@ describe("trap circuits", () => {
     expect(sent).toHaveLength(1);
   });
 
+  it("let the Owner tell the member of a block from before member notices, once", async () => {
+    const env = environment();
+    ensureAccountBlockTables(env.authSql);
+    env.authSql.exec(
+      `INSERT INTO account_blocks
+         (user_id, email, display_name, provider, blocked_at, entry_id, path,
+          notified_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      "github:earlier",
+      "earlier@example.com",
+      "Earlier",
+      "github",
+      "2026-10-24T14:13:04.286Z",
+      "trap",
+      "/api/gallery/trap",
+      "2026-10-24T14:13:05.000Z",
+    );
+    const owner = await ownerAccountOf(env);
+    const tell = (cookie = owner) =>
+      env.authDurable.fetch(
+        new Request(`${ORIGIN}/api/auth/blocked/notify`, {
+          method: "POST",
+          headers: { Origin: ORIGIN, Cookie: cookie },
+          body: JSON.stringify({ userId: "github:earlier" }),
+        }),
+      );
+    const admin = await adminOf(env);
+    const sent = outbox(env);
+    expect((await tell(admin)).status).toBe(403);
+    expect(await (await tell()).json()).toEqual({ sent: true });
+    expect(sent).toEqual([
+      expect.objectContaining({
+        to: ["earlier@example.com"],
+        reply_to: "zzhishuai@ethz.ch",
+      }),
+    ]);
+    expect(sent[0]!.text).toContain("2026-10-24 14:13 UTC");
+    // Once per block.
+    expect((await tell()).status).toBe(409);
+    expect(sent).toHaveLength(1);
+  });
+
   it("answer a curator as a missing circuit and block nobody", async () => {
     const env = environment();
     await sevenCircuits(env);

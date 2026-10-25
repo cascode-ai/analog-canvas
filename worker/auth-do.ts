@@ -20,6 +20,7 @@ import {
   blockNotice,
   markMemberNotified,
   memberBlockNotice,
+  memberNoticeRequested,
   unsentMemberNotices,
   ensureAccountBlockTables,
   isBlocked,
@@ -673,6 +674,21 @@ export class AuthDO {
       if (!(await this.sessionUser(request))?.isOwner)
         return Response.json({ error: "owner-only" }, { status: 403 });
       return this.apologize(request);
+    }
+    if (route === "blocked/notify" && method === "POST") {
+      if (!sameOrigin(request))
+        return Response.json({ error: "forbidden" }, { status: 403 });
+      if (!(await this.sessionUser(request))?.isOwner)
+        return Response.json({ error: "owner-only" }, { status: 403 });
+      const body = (await request.json().catch(() => null)) as {
+        userId?: unknown;
+      } | null;
+      if (typeof body?.userId !== "string")
+        return Response.json({ error: "invalid-user" }, { status: 400 });
+      if (!memberNoticeRequested(this.sql, body.userId))
+        return Response.json({ error: "no-notice-owed" }, { status: 409 });
+      // Unsent now, the scheduled pass retries it.
+      return noStoreJson({ sent: (await this.sendBlockNotices()) > 0 });
     }
     return Response.json({ error: "not-found" }, { status: 404 });
   }

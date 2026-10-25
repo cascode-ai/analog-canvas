@@ -225,6 +225,31 @@ export function unsentMemberNotices(sql: SqlStorage): AccountBlockRow[] {
     .toArray();
 }
 
+/**
+ * Marks the account's active block, recorded before member notices and
+ * never told, as due for its member's email; false when there is none.
+ */
+export function memberNoticeRequested(
+  sql: SqlStorage,
+  userId: string,
+): boolean {
+  const row = sql
+    .exec<{ id: number }>(
+      `SELECT id FROM account_blocks
+       WHERE user_id = ? AND unblocked_at IS NULL AND member_notice IS NULL
+         AND email IS NOT NULL
+       ORDER BY id DESC LIMIT 1`,
+      userId,
+    )
+    .toArray()[0];
+  if (!row) return false;
+  sql.exec(
+    "UPDATE account_blocks SET member_notice = 'due' WHERE id = ?",
+    row.id,
+  );
+  return true;
+}
+
 export function markMemberNotified(
   sql: SqlStorage,
   id: number,

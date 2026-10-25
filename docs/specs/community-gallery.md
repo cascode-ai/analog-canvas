@@ -79,12 +79,13 @@ restrictive CSP.
   once (Resend, to the usage contact), and so is the account's email, with
   replies going to the usage contact: why, that a reply can report a mistake,
   that the check is still being tested and that Cloud Projects are unaffected;
-  never how the check works. Blocks recorded before 2026-10-25 were not told
-  to their account. The scheduled pass resends an unsent notice. Owner only: `GET /api/auth/blocked` lists the records, and
+  never how the check works. Blocks recorded before 2026-10-25 are told
+  only when the Owner asks. The scheduled pass resends an unsent notice. Owner only: `GET /api/auth/blocked` lists the records, and
   `POST /api/auth/blocked/unblock {userId}` (same origin) lifts a block;
   `POST /api/auth/blocked/apology {userId, subject, text}` then emails that
   account the Owner's words once per block (site sender, replies to the
-  usage contact).
+  usage contact); `POST /api/auth/blocked/notify {userId}` sends that
+  notice for an active block from before 2026-10-25, once.
 - `/api/*` has a flood limit of 1200 requests a minute per client address
   (Workers rate limiting, `API_RATE_LIMITER`). Past it:
   `429 {"error":"too-many-requests","retryAfterSeconds":60,"usage":…}` with
