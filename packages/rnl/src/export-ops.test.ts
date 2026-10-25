@@ -299,7 +299,7 @@ describe("what RNL cannot write", () => {
     [
       "opamp-lettered",
       "$CANVAS_OPAMP_LETTERED",
-      "analog-canvas-extensions 0.1",
+      "analog-canvas-extensions 0.2",
       true,
     ],
   ] as const)(
