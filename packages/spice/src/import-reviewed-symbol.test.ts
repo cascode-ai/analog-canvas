@@ -184,6 +184,39 @@ it("says which .model card a device of unknown type needs", async () => {
   );
 });
 
+it("takes an undeclared model's device type from another reading of the files, and a declared card over it", async () => {
+  const text = [
+    ".model declared pmos level=1",
+    ".subckt top d g s b",
+    "M1 d g s b mystery w=1u l=1u",
+    "M2 d g s b declared w=1u l=1u",
+    ".ends top",
+    ".end",
+    "",
+  ].join("\n");
+  const result = await importSpiceSources(
+    [input("m.spi", text)],
+    "m.spi",
+    {},
+    {
+      modelTypes: new Map([
+        ["MYSTERY", "nmos"],
+        ["declared", "nmos"],
+      ]),
+    },
+  );
+  expect(result.successful).toBe(true);
+  const top = result.project!.documents.find((d) => d.name === "top")!;
+  const part = (reference: string) =>
+    top.instances.find((item) => item.reference === reference)!;
+  expect(part("M1").symbolId).toBe("nmos");
+  expect(part("M1").netlist!.binding).toMatchObject({
+    kind: "model",
+    name: "mystery",
+  });
+  expect(part("M2").symbolId).toBe("pmos");
+});
+
 it("suggests native Spectre model statements for an undeclared model in SCS", async () => {
   const result = await importSpiceSources(
     [input("bipolar.scs", "* converted SCS\nQ1 c b e mystery\n.end\n")],

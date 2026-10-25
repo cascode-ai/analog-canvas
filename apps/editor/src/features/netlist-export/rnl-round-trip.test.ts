@@ -97,6 +97,50 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "reads a part calling a model no card declares as the type it is drawn as through %s+RNL",
+  async (format) => {
+    // A deck's models usually come from a PDK the netlist does not include.
+    const project = createEmptyProject("models", "Models", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    for (const [id, symbolId, model, x] of [
+      ["MN1", "nmos", "DN", 200],
+      ["MP1", "pmos", "DP", 400],
+    ] as const) {
+      document.instances.push({
+        id,
+        reference: id,
+        symbolId,
+        placement: { position: { x, y: 200 }, rotation: 0, mirror: "none" },
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: model },
+          parameters: { w: "1u", l: "1u" },
+        },
+      });
+      for (const pinName of ["D", "G", "S", "B"])
+        document.noConnects.push({
+          id: `${id}${pinName}`,
+          endpoint: { kind: "terminal", instanceId: id, pinName },
+        });
+    }
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const parts = plan.project.documents.flatMap((d) => d.instances);
+    for (const [reference, symbolId, model] of [
+      ["MN1", "nmos", "DN"],
+      ["MP1", "pmos", "DP"],
+    ] as const) {
+      const part = parts.find((i) => i.reference === reference);
+      expect(part?.symbolId).toBe(symbolId);
+      expect(part?.netlist?.binding).toMatchObject({
+        kind: "model",
+        name: model,
+      });
+    }
+  },
+);
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",

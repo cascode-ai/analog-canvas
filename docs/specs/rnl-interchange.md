@@ -148,10 +148,14 @@ the RNL language and its runtime belong to rnl.
 
 - File → Import → `RNL…` reads a rich netlist with its includes and package
   files. Project File, SPICE / SCS and Cadence SPICE are unchanged.
-- The electrical import is the SPICE / SCS importer, called unchanged. The
-  rnl runtime reads the same files (its snapshot, rnl-dev's editor-interface
-  draft) and the drawing is laid over the imported circuit as a separate
-  layer: CircuitIR never carries geometry ([circuit IR](circuit-ir.md)).
+- The electrical import is the SPICE / SCS importer, called unchanged but for
+  one thing: a model the files call but no model card declares is the device
+  type the drawing draws its parts as (`$NMOS…` an nmos, `$PMOS…` a pmos,
+  `$NPN`, `$PNP`, `$DIODE`), where they all agree; a declared card decides.
+  The rnl runtime reads the same files (its snapshot, rnl-dev's
+  editor-interface draft) and the drawing is laid over the imported circuit as
+  a separate layer: CircuitIR never carries geometry
+  ([circuit IR](circuit-ir.md)).
 - Read back so far:
   - each part's place, orientation and variant, through the mapping table;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the

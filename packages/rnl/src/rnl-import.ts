@@ -373,6 +373,64 @@ export function applyRnlSnapshot(
 }
 
 /**
+ * The device type of each model the drawing's parts call, as the symbols it
+ * draws them with say it (`$NMOS` an nmos, `$NPN` an npn, `$DIODE` a diode),
+ * for a netlist that calls a model no model card declares. A model whose
+ * parts are drawn as different types has none.
+ */
+export function drawnModelTypes(snapshot: RnlSnapshot): Map<string, string> {
+  const seen = new Map<string, Set<string>>();
+  for (const level of snapshot.levels) {
+    if (!level.model || !level.host) continue;
+    const symbols = new Map(
+      level.model.symbols.map((symbol) => [symbol.id, symbol]),
+    );
+    const masters = new Map(
+      level.host.instances.map((instance) => [instance.id, instance.master]),
+    );
+    for (const object of level.model.objects) {
+      if (object.kind !== "instance") continue;
+      const master = masters.get(object.host[0] ?? object.id);
+      const symbol = object.symbol.value
+        ? symbols.get(object.symbol.value)
+        : undefined;
+      if (!master || !symbol || symbol.default) continue;
+      const types = new Set(
+        RNL_SYMBOLS.filter(
+          (row) =>
+            row.ac !== null &&
+            !row.inline &&
+            row.symbol === symbol.name &&
+            family(row.package) === family(symbol.package),
+        ).flatMap((row) => {
+          const type = modelTypeOf(row.ac!);
+          return type ? [type] : [];
+        }),
+      );
+      if (types.size !== 1) continue;
+      const key = master.toLowerCase();
+      seen.set(key, new Set([...(seen.get(key) ?? []), ...types]));
+    }
+  }
+  return new Map(
+    [...seen].flatMap(([master, types]) =>
+      types.size === 1 ? [[master, [...types][0]!] as const] : [],
+    ),
+  );
+}
+
+/** The model type of an Analog Canvas device symbol, if it calls a model. */
+function modelTypeOf(symbolId: string): string | null {
+  const descriptor = deviceDescriptor(symbolId);
+  if (!descriptor) return null;
+  if (descriptor.mosBulkClass) return descriptor.mosBulkClass;
+  if (descriptor.deviceClass === "diode") return "d";
+  if (descriptor.deviceClass === "bjt")
+    return symbolId === "npn" || symbolId === "pnp" ? symbolId : null;
+  return null;
+}
+
+/**
  * A part the drawing places but shows without its name, its values or both.
  * A file Analog Canvas writes shows each label it showed and clears those its
  * standard symbols bring, so a label missing from the drawing was hidden.

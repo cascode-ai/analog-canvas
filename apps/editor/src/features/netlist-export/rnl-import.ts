@@ -2,6 +2,7 @@ import type { CircuitProject } from "@icm/model";
 import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
 import {
   applyRnlSnapshot,
+  drawnModelTypes,
   type RnlHiddenLabels,
   type RnlImportDiagnostic,
 } from "@icm/rnl";
@@ -119,6 +120,8 @@ export async function planRnlImport({
       namingProfile: "native",
       originalSources: inputs,
       builtInBodies: prepared.builtInBodies,
+      // A model no card declares is the type its parts are drawn as.
+      modelTypes: drawnModelTypes(snapshot),
     },
   );
   if (!imported.project || !imported.successful)
