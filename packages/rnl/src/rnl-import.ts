@@ -2858,14 +2858,17 @@ function removeGroundPin(
  * once every level is read: until then a call keeps the node it passed to a
  * ground pin since undone, so a caller read after its Cell still matches
  * its card's terminals to the symbol drawn for it, such as a gate's
- * (`gateCallSymbol`).
+ * (`gateCallSymbol`). A gate's call names its pins as the gate does, which
+ * meet the Cell's Pins without case (#1450).
  */
 function trimCallMappings(project: CircuitProject): void {
   const pinsOf = new Map(
     project.documents.map((document) => [
       document.id,
       new Set(
-        (document.netlist?.terminals ?? []).map((terminal) => terminal.name),
+        (document.netlist?.terminals ?? []).map((terminal) =>
+          terminal.name.toLowerCase(),
+        ),
       ),
     ]),
   );
@@ -2879,7 +2882,7 @@ function trimCallMappings(project: CircuitProject): void {
           : undefined;
       if (pins && provenance?.terminalMapping)
         provenance.terminalMapping = provenance.terminalMapping.filter((item) =>
-          pins.has(item.pinName),
+          pins.has(item.pinName.toLowerCase()),
         );
     }
 }

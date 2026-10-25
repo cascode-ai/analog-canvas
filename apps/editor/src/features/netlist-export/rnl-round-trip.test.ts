@@ -655,9 +655,10 @@ it.each(["spice", "spectre"] as const)(
     const cell = project.documents.find((d) => d.id === "delay_cmos")!;
     const kept = new Set(["pin-VDD", "pin-A", "pin-Y", "C2"]);
     cell.instances = cell.instances.filter((i) => kept.has(i.id));
-    cell.netlist!.terminals = cell.netlist!.terminals.filter(
-      (t) => t.name !== "VSS",
-    );
+    // Its Pins named in lower case, which a gate meets without case.
+    cell.netlist!.terminals = cell
+      .netlist!.terminals.filter((t) => t.name !== "VSS")
+      .map((t) => ({ ...t, name: t.name.toLowerCase() }));
     cell.instances.push(
       {
         id: "R1",
@@ -715,6 +716,10 @@ it.each(["spice", "spectre"] as const)(
     )!;
     const part = back.instances.find((instance) => instance.reference === "X1");
     expect(part?.symbolId).toBe("inverter");
+    // The call keeps its printed terminals, the ground pin's undone.
+    expect(
+      part?.importProvenance?.terminalMapping?.map((item) => item.pinName),
+    ).toEqual(["VDD", "A", "Y"]);
     expect(part?.placement).toEqual(gate.placement);
     const before = createDesignNetlistExport(project, { format });
     const after = createDesignNetlistExport(result.project, { format });
