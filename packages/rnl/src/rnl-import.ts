@@ -435,6 +435,7 @@ export function applyRnlSnapshot(
       parameterTexts,
     );
   }
+  trimCallMappings(next);
   return { project: next, diagnostics, hiddenLabels, parameterTexts };
 }
 
@@ -2849,10 +2850,36 @@ function removeGroundPin(
           (item) =>
             item.instanceId !== instance.id || item.pinName !== terminal.name,
         );
+    }
+}
+
+/**
+ * Each call's printed terminals reduced to the pins its Cell still has,
+ * once every level is read: until then a call keeps the node it passed to a
+ * ground pin since undone, so a caller read after its Cell still matches
+ * its card's terminals to the symbol drawn for it, such as a gate's
+ * (`gateCallSymbol`).
+ */
+function trimCallMappings(project: CircuitProject): void {
+  const pinsOf = new Map(
+    project.documents.map((document) => [
+      document.id,
+      new Set(
+        (document.netlist?.terminals ?? []).map((terminal) => terminal.name),
+      ),
+    ]),
+  );
+  for (const document of project.documents)
+    for (const instance of document.instances) {
+      const binding = instance.netlist?.binding;
       const provenance = instance.importProvenance;
-      if (provenance?.terminalMapping)
-        provenance.terminalMapping = provenance.terminalMapping.filter(
-          (item) => item.pinName !== terminal.name,
+      const pins =
+        binding?.kind === "subcircuit"
+          ? pinsOf.get(binding.childDocumentId)
+          : undefined;
+      if (pins && provenance?.terminalMapping)
+        provenance.terminalMapping = provenance.terminalMapping.filter((item) =>
+          pins.has(item.pinName),
         );
     }
 }

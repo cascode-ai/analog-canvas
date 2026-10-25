@@ -593,6 +593,137 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "reads a gate back as the Library gate when its Cell draws ground through %s+RNL",
+  async (format) => {
+    // The Cell draws ground and has no VSS Pin: the netlist gives it one,
+    // which the import undoes as it reads the Cell, before the call.
+    const project = delayCellFixture(true);
+    const top = project.documents[0]!;
+    const gate = top.instances.find((i) => i.id === "X1")!;
+    gate.symbolId = "inverter";
+    for (const net of top.nets)
+      net.terminals = net.terminals.filter(
+        (t) => t.instanceId !== "X1" || t.pinName !== "VSS",
+      );
+    top.nets = top.nets.filter((net) => net.terminals.length);
+    top.connectivityEvidence = top.connectivityEvidence.filter((evidence) =>
+      top.nets.some((net) => net.id === evidence.netId),
+    );
+    // The top draws its own ground, a load on the output.
+    top.instances.push(
+      {
+        id: "C0",
+        reference: "C0",
+        symbolId: "capacitor",
+        placement: {
+          position: { x: 500, y: 300 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: { parameters: { value: "1p" } },
+      },
+      {
+        id: "GND0",
+        symbolId: "ground",
+        placement: {
+          position: { x: 500, y: 400 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    top.nets
+      .find((net) => net.id === "output")!
+      .terminals.push({ instanceId: "C0", pinName: "1" });
+    top.nets.push({
+      id: "gnd",
+      terminals: [
+        { instanceId: "C0", pinName: "2" },
+        { instanceId: "GND0", pinName: "0" },
+      ],
+    });
+    top.connectivityEvidence.push({
+      id: "gnd0-claim",
+      kind: "name-claim",
+      netId: "gnd",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND0" },
+    });
+    const cell = project.documents.find((d) => d.id === "delay_cmos")!;
+    const kept = new Set(["pin-VDD", "pin-A", "pin-Y", "C2"]);
+    cell.instances = cell.instances.filter((i) => kept.has(i.id));
+    cell.netlist!.terminals = cell.netlist!.terminals.filter(
+      (t) => t.name !== "VSS",
+    );
+    cell.instances.push(
+      {
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: null,
+        netlist: { parameters: { value: "1k" } },
+      },
+      {
+        id: "GND1",
+        symbolId: "ground",
+        placement: {
+          position: { x: 300, y: 300 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    for (const net of cell.nets) {
+      net.terminals = net.terminals.filter((t) => kept.has(t.instanceId));
+      if (net.id === "A" || net.id === "Y")
+        net.terminals.push({
+          instanceId: "R1",
+          pinName: net.id === "A" ? "1" : "2",
+        });
+      if (net.id === "VSS")
+        net.terminals.push({ instanceId: "GND1", pinName: "0" });
+    }
+    cell.nets = cell.nets.filter((net) => net.terminals.length);
+    cell.connectivityEvidence = [
+      ...cell.connectivityEvidence.filter((evidence) =>
+        cell.nets.some((net) => net.id === evidence.netId),
+      ),
+      {
+        id: "gnd-claim",
+        kind: "name-claim",
+        netId: "VSS",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "GND1" },
+      },
+    ];
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain("$CANVAS_CALL_INVERTER__");
+    const result = await importRnl(written.text, format);
+    expect(failures(result)).toEqual([]);
+    const back = result.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    const part = back.instances.find((instance) => instance.reference === "X1");
+    expect(part?.symbolId).toBe("inverter");
+    expect(part?.placement).toEqual(gate.placement);
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(result.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",
