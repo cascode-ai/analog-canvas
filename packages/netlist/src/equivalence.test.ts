@@ -120,8 +120,20 @@ describe("electrical duplicate comparison", () => {
     const b = ready(electricalGraphFromIR(triangles));
     expect(a.bucket).toBe(b.bucket);
     expect(compareElectricalGraphs(a, b)).toBe("different");
-    expect(compareElectricalGraphs(a, a, 1)).toBe("unknown");
-    expect(compareElectricalGraphs(a, a)).toBe("equal");
+    // The same ring on other net names prints other cards, so the search
+    // decides, and a step budget too small to finish says so.
+    const renamed = ready(
+      electricalGraphFromIR(
+        circuit(
+          Array.from({ length: 6 }, (_, i) =>
+            resistor(`R${i}`, `m${i}`, `m${(i + 1) % 6}`),
+          ),
+        ),
+      ),
+    );
+    expect(compareElectricalGraphs(a, renamed, 1)).toBe("unknown");
+    expect(compareElectricalGraphs(a, renamed)).toBe("equal");
+    expect(compareElectricalGraphs(a, a, 1)).toBe("equal");
   });
 
   it("preserves MOS terminal roles, model and parameter differences, and ordered ports", () => {
@@ -283,6 +295,68 @@ describe("electrical duplicate comparison", () => {
     expect(compare(a, b)).toBe("different");
     a.cells[0]!.instances[0]!.parameters[0]!.rawValue = "v(local)";
     expect(electricalGraphFromIR(a).status).toBe("uncheckable");
+  });
+
+  it("compares a source by the waveform it is set to, not the fields it remembers", () => {
+    const source = (
+      parameters: Record<string, string>,
+    ): DesignNetlistInstance => ({
+      id: "I1",
+      reference: "I1",
+      deviceClass: "current-source",
+      invocationKind: "primitive",
+      target: null,
+      nodes: [
+        { pinName: "+", netName: "a" },
+        { pinName: "-", netName: "b" },
+      ],
+      parameters: Object.entries(parameters).map(([name, rawValue]) => ({
+        name,
+        rawValue,
+      })),
+    });
+    const plain = circuit([
+      source({ waveform: "dc", dc: "1m" }),
+      resistor("R1", "a", "b"),
+    ]);
+    // The pulse and sine it was once set to, which the netlist never prints.
+    const remembered = circuit([
+      source({
+        waveform: "dc",
+        dc: "1m",
+        high: "1m",
+        period: "10n",
+        amplitude: "1m",
+        frequency: "1k",
+        acPhase: "0",
+      }),
+      resistor("R1", "a", "b"),
+    ]);
+    expect(compare(plain, remembered)).toBe("equal");
+    remembered.cells[0]!.instances[0]!.parameters[1]!.rawValue = "2m";
+    expect(compare(plain, remembered)).toBe("different");
+    // Set to a pulse, its pulse fields say what it is.
+    const pulse = (high: string) =>
+      circuit([
+        source({ waveform: "pulse", dc: "0", low: "0", high, amplitude: "5" }),
+        resistor("R1", "a", "b"),
+      ]);
+    expect(compare(pulse("1"), pulse("1"))).toBe("equal");
+    expect(compare(pulse("1"), pulse("2"))).toBe("different");
+  });
+
+  it("calls the same cards in another order equal before searching", () => {
+    // A ladder of equal parts, which a search may not settle in its steps.
+    const parts = Array.from({ length: 8 }, (_, index) =>
+      resistor(`R${index}`, `n${index}`, `n${index + 1}`),
+    );
+    const a = circuit(parts, ["n0", "n8"]);
+    const b = circuit(structuredClone(parts).reverse(), ["n0", "n8"]);
+    const graph = (ir: DesignNetlistIR) => ready(electricalGraphFromIR(ir));
+    expect(compareElectricalGraphs(graph(a), graph(b), 0)).toBe("equal");
+    // Another card is no proof: then the search decides, as before.
+    b.cells[0]!.instances[0]!.parameters[0]!.rawValue = "2k";
+    expect(compareElectricalGraphs(graph(a), graph(b))).toBe("different");
   });
 });
 
