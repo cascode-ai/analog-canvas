@@ -153,6 +153,9 @@ the RNL language and its runtime belong to rnl.
   draft) and the drawing is laid over the imported circuit as a separate
   layer: CircuitIR never carries geometry ([circuit IR](circuit-ir.md)).
 - Read back so far:
+  - a Spectre card's own name: the import reads Spectre as SPICE, which calls
+    a subcircuit with X (`M1` as `XM1`), and the part is `M1` again where it
+    can be named so (a call of a Cell keeps its X);
   - each part's place, orientation and variant, through the mapping table;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the

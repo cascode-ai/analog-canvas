@@ -5,7 +5,7 @@ import {
   richTextMetrics,
   supplyMarkerForSymbol,
 } from "@icm/derived";
-import { deviceDescriptor } from "@icm/devices";
+import { createReferenceIndex, deviceDescriptor } from "@icm/devices";
 import {
   deriveStableId,
   flattenRichText,
@@ -525,6 +525,26 @@ function applyLevel(
   const own = model.symbol?.value ? symbols.get(model.symbol.value) : null;
   if (own?.definition) layOut(document, own.definition);
 
+  /**
+   * Gives a part the name its card has where that gives it no Reference
+   * issue it does not have already: no other part of the Cell has it, as
+   * SPICE compares names without case, and the part takes names of its
+   * prefix (a call of a Cell keeps its X).
+   */
+  const nameAsCard = (instance: Instance, name: string) => {
+    const issues = () =>
+      new Set(
+        createReferenceIndex(document, project)
+          .issues.filter((issue) => issue.instanceId === instance.id)
+          .map((issue) => issue.code),
+      );
+    const before = issues();
+    const printed = instance.reference;
+    instance.reference = name;
+    if ([...issues()].every((code) => before.has(code))) return;
+    instance.reference = printed;
+  };
+
   // Parts: placed, turned and in the variant their symbol stands for.
   const unplaced: string[] = [];
   const placed: Instance[] = [];
@@ -576,6 +596,14 @@ function applyLevel(
       if (pinSwitch && switchControl(instance.symbolId) === "phase")
         clockByLabel(instance);
     }
+    // A Spectre card the conversion named for SPICE, which calls a
+    // subcircuit with X (M1 as XM1), has its Spectre name again where the
+    // part as drawn can have it.
+    if (
+      name !== null &&
+      instance.reference?.toLowerCase() === `x${name.toLowerCase()}`
+    )
+      nameAsCard(instance, name);
     const turn = mapped?.orient ?? orient;
     instance.placement = {
       position: snap(

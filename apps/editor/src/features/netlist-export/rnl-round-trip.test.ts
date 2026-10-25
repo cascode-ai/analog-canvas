@@ -97,6 +97,26 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it("gives a Spectre card its own name again through Spectre+RNL", async () => {
+  // Spectre calls a subcircuit M1; SPICE, which the import reads it as,
+  // calls it XM1.
+  const project = openedExample("five-transistor-ota-sky130", "sky130");
+  // The example names its transistors XM1 and so on; a part may be M1.
+  for (const instance of project.documents.flatMap((d) => d.instances))
+    if (/mos/u.test(instance.symbolId) && instance.reference?.startsWith("X"))
+      instance.reference = instance.reference.slice(1);
+  const plan = await roundTrip(project, "spectre");
+  expect(failures(plan)).toEqual([]);
+  const transistors = (of: CircuitProject) =>
+    of.documents
+      .flatMap((document) => document.instances)
+      .filter((instance) => /mos/u.test(instance.symbolId))
+      .map((instance) => instance.reference)
+      .sort();
+  expect(transistors(project).length).toBeGreaterThan(0);
+  expect(transistors(plan.project)).toEqual(transistors(project));
+});
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",
