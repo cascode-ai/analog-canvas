@@ -32,7 +32,11 @@ import {
   type NetlistFormat,
 } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
-import { subcircuitDescriptor } from "@icm/devices";
+import {
+  bindsProjectCell,
+  matchGateCellPins,
+  subcircuitDescriptor,
+} from "@icm/devices";
 
 import {
   blockSymbols,
@@ -430,7 +434,23 @@ function exportCell(
       (candidate) => candidate.id === instance.id,
     );
     if (symbol && call?.invocationKind === "subcircuit") {
-      const ordered = symbolForCall(symbol, call);
+      // A Library gate bound to a Cell meets its Pins by name (#1450).
+      const gate =
+        instance.netlist?.binding?.kind === "subcircuit" &&
+        bindsProjectCell(instance.symbolId)
+          ? matchGateCellPins(instance.symbolId, {
+              name: call.target ?? "",
+              portNames: call.nodes.map((node) => node.pinName),
+            })
+          : undefined;
+      const ordered = symbolForCall(
+        symbol,
+        call,
+        gate
+          ? (node) =>
+              gate.pins.find((pin) => pin.portName === node.pinName)?.pinName
+          : undefined,
+      );
       if (ordered !== symbol) {
         context.callSymbols.set(ordered.symbol, ordered);
         symbol = ordered;

@@ -1,4 +1,4 @@
-import type { DesignNetlistInstance } from "@icm/netlist";
+import type { DesignNetlistInstance, DesignNetlistNode } from "@icm/netlist";
 import { builtInSymbols } from "@icm/symbols";
 
 import { toRnlPoint } from "./place.js";
@@ -22,14 +22,15 @@ export const CALL_SYMBOL_PREFIX = "$CANVAS_CALL_";
 export function symbolForCall(
   row: RnlSymbol,
   call: DesignNetlistInstance,
+  /** The Analog Canvas pin a printed terminal stands for. */
+  pinOf: (node: DesignNetlistNode) => string | undefined = (node) =>
+    node.canvasPinName ?? node.pinName,
 ): RnlSymbol {
   if (row.inline || row.definition || !row.ac) return row;
   const artwork = builtInSymbols.find((symbol) => symbol.id === row.ac);
   if (!artwork) return row;
   const position = (acPin: string) =>
-    call.nodes.findIndex(
-      (node) => (node.canvasPinName ?? node.pinName) === acPin,
-    ) + 1;
+    call.nodes.findIndex((node) => pinOf(node) === acPin) + 1;
   const placed = row.pins.map((pin) => ({ pin, at: position(pin.acPin) }));
   // A pin the call does not print stays as the library draws it.
   if (placed.some(({ at }) => at === 0)) return row;

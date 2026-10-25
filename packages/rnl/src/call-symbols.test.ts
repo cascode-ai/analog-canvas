@@ -56,6 +56,23 @@ describe("library artwork on a call", () => {
     expect(definition.prims.length).toBeGreaterThan(0);
   });
 
+  it("places the pins of a gate whose Cell names its Pins otherwise", () => {
+    // A Library gate meets its Cell's Pins by name, without case (#1450).
+    const ordered = symbolForCall(
+      inverter,
+      call([
+        { pinName: "VDD" },
+        { pinName: "VSS" },
+        { pinName: "a" },
+        { pinName: "y" },
+      ]),
+      (node) => ({ a: "A", y: "Y" })[node.pinName],
+    );
+    expect(
+      Object.fromEntries(ordered.pins.map((pin) => [pin.acPin, pin.terminal])),
+    ).toEqual({ A: 3, Y: 4 });
+  });
+
   it("leaves the library symbol when the call does not print one of its pins", () => {
     expect(symbolForCall(inverter, call([{ pinName: "a" }]))).toBe(inverter);
   });
