@@ -1,5 +1,6 @@
 import {
   arrowArtwork,
+  resolveAnnotationText,
   drawnSwitchControl,
   resolveDocumentStyleProfile,
   richTextMetrics,
@@ -7,13 +8,17 @@ import {
 } from "@icm/derived";
 import {
   bindsProjectCell,
+  createReferenceIndex,
   deviceDescriptor,
   matchGateCellPins,
-  referencePolicyForInstance,
 } from "@icm/devices";
+import { spectreNumber } from "@icm/netlist";
 import {
   deriveStableId,
   flattenRichText,
+  labelTextDocument,
+  sameStyledText,
+  type Annotation,
   type CircuitProject,
   type Instance,
   type RouteBranch,
@@ -376,16 +381,18 @@ export function applyRnlSnapshot(
   project: CircuitProject;
   diagnostics: RnlImportDiagnostic[];
   hiddenLabels: RnlHiddenLabels[];
+  parameterTexts: RnlParameterText[];
 } {
   const diagnostics: RnlImportDiagnostic[] = [];
   const hiddenLabels: RnlHiddenLabels[] = [];
+  const parameterTexts: RnlParameterText[] = [];
   if (snapshot.failed) {
     diagnostics.push({
       severity: "error",
       code: "RNL_IMPORT_UNREADABLE",
       message: `RNL could not read the file: ${snapshot.failed}`,
     });
-    return { project, diagnostics, hiddenLabels };
+    return { project, diagnostics, hiddenLabels, parameterTexts };
   }
   for (const item of snapshot.diagnostics)
     if (item.severity === "error")
@@ -418,9 +425,17 @@ export function applyRnlSnapshot(
         });
       continue;
     }
-    applyLevel(next, document, level, level.model, diagnostics, hiddenLabels);
+    applyLevel(
+      next,
+      document,
+      level,
+      level.model,
+      diagnostics,
+      hiddenLabels,
+      parameterTexts,
+    );
   }
-  return { project: next, diagnostics, hiddenLabels };
+  return { project: next, diagnostics, hiddenLabels, parameterTexts };
 }
 
 /**
@@ -435,6 +450,18 @@ export interface RnlHiddenLabels {
   values: boolean;
 }
 
+/**
+ * The text the author wrote for a part's parameter, where the netlist writes
+ * the same number otherwise (`$CANVAS_PARAMETER_TEXT`). It belongs to the
+ * part, not to the drawing, so it stands whether the drawing does or not.
+ */
+export interface RnlParameterText {
+  documentId: string;
+  instanceId: string;
+  parameter: string;
+  text: string;
+}
+
 function applyLevel(
   project: CircuitProject,
   document: SchematicDocument,
@@ -442,6 +469,7 @@ function applyLevel(
   model: NonNullable<RnlLevelSnapshot["model"]>,
   diagnostics: RnlImportDiagnostic[],
   hiddenLabels: RnlHiddenLabels[],
+  parameterTexts: RnlParameterText[],
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -742,9 +770,9 @@ function applyLevel(
   /**
    * A part's name where the netlist spells it otherwise (`$CANVAS_NAME`):
    * SPICE starts a subcircuit call's card with X, so M1 prints as XM1. The
-   * card's name stays where another part of the Cell has the name, as SPICE
-   * compares names without case, or where the part as read takes names of
-   * another prefix.
+   * card's name stays where the name would give the part a Reference issue
+   * it does not have: another part of the Cell has it, as SPICE compares
+   * names without case, or the part as read takes names of another prefix.
    */
   const nameAgain = (object: RnlObjectView) => {
     const part = object.attach?.["part"];
@@ -752,26 +780,111 @@ function applyLevel(
     const card = typeof part === "string" ? rnlIdName(part, "#") : null;
     const instance = card === null ? undefined : instanceOf(card);
     if (!instance || typeof name !== "string" || !name.trim()) return;
-    const taken = document.instances.find(
-      (other) =>
-        other !== instance &&
-        other.reference?.toLowerCase() === name.toLowerCase(),
+    const issues = () =>
+      new Set(
+        createReferenceIndex(document, project)
+          .issues.filter((issue) => issue.instanceId === instance.id)
+          .map((issue) => issue.code),
+      );
+    const before = issues();
+    const printed = instance.reference;
+    instance.reference = name;
+    const after = [...issues()].filter((code) => !before.has(code));
+    if (!after.length) return;
+    if (printed === undefined) delete instance.reference;
+    else instance.reference = printed;
+    warn(
+      after.includes("DUPLICATE_REFERENCE")
+        ? "RNL_IMPORT_NAME_TAKEN"
+        : "RNL_IMPORT_NAME_REFUSED",
+      after.includes("DUPLICATE_REFERENCE")
+        ? `${printed ?? instance.id} is named ${name} in Analog Canvas, which another part of the Cell is; it keeps its card's name`
+        : `${printed ?? instance.id} is named ${name} in Analog Canvas, which the part as read cannot be named; it keeps its card's name`,
     );
-    const policy = referencePolicyForInstance(instance, project);
-    if (taken)
+  };
+
+  /**
+   * How the Cell sets names in its labels (`$CANVAS_TYPESETTING` on the
+   * level): each setting it writes, and Analog Canvas's default for each
+   * it leaves out or writes as nothing Analog Canvas knows. A Cell whose
+   * level has none keeps the import's own.
+   */
+  const typesetAgain = (object: RnlObjectView) => {
+    if (object.attach?.["level"] !== "#") return;
+    const params = object.params ?? {};
+    const flag = (key: string) =>
+      typeof params[key] === "boolean" ? params[key] : undefined;
+    const subscriptCase = params["subscript_case"];
+    const presentation = document.presentation;
+    const set = <K extends keyof typeof presentation>(
+      key: K,
+      value: (typeof presentation)[K] | undefined,
+    ) => {
+      if (value === undefined) delete presentation[key];
+      else presentation[key] = value;
+    };
+    set(
+      "labelSubscriptCase",
+      subscriptCase === "preserve" ||
+        subscriptCase === "uppercase" ||
+        subscriptCase === "lowercase"
+        ? subscriptCase
+        : undefined,
+    );
+    set("labelSubscriptItalic", flag("subscript_italic"));
+    set("labelUnderscoreSubscript", flag("underscore_subscript"));
+    set("labelSubscriptAfterFirst", flag("subscript_after_first"));
+    set("labelFirstLetterItalic", flag("first_letter_italic"));
+    set("textFace", params["face"] === "serif" ? "serif" : undefined);
+  };
+
+  /**
+   * The text the author wrote for a parameter the netlist writes otherwise
+   * (`$CANVAS_PARAMETER_TEXT`), named as the netlist names it: a resistor's,
+   * capacitor's or inductor's value is its r, c or l. It stands only where
+   * it is the number the part has, written as Spectre writes it.
+   */
+  const textAgain = (object: RnlObjectView) => {
+    const part = object.attach?.["part"];
+    const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+    const instance = card === null ? undefined : instanceOf(card);
+    const name = object.params?.["name"];
+    const text = object.params?.["text"];
+    const parameters = instance?.netlist?.parameters;
+    if (!parameters || typeof name !== "string" || typeof text !== "string")
+      return;
+    // What the name stands for: a source's field as Spectre names it (dc a
+    // sine's offset, phase the AC phase), a resistor's, capacitor's or
+    // inductor's value, or the parameter of that name.
+    const folded = name.toLowerCase();
+    const sine = parameters["waveform"]?.trim().toLowerCase() === "sin";
+    const candidates =
+      folded === "dc"
+        ? [sine ? "offset" : "dc"]
+        : (SOURCE_FIELDS_OF[folded] ?? [
+            name,
+            ...(["r", "c", "l"].includes(folded) ? ["value"] : []),
+          ]);
+    const key = candidates
+      .flatMap(
+        (candidate) =>
+          Object.keys(parameters).find(
+            (item) => item.toLowerCase() === candidate.toLowerCase(),
+          ) ?? [],
+      )
+      .find((item) => spectreNumber(parameters[item]!) === spectreNumber(text));
+    if (key)
+      parameterTexts.push({
+        documentId: document.id,
+        instanceId: instance!.id,
+        parameter: key,
+        text,
+      });
+    else
       warn(
-        "RNL_IMPORT_NAME_TAKEN",
-        `${instance.reference ?? instance.id} is named ${name} in Analog Canvas, which ${taken.reference} already is; it keeps its card's name`,
+        "RNL_IMPORT_PARAMETER_TEXT",
+        `${instance!.reference ?? instance!.id}'s ${name} was written ${text}, which is not the value it has; it keeps the netlist's`,
       );
-    else if (
-      policy.kind === "required" &&
-      !name.toUpperCase().startsWith(policy.prefix.toUpperCase())
-    )
-      warn(
-        "RNL_IMPORT_NAME_REFUSED",
-        `${instance.reference ?? instance.id} is named ${name} in Analog Canvas, but it comes in as a part whose names start with ${policy.prefix}; it keeps its card's name`,
-      );
-    else instance.reference = name;
   };
 
   // Glyphs: each usage of a virtual element on an Analog Canvas glyph. A
@@ -786,6 +899,15 @@ function applyLevel(
     if (object.kind !== "usage" || !object.definition) continue;
     if (object.definition === "$CANVAS_NAME") {
       nameAgain(object);
+      continue;
+    }
+    if (object.definition === "$CANVAS_TYPESETTING") {
+      typesetAgain(object);
+      continue;
+    }
+    if (object.definition === "$CANVAS_LABEL") continue; // read with the labels
+    if (object.definition === "$CANVAS_PARAMETER_TEXT") {
+      textAgain(object);
       continue;
     }
     if (LATER.has(object.definition)) {
@@ -1507,10 +1629,61 @@ function importTexts(
       item.anchor.kind === "object" ? [item.anchor.objectId] : [],
     ),
   );
+  // What each label shows, where Analog Canvas wrote the level with Canvas
+  // 0.2 (it says how the level sets names): the binding `$CANVAS_LABEL`
+  // states, and a label without one holds its own text. A level another
+  // tool wrote is read as its texts read.
+  const canvasWritten = model.objects.some(
+    (object) =>
+      object.kind === "usage" && object.definition === "$CANVAS_TYPESETTING",
+  );
+  const statedOf = new Map(
+    model.objects.flatMap((object) =>
+      object.kind === "usage" &&
+      object.definition === "$CANVAS_LABEL" &&
+      typeof object.attach?.["label"] === "string"
+        ? [[object.attach["label"], object.params ?? {}] as const]
+        : [],
+    ),
+  );
+  /** Undefined where the drawing does not say, null for its own text. */
+  const stated = (text: RnlTextView) => {
+    if (!canvasWritten) return undefined;
+    const params = statedOf.get(text.id);
+    return params && typeof params["bind"] === "string"
+      ? (params as Readonly<Record<string, unknown>> & { bind: string })
+      : null;
+  };
+  /**
+   * The drawn text as a format of a bound label, where it differs from what
+   * the binding shows anyway: the same text with other styles.
+   */
+  const formatted = (
+    annotation: Omit<
+      Annotation,
+      "id" | "anchor" | "alignment" | "rotation" | "locked"
+    >,
+    content: NonNullable<Annotation["content"]>,
+  ) =>
+    sameStyledText(
+      resolveAnnotationText(document, {
+        id: "",
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        ...annotation,
+      }),
+      content,
+    )
+      ? {}
+      : { formatOverride: content };
+
   model.texts.forEach((text, index) => {
     if (!text.written || consumed.has(text.id)) return;
     const content = acRichText(text.lines);
     if (!content) return;
+    const says = stated(text);
     // Labels and texts stand on whole units.
     const exact = acPoint(text.anchor);
     const at = { x: Math.round(exact.x) + 0, y: Math.round(exact.y) + 0 };
@@ -1578,18 +1751,21 @@ function importTexts(
     }
     if (instance && text.key === "name" && !labelled.has(instance.id)) {
       labelled.add(instance.id);
+      const binding = {
+        kind: "instance-reference" as const,
+        instanceId: instance.id,
+      };
       document.annotations.push({
         id: `instance-label-${instance.id}`,
         kind: "instance-label",
-        // Bound to the part's reference when it reads as that; a name drawn
-        // otherwise (M1 on the card XM1) is the label's own text, as drawn.
-        ...(shown === instance.reference
+        // Bound to the part's reference when it reads as that and the
+        // drawing does not say otherwise; a name drawn otherwise (M1 on the
+        // card XM1) is the label's own text, as drawn.
+        ...(shown === instance.reference &&
+        (says === undefined || says?.bind === "name")
           ? {
-              binding: {
-                kind: "instance-reference" as const,
-                instanceId: instance.id,
-              },
-              formatOverride: content,
+              binding,
+              ...formatted({ kind: "instance-label", binding }, content),
             }
           : { content }),
         anchor: onObject(instance),
@@ -1607,14 +1783,29 @@ function importTexts(
       (text.key === "value" ||
         (parameter && instance.netlist?.parameters[parameter] !== undefined))
     ) {
+      // A parameter the drawing names says so, also one named `value`.
+      const named =
+        says?.bind === "parameter" && typeof says["parameter"] === "string"
+          ? says["parameter"]
+          : undefined;
+      const shows = says === undefined ? parameter : named;
+      const bound =
+        says === undefined || says?.bind === "value" || named !== undefined;
       document.annotations.push({
         id,
         kind: "instance-value",
-        binding: {
-          kind: "instance-value",
-          instanceId: instance.id,
-          ...(parameter ? { parameter } : {}),
-        },
+        ...(bound
+          ? {
+              binding: {
+                kind: "instance-value" as const,
+                instanceId: instance.id,
+                ...(shows ? { parameter: shows } : {}),
+                ...(shows && says?.["show_value"] === false
+                  ? { showValue: false as const }
+                  : {}),
+              },
+            }
+          : { content }),
         anchor: onObject(instance),
         ...common,
         ...scaled(text.size, profile.typography.instanceFontSize),
@@ -1623,11 +1814,21 @@ function importTexts(
     }
     if (pin && terminal && text.key === "name" && !labelled.has(pin.id)) {
       labelled.add(pin.id);
+      const binding = {
+        kind: "cell-terminal-name" as const,
+        terminalId: terminal.id,
+      };
       document.annotations.push({
         id: `instance-label-${pin.id}`,
         kind: "instance-label",
-        binding: { kind: "cell-terminal-name", terminalId: terminal.id },
-        ...(shown === terminal.name ? { formatOverride: content } : {}),
+        ...(says === undefined || says?.bind === "port"
+          ? {
+              binding,
+              ...(shown === terminal.name
+                ? formatted({ kind: "instance-label", binding }, content)
+                : {}),
+            }
+          : { content }),
         anchor: onObject(pin),
         ...common,
         ...scaled(text.size, profile.typography.instanceFontSize),
@@ -1639,35 +1840,54 @@ function importTexts(
     // of its net it stands beside, as Analog Canvas keeps one.
     const netId = text.attach ? netOf(text.attach) : undefined;
     if (netId && /^%power\d+$/u.test(text.id)) {
-      const near = document.junctions
-        .filter((junction) => junction.netId === netId)
-        .map((junction) => ({
-          junction,
-          distance: Math.hypot(
-            junction.position.x - at.x,
-            junction.position.y - at.y,
-          ),
+      // One that names the Cell Pin of its net shows that Pin's name.
+      const port =
+        says?.bind === "port"
+          ? document.netlist?.terminals.find((item) => item.netId === netId)
+          : undefined;
+      // It hangs on the junction of its net it stands beside, else on the
+      // Cell Pin it names, drawn as a supply, as Analog Canvas keeps one.
+      const junction = document.junctions
+        .filter((item) => item.netId === netId)
+        .map((item) => ({
+          id: item.id,
+          at: item.position,
+          distance: Math.hypot(item.position.x - at.x, item.position.y - at.y),
         }))
         .sort((a, b) => a.distance - b.distance)[0];
+      const portPin = port?.interfaceInstanceIds
+        .map((pinId) => instanceOf(pinId))
+        .find((owner) => owner?.placement);
+      const near =
+        junction && junction.distance <= 4 * PART_GRID
+          ? junction
+          : portPin?.placement
+            ? { id: portPin.id, at: portPin.placement.position }
+            : undefined;
+      const binding = port
+        ? { kind: "cell-terminal-name" as const, terminalId: port.id }
+        : undefined;
       document.annotations.push({
         id,
         kind: "power-label",
         netId,
-        // Not bound to its net: a binding takes its name from a claim the
-        // junction would have to own, which the netlist import has not made.
-        content,
-        anchor:
-          near && near.distance <= 4 * PART_GRID
-            ? {
-                kind: "object",
-                objectId: near.junction.id,
-                localOffset: {
-                  x: at.x - near.junction.position.x,
-                  y: at.y - near.junction.position.y,
-                },
-                fallbackPosition: at,
-              }
-            : { kind: "free", position: at },
+        // Otherwise not bound to its net: a binding takes its name from a
+        // claim the junction would have to own, which the netlist import
+        // has not made.
+        ...(binding && shown === port?.name
+          ? {
+              binding,
+              ...formatted({ kind: "power-label", netId, binding }, content),
+            }
+          : { content }),
+        anchor: near
+          ? {
+              kind: "object",
+              objectId: near.id,
+              localOffset: { x: at.x - near.at.x, y: at.y - near.at.y },
+              fallbackPosition: at,
+            }
+          : { kind: "free", position: at },
         ...common,
         ...scaled(text.size, profile.typography.powerFontSize),
       });
@@ -1713,7 +1933,14 @@ function importTexts(
         kind: "net-label",
         binding: { kind: "net-name", netId },
         netId,
-        ...(shown === named.name ? { formatOverride: content } : {}),
+        // The name its claim gives the net, set as the Cell sets names.
+        ...(shown === named.name &&
+        !sameStyledText(
+          labelTextDocument(named.name, document.presentation),
+          content,
+        )
+          ? { formatOverride: content }
+          : {}),
         anchor,
         ...common,
         ...scaled(text.size, profile.typography.netFontSize),
@@ -2678,6 +2905,18 @@ function turnedBy(
 
 /** Marks read once the wires are routes, and figures. */
 const LATER = new Set(["$ARROW", "$CURRENT_ARROW", "$FIGURE"]);
+
+/** The source fields a Spectre card's names stand for, where they differ. */
+const SOURCE_FIELDS_OF: Readonly<Record<string, readonly string[]>> = {
+  val0: ["low"],
+  val1: ["high"],
+  ampl: ["amplitude"],
+  freq: ["frequency"],
+  damp: ["damping"],
+  sinephase: ["phase"],
+  mag: ["acMagnitude"],
+  phase: ["acPhase"],
+};
 
 /**
  * How near two points are the same, in Analog Canvas units: RNL keeps

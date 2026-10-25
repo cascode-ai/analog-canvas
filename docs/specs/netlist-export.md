@@ -270,6 +270,13 @@ Printers are pure functions of a validated IR.
   dc text (`0.9 AC 1 0 PULSE(…)`), prints in Spectre's terms
   (`type=pulse val0=… dc=0.9 mag=1 phase=0`), read as the VACASK projection
   reads it; SPICE prints the text unchanged.
+- Values hold numbers as SPICE reads them; Spectre prints each one in its own
+  spelling: the digits as written, the scale respelled (SPICE's `Meg` is
+  Spectre's `M`, SPICE's `M` and `m` its `m`, `mil` a plain decimal) and no
+  unit after it (`100fF` as `100f`, `1MegΩ` as `1M`, `50ps` as `50p`).
+  Expressions and names print as written. An edit of such a number in the
+  netlist panel is stored in SPICE's spelling (`4.7M` as `4.7Meg`); SPICE
+  prints every value as written.
 
 ## Diagnostics and failure behavior
 

@@ -3,6 +3,7 @@ import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
 import {
   applyRnlSnapshot,
   type RnlHiddenLabels,
+  type RnlParameterText,
   type RnlImportDiagnostic,
 } from "@icm/rnl";
 import {
@@ -152,12 +153,37 @@ export async function planRnlImport({
   ];
   return {
     status: "ready",
-    project: changed
-      ? withImportedInstanceDisplays(imported.project)
-      : hideLabels(
-          withImportedInstanceDisplays(drawn.project),
-          drawn.hiddenLabels,
-        ),
+    project: withParameterTexts(
+      changed
+        ? withImportedInstanceDisplays(imported.project)
+        : hideLabels(
+            withImportedInstanceDisplays(drawn.project),
+            drawn.hiddenLabels,
+          ),
+      drawn.parameterTexts,
+    ),
     diagnostics,
   };
+}
+
+/**
+ * The author's text of each parameter the netlist writes otherwise (100fF
+ * where Spectre reads 100f): the same number, so the circuit is the same,
+ * whether the drawing comes in or not.
+ */
+function withParameterTexts(
+  project: CircuitProject,
+  texts: readonly RnlParameterText[],
+): CircuitProject {
+  if (!texts.length) return project;
+  const next = structuredClone(project);
+  for (const { documentId, instanceId, parameter, text } of texts) {
+    const parameters = next.documents
+      .find((document) => document.id === documentId)
+      ?.instances.find((instance) => instance.id === instanceId)
+      ?.netlist?.parameters;
+    if (parameters && parameters[parameter] !== undefined)
+      parameters[parameter] = text;
+  }
+  return next;
 }
