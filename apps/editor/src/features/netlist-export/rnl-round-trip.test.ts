@@ -593,6 +593,77 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "reads a port drawn only as its power label back as that label through %s+RNL (#1783)",
+  async (format) => {
+    // As the editor keeps a local power label: the label is the port, and
+    // claims its net's name as a supply.
+    const project = createEmptyProject("rails", "Rails", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 300, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    document.nets.push({
+      id: "vdd",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+    document.noConnects.push({
+      id: "R12",
+      endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },
+    });
+    document.netlist!.terminals.push({
+      id: "t-vdd",
+      name: "VDD",
+      netId: "vdd",
+      direction: "inout",
+      interfaceInstanceIds: [],
+      interfaceAnnotationId: "vdd-label",
+    });
+    document.annotations.push({
+      id: "vdd-label",
+      kind: "power-label",
+      netId: "vdd",
+      binding: { kind: "cell-terminal-name", terminalId: "t-vdd" },
+      anchor: { kind: "free", position: { x: 300, y: 120 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "vdd-claim",
+      kind: "name-claim",
+      netId: "vdd",
+      name: "VDD",
+      scope: "local",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "vdd-label" },
+    });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const dut = plan.project.documents.find((d) => d.netlist?.name === "dut")!;
+    const terminal = dut.netlist!.terminals.find((t) => t.name === "VDD")!;
+    expect(terminal.interfaceInstanceIds).toEqual([]);
+    const label = dut.annotations.find(
+      (a) => a.id === terminal.interfaceAnnotationId,
+    );
+    expect(label?.kind).toBe("power-label");
+    expect(dut.instances.some((i) => i.symbolId === "port")).toBe(false);
+    expect(
+      dut.connectivityEvidence.some(
+        (e) =>
+          e.kind === "name-claim" &&
+          e.owner.kind === "power-marker" &&
+          e.owner.objectId === label?.id,
+      ),
+    ).toBe(true);
+  },
+);
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",

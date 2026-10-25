@@ -205,6 +205,12 @@ the RNL language and its runtime belong to rnl.
     supply drawn on a port); ground glyphs on ground, supply glyphs claiming
     their net by its own name; a glyph anywhere else is drawn as a floating
     symbol, which the netlist does not read;
+  - a port the drawing shows only as a power label naming it, no Pin drawn
+    (Canvas 0.2): the label is the port again, as the editor keeps a local
+    power label, claiming its net's name as a supply, so its rails are
+    rails; the Pin the netlist import gave it goes. It is applied once the
+    drawing is known to keep the circuit, since only who owns the port, and
+    with it where the netlist prints the port, changes (#1783);
   - the ground pin the export adds (`VSS`, or `GND`, `GND__n`, drawn as
     ground rather than as a port) is ground again, and its callers stop
     passing a node to it, as before the export;

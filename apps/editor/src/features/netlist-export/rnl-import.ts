@@ -3,6 +3,7 @@ import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
 import { serializeProject } from "@icm/project-protocol";
 import {
   applyRnlSnapshot,
+  withPowerLabelPorts,
   type RnlHiddenLabels,
   type RnlParameterText,
   type RnlImportDiagnostic,
@@ -121,9 +122,14 @@ function drawnProject(
         message:
           "The RNL drawing would change the netlist, so the circuit comes in undrawn",
       };
-    const project = hideLabels(
-      withImportedInstanceDisplays(drawn.project),
-      drawn.hiddenLabels,
+    // A port the drawing shows only as its power label is that label again
+    // (#1783): the circuit is the same, only who owns the port changes.
+    const project = withPowerLabelPorts(
+      hideLabels(
+        withImportedInstanceDisplays(drawn.project),
+        drawn.hiddenLabels,
+      ),
+      drawn.powerLabelPorts,
     );
     serializeProject(project);
     return { project };

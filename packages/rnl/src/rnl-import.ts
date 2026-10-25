@@ -382,17 +382,25 @@ export function applyRnlSnapshot(
   diagnostics: RnlImportDiagnostic[];
   hiddenLabels: RnlHiddenLabels[];
   parameterTexts: RnlParameterText[];
+  powerLabelPorts: RnlPowerLabelPort[];
 } {
   const diagnostics: RnlImportDiagnostic[] = [];
   const hiddenLabels: RnlHiddenLabels[] = [];
   const parameterTexts: RnlParameterText[] = [];
+  const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
     diagnostics.push({
       severity: "error",
       code: "RNL_IMPORT_UNREADABLE",
       message: `RNL could not read the file: ${snapshot.failed}`,
     });
-    return { project, diagnostics, hiddenLabels, parameterTexts };
+    return {
+      project,
+      diagnostics,
+      hiddenLabels,
+      parameterTexts,
+      powerLabelPorts,
+    };
   }
   for (const item of snapshot.diagnostics)
     if (item.severity === "error")
@@ -433,9 +441,16 @@ export function applyRnlSnapshot(
       diagnostics,
       hiddenLabels,
       parameterTexts,
+      powerLabelPorts,
     );
   }
-  return { project: next, diagnostics, hiddenLabels, parameterTexts };
+  return {
+    project: next,
+    diagnostics,
+    hiddenLabels,
+    parameterTexts,
+    powerLabelPorts,
+  };
 }
 
 /**
@@ -448,6 +463,97 @@ export interface RnlHiddenLabels {
   instanceId: string;
   name: boolean;
   values: boolean;
+}
+
+/**
+ * A Cell port the drawing shows only as a power label that names it, no Pin
+ * drawn: the label is the port, as the editor keeps a local power label.
+ */
+export interface RnlPowerLabelPort {
+  documentId: string;
+  terminalId: string;
+  labelId: string;
+}
+
+/**
+ * Each such port as the editor keeps it (#1783): the label is the terminal's
+ * interface, and claims its net's name as a supply, so its rails are rails;
+ * the Pin the netlist import gave it goes, with what hangs on it. The
+ * circuit is the same; only which object owns the port changes, and with it
+ * where the netlist prints the port.
+ */
+export function withPowerLabelPorts(
+  project: CircuitProject,
+  ports: readonly RnlPowerLabelPort[],
+): CircuitProject {
+  if (!ports.length) return project;
+  const next = structuredClone(project);
+  for (const { documentId, terminalId, labelId } of ports) {
+    const document = next.documents.find((item) => item.id === documentId);
+    const terminal = document?.netlist?.terminals.find(
+      (item) => item.id === terminalId,
+    );
+    const pinId = terminal?.interfaceInstanceIds[0];
+    if (!document || !terminal || !pinId) continue;
+    document.instances = document.instances.filter(
+      (instance) => instance.id !== pinId,
+    );
+    for (const net of document.nets)
+      net.terminals = net.terminals.filter((item) => item.instanceId !== pinId);
+    // The Pin's own labels go with it; a power label hung on it stays where
+    // it stands, on the junction of its net beside it if there is one.
+    document.annotations = document.annotations.flatMap((item) => {
+      if (item.anchor.kind !== "object" || item.anchor.objectId !== pinId)
+        return [item];
+      if (item.kind !== "power-label") return [];
+      const at = item.anchor.fallbackPosition;
+      const near = document.junctions
+        .filter((junction) => junction.netId === item.netId)
+        .map((junction) => ({
+          junction,
+          distance: Math.hypot(
+            junction.position.x - at.x,
+            junction.position.y - at.y,
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance)[0];
+      return [
+        {
+          ...item,
+          anchor:
+            near && near.distance <= 4 * PART_GRID
+              ? {
+                  kind: "object" as const,
+                  objectId: near.junction.id,
+                  localOffset: {
+                    x: at.x - near.junction.position.x,
+                    y: at.y - near.junction.position.y,
+                  },
+                  fallbackPosition: at,
+                }
+              : { kind: "free" as const, position: at },
+        },
+      ];
+    });
+    terminal.interfaceInstanceIds = [];
+    terminal.interfaceAnnotationId = labelId;
+    document.connectivityEvidence.push({
+      id: deriveStableId(
+        "connectivity-evidence",
+        document.id,
+        "power-marker",
+        labelId,
+        terminal.netId,
+      ),
+      kind: "name-claim",
+      netId: terminal.netId,
+      name: terminal.name,
+      scope: "local",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: labelId },
+    });
+  }
+  return next;
 }
 
 /**
@@ -470,6 +576,7 @@ function applyLevel(
   diagnostics: RnlImportDiagnostic[],
   hiddenLabels: RnlHiddenLabels[],
   parameterTexts: RnlParameterText[],
+  powerLabelPorts: RnlPowerLabelPort[],
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -1522,6 +1629,27 @@ function applyLevel(
     netOf,
     legNear,
   });
+  // A port the drawing shows only as a power label that names it, no Pin
+  // drawn (#1783): the label is the port, as the editor keeps a local power
+  // label (withPowerLabelPorts, once the drawing is known to keep the
+  // circuit).
+  for (const terminal of document.netlist?.terminals ?? []) {
+    const pinId = terminal.interfaceInstanceIds[0];
+    if (!pinId || movedPins.has(pinId)) continue;
+    const label = document.annotations.find(
+      (item) =>
+        item.kind === "power-label" &&
+        item.netId === terminal.netId &&
+        item.binding?.kind === "cell-terminal-name" &&
+        item.binding.terminalId === terminal.id,
+    );
+    if (label)
+      powerLabelPorts.push({
+        documentId: document.id,
+        terminalId: terminal.id,
+        labelId: label.id,
+      });
+  }
   // A Cell Pin the drawing places but gives no name of its own keeps the
   // editor's default name label hidden, as a part's labels are; a net label
   // beside it may be what shows the name.
