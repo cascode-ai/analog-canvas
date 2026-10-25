@@ -2827,10 +2827,6 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
 }
 
 /**
- * Undo a ground pin Analog Canvas added to a Cell: the importer's port and
- * its Cell Pin go, and each call stops passing a node to it.
- */
-/**
  * The ground pins Analog Canvas adds to a Cell that meets ground only
  * through the Cells it calls, or through a drawn switch: the drawing shows
  * no ground there, so the pin is undrawn and alone on its net once its
@@ -2893,6 +2889,10 @@ function removeAddedGroundPins(
   }
 }
 
+/**
+ * Undo a ground pin Analog Canvas added to a Cell: the importer's port and
+ * its Cell Pin go, and each call stops passing a node to it.
+ */
 function removeGroundPin(
   project: CircuitProject,
   document: SchematicDocument,
