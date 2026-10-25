@@ -16,7 +16,6 @@ export * from "./topology-correspondence.js";
 export * from "./net-name-codec.js";
 export * from "./net-export-name.js";
 export { withNetlistPowerMarkerClaims } from "./extract-nets.js";
-export { addsGroundPin, groundPinName } from "./extract-ground-pin.js";
 export * from "./printers.js";
 export * from "./printed-netlist.js";
 export * from "./parameter-projection.js";

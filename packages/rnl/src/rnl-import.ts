@@ -2,6 +2,7 @@ import {
   arrowArtwork,
   resolveAnnotationText,
   drawnSwitchControl,
+  mosBulkKind,
   resolveDocumentStyleProfile,
   richTextMetrics,
   supplyMarkerForSymbol,
@@ -12,7 +13,7 @@ import {
   deviceDescriptor,
   matchGateCellPins,
 } from "@icm/devices";
-import { addsGroundPin, groundPinName, spectreNumber } from "@icm/netlist";
+import { analyzeDesignNetlistForAuthoring, spectreNumber } from "@icm/netlist";
 import {
   deriveStableId,
   flattenRichText,
@@ -437,7 +438,7 @@ export function applyRnlSnapshot(
       undrawnPins,
     );
   }
-  removeAddedGroundPins(next, undrawnPins);
+  removeAddedSupplyPins(next, undrawnPins);
   return { project: next, diagnostics, hiddenLabels, parameterTexts };
 }
 
@@ -2831,15 +2832,17 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
  * its Cell Pin go, and each call stops passing a node to it.
  */
 /**
- * The ground pins Analog Canvas adds to a Cell that meets ground only
- * through the Cells it calls, or through a drawn switch: the drawing shows
- * no ground there, so the pin is undrawn and alone on its net once its
- * children's ground pins are gone (#1787). The Cell prints the same pin
- * again without it, so it goes, as a pin on drawn ground does, and then a
- * caller's pin it left alone in turn. A pin the Cell would print under
- * another name, or not at all, is the author's and stays.
+ * The supply pins Analog Canvas adds to a Cell (#1787): ground (VSS, or GND,
+ * GND__n) where the Cell meets ground only through the Cells it calls, a
+ * switch it draws or a MOS body left unwired, and VDD where a PMOS body is
+ * left unwired. The drawing shows none of them, so the pin is undrawn and
+ * alone on its net but for those bodies once its children's pins are gone.
+ * Where the Cell prints the same pin again without it, it goes, the bodies
+ * unwired again as drawn, and then a caller's pin it left alone in turn. A
+ * pin the Cell would print under another name, or not at all, is the
+ * author's and stays.
  */
-function removeAddedGroundPins(
+function removeAddedSupplyPins(
   project: CircuitProject,
   undrawnPins: ReadonlySet<string>,
 ): void {
@@ -2848,49 +2851,80 @@ function removeAddedGroundPins(
     for (const document of project.documents)
       for (const terminal of [...(document.netlist?.terminals ?? [])]) {
         const pins = new Set(terminal.interfaceInstanceIds);
+        const net = document.nets.find((item) => item.id === terminal.netId);
         if (
-          !/^(?:VSS|GND(?:__\d+)?)$/iu.test(terminal.name) ||
+          !/^(?:VDD|VSS|GND(?:__\d+)?)$/iu.test(terminal.name) ||
+          !net ||
           !pins.size ||
           [...pins].some((id) => !undrawnPins.has(id)) ||
-          document.nets
-            .find((net) => net.id === terminal.netId)
-            ?.terminals.some((item) => !pins.has(item.instanceId)) ||
-          document.annotations.some(
-            (item) => "netId" in item && item.netId === terminal.netId,
+          !net.terminals.every(
+            (item) => pins.has(item.instanceId) || unwiredBody(item),
           ) ||
+          document.annotations.some(
+            (item) => "netId" in item && item.netId === net.id,
+          ) ||
+          document.routes.some((route) => route.netId === net.id) ||
           document.netlist!.terminals.some(
-            (item) => item !== terminal && item.netId === terminal.netId,
+            (item) =>
+              item !== terminal &&
+              (item.netId === net.id ||
+                item.name.toUpperCase() === terminal.name.toUpperCase()),
           )
         )
           continue;
-        const without = structuredClone(document);
-        without.instances = without.instances.filter(
-          (instance) => !pins.has(instance.id),
+        const trial = structuredClone(project);
+        const trialDocument = trial.documents.find(
+          (item) => item.id === document.id,
+        )!;
+        removeSupplyPin(
+          trial,
+          trialDocument,
+          trialDocument.netlist!.terminals.find(
+            (item) => item.id === terminal.id,
+          )!,
         );
-        without.nets = without.nets.filter((net) => net.id !== terminal.netId);
-        without.connectivityEvidence = without.connectivityEvidence.filter(
-          (evidence) => evidence.netId !== terminal.netId,
-        );
-        without.netlist!.terminals = without.netlist!.terminals.filter(
-          (item) => item.id !== terminal.id,
-        );
-        const documentsById = new Map(
-          project.documents.map((item) => [
-            item.id,
-            item === document ? without : item,
-          ]),
-        );
-        if (
-          !addsGroundPin(without, documentsById) ||
-          groundPinName(without).name !== terminal.name
-        )
+        // What the export prints for the Cell, read as the editor reads a
+        // Cell it has not finished: another Cell's unrelated error leaves
+        // this one's pins as they are.
+        const printed = analyzeDesignNetlistForAuthoring(trial, {
+          groundPin: "pin",
+        }).ir?.cells.find((cell) => cell.id === document.id);
+        if (!printed?.ports.some((port) => port.name === terminal.name))
           continue;
-        removeGroundPin(project, document, terminal);
-        document.nets = without.nets;
-        document.connectivityEvidence = without.connectivityEvidence;
+        removeSupplyPin(project, document, terminal);
         removed = true;
       }
   }
+
+  /** A MOS body the drawing leaves unwired, as the netlist import binds it. */
+  function unwiredBody(item: { instanceId: string; pinName: string }) {
+    if (item.pinName !== "B") return false;
+    const instance = project.documents
+      .flatMap((document) => document.instances)
+      .find((candidate) => candidate.id === item.instanceId);
+    return !!instance && !!mosBulkKind(instance) && !instance.mosBulkBinding;
+  }
+}
+
+/**
+ * A supply pin and its net gone, with each MOS body on it unwired and a Cell
+ * default naming it dropped, and its callers no longer passing it a node.
+ */
+function removeSupplyPin(
+  project: CircuitProject,
+  document: SchematicDocument,
+  terminal: NonNullable<SchematicDocument["netlist"]>["terminals"][number],
+): void {
+  removeGroundPin(project, document, terminal);
+  document.nets = document.nets.filter((net) => net.id !== terminal.netId);
+  document.connectivityEvidence = document.connectivityEvidence.filter(
+    (evidence) => evidence.netId !== terminal.netId,
+  );
+  const defaults = document.mosBulkDefaults;
+  if (defaults?.nmosNetId === terminal.netId) delete defaults.nmosNetId;
+  if (defaults?.pmosNetId === terminal.netId) delete defaults.pmosNetId;
+  if (defaults && !defaults.nmosNetId && !defaults.pmosNetId)
+    delete document.mosBulkDefaults;
 }
 
 function removeGroundPin(

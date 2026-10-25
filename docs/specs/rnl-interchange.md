@@ -208,9 +208,11 @@ the RNL language and its runtime belong to rnl.
   - the ground pin the export adds (`VSS`, or `GND`, `GND__n`, drawn as
     ground rather than as a port) is ground again, and its callers stop
     passing a node to it, as before the export; so is one a Cell drawing no
-    ground prints because a Cell it calls, or a switch it draws, meets
-    ground: undrawn and alone on its net, it goes where the Cell would print
-    it again under the same name (#1787);
+    ground prints because a Cell it calls, a switch it draws or a MOS body
+    it leaves unwired meets ground, and the VDD pin an unwired PMOS body
+    gives it: undrawn and alone on its net but for such bodies, the pin goes
+    where the Cell would print it again under the same name, and the bodies
+    are unwired again (#1787);
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a point one route; a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, any other line style or

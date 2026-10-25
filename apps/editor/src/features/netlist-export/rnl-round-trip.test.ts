@@ -1878,6 +1878,75 @@ describe("RNL round trip of switches", () => {
   );
 });
 
+it.each(["spice", "spectre"] as const)(
+  "takes no Cell Pin for the supplies an unwired MOS body prints through %s+RNL",
+  async (format) => {
+    // M1's body is left unwired: GainStage prints the supplies a body
+    // defaults to as VDD and VSS pins, which its caller passes on (#1787).
+    const project = parseProject(
+      readFileSync(
+        resolve(
+          import.meta.dirname,
+          "../../../../../fixtures/projects/hierarchical-gain-stage/project.icproj.json",
+        ),
+        "utf8",
+      ),
+    );
+    for (const instance of project.documents.flatMap((cell) => cell.instances))
+      if (instance.id === "M1")
+        instance.netlist = {
+          binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+          parameters: { w: "1u", l: "1u" },
+        };
+      else if (instance.id === "R1")
+        instance.netlist = {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        };
+    const exported = createRnlExport(project, { format });
+    expect(exported.status === "ready" && exported.request.netlist).toMatch(
+      /subckt GainStage \(?VDD VSS /,
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const pins = (from: CircuitProject) =>
+      from.documents
+        .map(
+          (cell) =>
+            `${cell.netlist?.name}: ${(cell.netlist?.terminals ?? [])
+              .map((terminal) => terminal.name)
+              .sort()
+              .join(" ")}`,
+        )
+        .sort();
+    expect(pins(plan.project)).toEqual(pins(project));
+    const body = plan.project.documents
+      .flatMap((cell) => cell.instances)
+      .find((instance) => instance.reference === "M1")!;
+    expect(
+      plan.project.documents.some((cell) =>
+        cell.nets.some((net) =>
+          net.terminals.some(
+            (item) => item.instanceId === body.id && item.pinName === "B",
+          ),
+        ),
+      ),
+    ).toBe(false);
+    // The stand-in NMOS card reads back as the Project's own model, which
+    // the netlist then leaves out: that is #1815's, not this.
+    const cards = (text: string | false) =>
+      text && text.replace(/^\.?model NMOS .*\n/gmu, "");
+    for (const spice of [false, true]) {
+      const options = { format: spice ? "spice" : format } as const;
+      const before = createDesignNetlistExport(project, options);
+      const after = createDesignNetlistExport(plan.project, options);
+      expect(cards(after.status === "ready" && after.file.text)).toBe(
+        cards(before.status === "ready" && before.file.text),
+      );
+    }
+  },
+);
+
 const GATES_4 = ["and", "nand", "or", "nor", "xor", "xnor"] as const;
 
 /**
