@@ -917,6 +917,58 @@ describe("RNL round trip", () => {
     ]);
   });
 
+  it("keeps a line style set as the editor sets one, in the shape's override (#1787)", async () => {
+    const project = example("simulation-rc");
+    const document = project.documents.find(
+      (item) => item.id === project.topDocumentId,
+    )!;
+    const base = (id: string, zIndex: number) => ({
+      id,
+      locked: false,
+      zIndex,
+      anchor: { kind: "free", position: { x: 0, y: 0 } } as const,
+    });
+    document.drafting = {
+      objects: [
+        {
+          ...base("box", 0),
+          kind: "rectangle",
+          center: { x: 500, y: -150 },
+          width: 160,
+          height: 80,
+          rotation: 0,
+          lineStyle: "solid",
+          styleOverride: { lineStyle: "dashed" },
+        },
+        {
+          ...base("rule", 1),
+          kind: "construction-line",
+          points: [
+            { x: 400, y: -300 },
+            { x: 600, y: -300 },
+          ],
+          lineStyle: "dashed",
+          styleOverride: { lineStyle: "solid" },
+        },
+      ],
+    };
+    const { project: drawn } = await roundTrip(project);
+    const cell = drawn.documents.find(
+      (item) => item.netlist?.name === document.netlist?.name,
+    )!;
+    const looks = (cell.drafting?.objects ?? [])
+      .filter((object) => object.kind !== "text")
+      .map((object) => ({
+        kind: object.kind,
+        lineStyle: "lineStyle" in object ? object.lineStyle : undefined,
+        override: object.styleOverride?.lineStyle,
+      }));
+    expect(looks).toEqual([
+      { kind: "rectangle", lineStyle: "solid", override: "dashed" },
+      { kind: "construction-line", lineStyle: "dashed", override: "solid" },
+    ]);
+  });
+
   it("reads back rectangles, circles, curves and arrows", async () => {
     const project = example("simulation-rc");
     const document = project.documents.find(
@@ -987,6 +1039,8 @@ describe("RNL round trip", () => {
     const objects = (cell.drafting?.objects ?? []).filter(
       (object) => object.kind !== "text",
     );
+    // A closed shape comes back made solid and drawn as it was, in its
+    // override, as the editor sets a line style.
     expect(objects).toEqual([
       expect.objectContaining({
         kind: "rectangle",
@@ -994,9 +1048,9 @@ describe("RNL round trip", () => {
         width: 160,
         height: 80,
         rotation: 0,
-        lineStyle: "dashed",
+        lineStyle: "solid",
         layer: "background",
-        styleOverride: { fillColor: "#eef4ff" },
+        styleOverride: { lineStyle: "dashed", fillColor: "#eef4ff" },
       }),
       expect.objectContaining({
         kind: "rectangle",
@@ -1009,8 +1063,8 @@ describe("RNL round trip", () => {
         kind: "circle",
         center: { x: 1000, y: -150 },
         radius: 30,
-        lineStyle: "dotted",
-        styleOverride: { color: "#cc0000" },
+        lineStyle: "solid",
+        styleOverride: { color: "#cc0000", lineStyle: "dotted" },
       }),
       expect.objectContaining({
         kind: "construction-line",

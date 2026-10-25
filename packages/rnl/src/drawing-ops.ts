@@ -31,8 +31,11 @@ function styled(
   profile: SchematicStyleProfile,
 ): RnlShape {
   const override = object.styleOverride;
+  // The style it is drawn with: its override, else its own (a rectangle
+  // drawn dashed keeps lineStyle solid and says dashed in its override).
   const lineStyle =
-    "lineStyle" in object ? object.lineStyle : override?.lineStyle;
+    override?.lineStyle ??
+    ("lineStyle" in object ? object.lineStyle : undefined);
   const style: Record<string, string | number> = { ...shape.style };
   if (lineStyle && lineStyle !== "solid" && style.linestyle !== "none")
     style.linestyle = lineStyle;

@@ -148,7 +148,8 @@ the RNL language and its runtime belong to rnl.
   the Cell itself, so every call is drawn with it; its pins name the printed
   ports and show their names. An external subcircuit's block is defined once
   in the file level, its pins numbered, and set on each call.
-- Drawing objects are RNL shapes in their stacking order: rectangles,
+- Drawing objects are RNL shapes, each in the line style it is drawn with
+  (its override, else its own), in their stacking order: rectangles,
   circles, lines and curves (a quadratic leg as the cubic that draws it),
   arrows with their heads, dots and outlines, leaders and callouts, and
   polarity marks; a rectangle or circle on the background plane is drawn
@@ -243,7 +244,9 @@ the RNL language and its runtime belong to rnl.
     voltage marker's label keeps its size and colour; scripts stand outside
     bold (`bold`, `italic`, then the scripts), so a subscript and the
     superscript after it stay stacked;
-  - drawing shapes: rectangles (a closed line round a turned rectangle as a
+  - drawing shapes, each made in its kind's line style (a closed shape solid,
+    a construction line dashed) and drawn in RNL's as its override where
+    they differ, as the editor sets one: rectangles (a closed line round a turned rectangle as a
     turned one), circles, lines and curves (a cubic leg as the quadratic it
     was raised from, or the nearest), arrows; the bottom layer is the
     background plane;

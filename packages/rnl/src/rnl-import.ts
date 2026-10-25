@@ -2040,7 +2040,7 @@ function importShapes(
   };
   for (const shape of shapes) {
     const style = shape.style;
-    const lineStyle =
+    const lineStyle: "solid" | "dashed" | "dotted" =
       style["linestyle"] === "dashed" || style["linestyle"] === "dotted"
         ? style["linestyle"]
         : "solid";
@@ -2070,6 +2070,11 @@ function importShapes(
         ? { strokeScale: Math.round(strokeScale * 1e3) / 1e3 }
         : {}),
     };
+    // An object keeps the line style it is made with, a closed shape solid
+    // and a construction line dashed, and the one it is drawn with as its
+    // override where they differ, as the editor sets one.
+    const drawnOver = (made: "solid" | "dashed") =>
+      lineStyle !== made ? { lineStyle } : {};
     const base = (anchor: { x: number; y: number }) => ({
       id: deriveStableId("drafting", document.id, level.id, shape.id),
       locked: false,
@@ -2106,18 +2111,26 @@ function importShapes(
               width: size("width"),
               height: size("height"),
               rotation: 0,
-              lineStyle,
+              lineStyle: "solid",
               ...layer,
-              styleOverride: { ...styleOverride, ...filled },
+              styleOverride: {
+                ...styleOverride,
+                ...drawnOver("solid"),
+                ...filled,
+              },
             }
           : {
               ...base(center),
               kind: "circle",
               center,
               radius: size(round ? "width" : "radius"),
-              lineStyle,
+              lineStyle: "solid",
               ...layer,
-              styleOverride: { ...styleOverride, ...filled },
+              styleOverride: {
+                ...styleOverride,
+                ...drawnOver("solid"),
+                ...filled,
+              },
             },
       );
       continue;
@@ -2139,9 +2152,9 @@ function importShapes(
         ...base(turned.center),
         kind: "rectangle",
         ...turned,
-        lineStyle,
+        lineStyle: "solid",
         ...layer,
-        styleOverride: { ...styleOverride, ...filled },
+        styleOverride: { ...styleOverride, ...drawnOver("solid"), ...filled },
       });
       continue;
     }
@@ -2189,8 +2202,10 @@ function importShapes(
       kind: "construction-line",
       points: path.points,
       ...(path.controls.some(Boolean) ? { curveControls: path.controls } : {}),
-      lineStyle,
-      ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
+      lineStyle: "dashed",
+      ...(Object.keys({ ...styleOverride, ...drawnOver("dashed") }).length
+        ? { styleOverride: { ...styleOverride, ...drawnOver("dashed") } }
+        : {}),
     });
   }
   return { unread, unfilled };
@@ -2237,11 +2252,12 @@ function pathOf(
 /** A line's look, as a drawing object other than a closed shape keeps it. */
 function lineLook(object: DraftingObject) {
   const lineStyle =
-    object.kind === "construction-line" ||
+    object.styleOverride?.lineStyle ??
+    (object.kind === "construction-line" ||
     object.kind === "rectangle" ||
     object.kind === "circle"
       ? object.lineStyle
-      : object.styleOverride?.lineStyle;
+      : undefined);
   return {
     ...(object.styleOverride?.color
       ? { color: object.styleOverride.color }
