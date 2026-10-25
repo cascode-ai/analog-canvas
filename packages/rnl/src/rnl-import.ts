@@ -5,7 +5,7 @@ import {
   richTextMetrics,
   supplyMarkerForSymbol,
 } from "@icm/derived";
-import { deviceDescriptor, referencePolicyForInstance } from "@icm/devices";
+import { createReferenceIndex, deviceDescriptor } from "@icm/devices";
 import {
   deriveStableId,
   flattenRichText,
@@ -663,9 +663,9 @@ function applyLevel(
   /**
    * A part's name where the netlist spells it otherwise (`$CANVAS_NAME`):
    * SPICE starts a subcircuit call's card with X, so M1 prints as XM1. The
-   * card's name stays where another part of the Cell has the name, as SPICE
-   * compares names without case, or where the part as read takes names of
-   * another prefix.
+   * card's name stays where the name would give the part a Reference issue
+   * it does not have: another part of the Cell has it, as SPICE compares
+   * names without case, or the part as read takes names of another prefix.
    */
   const nameAgain = (object: RnlObjectView) => {
     const part = object.attach?.["part"];
@@ -673,26 +673,62 @@ function applyLevel(
     const card = typeof part === "string" ? rnlIdName(part, "#") : null;
     const instance = card === null ? undefined : instanceOf(card);
     if (!instance || typeof name !== "string" || !name.trim()) return;
-    const taken = document.instances.find(
-      (other) =>
-        other !== instance &&
-        other.reference?.toLowerCase() === name.toLowerCase(),
+    const issues = () =>
+      new Set(
+        createReferenceIndex(document, project)
+          .issues.filter((issue) => issue.instanceId === instance.id)
+          .map((issue) => issue.code),
+      );
+    const before = issues();
+    const printed = instance.reference;
+    instance.reference = name;
+    const after = [...issues()].filter((code) => !before.has(code));
+    if (!after.length) return;
+    if (printed === undefined) delete instance.reference;
+    else instance.reference = printed;
+    warn(
+      after.includes("DUPLICATE_REFERENCE")
+        ? "RNL_IMPORT_NAME_TAKEN"
+        : "RNL_IMPORT_NAME_REFUSED",
+      after.includes("DUPLICATE_REFERENCE")
+        ? `${printed ?? instance.id} is named ${name} in Analog Canvas, which another part of the Cell is; it keeps its card's name`
+        : `${printed ?? instance.id} is named ${name} in Analog Canvas, which the part as read cannot be named; it keeps its card's name`,
     );
-    const policy = referencePolicyForInstance(instance, project);
-    if (taken)
-      warn(
-        "RNL_IMPORT_NAME_TAKEN",
-        `${instance.reference ?? instance.id} is named ${name} in Analog Canvas, which ${taken.reference} already is; it keeps its card's name`,
-      );
-    else if (
-      policy.kind === "required" &&
-      !name.toUpperCase().startsWith(policy.prefix.toUpperCase())
-    )
-      warn(
-        "RNL_IMPORT_NAME_REFUSED",
-        `${instance.reference ?? instance.id} is named ${name} in Analog Canvas, but it comes in as a part whose names start with ${policy.prefix}; it keeps its card's name`,
-      );
-    else instance.reference = name;
+  };
+
+  /**
+   * How the Cell sets names in its labels (`$CANVAS_TYPESETTING` on the
+   * level): each setting it writes, and Analog Canvas's default for each
+   * it leaves out or writes as nothing Analog Canvas knows. A Cell whose
+   * level has none keeps the import's own.
+   */
+  const typesetAgain = (object: RnlObjectView) => {
+    if (object.attach?.["level"] !== "#") return;
+    const params = object.params ?? {};
+    const flag = (key: string) =>
+      typeof params[key] === "boolean" ? params[key] : undefined;
+    const subscriptCase = params["subscript_case"];
+    const presentation = document.presentation;
+    const set = <K extends keyof typeof presentation>(
+      key: K,
+      value: (typeof presentation)[K] | undefined,
+    ) => {
+      if (value === undefined) delete presentation[key];
+      else presentation[key] = value;
+    };
+    set(
+      "labelSubscriptCase",
+      subscriptCase === "preserve" ||
+        subscriptCase === "uppercase" ||
+        subscriptCase === "lowercase"
+        ? subscriptCase
+        : undefined,
+    );
+    set("labelSubscriptItalic", flag("subscript_italic"));
+    set("labelUnderscoreSubscript", flag("underscore_subscript"));
+    set("labelSubscriptAfterFirst", flag("subscript_after_first"));
+    set("labelFirstLetterItalic", flag("first_letter_italic"));
+    set("textFace", params["face"] === "serif" ? "serif" : undefined);
   };
 
   // Glyphs: each usage of a virtual element on an Analog Canvas glyph. A
@@ -707,6 +743,10 @@ function applyLevel(
     if (object.kind !== "usage" || !object.definition) continue;
     if (object.definition === "$CANVAS_NAME") {
       nameAgain(object);
+      continue;
+    }
+    if (object.definition === "$CANVAS_TYPESETTING") {
+      typesetAgain(object);
       continue;
     }
     if (LATER.has(object.definition)) {

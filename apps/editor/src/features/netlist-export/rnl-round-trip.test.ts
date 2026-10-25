@@ -30,6 +30,7 @@ import {
   rnlPlace,
   rnlSymbolFor,
   type RnlSnapshot,
+  type RnlWriteRequest,
 } from "@icm/rnl";
 import {
   builtInSymbols,
@@ -94,6 +95,103 @@ it.each(["spice", "spectre"] as const)(
     if (before.status !== "ready" || after.status !== "ready")
       throw Error("Delay Cell graph was not ready");
     expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
+  },
+);
+
+/**
+ * An nmos M1 that calls a model source's subcircuit, so SPICE prints it as
+ * XM1, in a Cell with its own naming typography.
+ */
+function namedSubcircuitPart(): CircuitProject {
+  const project = createEmptyProject("named-part", "Named part");
+  project.modelSources = [
+    {
+      id: "source",
+      language: "spice",
+      revision: 1,
+      entry: "nch.spice",
+      dependencies: [],
+      files: [
+        {
+          path: "nch.spice",
+          text: ".subckt nch_mac D G S B\nRDS D S 1k\n.ends nch_mac\n",
+        },
+      ],
+    },
+  ];
+  project.externalSubcircuitDefinitions = [
+    {
+      id: "nch",
+      name: "nch_mac",
+      interfaceStatus: "declared",
+      terminals: ["D", "G", "S", "B"].map((name) => ({
+        id: name,
+        name,
+        direction: "inout" as const,
+      })),
+      formalParameters: [],
+      implementation: { kind: "source", sourceId: "source", entry: "nch_mac" },
+    },
+  ];
+  const document = project.documents[0]!;
+  document.presentation.labelSubscriptItalic = false;
+  document.presentation.textFace = "serif";
+  document.instances.push({
+    id: "M1",
+    reference: "M1",
+    symbolId: "nmos",
+    placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "external-subcircuit", definitionId: "nch" },
+      parameters: {},
+    },
+  });
+  for (const pinName of ["D", "G", "S", "B"])
+    document.noConnects.push({
+      id: `M1${pinName}`,
+      endpoint: { kind: "terminal", instanceId: "M1", pinName },
+    });
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "writes a part's name and a Cell's typography, and reads the typography back, through %s+RNL",
+  async (format) => {
+    const project = namedSubcircuitPart();
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(
+        JSON.stringify(
+          [...exported.netlistDiagnostics, ...exported.diagnostics].filter(
+            (item) => item.severity === "error",
+          ),
+        ),
+      );
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    // Each setting other than Analog Canvas's default.
+    expect(written.text).toContain(
+      '$CANVAS_TYPESETTING @ATTACH(subscript_italic=false, face="serif") #(level)',
+    );
+    // Spectre prints M1 as M1; only SPICE needs the name.
+    expect(written.text.includes('$CANVAS_NAME @ATTACH(name="M1")')).toBe(
+      format === "spice",
+    );
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const document = plan.project.documents.find((d) =>
+      d.instances.some((i) => i.symbolId === "nmos"),
+    )!;
+    // The import brings nch_mac in as a Cell, whose calls take names
+    // starting with X, so XM1 keeps its card's name for now (#1789).
+    expect(
+      plan.diagnostics.some((item) => item.code === "RNL_IMPORT_NAME_REFUSED"),
+    ).toBe(format === "spice");
+    expect(document.presentation.labelSubscriptItalic).toBe(false);
+    expect(document.presentation.textFace).toBe("serif");
+    expect(document.presentation.labelFirstLetterItalic).toBeUndefined();
   },
 );
 
@@ -287,6 +385,23 @@ const failures = (plan: Awaited<ReturnType<typeof importRnl>>) =>
   plan.diagnostics.filter(
     (item) => item.severity === "error" || item.code === "RNL_IMPORT_RNL_ERROR",
   );
+
+/**
+ * A write request as another tool, or Analog Canvas before Canvas 0.2,
+ * writes the drawing: without what only Analog Canvas keeps.
+ */
+function withoutCanvasMeaning(request: RnlWriteRequest): RnlWriteRequest {
+  return {
+    ...request,
+    ops: request.ops.filter(
+      (op) =>
+        !(
+          op.op === "add-usage" &&
+          ["$CANVAS_NAME", "$CANVAS_TYPESETTING"].includes(op.definition)
+        ),
+    ),
+  };
+}
 
 /** What RNL writes for a placed part: its symbol, place and orientation. */
 function rnlPart(instance: Instance) {
@@ -1505,7 +1620,7 @@ describe("RNL round trip of 4-input gates", () => {
       if (exported.status !== "ready") throw new Error("export blocked");
       // The same drawing as another tool writes it, with RNL's own gates.
       const request = JSON.parse(
-        JSON.stringify(exported.request)
+        JSON.stringify(withoutCanvasMeaning(exported.request))
           .replaceAll("$CANVAS_", "$")
           .replace(
             '"name":"analog-canvas-extensions","version":"0.2"',
@@ -1774,7 +1889,9 @@ describe.each(["circle", "diamond"] as const)(
               : `$CANVAS_${kind.toUpperCase()}_CIRCLE`;
           expect(written.text).toContain(`@SET-SYMBOL ${symbol}`);
         }
-        expect(written.text.includes("$CANVAS_")).toBe(shape === "circle");
+        expect(written.text.includes("@SET-SYMBOL $CANVAS_")).toBe(
+          shape === "circle",
+        );
         expect(
           exported.diagnostics.some(
             (item) => item.code === "RNL_NOT_STANDARD_SYMBOL",
@@ -1823,14 +1940,19 @@ describe("legacy controlled-source diamond symbols", () => {
       const exported = createRnlExport(project, { format });
       if (exported.status !== "ready") throw new Error("export blocked");
       const standard = new Set(kinds.map((kind) => `$${kind.toUpperCase()}`));
+      // A file Analog Canvas wrote with Canvas 0.1.
+      const old = withoutCanvasMeaning(exported.request);
       const written = await runtime.write({
         write: {
-          ...exported.request,
+          ...old,
           ops: [
-            ...exported.request.ops.map((op) =>
+            ...old.ops.flatMap((op) =>
               op.op === "set" && op.symbol && standard.has(op.symbol)
-                ? { ...op, symbol: `$CANVAS_${op.symbol.slice(1)}_DIAMOND` }
-                : op,
+                ? [{ ...op, symbol: `$CANVAS_${op.symbol.slice(1)}_DIAMOND` }]
+                : op.op === "use-package" &&
+                    op.name === "analog-canvas-extensions"
+                  ? []
+                  : [op],
             ),
             {
               op: "use-package",
@@ -1866,7 +1988,7 @@ describe("legacy controlled-source diamond symbols", () => {
         write: reexported.request,
         svg: false,
       });
-      expect(rewritten.text).not.toContain("$CANVAS_");
+      expect(rewritten.text).not.toContain("@SET-SYMBOL $CANVAS_");
       for (const kind of kinds)
         expect(rewritten.text).toContain(`@SET-SYMBOL $${kind.toUpperCase()}`);
       expect(

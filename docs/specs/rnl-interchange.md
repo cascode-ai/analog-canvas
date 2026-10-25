@@ -117,6 +117,11 @@ the RNL language and its runtime belong to rnl.
   so the import knows it as a power label.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename.
+- What only the editor keeps is written with the meaning-only definitions of
+  `analog-canvas-extensions` 0.2, which draw nothing: a part's name where the
+  card spells it otherwise (`$CANVAS_NAME`, SPICE's `XM1` for M1), and in each
+  Cell's own record how the Cell sets names in labels (`$CANVAS_TYPESETTING`
+  on `#`), each setting other than the editor's default, none included.
 - A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
   a `$CURRENT_ARROW` mark with its label hung on it, and a voltage marker its
   label with + and − beside it, all where the editor draws them. A floating
@@ -158,8 +163,13 @@ the RNL language and its runtime belong to rnl.
   layer: CircuitIR never carries geometry ([circuit IR](circuit-ir.md)).
 - Read back so far:
   - a part's name where the netlist spells it otherwise, from
-    `$CANVAS_NAME` (Canvas 0.2): `XM1` named `M1` is M1 again; a name another
-    part of the Cell has keeps the card's, with `RNL_IMPORT_NAME_TAKEN`;
+    `$CANVAS_NAME` (Canvas 0.2): `XM1` named `M1` is M1 again; a name that
+    would give the part a Reference issue keeps the card's, with
+    `RNL_IMPORT_NAME_TAKEN` (another part has it) or `RNL_IMPORT_NAME_REFUSED`
+    (the part as read takes names of another prefix);
+  - a Cell's naming typography, from `$CANVAS_TYPESETTING` on its level: each
+    setting written, the default for each left out; a level without it keeps
+    the import's own;
   - each part's place, orientation and variant, through the mapping table;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the

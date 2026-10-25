@@ -17,13 +17,14 @@ import {
   type AnnotationPresentation,
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
-import type {
-  Annotation,
-  CircuitProject,
-  Instance,
-  RouteEndpoint,
-  SchematicDocument,
-  StableId,
+import {
+  labelTypography,
+  type Annotation,
+  type CircuitProject,
+  type Instance,
+  type RouteEndpoint,
+  type SchematicDocument,
+  type StableId,
 } from "@icm/model";
 import {
   withNetlistPowerMarkerClaims,
@@ -80,9 +81,12 @@ export type RnlOp = { level: string } & (
     }
   | {
       op: "add-usage";
-      name: string;
+      /** Absent for a usage nothing refers to, such as one of meaning only. */
+      name?: string;
       definition: string;
       attach: Record<string, string | RnlPoint>;
+      /** Written `@ATTACH(k=v, …)`, in the order given. */
+      params?: Record<string, string | number | boolean>;
       symbol?: string;
       at?: RnlPoint;
       orient?: RnlOrient;
@@ -266,6 +270,35 @@ interface ExportContext {
   blocks: ReturnType<typeof blockSymbols>;
 }
 
+/**
+ * A Document's naming typography as `$CANVAS_TYPESETTING` writes it: each
+ * setting other than Analog Canvas's default, which one left out stands for.
+ */
+function canvasTypesetting(
+  presentation: SchematicDocument["presentation"],
+): Record<string, string | boolean> {
+  const own = labelTypography(presentation);
+  const usual = labelTypography({} as SchematicDocument["presentation"]);
+  return Object.fromEntries(
+    Object.entries({
+      subscript_case: [own.subscriptCase, usual.subscriptCase],
+      subscript_italic: [own.subscriptItalic, usual.subscriptItalic],
+      underscore_subscript: [
+        own.underscoreSubscript,
+        usual.underscoreSubscript,
+      ],
+      subscript_after_first: [
+        own.subscriptAfterFirst,
+        usual.subscriptAfterFirst,
+      ],
+      first_letter_italic: [own.firstLetterItalic, usual.firstLetterItalic],
+      face: [presentation.textFace, undefined],
+    }).flatMap(([key, [value, otherwise]]) =>
+      value !== undefined && value !== otherwise ? [[key, value]] : [],
+    ),
+  );
+}
+
 function exportCell(
   document: SchematicDocument,
   cell: DesignNetlistCell,
@@ -281,6 +314,17 @@ function exportCell(
       { level, op: "define-symbol", ...own },
       { level, op: "set", object: "#", symbol: own.name },
     );
+  // How the Cell sets names in its labels, each setting other than Analog
+  // Canvas's default, none included, so the import knows the Cell keeps
+  // the default: in its own record, which reaches no other Cell.
+  packages.add(AC_PACKAGE);
+  ops.push({
+    level,
+    op: "add-usage",
+    definition: "$CANVAS_TYPESETTING",
+    attach: { level: "#" },
+    params: canvasTypesetting(document.presentation),
+  });
   const report = (
     severity: RnlExportDiagnostic["severity"],
     code: string,
@@ -519,6 +563,18 @@ function exportCell(
           : {}),
       ...where,
     });
+    // The part's own name, where the netlist spells it otherwise: SPICE
+    // starts a subcircuit call's card with X, so M1 prints as XM1.
+    if (instance.reference && instance.reference !== reference) {
+      packages.add(AC_PACKAGE);
+      ops.push({
+        level,
+        op: "add-usage",
+        definition: "$CANVAS_NAME",
+        attach: { part: object },
+        params: { name: instance.reference },
+      });
+    }
   }
 
   // A Cell Pin drawn as ground or supply, or not drawn at all, gets no port
