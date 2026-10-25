@@ -276,7 +276,11 @@ the RNL language and its runtime belong to rnl.
   not wire keeps its guide lines. A place or corner off Analog Canvas's grid
   (10 for a part, 2 for a corner) is moved onto it.
 - The imported Project's netlist is electrically equal to the plain SPICE /
-  SCS import of the same files, and the Project is one the editor can save.
+  SCS import of the same files, or, where that import writes a netlist other
+  than the one it read (a ground pin named VSS read as a port, and a GND pin
+  written beside it), its netlist read back as the files were is equal to
+  theirs; equal is the comparison's "equal", never "unknown". The Project is
+  one the editor can save.
   A drawing that would change the netlist (`RNL_IMPORT_CHANGES_NETLIST`), or
   that does not make a Project the editor can save, such as a wire joining
   terminals the netlist keeps on different nets (`RNL_IMPORT_INVALID_DRAWING`),
