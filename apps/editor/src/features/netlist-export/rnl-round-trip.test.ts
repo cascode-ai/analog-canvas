@@ -97,6 +97,39 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
+  // SPICE starts a subcircuit call's card with X: a part Analog Canvas
+  // names otherwise prints as X and its name.
+  const text = [
+    "* named parts",
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.2") }',
+    ".subckt nch d g s b",
+    "R1 d s 1k",
+    ".ends nch",
+    "XM1 d g 0 0 nch",
+    "XM2 d g 0 0 nch",
+    "XM3 d g 0 0 nch",
+    "R1 d 0 1k",
+    "V1 g 0 1",
+    '* @RNL { $CANVAS_NAME @ATTACH(name="X7") #XM1; $CANVAS_NAME @ATTACH(name="M2") #XM2; $CANVAS_NAME @ATTACH(name="r1") #XM3 }',
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const parts = plan.project.documents.flatMap((d) => d.instances);
+  const card = (id: string) =>
+    parts.find((instance) => instance.id.toLowerCase() === id)?.reference;
+  expect(card("xm1")).toBe("X7");
+  // A call of a Cell takes names starting with X, and R1 is taken.
+  expect(card("xm2")).toBe("XM2");
+  expect(card("xm3")).toBe("XM3");
+  const codes = plan.diagnostics.map((item) => item.code);
+  expect(codes).toContain("RNL_IMPORT_NAME_REFUSED");
+  expect(codes).toContain("RNL_IMPORT_NAME_TAKEN");
+  expect(codes).not.toContain("RNL_IMPORT_PACKAGE_VERSION");
+});
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",
@@ -1416,7 +1449,7 @@ describe("RNL round trip of 4-input gates", () => {
           `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
         );
       expect(written.text).toContain(
-        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.1")',
+        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.2")',
       );
       // RNL's standard gates have their inputs elsewhere; Analog Canvas's
       // own keep each wire level, in RNL as in the editor.
@@ -1475,7 +1508,7 @@ describe("RNL round trip of 4-input gates", () => {
         JSON.stringify(exported.request)
           .replaceAll("$CANVAS_", "$")
           .replace(
-            '"name":"analog-canvas-extensions","version":"0.1"',
+            '"name":"analog-canvas-extensions","version":"0.2"',
             '"name":"rnl-std-logic","version":"0.3"',
           ),
       ) as typeof exported.request;

@@ -9,6 +9,12 @@ export interface RnlWorkspace {
 const filename = "analog-canvas-extensions.rnl";
 const root = "/.analog-canvas/rnl";
 
+/** A Canvas package version's text, as the lock verified it. */
+export interface CanvasPackageText {
+  version: string;
+  text: string;
+}
+
 function normalized(path: string): string {
   const slashed = path.replaceAll("\\", "/");
   const parts: string[] = [];
@@ -19,8 +25,14 @@ function normalized(path: string): string {
   return `${slashed.startsWith("/") ? "/" : ""}${parts.join("/")}`;
 }
 
-/** Keep caller files and search order, including aliases of our private path. */
-function workspace<T extends RnlWorkspace>(request: T, text: string) {
+/**
+ * Keep caller files and search order, including aliases of our private path.
+ * Each version is in a directory of its own, so a file names either.
+ */
+function workspace<T extends RnlWorkspace>(
+  request: T,
+  packages: readonly CanvasPackageText[],
+) {
   const files = request.files ?? {};
   const writtenFile =
     "write" in request &&
@@ -40,30 +52,53 @@ function workspace<T extends RnlWorkspace>(request: T, text: string) {
         : []),
     ].map(normalized),
   );
-  let directory = root;
-  let path = `${directory}/${filename}`;
-  for (let suffix = 1; claimed.has(path) && files[path] !== text; suffix++) {
-    directory = `${root}-${suffix}`;
-    path = `${directory}/${filename}`;
+  const placed = (base: string) =>
+    packages.map(({ version, text }) => ({
+      directory: `${base}/${version}`,
+      path: `${base}/${version}/${filename}`,
+      text,
+    }));
+  let base = root;
+  let own = placed(base);
+  for (
+    let suffix = 1;
+    own.some(({ path, text }) => claimed.has(path) && files[path] !== text);
+    suffix++
+  ) {
+    base = `${root}-${suffix}`;
+    own = placed(base);
   }
   return {
     ...request,
-    files: { ...files, [path]: text },
-    pool: [...new Set([...(request.pool ?? []), path])],
+    files: {
+      ...files,
+      ...Object.fromEntries(own.map(({ path, text }) => [path, text])),
+    },
+    pool: [
+      ...new Set([...(request.pool ?? []), ...own.map(({ path }) => path)]),
+    ],
     // write and catalog currently use package_dirs rather than pool.
-    package_dirs: [...new Set([...(request.package_dirs ?? []), directory])],
+    package_dirs: [
+      ...new Set([
+        ...(request.package_dirs ?? []),
+        ...own.map(({ directory }) => directory),
+      ]),
+    ],
   };
 }
 
-/** Every core entry point gets the Canvas package; drawings retain the last build. */
-export function withCanvasPackage(core: CoreWorker, text: string): CoreWorker {
+/** Every core entry point gets the Canvas packages; drawings retain the last build. */
+export function withCanvasPackage(
+  core: CoreWorker,
+  packages: readonly CanvasPackageText[],
+): CoreWorker {
   return {
-    build: (request) => core.build(workspace(request, text)),
-    snapshot: (request) => core.snapshot(workspace(request, text)),
-    write: (request) => core.write(workspace(request, text)),
-    catalog: (request) => core.catalog(workspace(request, text)),
+    build: (request) => core.build(workspace(request, packages)),
+    snapshot: (request) => core.snapshot(workspace(request, packages)),
+    write: (request) => core.write(workspace(request, packages)),
+    catalog: (request) => core.catalog(workspace(request, packages)),
     drawings: (request) => core.drawings(request),
-    library: (request) => core.library(workspace(request, text)),
+    library: (request) => core.library(workspace(request, packages)),
     formats: (request) => core.formats(request),
     terminate: () => core.terminate(),
   };

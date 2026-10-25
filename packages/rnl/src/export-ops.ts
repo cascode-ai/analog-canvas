@@ -168,9 +168,12 @@ const STD_VERSION = "0.3";
  */
 const NO_LABELS_PACKAGE = "rnl-std-no-labels";
 
-/** The package of Analog Canvas's appearance variants and chopper; not standard. */
+/**
+ * The package of Analog Canvas's appearance variants and chopper, and what
+ * only Analog Canvas keeps of a drawing; not standard.
+ */
 const AC_PACKAGE = "analog-canvas-extensions";
-const AC_PACKAGE_VERSION = "0.1";
+const AC_PACKAGE_VERSION = "0.2";
 
 /**
  * The edit transaction's operations that draw a netlisted Project as Analog

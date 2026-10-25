@@ -5,7 +5,7 @@ import {
   richTextMetrics,
   supplyMarkerForSymbol,
 } from "@icm/derived";
-import { deviceDescriptor } from "@icm/devices";
+import { deviceDescriptor, referencePolicyForInstance } from "@icm/devices";
 import {
   deriveStableId,
   flattenRichText,
@@ -120,6 +120,10 @@ export interface RnlObjectView {
   host: readonly string[];
   definition: string | null;
   attach: Readonly<Record<string, string | Point>> | null;
+  /** A usage's parameters as its statement writes them, defaults left out. */
+  params?: Readonly<
+    Record<string, string | number | boolean | readonly unknown[]>
+  >;
   symbol: Slot<string>;
   at: Slot<Point>;
   orient: Slot<string>;
@@ -171,9 +175,9 @@ export interface RnlImportDiagnostic {
   documentId?: StableId;
 }
 
-/** The standard series and Analog Canvas package the mapping table is for. */
-const MAPPED_VERSIONS: Readonly<Record<string, string>> = {
-  "analog-canvas-extensions": "0.1",
+/** The standard series and Analog Canvas package versions the mapping table is for. */
+const MAPPED_VERSIONS: Readonly<Record<string, readonly string[]>> = {
+  "analog-canvas-extensions": ["0.1", "0.2"],
 };
 const STD_VERSION = "0.3";
 
@@ -345,13 +349,13 @@ export function applyRnlSnapshot(
       });
   for (const { name, version } of snapshot.packages) {
     const wanted = name.startsWith("rnl-std")
-      ? STD_VERSION
+      ? [STD_VERSION]
       : MAPPED_VERSIONS[name];
-    if (wanted && version !== wanted)
+    if (wanted && !wanted.includes(version))
       diagnostics.push({
         severity: "warning",
         code: "RNL_IMPORT_PACKAGE_VERSION",
-        message: `${name} ${version} is not the version Analog Canvas maps (${wanted}); its symbols may read back wrong`,
+        message: `${name} ${version} is not a version Analog Canvas maps (${wanted.join(", ")}); its symbols may read back wrong`,
       });
   }
   const next = structuredClone(project);
@@ -656,6 +660,41 @@ function applyLevel(
       groundPins.add(terminal.netId);
     }
 
+  /**
+   * A part's name where the netlist spells it otherwise (`$CANVAS_NAME`):
+   * SPICE starts a subcircuit call's card with X, so M1 prints as XM1. The
+   * card's name stays where another part of the Cell has the name, as SPICE
+   * compares names without case, or where the part as read takes names of
+   * another prefix.
+   */
+  const nameAgain = (object: RnlObjectView) => {
+    const part = object.attach?.["part"];
+    const name = object.params?.["name"];
+    const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+    const instance = card === null ? undefined : instanceOf(card);
+    if (!instance || typeof name !== "string" || !name.trim()) return;
+    const taken = document.instances.find(
+      (other) =>
+        other !== instance &&
+        other.reference?.toLowerCase() === name.toLowerCase(),
+    );
+    const policy = referencePolicyForInstance(instance, project);
+    if (taken)
+      warn(
+        "RNL_IMPORT_NAME_TAKEN",
+        `${instance.reference ?? instance.id} is named ${name} in Analog Canvas, which ${taken.reference} already is; it keeps its card's name`,
+      );
+    else if (
+      policy.kind === "required" &&
+      !name.toUpperCase().startsWith(policy.prefix.toUpperCase())
+    )
+      warn(
+        "RNL_IMPORT_NAME_REFUSED",
+        `${instance.reference ?? instance.id} is named ${name} in Analog Canvas, but it comes in as a part whose names start with ${policy.prefix}; it keeps its card's name`,
+      );
+    else instance.reference = name;
+  };
+
   // Glyphs: each usage of a virtual element on an Analog Canvas glyph. A
   // Cell Pin is the importer's own, moved where RNL draws it; ground and
   // supply glyphs are added on their nets, each claiming its supply.
@@ -666,6 +705,10 @@ function applyLevel(
   const later: RnlObjectView[] = [];
   for (const object of model.objects) {
     if (object.kind !== "usage" || !object.definition) continue;
+    if (object.definition === "$CANVAS_NAME") {
+      nameAgain(object);
+      continue;
+    }
     if (LATER.has(object.definition)) {
       later.push(object);
       continue;

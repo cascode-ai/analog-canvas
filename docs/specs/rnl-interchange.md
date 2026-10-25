@@ -22,17 +22,20 @@ the RNL language and its runtime belong to rnl.
   (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.
 - Without the runtime, the RNL formats say so and copy nothing; the other
   formats are unaffected.
-- Canvas extensions are supplied explicitly at a private virtual path in
-  `files` and `pool` for every build, snapshot and rebuild; write and catalog
-  also receive its `package_dirs`. The adapter preserves the caller's files,
-  includes and search order. One package fetch serves the shared Worker;
-  fetch failures identify the package and can be retried.
-- Canvas 0.1 is locked by name, version, URL and raw-byte SHA-256 against the
-  public [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json).
-  Refreshing the vendored asset rejects changed catalog records or byte hashes.
-  Web and desktop builds verify and ship those bytes as a local Vite asset;
+- Canvas extensions are supplied explicitly, each version at a private
+  virtual path of its own, in `files` and `pool` for every build, snapshot
+  and rebuild; write and catalog also receive their `package_dirs`. The
+  adapter preserves the caller's files, includes and search order. One fetch
+  of each version serves the shared Worker; fetch failures identify the
+  package and can be retried.
+- Every Canvas version the editor ships, 0.1 and 0.2, is locked by name,
+  version, URL and raw-byte SHA-256 against the public
+  [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json),
+  so a file written with any of them reads; the editor writes the newest.
+  Refreshing the vendored assets rejects changed catalog records or byte hashes.
+  Web and desktop builds verify and ship those bytes as local Vite assets;
   runtime loading verifies them before decoding, without contacting the catalog.
-  The static shell caches the same-origin hashed package, Worker and WebAssembly
+  The static shell caches the same-origin hashed packages, Worker and WebAssembly
   after use; package reloads refresh cached bytes with an offline fallback.
   Imported package files remain outside that cache.
 
@@ -51,7 +54,8 @@ the RNL language and its runtime belong to rnl.
   RNL. It is enabled only for the current completed RNL export. A synchronous
   click opens the full online Viewer, reusing its connected tab without
   navigating away from Viewer edits, and sends the `.sp` or `.scs` text with
-  `analog-canvas-extensions` 0.1 through the Viewer `rnl: 1` API. Both sides
+  the `analog-canvas-extensions` version it writes through the Viewer `rnl: 1`
+  API. Both sides
   check origin, window identity, launch token and request ID. Netlist text
   stays out of URLs and upload services. Popup blocking, missing capabilities,
   import errors and timeouts are reported with retry available. The desktop
@@ -153,6 +157,9 @@ the RNL language and its runtime belong to rnl.
   draft) and the drawing is laid over the imported circuit as a separate
   layer: CircuitIR never carries geometry ([circuit IR](circuit-ir.md)).
 - Read back so far:
+  - a part's name where the netlist spells it otherwise, from
+    `$CANVAS_NAME` (Canvas 0.2): `XM1` named `M1` is M1 again; a name another
+    part of the Cell has keeps the card's, with `RNL_IMPORT_NAME_TAKEN`;
   - each part's place, orientation and variant, through the mapping table;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
