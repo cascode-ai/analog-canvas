@@ -13,7 +13,9 @@ import {
 import { labelCensus, labelDifferences } from "./label-census.js";
 import { bipolarProject } from "./bipolar-project.js";
 
-test("loads the Canvas package once for both RNL formats", async ({ page }) => {
+test("loads each Canvas package version once for both RNL formats", async ({
+  page,
+}) => {
   await page.route("https://rich-netlist.github.io/rnl-packages/**", (route) =>
     route.abort(),
   );
@@ -51,7 +53,7 @@ test("loads the Canvas package once for both RNL formats", async ({ page }) => {
     const text = await copiedNetlist(page, mode);
     rich = text;
     expect(text).toContain(
-      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.1")',
+      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.2")',
     );
     expect(text).toContain("$CANVAS_VCVS_CIRCLE");
     await expect(
@@ -88,8 +90,10 @@ test("loads the Canvas package once for both RNL formats", async ({ page }) => {
   expect(after.status).toBe("ready");
   if (before.status === "ready" && after.status === "ready")
     expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
-  expect(requested).toHaveLength(1);
-  expect(new URL(requested[0]!).origin).toBe(new URL(page.url()).origin);
+  // 0.1 and 0.2, so a file written with either reads.
+  expect(requested).toHaveLength(2);
+  for (const url of requested)
+    expect(new URL(url).origin).toBe(new URL(page.url()).origin);
 });
 
 test("reports a failed Canvas package fetch and retries on the next request", async ({
@@ -416,7 +420,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
       await viewer.locator("#tab-files").click();
       await expect(
         viewer.getByRole("button", {
-          name: "Open analog-canvas-extensions 0.1",
+          name: "Open analog-canvas-extensions 0.2",
           exact: true,
         }),
       ).toBeVisible();
@@ -431,7 +435,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
         type: "open",
         name: mode === "spice+rnl" ? "circuit.sp" : "circuit.scs",
         text: expected,
-        packages: [{ name: "analog-canvas-extensions", version: "0.1" }],
+        packages: [{ name: "analog-canvas-extensions", version: "0.2" }],
       });
     }
     expect(page.context().pages()).toHaveLength(2);

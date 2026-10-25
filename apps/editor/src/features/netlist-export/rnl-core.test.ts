@@ -1,11 +1,15 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { startCore, type WriteRequest } from "@rich-netlist/runtime";
+import { canvasPackageLock, canvasPackageVersion } from "./rnl-canvas-package";
 import { withCanvasPackage } from "./rnl-core";
-import { canvasPackageText } from "./rnl-core.test-support";
+import { canvasPackageTexts } from "./rnl-core.test-support";
 
 const bare = startCore();
-const packageText = await canvasPackageText;
-const core = withCanvasPackage(bare, packageText);
+const packages = await canvasPackageTexts;
+const packageText = packages.find(
+  (item) => item.version === canvasPackageVersion,
+)!.text;
+const core = withCanvasPackage(bare, packages);
 afterAll(() => core.terminate());
 
 const write: WriteRequest["write"] = {
@@ -13,7 +17,11 @@ const write: WriteRequest["write"] = {
   netlist: '\nE1 out 0 in 0 2\n.include "/user/parts.inc"\n.end\n',
   author: "test",
   ops: [
-    { op: "use-package", name: "analog-canvas-extensions", version: "0.1" },
+    {
+      op: "use-package",
+      name: "analog-canvas-extensions",
+      version: canvasPackageVersion,
+    },
     {
       op: "set",
       level: "file",
@@ -84,9 +92,9 @@ describe("explicit Canvas package workspace", () => {
   });
 
   it.each([
-    "/.analog-canvas/rnl/analog-canvas-extensions.rnl",
-    "\\.analog-canvas\\rnl\\analog-canvas-extensions.rnl",
-    "/.analog-canvas/other/../rnl/analog-canvas-extensions.rnl",
+    "/.analog-canvas/rnl/0.2/analog-canvas-extensions.rnl",
+    "\\.analog-canvas\\rnl\\0.2\\analog-canvas-extensions.rnl",
+    "/.analog-canvas/other/../rnl/0.2/analog-canvas-extensions.rnl",
   ])(
     "does not replace a user file at its private virtual path (%s)",
     async (path) => {
@@ -95,7 +103,7 @@ describe("explicit Canvas package workspace", () => {
       const catalog = await core.catalog({
         catalog: {},
         files: { [path]: text },
-        package_dirs: ["/.analog-canvas/rnl"],
+        package_dirs: ["/.analog-canvas/rnl/0.2"],
       });
       expect(catalog.packages.some((pkg) => pkg.name === "user-kept")).toBe(
         true,
@@ -105,6 +113,32 @@ describe("explicit Canvas package workspace", () => {
           (symbol) => symbol.symbol === "$CANVAS_VCVS_CIRCLE",
         ),
       ).toBe(true);
+    },
+  );
+
+  it.each(canvasPackageLock.versions.map(({ version }) => version))(
+    "reads a file written with Canvas %s",
+    async (version) => {
+      const written = await core.write({
+        write: {
+          ...write,
+          netlist: "\nE1 out 0 in 0 2\n.end\n",
+          ops: write.ops.map((op) =>
+            op.op === "use-package" ? { ...op, version } : op,
+          ),
+        },
+        svg: false,
+      });
+      expect(written.text).toContain(
+        `@USE-PACKAGE(name="analog-canvas-extensions", version="${version}")`,
+      );
+      expect(errors(written.document.diagnostics)).toEqual([]);
+      const built = await core.build({
+        entry: "/top.sp",
+        files: { "/top.sp": written.text },
+        svg: false,
+      });
+      expect(errors(built.diagnostics)).toEqual([]);
     },
   );
 
