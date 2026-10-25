@@ -438,7 +438,7 @@ export function applyRnlSnapshot(
       undrawnPins,
     );
   }
-  removeAddedSupplyPins(next, undrawnPins);
+  removeAddedPins(next, undrawnPins);
   return { project: next, diagnostics, hiddenLabels, parameterTexts };
 }
 
@@ -2828,17 +2828,17 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
 }
 
 /**
- * The supply pins Analog Canvas adds to a Cell (#1787): ground (VSS, or GND,
- * GND__n) where the Cell meets ground only through the Cells it calls, a
- * switch it draws or a MOS body left unwired, and VDD where a PMOS body is
- * left unwired. The drawing shows none of them, so the pin is undrawn and
- * alone on its net but for those bodies once its children's pins are gone.
- * Where the Cell prints the same pin again without it, it goes, the bodies
- * unwired again as drawn, and then a caller's pin it left alone in turn. A
- * pin the Cell would print under another name, or not at all, is the
- * author's and stays.
+ * The pins Analog Canvas adds to a Cell printed as a subcircuit (#1787):
+ * ground (VSS, or GND, GND__n) where the Cell meets ground only through the
+ * Cells it calls, a switch it draws or a MOS body left unwired; VDD where a
+ * PMOS body is left unwired; the phase a switch's label clocks it by. The
+ * drawing shows none of them, so the pin is undrawn and alone on its net
+ * but for those bodies once its children's pins are gone. Where the Cell
+ * prints the same pin again without it, it goes, the bodies unwired again
+ * as drawn, and then a caller's pin it left alone in turn. A pin the Cell
+ * would print under another name, or not at all, is the author's and stays.
  */
-function removeAddedSupplyPins(
+function removeAddedPins(
   project: CircuitProject,
   undrawnPins: ReadonlySet<string>,
 ): void {
@@ -2849,7 +2849,6 @@ function removeAddedSupplyPins(
         const pins = new Set(terminal.interfaceInstanceIds);
         const net = document.nets.find((item) => item.id === terminal.netId);
         if (
-          !/^(?:VDD|VSS|GND(?:__\d+)?)$/iu.test(terminal.name) ||
           !net ||
           !pins.size ||
           [...pins].some((id) => !undrawnPins.has(id)) ||
@@ -2872,7 +2871,7 @@ function removeAddedSupplyPins(
         const trialDocument = trial.documents.find(
           (item) => item.id === document.id,
         )!;
-        removeSupplyPin(
+        removeAddedPin(
           trial,
           trialDocument,
           trialDocument.netlist!.terminals.find(
@@ -2887,7 +2886,7 @@ function removeAddedSupplyPins(
         }).ir?.cells.find((cell) => cell.id === document.id);
         if (!printed?.ports.some((port) => port.name === terminal.name))
           continue;
-        removeSupplyPin(project, document, terminal);
+        removeAddedPin(project, document, terminal);
         removed = true;
       }
   }
@@ -2903,10 +2902,10 @@ function removeAddedSupplyPins(
 }
 
 /**
- * A supply pin and its net gone, with each MOS body on it unwired and a Cell
+ * An added pin and its net gone, with each MOS body on it unwired and a Cell
  * default naming it dropped, and its callers no longer passing it a node.
  */
-function removeSupplyPin(
+function removeAddedPin(
   project: CircuitProject,
   document: SchematicDocument,
   terminal: NonNullable<SchematicDocument["netlist"]>["terminals"][number],

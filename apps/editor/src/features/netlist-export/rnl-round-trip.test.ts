@@ -1824,6 +1824,14 @@ describe("RNL round trip of switches", () => {
         ),
       );
       expect(phases.sort()).toEqual(["CH1 Φ2", "S1 Φ1"]);
+      // The phases its labels clock the switches by print as the Cell's
+      // pins, but come back as labels alone, no Cell Pins (#1787).
+      const pins = (from: CircuitProject) =>
+        from.documents
+          .flatMap((cell) => cell.netlist?.terminals ?? [])
+          .map((terminal) => terminal.name)
+          .sort();
+      expect(pins(plan.project)).toEqual(pins(project));
       for (const spice of [false, true]) {
         const options = { format: spice ? "spice" : format } as const;
         const before = createDesignNetlistExport(project, options);
