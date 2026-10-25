@@ -27,6 +27,9 @@ import {
   type StableId,
 } from "@icm/model";
 import {
+  normalizeIndependentSource,
+  printedParameterConversion,
+  spectreNumber,
   withNetlistPowerMarkerClaims,
   type DesignNetlistCell,
   type DesignNetlistIR,
@@ -326,6 +329,88 @@ function canvasLabel(
   }
 }
 
+/** A source's fields as Spectre names them, where it names them otherwise. */
+const SPECTRE_SOURCE_NAMES: Readonly<Record<string, string>> = {
+  low: "val0",
+  high: "val1",
+  offset: "dc",
+  amplitude: "ampl",
+  frequency: "freq",
+  damping: "damp",
+  phase: "sinephase",
+  acmagnitude: "mag",
+  acphase: "phase",
+};
+
+/** The fields a source's Spectre card writes, by its waveform. */
+const SPECTRE_SOURCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  dc: ["dc"],
+  pulse: ["low", "high", "delay", "rise", "fall", "width", "period", "dc"],
+  sin: ["offset", "amplitude", "frequency", "delay", "damping", "phase"],
+  pwl: ["dc"],
+};
+
+/**
+ * The parameters of a part the Spectre netlist writes as other text than the
+ * author's, by the name the netlist gives each: a resistor's, capacitor's or
+ * inductor's value is its r, c or l, and a source's fields are named as its
+ * card names them, those of its waveform only. A source kept as SPICE wrote
+ * it, its waveform in its text, has no fields of its own.
+ */
+function authoredTexts(
+  cell: DesignNetlistCell,
+  instanceId: StableId,
+): { name: string; text: string }[] {
+  const printed = cell.instances.find((item) => item.id === instanceId);
+  if (!printed) return [];
+  const source =
+    printed.deviceClass === "voltage-source" ||
+    printed.deviceClass === "current-source";
+  if (
+    source &&
+    printed.parameters.some(
+      (p) =>
+        p.name.toLowerCase() === "dc" &&
+        /(?:AC|PULSE|SIN|PWL)/iu.test(p.rawValue),
+    )
+  )
+    return [];
+  const waveform = source
+    ? normalizeIndependentSource(printed.parameters).transient.kind
+    : null;
+  const fields = waveform
+    ? new Set([
+        ...(SPECTRE_SOURCE_FIELDS[waveform] ?? []),
+        "acmagnitude",
+        "acphase",
+      ])
+    : null;
+  const letter = { resistor: "r", capacitor: "c", inductor: "l" }[
+    printed.deviceClass as string
+  ];
+  return printed.parameters.flatMap(({ name, rawValue }) => {
+    const folded = name.toLowerCase();
+    if (
+      spectreNumber(rawValue) === rawValue ||
+      printedParameterConversion(printed, name) !== "identity" ||
+      folded === "waveform" ||
+      (fields &&
+        !fields.has(folded) &&
+        (Object.hasOwn(SPECTRE_SOURCE_NAMES, folded) ||
+          Object.values(SPECTRE_SOURCE_FIELDS).some((list) =>
+            list.includes(folded),
+          )))
+    )
+      return [];
+    const written = source
+      ? (SPECTRE_SOURCE_NAMES[folded] ?? name)
+      : letter && name === "value"
+        ? letter
+        : name;
+    return [{ name: written, text: rawValue }];
+  });
+}
+
 function exportCell(
   document: SchematicDocument,
   cell: DesignNetlistCell,
@@ -602,6 +687,19 @@ function exportCell(
         params: { name: instance.reference },
       });
     }
+    // The author's text of each value the netlist writes otherwise: Spectre
+    // reads 100f where the author wrote 100fF.
+    if (context.format === "spectre")
+      for (const { name, text } of authoredTexts(cell, instance.id)) {
+        packages.add(AC_PACKAGE);
+        ops.push({
+          level,
+          op: "add-usage",
+          definition: "$CANVAS_PARAMETER_TEXT",
+          attach: { part: object },
+          params: { name, text },
+        });
+      }
   }
 
   // A Cell Pin drawn as ground or supply, or not drawn at all, gets no port

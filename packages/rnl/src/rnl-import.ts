@@ -7,6 +7,7 @@ import {
   supplyMarkerForSymbol,
 } from "@icm/derived";
 import { createReferenceIndex, deviceDescriptor } from "@icm/devices";
+import { spectreNumber } from "@icm/netlist";
 import {
   deriveStableId,
   flattenRichText,
@@ -333,16 +334,18 @@ export function applyRnlSnapshot(
   project: CircuitProject;
   diagnostics: RnlImportDiagnostic[];
   hiddenLabels: RnlHiddenLabels[];
+  parameterTexts: RnlParameterText[];
 } {
   const diagnostics: RnlImportDiagnostic[] = [];
   const hiddenLabels: RnlHiddenLabels[] = [];
+  const parameterTexts: RnlParameterText[] = [];
   if (snapshot.failed) {
     diagnostics.push({
       severity: "error",
       code: "RNL_IMPORT_UNREADABLE",
       message: `RNL could not read the file: ${snapshot.failed}`,
     });
-    return { project, diagnostics, hiddenLabels };
+    return { project, diagnostics, hiddenLabels, parameterTexts };
   }
   for (const item of snapshot.diagnostics)
     if (item.severity === "error")
@@ -375,9 +378,17 @@ export function applyRnlSnapshot(
         });
       continue;
     }
-    applyLevel(next, document, level, level.model, diagnostics, hiddenLabels);
+    applyLevel(
+      next,
+      document,
+      level,
+      level.model,
+      diagnostics,
+      hiddenLabels,
+      parameterTexts,
+    );
   }
-  return { project: next, diagnostics, hiddenLabels };
+  return { project: next, diagnostics, hiddenLabels, parameterTexts };
 }
 
 /**
@@ -392,6 +403,18 @@ export interface RnlHiddenLabels {
   values: boolean;
 }
 
+/**
+ * The text the author wrote for a part's parameter, where the netlist writes
+ * the same number otherwise (`$CANVAS_PARAMETER_TEXT`). It belongs to the
+ * part, not to the drawing, so it stands whether the drawing does or not.
+ */
+export interface RnlParameterText {
+  documentId: string;
+  instanceId: string;
+  parameter: string;
+  text: string;
+}
+
 function applyLevel(
   project: CircuitProject,
   document: SchematicDocument,
@@ -399,6 +422,7 @@ function applyLevel(
   model: NonNullable<RnlLevelSnapshot["model"]>,
   diagnostics: RnlImportDiagnostic[],
   hiddenLabels: RnlHiddenLabels[],
+  parameterTexts: RnlParameterText[],
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -735,6 +759,55 @@ function applyLevel(
     set("textFace", params["face"] === "serif" ? "serif" : undefined);
   };
 
+  /**
+   * The text the author wrote for a parameter the netlist writes otherwise
+   * (`$CANVAS_PARAMETER_TEXT`), named as the netlist names it: a resistor's,
+   * capacitor's or inductor's value is its r, c or l. It stands only where
+   * it is the number the part has, written as Spectre writes it.
+   */
+  const textAgain = (object: RnlObjectView) => {
+    const part = object.attach?.["part"];
+    const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+    const instance = card === null ? undefined : instanceOf(card);
+    const name = object.params?.["name"];
+    const text = object.params?.["text"];
+    const parameters = instance?.netlist?.parameters;
+    if (!parameters || typeof name !== "string" || typeof text !== "string")
+      return;
+    // What the name stands for: a source's field as Spectre names it (dc a
+    // sine's offset, phase the AC phase), a resistor's, capacitor's or
+    // inductor's value, or the parameter of that name.
+    const folded = name.toLowerCase();
+    const sine = parameters["waveform"]?.trim().toLowerCase() === "sin";
+    const candidates =
+      folded === "dc"
+        ? [sine ? "offset" : "dc"]
+        : (SOURCE_FIELDS_OF[folded] ?? [
+            name,
+            ...(["r", "c", "l"].includes(folded) ? ["value"] : []),
+          ]);
+    const key = candidates
+      .flatMap(
+        (candidate) =>
+          Object.keys(parameters).find(
+            (item) => item.toLowerCase() === candidate.toLowerCase(),
+          ) ?? [],
+      )
+      .find((item) => spectreNumber(parameters[item]!) === spectreNumber(text));
+    if (key)
+      parameterTexts.push({
+        documentId: document.id,
+        instanceId: instance!.id,
+        parameter: key,
+        text,
+      });
+    else
+      warn(
+        "RNL_IMPORT_PARAMETER_TEXT",
+        `${instance!.reference ?? instance!.id}'s ${name} was written ${text}, which is not the value it has; it keeps the netlist's`,
+      );
+  };
+
   // Glyphs: each usage of a virtual element on an Analog Canvas glyph. A
   // Cell Pin is the importer's own, moved where RNL draws it; ground and
   // supply glyphs are added on their nets, each claiming its supply.
@@ -754,6 +827,10 @@ function applyLevel(
       continue;
     }
     if (object.definition === "$CANVAS_LABEL") continue; // read with the labels
+    if (object.definition === "$CANVAS_PARAMETER_TEXT") {
+      textAgain(object);
+      continue;
+    }
     if (LATER.has(object.definition)) {
       later.push(object);
       continue;
@@ -2749,6 +2826,18 @@ function turnedBy(
 
 /** Marks read once the wires are routes, and figures. */
 const LATER = new Set(["$ARROW", "$CURRENT_ARROW", "$FIGURE"]);
+
+/** The source fields a Spectre card's names stand for, where they differ. */
+const SOURCE_FIELDS_OF: Readonly<Record<string, readonly string[]>> = {
+  val0: ["low"],
+  val1: ["high"],
+  ampl: ["amplitude"],
+  freq: ["frequency"],
+  damp: ["damping"],
+  sinephase: ["phase"],
+  mag: ["acMagnitude"],
+  phase: ["acPhase"],
+};
 
 /**
  * How near two points are the same, in Analog Canvas units: RNL keeps

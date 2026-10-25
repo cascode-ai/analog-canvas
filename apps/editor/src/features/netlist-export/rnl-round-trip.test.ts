@@ -380,6 +380,88 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "keeps the author's text of a value the netlist writes otherwise through %s+RNL",
+  async (format) => {
+    const project = boundLabels();
+    const parts = project.documents[0]!.instances;
+    parts.find((i) => i.id === "C1")!.netlist!.parameters.value = "100fF";
+    parts.find((i) => i.id === "R1")!.netlist!.parameters.value = "2.2MegΩ";
+    // A pulse source, its fields named as Spectre names them.
+    parts.push({
+      id: "V1",
+      reference: "V1",
+      symbolId: "voltage-source",
+      placement: { position: { x: 600, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: {
+        parameters: {
+          waveform: "pulse",
+          low: "0",
+          high: "1.8V",
+          delay: "1ns",
+          rise: "50ps",
+          fall: "50ps",
+          width: "5ns",
+          period: "10ns",
+          dc: "0",
+        },
+      },
+    });
+    const document = project.documents[0]!;
+    document.nets
+      .find((net) => net.id === "vdd")!
+      .terminals.push({
+        instanceId: "V1",
+        pinName: "+",
+      });
+    document.noConnects.push({
+      id: "V1-",
+      endpoint: { kind: "terminal", instanceId: "V1", pinName: "-" },
+    });
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    // Spectre reads 100f and 2.2M; SPICE writes the text as it is.
+    expect(written.text.includes("c=100f")).toBe(format === "spectre");
+    expect(
+      written.text.includes(
+        '$CANVAS_PARAMETER_TEXT @ATTACH(name="c", text="100fF") #C1(part)',
+      ),
+    ).toBe(format === "spectre");
+    expect(
+      written.text.includes(
+        '$CANVAS_PARAMETER_TEXT @ATTACH(name="r", text="2.2MegΩ") #R1(part)',
+      ),
+    ).toBe(format === "spectre");
+    const plan = await importRnl(written.text, format);
+    expect(
+      failures(plan).map((item) => `${item.code}: ${item.message}`),
+    ).toEqual([]);
+    const back = plan.project.documents.flatMap((d) => d.instances);
+    expect(
+      back.find((i) => i.reference === "C1")?.netlist?.parameters.value,
+    ).toBe("100fF");
+    expect(
+      back.find((i) => i.reference === "R1")?.netlist?.parameters.value,
+    ).toBe("2.2MegΩ");
+    expect(
+      back.find((i) => i.reference === "V1")?.netlist?.parameters,
+    ).toMatchObject({ high: "1.8V", delay: "1ns", rise: "50ps", width: "5ns" });
+    if (format === "spectre")
+      expect(written.text).toContain(
+        '$CANVAS_PARAMETER_TEXT @ATTACH(name="val1", text="1.8V") #V1(part)',
+      );
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
   // SPICE starts a subcircuit call's card with X: a part Analog Canvas
   // names otherwise prints as X and its name.
