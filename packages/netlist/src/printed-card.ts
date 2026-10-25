@@ -116,12 +116,13 @@ export function printInstanceCard(
     const text =
       rendered ?? p?.rawValue ?? (format === "spectre" ? "undefined" : "");
     if (format === "spectre") {
-      // Spectre reads its own numbers: 100fF is written 100f.
+      // Spectre reads its own numbers: 100fF is written 100f. Every value
+      // the author owns reads back as Spectre means it, so an M typed here
+      // is mega whether or not the value was respelled.
       const number = spectreNumber(text);
       if (
         p &&
         text === p.rawValue &&
-        number !== text &&
         printedParameterConversion(instance, p.name) === "identity"
       )
         return owned(number, "parameter", p.name, "spectre-number");

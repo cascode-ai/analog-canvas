@@ -6,6 +6,7 @@ import {
   type RnlHiddenLabels,
   type RnlParameterText,
   type RnlImportDiagnostic,
+  type RnlSnapshot,
 } from "@icm/rnl";
 import {
   importSpiceSources,
@@ -81,6 +82,24 @@ function hideLabels(
 type OmittedDrawing = { code: string; message: string };
 
 /**
+ * The runtime's drawing applied to the imported circuit, or why it could not
+ * be: the circuit then comes in undrawn (#1792).
+ */
+function drawingOf(
+  imported: CircuitProject,
+  snapshot: RnlSnapshot,
+): ReturnType<typeof applyRnlSnapshot> | OmittedDrawing {
+  try {
+    return applyRnlSnapshot(imported, snapshot);
+  } catch (error) {
+    return {
+      code: "RNL_IMPORT_INVALID_DRAWING",
+      message: `The RNL drawing could not be read, so the circuit comes in undrawn: ${reason(error)}`,
+    };
+  }
+}
+
+/**
  * The drawn Project, or why it is left out: it would change the netlist, or
  * it is not a Project the editor can save (RNL never connects by position, so
  * a wire can join what the netlist keeps apart).
@@ -116,8 +135,32 @@ function drawnProject(
   }
 }
 
-const reason = (error: unknown) =>
-  (error instanceof Error ? error.message : String(error)).slice(0, 400);
+/** An error as one line: a schema error's issue messages, not its JSON. */
+const reason = (error: unknown) => {
+  const issues = (error as { issues?: unknown } | null)?.issues;
+  return (
+    Array.isArray(issues) && issues.length
+      ? issues
+          .map((issue) => String((issue as { message?: unknown }).message))
+          .join("; ")
+      : error instanceof Error
+        ? error.message
+        : String(error)
+  ).slice(0, 400);
+};
+
+/** An import that cannot complete, with its finding. */
+const failedPlan = (message: string, finding = message): RnlImportPlan => ({
+  status: "failed",
+  message,
+  diagnostics: [
+    reported({
+      severity: "error",
+      code: "RNL_IMPORT_FAILED",
+      message: finding,
+    }),
+  ],
+});
 
 /**
  * A rich netlist as a Project (Analog Canvas `docs/specs/rnl-interchange.md`,
@@ -136,17 +179,10 @@ export async function planRnlImport(request: {
   try {
     return await buildImportPlan(request);
   } catch (error) {
-    return {
-      status: "failed",
-      message: `RNL import could not be completed: ${reason(error)}`,
-      diagnostics: [
-        reported({
-          severity: "error",
-          code: "RNL_IMPORT_FAILED",
-          message: reason(error),
-        }),
-      ],
-    };
+    return failedPlan(
+      `RNL import could not be completed: ${reason(error)}`,
+      reason(error),
+    );
   }
 }
 
@@ -160,18 +196,11 @@ async function buildImportPlan({
   runtime: RnlRuntime | null;
 }): Promise<RnlImportPlan> {
   if (!runtime)
-    return {
-      status: "failed",
-      message: "RNL import needs the rnl runtime, which this build lacks",
-      diagnostics: [],
-    };
+    return failedPlan(
+      "RNL import needs the rnl runtime, which this build lacks",
+    );
   const entry = inputs.find((input) => input.path === entryPath);
-  if (!entry)
-    return {
-      status: "failed",
-      message: `RNL import has no file ${entryPath}`,
-      diagnostics: [],
-    };
+  if (!entry) return failedPlan(`RNL import has no file ${entryPath}`);
   const snapshot = await runtime.snapshot({
     entry: entryPath,
     files: Object.fromEntries(
@@ -202,11 +231,13 @@ async function buildImportPlan({
           ?.message ?? "SPICE import failed",
       diagnostics: imported.diagnostics,
     };
-  const drawn = applyRnlSnapshot(imported.project, snapshot);
-  const kept = drawnProject(imported.project, drawn);
+  const drawn = drawingOf(imported.project, snapshot);
+  const kept = "code" in drawn ? drawn : drawnProject(imported.project, drawn);
+  const read = "code" in drawn ? null : drawn;
+  const parameterTexts = read?.parameterTexts ?? [];
   const diagnostics = [
     ...imported.diagnostics,
-    ...drawn.diagnostics.map(reported),
+    ...(read?.diagnostics ?? []).map(reported),
     ...("project" in kept
       ? []
       : [
@@ -221,12 +252,12 @@ async function buildImportPlan({
   if ("project" in kept)
     return {
       status: "ready",
-      project: withParameterTexts(kept.project, drawn.parameterTexts),
+      project: withParameterTexts(kept.project, parameterTexts),
       diagnostics,
     };
   const undrawn = withParameterTexts(
     withImportedInstanceDisplays(imported.project),
-    drawn.parameterTexts,
+    parameterTexts,
   );
   serializeProject(undrawn);
   return { status: "ready", project: undrawn, diagnostics };

@@ -38,6 +38,8 @@ export function spectreNumber(raw: string): string {
   if (!match) return raw;
   const [, digits, scale = "", unit = ""] = match;
   if (!scale && !unit) return raw;
+  // A micro sign is a scale SPICE readers disagree on: left as written.
+  if (/^[µμ]/u.test(unit)) return raw;
   if (scale.toLowerCase() === "mil")
     return String(Number((Number(digits) * 25.4e-6).toPrecision(15)));
   return `${digits}${SPECTRE_SCALE[scale.toLowerCase()] ?? ""}`;

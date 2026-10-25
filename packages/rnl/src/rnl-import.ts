@@ -671,6 +671,7 @@ function applyLevel(
       !mapped &&
       !symbol.default &&
       (!symbol.level ||
+        symbol.name.startsWith("$CANVAS_CALL_") ||
         RNL_SYMBOLS.some((row) => row.inline && row.symbol === symbol.name))
     )
       warn(
@@ -780,6 +781,14 @@ function applyLevel(
     const card = typeof part === "string" ? rnlIdName(part, "#") : null;
     const instance = card === null ? undefined : instanceOf(card);
     if (!instance || typeof name !== "string" || !name.trim()) return;
+    // A netlist name is one token of at most 128 characters.
+    if (name.length > 128 || /[\s\p{Cc}]/u.test(name)) {
+      warn(
+        "RNL_IMPORT_NAME_REFUSED",
+        `${instance.reference ?? instance.id} is named ${JSON.stringify(name.slice(0, 40))} in Analog Canvas, which is not a netlist name; it keeps its card's name`,
+      );
+      return;
+    }
     const issues = () =>
       new Set(
         createReferenceIndex(document, project)
@@ -812,30 +821,40 @@ function applyLevel(
   const typesetAgain = (object: RnlObjectView) => {
     if (object.attach?.["level"] !== "#") return;
     const params = object.params ?? {};
-    const flag = (key: string) =>
-      typeof params[key] === "boolean" ? params[key] : undefined;
-    const subscriptCase = params["subscript_case"];
     const presentation = document.presentation;
+    // A setting left out is the default; one Analog Canvas does not know
+    // leaves the import's own and is reported.
     const set = <K extends keyof typeof presentation>(
       key: K,
-      value: (typeof presentation)[K] | undefined,
+      param: string,
+      read: (value: unknown) => (typeof presentation)[K] | undefined,
     ) => {
-      if (value === undefined) delete presentation[key];
+      if (!(param in params)) {
+        delete presentation[key];
+        return;
+      }
+      const value = read(params[param]);
+      if (value === undefined)
+        warn(
+          "RNL_IMPORT_TYPESETTING_IGNORED",
+          `${param}=${JSON.stringify(params[param])} on ${document.netlist?.name ?? document.id} is not a typesetting Analog Canvas knows; the Cell keeps its own`,
+        );
       else presentation[key] = value;
     };
-    set(
-      "labelSubscriptCase",
-      subscriptCase === "preserve" ||
-        subscriptCase === "uppercase" ||
-        subscriptCase === "lowercase"
-        ? subscriptCase
+    const flag = (value: unknown) =>
+      typeof value === "boolean" ? value : undefined;
+    set("labelSubscriptCase", "subscript_case", (value) =>
+      value === "preserve" || value === "uppercase" || value === "lowercase"
+        ? value
         : undefined,
     );
-    set("labelSubscriptItalic", flag("subscript_italic"));
-    set("labelUnderscoreSubscript", flag("underscore_subscript"));
-    set("labelSubscriptAfterFirst", flag("subscript_after_first"));
-    set("labelFirstLetterItalic", flag("first_letter_italic"));
-    set("textFace", params["face"] === "serif" ? "serif" : undefined);
+    set("labelSubscriptItalic", "subscript_italic", flag);
+    set("labelUnderscoreSubscript", "underscore_subscript", flag);
+    set("labelSubscriptAfterFirst", "subscript_after_first", flag);
+    set("labelFirstLetterItalic", "first_letter_italic", flag);
+    set("textFace", "face", (value) =>
+      value === "serif" ? "serif" : undefined,
+    );
   };
 
   /**
@@ -1214,7 +1233,15 @@ function applyLevel(
       document.routes.push(route);
       drawn.push({
         route,
-        corners: places.map((place) => acPoint(place!)),
+        // One corner per end of a leg: the start, each bend, the end. A
+        // vertex the wire passes without a place of its own makes no leg, so
+        // a text never reaches for a leg the route does not have (#1792).
+        corners: places
+          .filter(
+            (_, at) =>
+              at === 0 || at === places.length - 1 || "at" in vertices[at]!,
+          )
+          .map((place) => acPoint(place!)),
       });
     });
   });

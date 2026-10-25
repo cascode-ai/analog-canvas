@@ -12,6 +12,7 @@ import { printSpectreBehavioralModel } from "./behavioral-model.js";
 import { switchBehavioralDefinition } from "./ideal-switch-model.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { printInstanceCard } from "./printed-card.js";
+import { spectreNumber } from "./parameter-projection.js";
 import { printedCouplingValue } from "./extract-coupling.js";
 import type {
   DesignNetlistLocations,
@@ -266,7 +267,10 @@ function spectreMagneticSubcircuit(
   return [
     `subckt ${subcircuit.name} (${subcircuit.ports.join(" ")})`,
     `parameters ${subcircuit.formalParameters
-      .map((parameter) => `${parameter.name}=${parameter.defaultValue}`)
+      .map(
+        (parameter) =>
+          `${parameter.name}=${spectreNumber(parameter.defaultValue)}`,
+      )
       .join(" ")}`,
     ...subcircuit.inductors.map(
       (inductor) =>
@@ -296,7 +300,10 @@ function spectreCell(
   if (cell.formalParameters?.length) {
     lines.push(
       `parameters ${cell.formalParameters
-        .map((parameter) => `${parameter.name}=${parameter.defaultValue!}`)
+        .map(
+          (parameter) =>
+            `${parameter.name}=${spectreNumber(parameter.defaultValue!)}`,
+        )
         .join(" ")}`,
     );
   }

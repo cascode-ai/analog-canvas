@@ -462,6 +462,42 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not know, and keeps the drawing", async () => {
+  const text = [
+    "* refused names",
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.2") }',
+    ".subckt nch d g s b",
+    "R1 d s 1k",
+    ".ends nch",
+    "XM1 d g 0 0 nch",
+    "XM2 d g 0 0 nch",
+    "R1 d 0 1k",
+    "V1 g 0 1",
+    `* @RNL { $CANVAS_NAME @ATTACH(name="X 9") #XM1; $CANVAS_NAME @ATTACH(name="${"X".repeat(129)}") #XM2; $CANVAS_TYPESETTING @ATTACH(face="comic", subscript_italic=false) #(level) }`,
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const parts = plan.project.documents.flatMap((d) => d.instances);
+  const card = (id: string) =>
+    parts.find((instance) => instance.id.toLowerCase() === id)?.reference;
+  expect(card("xm1")).toBe("XM1");
+  expect(card("xm2")).toBe("XM2");
+  expect(
+    plan.diagnostics.filter((item) => item.code === "RNL_IMPORT_NAME_REFUSED"),
+  ).toHaveLength(2);
+  // The known setting stands; the unknown face leaves the import's own.
+  const top = plan.project.documents.find((d) =>
+    d.instances.some((i) => i.id.toLowerCase() === "r1"),
+  )!;
+  expect(top.presentation.labelSubscriptItalic).toBe(false);
+  expect(top.presentation.textFace).toBeUndefined();
+  expect(plan.diagnostics.map((item) => item.code)).toContain(
+    "RNL_IMPORT_TYPESETTING_IGNORED",
+  );
+});
+
 it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
   // SPICE starts a subcircuit call's card with X: a part Analog Canvas
   // names otherwise prints as X and its name.

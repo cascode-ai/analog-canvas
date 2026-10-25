@@ -82,10 +82,11 @@ the RNL language and its runtime belong to rnl.
   as a gate Cell whose ports start with its supplies, is drawn with the same
   artwork defined in the file (`$CANVAS_CALL_…`), each pin on the position
   the call prints it at, so every wire reaches the terminal it was drawn to.
-  Import reads a call drawn so back as that library symbol, a gate's pins
-  meeting its Cell's Pins by name, only when the name, artwork and positional
-  pins are the ones the export writes; otherwise the call keeps the Cell's
-  block. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
+  Import reads a call of a project Cell drawn so (a Library gate, flip-flop
+  or Delay Cell) back as that library symbol, a gate's pins meeting its Cell's
+  Pins by name, only when the name, artwork and positional pins are the ones
+  the export writes; any other call keeps its block and warns
+  `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
   as a cubic, a straight one as a cubic with its controls on the leg.
 - Diamond appearances of VCVS, VCCS, CCVS and CCCS export as the standard
   `$VCVS`, `$VCCS`, `$CCVS` and `$CCCS` symbols. Default circle appearances
@@ -183,10 +184,12 @@ the RNL language and its runtime belong to rnl.
     `$CANVAS_NAME` (Canvas 0.2): `XM1` named `M1` is M1 again; a name that
     would give the part a Reference issue keeps the card's, with
     `RNL_IMPORT_NAME_TAKEN` (another part has it) or `RNL_IMPORT_NAME_REFUSED`
-    (the part as read takes names of another prefix);
+    (the part as read takes names of another prefix, or the name is not one
+    token of at most 128 characters);
   - a Cell's naming typography, from `$CANVAS_TYPESETTING` on its level: each
-    setting written, the default for each left out; a level without it keeps
-    the import's own;
+    setting written, the default for each left out, the import's own for a
+    value Analog Canvas does not know (`RNL_IMPORT_TYPESETTING_IGNORED`); a
+    level without it keeps the import's own;
   - each part's place, orientation and variant, through the mapping table;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
@@ -315,9 +318,9 @@ the RNL language and its runtime belong to rnl.
 - Reordered bodies keep every port-to-node connection and leave `SPICE` and
   `SCS` byte for byte (`packages/netlist/src/body-port-order.test.ts`).
 - The simulation examples export with no error, every part, glyph, wire, dot
-  and label written, and name no package; an op-amp names
-  `rnl-std-functional`, an appearance variant `analog-canvas-extensions`
-  (`packages/rnl/src/export-ops.test.ts`).
+  and label written, and name only `analog-canvas-extensions` beside
+  `rnl-std` (each Cell's `$CANVAS_TYPESETTING`); an op-amp also names
+  `rnl-std-functional` (`packages/rnl/src/export-ops.test.ts`).
 - Desktop and local hosts serve `.wasm` as `application/wasm` and allow
   WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`,
   `apps/local-host/src/local-host.test.ts`).

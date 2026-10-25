@@ -314,6 +314,7 @@ describe("design netlist printers", () => {
       ]),
       // SPICE reads M as milli, where Spectre reads it as mega.
       device("r3", "R3", "resistor", ["vin", "0"], null, [["value", "1M"]]),
+      device("r4", "R4", "resistor", ["vin", "0"], null, [["value", "1k"]]),
       device("m2", "M2", "mos", ["vin", "vin", "0", "0"], "nch", [
         ["w", "10mil"],
         ["l", "{2*scale}"],
@@ -336,6 +337,24 @@ describe("design netlist printers", () => {
     });
     expect(restorePrintedParameter("4.7M", "spectre-number")).toBe("4.7Meg");
     expect(restorePrintedParameter("1m", "spectre-number")).toBe("1m");
+    // A value Spectre prints unchanged edits back the same way, so an M
+    // typed into it is mega too.
+    expect(
+      locations.fields.find(
+        (item) => item.instanceId === "r4" && item.kind === "parameter",
+      ),
+    ).toMatchObject({ rawValue: "1k", conversion: "spectre-number" });
+  });
+
+  it("prints a Cell's parameter defaults as Spectre reads them, and leaves a micro sign alone", () => {
+    const ir = structuralIr();
+    ir.cells[0]!.formalParameters = [
+      { name: "cl", defaultValue: "100fF" },
+      { name: "rb", defaultValue: "1M" },
+      { name: "w", defaultValue: "1µ" },
+    ];
+    expect(printSpectreNetlist(ir)).toContain("parameters cl=100f rb=1m w=1µ");
+    expect(printSpiceNetlist(ir)).toContain("cl=100fF rb=1M w=1µ");
   });
 
   it("returns explicit browser file metadata", () => {
