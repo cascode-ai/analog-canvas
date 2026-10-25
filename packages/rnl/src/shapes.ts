@@ -11,7 +11,7 @@ type Point = { readonly x: number; readonly y: number };
  * the one drawn, not an approximation. Any other command (relative, H, V, S,
  * Q, A) gives null.
  */
-export function pathShapes(data: string): RnlShape[] | null {
+function pathShapes(data: string): RnlShape[] | null {
   const tokens = data.match(
     /[A-Za-z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/gu,
   );

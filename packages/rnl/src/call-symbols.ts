@@ -7,7 +7,7 @@ import type { RnlSymbol } from "./symbol-map.js";
 const DIRECTION = { east: 0, north: 90, west: 180, south: 270 } as const;
 
 /** The local symbols drawing a call in its own terminal order start so. */
-export const CALL_SYMBOL_PREFIX = "$CANVAS_CALL_";
+const CALL_SYMBOL_PREFIX = "$CANVAS_CALL_";
 
 /**
  * The symbol that draws `row`'s artwork on this call. RNL binds a pin to the
