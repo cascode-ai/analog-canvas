@@ -18,6 +18,9 @@
 import {
   BROWSER_TRAP_READS,
   blockNotice,
+  markMemberNotified,
+  memberBlockNotice,
+  unsentMemberNotices,
   ensureAccountBlockTables,
   isBlocked,
   listBlocks,
@@ -717,8 +720,8 @@ export class AuthDO {
    * A trap circuit read (`trapReadKind` in gallery-traps.ts): a program's
    * blocks the account at once, a browser's once it has read two different
    * traps within the day. Never the Owner's own tools, which may read in
-   * bulk. The Owner is told at once; the scheduled pass retries an unsent
-   * notice.
+   * bulk. The Owner and the member are told at once; the scheduled pass
+   * retries an unsent notice.
    */
   private async blockAccount(request: Request): Promise<Response> {
     const body = (await request.json().catch(() => null)) as
@@ -757,13 +760,25 @@ export class AuthDO {
     return noStoreJson({ blocked: true });
   }
 
-  /** Emails the Owner every block not yet told; returns how many were. */
+  /**
+   * Emails the Owner, and the member with replies going to the Owner, every
+   * block not yet told; returns how many emails went.
+   */
   private async sendBlockNotices(): Promise<number> {
     let sent = 0;
     for (const row of unsentNotices(this.sql)) {
       const { subject, text } = blockNotice(row);
       if (!(await this.sendEmail(SITE_USAGE_CONTACT, subject, text))) break;
       markNotified(this.sql, row.id, this.now().toISOString());
+      sent += 1;
+    }
+    for (const row of unsentMemberNotices(this.sql)) {
+      const { subject, text } = memberBlockNotice(row);
+      if (
+        !(await this.sendEmail(row.email!, subject, text, SITE_USAGE_CONTACT))
+      )
+        break;
+      markMemberNotified(this.sql, row.id, this.now().toISOString());
       sent += 1;
     }
     return sent;

@@ -68,7 +68,7 @@ restrictive CSP.
   blocks the member's account (AuthDO `account_blocks`, matched by account
   or email) when it comes from a program (no browser User-Agent, or a known
   automation one), or when a browser has read the circuits (`GET
-  /api/gallery/<id>`, not `summary=1`) of two different traps within 24 h.
+/api/gallery/<id>`, not `summary=1`) of two different traps within 24 h.
   A browser's previews and summaries never count: a page left open across a
   deploy shows trap tiles (2026-10-22). Every later `/api/gallery` request
   of the account is
@@ -76,8 +76,11 @@ restrictive CSP.
   display name, sign-in method, time, path, IP address, country, user agent
   and reason (`script` or `two-traps`), and outlives an unblock and the
   account. The Owner is emailed at
-  once (Resend, to the usage contact); the scheduled pass resends an unsent
-  notice. Owner only: `GET /api/auth/blocked` lists the records, and
+  once (Resend, to the usage contact), and so is the account's email, with
+  replies going to the usage contact: why, that a reply can report a mistake,
+  that the check is still being tested and that Cloud Projects are unaffected;
+  never how the check works. Blocks recorded before 2026-10-25 were not told
+  to their account. The scheduled pass resends an unsent notice. Owner only: `GET /api/auth/blocked` lists the records, and
   `POST /api/auth/blocked/unblock {userId}` (same origin) lifts a block;
   `POST /api/auth/blocked/apology {userId, subject, text}` then emails that
   account the Owner's words once per block (site sender, replies to the

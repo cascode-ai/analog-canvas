@@ -20,7 +20,12 @@ import { ensureAccountBlockTables } from "./account-blocks";
 
 /** Emails the AuthDO sends from now on: recipient, subject and text. */
 function outbox(env: Harness, ok = true) {
-  const sent: { to: string[]; subject: string; text: string }[] = [];
+  const sent: {
+    to: string[];
+    subject: string;
+    text: string;
+    reply_to?: string;
+  }[] = [];
   env.authDurable.fetchLike = (async (_input: unknown, init?: RequestInit) => {
     sent.push(JSON.parse(String(init?.body)));
     return ok
@@ -67,7 +72,7 @@ describe("trap circuits", () => {
     expect((await wall(env, {})).entries).toHaveLength(7);
   });
 
-  it("block the member who reads one, keep who it was and email the Owner", async () => {
+  it("block the member who reads one, keep who it was and email the Owner and the member", async () => {
     const env = environment();
     await sevenCircuits(env);
     const maker = await makerOf(env);
@@ -90,11 +95,20 @@ describe("trap circuits", () => {
     const { projectText } = (await read.json()) as { projectText: string };
     expect(parseProject(projectText).documents.length).toBeGreaterThan(0);
 
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
     expect(sent[0]!.to).toEqual(["zzhishuai@ethz.ch"]);
     expect(sent[0]!.subject).toContain("maker@example.com");
     expect(sent[0]!.text).toContain("198.51.100.23");
     expect(sent[0]!.text).toContain("python-requests/2.32");
+    // The member learns why, that a reply reaches the Owner, and that the
+    // check is still being tested; never how it works.
+    expect(sent[1]).toMatchObject({
+      to: ["maker@example.com"],
+      reply_to: "zzhishuai@ethz.ch",
+    });
+    expect(sent[1]!.text).toContain("reply to this email");
+    expect(sent[1]!.text).toContain("still being tested");
+    expect(sent[1]!.text).not.toContain(trap.id);
 
     // Every later Gallery request of the account is refused.
     const after = await wall(env, cookieHeaders(maker));
@@ -117,6 +131,7 @@ describe("trap circuits", () => {
         country: "NL",
         userAgent: "python-requests/2.32",
         notifiedAt: expect.any(String),
+        memberNotifiedAt: expect.any(String),
         unblockedAt: null,
         reason: "script",
       }),
@@ -191,7 +206,7 @@ describe("trap circuits", () => {
     // A second trap's circuit is no accident.
     await read("/api/gallery/s93tzkszt6");
     expect((await wall(env, browser)).status).toBe(403);
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
     expect(sent[0]!.text).toContain("2 个不同蜜罐");
   });
 
@@ -269,7 +284,7 @@ describe("trap circuits", () => {
     expect((await wall(env, cookieHeaders(admin))).status).toBe(200);
   });
 
-  it("send the Owner's notice again on the next tick when the first fails", async () => {
+  it("send the notices again on the next tick when the first try fails, never to blocks from before member notices", async () => {
     const env = environment();
     await sevenCircuits(env);
     const maker = await makerOf(env);
@@ -282,11 +297,29 @@ describe("trap circuits", () => {
       }),
     );
     expect((await wall(env, cookieHeaders(maker))).status).toBe(403);
+    // A block recorded before members were told (2026-10-25) stays untold.
+    env.authSql.exec(
+      `INSERT INTO account_blocks
+         (user_id, email, display_name, provider, blocked_at, entry_id, path,
+          notified_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      "github:earlier",
+      "earlier@example.com",
+      "Earlier",
+      "github",
+      "2026-10-22T00:40:00.000Z",
+      "trap",
+      "/api/gallery/trap",
+      "2026-10-22T00:40:01.000Z",
+    );
     const sent = outbox(env);
     const retried = await env.authDurable.fetch(
       new Request("https://auth/internal/block-notices", { method: "POST" }),
     );
-    expect(await retried.json()).toEqual({ sent: 1 });
-    expect(sent[0]!.subject).toContain("maker@example.com");
+    expect(await retried.json()).toEqual({ sent: 2 });
+    expect(sent.map((email) => email.to[0])).toEqual([
+      "zzhishuai@ethz.ch",
+      "maker@example.com",
+    ]);
   });
 });

@@ -4,7 +4,8 @@
 // different traps within a day, since a page left open across a deploy can
 // show one (2026-10-22). A block holds by the account and by its email, so a
 // new account on the same address stays blocked. Records outlive the
-// account and an unblock: they are the Owner's evidence
+// account and an unblock: they are the Owner's evidence. The Owner and the
+// member are both emailed
 // (docs/specs/community-gallery.md#crawlers-ai-and-floods).
 
 import type { SqlStorage } from "./gallery-store";
@@ -47,8 +48,10 @@ export type BlockReason = "script" | "two-traps";
 export function ensureAccountBlockTables(sql: SqlStorage): void {
   sql.exec(ACCOUNT_BLOCKS_TABLE);
   sql.exec(TRAP_READS_TABLE);
-  // Additive upgrades: blocks recorded before reasons and apologies existed.
-  for (const column of ["reason", "apologized_at"]) {
+  // Additive upgrades: blocks recorded before reasons, apologies and member
+  // notices existed. `member_notice` is "due" until the member is emailed,
+  // then the time; NULL for blocks from before 2026-10-25, never emailed.
+  for (const column of ["reason", "apologized_at", "member_notice"]) {
     try {
       sql.exec(`ALTER TABLE account_blocks ADD COLUMN ${column} TEXT`);
     } catch {
@@ -129,6 +132,7 @@ export interface AccountBlockRow {
   unblocked_at: string | null;
   reason: BlockReason | null;
   apologized_at: string | null;
+  member_notice: string | null;
 }
 
 export interface BlockEvidence {
@@ -178,8 +182,9 @@ export function recordBlock(
   if (isBlocked(sql, account.id, account.email)) return false;
   sql.exec(
     `INSERT INTO account_blocks(user_id, email, display_name, provider,
-       blocked_at, entry_id, path, ip, country, user_agent, reason)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       blocked_at, entry_id, path, ip, country, user_agent, reason,
+       member_notice)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     account.id,
     account.email,
     account.displayName,
@@ -191,6 +196,7 @@ export function recordBlock(
     evidence.country?.slice(0, 8) ?? null,
     evidence.userAgent?.slice(0, 512) ?? null,
     reason,
+    account.email ? "due" : null,
   );
   return true;
 }
@@ -205,6 +211,26 @@ export function unsentNotices(sql: SqlStorage): AccountBlockRow[] {
 
 export function markNotified(sql: SqlStorage, id: number, at: string): void {
   sql.exec("UPDATE account_blocks SET notified_at = ? WHERE id = ?", at, id);
+}
+
+/** Active blocks whose member has not yet been emailed. */
+export function unsentMemberNotices(sql: SqlStorage): AccountBlockRow[] {
+  return sql
+    .exec<AccountBlockRow>(
+      `SELECT * FROM account_blocks
+       WHERE member_notice = 'due' AND email IS NOT NULL
+         AND unblocked_at IS NULL
+       ORDER BY id`,
+    )
+    .toArray();
+}
+
+export function markMemberNotified(
+  sql: SqlStorage,
+  id: number,
+  at: string,
+): void {
+  sql.exec("UPDATE account_blocks SET member_notice = ? WHERE id = ?", at, id);
 }
 
 /** Every block, newest first, for the Owner. */
@@ -224,6 +250,8 @@ export function listBlocks(sql: SqlStorage) {
       country: row.country,
       userAgent: row.user_agent,
       notifiedAt: row.notified_at,
+      memberNotifiedAt:
+        row.member_notice === "due" ? null : (row.member_notice ?? null),
       unblockedAt: row.unblocked_at,
       reason: row.reason,
       apologizedAt: row.apologized_at,
@@ -274,6 +302,36 @@ export function blockNotice(row: AccountBlockRow): {
       "",
       "记录永久保存，可在 Owner 账号下查看：GET /api/auth/blocked",
       '误封可解封：POST /api/auth/blocked/unblock {"userId": "…"}',
+    ].join("\n"),
+  };
+}
+
+/**
+ * The member's email about their block: why, that a reply reaches the
+ * Owner if it was a mistake, and that the check is still being tested.
+ * Never how the check works.
+ */
+export function memberBlockNotice(row: AccountBlockRow): {
+  subject: string;
+  text: string;
+} {
+  return {
+    subject: "Your Analog Canvas Gallery access is paused",
+    text: [
+      "Dear user,",
+      "",
+      `Your Analog Canvas account (${row.email}) was blocked from the Gallery at ${row.blocked_at.slice(0, 16).replace("T", " ")} UTC, because it read Gallery circuits the way a bulk-collection program does.`,
+      "",
+      "Occasional manual use of single circuits is welcome. Bulk collection, scraping, mirroring or AI training without permission is not allowed.",
+      "",
+      "If you think this is a mistake, please reply to this email and tell me briefly what you were doing. I will check and restore your access.",
+      "",
+      "This check is still being tested. If it blocked you by mistake, I am sorry.",
+      "",
+      "Your Cloud Projects and the editor are not affected.",
+      "",
+      "Token Zhang",
+      "Analog Canvas",
     ].join("\n"),
   };
 }
