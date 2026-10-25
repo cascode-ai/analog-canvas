@@ -227,8 +227,13 @@ the RNL language and its runtime belong to rnl.
   not wire keeps its guide lines. A place or corner off Analog Canvas's grid
   (10 for a part, 2 for a corner) is moved onto it.
 - The imported Project's netlist is electrically equal to the plain SPICE /
-  SCS import of the same files; a drawing that would change it is left out,
-  and the circuit comes in undrawn with an error saying so.
+  SCS import of the same files, and the Project is one the editor can save.
+  A drawing that would change the netlist (`RNL_IMPORT_CHANGES_NETLIST`), or
+  that does not make a Project the editor can save, such as a wire joining
+  terminals the netlist keeps on different nets (`RNL_IMPORT_INVALID_DRAWING`),
+  is left out, and the circuit comes in undrawn with that error. An import
+  that cannot complete returns its finding (`RNL_IMPORT_FAILED`) rather than
+  failing outside the import report.
 - The imported Project replaces the active one with recovery source
   `spice-import`; findings list in the import report.
 
@@ -282,6 +287,10 @@ the RNL language and its runtime belong to rnl.
 - Each built-in block's body, in either dialect and in RNL's port order,
   imports as the block and exports again unchanged
   (`packages/netlist/src/built-in-bodies.test.ts`).
+- A drawing whose wire joins terminals the netlist keeps on different nets
+  comes in undrawn, as a Project that saves, with `RNL_IMPORT_INVALID_DRAWING`;
+  a runtime that fails gives a failed import with `RNL_IMPORT_FAILED`
+  (`apps/editor/src/features/netlist-export/rnl-import-safety.test.ts`).
 - In the built editor, the Netlist panel copies `SPICE+RNL` and `Spectre+RNL`
   as the runtime writes them in its Worker, and File → Import → `RNL…` brings
   the copied file back with every part where it was drawn and the same netlist;
