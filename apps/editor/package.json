@@ -32,7 +32,7 @@
     "@icm/rnl": "workspace:*",
     "@icm/spice": "workspace:*",
     "@icm/symbols": "workspace:*",
-    "@rich-netlist/runtime": "0.5.0",
+    "@rich-netlist/runtime": "0.5.1",
     "fflate": "0.8.3",
     "mathlive": "0.110.0",
     "react": "19.2.8",
