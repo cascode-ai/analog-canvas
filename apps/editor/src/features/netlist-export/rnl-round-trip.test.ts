@@ -462,6 +462,48 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "keeps the author's text of a SKY130 size the netlist prints in micrometres through %s+RNL",
+  async (format) => {
+    const project = example("five-transistor-ota-sky130");
+    const parts = project.documents.flatMap((d) => d.instances);
+    const m1 = parts.find((i) => i.id === "M1")!.netlist!.parameters;
+    m1.l = "0.15u";
+    m1.w = "0.5u";
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    // The netlist reads 0.15 and 0.5, which come back as 150n and 500n.
+    expect(written.text).toMatch(/\bl=0\.15\b/u);
+    expect(written.text).toContain(
+      '$CANVAS_PARAMETER_TEXT @ATTACH(name="l", text="0.15u") #XM1(part)',
+    );
+    // A size read back as written takes no text: 1u and 96u stay.
+    expect(written.text).not.toContain('text="96u"');
+    const plan = await importRnl(written.text, format);
+    expect(
+      plan.diagnostics.filter(
+        (item) => item.code === "RNL_IMPORT_PARAMETER_TEXT",
+      ),
+    ).toEqual([]);
+    const back = (id: string) =>
+      plan.project.documents
+        .flatMap((d) => d.instances)
+        .find((i) => i.reference === parts.find((p) => p.id === id)!.reference)
+        ?.netlist?.parameters;
+    expect(back("M1")).toMatchObject({ l: "0.15u", w: "0.5u" });
+    expect(back("M2")).toMatchObject({ l: "1u", w: "96u" });
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not know, and keeps the drawing", async () => {
   const text = [
     "* refused names",

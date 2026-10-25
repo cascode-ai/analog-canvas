@@ -136,10 +136,12 @@ the RNL language and its runtime belong to rnl.
   on each bound label what it shows (`$CANVAS_LABEL`: the part's name, its
   value, one parameter with or without its value, a Cell Pin's name or a
   net's); a bound net label is named for it to hang on. A label that holds
-  its own text says nothing. A Spectre file also gives, on a part, the
-  author's text of each value Spectre writes otherwise
-  (`$CANVAS_PARAMETER_TEXT`, `100fF` where it reads `100f`), named as the
-  card names it (`c`, `val1`); a source's fields only for its waveform.
+  its own text says nothing. A file also gives, on a part, the author's text
+  of each value the netlist writes otherwise (`$CANVAS_PARAMETER_TEXT`),
+  named as the card names it: in either dialect a SKY130 size it prints in
+  micrometres and reads back otherwise (`0.15u` where it reads `0.15`, back
+  as `150n`); in Spectre each number Spectre spells otherwise (`100fF` where
+  it reads `100f`, as `c`, `val1`), a source's fields only for its waveform.
 - A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
   a `$CURRENT_ARROW` mark with its label hung on it, and a voltage marker its
   label with + and − beside it, all where the editor draws them. A floating
@@ -233,9 +235,10 @@ the RNL language and its runtime belong to rnl.
   - a bound label keeps the drawn styles as its format only where they
     differ from what the binding shows anyway;
   - a value's text the author wrote (`$CANVAS_PARAMETER_TEXT`) where it is
-    the number the part has, written as Spectre writes it; it belongs to the
-    part, so it stands whether the drawing comes in or not, and another
-    text leaves the netlist's with `RNL_IMPORT_PARAMETER_TEXT`;
+    the number the part has, written as Spectre writes it, or the same size
+    in micrometres; it belongs to the part, so it stands whether the drawing
+    comes in or not, and another text leaves the netlist's with
+    `RNL_IMPORT_PARAMETER_TEXT`;
   - a label as it was drawn: a part's name that is not its reference (M1 on
     the card XM1) is the label's own text; a net label stands on the Cell
     Pin it names when it is within four grid steps of one, else on the wire

@@ -11,6 +11,7 @@ import {
   createReferenceIndex,
   deviceDescriptor,
   matchGateCellPins,
+  projectLengthToSky130Micrometres,
 } from "@icm/devices";
 import { spectreNumber } from "@icm/netlist";
 import {
@@ -861,7 +862,9 @@ function applyLevel(
    * The text the author wrote for a parameter the netlist writes otherwise
    * (`$CANVAS_PARAMETER_TEXT`), named as the netlist names it: a resistor's,
    * capacitor's or inductor's value is its r, c or l. It stands only where
-   * it is the number the part has, written as Spectre writes it.
+   * it is the number the part has, written as Spectre writes it, or the
+   * same size: a SKY130 size prints in micrometres, 0.15 for 0.15u, and
+   * reads back as 150n.
    */
   const textAgain = (object: RnlObjectView) => {
     const part = object.attach?.["part"];
@@ -891,7 +894,11 @@ function applyLevel(
             (item) => item.toLowerCase() === candidate.toLowerCase(),
           ) ?? [],
       )
-      .find((item) => spectreNumber(parameters[item]!) === spectreNumber(text));
+      .find(
+        (item) =>
+          spectreNumber(parameters[item]!) === spectreNumber(text) ||
+          sameSize(parameters[item]!, text),
+      );
     if (key)
       parameterTexts.push({
         documentId: document.id,
@@ -2810,6 +2817,18 @@ function quadraticPath(points: readonly { x: number; y: number }[]): {
     );
   }
   return { points: ends, controls };
+}
+
+/** Whether two lengths are the same number of micrometres. */
+function sameSize(left: string, right: string): boolean {
+  try {
+    return (
+      projectLengthToSky130Micrometres(left) ===
+      projectLengthToSky130Micrometres(right)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** Whether every run of a text is bold, as a drawing text is by default. */
