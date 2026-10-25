@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest";
+import type { DesignNetlistInstance } from "@icm/netlist";
+
+import { symbolForCall } from "./call-symbols.js";
+import { inlineRnlDefinition } from "./inline-symbols.js";
+import { rnlSymbolFor } from "./symbol-map.js";
+
+const call = (
+  nodes: { pinName: string; canvasPinName?: string }[],
+): DesignNetlistInstance =>
+  ({
+    id: "xi0",
+    reference: "XI0",
+    invocationKind: "subcircuit",
+    target: "div2_inv",
+    nodes: nodes.map((node) => ({ ...node, netName: node.pinName })),
+  }) as unknown as DesignNetlistInstance;
+
+describe("library artwork on a call", () => {
+  const inverter = rnlSymbolFor("inverter")!;
+
+  it("keeps the library symbol where the call prints each pin at its terminal", () => {
+    expect(
+      symbolForCall(
+        inverter,
+        call([
+          { pinName: "a", canvasPinName: "A" },
+          { pinName: "y", canvasPinName: "Y" },
+        ]),
+      ),
+    ).toBe(inverter);
+  });
+
+  it("defines the artwork with each pin on the position a supplies-first Cell prints it at", () => {
+    const ordered = symbolForCall(
+      inverter,
+      call([
+        { pinName: "VDD" },
+        { pinName: "VSS" },
+        { pinName: "a", canvasPinName: "A" },
+        { pinName: "y", canvasPinName: "Y" },
+      ]),
+    );
+    expect(ordered.symbol).toBe("$CANVAS_CALL_INVERTER__0_0_1_2");
+    expect(ordered.inline).toBe(true);
+    expect(
+      Object.fromEntries(ordered.pins.map((pin) => [pin.acPin, pin.terminal])),
+    ).toEqual({ A: 3, Y: 4 });
+    // The supplies have no pin: RNL draws nothing for them.
+    expect(ordered.terminals.filter((terminal) => terminal.drawn)).toEqual([
+      { n: 3, name: "a", drawn: true },
+      { n: 4, name: "y", drawn: true },
+    ]);
+    const definition = inlineRnlDefinition(ordered);
+    expect(definition.pins.map((pin) => pin.terminals)).toEqual([[3], [4]]);
+    expect(definition.prims.length).toBeGreaterThan(0);
+  });
+
+  it("leaves the library symbol when the call does not print one of its pins", () => {
+    expect(symbolForCall(inverter, call([{ pinName: "a" }]))).toBe(inverter);
+  });
+
+  it("draws a curved gate body exactly", () => {
+    const nand = rnlSymbolFor("nand-gate")!;
+    const ordered = symbolForCall(
+      nand,
+      call([
+        { pinName: "VDD" },
+        { pinName: "VSS" },
+        ...nand.pins.map((pin) => ({
+          pinName: pin.acPin.toLowerCase(),
+          canvasPinName: pin.acPin,
+        })),
+      ]),
+    );
+    expect(ordered).not.toBe(nand);
+    expect(
+      inlineRnlDefinition(ordered).prims.some(
+        (primitive) => primitive.shape === "bezier",
+      ),
+    ).toBe(true);
+  });
+});

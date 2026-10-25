@@ -73,6 +73,13 @@ the RNL language and its runtime belong to rnl.
   standard 4-input gates put their inputs on whole grid points, Analog
   Canvas's 0.8 apart, so its own (`$CANVAS_AND_4INPUT` and the rest) keep
   each wire as drawn.
+- RNL binds a symbol's pin to the terminal at that position of the instance
+  line. A subcircuit call that prints a library symbol's pins elsewhere, such
+  as a gate Cell whose ports start with its supplies, is drawn with the same
+  artwork defined in the file (`$CANVAS_CALL_…`), each pin on the position
+  the call prints it at, so every wire reaches the terminal it was drawn to.
+  Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
+  as a cubic, a straight one as a cubic with its controls on the leg.
 - Diamond appearances of VCVS, VCCS, CCVS and CCCS export as the standard
   `$VCVS`, `$VCCS`, `$CCVS` and `$CCCS` symbols. Default circle appearances
   export as `$CANVAS_*_CIRCLE` from `analog-canvas-extensions`. Both preserve

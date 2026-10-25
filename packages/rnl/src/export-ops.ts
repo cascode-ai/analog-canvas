@@ -49,7 +49,8 @@ import {
 } from "./place.js";
 import { rnlName } from "./rnl-name.js";
 import type { RnlShape } from "./shapes.js";
-import { rnlSymbolFor, terminalOfPin } from "./symbol-map.js";
+import { rnlSymbolFor, terminalOfPin, type RnlSymbol } from "./symbol-map.js";
+import { symbolForCall } from "./call-symbols.js";
 import { inlineRnlDefinition } from "./inline-symbols.js";
 import { plainLines, rnlTextLines, type RnlRun } from "./text.js";
 
@@ -195,6 +196,7 @@ export function rnlExportOps(
   const packages = new Set<string>();
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const blocks = blockSymbols(project, ir, resolver, format);
+  const callSymbols = new Map<string, RnlSymbol>();
   const top = ir.cells.find((cell) => cell.id === ir.topCellId);
   for (const cell of ir.cells) {
     if (cell.origin === "generated-model") continue;
@@ -209,6 +211,7 @@ export function rnlExportOps(
       packages,
       resolver,
       blocks,
+      callSymbols,
     });
   }
   const header: RnlOp[] = [
@@ -242,7 +245,7 @@ export function rnlExportOps(
         return row?.inline ? [[row.symbol, row] as const] : [];
       }),
   );
-  for (const row of inline.values())
+  for (const row of [...inline.values(), ...callSymbols.values()])
     fileSymbols.push({
       level: "file",
       op: "define-symbol",
@@ -261,6 +264,8 @@ interface ExportContext {
   resolver: ReturnType<typeof createProjectSymbolResolver>;
   /** The symbols written for blocks: a Cell's by its Document, an external one's by definition. */
   blocks: ReturnType<typeof blockSymbols>;
+  /** Library artwork defined for calls that print its pins in another order, by name. */
+  callSymbols: Map<string, RnlSymbol>;
 }
 
 function exportCell(
@@ -419,6 +424,16 @@ function exportCell(
           [instance.id],
         );
         symbol = whole;
+      }
+    }
+    const call = cell.instances.find(
+      (candidate) => candidate.id === instance.id,
+    );
+    if (symbol && call?.invocationKind === "subcircuit") {
+      const ordered = symbolForCall(symbol, call);
+      if (ordered !== symbol) {
+        context.callSymbols.set(ordered.symbol, ordered);
+        symbol = ordered;
       }
     }
     if (!instance.placement) {
