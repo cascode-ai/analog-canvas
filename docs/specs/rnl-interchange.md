@@ -78,7 +78,10 @@ the RNL language and its runtime belong to rnl.
   as a gate Cell whose ports start with its supplies, is drawn with the same
   artwork defined in the file (`$CANVAS_CALL_…`), each pin on the position
   the call prints it at, so every wire reaches the terminal it was drawn to.
-  Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
+  Import reads a call drawn so back as that library symbol, a gate's pins
+  meeting its Cell's Pins by name, only when the name, artwork and positional
+  pins are the ones the export writes; otherwise the call keeps the Cell's
+  block. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
   as a cubic, a straight one as a cubic with its controls on the leg.
 - Diamond appearances of VCVS, VCCS, CCVS and CCCS export as the standard
   `$VCVS`, `$VCCS`, `$CCVS` and `$CCCS` symbols. Default circle appearances
