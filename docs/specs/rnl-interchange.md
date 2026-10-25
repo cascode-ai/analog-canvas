@@ -207,7 +207,10 @@ the RNL language and its runtime belong to rnl.
     symbol, which the netlist does not read;
   - the ground pin the export adds (`VSS`, or `GND`, `GND__n`, drawn as
     ground rather than as a port) is ground again, and its callers stop
-    passing a node to it, as before the export;
+    passing a node to it, as before the export; so is one a Cell drawing no
+    ground prints because a Cell it calls, or a switch it draws, meets
+    ground: undrawn and alone on its net, it goes where the Cell would print
+    it again under the same name (#1787);
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a point one route; a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, any other line style or

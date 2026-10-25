@@ -12,7 +12,7 @@ import {
   deviceDescriptor,
   matchGateCellPins,
 } from "@icm/devices";
-import { spectreNumber } from "@icm/netlist";
+import { addsGroundPin, groundPinName, spectreNumber } from "@icm/netlist";
 import {
   deriveStableId,
   flattenRichText,
@@ -413,6 +413,7 @@ export function applyRnlSnapshot(
       });
   }
   const next = structuredClone(project);
+  const undrawnPins = new Set<string>();
   for (const level of snapshot.levels) {
     if (!level.model) continue;
     const document = documentOf(next, level);
@@ -433,8 +434,10 @@ export function applyRnlSnapshot(
       diagnostics,
       hiddenLabels,
       parameterTexts,
+      undrawnPins,
     );
   }
+  removeAddedGroundPins(next, undrawnPins);
   return { project: next, diagnostics, hiddenLabels, parameterTexts };
 }
 
@@ -470,6 +473,8 @@ function applyLevel(
   diagnostics: RnlImportDiagnostic[],
   hiddenLabels: RnlHiddenLabels[],
   parameterTexts: RnlParameterText[],
+  /** The Cell Pins the drawing does not place, gathered across levels. */
+  undrawnPins: Set<string>,
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -1522,6 +1527,9 @@ function applyLevel(
     netOf,
     legNear,
   });
+  for (const terminal of document.netlist?.terminals ?? [])
+    for (const id of terminal.interfaceInstanceIds)
+      if (!movedPins.has(id)) undrawnPins.add(id);
   // A Cell Pin the drawing places but gives no name of its own keeps the
   // editor's default name label hidden, as a part's labels are; a net label
   // beside it may be what shows the name.
@@ -2822,6 +2830,69 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
  * Undo a ground pin Analog Canvas added to a Cell: the importer's port and
  * its Cell Pin go, and each call stops passing a node to it.
  */
+/**
+ * The ground pins Analog Canvas adds to a Cell that meets ground only
+ * through the Cells it calls, or through a drawn switch: the drawing shows
+ * no ground there, so the pin is undrawn and alone on its net once its
+ * children's ground pins are gone (#1787). The Cell prints the same pin
+ * again without it, so it goes, as a pin on drawn ground does, and then a
+ * caller's pin it left alone in turn. A pin the Cell would print under
+ * another name, or not at all, is the author's and stays.
+ */
+function removeAddedGroundPins(
+  project: CircuitProject,
+  undrawnPins: ReadonlySet<string>,
+): void {
+  for (let removed = true; removed;) {
+    removed = false;
+    for (const document of project.documents)
+      for (const terminal of [...(document.netlist?.terminals ?? [])]) {
+        const pins = new Set(terminal.interfaceInstanceIds);
+        if (
+          !/^(?:VSS|GND(?:__\d+)?)$/iu.test(terminal.name) ||
+          !pins.size ||
+          [...pins].some((id) => !undrawnPins.has(id)) ||
+          document.nets
+            .find((net) => net.id === terminal.netId)
+            ?.terminals.some((item) => !pins.has(item.instanceId)) ||
+          document.annotations.some(
+            (item) => "netId" in item && item.netId === terminal.netId,
+          ) ||
+          document.netlist!.terminals.some(
+            (item) => item !== terminal && item.netId === terminal.netId,
+          )
+        )
+          continue;
+        const without = structuredClone(document);
+        without.instances = without.instances.filter(
+          (instance) => !pins.has(instance.id),
+        );
+        without.nets = without.nets.filter((net) => net.id !== terminal.netId);
+        without.connectivityEvidence = without.connectivityEvidence.filter(
+          (evidence) => evidence.netId !== terminal.netId,
+        );
+        without.netlist!.terminals = without.netlist!.terminals.filter(
+          (item) => item.id !== terminal.id,
+        );
+        const documentsById = new Map(
+          project.documents.map((item) => [
+            item.id,
+            item === document ? without : item,
+          ]),
+        );
+        if (
+          !addsGroundPin(without, documentsById) ||
+          groundPinName(without).name !== terminal.name
+        )
+          continue;
+        removeGroundPin(project, document, terminal);
+        document.nets = without.nets;
+        document.connectivityEvidence = without.connectivityEvidence;
+        removed = true;
+      }
+  }
+}
+
 function removeGroundPin(
   project: CircuitProject,
   document: SchematicDocument,

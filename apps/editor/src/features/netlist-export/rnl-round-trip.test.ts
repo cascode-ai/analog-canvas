@@ -1834,6 +1834,48 @@ describe("RNL round trip of switches", () => {
       }
     },
   );
+
+  it.each(["spice", "spectre"] as const)(
+    "takes no Cell Pin for the ground pin a Cell drawing no ground prints (%s)",
+    async (format) => {
+      // The switches read their control against ground, so the Cell prints
+      // a VSS pin its drawing never shows (#1787).
+      const project = switches();
+      const document = project.documents[0]!;
+      document.instances = document.instances.filter(
+        (instance) => instance.id !== "GND1",
+      );
+      document.nets = document.nets.filter((net) => net.id !== "gnd");
+      document.nets
+        .find((net) => net.id === "d")!
+        .terminals.push({ instanceId: "C1", pinName: "2" });
+      document.connectivityEvidence = [];
+      const exported = createRnlExport(project, { format });
+      expect(exported.status === "ready" && exported.request.netlist).toMatch(
+        format === "spice" ? /\.subckt dut VSS / : /subckt dut \(?VSS /,
+      );
+      const plan = await roundTrip(project, format);
+      expect(failures(plan)).toEqual([]);
+      const pins = (from: CircuitProject) =>
+        from.documents
+          .flatMap((cell) => cell.netlist?.terminals ?? [])
+          .map((terminal) => terminal.name)
+          .sort();
+      // The same Pins as the Cell drawing its ground takes back, VSS not
+      // among them.
+      const grounded = await roundTrip(switches(), format);
+      expect(pins(plan.project)).toEqual(pins(grounded.project));
+      expect(pins(plan.project)).not.toContain("VSS");
+      for (const spice of [false, true]) {
+        const options = { format: spice ? "spice" : format } as const;
+        const before = createDesignNetlistExport(project, options);
+        const after = createDesignNetlistExport(plan.project, options);
+        expect(after.status === "ready" && after.file.text).toBe(
+          before.status === "ready" && before.file.text,
+        );
+      }
+    },
+  );
 });
 
 const GATES_4 = ["and", "nand", "or", "nor", "xor", "xnor"] as const;
