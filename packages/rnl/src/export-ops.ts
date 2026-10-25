@@ -17,15 +17,19 @@ import {
   type AnnotationPresentation,
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
-import type {
-  Annotation,
-  CircuitProject,
-  Instance,
-  RouteEndpoint,
-  SchematicDocument,
-  StableId,
+import {
+  labelTypography,
+  type Annotation,
+  type CircuitProject,
+  type Instance,
+  type RouteEndpoint,
+  type SchematicDocument,
+  type StableId,
 } from "@icm/model";
 import {
+  normalizeIndependentSource,
+  printedParameterConversion,
+  spectreNumber,
   withNetlistPowerMarkerClaims,
   type DesignNetlistCell,
   type DesignNetlistIR,
@@ -80,9 +84,12 @@ export type RnlOp = { level: string } & (
     }
   | {
       op: "add-usage";
-      name: string;
+      /** Absent for a usage nothing refers to, such as one of meaning only. */
+      name?: string;
       definition: string;
       attach: Record<string, string | RnlPoint>;
+      /** Written `@ATTACH(k=v, …)`, in the order given. */
+      params?: Record<string, string | number | boolean>;
       symbol?: string;
       at?: RnlPoint;
       orient?: RnlOrient;
@@ -266,6 +273,144 @@ interface ExportContext {
   blocks: ReturnType<typeof blockSymbols>;
 }
 
+/**
+ * A Document's naming typography as `$CANVAS_TYPESETTING` writes it: each
+ * setting other than Analog Canvas's default, which one left out stands for.
+ */
+function canvasTypesetting(
+  presentation: SchematicDocument["presentation"],
+): Record<string, string | boolean> {
+  const own = labelTypography(presentation);
+  const usual = labelTypography({} as SchematicDocument["presentation"]);
+  return Object.fromEntries(
+    Object.entries({
+      subscript_case: [own.subscriptCase, usual.subscriptCase],
+      subscript_italic: [own.subscriptItalic, usual.subscriptItalic],
+      underscore_subscript: [
+        own.underscoreSubscript,
+        usual.underscoreSubscript,
+      ],
+      subscript_after_first: [
+        own.subscriptAfterFirst,
+        usual.subscriptAfterFirst,
+      ],
+      first_letter_italic: [own.firstLetterItalic, usual.firstLetterItalic],
+      face: [presentation.textFace, undefined],
+    }).flatMap(([key, [value, otherwise]]) =>
+      value !== undefined && value !== otherwise ? [[key, value]] : [],
+    ),
+  );
+}
+
+/**
+ * What a bound label shows, as `$CANVAS_LABEL` says it: the part's name, its
+ * value or one parameter (shown without its value, or with it), a Cell Pin's
+ * name or a net's. Null for a label that holds its own text.
+ */
+function canvasLabel(
+  binding: Annotation["binding"],
+): Record<string, string | boolean> | null {
+  if (!binding) return null;
+  switch (binding.kind) {
+    case "instance-reference":
+      return { bind: "name" };
+    case "instance-value":
+      return binding.parameter
+        ? {
+            bind: "parameter",
+            parameter: binding.parameter,
+            ...(binding.showValue === false ? { show_value: false } : {}),
+          }
+        : { bind: "value" };
+    case "cell-terminal-name":
+      return { bind: "port" };
+    case "net-name":
+      return { bind: "net" };
+  }
+}
+
+/** A source's fields as Spectre names them, where it names them otherwise. */
+const SPECTRE_SOURCE_NAMES: Readonly<Record<string, string>> = {
+  low: "val0",
+  high: "val1",
+  offset: "dc",
+  amplitude: "ampl",
+  frequency: "freq",
+  damping: "damp",
+  phase: "sinephase",
+  acmagnitude: "mag",
+  acphase: "phase",
+};
+
+/** The fields a source's Spectre card writes, by its waveform. */
+const SPECTRE_SOURCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  dc: ["dc"],
+  pulse: ["low", "high", "delay", "rise", "fall", "width", "period", "dc"],
+  sin: ["offset", "amplitude", "frequency", "delay", "damping", "phase"],
+  pwl: ["dc"],
+};
+
+/**
+ * The parameters of a part the Spectre netlist writes as other text than the
+ * author's, by the name the netlist gives each: a resistor's, capacitor's or
+ * inductor's value is its r, c or l, and a source's fields are named as its
+ * card names them, those of its waveform only. A source kept as SPICE wrote
+ * it, its waveform in its text, has no fields of its own.
+ */
+function authoredTexts(
+  cell: DesignNetlistCell,
+  instanceId: StableId,
+): { name: string; text: string }[] {
+  const printed = cell.instances.find((item) => item.id === instanceId);
+  if (!printed) return [];
+  const source =
+    printed.deviceClass === "voltage-source" ||
+    printed.deviceClass === "current-source";
+  if (
+    source &&
+    printed.parameters.some(
+      (p) =>
+        p.name.toLowerCase() === "dc" &&
+        /(?:AC|PULSE|SIN|PWL)/iu.test(p.rawValue),
+    )
+  )
+    return [];
+  const waveform = source
+    ? normalizeIndependentSource(printed.parameters).transient.kind
+    : null;
+  const fields = waveform
+    ? new Set([
+        ...(SPECTRE_SOURCE_FIELDS[waveform] ?? []),
+        "acmagnitude",
+        "acphase",
+      ])
+    : null;
+  const letter = { resistor: "r", capacitor: "c", inductor: "l" }[
+    printed.deviceClass as string
+  ];
+  return printed.parameters.flatMap(({ name, rawValue }) => {
+    const folded = name.toLowerCase();
+    if (
+      spectreNumber(rawValue) === rawValue ||
+      printedParameterConversion(printed, name) !== "identity" ||
+      folded === "waveform" ||
+      (fields &&
+        !fields.has(folded) &&
+        (Object.hasOwn(SPECTRE_SOURCE_NAMES, folded) ||
+          Object.values(SPECTRE_SOURCE_FIELDS).some((list) =>
+            list.includes(folded),
+          )))
+    )
+      return [];
+    const written = source
+      ? (SPECTRE_SOURCE_NAMES[folded] ?? name)
+      : letter && name === "value"
+        ? letter
+        : name;
+    return [{ name: written, text: rawValue }];
+  });
+}
+
 function exportCell(
   document: SchematicDocument,
   cell: DesignNetlistCell,
@@ -281,6 +426,17 @@ function exportCell(
       { level, op: "define-symbol", ...own },
       { level, op: "set", object: "#", symbol: own.name },
     );
+  // How the Cell sets names in its labels, each setting other than Analog
+  // Canvas's default, none included, so the import knows the Cell keeps
+  // the default: in its own record, which reaches no other Cell.
+  packages.add(AC_PACKAGE);
+  ops.push({
+    level,
+    op: "add-usage",
+    definition: "$CANVAS_TYPESETTING",
+    attach: { level: "#" },
+    params: canvasTypesetting(document.presentation),
+  });
   const report = (
     severity: RnlExportDiagnostic["severity"],
     code: string,
@@ -519,6 +675,31 @@ function exportCell(
           : {}),
       ...where,
     });
+    // The part's own name, where the netlist spells it otherwise: SPICE
+    // starts a subcircuit call's card with X, so M1 prints as XM1.
+    if (instance.reference && instance.reference !== reference) {
+      packages.add(AC_PACKAGE);
+      ops.push({
+        level,
+        op: "add-usage",
+        definition: "$CANVAS_NAME",
+        attach: { part: object },
+        params: { name: instance.reference },
+      });
+    }
+    // The author's text of each value the netlist writes otherwise: Spectre
+    // reads 100f where the author wrote 100fF.
+    if (context.format === "spectre")
+      for (const { name, text } of authoredTexts(cell, instance.id)) {
+        packages.add(AC_PACKAGE);
+        ops.push({
+          level,
+          op: "add-usage",
+          definition: "$CANVAS_PARAMETER_TEXT",
+          attach: { part: object },
+          params: { name, text },
+        });
+      }
   }
 
   // A Cell Pin drawn as ground or supply, or not drawn at all, gets no port
@@ -848,6 +1029,23 @@ function exportTexts(
   const formulas: StableId[] = [];
   const tilted: StableId[] = [];
   const drawings: StableId[] = [];
+  // Each bound label says what it shows, so the import binds it again; a
+  // label without one holds its own text. Two labels of one part with the
+  // same key are one text to RNL, so only the first says it.
+  const said = new Set<string>();
+  const bindLabel = (label: string, binding: Annotation["binding"]) => {
+    const params = canvasLabel(binding);
+    if (!params || said.has(label)) return;
+    said.add(label);
+    context.packages.add(AC_PACKAGE);
+    ops.push({
+      level,
+      op: "add-usage",
+      definition: "$CANVAS_LABEL",
+      attach: { label },
+      params,
+    });
+  };
   const write = (
     id: StableId,
     text: Parameters<typeof rnlTextLines>[0],
@@ -970,23 +1168,25 @@ function exportTexts(
       (annotation.kind === "instance-label" ||
         annotation.kind === "instance-value")
     ) {
+      const key =
+        binding?.kind === "instance-value" && binding.parameter
+          ? binding.parameter
+          : annotation.kind === "instance-label"
+            ? "name"
+            : "value";
       write(annotation.id, text, shown.rotation, {
         ...common,
         // A key's text takes what the scene leaves unsaid from the symbol's
         // own label (13.3); Analog Canvas's labels stand on their baseline.
         valign: "baseline",
         attach: owner.object,
-        key:
-          binding?.kind === "instance-value" && binding.parameter
-            ? binding.parameter
-            : annotation.kind === "instance-label"
-              ? "name"
-              : "value",
+        key,
         offset: [
           Math.round((anchor[0] - owner.at[0]) * 1e6) / 1e6 + 0,
           Math.round((anchor[1] - owner.at[1]) * 1e6) / 1e6 + 0,
         ],
       });
+      bindLabel(`${owner.object}::${key}`, binding);
       continue;
     }
     const netId =
@@ -996,16 +1196,21 @@ function exportTexts(
       netId
         ? netOf(netId)
         : undefined;
+    // A power label is named for what it is, which RNL has no kind for: the
+    // import makes it one again. A bound net label is named to say so.
+    const name =
+      annotation.kind === "power-label" && net
+        ? nextName("power")
+        : net && canvasLabel(binding)
+          ? nextName("label")
+          : undefined;
     write(annotation.id, text, shown.rotation, {
       ...common,
       ...(net ? { attach: rnlName("&", net) } : {}),
-      // A power label is named for what it is, which RNL has no kind for:
-      // the import makes it one again.
-      ...(annotation.kind === "power-label" && net
-        ? { name: nextName("power") }
-        : {}),
+      ...(name ? { name } : {}),
       at: anchor,
     });
+    if (name) bindLabel(name, binding);
   }
 
   // Drawing objects, in the order Analog Canvas stacks them.

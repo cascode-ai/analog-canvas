@@ -11,6 +11,7 @@ import {
   printSpiceNetlist,
   printSpiceWithLocations,
 } from "./printers.js";
+import { restorePrintedParameter } from "./parameter-projection.js";
 
 function device(
   id: string,
@@ -304,6 +305,39 @@ describe("design netlist printers", () => {
     expect(text).not.toMatch(/^\s*(?:include|section|save|tran|ac|dc)\b/imu);
   });
 
+  it("prints each number as Spectre reads it, and edits it back as written", () => {
+    const ir = structuralIr();
+    ir.cells[1]!.instances.push(
+      device("c2", "C2", "capacitor", ["vin", "0"], null, [["value", "100fF"]]),
+      device("r2", "R2", "resistor", ["vin", "0"], null, [
+        ["value", "2.2MegΩ"],
+      ]),
+      // SPICE reads M as milli, where Spectre reads it as mega.
+      device("r3", "R3", "resistor", ["vin", "0"], null, [["value", "1M"]]),
+      device("m2", "M2", "mos", ["vin", "vin", "0", "0"], "nch", [
+        ["w", "10mil"],
+        ["l", "{2*scale}"],
+      ]),
+    );
+    const spectre = printSpectreNetlist(ir);
+    expect(spectre).toContain("C2 (vin 0) capacitor c=100f");
+    expect(spectre).toContain("R2 (vin 0) resistor r=2.2M");
+    expect(spectre).toContain("R3 (vin 0) resistor r=1m");
+    expect(spectre).toContain("M2 (vin vin 0 0) nch w=0.000254 l={2*scale}");
+    // SPICE keeps the text as written.
+    expect(printSpiceNetlist(ir)).toContain("C2 vin 0 100fF");
+    const { locations } = printDesignNetlistWithLocations("spectre", ir);
+    const field = locations.fields.find(
+      (item) => item.instanceId === "r2" && item.kind === "parameter",
+    );
+    expect(field).toMatchObject({
+      rawValue: "2.2M",
+      conversion: "spectre-number",
+    });
+    expect(restorePrintedParameter("4.7M", "spectre-number")).toBe("4.7Meg");
+    expect(restorePrintedParameter("1m", "spectre-number")).toBe("1m");
+  });
+
   it("returns explicit browser file metadata", () => {
     expect(printDesignNetlist("spice", structuralIr())).toMatchObject({
       extension: ".spi",
@@ -336,7 +370,7 @@ describe("design netlist printers", () => {
       "VCLOCK vin 0 PULSE(0 1 1ns 1ps 1ps 5ns 10ns)",
     );
     expect(printSpectreNetlist(ir)).toContain(
-      "VCLOCK (vin 0) vsource type=pulse val0=0 val1=1 delay=1ns rise=1ps fall=1ps width=5ns period=10ns",
+      "VCLOCK (vin 0) vsource type=pulse val0=0 val1=1 delay=1n rise=1p fall=1p width=5n period=10n",
     );
     expect(printSpiceNetlist(ir)).not.toContain("dutyCycle=");
     expect(printSpectreNetlist(ir)).not.toContain("initial=");
@@ -397,16 +431,16 @@ describe("design netlist printers", () => {
 
     const spectre = printSpectreNetlist(ir);
     expect(spectre).toContain(
-      "VP (vin 0) vsource type=pulse val0=0 val1=1.8 delay=1ns rise=2ps fall=3ps width=4ns period=8ns dc=0 mag=1 phase=0",
+      "VP (vin 0) vsource type=pulse val0=0 val1=1.8 delay=1n rise=2p fall=3p width=4n period=8n dc=0 mag=1 phase=0",
     );
     expect(spectre).toContain(
-      "IP (vout 0) isource type=pulse val0=0 val1=10u delay=2ns rise=1ps fall=1ps width=3ns period=6ns dc=1u",
+      "IP (vout 0) isource type=pulse val0=0 val1=10u delay=2n rise=1p fall=1p width=3n period=6n dc=1u",
     );
     expect(spectre).toContain(
-      "VS (vin 0) vsource type=sine dc=0.9 ampl=10m freq=1Meg delay=0 damp=0 sinephase=0",
+      "VS (vin 0) vsource type=sine dc=0.9 ampl=10m freq=1M delay=0 damp=0 sinephase=0",
     );
     expect(spectre).toContain(
-      "IS (vout 0) isource type=sine dc=2u ampl=500n freq=10k delay=1us damp=2 sinephase=90",
+      "IS (vout 0) isource type=sine dc=2u ampl=500n freq=10k delay=1u damp=2 sinephase=90",
     );
   });
 
@@ -423,7 +457,7 @@ describe("design netlist printers", () => {
       "VPWL vin 0 DC 0 PWL(0s 0 1ns 0 2ns 1.8)",
     );
     expect(printSpectreNetlist(ir)).toContain(
-      "VPWL (vin 0) vsource type=pwl wave=[0s 0 1ns 0 2ns 1.8] dc=0",
+      "VPWL (vin 0) vsource type=pwl wave=[0 0 1n 0 2n 1.8] dc=0",
     );
   });
 
@@ -464,7 +498,7 @@ describe("design netlist printers", () => {
 
     const spectre = printSpectreNetlist(ir);
     expect(spectre).toContain(
-      "VSELECTED (vin 0) vsource type=sine dc=0.9 ampl=10m freq=1Meg delay=0 damp=0 sinephase=0",
+      "VSELECTED (vin 0) vsource type=sine dc=0.9 ampl=10m freq=1M delay=0 damp=0 sinephase=0",
     );
     expect(spectre).not.toContain("VSELECTED (vin 0) vsource type=pulse");
   });
@@ -490,7 +524,7 @@ describe("design netlist printers", () => {
       "VINP (vinp 0) vsource type=pulse val0=0.9 val1=0.91 delay=1u rise=1n fall=1n width=1u period=3u dc=0.9 mag=1 phase=0",
     );
     expect(spectre).toContain(
-      "VSIN (vsin 0) vsource type=sine dc=0.9 ampl=10m freq=1Meg",
+      "VSIN (vsin 0) vsource type=sine dc=0.9 ampl=10m freq=1M",
     );
     expect(spectre).not.toMatch(/\bPULSE\(|\bSIN\(|\bAC 1/u);
   });

@@ -69,10 +69,20 @@ describe("RNL export of the simulation examples", () => {
         [],
       );
       // Their symbols all come with rnl-std: the file pins it, clears the
-      // symbols' own labels and names no other package.
+      // symbols' own labels and names only the package that says how each
+      // Cell sets names.
       expect(
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
-      ).toEqual(["rnl-std 0.3", "rnl-std-no-labels 0.3"]);
+      ).toEqual([
+        "rnl-std 0.3",
+        "rnl-std-no-labels 0.3",
+        "analog-canvas-extensions 0.2",
+      ]);
+      expect(
+        of(ops, "add-usage").filter(
+          (op) => op.definition === "$CANVAS_TYPESETTING",
+        ),
+      ).toHaveLength(documents.length);
       const wires = of(ops, "add-wire");
       const routes = documents.flatMap((document) => document.routes);
       expect(wires.length).toBeGreaterThanOrEqual(routes.length);
@@ -82,7 +92,8 @@ describe("RNL export of the simulation examples", () => {
         levelOf.get(level)!.add(name);
       };
       for (const op of of(ops, "set")) declare(op.level, op.object);
-      for (const op of of(ops, "add-usage")) declare(op.level, op.name);
+      for (const op of of(ops, "add-usage"))
+        if (op.name) declare(op.level, op.name);
       for (const op of of(ops, "add-point")) declare(op.level, op.name);
       const known = (level: string, vertex: RnlVertex) =>
         "terminal" in vertex
@@ -109,8 +120,16 @@ describe("RNL export of the simulation examples", () => {
       // placed part and every mark but a round dot says how it is turned.
       for (const op of of(ops, "set"))
         if (op.at) expect(op.orient, op.object).toBeDefined();
+      // A round dot and the usages of meaning only draw nothing to turn.
       for (const op of of(ops, "add-usage"))
-        if (op.definition !== "$JUNCTION")
+        if (
+          ![
+            "$JUNCTION",
+            "$CANVAS_NAME",
+            "$CANVAS_TYPESETTING",
+            "$CANVAS_LABEL",
+          ].includes(op.definition)
+        )
           expect(op.orient, op.name).toBeDefined();
       for (const label of of(ops, "add-text")) {
         // A part's or glyph's label hangs on something declared, by key and
@@ -365,7 +384,15 @@ describe("what RNL cannot write", () => {
       );
       expect(
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
-      ).toEqual(["rnl-std 0.3", "rnl-std-no-labels 0.3", pinned]);
+      ).toEqual([
+        ...new Set([
+          "rnl-std 0.3",
+          "rnl-std-no-labels 0.3",
+          // Every Cell says how it sets names ($CANVAS_TYPESETTING).
+          "analog-canvas-extensions 0.2",
+          pinned,
+        ]),
+      ]);
     },
   );
 });
