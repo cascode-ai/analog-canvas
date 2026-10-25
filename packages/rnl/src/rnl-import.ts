@@ -2828,10 +2828,6 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
 }
 
 /**
- * Undo a ground pin Analog Canvas added to a Cell: the importer's port and
- * its Cell Pin go, and each call stops passing a node to it.
- */
-/**
  * The supply pins Analog Canvas adds to a Cell (#1787): ground (VSS, or GND,
  * GND__n) where the Cell meets ground only through the Cells it calls, a
  * switch it draws or a MOS body left unwired, and VDD where a PMOS body is
@@ -2927,6 +2923,10 @@ function removeSupplyPin(
     delete document.mosBulkDefaults;
 }
 
+/**
+ * Undo a ground pin Analog Canvas added to a Cell: the importer's port and
+ * its Cell Pin go, and each call stops passing a node to it.
+ */
 function removeGroundPin(
   project: CircuitProject,
   document: SchematicDocument,
