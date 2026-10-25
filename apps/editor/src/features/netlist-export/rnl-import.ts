@@ -1,5 +1,6 @@
 import type { CircuitProject } from "@icm/model";
 import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
+import { serializeProject } from "@icm/project-protocol";
 import {
   applyRnlSnapshot,
   type RnlHiddenLabels,
@@ -76,15 +77,80 @@ function hideLabels(
   return next;
 }
 
+/** Why a drawing is left out, as the import report says it. */
+type OmittedDrawing = { code: string; message: string };
+
+/**
+ * The drawn Project, or why it is left out: it would change the netlist, or
+ * it is not a Project the editor can save (RNL never connects by position, so
+ * a wire can join what the netlist keeps apart).
+ */
+function drawnProject(
+  imported: CircuitProject,
+  drawn: ReturnType<typeof applyRnlSnapshot>,
+): { project: CircuitProject } | OmittedDrawing {
+  try {
+    const before = projectElectricalGraph(imported);
+    const after = projectElectricalGraph(drawn.project);
+    if (
+      before.status === "ready" &&
+      (after.status !== "ready" ||
+        compareElectricalGraphs(before.graph, after.graph) !== "equal")
+    )
+      return {
+        code: "RNL_IMPORT_CHANGES_NETLIST",
+        message:
+          "The RNL drawing would change the netlist, so the circuit comes in undrawn",
+      };
+    const project = hideLabels(
+      withImportedInstanceDisplays(drawn.project),
+      drawn.hiddenLabels,
+    );
+    serializeProject(project);
+    return { project };
+  } catch (error) {
+    return {
+      code: "RNL_IMPORT_INVALID_DRAWING",
+      message: `The RNL drawing does not make a Project the editor can save, so the circuit comes in undrawn: ${reason(error)}`,
+    };
+  }
+}
+
+const reason = (error: unknown) =>
+  (error instanceof Error ? error.message : String(error)).slice(0, 400);
+
 /**
  * A rich netlist as a Project (Analog Canvas `docs/specs/rnl-interchange.md`,
  * Import): the SPICE / SCS import builds the circuit, unchanged, and the rnl
  * runtime's reading of the same files draws it, with the labels the editor
  * gives imported parts where the drawing shows them. A drawing that would
- * change the netlist is left out, and the circuit comes in as the plain
- * import would bring it.
+ * change the netlist, or that the editor could not save, is left out, and the
+ * circuit comes in as the plain import would bring it. Nothing escapes as an
+ * exception: a failure comes back as a failed plan with its finding.
  */
-export async function planRnlImport({
+export async function planRnlImport(request: {
+  inputs: SpiceSourceInput[];
+  entryPath: string;
+  runtime: RnlRuntime | null;
+}): Promise<RnlImportPlan> {
+  try {
+    return await buildImportPlan(request);
+  } catch (error) {
+    return {
+      status: "failed",
+      message: `RNL import could not be completed: ${reason(error)}`,
+      diagnostics: [
+        reported({
+          severity: "error",
+          code: "RNL_IMPORT_FAILED",
+          message: reason(error),
+        }),
+      ],
+    };
+  }
+}
+
+async function buildImportPlan({
   inputs,
   entryPath,
   runtime,
@@ -99,7 +165,13 @@ export async function planRnlImport({
       message: "RNL import needs the rnl runtime, which this build lacks",
       diagnostics: [],
     };
-  const entry = inputs.find((input) => input.path === entryPath)!;
+  const entry = inputs.find((input) => input.path === entryPath);
+  if (!entry)
+    return {
+      status: "failed",
+      message: `RNL import has no file ${entryPath}`,
+      diagnostics: [],
+    };
   const snapshot = await runtime.snapshot({
     entry: entryPath,
     files: Object.fromEntries(
@@ -131,39 +203,33 @@ export async function planRnlImport({
       diagnostics: imported.diagnostics,
     };
   const drawn = applyRnlSnapshot(imported.project, snapshot);
-  const before = projectElectricalGraph(imported.project);
-  const after = projectElectricalGraph(drawn.project);
-  const changed =
-    before.status === "ready" &&
-    (after.status !== "ready" ||
-      compareElectricalGraphs(before.graph, after.graph) !== "equal");
+  const kept = drawnProject(imported.project, drawn);
   const diagnostics = [
     ...imported.diagnostics,
     ...drawn.diagnostics.map(reported),
-    ...(changed
-      ? [
+    ...("project" in kept
+      ? []
+      : [
           reported({
             severity: "error",
-            code: "RNL_IMPORT_CHANGES_NETLIST",
-            message:
-              "The RNL drawing would change the netlist, so the circuit comes in undrawn",
+            code: kept.code,
+            message: kept.message,
           }),
-        ]
-      : []),
+        ]),
   ];
-  return {
-    status: "ready",
-    project: withParameterTexts(
-      changed
-        ? withImportedInstanceDisplays(imported.project)
-        : hideLabels(
-            withImportedInstanceDisplays(drawn.project),
-            drawn.hiddenLabels,
-          ),
-      drawn.parameterTexts,
-    ),
-    diagnostics,
-  };
+  // The author's parameter texts belong to the parts, drawn or not.
+  if ("project" in kept)
+    return {
+      status: "ready",
+      project: withParameterTexts(kept.project, drawn.parameterTexts),
+      diagnostics,
+    };
+  const undrawn = withParameterTexts(
+    withImportedInstanceDisplays(imported.project),
+    drawn.parameterTexts,
+  );
+  serializeProject(undrawn);
+  return { status: "ready", project: undrawn, diagnostics };
 }
 
 /**

@@ -6,7 +6,12 @@ import {
   richTextMetrics,
   supplyMarkerForSymbol,
 } from "@icm/derived";
-import { createReferenceIndex, deviceDescriptor } from "@icm/devices";
+import {
+  bindsProjectCell,
+  createReferenceIndex,
+  deviceDescriptor,
+  matchGateCellPins,
+} from "@icm/devices";
 import { spectreNumber } from "@icm/netlist";
 import {
   deriveStableId,
@@ -24,6 +29,7 @@ import {
 
 type Junction = SchematicDocument["junctions"][number];
 
+import { callSymbolFromDefinition } from "./call-symbols.js";
 import { acOrientation, composeOrient, type RnlOrient } from "./orientation.js";
 import { acPosition, AC_UNITS_PER_RNL_UNIT } from "./place.js";
 import { RNL_SYMBOLS, type RnlSymbol } from "./symbol-map.js";
@@ -303,6 +309,47 @@ function phaseSwitchSymbol(
 }
 
 /**
+ * The Library gate a Cell's call reads back as when RNL draws it with the
+ * call symbol the export defines for it (`symbolForCall`), and the gate pin
+ * each Pin of its Cell becomes: by name, as a gate meets its Cell (#1450),
+ * and only when each drawn pin is on the position that Pin is printed at.
+ */
+function gateCallSymbol(
+  symbol: RnlSymbolRef,
+  orient: RnlOrient,
+  instance: Pick<Instance, "netlist" | "importProvenance">,
+): {
+  row: RnlSymbol;
+  orient: RnlOrient;
+  pins: ReadonlyMap<string, string>;
+} | null {
+  const row = callSymbolFromDefinition(symbol);
+  if (
+    !row?.ac ||
+    !bindsProjectCell(row.ac) ||
+    instance.netlist?.binding?.kind !== "subcircuit"
+  )
+    return null;
+  const printed = [...(instance.importProvenance?.terminalMapping ?? [])].sort(
+    (a, b) => a.sourcePosition - b.sourcePosition,
+  );
+  if (printed.length !== row.terminals.length) return null;
+  const gate = matchGateCellPins(row.ac, {
+    name: symbol.name,
+    portNames: printed.map((terminal) => terminal.pinName),
+  });
+  if (!gate?.ok) return null;
+  const pins = new Map(gate.pins.map((pin) => [pin.portName, pin.pinName]));
+  const fits = row.pins.every((pin) => {
+    const terminal = printed.find(
+      (item) => item.sourcePosition === pin.terminal - 1,
+    );
+    return terminal && pins.get(terminal.pinName) === pin.acPin;
+  });
+  return fits ? { row, orient, pins } : null;
+}
+
+/**
  * The standard package and its parts are one family: a build may bring them
  * as one file, as the toolkit's preview does, and their names never clash.
  */
@@ -506,6 +553,31 @@ function applyLevel(
       );
   };
 
+  /** Renames a part's pins, wherever the import has them, by `names`. */
+  const renamePins = (
+    instance: Instance,
+    names: ReadonlyMap<string, string>,
+  ) => {
+    const rename = <T extends { instanceId: string; pinName: string }>(
+      terminal: T,
+    ): T =>
+      terminal.instanceId === instance.id && names.has(terminal.pinName)
+        ? { ...terminal, pinName: names.get(terminal.pinName)! }
+        : terminal;
+    for (const net of document.nets) net.terminals = net.terminals.map(rename);
+    for (const net of document.importReference?.nets ?? [])
+      net.terminals = net.terminals.map((terminal) =>
+        "pinName" in terminal ? rename(terminal) : terminal,
+      );
+    const provenance = instance.importProvenance;
+    if (provenance?.terminalMapping)
+      provenance.terminalMapping = provenance.terminalMapping.map((entry) =>
+        names.has(entry.pinName)
+          ? { ...entry, pinName: names.get(entry.pinName)! }
+          : entry,
+      );
+  };
+
   // Nets by their RNL name, from the import's own record of the names. A
   // Spectre netlist escapes a name's other characters (`Vin\+`), which the
   // SCS import keeps; RNL names the net it means (`Vin+`).
@@ -604,11 +676,16 @@ function applyLevel(
       instance.importProvenance?.terminalMapping?.map(
         (terminal) => terminal.pinName,
       ) ?? [];
-    const mapped =
+    const gateCall =
       symbol && !symbol.default
+        ? gateCallSymbol(symbol, orient, instance)
+        : null;
+    const mapped =
+      gateCall ??
+      (symbol && !symbol.default
         ? (acSymbolFor(symbol, orient, instance, pinNames) ??
           phaseSwitchSymbol(symbol, orient, instance))
-        : null;
+        : null);
     if (
       symbol &&
       !mapped &&
@@ -627,6 +704,7 @@ function applyLevel(
       else delete instance.symbolVariantId;
       if (pinSwitch && switchControl(instance.symbolId) === "phase")
         clockByLabel(instance);
+      if (gateCall) renamePins(instance, gateCall.pins);
     }
     // A Spectre card the conversion named for SPICE, which calls a
     // subcircuit with X (M1 as XM1), has its Spectre name again where the
@@ -647,9 +725,10 @@ function applyLevel(
     placed.push(instance);
     // A Cell's call drawn with the symbol the file defines for it: the
     // Cell's block takes that layout, its pins where the symbol has them.
+    // A gate's call symbol draws the gate, not the Cell's block.
     const binding = instance.netlist?.binding;
     const child =
-      symbol?.definition && binding?.kind === "subcircuit"
+      symbol?.definition && !gateCall && binding?.kind === "subcircuit"
         ? project.documents.find((item) => item.id === binding.childDocumentId)
         : undefined;
     if (child && symbol?.definition) layOut(child, symbol.definition);
