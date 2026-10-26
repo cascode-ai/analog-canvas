@@ -138,6 +138,8 @@ export interface RnlObjectView {
   symbol: Slot<string>;
   at: Slot<Point>;
   orient: Slot<string>;
+  /** The style properties the document's records give it, such as `linecolor`. */
+  style?: Readonly<Record<string, string | number | boolean>>;
   pins: readonly {
     terminals: readonly string[];
     at: Point;
@@ -695,6 +697,7 @@ function applyLevel(
       ),
       ...acOrientation(turn),
     };
+    Object.assign(instance, paintOf(object));
     placed.push(instance);
     // A Cell's call drawn with the symbol the file defines for it: the
     // Cell's block takes that layout, its pins where the symbol has them.
@@ -972,6 +975,7 @@ function applyLevel(
         glyphOf.set(object.id, { instanceId: pin.id, pinName: "P" });
         if (mapped) pin.symbolId = mapped.row.ac!;
         pin.placement = placementOf() ?? pin.placement;
+        Object.assign(pin, paintOf(object));
         continue;
       }
       // The same port drawn again: one more Cell terminal of the port's name,
@@ -985,6 +989,7 @@ function applyLevel(
           id,
           symbolId: mapped?.row.ac ?? "port",
           placement: placementOf(),
+          ...paintOf(object),
         });
         document.nets
           .find((item) => item.id === netId)
@@ -1045,6 +1050,7 @@ function applyLevel(
         id,
         symbolId: mapped.row.ac!,
         placement: placementOf(),
+        ...paintOf(object),
       });
       net.terminals.push({ instanceId: id, pinName });
       const supply = supplyMarkerForSymbol(mapped.row.ac!);
@@ -1719,9 +1725,19 @@ function importTexts(
     const alignment = (
       ["start", "middle", "end"].includes(text.halign) ? text.halign : "start"
     ) as "start" | "middle" | "end";
+    // A label takes its part's colour as the editor's does from its Instance:
+    // the colour its part has is no colour of its own.
+    const textcolor = text.style["textcolor"];
+    const ownerColour = model.objects.find(
+      (object) => object.id === text.attach,
+    )?.style?.["textcolor"];
     const color =
-      typeof text.style["textcolor"] === "string"
-        ? { textColor: text.style["textcolor"] }
+      typeof textcolor === "string" &&
+      !(
+        typeof ownerColour === "string" &&
+        ownerColour.toLowerCase() === textcolor.toLowerCase()
+      )
+        ? { textColor: textcolor }
         : {};
     const shown = flattenRichText(content);
     const onObject = (instance: Instance) =>
@@ -2810,6 +2826,19 @@ function quadraticPath(points: readonly { x: number; y: number }[]): {
     );
   }
   return { points: ends, controls };
+}
+
+/**
+ * A part's colour as its record writes it (`@SET-STYLE`): its line colour is
+ * the Instance's foreground, as the export writes it.
+ */
+function paintOf(
+  object: RnlObjectView,
+): { styleOverride: { foreground: string } } | Record<string, never> {
+  const linecolor = object.style?.["linecolor"];
+  return typeof linecolor === "string" && /^#[0-9a-f]{6}$/iu.test(linecolor)
+    ? { styleOverride: { foreground: linecolor } }
+    : {};
 }
 
 /** Whether every run of a text is bold, as a drawing text is by default. */

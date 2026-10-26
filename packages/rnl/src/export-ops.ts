@@ -84,6 +84,8 @@ export type RnlOp = { level: string } & (
       object: string;
       /** Absent leaves the part to RNL's own symbol rules or stand-in box. */
       symbol?: string;
+      /** Its colour, written as a `@SET-STYLE` of these properties. */
+      style?: Record<string, string>;
       at?: RnlPoint;
       orient?: RnlOrient;
     }
@@ -96,6 +98,7 @@ export type RnlOp = { level: string } & (
       /** Written `@ATTACH(k=v, …)`, in the order given. */
       params?: Record<string, string | number | boolean>;
       symbol?: string;
+      style?: Record<string, string>;
       at?: RnlPoint;
       orient?: RnlOrient;
     }
@@ -646,6 +649,19 @@ function exportCell(
         [instance.id],
       );
     if (symbol && !symbol.inline) packages.add(symbol.package);
+    // Its colour: its lines and the labels it brings, which RNL gives the
+    // style of their part (11.3), as the editor gives a label its Instance's.
+    const foreground = instance.styleOverride?.foreground;
+    const paint = foreground
+      ? { style: { linecolor: foreground, textcolor: foreground } }
+      : {};
+    if (instance.styleOverride?.background)
+      report(
+        "warning",
+        "RNL_BACKGROUND_NOT_EXPORTED",
+        `${describe(instance)} is painted with a background, which RNL draws no fill behind a symbol for`,
+        [instance.id],
+      );
     const mapped = symbol;
     terminalsOf.set(
       instance.id,
@@ -683,6 +699,7 @@ function exportCell(
         definition,
         attach: { p: rnlName("&", net) },
         symbol: symbol.symbol,
+        ...paint,
         ...where,
       });
       continue;
@@ -708,6 +725,7 @@ function exportCell(
         : blockSymbol && binding?.kind === "external-subcircuit"
           ? { symbol: blockSymbol.name }
           : {}),
+      ...paint,
       ...where,
     });
     // The part's own name, where the netlist spells it otherwise: SPICE

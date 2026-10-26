@@ -381,6 +381,56 @@ it.each(["spice", "spectre"] as const)(
 );
 
 it.each(["spice", "spectre"] as const)(
+  "keeps each part's colour, and its labels' own, through %s+RNL",
+  async (format) => {
+    const project = boundLabels();
+    const document = project.documents[0]!;
+    const part = (id: string) =>
+      document.instances.find((instance) => instance.id === id)!;
+    part("R1").styleOverride = { foreground: "#dc2626" };
+    part("VDD1").styleOverride = { foreground: "#2563eb" };
+    part("C1").styleOverride = { foreground: "#16a34a" };
+    const labelOf = (from: CircuitProject, kind: string) =>
+      from.documents[0]!.annotations.find(
+        (annotation) =>
+          annotation.kind === kind &&
+          (annotation.binding as { instanceId?: string } | undefined)
+            ?.instanceId !== undefined &&
+          from.documents[0]!.instances.find(
+            (instance) =>
+              instance.id ===
+              (annotation.binding as { instanceId: string }).instanceId,
+          )?.reference === "C1",
+      )!;
+    // The name in its part's colour, which it follows; the value in its own.
+    labelOf(project, "instance-label").textColor = "#16a34a";
+    labelOf(project, "instance-value").textColor = "#7c3aed";
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain(
+      '@DEFINE-STYLE(linecolor="#dc2626", textcolor="#dc2626")',
+    );
+    expect(written.text).toContain("@SET-STYLE");
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const back = plan.project.documents[0]!;
+    const colour = (find: (instance: Instance) => boolean) =>
+      back.instances.find(find)?.styleOverride?.foreground;
+    expect(colour((instance) => instance.reference === "R1")).toBe("#dc2626");
+    expect(colour((instance) => instance.reference === "C1")).toBe("#16a34a");
+    expect(colour((instance) => instance.symbolId === "vdd-port")).toBe(
+      "#2563eb",
+    );
+    expect(labelOf(plan.project, "instance-label").textColor).toBeUndefined();
+    expect(labelOf(plan.project, "instance-value").textColor).toBe("#7c3aed");
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
   "keeps the author's text of a value the netlist writes otherwise through %s+RNL",
   async (format) => {
     const project = boundLabels();

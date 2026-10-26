@@ -128,6 +128,10 @@ the RNL language and its runtime belong to rnl.
   so the import knows it as a power label.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename.
+- A part's colour (its foreground, a glyph's included) is written as its
+  style (`@SET-STYLE`, `linecolor` and `textcolor`), which RNL passes on to
+  the labels its part brings, as the editor gives a label its Instance's; a
+  background paint is not written (`RNL_BACKGROUND_NOT_EXPORTED`).
 - What only the editor keeps is written with the meaning-only definitions of
   `analog-canvas-extensions` 0.2, which draw nothing: a part's name where the
   card spells it otherwise (`$CANVAS_NAME`, SPICE's `XM1` for M1), in each
@@ -240,7 +244,10 @@ the RNL language and its runtime belong to rnl.
     the card XM1) is the label's own text; a net label stands on the Cell
     Pin it names when it is within four grid steps of one, else on the wire
     it stands beside (three grid steps), else where it stands; a current or
-    voltage marker's label keeps its size and colour; scripts stand outside
+    voltage marker's label keeps its size and colour; a label in its part's
+    colour follows the part, one in another colour keeps it as its own;
+  - a part's colour (its `linecolor`) as its foreground, a glyph's and a Cell
+    Pin's included; scripts stand outside
     bold (`bold`, `italic`, then the scripts), so a subscript and the
     superscript after it stay stacked;
   - drawing shapes: rectangles (a closed line round a turned rectangle as a
