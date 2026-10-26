@@ -300,6 +300,7 @@ export function useGalleryWall({
         setState({
           status: "unavailable",
           failure: page.message,
+          blocked: page.failure === "blocked",
           entries: [],
           nextCursor: null,
           total: null,
@@ -374,7 +375,11 @@ export function useGalleryWall({
         // The wall stays; the reader sees why it stopped and retries.
         setState((previous) =>
           previous.status === "ready" && previous.nextCursor === cursor
-            ? { ...previous, failure: page.message }
+            ? {
+                ...previous,
+                failure: page.message,
+                blocked: page.failure === "blocked",
+              }
             : previous,
         );
         return;
@@ -384,6 +389,7 @@ export function useGalleryWall({
           ? {
               ...previous,
               failure: undefined,
+              blocked: undefined,
               // A linked circuit shown first stays only there when its own
               // page arrives.
               entries: [

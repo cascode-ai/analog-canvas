@@ -1,0 +1,63 @@
+/* An account blocked from the Gallery: a notice nobody can mistake for a
+   loading failure. */
+.gallery-blocked-notice {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  box-sizing: border-box;
+  width: min(640px, calc(100% - 32px));
+  margin: 32px auto;
+  padding: 18px 20px;
+  border: 1px solid color-mix(in srgb, var(--icm-warning) 40%, transparent);
+  border-left: 4px solid var(--icm-warning);
+  border-radius: 8px;
+  color: var(--icm-text);
+  background: color-mix(in srgb, var(--icm-warning) 8%, var(--icm-surface));
+}
+
+.gallery-blocked-notice > svg {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  color: var(--icm-warning);
+}
+
+.gallery-blocked-notice h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.gallery-blocked-notice p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.gallery-blocked-notice a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.gallery-blocked-notice.is-compact {
+  width: auto;
+  margin: 12px;
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+.gallery-blocked-notice.is-compact > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.gallery-blocked-notice.is-compact h2 {
+  font-size: 14px;
+}
+
+.gallery-blocked-notice.is-compact p {
+  font-size: 13px;
+}

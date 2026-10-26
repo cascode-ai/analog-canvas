@@ -69,6 +69,7 @@ import {
 import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
 import { GalleryWallTile } from "./gallery-feed-tile";
 import { GalleryWallEmpty } from "./gallery-feed-empty";
+import { GalleryBlockedNotice } from "./gallery-blocked-notice";
 
 /**
  * Heights of the grey stand-in tiles behind the sign-in invitation, for a
@@ -796,7 +797,9 @@ export function GalleryFeed({
                 )}
               </section>
             )}
-            {state.status === "ready" && state.failure ? (
+            {state.status === "ready" && state.blocked ? (
+              <GalleryBlockedNotice />
+            ) : state.status === "ready" && state.failure ? (
               <p className="gallery-status" data-testid="gallery-more-failed">
                 {state.failure}{" "}
                 <button type="button" onClick={retryNextPage}>

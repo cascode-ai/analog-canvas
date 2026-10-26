@@ -15,6 +15,7 @@ import { requestSignIn } from "../../components/sign-in-request";
 import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
 import { createGalleryPanelLoader } from "./gallery-panel-loader";
 import { isRequestFailure } from "../../request-failure";
+import { GalleryBlockedNotice } from "../../components/gallery-blocked-notice";
 
 const ExamplesPanelTags = lazy(() =>
   import("./examples-panel-tags").then((module) => ({
@@ -47,6 +48,8 @@ interface FeedState {
   status: "loading" | "ready" | "unavailable" | "signed-out";
   /** Why the feed is unavailable. */
   failure?: string;
+  /** The failure is the account's Gallery block, shown as its own notice. */
+  blocked?: boolean;
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
@@ -305,7 +308,12 @@ function GalleryPanel({
         page === GALLERY_SIGN_IN_REQUIRED
           ? { ...EMPTY_FEED, status: "signed-out" }
           : isRequestFailure(page)
-            ? { ...EMPTY_FEED, status: "unavailable", failure: page.message }
+            ? {
+                ...EMPTY_FEED,
+                status: "unavailable",
+                failure: page.message,
+                blocked: page.failure === "blocked",
+              }
             : {
                 status: "ready",
                 entries: page.entries,
@@ -540,7 +548,9 @@ function GalleryPanel({
                   ))
                 : null}
             </div>
-            {!showGallery && feed.status !== "signed-out" ? (
+            {!showGallery && feed.status === "unavailable" && feed.blocked ? (
+              <GalleryBlockedNotice compact />
+            ) : !showGallery && feed.status !== "signed-out" ? (
               <p className="examples-panel-empty">
                 {feed.status === "unavailable"
                   ? (feed.failure ?? "Gallery is unavailable. Try again later.")

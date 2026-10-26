@@ -556,6 +556,23 @@ describe("GalleryWallEmpty", () => {
       "No circuits match the selected tags.",
     );
   });
+
+  it("shows a blocked account a notice of its own, not a loading failure", () => {
+    const markup = empty({
+      status: "unavailable",
+      failure: "This account's Gallery access is paused.",
+      blocked: true,
+      entries: [],
+    });
+    expect(markup).toContain('data-testid="gallery-blocked"');
+    expect(markup).toContain('role="alert"');
+    expect(markup).not.toContain('data-testid="gallery-unavailable"');
+    // Why, how to report a mistake, that the check is being tested, and
+    // what still works.
+    expect(markup).toContain("mailto:zzhishuai@ethz.ch");
+    expect(markup).toContain("still being tested");
+    expect(markup).toContain("Cloud Projects and the editor work as usual");
+  });
 });
 
 describe("The Sim mark", () => {

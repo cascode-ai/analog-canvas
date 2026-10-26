@@ -292,6 +292,8 @@ export interface GalleryFeedState {
   status: "loading" | "ready" | "unavailable" | "signed-out";
   /** Why the wall is unavailable, or why its next page did not load. */
   failure?: string | undefined;
+  /** The failure is the account's Gallery block, shown as its own notice. */
+  blocked?: boolean | undefined;
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;

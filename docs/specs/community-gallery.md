@@ -72,7 +72,11 @@ restrictive CSP.
   A browser's previews and summaries never count: a page left open across a
   deploy shows trap tiles (2026-10-22). Every later `/api/gallery` request
   of the account is
-  `403 {"error":"account-blocked","usage":…}`. The record keeps the email,
+  `403 {"error":"account-blocked","usage":…}`, which the editor shows as a
+  notice in place of the wall and the Gallery panel (`gallery-blocked`): why,
+  that a reply to the email or a letter to the usage contact reports a
+  mistake, that the check is still being tested, and that Cloud Projects and
+  the editor are unaffected; never how the check works. The record keeps the email,
   display name, sign-in method, time, path, IP address, country, user agent
   and reason (`script` or `two-traps`), and outlives an unblock and the
   account. The Owner is emailed at
