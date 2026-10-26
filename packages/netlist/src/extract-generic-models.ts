@@ -91,10 +91,14 @@ export function definesGenericModel(
       ...rest.toLowerCase().split(/\s+/u).filter(Boolean).sort(),
     ].join(" ");
   };
+  // Only a stand-in the export writes has parameters: a bare card such as
+  // `.model NMOS NMOS` is the author's.
   const standIn = new Set(
-    [spiceModelCard(model), spectreModelCard(model)].flatMap((card) =>
-      card ? [spelled(card)] : [],
-    ),
+    model.parameters.length
+      ? [spiceModelCard(model), spectreModelCard(model)].flatMap((card) =>
+          card ? [spelled(card)] : [],
+        )
+      : [],
   );
   const texts = [
     ...deckSources,
@@ -107,6 +111,8 @@ export function definesGenericModel(
     (text) =>
       text !== undefined &&
       text
+        // A card goes on in `+` lines.
+        .replace(/\r?\n[ \t]*\+/gu, " ")
         .split(/\r?\n/u)
         .some((line) => definition.test(line) && !standIn.has(spelled(line))),
   );

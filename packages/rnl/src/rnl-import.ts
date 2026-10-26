@@ -619,37 +619,19 @@ export function withPowerLabelPorts(
     for (const net of document.nets)
       net.terminals = net.terminals.filter((item) => item.instanceId !== pinId);
     // The Pin's own labels go with it; a power label hung on it stays where
-    // it stands, on the junction of its net beside it if there is one.
+    // it stands. The import hangs one on the Pin only where its net has no
+    // junction beside it, so it stands free.
     document.annotations = document.annotations.flatMap((item) => {
       if (item.anchor.kind !== "object" || item.anchor.objectId !== pinId)
         return [item];
       if (item.kind !== "power-label") return [];
-      const at = item.anchor.fallbackPosition;
-      const near = document.junctions
-        .filter((junction) => junction.netId === item.netId)
-        .map((junction) => ({
-          junction,
-          distance: Math.hypot(
-            junction.position.x - at.x,
-            junction.position.y - at.y,
-          ),
-        }))
-        .sort((a, b) => a.distance - b.distance)[0];
       return [
         {
           ...item,
-          anchor:
-            near && near.distance <= 4 * PART_GRID
-              ? {
-                  kind: "object" as const,
-                  objectId: near.junction.id,
-                  localOffset: {
-                    x: at.x - near.junction.position.x,
-                    y: at.y - near.junction.position.y,
-                  },
-                  fallbackPosition: at,
-                }
-              : { kind: "free" as const, position: at },
+          anchor: {
+            kind: "free" as const,
+            position: item.anchor.fallbackPosition,
+          },
         },
       ];
     });
@@ -862,12 +844,13 @@ function applyLevel(
   if (own?.definition) layOut(document, own.definition);
 
   /**
-   * Gives a part the name its card has where that gives it no Reference
-   * issue it does not have already: no other part of the Cell has it, as
-   * SPICE compares names without case, and the part takes names of its
-   * prefix (a call of a Cell keeps its X).
+   * Gives a part a name where that gives it no Reference issue it does not
+   * have already: no other part of the Cell has it, as SPICE compares names
+   * without case, and the part takes names of its prefix (a call of a Cell
+   * keeps its X). Else the part keeps its name, and this returns the issues
+   * the name would give it.
    */
-  const nameAsCard = (instance: Instance, name: string) => {
+  const nameIfFree = (instance: Instance, name: string): string[] => {
     const issues = () =>
       new Set(
         createReferenceIndex(document, project)
@@ -877,8 +860,12 @@ function applyLevel(
     const before = issues();
     const printed = instance.reference;
     instance.reference = name;
-    if ([...issues()].every((code) => before.has(code))) return;
-    instance.reference = printed;
+    const after = [...issues()].filter((code) => !before.has(code));
+    if (after.length) {
+      if (printed === undefined) delete instance.reference;
+      else instance.reference = printed;
+    }
+    return after;
   };
 
   // Parts: placed, turned and in the variant their symbol stands for.
@@ -947,7 +934,7 @@ function applyLevel(
       name !== null &&
       instance.reference?.toLowerCase() === `x${name.toLowerCase()}`
     )
-      nameAsCard(instance, name);
+      nameIfFree(instance, name);
     const turn = mapped?.orient ?? orient;
     instance.placement = {
       position: snap(
@@ -1051,19 +1038,9 @@ function applyLevel(
       );
       return;
     }
-    const issues = () =>
-      new Set(
-        createReferenceIndex(document, project)
-          .issues.filter((issue) => issue.instanceId === instance.id)
-          .map((issue) => issue.code),
-      );
-    const before = issues();
     const printed = instance.reference;
-    instance.reference = name;
-    const after = [...issues()].filter((code) => !before.has(code));
+    const after = nameIfFree(instance, name);
     if (!after.length) return;
-    if (printed === undefined) delete instance.reference;
-    else instance.reference = printed;
     warn(
       after.includes("DUPLICATE_REFERENCE")
         ? "RNL_IMPORT_NAME_TAKEN"

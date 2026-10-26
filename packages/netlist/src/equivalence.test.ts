@@ -333,6 +333,12 @@ describe("electrical duplicate comparison", () => {
       resistor("R1", "a", "b"),
     ]);
     expect(compare(plain, remembered)).toBe("equal");
+    // A parameter of no waveform prints whatever the waveform.
+    const scaled = circuit([
+      source({ waveform: "dc", dc: "1m", m: "2" }),
+      resistor("R1", "a", "b"),
+    ]);
+    expect(compare(plain, scaled)).toBe("different");
     remembered.cells[0]!.instances[0]!.parameters[1]!.rawValue = "2m";
     expect(compare(plain, remembered)).toBe("different");
     // Set to a pulse, its pulse fields say what it is.

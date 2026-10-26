@@ -104,9 +104,9 @@ const WAVEFORM_FIELDS: Readonly<Record<string, readonly string[]>> = {
  * The parameters a device is compared by. An independent source keeps the
  * fields of the waveforms it is not set to, as the editor remembers them
  * for when it is switched back, but the netlist prints only its current
- * waveform's: a source compares by those, its dc value and its AC
- * magnitude and phase, a phase of 0 being the default. A waveform the
- * editor does not know keeps every field.
+ * waveform's: a source compares without the others' fields, and without
+ * an AC phase of 0, the default. Every other parameter prints, so it
+ * counts. A waveform the editor does not know keeps every field.
  */
 function comparedParameters(
   instance: DesignNetlistInstance,
@@ -124,15 +124,17 @@ function comparedParameters(
       .toLowerCase() ?? "dc";
   const fields = WAVEFORM_FIELDS[waveform];
   if (!fields) return instance.parameters;
-  const current = new Set(
-    ["waveform", "dc", "acMagnitude", "acPhase", ...fields].map((name) =>
-      name.toLowerCase(),
-    ),
+  const current = new Set(fields.map((name) => name.toLowerCase()));
+  const unprinted = new Set(
+    Object.values(WAVEFORM_FIELDS)
+      .flat()
+      .map((name) => name.toLowerCase())
+      .filter((name) => !current.has(name)),
   );
   return instance.parameters.filter((item) => {
     const name = item.name.toLowerCase();
     return (
-      current.has(name) &&
+      !unprinted.has(name) &&
       !(name === "acphase" && numericValue(item.rawValue) === "0")
     );
   });

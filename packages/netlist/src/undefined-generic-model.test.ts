@@ -184,6 +184,8 @@ describe("a generic target the netlist does not define (#1420)", () => {
       return undefinedFindings(compiled.warnings);
     };
     expect(folder("tb", ".model PMOS PMOS(level=1)")).toEqual([]);
+    // A card with no parameters is the author's too.
+    expect(folder("bare", ".model PMOS PMOS")).toEqual([]);
     expect(folder("other")).toEqual([
       expect.objectContaining({
         message: expect.stringMatching(/^M2 names PMOS/u),

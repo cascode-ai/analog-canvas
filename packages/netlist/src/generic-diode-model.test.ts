@@ -172,6 +172,10 @@ describe("the generic diode model (#1310)", () => {
     fromImport.source.files[0]!.content!.text =
       "* .model DIODE D(IS=2e-14)\n.model DIODE_FAST D(IS=2e-14)\n";
     expect(spice(fromImport).file.text).toContain(CARD);
+    // The author's card that starts as the stand-in does and goes on.
+    fromImport.source.files[0]!.content!.text =
+      "D1 anode cathode DIODE\n.model DIODE D(IS=1e-14 N=1\n+ RS=10)\n";
+    expect(spice(fromImport).file.text).not.toContain(".model");
   });
 
   it.each([
