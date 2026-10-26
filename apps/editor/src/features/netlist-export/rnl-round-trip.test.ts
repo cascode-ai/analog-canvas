@@ -2530,6 +2530,58 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "keeps a body supply pin its callers pass another node through %s+RNL",
+  async (format) => {
+    // As above, but the file passes GainStage's VSS a body bias of its
+    // own: the pin is the author's, as the netlist is.
+    const project = parseProject(
+      readFileSync(
+        resolve(
+          import.meta.dirname,
+          "../../../../../fixtures/projects/hierarchical-gain-stage/project.icproj.json",
+        ),
+        "utf8",
+      ),
+    );
+    for (const instance of project.documents.flatMap((cell) => cell.instances))
+      if (instance.id === "M1")
+        instance.netlist = {
+          binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+          parameters: { w: "1u", l: "1u" },
+        };
+      else if (instance.id === "R1")
+        instance.netlist = {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        };
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    // X2 passes its VSS pin the supply instead: an author's body tie.
+    const edited = written.text.replace(
+      format === "spice"
+        ? "X2 VDD VSS net0 net1 GainStage"
+        : "X2 (VDD VSS net0 net1) GainStage",
+      format === "spice"
+        ? "X2 VDD VDD net0 net1 GainStage"
+        : "X2 (VDD VDD net0 net1) GainStage",
+    );
+    expect(edited).not.toBe(written.text);
+    const plan = await importRnl(edited, format);
+    expect(failures(plan)).toEqual([]);
+    const stage = plan.project.documents.find(
+      (cell) => cell.netlist?.name === "GainStage",
+    )!;
+    expect(stage.netlist!.terminals.map((terminal) => terminal.name)).toContain(
+      "VSS",
+    );
+  },
+);
+
 const GATES_4 = ["and", "nand", "or", "nor", "xor", "xnor"] as const;
 
 /**

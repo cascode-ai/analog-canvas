@@ -239,7 +239,10 @@ the RNL language and its runtime belong to rnl.
     it, and the pin a switch's label clocks it by: undrawn and alone on its
     net but for such bodies and the rails of the Library gates it draws on
     Cells, the pin goes where the Cell would print it again under the same
-    name, and the bodies and rails are left to the Cell again (#1787);
+    name, and the bodies and rails are left to the Cell again (#1787); all
+    such pins go, or none: only where the netlist then prints as it did, so
+    a call passing one a node of its own (a body bias, the other phase)
+    keeps them;
   - a wire RNL draws on ground (0) in a Cell with a net named GND and none
     named 0: RNL reads SPICE's GND as ground, as ngspice does, where the
     import keeps it a net of that name (#1784);

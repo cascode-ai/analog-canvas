@@ -14,7 +14,11 @@ import {
   matchGateCellPins,
   projectLengthToSky130Micrometres,
 } from "@icm/devices";
-import { analyzeDesignNetlistForAuthoring, spectreNumber } from "@icm/netlist";
+import {
+  analyzeDesignNetlistForAuthoring,
+  createDesignNetlistExport,
+  spectreNumber,
+} from "@icm/netlist";
 import {
   deriveStableId,
   flattenRichText,
@@ -3155,8 +3159,27 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
  * prints the same pin again without it, it goes, the bodies unwired again
  * as drawn, and then a caller's pin it left alone in turn. A pin the Cell
  * would print under another name, or not at all, is the author's and stays.
+ *
+ * All or none: the pins go only where the netlist then prints as it prints
+ * now. A call that passes such a pin a node of its own (a body bias, the
+ * other phase) keeps every pin, as does a netlist the export cannot print.
  */
 function removeAddedPins(
+  project: CircuitProject,
+  undrawnPins: ReadonlySet<string>,
+): void {
+  const trial = structuredClone(project);
+  removeEachAddedPin(trial, undrawnPins);
+  const printed = (from: CircuitProject) => {
+    const result = createDesignNetlistExport(from, { format: "spice" });
+    return result.status === "ready" ? result.file.text : null;
+  };
+  const now = printed(project);
+  if (now !== null && printed(trial) === now)
+    project.documents = trial.documents;
+}
+
+function removeEachAddedPin(
   project: CircuitProject,
   undrawnPins: ReadonlySet<string>,
 ): void {
