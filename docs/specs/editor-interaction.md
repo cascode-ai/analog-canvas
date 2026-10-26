@@ -199,7 +199,8 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   movement closure, Search or diagnostic navigation.
 - Click replaces; `Shift`/`Ctrl`-click toggles; right-clicking a selected object
   keeps the mixed selection. The canvas menu holds only Duplicate, Rotate,
-  Mirror, Delete and Align.
+  Mirror, Delete and Align. Rotate (R) turns a free drawing text between
+  reading across and reading up the page; a half turn leaves it.
 - The six align commands share one planner. Participants: placed Instances,
   selected annotations and DraftText (an anchored label with its host follows
   once); not Routes or Junctions. One undo. The GUI never calls `align_instances`.

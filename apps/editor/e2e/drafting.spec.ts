@@ -817,8 +817,11 @@ test("T writes Text first, places it at its preview on the stored annotation pit
   const editor = page.getByTestId("text-draft-editor");
   const draft = editor.getByRole("textbox", { name: "Canvas text editor" });
   const preview = page.getByTestId("text-placement-preview");
-  const expectPreviewAt = (at: { x: number; y: number }) =>
-    expect(preview).toHaveAttribute("transform", `translate(${at.x} ${at.y})`);
+  const expectPreviewAt = (at: { x: number; y: number }, up = false) =>
+    expect(preview).toHaveAttribute(
+      "transform",
+      `translate(${at.x} ${at.y})${up ? " rotate(270)" : ""}`,
+    );
   await expect(draft).toBeVisible();
   await expect(preview).toHaveCount(0);
   await page.keyboard.press("Escape");
@@ -850,7 +853,7 @@ test("T writes Text first, places it at its preview on the stored annotation pit
   await page.mouse.move(point.x, point.y);
   await expectPreviewAt(expected);
   await page.keyboard.press("r");
-  await expectPreviewAt(expected);
+  await expectPreviewAt(expected, true);
   await expect(preview.locator("text")).toHaveAttribute("font-weight", "bold");
   const previewBounds = await preview.locator("text").boundingBox();
   await page.mouse.click(point.x, point.y);
@@ -871,12 +874,13 @@ test("T writes Text first, places it at its preview on the stored annotation pit
   ).toHaveCount(0);
   await expect(texts).toHaveText("Custom text");
 
+  // R turned it to read up the page, as its preview showed.
   const textObject = await exportedTextObject(page);
   expect(textObject.anchor).toEqual({ kind: "free", position: expected });
-  expect(textObject.rotation).toBe(90);
+  expect(textObject.rotation).toBe(270);
   const svg = await exportedSvg(page);
   expect(svg).toContain("Custom text");
-  expect(svg).not.toContain(`rotate(90 ${expected.x} ${expected.y})`);
+  expect(svg).toContain(`rotate(270 ${expected.x} ${expected.y})`);
   expect(svg).not.toContain("text-placement-preview");
   await page.getByTestId("draw-tool-undo").click();
   await expect(texts).toHaveCount(0);

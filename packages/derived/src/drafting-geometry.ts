@@ -247,6 +247,20 @@ function resolveAnchorWithRole(
 // For a "follow" route anchor the anchor's own rotation composes with the
 // object's persisted rotation; for free/object anchors the object rotation
 // stands alone. Glyphs and notation strokes themselves remain screen-upright.
+/**
+ * The turn a drawing text's glyphs take about its anchor: a free text at a
+ * quarter turn reads down (90) or up (270) the page. At any other turn, and
+ * with polarity marks, the glyphs stay upright, as all other text does.
+ */
+export function draftTextTurn(
+  object: Extract<DraftingObject, { kind: "text" }>,
+): 0 | 90 | 270 {
+  if (object.polarity) return 0;
+  return object.rotation === 90 || object.rotation === 270
+    ? object.rotation
+    : 0;
+}
+
 function composeRotation(
   anchorRotation: Rotation,
   objectRotation: Rotation,
@@ -371,18 +385,21 @@ function resolveTextWithInk(
         );
   const barePolarity =
     object.polarity === "positive" || object.polarity === "negative";
-  const bounds = polarity
-    ? unionRects([
-        ...(barePolarity ? [] : [resolvedTextBounds]),
-        paddedBounds(
-          unionBounds(polarity.lines.flatMap((line) => [line.from, line.to])),
-          STROKE_PADDING / 2,
-        ),
-      ])
-    : resolvedTextBounds;
+  const turn = draftTextTurn(object);
+  const bounds = turn
+    ? rotatedRectBounds(resolvedTextBounds, textPosition, turn)
+    : polarity
+      ? unionRects([
+          ...(barePolarity ? [] : [resolvedTextBounds]),
+          paddedBounds(
+            unionBounds(polarity.lines.flatMap((line) => [line.from, line.to])),
+            STROKE_PADDING / 2,
+          ),
+        ])
+      : resolvedTextBounds;
   // Measured only when asked for: the drawing and the Snapshot never need it.
   const ink = (): DerivedRect => {
-    if (polarity || rotation !== 0 || formulaExtents(content, metrics))
+    if (polarity || rotation !== 0 || turn || formulaExtents(content, metrics))
       return bounds;
     const fontSize = metrics.fontSize;
     const layout = measureRichTextDocument(content, metrics);

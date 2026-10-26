@@ -16,6 +16,7 @@ import {
   mirrorDraftingObject,
   planDraftingStacking,
   rotateDraftingObject,
+  uprightOrUp,
   setDraftingBearing,
   setDraftingTangentAngle,
   translateDraftingObject,
@@ -656,6 +657,30 @@ describe("mirrorDraftingObject", () => {
     expect(downBox.y).toBeCloseTo(2 * pivot.y - (before.y + before.height), 0);
   });
 
+  it("places a text turned a quarter as reading up the page", () => {
+    expect([0, 45, 90, 180, 270, 315].map(uprightOrUp)).toEqual([
+      0, 0, 270, 0, 270, 0,
+    ]);
+  });
+
+  it("turns a free text between reading across and reading up the page", () => {
+    const across = note("start");
+    const up = rotateDraftingObject(across, geometryOf(across), 90, 10);
+    expect(up).toMatchObject({ rotation: 270, anchor: across.anchor });
+    // Either way round, the next quarter turn reads across again.
+    expect(rotateDraftingObject(up!, geometryOf(up!), -90, 10)).toMatchObject({
+      rotation: 0,
+    });
+    const down = { ...across, rotation: 90 as const };
+    expect(rotateDraftingObject(down, geometryOf(down), 90, 10)).toMatchObject({
+      rotation: 0,
+    });
+    // A half turn would set it upside down.
+    expect(rotateDraftingObject(across, geometryOf(across), 180, 10)).toBe(
+      null,
+    );
+  });
+
   it("turns and reflects a polarity text's marks, not its glyphs", () => {
     const polarity = {
       ...note("middle"),
@@ -699,8 +724,6 @@ describe("mirrorDraftingObject", () => {
         geometryOf,
       ),
     ).toMatchObject({ rotation: 180 });
-    // Plain text has no marks to turn.
-    expect(rotateDraftingObject(note("middle"), geometry, 90, 10)).toBeNull();
   });
 
   it("mirrors an attached end's offset only when its host mirrors too", () => {

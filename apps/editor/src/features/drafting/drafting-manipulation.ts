@@ -1,4 +1,4 @@
-import type { ResolvedDraftingGeometry } from "@icm/derived";
+import { draftTextTurn, type ResolvedDraftingGeometry } from "@icm/derived";
 import { reflectOrientation, snapGridPoint } from "@icm/model";
 import {
   reflectedTextAlignment,
@@ -572,6 +572,11 @@ function rotateFreeAnchor(
   };
 }
 
+/** A text placed at a quarter turn reads up the page; otherwise across. */
+export function uprightOrUp(rotation: number): 0 | 270 {
+  return rotation % 180 === 90 ? 270 : 0;
+}
+
 export function rotateDraftingObject(
   object: DraftingObject,
   geometry: ResolvedDraftingGeometry,
@@ -630,8 +635,14 @@ export function rotateDraftingObject(
       rotation: (((object.rotation + deltaDegrees) % 360) + 360) % 360,
     };
   }
+  // A free text turns between reading across and reading up the page, about
+  // its anchor; a half turn would stand it on its head.
+  if (object.kind === "text" && !object.polarity) {
+    if (deltaDegrees === 180) return null;
+    return { ...object, rotation: draftTextTurn(object) ? 0 : 270 };
+  }
   // Polarity text turns its + and − about the text: above and below it, or
-  // either side. The glyphs themselves stay upright, as all drafting text.
+  // either side. Its glyphs stay upright.
   if (object.kind === "text" && object.polarity === "both") {
     return {
       ...object,
