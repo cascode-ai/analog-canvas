@@ -1,8 +1,15 @@
 import type { CircuitProject } from "@icm/model";
-import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
+import {
+  compareElectricalGraphs,
+  createDesignNetlistExport,
+  projectElectricalGraph,
+} from "@icm/netlist";
 import { serializeProject } from "@icm/project-protocol";
 import {
   applyRnlSnapshot,
+  drawnModelTypes,
+  withPowerLabelPorts,
+  rnlBodyPortOrder,
   type RnlHiddenLabels,
   type RnlParameterText,
   type RnlImportDiagnostic,
@@ -102,28 +109,40 @@ function drawingOf(
 /**
  * The drawn Project, or why it is left out: it would change the netlist, or
  * it is not a Project the editor can save (RNL never connects by position, so
- * a wire can join what the netlist keeps apart).
+ * a wire can join what the netlist keeps apart). The circuit the file's
+ * netlist imports as is the reference, and so, where the two differ, is the
+ * file's netlist itself (`writesFileNetlist`); nothing else counts as the
+ * same netlist.
+ *
+ * @internal Exported for its unit test, which pins the guard.
  */
-function drawnProject(
+export async function drawnProject(
   imported: CircuitProject,
   drawn: ReturnType<typeof applyRnlSnapshot>,
-): { project: CircuitProject } | OmittedDrawing {
+  writesFileNetlist: (project: CircuitProject) => Promise<boolean>,
+): Promise<{ project: CircuitProject } | OmittedDrawing> {
   try {
     const before = projectElectricalGraph(imported);
     const after = projectElectricalGraph(drawn.project);
     if (
       before.status === "ready" &&
       (after.status !== "ready" ||
-        compareElectricalGraphs(before.graph, after.graph) !== "equal")
+        compareElectricalGraphs(before.graph, after.graph) !== "equal") &&
+      !(await writesFileNetlist(drawn.project))
     )
       return {
         code: "RNL_IMPORT_CHANGES_NETLIST",
         message:
           "The RNL drawing would change the netlist, so the circuit comes in undrawn",
       };
-    const project = hideLabels(
-      withImportedInstanceDisplays(drawn.project),
-      drawn.hiddenLabels,
+    // A port the drawing shows only as its power label is that label again
+    // (#1783): the circuit is the same, only who owns the port changes.
+    const project = withPowerLabelPorts(
+      hideLabels(
+        withImportedInstanceDisplays(drawn.project),
+        drawn.hiddenLabels,
+      ),
+      drawn.powerLabelPorts,
     );
     serializeProject(project);
     return { project };
@@ -133,6 +152,55 @@ function drawnProject(
       message: `The RNL drawing does not make a Project the editor can save, so the circuit comes in undrawn: ${reason(error)}`,
     };
   }
+}
+
+/**
+ * Whether the drawn circuit writes the file's own netlist: its netlist,
+ * written as the RNL export writes it and read back as the file was, is the
+ * same circuit to the comparison as the file's, "equal" and nothing less.
+ * The file's netlist read alone does not always write what it read: a
+ * ground pin the export named VSS reads as a port, and writes a GND pin
+ * beside it, where the drawing, which shows that pin as ground, writes the
+ * file's netlist again.
+ *
+ * @internal Exported for its unit test, which pins the guard.
+ */
+export async function writesFileNetlist(
+  project: CircuitProject,
+  fileImported: CircuitProject,
+  inputs: SpiceSourceInput[],
+  entryPath: string,
+): Promise<boolean> {
+  const entry = inputs.find((input) => input.path === entryPath)!;
+  const written = createDesignNetlistExport(project, {
+    format: isSpectreSource(entry) ? "spectre" : "spice",
+    bodyPortOrder: rnlBodyPortOrder(project),
+  });
+  if (written.status !== "ready") return false;
+  const rewritten = inputs.map((input) =>
+    input === entry
+      ? { ...input, bytes: new TextEncoder().encode(written.file.text) }
+      : input,
+  );
+  const prepared = prepareImportSources(rewritten);
+  const again = await importSpiceSources(
+    prepared.inputs,
+    entryPath,
+    {},
+    {
+      namingProfile: "native",
+      originalSources: rewritten,
+      builtInBodies: prepared.builtInBodies,
+    },
+  );
+  if (!again.project || !again.successful) return false;
+  const file = projectElectricalGraph(fileImported);
+  const read = projectElectricalGraph(again.project);
+  return (
+    file.status === "ready" &&
+    read.status === "ready" &&
+    compareElectricalGraphs(file.graph, read.graph) === "equal"
+  );
 }
 
 /** An error as one line: a schema error's issue messages, not its JSON. */
@@ -221,6 +289,8 @@ async function buildImportPlan({
       namingProfile: "native",
       originalSources: inputs,
       builtInBodies: prepared.builtInBodies,
+      // A model no card declares is the type its parts are drawn as.
+      modelTypes: drawnModelTypes(snapshot),
     },
   );
   if (!imported.project || !imported.successful)
@@ -232,7 +302,13 @@ async function buildImportPlan({
       diagnostics: imported.diagnostics,
     };
   const drawn = drawingOf(imported.project, snapshot);
-  const kept = "code" in drawn ? drawn : drawnProject(imported.project, drawn);
+  const fileImported = imported.project;
+  const kept =
+    "code" in drawn
+      ? drawn
+      : await drawnProject(fileImported, drawn, (project) =>
+          writesFileNetlist(project, fileImported, inputs, entryPath),
+        );
   const read = "code" in drawn ? null : drawn;
   const parameterTexts = read?.parameterTexts ?? [];
   const diagnostics = [

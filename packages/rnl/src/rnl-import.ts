@@ -2,6 +2,7 @@ import {
   arrowArtwork,
   resolveAnnotationText,
   drawnSwitchControl,
+  mosBulkKind,
   resolveDocumentStyleProfile,
   richTextMetrics,
   supplyMarkerForSymbol,
@@ -11,8 +12,9 @@ import {
   createReferenceIndex,
   deviceDescriptor,
   matchGateCellPins,
+  projectLengthToSky130Micrometres,
 } from "@icm/devices";
-import { spectreNumber } from "@icm/netlist";
+import { analyzeDesignNetlistForAuthoring, spectreNumber } from "@icm/netlist";
 import {
   deriveStableId,
   flattenRichText,
@@ -138,6 +140,8 @@ export interface RnlObjectView {
   symbol: Slot<string>;
   at: Slot<Point>;
   orient: Slot<string>;
+  /** The style properties the document's records give it, such as `linecolor`. */
+  style?: Readonly<Record<string, string | number | boolean>>;
   pins: readonly {
     terminals: readonly string[];
     at: Point;
@@ -250,33 +254,85 @@ const isOrient = (value: string | null): value is RnlOrient =>
 function acSymbolFor(
   symbol: RnlSymbolRef,
   orient: RnlOrient,
-  instance: Pick<Instance, "symbolId">,
+  instance: Pick<Instance, "symbolId"> &
+    Partial<Pick<Instance, "importProvenance">>,
   pinNames: readonly string[],
-): { row: RnlSymbol; orient: RnlOrient } | null {
-  const rows = RNL_SYMBOLS.filter(
-    (row) =>
-      row.ac !== null &&
-      row.symbol === symbol.name &&
-      (row.inline
-        ? symbol.package === null &&
-          symbol.level !== null &&
-          matchesInlineRnlSymbol(row, symbol.definition)
-        : family(row.package) === family(symbol.package)) &&
-      pinNames.every(
-        (pin) =>
-          row.pins.some((item) => item.acPin === pin) ||
-          row.undrawnPins.some((item) => item.acPin === pin),
-      ),
-  );
+): {
+  row: RnlSymbol;
+  orient: RnlOrient;
+  /** The part's pins by the names this symbol gives them, where they differ. */
+  pins?: ReadonlyMap<string, string>;
+} | null {
+  const rows: { row: RnlSymbol; pins?: ReadonlyMap<string, string> }[] =
+    RNL_SYMBOLS.flatMap((row) => {
+      if (
+        row.ac === null ||
+        row.symbol !== symbol.name ||
+        !(row.inline
+          ? symbol.package === null &&
+            symbol.level !== null &&
+            matchesInlineRnlSymbol(row, symbol.definition)
+          : family(row.package) === family(symbol.package))
+      )
+        return [];
+      if (
+        pinNames.every(
+          (pin) =>
+            row.pins.some((item) => item.acPin === pin) ||
+            row.undrawnPins.some((item) => item.acPin === pin),
+        )
+      )
+        return [{ row }];
+      const pins = positionalPins(row, instance);
+      return pins ? [{ row, pins }] : [];
+    });
   const ranked = rows
-    .map((row) => ({ row, orient: composeOrient(orient, inverse(row.orient)) }))
+    .map((found) => ({
+      ...found,
+      orient: composeOrient(orient, inverse(found.row.orient)),
+    }))
     .sort(
       (a, b) =>
         Number(a.orient.startsWith("M")) - Number(b.orient.startsWith("M")) ||
+        Number(a.pins !== undefined) - Number(b.pins !== undefined) ||
         Number(a.row.ac !== instance.symbolId) -
           Number(b.row.ac !== instance.symbolId),
     );
   return ranked[0] ?? null;
+}
+
+/**
+ * A part's pins as a symbol of the same kind of device names them, by the
+ * terminal each is printed at, as RNL binds pins (9.2.4): the netlist import
+ * names a capacitor's 1 and 2 where a varactor's are P1 and P2. Only where
+ * that symbol's own netlist order prints each pin at the same place, so the
+ * netlist stays the same; null otherwise.
+ */
+function positionalPins(
+  row: RnlSymbol,
+  instance: Pick<Instance, "symbolId"> &
+    Partial<Pick<Instance, "importProvenance">>,
+): ReadonlyMap<string, string> | null {
+  const printed = instance.importProvenance?.terminalMapping;
+  const target = row.ac ? deviceDescriptor(row.ac) : undefined;
+  const source = deviceDescriptor(instance.symbolId);
+  if (
+    !printed?.length ||
+    !target ||
+    !source ||
+    target.deviceClass !== source.deviceClass ||
+    target.pinOrder.length !== printed.length
+  )
+    return null;
+  const names = new Map<string, string>();
+  for (const { sourcePosition, pinName } of printed) {
+    const pin = [...row.pins, ...row.undrawnPins].find(
+      (item) => item.terminal === sourcePosition + 1,
+    );
+    if (!pin || target.pinOrder[sourcePosition] !== pin.acPin) return null;
+    names.set(pinName, pin.acPin);
+  }
+  return new Set(names.values()).size === names.size ? names : null;
 }
 
 /** What closes a switch Analog Canvas draws: the phase its label names, its CTRL pin, or a chopper's clock. */
@@ -300,7 +356,7 @@ function phaseSwitchSymbol(
   symbol: RnlSymbolRef,
   orient: RnlOrient,
   instance: Pick<Instance, "symbolId">,
-): { row: RnlSymbol; orient: RnlOrient } | null {
+): ReturnType<typeof acSymbolFor> {
   if (switchControl(instance.symbolId) !== "pin") return null;
   const found = acSymbolFor(symbol, orient, instance, ["1", "2"]);
   return found?.row.ac && switchControl(found.row.ac) === "phase"
@@ -382,17 +438,25 @@ export function applyRnlSnapshot(
   diagnostics: RnlImportDiagnostic[];
   hiddenLabels: RnlHiddenLabels[];
   parameterTexts: RnlParameterText[];
+  powerLabelPorts: RnlPowerLabelPort[];
 } {
   const diagnostics: RnlImportDiagnostic[] = [];
   const hiddenLabels: RnlHiddenLabels[] = [];
   const parameterTexts: RnlParameterText[] = [];
+  const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
     diagnostics.push({
       severity: "error",
       code: "RNL_IMPORT_UNREADABLE",
       message: `RNL could not read the file: ${snapshot.failed}`,
     });
-    return { project, diagnostics, hiddenLabels, parameterTexts };
+    return {
+      project,
+      diagnostics,
+      hiddenLabels,
+      parameterTexts,
+      powerLabelPorts,
+    };
   }
   for (const item of snapshot.diagnostics)
     if (item.severity === "error")
@@ -413,6 +477,7 @@ export function applyRnlSnapshot(
       });
   }
   const next = structuredClone(project);
+  const undrawnPins = new Set<string>();
   for (const level of snapshot.levels) {
     if (!level.model) continue;
     const document = documentOf(next, level);
@@ -433,9 +498,77 @@ export function applyRnlSnapshot(
       diagnostics,
       hiddenLabels,
       parameterTexts,
+      undrawnPins,
+      powerLabelPorts,
     );
   }
-  return { project: next, diagnostics, hiddenLabels, parameterTexts };
+  removeAddedPins(next, undrawnPins);
+  trimCallMappings(next);
+  return {
+    project: next,
+    diagnostics,
+    hiddenLabels,
+    parameterTexts,
+    powerLabelPorts,
+  };
+}
+
+/**
+ * The device type of each model the drawing's parts call, as the symbols it
+ * draws them with say it (`$NMOS` an nmos, `$NPN` an npn, `$DIODE` a diode),
+ * for a netlist that calls a model no model card declares. A model whose
+ * parts are drawn as different types has none.
+ */
+export function drawnModelTypes(snapshot: RnlSnapshot): Map<string, string> {
+  const seen = new Map<string, Set<string>>();
+  for (const level of snapshot.levels) {
+    if (!level.model || !level.host) continue;
+    const symbols = new Map(
+      level.model.symbols.map((symbol) => [symbol.id, symbol]),
+    );
+    const masters = new Map(
+      level.host.instances.map((instance) => [instance.id, instance.master]),
+    );
+    for (const object of level.model.objects) {
+      if (object.kind !== "instance") continue;
+      const master = masters.get(object.host[0] ?? object.id);
+      const symbol = object.symbol.value
+        ? symbols.get(object.symbol.value)
+        : undefined;
+      if (!master || !symbol || symbol.default) continue;
+      const types = new Set(
+        RNL_SYMBOLS.filter(
+          (row) =>
+            row.ac !== null &&
+            !row.inline &&
+            row.symbol === symbol.name &&
+            family(row.package) === family(symbol.package),
+        ).flatMap((row) => {
+          const type = modelTypeOf(row.ac!);
+          return type ? [type] : [];
+        }),
+      );
+      if (types.size !== 1) continue;
+      const key = master.toLowerCase();
+      seen.set(key, new Set([...(seen.get(key) ?? []), ...types]));
+    }
+  }
+  return new Map(
+    [...seen].flatMap(([master, types]) =>
+      types.size === 1 ? [[master, [...types][0]!] as const] : [],
+    ),
+  );
+}
+
+/** The model type of an Analog Canvas device symbol, if it calls a model. */
+function modelTypeOf(symbolId: string): string | null {
+  const descriptor = deviceDescriptor(symbolId);
+  if (!descriptor) return null;
+  if (descriptor.mosBulkClass) return descriptor.mosBulkClass;
+  if (descriptor.deviceClass === "diode") return "d";
+  if (descriptor.deviceClass === "bjt")
+    return symbolId === "npn" || symbolId === "pnp" ? symbolId : null;
+  return null;
 }
 
 /**
@@ -448,6 +581,97 @@ export interface RnlHiddenLabels {
   instanceId: string;
   name: boolean;
   values: boolean;
+}
+
+/**
+ * A Cell port the drawing shows only as a power label that names it, no Pin
+ * drawn: the label is the port, as the editor keeps a local power label.
+ */
+export interface RnlPowerLabelPort {
+  documentId: string;
+  terminalId: string;
+  labelId: string;
+}
+
+/**
+ * Each such port as the editor keeps it (#1783): the label is the terminal's
+ * interface, and claims its net's name as a supply, so its rails are rails;
+ * the Pin the netlist import gave it goes, with what hangs on it. The
+ * circuit is the same; only which object owns the port changes, and with it
+ * where the netlist prints the port.
+ */
+export function withPowerLabelPorts(
+  project: CircuitProject,
+  ports: readonly RnlPowerLabelPort[],
+): CircuitProject {
+  if (!ports.length) return project;
+  const next = structuredClone(project);
+  for (const { documentId, terminalId, labelId } of ports) {
+    const document = next.documents.find((item) => item.id === documentId);
+    const terminal = document?.netlist?.terminals.find(
+      (item) => item.id === terminalId,
+    );
+    const pinId = terminal?.interfaceInstanceIds[0];
+    if (!document || !terminal || !pinId) continue;
+    document.instances = document.instances.filter(
+      (instance) => instance.id !== pinId,
+    );
+    for (const net of document.nets)
+      net.terminals = net.terminals.filter((item) => item.instanceId !== pinId);
+    // The Pin's own labels go with it; a power label hung on it stays where
+    // it stands, on the junction of its net beside it if there is one.
+    document.annotations = document.annotations.flatMap((item) => {
+      if (item.anchor.kind !== "object" || item.anchor.objectId !== pinId)
+        return [item];
+      if (item.kind !== "power-label") return [];
+      const at = item.anchor.fallbackPosition;
+      const near = document.junctions
+        .filter((junction) => junction.netId === item.netId)
+        .map((junction) => ({
+          junction,
+          distance: Math.hypot(
+            junction.position.x - at.x,
+            junction.position.y - at.y,
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance)[0];
+      return [
+        {
+          ...item,
+          anchor:
+            near && near.distance <= 4 * PART_GRID
+              ? {
+                  kind: "object" as const,
+                  objectId: near.junction.id,
+                  localOffset: {
+                    x: at.x - near.junction.position.x,
+                    y: at.y - near.junction.position.y,
+                  },
+                  fallbackPosition: at,
+                }
+              : { kind: "free" as const, position: at },
+        },
+      ];
+    });
+    terminal.interfaceInstanceIds = [];
+    terminal.interfaceAnnotationId = labelId;
+    document.connectivityEvidence.push({
+      id: deriveStableId(
+        "connectivity-evidence",
+        document.id,
+        "power-marker",
+        labelId,
+        terminal.netId,
+      ),
+      kind: "name-claim",
+      netId: terminal.netId,
+      name: terminal.name,
+      scope: "local",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: labelId },
+    });
+  }
+  return next;
 }
 
 /**
@@ -470,6 +694,9 @@ function applyLevel(
   diagnostics: RnlImportDiagnostic[],
   hiddenLabels: RnlHiddenLabels[],
   parameterTexts: RnlParameterText[],
+  /** The Cell Pins the drawing does not place, gathered across levels. */
+  undrawnPins: Set<string>,
+  powerLabelPorts: RnlPowerLabelPort[],
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -587,6 +814,11 @@ function applyLevel(
     const plain = net.name.replace(/\\(.)/gu, "$1").toLowerCase();
     if (!nets.has(plain)) nets.set(plain, net.id);
   }
+  // RNL reads SPICE's GND as ground, as ngspice does, where the import keeps
+  // a Cell's GND as a net of that name (#1784): a wire RNL draws on 0 is on
+  // that net, in a Cell that has no 0 of its own.
+  const gnd = nets.get("gnd");
+  if (!nets.has("0") && gnd !== undefined) nets.set("0", gnd);
   const netOf = (id: string) => {
     const name = rnlIdName(id, "&");
     return name === null ? undefined : nets.get(name.toLowerCase());
@@ -628,6 +860,26 @@ function applyLevel(
   };
   const own = model.symbol?.value ? symbols.get(model.symbol.value) : null;
   if (own?.definition) layOut(document, own.definition);
+
+  /**
+   * Gives a part the name its card has where that gives it no Reference
+   * issue it does not have already: no other part of the Cell has it, as
+   * SPICE compares names without case, and the part takes names of its
+   * prefix (a call of a Cell keeps its X).
+   */
+  const nameAsCard = (instance: Instance, name: string) => {
+    const issues = () =>
+      new Set(
+        createReferenceIndex(document, project)
+          .issues.filter((issue) => issue.instanceId === instance.id)
+          .map((issue) => issue.code),
+      );
+    const before = issues();
+    const printed = instance.reference;
+    instance.reference = name;
+    if ([...issues()].every((code) => before.has(code))) return;
+    instance.reference = printed;
+  };
 
   // Parts: placed, turned and in the variant their symbol stands for.
   const unplaced: string[] = [];
@@ -685,8 +937,17 @@ function applyLevel(
       else delete instance.symbolVariantId;
       if (pinSwitch && switchControl(instance.symbolId) === "phase")
         clockByLabel(instance);
-      if (gateCall) renamePins(instance, gateCall.pins);
+      // A gate's call, or a symbol taken by terminal, renames the part's pins.
+      if (mapped.pins) renamePins(instance, mapped.pins);
     }
+    // A Spectre card the conversion named for SPICE, which calls a
+    // subcircuit with X (M1 as XM1), has its Spectre name again where the
+    // part as drawn can have it.
+    if (
+      name !== null &&
+      instance.reference?.toLowerCase() === `x${name.toLowerCase()}`
+    )
+      nameAsCard(instance, name);
     const turn = mapped?.orient ?? orient;
     instance.placement = {
       position: snap(
@@ -695,6 +956,7 @@ function applyLevel(
       ),
       ...acOrientation(turn),
     };
+    Object.assign(instance, paintOf(object));
     placed.push(instance);
     // A Cell's call drawn with the symbol the file defines for it: the
     // Cell's block takes that layout, its pins where the symbol has them.
@@ -864,7 +1126,9 @@ function applyLevel(
    * The text the author wrote for a parameter the netlist writes otherwise
    * (`$CANVAS_PARAMETER_TEXT`), named as the netlist names it: a resistor's,
    * capacitor's or inductor's value is its r, c or l. It stands only where
-   * it is the number the part has, written as Spectre writes it.
+   * it is the number the part has, written as Spectre writes it, or the
+   * same size: a SKY130 size prints in micrometres, 0.15 for 0.15u, and
+   * reads back as 150n.
    */
   const textAgain = (object: RnlObjectView) => {
     const part = object.attach?.["part"];
@@ -894,7 +1158,11 @@ function applyLevel(
             (item) => item.toLowerCase() === candidate.toLowerCase(),
           ) ?? [],
       )
-      .find((item) => spectreNumber(parameters[item]!) === spectreNumber(text));
+      .find(
+        (item) =>
+          spectreNumber(parameters[item]!) === spectreNumber(text) ||
+          sameSize(parameters[item]!, text),
+      );
     if (key)
       parameterTexts.push({
         documentId: document.id,
@@ -975,6 +1243,7 @@ function applyLevel(
         glyphOf.set(object.id, { instanceId: pin.id, pinName: "P" });
         if (mapped) pin.symbolId = mapped.row.ac!;
         pin.placement = placementOf() ?? pin.placement;
+        Object.assign(pin, paintOf(object));
         continue;
       }
       // The same port drawn again: one more Cell terminal of the port's name,
@@ -988,6 +1257,7 @@ function applyLevel(
           id,
           symbolId: mapped?.row.ac ?? "port",
           placement: placementOf(),
+          ...paintOf(object),
         });
         document.nets
           .find((item) => item.id === netId)
@@ -1048,6 +1318,7 @@ function applyLevel(
         id,
         symbolId: mapped.row.ac!,
         placement: placementOf(),
+        ...paintOf(object),
       });
       net.terminals.push({ instanceId: id, pinName });
       const supply = supplyMarkerForSymbol(mapped.row.ac!);
@@ -1525,6 +1796,30 @@ function applyLevel(
     netOf,
     legNear,
   });
+  for (const terminal of document.netlist?.terminals ?? [])
+    for (const id of terminal.interfaceInstanceIds)
+      if (!movedPins.has(id)) undrawnPins.add(id);
+  // A port the drawing shows only as a power label that names it, no Pin
+  // drawn (#1783): the label is the port, as the editor keeps a local power
+  // label (withPowerLabelPorts, once the drawing is known to keep the
+  // circuit).
+  for (const terminal of document.netlist?.terminals ?? []) {
+    const pinId = terminal.interfaceInstanceIds[0];
+    if (!pinId || movedPins.has(pinId)) continue;
+    const label = document.annotations.find(
+      (item) =>
+        item.kind === "power-label" &&
+        item.netId === terminal.netId &&
+        item.binding?.kind === "cell-terminal-name" &&
+        item.binding.terminalId === terminal.id,
+    );
+    if (label)
+      powerLabelPorts.push({
+        documentId: document.id,
+        terminalId: terminal.id,
+        labelId: label.id,
+      });
+  }
   // A Cell Pin the drawing places but gives no name of its own keeps the
   // editor's default name label hidden, as a part's labels are; a net label
   // beside it may be what shows the name.
@@ -1722,9 +2017,19 @@ function importTexts(
     const alignment = (
       ["start", "middle", "end"].includes(text.halign) ? text.halign : "start"
     ) as "start" | "middle" | "end";
+    // A label takes its part's colour as the editor's does from its Instance:
+    // the colour its part has is no colour of its own.
+    const textcolor = text.style["textcolor"];
+    const ownerColour = model.objects.find(
+      (object) => object.id === text.attach,
+    )?.style?.["textcolor"];
     const color =
-      typeof text.style["textcolor"] === "string"
-        ? { textColor: text.style["textcolor"] }
+      typeof textcolor === "string" &&
+      !(
+        typeof ownerColour === "string" &&
+        ownerColour.toLowerCase() === textcolor.toLowerCase()
+      )
+        ? { textColor: textcolor }
         : {};
     const shown = flattenRichText(content);
     const onObject = (instance: Instance) =>
@@ -2043,7 +2348,7 @@ function importShapes(
   };
   for (const shape of shapes) {
     const style = shape.style;
-    const lineStyle =
+    const lineStyle: "solid" | "dashed" | "dotted" =
       style["linestyle"] === "dashed" || style["linestyle"] === "dotted"
         ? style["linestyle"]
         : "solid";
@@ -2073,6 +2378,11 @@ function importShapes(
         ? { strokeScale: Math.round(strokeScale * 1e3) / 1e3 }
         : {}),
     };
+    // An object keeps the line style it is made with, a closed shape solid
+    // and a construction line dashed, and the one it is drawn with as its
+    // override where they differ, as the editor sets one.
+    const drawnOver = (made: "solid" | "dashed") =>
+      lineStyle !== made ? { lineStyle } : {};
     const base = (anchor: { x: number; y: number }) => ({
       id: deriveStableId("drafting", document.id, level.id, shape.id),
       locked: false,
@@ -2109,18 +2419,26 @@ function importShapes(
               width: size("width"),
               height: size("height"),
               rotation: 0,
-              lineStyle,
+              lineStyle: "solid",
               ...layer,
-              styleOverride: { ...styleOverride, ...filled },
+              styleOverride: {
+                ...styleOverride,
+                ...drawnOver("solid"),
+                ...filled,
+              },
             }
           : {
               ...base(center),
               kind: "circle",
               center,
               radius: size(round ? "width" : "radius"),
-              lineStyle,
+              lineStyle: "solid",
               ...layer,
-              styleOverride: { ...styleOverride, ...filled },
+              styleOverride: {
+                ...styleOverride,
+                ...drawnOver("solid"),
+                ...filled,
+              },
             },
       );
       continue;
@@ -2142,9 +2460,9 @@ function importShapes(
         ...base(turned.center),
         kind: "rectangle",
         ...turned,
-        lineStyle,
+        lineStyle: "solid",
         ...layer,
-        styleOverride: { ...styleOverride, ...filled },
+        styleOverride: { ...styleOverride, ...drawnOver("solid"), ...filled },
       });
       continue;
     }
@@ -2192,8 +2510,10 @@ function importShapes(
       kind: "construction-line",
       points: path.points,
       ...(path.controls.some(Boolean) ? { curveControls: path.controls } : {}),
-      lineStyle,
-      ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
+      lineStyle: "dashed",
+      ...(Object.keys({ ...styleOverride, ...drawnOver("dashed") }).length
+        ? { styleOverride: { ...styleOverride, ...drawnOver("dashed") } }
+        : {}),
     });
   }
   return { unread, unfilled };
@@ -2240,11 +2560,12 @@ function pathOf(
 /** A line's look, as a drawing object other than a closed shape keeps it. */
 function lineLook(object: DraftingObject) {
   const lineStyle =
-    object.kind === "construction-line" ||
+    object.styleOverride?.lineStyle ??
+    (object.kind === "construction-line" ||
     object.kind === "rectangle" ||
     object.kind === "circle"
       ? object.lineStyle
-      : object.styleOverride?.lineStyle;
+      : undefined);
   return {
     ...(object.styleOverride?.color
       ? { color: object.styleOverride.color }
@@ -2815,10 +3136,142 @@ function quadraticPath(points: readonly { x: number; y: number }[]): {
   return { points: ends, controls };
 }
 
+/** Whether two lengths are the same number of micrometres. */
+function sameSize(left: string, right: string): boolean {
+  try {
+    return (
+      projectLengthToSky130Micrometres(left) ===
+      projectLengthToSky130Micrometres(right)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A part's colour as its record writes it (`@SET-STYLE`): its line colour is
+ * the Instance's foreground, as the export writes it.
+ */
+function paintOf(
+  object: RnlObjectView,
+): { styleOverride: { foreground: string } } | Record<string, never> {
+  const linecolor = object.style?.["linecolor"];
+  return typeof linecolor === "string" && /^#[0-9a-f]{6}$/iu.test(linecolor)
+    ? { styleOverride: { foreground: linecolor } }
+    : {};
+}
+
 /** Whether every run of a text is bold, as a drawing text is by default. */
 function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
   const runs = lines.flat();
   return runs.length > 0 && runs.every((run) => run.style.bold);
+}
+
+/**
+ * The pins Analog Canvas adds to a Cell printed as a subcircuit (#1787):
+ * ground (VSS, or GND, GND__n) where the Cell meets ground only through the
+ * Cells it calls, a switch it draws or a MOS body left unwired; VDD where a
+ * PMOS body is left unwired; the phase a switch's label clocks it by. The
+ * drawing shows none of them, so the pin is undrawn and alone on its net
+ * but for those bodies, and the rails of the Library gates it draws, once
+ * its children's pins are gone. Where the Cell
+ * prints the same pin again without it, it goes, the bodies unwired again
+ * as drawn, and then a caller's pin it left alone in turn. A pin the Cell
+ * would print under another name, or not at all, is the author's and stays.
+ */
+function removeAddedPins(
+  project: CircuitProject,
+  undrawnPins: ReadonlySet<string>,
+): void {
+  for (let removed = true; removed;) {
+    removed = false;
+    for (const document of project.documents)
+      for (const terminal of [...(document.netlist?.terminals ?? [])]) {
+        const pins = new Set(terminal.interfaceInstanceIds);
+        const net = document.nets.find((item) => item.id === terminal.netId);
+        if (
+          !net ||
+          !pins.size ||
+          [...pins].some((id) => !undrawnPins.has(id)) ||
+          !net.terminals.every(
+            (item) => pins.has(item.instanceId) || unwiredSupply(item),
+          ) ||
+          document.annotations.some(
+            (item) => "netId" in item && item.netId === net.id,
+          ) ||
+          document.routes.some((route) => route.netId === net.id) ||
+          document.netlist!.terminals.some(
+            (item) =>
+              item !== terminal &&
+              (item.netId === net.id ||
+                item.name.toUpperCase() === terminal.name.toUpperCase()),
+          )
+        )
+          continue;
+        const trial = structuredClone(project);
+        const trialDocument = trial.documents.find(
+          (item) => item.id === document.id,
+        )!;
+        removeAddedPin(
+          trial,
+          trialDocument,
+          trialDocument.netlist!.terminals.find(
+            (item) => item.id === terminal.id,
+          )!,
+        );
+        // What the export prints for the Cell, read as the editor reads a
+        // Cell it has not finished: another Cell's unrelated error leaves
+        // this one's pins as they are.
+        const printed = analyzeDesignNetlistForAuthoring(trial, {
+          groundPin: "pin",
+        }).ir?.cells.find((cell) => cell.id === document.id);
+        if (!printed?.ports.some((port) => port.name === terminal.name))
+          continue;
+        removeAddedPin(project, document, terminal);
+        removed = true;
+      }
+  }
+
+  /**
+   * A pin no drawing wires, which takes the Cell's supply when left alone:
+   * a MOS body left unwired, as the netlist import binds it, or the rail of
+   * a Library gate drawn on a Cell of the Project, which its symbol draws no
+   * pin for (#1450).
+   */
+  function unwiredSupply(item: { instanceId: string; pinName: string }) {
+    const instance = project.documents
+      .flatMap((document) => document.instances)
+      .find((candidate) => candidate.id === item.instanceId);
+    if (!instance) return false;
+    if (item.pinName === "B")
+      return !!mosBulkKind(instance) && !instance.mosBulkBinding;
+    return (
+      (item.pinName === "VDD" || item.pinName === "VSS") &&
+      instance.netlist?.binding?.kind === "subcircuit" &&
+      bindsProjectCell(instance.symbolId)
+    );
+  }
+}
+
+/**
+ * An added pin and its net gone, with each MOS body on it unwired and a Cell
+ * default naming it dropped, and its callers no longer passing it a node.
+ */
+function removeAddedPin(
+  project: CircuitProject,
+  document: SchematicDocument,
+  terminal: NonNullable<SchematicDocument["netlist"]>["terminals"][number],
+): void {
+  removeGroundPin(project, document, terminal);
+  document.nets = document.nets.filter((net) => net.id !== terminal.netId);
+  document.connectivityEvidence = document.connectivityEvidence.filter(
+    (evidence) => evidence.netId !== terminal.netId,
+  );
+  const defaults = document.mosBulkDefaults;
+  if (defaults?.nmosNetId === terminal.netId) delete defaults.nmosNetId;
+  if (defaults?.pmosNetId === terminal.netId) delete defaults.pmosNetId;
+  if (defaults && !defaults.nmosNetId && !defaults.pmosNetId)
+    delete document.mosBulkDefaults;
 }
 
 /**
@@ -2852,10 +3305,39 @@ function removeGroundPin(
           (item) =>
             item.instanceId !== instance.id || item.pinName !== terminal.name,
         );
+    }
+}
+
+/**
+ * Each call's printed terminals reduced to the pins its Cell still has,
+ * once every level is read: until then a call keeps the node it passed to a
+ * ground pin since undone, so a caller read after its Cell still matches
+ * its card's terminals to the symbol drawn for it, such as a gate's
+ * (`gateCallSymbol`). A gate's call names its pins as the gate does, which
+ * meet the Cell's Pins without case (#1450).
+ */
+function trimCallMappings(project: CircuitProject): void {
+  const pinsOf = new Map(
+    project.documents.map((document) => [
+      document.id,
+      new Set(
+        (document.netlist?.terminals ?? []).map((terminal) =>
+          terminal.name.toLowerCase(),
+        ),
+      ),
+    ]),
+  );
+  for (const document of project.documents)
+    for (const instance of document.instances) {
+      const binding = instance.netlist?.binding;
       const provenance = instance.importProvenance;
-      if (provenance?.terminalMapping)
-        provenance.terminalMapping = provenance.terminalMapping.filter(
-          (item) => item.pinName !== terminal.name,
+      const pins =
+        binding?.kind === "subcircuit"
+          ? pinsOf.get(binding.childDocumentId)
+          : undefined;
+      if (pins && provenance?.terminalMapping)
+        provenance.terminalMapping = provenance.terminalMapping.filter((item) =>
+          pins.has(item.pinName.toLowerCase()),
         );
     }
 }

@@ -29,6 +29,7 @@ import {
 import {
   normalizeIndependentSource,
   printedParameterConversion,
+  restorePrintedParameter,
   spectreNumber,
   withNetlistPowerMarkerClaims,
   type DesignNetlistCell,
@@ -84,6 +85,8 @@ export type RnlOp = { level: string } & (
       object: string;
       /** Absent leaves the part to RNL's own symbol rules or stand-in box. */
       symbol?: string;
+      /** Its colour, written as a `@SET-STYLE` of these properties. */
+      style?: Record<string, string>;
       at?: RnlPoint;
       orient?: RnlOrient;
     }
@@ -96,6 +99,7 @@ export type RnlOp = { level: string } & (
       /** Written `@ATTACH(k=v, …)`, in the order given. */
       params?: Record<string, string | number | boolean>;
       symbol?: string;
+      style?: Record<string, string>;
       at?: RnlPoint;
       orient?: RnlOrient;
     }
@@ -361,18 +365,40 @@ const SPECTRE_SOURCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * The parameters of a part the Spectre netlist writes as other text than the
- * author's, by the name the netlist gives each: a resistor's, capacitor's or
- * inductor's value is its r, c or l, and a source's fields are named as its
- * card names them, those of its waveform only. A source kept as SPICE wrote
- * it, its waveform in its text, has no fields of its own.
+ * The parameters of a part the netlist writes as other text than the
+ * author's, by the name the netlist gives each. A SKY130 size prints in
+ * plain micrometres in either dialect, and reads back as 150n where the
+ * author wrote 0.15u. The Spectre netlist writes its own numbers too: a
+ * resistor's, capacitor's or inductor's value is its r, c or l, and a
+ * source's fields are named as its card names them, those of its waveform
+ * only. A source kept as SPICE wrote it, its waveform in its text, has no
+ * fields of its own.
  */
 function authoredTexts(
   cell: DesignNetlistCell,
-  instanceId: StableId,
+  instance: Instance,
+  format: NetlistFormat,
 ): { name: string; text: string }[] {
-  const printed = cell.instances.find((item) => item.id === instanceId);
+  const printed = cell.instances.find((item) => item.id === instance.id);
   if (!printed) return [];
+  // The part's own text of a size, beside the micrometres printed for it.
+  const authored = Object.entries(instance.netlist?.parameters ?? {});
+  const scaled = printed.parameters.flatMap(({ name, rawValue }) => {
+    if (printedParameterConversion(printed, name) !== "sky130-micrometres")
+      return [];
+    const text = authored.find(
+      ([key]) => key.toLowerCase() === name.toLowerCase(),
+    )?.[1];
+    try {
+      return text === undefined ||
+        restorePrintedParameter(rawValue, "sky130-micrometres") === text
+        ? []
+        : [{ name, text }];
+    } catch {
+      return [];
+    }
+  });
+  if (format !== "spectre") return scaled;
   const source =
     printed.deviceClass === "voltage-source" ||
     printed.deviceClass === "current-source";
@@ -384,7 +410,7 @@ function authoredTexts(
         /(?:AC|PULSE|SIN|PWL)/iu.test(p.rawValue),
     )
   )
-    return [];
+    return scaled;
   const waveform = source
     ? normalizeIndependentSource(printed.parameters).transient.kind
     : null;
@@ -398,7 +424,7 @@ function authoredTexts(
   const letter = { resistor: "r", capacitor: "c", inductor: "l" }[
     printed.deviceClass as string
   ];
-  return printed.parameters.flatMap(({ name, rawValue }) => {
+  const rest = printed.parameters.flatMap(({ name, rawValue }) => {
     const folded = name.toLowerCase();
     if (
       spectreNumber(rawValue) === rawValue ||
@@ -419,6 +445,7 @@ function authoredTexts(
         : name;
     return [{ name: written, text: rawValue }];
   });
+  return [...scaled, ...rest];
 }
 
 function exportCell(
@@ -647,6 +674,19 @@ function exportCell(
         [instance.id],
       );
     if (symbol && !symbol.inline) packages.add(symbol.package);
+    // Its colour: its lines and the labels it brings, which RNL gives the
+    // style of their part (11.3), as the editor gives a label its Instance's.
+    const foreground = instance.styleOverride?.foreground;
+    const paint = foreground
+      ? { style: { linecolor: foreground, textcolor: foreground } }
+      : {};
+    if (instance.styleOverride?.background)
+      report(
+        "warning",
+        "RNL_BACKGROUND_NOT_EXPORTED",
+        `${describe(instance)} is painted with a background, which RNL draws no fill behind a symbol for`,
+        [instance.id],
+      );
     const mapped = symbol;
     terminalsOf.set(
       instance.id,
@@ -684,6 +724,7 @@ function exportCell(
         definition,
         attach: { p: rnlName("&", net) },
         symbol: symbol.symbol,
+        ...paint,
         ...where,
       });
       continue;
@@ -709,6 +750,7 @@ function exportCell(
         : blockSymbol && binding?.kind === "external-subcircuit"
           ? { symbol: blockSymbol.name }
           : {}),
+      ...paint,
       ...where,
     });
     // The part's own name, where the netlist spells it otherwise: SPICE
@@ -724,18 +766,22 @@ function exportCell(
       });
     }
     // The author's text of each value the netlist writes otherwise: Spectre
-    // reads 100f where the author wrote 100fF.
-    if (context.format === "spectre")
-      for (const { name, text } of authoredTexts(cell, instance.id)) {
-        packages.add(AC_PACKAGE);
-        ops.push({
-          level,
-          op: "add-usage",
-          definition: "$CANVAS_PARAMETER_TEXT",
-          attach: { part: object },
-          params: { name, text },
-        });
-      }
+    // reads 100f where the author wrote 100fF, and a SKY130 size 0.15 where
+    // the author wrote 0.15u.
+    for (const { name, text } of authoredTexts(
+      cell,
+      instance,
+      context.format,
+    )) {
+      packages.add(AC_PACKAGE);
+      ops.push({
+        level,
+        op: "add-usage",
+        definition: "$CANVAS_PARAMETER_TEXT",
+        attach: { part: object },
+        params: { name, text },
+      });
+    }
   }
 
   // A Cell Pin drawn as ground or supply, or not drawn at all, gets no port

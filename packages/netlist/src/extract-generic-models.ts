@@ -7,6 +7,7 @@ import type {
   NetlistDiagnostic,
 } from "./ir.js";
 import { diagnostic } from "./extract-common.js";
+import { spectreModelCard, spiceModelCard } from "./printers.js";
 import { partList } from "./extract-findings.js";
 
 /**
@@ -66,7 +67,9 @@ export const GENERIC_PNP_MODEL: DesignNetlistModel = {
  * from. That model is the author's. The card inside a Cell would shadow it
  * there, so no Cell carries one. Another simulation folder's files do not
  * count: a testbench defining DIODE for its own run left a second folder's
- * run, and the design export, with no model at all.
+ * run, and the design export, with no model at all. The stand-in card
+ * itself, as the export writes it in SPICE or Spectre, is not the author's:
+ * a netlist the editor wrote and imported again holds it (#1789).
  */
 export function definesGenericModel(
   project: CircuitProject,
@@ -75,7 +78,23 @@ export function definesGenericModel(
 ): boolean {
   const definition = new RegExp(
     String.raw`^[ \t]*\.?model[ \t]+${model.name}(?=[\s(]|$)`,
-    "imu",
+    "iu",
+  );
+  // A card as what it says, however it is spelled: its type, Spectre's diode
+  // as SPICE's d, and its parameters in any order, case or parentheses.
+  const spelled = (line: string) => {
+    const [, type = "", rest = ""] =
+      /^\s*\.?model\s+\S+\s+([^\s(]+)\s*\(?([^)]*)\)?\s*$/iu.exec(line) ?? [];
+    const kind = type.toLowerCase();
+    return [
+      kind === "diode" ? "d" : kind,
+      ...rest.toLowerCase().split(/\s+/u).filter(Boolean).sort(),
+    ].join(" ");
+  };
+  const standIn = new Set(
+    [spiceModelCard(model), spectreModelCard(model)].flatMap((card) =>
+      card ? [spelled(card)] : [],
+    ),
   );
   const texts = [
     ...deckSources,
@@ -84,7 +103,13 @@ export function definesGenericModel(
       file.originalContent?.text,
     ]),
   ];
-  return texts.some((text) => text !== undefined && definition.test(text));
+  return texts.some(
+    (text) =>
+      text !== undefined &&
+      text
+        .split(/\r?\n/u)
+        .some((line) => definition.test(line) && !standIn.has(spelled(line))),
+  );
 }
 
 /** Printed parts by the References their Cell shows, in reading order. */

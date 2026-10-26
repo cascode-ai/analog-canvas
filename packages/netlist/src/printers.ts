@@ -63,6 +63,27 @@ export function spiceModelCard(
   return `.model ${model.name} ${model.type}(${values})`;
 }
 
+/**
+ * A model a Cell carries, as Spectre's model statement: a MOS stand-in is
+ * Spectre's own BSIM4, as SPICE's is level 54; the classic junction and
+ * Gummel-Poon stand-ins keep the parameters the SPICE card states.
+ * Extraction omits the latter from Spectre runs. Null for a switch's model,
+ * which Spectre writes as a behavioral definition.
+ */
+export function spectreModelCard(
+  model: NonNullable<DesignNetlistCell["models"]>[number],
+): string | null {
+  if (model.type === "nmos" || model.type === "pmos")
+    return `model ${model.name} bsim4 type=${model.type === "nmos" ? "n" : "p"}`;
+  if (!["D", "NPN", "PNP"].includes(model.type)) return null;
+  const kind =
+    model.type === "D" ? "diode" : `bjt type=${model.type.toLowerCase()}`;
+  const parameters = model.parameters
+    .map((p) => `${p.name.toLowerCase()}=${p.rawValue}`)
+    .join(" ");
+  return `model ${model.name} ${kind}${parameters ? " " + parameters : ""}`;
+}
+
 function spiceModels(cell: DesignNetlistCell): string[] {
   return (cell.models ?? []).map(spiceModelCard);
 }
@@ -312,23 +333,8 @@ function spectreCell(
       lines.push(
         ...printSpectreBehavioralModel(switchBehavioralDefinition(model)),
       );
-    // A MOS stand-in is Spectre's own BSIM4, as SPICE's is level 54.
-    if (model.type === "nmos" || model.type === "pmos")
-      lines.push(
-        `model ${model.name} bsim4 type=${model.type === "nmos" ? "n" : "p"}`,
-      );
-    // Classic junction / Gummel-Poon stand-ins, with the same explicit
-    // parameters as the SPICE export. Extraction omits these from Spectre runs.
-    if (["D", "NPN", "PNP"].includes(model.type)) {
-      const kind =
-        model.type === "D" ? "diode" : `bjt type=${model.type.toLowerCase()}`;
-      const parameters = model.parameters
-        .map((p) => `${p.name.toLowerCase()}=${p.rawValue}`)
-        .join(" ");
-      lines.push(
-        `model ${model.name} ${kind}${parameters ? " " + parameters : ""}`,
-      );
-    }
+    const card = spectreModelCard(model);
+    if (card) lines.push(card);
   }
   let offset = lines.join("\n").length + 1;
   for (const instance of cell.instances) {

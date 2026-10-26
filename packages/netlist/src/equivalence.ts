@@ -1,6 +1,11 @@
 import { deviceDescriptor, resolveReviewedExternalBinding } from "@icm/devices";
 import type { CircuitProject } from "@icm/model";
-import { parseSpiceNumber } from "@icm/spice";
+import {
+  parseSpiceNumber,
+  PULSE_PARAMETER_NAMES,
+  SIN_OPTIONAL_PARAMETER_NAMES,
+  SIN_REQUIRED_PARAMETER_NAMES,
+} from "@icm/spice";
 import { analyzeDesignNetlistForAuthoring } from "./extract.js";
 import type {
   DesignNetlistIR,
@@ -25,6 +30,11 @@ export interface ElectricalGraph {
   /** Semantic identities for topology search only; exact duplicate labels stay intact. */
   topologyLabels?: string[];
   deviceOrigins?: ElectricalDeviceOrigin[];
+  /**
+   * Each Cell's printed cards, in no order: two graphs with the same cards
+   * print the same netlist whatever order its cards come in.
+   */
+  cards?: string;
 }
 
 export type ElectricalGraphResult =
@@ -80,6 +90,103 @@ function parameters(values: DesignNetlistParameter[]): string {
       })
       .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
   );
+}
+
+/** The fields of each independent source waveform the netlist prints. */
+const WAVEFORM_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  dc: [],
+  pulse: PULSE_PARAMETER_NAMES,
+  sin: [...SIN_REQUIRED_PARAMETER_NAMES, ...SIN_OPTIONAL_PARAMETER_NAMES],
+  pwl: ["pwlPoints"],
+};
+
+/**
+ * The parameters a device is compared by. An independent source keeps the
+ * fields of the waveforms it is not set to, as the editor remembers them
+ * for when it is switched back, but the netlist prints only its current
+ * waveform's: a source compares by those, its dc value and its AC
+ * magnitude and phase, a phase of 0 being the default. A waveform the
+ * editor does not know keeps every field.
+ */
+function comparedParameters(
+  instance: DesignNetlistInstance,
+): DesignNetlistParameter[] {
+  if (
+    instance.invocationKind !== "primitive" ||
+    (instance.deviceClass !== "voltage-source" &&
+      instance.deviceClass !== "current-source")
+  )
+    return instance.parameters;
+  const waveform =
+    instance.parameters
+      .find((item) => item.name.toLowerCase() === "waveform")
+      ?.rawValue.trim()
+      .toLowerCase() ?? "dc";
+  const fields = WAVEFORM_FIELDS[waveform];
+  if (!fields) return instance.parameters;
+  const current = new Set(
+    ["waveform", "dc", "acMagnitude", "acPhase", ...fields].map((name) =>
+      name.toLowerCase(),
+    ),
+  );
+  return instance.parameters.filter((item) => {
+    const name = item.name.toLowerCase();
+    return (
+      current.has(name) &&
+      !(name === "acphase" && numericValue(item.rawValue) === "0")
+    );
+  });
+}
+
+/**
+ * The netlist an IR prints, each Cell's cards in no order, read as the
+ * graph reads them. Net names count here, so it only ever proves two
+ * graphs equal: a symmetric circuit whose cards come back in another order
+ * is that, where the search may run out of steps before it says so.
+ */
+function printedCards(ir: DesignNetlistIR): string {
+  return JSON.stringify({
+    top: ir.topCellId,
+    masters: (ir.externalMasters ?? [])
+      .map((master) =>
+        JSON.stringify([
+          master.name,
+          master.implementationKind ?? null,
+          master.formalParameters.map((parameter) => [
+            parameter.name,
+            parameter.defaultValue ?? null,
+          ]),
+        ]),
+      )
+      .sort(),
+    cells: ir.cells
+      .map((cell) =>
+        JSON.stringify([
+          cell.id,
+          cell.name,
+          cell.ports.map((port) => [port.name, port.netName]),
+          cell.nets
+            .filter((net) => net.scope === "global")
+            .map((net) => net.name)
+            .sort(),
+          cell.formalParameters ?? [],
+          cell.models ?? [],
+          cell.couplings ?? [],
+          cell.instances
+            .map((instance) =>
+              JSON.stringify([
+                instance.deviceClass,
+                instance.invocationKind,
+                instance.target ?? null,
+                parameters(comparedParameters(instance)),
+                instance.nodes.map((node) => [node.pinName, node.netName]),
+              ]),
+            )
+            .sort(),
+        ]),
+      )
+      .sort(),
+  });
 }
 
 /** Layout-free graph of the emitted devices, with paramless hierarchy expanded. */
@@ -208,7 +315,7 @@ export function electricalGraphFromIR(
             instance.deviceClass,
             instance.invocationKind,
             instance.target,
-            parameters(instance.parameters),
+            parameters(comparedParameters(instance)),
             instance.target
               ? (externalMasters
                   .get(instance.target)
@@ -293,6 +400,7 @@ export function electricalGraphFromIR(
             .map((label, index) => [label, edges[index]!.size])
             .sort(),
         ),
+        cards: printedCards(ir),
       },
     };
   } catch (error) {
@@ -451,6 +559,9 @@ export function compareElectricalGraphs(
   b: ElectricalGraph,
   maxSteps = 100_000,
 ): "equal" | "different" | "unknown" {
+  // The same cards are the same circuit, which a search over a symmetric
+  // one may not settle within its steps.
+  if (a.cards !== undefined && a.cards === b.cards) return "equal";
   return matchElectricalGraphs(a, b, maxSteps).status;
 }
 

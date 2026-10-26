@@ -195,7 +195,10 @@ declares fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
   `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` and
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (information `GENERIC_BJT_MODEL`).
 - A same-name model in the imported SPICE suppresses the card everywhere; one in
-  a folder's files only for that folder's runs. VACASK prints `sp_diode`/`sp_bjt`
+  a folder's files only for that folder's runs. The stand-in card itself, as the
+  export writes it in SPICE or Spectre (type and parameters, in any case or
+  order), suppresses nothing: a netlist the editor wrote, imported again, holds
+  it (#1789). VACASK prints `sp_diode`/`sp_bjt`
   (`type=±1`). Spectre export carries native stand-ins with the same parameters:
   `model DIODE diode is=1e-14 n=1`, `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`
   and `model PNP bjt type=pnp is=1e-16 bf=50 vaf=50`. Spectre run decks carry none

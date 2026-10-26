@@ -96,6 +96,13 @@ export interface SpiceImportOptions {
   namingProfile?: "native" | "cadence-bang";
   /** Bodies Analog Canvas writes itself among the sources' subcircuits. */
   builtInBodies?: readonly SpiceBuiltInBody[];
+  /**
+   * The device type (`nmos`, `pmos`, `npn`, `pnp`, `d`) of a model the
+   * sources call but no model card declares, by its name in any case, as
+   * another reading of the same files says it, such as the symbols an RNL
+   * drawing draws its parts with. A card the sources declare decides.
+   */
+  modelTypes?: ReadonlyMap<string, string>;
 }
 
 /** The key a built-in body is found by: its kind and its name, any case. */
@@ -1447,12 +1454,15 @@ function importCircuitIR(
   options: SpiceImportOptions = {},
 ): { project: CircuitProject; diagnostics: SpiceDiagnostic[] } {
   const diagnostics = [...inputDiagnostics];
-  const modelTypeByName = new Map(
-    ir.models.map((model) => [
-      model.name.toLowerCase(),
-      model.modelType.toLowerCase(),
-    ]),
-  );
+  const modelTypeByName = new Map([
+    ...[...(options.modelTypes ?? [])].map(
+      ([name, type]) => [name.toLowerCase(), type.toLowerCase()] as const,
+    ),
+    ...ir.models.map(
+      (model) =>
+        [model.name.toLowerCase(), model.modelType.toLowerCase()] as const,
+    ),
+  ]);
   const builtInBodies = new Map(
     (options.builtInBodies ?? [])
       .filter((body) => {
