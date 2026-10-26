@@ -137,6 +137,7 @@ function namedSubcircuitPart(): CircuitProject {
   const document = project.documents[0]!;
   document.presentation.labelSubscriptItalic = false;
   document.presentation.textFace = "serif";
+  document.presentation.crossingStyle = "hop";
   document.instances.push({
     id: "M1",
     reference: "M1",
@@ -174,7 +175,7 @@ it.each(["spice", "spectre"] as const)(
     });
     // Each setting other than Analog Canvas's default.
     expect(written.text).toContain(
-      '$CANVAS_TYPESETTING @ATTACH(subscript_italic=false, face="serif") #(level)',
+      '$CANVAS_TYPESETTING @ATTACH(subscript_italic=false, face="serif", crossings="hop") #(level)',
     );
     // Spectre prints M1 as M1; only SPICE needs the name.
     expect(written.text.includes('$CANVAS_NAME @ATTACH(name="M1")')).toBe(
@@ -192,6 +193,7 @@ it.each(["spice", "spectre"] as const)(
     ).toBe(format === "spice");
     expect(document.presentation.labelSubscriptItalic).toBe(false);
     expect(document.presentation.textFace).toBe("serif");
+    expect(document.presentation.crossingStyle).toBe("hop");
     expect(document.presentation.labelFirstLetterItalic).toBeUndefined();
   },
 );
@@ -465,7 +467,7 @@ it.each(["spice", "spectre"] as const)(
 it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not know, and keeps the drawing", async () => {
   const text = [
     "* refused names",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.2") }',
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.3") }',
     ".subckt nch d g s b",
     "R1 d s 1k",
     ".ends nch",
@@ -473,7 +475,7 @@ it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not
     "XM2 d g 0 0 nch",
     "R1 d 0 1k",
     "V1 g 0 1",
-    `* @RNL { $CANVAS_NAME @ATTACH(name="X 9") #XM1; $CANVAS_NAME @ATTACH(name="${"X".repeat(129)}") #XM2; $CANVAS_TYPESETTING @ATTACH(face="comic", subscript_italic=false) #(level) }`,
+    `* @RNL { $CANVAS_NAME @ATTACH(name="X 9") #XM1; $CANVAS_NAME @ATTACH(name="${"X".repeat(129)}") #XM2; $CANVAS_TYPESETTING @ATTACH(face="comic", subscript_italic=false, crossings="bridge") #(level) }`,
     ".end",
     "",
   ].join("\n");
@@ -487,15 +489,23 @@ it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not
   expect(
     plan.diagnostics.filter((item) => item.code === "RNL_IMPORT_NAME_REFUSED"),
   ).toHaveLength(2);
-  // The known setting stands; the unknown face leaves the import's own.
+  // The known setting stands; the unknown face and crossings leave the
+  // import's own.
   const top = plan.project.documents.find((d) =>
     d.instances.some((i) => i.id.toLowerCase() === "r1"),
   )!;
   expect(top.presentation.labelSubscriptItalic).toBe(false);
   expect(top.presentation.textFace).toBeUndefined();
-  expect(plan.diagnostics.map((item) => item.code)).toContain(
-    "RNL_IMPORT_TYPESETTING_IGNORED",
+  expect(top.presentation.crossingStyle).toBeUndefined();
+  const ignored = plan.diagnostics
+    .filter((item) => item.code === "RNL_IMPORT_TYPESETTING_IGNORED")
+    .map((item) => item.message);
+  expect(ignored.some((message) => message.startsWith('face="comic"'))).toBe(
+    true,
   );
+  expect(
+    ignored.some((message) => message.startsWith('crossings="bridge"')),
+  ).toBe(true);
 });
 
 it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
@@ -1931,7 +1941,7 @@ describe("RNL round trip of 4-input gates", () => {
           `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
         );
       expect(written.text).toContain(
-        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.2")',
+        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.3")',
       );
       // RNL's standard gates have their inputs elsewhere; Analog Canvas's
       // own keep each wire level, in RNL as in the editor.
@@ -1990,7 +2000,7 @@ describe("RNL round trip of 4-input gates", () => {
         JSON.stringify(withoutCanvasMeaning(exported.request))
           .replaceAll("$CANVAS_", "$")
           .replace(
-            '"name":"analog-canvas-extensions","version":"0.2"',
+            '"name":"analog-canvas-extensions","version":"0.3"',
             '"name":"rnl-std-logic","version":"0.3"',
           ),
       ) as typeof exported.request;

@@ -16,6 +16,12 @@ const records = [
     url: "packages/analog-canvas-extensions/0.2/analog-canvas-extensions.rnl",
     sha256: "b9da7bd01b85ec1108546770cb0a845a85627a2b4879de8fc7351006f19cde7e",
   },
+  {
+    name: "analog-canvas-extensions",
+    version: "0.3",
+    url: "packages/analog-canvas-extensions/0.3/analog-canvas-extensions.rnl",
+    sha256: "d000fb9bfafae4b53c28e2293f40b6ab0c1bdc15e2b17d53ee502877262fc914",
+  },
 ];
 const bytes = Object.fromEntries(
   await Promise.all(
@@ -50,19 +56,19 @@ it("downloads each locked version even when the catalog adds newer versions", as
     .fn()
     .mockResolvedValueOnce(
       catalog([
-        { ...records[1], version: "0.3", sha256: "new-version" },
+        { ...records[2], version: "0.4", sha256: "new-version" },
         ...records,
       ]),
     )
     .mockResolvedValueOnce(new Response(bytes["0.1"]))
-    .mockResolvedValueOnce(new Response(bytes["0.2"]));
+    .mockResolvedValueOnce(new Response(bytes["0.2"]))
+    .mockResolvedValueOnce(new Response(bytes["0.3"]));
   const packages = await downloadCanvasPackages(request);
-  expect([...packages.keys()]).toEqual(["0.1", "0.2"]);
-  expect(packages.get("0.2")).toEqual(new Uint8Array(bytes["0.2"]));
+  expect([...packages.keys()]).toEqual(["0.1", "0.2", "0.3"]);
+  expect(packages.get("0.3")).toEqual(new Uint8Array(bytes["0.3"]));
   expect(request.mock.calls.map(([url]) => url)).toEqual([
     `${base}catalog.json`,
-    `${base}${records[0].url}`,
-    `${base}${records[1].url}`,
+    ...records.map((record) => `${base}${record.url}`),
   ]);
 });
 
@@ -71,8 +77,9 @@ it("rejects changed raw bytes even when the catalog hash still matches", async (
     .fn()
     .mockResolvedValueOnce(catalog())
     .mockResolvedValueOnce(new Response(bytes["0.1"]))
+    .mockResolvedValueOnce(new Response(bytes["0.2"]))
     .mockResolvedValueOnce(
-      new Response(Buffer.concat([bytes["0.2"], Buffer.from("\n")])),
+      new Response(Buffer.concat([bytes["0.3"], Buffer.from("\n")])),
     );
   await expect(downloadCanvasPackages(request)).rejects.toThrow(
     /Canvas package SHA-256 mismatch/u,

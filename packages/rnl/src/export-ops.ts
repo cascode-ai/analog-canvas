@@ -185,7 +185,7 @@ const NO_LABELS_PACKAGE = "rnl-std-no-labels";
  * only Analog Canvas keeps of a drawing; not standard.
  */
 const AC_PACKAGE = "analog-canvas-extensions";
-const AC_PACKAGE_VERSION = "0.2";
+const AC_PACKAGE_VERSION = "0.3";
 
 /**
  * The edit transaction's operations that draw a netlisted Project as Analog
@@ -305,6 +305,7 @@ function canvasTypesetting(
       ],
       first_letter_italic: [own.firstLetterItalic, usual.firstLetterItalic],
       face: [presentation.textFace, undefined],
+      crossings: [presentation.crossingStyle, undefined],
     }).flatMap(([key, [value, otherwise]]) =>
       value !== undefined && value !== otherwise ? [[key, value]] : [],
     ),

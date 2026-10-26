@@ -76,7 +76,7 @@ describe("RNL export of the simulation examples", () => {
       ).toEqual([
         "rnl-std 0.3",
         "rnl-std-no-labels 0.3",
-        "analog-canvas-extensions 0.2",
+        "analog-canvas-extensions 0.3",
       ]);
       expect(
         of(ops, "add-usage").filter(
@@ -318,7 +318,7 @@ describe("what RNL cannot write", () => {
     [
       "opamp-lettered",
       "$CANVAS_OPAMP_LETTERED",
-      "analog-canvas-extensions 0.2",
+      "analog-canvas-extensions 0.3",
       true,
     ],
   ] as const)(
@@ -389,7 +389,7 @@ describe("what RNL cannot write", () => {
           "rnl-std 0.3",
           "rnl-std-no-labels 0.3",
           // Every Cell says how it sets names ($CANVAS_TYPESETTING).
-          "analog-canvas-extensions 0.2",
+          "analog-canvas-extensions 0.3",
           pinned,
         ]),
       ]);

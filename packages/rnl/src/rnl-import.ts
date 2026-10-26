@@ -188,7 +188,7 @@ export interface RnlImportDiagnostic {
 
 /** The standard series and Analog Canvas package versions the mapping table is for. */
 const MAPPED_VERSIONS: Readonly<Record<string, readonly string[]>> = {
-  "analog-canvas-extensions": ["0.1", "0.2"],
+  "analog-canvas-extensions": ["0.1", "0.2", "0.3"],
 };
 const STD_VERSION = "0.3";
 
@@ -854,6 +854,9 @@ function applyLevel(
     set("labelFirstLetterItalic", "first_letter_italic", flag);
     set("textFace", "face", (value) =>
       value === "serif" ? "serif" : undefined,
+    );
+    set("crossingStyle", "crossings", (value) =>
+      value === "hop" ? "hop" : undefined,
     );
   };
 

@@ -53,7 +53,7 @@ test("loads each Canvas package version once for both RNL formats", async ({
     const text = await copiedNetlist(page, mode);
     rich = text;
     expect(text).toContain(
-      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.2")',
+      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.3")',
     );
     expect(text).toContain("$CANVAS_VCVS_CIRCLE");
     await expect(
@@ -91,7 +91,7 @@ test("loads each Canvas package version once for both RNL formats", async ({
   if (before.status === "ready" && after.status === "ready")
     expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
   // 0.1 and 0.2, so a file written with either reads.
-  expect(requested).toHaveLength(2);
+  expect(requested).toHaveLength(3);
   for (const url of requested)
     expect(new URL(url).origin).toBe(new URL(page.url()).origin);
 });
@@ -420,7 +420,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
       await viewer.locator("#tab-files").click();
       await expect(
         viewer.getByRole("button", {
-          name: "Open analog-canvas-extensions 0.2",
+          name: "Open analog-canvas-extensions 0.3",
           exact: true,
         }),
       ).toBeVisible();
@@ -435,7 +435,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
         type: "open",
         name: mode === "spice+rnl" ? "circuit.sp" : "circuit.scs",
         text: expected,
-        packages: [{ name: "analog-canvas-extensions", version: "0.2" }],
+        packages: [{ name: "analog-canvas-extensions", version: "0.3" }],
       });
     }
     expect(page.context().pages()).toHaveLength(2);

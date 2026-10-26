@@ -50,6 +50,7 @@ const packageUrls: Readonly<
 > = {
   "0.1": () => import("./analog-canvas-extensions-0.1.rnl?url"),
   "0.2": () => import("./analog-canvas-extensions-0.2.rnl?url"),
+  "0.3": () => import("./analog-canvas-extensions-0.3.rnl?url"),
 };
 
 /** A locked Canvas package version, from the editor's own asset. */

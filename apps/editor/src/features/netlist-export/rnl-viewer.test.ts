@@ -75,7 +75,7 @@ it("opens synchronously, verifies the handshake, sends the exact export and reus
     type: "open",
     name: "circuit.sp",
     text: "* export one\n.end\n",
-    packages: [{ name: "analog-canvas-extensions", version: "0.2" }],
+    packages: [{ name: "analog-canvas-extensions", version: "0.3" }],
   });
   expect(popup.postMessage.mock.calls[0]![1]).toBe(origin);
   reply({ type: "loaded", requestId: message.requestId });

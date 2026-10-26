@@ -28,7 +28,7 @@ the RNL language and its runtime belong to rnl.
   adapter preserves the caller's files, includes and search order. One fetch
   of each version serves the shared Worker; fetch failures identify the
   package and can be retried.
-- Every Canvas version the editor ships, 0.1 and 0.2, is locked by name,
+- Every Canvas version the editor ships, 0.1 to 0.3, is locked by name,
   version, URL and raw-byte SHA-256 against the public
   [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json),
   so a file written with any of them reads; the editor writes the newest.
@@ -129,10 +129,11 @@ the RNL language and its runtime belong to rnl.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename.
 - What only the editor keeps is written with the meaning-only definitions of
-  `analog-canvas-extensions` 0.2, which draw nothing: a part's name where the
+  `analog-canvas-extensions` 0.3, which draw nothing: a part's name where the
   card spells it otherwise (`$CANVAS_NAME`, SPICE's `XM1` for M1), in each
-  Cell's own record how the Cell sets names in labels (`$CANVAS_TYPESETTING`
-  on `#`), each setting other than the editor's default, none included, and
+  Cell's own record how the Cell sets names in labels and draws its wire
+  crossings (`$CANVAS_TYPESETTING` on `#`, `crossings="hop"` since 0.3), each
+  setting other than the editor's default, none included, and
   on each bound label what it shows (`$CANVAS_LABEL`: the part's name, its
   value, one parameter with or without its value, a Cell Pin's name or a
   net's); a bound net label is named for it to hang on. A label that holds
@@ -186,10 +187,11 @@ the RNL language and its runtime belong to rnl.
     `RNL_IMPORT_NAME_TAKEN` (another part has it) or `RNL_IMPORT_NAME_REFUSED`
     (the part as read takes names of another prefix, or the name is not one
     token of at most 128 characters);
-  - a Cell's naming typography, from `$CANVAS_TYPESETTING` on its level: each
-    setting written, the default for each left out, the import's own for a
-    value Analog Canvas does not know (`RNL_IMPORT_TYPESETTING_IGNORED`); a
-    level without it keeps the import's own;
+  - a Cell's naming typography and crossing style, from `$CANVAS_TYPESETTING`
+    on its level: each setting written, the default for each left out, the
+    import's own for a value Analog Canvas does not know
+    (`RNL_IMPORT_TYPESETTING_IGNORED`); a level without it keeps the import's
+    own;
   - each part's place, orientation and variant, through the mapping table;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
