@@ -9,9 +9,6 @@ export type ContributorOrder = "count" | "name";
 
 export const CONTRIBUTOR_ORDER_KEY = "icm.gallery.contributorOrder";
 
-/** Whether the list names the reference datasets (#1574): "hidden" or absent. */
-export const CONTRIBUTOR_DATASETS_KEY = "icm.gallery.contributorDatasets";
-
 const byName = new Intl.Collator(undefined, {
   sensitivity: "base",
   numeric: true,

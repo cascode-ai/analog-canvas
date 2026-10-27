@@ -9,7 +9,6 @@ import { useDismissDetails } from "./dismiss-details";
 import { galleryCountLabel, type GalleryAuthorOption } from "../gallery-client";
 import {
   compareContributorNames,
-  CONTRIBUTOR_DATASETS_KEY,
   CONTRIBUTOR_ORDER_KEY,
   orderContributors,
   type ContributorOrder,
@@ -199,6 +198,8 @@ export function GalleryCountPanel({
   datasetShare = null,
   currentDataset = null,
   onSelectDataset = () => undefined,
+  hideDatasets = false,
+  onToggleDatasets = () => undefined,
 }: {
   total: number | null;
   filtered?: boolean;
@@ -217,6 +218,9 @@ export function GalleryCountPanel({
   /** The dataset whose wall is open, if any. */
   currentDataset?: string | null;
   onSelectDataset?: (key: string) => void;
+  /** The wall and this list leave the reference datasets out. */
+  hideDatasets?: boolean;
+  onToggleDatasets?: () => void;
 }) {
   // The community wall holds the reference datasets' circuits too (#1697);
   // its total says how many of them came from the datasets.
@@ -245,26 +249,8 @@ export function GalleryCountPanel({
       // The list still sorts; only the memory of it is lost.
     }
   };
-  // Datasets shown or hidden in the list (#1574), remembered in this browser.
-  const [showDatasets, setShowDatasets] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(CONTRIBUTOR_DATASETS_KEY) !== "hidden";
-    } catch {
-      return true;
-    }
-  });
-  const toggleDatasets = () => {
-    const next = !showDatasets;
-    setShowDatasets(next);
-    try {
-      if (next) localStorage.removeItem(CONTRIBUTOR_DATASETS_KEY);
-      else localStorage.setItem(CONTRIBUTOR_DATASETS_KEY, "hidden");
-    } catch {
-      // The list still filters; only the memory of it is lost.
-    }
-  };
   if (label === null) return null;
-  const listed = showDatasets ? datasets : [];
+  const listed = hideDatasets ? [] : datasets;
   const rows = contributorBoardRows(authors, listed, order);
   const heading = [
     ...(authors.length > 0 || listed.length === 0
@@ -323,15 +309,21 @@ export function GalleryCountPanel({
             ))}
           </span>
           {datasets.length > 0 ? (
-            // An on/off choice, not a third sort: a checkbox says so.
+            // An on/off choice, not a third sort: a checkbox says so. It
+            // takes the datasets' circuits off the wall as well as the list.
             <label
               className="gallery-contributor-datasets"
               data-testid="gallery-contributor-datasets"
+              title={
+                hideDatasets
+                  ? "Show the reference datasets' circuits again"
+                  : "Show only the community's circuits, without the reference datasets'"
+              }
             >
               <input
                 type="checkbox"
-                checked={showDatasets}
-                onChange={toggleDatasets}
+                checked={!hideDatasets}
+                onChange={onToggleDatasets}
               />
               Datasets
             </label>

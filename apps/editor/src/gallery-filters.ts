@@ -59,6 +59,11 @@ export interface GalleryFilterState {
    * key (#1510); null for the community wall.
    */
   source: string | null;
+  /**
+   * Whether the community wall leaves out the reference datasets' circuits
+   * it otherwise holds (#1697): `source=community` in a link.
+   */
+  hideDatasets: boolean;
 }
 
 export const GALLERY_FILTERS_KEY = "icm.gallery-filters.v1";
@@ -101,6 +106,7 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
     liked: false,
     parts: [],
     source: null,
+    hideDatasets: false,
   };
 }
 
@@ -188,6 +194,7 @@ export function parseGalleryFilterQuery(search: string): {
           : null,
       parts: boundedParts((params.get("parts") ?? "").split(",")),
       source: gallerySourceByKey(params.get("source"))?.key ?? null,
+      hideDatasets: params.get("source") === "community",
     },
     narrowed: NARROWING_PARAMS.some((name) => (params.get(name) ?? "") !== ""),
     namesView: params.has("view"),
@@ -233,7 +240,7 @@ export function galleryFilterSearch(
   set("attention", filters.attention ? "1" : null);
   set("reason", filters.attention ? filters.attentionKind : null);
   set("parts", filters.parts.length > 0 ? filters.parts.join(",") : null);
-  set("source", filters.source);
+  set("source", filters.source ?? (filters.hideDatasets ? "community" : null));
   const query = params.toString();
   return query.length > 0 ? `?${query}` : "";
 }
@@ -290,6 +297,7 @@ export function parseStoredGalleryFilters(
       typeof record.source === "string"
         ? (gallerySourceByKey(record.source)?.key ?? null)
         : null,
+    hideDatasets: record.hideDatasets === true,
   };
 }
 

@@ -438,7 +438,22 @@ describe("GalleryCountPanel", () => {
     );
     // Shown by default; the checkbox beside "A to Z" hides them.
     expect(community).toMatch(
-      /data-testid="gallery-contributor-datasets"><input type="checkbox" checked=""/,
+      /data-testid="gallery-contributor-datasets"[^>]*><input type="checkbox" checked=""/,
+    );
+    // Unticked, the wall and the list are the community's: the box stays
+    // to bring the datasets back.
+    const hidden = renderToStaticMarkup(
+      createElement(GalleryCountPanel, {
+        total: 1110,
+        authors,
+        datasets,
+        hideDatasets: true,
+      }),
+    );
+    expect(hidden).toContain("2 authors");
+    expect(hidden).not.toContain("dataset-analoggenie");
+    expect(hidden).toMatch(
+      /data-testid="gallery-contributor-datasets"[^>]*><input type="checkbox"\/>/,
     );
 
     // On the dataset's own wall it is the contributor shown, with the way back.

@@ -167,6 +167,7 @@ export function GalleryFeed({
     attentionKind,
     parts: selectedParts,
     source,
+    hideDatasets,
   } = filters;
   // A reference dataset's wall is read-only: no likes, no owner tools.
   const datasetWall = gallerySourceByKey(source);
@@ -205,6 +206,7 @@ export function GalleryFeed({
       selectedParts,
       serverSearch,
       source,
+      hideDatasets,
     ],
   );
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -285,12 +287,27 @@ export function GalleryFeed({
   function selectDataset(key: string): void {
     updateFilters({
       source: key,
+      hideDatasets: false,
       author: null,
       ownerUserId: null,
       liked: false,
       attention: false,
       attentionKind: null,
     });
+  }
+
+  // The contributor list's Datasets box: off, the wall is the community's
+  // alone; a dataset's wall or the Datasets filter then has nothing to show.
+  function toggleDatasets(): void {
+    updateFilters(
+      hideDatasets
+        ? { hideDatasets: false }
+        : {
+            hideDatasets: true,
+            source: null,
+            ...(aiFilter === "dataset" ? { ai: null } : {}),
+          },
+    );
   }
 
   function selectContributor(option: GalleryAuthorOption): void {
@@ -524,6 +541,8 @@ export function GalleryFeed({
             datasetShare={datasetShare}
             currentDataset={source}
             onSelectDataset={selectDataset}
+            hideDatasets={hideDatasets}
+            onToggleDatasets={toggleDatasets}
             searched={searchAnswered}
             search={
               searchingLoaded
@@ -639,9 +658,10 @@ export function GalleryFeed({
                 aiFilter={aiFilter}
                 showDatasets={
                   // Shown while the wall loads, so it never pops in later.
-                  state.status === "loading" ||
-                  quickCounts.datasets > 0 ||
-                  aiFilter === "dataset"
+                  !hideDatasets &&
+                  (state.status === "loading" ||
+                    quickCounts.datasets > 0 ||
+                    aiFilter === "dataset")
                 }
                 netlistableOnly={netlistableOnly}
                 withoutNetlistOnly={withoutNetlistOnly}

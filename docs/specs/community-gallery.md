@@ -368,7 +368,10 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
   dataset in it (#1697): one order across the stores (each row's cursor resumes
   them all), totals, `filterCounts` and tag counts summed, `sources` each
   dataset's share of `total`, `authors` the community's. `source=community`
-  answers the community store alone (the duplicate and topology scans).
+  answers the community store alone: the duplicate and topology scans, and
+  the wall while the reader leaves the datasets out (the contributor list's
+  Datasets box unticked; kept with the other filters, in the link as
+  `source=community`).
 - Every write answers 403 `dataset-read-only`; entries have no owner or AI mark
   (they count under `datasets`, not `human`) and show no like or owner tools;
   an opened copy publishes as a new community entry.
