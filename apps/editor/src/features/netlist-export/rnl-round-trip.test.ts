@@ -3027,6 +3027,23 @@ function gates4(): CircuitProject {
 
 describe("RNL round trip of 4-input gates", () => {
   it.each(["spice", "spectre"] as const)(
+    "adds no supply Cell Pins for gates whose bodies the netlist writes, whose rails it ties itself (%s)",
+    async (format) => {
+      const project = gates4();
+      const { project: drawn } = await roundTrip(project, format);
+      const pins = (from: CircuitProject) =>
+        from.documents
+          .flatMap((document) =>
+            (document.netlist?.terminals ?? []).map(
+              (terminal) => terminal.name,
+            ),
+          )
+          .sort();
+      expect(pins(drawn)).toEqual(pins(project));
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "draws Analog Canvas's own gates, every wire level, and brings them back (%s)",
     async (format) => {
       const project = gates4();

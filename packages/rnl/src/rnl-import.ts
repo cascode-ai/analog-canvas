@@ -3332,8 +3332,8 @@ function removeEachAddedPin(
   /**
    * A pin no drawing wires, which takes the Cell's supply when left alone:
    * a MOS body left unwired, as the netlist import binds it, or the rail of
-   * a Library gate drawn on a Cell of the Project, which its symbol draws no
-   * pin for (#1450).
+   * a Library gate or flip-flop, which its symbol draws no pin for, drawn on
+   * a Cell of the Project (#1450) or on the body the netlist writes itself.
    */
   function unwiredSupply(item: { instanceId: string; pinName: string }) {
     const instance = project.documents
@@ -3344,7 +3344,8 @@ function removeEachAddedPin(
       return !!mosBulkKind(instance) && !instance.mosBulkBinding;
     return (
       (item.pinName === "VDD" || item.pinName === "VSS") &&
-      instance.netlist?.binding?.kind === "subcircuit" &&
+      (instance.netlist?.binding?.kind === "subcircuit" ||
+        instance.netlist?.binding?.kind === "unresolved-subcircuit") &&
       bindsProjectCell(instance.symbolId)
     );
   }
