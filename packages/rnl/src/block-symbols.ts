@@ -54,15 +54,18 @@ export function blockTerminals(
       (cell) => cell.id === binding.childDocumentId,
     );
     if (!child || !printed) return undefined;
-    // A printed port is keyed by its logical Net; the block's pin by its Cell Pin.
+    // A printed port is keyed by one Net of its logical Net, the block's pin
+    // by its Cell Pin; a pin drawn twice joins two Nets, and the port may be
+    // keyed by either, so both sides are compared as logical Nets.
     const logical = resolveDocumentLogicalNets(child);
+    const logicalOf = (netId: string) => logical.byBaseNetId.get(netId)?.id;
     return (pin) => {
       const terminal = child.netlist?.terminals.find(
         (item) => item.name === pin,
       );
-      const net = terminal && logical.byBaseNetId.get(terminal.netId)?.id;
-      const index = printed.ports.findIndex(
-        (port) => port.id === net || (!net && port.name === pin),
+      const net = terminal && logicalOf(terminal.netId);
+      const index = printed.ports.findIndex((port) =>
+        net ? (logicalOf(port.id) ?? port.id) === net : port.name === pin,
       );
       return index < 0 ? undefined : index + 1;
     };

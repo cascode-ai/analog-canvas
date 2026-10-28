@@ -2144,6 +2144,50 @@ describe("RNL round trip", () => {
     );
   });
 
+  it.each(["before", "after"] as const)(
+    "draws the wire to a block's pin that its Cell draws twice on two Nets, listed %s the first",
+    async (order) => {
+      const project = example("simulation-ota");
+      const cell = project.documents.find(
+        (document) => document.id === "document-ota-5t",
+      )!;
+      // A second ibias Cell Pin on a Net of its own, which the name joins
+      // to the first: the printed port is keyed by one of the two Nets.
+      cell.instances.push({
+        id: "PIBIAS2",
+        placement: {
+          mirror: "none",
+          position: { x: 290, y: 420 },
+          rotation: 90,
+        },
+        symbolId: "port",
+      });
+      cell.nets.push({
+        id: "net-cell-pin-pibias-2",
+        terminals: [{ instanceId: "PIBIAS2", pinName: "P" }],
+      });
+      const terminals = cell.netlist!.terminals;
+      const first = terminals.findIndex((item) => item.name === "ibias");
+      terminals.splice(order === "before" ? first : first + 1, 0, {
+        ...terminals[first]!,
+        id: "cell-terminal-ibias-2",
+        interfaceInstanceIds: ["PIBIAS2"],
+        netId: "net-cell-pin-pibias-2",
+      });
+
+      const exported = createRnlExport(project, { format: "spice" });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported));
+      expect(
+        exported.diagnostics.filter((item) => item.code === "RNL_WIRE_UNNAMED"),
+      ).toEqual([]);
+      const { project: drawn } = await roundTrip(project);
+      const top = (from: CircuitProject) =>
+        from.documents.find((document) => document.id === from.topDocumentId)!;
+      expect(top(drawn).routes.length).toBe(top(project).routes.length);
+    },
+  );
+
   it("lays out a Cell's block as the RNL draws it", async () => {
     const project = example("simulation-ota");
     const { project: drawn } = await roundTrip(project);
