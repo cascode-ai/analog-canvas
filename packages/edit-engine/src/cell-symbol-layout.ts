@@ -13,6 +13,9 @@ import {
 export type CellSymbolBodyBounds = NonNullable<
   CellSymbolPresentation["bodyBounds"]
 >;
+export type CellSymbolBodySize = NonNullable<
+  CellSymbolPresentation["minimumBodySize"]
+>;
 export type CellSymbolGrip =
   CellSymbolSide | "north-west" | "north-east" | "south-west" | "south-east";
 export type BlockSymbolLayoutAction =
@@ -169,4 +172,29 @@ export function proposeBlockSymbolLayout(
   return parsed.success
     ? { ok: true, changed, presentation: parsed.data }
     : { ok: false, reason: parsed.error.issues[0]!.message };
+}
+
+/**
+ * A block resized to `size` (the editor's resize and the Agent's
+ * set-cell-symbol-size, #1879): the size is stored as the body's minimum, and
+ * explicit edges keep their top-left corner.
+ */
+export function resizeCellSymbolPresentation(
+  presentation: CellSymbolPresentation | undefined,
+  size: CellSymbolBodySize,
+): CellSymbolPresentation {
+  const { width, height } = size;
+  return {
+    ...presentation,
+    ...(presentation?.bodyBounds
+      ? {
+          bodyBounds: {
+            ...presentation.bodyBounds,
+            right: presentation.bodyBounds.left + width,
+            bottom: presentation.bodyBounds.top + height,
+          },
+        }
+      : {}),
+    minimumBodySize: { width, height },
+  };
 }

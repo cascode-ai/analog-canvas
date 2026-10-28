@@ -18,6 +18,8 @@ import {
   planPlaceCellInstance,
   planRenameCell,
   planSetCellSymbolPins,
+  planSetCellSymbolPresentation,
+  planSetCellSymbolSize,
 } from "./hierarchy-planner.js";
 import {
   planCreateCellPin,
@@ -404,7 +406,7 @@ describe("a Library gate takes a standard cell of its function (#1450)", () => {
   });
 });
 
-describe("a Library gate or flip-flop takes a Cell of its Project (#1450, #1689)", () => {
+describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Project (#1450, #1689, #1878)", () => {
   /** A nor-gate X1 wired at A, B and Y, its VDD on Net net-vdda. */
   function gateProject() {
     const project = createEmptyProject("gates", "Gates");
@@ -717,6 +719,146 @@ describe("a Library gate or flip-flop takes a Cell of its Project (#1450, #1689)
     expect(() =>
       planRenameCellTerminal(renamed, "dffr", "dffr-RST", "clear"),
     ).toThrow("its RST would have no Pin");
+  });
+
+  /** An op-amp or comparator X1 wired at every pin, its VDD on Net net-vdd. */
+  function amplifierProject(
+    symbolId: string,
+    binding: string,
+    parameters: Record<string, string>,
+  ) {
+    const project = createEmptyProject("amplifiers", "Amplifiers");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId,
+      placement: null,
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: binding },
+        parameters,
+      },
+    });
+    const pins = symbolId.startsWith("opamp-differential")
+      ? ["IN+", "IN-", "OUT+", "OUT-", "VDD"]
+      : ["IN+", "IN-", "OUT", "VDD"];
+    document.nets.push(
+      ...pins.map((pin) => ({
+        id: `net-${pin.toLowerCase()}`,
+        terminals: [{ instanceId: "X1", pinName: pin }],
+      })),
+    );
+    return project;
+  }
+
+  it("binds an op-amp to a transistor-level Cell, keeping its triangle, and clears it back to the ideal op-amp (#1878)", () => {
+    const project = amplifierProject("opamp", "opamp", {
+      gain: "1e5",
+      vhigh: "VDD",
+      vlow: "VSS",
+    });
+    addCell(project, "ota", "ota", ["in+", "IN-", "out", "VDD", "VSS"]);
+    expect(
+      gateCellTargets(project, project.topDocumentId, "opamp").map(
+        (cell) => cell.id,
+      ),
+    ).toEqual(["ota"]);
+    const bound = bind(project, "OTA");
+    expect(gate(bound)).toMatchObject({
+      symbolId: "opamp",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "ota" },
+        parameters: {},
+      },
+    });
+    // The Cell has a VDD Pin, so the op-amp's VDD Net stays.
+    expect(pinsOf(bound)).toEqual(["IN+", "IN-", "OUT", "VDD"]);
+    const exported = createDesignNetlistExport(bound, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // The call goes to the Cell in its Pin order: VDD on net3, VSS on
+    // ground, then in+, IN- and out on the op-amp's IN+, IN- and OUT (net1,
+    // net0 and net2; Nets are numbered by ID).
+    expect(exported.file.text).toMatch(/^\.subckt ota VDD VSS in\+ IN- out$/mu);
+    expect(exported.file.text).toMatch(/^X1 net3 VSS net1 net0 net2 ota$/mu);
+    expect(exported.file.text).not.toContain("icm_opamp");
+
+    // A Pin the op-amp uses cannot be renamed away.
+    expect(() =>
+      planRenameCellTerminal(bound, "ota", "ota-in+", "inp"),
+    ).toThrow(
+      "X1 in Cell dut is an opamp bound to this Cell, and its IN+ would have no Pin",
+    );
+
+    expect(gate(bind(bound, "")).netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "opamp" },
+      parameters: { gain: "1e6", vhigh: "VDD", vlow: "VSS" },
+    });
+  });
+
+  it("binds a comparator or a fully differential op-amp to a Cell, and clears each to its ideal body (#1878)", () => {
+    const comparator = amplifierProject("comparator", "icm_ideal_comparator", {
+      vhigh: "VDD",
+      vlow: "0",
+      vtransition: "1m",
+    });
+    addCell(comparator, "cmp", "cmp", ["IN+", "IN-", "OUT"]);
+    const bound = bind(comparator, "cmp");
+    expect(gate(bound)).toMatchObject({
+      symbolId: "comparator",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "cmp" },
+        parameters: {},
+      },
+    });
+    // The Cell takes its supplies globally: the VDD Net is cleared.
+    expect(pinsOf(bound)).toEqual(["IN+", "IN-", "OUT"]);
+    // A comparator clears to the ideal comparator it is placed with, not
+    // to the historical master its symbol names.
+    expect(gate(bind(bound, "")).netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "icm_ideal_comparator" },
+      parameters: { vhigh: "VDD", vlow: "0", vtransition: "1m" },
+    });
+
+    const differential = amplifierProject(
+      "opamp-differential-crossed",
+      "opamp_differential",
+      { gain: "1e6" },
+    );
+    addCell(differential, "fda", "fda", [
+      "IN+",
+      "IN-",
+      "OUT+",
+      "OUT-",
+      "VDD",
+      "VSS",
+    ]);
+    const fda = bind(differential, "fda");
+    expect(gate(fda)).toMatchObject({
+      symbolId: "opamp-differential-crossed",
+      netlist: { binding: { kind: "subcircuit", childDocumentId: "fda" } },
+    });
+    expect(gate(bind(fda, "")).netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "opamp_differential" },
+      parameters: { gain: "1e6" },
+    });
+  });
+
+  it("refuses a Cell that does not fit an op-amp, naming the pins it lacks (#1878)", () => {
+    const project = amplifierProject("opamp", "opamp", {});
+    // VIP and VIN are what the ideal op-amp's body calls its inputs; a Cell
+    // implementing the op-amp takes the op-amp's own pin names.
+    addCell(project, "half", "half", ["VIP", "VIN", "OUT"]);
+    expect(() =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", "half"),
+    ).toThrow(
+      "Cell half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins VIP and VIN are not of the op-amp's. Its Pins must be IN+, IN- and OUT, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
+    );
+    expect(() =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", "ota"),
+    ).toThrow(
+      "ota is not a Cell of this Project, and no Cell of it fits opamp",
+    );
   });
 
   it("stays a gate through a Cell rename, and keeps the Pins it uses", () => {
@@ -2630,5 +2772,65 @@ describe("arranging a Cell's block Pins by name (#1320)", () => {
     expect(() =>
       pins(project, [{ name: "bl", side: "east", offset: 15 }]),
     ).toThrow("bl's offset 15 is not a multiple of 10. Nothing was changed.");
+  });
+
+  describe("sizing the block (#1879)", () => {
+    /** The block's body, from its drawn polygon. */
+    const body = (project: Project) => {
+      const polygon = createProjectHierarchicalSymbols(project)
+        .find((symbol) => symbol.id === hierarchicalSymbolId("sram6t"))!
+        .primitives.find((primitive) => primitive.kind === "polygon")!;
+      const points = polygon.kind === "polygon" ? polygon.points : [];
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      return {
+        left: Math.min(...xs),
+        right: Math.max(...xs),
+        top: Math.min(...ys),
+        bottom: Math.max(...ys),
+      };
+    };
+    const size = (project: Project, width: number, height: number) =>
+      planSetCellSymbolSize(project, "sram6t", { width, height });
+
+    it("offers only off-grid neighbours that fit (#1879)", () => {
+      // Placed, the block is 80 x 100: VDD and VSS have room for their names.
+      expect(() => size(placed(), 70, 100)).toThrow(
+        "sram6t's block is centred on its origin, so a width of 70 puts its edges off the 10-unit grid: use a multiple of 20, such as 80. Nothing was changed.",
+      );
+      expect(() => size(placed(), 80, 130)).toThrow(
+        "such as 120 or 140. Nothing was changed.",
+      );
+    });
+
+    it("moves explicit edges from their top-left corner, as far in as the Pins allow (#1879)", () => {
+      let project = placed();
+      const stored = project.documents[1]!.presentation.cellSymbol!;
+      project = commit(
+        project,
+        planSetCellSymbolPresentation(project, "sram6t", {
+          pinPlacements: stored.pinPlacements,
+          bodyBounds: { left: -40, right: 40, top: -50, bottom: 50 },
+        }),
+      );
+      // Explicit edges take any multiple of 10.
+      expect(() => size(project, 95, 70)).toThrow(
+        "sram6t's block keeps its edges on the 10-unit grid: a width of 95 is not a multiple of 10. Nothing was changed.",
+      );
+      // VDD at 0 on top stands 10 from the corner at a right edge of 10; wl
+      // at 10 on the left, at a bottom edge of 20.
+      expect(() => size(project, 40, 70)).toThrow(
+        "sram6t's Pins need a body at least 50 wide and 70 high; 40 x 70 is too small. Nothing was changed.",
+      );
+      project = commit(project, size(project, 50, 70));
+      expect(body(project)).toEqual({
+        left: -40,
+        right: 10,
+        top: -50,
+        bottom: 20,
+      });
+      expect(block(project)).toMatchObject({ wl: "west 10", VDD: "north 0" });
+      expect(size(project, 50, 70)).toEqual([]);
+    });
   });
 });

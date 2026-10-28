@@ -794,6 +794,7 @@ export function compileActions(
       case "remove-cell-terminal":
       case "rename-cell-terminal":
       case "set-cell-symbol-pins":
+      case "set-cell-symbol-size":
       case "bind-cell-parameter":
       case "create-component-variant":
       case "apply-component-definition":
@@ -1064,7 +1065,8 @@ export function compileActions(
               kind: "set-net-label",
               annotationId: String(annotation.id),
               netId: String(annotation.netId),
-              text: richText(action.text),
+              // A string stays a name; RichText may be the label's own look.
+              text: action.text,
             });
             break;
           }
