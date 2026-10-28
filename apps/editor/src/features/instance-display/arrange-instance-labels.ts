@@ -5,6 +5,7 @@ import {
   roleLabelFormat,
   routeEndpoints,
   type Annotation,
+  type Point,
   type Rect,
   type SchematicDocument,
 } from "@icm/model";
@@ -15,6 +16,7 @@ import {
   defaultVddPowerLabelPlacement,
   instanceGroupLabel,
   instanceLabelGroupSeat,
+  instanceLabelSlotAt,
   INSTANCE_LABEL_SIDES,
   legacyDefaultInstanceLabelPlacement,
   previousDefaultInstanceLabelPlacement,
@@ -49,6 +51,8 @@ interface EligibleLabel {
   /** A value shown without its Reference takes the Reference's slot. */
   readonly compact: boolean;
   readonly sizeScale: number;
+  /** Eligible only as standing in another side's rows, where a pass put it. */
+  readonly arranged: boolean;
 }
 
 /** Where the current and every earlier rule put an untouched label. */
@@ -110,6 +114,12 @@ export interface ArrangeInstanceLabelsOptions {
    * centre line, so the two halves of a symmetric circuit mirror (#1519).
    */
   side?: InstanceLabelSide | "outside" | undefined;
+  /**
+   * Only the rows of the part's sides: no slide along a side and no nearby
+   * spot off them. A label placed there is still one a later pass moves;
+   * one slid or nudged off its rows counts as moved by hand (#1836).
+   */
+  rowsOnly?: boolean | undefined;
 }
 
 /** The arrangement, and the labels it leaves where they are (#1414). */
@@ -335,12 +345,26 @@ export function arrangeInstanceLabelsReport(
           multiplier,
         ),
       ) !== null;
-    const inValueRow =
-      !inReferenceSlot &&
-      (at(slot) ||
-        inOwnSlot ||
-        stackedValueFirst(instance.id).has(original.id) ||
-        options.includeManual === true);
+    // A label in its slot's rows on another side stands where an earlier
+    // arrangement put it, at placement or by this pass, and is still the
+    // editor's to move: a W/L arranged clear of a neighbour when its part
+    // was placed, then struck by a wire drawn after, was left there (#1836).
+    const arranged = instanceLabelSlotAt(
+      instance,
+      resolved,
+      style,
+      grid,
+      drawn,
+      sizeScale,
+    );
+    const inSideRows =
+      arranged !== null && DEFAULT_SLOTS[slot].includes(arranged.slot);
+    const inDefaultRow =
+      at(slot) ||
+      inOwnSlot ||
+      stackedValueFirst(instance.id).has(original.id) ||
+      options.includeManual === true;
+    const inValueRow = !inReferenceSlot && (inDefaultRow || inSideRows);
     if (!inValueRow && !inReferenceSlot) return leave("moved");
     const annotation =
       reference &&
@@ -354,7 +378,14 @@ export function arrangeInstanceLabelsReport(
         : original;
     // One already in its Reference's slot keeps that row, compact or not.
     const compact = alone && (options.compact !== false || inReferenceSlot);
-    return { original, annotation, slot, compact, sizeScale };
+    return {
+      original,
+      annotation,
+      slot,
+      compact,
+      sizeScale,
+      arranged: !inReferenceSlot && !inDefaultRow,
+    };
   }
 
   const edits: SchematicEdit[] = [];
@@ -564,6 +595,20 @@ export function arrangeInstanceLabelsReport(
       );
     };
     /**
+     * Whether the label diagnostics would report `candidate` drawn at `ink`:
+     * text over a wire, a part or a junction dot, over another label or one
+     * of `siblings`, far from its part, or run on into a neighbour's. The
+     * group's own stale places do not count; `siblings` are where its other
+     * labels stand in the arrangement tested.
+     */
+    const reported = (
+      candidate: Annotation,
+      ink: Rect,
+      siblings: readonly Rect[],
+    ) =>
+      siblings.some((sibling) => overlap(ink, sibling)) ||
+      !context.clearAt(candidate, ink, groupIds);
+    /**
      * Conflicts of one label, counting its own siblings as disqualifying.
      * Text drawn over another label counts twice: a name nudged from just
      * beside a Pin's name to on top of it had cleared a wire for it. A
@@ -602,20 +647,49 @@ export function arrangeInstanceLabelsReport(
             ...fixed,
             ...arrangement.filter((_, other) => other !== index),
           ]);
-          return group[index]!.slot === "reference"
-            ? { name: sum.name + conflicts, value: sum.value }
-            : { name: sum.name, value: sum.value + conflicts };
+          const named = group[index]!.slot === "reference";
+          const raised = reported(
+            candidate,
+            box(candidate),
+            [
+              ...fixed,
+              ...arrangement.filter((_, other) => other !== index),
+            ].map(box),
+          )
+            ? 1
+            : 0;
+          return {
+            reported: {
+              name: sum.reported.name + (named ? raised : 0),
+              value: sum.reported.value + (named ? 0 : raised),
+            },
+            name: sum.name + (named ? conflicts : 0),
+            value: sum.value + (named ? 0 : conflicts),
+          };
         },
-        { name: 0, value: between(arrangement.map(box)) },
+        {
+          reported: { name: 0, value: 0 },
+          name: 0,
+          value: between(arrangement.map(box)),
+        },
       );
-    const better = (
-      left: { name: number; value: number },
-      right: { name: number; value: number },
-    ) =>
-      left.name < right.name ||
-      (left.name === right.name && left.value < right.value);
-    const clear = (conflicts: { name: number; value: number }) =>
-      conflicts.name === 0 && conflicts.value === 0;
+    /**
+     * Labels the label diagnostics would report count before every other
+     * crowding: a name a dashed body tie struck through beat a place clear
+     * of everything but a little nearer the next part (#1836).
+     */
+    const better = (left: Conflicts, right: Conflicts) =>
+      left.reported.name < right.reported.name ||
+      (left.reported.name === right.reported.name &&
+        (left.reported.value < right.reported.value ||
+          (left.reported.value === right.reported.value &&
+            (left.name < right.name ||
+              (left.name === right.name && left.value < right.value)))));
+    const clear = (conflicts: Conflicts) =>
+      conflicts.name === 0 &&
+      conflicts.value === 0 &&
+      conflicts.reported.name === 0 &&
+      conflicts.reported.value === 0;
     /**
      * The group moved along its side to the clear place nearest where it
      * stands, a little off what bounds that place when there is room, or
@@ -793,7 +867,7 @@ export function arrangeInstanceLabelsReport(
     // labels went above the part, and its W/L stood beside the transistor
     // above, read as that one's. The group slides along each side in turn,
     // as far as it stays beside the part.
-    if (!clear(best) && sides.length && owner)
+    if (!clear(best) && sides.length && owner && !options.rowsOnly)
       for (const arrangement of [preferred, ...sides]) {
         const slid = slideClear(arrangement, owner);
         if (slid) {
@@ -805,7 +879,11 @@ export function arrangeInstanceLabelsReport(
 
     // A label still in conflict tries a few nearby positions; it never
     // wanders arbitrarily far, moves a device, or covers a sibling.
-    if (options.avoidCollisions !== false && !clear(best)) {
+    if (
+      options.avoidCollisions !== false &&
+      !options.rowsOnly &&
+      !clear(best)
+    ) {
       chosen = [...chosen];
       for (const [index, label] of group.entries()) {
         const siblings = () => [
@@ -813,8 +891,14 @@ export function arrangeInstanceLabelsReport(
           ...chosen.filter((_, other) => other !== index),
         ];
         let current = chosen[index]!;
-        let currentScore = score(current, siblings());
-        if (!currentScore) continue;
+        // Reported first, then crowding, as arrangements compare.
+        const rank = (candidate: Annotation) =>
+          [
+            reported(candidate, box(candidate), siblings().map(box)) ? 1 : 0,
+            score(candidate, siblings()),
+          ] as const;
+        let currentRank = rank(current);
+        if (!currentRank[0] && !currentRank[1]) continue;
         const row = instanceLabelRowOffset(styleOf(label), grid);
         const position = context.measure(current).position;
         for (const [dx, dy] of [
@@ -827,24 +911,87 @@ export function arrangeInstanceLabelsReport(
             position: { x: position.x + dx, y: position.y + dy },
             alignment: current.alignment,
           });
-          const candidateScore = score(candidate, siblings());
-          if (candidateScore < currentScore) {
+          const candidateRank = rank(candidate);
+          if (
+            candidateRank[0] < currentRank[0] ||
+            (candidateRank[0] === currentRank[0] &&
+              candidateRank[1] < currentRank[1])
+          ) {
             current = candidate;
-            currentScore = candidateScore;
+            currentRank = candidateRank;
           }
-          if (!currentScore) break;
+          if (!currentRank[0] && !currentRank[1]) break;
         }
         chosen[index] = current;
       }
+      // A label the diagnostics would still report takes the nearest spot
+      // within a few grid steps where they would not, clear of crowding too
+      // when there is one (#1836). A transistor's name beside it stood on its
+      // own dashed body tie, six units short of a clear place, between the
+      // nudges' steps. Where none is clear the label stays and the warning
+      // says so.
+      for (const [index, label] of group.entries()) {
+        const current = chosen[index]!;
+        const ink = box(current);
+        const siblings = [
+          ...fixed,
+          ...chosen.filter((_, other) => other !== index),
+        ].map(box);
+        if (!reported(current, ink, siblings)) continue;
+        const shifted = (shift: Point) => ({
+          ...ink,
+          x: ink.x + shift.x,
+          y: ink.y + shift.y,
+        });
+        const unreported = (shift: Point) =>
+          !reported(current, shifted(shift), siblings);
+        const uncrowded = (shift: Point) => {
+          const b = shifted(shift);
+          return (
+            !context
+              .conflictsAt(b, current.id)
+              .some((id) => !groupIds.has(id)) &&
+            !context.dotsAt(b).length &&
+            !context.enclosedAt(b) &&
+            !cutOff(b) &&
+            !strayed(b) &&
+            !mistaken(b, current, siblings) &&
+            !runsInto(b, current, [])
+          );
+        };
+        let shift: Point | undefined;
+        let fallback: Point | undefined;
+        for (const candidate of nearbyShifts(grid)) {
+          if (!unreported(candidate)) continue;
+          fallback ??= candidate;
+          if (uncrowded(candidate)) {
+            shift = candidate;
+            break;
+          }
+        }
+        shift ??= fallback;
+        if (!shift) continue;
+        const position = context.measure(current).position;
+        chosen[index] = at(label, {
+          position: { x: position.x + shift.x, y: position.y + shift.y },
+          alignment: current.alignment,
+        });
+      }
     }
 
-    // Do not make a cramped original worse just to compact its rows.
+    // Do not make a cramped original worse just to compact its rows, and
+    // leave an earlier arrangement that is still clear where it is.
     const originals = group.map((label) => ({
       ...label.annotation,
       anchor: label.original.anchor,
       alignment: label.original.alignment,
     }));
-    if (better(total(originals), total(chosen))) chosen = originals;
+    const kept = total(originals);
+    if (
+      better(kept, total(chosen)) ||
+      (group.some((label) => label.arranged) && clear(kept))
+    )
+      chosen = originals;
     for (const [index, label] of group.entries()) {
       const next = chosen[index]!;
       if (JSON.stringify(next) === JSON.stringify(label.original)) continue;
@@ -1142,6 +1289,37 @@ export function arrangeInstanceLabelsReport(
     }
     return changed;
   }
+}
+
+/** An arrangement's conflicts: those reported first, then all of them. */
+interface Conflicts {
+  readonly reported: { readonly name: number; readonly value: number };
+  readonly name: number;
+  readonly value: number;
+}
+
+const shiftsByGrid = new Map<number, readonly Point[]>();
+/**
+ * Shifts of a label within three grid steps, a fifth of a step apart,
+ * nearest first: where a label the diagnostics report looks for a clear
+ * spot.
+ */
+function nearbyShifts(grid: number): readonly Point[] {
+  let shifts = shiftsByGrid.get(grid);
+  if (!shifts) {
+    const step = grid / 5;
+    const reach = 15;
+    const all: Point[] = [];
+    for (let x = -reach; x <= reach; x++)
+      for (let y = -reach; y <= reach; y++)
+        if (x || y) all.push({ x: x * step, y: y * step });
+    shifts = all.sort(
+      (a, b) =>
+        Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y) || a.y - b.y || a.x - b.x,
+    );
+    shiftsByGrid.set(grid, shifts);
+  }
+  return shifts;
 }
 
 /** How much nearer another part a label may stand than its own part. */

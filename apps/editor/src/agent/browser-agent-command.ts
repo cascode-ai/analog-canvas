@@ -61,6 +61,7 @@ import {
   projectCellInterface,
   foldNetName,
   labelTextDocument,
+  type Annotation,
   type CircuitProject,
   type Instance,
   type RichTextDocument,
@@ -114,7 +115,10 @@ import {
   arrangeInstanceLabelsReport,
   type LabelLeftInPlace,
 } from "../features/instance-display/arrange-instance-labels";
-import { withStruckLabelsArranged } from "../features/instance-display/struck-label-arrangement";
+import {
+  withLabelsClearOfPlacedParts,
+  withStruckLabelsArranged,
+} from "../features/instance-display/struck-label-arrangement";
 import { textbookLabelEdits } from "../features/instance-display/label-preset";
 import { netLabelAtClearSpot } from "./net-label-clear-spot";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
@@ -1062,9 +1066,40 @@ export function planBrowserAgentCommand(
               edits,
             ),
           );
+        // Its labels keep clear of the other parts and labels placed before
+        // it in this batch as well as the drawing's: a stack placed in one
+        // call had put each W/L over the part beside it (#1836). A repeated
+        // ID is left for the commit to refuse, as before.
+        const own = (annotation: Annotation) =>
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === instance.id;
+        const drawn: SchematicDocument = {
+          ...document,
+          instances: [
+            ...document.instances,
+            ...edits.flatMap((edit) =>
+              edit.kind === "add_instance" && edit.instance.id !== instance.id
+                ? [edit.instance]
+                : [],
+            ),
+          ],
+          annotations: [
+            ...new Map(
+              [
+                ...document.annotations,
+                ...edits.flatMap((edit) =>
+                  edit.kind === "upsert_schematic_annotation" &&
+                  !own(edit.annotation)
+                    ? [edit.annotation]
+                    : [],
+                ),
+              ].map((annotation) => [annotation.id, annotation]),
+            ).values(),
+          ],
+        };
         edits.push(
           ...defaultInstanceDisplayAnnotations(
-            document,
+            drawn,
             instance,
             resolver,
             resolveDocumentStyleProfile(document.presentation),
@@ -1125,7 +1160,14 @@ export function planBrowserAgentCommand(
               },
             ],
           }
-        : { edits };
+        : {
+            edits: withLabelsClearOfPlacedParts(
+              document,
+              resolver,
+              edits,
+              maxTransactionEdits,
+            ),
+          };
     }
     case "set-display-alias": {
       const plan = planDisplayAlias({

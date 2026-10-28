@@ -12,6 +12,7 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
+  diagnoseLabelClearance,
   instanceLabelRowOffset,
   instanceValueRowOffset,
   outwardDefaultInstanceLabelPlacement,
@@ -1054,6 +1055,70 @@ describe("opt-in label arrangement", () => {
     expect(name!.inkBounds.y + name!.inkBounds.height).toBeLessThan(180);
     expect(size!.inkBounds.y).toBeGreaterThan(180);
   });
+  describe("a name on its own dashed body tie (#1836)", () => {
+    /**
+     * RBIAS's name, alone beside it, with a dashed tie running down through
+     * its first letter and the whole side, a wire two grid steps past it,
+     * and wires fencing the other three sides: no side, slide or nudge is
+     * clear, but four units further out the name is.
+     */
+    function tied(crowded: boolean) {
+      const { doc, instance } = fixture();
+      doc.annotations = doc.annotations.filter(
+        (a) => a.binding?.kind !== "instance-value",
+      );
+      const context = createLabelClearanceContext(doc, resolver);
+      const name = doc.annotations[0]!;
+      const ink = context.measure(name).inkBounds;
+      const part = context.symbols[0]!.bounds;
+      const top = part.y - 60;
+      const bottom = part.y + part.height + 60;
+      wire(doc, "tie", { x: ink.x + 3, y: top }, { x: ink.x + 3, y: bottom });
+      doc.routes.at(-1)!.presentation = "bulk-dashed";
+      const beyond = ink.x + ink.width + 14;
+      wire(doc, "beyond", { x: beyond, y: top }, { x: beyond, y: bottom });
+      for (let x = part.x - 4; x > part.x - 64; x -= 6)
+        wire(doc, `left-${x}`, { x, y: top }, { x, y: bottom });
+      for (let step = 0; step < 10; step++)
+        for (const y of [
+          part.y - 4 - step * 6,
+          part.y + part.height + 4 + step * 6,
+        ])
+          wire(doc, `row-${y}`, { x: part.x - 70, y }, { x: ink.x - 1, y });
+      // With the room further out filled too, nothing near is clear.
+      if (crowded)
+        for (let x = ink.x + 9; x < ink.x + ink.width + 50; x += 6)
+          wire(doc, `out-${x}`, { x, y: top }, { x, y: bottom });
+      return { doc, instance, name };
+    }
+    const struck = (doc: ReturnType<typeof fixture>["doc"], id: string) =>
+      diagnoseLabelClearance(doc, resolver).some(
+        (finding) =>
+          finding.code === "VISUAL_LABEL_CLEARANCE" &&
+          finding.objectIds[0] === id,
+      );
+
+    it("takes the nearest spot the diagnostics leave clear", () => {
+      const { doc, instance, name } = tied(false);
+      expect(struck(doc, name.id)).toBe(true);
+      apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+      expect(struck(doc, name.id)).toBe(false);
+      const context = createLabelClearanceContext(doc, resolver);
+      const moved = doc.annotations.find((a) => a.id === name.id)!;
+      expect(context.findingsAt(moved)).toEqual({
+        struck: [],
+        overlapped: [],
+        runsOn: [],
+      });
+    });
+
+    it("keeps the warning where no spot near is clear", () => {
+      const { doc, instance, name } = tied(true);
+      apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+      expect(struck(doc, name.id)).toBe(true);
+    });
+  });
+
   it("does not move a name from just beside other text onto it", () => {
     // The Reference touches text just above it and a wire runs through it;
     // one row up it would meet only that text, drawn over it, and two grid

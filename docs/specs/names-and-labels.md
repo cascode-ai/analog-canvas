@@ -99,24 +99,34 @@ redraws seen drawings), whether the name was typed, connected or generated:
   subscripts, and free label-type text sheds its size, weight and slant;
   other free text is untouched; a subscript never becomes plain text.
 - Agent **arrange-labels** moves only eligible labels of requested Instances
-  (visible, unrotated, unlocked, still at default position and style,
-  including an earlier value-over-name stack; hand-moved ones only with
-  `includeManual`) to bounded nearby positions; it never resets all labels.
+  (visible, unrotated, unlocked, at default style and in their default rows,
+  an earlier value-over-name stack or another side's rows, where an earlier
+  arrangement still clear stays; hand-moved ones only with `includeManual`)
+  to bounded nearby positions; it never resets all labels.
   Reference and value move together (default side, other sides, then slid
   along a side while half the group stays beside the part), name first with
   the value under it (above the part: value nearest, name a row over). A place
   is clear of wires, parts, labels and free text with word/line spacing, ~10
   units from a neighbour's label on the row, a line's space from junction
   dots, no foreign wire between label and part or name and value, and no
-  reading as another part's label. Failing that, overlap outranks crowding and
-  the Reference is kept clear before the value. Series two-terminal parts on a
+  reading as another part's label. Failing that, a place the label
+  diagnostics would report (`VISUAL_LABEL_CLEARANCE`, `_OVERLAP`,
+  `_OWNER_DISTANCE`, `_RUN_ON`, tested with their own predicate) ranks below
+  any they would not, overlap outranks crowding, and the Reference is kept
+  clear before the value; a label still reported takes the nearest place
+  within three grid steps they leave clear, else it stays and the warning
+  shows. Series two-terminal parts on a
   wired horizontal row are arranged first and take the side above when they
   would share a row with a neighbour. A placed Cell's name counts as the
   part's name and is never restyled; MOS `×m` follows its name or W/L row as
   the planner tests pin. A requested Cell Pin's name takes its first clear
   own side. The same arrangement runs automatically for parts whose labels a
   typed move, arrange, pin change or changed Cell Pins newly cover
-  ([connectivity and routing](connectivity-and-routing.md)).
+  ([connectivity and routing](connectivity-and-routing.md)). An Agent's
+  placement runs it, over the parts' rows only, for a new part whose default
+  rows the label diagnostics would report or are boxed in by wire, and for
+  labels the new parts newly cover; a GUI drop keeps the rows its preview
+  showed.
 - Agent **apply-label-preset** `textbook`: one transaction over requested (or
   all placed) parts that hides each MOS W/L like the Value toggle, then runs
   arrange-labels with the first-letter style. Shows nothing hidden, not a
