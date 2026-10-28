@@ -424,6 +424,8 @@ export function removeGalleryAuthorEntry(
 export interface GalleryFeedQuery {
   /** A reference dataset's wall instead of the community's (#1510). */
   source?: string | null;
+  /** The community's circuits alone, without the datasets' (#1697). */
+  hideDatasets?: boolean;
   /**
    * Words the server searches names, bylines, descriptions and tags for,
    * before it pages, so an older match comes back on the first page.
@@ -471,6 +473,7 @@ export function galleryQueryFromFilters(
 function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   const params = new URLSearchParams();
   if (query.source) params.set("source", query.source);
+  else if (query.hideDatasets) params.set("source", "community");
   if (query.q?.trim()) params.set("q", query.q.trim());
   if (query.attention) params.set("attention", "1");
   if (query.attention && query.attentionKind)

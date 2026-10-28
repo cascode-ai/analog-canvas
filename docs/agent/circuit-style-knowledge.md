@@ -49,12 +49,15 @@ A drawing that only matches its netlist is not done.
   | Ground | 30 below its terminal |
   | Supply rail | 30–40 above the top row |
 
-- **Supplies:** one rail fed by one marker or Port, unless the source draws a marker per
-  part. Put the marker's connection point on an explicitly connected rail tap or short
-  feed wire; a detached `VDD` symbol above the drawing is not a visible supply connection.
-  Rail geometry and printed names alone do not join pins. Inspect Net membership and
-  exported supply-pin connections, preserving the reference's distinct supply and ground
-  Nets. See [Cell Pins and supplies](shared/authoring.md#cell-pins-and-supplies).
+- **Supplies:** find the actual Net on each source, drain and bulk pin before naming a
+  rail. A top bus can be an input or internal source Net while `VDD` feeds separate bulk
+  pins; keep both Nets and show each connection. A common supply Net gets one rail fed by
+  one marker or Port, unless the source draws a marker per part. Put the marker's
+  connection point on an explicitly connected rail tap or short feed wire; a detached
+  `VDD` symbol above the drawing is not a visible supply connection. Rail geometry and
+  printed names alone do not join pins. Inspect Net membership and exported supply-pin
+  connections, preserving the reference's distinct supply and ground Nets. See
+  [Cell Pins and supplies](shared/authoring.md#cell-pins-and-supplies).
 - **Clearance:** reserve the complete rendered text box, including subscripts. Keep at
   least 10 grid units clear of unrelated wires, symbols and other text; aim for 20 beside
   supply rails. Move a label to a clear side or widen the local pitch in 10–20-unit steps
@@ -217,18 +220,19 @@ The editor typesets names itself: `M1` → M₁, `VB1` → V_B1, `vin` → v_in,
 
 - **Local bias:** on an already connected common-gate wire, place one bound Net label
   beside its clear middle or end. `VB1`–`VB4` need no extra branch just to hold their text.
-  Retain declared external Ports; when one is required, use a short side entry rather
-  than a vertical stem toward a supply rail. Do not create extra Ports for internal bias
-  names.
+  Retain declared external Ports; place each at a clear end of that wire or on a short
+  side entry, with room for its full label, rather than on a vertical stem from the wire's
+  middle. Do not create extra Ports for internal bias names.
 - **Distant connections:** use matching bound Net labels on short pin stubs at each
   disconnected drawing endpoint. Repetition is needed there, not along one continuous
   wire. Keep distinct Nets distinct and attach each label to its actual Net, not as free
   text. See [Wiring](shared/authoring.md#wiring).
-- **Transmission-gate controls:** reserve separate space for device references and
-  `track`/`trackb`, `reset`/`resetb` or clock labels. Put refs on the outside of their own
-  devices and control names beside their own short leads; align corresponding labels
-  across repeated switches. Keep complementary controls distinct. When a reset pair or
-  neighbouring gate crowds those names, widen the group spacing using the clearance rule,
+- **Switch controls:** for transmission gates and single clocked switches, reserve separate
+  space for device references and `track`/`trackb`, `reset`/`resetb` or clock labels. Put
+  refs on the outside of their own devices and control names beside their own short leads;
+  align corresponding labels across repeated switches. Keep complementary controls
+  distinct. When a reset pair or neighbouring switch crowds those names, widen the group
+  spacing using the clearance rule,
   rather than packing several refs and control names into the same gap.
 
 ## Review the render

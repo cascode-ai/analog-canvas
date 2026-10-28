@@ -186,9 +186,19 @@ const SetModelActionSchema = NativeSetModel.extend({
   target: InstanceRefSchema.optional(),
 }).superRefine(oneInstance);
 const SetDisplayAliasActionSchema = NativeSetDisplayAlias.extend({
-  instanceId: NativeSetDisplayAlias.shape.instanceId.optional(),
   target: InstanceRefSchema.optional(),
-}).superRefine(oneInstance);
+}).superRefine((action, context) => {
+  // A Net label is named by its annotationId alone (#1880).
+  if (
+    [action.instanceId, action.target, action.annotationId].filter(
+      (given) => given !== undefined,
+    ).length !== 1
+  )
+    context.addIssue({
+      code: "custom",
+      message: "Provide exactly one of instanceId, target or annotationId",
+    });
+});
 const ApplyLabelPresetActionSchema = NativeApplyLabelPreset.extend({
   targets: z
     .array(InstanceRefSchema)
@@ -462,14 +472,18 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     text: TextInputSchema,
     position: PointInputSchema.optional(),
   }),
-  z.strictObject({
-    kind: z.literal("edit-text"),
-    target: z.union([
-      AnnotationRefSchema,
-      NamedObjectRefSchema.safeExtend({ kind: z.literal("drafting") }),
-    ]),
-    text: TextInputSchema,
-  }),
+  z
+    .strictObject({
+      kind: z.literal("edit-text"),
+      target: z.union([
+        AnnotationRefSchema,
+        NamedObjectRefSchema.safeExtend({ kind: z.literal("drafting") }),
+      ]),
+      text: TextInputSchema,
+    })
+    .describe(
+      "Commit a text as the canvas editor does. On a name label, RichText that spells the name sets the label's own look and never renames (authoring guide, Labels and text); other text renames the part or Net or sets the value.",
+    ),
   z.strictObject({
     kind: z.literal("annotate"),
     text: TextInputSchema,

@@ -12,6 +12,7 @@ import {
   agentNativeProfile,
   createAgentNativeExecutor,
 } from "./native-simulation-executor.mjs";
+import { readAgentClaim } from "./editor-fixtures.js";
 
 // Opt-in: the MCP surface's one end-to-end native run. Real stdio MCP, the
 // local Worker/DO relay and the browser service; only the simulation executor
@@ -73,10 +74,7 @@ test("public MCP connects to the real local relay and executes native source", a
     }
     await page.goto("/editor");
     await page.getByRole("button", { name: "Agent", exact: true }).click();
-    const message = page.getByTestId("agent-copy-text");
-    await expect(message).toHaveValue(/Claim: /, { timeout: 45000 });
-    const claim = /^Claim: (.+)$/mu.exec(await message.inputValue());
-    expect(claim).not.toBeNull();
+    const claim = await readAgentClaim(page.getByTestId("connect-agent-panel"));
     child = startMcp(baseURL!, join(root, "connector.json"));
     await child.request("initialize", {
       protocolVersion: "2025-03-26",
@@ -84,7 +82,7 @@ test("public MCP connects to the real local relay and executes native source", a
       clientInfo: { name: "native-journey", version: "1" },
     });
     child.notify("notifications/initialized");
-    const connected = await child.tool("connect", JSON.parse(claim![1]!));
+    const connected = await child.tool("connect", claim);
     expect(connected.ok, JSON.stringify(connected)).toBe(true);
     const help = await child.tool("simulation", {
       request: { operation: "authoring-help", name: "embed" },

@@ -63,6 +63,7 @@ import { sharedComponentNetlist } from "../user-components/component-definition-
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
 import type { PendingComponentPlacement } from "../../interaction/interaction-state";
 import type { DrawingTool } from "../../interaction/interaction-state";
+import { uprightOrUp } from "../drafting/drafting-manipulation";
 
 type TransactionResult = { ok: boolean; revision: number };
 import {
@@ -772,7 +773,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         content: bare
           ? { runs: [{ kind: "line-break" as const }] }
           : typed || preset || defaultDraftTextDocument("Vx"),
-        rotation: options.componentPlacementRotation,
+        // R turns polarity marks; it turns a text to read up the page.
+        rotation: placementRequest.polarity
+          ? options.componentPlacementRotation
+          : uprightOrUp(options.componentPlacementRotation),
         ...(placementRequest.alignment
           ? { alignment: placementRequest.alignment }
           : {}),

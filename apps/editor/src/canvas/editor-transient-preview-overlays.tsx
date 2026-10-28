@@ -23,6 +23,7 @@ import {
   type ComponentPlacementPreviewProps,
 } from "../features/component-insert/component-placement-preview";
 import { DraftingCreatePreview } from "../features/drafting/drafting-create-preview";
+import { uprightOrUp } from "../features/drafting/drafting-manipulation";
 import {
   CanvasTextEditorOverlay,
   type CanvasTextEditorOverlayProps,
@@ -132,7 +133,9 @@ export function EditorPlacementPreview({
       <g
         data-testid="text-placement-preview"
         className="component-placement-preview"
-        transform={`translate(${previewPoint.x} ${previewPoint.y})`}
+        transform={`translate(${previewPoint.x} ${previewPoint.y})${
+          !draftingPolarity && uprightOrUp(rotation) ? " rotate(270)" : ""
+        }`}
       >
         {polarityGeometry?.lines.map((line) => (
           <line

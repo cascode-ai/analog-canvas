@@ -272,6 +272,45 @@ describe("the box of free drafting text", () => {
     );
     expect(inBox.bounds.y + inBox.bounds.height / 2).toBeCloseTo(60);
   });
+
+  it("turns its box with it at a quarter turn, about its anchor", () => {
+    const across: Extract<DraftingObject, { kind: "text" }> = {
+      id: "note-column",
+      kind: "text",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: 200, y: 300 } },
+      content: { runs: [{ kind: "text", value: "Column out line" }] },
+      alignment: "start",
+      rotation: 0,
+    };
+    const flat = resolveDraftingObjectGeometry(
+      documentWith([across]),
+      resolver,
+      across,
+    ).bounds;
+    // Read up the page: it runs up from its anchor, its glyphs to the left.
+    const up = { ...across, rotation: 270 as const };
+    const turned = resolveDraftingObjectGeometry(
+      documentWith([up]),
+      resolver,
+      up,
+    ).bounds;
+    expect(turned.width).toBeCloseTo(flat.height);
+    expect(turned.height).toBeCloseTo(flat.width);
+    expect(turned.y + turned.height).toBeCloseTo(300 - (flat.x - 200));
+    // The glyphs' tops point left; the baseline is the anchor's x.
+    expect(turned.x).toBeCloseTo(200 + (flat.y - 300));
+    expect(turned.x + turned.width).toBeCloseTo(
+      200 + (flat.y + flat.height - 300),
+    );
+    // A half turn would stand it on its head: it stays as it reads across.
+    const half = { ...across, rotation: 180 as const };
+    expect(
+      resolveDraftingObjectGeometry(documentWith([half]), resolver, half)
+        .bounds,
+    ).toEqual(flat);
+  });
 });
 
 describe("polarity drafting text", () => {

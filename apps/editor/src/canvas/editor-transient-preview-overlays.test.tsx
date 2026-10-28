@@ -28,7 +28,7 @@ describe("editor transient preview overlays", () => {
     expect(markup).toContain('y2="120"');
   });
 
-  it("keeps drafting glyphs and rotated polarity marks upright in placement previews", () => {
+  it("previews a turned text reading up the page, and polarity glyphs upright", () => {
     const styleProfile = resolveDocumentStyleProfile(
       createEmptyDocument("cell", "Cell").presentation,
     );
@@ -48,8 +48,8 @@ describe("editor transient preview overlays", () => {
         />
       </svg>,
     );
-    expect(glyph).toContain('transform="translate(100 80)"');
-    expect(glyph).not.toContain("rotate(");
+    // As it will land: a quarter turn reads up the page.
+    expect(glyph).toContain('transform="translate(100 80) rotate(270)"');
     expect(glyph).toContain("&gt;");
 
     const polarity = renderToStaticMarkup(

@@ -1415,6 +1415,63 @@ describe("RNL round trip", () => {
     },
   );
 
+  it("keeps a Net label's display alias, and its Net's name (#1880)", async () => {
+    const project = example("simulation-rc");
+    const claimOf = (
+      document: CircuitProject["documents"][number],
+      id: string,
+    ) =>
+      document.connectivityEvidence.find(
+        (evidence) =>
+          evidence.kind === "name-claim" &&
+          evidence.owner.kind === "net-label" &&
+          evidence.owner.annotationId === id,
+      );
+    const document = project.documents.find((item) =>
+      item.annotations.some(
+        (annotation) =>
+          annotation.kind === "net-label" && claimOf(item, annotation.id),
+      ),
+    )!;
+    const index = document.annotations.findIndex(
+      (annotation) =>
+        annotation.kind === "net-label" && claimOf(document, annotation.id),
+    );
+    const claim = claimOf(document, document.annotations[index]!.id);
+    if (claim?.kind !== "name-claim") throw new Error("no Net label claim");
+    const {
+      binding: _binding,
+      formatOverride: _format,
+      ...label
+    } = document.annotations[index]!;
+    document.annotations[index] = {
+      ...label,
+      content: { runs: [{ kind: "text", value: "VEA,OUT" }] },
+    };
+    const { project: drawn } = await roundTrip(project);
+    const aliased = drawn.documents.flatMap((item) =>
+      item.annotations
+        .filter((annotation) => annotation.kind === "net-label")
+        .map((annotation) => ({
+          text: flattenRichText(resolveAnnotationText(item, annotation)),
+          bound: annotation.binding !== undefined,
+          claim: claimOf(item, annotation.id),
+        })),
+    );
+    expect(aliased.filter((item) => item.text === "VEA,OUT")).toEqual([
+      {
+        text: "VEA,OUT",
+        bound: false,
+        claim: expect.objectContaining({ name: claim.name }),
+      },
+    ]);
+    expect(
+      aliased
+        .filter((item) => item.text !== "VEA,OUT")
+        .every((item) => item.bound),
+    ).toBe(true);
+  });
+
   it("keeps a name the drawing does not show hidden, in its usual place", async () => {
     const { project: drawn } = await roundTrip(example("two-stage-op-amp"));
     const names = drawn.documents

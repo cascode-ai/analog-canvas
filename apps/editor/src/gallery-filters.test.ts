@@ -29,8 +29,32 @@ describe("gallery filter preferences", () => {
       attentionKind: null,
       parts: ["6-10", "26-"],
       source: null,
+      hideDatasets: false,
     });
     expect(narrowed).toBe(true);
+  });
+
+  it("keeps the reference datasets off the wall when asked, by link and in storage", () => {
+    const linked = parseGalleryFilterQuery("?source=community");
+    expect(linked.filters).toMatchObject({ source: null, hideDatasets: true });
+    expect(linked.narrowed).toBe(true);
+    expect(galleryFilterSearch("", linked.filters)).toBe("?source=community");
+    // A dataset's own wall names the dataset, whatever else is asked.
+    expect(
+      galleryFilterSearch("", {
+        ...linked.filters,
+        source: "analoggenie",
+        hideDatasets: false,
+      }),
+    ).toBe("?source=analoggenie");
+    // The choice is remembered, and shown datasets store nothing true.
+    expect(
+      resolveGalleryFilters("", storedGalleryFilters(linked.filters))
+        .hideDatasets,
+    ).toBe(true);
+    expect(storedGalleryFilters(createDefaultGalleryFilters())).toContain(
+      '"hideDatasets":false',
+    );
   });
 
   it("opens a reference dataset's wall by its link or one of its circuits (#1510)", () => {
@@ -207,6 +231,7 @@ describe("gallery filter preferences", () => {
       attentionKind: "global-vdd",
       parts: ["6-10"],
       source: "analoggenie",
+      hideDatasets: false,
     });
     // A reloaded search alone narrows nothing, so the reader's remembered
     // filters come back without it.
@@ -298,6 +323,7 @@ describe("gallery filter preferences", () => {
       liked: false,
       parts: [],
       source: null,
+      hideDatasets: false,
     });
   });
 

@@ -39,7 +39,9 @@ SchematicDocument + Symbol Resolver + optional bounds → validate
 - Transforms: rotation, then independent screen-space mirrors, then
   translation; mirroring never rewrites rotation. Instance and pin text is
   emitted outside component transforms; text, formulas, fractions and
-  polarity marks stay upright. Negative-polarity bars stay horizontal, marked
+  polarity marks stay upright, except free drawing text at a quarter turn
+  (`rotation` 90 or 270, no polarity), which reads down or up the page,
+  turned about its anchor with its box. Negative-polarity bars stay horizontal, marked
   by `upright-*-polarity-negative` parts; adder signs are Instance notation
   ([Razavi](razavi-visual-contract.md#signal-flow-adder-signs)).
 - The Document persists `styleProfileId`, placement, annotations and

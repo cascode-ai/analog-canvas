@@ -7,6 +7,7 @@ import {
   arrowPathData,
   centeredFirstBaselineY,
   draftTextLayoutContent,
+  draftTextTurn,
   objectStyleProfile,
   resolveDraftingObjectGeometry,
   richTextMetrics,
@@ -213,17 +214,22 @@ function renderDraftText(
           : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(content, profile, { lineOriginX: textPosition.x, fontSize, defaultBold: weight === "bold", defaultItalic: italic === "italic" })}</text>`);
     return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved}>${markers}${text}</g>`;
   }
-  // Drafting text is notation: its glyphs stay upright at every persisted or
-  // route-follow rotation. Multipart polarity layout is already resolved into
-  // screen coordinates by the shared derived geometry.
+  // A free text at a quarter turn reads down or up the page, turned about
+  // its anchor; at any other rotation, as on a route it follows, its glyphs
+  // stay upright. Polarity layout is already resolved into screen
+  // coordinates by the shared derived geometry.
+  const turn = draftTextTurn(object);
+  const turned = turn
+    ? ` transform="rotate(${turn} ${textPosition.x} ${textPosition.y})"`
+    : "";
   if (fractions) {
-    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved}>${fractions}</g>`;
+    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved}${turned}>${fractions}</g>`;
   }
   if (formula) {
-    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved}>${formula}</g>`;
+    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved}${turned}>${formula}</g>`;
   }
   if (positioned) {
-    return `<g><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}</g>`;
+    return `<g${turned}><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}</g>`;
   }
   const markup = renderRichTextDocument(content, profile, {
     lineOriginX: textPosition.x,
@@ -231,7 +237,7 @@ function renderDraftText(
     defaultBold: weight === "bold",
     defaultItalic: italic === "italic",
   });
-  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${markup}</text>`;
+  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}"${turned} font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${markup}</text>`;
 }
 
 function renderConstructionLine(
