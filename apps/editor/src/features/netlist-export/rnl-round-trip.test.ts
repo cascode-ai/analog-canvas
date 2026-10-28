@@ -1637,6 +1637,32 @@ describe("RNL round trip", () => {
   });
 
   it.each(["spice", "spectre"] as const)(
+    "keeps the op-amp variant a part was drawn as, flipped or with its inputs swapped, through %s+RNL",
+    async (format) => {
+      for (const [symbolId, mirror] of [
+        ["opamp", "vertical"],
+        ["opamp-inputs-swapped", "none"],
+      ] as const) {
+        const project = example("two-stage-op-amp");
+        const opamp = project.documents
+          .flatMap((document) => document.instances)
+          .find((instance) => instance.symbolId === "opamp")!;
+        opamp.symbolId = symbolId;
+        opamp.placement = { ...opamp.placement!, mirror };
+        const { project: drawn } = await roundTrip(project, format);
+        const part = drawn.documents
+          .flatMap((document) => document.instances)
+          .find((instance) => instance.symbolId.startsWith("opamp"));
+        // The same turn, however its rotation and mirror spell it.
+        expect([
+          part?.symbolId,
+          part?.placement && rnlOrient(part.placement),
+        ]).toEqual([symbolId, rnlOrient(opamp.placement)]);
+      }
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "keeps a part the author never named unnamed, which the netlist names to print it, through %s+RNL",
     async (format) => {
       const project = example("two-stage-op-amp");

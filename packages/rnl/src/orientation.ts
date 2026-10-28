@@ -76,6 +76,11 @@ export function composeOrient(outer: RnlOrient, inner: RnlOrient): RnlOrient {
   )!;
 }
 
+/** The orientation that undoes `orient`. */
+export function inverseOrient(orient: RnlOrient): RnlOrient {
+  return CODES.find((code) => composeOrient(code, orient) === "R0")!;
+}
+
 /** A point in a symbol's own frame turned by an RNL orientation, y up. */
 export function orientPoint(
   orient: RnlOrient,

@@ -37,7 +37,12 @@ import {
 type Junction = SchematicDocument["junctions"][number];
 
 import { callSymbolFromDefinition } from "./call-symbols.js";
-import { acOrientation, composeOrient, type RnlOrient } from "./orientation.js";
+import {
+  acOrientation,
+  composeOrient,
+  inverseOrient as inverse,
+  type RnlOrient,
+} from "./orientation.js";
 import { acPosition, AC_UNITS_PER_RNL_UNIT } from "./place.js";
 import { RNL_SYMBOLS, type RnlSymbol } from "./symbol-map.js";
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
@@ -230,31 +235,17 @@ const acPoint = ([x, y]: Point) => ({
   y: Math.round(-y * AC_UNITS_PER_RNL_UNIT * 1e6) / 1e6 + 0,
 });
 
-/** The orientation that undoes `orient`. */
-function inverse(orient: RnlOrient): RnlOrient {
-  const codes: RnlOrient[] = [
-    "R0",
-    "R90",
-    "R180",
-    "R270",
-    "MX",
-    "MY",
-    "MXR90",
-    "MYR90",
-  ];
-  return codes.find((code) => composeOrient(code, orient) === "R0")!;
-}
-
 const isOrient = (value: string | null): value is RnlOrient =>
   value !== null &&
   ["R0", "R90", "R180", "R270", "MX", "MY", "MXR90", "MYR90"].includes(value);
 
 /**
  * The Analog Canvas symbol a part RNL draws with `symbol`, turned `orient`,
- * reads back as: of the symbol's rows, the one whose Analog Canvas
- * orientation needs no mirror (an op-amp turned MX is the plain op-amp,
- * unturned the inputs-swapped one), the part's own symbol first, and only a
- * symbol whose pins keep the part's pin names, so its connections stand.
+ * reads back as: of the symbol's rows, the one the file names (`variant`,
+ * `$CANVAS_VARIANT`), else the one whose Analog Canvas orientation needs no
+ * mirror (an op-amp turned MX is the plain op-amp, unturned the
+ * inputs-swapped one), the part's own symbol first, and only a symbol whose
+ * pins keep the part's pin names, so its connections stand.
  */
 function acSymbolFor(
   symbol: RnlSymbolRef,
@@ -262,6 +253,7 @@ function acSymbolFor(
   instance: Pick<Instance, "symbolId"> &
     Partial<Pick<Instance, "importProvenance">>,
   pinNames: readonly string[],
+  variant?: string,
 ): {
   row: RnlSymbol;
   orient: RnlOrient;
@@ -298,6 +290,7 @@ function acSymbolFor(
     }))
     .sort(
       (a, b) =>
+        Number(a.row.ac !== variant) - Number(b.row.ac !== variant) ||
         Number(a.orient.startsWith("M")) - Number(b.orient.startsWith("M")) ||
         Number(a.pins !== undefined) - Number(b.pins !== undefined) ||
         Number(a.row.ac !== instance.symbolId) -
@@ -878,6 +871,20 @@ function applyLevel(
   // Parts: placed, turned and in the variant their symbol stands for.
   const unplaced: string[] = [];
   const placed: Instance[] = [];
+  // The symbol each part is drawn as, where the file names it (Canvas 0.4).
+  const variantOf = new Map(
+    model.objects.flatMap((object) => {
+      const part = object.attach?.["part"];
+      const symbol = object.params?.["symbol"];
+      const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+      return object.kind === "usage" &&
+        object.definition === "$CANVAS_VARIANT" &&
+        card !== null &&
+        typeof symbol === "string"
+        ? [[card.toLowerCase(), symbol] as const]
+        : [];
+    }),
+  );
   for (const object of model.objects) {
     if (object.kind !== "instance") continue;
     const name = rnlIdName(object.host[0] ?? object.id, "#");
@@ -909,8 +916,13 @@ function applyLevel(
     const mapped =
       gateCall ??
       (symbol && !symbol.default
-        ? (acSymbolFor(symbol, orient, instance, pinNames) ??
-          phaseSwitchSymbol(symbol, orient, instance))
+        ? (acSymbolFor(
+            symbol,
+            orient,
+            instance,
+            pinNames,
+            name === null ? undefined : variantOf.get(name.toLowerCase()),
+          ) ?? phaseSwitchSymbol(symbol, orient, instance))
         : null);
     if (
       symbol &&
@@ -1223,6 +1235,7 @@ function applyLevel(
     }
     if (object.definition === "$CANVAS_LABEL") continue; // read with the labels
     if (object.definition === "$CANVAS_TYPOGRAPHY") continue; // with the texts
+    if (object.definition === "$CANVAS_VARIANT") continue; // with the parts
     if (object.definition === "$CANVAS_PARAMETER_TEXT") {
       textAgain(object);
       continue;
