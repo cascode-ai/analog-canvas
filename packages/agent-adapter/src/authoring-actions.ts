@@ -472,7 +472,7 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       text: TextInputSchema,
     })
     .describe(
-      "Commit a text as the canvas editor does. On a name label (Reference, alias, Cell Pin or Port, Net label), RichText that spells the name (the same characters; the `_` before a subscript may be left out) sets the label's own look and never renames, e.g. AMP1 as written or V with an `in` subscript and a `+` superscript; a rename keeps that styling. Other text renames the part or Net or sets the value; a Cell Pin's is refused.",
+      "Commit a text as the canvas editor does. On a name label, RichText that spells the name sets the label's own look and never renames (authoring guide, Labels and text); other text renames the part or Net or sets the value.",
     ),
   z.strictObject({
     kind: z.literal("annotate"),

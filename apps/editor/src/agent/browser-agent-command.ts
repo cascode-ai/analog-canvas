@@ -1276,13 +1276,10 @@ export function planBrowserAgentCommand(
       };
     }
     case "set-net-label": {
-      // Plain text, a string or one text run, is a name: the label shows it
-      // in its look rather than as bare text (#1521).
       const text: RichTextDocument =
         typeof command.text === "string"
           ? { runs: [{ kind: "text", value: command.text }] }
           : command.text;
-      const plainText = text.runs.length === 1 && text.runs[0]?.kind === "text";
       const existing = document.annotations.find(
         (item) => item.id === command.annotationId,
       );
@@ -1292,6 +1289,22 @@ export function planBrowserAgentCommand(
         existing.kind !== "power-label"
       )
         throw new Error("The annotation is not a Net Label");
+      // RichText that spells an existing label's name, by the rule the
+      // schema holds a display to, restyles it and keeps the name: V over
+      // an `in` subscript keeps V_in, and one text run shows it as written
+      // (#1881).
+      const currentName = existing
+        ? resolveAnnotationName(document, existing)
+        : "";
+      const restyle =
+        typeof command.text !== "string" &&
+        currentName !== "" &&
+        richTextPresentsIdentifier(text, currentName);
+      // Otherwise plain text, a string or one text run, is a name: the label
+      // shows it in its look rather than as bare text (#1521).
+      const plainText =
+        !restyle && text.runs.length === 1 && text.runs[0]?.kind === "text";
+      const name = restyle ? currentName : flattenRichText(text).trim();
       const logical = resolveDocumentLogicalNets(document);
       const net =
         logical.byId.get(command.netId) ??
@@ -1300,22 +1313,21 @@ export function planBrowserAgentCommand(
       const netId = existing?.netId ?? net.baseNetIds[0]!;
       if (!net.baseNetIds.includes(netId))
         throw new Error("Label belongs to another Net");
-      // RichText that spells the label's name restyles it and keeps the
-      // name, as the label editor does: V over an `in` subscript keeps
-      // V_in (#1881).
-      const currentName = existing
-        ? resolveAnnotationName(document, existing)
-        : "";
-      const name =
-        !plainText &&
-        currentName &&
-        richTextPresentsIdentifier(text, currentName)
-          ? currentName
-          : flattenRichText(text).trim();
       if (
         existing?.kind === "power-label" &&
         existing.anchor.kind === "object"
       ) {
+        // A restyle renames nothing, so it needs no marker, which a drawn
+        // rail's label does not have.
+        if (restyle)
+          return {
+            edits: [
+              {
+                kind: "upsert_schematic_annotation",
+                annotation: { ...existing, formatOverride: text },
+              },
+            ],
+          };
         const rename = planElectricalMarkerRename(
           document,
           existing.anchor.objectId,

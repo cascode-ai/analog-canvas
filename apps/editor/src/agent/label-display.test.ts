@@ -21,6 +21,14 @@ const asWritten = (value: string): RichTextDocument => ({
   runs: [text(value)],
 });
 
+const place = (symbol: string, id: string, x: number, reference?: string) => ({
+  kind: "place-component" as const,
+  symbol,
+  id,
+  position: { x, y: 0 },
+  ...(reference ? { reference } : {}),
+});
+
 async function editor() {
   const live = liveAgentEditor();
   await live.client.connect("session-1.code");
@@ -36,151 +44,167 @@ async function editor() {
   const labelOf = (objectId: string): Annotation =>
     document().annotations.find(
       (annotation) =>
-        annotation.kind === "instance-label" &&
+        (annotation.kind === "instance-label" ||
+          annotation.kind === "power-label") &&
         annotation.anchor.kind === "object" &&
         annotation.anchor.objectId === objectId,
     )!;
-  return { ...live, apply, document, labelOf };
+  const restyle = (annotation: Annotation, look: RichTextDocument) => ({
+    kind: "edit-text" as const,
+    target: { kind: "annotation" as const, id: annotation.id },
+    text: look,
+  });
+  return { ...live, apply, document, labelOf, restyle };
+}
+
+/** A Net named `name` by a label on the wire between R1 and R2. */
+async function labelledNet(name: string) {
+  const live = await editor();
+  await live.apply(
+    place("resistor", "r1", 0, "R1"),
+    place("resistor", "r2", 200, "R2"),
+    {
+      kind: "connect",
+      from: { kind: "pin", instance: "R1", pin: "2" },
+      to: { kind: "pin", instance: "R2", pin: "1" },
+    },
+    {
+      kind: "add-label",
+      target: { kind: "pin", instance: "R1", pin: "2" },
+      text: name,
+    },
+  );
+  const label = () =>
+    live
+      .document()
+      .annotations.find((annotation) => annotation.kind === "net-label")!;
+  const netName = () =>
+    live
+      .document()
+      .connectivityEvidence.find((evidence) => evidence.kind === "name-claim")
+      ?.name;
+  return { ...live, label, netName };
 }
 
 describe("an Agent sets how a name label looks (#1881)", () => {
-  it("restyles a Reference, alias, Cell Pin and Net label without renaming, and keeps the look across a rename", async () => {
-    const { apply, document, labelOf } = await editor();
-    const place = (symbol: string, id: string, x: number, y: number) => ({
-      kind: "place-component" as const,
-      symbol,
-      id,
-      position: { x, y },
-    });
+  it("shows a Reference or an alias as written, its name kept across a rename", async () => {
+    const { apply, document, labelOf, restyle } = await editor();
     await apply(
-      { ...place("capacitor", "cv1", 0, 0), reference: "CV1" },
-      place("opamp", "amp", 300, 0),
-      { ...place("port", "pin", -200, 200), reference: "Vin" },
-      { ...place("resistor", "r1", 0, 300), reference: "R1" },
-      { ...place("resistor", "r2", 200, 300), reference: "R2" },
-      { ...place("resistor", "rl", 400, 300), reference: "R_L" },
+      place("capacitor", "cv1", 0, "CV1"),
+      place("resistor", "rl", 200, "R_L"),
+      place("opamp", "amp", 400),
       {
         kind: "set-display-alias",
         target: { kind: "instance", id: "amp" },
         text: "AMP1",
       },
-      {
-        kind: "connect",
-        from: { kind: "pin", instance: "R1", pin: "2" },
-        to: { kind: "pin", instance: "R2", pin: "1" },
-      },
-      {
-        kind: "add-label",
-        target: { kind: "pin", instance: "R1", pin: "2" },
-        text: "V_in",
-      },
     );
-    const netLabel = () =>
-      document().annotations.find(
-        (annotation) => annotation.kind === "net-label",
-      )!;
-    const netName = () =>
-      document().connectivityEvidence.find(
-        (evidence) => evidence.kind === "name-claim",
-      )?.name;
+    const reference = (id: string) =>
+      document().instances.find((instance) => instance.id === id)!.reference;
     // The standard looks: C over a V1 subscript, AMP over a 1 subscript.
     expect(labelOf("cv1").formatOverride?.runs).toHaveLength(2);
     expect(labelOf("amp").content?.runs).toHaveLength(2);
-    expect(netName()).toBe("V_in");
 
-    const pinLook: RichTextDocument = {
-      runs: [text("V"), script("superscript", "in")],
-    };
-    const netLook: RichTextDocument = {
-      runs: [text("V"), script("subscript", "in")],
-    };
     await apply(
-      // Shown as written.
-      {
-        kind: "edit-text",
-        target: { kind: "annotation", id: labelOf("cv1").id },
-        text: asWritten("CV1"),
-      },
-      {
-        kind: "edit-text",
-        target: { kind: "annotation", id: labelOf("amp").id },
-        text: asWritten("AMP1"),
-      },
-      // R_L drawn R over an L subscript, now written out with its `_`.
-      {
-        kind: "edit-text",
-        target: { kind: "annotation", id: labelOf("rl").id },
-        text: asWritten("R_L"),
-      },
-      // The Pin's own look, its name kept.
-      {
-        kind: "edit-text",
-        target: { kind: "annotation", id: labelOf("pin").id },
-        text: pinLook,
-      },
-      // The `_` before a subscript may be left out: V_in keeps its name.
-      {
-        kind: "edit-text",
-        target: { kind: "annotation", id: netLabel().id },
-        text: netLook,
-      },
+      restyle(labelOf("cv1"), asWritten("CV1")),
+      // R over an L subscript, written out with its `_`.
+      restyle(labelOf("rl"), asWritten("R_L")),
+      restyle(labelOf("amp"), asWritten("AMP1")),
     );
     expect(labelOf("cv1").formatOverride).toEqual(asWritten("CV1"));
-    expect(document().instances.find((i) => i.id === "cv1")!.reference).toBe(
-      "CV1",
-    );
-    expect(labelOf("amp").content).toEqual(asWritten("AMP1"));
     expect(labelOf("rl").formatOverride).toEqual(asWritten("R_L"));
-    expect(document().instances.find((i) => i.id === "rl")!.reference).toBe(
-      "R_L",
-    );
+    expect(labelOf("amp").content).toEqual(asWritten("AMP1"));
     expect(labelOf("amp").binding).toBeUndefined();
-    expect(labelOf("pin").formatOverride).toEqual(pinLook);
-    expect(document().netlist!.terminals.map((t) => t.name)).toEqual(["Vin"]);
-    expect(netLabel().formatOverride).toEqual(netLook);
-    expect(netName()).toBe("V_in");
+    expect([reference("cv1"), reference("rl"), reference("amp")]).toEqual([
+      "CV1",
+      "R_L",
+      "X1",
+    ]);
 
     // A rename keeps the author's styling around the new text.
-    await apply(
-      {
-        kind: "set-reference",
-        target: { kind: "instance", id: "cv1" },
-        reference: "CV2",
-      },
-      {
-        kind: "edit-text",
-        target: { kind: "annotation", id: netLabel().id },
-        text: "V_out",
-      },
-    );
+    await apply({
+      kind: "set-reference",
+      target: { kind: "instance", id: "cv1" },
+      reference: "CV2",
+    });
     expect(labelOf("cv1").formatOverride).toEqual(asWritten("CV2"));
+  });
+
+  it("gives a Cell Pin its own look and refuses one that does not spell its name, naming the rule", async () => {
+    const { apply, client, document, labelOf, restyle } = await editor();
+    await apply(place("port", "pin", 0, "Vin"));
+    const look: RichTextDocument = {
+      runs: [text("V"), script("superscript", "in")],
+    };
+    await apply(restyle(labelOf("pin"), look));
+    expect(labelOf("pin").formatOverride).toEqual(look);
+    expect(document().netlist!.terminals.map((t) => t.name)).toEqual(["Vin"]);
+
+    const before = document().revision;
+    const refused = await client.applyActions([
+      restyle(labelOf("pin"), {
+        runs: [text("V"), script("subscript", "out")],
+      }),
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toContain(
+      'A label\'s display must spell its name "Vin"',
+    );
+    expect(document().revision).toBe(before);
+  });
+
+  it("restyles a Net label, the `_` before a subscript left out, and keeps the look across a rename", async () => {
+    const { apply, label, netName, restyle } = await labelledNet("V_in");
+    const look: RichTextDocument = {
+      runs: [text("V"), script("subscript", "in")],
+    };
+    await apply(restyle(label(), look));
+    expect(label().formatOverride).toEqual(look);
+    expect(netName()).toBe("V_in");
+
+    await apply({
+      kind: "edit-text",
+      target: { kind: "annotation", id: label().id },
+      text: "V_out",
+    });
     expect(netName()).toBe("V_out");
-    expect(netLabel().formatOverride).toEqual({
+    expect(label().formatOverride).toEqual({
       runs: [text("V"), script("subscript", "out")],
     });
   });
 
-  it("refuses a Cell Pin display that does not spell its name, naming the rule", async () => {
-    const { apply, client, document, labelOf } = await editor();
+  it("raises a Net label's differential sign or shows the name as written", async () => {
+    const { apply, label, netName, restyle } = await labelledNet("Vin+");
+    // The standard look keeps the sign in the subscript.
+    const raised: RichTextDocument = {
+      runs: [text("V"), script("subscript", "in"), script("superscript", "+")],
+    };
+    await apply(restyle(label(), raised));
+    expect(label().formatOverride).toEqual(raised);
+    expect(netName()).toBe("Vin+");
+
+    // One text run that spells the name is the label as written, not a name
+    // to draw in its standard look.
+    await apply(restyle(label(), asWritten("Vin+")));
+    expect(label().formatOverride).toEqual(asWritten("Vin+"));
+    expect(netName()).toBe("Vin+");
+  });
+
+  it("shows a drawn supply rail's label as written", async () => {
+    const { apply, document, restyle } = await editor();
     await apply({
-      kind: "place-component",
-      symbol: "port",
-      id: "pin",
-      reference: "Vin",
-      position: { x: 0, y: 0 },
+      kind: "add-power-rail",
+      name: "VDD",
+      start: { x: 100, y: 100 },
+      end: { x: 300, y: 100 },
     });
-    const before = document().revision;
-    const refused = await client.applyActions([
-      {
-        kind: "edit-text",
-        target: { kind: "annotation", id: labelOf("pin").id },
-        text: { runs: [text("V"), script("subscript", "out")] },
-      },
-    ]);
-    expect(refused.ok).toBe(false);
-    expect(refused.message).toContain(
-      "A label's display must spell its name Vin",
-    );
-    expect(document().revision).toBe(before);
+    const label = () =>
+      document().annotations.find(
+        (annotation) => annotation.kind === "power-label",
+      )!;
+    // V over a DD subscript.
+    expect(label().formatOverride?.runs).toHaveLength(2);
+    await apply(restyle(label(), asWritten("VDD")));
+    expect(label().formatOverride).toEqual(asWritten("VDD"));
   });
 });

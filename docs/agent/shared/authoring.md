@@ -434,8 +434,8 @@ means deleting the Cell.
   `edit-text` take plain text (keeps existing spans) or RichText (replaces
   formatting; needed for fractions/formulas). `edit-text` is the GUI text commit:
   on a bound label new text renames the part or Net or sets the value.
-- A name label's own look: `edit-text` on a Reference, alias, Cell Pin, Port or
-  Net label with RichText that spells the name (the same characters; the `_`
+- A name label's own look: `edit-text` on a Reference, alias, Cell Pin, Port,
+  Net or supply label with RichText that spells the name (the same characters; the `_`
   before a subscript may be left out) only restyles it, e.g.
   `{runs:[{kind:"text",value:"AMP1"}]}` draws AMP1 as written instead of AMP₁,
   or V, an `in` subscript and a `+` superscript draw `Vin+` with its sign

@@ -156,7 +156,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
       text: TextInputSchema,
     })
     .describe(
-      "Commit a text as the canvas editor does. On a part's or Cell Pin's name label, RichText that spells the name (the same characters; the `_` before a subscript may be left out) sets its own look and never renames; a Net label's look is set with set-net-label.",
+      "Commit a text as the canvas editor does; on a part's or Cell Pin's name label, RichText that spells the name only restyles it. A Net label takes set-net-label.",
     ),
   z.strictObject({
     kind: z.literal("add-text"),
@@ -303,7 +303,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     annotationId: StableIdSchema,
     netId: StableIdSchema,
     text: TextInputSchema.describe(
-      "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own, and keeps the Net's name while it spells it (the `_` before a subscript may be left out).",
+      "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own, and only restyles an existing label whose name it spells.",
     ),
     position: PointSchema.optional(),
   }),

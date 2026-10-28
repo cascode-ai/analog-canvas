@@ -63,26 +63,22 @@ export function planSetText(
         `${annotation.id} names a Net; rename it with set-net-label`,
       );
     if (annotation.binding) {
-      // A bound label shows a name or a value. RichText that spells it (the
-      // same characters, or a name with the `_` before a subscript left out)
-      // restyles it and changes neither; a plain string of the characters
-      // changes nothing, so a label's standard look is not frozen into an
-      // override.
+      // A bound label shows a name or a value. RichText that spells the name
+      // by the rule the schema holds a display to (or, for a value, has its
+      // characters) restyles it and changes neither; a plain string of the
+      // characters changes nothing, so a label's standard look is not frozen
+      // into an override.
       const name = boundAnnotationName(document, annotation);
-      const current = flattenRichText(
-        resolveAnnotationText(document, annotation),
-      ).trim();
-      const next = (
+      const shown = (text: string) =>
+        text.trim() ===
+        flattenRichText(resolveAnnotationText(document, annotation)).trim();
+      const restyles =
         typeof command.text === "string"
-          ? command.text
-          : flattenRichText(command.text)
-      ).trim();
-      if (
-        next === current ||
-        (typeof command.text !== "string" &&
-          name &&
-          richTextPresentsIdentifier(command.text, name))
-      ) {
+          ? shown(command.text)
+          : name
+            ? richTextPresentsIdentifier(command.text, name)
+            : shown(flattenRichText(command.text));
+      if (restyles) {
         if (
           typeof command.text === "string" ||
           JSON.stringify(annotation.formatOverride ?? null) ===
@@ -100,7 +96,11 @@ export function planSetText(
       }
       if (annotation.binding.kind === "cell-terminal-name")
         throw new Error(
-          `A label's display must spell its name ${name ?? ""} (the same characters; the \`_\` before a subscript may be left out). ${annotation.id} names a Cell Pin; rename the Pin with set-properties reference`,
+          `${
+            typeof command.text === "string"
+              ? ""
+              : `A label's display must spell its name "${name}" (the same characters; the \`_\` before a subscript may be left out). `
+          }${annotation.id} names a Cell Pin; rename the Pin with set-properties reference`,
         );
     }
     session = createTextEditingSession(

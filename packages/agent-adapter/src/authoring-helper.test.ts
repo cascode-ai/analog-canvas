@@ -1180,7 +1180,7 @@ describe("authoring helper compilation", () => {
     expect(edited?.command).toMatchObject({
       kind: "set-net-label",
       annotationId: "label-1",
-      text: { runs: [{ kind: "text", value: "Vout node" }] },
+      text: "Vout node",
     });
   });
 

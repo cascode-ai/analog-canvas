@@ -1064,7 +1064,8 @@ export function compileActions(
               kind: "set-net-label",
               annotationId: String(annotation.id),
               netId: String(annotation.netId),
-              text: richText(action.text),
+              // A string stays a name; RichText may be the label's own look.
+              text: action.text,
             });
             break;
           }

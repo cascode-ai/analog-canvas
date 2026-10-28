@@ -8214,7 +8214,7 @@
         "text"
       ],
       "additionalProperties": false,
-      "description": "Commit a text as the canvas editor does. On a part's or Cell Pin's name label, RichText that spells the name (the same characters; the `_` before a subscript may be left out) sets its own look and never renames; a Net label's look is set with set-net-label."
+      "description": "Commit a text as the canvas editor does; on a part's or Cell Pin's name label, RichText that spells the name only restyles it. A Net label takes set-net-label."
     },
     "__schema305": {
       "type": "string",
@@ -9049,7 +9049,7 @@
           "$ref": "#/$defs/__schema1"
         },
         "text": {
-          "description": "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own, and keeps the Net's name while it spells it (the `_` before a subscript may be left out).",
+          "description": "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own, and only restyles an existing label whose name it spells.",
           "$ref": "#/$defs/__schema307"
         },
         "position": {
