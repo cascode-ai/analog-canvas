@@ -119,8 +119,8 @@ redraws seen drawings), whether the name was typed, connected or generated:
   are arranged first and take the side above when they would share a row
   with a neighbour. A placed Cell's name counts as the part's name and is
   never restyled; MOS `×m` follows its name or W/L row as the planner tests
-  pin. A requested Cell Pin's name takes its first clear
-  own side. The same arrangement runs automatically for parts whose labels a
+  pin. A requested Cell Pin's name takes its first clear own side. The same
+  arrangement runs automatically for parts whose labels a
   typed move, arrange, pin change or changed Cell Pins newly cover
   ([connectivity and routing](connectivity-and-routing.md)). An Agent's
   placement runs it for a new part whose default rows are crowded, reported

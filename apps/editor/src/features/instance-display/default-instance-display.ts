@@ -259,7 +259,7 @@ function clearOfWiring(
       (annotation) => arranged.get(annotation.id) ?? annotation,
     );
   };
-  const reported = (labels: readonly Annotation[]) => {
+  const reportedCount = (labels: readonly Annotation[]) => {
     const settled = createLabelClearanceContext(
       {
         ...placed,
@@ -273,9 +273,9 @@ function clearOfWiring(
     return labels.filter((label) => !settled.clearAt(label)).length;
   };
   const inRows = arrangedIn(true);
-  if (!reported(inRows) || !document.routes.length) return inRows;
+  if (!reportedCount(inRows) || !document.routes.length) return inRows;
   const anywhere = arrangedIn(false);
-  return reported(anywhere) < reported(inRows) ? anywhere : inRows;
+  return reportedCount(anywhere) < reportedCount(inRows) ? anywhere : inRows;
 }
 
 /**
