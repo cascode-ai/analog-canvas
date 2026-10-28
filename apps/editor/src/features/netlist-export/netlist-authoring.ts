@@ -6,11 +6,11 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
-  IDEAL_COMPARATOR_TARGET,
   createReferenceIndex,
   deviceDescriptor,
   builtInModelDefaults,
   nextReference,
+  placedSubcircuitTarget,
   referencePolicyForSymbol,
   referencePolicyForInstance,
   subcircuitDescriptor,
@@ -160,10 +160,7 @@ function defaultBinding(symbolId: string): InstanceNetlistBinding | undefined {
   if (subcircuit) {
     return {
       kind: "unresolved-subcircuit",
-      name:
-        subcircuit.target === "comparator"
-          ? IDEAL_COMPARATOR_TARGET
-          : subcircuit.target,
+      name: placedSubcircuitTarget(subcircuit.target),
     };
   }
   const definition = deviceDescriptor(symbolId);

@@ -164,6 +164,12 @@ declares fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
   VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   read neither VSS nor an implicit clock. The model is ideal, unlatched and
   memoryless; the Symbol's step mark adds no hysteresis or propagation delay.
+- Like gates and DFFs, a project Cell can replace an op-amp's, fully
+  differential op-amp's or comparator's body without changing artwork. Its
+  Pins are the part's own (`IN+`, `IN-`, `OUT` or `OUT+`/`OUT-`, not the
+  bodies' `VIP`/`VIN`/`VOUT`) and optional VDD/VSS; the call follows the
+  Cell's Pin order. That Cell owns its parameters and supplies; clearing its
+  selection restores the ideal body and its defaults.
 - SPICE and VACASK include all bodies; Spectre includes comparator and
   combinational gates (`bsource` with RC delay); DFF, multiplier and converters
   stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`. Other Analog Blocks are

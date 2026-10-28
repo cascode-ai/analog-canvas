@@ -12,6 +12,7 @@ import {
   deviceDescriptor,
   bindsProjectCell,
   matchGateCellPins,
+  placedSubcircuitTarget,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
@@ -161,9 +162,9 @@ function cellPinMatch(cell: Cell, symbolId: string) {
 }
 
 /**
- * The Cells of the Project a Library gate or flip-flop drawn in this
- * Document may call (#1450, #1689): those whose Pins fit it, and none that
- * would call the Document itself.
+ * The Cells of the Project a Library gate, flip-flop, op-amp or comparator
+ * drawn in this Document may call (#1450, #1689, #1878): those whose Pins
+ * fit it, and none that would call the Document itself.
  */
 export function gateCellTargets(
   project: CircuitProject,
@@ -194,10 +195,11 @@ function projectCellNamed(
 }
 
 /**
- * Binds a Library gate or flip-flop to a transistor-level Cell of its
- * Project (#1450, #1689). The part keeps its symbol and pins; its call goes
- * to the Cell, Pin by name. Its own parameters give way to the Cell's, and a VDD or VSS Net it
- * was given is cleared where the Cell takes that supply globally.
+ * Binds a Library gate, flip-flop, op-amp or comparator to a transistor-level
+ * Cell of its Project (#1450, #1689, #1878). The part keeps its symbol and
+ * pins; its call goes to the Cell, Pin by name. Its own parameters give way
+ * to the Cell's, and a VDD or VSS Net it was given is cleared where the Cell
+ * takes that supply globally.
  */
 function planGateCellBinding(
   project: CircuitProject,
@@ -302,8 +304,9 @@ export function planSetDeviceModelTarget(
   const sourceDescriptor = deviceDescriptor(sourceSymbolId);
   // A Library logic gate has no device descriptor; its reviewed targets are
   // standard cells of its function, and clearing returns it to its ideal
-  // body with that body's parameters (#1450). A flip-flop takes Cells of
-  // the Project alone, and clears the same way (#1689).
+  // body with that body's parameters (#1450). A flip-flop, op-amp or
+  // comparator takes Cells of the Project alone, and clears the same way
+  // (#1689, #1878).
   const gate = sourceDescriptor
     ? undefined
     : subcircuitDescriptor(sourceSymbolId, project);
@@ -347,14 +350,14 @@ export function planSetDeviceModelTarget(
       // The gate's VDD/VSS Nets are its own supply choice and stay.
       const binding = {
         kind: "unresolved-subcircuit" as const,
-        name: gate.target,
+        name: placedSubcircuitTarget(gate.target),
       };
       if (
         JSON.stringify(instance.netlist.binding ?? null) ===
         JSON.stringify(binding)
       )
         return [];
-      const defaults = builtInModelDefaults(gate.target);
+      const defaults = builtInModelDefaults(binding.name);
       // A Delay Cell's formal names may overlap the formula's names, but
       // their meanings need not. Returning to the formula resets its contract.
       const resetDelay = sourceSymbolId === "delay-cell";

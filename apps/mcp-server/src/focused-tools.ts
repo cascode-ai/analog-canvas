@@ -114,6 +114,7 @@ export const FOCUSED_TOOLS = [
       "detach-move",
       "extend-power-rail",
       "set-cell-symbol-pins",
+      "set-cell-symbol-size",
     ],
   },
   {

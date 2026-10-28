@@ -224,13 +224,70 @@ describe("a Library gate bound to a Cell of its Project (#1450)", () => {
   });
 });
 
+/**
+ * A five-transistor OTA drawn in Cell ota, its Pins in the order out, in-,
+ * in+, VDD and VSS, and its tail a resistor. The top Cell's op-amp X1 is
+ * bound to it as a unity-gain follower: IN+ on the top Cell's Pin IN, IN-
+ * and OUT on its Pin OUT.
+ */
+function followerOverOta(): CircuitProject {
+  const project = createEmptyProject("opamp-cell", "Op-amp cell", "top");
+  const top = project.documents[0]!;
+  top.netlist!.name = "top";
+  const cell = createEmptyDocument("ota", "ota");
+  cell.netlist!.name = "ota";
+  for (const name of ["out", "in-", "in+", "VDD", "VSS"]) cellPin(cell, name);
+  mos(cell, "M1", "nmos", ["x", "in+", "tail", "VSS"]);
+  mos(cell, "M2", "nmos", ["out", "in-", "tail", "VSS"]);
+  mos(cell, "M3", "pmos", ["x", "x", "VDD", "VDD"]);
+  mos(cell, "M4", "pmos", ["out", "x", "VDD", "VDD"]);
+  cell.instances.push({
+    id: "RT",
+    reference: "RT",
+    symbolId: "resistor",
+    placement: null,
+    netlist: {
+      binding: { kind: "primitive", deviceClass: "resistor" },
+      parameters: { value: "20k" },
+    },
+  });
+  connect(cell, "tail", "RT", "1");
+  connect(cell, "VSS", "RT", "2");
+  project.documents.push(cell);
+  top.instances.push({
+    id: "amp",
+    symbolId: "opamp",
+    reference: "X1",
+    placement: null,
+    netlist: {
+      binding: { kind: "subcircuit", childDocumentId: cell.id },
+      parameters: {},
+    },
+  });
+  cellPin(top, "IN");
+  cellPin(top, "OUT");
+  connect(top, "IN", "amp", "IN+");
+  connect(top, "OUT", "amp", "IN-");
+  connect(top, "OUT", "amp", "OUT");
+  return project;
+}
+
+describe("a Library op-amp bound to a Cell of its Project (#1878)", () => {
+  it("calls the Cell in the Cell's Pin order, each Pin on the op-amp's pin of its name", () => {
+    const text = exported(followerOverOta());
+    expect(text).toContain(".subckt ota VDD VSS out in- in+\n");
+    expect(text).toMatch(/^X1 VDD VSS OUT OUT IN ota$/mu);
+    expect(text).not.toContain("icm_opamp");
+  });
+});
+
 function ngspiceOnPath(): boolean {
   return spawnSync("ngspice", ["--version"], { encoding: "utf8" }).status === 0;
 }
 
 /** Skips cleanly where ngspice is absent; the hosted gate never skips. */
 describe.skipIf(!ngspiceOnPath())(
-  "a gate bound to a transistor-level Cell under ngspice",
+  "a gate or op-amp bound to a transistor-level Cell under ngspice",
   () => {
     it("computes NOR from the Cell's transistors", () => {
       const circuit = exported(norOverCell());
@@ -269,6 +326,43 @@ describe.skipIf(!ngspiceOnPath())(
           [1.8, 1.8],
         ] as const)
           expect(levels(inputs)).toBeLessThan(0.1);
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+
+    it("follows its input through the op-amp's Cell (#1878)", () => {
+      const circuit = exported(followerOverOta());
+      expect(circuit).toContain(".subckt top VDD VSS IN OUT\n");
+      const directory = mkdtempSync(join(tmpdir(), "icm-opamp-cell-"));
+      try {
+        const follow = (input: number) => {
+          writeFileSync(
+            join(directory, "deck.cir"),
+            [
+              "* Follower over an OTA Cell",
+              circuit.replace(/^\.end\s*$/mu, ""),
+              ".model NMOS NMOS (level=1 vto=0.5 kp=200u lambda=0.02)",
+              ".model PMOS PMOS (level=1 vto=-0.5 kp=100u lambda=0.02)",
+              "VS vdd 0 1.8",
+              `VI in 0 ${input}`,
+              "XT vdd 0 in out top",
+              ".control",
+              "op",
+              "print v(out)",
+              ".endc",
+              ".end",
+            ].join("\n"),
+            "utf8",
+          );
+          const output = execFileSync("ngspice", ["-b", "deck.cir"], {
+            cwd: directory,
+            encoding: "utf8",
+          });
+          return Number(/v\(out\)\s*=\s*(\S+)/u.exec(output)?.[1]);
+        };
+        for (const input of [0.8, 0.9, 1.0])
+          expect(Math.abs(follow(input) - input)).toBeLessThan(0.02);
       } finally {
         rmSync(directory, { recursive: true, force: true });
       }

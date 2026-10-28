@@ -65,6 +65,15 @@ export function callsIdealComparatorBody(
   );
 }
 
+/**
+ * The body a Library part with this subcircuit target calls as placed: a
+ * comparator's symbol names its historical master `comparator`, and calls
+ * the ideal comparator.
+ */
+export function placedSubcircuitTarget(target: string): string {
+  return target === "comparator" ? IDEAL_COMPARATOR_TARGET : target;
+}
+
 /** The parameter contract shared by a comparator's numeric and supply bodies. */
 export function idealComparatorModelTarget(body: IdealComparatorBody): string {
   return body === DIFFERENTIAL_COMPARATOR_TARGET ||
