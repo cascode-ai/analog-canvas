@@ -32,6 +32,10 @@ import {
   submitOne,
 } from "../../../../worker/gallery.test-support";
 import { createExternalSubcircuitInstance } from "@icm/edit-engine";
+import {
+  AGENT_MCP_VERSION,
+  agentMcpBootstrapManifest,
+} from "@icm/agent-adapter";
 
 // Measuring a figure's crop needs a real browser layout; everything around
 // it, the same formal SVG included, runs as it does in the Editor.
@@ -682,6 +686,56 @@ describe("MCP tools on the live editor", () => {
     expect(asked.capabilities).toEqual(paired.capabilities);
     // Three full capability reads of the live editor: about 1 s alone, but
     // past the default 5 s under a parallel run (timed out 10-18 and 10-21).
+  }, 20_000);
+
+  it("connect reports an adapter older than the manifest's release, and connects without a manifest (#1844)", async () => {
+    const [major] = AGENT_MCP_VERSION.split(".").map(Number);
+    const latestVersion = `${major! + 1}.0.0`;
+    const served = {
+      ...agentMcpBootstrapManifest("https://relay.test"),
+      version: latestVersion,
+    };
+    const outdated = mcp({ relay: { manifest: () => served } });
+    expect(
+      await outdated.tool("connect", { claimCode: "session-1.code" }),
+    ).toMatchObject({
+      ok: true,
+      compatibility: {
+        adapterVersion: AGENT_MCP_VERSION,
+        latestVersion,
+        status: "outdated",
+        upgrade: {
+          hosts: {
+            codex: served.hosts.codex.command,
+            claudeCode: served.hosts.claudeCode.command,
+          },
+        },
+      },
+    });
+    // The Worker's own manifest names this release: no warning.
+    const current = await mcp().tool("connect", {
+      claimCode: "session-1.code",
+    });
+    expect(current.compatibility).toMatchObject({
+      latestVersion: AGENT_MCP_VERSION,
+      status: "compatible",
+    });
+    expect(current.compatibility).not.toHaveProperty("upgrade");
+    const unreachable = mcp({
+      relay: {
+        manifest: () => {
+          throw new Error("fetch failed");
+        },
+      },
+    });
+    const paired = await unreachable.tool("connect", {
+      claimCode: "session-1.code",
+    });
+    expect(paired).toMatchObject({
+      ok: true,
+      compatibility: { status: "compatible" },
+    });
+    expect(paired.compatibility).not.toHaveProperty("latestVersion");
   }, 20_000);
 
   it("get_context returns the compact context of the editor's Document", async () => {

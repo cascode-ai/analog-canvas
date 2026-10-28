@@ -81,6 +81,22 @@ describe("ConnectAgentPanel", () => {
     expect(instructions.length).toBeLessThan(1_600);
   });
 
+  it("shows the paired adapter's release once an Agent is paired (#1844)", () => {
+    const render = (
+      status: AgentConnectionStatus,
+      adapterVersion: string | null,
+    ) =>
+      renderToStaticMarkup(
+        <ConnectAgentPanel {...baseProps({ status, adapterVersion })} />,
+      );
+    for (const status of ["connected", "paused", "reconnecting"] as const)
+      expect(render(status, "0.17.83")).toContain("Agent adapter 0.17.83");
+    // Nothing paired, or a release the adapter did not name.
+    for (const status of ["waiting-for-agent", "revoked"] as const)
+      expect(render(status, "0.17.83")).not.toContain("agent-adapter-version");
+    expect(render("connected", null)).not.toContain("agent-adapter-version");
+  });
+
   it("renders nothing when closed", () => {
     const markup = renderToStaticMarkup(
       <ConnectAgentPanel {...baseProps({ open: false })} />,

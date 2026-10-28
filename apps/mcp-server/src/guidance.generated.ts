@@ -35,7 +35,7 @@ export const agentToolHelp = {
   disconnect:
     "Revoke the current browser Agent session and erase this MCP host's saved connector. A fresh editor claim code is required afterwards.",
   connection_status:
-    "Report runtime version, API origin and session observations. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully. recentRequests shows this process's last requests hop by hop (relay forward, editor work, the tab's visibility).",
+    "Report runtime version, API origin and session observations; runtime.status \"outdated\" names the origin's latestVersion and its upgrade step. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully. recentRequests shows this process's last requests hop by hop (relay forward, editor work, the tab's visibility).",
   project_cells:
     "Cloud Cell discovery/import; workspace list/bind-workspace/activate/open/save/new/rename/copy. Bind an open workspace to work without selecting the human's tab; open and new support background:true; rename names a copy's Project. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
   gallery_circuits:

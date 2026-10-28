@@ -27,6 +27,10 @@ GET  /api/agent/openapi.json
   original scopes). The relay returns a short-lived Claim; redemption returns
   `sessionId`, authorized `documentIds`, a bearer and a session-bound
   connector. Redeeming a still-valid Claim again only rotates both.
+- An adapter names its release in the `x-agent-adapter-version` header
+  (`x.y.z`) of claim and connector resume; the relay keeps the last one for
+  the session and sends the editor `agent.adapter` (absent or malformed:
+  unknown), and the Connect Agent panel shows it while paired.
 - `?agent=pair` pairs headlessly: the page creates a connection on load
   (unless it recovered one) without panel or control, exposing the Claim only
   as `window.analogCanvasAgent.claimCode()`. A Claim never enters a URL,

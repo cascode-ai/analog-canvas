@@ -1,4 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  AGENT_MCP_VERSION,
+  agentMcpBootstrapManifest,
+} from "@icm/agent-adapter";
 import { AgentSessionClient, AgentSessionError } from "@icm/agent-client";
 import { FakeAgentHttp } from "../../../packages/agent-client/src/test-support/fake-relay.js";
 import { callTool, listToolDefinitions } from "./tools.js";
@@ -96,6 +100,84 @@ describe("mcp tool surface", () => {
       await callTool("connection_status", { refresh: false }, session),
     );
     expect(result).toMatchObject({ runtime: { apiBaseUrl: http.baseUrl } });
+  });
+  it("reports an outdated adapter from the origin's manifest, read once per session (#1844)", async () => {
+    const [major] = AGENT_MCP_VERSION.split(".").map(Number);
+    const latestVersion = `${major! + 1}.0.0`;
+    const served = {
+      ...agentMcpBootstrapManifest("https://relay.test"),
+      version: latestVersion,
+    };
+    const { session, http } = await toolSession(
+      new FakeAgentHttp({ manifest: () => served }),
+    );
+    const status = async (refresh: boolean) =>
+      parseText(await callTool("connection_status", { refresh }, session)) as {
+        runtime: Record<string, unknown>;
+      };
+    // Local only: nothing read yet, so nothing to report.
+    expect((await status(false)).runtime).not.toHaveProperty("latestVersion");
+    expect(http.manifestReads).toBe(0);
+    const outdated = {
+      version: AGENT_MCP_VERSION,
+      latestVersion,
+      status: "outdated",
+      upgrade: {
+        manifestUrl: "https://relay.test/api/agent/mcp-manifest.json",
+        hosts: {
+          codex: served.hosts.codex.command,
+          claudeCode: served.hosts.claudeCode.command,
+        },
+      },
+    };
+    expect((await status(true)).runtime).toMatchObject(outdated);
+    expect((await status(false)).runtime).toMatchObject(outdated);
+    expect((await status(true)).runtime).toMatchObject(outdated);
+    expect(http.manifestReads).toBe(1);
+  });
+  it("reports no release when the manifest is current or unreachable (#1844)", async () => {
+    const current = await toolSession();
+    expect(
+      parseText(
+        await callTool("connection_status", { refresh: true }, current.session),
+      ),
+    ).toMatchObject({
+      runtime: { latestVersion: AGENT_MCP_VERSION, status: "current" },
+    });
+    let reachable = false;
+    const unreachable = await toolSession(
+      new FakeAgentHttp({
+        manifest: () => {
+          if (!reachable) throw new Error("fetch failed");
+          return agentMcpBootstrapManifest("https://relay.test");
+        },
+      }),
+    );
+    const result = await callTool(
+      "connection_status",
+      { refresh: true },
+      unreachable.session,
+    );
+    expect(result.isError).toBeFalsy();
+    const { runtime } = parseText(result) as {
+      runtime: Record<string, unknown>;
+    };
+    expect(runtime).toEqual({
+      version: AGENT_MCP_VERSION,
+      apiBaseUrl: "https://relay.test",
+    });
+    // A failed read is not kept: the next network read tries again.
+    reachable = true;
+    expect(
+      parseText(
+        await callTool(
+          "connection_status",
+          { refresh: true },
+          unreachable.session,
+        ),
+      ),
+    ).toMatchObject({ runtime: { latestVersion: AGENT_MCP_VERSION } });
+    expect(unreachable.http.manifestReads).toBe(2);
   });
   it("advertises raw and captured Specs rather than a retired result renderer", () => {
     const tools = listToolDefinitions();
