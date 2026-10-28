@@ -28,7 +28,7 @@ the RNL language and its runtime belong to rnl.
   adapter preserves the caller's files, includes and search order. One fetch
   of each version serves the shared Worker; fetch failures identify the
   package and can be retried.
-- Every Canvas version the editor ships, 0.1 to 0.3, is locked by name,
+- Every Canvas version the editor ships, 0.1 to 0.4, is locked by name,
   version, URL and raw-byte SHA-256 against the public
   [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json),
   so a file written with any of them reads; the editor writes the newest.
@@ -143,7 +143,7 @@ the RNL language and its runtime belong to rnl.
   the labels its part brings, as the editor gives a label its Instance's; a
   background paint is not written (`RNL_BACKGROUND_NOT_EXPORTED`).
 - What only the editor keeps is written with the meaning-only definitions of
-  `analog-canvas-extensions` 0.3, which draw nothing: a part's name where the
+  `analog-canvas-extensions` 0.4, which draw nothing: a part's name where the
   card spells it otherwise (`$CANVAS_NAME`, SPICE's `XM1` for M1), in each
   Cell's own record how the Cell sets names in labels and draws its wire
   crossings (`$CANVAS_TYPESETTING` on `#`, `crossings="hop"` since 0.3), each

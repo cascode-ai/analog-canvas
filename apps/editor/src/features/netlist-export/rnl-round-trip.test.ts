@@ -3172,7 +3172,7 @@ describe("RNL round trip of 4-input gates", () => {
           `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
         );
       expect(written.text).toContain(
-        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.3")',
+        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.4")',
       );
       // RNL's standard gates have their inputs elsewhere; Analog Canvas's
       // own keep each wire level, in RNL as in the editor.
@@ -3231,7 +3231,7 @@ describe("RNL round trip of 4-input gates", () => {
         JSON.stringify(withoutCanvasMeaning(exported.request))
           .replaceAll("$CANVAS_", "$")
           .replace(
-            '"name":"analog-canvas-extensions","version":"0.3"',
+            '"name":"analog-canvas-extensions","version":"0.4"',
             '"name":"rnl-std-logic","version":"0.3"',
           ),
       ) as typeof exported.request;

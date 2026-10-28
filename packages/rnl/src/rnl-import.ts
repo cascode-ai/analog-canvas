@@ -197,7 +197,7 @@ export interface RnlImportDiagnostic {
 
 /** The standard series and Analog Canvas package versions the mapping table is for. */
 const MAPPED_VERSIONS: Readonly<Record<string, readonly string[]>> = {
-  "analog-canvas-extensions": ["0.1", "0.2", "0.3"],
+  "analog-canvas-extensions": ["0.1", "0.2", "0.3", "0.4"],
 };
 const STD_VERSION = "0.3";
 
