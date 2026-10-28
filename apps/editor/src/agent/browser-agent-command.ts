@@ -57,6 +57,7 @@ import {
   routeEnd,
   flattenRichText,
   renamedLabelFormat,
+  richTextPresentsIdentifier,
   roleLabelFormat,
   projectCellInterface,
   foldNetName,
@@ -1299,6 +1300,18 @@ export function planBrowserAgentCommand(
       const netId = existing?.netId ?? net.baseNetIds[0]!;
       if (!net.baseNetIds.includes(netId))
         throw new Error("Label belongs to another Net");
+      // RichText that spells the label's name restyles it and keeps the
+      // name, as the label editor does: V over an `in` subscript keeps
+      // V_in (#1881).
+      const currentName = existing
+        ? resolveAnnotationName(document, existing)
+        : "";
+      const name =
+        !plainText &&
+        currentName &&
+        richTextPresentsIdentifier(text, currentName)
+          ? currentName
+          : flattenRichText(text).trim();
       if (
         existing?.kind === "power-label" &&
         existing.anchor.kind === "object"
@@ -1306,7 +1319,7 @@ export function planBrowserAgentCommand(
         const rename = planElectricalMarkerRename(
           document,
           existing.anchor.objectId,
-          flattenRichText(text),
+          name,
         );
         if (rename.status === "rejected") throw new Error(rename.message);
         const edits = rename.status === "ready" ? [...rename.plan.edits] : [];
@@ -1339,14 +1352,13 @@ export function planBrowserAgentCommand(
           item.owner.kind === "net-label" &&
           item.owner.annotationId === command.annotationId,
       );
-      const name = flattenRichText(text).trim();
       // A relabeled look of its own follows the new name; a label without
       // one takes the role look a new label gets (#1521).
       const labelFormat = plainText
         ? existing?.formatOverride
           ? renamedLabelFormat(
               existing,
-              resolveAnnotationName(document, existing),
+              currentName,
               name,
               document.presentation,
             )
