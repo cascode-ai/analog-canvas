@@ -1635,6 +1635,55 @@ describe("RNL round trip", () => {
     ]);
   });
 
+  it.each(["spice", "spectre"] as const)(
+    "keeps a drawing text anchored to the part it was anchored to, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const document = project.documents.find(
+        (item) => item.id === project.topDocumentId,
+      )!;
+      const r1 = document.instances.find((item) => item.reference === "R1")!;
+      document.drafting = {
+        objects: [
+          {
+            id: "note",
+            locked: false,
+            zIndex: 0,
+            anchor: {
+              kind: "object",
+              objectId: r1.id,
+              localOffset: { x: 30, y: -20 },
+              fallbackPosition: {
+                x: r1.placement!.position.x + 30,
+                y: r1.placement!.position.y - 20,
+              },
+            },
+            kind: "text",
+            content: { runs: [{ kind: "text", value: "1%" }] },
+            alignment: "start",
+            rotation: 0,
+          },
+        ],
+      };
+      const { project: drawn } = await roundTrip(project, format);
+      const cell = drawn.documents.find(
+        (item) => item.netlist?.name === document.netlist?.name,
+      )!;
+      const note = cell.drafting?.objects.find(
+        (object) =>
+          object.kind === "text" &&
+          JSON.stringify(object.content).includes("1%"),
+      );
+      const anchor = note?.anchor;
+      expect(anchor?.kind).toBe("object");
+      if (anchor?.kind !== "object") return;
+      expect(
+        cell.instances.find((item) => item.id === anchor.objectId)?.reference,
+      ).toBe("R1");
+      expect(anchor.localOffset).toEqual({ x: 30, y: -20 });
+    },
+  );
+
   it("keeps a line style set as the editor sets one, in the shape's override (#1787)", async () => {
     const project = example("simulation-rc");
     const document = project.documents.find(

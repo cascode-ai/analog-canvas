@@ -134,7 +134,8 @@ the RNL language and its runtime belong to rnl.
   attached where it hangs (13.3): on the wire of the route it hangs on,
   that wire named for it and the label placed where it stands, since a
   wire has no point to offset from; on the part, glyph or Cell Pin it hangs
-  on, offset from it; else on its net.
+  on, offset from it; else on its net. A drawing text anchored to a part or
+  glyph is attached to it the same way, offset from it.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename.
 - A part's colour (its foreground, a glyph's included) is written as its
@@ -268,7 +269,8 @@ the RNL language and its runtime belong to rnl.
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has, or as a power label where the export wrote one, hung on the
-    junction it was drawn at; any other text as a drawing text; a label a
+    junction it was drawn at; any other text as a drawing text, anchored to
+    the part or glyph it is attached to, else free; a label a
     symbol alone gives is left to the symbol; a part the drawing places
     without its name or values keeps the editor's default labels for them
     hidden, in their usual place, since the export writes every label it

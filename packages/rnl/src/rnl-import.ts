@@ -2369,6 +2369,9 @@ function importTexts(
       ...(color.textColor ? { color: color.textColor } : {}),
       ...scaled(text.size, richTextMetrics(profile).fontSize),
     };
+    // On the part or glyph RNL hangs it on, as the editor anchors one; else
+    // where it stands.
+    const host = instance ?? pin;
     document.drafting.objects.push({
       id: deriveStableId(
         "drafting",
@@ -2379,7 +2382,7 @@ function importTexts(
       ),
       locked: false,
       zIndex: document.drafting.objects.length,
-      anchor: { kind: "free", position: at },
+      anchor: host ? onObject(host) : { kind: "free", position: at },
       kind: "text",
       content,
       alignment,

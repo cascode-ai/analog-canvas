@@ -1435,9 +1435,24 @@ function exportTexts(
     if (object.styleOverride?.italic) style.italic = true;
     if (object.styleOverride?.color)
       style.textcolor = object.styleOverride.color;
+    // On the part or glyph it hangs on (13.3), offset from it, so it moves
+    // with it as in the editor; else where it stands.
+    const host =
+      object.anchor.kind === "object"
+        ? placeOf.get(object.anchor.objectId)
+        : undefined;
+    const at = toRnlPoint(anchor.position);
     write(object.id, object.content, anchor.rotation + object.rotation, {
       ...named(null),
-      at: toRnlPoint(anchor.position),
+      ...(host
+        ? {
+            attach: host.object,
+            offset: [
+              Math.round((at[0] - host.at[0]) * 1e6) / 1e6 + 0,
+              Math.round((at[1] - host.at[1]) * 1e6) / 1e6 + 0,
+            ],
+          }
+        : { at }),
       halign: object.alignment,
       // On an object, or between polarity marks, a drawing text is centred
       // on its anchor; free, it stands on it.
