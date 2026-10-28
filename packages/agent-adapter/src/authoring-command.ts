@@ -146,14 +146,18 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     .describe(
       "Change one part as Apply in Properties does, through the same planner: a moved part joins a pin it lands on, as a drag does.",
     ),
-  z.strictObject({
-    kind: z.literal("set-text"),
-    target: z.discriminatedUnion("kind", [
-      z.strictObject({ kind: z.literal("annotation"), id: StableIdSchema }),
-      z.strictObject({ kind: z.literal("drafting"), id: StableIdSchema }),
-    ]),
-    text: TextInputSchema,
-  }),
+  z
+    .strictObject({
+      kind: z.literal("set-text"),
+      target: z.discriminatedUnion("kind", [
+        z.strictObject({ kind: z.literal("annotation"), id: StableIdSchema }),
+        z.strictObject({ kind: z.literal("drafting"), id: StableIdSchema }),
+      ]),
+      text: TextInputSchema,
+    })
+    .describe(
+      "Commit a text as the canvas editor does; on a part's or Cell Pin's name label, RichText that spells the name only restyles it. A Net label takes set-net-label.",
+    ),
   z.strictObject({
     kind: z.literal("add-text"),
     id: StableIdSchema,
@@ -299,7 +303,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     annotationId: StableIdSchema,
     netId: StableIdSchema,
     text: TextInputSchema.describe(
-      "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own.",
+      "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own, and only restyles an existing label whose name it spells.",
     ),
     position: PointSchema.optional(),
   }),
