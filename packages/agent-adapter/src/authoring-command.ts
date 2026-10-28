@@ -257,11 +257,16 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
   z
     .strictObject({
       kind: z.literal("set-display-alias"),
-      instanceId: StableIdSchema,
+      instanceId: StableIdSchema.optional().describe(
+        "A part or Port, whose name label shows the text.",
+      ),
+      annotationId: StableIdSchema.optional().describe(
+        "A Net label instead of a part (#1880).",
+      ),
       text: z.string().trim().min(1).max(128).nullable(),
     })
     .describe(
-      "Show text on a part's name label while the part keeps its own Reference (or Pin name) in the netlist, e.g. an op-amp X1 drawn A1; null shows its own name again. Survives Project Code and Copy as the label's text.",
+      "Show text on a part's or Port's name label, or on a Net label, while the part keeps its own Reference, the Pin its name and the Net its name in the netlist, connectivity and same-name joining, e.g. an op-amp X1 drawn A1 or Net VEA_OUT drawn VEA,OUT; give exactly one of instanceId or annotationId; null shows the name again. Survives Project Code and Copy as the label's text.",
     ),
   z.strictObject({
     kind: z.literal("set-instance-display"),

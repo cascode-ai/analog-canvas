@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "d381f6342b6edf68cb8737d8fe965b52079ea023714e3040a379ff10d0e15980"
+      "sha256": "0aa7b13fd11204f8b4777586f9170b10c1d3210bef8c128b8795d3bbd2ab25f9"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -53,7 +53,7 @@
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "sha256": "5557b4063404104b3a197d9b400c08bc40a313ef81b8d6fa9caf6c51c2fa244f"
+      "sha256": "ef12f3f2e3faea3534cd5ee56611bb47a494ece31e77531de09ef4a99ee551da"
     },
     {
       "source": "docs/agent/http-kit/README.md",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "567afa8db909ef8d30284ad7a6548b13df0f81f57ac5fc80409bc5373e833f70"
+      "sha256": "09b06e7aeb7ccb6cf30996adff2305c335fbccfc643df5487e9abd83bdf5bad0"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "83db73baac09b4767cf75ac458e3550bcbeb937d6b12e3904223abef59babc07"
+      "sha256": "242473c5a1761aba96e88cc2c3b3f5abd5e4cfdf7d9370cb27e028f9d8c646f1"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

@@ -445,7 +445,9 @@ export function CanvasTextEditorOverlay({
           {...(session.owner === "annotation" && session.bound && !sourceOnly
             ? { formulaSemanticText: flattenRichText(session.content) }
             : {})}
-          {...((session.visualInstanceId || session.cellPinTerminalId) &&
+          {...((session.visualInstanceId ||
+            session.cellPinTerminalId ||
+            session.netLabelName !== undefined) &&
           onDisplayAliasChange
             ? {
                 displayAlias: session.displayAlias ?? false,

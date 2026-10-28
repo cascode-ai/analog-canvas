@@ -583,6 +583,75 @@ describe("unified text editing", () => {
     });
   });
 
+  it("tells a Net label's name from its display alias (#1880)", () => {
+    const document = createEmptyDocument("text", "Text");
+    document.nets.push({ id: "net-ea", terminals: [] });
+    document.connectivityEvidence.push({
+      id: "claim-ea",
+      kind: "name-claim",
+      netId: "net-ea",
+      name: "VEA_OUT",
+      owner: { kind: "net-label", annotationId: "label-ea" },
+      scope: "local",
+    });
+    const label = (
+      text: Partial<Pick<Annotation, "binding" | "content">>,
+    ): Annotation => ({
+      id: "label-ea",
+      kind: "net-label",
+      ...text,
+      netId: "net-ea",
+      anchor: { kind: "free", position: { x: 10, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const session = (object: Annotation) =>
+      createTextEditingSession({ owner: "annotation", object }, document);
+    expect(
+      session(label({ binding: { kind: "net-name", netId: "net-ea" } })),
+    ).toMatchObject({
+      netLabelName: "VEA_OUT",
+      displayAlias: false,
+      bound: true,
+    });
+    const written = label({
+      content: { runs: [{ kind: "text", value: "VEA,OUT" }] },
+    });
+    document.annotations.push(written);
+    const alias = session(written);
+    expect(alias).toMatchObject({
+      netLabelName: "VEA_OUT",
+      displayAlias: true,
+      bound: false,
+    });
+    // Its text is edited as the label's own; the claim is untouched.
+    expect(
+      proposeTextEditingCommit(
+        document,
+        updateTextEditingSession(alias, {
+          content: { runs: [{ kind: "text", value: "VEA,OUT2" }] },
+        }),
+      ),
+    ).toMatchObject({
+      kind: "update",
+      edit: {
+        kind: "upsert_schematic_annotation",
+        annotation: {
+          content: { runs: [{ kind: "text", value: "VEA,OUT2" }] },
+          netId: "net-ea",
+        },
+      },
+    });
+    // Emptied, it would delete the label naming the Net.
+    expect(
+      proposeTextEditingCommit(
+        document,
+        updateTextEditingSession(alias, { content: { runs: [] } }),
+      ),
+    ).toMatchObject({ kind: "blocked" });
+  });
+
   it("does not mistake a stored voltage default for manual formatting", () => {
     const document = createEmptyDocument("text", "Text");
     document.netlist!.terminals.push({

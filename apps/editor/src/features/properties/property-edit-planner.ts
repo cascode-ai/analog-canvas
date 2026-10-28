@@ -19,6 +19,7 @@ import {
 import {
   deriveStableId,
   renamedLabelFormat,
+  richTextPresentsIdentifier,
   roleLabelFormat,
   snapGridPoint,
   type Annotation,
@@ -341,18 +342,34 @@ export function createPropertyEditPlanner({
       existingLabel.anchor.routeId === route.id
         ? existingLabel.anchor
         : null;
+    // A rename keeps a display alias: the label's own text that does not
+    // read as the name it claimed (#1880).
+    const keptAlias =
+      presentation === undefined &&
+      existingLabel?.content &&
+      !existingLabel.binding &&
+      !richTextPresentsIdentifier(
+        existingLabel.content,
+        resolveAnnotationName(document, existingLabel),
+      )
+        ? existingLabel.content
+        : undefined;
     const edits: SchematicEdit[] = [...namedNetPlan.edits];
     edits.push({
       kind: "upsert_schematic_annotation",
       annotation: {
         id: labelId,
         kind: "net-label",
-        binding:
-          existingLabel?.binding?.kind === "net-name" &&
-          (existingLabel.binding.memberEndpoint ||
-            existingLabel.binding.memberEndpoints)
-            ? existingLabel.binding
-            : { kind: "net-name", netId: targetNetId },
+        ...(keptAlias
+          ? { content: keptAlias }
+          : {
+              binding:
+                existingLabel?.binding?.kind === "net-name" &&
+                (existingLabel.binding.memberEndpoint ||
+                  existingLabel.binding.memberEndpoints)
+                  ? existingLabel.binding
+                  : { kind: "net-name" as const, netId: targetNetId },
+            }),
         netId: targetNetId,
         anchor: placed
           ? {

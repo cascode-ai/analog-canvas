@@ -4,10 +4,15 @@ import {
   executeTransaction,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import { resolveAnnotationText } from "@icm/derived";
+import {
+  resolveAnnotationName,
+  resolveAnnotationText,
+  resolveDocumentLogicalNets,
+} from "@icm/derived";
 import {
   createEmptyProject,
   flattenRichText,
+  labelTextDocument,
   roleLabelFormat,
   type Annotation,
   type CircuitProject,
@@ -21,6 +26,7 @@ import {
   groupNamingStatus,
   planDisplayAlias,
   planGroupNaming,
+  planNetLabelAlias,
   shownPartName,
 } from "./group-naming";
 
@@ -429,6 +435,168 @@ describe("one part's display alias (#1254)", () => {
     document.instances[0]!.reference = undefined;
     expect(
       planDisplayAlias({ document, instanceId: "amp", alias: "A1", ...labels }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("draws a Port VEA,OUT while its Cell Pin stays VEA_OUT (#1880)", () => {
+    let document = createEmptyProject("pin-alias", "Pin alias").documents[0]!;
+    document.instances.push({
+      id: "pin",
+      symbolId: "port",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({
+      id: "net-ea",
+      terminals: [{ instanceId: "pin", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-ea",
+      name: "VEA_OUT",
+      netId: "net-ea",
+      direction: "passive",
+      interfaceInstanceIds: ["pin"],
+    });
+    document.annotations.push({
+      ...label("label-pin", "pin", 0),
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-ea" },
+    });
+    const plan = planDisplayAlias({
+      document,
+      instanceId: "pin",
+      alias: "VEA,OUT",
+      ...labels,
+    });
+    if (!plan.ok) throw new Error(plan.message);
+    document = apply(document, plan.edits);
+    const shown = instanceLabelAnnotationFor(document, "pin")!;
+    expect(shown.binding).toBeUndefined();
+    expect(flattenRichText(resolveAnnotationText(document, shown))).toBe(
+      "VEA,OUT",
+    );
+    expect(document.netlist!.terminals[0]!.name).toBe("VEA_OUT");
+  });
+});
+
+describe("a Net label's display alias (#1880)", () => {
+  function labelledDocument(): SchematicDocument {
+    const document = createEmptyProject("net-alias", "Net alias").documents[0]!;
+    ["ea", "other"].forEach((suffix, index) => {
+      document.nets.push({ id: `net-${suffix}`, terminals: [] });
+      document.annotations.push({
+        id: `label-${suffix}`,
+        kind: "net-label",
+        binding: { kind: "net-name", netId: `net-${suffix}` },
+        netId: `net-${suffix}`,
+        anchor: { kind: "free", position: { x: index * 100, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      document.connectivityEvidence.push({
+        id: `claim-${suffix}`,
+        kind: "name-claim",
+        netId: `net-${suffix}`,
+        name: "VEA_OUT",
+        owner: { kind: "net-label", annotationId: `label-${suffix}` },
+        scope: "local",
+      });
+    });
+    return document;
+  }
+  const apply = (document: SchematicDocument, edits: SchematicEdit[]) => {
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "net-alias",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "agent", id: "test" },
+        edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(result.diagnostics[0]?.message);
+    return result.document;
+  };
+  const labelOf = (document: SchematicDocument, id: string) =>
+    document.annotations.find((annotation) => annotation.id === id)!;
+
+  it("draws VEA,OUT while the Net keeps VEA_OUT and still joins by it", () => {
+    let document = labelledDocument();
+    const plan = planNetLabelAlias({
+      document,
+      annotationId: "label-ea",
+      alias: "VEA,OUT",
+    });
+    if (!plan.ok) throw new Error(plan.message);
+    document = apply(document, plan.edits);
+    const shown = labelOf(document, "label-ea");
+    expect(shown.binding).toBeUndefined();
+    expect(shown.netId).toBe("net-ea");
+    expect(flattenRichText(resolveAnnotationText(document, shown))).toBe(
+      "VEA,OUT",
+    );
+    expect(resolveAnnotationName(document, shown)).toBe("VEA_OUT");
+    // Its claim still names the Net, and same-name labels join by it.
+    const logical = resolveDocumentLogicalNets(document);
+    expect(logical.byBaseNetId.get("net-ea")?.name).toBe("VEA_OUT");
+    expect(logical.byBaseNetId.get("net-ea")?.id).toBe(
+      logical.byBaseNetId.get("net-other")?.id,
+    );
+
+    // Clearing it names the Net again, in the label's standard look.
+    const back = planNetLabelAlias({
+      document,
+      annotationId: "label-ea",
+      alias: null,
+    });
+    if (!back.ok) throw new Error(back.message);
+    document = apply(document, back.edits);
+    const named = labelOf(document, "label-ea");
+    expect(named.binding).toEqual({ kind: "net-name", netId: "net-ea" });
+    expect(named.content).toBeUndefined();
+    expect(resolveAnnotationText(document, named)).toEqual(
+      labelTextDocument("VEA_OUT", document.presentation),
+    );
+    expect(
+      planNetLabelAlias({ document, annotationId: "label-ea", alias: null }),
+    ).toEqual({ ok: true, edits: [] });
+  });
+
+  it("joins nothing by an alias that spells another Net's name", () => {
+    let document = labelledDocument();
+    document.connectivityEvidence = document.connectivityEvidence.map(
+      (evidence) =>
+        evidence.id === "claim-other" && evidence.kind === "name-claim"
+          ? { ...evidence, name: "VREF" }
+          : evidence,
+    );
+    const plan = planNetLabelAlias({
+      document,
+      annotationId: "label-other",
+      alias: "VEA_OUT",
+    });
+    if (!plan.ok) throw new Error(plan.message);
+    document = apply(document, plan.edits);
+    // Drawn as the name would be.
+    expect(labelOf(document, "label-other").content).toEqual(
+      labelTextDocument("VEA_OUT", document.presentation),
+    );
+    const logical = resolveDocumentLogicalNets(document);
+    expect(logical.byBaseNetId.get("net-other")?.name).toBe("VREF");
+    expect(logical.byBaseNetId.get("net-other")?.id).not.toBe(
+      logical.byBaseNetId.get("net-ea")?.id,
+    );
+  });
+
+  it("refuses text that is not a Net label naming a Net", () => {
+    const document = labelledDocument();
+    expect(
+      planNetLabelAlias({ document, annotationId: "missing", alias: "A" }),
+    ).toMatchObject({ ok: false });
+    document.connectivityEvidence = [];
+    expect(
+      planNetLabelAlias({ document, annotationId: "label-ea", alias: "A" }),
     ).toMatchObject({ ok: false });
   });
 });

@@ -234,6 +234,18 @@ export function resolveAnnotationName(
       )?.name ||
       ""
     );
+  // A Net label showing a display alias keeps the name its claim gives the
+  // Net (#1880).
+  const claim =
+    !annotation.binding && annotation.kind === "net-label"
+      ? document.connectivityEvidence.find(
+          (evidence) =>
+            evidence.kind === "name-claim" &&
+            evidence.owner.kind === "net-label" &&
+            evidence.owner.annotationId === annotation.id,
+        )
+      : undefined;
+  if (claim?.kind === "name-claim") return claim.name;
   return (
     name ??
     flattenRichText(resolveAnnotationText(document, annotation, logicalNets))

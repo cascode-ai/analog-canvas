@@ -84,6 +84,11 @@ export interface TextEditingSession {
    * makes it show text of its own while the Pin keeps its name.
    */
   cellPinTerminalId?: string;
+  /**
+   * A Net label's Net name, from the label's own claim, unless
+   * `displayAlias` makes it show text of its own while the Net keeps it.
+   */
+  netLabelName?: string;
   /** Only explicitly authored signals preview a range before characters change. */
   signalExpression?: string;
   /** Visible characters when the bound name editor opened; formatting is not a rename. */
@@ -431,6 +436,27 @@ export function createTextEditingSession(
             }
           : {};
       })(),
+      ...(() => {
+        // A Net label claiming its Net's name shows that name, or, as its
+        // display alias, text of its own (#1880). A bus member selector
+        // claims none.
+        if (
+          annotation.kind !== "net-label" ||
+          (annotation.binding?.kind === "net-name" &&
+            (annotation.binding.memberEndpoint ||
+              annotation.binding.memberEndpoints))
+        )
+          return {};
+        const claim = document?.connectivityEvidence.find(
+          (item) =>
+            item.kind === "name-claim" &&
+            item.owner.kind === "net-label" &&
+            item.owner.annotationId === annotation.id,
+        );
+        return claim?.kind === "name-claim"
+          ? { netLabelName: claim.name, displayAlias: !annotation.binding }
+          : {};
+      })(),
     };
   }
   if (target.owner === "instance-formula") {
@@ -763,6 +789,12 @@ export function proposeTextEditingCommit(
     Boolean(emptyTarget.object.polarity);
   if (emptied && session.visualInstanceId && !session.displayAlias)
     return { kind: "blocked" };
+  // Emptying a Net label's alias would delete the label that names its Net.
+  if (emptied && session.netLabelName !== undefined && session.displayAlias)
+    return {
+      kind: "blocked",
+      message: "Untick Use display alias to show the Net name again",
+    };
   if (emptied && !polarityKeepsObject) {
     return {
       kind: "delete",

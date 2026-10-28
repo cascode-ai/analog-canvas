@@ -55,7 +55,9 @@ their IDs, never resolved to the first.
   `X2`; a block that emits nothing gets none). A wrong prefix or a used name is
   rejected with a free name and nothing is placed. To draw another name (op-amp
   `X1` as A1) use `set-display-alias {target, text}` (`text:null` restores);
-  it survives Project Code and Copy. A Reference outside letters, digits and
+  it survives Project Code and Copy. A Port takes one the same way; a Net
+  label takes one by `annotationId` (Net `VEA_OUT` drawn `VEA,OUT`), and its
+  Net keeps its name in the netlist and joins by it. A Reference outside letters, digits and
   `_` (a prime, `C3'`) blocks the netlist (`INVALID_INSTANCE_REFERENCE`).
 - A device shows its name alone. `showValue:true` on `place-component` shows
   its value; `showReference:false` hides the name (native `displays` keyed by
