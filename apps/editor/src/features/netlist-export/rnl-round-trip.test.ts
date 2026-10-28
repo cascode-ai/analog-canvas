@@ -2187,6 +2187,39 @@ describe("RNL round trip", () => {
     ).toEqual([[highpass.id]]);
   });
 
+  it.each(["spice", "spectre"] as const)(
+    "keeps a net named with a Greek letter, which the netlist spells out, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const document = project.documents.find(
+        (item) => item.id === project.topDocumentId,
+      )!;
+      const claim = document.connectivityEvidence!.find(
+        (item) => item.kind === "name-claim" && item.name === "out",
+      )!;
+      if (claim.kind === "name-claim") claim.name = "φ1";
+      // Its label shows the net's name, as the editor sets it.
+      for (const annotation of document.annotations)
+        if (annotation.kind === "net-label") delete annotation.formatOverride;
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported));
+      expect(exported.request.netlist).toMatch(/\bphi1\b/u);
+      const { project: drawn } = await roundTrip(project, format);
+      const names = (from: CircuitProject) =>
+        Array.from(
+          resolveDocumentLogicalNets(
+            from.documents.find((item) => item.id === from.topDocumentId)!,
+          ).byBaseNetId.values(),
+          (net) => net.name,
+        )
+          .filter((name) => name)
+          .sort();
+      expect(names(drawn)).toEqual(names(project));
+      expect(names(drawn)).toContain("φ1");
+    },
+  );
+
   it("draws a port drawn several times with as many Cell Pins", async () => {
     const project = parseProject(
       readFileSync(

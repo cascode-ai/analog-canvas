@@ -17,6 +17,7 @@ import {
 import {
   analyzeDesignNetlistForAuthoring,
   createDesignNetlistExport,
+  encodeNetName,
   spectreNumber,
 } from "@icm/netlist";
 import {
@@ -2260,6 +2261,16 @@ function importTexts(
       (item) => item.id === netId,
     );
     if (netId && named) {
+      // A name the netlist had to spell otherwise (`φ1` prints as `phi1`)
+      // is the name the label shows, where the netlist spells that so.
+      const name =
+        shown !== named.name &&
+        (["spice", "spectre"] as const).some((format) => {
+          const encoded = encodeNetName(shown, named.scope, format);
+          return encoded.ok && encoded.token === named.name;
+        })
+          ? shown
+          : named.name;
       // Where its record attaches it: on a wire of its net, on what it hangs
       // on; attached to its net, on the Cell Pin it names, else where it
       // stands.
@@ -2292,9 +2303,9 @@ function importTexts(
           : {
               binding: { kind: "net-name" as const, netId },
               // The name its claim gives the net, set as the Cell sets names.
-              ...(shown === named.name &&
+              ...(shown === name &&
               !sameStyledText(
-                labelTextDocument(named.name, document.presentation),
+                labelTextDocument(name, document.presentation),
                 content,
               )
                 ? { formatOverride: content }
@@ -2308,7 +2319,7 @@ function importTexts(
         id: deriveStableId("connectivity-evidence", document.id, id),
         kind: "name-claim",
         netId,
-        name: named.name,
+        name,
         owner: { kind: "net-label", annotationId: id },
         scope: named.scope,
       });
