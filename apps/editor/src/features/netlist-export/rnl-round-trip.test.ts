@@ -3059,6 +3059,38 @@ function gates4(): CircuitProject {
 }
 
 describe("RNL round trip of 4-input gates", () => {
+  it("keeps the name of a Cell Pin that SPICE spells without its brackets", async () => {
+    const project = gates4();
+    const document = project.documents[0]!;
+    const terminal = document.netlist!.terminals[0]!;
+    terminal.name = "SEL[3]";
+    // The Pin shows its name, as a Cell Pin drawn in the editor does.
+    document.annotations.push({
+      id: "sel-label",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: terminal.id },
+      anchor: {
+        kind: "object",
+        objectId: terminal.interfaceInstanceIds[0]!,
+        localOffset: { x: -20, y: 5 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "end",
+      rotation: 0,
+      locked: false,
+    });
+    const exported = createRnlExport(project, { format: "spice" });
+    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    expect(exported.request.netlist).not.toMatch(/SEL\[3\]/u);
+    const { project: drawn } = await roundTrip(project, "spice");
+    const pin = (from: CircuitProject) =>
+      from.documents
+        .flatMap((item) => item.netlist?.terminals ?? [])
+        .filter((item) => /^SEL/u.test(item.name))
+        .map((item) => item.name);
+    expect(pin(drawn)).toEqual(["SEL[3]"]);
+  });
+
   it.each(["spice", "spectre"] as const)(
     "adds no supply Cell Pins for gates whose bodies the netlist writes, whose rails it ties itself (%s)",
     async (format) => {
