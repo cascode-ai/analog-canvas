@@ -261,7 +261,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
         "A part or Port, whose name label shows the text.",
       ),
       annotationId: StableIdSchema.optional().describe(
-        "A Net label instead of a part (#1880).",
+        "A Net label instead of a part.",
       ),
       text: z.string().trim().min(1).max(128).nullable(),
     })

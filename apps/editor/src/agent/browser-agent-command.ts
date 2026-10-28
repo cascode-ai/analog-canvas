@@ -1139,7 +1139,11 @@ export function planBrowserAgentCommand(
           alias: command.text,
         });
         if (!plan.ok) throw new Error(plan.message);
-        return { edits: plan.edits };
+        return {
+          edits: plan.label
+            ? [{ kind: "upsert_schematic_annotation", annotation: plan.label }]
+            : [],
+        };
       }
       if (instanceId === undefined || annotationId !== undefined)
         throw new Error(

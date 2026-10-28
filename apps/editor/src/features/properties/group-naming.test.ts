@@ -503,7 +503,8 @@ describe("a Net label's display alias (#1880)", () => {
     });
     return document;
   }
-  const apply = (document: SchematicDocument, edits: SchematicEdit[]) => {
+  const apply = (document: SchematicDocument, label: Annotation | null) => {
+    if (!label) throw new Error("no label change");
     const result = executeTransaction(
       document,
       {
@@ -511,7 +512,7 @@ describe("a Net label's display alias (#1880)", () => {
         documentId: document.id,
         expectedRevision: document.revision,
         actor: { kind: "agent", id: "test" },
-        edits,
+        edits: [{ kind: "upsert_schematic_annotation", annotation: label }],
       },
       { symbolResolver: resolver },
     );
@@ -529,7 +530,7 @@ describe("a Net label's display alias (#1880)", () => {
       alias: "VEA,OUT",
     });
     if (!plan.ok) throw new Error(plan.message);
-    document = apply(document, plan.edits);
+    document = apply(document, plan.label);
     const shown = labelOf(document, "label-ea");
     expect(shown.binding).toBeUndefined();
     expect(shown.netId).toBe("net-ea");
@@ -551,7 +552,7 @@ describe("a Net label's display alias (#1880)", () => {
       alias: null,
     });
     if (!back.ok) throw new Error(back.message);
-    document = apply(document, back.edits);
+    document = apply(document, back.label);
     const named = labelOf(document, "label-ea");
     expect(named.binding).toEqual({ kind: "net-name", netId: "net-ea" });
     expect(named.content).toBeUndefined();
@@ -560,7 +561,7 @@ describe("a Net label's display alias (#1880)", () => {
     );
     expect(
       planNetLabelAlias({ document, annotationId: "label-ea", alias: null }),
-    ).toEqual({ ok: true, edits: [] });
+    ).toEqual({ ok: true, label: null });
   });
 
   it("joins nothing by an alias that spells another Net's name", () => {
@@ -577,7 +578,7 @@ describe("a Net label's display alias (#1880)", () => {
       alias: "VEA_OUT",
     });
     if (!plan.ok) throw new Error(plan.message);
-    document = apply(document, plan.edits);
+    document = apply(document, plan.label);
     // Drawn as the name would be.
     expect(labelOf(document, "label-other").content).toEqual(
       labelTextDocument("VEA_OUT", document.presentation),

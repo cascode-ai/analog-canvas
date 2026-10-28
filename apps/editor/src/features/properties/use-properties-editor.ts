@@ -1323,10 +1323,9 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         options.setStatus(plan.message);
         return;
       }
-      const [edit] = plan.edits;
-      if (edit?.kind !== "upsert_schematic_annotation") return;
+      if (!plan.label) return;
       const annotation: Annotation = {
-        ...edit.annotation,
+        ...plan.label,
         sizeScale: textEditing.sizeScale,
         alignment: textEditing.alignment,
       };

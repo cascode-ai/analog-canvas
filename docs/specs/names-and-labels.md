@@ -27,10 +27,9 @@ values, drafting text, formulas or Symbol body text.
   label or a Net label: the label's own literal text, with no identity. The
   Reference, Pin name or the Net label's name claim stays the electrical
   name, so netlists, connectivity, same-name joining and Agents never read
-  the alias; a rename keeps it, except Agent `set-net-label`, which writes the
-  label's text as the name. The label editor's **Use display alias** and
-  the Agent's `set-display-alias` set it; clearing it shows the name again in
-  its standard look. The parent pin draws a Pin alias.
+  the alias. Clearing it shows the name again in its standard look. The
+  parent pin draws a Pin alias; editing follows
+  [editor interaction](editor-interaction.md#text-and-presentation).
 
 ## Standard looks
 

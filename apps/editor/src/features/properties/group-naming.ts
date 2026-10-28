@@ -4,7 +4,7 @@ import {
   type ProjectStructureEdit,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import { resolveAnnotationText } from "@icm/derived";
+import { aliasableNetLabelClaim, resolveAnnotationText } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import {
   flattenRichText,
@@ -361,14 +361,15 @@ export function planDisplayAlias(input: {
  * alias is the label's own text: its claim still names and joins the Net.
  * Plain text takes a name's look, and the Net's own name names it again;
  * RichText, the label editor's, is kept as written. Null or empty text shows
- * the name again in its standard look; a hidden label is shown (#1880, the
- * Agent's set-display-alias and the label editor's display alias).
+ * the name again in its standard look; a hidden label is shown. The label as
+ * it becomes, or null when it already shows that (the Agent's
+ * set-display-alias and the label editor's display alias).
  */
 export function planNetLabelAlias(input: {
   document: SchematicDocument;
   annotationId: string;
   alias: string | RichTextDocument | null;
-}): { ok: true; edits: SchematicEdit[] } | { ok: false; message: string } {
+}): { ok: true; label: Annotation | null } | { ok: false; message: string } {
   const { document, annotationId } = input;
   const label = document.annotations.find((item) => item.id === annotationId);
   if (!label)
@@ -378,16 +379,8 @@ export function planNetLabelAlias(input: {
       ok: false,
       message: `${annotationId} is not a Net label; give a part's alias by its instanceId`,
     };
-  const claim = document.connectivityEvidence.find(
-    (evidence) =>
-      evidence.kind === "name-claim" &&
-      evidence.owner.kind === "net-label" &&
-      evidence.owner.annotationId === annotationId,
-  );
-  const selector =
-    label.binding?.kind === "net-name" &&
-    (label.binding.memberEndpoint || label.binding.memberEndpoints);
-  if (claim?.kind !== "name-claim" || !label.netId || selector)
+  const claim = aliasableNetLabelClaim(document, label);
+  if (!claim || !label.netId)
     return {
       ok: false,
       message: `${annotationId} names no Net of its own, so it has no name to show an alias for`,
@@ -414,26 +407,16 @@ export function planNetLabelAlias(input: {
       : input.alias;
   if (!text || !content) {
     if (label.binding?.kind === "net-name" && label.visible !== false)
-      return { ok: true, edits: [] };
+      return { ok: true, label: null };
     const standard = roleLabelFormat("voltage-node", claim.name);
     return {
       ok: true,
-      edits: [
-        {
-          kind: "upsert_schematic_annotation",
-          annotation: {
-            ...rest,
-            binding: { kind: "net-name", netId: label.netId },
-            ...(standard ? { formatOverride: standard } : {}),
-          },
-        },
-      ],
+      label: {
+        ...rest,
+        binding: { kind: "net-name", netId: label.netId },
+        ...(standard ? { formatOverride: standard } : {}),
+      },
     };
   }
-  return {
-    ok: true,
-    edits: [
-      { kind: "upsert_schematic_annotation", annotation: { ...rest, content } },
-    ],
-  };
+  return { ok: true, label: { ...rest, content } };
 }

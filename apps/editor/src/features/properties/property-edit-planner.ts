@@ -4,6 +4,7 @@ import {
   NET_LABEL_WIRE_GAP,
   netLabelAttachmentForText,
   netLabelBaselineForName,
+  netLabelAliasClaim,
   netLabelStandardOffset,
   resolveAnnotationName,
   resolveNetLabelBinding,
@@ -19,7 +20,6 @@ import {
 import {
   deriveStableId,
   renamedLabelFormat,
-  richTextPresentsIdentifier,
   roleLabelFormat,
   snapGridPoint,
   type Annotation,
@@ -342,16 +342,11 @@ export function createPropertyEditPlanner({
       existingLabel.anchor.routeId === route.id
         ? existingLabel.anchor
         : null;
-    // A rename keeps a display alias: the label's own text that does not
-    // read as the name it claimed (#1880).
+    // A rename keeps a display alias, the label's own text.
     const keptAlias =
       presentation === undefined &&
-      existingLabel?.content &&
-      !existingLabel.binding &&
-      !richTextPresentsIdentifier(
-        existingLabel.content,
-        resolveAnnotationName(document, existingLabel),
-      )
+      existingLabel &&
+      netLabelAliasClaim(document, existingLabel)
         ? existingLabel.content
         : undefined;
     const edits: SchematicEdit[] = [...namedNetPlan.edits];

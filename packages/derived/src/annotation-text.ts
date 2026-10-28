@@ -234,20 +234,57 @@ export function resolveAnnotationName(
       )?.name ||
       ""
     );
-  // A Net label showing a display alias keeps the name its claim gives the
-  // Net (#1880).
-  const claim =
-    !annotation.binding && annotation.kind === "net-label"
-      ? document.connectivityEvidence.find(
-          (evidence) =>
-            evidence.kind === "name-claim" &&
-            evidence.owner.kind === "net-label" &&
-            evidence.owner.annotationId === annotation.id,
-        )
-      : undefined;
-  if (claim?.kind === "name-claim") return claim.name;
+  const alias = netLabelAliasClaim(document, annotation);
+  if (alias) return alias.name;
   return (
     name ??
     flattenRichText(resolveAnnotationText(document, annotation, logicalNets))
   );
+}
+
+type NameClaim = Extract<
+  SchematicDocument["connectivityEvidence"][number],
+  { kind: "name-claim" }
+>;
+
+/** The name claim a Net label owns: the name it gives its Net. */
+export function netLabelNameClaim(
+  document: SchematicDocument,
+  annotationId: string,
+): NameClaim | undefined {
+  return document.connectivityEvidence.find(
+    (evidence): evidence is NameClaim =>
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind === "net-label" &&
+      evidence.owner.annotationId === annotationId,
+  );
+}
+
+/**
+ * The claim of a Net label that can show a display alias: one naming its own
+ * Net, not a bus member selector, which claims nothing.
+ */
+export function aliasableNetLabelClaim(
+  document: SchematicDocument,
+  annotation: Annotation,
+): NameClaim | undefined {
+  const selector =
+    annotation.binding?.kind === "net-name" &&
+    (annotation.binding.memberEndpoint || annotation.binding.memberEndpoints);
+  return annotation.kind === "net-label" && annotation.netId && !selector
+    ? netLabelNameClaim(document, annotation.id)
+    : undefined;
+}
+
+/**
+ * The claim of a Net label showing a display alias: its own text, while the
+ * claim keeps naming its Net. Undefined for any other text.
+ */
+export function netLabelAliasClaim(
+  document: SchematicDocument,
+  annotation: Annotation,
+): NameClaim | undefined {
+  return annotation.binding
+    ? undefined
+    : aliasableNetLabelClaim(document, annotation);
 }

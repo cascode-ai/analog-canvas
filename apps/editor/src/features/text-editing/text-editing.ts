@@ -25,7 +25,12 @@ import {
   signalFlowFormulaSource,
 } from "@icm/symbols";
 import type { SymbolFormulaPresentation, SymbolResolver } from "@icm/symbols";
-import { resolveAnnotationText, resolveAnnotationName } from "@icm/derived";
+import {
+  aliasableNetLabelClaim,
+  netLabelAliasClaim,
+  resolveAnnotationText,
+  resolveAnnotationName,
+} from "@icm/derived";
 import {
   createReferenceIndex,
   deviceDescriptor,
@@ -438,23 +443,15 @@ export function createTextEditingSession(
       })(),
       ...(() => {
         // A Net label claiming its Net's name shows that name, or, as its
-        // display alias, text of its own (#1880). A bus member selector
-        // claims none.
-        if (
-          annotation.kind !== "net-label" ||
-          (annotation.binding?.kind === "net-name" &&
-            (annotation.binding.memberEndpoint ||
-              annotation.binding.memberEndpoints))
-        )
-          return {};
-        const claim = document?.connectivityEvidence.find(
-          (item) =>
-            item.kind === "name-claim" &&
-            item.owner.kind === "net-label" &&
-            item.owner.annotationId === annotation.id,
-        );
-        return claim?.kind === "name-claim"
-          ? { netLabelName: claim.name, displayAlias: !annotation.binding }
+        // display alias, text of its own.
+        const claim = document
+          ? aliasableNetLabelClaim(document, annotation)
+          : undefined;
+        return document && claim
+          ? {
+              netLabelName: claim.name,
+              displayAlias: Boolean(netLabelAliasClaim(document, annotation)),
+            }
           : {};
       })(),
     };

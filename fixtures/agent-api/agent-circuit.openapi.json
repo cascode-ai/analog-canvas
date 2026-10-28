@@ -9991,7 +9991,7 @@
             "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
           },
           "__schema347": {
-            "description": "A Net label instead of a part (#1880).",
+            "description": "A Net label instead of a part.",
             "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
           },
           "__schema348": {
