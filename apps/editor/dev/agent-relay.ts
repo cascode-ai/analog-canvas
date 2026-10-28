@@ -4,8 +4,8 @@ import type { Plugin, ProxyOptions } from "vite";
 import type { Unstable_DevWorker } from "wrangler";
 
 /**
- * Start a real local relay: under `vite preview` (browser tests) with the
- * server, otherwise when an Agent API or WebSocket is first requested.
+ * Start a real local relay when an Agent API or WebSocket is first requested,
+ * or with the browser tests' preview server (`ICM_E2E_RELAY_AT_START=1`).
  */
 export function localAgentRelay(): Plugin {
   let worker: Promise<Unstable_DevWorker> | undefined;
@@ -42,6 +42,14 @@ export function localAgentRelay(): Plugin {
         throw error;
       });
     return worker;
+  }
+
+  async function stop(): Promise<void> {
+    closing = true;
+    await worker?.then(
+      (runtime) => runtime.stop(),
+      () => undefined,
+    );
   }
 
   const agentProxy: ProxyOptions = {
@@ -87,18 +95,15 @@ export function localAgentRelay(): Plugin {
       const proxy = { "/api/agent/": agentProxy };
       return { server: { proxy }, preview: { proxy } };
     },
-    configurePreviewServer() {
+    configurePreviewServer(server) {
+      // workerd would keep a closed preview server's process alive.
+      server.httpServer.once("close", () => void stop());
       // A cold start (bundling the Worker, booting workerd) takes seconds on
       // a loaded runner: pay it while the first tests load, not inside the
       // first Agent test. The first request reports, and retries, a failure.
-      void start().catch(() => undefined);
+      if (process.env.ICM_E2E_RELAY_AT_START === "1")
+        void start().catch(() => undefined);
     },
-    async closeBundle() {
-      closing = true;
-      await worker?.then(
-        (runtime) => runtime.stop(),
-        () => undefined,
-      );
-    },
+    closeBundle: stop,
   };
 }
