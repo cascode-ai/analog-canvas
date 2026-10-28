@@ -285,6 +285,14 @@ information). Hidden bulk needs no decorative wire.
   refused with the names or free slots. Callers keep their Nets; stretched
   wiring is redrawn and labels it crosses move clear;
   `projectStructure.changedDocumentIds` and `changedObjectIds` name what moved.
+- `set-cell-symbol-size` (`circuit_transform`, the Cell's `documentId`) sizes
+  its block body: `{kind:"set-cell-symbol-size",width:80,height:60}`. A
+  centred body takes multiples of 20, explicit edges multiples of 10 (top-left
+  corner kept). A size short of room for the Pins and their names (inside
+  explicit edges, the Pins) is refused with the smallest that fits; an earlier
+  stored size does not count, so a body left large can be made smaller. On an
+  unplaced Cell its Pins stay where its first placement puts them. Callers
+  keep their Nets and redraw.
 - Other interface/symbol edits use `structureEdits` with a nested
   `transact_document` (not top-level `edits`), e.g. `set_cell_symbol_presentation`
   with all `pinPlacements` by terminal ID. HTTP callers use their published
