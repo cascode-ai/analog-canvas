@@ -3,6 +3,9 @@ import { AgentSessionClient, AgentSessionError } from "@icm/agent-client";
 import { FakeAgentHttp } from "../../../packages/agent-client/src/test-support/fake-relay.js";
 import { callTool, listToolDefinitions } from "./tools.js";
 import type { ToolSessionState } from "./tools.js";
+import { readResourceContent } from "./resources.js";
+
+const MAX_TOOL_DESCRIPTION_LENGTH = 900;
 
 async function toolSession(
   http: FakeAgentHttp = new FakeAgentHttp(),
@@ -114,5 +117,27 @@ describe("mcp tool surface", () => {
     const serialized = JSON.stringify(tools);
     expect(serialized).not.toContain("align_instances");
     expect(serialized).not.toContain("add_power_rail");
+  });
+  // Every Agent context pays for every description on every turn, so a long
+  // workflow or policy text belongs in a reference the description links to.
+  it("keeps every tool description within the length cap", () => {
+    for (const tool of listToolDefinitions())
+      expect(tool.description.length, tool.name).toBeLessThanOrEqual(
+        MAX_TOOL_DESCRIPTION_LENGTH,
+      );
+  });
+  it("links the Gallery and User Components descriptions to the guidance moved out of them", () => {
+    const tools = listToolDefinitions();
+    const reference = readResourceContent(
+      "analog-canvas://reference/mcp-tools",
+    ).text;
+    for (const name of ["gallery_circuits", "user_components"])
+      expect(tools.find((t) => t.name === name)!.description).toContain(
+        "analog-canvas://reference/mcp-tools",
+      );
+    expect(reference).toContain('scope:"ai-seats"');
+    expect(reference).toContain("takeOver:true");
+    expect(reference).toContain("idempotencyKey");
+    expect(reference).toContain("publicationVersion:1");
   });
 });
