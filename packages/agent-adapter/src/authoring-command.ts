@@ -575,5 +575,14 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     .describe(
       "Arrange this Cell's block Pins by name. Pins not named keep their place; callers keep their Nets and their wiring is redrawn.",
     ),
+  z
+    .strictObject({
+      kind: z.literal("set-cell-symbol-size"),
+      width: z.number().int().positive().max(100_000),
+      height: z.number().int().positive().max(100_000),
+    })
+    .describe(
+      "Size this Cell's block body: multiples of 20 (10 inside explicit edges), at least the smallest that fits its Pins and their names. Every caller redraws it; callers keep their Nets.",
+    ),
 ]);
 export type AgentAuthoringCommand = z.infer<typeof AgentAuthoringCommandSchema>;

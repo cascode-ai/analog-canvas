@@ -49,6 +49,7 @@ import {
 import { browserExportDelivery } from "../../hosts/browser-export-delivery";
 import {
   modelSourceInterface,
+  resizeCellSymbolPresentation,
   resolveCircuitAuthoring,
   type ProjectStructureEdit,
 } from "@icm/edit-engine";
@@ -1626,23 +1627,10 @@ export function ExternalModelSourceEditor({
                 onBodySizeChange={(width, height) =>
                   updateLayout({
                     ...layoutDefinition,
-                    presentation: {
-                      ...layoutDefinition.presentation,
-                      ...(layoutDefinition.presentation?.bodyBounds
-                        ? {
-                            bodyBounds: {
-                              ...layoutDefinition.presentation.bodyBounds,
-                              right:
-                                layoutDefinition.presentation.bodyBounds.left +
-                                width,
-                              bottom:
-                                layoutDefinition.presentation.bodyBounds.top +
-                                height,
-                            },
-                          }
-                        : {}),
-                      minimumBodySize: { width, height },
-                    },
+                    presentation: resizeCellSymbolPresentation(
+                      layoutDefinition.presentation,
+                      { width, height },
+                    ),
                   })
                 }
                 onPortPlacementChange={(terminalId, side, offset) =>

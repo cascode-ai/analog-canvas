@@ -985,6 +985,148 @@ describe("the editor plans an Agent's action list", () => {
     },
   );
 
+  /** The body of sram6t's block, as every caller draws it. */
+  const sramBody = (project: EditorDocumentController["project"]) => {
+    const body = createProjectHierarchicalSymbols(project)
+      .find((symbol) => symbol.id === hierarchicalSymbolId("sram6t"))!
+      .primitives.find((primitive) => primitive.kind === "polygon")!;
+    const xs = body.kind === "polygon" ? body.points.map((p) => p.x) : [];
+    const ys = body.kind === "polygon" ? body.points.map((p) => p.y) : [];
+    return {
+      width: Math.max(...xs) - Math.min(...xs),
+      height: Math.max(...ys) - Math.min(...ys),
+    };
+  };
+
+  it(
+    "resizes a placed Cell's block; every caller draws it at that size and keeps its Nets and netlist line (#1879)",
+    { timeout: 30_000 },
+    async () => {
+      const { controller, client, main, id } = await sramArray();
+      const members = () =>
+        main()
+          .nets.map((net) =>
+            net.terminals
+              .map((terminal) => `${terminal.instanceId}.${terminal.pinName}`)
+              .sort()
+              .join(" "),
+          )
+          .sort();
+      const callLine = () => {
+        const exported = createDesignNetlistExport(controller.project, {
+          format: "spice",
+        });
+        return exported.status === "ready"
+          ? exported.file.text.split("\n").find((line) => /^X1 /u.test(line))
+          : exported.status;
+      };
+      // Its first placement gave VDD and VSS room for their names.
+      expect(sramBody(controller.project)).toEqual({ width: 80, height: 100 });
+      const nets = members();
+
+      const report = await client.applyActions(
+        [{ kind: "set-cell-symbol-size", width: 160, height: 120 }],
+        { documentId: "sram6t" },
+      );
+      expect(report.ok, report.message).toBe(true);
+      expect(sramBody(controller.project)).toEqual({ width: 160, height: 120 });
+      // Its caller's wiring follows the Pins to the new edges.
+      expect(members()).toEqual(nets);
+      expect(callLine()).toBe("X1 VDD VSS bl blb wl0 sram6t");
+      expect(report.projectStructure?.changedDocumentIds).toContain("main");
+      expect(report.changedObjectIds).toContain(id("X1"));
+      expect(
+        diagnoseVisualQuality(main(), controller.resolver).map(
+          (finding) => finding.code,
+        ),
+      ).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
+
+      // The smallest size that fits is taken back.
+      const back = await client.applyActions(
+        [{ kind: "set-cell-symbol-size", width: 80, height: 100 }],
+        { documentId: "sram6t" },
+      );
+      expect(back.ok, back.message).toBe(true);
+      expect(sramBody(controller.project)).toEqual({ width: 80, height: 100 });
+      expect(members()).toEqual(nets);
+    },
+  );
+
+  it(
+    "keeps the size an Agent gives a Cell no parent has placed yet through its first placement (#1879)",
+    { timeout: 30_000 },
+    async () => {
+      const { controller, client } = await editor();
+      const apply = async (actions: unknown[], documentId?: string) => {
+        const report = await client.applyActions(
+          actions,
+          documentId ? { documentId } : {},
+        );
+        expect(report.ok, report.message).toBe(true);
+      };
+      await apply([{ kind: "create-cell", id: "sram6t", name: "sram6t" }]);
+      await apply(
+        [
+          ["VDD", 200, 0],
+          ["VSS", 200, 300],
+          ["bl", 0, 100],
+          ["blb", 400, 100],
+          ["wl", 0, 200],
+        ].map(([reference, x, y]) => ({
+          kind: "place-component",
+          symbol: "port",
+          reference,
+          position: { x, y },
+          direction: "inout",
+        })),
+        "sram6t",
+      );
+      await apply(
+        [{ kind: "set-cell-symbol-size", width: 120, height: 140 }],
+        "sram6t",
+      );
+      expect(sramBody(controller.project)).toEqual({ width: 120, height: 140 });
+      await apply([
+        {
+          kind: "place-cell",
+          childDocumentId: "sram6t",
+          reference: "X1",
+          placement: { position: { x: 400, y: 400 } },
+        },
+      ]);
+      expect(sramBody(controller.project)).toEqual({ width: 120, height: 140 });
+    },
+  );
+
+  it.each([
+    [
+      { width: 90, height: 100 },
+      "sram6t's block is centred on its origin, so a width of 90 puts its edges off the 10-unit grid: use a multiple of 20, such as 80 or 100. Nothing was changed.",
+    ],
+    [
+      { width: 80, height: 60 },
+      "sram6t's Pins and their names need a body at least 80 wide and 100 high; 80 x 60 is too small. Nothing was changed.",
+    ],
+  ])(
+    "refuses a block size %o, naming the sizes that fit (#1879)",
+    { timeout: 30_000 },
+    async (size, message) => {
+      const { controller, client } = await sramArray();
+      const before = structuredClone(controller.project.documents);
+      const report = await client.applyActions(
+        [{ kind: "set-cell-symbol-size", ...size }],
+        { documentId: "sram6t" },
+      );
+      expect(report).toMatchObject({
+        ok: false,
+        actionIndex: 0,
+        actionKind: "set-cell-symbol-size",
+        message: `actions[0] (set-cell-symbol-size): ${message}`,
+      });
+      expect(controller.project.documents).toEqual(before);
+    },
+  );
+
   it("draws the wires an arrange stretches clear of the parts they would cross (#1344)", async () => {
     // R2 is lined up 80 lower with R4. The stretch drops its wire from R1
     // with a crossbar halfway down, straight through R3.
