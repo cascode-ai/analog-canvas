@@ -1363,8 +1363,12 @@ function applyLevel(
   };
   let skipped = 0;
   /** Each route made, with its corners in Analog Canvas coordinates. */
-  const drawn: { route: RouteBranch; corners: { x: number; y: number }[] }[] =
-    [];
+  const drawn: {
+    route: RouteBranch;
+    corners: { x: number; y: number }[];
+    /** The RNL wire it was read from. */
+    wire: string;
+  }[] = [];
   model.wires.forEach((wire, wireIndex) => {
     const netId = wire.nets.length === 1 ? netOf(wire.nets[0]!) : undefined;
     if (!netId) {
@@ -1490,6 +1494,7 @@ function applyLevel(
       document.routes.push(route);
       drawn.push({
         route,
+        wire: wire.id,
         // One corner per end of a leg: the start, each bend, the end. A
         // vertex the wire passes without a place of its own makes no leg, so
         // a text never reaches for a leg the route does not have (#1792).
@@ -1557,6 +1562,8 @@ function applyLevel(
     point: { x: number; y: number },
     netId: string,
     reach: number,
+    /** Only the routes read from this wire. */
+    only?: string,
   ) => {
     let best: {
       route: RouteBranch;
@@ -1564,8 +1571,9 @@ function applyLevel(
       t: number;
       normalOffset: number;
     } | null = null;
-    for (const { route, corners } of drawn) {
-      if (route.netId !== netId) continue;
+    for (const { route, corners, wire } of drawn) {
+      if (route.netId !== netId || (only !== undefined && wire !== only))
+        continue;
       for (let index = 0; index + 1 < corners.length; index++) {
         const from = corners[index]!;
         const to = corners[index + 1]!;
@@ -1922,6 +1930,7 @@ function importTexts(
       point: { x: number; y: number },
       netId: string,
       reach: number,
+      only?: string,
     ) => {
       route: RouteBranch;
       index: number;
@@ -2154,9 +2163,40 @@ function importTexts(
       return;
     }
 
+    // A net's or power label hangs where its record attaches it (13.3): on
+    // a wire of its net, on the glyph or Cell Pin it hangs on, or on its net.
+    const wire = text.attach
+      ? model.wires.find((item) => item.id === text.attach)
+      : undefined;
+    const hungOn = glyph ? instanceOf(glyph.instanceId) : undefined;
+    const netId = text.attach
+      ? (netOf(text.attach) ??
+        (wire?.nets.length === 1 ? netOf(wire.nets[0]!) : undefined) ??
+        (hungOn
+          ? document.nets.find((net) =>
+              net.terminals.some((item) => item.instanceId === hungOn.id),
+            )?.id
+          : undefined))
+      : undefined;
+    /** On the wire it is attached to, where it stands along it. */
+    const onWire = (net: string) => {
+      const leg = wire ? legNear(exact, net, Infinity, wire.id) : null;
+      return leg
+        ? {
+            kind: "route" as const,
+            routeId: leg.route.id,
+            legId: leg.route.legs[leg.index]!.id,
+            t: Math.round(leg.t * 1e9) / 1e9,
+            normalOffset: Math.round(leg.normalOffset * 1e6) / 1e6 + 0,
+            direction: "forward" as const,
+            orientation: "follow" as const,
+            fallbackPosition: at,
+          }
+        : undefined;
+    };
+
     // A power label, which the export names for what it is: on the junction
     // of its net it stands beside, as Analog Canvas keeps one.
-    const netId = text.attach ? netOf(text.attach) : undefined;
     if (netId && /^%power\d+$/u.test(text.id)) {
       // One that names the Cell Pin of its net shows that Pin's name.
       const port =
@@ -2198,14 +2238,17 @@ function importTexts(
               ...formatted({ kind: "power-label", netId, binding }, content),
             }
           : { content }),
-        anchor: near
-          ? {
-              kind: "object",
-              objectId: near.id,
-              localOffset: { x: at.x - near.at.x, y: at.y - near.at.y },
-              fallbackPosition: at,
-            }
-          : { kind: "free", position: at },
+        anchor:
+          (wire ? onWire(netId) : undefined) ??
+          (hungOn ? onObject(hungOn) : undefined) ??
+          (near
+            ? {
+                kind: "object",
+                objectId: near.id,
+                localOffset: { x: at.x - near.at.x, y: at.y - near.at.y },
+                fallbackPosition: at,
+              }
+            : { kind: "free", position: at }),
         ...common,
         ...scaled(text.size, profile.typography.powerFontSize),
       });
@@ -2217,8 +2260,9 @@ function importTexts(
       (item) => item.id === netId,
     );
     if (netId && named) {
-      // Where the editor keeps it: on the Cell Pin it names, else on the wire
-      // it stands beside, else where it stands.
+      // Where its record attaches it: on a wire of its net, on what it hangs
+      // on; attached to its net, on the Cell Pin it names, else where it
+      // stands.
       const pin = document.netlist?.terminals
         .filter((item) => item.netId === netId)
         .flatMap((item) => item.interfaceInstanceIds)
@@ -2230,22 +2274,13 @@ function importTexts(
             : [];
         })
         .sort((a, b) => a.distance - b.distance)[0];
-      const wire = legNear(exact, netId, 3 * PART_GRID);
       const anchor =
-        pin && pin.distance <= 4 * PART_GRID + NEAR
-          ? onObject(pin.owner)
-          : wire
-            ? {
-                kind: "route" as const,
-                routeId: wire.route.id,
-                legId: wire.route.legs[wire.index]!.id,
-                t: Math.round(wire.t * 1e9) / 1e9,
-                normalOffset: Math.round(wire.normalOffset * 1e6) / 1e6 + 0,
-                direction: "forward" as const,
-                orientation: "follow" as const,
-                fallbackPosition: at,
-              }
-            : { kind: "free" as const, position: at };
+        (wire ? onWire(netId) : undefined) ??
+        (hungOn
+          ? onObject(hungOn)
+          : pin && pin.distance <= 4 * PART_GRID + NEAR
+            ? onObject(pin.owner)
+            : { kind: "free" as const, position: at });
       document.annotations.push({
         id,
         kind: "net-label",

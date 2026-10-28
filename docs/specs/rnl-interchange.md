@@ -124,8 +124,12 @@ the RNL language and its runtime belong to rnl.
   netlist means: Spectre's escapes (`Vin\+`) are written plain (`Vin+`).
 - A wire is written as drawn: a power rail bold, a body tie dashed, and a
   color or line style set on the wire as set. A wire through a junction stays
-  one wire through it. A power label is written as a label on its net, named
-  so the import knows it as a power label.
+  one wire through it. A power label is written as a label of its net,
+  named so the import knows it as a power label. A net's or power label is
+  attached where it hangs (13.3): on the wire of the route it hangs on,
+  that wire named for it and the label placed where it stands, since a
+  wire has no point to offset from; on the part, glyph or Cell Pin it hangs
+  on, offset from it; else on its net.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename.
 - A part's colour (its foreground, a glyph's included) is written as its
@@ -279,15 +283,17 @@ the RNL language and its runtime belong to rnl.
     comes in or not, and another text leaves the netlist's with
     `RNL_IMPORT_PARAMETER_TEXT`;
   - a label as it was drawn: a part's name that is not its reference (M1 on
-    the card XM1) is the label's own text; a net label stands on the Cell
-    Pin it names when it is within four grid steps of one, else on the wire
-    it stands beside (three grid steps), else where it stands; a current or
+    the card XM1) is the label's own text; a net's or power label hangs
+    where its record attaches it, on the wire's route, or on the part,
+    glyph or Cell Pin; one attached to its net stands on the Cell Pin it
+    names when it is within four grid steps of one (a power label on the
+    junction of its net within four), else where it stands; a current or
     voltage marker's label keeps its size and colour; a label in its part's
     colour follows the part, one in another colour keeps it as its own;
+    scripts stand outside bold (`bold`, `italic`, then the scripts), so a
+    subscript and the superscript after it stay stacked;
   - a part's colour (its `linecolor`) as its foreground, a glyph's and a Cell
-    Pin's included; scripts stand outside
-    bold (`bold`, `italic`, then the scripts), so a subscript and the
-    superscript after it stay stacked;
+    Pin's included;
   - drawing shapes, each made in its kind's line style (a closed shape solid,
     a construction line dashed) and drawn in RNL's as its override where
     they differ, as the editor sets one: rectangles (a closed line round a turned rectangle as a

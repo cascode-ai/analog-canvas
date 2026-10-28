@@ -106,6 +106,8 @@ export type RnlOp = { level: string } & (
   | { op: "add-point"; name: string; at: RnlPoint; junction?: true }
   | {
       op: "add-wire";
+      /** Its name, for a label hung on it to attach to (13.3). */
+      name?: string;
       nets: string[];
       via: RnlVertex[];
       mode: "straight";
@@ -862,6 +864,18 @@ function exportCell(
   const routing = resolveDocumentRoutingGeometry(document, context.resolver);
   const profile = resolveDocumentStyleProfile(document.presentation);
 
+  // The routes a net's or power label hangs on: their wires are named, for
+  // the label to attach to (13.3).
+  const hungOn = new Set(
+    document.annotations.flatMap((annotation) =>
+      (annotation.kind === "net-label" || annotation.kind === "power-label") &&
+      annotation.anchor.kind === "route"
+        ? [annotation.anchor.routeId]
+        : [],
+    ),
+  );
+  const wireOf = new Map<StableId, string>();
+
   // Wires, every bend written, so RNL draws them as drawn.
   for (const route of document.routes) {
     const net = netOf(route.netId);
@@ -910,9 +924,12 @@ function exportCell(
     if (route.styleOverride?.lineStyle)
       style.linestyle = route.styleOverride.lineStyle;
     if (route.styleOverride?.color) style.linecolor = route.styleOverride.color;
+    const wire = hungOn.has(route.id) ? nextName("wire") : undefined;
+    if (wire) wireOf.set(route.id, wire);
     ops.push({
       level,
       op: "add-wire",
+      ...(wire ? { name: wire } : {}),
       nets: [rnlName("&", net)],
       via: via as RnlVertex[],
       mode: "straight",
@@ -984,6 +1001,7 @@ function exportCell(
     logical,
     routing,
     placeOf,
+    wireOf,
     netOf,
     nextName,
     report,
@@ -1085,6 +1103,7 @@ function exportTexts(
     logical,
     routing,
     placeOf,
+    wireOf,
     netOf,
     nextName,
     report,
@@ -1093,6 +1112,8 @@ function exportTexts(
     logical: ReturnType<typeof resolveDocumentLogicalNets>;
     routing: ResolvedDocumentRoutingGeometry;
     placeOf: ReadonlyMap<StableId, { object: string; at: RnlPoint }>;
+    /** The wire each route a label hangs on is written as. */
+    wireOf: ReadonlyMap<StableId, string>;
     netOf: (baseNetId: string) => string | undefined;
     nextName: (prefix: string) => string;
     report: (
@@ -1286,11 +1307,31 @@ function exportTexts(
         : net && canvasLabel(binding)
           ? nextName("label")
           : undefined;
+    // Where it hangs (13.3): on the wire of its route, placed where it
+    // stands, since a wire has no point to offset from; on the part, glyph
+    // or Cell Pin it hangs on, offset from it; else on its net.
+    const wire =
+      net && annotation.anchor.kind === "route"
+        ? wireOf.get(annotation.anchor.routeId)
+        : undefined;
+    const object =
+      net && annotation.anchor.kind === "object"
+        ? placeOf.get(annotation.anchor.objectId)
+        : undefined;
     write(annotation.id, text, shown.rotation, {
       ...common,
-      ...(net ? { attach: rnlName("&", net) } : {}),
+      ...(wire
+        ? { attach: wire, at: anchor }
+        : object
+          ? {
+              attach: object.object,
+              offset: [
+                Math.round((anchor[0] - object.at[0]) * 1e6) / 1e6 + 0,
+                Math.round((anchor[1] - object.at[1]) * 1e6) / 1e6 + 0,
+              ],
+            }
+          : { ...(net ? { attach: rnlName("&", net) } : {}), at: anchor }),
       ...(name ? { name } : {}),
-      at: anchor,
     });
     if (name) bindLabel(name, binding);
   }

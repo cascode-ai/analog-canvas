@@ -1196,6 +1196,45 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "hangs each net's and power label where it was drawn, on its wire, glyph or net, through %s+RNL",
+  async (format) => {
+    // Each label's anchor kind, by its Cell's name.
+    const anchors = (from: CircuitProject) =>
+      Object.fromEntries(
+        from.documents.map((document) => [
+          document.netlist?.name,
+          document.annotations
+            .filter(
+              (annotation) =>
+                annotation.kind === "net-label" ||
+                annotation.kind === "power-label",
+            )
+            .map((annotation) => `${annotation.kind} ${annotation.anchor.kind}`)
+            .sort(),
+        ]),
+      );
+    // Labels on their wires and free ones, some beside a wire.
+    const ota = example("simulation-ota");
+    const back = (await roundTrip(ota, format)).project;
+    expect(anchors(back)).toEqual(anchors(ota));
+    // A power label on its supply glyph.
+    const labels = boundLabels();
+    const read = (await roundTrip(labels, format)).project;
+    const power = read.documents[0]!.annotations.find(
+      (annotation) => annotation.kind === "power-label",
+    )!;
+    expect(power.anchor.kind).toBe("object");
+    expect(
+      read.documents[0]!.instances.find(
+        (instance) =>
+          power.anchor.kind === "object" &&
+          instance.id === power.anchor.objectId,
+      )?.symbolId,
+    ).toBe("vdd-port");
+  },
+);
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",
