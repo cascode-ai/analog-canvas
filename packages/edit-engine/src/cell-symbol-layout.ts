@@ -170,3 +170,28 @@ export function proposeBlockSymbolLayout(
     ? { ok: true, changed, presentation: parsed.data }
     : { ok: false, reason: parsed.error.issues[0]!.message };
 }
+
+/**
+ * A block resized to `size` (the editor's resize and the Agent's
+ * set-cell-symbol-size, #1879): the size is stored as the body's minimum, and
+ * explicit edges keep their top-left corner.
+ */
+export function resizeCellSymbolPresentation(
+  presentation: CellSymbolPresentation | undefined,
+  size: { readonly width: number; readonly height: number },
+): CellSymbolPresentation {
+  const { width, height } = size;
+  return {
+    ...presentation,
+    ...(presentation?.bodyBounds
+      ? {
+          bodyBounds: {
+            ...presentation.bodyBounds,
+            right: presentation.bodyBounds.left + width,
+            bottom: presentation.bodyBounds.top + height,
+          },
+        }
+      : {}),
+    minimumBodySize: { width, height },
+  };
+}

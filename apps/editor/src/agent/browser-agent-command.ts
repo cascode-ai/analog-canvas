@@ -36,6 +36,7 @@ import {
   planRemoveCellTerminal,
   planRemoveCellTerminals,
   planSetCellSymbolPins,
+  planSetCellSymbolSize,
   planMoveRouteClearance,
   planCellSelectionDeletion,
   gateRoutingOperationPlan,
@@ -1648,6 +1649,10 @@ export function planBrowserAgentCommand(
           documentId,
           command.pins,
         ),
+      };
+    case "set-cell-symbol-size":
+      return {
+        structureEdits: planSetCellSymbolSize(project, documentId, command),
       };
     case "unplace":
       return {
