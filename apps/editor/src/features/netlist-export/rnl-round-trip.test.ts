@@ -1668,6 +1668,79 @@ describe("RNL round trip", () => {
     ]);
   });
 
+  it.each(["spice", "spectre"] as const)(
+    "keeps a drawing text's weight as it was set, whatever its runs, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const document = project.documents.find(
+        (item) => item.id === project.topDocumentId,
+      )!;
+      const text = (
+        id: string,
+        zIndex: number,
+        value: string,
+        runsBold: boolean,
+        plain: boolean,
+      ): Extract<
+        NonNullable<
+          CircuitProject["documents"][number]["drafting"]
+        >["objects"][number],
+        { kind: "text" }
+      > => ({
+        id,
+        locked: false,
+        zIndex,
+        anchor: {
+          kind: "free",
+          position: { x: 400, y: -300 - 40 * zIndex },
+        } as const,
+        kind: "text" as const,
+        content: {
+          runs: [
+            runsBold
+              ? {
+                  kind: "span" as const,
+                  style: "bold" as const,
+                  children: [{ kind: "text" as const, value }],
+                }
+              : { kind: "text" as const, value },
+          ],
+        },
+        alignment: "start" as const,
+        rotation: 0,
+        ...(plain ? { styleOverride: { weight: "normal" as const } } : {}),
+      });
+      const texts = [
+        text("default", 0, "Default", false, false),
+        text("bold-runs", 1, "Bold runs", true, false),
+        text("plain-bold-runs", 2, "Plain, bold runs", true, true),
+        text("plain", 3, "Plain", false, true),
+      ];
+      document.drafting = { objects: texts };
+      const { project: drawn } = await roundTrip(project, format);
+      const cell = drawn.documents.find(
+        (item) => item.netlist?.name === document.netlist?.name,
+      )!;
+      const mine = JSON.stringify(texts.map((object) => object.content));
+      const looks = (cell.drafting?.objects ?? []).flatMap((object) =>
+        object.kind === "text" && mine.includes(JSON.stringify(object.content))
+          ? [
+              {
+                content: object.content,
+                styleOverride: object.styleOverride,
+              },
+            ]
+          : [],
+      );
+      expect(looks).toEqual(
+        texts.map((object) => ({
+          content: object.content,
+          styleOverride: object.styleOverride,
+        })),
+      );
+    },
+  );
+
   it("reads back rectangles, circles, curves and arrows", async () => {
     const project = example("simulation-rc");
     const document = project.documents.find(

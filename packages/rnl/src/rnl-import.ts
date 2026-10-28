@@ -2315,9 +2315,17 @@ function importTexts(
       return;
     }
 
-    // Anything else is a drawing text, bold unless RNL sets it plain.
+    // Anything else is a drawing text, bold as the export writes one that
+    // is not set plain (`bold`); text bold only in its markup is plain text
+    // with bold runs, which draws the same.
     document.drafting ??= { objects: [] };
-    const bold = text.style["bold"] === true || boldThroughout(text.lines);
+    const bold = text.style["bold"] === true;
+    const styleOverride = {
+      ...(bold ? {} : { weight: "normal" as const }),
+      ...(text.style["italic"] === true ? { italic: true } : {}),
+      ...(color.textColor ? { color: color.textColor } : {}),
+      ...scaled(text.size, richTextMetrics(profile).fontSize),
+    };
     document.drafting.objects.push({
       id: deriveStableId(
         "drafting",
@@ -2333,16 +2341,7 @@ function importTexts(
       content,
       alignment,
       rotation,
-      ...(bold && !text.style["italic"] && !color.textColor && !text.size
-        ? {}
-        : {
-            styleOverride: {
-              ...(bold ? {} : { weight: "normal" as const }),
-              ...(text.style["italic"] === true ? { italic: true } : {}),
-              ...(color.textColor ? { color: color.textColor } : {}),
-              ...scaled(text.size, richTextMetrics(profile).fontSize),
-            },
-          }),
+      ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
     });
   });
 }
@@ -3183,12 +3182,6 @@ function paintOf(
   return typeof linecolor === "string" && /^#[0-9a-f]{6}$/iu.test(linecolor)
     ? { styleOverride: { foreground: linecolor } }
     : {};
-}
-
-/** Whether every run of a text is bold, as a drawing text is by default. */
-function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
-  const runs = lines.flat();
-  return runs.length > 0 && runs.every((run) => run.style.bold);
 }
 
 /**
