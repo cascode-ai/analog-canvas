@@ -8,6 +8,7 @@ import type {
   AgentSimulationResourceRequest,
   AgentSimulationResourceResponse,
 } from "@icm/agent-adapter";
+import { agentMcpBootstrapManifest } from "@icm/agent-adapter";
 import { AgentHttpClient, type ClaimSuccess } from "../http-client.js";
 
 /**
@@ -42,6 +43,11 @@ export interface FakeRelayOptions {
     request: AgentSimulationResourceRequest,
   ) =>
     Promise<AgentSimulationResourceResponse> | AgentSimulationResourceResponse;
+  /**
+   * The origin's MCP manifest, by default the one the Worker serves; a
+   * handler that throws is an unreachable manifest.
+   */
+  manifest?: () => unknown;
   baseUrl?: string;
 }
 
@@ -69,6 +75,8 @@ export class FakeAgentHttp extends AgentHttpClient {
   private readonly fileHandler: NonNullable<FakeRelayOptions["files"]>;
   private readonly projectHandler: NonNullable<FakeRelayOptions["projects"]>;
   private readonly simulationHandler: FakeRelayOptions["simulation"];
+  private readonly manifestHandler: () => unknown;
+  manifestReads = 0;
 
   constructor(options: FakeRelayOptions = {}) {
     super({ baseUrl: options.baseUrl ?? "https://relay.test" });
@@ -86,6 +94,8 @@ export class FakeAgentHttp extends AgentHttpClient {
       }));
     this.resumeHandler = options.resume ?? (() => this.claimHandler("resume"));
     this.simulationHandler = options.simulation;
+    this.manifestHandler =
+      options.manifest ?? (() => agentMcpBootstrapManifest(this.baseUrl));
     this.fileHandler = options.files ?? noEditor("File");
     this.projectHandler = options.projects ?? noEditor("Project");
     this.circuitHandler = options.circuit ?? noEditor("Circuit");
@@ -144,6 +154,11 @@ export class FakeAgentHttp extends AgentHttpClient {
   ): Promise<AgentSimulationResourceResponse> {
     this.simulationCalls.push(request);
     return (this.simulationHandler ?? noEditor("Simulation"))(request);
+  }
+
+  override async mcpManifest(): Promise<unknown> {
+    this.manifestReads += 1;
+    return this.manifestHandler();
   }
 
   override async disconnect(sessionId: string): Promise<void> {

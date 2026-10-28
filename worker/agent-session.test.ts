@@ -777,6 +777,63 @@ describe("public Agent session routes", () => {
     });
   });
 
+  it("tells the editor which adapter release paired on each claim and resume (#1844)", async () => {
+    const { env, sockets, storages } = routedFixture();
+    const route = (path: string, body: unknown, version?: string) =>
+      routeAgentSessionRequest(
+        new Request(`https://editor.example${path}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(version ? { "x-agent-adapter-version": version } : {}),
+          },
+          body: JSON.stringify(body),
+        }),
+        env,
+      );
+    const created = (await (await route("/api/agent/sessions", {
+      projectSessionId: "project:adapter",
+      projectId: "project",
+      documentIds: ["document-main"],
+      scopes: ["circuit.snapshot"],
+    }))!.json()) as { session: { sessionId: string; claimCode: string } };
+    const id = created.session.sessionId;
+    const events: unknown[] = [];
+    sockets.set(id, [
+      {
+        readyState: WebSocket.OPEN,
+        send: (text: string) => events.push(JSON.parse(text).payload),
+      } as unknown as WebSocket,
+    ]);
+    const adapterEvents = () =>
+      events.filter(
+        (event) => (event as { type: string }).type === "agent.adapter",
+      );
+    const claim = (await (await route(
+      "/api/agent/claims",
+      { claimCode: created.session.claimCode },
+      "0.17.83",
+    ))!.json()) as { connectorToken: string };
+    expect(adapterEvents()).toEqual([
+      { type: "agent.adapter", sessionId: id, version: "0.17.83" },
+    ]);
+    expect(storages.get(id)!.values.get("agent-adapter-version")).toBe(
+      "0.17.83",
+    );
+    // An adapter naming no release, or a malformed one, is shown as unknown.
+    const resumed = await route(
+      "/api/agent/connectors/resume",
+      { sessionId: id, connectorToken: claim.connectorToken },
+      "latest",
+    );
+    expect(resumed!.status).toBe(200);
+    expect(adapterEvents()).toEqual([
+      { type: "agent.adapter", sessionId: id, version: "0.17.83" },
+      { type: "agent.adapter", sessionId: id },
+    ]);
+    expect(storages.get(id)!.values.get("agent-adapter-version")).toBeNull();
+  });
+
   it("does not reopen a revoked browser session from a retained editor proof", async () => {
     const storage = new MemoryStorage();
     const object = new AgentSessionDO(

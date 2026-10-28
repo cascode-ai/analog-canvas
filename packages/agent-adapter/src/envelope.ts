@@ -134,6 +134,11 @@ export const AgentSessionControlMessageSchema = z.strictObject({
 
 const ActorKindSchema = z.enum(["human", "agent"]);
 
+/** An adapter release as its `x-agent-adapter-version` header names it. */
+export const AgentAdapterVersionSchema = z
+  .string()
+  .regex(/^\d{1,6}\.\d{1,6}\.\d{1,6}$/u);
+
 /** A bounded event delivered on the Agent SSE stream. */
 export const AgentSessionEventSchema = z.discriminatedUnion("type", [
   z.strictObject({
@@ -144,6 +149,13 @@ export const AgentSessionEventSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("session.paused"),
     sessionId: OpaqueIdSchema,
+  }),
+  // To the editor only: the release the paired adapter named on its last
+  // claim or resume, absent when it named none (#1844).
+  z.strictObject({
+    type: z.literal("agent.adapter"),
+    sessionId: OpaqueIdSchema,
+    version: AgentAdapterVersionSchema.optional(),
   }),
   z.strictObject({
     type: z.literal("session.revoked"),

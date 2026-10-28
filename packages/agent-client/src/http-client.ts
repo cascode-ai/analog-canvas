@@ -95,6 +95,11 @@ export interface AgentHttpClientOptions {
   /** Bounded 429 backoff. The serialized body and request ID never change. */
   rateLimitRetryAttempts?: number;
   sleep?: (milliseconds: number) => Promise<void>;
+  /**
+   * This adapter's release, sent on claim and resume as
+   * `x-agent-adapter-version` so the paired editor can show it (#1844).
+   */
+  adapterVersion?: string;
 }
 
 interface ErrorResponseBody {
@@ -123,9 +128,11 @@ export class AgentHttpClient {
   private readonly timeoutMs: number;
   private readonly rateLimitRetryAttempts: number;
   private readonly sleep: (milliseconds: number) => Promise<void>;
+  private readonly adapterVersion: string | undefined;
 
   constructor(options: AgentHttpClientOptions) {
     this.baseUrlValue = options.baseUrl;
+    this.adapterVersion = options.adapterVersion;
     this.fetchImpl = options.fetch ?? fetch;
     this.timeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
     this.rateLimitRetryAttempts = options.rateLimitRetryAttempts ?? 2;
@@ -245,13 +252,39 @@ export class AgentHttpClient {
   async claim(claimCode: string): Promise<ClaimSuccess> {
     const response = await this.send("/api/agent/claims", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.pairingHeaders(),
       body: JSON.stringify({ claimCode }),
     });
     return this.consume(response, (body) => {
       if (response.ok) return this.parseCredential(body, "Claim");
       throw this.transportError(response.status, body);
     });
+  }
+
+  private pairingHeaders(): Record<string, string> {
+    return {
+      "content-type": "application/json",
+      ...(this.adapterVersion
+        ? { "x-agent-adapter-version": this.adapterVersion }
+        : {}),
+    };
+  }
+
+  /**
+   * The origin's public MCP manifest, which names the latest adapter
+   * release. Returned unchecked: the caller reads only the fields it needs.
+   * One bounded attempt, outside the relay's retries and request timings.
+   */
+  async mcpManifest(): Promise<unknown> {
+    const response = await this.fetchImpl(
+      joinUrl(this.baseUrl, "/api/agent/mcp-manifest.json"),
+      { method: "GET", signal: AbortSignal.timeout(3_000) },
+    );
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw invalidResponseFailure(`MCP manifest HTTP ${response.status}`);
+    }
+    return response.json();
   }
 
   /** Resume a prior browser-approved pairing and mint a fresh bearer. */
@@ -261,7 +294,7 @@ export class AgentHttpClient {
   ): Promise<ClaimSuccess> {
     const response = await this.send("/api/agent/connectors/resume", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.pairingHeaders(),
       body: JSON.stringify({ sessionId, connectorToken }),
     });
     return this.consume(response, (body) => {

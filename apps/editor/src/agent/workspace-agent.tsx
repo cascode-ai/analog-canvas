@@ -93,6 +93,7 @@ function workspaceAgentSession({
     expiringSoon: false,
     error: loadError,
     backgroundRequests: false,
+    adapterVersion: null,
     transportDiagnostics: [],
     pause: nothing,
     resume: nothing,

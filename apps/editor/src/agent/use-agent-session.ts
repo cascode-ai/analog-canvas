@@ -160,6 +160,8 @@ export interface AgentSessionViewModel {
    * front.
    */
   backgroundRequests: boolean;
+  /** The release the paired adapter named, when it named one (#1844). */
+  adapterVersion: string | null;
 }
 
 /** How often a present person renews the session: well inside its window. */
@@ -318,6 +320,7 @@ export function useAgentSession(
       expiringSoon: false,
       error: null,
       backgroundRequests: false,
+      adapterVersion: null,
     };
   });
 
@@ -752,6 +755,11 @@ export function useAgentSession(
               ) {
                 live.paused = true;
                 update({ status: "paused" });
+              } else if (
+                sessionEvent.success &&
+                sessionEvent.data.type === "agent.adapter"
+              ) {
+                update({ adapterVersion: sessionEvent.data.version ?? null });
               }
               return;
             }
@@ -1473,7 +1481,12 @@ export function useAgentSession(
       return;
     const operation = beginOperation("creating");
     const old = detach();
-    update({ status: "creating", claimCode: null, claimExpiresAt: null });
+    update({
+      status: "creating",
+      claimCode: null,
+      claimExpiresAt: null,
+      adapterVersion: null,
+    });
     void retire(old, operation);
     try {
       await operation.wait(

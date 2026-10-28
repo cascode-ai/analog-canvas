@@ -30,6 +30,8 @@ export interface ConnectAgentPanelProps {
   error: string | null;
   /** Agent requests were answered with this tab in the background. */
   backgroundRequests?: boolean;
+  /** The release the paired adapter named, when it named one. */
+  adapterVersion?: string | null;
   now: number;
   onPause: () => void;
   onResume: () => void;
@@ -365,6 +367,19 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
           <p className="agent-connection-hint" data-testid="agent-idle-policy">
             Expires after 30 minutes without Agent operations or manual edits.
             Activity keeps the connection alive.
+          </p>
+        ) : null}
+        {props.adapterVersion &&
+        props.status !== "idle" &&
+        props.status !== "creating" &&
+        props.status !== "waiting-for-agent" &&
+        props.status !== "revoked" &&
+        props.status !== "expired" ? (
+          <p
+            className="agent-connection-hint"
+            data-testid="agent-adapter-version"
+          >
+            Agent adapter {props.adapterVersion}
           </p>
         ) : null}
       </section>

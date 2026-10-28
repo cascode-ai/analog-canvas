@@ -41,8 +41,8 @@ export interface LiveAgentEditorOptions {
   project?: CircuitProject;
   scopes?: readonly AgentSessionScope[];
   planning?: BrowserAgentPlanningContext;
-  /** The relay's side of pairing, when a test scripts it. */
-  relay?: Pick<FakeRelayOptions, "claim" | "resume" | "baseUrl">;
+  /** The relay's side of pairing and its MCP manifest, when a test scripts it. */
+  relay?: Pick<FakeRelayOptions, "claim" | "resume" | "baseUrl" | "manifest">;
   /** Project resource parts the browser takes from elsewhere. */
   projectHost?: Partial<BrowserAgentProjectHostOptions>;
   /**
