@@ -450,8 +450,14 @@ means deleting the Cell.
 - `annotate` is for independent notes, with GUI Text defaults. `annotate` and
   `edit-text` take plain text (keeps existing spans) or RichText (replaces
   formatting; needed for fractions/formulas). `edit-text` is the GUI text commit:
-  on a bound label new text renames the part or Net or sets the value, the same
-  characters in RichText only restyle, and a Cell Pin label is refused.
+  on a bound label new text renames the part or Net or sets the value.
+- A name label's own look: `edit-text` on a Reference, alias, Cell Pin, Port,
+  Net or supply label with RichText that spells the name (the same characters; the `_`
+  before a subscript may be left out) only restyles it, e.g.
+  `{runs:[{kind:"text",value:"AMP1"}]}` draws AMP1 as written instead of AMP₁,
+  or V, an `in` subscript and a `+` superscript draw `Vin+` with its sign
+  raised. A later rename keeps that styling around the new text; a Cell Pin
+  display that does not spell its name is refused.
 - `arrange-labels {instanceIds}` compacts default label slots and moves crowded
   labels to nearby clear spots in one undo, so no label reads as another
   part's. `side` (`left|right|top|bottom`) tries that side first; `"outside"`
