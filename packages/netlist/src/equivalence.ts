@@ -147,8 +147,10 @@ function comparedParameters(
  * is that, where the search may run out of steps before it says so.
  */
 function printedCards(ir: DesignNetlistIR): string {
+  // Cells go by the names the netlist prints, not their Documents' ids: a
+  // Project read back from its netlist has other ids for the same Cells.
   return JSON.stringify({
-    top: ir.topCellId,
+    top: ir.cells.find((cell) => cell.id === ir.topCellId)?.name ?? null,
     masters: (ir.externalMasters ?? [])
       .map((master) =>
         JSON.stringify([
@@ -164,7 +166,6 @@ function printedCards(ir: DesignNetlistIR): string {
     cells: ir.cells
       .map((cell) =>
         JSON.stringify([
-          cell.id,
           cell.name,
           cell.ports.map((port) => [port.name, port.netName]),
           cell.nets
