@@ -1,6 +1,6 @@
-// A Library logic gate, D flip-flop or Delay Cell implemented by a Cell
-// of its Project: the part keeps its symbol, and its call goes to the Cell's
-// subcircuit.
+// A Library logic gate, D flip-flop, Delay Cell, op-amp or comparator
+// implemented by a Cell of its Project: the part keeps its symbol, and its
+// call goes to the Cell's subcircuit.
 import {
   foldNetName,
   projectCellInterface,
@@ -8,6 +8,8 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 
+import { DIFFERENTIAL_COMPARATOR_TARGET } from "./ideal-comparator.js";
+import { OPAMP_TARGET } from "./ideal-opamp.js";
 import type { ParameterOwner } from "./instance-parameters.js";
 import { subcircuitDescriptor } from "./registry.js";
 import { isLibraryLogicGate } from "./reviewed-external.js";
@@ -20,22 +22,47 @@ const CELL_FLIP_FLOPS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The Library op-amps and comparators, by the target their symbols name,
+ * which a Cell implements as it does a gate (#1878).
+ */
+const CELL_AMPLIFIERS: ReadonlyMap<string, string> = new Map([
+  [OPAMP_TARGET, "op-amp"],
+  ["opamp_differential", "op-amp"],
+  ["comparator", "comparator"],
+  [DIFFERENTIAL_COMPARATOR_TARGET, "comparator"],
+]);
+
+const amplifierKind = (symbolId: string) =>
+  CELL_AMPLIFIERS.get(subcircuitDescriptor(symbolId)?.target ?? "");
+
+/**
  * Whether a Library symbol keeps its look while a Cell of its Project
- * implements it: the logic gates, D flip-flops and Delay Cell.
+ * implements it: the logic gates, D flip-flops, Delay Cell, op-amps and
+ * comparators.
  */
 export function bindsProjectCell(symbolId: string): boolean {
   return (
     isLibraryLogicGate(symbolId) ||
     CELL_FLIP_FLOPS.has(symbolId) ||
-    symbolId === "delay-cell"
+    symbolId === "delay-cell" ||
+    amplifierKind(symbolId) !== undefined
   );
+}
+
+/** What a refusal calls a part a Cell may implement: gate, op-amp, … */
+function partKind(symbolId: string): string {
+  return CELL_FLIP_FLOPS.has(symbolId)
+    ? "flip-flop"
+    : symbolId === "delay-cell"
+      ? "Delay Cell"
+      : (amplifierKind(symbolId) ?? "gate");
 }
 
 /** One Pin of the Cell a gate calls, and the gate terminal on it. */
 export interface GateCellPin {
   /** The Cell's Pin, as its `.subckt` line spells it. */
   readonly portName: string;
-  /** The part's pin (A, B, Y; D, CK, Q), or its VDD or VSS terminal. */
+  /** The part's pin (A, Y; D, CK, Q; IN+, OUT), or its VDD or VSS terminal. */
   readonly pinName: string;
   readonly supply?: "VDD" | "VSS";
 }
@@ -55,7 +82,7 @@ export type GateCellPinMatch = {
     }
 );
 
-/** A Library gate's or flip-flop's pins, then its VDD and VSS terminals. */
+/** A Library part's pins, then its VDD and VSS terminals. */
 export function libraryGateTerminals(
   symbolId: string,
 ): readonly { readonly pinName: string; readonly supply?: "VDD" | "VSS" }[] {
@@ -77,7 +104,7 @@ const spokenList = (names: readonly string[]) =>
  * pins the Pin of that name, and its VDD and VSS terminals the Pins of theirs
  * where the Cell has them, since a Cell may take its supplies globally
  * instead. Names compare as SPICE compares them, without case. Undefined for
- * a symbol that is not a Library gate.
+ * a symbol no Cell may implement.
  */
 export function matchGateCellPins(
   symbolId: string,
@@ -112,7 +139,7 @@ export function matchGateCellPins(
             extra,
             "is not one",
             "are not",
-          )} of the ${CELL_FLIP_FLOPS.has(symbolId) ? "flip-flop" : symbolId === "delay-cell" ? "Delay Cell" : "gate"}'s`,
+          )} of the ${partKind(symbolId)}'s`,
         ]
       : []),
   ];
@@ -128,7 +155,7 @@ export function matchGateCellPins(
 }
 
 /**
- * The Cell a Library gate is bound to, and how the gate meets its Pins.
+ * The Cell a Library gate or op-amp is bound to, and how it meets its Pins.
  * Undefined for any other Instance, or a Cell that is gone.
  */
 export function gateCellBinding(
