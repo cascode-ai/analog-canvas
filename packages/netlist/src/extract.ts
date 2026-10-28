@@ -101,6 +101,7 @@ function reachableDocuments(
   project: CircuitProject,
   rootDocumentId: StableId,
   diagnostics: NetlistDiagnostic[],
+  uncalled = false,
 ): SchematicDocument[] {
   const byId = new Map(
     project.documents.map((document) => [document.id, document]),
@@ -161,6 +162,30 @@ function reachableDocuments(
   }
 
   visit(rootDocumentId);
+  // The Cells the root does not reach come after it, each with the Cells it
+  // reaches, so the root is still the file's first top Cell. One that reaches
+  // the root would call it, and the file could no longer say which Cell is
+  // the top: it stays out.
+  if (uncalled) {
+    const reachesRoot = (
+      documentId: string,
+      seen = new Set<string>(),
+    ): boolean => {
+      if (documentId === rootDocumentId) return true;
+      if (seen.has(documentId)) return false;
+      seen.add(documentId);
+      return (byId.get(documentId)?.instances ?? []).some((instance) => {
+        const binding = instance.netlist?.binding;
+        return (
+          binding?.kind === "subcircuit" &&
+          reachesRoot(binding.childDocumentId, seen)
+        );
+      });
+    };
+    for (const document of project.documents)
+      if (!visited.has(document.id) && !reachesRoot(document.id))
+        visit(document.id);
+  }
   if (ordered.length > MAX_CELLS) {
     diagnostic(
       diagnostics,
@@ -206,6 +231,13 @@ export interface DesignNetlistAnalysisOptions {
    * without one.
    */
   deckSources?: readonly string[];
+  /**
+   * Whether the Cells the root does not reach are printed too, after it, so
+   * that a file carries every Cell's drawing (the RNL export). A Cell that
+   * reaches the root is not: it would call the root, and the file could no
+   * longer say which Cell is the top.
+   */
+  uncalledCells?: boolean;
 }
 
 /** Ground as the Cell's own pin, or as SPICE's global node. */
@@ -297,6 +329,7 @@ function analyzeSnapshot(
     rootAsTopLevel: options.rootAsTopLevel ?? false,
     groundPin: options.groundPin ?? "global",
     deckSources: options.deckSources ?? [],
+    uncalledCells: options.uncalledCells ?? false,
     run: options.deckSources !== undefined,
   };
   // Mutable authoring callers may change a model without advancing a revision.
@@ -348,6 +381,7 @@ function analyzeDesign(
     project,
     resolvedOptions.rootDocumentId,
     diagnostics,
+    resolvedOptions.uncalledCells,
   );
   const nameProjection = deriveProjectNetNameProjection(
     resolvedOptions.rootDocumentId === project.topDocumentId

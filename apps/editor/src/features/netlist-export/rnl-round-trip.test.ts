@@ -1425,10 +1425,12 @@ function rnlPart(instance: Instance) {
 }
 
 /** Each printed part's card name in its Cell, by its Analog Canvas instance. */
+/** The cards of the netlist as the RNL export prints it, uncalled Cells too. */
 function cardNames(project: CircuitProject) {
   const result = createDesignNetlistExport(project, {
     bodyPortOrder: rnlBodyPortOrder(project),
     includeIr: true,
+    uncalledCells: true,
   });
   if (result.status !== "ready") throw new Error("netlist blocked");
   return result.ir!.cells.flatMap((cell) =>
@@ -1456,9 +1458,13 @@ describe("RNL round trip", () => {
     expect(parseProject(JSON.stringify(drawn))).toBeTruthy();
     const misplaced: string[] = [];
     for (const { cell, id, card } of cardNames(project)) {
+      // Instance ids repeat across Cells: each is looked up in its own.
       const original = project.documents
-        .flatMap((document) => document.instances)
-        .find((instance) => instance.id === id);
+        .find(
+          (document) =>
+            document.netlist?.name.toLowerCase() === cell.toLowerCase(),
+        )
+        ?.instances.find((instance) => instance.id === id);
       if (!original?.placement) continue;
       const document = drawn.documents.find(
         (item) => item.netlist?.name.toLowerCase() === cell.toLowerCase(),
@@ -1495,9 +1501,18 @@ describe("RNL round trip", () => {
     async (name) => {
       const project = example(name);
       const { project: drawn } = await roundTrip(project);
-      const cards = new Map(cardNames(project).map((item) => [item.id, item]));
+      // Instance ids repeat across Cells: a card is keyed by its Cell too.
+      const cards = new Map(
+        cardNames(project).map((item) => [
+          `${item.cell.toLowerCase()} ${item.id}`,
+          item,
+        ]),
+      );
       /** Each shown label by what it shows and where, as text. */
-      const shown = (from: CircuitProject, rename: (id: string) => string) =>
+      const shown = (
+        from: CircuitProject,
+        rename: (cell: string, id: string) => string,
+      ) =>
         from.documents.flatMap((document) => {
           const resolver = createProjectSymbolResolver(from, builtInSymbols);
           const profile = resolveDocumentStyleProfile(document.presentation);
@@ -1520,7 +1535,10 @@ describe("RNL round trip", () => {
               );
               const owner =
                 annotation.binding?.kind === "instance-reference"
-                  ? rename(annotation.binding.instanceId)
+                  ? rename(
+                      document.netlist?.name.toLowerCase() ?? "",
+                      annotation.binding.instanceId,
+                    )
                   : "";
               return `${document.netlist?.name.toLowerCase()} ${annotation.kind} ${owner} ${flattenRichText(text)} at ${Math.round(where.position.x)},${Math.round(where.position.y)} ${where.alignment}`;
             });
@@ -1528,11 +1546,12 @@ describe("RNL round trip", () => {
       const printed = new Set(
         [...cards.values()].map((item) => item.cell.toLowerCase()),
       );
-      const original = shown(project, (id) => cards.get(id)?.card ?? id).filter(
-        (line) => printed.has(line.split(" ")[0]!),
-      );
+      const original = shown(
+        project,
+        (cell, id) => cards.get(`${cell} ${id}`)?.card ?? id,
+      ).filter((line) => printed.has(line.split(" ")[0]!));
       expect(original.length).toBeGreaterThan(0);
-      expect(shown(drawn, (id) => id).sort()).toEqual(original.sort());
+      expect(shown(drawn, (_cell, id) => id).sort()).toEqual(original.sort());
     },
   );
 
@@ -2116,6 +2135,56 @@ describe("RNL round trip", () => {
         item.code.startsWith("RNL_IMPORT_SHAPE"),
       ),
     ).toEqual([expect.objectContaining({ code: "RNL_IMPORT_SHAPE_UNFILLED" })]);
+  });
+
+  it.each(["spice", "spectre"] as const)(
+    "carries the Cells the top does not call, with their drawings, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const { project: drawn } = await roundTrip(project, format);
+      const parts = (from: CircuitProject) =>
+        from.documents
+          .flatMap((document) =>
+            document.instances.map(
+              (instance) =>
+                `${document.netlist?.name} ${instance.reference ?? instance.symbolId} ${JSON.stringify(instance.placement)}`,
+            ),
+          )
+          .sort();
+      expect(drawn.documents.map((document) => document.netlist?.name)).toEqual(
+        expect.arrayContaining(["rc_lowpass", "rc_highpass"]),
+      );
+      expect(parts(drawn)).toEqual(parts(project));
+      expect(
+        drawn.documents.find((document) => document.id === drawn.topDocumentId)
+          ?.netlist?.name,
+      ).toBe("rc_lowpass");
+    },
+  );
+
+  it("leaves out a Cell that calls the top, which would no longer be the top, and says so", () => {
+    const project = example("simulation-rc");
+    const highpass = project.documents.find(
+      (document) => document.netlist?.name === "rc_highpass",
+    )!;
+    highpass.instances.push({
+      id: "XLOW",
+      reference: "XLOW",
+      symbolId: "hierarchical-symbol-unused",
+      placement: { position: { x: 500, y: 500 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: project.topDocumentId },
+        parameters: {},
+      },
+    });
+    const exported = createRnlExport(project, { format: "spice" });
+    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    expect(exported.request.netlist).not.toMatch(/\.subckt rc_highpass/u);
+    expect(
+      exported.diagnostics
+        .filter((item) => item.code === "RNL_CELL_NOT_WRITTEN")
+        .map((item) => item.objectIds),
+    ).toEqual([[highpass.id]]);
   });
 
   it("draws a port drawn several times with as many Cell Pins", async () => {

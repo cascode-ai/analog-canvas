@@ -44,6 +44,11 @@ the RNL language and its runtime belong to rnl.
 - The Netlist panel offers `SPICE+RNL` and `Spectre+RNL` beside `SPICE` and
   `SCS`. They print the same circuit with RNL records added; `SPICE` and `SCS`
   are unchanged. Another netlist dialect gets its own `<dialect>+RNL` format.
+- An RNL format also prints the Cells the top does not call, after the top,
+  so the file carries every Cell's drawing. A Cell that calls the top stays
+  out, since the file could no longer say which Cell is the top, and so does
+  every uncalled Cell when one of them would block the netlist; the export
+  names the Cells it leaves out (`RNL_CELL_NOT_WRITTEN`).
 - An RNL format is read-only in the panel; Copy and Save take its text.
 - Under an RNL format the panel carries an "About RNL" link to the
   introduction to RNL (<https://rich-netlist.github.io/rnl/en/>): a new tab in
