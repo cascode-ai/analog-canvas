@@ -50,6 +50,7 @@ import {
   contactRequiresJunctionDot,
   endpointKey,
   junctionForContact,
+  netLabelAliasClaim,
   diagnosticPresentationGroup,
   runErcChecks,
   resolveDraftingObjectGeometry,
@@ -1936,10 +1937,13 @@ function WorkspaceEditor({
     bulkDrawInstanceId,
   });
   const netChoices = useMemo(() => logicalNetChoices(document), [document]);
+  // A Net label showing a display alias still names its Net here.
   const selectedNetNameAnnotation =
-    selectedAnnotation?.binding?.kind === "net-name" &&
-    (selectedAnnotation.kind === "net-label" ||
-      selectedAnnotation.kind === "power-label")
+    selectedAnnotation &&
+    ((selectedAnnotation.binding?.kind === "net-name" &&
+      (selectedAnnotation.kind === "net-label" ||
+        selectedAnnotation.kind === "power-label")) ||
+      netLabelAliasClaim(document, selectedAnnotation))
       ? selectedAnnotation
       : (selectedRouteNetLabel ?? null);
   const selectedNetNameClaim = selectedNetNameAnnotation
@@ -6507,8 +6511,9 @@ function WorkspaceEditor({
                                 selectedInstance.symbolId,
                             ).length > 0 ||
                             selectedReviewedExternalBinding ||
-                            // A flip-flop takes only Cells: the field shows
-                            // once one fits, or while one is bound (#1689).
+                            // A flip-flop, op-amp or comparator takes only
+                            // Cells: the field shows once one fits, or while
+                            // one is bound (#1689, #1878).
                             (bindsProjectCell(selectedInstance.symbolId) &&
                               (selectedInstance.netlist.binding?.kind ===
                                 "subcircuit" ||

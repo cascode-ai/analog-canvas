@@ -52,10 +52,11 @@ restrictive CSP.
   everyone else for `Content-Signal: search=yes, ai-train=no` with
   `Disallow: /g/`. A user's own assistant fetching one page is not refused.
   `llms.txt` states the same policy to AI agents and lists no resource while
-  public Gallery documents are off; `sitemap.xml` stays 404. The Agent's
-  Gallery tool description carries the same sentence. The page shell carries
-  `<meta name="robots" content="noai, noimageai">` and a `<noscript>` note,
-  and the signed-in Gallery's footnote shows the note
+  public Gallery documents are off; `sitemap.xml` stays 404. The Agent's MCP
+  Gallery tool description states it in one clause pointing to `llms.txt`;
+  the HTTP Agent operation description carries the sentence. The page shell
+  carries `<meta name="robots" content="noai, noimageai">` and a `<noscript>`
+  note, and the signed-in Gallery's footnote shows the note
   (`apps/editor/src/usage-policy-note.ts`, the one source of that line).
 - Trap circuits (`worker/gallery-traps.ts`): a signed-in member's list page
   (`GET /api/gallery`, six circuits or more) carries one circuit whose id is
@@ -368,7 +369,10 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
   dataset in it (#1697): one order across the stores (each row's cursor resumes
   them all), totals, `filterCounts` and tag counts summed, `sources` each
   dataset's share of `total`, `authors` the community's. `source=community`
-  answers the community store alone (the duplicate and topology scans).
+  answers the community store alone: the duplicate and topology scans, and
+  the wall while the reader leaves the datasets out (the contributor list's
+  Datasets box unticked; kept with the other filters, in the link as
+  `source=community`).
 - Every write answers 403 `dataset-read-only`; entries have no owner or AI mark
   (they count under `datasets`, not `human`) and show no like or owner tools;
   an opened copy publishes as a new community entry.

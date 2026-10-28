@@ -4,7 +4,7 @@ import {
   type ProjectStructureEdit,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import { resolveAnnotationText } from "@icm/derived";
+import { aliasableNetLabelClaim, resolveAnnotationText } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import {
   flattenRichText,
@@ -353,4 +353,70 @@ export function planDisplayAlias(input: {
       },
     ],
   };
+}
+
+/**
+ * A Net label showing `alias`, text a netlist name cannot hold (the figure's
+ * VEA,OUT), while its Net keeps the name the label claims (VEA_OUT). The
+ * alias is the label's own text: its claim still names and joins the Net.
+ * Plain text takes a name's look, and the Net's own name names it again;
+ * RichText, the label editor's, is kept as written. Null or empty text shows
+ * the name again in its standard look; a hidden label is shown. The label as
+ * it becomes, or null when it already shows that (the Agent's
+ * set-display-alias and the label editor's display alias).
+ */
+export function planNetLabelAlias(input: {
+  document: SchematicDocument;
+  annotationId: string;
+  alias: string | RichTextDocument | null;
+}): { ok: true; label: Annotation | null } | { ok: false; message: string } {
+  const { document, annotationId } = input;
+  const label = document.annotations.find((item) => item.id === annotationId);
+  if (!label)
+    return { ok: false, message: `Annotation not found: ${annotationId}` };
+  if (label.kind !== "net-label")
+    return {
+      ok: false,
+      message: `${annotationId} is not a Net label; give a part's alias by its instanceId`,
+    };
+  const claim = aliasableNetLabelClaim(document, label);
+  if (!claim || !label.netId)
+    return {
+      ok: false,
+      message: `${annotationId} names no Net of its own, so it has no name to show an alias for`,
+    };
+  const {
+    binding: _binding,
+    content: _content,
+    formatOverride: _format,
+    visible: _visible,
+    ...rest
+  } = label;
+  const text =
+    typeof input.alias === "string"
+      ? input.alias.trim()
+      : input.alias
+        ? flattenRichText(input.alias).trim()
+        : "";
+  const content =
+    typeof input.alias === "string"
+      ? text === claim.name
+        ? undefined
+        : (roleLabelFormat("voltage-node", text) ??
+          labelTextDocument(text, document.presentation))
+      : input.alias;
+  if (!text || !content) {
+    if (label.binding?.kind === "net-name" && label.visible !== false)
+      return { ok: true, label: null };
+    const standard = roleLabelFormat("voltage-node", claim.name);
+    return {
+      ok: true,
+      label: {
+        ...rest,
+        binding: { kind: "net-name", netId: label.netId },
+        ...(standard ? { formatOverride: standard } : {}),
+      },
+    };
+  }
+  return { ok: true, label: { ...rest, content } };
 }

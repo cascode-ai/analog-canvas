@@ -16,6 +16,7 @@ import {
   placeComponentAt,
   renameProject,
   openEditor,
+  readAgentClaim,
   renameShelfProject,
 } from "./editor-fixtures";
 import { sessionUser, signIn } from "./gallery-fixtures";
@@ -1231,11 +1232,7 @@ test("external tab activation cannot discard the focused name draft", async ({
   await renameProject(page, "Project B");
   await page.getByTestId("open-agent").click();
   const panel = page.getByTestId("connect-agent-panel");
-  const message = panel.getByTestId("agent-copy-text");
-  await expect(message).toHaveValue(/Claim: /);
-  const { claimCode } = JSON.parse(
-    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
-  );
+  const { claimCode } = await readAgentClaim(panel);
   const client = new AgentHttpClient({ baseUrl: baseURL! });
   const session = await client.claim(claimCode);
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");

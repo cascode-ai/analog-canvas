@@ -241,11 +241,12 @@ describe("drafting layer rendering", () => {
     expect(svg).toContain("data-icm-formula=");
     expect(svg).toContain("<path");
     expect(svg).not.toContain("<foreignObject");
+    // At a quarter turn the formula turns with its text.
     expect(
       svg.match(
         /<g data-object-id="formula-1" data-kind="draft-text"[^>]*>/u,
       )?.[0],
-    ).not.toContain("transform=");
+    ).toContain('transform="rotate(90 100 100)"');
   });
 
   it.each([
@@ -349,8 +350,8 @@ describe("drafting layer rendering", () => {
     expect(run).not.toMatch(/<tspan [^>]*\bx="/u);
   });
 
-  it("keeps ordinary glyphs and fractions upright at nonzero rotation", () => {
-    const document = createEmptyDocument("doc", "Upright drafting text");
+  it("turns free text and fractions at a quarter turn, and keeps them upright at a half turn", () => {
+    const document = createEmptyDocument("doc", "Turned drafting text");
     document.drafting = {
       objects: [
         {
@@ -391,12 +392,19 @@ describe("drafting layer rendering", () => {
     const fraction = svg.match(
       /<g data-object-id="fraction" data-kind="draft-text"[^>]*>/u,
     )?.[0];
-    expect(glyph).toBeDefined();
-    expect(glyph).not.toContain("transform=");
+    expect(glyph).toContain('transform="rotate(90 40 40)"');
     expect(svg).toContain(">&gt;</text>");
-    expect(fraction).toBeDefined();
-    expect(fraction).not.toContain("transform=");
+    expect(fraction).toContain('transform="rotate(270 80 40)"');
     expect(svg).toContain('data-role="fraction-bar"');
+    // Upside down reads worse than across: a half turn draws it upright.
+    const half = structuredClone(document);
+    const glyphText = half.drafting!.objects[0]!;
+    if (glyphText.kind === "text") glyphText.rotation = 180;
+    expect(
+      renderDocumentSvg(half, resolver).match(
+        /<text data-object-id="greater-than" data-kind="draft-text"[^>]*>/u,
+      )?.[0],
+    ).not.toContain("transform=");
   });
 
   it("sizes a formula overbar using its whole-text italic override", () => {

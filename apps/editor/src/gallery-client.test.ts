@@ -41,6 +41,13 @@ it("loads the linked wall's complete query, including source, text and both nega
   expect(asked).toEqual([`/api/gallery?${galleryFeedQueryKey(query)}`]);
 });
 
+it("asks for the community's circuits alone while the datasets are hidden", () => {
+  const hidden = resolveGalleryFilters("?source=community&ai=0", null);
+  expect(
+    galleryFeedQueryKey(galleryQueryFromFilters(hidden, { order: "newest" })),
+  ).toBe("source=community&ai=0");
+});
+
 class FakeBroadcastChannel {
   static readonly channels = new Map<string, Set<FakeBroadcastChannel>>();
 

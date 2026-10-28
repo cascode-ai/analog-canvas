@@ -149,7 +149,8 @@ export function deriveSelectionInspectionModel({
         object?.kind === "arrow" ||
         object?.kind === "construction-line" ||
         object?.kind === "rectangle" ||
-        (object?.kind === "text" && object.polarity === "both")
+        (object?.kind === "text" &&
+          (object.polarity === "both" || !object.polarity))
       );
     });
   // A mirror carries the whole selection — wires, Junctions, labels and
