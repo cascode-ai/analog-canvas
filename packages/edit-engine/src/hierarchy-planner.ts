@@ -26,7 +26,10 @@ import {
 } from "@icm/symbols";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import { requireDocument, transactDocument } from "./cell-document-edits.js";
-import { resizeCellSymbolPresentation } from "./cell-symbol-layout.js";
+import {
+  resizeCellSymbolPresentation,
+  type CellSymbolBodySize,
+} from "./cell-symbol-layout.js";
 
 export interface SubcircuitInterfaceProposal {
   readonly source: {
@@ -516,10 +519,12 @@ export function planSetCellSymbolPins(
 }
 
 /**
- * Size a Cell's block body (#1879), as the editor's resize does
+ * Size a Cell's block body (#1879), storing it as the editor's resize does
  * (resizeCellSymbolPresentation), on the layout its callers see: a placed
  * Cell's stored one; an unplaced Cell's, the one its first placement would
- * store, kept whole so that placement keeps the size. A centred body's
+ * store, kept whole so that placement keeps the size and its Pins (as
+ * planSetCellSymbolPins keeps them). Unlike the editor's resize, it checks
+ * the size: a centred body's
  * edges stand on the 10-unit grid at multiples of 20, explicit edges at
  * multiples of 10. A size too small is refused with the smallest that fits:
  * room for the Pins and their names, as a first placement fits them, or,
@@ -531,7 +536,7 @@ export function planSetCellSymbolPins(
 export function planSetCellSymbolSize(
   project: CircuitProject,
   documentId: string,
-  size: { readonly width: number; readonly height: number },
+  size: CellSymbolBodySize,
 ): ProjectStructureEdit[] {
   const document = requireDocument(project, documentId);
   if (!document.netlist) throw new Error(`Cell does not exist: ${documentId}`);
@@ -540,6 +545,26 @@ export function planSetCellSymbolSize(
     ? document.presentation.cellSymbol
     : unplacedCellSymbol(document);
   const bounds = layout?.bodyBounds;
+  const terminals = projectCellSymbolTerminals(document);
+  let fits: CellSymbolBodySize;
+  if (bounds) {
+    // Edges keep their top-left corner; each Pin stays 10 from a corner.
+    const slots = hierarchicalBlockPinSlots(terminals, layout);
+    const farthestPin = (sides: readonly CellSymbolSide[]) =>
+      Math.max(
+        -Infinity,
+        ...slots
+          .filter((slot) => sides.includes(slot.side))
+          .map((slot) => slot.offset + 10),
+      );
+    fits = {
+      width: Math.max(20, farthestPin(["north", "south"]) - bounds.left),
+      height: Math.max(20, farthestPin(["west", "east"]) - bounds.top),
+    };
+  } else {
+    const { minimumBodySize: _stored, ...unsized } = layout ?? {};
+    fits = hierarchicalBlockBodySize(terminals, unsized, { fitNames: true });
+  }
   for (const axis of ["width", "height"] as const) {
     const value = size[axis];
     if (!Number.isInteger(value) || value <= 0)
@@ -552,38 +577,14 @@ export function planSetCellSymbolSize(
       );
     if (!bounds && value % 20 !== 0) {
       const below = Math.floor(value / 20) * 20;
+      const fitting = [below, below + 20].filter((item) => item >= fits[axis]);
       throw new Error(
-        `${cell}'s block is centred on its origin, so a ${axis} of ${value} puts its edges off the 10-unit grid: use a multiple of 20, such as ${[
-          below,
-          below + 20,
-        ]
-          .filter((item) => item > 0)
-          .join(" or ")}. Nothing was changed.`,
+        `${cell}'s block is centred on its origin, so a ${axis} of ${value} puts its edges off the 10-unit grid: use a multiple of 20, such as ${(fitting.length
+          ? fitting
+          : [fits[axis]]
+        ).join(" or ")}. Nothing was changed.`,
       );
     }
-  }
-  const terminals = projectCellSymbolTerminals(document);
-  let fits: { width: number; height: number };
-  if (bounds) {
-    // Edges keep their top-left corner; each Pin stays 10 from a corner.
-    const slots = hierarchicalBlockPinSlots(terminals, layout);
-    const reach = (vertical: boolean) =>
-      Math.max(
-        -Infinity,
-        ...slots
-          .filter(
-            (slot) =>
-              (slot.side === "west" || slot.side === "east") === vertical,
-          )
-          .map((slot) => slot.offset + 10),
-      );
-    fits = {
-      width: Math.max(20, reach(false) - bounds.left),
-      height: Math.max(20, reach(true) - bounds.top),
-    };
-  } else {
-    const { minimumBodySize: _stored, ...free } = layout ?? {};
-    fits = hierarchicalBlockBodySize(terminals, free, { fitNames: true });
   }
   if (size.width < fits.width || size.height < fits.height)
     throw new Error(

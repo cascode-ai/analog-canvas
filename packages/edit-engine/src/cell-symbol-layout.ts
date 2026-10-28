@@ -13,6 +13,9 @@ import {
 export type CellSymbolBodyBounds = NonNullable<
   CellSymbolPresentation["bodyBounds"]
 >;
+export type CellSymbolBodySize = NonNullable<
+  CellSymbolPresentation["minimumBodySize"]
+>;
 export type CellSymbolGrip =
   CellSymbolSide | "north-west" | "north-east" | "south-west" | "south-east";
 export type BlockSymbolLayoutAction =
@@ -178,7 +181,7 @@ export function proposeBlockSymbolLayout(
  */
 export function resizeCellSymbolPresentation(
   presentation: CellSymbolPresentation | undefined,
-  size: { readonly width: number; readonly height: number },
+  size: CellSymbolBodySize,
 ): CellSymbolPresentation {
   const { width, height } = size;
   return {
