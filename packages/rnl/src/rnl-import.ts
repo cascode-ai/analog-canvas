@@ -1114,6 +1114,30 @@ function applyLevel(
    * same size: a SKY130 size prints in micrometres, 0.15 for 0.15u, and
    * reads back as 150n.
    */
+  /**
+   * A parameter the editor keeps that the card does not print (Canvas 0.4),
+   * given again where the netlist import did not bring it: a source's fields
+   * of other waveforms, an op-amp's rails. A parameter the card prints is
+   * the card's.
+   */
+  const keepAgain = (object: RnlObjectView) => {
+    const part = object.attach?.["part"];
+    const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+    const instance = card === null ? undefined : instanceOf(card);
+    const name = object.params?.["name"];
+    const text = object.params?.["text"];
+    const parameters = instance?.netlist?.parameters;
+    if (
+      !parameters ||
+      typeof name !== "string" ||
+      typeof text !== "string" ||
+      Object.keys(parameters).some(
+        (key) => key.toLowerCase() === name.toLowerCase(),
+      )
+    )
+      return;
+    parameters[name] = text;
+  };
   const textAgain = (object: RnlObjectView) => {
     const part = object.attach?.["part"];
     const card = typeof part === "string" ? rnlIdName(part, "#") : null;
@@ -1183,6 +1207,10 @@ function applyLevel(
     if (object.definition === "$CANVAS_TYPOGRAPHY") continue; // with the texts
     if (object.definition === "$CANVAS_PARAMETER_TEXT") {
       textAgain(object);
+      continue;
+    }
+    if (object.definition === "$CANVAS_PARAMETER") {
+      keepAgain(object);
       continue;
     }
     if (LATER.has(object.definition)) {

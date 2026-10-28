@@ -1637,6 +1637,48 @@ describe("RNL round trip", () => {
   });
 
   it.each(["spice", "spectre"] as const)(
+    "keeps the parameters the card does not print, a source's other waveforms and an op-amp's rails, through %s+RNL",
+    async (format) => {
+      const rc = example("simulation-rc");
+      const source = rc.documents
+        .flatMap((document) => document.instances)
+        .find((instance) => instance.reference === "V1")!;
+      // Set to dc, it keeps its pulse fields and a sine's for later.
+      source.netlist!.parameters = {
+        ...source.netlist!.parameters,
+        waveform: "dc",
+        frequency: "1k",
+      };
+      const amp = example("two-stage-op-amp");
+      const opamp = amp.documents
+        .flatMap((document) => document.instances)
+        .find((instance) => instance.symbolId === "opamp")!;
+      opamp.netlist!.parameters = {
+        ...opamp.netlist!.parameters,
+        vhigh: "VDD",
+        vlow: "VSS",
+      };
+      for (const [project, original] of [
+        [rc, source],
+        [amp, opamp],
+      ] as const) {
+        const { project: drawn } = await roundTrip(project, format);
+        const part = drawn.documents
+          .flatMap((document) => document.instances)
+          .find(
+            (instance) =>
+              instance.reference === original.reference ||
+              instance.reference === `X${original.reference}`,
+          );
+        // The card prints an AC phase of 0, the default, either way.
+        const { acPhase, ...parameters } = part?.netlist?.parameters ?? {};
+        expect(acPhase ?? "0").toBe("0");
+        expect(parameters).toEqual(original.netlist!.parameters);
+      }
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "keeps a drawing text's typography role and its size within it, through %s+RNL",
     async (format) => {
       const project = example("simulation-rc");

@@ -111,26 +111,8 @@ const WAVEFORM_FIELDS: Readonly<Record<string, readonly string[]>> = {
 function comparedParameters(
   instance: DesignNetlistInstance,
 ): DesignNetlistParameter[] {
-  if (
-    instance.invocationKind !== "primitive" ||
-    (instance.deviceClass !== "voltage-source" &&
-      instance.deviceClass !== "current-source")
-  )
-    return instance.parameters;
-  const waveform =
-    instance.parameters
-      .find((item) => item.name.toLowerCase() === "waveform")
-      ?.rawValue.trim()
-      .toLowerCase() ?? "dc";
-  const fields = WAVEFORM_FIELDS[waveform];
-  if (!fields) return instance.parameters;
-  const current = new Set(fields.map((name) => name.toLowerCase()));
-  const unprinted = new Set(
-    Object.values(WAVEFORM_FIELDS)
-      .flat()
-      .map((name) => name.toLowerCase())
-      .filter((name) => !current.has(name)),
-  );
+  const unprinted = unprintedSourceFields(instance);
+  if (!unprinted) return instance.parameters;
   return instance.parameters.filter((item) => {
     const name = item.name.toLowerCase();
     return (
@@ -138,6 +120,36 @@ function comparedParameters(
       !(name === "acphase" && numericValue(item.rawValue) === "0")
     );
   });
+}
+
+/**
+ * The fields, folded to lower case, of the waveforms an independent source
+ * is not set to, which the editor keeps and the netlist does not print;
+ * null for any other part, or a waveform the editor does not know.
+ */
+export function unprintedSourceFields(
+  instance: DesignNetlistInstance,
+): ReadonlySet<string> | null {
+  if (
+    instance.invocationKind !== "primitive" ||
+    (instance.deviceClass !== "voltage-source" &&
+      instance.deviceClass !== "current-source")
+  )
+    return null;
+  const waveform =
+    instance.parameters
+      .find((item) => item.name.toLowerCase() === "waveform")
+      ?.rawValue.trim()
+      .toLowerCase() ?? "dc";
+  const fields = WAVEFORM_FIELDS[waveform];
+  if (!fields) return null;
+  const current = new Set(fields.map((name) => name.toLowerCase()));
+  return new Set(
+    Object.values(WAVEFORM_FIELDS)
+      .flat()
+      .map((name) => name.toLowerCase())
+      .filter((name) => !current.has(name)),
+  );
 }
 
 /**

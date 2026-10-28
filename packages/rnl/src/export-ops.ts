@@ -28,6 +28,7 @@ import {
 } from "@icm/model";
 import {
   normalizeIndependentSource,
+  unprintedSourceFields,
   printedParameterConversion,
   restorePrintedParameter,
   spectreNumber,
@@ -365,6 +366,34 @@ const SPECTRE_SOURCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
   sin: ["offset", "amplitude", "frequency", "delay", "damping", "phase"],
   pwl: ["dc"],
 };
+
+/**
+ * The parameters of a part the editor keeps and its card does not print: a
+ * source's fields of the waveforms it is not set to, and its waveform where
+ * that is dc, which a card without one is; any other part's parameters its
+ * card has none of, such as an op-amp's rails, which choose its body.
+ */
+function unprintedParameters(
+  cell: DesignNetlistCell,
+  instance: Instance,
+): { name: string; text: string }[] {
+  const printed = cell.instances.find((item) => item.id === instance.id);
+  if (!printed) return [];
+  const fields = unprintedSourceFields(printed);
+  const names = new Set(
+    printed.parameters.map((item) => item.name.toLowerCase()),
+  );
+  return Object.entries(instance.netlist?.parameters ?? {}).flatMap(
+    ([name, text]) => {
+      const folded = name.toLowerCase();
+      const unprinted = fields
+        ? fields.has(folded) ||
+          (folded === "waveform" && text.trim().toLowerCase() === "dc")
+        : !names.has(folded);
+      return unprinted ? [{ name, text }] : [];
+    },
+  );
+}
 
 /**
  * The parameters of a part the netlist writes as other text than the
@@ -780,6 +809,18 @@ function exportCell(
         level,
         op: "add-usage",
         definition: "$CANVAS_PARAMETER_TEXT",
+        attach: { part: object },
+        params: { name, text },
+      });
+    }
+    // Each parameter the editor keeps that the card does not print, by the
+    // editor's name for it (Canvas 0.4).
+    for (const { name, text } of unprintedParameters(cell, instance)) {
+      packages.add(AC_PACKAGE);
+      ops.push({
+        level,
+        op: "add-usage",
+        definition: "$CANVAS_PARAMETER",
         attach: { part: object },
         params: { name, text },
       });

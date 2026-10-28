@@ -133,6 +133,7 @@ describe("RNL export of the simulation examples", () => {
             "$CANVAS_NAME",
             "$CANVAS_TYPESETTING",
             "$CANVAS_LABEL",
+            "$CANVAS_PARAMETER",
           ].includes(op.definition)
         )
           expect(op.orient, op.name).toBeDefined();

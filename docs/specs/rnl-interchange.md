@@ -159,6 +159,11 @@ the RNL language and its runtime belong to rnl.
   it reads `100f`, as `c`, `val1`), a source's fields only for its waveform.
   A drawing text's or callout's typography role is given on the text, named
   for it (`$CANVAS_TYPOGRAPHY`, since 0.4), its size as well.
+  Each parameter the editor keeps that the card does not print is given on
+  the part by the editor's name for it (`$CANVAS_PARAMETER`, since 0.4): a
+  source's fields of the waveforms it is not set to, and its waveform where
+  that is dc; any other part's parameters its card has none of, such as an
+  op-amp's rails, which choose its body.
 - A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
   a `$CURRENT_ARROW` mark with its label hung on it, and a voltage marker its
   label with + and − beside it, all where the editor draws them. A floating
@@ -292,6 +297,8 @@ the RNL language and its runtime belong to rnl.
     in micrometres; it belongs to the part, so it stands whether the drawing
     comes in or not, and another text leaves the netlist's with
     `RNL_IMPORT_PARAMETER_TEXT`;
+  - a parameter the card does not print (`$CANVAS_PARAMETER`) where the
+    netlist import did not bring it; one the card prints is the card's;
   - a label as it was drawn: a part's name that is not its reference (M1 on
     the card XM1) is the label's own text; a net's or power label hangs
     where its record attaches it, on the wire's route, or on the part,
