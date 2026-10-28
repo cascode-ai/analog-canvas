@@ -17,6 +17,8 @@ import {
   cellSymbolPinSlots,
   externalSubcircuitSymbolId,
   freeHierarchicalBlockOffsets,
+  hierarchicalBlockBodySize,
+  hierarchicalBlockPinSlots,
   hierarchicalSymbolId,
   placedCellDocumentIds,
   projectCellSymbolTerminals,
@@ -24,6 +26,10 @@ import {
 } from "@icm/symbols";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import { requireDocument, transactDocument } from "./cell-document-edits.js";
+import {
+  resizeCellSymbolPresentation,
+  type CellSymbolBodySize,
+} from "./cell-symbol-layout.js";
 
 export interface SubcircuitInterfaceProposal {
   readonly source: {
@@ -510,4 +516,82 @@ export function planSetCellSymbolPins(
         : [];
     }),
   });
+}
+
+/**
+ * Size a Cell's block body (#1879), storing it as the editor's resize does
+ * (resizeCellSymbolPresentation), on the layout its callers see: a placed
+ * Cell's stored one; an unplaced Cell's, the one its first placement would
+ * store, kept whole so that placement keeps the size and its Pins (as
+ * planSetCellSymbolPins keeps them). Unlike the editor's resize, it checks
+ * the size: a centred body's
+ * edges stand on the 10-unit grid at multiples of 20, explicit edges at
+ * multiples of 10. A size too small is refused with the smallest that fits:
+ * room for the Pins and their names, as a first placement fits them, or,
+ * inside explicit edges, for the Pins. A stored minimum does not count, so a
+ * block a fitted size keeps large can shrink. Planned through
+ * planSetCellSymbolPresentation, so callers keep their Nets and the wiring
+ * the change stretches is redrawn clear.
+ */
+export function planSetCellSymbolSize(
+  project: CircuitProject,
+  documentId: string,
+  size: CellSymbolBodySize,
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  if (!document.netlist) throw new Error(`Cell does not exist: ${documentId}`);
+  const cell = document.netlist.name;
+  const layout = placedCellDocumentIds(project).has(document.id)
+    ? document.presentation.cellSymbol
+    : unplacedCellSymbol(document);
+  const bounds = layout?.bodyBounds;
+  const terminals = projectCellSymbolTerminals(document);
+  let fits: CellSymbolBodySize;
+  if (bounds) {
+    // Edges keep their top-left corner; each Pin stays 10 from a corner.
+    const slots = hierarchicalBlockPinSlots(terminals, layout);
+    const farthestPin = (sides: readonly CellSymbolSide[]) =>
+      Math.max(
+        -Infinity,
+        ...slots
+          .filter((slot) => sides.includes(slot.side))
+          .map((slot) => slot.offset + 10),
+      );
+    fits = {
+      width: Math.max(20, farthestPin(["north", "south"]) - bounds.left),
+      height: Math.max(20, farthestPin(["west", "east"]) - bounds.top),
+    };
+  } else {
+    const { minimumBodySize: _stored, ...unsized } = layout ?? {};
+    fits = hierarchicalBlockBodySize(terminals, unsized, { fitNames: true });
+  }
+  for (const axis of ["width", "height"] as const) {
+    const value = size[axis];
+    if (!Number.isInteger(value) || value <= 0)
+      throw new Error(
+        `${cell}'s block ${axis} ${value} is not a positive whole number. Nothing was changed.`,
+      );
+    if (bounds && value % 10 !== 0)
+      throw new Error(
+        `${cell}'s block keeps its edges on the 10-unit grid: a ${axis} of ${value} is not a multiple of 10. Nothing was changed.`,
+      );
+    if (!bounds && value % 20 !== 0) {
+      const below = Math.floor(value / 20) * 20;
+      const fitting = [below, below + 20].filter((item) => item >= fits[axis]);
+      throw new Error(
+        `${cell}'s block is centred on its origin, so a ${axis} of ${value} puts its edges off the 10-unit grid: use a multiple of 20, such as ${(fitting.length
+          ? fitting
+          : [fits[axis]]
+        ).join(" or ")}. Nothing was changed.`,
+      );
+    }
+  }
+  if (size.width < fits.width || size.height < fits.height)
+    throw new Error(
+      `${cell}'s Pins${bounds ? "" : " and their names"} need a body at least ${fits.width} wide and ${fits.height} high; ${size.width} x ${size.height} is too small. Nothing was changed.`,
+    );
+  const next = resizeCellSymbolPresentation(layout, size);
+  if (JSON.stringify(next) === JSON.stringify(document.presentation.cellSymbol))
+    return [];
+  return planSetCellSymbolPresentation(project, documentId, next);
 }

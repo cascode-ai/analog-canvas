@@ -18,6 +18,8 @@ import {
   planPlaceCellInstance,
   planRenameCell,
   planSetCellSymbolPins,
+  planSetCellSymbolPresentation,
+  planSetCellSymbolSize,
 } from "./hierarchy-planner.js";
 import {
   planCreateCellPin,
@@ -2630,5 +2632,65 @@ describe("arranging a Cell's block Pins by name (#1320)", () => {
     expect(() =>
       pins(project, [{ name: "bl", side: "east", offset: 15 }]),
     ).toThrow("bl's offset 15 is not a multiple of 10. Nothing was changed.");
+  });
+
+  describe("sizing the block (#1879)", () => {
+    /** The block's body, from its drawn polygon. */
+    const body = (project: Project) => {
+      const polygon = createProjectHierarchicalSymbols(project)
+        .find((symbol) => symbol.id === hierarchicalSymbolId("sram6t"))!
+        .primitives.find((primitive) => primitive.kind === "polygon")!;
+      const points = polygon.kind === "polygon" ? polygon.points : [];
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      return {
+        left: Math.min(...xs),
+        right: Math.max(...xs),
+        top: Math.min(...ys),
+        bottom: Math.max(...ys),
+      };
+    };
+    const size = (project: Project, width: number, height: number) =>
+      planSetCellSymbolSize(project, "sram6t", { width, height });
+
+    it("offers only off-grid neighbours that fit (#1879)", () => {
+      // Placed, the block is 80 x 100: VDD and VSS have room for their names.
+      expect(() => size(placed(), 70, 100)).toThrow(
+        "sram6t's block is centred on its origin, so a width of 70 puts its edges off the 10-unit grid: use a multiple of 20, such as 80. Nothing was changed.",
+      );
+      expect(() => size(placed(), 80, 130)).toThrow(
+        "such as 120 or 140. Nothing was changed.",
+      );
+    });
+
+    it("moves explicit edges from their top-left corner, as far in as the Pins allow (#1879)", () => {
+      let project = placed();
+      const stored = project.documents[1]!.presentation.cellSymbol!;
+      project = commit(
+        project,
+        planSetCellSymbolPresentation(project, "sram6t", {
+          pinPlacements: stored.pinPlacements,
+          bodyBounds: { left: -40, right: 40, top: -50, bottom: 50 },
+        }),
+      );
+      // Explicit edges take any multiple of 10.
+      expect(() => size(project, 95, 70)).toThrow(
+        "sram6t's block keeps its edges on the 10-unit grid: a width of 95 is not a multiple of 10. Nothing was changed.",
+      );
+      // VDD at 0 on top stands 10 from the corner at a right edge of 10; wl
+      // at 10 on the left, at a bottom edge of 20.
+      expect(() => size(project, 40, 70)).toThrow(
+        "sram6t's Pins need a body at least 50 wide and 70 high; 40 x 70 is too small. Nothing was changed.",
+      );
+      project = commit(project, size(project, 50, 70));
+      expect(body(project)).toEqual({
+        left: -40,
+        right: 10,
+        top: -50,
+        bottom: 20,
+      });
+      expect(block(project)).toMatchObject({ wl: "west 10", VDD: "north 0" });
+      expect(size(project, 50, 70)).toEqual([]);
+    });
   });
 });

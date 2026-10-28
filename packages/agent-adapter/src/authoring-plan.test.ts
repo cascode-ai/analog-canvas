@@ -87,6 +87,18 @@ describe("planning an action list", () => {
     ).toMatchObject({ kind: "refused", actionIndex: 0, actionKind: "schema" });
   });
 
+  it("sends a Cell's block size as its command, for the editor to check against the Pins (#1879)", () => {
+    const action = { kind: "set-cell-symbol-size", width: 120, height: 80 };
+    expect(planBlind([action])).toMatchObject({
+      kind: "send",
+      readSnapshot: false,
+      payload: { command: action },
+    });
+    expect(
+      planBlind([{ kind: "set-cell-symbol-size", width: 120 }]),
+    ).toMatchObject({ kind: "refused", actionIndex: 0, actionKind: "schema" });
+  });
+
   it("sends a label preset for the whole Cell or parts by ID as its command, without the Document (#1350)", () => {
     expect(
       planBlind([{ kind: "apply-label-preset", preset: "textbook" }]),
