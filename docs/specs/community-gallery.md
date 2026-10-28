@@ -55,8 +55,8 @@ restrictive CSP.
   public Gallery documents are off; `sitemap.xml` stays 404. The Agent's MCP
   Gallery tool description states it in one clause pointing to `llms.txt`;
   the HTTP Agent operation description carries the sentence. The page shell
-  carries `<meta name="robots" content="noai, noimageai">` and a `<noscript>` note,
-  and the signed-in Gallery's footnote shows the note
+  carries `<meta name="robots" content="noai, noimageai">` and a `<noscript>`
+  note, and the signed-in Gallery's footnote shows the note
   (`apps/editor/src/usage-policy-note.ts`, the one source of that line).
 - Trap circuits (`worker/gallery-traps.ts`): a signed-in member's list page
   (`GET /api/gallery`, six circuits or more) carries one circuit whose id is

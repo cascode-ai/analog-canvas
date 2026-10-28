@@ -200,7 +200,7 @@ Tool descriptions cover each action; these are the extra rules.
   reason names, then `update` with its `galleryEntryId` and `takeOver:true` to
   publish your redraw under your own name. The redraw keeps the entry's status:
   a rejected one stays rejected until the Owner restores it. A person's circuit
-  is never listed there or taken over; a person's session gets
+  is never listed there or taken over; a person's session listing them gets
   `AI_ACCOUNT_REQUIRED`.
 - `project_code` and `netlist_code` reads return the requested export plus
   each Cell in `cells`, so one broken Cell cannot hide another.
@@ -237,15 +237,12 @@ answering each with one line.
 
 The tool description lists actions and write fields; additionally:
 
-- For the open GUI candidate use `authoring-read/update/save/apply`; send the
-  returned `target` and `expectedCandidateRevision` on writes. Update replaces
-  the raw input with a complete `candidate`, invalid text included; save keeps
-  a non-executable draft; Apply with `dryRun` validates through the GUI
-  planner. See the shared
+- Authoring: update replaces the raw input with a complete `candidate`,
+  invalid text included; save keeps a non-executable draft; Apply with
+  `dryRun` validates through the GUI planner. See the shared
   [authoring rules](../shared/authoring.md#external-model-sources).
-- Capabilities do not certify simulation. Library `publish`/`update` act as
-  the signed-in Editor account; `inspect` returns a capture's origin and
-  destination.
+- `read` returns the complete package and its SHA-256; capabilities do not
+  certify simulation. `inspect` returns a capture's origin and destination.
 - `browse` with `catalog:{version:1,type,authorId?,order}` filters/sorts the
   whole library before paging. `ifCatalogRevision` revalidates a complete
   cached query; `notModified` carries no entries. Cursors bind the query and
@@ -263,7 +260,8 @@ The tool description lists actions and write fields; additionally:
   under `publicationVersion:1`); an identical update keeps the revision.
   `publicationVersion:1` returns `outcome`, `recovered`, `association` and
   duplicate references.
-- After an unknown publication outcome retry with identical inputs, the same
+- Library `publish`/`update` act as the signed-in Editor account. After an
+  unknown publication outcome retry with identical inputs, the same
   `idempotencyKey` (kept seven days) and the original account, even after
   local edits; reuse `requestId` for any uncertain write. A pending
   association is already public: recover it, never republish. Project undo
