@@ -66,7 +66,8 @@ gate.
   interfaces reconcile atomically (a surviving old-name group leaves callers
   alone; joining an existing group detaches the vanishing caller pin). A
   case-folded duplicate is valid and never `merge_nets`. Formatting-only edits
-  upsert `Annotation.formatOverride`.
+  upsert `Annotation.formatOverride`. A display alias's edits change only its
+  text ([names and labels](names-and-labels.md#two-facts)).
 - `set_instance_binding` and `patch_instance_netlist_parameters` are the
   netlist field writers; `bulk_patch_instance_netlist` is the bounded
   multi-instance form; `set_instance_netlist` (whole record) is for

@@ -344,6 +344,37 @@ describe("property edit planner", () => {
     expect(labelFor("VBP", imported)?.formatOverride).toBeUndefined();
   });
 
+  it("renames the Net of a Net label showing a display alias and keeps the alias (#1880)", () => {
+    const input = routedFixture();
+    const alias = { runs: [{ kind: "text" as const, value: "VEA,OUT" }] };
+    input.document.annotations.push({
+      id: "net-label-route",
+      kind: "net-label",
+      content: alias,
+      netId: "net",
+      anchor: { kind: "free", position: { x: 50, y: -10 } },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    input.document.connectivityEvidence.push({
+      id: "claim-route",
+      kind: "name-claim",
+      netId: "net",
+      name: "VEA_OUT",
+      owner: { kind: "net-label", annotationId: "net-label-route" },
+      scope: "local",
+    });
+    const label = createPropertyEditPlanner(input)
+      .netLabelEditsForRoute(input.document.routes[0]!, "VEA_OUT2")
+      ?.flatMap((edit) =>
+        edit.kind === "upsert_schematic_annotation" ? [edit.annotation] : [],
+      )[0];
+    expect(label).toMatchObject({ id: "net-label-route", content: alias });
+    expect(label?.binding).toBeUndefined();
+    expect(label?.formatOverride).toBeUndefined();
+  });
+
   it("commits the same route attachment resolved by the L-command preview", () => {
     const input = routedFixture();
     const planner = createPropertyEditPlanner(input);

@@ -224,6 +224,34 @@ describe("bound annotation text", () => {
     expect(annotation.anchor).toEqual(before);
   });
 
+  it("names a Net label's alias by its Net name, never by the text it shows (#1880)", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push({ id: "net-ea", terminals: [] });
+    const annotation: Annotation = {
+      id: "label-ea",
+      kind: "net-label",
+      content: plainNameDocument("VEA,OUT"),
+      netId: "net-ea",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    document.connectivityEvidence.push({
+      id: "claim-ea",
+      kind: "name-claim",
+      netId: "net-ea",
+      name: "VEA_OUT",
+      owner: { kind: "net-label", annotationId: annotation.id },
+      scope: "local",
+    });
+
+    expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
+      "VEA,OUT",
+    );
+    expect(resolveAnnotationName(document, annotation)).toBe("VEA_OUT");
+  });
+
   it("keeps a visible master label as ordinary attached text", () => {
     const document = createEmptyDocument("document-main", "Main");
     const annotation = {

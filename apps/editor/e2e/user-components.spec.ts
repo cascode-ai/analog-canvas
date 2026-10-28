@@ -7,6 +7,7 @@ import {
   openCellManagerTab,
   openProjectFile as openFile,
   openEditor,
+  readAgentClaim,
 } from "./editor-fixtures";
 import { openSelectionShelf, placeComponent } from "./manual-editor-fixtures";
 import { placedInstance, onScreen, drawWire } from "./canvas-fixtures";
@@ -233,14 +234,11 @@ async function markNoConnect(page: Page, terminal: string) {
 async function pairAgent(page: Page, baseUrl: string) {
   await page.getByTestId("open-agent").click();
   const panel = page.getByTestId("connect-agent-panel");
-  const claim = panel.getByTestId("agent-copy-text");
-  await expect(claim).toHaveValue(/Claim: /, { timeout: 45_000 });
+  const { claimCode } = await readAgentClaim(panel);
   const client = new AgentSessionClient({
     http: new AgentHttpClient({ baseUrl }),
   });
-  await client.connect(
-    JSON.parse(/^Claim: (.+)$/mu.exec(await claim.inputValue())![1]!).claimCode,
-  );
+  await client.connect(claimCode);
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   return client;
 }
@@ -1464,15 +1462,11 @@ test("Agent and GUI share the open candidate while applied netlists advance only
   await expect(button(editor, "Copy task")).toHaveCount(0);
   await button(editor, "Connect Agent").click();
   const panel = editor.getByTestId("connect-agent-panel");
-  const handoff = panel.getByTestId("agent-copy-text");
-  await expect(handoff).toHaveValue(/Claim: /, { timeout: 45_000 });
+  const { claimCode } = await readAgentClaim(panel);
   const client = new AgentSessionClient({
     http: new AgentHttpClient({ baseUrl: baseURL! }),
   });
-  await client.connect(
-    JSON.parse(/^Claim: (.+)$/mu.exec(await handoff.inputValue())![1]!)
-      .claimCode,
-  );
+  await client.connect(claimCode);
   await button(panel, "Close Agent dialog").click();
   let id = 0;
   const read = async () => {

@@ -822,7 +822,8 @@ export function compileActions(
         if (
           (native.kind === "set-model" ||
             native.kind === "set-display-alias") &&
-          native.instanceId === undefined
+          native.instanceId === undefined &&
+          native.target !== undefined
         ) {
           const { target, ...rest } = native;
           native = {
@@ -1065,7 +1066,8 @@ export function compileActions(
               kind: "set-net-label",
               annotationId: String(annotation.id),
               netId: String(annotation.netId),
-              text: richText(action.text),
+              // A string stays a name; RichText may be the label's own look.
+              text: action.text,
             });
             break;
           }

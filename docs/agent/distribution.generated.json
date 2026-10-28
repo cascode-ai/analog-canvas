@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "bf31c5c48a5681a21dc5f1f64ae18edae9e4f10e8901093b42dc199327b98bf0"
+      "sha256": "04d00f65f53290ac3db29d0f3b3f516e291d78bc49c614f9e168c9599f02f065"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -53,7 +53,7 @@
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "sha256": "82df57f554a4dfe33727e70823887b6803f107e1f9338227936f96f054d45243"
+      "sha256": "d8722910db9c64c8edb9c0057f67bd534a666db12870c9ee49f72e1c576b219f"
     },
     {
       "source": "docs/agent/http-kit/README.md",
@@ -129,7 +129,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "9e068ae497463ff6ff6b008e20fa05cbe56a2e9e32c6a985e50e72fe6ecda499"
+      "sha256": "100e90812b50286c2db692260616d60f34ee4e429e059c22e591e20904da5b49"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "08b965131a1766a941eee3a7593dcbae6686cdc0b0be3ed9d3593ec28d6dcced"
+      "sha256": "6e68147a5fffac4d0dd1a4ad831241df942f832bbc763079d0fda8652abaa42f"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "dd4a65ce7e14fd442f2b6bcb2caf8ff4b06727fd42305a1b9e5cbc45ecd3c4f7"
+      "sha256": "5d68f19bdc56c70773dabd4a03434cba24681588e3e54eeef4a41c17563f4e60"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -693,7 +693,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "9f98e5d4d92126cb392048b115ba6198cc15b788984f3b872b52b569ba34d1cc"
+      "sha256": "b31dca935c8620a0d469ab4c1aaf558149bc8630c90ce2ee1a458d4d754b569e"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",
