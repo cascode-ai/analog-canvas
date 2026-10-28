@@ -240,9 +240,12 @@ the RNL language and its runtime belong to rnl.
     net but for such bodies and the rails of the Library gates it draws on
     Cells, the pin goes where the Cell would print it again under the same
     name, and the bodies and rails are left to the Cell again (#1787); all
-    such pins go, or none: only where the netlist then prints as it did, so
-    a call passing one a node of its own (a body bias, the other phase)
-    keeps them;
+    such pins go, or none: only where the netlist then prints as it did, or
+    prints the file's own circuit (each subcircuit's ports in order and its
+    cards' nets), so a call passing one a node of its own (a body bias, the
+    other phase) keeps them; a Cell whose added ground pin reads as a port
+    prints a GND pin beside it, which the file never had, so there the
+    file's circuit is the reference;
   - a wire RNL draws on ground (0) in a Cell with a net named GND and none
     named 0: RNL reads SPICE's GND as ground, as ngspice does, where the
     import keeps it a net of that name (#1784);

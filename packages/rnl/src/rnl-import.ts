@@ -506,7 +506,9 @@ export function applyRnlSnapshot(
       powerLabelPorts,
     );
   }
-  removeAddedPins(next, undrawnPins);
+  removeAddedPins(next, undrawnPins, (trial) =>
+    printsFileCircuit(trial, snapshot),
+  );
   trimCallMappings(next);
   return {
     project: next,
@@ -3167,12 +3169,17 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
  * would print under another name, or not at all, is the author's and stays.
  *
  * All or none: the pins go only where the netlist then prints as it prints
- * now. A call that passes such a pin a node of its own (a body bias, the
- * other phase) keeps every pin, as does a netlist the export cannot print.
+ * now, or prints the file's own circuit (`printsFileCircuit`). A Cell whose
+ * added ground pin reads as a port prints a second one beside it now (GND
+ * beside VSS), which the file never had: there the file's circuit is the
+ * reference. A call that passes such a pin a node of its own (a body bias,
+ * the other phase) keeps every pin, as does a netlist the export cannot
+ * print.
  */
 function removeAddedPins(
   project: CircuitProject,
   undrawnPins: ReadonlySet<string>,
+  printsFile: (trial: CircuitProject) => boolean,
 ): void {
   const trial = structuredClone(project);
   removeEachAddedPin(trial, undrawnPins);
@@ -3181,8 +3188,64 @@ function removeAddedPins(
     return result.status === "ready" ? result.file.text : null;
   };
   const now = printed(project);
-  if (now !== null && printed(trial) === now)
+  if (now !== null && (printed(trial) === now || printsFile(trial)))
     project.documents = trial.documents;
+}
+
+/**
+ * Whether a Project prints the circuit the file's own netlist holds, as the
+ * runtime read it (each level's host): every Cell it prints, generated
+ * bodies aside, is a subcircuit of the file, with the same ports in order
+ * and cards on the same nets, each card's in order, the cards in any order.
+ */
+function printsFileCircuit(
+  project: CircuitProject,
+  snapshot: RnlSnapshot,
+): boolean {
+  const result = createDesignNetlistExport(project, {
+    format: snapshot.dialect === "spectre" ? "spectre" : "spice",
+    includeIr: true,
+  });
+  if (result.status !== "ready" || !result.ir) return false;
+  // Nets as both sides spell them: RNL's `&VSS`, Spectre's `Vin\+`.
+  const plain = (net: string) => net.replace(/^&/u, "").replace(/\\/gu, "");
+  const cards = (nets: readonly string[][]) =>
+    nets.map((card) => JSON.stringify(card.map(plain))).sort();
+  const hosts = new Map(
+    snapshot.levels.flatMap((level) =>
+      level.kind === "subckt" && level.host ? [[level.name, level.host]] : [],
+    ),
+  );
+  const cells = result.ir.cells.filter(
+    (cell) => cell.origin !== "generated-model",
+  );
+  return (
+    cells.length > 0 &&
+    cells.every((cell) => {
+      const host = hosts.get(cell.name);
+      return (
+        !!host &&
+        JSON.stringify(cell.ports.map((port) => plain(port.netName))) ===
+          JSON.stringify(host.ports.map(plain)) &&
+        JSON.stringify(
+          cards(
+            cell.instances.map((instance) =>
+              instance.nodes.map((node) => node.netName),
+            ),
+          ),
+        ) ===
+          JSON.stringify(
+            cards(
+              host.instances.map((instance) =>
+                [...instance.terminals]
+                  .sort((a, b) => a.n - b.n)
+                  .map((terminal) => terminal.net),
+              ),
+            ),
+          )
+      );
+    })
+  );
 }
 
 function removeEachAddedPin(

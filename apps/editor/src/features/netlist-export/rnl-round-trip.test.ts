@@ -1114,6 +1114,88 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "takes no Cell Pin for the supplies a gate's rails print where the gate's Cell draws ground, through %s+RNL",
+  async (format) => {
+    // The gate's Cell draws ground, so dut meets ground through it, and its
+    // rails are dut's: dut prints VDD and VSS, no drawing shows either. Kept
+    // as ports, dut would print a GND pin beside VSS, which the file never
+    // had: the file's circuit is the reference.
+    const project = delayCellFixture(true);
+    const top = project.documents[0]!;
+    top.instances.find((i) => i.id === "X1")!.symbolId = "inverter";
+    for (const net of top.nets)
+      net.terminals = net.terminals.filter(
+        (t) =>
+          t.instanceId !== "X1" || (t.pinName !== "VDD" && t.pinName !== "VSS"),
+      );
+    top.nets = top.nets.filter((net) => net.terminals.length);
+    top.connectivityEvidence = top.connectivityEvidence.filter((evidence) =>
+      top.nets.some((net) => net.id === evidence.netId),
+    );
+    const cell = project.documents.find((d) => d.id === "delay_cmos")!;
+    const kept = new Set(["pin-VDD", "pin-A", "pin-Y", "C2"]);
+    cell.instances = cell.instances.filter((i) => kept.has(i.id));
+    cell.netlist!.terminals = cell.netlist!.terminals.filter(
+      (t) => t.name !== "VSS",
+    );
+    cell.instances.push(
+      {
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: null,
+        netlist: { parameters: { value: "1k" } },
+      },
+      {
+        id: "GND1",
+        symbolId: "ground",
+        placement: {
+          position: { x: 300, y: 300 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    for (const net of cell.nets) {
+      net.terminals = net.terminals.filter((t) => kept.has(t.instanceId));
+      if (net.id === "A" || net.id === "Y")
+        net.terminals.push({
+          instanceId: "R1",
+          pinName: net.id === "A" ? "1" : "2",
+        });
+      if (net.id === "VSS")
+        net.terminals.push({ instanceId: "GND1", pinName: "0" });
+    }
+    cell.nets = cell.nets.filter((net) => net.terminals.length);
+    cell.connectivityEvidence = [
+      ...cell.connectivityEvidence.filter((evidence) =>
+        cell.nets.some((net) => net.id === evidence.netId),
+      ),
+      {
+        id: "gnd-claim",
+        kind: "name-claim",
+        netId: "VSS",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "GND1" },
+      },
+    ];
+    const result = await roundTrip(project, format);
+    expect(failures(result)).toEqual([]);
+    const dut = result.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    expect(dut.netlist!.terminals.map((t) => t.name)).toEqual([]);
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(result.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 describe("RNL round trip of bipolar devices and mirrored labels", () => {
   it.each(["spice", "spectre"] as const)(
     "reads every device and label back from %s",
