@@ -515,6 +515,16 @@ function exportCell(
     attach: { level: "#" },
     params: canvasTypesetting(document.presentation),
   });
+  // The Cell's own name, where the netlist must write it otherwise: a
+  // subcircuit name has no spaces (Canvas 0.4).
+  if (document.netlist?.name && document.netlist.name !== cell.name)
+    ops.push({
+      level,
+      op: "add-usage",
+      definition: "$CANVAS_CELL_NAME",
+      attach: { level: "#" },
+      params: { name: document.netlist.name },
+    });
   const report = (
     severity: RnlExportDiagnostic["severity"],
     code: string,

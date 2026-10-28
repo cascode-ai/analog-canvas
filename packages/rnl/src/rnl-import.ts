@@ -24,6 +24,7 @@ import {
   deriveStableId,
   flattenRichText,
   labelTextDocument,
+  plainNameDocument,
   sameStyledText,
   type Annotation,
   type CircuitProject,
@@ -35,6 +36,8 @@ import {
 } from "@icm/model";
 
 type Junction = SchematicDocument["junctions"][number];
+
+import { hierarchicalSymbolId } from "@icm/symbols";
 
 import { callSymbolFromDefinition } from "./call-symbols.js";
 import {
@@ -441,6 +444,7 @@ export function applyRnlSnapshot(
   const diagnostics: RnlImportDiagnostic[] = [];
   const hiddenLabels: RnlHiddenLabels[] = [];
   const parameterTexts: RnlParameterText[] = [];
+  const cellNames: { documentId: StableId; name: string }[] = [];
   const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
     diagnostics.push({
@@ -498,8 +502,11 @@ export function applyRnlSnapshot(
       parameterTexts,
       undrawnPins,
       powerLabelPorts,
+      cellNames,
     );
   }
+  for (const { documentId, name } of cellNames)
+    renameCell(next, documentId, name);
   removeAddedPins(next, undrawnPins, (trial) =>
     printsFileCircuit(trial, snapshot),
   );
@@ -511,6 +518,42 @@ export function applyRnlSnapshot(
     parameterTexts,
     powerLabelPorts,
   };
+}
+
+/**
+ * A Cell named as the editor renames one: its title too where that was its
+ * name, each call of it drawn with the block of its new name (a Library gate
+ * keeps its own symbol), and a call's master label that showed the old name.
+ */
+function renameCell(
+  project: CircuitProject,
+  documentId: StableId,
+  name: string,
+) {
+  const document = project.documents.find((item) => item.id === documentId);
+  if (!document?.netlist || document.netlist.name === name) return;
+  const previous = document.netlist.name;
+  if (document.name === previous) document.name = name;
+  document.netlist.name = name;
+  for (const parent of project.documents)
+    for (const instance of parent.instances) {
+      const binding = instance.netlist?.binding;
+      if (
+        binding?.kind !== "subcircuit" ||
+        binding.childDocumentId !== documentId
+      )
+        continue;
+      if (!bindsProjectCell(instance.symbolId))
+        instance.symbolId = hierarchicalSymbolId(name);
+      const master = parent.annotations.find(
+        (annotation) =>
+          annotation.id === `instance-master-${instance.id}` &&
+          annotation.kind === "instance-value" &&
+          annotation.content &&
+          flattenRichText(annotation.content) === previous,
+      );
+      if (master) master.content = plainNameDocument(name);
+    }
 }
 
 /**
@@ -679,6 +722,8 @@ function applyLevel(
   /** The Cell Pins the drawing does not place, gathered across levels. */
   undrawnPins: Set<string>,
   powerLabelPorts: RnlPowerLabelPort[],
+  /** The Cells' own names (Canvas 0.4), given once every level is read. */
+  cellNames: { documentId: StableId; name: string }[],
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -1090,6 +1135,16 @@ function applyLevel(
    * it leaves out or writes as nothing Analog Canvas knows. A Cell whose
    * level has none keeps the import's own.
    */
+  /** The Cell's own name, where the netlist had to write it otherwise (Canvas 0.4). */
+  const cellNameAgain = (object: RnlObjectView) => {
+    const name = object.params?.["name"];
+    if (
+      object.attach?.["level"] === "#" &&
+      typeof name === "string" &&
+      name.trim()
+    )
+      cellNames.push({ documentId: document.id, name });
+  };
   const typesetAgain = (object: RnlObjectView) => {
     if (object.attach?.["level"] !== "#") return;
     const params = object.params ?? {};
@@ -1231,6 +1286,10 @@ function applyLevel(
     }
     if (object.definition === "$CANVAS_TYPESETTING") {
       typesetAgain(object);
+      continue;
+    }
+    if (object.definition === "$CANVAS_CELL_NAME") {
+      cellNameAgain(object);
       continue;
     }
     if (object.definition === "$CANVAS_LABEL") continue; // read with the labels

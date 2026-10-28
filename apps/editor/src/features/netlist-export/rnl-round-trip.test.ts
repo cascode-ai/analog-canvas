@@ -1637,6 +1637,31 @@ describe("RNL round trip", () => {
   });
 
   it.each(["spice", "spectre"] as const)(
+    "keeps a Cell's name that the netlist must write otherwise, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-ota");
+      const cell = project.documents.find(
+        (document) => document.id === "document-ota-5t",
+      )!;
+      cell.name = "OTA five-T";
+      cell.netlist!.name = "OTA five-T";
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported));
+      expect(exported.request.netlist).not.toContain("OTA five-T");
+      const { project: drawn, diagnostics } = await roundTrip(project, format);
+      expect(
+        diagnostics.filter((item) => item.code.startsWith("RNL_")),
+      ).toEqual([]);
+      const names = (from: CircuitProject) =>
+        from.documents
+          .map((document) => `${document.name} | ${document.netlist?.name}`)
+          .sort();
+      expect(names(drawn)).toEqual(names(project));
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "keeps the op-amp variant a part was drawn as, flipped or with its inputs swapped, through %s+RNL",
     async (format) => {
       for (const [symbolId, mirror] of [
