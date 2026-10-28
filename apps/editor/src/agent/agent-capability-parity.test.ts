@@ -3337,6 +3337,98 @@ describe("Agent placement and naming the GUI way (#1254, #1256)", () => {
     expect(flattenRichText(label.content!)).toBe("A1");
     expect(main().instances.find((i) => i.id === amp.id)!.reference).toBe("X1");
   });
+
+  it("draws a Net label VEA,OUT while the netlist keeps Net VEA_OUT (#1880)", async () => {
+    const { client, controller } = await folder();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        position: { x: 300, y: 100 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const wired = await client.applyActions([
+      {
+        kind: "connect",
+        from: { kind: "pin", instance: "R1", pin: "2" },
+        to: { kind: "pin", instance: "R2", pin: "1" },
+      },
+    ]);
+    expect(wired.ok, wired.message).toBe(true);
+    const netId = controller.document.routes[0]!.netId;
+    const labelled = await client.applyActions([
+      {
+        kind: "add-label",
+        target: { kind: "net", id: netId },
+        text: "VEA_OUT",
+        position: { x: 200, y: 80 },
+      },
+    ]);
+    expect(labelled.ok, labelled.message).toBe(true);
+    const labelId = controller.document.annotations.find(
+      (a) => a.kind === "net-label",
+    )!.id;
+    const label = () =>
+      controller.document.annotations.find((a) => a.id === labelId)!;
+
+    const aliased = await client.applyActions([
+      { kind: "set-display-alias", annotationId: labelId, text: "VEA,OUT" },
+    ]);
+    expect(aliased.ok, aliased.message).toBe(true);
+    expect(label().binding).toBeUndefined();
+    expect(flattenRichText(label().content!)).toBe("VEA,OUT");
+    expect(
+      resolveDocumentLogicalNets(controller.document).byBaseNetId.get(netId)
+        ?.name,
+    ).toBe("VEA_OUT");
+    const project = structuredClone(controller.project);
+    for (const [reference, pinName] of [
+      ["R1", "1"],
+      ["R2", "2"],
+    ] as const)
+      project.documents[0]!.nets.push({
+        id: `net-${reference}-${pinName}`,
+        terminals: [
+          {
+            instanceId: controller.document.instances.find(
+              (i) => i.reference === reference,
+            )!.id,
+            pinName,
+          },
+        ],
+      });
+    const exported = createDesignNetlistExport(project, { format: "spice" });
+    const text =
+      exported.status === "ready"
+        ? exported.file.text
+        : JSON.stringify(exported.diagnostics);
+    expect(text).toMatch(/^R1 \S+ VEA_OUT /mu);
+    expect(text).not.toContain("VEA,OUT");
+
+    // One action needs exactly one target.
+    const both = await client.applyActions([
+      {
+        kind: "set-display-alias",
+        annotationId: labelId,
+        target: { kind: "instance", reference: "R1" },
+        text: "A",
+      },
+    ]);
+    expect(both.ok).toBe(false);
+
+    const cleared = await client.applyActions([
+      { kind: "set-display-alias", annotationId: labelId, text: null },
+    ]);
+    expect(cleared.ok, cleared.message).toBe(true);
+    expect(label().binding).toEqual({ kind: "net-name", netId });
+    expect(label().content).toBeUndefined();
+  });
 });
 
 describe("Cell instances in one call (#1231)", () => {

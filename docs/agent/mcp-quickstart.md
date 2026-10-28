@@ -11,6 +11,10 @@ capabilities; a resume counts edit kinds as `editKindCount`, and
 `connect({"detail":"full"})` lists them), so no `get_context` follows. MCP
 manages credentials, request IDs and expected revisions.
 
+`compatibility.status: "outdated"` (and `runtime.status` of
+`connection_status`) means this adapter is older than the origin's manifest
+release `latestVersion`: tell the user and follow its `upgrade` step. An
+unreadable manifest omits `latestVersion` and never fails `connect`.
 `compatibility.unsupportedEditKinds` lists edits this adapter lacks: upgrade
 from the exact origin's manifest before using one. An older adapter without
 that report resolves `describe_tool({"editKind":"apply_model_source"})` before

@@ -48,6 +48,7 @@ import {
 import type { TextEditingSession } from "../text-editing/text-editing";
 import { prepareNetLabelDraft } from "../text-editing/net-label-draft";
 import { planElectricalMarkerName } from "./electrical-marker-name";
+import { planNetLabelAlias } from "./group-naming";
 import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
 import {
   railPowerLabel,
@@ -1293,6 +1294,14 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       options.setStatus(
         `Showing ${flattenRichText(textEditing.content).trim()} as a display alias; the Pin stays ${pin?.name ?? "as it is"}`,
       );
+    } else if (
+      proposal.kind === "update" &&
+      textEditing.netLabelName !== undefined &&
+      textEditing.displayAlias
+    ) {
+      options.setStatus(
+        `Showing ${flattenRichText(textEditing.content).trim()} as a display alias; the Net stays ${textEditing.netLabelName}`,
+      );
     } else {
       options.setStatus(`Updated text ${proposal.id}`);
     }
@@ -1302,6 +1311,37 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   const setTextDisplayAlias = (
     enabled: boolean,
   ): RichTextDocument | undefined => {
+    if (textEditing?.netLabelName !== undefined) {
+      // On, the label keeps what it shows as text of its own while the Net
+      // keeps its name; off, it names the Net again in its standard look.
+      const plan = planNetLabelAlias({
+        document: options.document,
+        annotationId: textEditing.id,
+        alias: enabled ? textEditing.content : null,
+      });
+      if (!plan.ok) {
+        options.setStatus(plan.message);
+        return;
+      }
+      if (!plan.label) return;
+      const annotation: Annotation = {
+        ...plan.label,
+        sizeScale: textEditing.sizeScale,
+        alignment: textEditing.alignment,
+      };
+      if (
+        !options.transact([{ kind: "upsert_schematic_annotation", annotation }])
+          .ok
+      )
+        return;
+      const session = createTextEditingSession(
+        { owner: "annotation", object: annotation },
+        options.document,
+        options.resolver,
+      );
+      setTextEditing(session);
+      return session.content;
+    }
     if (textEditing?.cellPinTerminalId) {
       const annotation = options.document.annotations.find(
         (candidate) => candidate.id === textEditing.id,

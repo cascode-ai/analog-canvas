@@ -17,6 +17,21 @@ export async function awaitTwoFrames(page: Page): Promise<void> {
   );
 }
 
+/** The Claim an Agent sends to pair with this editor. */
+export interface AgentClaim {
+  claimCode: string;
+}
+
+/**
+ * Wait for the open Agent dialog's Claim and return it. A loaded runner can
+ * take longer than expect's 5 s default to create the session.
+ */
+export async function readAgentClaim(panel: Locator): Promise<AgentClaim> {
+  const message = panel.getByTestId("agent-copy-text");
+  await expect(message).toHaveValue(/Claim: /, { timeout: 30_000 });
+  return JSON.parse(/^Claim: (.+)$/mu.exec(await message.inputValue())![1]!);
+}
+
 /** Load the editor at this address and wait until it takes input. */
 export async function openEditor(page: Page, path = "/editor"): Promise<void> {
   await page.goto(path);

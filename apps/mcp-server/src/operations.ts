@@ -14,6 +14,11 @@ import { PreparePlotSchema, preparePlot } from "./prepare-plot.js";
 import { workspaceSyncReceipt } from "./workspace-receipt.js";
 import { preparedSummary } from "./prepared-summary.js";
 import {
+  adapterRelease,
+  mcpManifestUrl,
+  sessionMcpManifest,
+} from "./adapter-release.js";
+import {
   SimulationOperationSchema,
   ArtifactRefSchema,
   simulationSpecAnnotationDiagnostics,
@@ -736,7 +741,14 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = ConnectArgs.parse(args ?? {});
+      // Read beside pairing; it never rejects, so it never fails connect.
+      const manifest = sessionMcpManifest(session.client, true);
       const report = await session.client.connect(parsed.claimCode);
+      const release = adapterRelease(
+        AGENT_MCP_VERSION,
+        await manifest,
+        mcpManifestUrl(session.client.apiBaseUrl),
+      );
       const unsupportedEditKinds = report.capabilities.editKinds.filter(
         (kind) => {
           if (kind === "wire") return false;
@@ -774,14 +786,21 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
               },
         compatibility: {
           adapterVersion: AGENT_MCP_VERSION,
-          status: unsupportedEditKinds.length ? "partial" : "compatible",
+          ...(release ? { latestVersion: release.latestVersion } : {}),
+          status: release?.outdated
+            ? "outdated"
+            : unsupportedEditKinds.length
+              ? "partial"
+              : "compatible",
           unsupportedEditKinds,
-          ...(unsupportedEditKinds.length
-            ? {
-                message:
-                  "The Editor advertises edits absent from this adapter. Upgrade using this origin's /api/agent/mcp-manifest.json before using those edits; supported operations remain available.",
-              }
-            : {}),
+          ...(release?.outdated
+            ? { upgrade: release.upgrade, message: release.message }
+            : unsupportedEditKinds.length
+              ? {
+                  message:
+                    "The Editor advertises edits absent from this adapter. Upgrade using this origin's /api/agent/mcp-manifest.json before using those edits; supported operations remain available.",
+                }
+              : {}),
         },
         context: report.context,
         timing: report.timing,
@@ -819,11 +838,30 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       const recent = session.client
         .timingsSince(Math.max(0, session.client.timingMark() - 5))
         .map(({ startedAtMs: _startedAtMs, ...request }) => request);
+      // refresh:false stays local: only a manifest this session already read.
+      const [status, manifest] = await Promise.all([
+        session.client.status({ refresh }),
+        sessionMcpManifest(session.client, refresh),
+      ]);
+      const release = adapterRelease(
+        AGENT_MCP_VERSION,
+        manifest,
+        mcpManifestUrl(session.client.apiBaseUrl),
+      );
       return {
-        ...(await session.client.status({ refresh })),
+        ...status,
         runtime: {
           version: AGENT_MCP_VERSION,
           apiBaseUrl: session.client.apiBaseUrl,
+          ...(release
+            ? {
+                latestVersion: release.latestVersion,
+                status: release.outdated ? "outdated" : "current",
+                ...(release.outdated
+                  ? { upgrade: release.upgrade, message: release.message }
+                  : {}),
+              }
+            : {}),
         },
         ...(recent.length ? { recentRequests: recent } : {}),
       };

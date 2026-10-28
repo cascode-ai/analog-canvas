@@ -27,6 +27,7 @@ import {
   openEditor,
   expectRecovered,
   openProject,
+  readAgentClaim,
 } from "./editor-fixtures.js";
 import { sessionUser, signIn } from "./gallery-fixtures.js";
 import { placedInstance } from "./canvas-fixtures.js";
@@ -298,8 +299,7 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
   await page.getByTestId("open-agent").click();
   const panel = page.getByTestId("connect-agent-panel");
-  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
-  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const { claimCode } = await readAgentClaim(panel);
   const client = new AgentHttpClient({ baseUrl: baseURL! });
   const session = await client.claim(claimCode);
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");

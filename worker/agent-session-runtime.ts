@@ -1,4 +1,5 @@
 import {
+  AgentAdapterVersionSchema,
   AgentClaimRequestSchema,
   AgentConnectorResumeRequestSchema,
   DEFAULT_AGENT_SESSION_LIMITS,
@@ -29,6 +30,17 @@ export const REQUEST_LEDGER_KEY_PREFIX = "agent-request:";
 export function requestLedgerKey(requestId: string): string {
   return `${REQUEST_LEDGER_KEY_PREFIX}${requestId}`;
 }
+/**
+ * The release an adapter names on claim or resume, for the editor to show
+ * (#1844); ignored when malformed.
+ */
+function adapterVersion(request: Request): { adapterVersion?: string } {
+  const parsed = AgentAdapterVersionSchema.safeParse(
+    request.headers.get("x-agent-adapter-version"),
+  );
+  return parsed.success ? { adapterVersion: parsed.data } : {};
+}
+
 export const EDITOR_SOCKET_TAG = "editor";
 export const EDITOR_PROTOCOL = "icm-agent-session";
 export const FORWARD_TIMEOUT_MS = 30_000;
@@ -272,7 +284,7 @@ export async function routeAgentSessionRequest(
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, ...adapterVersion(request) }),
       },
     );
   }
@@ -309,7 +321,10 @@ export async function routeAgentSessionRequest(
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ connectorToken: parsed.data.connectorToken }),
+        body: JSON.stringify({
+          connectorToken: parsed.data.connectorToken,
+          ...adapterVersion(request),
+        }),
       },
     );
   }

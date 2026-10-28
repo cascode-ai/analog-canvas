@@ -25,7 +25,12 @@ import {
   signalFlowFormulaSource,
 } from "@icm/symbols";
 import type { SymbolFormulaPresentation, SymbolResolver } from "@icm/symbols";
-import { resolveAnnotationText, resolveAnnotationName } from "@icm/derived";
+import {
+  aliasableNetLabelClaim,
+  netLabelAliasClaim,
+  resolveAnnotationText,
+  resolveAnnotationName,
+} from "@icm/derived";
 import {
   createReferenceIndex,
   deviceDescriptor,
@@ -84,6 +89,11 @@ export interface TextEditingSession {
    * makes it show text of its own while the Pin keeps its name.
    */
   cellPinTerminalId?: string;
+  /**
+   * A Net label's Net name, from the label's own claim, unless
+   * `displayAlias` makes it show text of its own while the Net keeps it.
+   */
+  netLabelName?: string;
   /** Only explicitly authored signals preview a range before characters change. */
   signalExpression?: string;
   /** Visible characters when the bound name editor opened; formatting is not a rename. */
@@ -431,6 +441,19 @@ export function createTextEditingSession(
             }
           : {};
       })(),
+      ...(() => {
+        // A Net label claiming its Net's name shows that name, or, as its
+        // display alias, text of its own.
+        const claim = document
+          ? aliasableNetLabelClaim(document, annotation)
+          : undefined;
+        return document && claim
+          ? {
+              netLabelName: claim.name,
+              displayAlias: Boolean(netLabelAliasClaim(document, annotation)),
+            }
+          : {};
+      })(),
     };
   }
   if (target.owner === "instance-formula") {
@@ -763,6 +786,12 @@ export function proposeTextEditingCommit(
     Boolean(emptyTarget.object.polarity);
   if (emptied && session.visualInstanceId && !session.displayAlias)
     return { kind: "blocked" };
+  // Emptying a Net label's alias would delete the label that names its Net.
+  if (emptied && session.netLabelName !== undefined && session.displayAlias)
+    return {
+      kind: "blocked",
+      message: "Untick Use display alias to show the Net name again",
+    };
   if (emptied && !polarityKeepsObject) {
     return {
       kind: "delete",

@@ -22,6 +22,14 @@ values, drafting text, formulas or Symbol body text.
   refuses anything else. Why: the same drawing can come from different names
   and one name can be drawn several ways, so neither is derived from the
   other.
+- A **display alias** shows text a name cannot hold (op-amp `X1` drawn A1,
+  Net `VEA_OUT` drawn `VEA,OUT`) on a part's name label, a Port's (Cell Pin)
+  label or a Net label: the label's own literal text, with no identity. The
+  Reference, Pin name or the Net label's name claim stays the electrical
+  name, so netlists, connectivity, same-name joining and Agents never read
+  the alias. Clearing it shows the name again in its standard look. The
+  parent pin draws a Pin alias; editing follows
+  [editor interaction](editor-interaction.md#text-and-presentation).
 
 ## Standard looks
 
@@ -50,9 +58,8 @@ redraws seen drawings), whether the name was typed, connected or generated:
 - Other authorities: a parameter value is a live projection (a stored format
   applies only while its text matches); free text and route markers are
   stored RichText from their creation rule (new drafting identifiers and route
-  markers use the voltage labels' upright power suffix); Instance and Cell Pin
-  aliases are stored literals with no identity (the parent pin draws a Pin
-  alias); a Cell/master word uses whole-word presentation, not Reference
+  markers use the voltage labels' upright power suffix); display aliases are
+  stored literals (above); a Cell/master word uses whole-word presentation, not Reference
   splitting; a parent Cell pin projects its child label, explicit content
   bypassing generic pin typography.
 - Scripts are upright by default: in standard looks, in new drawings

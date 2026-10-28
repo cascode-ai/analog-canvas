@@ -259,6 +259,54 @@ describe("agent http client", () => {
     expect(claim.sessionId).toBe("session-9");
     expect(claim.projectId).toBe("project-1");
   });
+  it("names its adapter release on claim and resume, and reads the origin's MCP manifest (#1844)", async () => {
+    const seen: Array<[string, string | null]> = [];
+    const credential = {
+      ok: true,
+      sessionId: "s",
+      agentToken: "tok",
+      tokenExpiresAt: 456,
+      connectorToken: "connector",
+      connectorExpiresAt: 789,
+      scopes: ["circuit.snapshot"],
+      projectId: "project-1",
+      documentIds: ["main"],
+    };
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const path = String(input).slice(BASE.length);
+      seen.push([
+        path,
+        new Headers(init?.headers).get("x-agent-adapter-version"),
+      ]);
+      return path === "/api/agent/mcp-manifest.json"
+        ? jsonResponse(200, { version: "9.9.9" })
+        : jsonResponse(200, credential);
+    };
+    const http = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: fetchImpl,
+      adapterVersion: "1.2.3",
+    });
+    await http.claim("s.c");
+    await http.resumeConnector("s", "connector");
+    expect(await http.mcpManifest()).toEqual({ version: "9.9.9" });
+    expect(seen).toEqual([
+      ["/api/agent/claims", "1.2.3"],
+      ["/api/agent/connectors/resume", "1.2.3"],
+      ["/api/agent/mcp-manifest.json", null],
+    ]);
+    // A client that names no release sends no header.
+    seen.length = 0;
+    await new AgentHttpClient({ baseUrl: BASE, fetch: fetchImpl }).claim("s.c");
+    expect(seen).toEqual([["/api/agent/claims", null]]);
+    // A missing manifest is one failed read, outside the relay timings.
+    const missing = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async () => jsonResponse(404, { error: "Not found" }),
+    });
+    await expect(missing.mcpManifest()).rejects.toThrow("HTTP 404");
+    expect(missing.requestTimings).toEqual([]);
+  });
   it("normalizes a rejected claim into an unrecoverable credential error", async () => {
     const http = new AgentHttpClient({
       baseUrl: BASE,

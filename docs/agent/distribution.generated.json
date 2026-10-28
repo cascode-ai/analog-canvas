@@ -9,7 +9,7 @@
     },
     {
       "source": "docs/agent/mcp-quickstart.md",
-      "sha256": "82c9e40377bfca691608ca74f14374cc25f97a34bb89c6c111521523eb0c0145"
+      "sha256": "99ff59064442adc9e817d0376305708e08bb70053eae4269dea7f8fd8ae2669c"
     },
     {
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "d928128222ddba1a4f5b454fd42ef5fe8044afa50835fbad7026f47b4005df62"
+      "sha256": "bce0580e30db5c05c39f755612f82862f9337ea690a91fa0df86d1a60c7763a9"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -53,7 +53,7 @@
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "sha256": "8c331f145cfa5c4bdcfb6f411998e74d871a3fc9dcb85c9ac44a0e30bd7b01f3"
+      "sha256": "d8722910db9c64c8edb9c0057f67bd534a666db12870c9ee49f72e1c576b219f"
     },
     {
       "source": "docs/agent/http-kit/README.md",
@@ -129,7 +129,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "916d0644cb8c67e84dce2f9eb7bd0f313818c68327910a37944fe2a9b2f5af44"
+      "sha256": "100e90812b50286c2db692260616d60f34ee4e429e059c22e591e20904da5b49"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "b122acab19ab5755eb8f79da09a98524993eea03c4a3517817ed5344db39e709"
+      "sha256": "d2a9958a5feb79f8e027895edf8535326d518f27ff268636dfeb3aefbe0da9b5"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "0c44daf4c66a16ca0a3a4a8672162125849e9b8669fe9d918a344d96cbf33bbd"
+      "sha256": "d31a82da6f8cb9ee7823649aa5af58e844e0fd55f89d4289b3f94e9af815c604"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -693,7 +693,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "de859126b1eb3d053e2a224b7d4b971e53e93ded06e565d2226cd9ac7c728284"
+      "sha256": "b31dca935c8620a0d469ab4c1aaf558149bc8630c90ce2ee1a458d4d754b569e"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

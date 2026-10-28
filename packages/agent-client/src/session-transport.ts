@@ -99,6 +99,11 @@ export abstract class AgentSessionTransport {
   timingsSince(mark: number): AgentRequestTiming[] {
     return this.http.timingsSince(mark);
   }
+
+  /** See AgentHttpClient.mcpManifest (#1844). */
+  mcpManifest(): Promise<unknown> {
+    return this.http.mcpManifest();
+  }
   protected readonly cache = new SnapshotCache();
   /** Revisions are authority hints only; every write is still checked by the Editor. */
   protected readonly knownRevisions = new Map<string, KnownRevision>();
