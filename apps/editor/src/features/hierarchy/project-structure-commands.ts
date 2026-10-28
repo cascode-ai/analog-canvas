@@ -18,6 +18,7 @@ import {
   planSetCellParameterDefault,
   planRemoveCellParameter,
   proposeUpsertExternalSubcircuitDefinition,
+  resizeCellSymbolPresentation,
 } from "@icm/edit-engine";
 import type { ProjectStructureEdit, SchematicEdit } from "@icm/edit-engine";
 import {
@@ -892,23 +893,13 @@ export function createProjectStructureCommands({
       return;
     }
     try {
-      const current = child.presentation;
       if (
         commitStructure(
           "resize-cell-symbol",
-          saveBlockSymbolPresentation(child, {
-            ...current,
-            ...(current?.bodyBounds
-              ? {
-                  bodyBounds: {
-                    ...current.bodyBounds,
-                    right: current.bodyBounds.left + width,
-                    bottom: current.bodyBounds.top + height,
-                  },
-                }
-              : {}),
-            minimumBodySize: { width, height },
-          }),
+          saveBlockSymbolPresentation(
+            child,
+            resizeCellSymbolPresentation(child.presentation, { width, height }),
+          ),
         )
       ) {
         setStatus(`Resized ${child.name} symbol for every parent instance`);

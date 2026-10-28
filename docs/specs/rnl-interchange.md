@@ -82,9 +82,9 @@ the RNL language and its runtime belong to rnl.
   as a gate Cell whose ports start with its supplies, is drawn with the same
   artwork defined in the file (`$CANVAS_CALL_…`), each pin on the position
   the call prints it at, so every wire reaches the terminal it was drawn to.
-  Import reads a call of a project Cell drawn so (a Library gate, flip-flop
-  or Delay Cell) back as that library symbol, a gate's pins meeting its Cell's
-  Pins by name, only when the name, artwork and positional pins are the ones
+  Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
+  Delay Cell, op-amp or comparator) back as that library symbol, a gate's
+  pins meeting its Cell's Pins by name, only when the name, artwork and positional pins are the ones
   the export writes; any other call keeps its block and warns
   `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
   as a cubic, a straight one as a cubic with its controls on the leg.

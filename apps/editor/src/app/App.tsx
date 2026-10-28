@@ -6507,8 +6507,9 @@ function WorkspaceEditor({
                                 selectedInstance.symbolId,
                             ).length > 0 ||
                             selectedReviewedExternalBinding ||
-                            // A flip-flop takes only Cells: the field shows
-                            // once one fits, or while one is bound (#1689).
+                            // A flip-flop, op-amp or comparator takes only
+                            // Cells: the field shows once one fits, or while
+                            // one is bound (#1689, #1878).
                             (bindsProjectCell(selectedInstance.symbolId) &&
                               (selectedInstance.netlist.binding?.kind ===
                                 "subcircuit" ||

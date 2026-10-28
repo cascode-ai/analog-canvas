@@ -134,6 +134,13 @@ their IDs, never resolved to the first.
   `CK`, `Q`, `QBAR` where the symbol has it and `RST` for the reset form, plus
   `VDD`/`VSS` unless its supplies are global. It takes no standard cell; an
   empty model returns its ideal body.
+- An op-amp (`opamp`, `opamp-differential`, … and their variants) or
+  comparator (`comparator`, `comparator-differential`, …) binds to a Project
+  Cell the same way, keeping its triangle: the Cell's Pins are the part's own
+  (`IN+`, `IN-`, `OUT`, or `OUT+`/`OUT-`), not the ideal body's `VIP`/`VIN`/
+  `VOUT`, plus `VDD`/`VSS` unless its supplies are global. It takes no
+  standard cell; an empty model returns the ideal op-amp or comparator with
+  its default parameters.
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the
@@ -278,6 +285,14 @@ information). Hidden bulk needs no decorative wire.
   refused with the names or free slots. Callers keep their Nets; stretched
   wiring is redrawn and labels it crosses move clear;
   `projectStructure.changedDocumentIds` and `changedObjectIds` name what moved.
+- `set-cell-symbol-size` (`circuit_transform`, the Cell's `documentId`) sizes
+  its block body: `{kind:"set-cell-symbol-size",width:80,height:60}`. A
+  centred body takes multiples of 20, explicit edges multiples of 10 (top-left
+  corner kept). A size short of room for the Pins and their names (inside
+  explicit edges, the Pins) is refused with the smallest that fits; an earlier
+  stored size does not count, so a body left large can be made smaller. On an
+  unplaced Cell its Pins stay where its first placement puts them. Callers
+  keep their Nets and redraw.
 - Other interface/symbol edits use `structureEdits` with a nested
   `transact_document` (not top-level `edits`), e.g. `set_cell_symbol_presentation`
   with all `pinPlacements` by terminal ID. HTTP callers use their published

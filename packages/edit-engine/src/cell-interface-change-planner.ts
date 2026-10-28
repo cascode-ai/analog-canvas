@@ -207,9 +207,10 @@ export function planCallerInterfaceChanges(
               !pinsAfter.has(foldNetName(pinName)),
           );
         const gateName = instance.reference ?? instance.id;
+        const article = /^[aeiou]/iu.test(instance.symbolId) ? "an" : "a";
         if (lost.length)
           throw new Error(
-            `${gateName} in Cell ${parent.name} is a ${instance.symbolId} bound to this Cell, and its ${lost.join(", ")} would have no Pin; clear ${gateName}'s model first, or keep the Pin${lost.length > 1 ? "s" : ""}`,
+            `${gateName} in Cell ${parent.name} is ${article} ${instance.symbolId} bound to this Cell, and its ${lost.join(", ")} would have no Pin; clear ${gateName}'s model first, or keep the Pin${lost.length > 1 ? "s" : ""}`,
           );
         continue;
       }
