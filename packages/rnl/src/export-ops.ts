@@ -796,6 +796,17 @@ function exportCell(
         params: { name: instance.reference },
       });
     }
+    // A part the author never named, which the netlist must name to print
+    // its card (Canvas 0.4).
+    if (!instance.reference) {
+      packages.add(AC_PACKAGE);
+      ops.push({
+        level,
+        op: "add-usage",
+        definition: "$CANVAS_UNNAMED",
+        attach: { part: object },
+      });
+    }
     // The author's text of each value the netlist writes otherwise: Spectre
     // reads 100f where the author wrote 100fF, and a SKY130 size 0.15 where
     // the author wrote 0.15u.

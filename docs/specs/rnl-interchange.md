@@ -144,7 +144,9 @@ the RNL language and its runtime belong to rnl.
   background paint is not written (`RNL_BACKGROUND_NOT_EXPORTED`).
 - What only the editor keeps is written with the meaning-only definitions of
   `analog-canvas-extensions` 0.4, which draw nothing: a part's name where the
-  card spells it otherwise (`$CANVAS_NAME`, SPICE's `XM1` for M1), in each
+  card spells it otherwise (`$CANVAS_NAME`, SPICE's `XM1` for M1), a part
+  the author never named, which the netlist must name to print its card
+  (`$CANVAS_UNNAMED`, since 0.4), in each
   Cell's own record how the Cell sets names in labels and draws its wire
   crossings (`$CANVAS_TYPESETTING` on `#`, `crossings="hop"` since 0.3), each
   setting other than the editor's default, none included, and
@@ -292,6 +294,9 @@ the RNL language and its runtime belong to rnl.
     wrote is read from its texts as above;
   - a bound label keeps the drawn styles as its format only where they
     differ from what the binding shows anyway;
+  - a part the author never named (`$CANVAS_UNNAMED`) unnamed again, with
+    no netlist record, as the editor keeps one, where the netlist import
+    gave its record no parameter;
   - a value's text the author wrote (`$CANVAS_PARAMETER_TEXT`) where it is
     the number the part has, written as Spectre writes it, or the same size
     in micrometres; it belongs to the part, so it stands whether the drawing

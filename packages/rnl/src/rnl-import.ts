@@ -1031,6 +1031,20 @@ function applyLevel(
    * it does not have: another part of the Cell has it, as SPICE compares
    * names without case, or the part as read takes names of another prefix.
    */
+  /**
+   * A part the author never named, as it was (Canvas 0.4): one with no name
+   * has no netlist record and emits as its symbol's own body, so the record
+   * the netlist import made for its card goes, where it holds no parameter.
+   */
+  const unnameAgain = (object: RnlObjectView) => {
+    const part = object.attach?.["part"];
+    const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+    const instance = card === null ? undefined : instanceOf(card);
+    if (!instance || Object.keys(instance.netlist?.parameters ?? {}).length)
+      return;
+    delete instance.reference;
+    delete instance.netlist;
+  };
   const nameAgain = (object: RnlObjectView) => {
     const part = object.attach?.["part"];
     const name = object.params?.["name"];
@@ -1197,6 +1211,10 @@ function applyLevel(
     if (object.kind !== "usage" || !object.definition) continue;
     if (object.definition === "$CANVAS_NAME") {
       nameAgain(object);
+      continue;
+    }
+    if (object.definition === "$CANVAS_UNNAMED") {
+      unnameAgain(object);
       continue;
     }
     if (object.definition === "$CANVAS_TYPESETTING") {
