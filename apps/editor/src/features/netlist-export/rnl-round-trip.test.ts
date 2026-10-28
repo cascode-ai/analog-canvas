@@ -230,6 +230,112 @@ it.each(["spice", "spectre"] as const)(
 );
 
 /**
+ * Cell `dut`: a resistor R1 from Cell Pin `A` to the Cell's port `VDD`,
+ * whose only interface is a hidden power label hung on R1, as a Cell keeps
+ * a supply port it does not show.
+ */
+function hiddenPowerPort(): CircuitProject {
+  const project = createEmptyProject("hidden-port", "Hidden port", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const at = (x: number, y: number) =>
+    ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+  document.instances.push(
+    {
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      placement: at(200, 100),
+      netlist: { parameters: { value: "1k" } },
+    },
+    { id: "pin-a", symbolId: "port", placement: at(100, 100) },
+  );
+  document.nets.push(
+    {
+      id: "net-a",
+      terminals: [
+        { instanceId: "pin-a", pinName: "P" },
+        { instanceId: "R1", pinName: "1" },
+      ],
+    },
+    { id: "net-vdd", terminals: [{ instanceId: "R1", pinName: "2" }] },
+  );
+  document.netlist!.terminals.push(
+    {
+      id: "terminal-a",
+      name: "A",
+      netId: "net-a",
+      direction: "inout",
+      interfaceInstanceIds: ["pin-a"],
+    },
+    {
+      id: "terminal-vdd",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: [],
+      interfaceAnnotationId: "hidden-vdd",
+    },
+  );
+  document.annotations.push({
+    id: "hidden-vdd",
+    kind: "power-label",
+    netId: "net-vdd",
+    binding: { kind: "cell-terminal-name", terminalId: "terminal-vdd" },
+    anchor: {
+      kind: "object",
+      objectId: "R1",
+      localOffset: { x: 0, y: -60 },
+      fallbackPosition: { x: 200, y: 40 },
+    },
+    alignment: "middle",
+    rotation: 0,
+    locked: false,
+    visible: false,
+  });
+  document.connectivityEvidence.push({
+    id: "evidence-hidden-vdd",
+    kind: "name-claim",
+    netId: "net-vdd",
+    name: "VDD",
+    owner: { kind: "power-marker", objectId: "hidden-vdd" },
+    scope: "local",
+    powerDomain: "vdd",
+  });
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "keeps a Cell port the drawing does not draw without a Pin, its interface a hidden power label (%s+RNL)",
+  async (format) => {
+    const project = hiddenPowerPort();
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const dut = plan.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    const vdd = dut.netlist!.terminals.find(
+      (terminal) => terminal.name === "VDD",
+    )!;
+    expect(vdd.interfaceInstanceIds).toEqual([]);
+    expect(
+      dut.annotations.find(
+        (annotation) => annotation.id === vdd.interfaceAnnotationId,
+      ),
+    ).toMatchObject({ kind: "power-label", visible: false });
+    // No Pin stands for it: the only one is A's.
+    expect(
+      dut.instances.filter((instance) => instance.symbolId === "port"),
+    ).toHaveLength(1);
+    const netlist = (circuit: CircuitProject) => {
+      const result = createDesignNetlistExport(circuit, { format });
+      return result.status === "ready" ? result.file.text : result.status;
+    };
+    expect(netlist(plan.project)).toBe(netlist(project));
+  },
+);
+
+/**
  * An nmos M1 that calls a model source's subcircuit, so SPICE prints it as
  * XM1, in a Cell with its own naming typography.
  */

@@ -530,6 +530,7 @@ export function applyRnlSnapshot(
   removeAddedPins(next, undrawnPins, (trial) =>
     printsFileCircuit(trial, snapshot),
   );
+  unpinUndrawnPorts(next, undrawnPins, powerLabelPorts);
   trimCallMappings(next);
   return {
     project: next,
@@ -3542,6 +3543,62 @@ function printsFileCircuit(
       );
     })
   );
+}
+
+/**
+ * A Cell port the drawing does not draw, as it was: one whose interface is a
+ * hidden power label. A file Analog Canvas writes draws each Pin a Cell has
+ * and each power label it shows, so a port it draws neither for was owned
+ * by a hidden power label, the only interface a port has without a Pin. The
+ * Pin the netlist import gave it goes, as for a port drawn as its power
+ * label (#1783), and a hidden one bound to the port takes its place there.
+ * The port stays, and the netlist with it.
+ */
+function unpinUndrawnPorts(
+  project: CircuitProject,
+  undrawnPins: ReadonlySet<string>,
+  powerLabelPorts: RnlPowerLabelPort[],
+): void {
+  const labelled = new Set(powerLabelPorts.map((port) => port.terminalId));
+  const next = structuredClone(project);
+  const ports: RnlPowerLabelPort[] = [];
+  for (const document of next.documents)
+    for (const terminal of document.netlist?.terminals ?? []) {
+      const [pinId, ...more] = terminal.interfaceInstanceIds;
+      if (
+        !pinId ||
+        more.length ||
+        labelled.has(terminal.id) ||
+        !undrawnPins.has(pinId)
+      )
+        continue;
+      const pin = document.instances.find((item) => item.id === pinId);
+      const labelId = deriveStableId("power-label", document.id, terminal.id);
+      document.annotations.push({
+        id: labelId,
+        kind: "power-label",
+        netId: terminal.netId,
+        binding: { kind: "cell-terminal-name", terminalId: terminal.id },
+        anchor: {
+          kind: "free",
+          position: pin?.placement?.position ?? { x: 0, y: 0 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+        visible: false,
+      });
+      ports.push({ documentId: document.id, terminalId: terminal.id, labelId });
+    }
+  if (!ports.length) return;
+  const printed = (from: CircuitProject) => {
+    const result = createDesignNetlistExport(from, { format: "spice" });
+    return result.status === "ready" ? result.file.text : null;
+  };
+  const now = printed(project);
+  if (now === null || printed(withPowerLabelPorts(next, ports)) !== now) return;
+  project.documents = next.documents;
+  powerLabelPorts.push(...ports);
 }
 
 function removeEachAddedPin(

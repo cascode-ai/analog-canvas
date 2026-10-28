@@ -259,6 +259,11 @@ the RNL language and its runtime belong to rnl.
     rails; the Pin the netlist import gave it goes. It is applied once the
     drawing is known to keep the circuit, since only who owns the port, and
     with it where the netlist prints the port, changes (#1783);
+  - a port the drawing draws neither as a Pin nor as a power label: its
+    interface is a hidden power label again, bound to the port where the
+    netlist import put its Pin, and that Pin goes; the export draws every
+    Pin and each power label it shows, so the hidden label was the port's
+    only interface. Applied the same way, where the netlist stays the same;
   - the ground pin the export adds (`VSS`, or `GND`, `GND__n`, drawn as
     ground rather than as a port) is ground again, and its callers stop
     passing a node to it, as before the export; so is one a Cell drawing no
