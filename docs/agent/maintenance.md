@@ -23,7 +23,9 @@ fails. Repository-only helper internals stay in repository-only documents.
 Runtime schemas and symbol facts stay code-owned. Tool descriptions live in
 `mcp/tool-help.json` and HTTP operation descriptions in `http-kit/api-help.json`
 (generated into OpenAPI; run `pnpm agent-api:artifacts`); argument schema
-descriptions stay with the schema; new tools must use registered help.
+descriptions stay with the schema; new tools must use registered help. A tool
+description is at most 900 characters (`apps/mcp-server/src/tools.test.ts`);
+policy text and long workflows go in a reference it links.
 
 The browser template accepts only origin, serialized claim, manifest URL and
 Kit URL placeholders, replaced in one callback pass, never evaluated. Never add
