@@ -15,6 +15,7 @@ import {
   flattenRichText,
   type CircuitProject,
   type Annotation,
+  type DraftingObject,
   type Instance,
 } from "@icm/model";
 import {
@@ -1634,6 +1635,63 @@ describe("RNL round trip", () => {
       { part: "X2", visible: false, placed: true },
     ]);
   });
+
+  it.each(["spice", "spectre"] as const)(
+    "keeps a drawing text's typography role and its size within it, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const document = project.documents.find(
+        (item) => item.id === project.topDocumentId,
+      )!;
+      const base = (id: string, zIndex: number, y: number) => ({
+        id,
+        locked: false,
+        zIndex,
+        anchor: { kind: "free" as const, position: { x: 500, y } },
+        alignment: "start" as const,
+        rotation: 0 as const,
+      });
+      const objects: DraftingObject[] = [
+        {
+          ...base("label-text", 0, -300),
+          kind: "text",
+          content: { runs: [{ kind: "text", value: "Label role" }] },
+          typographyToken: "label",
+        },
+        {
+          ...base("caption-text", 1, -260),
+          kind: "text",
+          content: { runs: [{ kind: "text", value: "Caption role" }] },
+          typographyToken: "caption",
+          styleOverride: { sizeScale: 1.25 },
+        },
+        {
+          ...base("callout", 2, -220),
+          kind: "callout",
+          content: { runs: [{ kind: "text", value: "Called out" }] },
+          typographyToken: "label",
+          target: { kind: "free", position: { x: 420, y: -180 } },
+        },
+      ];
+      document.drafting = { objects };
+      const { project: drawn } = await roundTrip(project, format);
+      const cell = drawn.documents.find(
+        (item) => item.netlist?.name === document.netlist?.name,
+      )!;
+      const roles = (objects: readonly DraftingObject[]) =>
+        objects
+          .flatMap((object) =>
+            object.kind === "text" || object.kind === "callout"
+              ? [
+                  `${object.kind} ${JSON.stringify(object.content)} ${object.typographyToken ?? "-"} ${object.styleOverride?.sizeScale ?? 1}`,
+                ]
+              : [],
+          )
+          .filter((line) => /role|Called/u.test(line))
+          .sort();
+      expect(roles(cell.drafting?.objects ?? [])).toEqual(roles(objects));
+    },
+  );
 
   it.each(["spice", "spectre"] as const)(
     "keeps a drawing text anchored to the part it was anchored to, through %s+RNL",

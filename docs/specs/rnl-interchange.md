@@ -157,6 +157,8 @@ the RNL language and its runtime belong to rnl.
   micrometres and reads back otherwise (`0.15u` where it reads `0.15`, back
   as `150n`); in Spectre each number Spectre spells otherwise (`100fF` where
   it reads `100f`, as `c`, `val1`), a source's fields only for its waveform.
+  A drawing text's or callout's typography role is given on the text, named
+  for it (`$CANVAS_TYPOGRAPHY`, since 0.4), its size as well.
 - A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
   a `$CURRENT_ARROW` mark with its label hung on it, and a voltage marker its
   label with + and − beside it, all where the editor draws them. A floating
@@ -185,8 +187,8 @@ the RNL language and its runtime belong to rnl.
   symbol from the `analog-canvas-extensions` package, labels written as fixed
   text, hidden labels left out, text placed along a
   wire written at a fixed place, formulas written as LaTeX source, tilted text
-  written level, a floating symbol with no RNL symbol, a typography token
-  written as its size, parts in the tray, a block whose artwork RNL cannot
+  written level, a floating symbol with no RNL symbol, parts in the tray, a
+  block whose artwork RNL cannot
   take drawn as RNL's stand-in box, a direction arrow on a slanted wire.
 
 ### Import
@@ -270,7 +272,8 @@ the RNL language and its runtime belong to rnl.
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has, or as a power label where the export wrote one, hung on the
     junction it was drawn at; any other text as a drawing text, anchored to
-    the part or glyph it is attached to, else free; a label a
+    the part or glyph it is attached to, else free, with the typography role
+    `$CANVAS_TYPOGRAPHY` gives it and its size within that role; a label a
     symbol alone gives is left to the symbol; a part the drawing places
     without its name or values keeps the editor's default labels for them
     hidden, in their usual place, since the export writes every label it

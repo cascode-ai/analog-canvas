@@ -1180,6 +1180,7 @@ function applyLevel(
       continue;
     }
     if (object.definition === "$CANVAS_LABEL") continue; // read with the labels
+    if (object.definition === "$CANVAS_TYPOGRAPHY") continue; // with the texts
     if (object.definition === "$CANVAS_PARAMETER_TEXT") {
       textAgain(object);
       continue;
@@ -1992,6 +1993,19 @@ function importTexts(
         : [],
     ),
   );
+  // A drawing text's typography role, where Canvas 0.4 states it.
+  const tokenOf = new Map(
+    model.objects.flatMap((object) => {
+      const text = object.attach?.["text"];
+      const token = object.params?.["token"];
+      return object.kind === "usage" &&
+        object.definition === "$CANVAS_TYPOGRAPHY" &&
+        typeof text === "string" &&
+        (token === "caption" || token === "body" || token === "label")
+        ? [[text, token] as const]
+        : [];
+    }),
+  );
   /** Undefined where the drawing does not say, null for its own text. */
   const stated = (text: RnlTextView) => {
     if (!canvasWritten) return undefined;
@@ -2363,11 +2377,12 @@ function importTexts(
     // with bold runs, which draws the same.
     document.drafting ??= { objects: [] };
     const bold = text.style["bold"] === true;
+    const token = tokenOf.get(text.id);
     const styleOverride = {
       ...(bold ? {} : { weight: "normal" as const }),
       ...(text.style["italic"] === true ? { italic: true } : {}),
       ...(color.textColor ? { color: color.textColor } : {}),
-      ...scaled(text.size, richTextMetrics(profile).fontSize),
+      ...scaled(text.size, richTextMetrics(profile, token).fontSize),
     };
     // On the part or glyph RNL hangs it on, as the editor anchors one; else
     // where it stands.
@@ -2387,6 +2402,7 @@ function importTexts(
       content,
       alignment,
       rotation,
+      ...(token ? { typographyToken: token } : {}),
       ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
     });
   });
@@ -2761,6 +2777,9 @@ function regroupDrawings(
           content: text.content,
           alignment: text.alignment,
           rotation: text.rotation,
+          ...(text.typographyToken
+            ? { typographyToken: text.typographyToken }
+            : {}),
           target: free(last),
           ...(Object.keys(style).length ? { styleOverride: style } : {}),
         };
