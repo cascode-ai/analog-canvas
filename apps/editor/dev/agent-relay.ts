@@ -3,7 +3,10 @@ import { fileURLToPath } from "node:url";
 import type { Plugin, ProxyOptions } from "vite";
 import type { Unstable_DevWorker } from "wrangler";
 
-/** Start a real local relay only when an Agent API or WebSocket is requested. */
+/**
+ * Start a real local relay: under `vite preview` (browser tests) with the
+ * server, otherwise when an Agent API or WebSocket is first requested.
+ */
 export function localAgentRelay(): Plugin {
   let worker: Promise<Unstable_DevWorker> | undefined;
   let proxyOptions: ProxyOptions;
@@ -78,11 +81,17 @@ export function localAgentRelay(): Plugin {
   return {
     name: "local-agent-relay",
     // Also under `vite preview`, which browser tests use to serve the built
-    // editor: the relay is the same either way.
+    // editor.
     apply: "serve",
     config() {
       const proxy = { "/api/agent/": agentProxy };
       return { server: { proxy }, preview: { proxy } };
+    },
+    configurePreviewServer() {
+      // A cold start (bundling the Worker, booting workerd) takes seconds on
+      // a loaded runner: pay it while the first tests load, not inside the
+      // first Agent test. The first request reports, and retries, a failure.
+      void start().catch(() => undefined);
     },
     async closeBundle() {
       closing = true;

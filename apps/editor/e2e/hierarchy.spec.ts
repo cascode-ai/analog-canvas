@@ -37,6 +37,7 @@ import {
   openProject,
   openProjectFile,
   copyNetlistText,
+  readAgentClaim,
   showNetlistPanel,
 } from "./editor-fixtures.js";
 import { placedInstance, clickRoute } from "./canvas-fixtures.js";
@@ -223,9 +224,8 @@ test("Cell layout reconciles a selected pin removed by an HTTP Agent", async ({
   await openProject(page, serializeProject(cellLayoutProject()));
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   const panel = page.getByTestId("connect-agent-panel");
-  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
   const claimed = await request.post(`${baseURL}/api/agent/claims`, {
-    data: JSON.parse(handoff.match(/Claim: (.+)/u)![1]!),
+    data: await readAgentClaim(panel),
   });
   expect(claimed.ok()).toBe(true);
   const session = await claimed.json();
