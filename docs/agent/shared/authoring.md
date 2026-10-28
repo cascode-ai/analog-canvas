@@ -136,6 +136,13 @@ their IDs, never resolved to the first.
   `CK`, `Q`, `QBAR` where the symbol has it and `RST` for the reset form, plus
   `VDD`/`VSS` unless its supplies are global. It takes no standard cell; an
   empty model returns its ideal body.
+- An op-amp (`opamp`, `opamp-differential`, … and their variants) or
+  comparator (`comparator`, `comparator-differential`, …) binds to a Project
+  Cell the same way, keeping its triangle: the Cell's Pins are the part's own
+  (`IN+`, `IN-`, `OUT`, or `OUT+`/`OUT-`), not the ideal body's `VIP`/`VIN`/
+  `VOUT`, plus `VDD`/`VSS` unless its supplies are global. It takes no
+  standard cell; an empty model returns the ideal op-amp or comparator with
+  its default parameters.
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the

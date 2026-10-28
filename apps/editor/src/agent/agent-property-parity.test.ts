@@ -14,6 +14,7 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
+import { gateCellChoices } from "../features/properties/gate-cell-target";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { BrowserAgentHost } from "./browser-agent-host";
@@ -1042,6 +1043,79 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     expect(instance("X2").netlist?.binding).toEqual({
       kind: "unresolved-subcircuit",
       name: "d_flip_flop",
+    });
+  });
+
+  it("binds an op-amp to a Cell of the Project as its Properties model field does, and clears it (#1878)", async () => {
+    const { client, controller, apply, refuse, instance } = await session();
+    const drawPins = async (documentId: string, pins: readonly string[]) => {
+      const report = await client.applyActions(
+        pins.map((pin, index) => ({
+          kind: "place-component",
+          symbol: "port",
+          reference: pin,
+          position: { x: 0, y: index * 40 },
+        })),
+        { documentId },
+      );
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([{ kind: "create-cell", id: "ota", name: "ota" }]);
+    await apply([{ kind: "create-cell", id: "half", name: "half" }]);
+    await drawPins("ota", ["IN+", "IN-", "OUT"]);
+    await drawPins("half", ["IN+", "OUT"]);
+    await apply([place("opamp", "X1", 200)]);
+    const target = { kind: "instance", reference: "X1" };
+
+    // Properties offers the Cell that fits, and Apply binds it.
+    const before = structuredClone(controller.project);
+    const document = before.documents[0]!;
+    const opamp = document.instances.find((item) => item.reference === "X1")!;
+    expect(gateCellChoices(before, document.id, opamp)).toEqual(["ota"]);
+    const plan = planPropertyApply(
+      {
+        project: before,
+        document,
+        resolver: createProjectSymbolResolver(before, builtInSymbols),
+        instance: opamp,
+      },
+      {
+        netlistTarget: "ota",
+        placement: { coordinate: [200, 100], rotation: 0, mirror: "none" },
+        appearance: { color: "auto" },
+      },
+    );
+    if (plan.kind !== "structure") throw new Error(JSON.stringify(plan));
+    const gui = new EditorDocumentController(before);
+    const applied = gui.dispatchProjectTransaction({
+      transactionId: "properties-model",
+      projectId: before.id,
+      expectedStructureRevision: before.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: plan.structureEdits,
+    });
+    expect(applied.ok).toBe(true);
+
+    await apply([{ kind: "set-model", target, model: "OTA" }]);
+    expect(instance("X1")).toMatchObject({
+      symbolId: "opamp",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "ota" },
+        parameters: {},
+      },
+    });
+    expect(instance("X1")).toEqual(
+      gui.project.documents[0]!.instances.find(
+        (item) => item.reference === "X1",
+      ),
+    );
+    expect(
+      await refuse([{ kind: "set-model", target, model: "half" }]),
+    ).toContain("Cell half does not fit the opamp: it has no Pin IN-.");
+    await apply([{ kind: "set-model", target, model: "" }]);
+    expect(instance("X1").netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "opamp" },
+      parameters: { gain: "1e6", vhigh: "VDD", vlow: "VSS" },
     });
   });
 });
