@@ -325,9 +325,13 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 - **Use display alias** keeps literal RichText on the same Annotation. Text that
   cannot be the netlist name (not portable, wrong device letter, another part's
   Reference) checks it automatically and keeps the Reference; unstyled aliases
-  draw in Reference style. Unchecking restores the binding keeping position and
-  style; the toggle is undoable. Copies: following labels update, aliases copy
-  exactly.
+  draw in Reference style. Unchecking restores the binding in the name's
+  standard look, keeping position, size and color; the toggle is undoable. Copies:
+  following labels update, aliases copy exactly.
+- A Net label that claims its Net's name has the same toggle (Agent
+  `set-display-alias {annotationId}`); emptying its alias is refused. Renaming
+  the Net from its wire keeps the alias; Agent `set-net-label` writes the
+  label's text as the name.
 - Batch `name` on several parts: the part already named keeps it, else the first
   that can take it is renamed; others show it as an alias. A Pin never takes
   another Pin's name. One transaction.
@@ -359,6 +363,7 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 | Cell Pin label           | Formal terminal name              | Renames the declaration, reconciles callers | Same-name `formatOverride`, projected to parent pin |
 | Cell Pin display alias   | Annotation `content`              | Alias only; Pin keeps its name              | Alias only, drawn by the parent pin                 |
 | Net or power label       | Its name claim or formal terminal | Owning Net/terminal rename path             | Keeps the name, stores presentation                 |
+| Net label display alias  | Annotation `content`              | Alias only; its claim keeps the Net's name  | Alias only                                          |
 | Free drafting text       | Drafting `content`                | Drawing only                                | Drawing only                                        |
 
 - [Names and labels](names-and-labels.md) owns typography and drawing-wide

@@ -2247,16 +2247,22 @@ function importTexts(
       document.annotations.push({
         id,
         kind: "net-label",
-        binding: { kind: "net-name", netId },
         netId,
-        // The name its claim gives the net, set as the Cell sets names.
-        ...(shown === named.name &&
-        !sameStyledText(
-          labelTextDocument(named.name, document.presentation),
-          content,
-        )
-          ? { formatOverride: content }
-          : {}),
+        // A label Analog Canvas wrote without $CANVAS_LABEL shows a display
+        // alias, its own text, and still names its net (#1880).
+        ...(says === null
+          ? { content }
+          : {
+              binding: { kind: "net-name" as const, netId },
+              // The name its claim gives the net, set as the Cell sets names.
+              ...(shown === named.name &&
+              !sameStyledText(
+                labelTextDocument(named.name, document.presentation),
+                content,
+              )
+                ? { formatOverride: content }
+                : {}),
+            }),
         anchor,
         ...common,
         ...scaled(text.size, profile.typography.netFontSize),

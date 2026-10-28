@@ -12,6 +12,7 @@ import {
   ProjectSimulationFolderSchema,
 } from "./schema.js";
 import type {
+  Annotation,
   SimulationRawSetup,
   SimulationStructuredInput,
   SimulationStructuredSetup,
@@ -674,6 +675,37 @@ describe("CircuitProject schema", () => {
       scope: "local",
     };
     expect(SchematicDocumentSchema.safeParse(retired).success).toBe(false);
+  });
+
+  it("keeps a Net label's display alias as literal text beside its name claim (#1880)", () => {
+    const document = createEmptyDocument("doc-alias", "Alias");
+    document.nets.push({ id: "net-ea", terminals: [] });
+    const label: Annotation = {
+      id: "label-ea",
+      kind: "net-label",
+      content: { runs: [{ kind: "text", value: "VEA,OUT" }] },
+      netId: "net-ea",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(label);
+    document.connectivityEvidence.push({
+      id: "claim-ea",
+      kind: "name-claim",
+      netId: "net-ea",
+      name: "VEA_OUT",
+      owner: { kind: "net-label", annotationId: label.id },
+      scope: "local",
+    });
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+    // The alias is the label's text, never a look of the name.
+    document.annotations[0] = {
+      ...label,
+      formatOverride: { runs: [{ kind: "text", value: "VEA,OUT" }] },
+    };
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
   });
 
   it("accepts a rail label format override whose power claim is owned by the label itself", () => {

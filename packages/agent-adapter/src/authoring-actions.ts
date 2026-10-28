@@ -186,9 +186,19 @@ const SetModelActionSchema = NativeSetModel.extend({
   target: InstanceRefSchema.optional(),
 }).superRefine(oneInstance);
 const SetDisplayAliasActionSchema = NativeSetDisplayAlias.extend({
-  instanceId: NativeSetDisplayAlias.shape.instanceId.optional(),
   target: InstanceRefSchema.optional(),
-}).superRefine(oneInstance);
+}).superRefine((action, context) => {
+  // A Net label is named by its annotationId alone (#1880).
+  if (
+    [action.instanceId, action.target, action.annotationId].filter(
+      (given) => given !== undefined,
+    ).length !== 1
+  )
+    context.addIssue({
+      code: "custom",
+      message: "Provide exactly one of instanceId, target or annotationId",
+    });
+});
 const ApplyLabelPresetActionSchema = NativeApplyLabelPreset.extend({
   targets: z
     .array(InstanceRefSchema)

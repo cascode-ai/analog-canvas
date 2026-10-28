@@ -111,7 +111,10 @@ import {
   missingDefaultInstanceDisplayAnnotations,
 } from "../features/instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
-import { planDisplayAlias } from "../features/properties/group-naming";
+import {
+  planDisplayAlias,
+  planNetLabelAlias,
+} from "../features/properties/group-naming";
 import {
   arrangeInstanceLabelsReport,
   type LabelLeftInPlace,
@@ -1130,9 +1133,27 @@ export function planBrowserAgentCommand(
         : { edits };
     }
     case "set-display-alias": {
+      const { instanceId, annotationId } = command;
+      if (annotationId !== undefined && instanceId === undefined) {
+        const plan = planNetLabelAlias({
+          document,
+          annotationId,
+          alias: command.text,
+        });
+        if (!plan.ok) throw new Error(plan.message);
+        return {
+          edits: plan.label
+            ? [{ kind: "upsert_schematic_annotation", annotation: plan.label }]
+            : [],
+        };
+      }
+      if (instanceId === undefined || annotationId !== undefined)
+        throw new Error(
+          "set-display-alias takes exactly one of instanceId or annotationId",
+        );
       const plan = planDisplayAlias({
         document,
-        instanceId: command.instanceId,
+        instanceId,
         alias: command.text,
         labelFor: instanceLabelAnnotationFor,
         newLabelFor: (current, instanceId) =>

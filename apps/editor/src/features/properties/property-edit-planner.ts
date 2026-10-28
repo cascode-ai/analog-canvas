@@ -4,6 +4,7 @@ import {
   NET_LABEL_WIRE_GAP,
   netLabelAttachmentForText,
   netLabelBaselineForName,
+  netLabelAliasClaim,
   netLabelStandardOffset,
   resolveAnnotationName,
   resolveNetLabelBinding,
@@ -341,18 +342,29 @@ export function createPropertyEditPlanner({
       existingLabel.anchor.routeId === route.id
         ? existingLabel.anchor
         : null;
+    // A rename keeps a display alias, the label's own text.
+    const keptAlias =
+      presentation === undefined &&
+      existingLabel &&
+      netLabelAliasClaim(document, existingLabel)
+        ? existingLabel.content
+        : undefined;
     const edits: SchematicEdit[] = [...namedNetPlan.edits];
     edits.push({
       kind: "upsert_schematic_annotation",
       annotation: {
         id: labelId,
         kind: "net-label",
-        binding:
-          existingLabel?.binding?.kind === "net-name" &&
-          (existingLabel.binding.memberEndpoint ||
-            existingLabel.binding.memberEndpoints)
-            ? existingLabel.binding
-            : { kind: "net-name", netId: targetNetId },
+        ...(keptAlias
+          ? { content: keptAlias }
+          : {
+              binding:
+                existingLabel?.binding?.kind === "net-name" &&
+                (existingLabel.binding.memberEndpoint ||
+                  existingLabel.binding.memberEndpoints)
+                  ? existingLabel.binding
+                  : { kind: "net-name" as const, netId: targetNetId },
+            }),
         netId: targetNetId,
         anchor: placed
           ? {

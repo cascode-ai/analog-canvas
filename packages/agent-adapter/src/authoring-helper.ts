@@ -822,7 +822,8 @@ export function compileActions(
         if (
           (native.kind === "set-model" ||
             native.kind === "set-display-alias") &&
-          native.instanceId === undefined
+          native.instanceId === undefined &&
+          native.target !== undefined
         ) {
           const { target, ...rest } = native;
           native = {
