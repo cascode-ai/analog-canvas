@@ -1345,6 +1345,7 @@ describe("every action compiles in a mixed call", () => {
         kind: "set-cell-symbol-pins",
         pins: [{ name: "bl", side: "east" }],
       },
+      { kind: "set-cell-symbol-size", width: 80, height: 60 },
       { kind: "apply-label-preset", preset: "textbook" },
     ];
     for (const command of commands) {
