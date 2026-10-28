@@ -16,6 +16,7 @@ import {
 } from "@icm/devices";
 import {
   analyzeDesignNetlistForAuthoring,
+  callOnlyBlock,
   createDesignNetlistExport,
   encodeNetName,
   spectreNumber,
@@ -622,6 +623,61 @@ export function drawnModelTypes(snapshot: RnlSnapshot): Map<string, string> {
   );
 }
 
+/**
+ * The library blocks the drawing's parts call where Analog Canvas writes
+ * their calls without a body for `format` (`callOnlyBlock`), as the symbols
+ * it draws them with say it: `$DAC` a DAC, a call symbol of the file a
+ * flip-flop's artwork. A master whose parts are drawn as anything else is
+ * none.
+ */
+export function drawnCalledBlocks(
+  snapshot: RnlSnapshot,
+  format: "spice" | "spectre",
+): NonNullable<ReturnType<typeof callOnlyBlock>>[] {
+  const found = new Map<string, ReturnType<typeof callOnlyBlock>>();
+  for (const level of snapshot.levels) {
+    if (!level.model || !level.host) continue;
+    const symbols = new Map(
+      level.model.symbols.map((symbol) => [symbol.id, symbol]),
+    );
+    const masters = new Map(
+      level.host.instances.map((instance) => [instance.id, instance.master]),
+    );
+    for (const object of level.model.objects) {
+      if (object.kind !== "instance") continue;
+      const master = masters.get(object.host[0] ?? object.id);
+      const symbol = object.symbol.value
+        ? symbols.get(object.symbol.value)
+        : undefined;
+      if (!master || !symbol || symbol.default) continue;
+      const drawn = [
+        ...RNL_SYMBOLS.filter(
+          (row) =>
+            row.ac !== null &&
+            !row.inline &&
+            row.symbol === symbol.name &&
+            family(row.package) === family(symbol.package),
+        ),
+        ...[callSymbolFromDefinition(symbol) ?? []].flat(),
+      ];
+      const blocks = drawn.flatMap((row) => {
+        const block = row.ac ? callOnlyBlock(master, row.ac, format) : null;
+        return block ? [block] : [];
+      });
+      const key = master.toLowerCase();
+      const before = found.get(key);
+      found.set(
+        key,
+        blocks.length === 1 &&
+          (before === undefined || before?.symbolId === blocks[0]!.symbolId)
+          ? blocks[0]!
+          : null,
+      );
+    }
+  }
+  return [...found.values()].flatMap((block) => (block ? [block] : []));
+}
+
 /** The model type of an Analog Canvas device symbol, if it calls a model. */
 function modelTypeOf(symbolId: string): string | null {
   const descriptor = deviceDescriptor(symbolId);
@@ -977,8 +1033,16 @@ function applyLevel(
       symbol && !symbol.default
         ? gateCallSymbol(symbol, orient, instance)
         : null;
+    // A called block's call symbol draws the block the part already is.
+    const blockCall =
+      symbol && !symbol.default && !gateCall
+        ? callSymbolFromDefinition(symbol)
+        : null;
     const mapped =
       gateCall ??
+      (blockCall?.ac === instance.symbolId
+        ? { row: blockCall, orient }
+        : null) ??
       (symbol && !symbol.default
         ? (acSymbolFor(
             symbol,

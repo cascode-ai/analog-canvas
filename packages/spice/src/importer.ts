@@ -103,21 +103,40 @@ export interface SpiceImportOptions {
    * drawing draws its parts with. A card the sources declare decides.
    */
   modelTypes?: ReadonlyMap<string, string>;
+  /**
+   * Library blocks the sources call but do not define, as Analog Canvas
+   * writes a block whose body a simulator's libraries give (`callOnlyBlock`
+   * of @icm/netlist), by the name its calls give, as another reading of the
+   * same files says it, such as the RNL symbol its calls are drawn with.
+   * Each call of one imports as that block; a definition the sources give
+   * decides.
+   */
+  calledBlocks?: readonly ImportedBody[];
 }
 
-/** The key a built-in body is found by: its kind and its name, any case. */
-const builtInBodyKey = (kind: SpiceBuiltInBody["kind"], name: string) =>
-  `${kind}:${name.toLowerCase()}`;
+/** What a built-in body imports as, wherever the sources have it. */
+type ImportedBody = Omit<SpiceBuiltInBody, "source">;
 
-/** The built-in body a card names, if the sources define one. */
+/**
+ * The key a built-in body is found by: its kind and its name, any case; a
+ * called block's is `call`.
+ */
+const builtInBodyKey = (
+  kind: SpiceBuiltInBody["kind"] | "call",
+  name: string,
+) => `${kind}:${name.toLowerCase()}`;
+
+/** The built-in body a card names, if the sources define one or call it as a called block. */
 function calledBuiltInBody(
   instance: CircuitInstanceIR,
-  bodies: ReadonlyMap<string, SpiceBuiltInBody>,
-): SpiceBuiltInBody | undefined {
+  bodies: ReadonlyMap<string, ImportedBody>,
+): ImportedBody | undefined {
   if (instance.target.kind === "subcircuit")
     return bodies.get(builtInBodyKey("subcircuit", instance.target.cellName));
   if (instance.target.kind === "model")
     return bodies.get(builtInBodyKey("model", instance.target.modelName));
+  if (instance.target.kind === "external-subcircuit")
+    return bodies.get(builtInBodyKey("call", instance.target.masterName));
   return undefined;
 }
 
@@ -127,7 +146,7 @@ function calledBuiltInBody(
  * supply left unbound, the ground a switch reads, the clock its label names).
  */
 function builtInBodyPin(
-  body: SpiceBuiltInBody,
+  body: ImportedBody,
   position: number,
   atGround: boolean,
 ): string | null {
@@ -151,7 +170,7 @@ function builtInReference(name: string, prefix: string | undefined): string {
 /** A card naming a built-in body, as the part that wrote it. */
 function importBuiltInBlock(
   instance: CircuitInstanceIR,
-  body: SpiceBuiltInBody,
+  body: ImportedBody,
   diagnostics: SpiceDiagnostic[],
 ): Instance | null {
   if (instance.terminals.length !== body.ports.length) {
@@ -569,7 +588,7 @@ function importInstance(
   diagnostics: SpiceDiagnostic[],
   modelTypeByName: ReadonlyMap<string, string>,
   symbolMappings: readonly PdkSymbolMappingOverride[],
-  builtInBodies: ReadonlyMap<string, SpiceBuiltInBody>,
+  builtInBodies: ReadonlyMap<string, ImportedBody>,
   spectre: boolean,
 ): Instance | null {
   const body = calledBuiltInBody(instance, builtInBodies);
@@ -940,7 +959,7 @@ function importDocument(
   diagnostics: SpiceDiagnostic[],
   modelTypeByName: ReadonlyMap<string, string>,
   options: SpiceImportOptions,
-  builtInBodies: ReadonlyMap<string, SpiceBuiltInBody>,
+  builtInBodies: ReadonlyMap<string, ImportedBody>,
   spectreFileIds: ReadonlySet<string>,
 ): SchematicDocument {
   const symbolMappings = options.symbolMappings ?? [];
@@ -1463,8 +1482,17 @@ function importCircuitIR(
         [model.name.toLowerCase(), model.modelType.toLowerCase()] as const,
     ),
   ]);
-  const builtInBodies = new Map(
-    (options.builtInBodies ?? [])
+  const builtInBodies = new Map<string, ImportedBody>([
+    // A call the sources give no definition for is all a called block's
+    // calls are; a Cell of that name is the author's own.
+    ...(options.calledBlocks ?? []).flatMap((block) =>
+      ir.cells.some(
+        (cell) => cell.name.toLowerCase() === block.name.toLowerCase(),
+      )
+        ? []
+        : [[builtInBodyKey("call", block.name), block] as const],
+    ),
+    ...(options.builtInBodies ?? [])
       .filter((body) => {
         const definitions = (
           body.kind === "subcircuit" ? ir.cells : ir.models
@@ -1496,8 +1524,8 @@ function importCircuitIR(
           )
         );
       })
-      .map((body) => [builtInBodyKey(body.kind, body.name), body]),
-  );
+      .map((body) => [builtInBodyKey(body.kind, body.name), body] as const),
+  ]);
   // A built-in body imports as the part each call of it is, not as a Cell.
   const isBody = (name: string) =>
     builtInBodies.has(builtInBodyKey("subcircuit", name));

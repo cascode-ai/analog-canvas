@@ -102,6 +102,134 @@ it.each(["spice", "spectre"] as const)(
 );
 
 /**
+ * A D flip-flop X1 and a DAC X2 from the Library in Cell `dut`, each pin
+ * wired straight across to a Cell Pin level with it: blocks a Spectre
+ * export calls without their bodies.
+ */
+function calledBlocks(): CircuitProject {
+  const project = createEmptyProject("blocks", "Blocks", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const symbols = new Map(builtInSymbols.map((symbol) => [symbol.id, symbol]));
+  const portPin = symbols.get("port")!.pins[0]!.at;
+  const at = (x: number, y: number) =>
+    ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+  ["d-flip-flop", "dac"].forEach((symbolId, row) => {
+    const reference = `X${row + 1}`;
+    const position = { x: 200, y: 100 + row * 150 };
+    document.instances.push({
+      id: reference,
+      symbolId,
+      reference,
+      placement: at(position.x, position.y),
+      netlist: {
+        binding: {
+          kind: "unresolved-subcircuit",
+          name: subcircuitDescriptor(symbolId)!.target,
+        },
+        parameters: {},
+      },
+    });
+    for (const pin of symbols.get(symbolId)!.pins) {
+      const node = `n_${reference}_${pin.name}`.toLowerCase();
+      const port = `pin-${node}`;
+      const x = position.x + pin.at.x + (pin.at.x < 0 ? -60 : 60);
+      const y = position.y + pin.at.y;
+      document.instances.push({
+        id: port,
+        symbolId: "port",
+        placement: at(x - portPin.x, y - portPin.y),
+      });
+      document.nets.push({
+        id: node,
+        terminals: [
+          { instanceId: port, pinName: "P" },
+          { instanceId: reference, pinName: pin.name },
+        ],
+      });
+      document.netlist!.terminals.push({
+        id: `terminal-${node}`,
+        name: node,
+        netId: node,
+        direction: "inout",
+        interfaceInstanceIds: [port],
+      });
+      document.routes.push({
+        id: `route-${node}`,
+        netId: node,
+        start: { kind: "terminal", instanceId: port, pinName: "P" },
+        legs: [
+          {
+            id: `leg-${node}`,
+            to: {
+              kind: "endpoint",
+              endpoint: {
+                kind: "terminal",
+                instanceId: reference,
+                pinName: pin.name,
+              },
+            },
+            mode: "manual",
+          },
+        ],
+      });
+    }
+  });
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "brings back a Library flip-flop and DAC with their wires, as %s+RNL calls them",
+  async (format) => {
+    const project = calledBlocks();
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    // Spectre calls each with its supplies first and leaves its body to the
+    // reader's libraries: the file draws each with a symbol of its own whose
+    // pins sit where the call prints them.
+    if (format === "spectre") {
+      expect(written.text).not.toMatch(/^subckt (d_flip_flop|dac)\b/mu);
+      expect(written.text).toContain(
+        "@SET-SYMBOL $CANVAS_CALL_D_FLIP_FLOP__0_0_1_2_3_4",
+      );
+      expect(written.text).toContain("@SET-SYMBOL $CANVAS_CALL_DAC__0_0_1_2");
+    }
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    expect(
+      plan.diagnostics
+        .map((item) => item.code)
+        .filter((code) =>
+          ["RNL_IMPORT_UNMAPPED_SYMBOL", "RNL_IMPORT_WIRE_SKIPPED"].includes(
+            code,
+          ),
+        ),
+    ).toEqual([]);
+    const dut = plan.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    expect(
+      ["X1", "X2"].map(
+        (reference) =>
+          dut.instances.find((instance) => instance.reference === reference)
+            ?.symbolId,
+      ),
+    ).toEqual(["d-flip-flop", "dac"]);
+    expect(plan.project.externalSubcircuitDefinitions ?? []).toEqual([]);
+    expect(dut.routes).toHaveLength(project.documents[0]!.routes.length);
+    const netlist = (circuit: CircuitProject) => {
+      const result = createDesignNetlistExport(circuit, { format });
+      return result.status === "ready" ? result.file.text : result.status;
+    };
+    expect(netlist(plan.project)).toBe(netlist(project));
+  },
+);
+
+/**
  * An nmos M1 that calls a model source's subcircuit, so SPICE prints it as
  * XM1, in a Cell with its own naming typography.
  */

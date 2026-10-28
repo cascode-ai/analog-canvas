@@ -40,6 +40,7 @@ import {
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import {
   bindsProjectCell,
+  builtInModelContract,
   matchGateCellPins,
   subcircuitDescriptor,
 } from "@icm/devices";
@@ -703,13 +704,23 @@ function exportCell(
               portNames: call.nodes.map((node) => node.pinName),
             })
           : undefined;
+      // A Library block's call names its ports, as its contract does (a
+      // DAC's VIN is its pin IN).
+      const ports = call.target
+        ? builtInModelContract(call.target)?.ports
+        : undefined;
       const ordered = symbolForCall(
         symbol,
         call,
         gate
           ? (node) =>
               gate.pins.find((pin) => pin.portName === node.pinName)?.pinName
-          : undefined,
+          : ports
+            ? (node) =>
+                node.canvasPinName ??
+                ports.find((port) => port.name === node.pinName)?.pinName ??
+                node.pinName
+            : undefined,
       );
       if (ordered !== symbol) {
         context.callSymbols.set(ordered.symbol, ordered);

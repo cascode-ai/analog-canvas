@@ -8,6 +8,7 @@ import { serializeProject } from "@icm/project-protocol";
 import {
   applyRnlSnapshot,
   canvasTopDocument,
+  drawnCalledBlocks,
   drawnModelTypes,
   withPowerLabelPorts,
   rnlBodyPortOrder,
@@ -270,6 +271,7 @@ async function buildImportPlan({
     );
   const entry = inputs.find((input) => input.path === entryPath);
   if (!entry) return failedPlan(`RNL import has no file ${entryPath}`);
+  const dialect = isSpectreSource(entry) ? "spectre" : "spice";
   const snapshot = await runtime.snapshot({
     entry: entryPath,
     files: Object.fromEntries(
@@ -278,7 +280,7 @@ async function buildImportPlan({
         new TextDecoder().decode(input.bytes),
       ]),
     ),
-    dialect: isSpectreSource(entry) ? "spectre" : "spice",
+    dialect,
     parts: { drawing: false, host: true, model: true },
   });
   const prepared = prepareImportSources(inputs);
@@ -292,6 +294,9 @@ async function buildImportPlan({
       builtInBodies: prepared.builtInBodies,
       // A model no card declares is the type its parts are drawn as.
       modelTypes: drawnModelTypes(snapshot),
+      // A library block the file calls without its body is the block its
+      // parts are drawn as.
+      calledBlocks: drawnCalledBlocks(snapshot, dialect),
     },
   );
   if (!imported.project || !imported.successful)

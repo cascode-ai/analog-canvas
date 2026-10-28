@@ -299,6 +299,41 @@ function builtInBody(
 }
 
 /**
+ * The library block `symbolId` draws, where a call of `name` is that block
+ * as Analog Canvas writes it for `format` without its body: a flip-flop or
+ * a signal block in Spectre, whose definition the reader's libraries give.
+ * Its ports are in the order the call prints them. Null for any other name
+ * or symbol. A netlist alone never says a call is such a block; another
+ * reading of the same file must, such as the RNL symbol it is drawn with.
+ */
+export function callOnlyBlock(
+  name: string,
+  symbolId: string,
+  format: NetlistFormat,
+): Omit<SpiceBuiltInBody, "source"> | null {
+  const contract = builtInModelContract(
+    format === "spice" ? name.toLowerCase() : name,
+  );
+  if (
+    !contract ||
+    contract.symbolId !== symbolId ||
+    contract.backends[format] !== "external"
+  )
+    return null;
+  return {
+    name,
+    kind: "subcircuit",
+    symbolId: contract.symbolId,
+    target: contract.target,
+    ports: contract.ports.map((port) =>
+      port.supply
+        ? { supply: port.supply, unboundAtGround: false }
+        : { pinName: port.pinName },
+    ),
+  };
+}
+
+/**
  * The bodies Analog Canvas writes itself that a netlist source defines (an
  * op-amp's, a logic gate's, an ideal block's, the chopper's, the ideal
  * switch's), for the SPICE / SCS import to bring each card naming one in as

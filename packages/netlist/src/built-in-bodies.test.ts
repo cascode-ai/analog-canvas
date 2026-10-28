@@ -9,7 +9,7 @@ import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { convertNetlist, importSpiceSources } from "@icm/spice";
 
 import type { BodyPortOrder } from "./body-port-order.js";
-import { findBuiltInBodies } from "./built-in-bodies.js";
+import { callOnlyBlock, findBuiltInBodies } from "./built-in-bodies.js";
 import { createDesignNetlistExport } from "./export.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
@@ -84,6 +84,7 @@ function exported(
 async function imported(
   text: string,
   format: NetlistFormat,
+  calledBlocks: NonNullable<ReturnType<typeof callOnlyBlock>>[] = [],
 ): Promise<CircuitProject> {
   const path = format === "spice" ? "circuit.sp" : "circuit.scs";
   const found = findBuiltInBodies(text, format, path);
@@ -108,7 +109,7 @@ async function imported(
     [{ path, bytes: new TextEncoder().encode(source) }],
     path,
     {},
-    { builtInBodies: found.bodies },
+    { builtInBodies: found.bodies, calledBlocks },
   );
   expect(result.successful, JSON.stringify(result.diagnostics)).toBe(true);
   return result.project!;
@@ -161,6 +162,47 @@ describe("built-in bodies on import", () => {
       ).toEqual(["dut"]);
       expect(importedBlock(project).symbolId).toBe(symbolId);
       expect(exported(project, format)).toBe(text);
+    },
+  );
+
+  // A flip-flop's or a signal block's Spectre call, which leaves the body to
+  // the reader's libraries.
+  const callOnly = blocks.filter((descriptor) =>
+    callOnlyBlock(descriptor.target, descriptor.symbolId, "spectre"),
+  );
+
+  it("knows a call-only block only where Spectre leaves its body out", () => {
+    expect(callOnly.map((descriptor) => descriptor.symbolId)).toEqual(
+      expect.arrayContaining(["d-flip-flop", "dac"]),
+    );
+    expect(callOnlyBlock("d_flip_flop", "d-flip-flop", "spice")).toBeNull();
+    expect(callOnlyBlock("d_flip_flop", "dac", "spectre")).toBeNull();
+    expect(callOnlyBlock("opamp", "opamp", "spectre")).toBeNull();
+    expect(callOnlyBlock("dac", "dac", "spectre")?.ports).toEqual([
+      { supply: "VDD", unboundAtGround: false },
+      { supply: "VSS", unboundAtGround: false },
+      { pinName: "IN" },
+      { pinName: "OUT" },
+    ]);
+  });
+
+  it.each(callOnly.map((descriptor) => descriptor.symbolId))(
+    "imports a Spectre call of %s without its body as the block, when another reading says it is",
+    async (symbolId) => {
+      const text = exported(block(symbolId), "spectre");
+      const call = /^X1 .*?(\S+)$/mu.exec(text.replace(/[()]/gu, ""))![1]!;
+      expect(text).not.toMatch(new RegExp(`^subckt ${call}\b`, "mu"));
+      const project = await imported(text, "spectre", [
+        callOnlyBlock(call, symbolId, "spectre")!,
+      ]);
+      expect(importedBlock(project).symbolId).toBe(symbolId);
+      expect(project.externalSubcircuitDefinitions ?? []).toEqual([]);
+      expect(exported(project, "spectre")).toBe(text);
+      // The netlist alone says nothing of the kind.
+      const alone = await imported(text, "spectre");
+      expect(importedBlock(alone).netlist?.binding?.kind).toBe(
+        "external-subcircuit",
+      );
     },
   );
 
