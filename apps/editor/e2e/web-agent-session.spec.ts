@@ -15,6 +15,7 @@ import {
   setComponentParameter,
   openCellManager,
   openEditor,
+  readAgentClaim,
 } from "./editor-fixtures.js";
 import { readComponentCode } from "./manual-editor-fixtures.js";
 
@@ -32,8 +33,7 @@ test.describe.configure({ mode: "default" });
 async function pairAgent(page: Page, baseURL: string) {
   await page.getByTestId("open-agent").click();
   const panel = page.getByTestId("connect-agent-panel");
-  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
-  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const { claimCode } = await readAgentClaim(panel);
   const client = new AgentHttpClient({ baseUrl: baseURL });
   const session = await client.claim(claimCode);
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
@@ -156,11 +156,7 @@ test("Agent Gallery open returns each new working copy after the relay context c
   await openEditor(page);
   await page.getByTestId("open-agent").click();
   const panel = page.getByTestId("connect-agent-panel");
-  const message = panel.getByTestId("agent-copy-text");
-  await expect(message).toHaveValue(/Claim: /, { timeout: 45_000 });
-  const { claimCode } = JSON.parse(
-    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
-  );
+  const { claimCode } = await readAgentClaim(panel);
   let openedFile = false;
   const staleStatuses: number[] = [];
   const client = new AgentSessionClient({
@@ -1393,9 +1389,7 @@ test("copies a working handoff through the normal local dev relay", async ({
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   const panel = page.getByTestId("connect-agent-panel");
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("agent-copy-instructions")).toBeVisible({
-    timeout: 30_000,
-  });
+  const { claimCode } = await readAgentClaim(panel);
   await panel.getByTestId("agent-copy-instructions").click();
   await expect(panel.getByLabel("Connection setup copied")).toBeVisible();
   const handoff = await page.evaluate(() => navigator.clipboard.readText());
@@ -1419,9 +1413,6 @@ test("copies a working handoff through the normal local dev relay", async ({
     ).status(),
   ).toBe(403);
 
-  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!) as {
-    claimCode: string;
-  };
   const client = new AgentHttpClient({ baseUrl: baseURL! });
   const session = await client.claim(claimCode);
   const agent = boundTo(client, session);

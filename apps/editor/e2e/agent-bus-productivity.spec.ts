@@ -4,7 +4,11 @@ import { serializeProject } from "@icm/project-protocol";
 import { executeProjectTransaction, proposeWireIntent } from "@icm/edit-engine";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { busReuseProject } from "./bus-reuse-fixtures";
-import { exportedProject, openProject } from "./editor-fixtures";
+import {
+  exportedProject,
+  openProject,
+  readAgentClaim,
+} from "./editor-fixtures";
 
 test.use({ trace: "off", screenshot: "off" });
 
@@ -71,9 +75,8 @@ test("traces and marks explicit bus members through a real Agent with atomic cop
   expect(net).toBeDefined();
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   const panel = page.getByTestId("connect-agent-panel");
-  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
   const claimed = await request.post(`${baseURL}/api/agent/claims`, {
-    data: JSON.parse(handoff.match(/Claim: (.+)/u)![1]!),
+    data: await readAgentClaim(panel),
   });
   expect(claimed.ok()).toBe(true);
   const session = await claimed.json();

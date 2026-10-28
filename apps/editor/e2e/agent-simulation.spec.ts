@@ -5,6 +5,7 @@ import {
   clickNetlistWorkflowCommand,
   awaitEditorReady,
   openProjectFile,
+  readAgentClaim,
 } from "./editor-fixtures.js";
 import {
   completedNgspiceRun,
@@ -40,9 +41,7 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   await page.goto("/editor");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   const panel = page.getByTestId("connect-agent-panel");
-  await expect(panel.getByTestId("agent-copy-text")).toBeVisible({
-    timeout: 30000,
-  });
+  const claim = await readAgentClaim(panel);
   const handoff = await panel.getByTestId("agent-copy-text").inputValue();
   const kitUrl = `${baseURL}/api/agent/kit`;
   expect(handoff).toContain(kitUrl);
@@ -55,7 +54,6 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
         file.path === "references/razavi-authoring-catalog.json",
     ).content,
   );
-  const claim = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
   const claimed = await request.post(`${baseURL}/api/agent/claims`, {
     data: claim,
   });
