@@ -2333,14 +2333,19 @@ function importTexts(
         kind: "instance-label",
         // Bound to the part's reference when it reads as that and the
         // drawing does not say otherwise; a name drawn otherwise (M1 on the
-        // card XM1) is the label's own text, as drawn.
-        ...(shown === instance.reference &&
+        // card XM1) is the label's own text, as drawn. A part the author
+        // never named (Canvas 0.4) shows the name the netlist gave it,
+        // which is no name of its own: its label is bound, and shows none.
+        ...(instance.reference === undefined &&
         (says === undefined || says?.bind === "name")
-          ? {
-              binding,
-              ...formatted({ kind: "instance-label", binding }, content),
-            }
-          : { content }),
+          ? { binding }
+          : shown === instance.reference &&
+              (says === undefined || says?.bind === "name")
+            ? {
+                binding,
+                ...formatted({ kind: "instance-label", binding }, content),
+              }
+            : { content }),
         anchor: onObject(instance),
         ...common,
         ...scaled(text.size, profile.typography.instanceFontSize),

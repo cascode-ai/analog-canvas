@@ -1952,6 +1952,76 @@ describe("RNL round trip", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "keeps an unnamed part's name label, which shows nothing, where it stands, through %s+RNL",
+    async (format) => {
+      const project = example("two-stage-op-amp");
+      const document = project.documents.find((item) =>
+        item.instances.some((instance) => instance.symbolId === "opamp"),
+      )!;
+      const opamp = document.instances.find(
+        (instance) => instance.symbolId === "opamp",
+      )!;
+      delete opamp.reference;
+      delete opamp.netlist;
+      const position = opamp.placement!.position;
+      document.annotations = document.annotations.filter(
+        (item) =>
+          item.anchor.kind !== "object" || item.anchor.objectId !== opamp.id,
+      );
+      document.annotations.push({
+        id: "opamp-name",
+        kind: "instance-label",
+        binding: { kind: "instance-reference", instanceId: opamp.id },
+        anchor: {
+          kind: "object",
+          objectId: opamp.id,
+          localOffset: { x: 0, y: 60 },
+          fallbackPosition: { x: position.x, y: position.y + 60 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      });
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      // RNL's own viewers show the name the netlist gives the part.
+      expect(written.text).toMatch(
+        /#X\d+ @TEXT\("[^"]*X\d+[^"]*", key="name"/u,
+      );
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      const cell = plan.project.documents.find(
+        (item) => item.netlist?.name === document.netlist?.name,
+      )!;
+      const part = cell.instances.find((instance) =>
+        instance.symbolId.startsWith("opamp"),
+      )!;
+      expect(part.reference).toBeUndefined();
+      const labels = cell.annotations.filter(
+        (item) =>
+          item.anchor.kind === "object" && item.anchor.objectId === part.id,
+      );
+      expect(labels).toEqual([
+        expect.objectContaining({
+          kind: "instance-label",
+          binding: { kind: "instance-reference", instanceId: part.id },
+          anchor: expect.objectContaining({ localOffset: { x: 0, y: 60 } }),
+        }),
+      ]);
+      const label = labels[0]!;
+      expect(label.visible).not.toBe(false);
+      expect("content" in label || "formatOverride" in label).toBe(false);
+      expect(flattenRichText(resolveAnnotationText(cell, label)).trim()).toBe(
+        "",
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "keeps the parameters the card does not print, a source's other waveforms and an op-amp's rails, through %s+RNL",
     async (format) => {
       const rc = example("simulation-rc");

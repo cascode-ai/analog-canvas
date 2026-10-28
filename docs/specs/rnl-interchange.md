@@ -139,7 +139,10 @@ the RNL language and its runtime belong to rnl.
   on, offset from it; else on its net. A drawing text anchored to a part or
   glyph is attached to it the same way, offset from it.
 - Labels are written as the text they show, styled as shown; RNL cannot style
-  part of a referenced name, so a written label does not follow a rename.
+  part of a referenced name, so a written label does not follow a rename. The
+  name label of a part the author never named, which shows nothing, is
+  written with the name the netlist gives the part, since RNL reads an empty
+  label as one taken away; RNL's own viewers show that name.
 - A part's colour (its foreground, a glyph's included) is written as its
   style (`@SET-STYLE`, `linecolor` and `textcolor`), which RNL passes on to
   the labels its part brings, as the editor gives a label its Instance's; a
@@ -310,7 +313,8 @@ the RNL language and its runtime belong to rnl.
     differ from what the binding shows anyway;
   - a part the author never named (`$CANVAS_UNNAMED`) unnamed again, with
     no netlist record, as the editor keeps one, where the netlist import
-    gave its record no parameter;
+    gave its record no parameter; its name label, written with the
+    netlist's name, is bound to the name again, and shows none;
   - a Cell's own name (`$CANVAS_CELL_NAME`), as the editor renames a Cell:
     its title too where that was its name, each call drawn with the block of
     the new name, a call's master label that showed the old name;

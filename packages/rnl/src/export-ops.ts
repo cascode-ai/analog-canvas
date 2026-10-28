@@ -18,6 +18,7 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import {
+  labelTextDocument,
   labelTypography,
   type Annotation,
   type CircuitProject,
@@ -1136,6 +1137,7 @@ function exportCell(
     netOf,
     nextName,
     report,
+    references,
   });
 }
 
@@ -1238,6 +1240,7 @@ function exportTexts(
     netOf,
     nextName,
     report,
+    references,
   }: {
     context: ExportContext;
     logical: ReturnType<typeof resolveDocumentLogicalNets>;
@@ -1253,6 +1256,8 @@ function exportTexts(
       message: string,
       objectIds: StableId[],
     ) => void;
+    /** The name the netlist prints each part with. */
+    references: ReadonlyMap<StableId, string | undefined>;
   },
 ): void {
   const { ops, resolver } = context;
@@ -1320,7 +1325,21 @@ function exportTexts(
       hidden.push(annotation.id);
       continue;
     }
-    const text = resolveAnnotationText(document, annotation, logical);
+    // A part the author never named shows its name label empty; it is
+    // written with the name the netlist gives the part, which the import,
+    // told the part is unnamed (Canvas 0.4), binds to its name again.
+    const named =
+      annotation.binding?.kind === "instance-reference"
+        ? annotation.binding.instanceId
+        : undefined;
+    const unnamed =
+      named &&
+      !document.instances.find((instance) => instance.id === named)?.reference
+        ? references.get(named)
+        : undefined;
+    const text = unnamed
+      ? labelTextDocument(unnamed, document.presentation)
+      : resolveAnnotationText(document, annotation, logical);
     if (!isSchematicAnnotationVisible(document, annotation, logical, text))
       continue;
     const shown = resolveAnnotationPresentation(
