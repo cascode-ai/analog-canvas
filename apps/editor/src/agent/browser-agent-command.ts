@@ -1146,9 +1146,16 @@ export function planBrowserAgentCommand(
           },
         );
       }
+      // Labels of parts already drawn that the new ones cover move clear.
+      const settled = withLabelsClearOfPlacedParts(
+        document,
+        resolver,
+        edits,
+        maxTransactionEdits - (changesInterface ? 1 : 0),
+      );
       // A BJT the Process maps to a reviewed subcircuit arrives bound to it,
       // with its definition, exactly as a GUI placement does.
-      const filled = context.processFill?.(project, documentId, edits);
+      const filled = context.processFill?.(project, documentId, settled);
       if (filled) return { structureEdits: filled };
       // Keep mixed device/Port batches atomic, including the interface facts.
       return changesInterface
@@ -1158,18 +1165,11 @@ export function planBrowserAgentCommand(
                 kind: "transact_document",
                 documentId,
                 expectedRevision: document.revision,
-                edits,
+                edits: settled,
               },
             ],
           }
-        : {
-            edits: withLabelsClearOfPlacedParts(
-              document,
-              resolver,
-              edits,
-              maxTransactionEdits,
-            ),
-          };
+        : { edits: settled };
     }
     case "set-display-alias": {
       const plan = planDisplayAlias({
@@ -1265,13 +1265,29 @@ export function planBrowserAgentCommand(
           clearOfWiring: true,
         },
       );
+      // Labels of parts already drawn that the block covers move clear.
+      const placing: SchematicEdit[] = [
+        { kind: "add_instance", instance },
+        ...annotations.map((annotation): SchematicEdit => ({
+          kind: "upsert_schematic_annotation",
+          annotation,
+        })),
+      ];
+      const moved = withLabelsClearOfPlacedParts(
+        document,
+        resolver,
+        placing,
+        maxTransactionEdits,
+      )
+        .slice(placing.length)
+        .flatMap((edit) =>
+          edit.kind === "upsert_schematic_annotation" ? [edit.annotation] : [],
+        );
       return {
-        structureEdits: planPlaceCellInstance(
-          project,
-          documentId,
-          instance,
-          annotations,
-        ),
+        structureEdits: planPlaceCellInstance(project, documentId, instance, [
+          ...annotations,
+          ...moved,
+        ]),
       };
     }
     case "place-existing": {

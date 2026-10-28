@@ -53,6 +53,21 @@ describe("labels an Agent's placement puts clear of its neighbours (#1836)", () 
       "the upper part first",
       [[transistor("M1", 0, 0)], [transistor("M2", 10, 60)]],
     ],
+    [
+      "the upper part first, the lower with a Pin",
+      [
+        [transistor("M1", 0, 0)],
+        [
+          {
+            kind: "place-component",
+            symbol: "port",
+            reference: "IN",
+            position: { x: -200, y: 0 },
+          },
+          transistor("M2", 10, 60),
+        ],
+      ],
+    ],
     ["a row", [[transistor("M1", 0, 0, 90), transistor("M2", 40, 0, 90)]]],
   ])("leaves no label finding, placed in %s", async (_, calls) => {
     const { client, controller } = await editor();

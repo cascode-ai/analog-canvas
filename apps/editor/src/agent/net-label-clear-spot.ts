@@ -61,8 +61,8 @@ export function netLabelAtClearSpot(
   const vertical = segment.from.x === segment.to.x;
   if (!vertical && segment.from.y !== segment.to.y) return label;
   const context = createLabelClearanceContext(document, resolver);
-  // Clear of what the label diagnostics report, and of crowding: a word's
-  // space from other labels and a line's from junction dots.
+  // Clear of what the label diagnostics report, and of crowding as well: a
+  // word's space from other labels and a line's from junction dots.
   const clear = (candidate: Annotation) => {
     const shown = { ...candidate, formatOverride: text };
     const ink = context.measure(shown).inkBounds;
@@ -73,12 +73,13 @@ export function netLabelAtClearSpot(
     );
   };
   if (clear(label)) return label;
-  const at = (
-    t: number,
+  /** The label at `attachment` on `wire`, reading by `alignment`, or null. */
+  const placedAt = (
+    wire: ResolvedRouteGeometry,
+    attachment: typeof anchor,
     alignment: Annotation["alignment"],
   ): Annotation | null => {
-    const attachment = { ...anchor, t };
-    const placed = resolveRouteAttachment(geometry, attachment);
+    const placed = resolveRouteAttachment(wire, attachment);
     return placed
       ? {
           ...label,
@@ -93,6 +94,8 @@ export function netLabelAtClearSpot(
         }
       : null;
   };
+  const at = (t: number, alignment: Annotation["alignment"]) =>
+    placedAt(geometry, { ...anchor, t }, alignment);
 
   const [start, end] = routeEndpoints(route);
   const open = (endpoint: typeof start) =>
@@ -146,10 +149,12 @@ export function netLabelAtClearSpot(
         wire.id === route.id
           ? geometry
           : resolveRouteGeometry(document, resolver, wire);
-      for (const { from, to, address } of wireGeometry?.segments ?? []) {
+      if (!wireGeometry) continue;
+      for (const { from, to, address } of wireGeometry.segments) {
         const upright = from.x === to.x;
         if (!upright && from.y !== to.y) continue;
-        // Right of a vertical run and left of it, or over a horizontal one.
+        // Right of a vertical run and left of it, or centred over a
+        // horizontal one, as a new label there stands.
         const looks = upright
           ? (["right", "left"] as const).map((direction) =>
               netLabelLook(direction, from, to, capHeight, baseline),
@@ -157,7 +162,7 @@ export function netLabelAtClearSpot(
           : [
               {
                 normalOffset: netLabelStandardOffset(from, to, baseline),
-                alignment: label.alignment,
+                alignment: "middle" as const,
               },
             ];
         const length = Math.hypot(to.x - from.x, to.y - from.y);
@@ -169,30 +174,18 @@ export function netLabelAtClearSpot(
           );
           if (distance > grid * 8) continue;
           for (const look of looks) {
-            const attachment = {
-              ...anchor,
-              routeId: wire.id,
-              legId: address.legId,
-              t,
-              normalOffset: look.normalOffset,
-            };
-            const placed =
-              wireGeometry && resolveRouteAttachment(wireGeometry, attachment);
-            if (placed)
-              candidates.push({
-                distance,
-                annotation: {
-                  ...label,
-                  alignment: look.alignment,
-                  anchor: {
-                    ...attachment,
-                    fallbackPosition: {
-                      x: Math.round(placed.labelPoint.x),
-                      y: Math.round(placed.labelPoint.y),
-                    },
-                  },
-                },
-              });
+            const annotation = placedAt(
+              wireGeometry,
+              {
+                ...anchor,
+                routeId: wire.id,
+                legId: address.legId,
+                t,
+                normalOffset: look.normalOffset,
+              },
+              look.alignment,
+            );
+            if (annotation) candidates.push({ distance, annotation });
           }
         }
       }

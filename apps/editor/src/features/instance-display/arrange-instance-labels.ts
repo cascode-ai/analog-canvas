@@ -349,7 +349,7 @@ export function arrangeInstanceLabelsReport(
     // arrangement put it, at placement or by this pass, and is still the
     // editor's to move: a W/L arranged clear of a neighbour when its part
     // was placed, then struck by a wire drawn after, was left there (#1836).
-    const arranged = instanceLabelSlotAt(
+    const sideSlot = instanceLabelSlotAt(
       instance,
       resolved,
       style,
@@ -358,7 +358,7 @@ export function arrangeInstanceLabelsReport(
       sizeScale,
     );
     const inSideRows =
-      arranged !== null && DEFAULT_SLOTS[slot].includes(arranged.slot);
+      sideSlot !== null && DEFAULT_SLOTS[slot].includes(sideSlot.slot);
     const inDefaultRow =
       at(slot) ||
       inOwnSlot ||
@@ -595,13 +595,30 @@ export function arrangeInstanceLabelsReport(
       );
     };
     /**
+     * Whether `label` at `ink` meets nothing and no crowding: no wire, part
+     * or other label within spacing, no junction dot within a line's space,
+     * no wire cutting it off from its part, and no reading as another part's
+     * label or running on into one. `siblings` are its group's other labels.
+     */
+    const uncrowdedAt = (
+      ink: Rect,
+      label: Annotation,
+      siblings: readonly Rect[],
+    ) =>
+      !context.conflictsAt(ink, label.id).some((id) => !groupIds.has(id)) &&
+      !context.dotsAt(ink).length &&
+      !cutOff(ink) &&
+      !strayed(ink) &&
+      !mistaken(ink, label, siblings) &&
+      !runsInto(ink, label, []);
+    /**
      * Whether the label diagnostics would report `candidate` drawn at `ink`:
      * text over a wire, a part or a junction dot, over another label or one
      * of `siblings`, far from its part, or run on into a neighbour's. The
      * group's own stale places do not count; `siblings` are where its other
      * labels stand in the arrangement tested.
      */
-    const reported = (
+    const isReported = (
       candidate: Annotation,
       ink: Rect,
       siblings: readonly Rect[],
@@ -643,18 +660,16 @@ export function arrangeInstanceLabelsReport(
     const total = (arrangement: readonly Annotation[]) =>
       arrangement.reduce(
         (sum, candidate, index) => {
-          const conflicts = score(candidate, [
+          const siblings = [
             ...fixed,
             ...arrangement.filter((_, other) => other !== index),
-          ]);
+          ];
+          const conflicts = score(candidate, siblings);
           const named = group[index]!.slot === "reference";
-          const raised = reported(
+          const raised = isReported(
             candidate,
             box(candidate),
-            [
-              ...fixed,
-              ...arrangement.filter((_, other) => other !== index),
-            ].map(box),
+            siblings.map(box),
           )
             ? 1
             : 0;
@@ -715,20 +730,12 @@ export function arrangeInstanceLabelsReport(
       const clearBy = (shift: number) => {
         const moved = boxes.map((b) => ({ ...b, [along]: b[along] + shift }));
         return (
-          moved.every(
-            (b, index) =>
-              !context
-                .conflictsAt(b, arrangement[index]!.id)
-                .some((id) => !groupIds.has(id)) &&
-              !context.dotsAt(b).length &&
-              !cutOff(b) &&
-              !strayed(b) &&
-              !mistaken(
-                b,
-                arrangement[index]!,
-                moved.filter((_, other) => other !== index),
-              ) &&
-              !runsInto(b, arrangement[index]!, []),
+          moved.every((b, index) =>
+            uncrowdedAt(
+              b,
+              arrangement[index]!,
+              moved.filter((_, other) => other !== index),
+            ),
           ) && !between(moved)
         );
       };
@@ -894,7 +901,7 @@ export function arrangeInstanceLabelsReport(
         // Reported first, then crowding, as arrangements compare.
         const rank = (candidate: Annotation) =>
           [
-            reported(candidate, box(candidate), siblings().map(box)) ? 1 : 0,
+            isReported(candidate, box(candidate), siblings().map(box)) ? 1 : 0,
             score(candidate, siblings()),
           ] as const;
         let currentRank = rank(current);
@@ -937,27 +944,17 @@ export function arrangeInstanceLabelsReport(
           ...fixed,
           ...chosen.filter((_, other) => other !== index),
         ].map(box);
-        if (!reported(current, ink, siblings)) continue;
+        if (!isReported(current, ink, siblings)) continue;
         const shifted = (shift: Point) => ({
           ...ink,
           x: ink.x + shift.x,
           y: ink.y + shift.y,
         });
         const unreported = (shift: Point) =>
-          !reported(current, shifted(shift), siblings);
+          !isReported(current, shifted(shift), siblings);
         const uncrowded = (shift: Point) => {
           const b = shifted(shift);
-          return (
-            !context
-              .conflictsAt(b, current.id)
-              .some((id) => !groupIds.has(id)) &&
-            !context.dotsAt(b).length &&
-            !context.enclosedAt(b) &&
-            !cutOff(b) &&
-            !strayed(b) &&
-            !mistaken(b, current, siblings) &&
-            !runsInto(b, current, [])
-          );
+          return uncrowdedAt(b, current, siblings) && !context.enclosedAt(b);
         };
         let shift: Point | undefined;
         let fallback: Point | undefined;
@@ -980,7 +977,8 @@ export function arrangeInstanceLabelsReport(
     }
 
     // Do not make a cramped original worse just to compact its rows, and
-    // leave an earlier arrangement that is still clear where it is.
+    // leave an earlier arrangement that is still clear where it is, unless
+    // a side is asked for.
     const originals = group.map((label) => ({
       ...label.annotation,
       anchor: label.original.anchor,
@@ -989,7 +987,7 @@ export function arrangeInstanceLabelsReport(
     const kept = total(originals);
     if (
       better(kept, total(chosen)) ||
-      (group.some((label) => label.arranged) && clear(kept))
+      (!options.side && group.some((label) => label.arranged) && clear(kept))
     )
       chosen = originals;
     for (const [index, label] of group.entries()) {

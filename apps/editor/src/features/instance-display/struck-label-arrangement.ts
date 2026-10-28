@@ -111,8 +111,8 @@ export function withStruckLabelsArranged(
  * over a neighbour's name or value moves that label clear, as a part moved
  * there does (#1366), to its part's rows only, so a later arrangement still
  * moves it (#1836). A W/L placed in its default row had stood under the
- * next transistor placed beside it. Moves that would take the transaction
- * past `maxEdits` are left out, and the warning stays.
+ * next transistor placed beside it. When the moves would take the
+ * transaction past `maxEdits`, none is added and the warnings stay.
  */
 export function withLabelsClearOfPlacedParts(
   document: SchematicDocument,

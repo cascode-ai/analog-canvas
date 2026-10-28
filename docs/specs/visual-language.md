@@ -115,7 +115,9 @@ and [browser flow](../../apps/editor/e2e/drawing-style.spec.ts) cover this lifec
 - Findings declare `category`, `confidence`, `gateEligible`: structural ones
   are high-confidence model/topology/constraint conditions; visual
   observations are heuristics needing inspection and never automatic layout
-  objectives. Diagnostics never mutate geometry.
+  objectives, except that a label's spot, where the editor chooses it, avoids
+  the label findings ([names and labels](names-and-labels.md#batch-operations)).
+  Diagnostics never mutate geometry.
 - Covered: unplaced/unresolved symbols, symbol/label overlap (free text by
   word ink; polarity marks excluded), names or values on one row closer than
   a figure, labels or free text struck by a wire (text over a part outline is

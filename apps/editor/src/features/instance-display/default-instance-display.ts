@@ -241,18 +241,41 @@ function clearOfWiring(
     )
   )
     return annotations;
-  const arranged = new Map(
-    arrangeInstanceLabelsReport(placed, resolver, [instance.id], {
-      rowsOnly: true,
-    }).edits.flatMap((edit) =>
-      edit.kind === "upsert_schematic_annotation"
-        ? [[edit.annotation.id, edit.annotation] as const]
-        : [],
-    ),
-  );
-  return annotations.map(
-    (annotation) => arranged.get(annotation.id) ?? annotation,
-  );
+  // The part's rows first, where a later arrangement still moves them. A
+  // slide or a nearby spot, which a later pass leaves alone, only beside
+  // wiring already drawn and when no row is clear of the diagnostics: a
+  // part placed before its wires keeps its labels the preset's to move.
+  const arrangedIn = (rowsOnly: boolean) => {
+    const arranged = new Map(
+      arrangeInstanceLabelsReport(placed, resolver, [instance.id], {
+        rowsOnly,
+      }).edits.flatMap((edit) =>
+        edit.kind === "upsert_schematic_annotation"
+          ? [[edit.annotation.id, edit.annotation] as const]
+          : [],
+      ),
+    );
+    return annotations.map(
+      (annotation) => arranged.get(annotation.id) ?? annotation,
+    );
+  };
+  const reported = (labels: readonly Annotation[]) => {
+    const settled = createLabelClearanceContext(
+      {
+        ...placed,
+        annotations: [
+          ...placed.annotations.filter((annotation) => !ids.has(annotation.id)),
+          ...labels,
+        ],
+      },
+      resolver,
+    );
+    return labels.filter((label) => !settled.clearAt(label)).length;
+  };
+  const inRows = arrangedIn(true);
+  if (!reported(inRows) || !document.routes.length) return inRows;
+  const anywhere = arrangedIn(false);
+  return reported(anywhere) < reported(inRows) ? anywhere : inRows;
 }
 
 /**

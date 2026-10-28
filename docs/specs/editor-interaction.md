@@ -347,7 +347,8 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   lowest ink 4 units clear (up to a grid step) or right of a vertical one;
   preview equals commit. An Agent label at an unclear spot on an open-ended
   segment moves to the clear open end, else slides a grid step at a time to the
-  nearest clear spot, else stays.
+  nearest clear spot, else takes the nearest clear spot on its Net's wires
+  within eight grid steps (either side of a vertical run), else stays.
 - Selected labels (and a lone selected part's) draw a tether to their owner.
 
 ### Text authority and formatting rules
