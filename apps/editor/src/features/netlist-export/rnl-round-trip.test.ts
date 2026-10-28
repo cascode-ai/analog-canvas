@@ -2179,6 +2179,13 @@ describe("RNL round trip", () => {
           to: free(560, -400),
           styleOverride: { arrowEnd: "medium-arrow" },
         },
+        {
+          ...base("dashed-arrow", 5),
+          kind: "arrow",
+          from: free(400, -450),
+          to: free(560, -450),
+          styleOverride: { arrowEnd: "medium-arrow", lineStyle: "dashed" },
+        },
       ],
     };
     const { project: drawn } = await roundTrip(project);
@@ -2230,6 +2237,17 @@ describe("RNL round trip", () => {
         from: free(400, -400),
         to: free(560, -400),
         styleOverride: { arrowStart: "none", arrowEnd: "medium-arrow" },
+      }),
+      // An arrow, made solid, keeps the line it is drawn with.
+      expect.objectContaining({
+        kind: "arrow",
+        from: free(400, -450),
+        to: free(560, -450),
+        styleOverride: {
+          lineStyle: "dashed",
+          arrowStart: "none",
+          arrowEnd: "medium-arrow",
+        },
       }),
     ]);
   });
