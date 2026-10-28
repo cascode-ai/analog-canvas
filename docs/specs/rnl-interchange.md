@@ -45,10 +45,12 @@ the RNL language and its runtime belong to rnl.
   `SCS`. They print the same circuit with RNL records added; `SPICE` and `SCS`
   are unchanged. Another netlist dialect gets its own `<dialect>+RNL` format.
 - An RNL format also prints the Cells the top does not call, after the top,
-  so the file carries every Cell's drawing. A Cell that calls the top stays
-  out, since the file could no longer say which Cell is the top, and so does
-  every uncalled Cell when one of them would block the netlist; the export
-  names the Cells it leaves out (`RNL_CELL_NOT_WRITTEN`).
+  so the file carries every Cell's drawing. Where one of them calls the top,
+  and so is the netlist's top in its place, the top's record names it as
+  the editor's (`$CANVAS_TOP` on `#`, since 0.4). An uncalled Cell the
+  netlist cannot print, such as one not finished, stays out, and the others
+  are printed; the export names the Cells it leaves out
+  (`RNL_CELL_NOT_WRITTEN`).
 - An RNL format is read-only in the panel; Copy and Save take its text.
 - Under an RNL format the panel carries an "About RNL" link to the
   introduction to RNL (<https://rich-netlist.github.io/rnl/en/>): a new tab in
@@ -307,6 +309,8 @@ the RNL language and its runtime belong to rnl.
   - a Cell's own name (`$CANVAS_CELL_NAME`), as the editor renames a Cell:
     its title too where that was its name, each call drawn with the block of
     the new name, a call's master label that showed the old name;
+  - the top the file names (`$CANVAS_TOP`) as the Project's, before the
+    drawing is read and checked;
   - a value's text the author wrote (`$CANVAS_PARAMETER_TEXT`) where it is
     the number the part has, written as Spectre writes it, or the same size
     in micrometres; it belongs to the part, so it stands whether the drawing

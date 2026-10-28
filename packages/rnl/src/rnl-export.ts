@@ -1,4 +1,4 @@
-import type { CircuitProject } from "@icm/model";
+import type { CircuitProject, StableId } from "@icm/model";
 import {
   createDesignNetlistExport,
   type DesignNetlistAnalysisOptions,
@@ -53,8 +53,8 @@ export type RnlExport =
  * 45°, a part with no RNL symbol) blocks it; warnings travel with the request.
  *
  * The netlist also prints the Cells the top does not call, so the file
- * carries every Cell's drawing; where one of them would block the netlist,
- * it prints the top's Cells alone. A Cell the file does not carry is reported.
+ * carries every Cell's drawing; one the netlist cannot print stays out, and
+ * the others are printed. A Cell the file does not carry is reported.
  */
 export function createRnlExport(
   project: CircuitProject,
@@ -63,15 +63,39 @@ export function createRnlExport(
     "namingProfile" | "rootDocumentId"
   > & { format: NetlistFormat },
 ): RnlExport {
-  const print = (uncalledCells: boolean) =>
+  const print = (uncalledCells: boolean, leaveOutCells: StableId[] = []) =>
     createDesignNetlistExport(project, {
       ...options,
       bodyPortOrder: rnlBodyPortOrder(project),
       includeIr: true,
       uncalledCells,
+      leaveOutCells,
     });
-  const all = print(true);
-  const result = all.status === "ready" ? all : print(false);
+  // An uncalled Cell the netlist cannot print, such as one not finished,
+  // stays out with what only it calls; the others are printed.
+  const reached = reachedCells(project, options.rootDocumentId);
+  const leaveOut: StableId[] = [];
+  let result = print(true);
+  while (result.status !== "ready") {
+    const blocking = [
+      ...new Set(
+        result.diagnostics.flatMap((item) =>
+          item.severity === "error" &&
+          item.documentId &&
+          !reached.has(item.documentId) &&
+          !leaveOut.includes(item.documentId)
+            ? [item.documentId]
+            : [],
+        ),
+      ),
+    ];
+    if (!blocking.length) {
+      result = print(false);
+      break;
+    }
+    leaveOut.push(...blocking);
+    result = print(true, leaveOut);
+  }
   if (result.status !== "ready")
     return {
       status: "blocked",
@@ -94,7 +118,7 @@ export function createRnlExport(
     diagnostics.push({
       severity: "warning",
       code: "RNL_CELL_NOT_WRITTEN",
-      message: `${left.length} Cells are not in the file, with their drawings: ${names.join(", ")}. A Cell that calls the top Cell, or one that cannot be printed, stays out`,
+      message: `${left.length} Cells are not in the file, with their drawings: ${names.join(", ")}. A Cell the netlist cannot print stays out, with every Cell the top does not call`,
       documentId: options.rootDocumentId ?? project.topDocumentId,
       objectIds: left.map((document) => document.id),
     });
@@ -120,4 +144,24 @@ export function createRnlExport(
     netlistDiagnostics: result.diagnostics,
     diagnostics,
   };
+}
+
+/** The Cells the top reaches through its calls, itself among them. */
+function reachedCells(
+  project: CircuitProject,
+  rootDocumentId: StableId = project.topDocumentId,
+): Set<StableId> {
+  const reached = new Set<StableId>();
+  const visit = (documentId: StableId) => {
+    if (reached.has(documentId)) return;
+    reached.add(documentId);
+    for (const instance of project.documents.find(
+      (document) => document.id === documentId,
+    )?.instances ?? []) {
+      const binding = instance.netlist?.binding;
+      if (binding?.kind === "subcircuit") visit(binding.childDocumentId);
+    }
+  };
+  visit(rootDocumentId);
+  return reached;
 }

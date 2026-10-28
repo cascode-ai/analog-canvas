@@ -245,6 +245,28 @@ export function rnlExportOps(
       callSymbols,
     });
   }
+  // The editor's top, where a Cell printed beside it calls it and so is the
+  // netlist's top in its place (Canvas 0.4).
+  const calledTop =
+    top &&
+    ir.cells.some((cell) =>
+      project.documents
+        .find((document) => document.id === cell.id)
+        ?.instances.some(
+          (instance) =>
+            instance.netlist?.binding?.kind === "subcircuit" &&
+            instance.netlist.binding.childDocumentId === top.id,
+        ),
+    );
+  if (top && calledTop) {
+    packages.add(AC_PACKAGE);
+    ops.push({
+      level: `subckt:${top.name}`,
+      op: "add-usage",
+      definition: "$CANVAS_TOP",
+      attach: { level: "#" },
+    });
+  }
   const header: RnlOp[] = [
     "rnl-std",
     NO_LABELS_PACKAGE,

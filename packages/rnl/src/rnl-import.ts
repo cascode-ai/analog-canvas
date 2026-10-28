@@ -425,6 +425,25 @@ function documentOf(
 }
 
 /**
+ * The Cell the file names as the editor's top (`$CANVAS_TOP`, Canvas 0.4),
+ * which the netlist need not show: a Cell that calls it may be printed too.
+ */
+export function canvasTopDocument(
+  project: CircuitProject,
+  snapshot: RnlSnapshot,
+): StableId | undefined {
+  const level = snapshot.levels.find((item) =>
+    item.model?.objects.some(
+      (object) =>
+        object.kind === "usage" &&
+        object.definition === "$CANVAS_TOP" &&
+        object.attach?.["level"] === "#",
+    ),
+  );
+  return level ? documentOf(project, level)?.id : undefined;
+}
+
+/**
  * A Project the SPICE / SCS importer made from a rich netlist, drawn as the
  * netlist's RNL draws it (rnl-dev `notes/analog-canvas-rnl-import-export.md`,
  * 6): parts placed, turned and in the variant their RNL symbol stands for;
@@ -1295,6 +1314,7 @@ function applyLevel(
     if (object.definition === "$CANVAS_LABEL") continue; // read with the labels
     if (object.definition === "$CANVAS_TYPOGRAPHY") continue; // with the texts
     if (object.definition === "$CANVAS_VARIANT") continue; // with the parts
+    if (object.definition === "$CANVAS_TOP") continue; // read with the file
     if (object.definition === "$CANVAS_PARAMETER_TEXT") {
       textAgain(object);
       continue;

@@ -102,6 +102,7 @@ function reachableDocuments(
   rootDocumentId: StableId,
   diagnostics: NetlistDiagnostic[],
   uncalled = false,
+  leaveOut: readonly StableId[] = [],
 ): SchematicDocument[] {
   const byId = new Map(
     project.documents.map((document) => [document.id, document]),
@@ -163,29 +164,12 @@ function reachableDocuments(
 
   visit(rootDocumentId);
   // The Cells the root does not reach come after it, each with the Cells it
-  // reaches, so the root is still the file's first top Cell. One that reaches
-  // the root would call it, and the file could no longer say which Cell is
-  // the top: it stays out.
-  if (uncalled) {
-    const reachesRoot = (
-      documentId: string,
-      seen = new Set<string>(),
-    ): boolean => {
-      if (documentId === rootDocumentId) return true;
-      if (seen.has(documentId)) return false;
-      seen.add(documentId);
-      return (byId.get(documentId)?.instances ?? []).some((instance) => {
-        const binding = instance.netlist?.binding;
-        return (
-          binding?.kind === "subcircuit" &&
-          reachesRoot(binding.childDocumentId, seen)
-        );
-      });
-    };
+  // reaches. One that calls the root is the netlist's top in its place; the
+  // file names the root as the editor's (the RNL export's `$CANVAS_TOP`).
+  if (uncalled)
     for (const document of project.documents)
-      if (!visited.has(document.id) && !reachesRoot(document.id))
+      if (!visited.has(document.id) && !leaveOut.includes(document.id))
         visit(document.id);
-  }
   if (ordered.length > MAX_CELLS) {
     diagnostic(
       diagnostics,
@@ -233,11 +217,12 @@ export interface DesignNetlistAnalysisOptions {
   deckSources?: readonly string[];
   /**
    * Whether the Cells the root does not reach are printed too, after it, so
-   * that a file carries every Cell's drawing (the RNL export). A Cell that
-   * reaches the root is not: it would call the root, and the file could no
-   * longer say which Cell is the top.
+   * that a file carries every Cell's drawing (the RNL export, which names
+   * the root where a Cell printed beside it calls it).
    */
   uncalledCells?: boolean;
+  /** Uncalled Cells not to print, such as one the netlist cannot print. */
+  leaveOutCells?: readonly StableId[];
 }
 
 /** Ground as the Cell's own pin, or as SPICE's global node. */
@@ -330,6 +315,7 @@ function analyzeSnapshot(
     groundPin: options.groundPin ?? "global",
     deckSources: options.deckSources ?? [],
     uncalledCells: options.uncalledCells ?? false,
+    leaveOutCells: options.leaveOutCells ?? [],
     run: options.deckSources !== undefined,
   };
   // Mutable authoring callers may change a model without advancing a revision.
@@ -382,6 +368,7 @@ function analyzeDesign(
     resolvedOptions.rootDocumentId,
     diagnostics,
     resolvedOptions.uncalledCells,
+    resolvedOptions.leaveOutCells,
   );
   const nameProjection = deriveProjectNetNameProjection(
     resolvedOptions.rootDocumentId === project.topDocumentId

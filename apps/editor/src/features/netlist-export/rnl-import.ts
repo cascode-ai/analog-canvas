@@ -7,6 +7,7 @@ import {
 import { serializeProject } from "@icm/project-protocol";
 import {
   applyRnlSnapshot,
+  canvasTopDocument,
   drawnModelTypes,
   withPowerLabelPorts,
   rnlBodyPortOrder,
@@ -301,6 +302,10 @@ async function buildImportPlan({
           ?.message ?? "SPICE import failed",
       diagnostics: imported.diagnostics,
     };
+  // The editor's top where the file names it (Canvas 0.4): a Cell printed
+  // beside it may call it, and so be the netlist's top in its place.
+  const top = canvasTopDocument(imported.project, snapshot);
+  if (top) imported.project.topDocumentId = top;
   const drawn = drawingOf(imported.project, snapshot);
   const fileImported = imported.project;
   const kept =

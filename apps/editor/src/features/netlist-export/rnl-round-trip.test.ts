@@ -39,6 +39,7 @@ import {
   cellSymbolPinSlots,
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
+  hierarchicalSymbolId,
 } from "@icm/symbols";
 import { createRnlTestCore } from "./rnl-core.test-support";
 
@@ -2391,29 +2392,81 @@ describe("RNL round trip", () => {
     },
   );
 
-  it("leaves out a Cell that calls the top, which would no longer be the top, and says so", () => {
+  it.each(["spice", "spectre"] as const)(
+    "carries a Cell that calls the top, and reads the top back as the editor's, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const lowpass = project.documents.find(
+        (document) => document.id === project.topDocumentId,
+      )!;
+      const highpass = project.documents.find(
+        (document) => document.netlist?.name === "rc_highpass",
+      )!;
+      highpass.instances.push({
+        id: "XLOW",
+        reference: "XLOW",
+        symbolId: hierarchicalSymbolId(lowpass.netlist!.name),
+        placement: {
+          position: { x: 500, y: 500 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: lowpass.id },
+          parameters: {},
+        },
+      });
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported));
+      expect(exported.request.netlist).toMatch(/\.?subckt rc_highpass/iu);
+      expect(
+        exported.diagnostics.filter(
+          (item) => item.code === "RNL_CELL_NOT_WRITTEN",
+        ),
+      ).toEqual([]);
+      expect(
+        exported.request.ops.filter(
+          (op) => op.op === "add-usage" && op.definition === "$CANVAS_TOP",
+        ),
+      ).toHaveLength(1);
+      const { project: drawn, diagnostics } = await roundTrip(project, format);
+      expect(
+        diagnostics.filter((item) => item.code.startsWith("RNL_")),
+      ).toEqual([]);
+      expect(
+        drawn.documents.find((document) => document.id === drawn.topDocumentId)
+          ?.netlist?.name,
+      ).toBe("rc_lowpass");
+      expect(
+        drawn.documents.map((document) => document.netlist?.name).sort(),
+      ).toEqual(["rc_highpass", "rc_lowpass"]);
+    },
+  );
+
+  it("leaves out an uncalled Cell the netlist cannot print, and prints the others", () => {
     const project = example("simulation-rc");
     const highpass = project.documents.find(
       (document) => document.netlist?.name === "rc_highpass",
     )!;
-    highpass.instances.push({
-      id: "XLOW",
-      reference: "XLOW",
-      symbolId: "hierarchical-symbol-unused",
-      placement: { position: { x: 500, y: 500 }, rotation: 0, mirror: "none" },
-      netlist: {
-        binding: { kind: "subcircuit", childDocumentId: project.topDocumentId },
-        parameters: {},
-      },
-    });
+    // A Cell not finished: its parts are wired to nothing.
+    const broken = structuredClone(highpass);
+    broken.id = "cell-rc-broken";
+    broken.name = "rc_broken";
+    broken.netlist!.name = "rc_broken";
+    broken.nets = [];
+    broken.routes = [];
+    broken.junctions = [];
+    project.documents.push(broken);
     const exported = createRnlExport(project, { format: "spice" });
     if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
-    expect(exported.request.netlist).not.toMatch(/\.subckt rc_highpass/u);
+    expect(exported.request.netlist).toMatch(/\.subckt rc_highpass/iu);
+    expect(exported.request.netlist).not.toMatch(/rc_broken/iu);
     expect(
       exported.diagnostics
         .filter((item) => item.code === "RNL_CELL_NOT_WRITTEN")
         .map((item) => item.objectIds),
-    ).toEqual([[highpass.id]]);
+    ).toEqual([[broken.id]]);
   });
 
   it.each(["spice", "spectre"] as const)(
