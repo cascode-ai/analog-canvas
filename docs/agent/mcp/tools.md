@@ -186,14 +186,22 @@ Tool descriptions cover each action; these are the extra rules.
   Instance or clipboard anchor), not an offset; it is drawing insertion, not
   one hierarchy Instance. The Editor rechecks revisions and the bound Project;
   the receipt gives source/target IDs, revisions, object mapping and imported
-  Cell/file IDs; an empty source is `COPY_EMPTY`.
+  Cell/file IDs; an empty source is `COPY_EMPTY`. Missing expected revisions
+  are read automatically.
 - `publish`/`update` return `galleryEntryId`, `url` (`/g/<id>`) and
   `previewRevision` and bind the copy to the entry. The AI mark is changed only
   by its author in the Editor; AI accounts always keep it. A background tab is
   `WORKSPACE_NOT_SHOWN`: activate it. Older pairings lack `gallery.publish`
-  and need a new connection. A `takeOver` redraw keeps the entry's status; a
-  person's session gets `AI_ACCOUNT_REQUIRED` for `scope:"ai-seats"`.
-  `SIGN_IN_REQUIRED`: sign in to the Editor; `SESSION_NOT_FOUND`: pair again.
+  and need a new connection. `SIGN_IN_REQUIRED`: sign in to the Editor, not
+  another Claim; `SESSION_NOT_FOUND`: pair again.
+- AI-account redraws: as an AI account, `list` with `scope:"ai-seats"`
+  (`status:"rejected"` for the rejected ones) shows every AI account's
+  circuits with status and `rejectReason`. Open or read one, fix what the
+  reason names, then `update` with its `galleryEntryId` and `takeOver:true` to
+  publish your redraw under your own name. The redraw keeps the entry's status:
+  a rejected one stays rejected until the Owner restores it. A person's circuit
+  is never listed there or taken over; a person's session listing them gets
+  `AI_ACCOUNT_REQUIRED`.
 - `project_code` and `netlist_code` reads return the requested export plus
   each Cell in `cells`, so one broken Cell cannot hide another.
 
@@ -229,10 +237,12 @@ answering each with one line.
 
 The tool description lists actions and write fields; additionally:
 
-- For the open GUI candidate use `authoring-read/update/save/apply`; send the
-  returned `target` and `expectedCandidateRevision` on writes. Update takes a
-  complete `candidate`; Apply takes `dryRun`. See the shared
+- Authoring: update replaces the raw input with a complete `candidate`,
+  invalid text included; save keeps a non-executable draft; Apply with
+  `dryRun` validates through the GUI planner. See the shared
   [authoring rules](../shared/authoring.md#external-model-sources).
+- `read` returns the complete package and its SHA-256; capabilities do not
+  certify simulation. `inspect` returns a capture's origin and destination.
 - `browse` with `catalog:{version:1,type,authorId?,order}` filters/sorts the
   whole library before paging. `ifCatalogRevision` revalidates a complete
   cached query; `notModified` carries no entries. Cursors bind the query and
@@ -245,10 +255,15 @@ The tool description lists actions and write fields; additionally:
   `insert` needs `expectedLibraryRevision`, target Project/Cell revisions and a
   position, in one undoable transaction. There is no history endpoint: reread
   a changed record. `publish` never becomes `update`.
-- Identical same-author packages return `COMPONENT_ALREADY_PUBLISHED` with the
-  ID (`error.component:{id,revision}` under `publicationVersion:1`).
-- After an unknown outcome retry with identical inputs, the same
+- Names may repeat. Identical same-author packages return
+  `COMPONENT_ALREADY_PUBLISHED` with the ID (`error.component:{id,revision}`
+  under `publicationVersion:1`); an identical update keeps the revision.
+  `publicationVersion:1` returns `outcome`, `recovered`, `association` and
+  duplicate references.
+- Library `publish`/`update` act as the signed-in Editor account. After an
+  unknown publication outcome retry with identical inputs, the same
   `idempotencyKey` (kept seven days) and the original account, even after
-  local edits. A pending association is already public: recover it, never
-  republish. Project undo affects only the local association. Authentication
-  failures mean sign in; stale revisions mean reread.
+  local edits; reuse `requestId` for any uncertain write. A pending
+  association is already public: recover it, never republish. Project undo
+  affects only the local association. Authentication failures mean sign in;
+  stale revisions mean reread.
