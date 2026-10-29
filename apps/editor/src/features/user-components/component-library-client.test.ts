@@ -13,6 +13,73 @@ afterEach(() => {
 });
 
 describe("public component library responses", () => {
+  it("requests bounded catalog batches with filters and conditional revision, preserving cursors and not-modified", async () => {
+    const fetchLibrary = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        entries: [],
+        nextCursor: null,
+        catalogRevision: 7,
+        notModified: true,
+        authors: [],
+      }),
+    );
+    const result = await loadSharedComponentSummaries(
+      "resistor",
+      null,
+      true,
+      undefined,
+      fetchLibrary,
+      { version: 1, type: "with-circuit", order: "oldest", authorId: "alice" },
+      7,
+    );
+    const query = new URL(
+      String(fetchLibrary.mock.calls[0]![0]),
+      "http://localhost",
+    ).searchParams;
+    expect(Object.fromEntries(query)).toEqual({
+      q: "resistor",
+      limit: "128",
+      view: "summary",
+      status: "deleted",
+      catalog: "1",
+      type: "with-circuit",
+      order: "oldest",
+      author: "alice",
+      since: "7",
+    });
+    expect(result).toEqual({
+      entries: [],
+      nextCursor: null,
+      catalogRevision: 7,
+      notModified: true,
+      authors: [],
+    });
+    fetchLibrary.mockResolvedValue(
+      Response.json({
+        entries: [],
+        nextCursor: "opaque-next",
+        catalogRevision: 8,
+      }),
+    );
+    expect(
+      (
+        await loadSharedComponentSummaries(
+          "",
+          "opaque-start",
+          false,
+          undefined,
+          fetchLibrary,
+          { version: 1, type: "all", order: "circuit-first" },
+        )
+      ).nextCursor,
+    ).toBe("opaque-next");
+    const resumed = new URL(
+      String(fetchLibrary.mock.lastCall![0]),
+      "http://localhost",
+    ).searchParams;
+    expect(resumed.get("cursor")).toBe("opaque-start");
+    expect(resumed.has("since")).toBe(false);
+  });
   it("bounds summary body reads and reports a timed-out publication as unknown", async () => {
     vi.useFakeTimers();
     vi.stubGlobal(
