@@ -175,7 +175,7 @@ test("public MCP connects to the real local relay and executes native source", a
     ).toBe("completed");
     expect(finished.result.metadata.environment.simulator).toMatchObject({
       name: "vacask",
-      version: "0.3.4",
+      version: "0.3.4-icm-hard-switch2",
     });
     const opIndex = finished.result.data.analyses.findIndex(
       (a: { analysis: string }) => a.analysis === "op",
