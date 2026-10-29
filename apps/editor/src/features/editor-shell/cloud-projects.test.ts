@@ -37,6 +37,43 @@ function respondWith(status: number, body: unknown) {
   return { fetchLike, calls };
 }
 
+it.each([
+  [403, { error: "account-blocked" }, "Owner"],
+  [
+    429,
+    { error: "too-many-requests", retryAfterSeconds: 12 },
+    "Wait 12 seconds",
+  ],
+  [503, {}, "server could not answer"],
+] as const)(
+  "preserves HTTP %s when opening a Cloud Project",
+  async (status, body, message) => {
+    expect(
+      await openCloudProject("p1", respondWith(status, body).fetchLike),
+    ).toMatchObject({
+      status: "unreachable",
+      message: expect.stringContaining(message),
+    });
+  },
+);
+
+it("keeps signed-out, missing and offline Cloud Projects distinct", async () => {
+  expect(await openCloudProject("p1", respondWith(401, {}).fetchLike)).toEqual({
+    status: "signed-out",
+  });
+  expect(await openCloudProject("p1", respondWith(404, {}).fetchLike)).toEqual({
+    status: "not-found",
+  });
+  expect(
+    await openCloudProject("p1", async () => {
+      throw new TypeError("offline");
+    }),
+  ).toMatchObject({
+    status: "unreachable",
+    message: expect.stringContaining("Check your connection"),
+  });
+});
+
 describe("Cloud Project client", () => {
   it("creates an unbound Project and updates a bound revision", async () => {
     const created = respondWith(201, { project: summary });
