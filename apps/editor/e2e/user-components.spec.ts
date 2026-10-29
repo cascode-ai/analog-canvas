@@ -3959,61 +3959,123 @@ test("Library keeps management in My shelf without persistent repair banners", a
   await expect(button(dialog, "Place Community module")).toBeVisible();
 });
 
-test("slow Create loading stays modal and cancellation ignores the late module", async ({
+test("cold editor leaves User Components unloaded until its Library opens", async ({
   page,
   service,
 }) => {
-  let release!: () => void;
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
+  const downloads: string[] = [];
+  page.on("request", (request) => {
+    if (
+      /\/(?:user-components-library|component-definition-editor|editor-component-session)-[^/]+\.js$/.test(
+        request.url(),
+      )
+    )
+      downloads.push(request.url());
   });
-  let requested = false;
-  await page.route("**/component-definition-editor-*.js", async (route) => {
-    requested = true;
-    await held;
-    await route.continue();
-  });
-  try {
-    await service.openEditorAs(page, null);
-    const library = await openUserComponents(page);
-    await expect.poll(() => requested).toBe(true);
-    await button(library, "Create Component…").click();
-    const loading = page.getByRole("dialog", {
-      name: "Loading component editor",
-      exact: true,
-    });
-    await expect(loading).toBeVisible();
-    await button(loading, "Cancel").click();
-    await expect(library).toBeVisible();
-    await button(library, "Create Component…").click();
-    await expect(loading).toBeVisible();
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Shift+Tab");
-    expect(
-      await loading.evaluate(
-        (e) =>
-          document.activeElement === document.body ||
-          e.contains(document.activeElement),
-      ),
-    ).toBe(true);
-    await page.keyboard.press("Escape");
-    await expect(library).toBeVisible();
-    const response = page.waitForResponse(/component-definition-editor-.*\.js/);
-    release();
-    await response;
-    await expect(componentEditor(page)).toHaveCount(0);
-    await expect(library).toBeVisible();
-    await button(library, "Create Component…").click();
-    const editor = componentEditor(page);
-    await expect(netlist(editor)).toBeVisible();
-    await button(editor, "Back to library").click();
-    await expect(library).toBeVisible();
-    await expect(editor).toHaveCount(0);
-  } finally {
-    release();
-  }
+  await service.openEditorAs(page, null);
+  await page.waitForLoadState("networkidle");
+  expect(downloads).toEqual([]);
+  const library = await openUserComponents(page);
+  await expect(button(library, "Create Component…")).toBeVisible();
+  await expect
+    .poll(() =>
+      downloads.some((url) => url.includes("user-components-library-")),
+    )
+    .toBe(true);
+  await button(library, "Create Component…").click();
+  await expect(netlist(componentEditor(page))).toBeVisible();
 });
+
+for (const chunkName of [
+  "editor-component-library",
+  "user-components-library",
+]) {
+  test(`a failed ${chunkName} chunk can be dismissed and recovered by refreshing`, async ({
+    page,
+    service,
+  }) => {
+    const chunk = `**/${chunkName}-*.js`;
+    await page.route(chunk, (route) => route.abort());
+    await service.openEditorAs(page, null);
+    await clickCommand(page, "Edit", "User Components…");
+    const failure = page.getByRole("alertdialog");
+    await expect(failure).toContainText("This dialog could not be loaded");
+    await button(failure, "Close").click();
+    await expect(failure).toBeHidden();
+    await clickCommand(page, "Edit", "User Components…");
+    await expect(failure).toBeVisible();
+    await page.unroute(chunk);
+    await button(failure, "Refresh app").click();
+    await awaitEditorReady(page);
+    const library = await openUserComponents(page);
+    await button(library, "Create Component…").click();
+    await expect(netlist(componentEditor(page))).toBeVisible();
+  });
+}
+
+for (const chunkName of [
+  "component-definition-editor",
+  "editor-component-session-body",
+]) {
+  test(`slow Create loading stays modal and cancellation ignores the late ${chunkName} module`, async ({
+    page,
+    service,
+  }) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let requested = false;
+    await page.route(`**/${chunkName}-*.js`, async (route) => {
+      requested = true;
+      await held;
+      await route.continue();
+    });
+    try {
+      await service.openEditorAs(page, null);
+      const library = await openUserComponents(page);
+      if (chunkName === "component-definition-editor")
+        await expect.poll(() => requested).toBe(true);
+      else expect(requested).toBe(false);
+      await button(library, "Create Component…").click();
+      await expect.poll(() => requested).toBe(true);
+      const loading = page.getByRole("dialog", {
+        name: "Loading component editor",
+        exact: true,
+      });
+      await expect(loading).toBeVisible();
+      await button(loading, "Cancel").click();
+      await expect(library).toBeVisible();
+      await button(library, "Create Component…").click();
+      await expect(loading).toBeVisible();
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Shift+Tab");
+      expect(
+        await loading.evaluate(
+          (e) =>
+            document.activeElement === document.body ||
+            e.contains(document.activeElement),
+        ),
+      ).toBe(true);
+      await page.keyboard.press("Escape");
+      await expect(library).toBeVisible();
+      const response = page.waitForResponse(new RegExp(`${chunkName}-.*\\.js`));
+      release();
+      await response;
+      await expect(componentEditor(page)).toHaveCount(0);
+      await expect(library).toBeVisible();
+      await button(library, "Create Component…").click();
+      const editor = componentEditor(page);
+      await expect(netlist(editor)).toBeVisible();
+      await button(editor, "Back to library").click();
+      await expect(library).toBeVisible();
+      await expect(editor).toHaveCount(0);
+    } finally {
+      release();
+    }
+  });
+}
 
 test("Library and My shelf stay compact at narrow widths without global repair notices", async ({
   page,

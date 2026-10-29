@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { planComponentPlacement } from "../user-components/component-placement";
-import { checkSharedComponentRevision } from "../user-components/component-library-client";
 import { checkNativeComponentRevision } from "../../hosts/native-component-library";
 
 import type {
@@ -402,7 +401,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       if (capture.library) {
         if (import.meta.env?.ICM_DESKTOP)
           await checkNativeComponentRevision(capture.library);
-        else await checkSharedComponentRevision(capture.library);
+        else {
+          const { checkSharedComponentRevision } =
+            await import("../user-components/component-library-client");
+          await checkSharedComponentRevision(capture.library);
+        }
       }
       const current = latest.current;
       if (current.pendingComponentPlacement?.capture !== capture) return;
