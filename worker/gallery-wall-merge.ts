@@ -9,6 +9,7 @@ import { GALLERY_SOURCES, type GallerySource } from "./gallery-sources";
 import type { GalleryEnv } from "./gallery-store";
 import {
   compareWallKeys,
+  requestedSearch,
   wallOrder,
   wallPageLimit,
   type WallSortKey,
@@ -29,6 +30,8 @@ interface WallPage {
 export interface WallStore {
   env: GalleryEnv;
   source: GallerySource | null;
+  /** The requested wall's primary store; survives entry-store filtering. */
+  primary: boolean;
 }
 
 /**
@@ -40,13 +43,14 @@ export function wallStoresOf(
   source: GallerySource | null,
   communityOnly: boolean,
 ): WallStore[] {
-  if (source) return [{ env, source }];
-  if (communityOnly) return [{ env, source: null }];
+  if (source) return [{ env, source, primary: true }];
+  if (communityOnly) return [{ env, source: null, primary: true }];
   return [
-    { env, source: null },
+    { env, source: null, primary: true },
     ...GALLERY_SOURCES.map((each) => ({
       env: withGalleryStore(env, each),
       source: each,
+      primary: false,
     })),
   ];
 }
@@ -68,23 +72,29 @@ function storeBody(
   return body;
 }
 
-/** One operation in every store; a dataset that fails adds nothing. */
+/** An additional dataset that fails adds nothing; the primary keeps its errors. */
+function readStore<T>(
+  store: WallStore,
+  operation: string,
+  body: Record<string, unknown>,
+): Promise<T | null> {
+  return callGallery<T>(store.env, operation, storeBody(body, store)).then(
+    ({ status, payload }) => (store.primary || status === 200 ? payload : null),
+    (error: unknown) => {
+      if (store.primary) throw error;
+      return null;
+    },
+  );
+}
+
+/** One operation in every store. */
 async function everyStore<T>(
   stores: readonly WallStore[],
   operation: string,
   body: Record<string, unknown>,
 ): Promise<(T | null)[]> {
   return Promise.all(
-    stores.map((store, index) =>
-      callGallery<T>(store.env, operation, storeBody(body, store)).then(
-        ({ status, payload }) =>
-          index === 0 || status === 200 ? payload : null,
-        (error: unknown) => {
-          if (index === 0) throw error;
-          return null;
-        },
-      ),
-    ),
+    stores.map((store) => readStore<T>(store, operation, body)),
   );
 }
 
@@ -116,11 +126,23 @@ export async function wallList(
   stores: readonly WallStore[],
   body: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const answers = await everyStore<WallPage>(stores, "list", {
-    ...body,
-    sortKeys: true,
-  });
-  const first = answers[0]!;
+  const statistics = !body.cursor;
+  const answers = await Promise.all(
+    stores.map((store) => {
+      const entries = store.source
+        ? body.ai !== "human" && body.ai !== "ai"
+        : body.ai !== "dataset";
+      if (!entries && !statistics) return null;
+      return readStore<WallPage>(store, "list", {
+        ...body,
+        entries,
+        statistics,
+        cacheStatistics: store.source !== null,
+        sortKeys: true,
+      });
+    }),
+  );
+  const first = answers.find((_, index) => stores[index]!.primary) ?? {};
   const { order } = wallOrder(body);
   const limit = wallPageLimit(body);
   const pages = answers.filter((page): page is WallPage => page !== null);
@@ -134,12 +156,10 @@ export async function wallList(
     Number(answer?.filterCounts?.[key] ?? 0);
   const filterCounts = first.filterCounts
     ? {
-        ...answers
-          .slice(1)
-          .reduce<Record<string, unknown>>(
-            (sum, answer) => addCounts(sum, answer?.filterCounts),
-            structuredClone(first.filterCounts),
-          ),
+        ...answers.reduce<Record<string, unknown>>(
+          (sum, answer) => addCounts(sum, answer?.filterCounts),
+          {},
+        ),
         human: answers.reduce(
           (sum, answer, index) =>
             stores[index]!.source ? sum : sum + countOf(answer, "human"),
@@ -155,13 +175,17 @@ export async function wallList(
       }
     : undefined;
   const merging = stores.length > 1;
+  const search = requestedSearch(body);
   return {
     ...first,
+    ...(search !== null ? { search: search.trim() } : {}),
     entries: page.map(({ sortKey: _key, cursor: _cursor, ...entry }) => entry),
     nextCursor: more && page.length > 0 ? page.at(-1)!.cursor : null,
-    total: pages.reduce((sum, each) => sum + Number(each.total ?? 0), 0),
+    ...(!body.cursor
+      ? { total: pages.reduce((sum, each) => sum + Number(each.total ?? 0), 0) }
+      : {}),
     ...(filterCounts ? { filterCounts } : {}),
-    ...(merging
+    ...(merging && !body.cursor
       ? {
           sources: Object.fromEntries(
             stores.flatMap((store, index) =>

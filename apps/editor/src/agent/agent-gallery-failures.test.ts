@@ -1,6 +1,34 @@
 import { expect, it } from "vitest";
 import { liveAgentEditor } from "./live-agent-editor.test-support";
 
+it("keeps an omitted cursor total nullable through the real Agent list client", async () => {
+  const editor = liveAgentEditor({
+    projectHost: {
+      fetch: async (input) =>
+        Response.json(
+          String(input).includes("cursor=")
+            ? { entries: [], nextCursor: null }
+            : { entries: [], nextCursor: "page-2", total: 40 },
+        ),
+    },
+  });
+  await editor.client.connect("session-1.code");
+  const list = (cursor?: string) =>
+    editor.client.projectResource({
+      apiVersion: "3.0",
+      requestId: cursor ?? "first",
+      operation: "list-gallery",
+      ...(cursor ? { cursor } : {}),
+    });
+  await expect(list()).resolves.toMatchObject({ ok: true, total: 40 });
+  await expect(list("page-2")).resolves.toMatchObject({
+    ok: true,
+    entries: [],
+    nextCursor: null,
+    total: null,
+  });
+});
+
 it.each([
   { operation: "list-gallery", scope: "ai-seats" },
   { operation: "read-gallery-entry", galleryEntryId: "g1" },

@@ -679,7 +679,7 @@ describe("newest-first gallery feed", () => {
     expect(feedQuery).not.toContain("svg_text");
   });
 
-  it("carries the whole wall's total on every page and counts the filtered set", async () => {
+  it("counts the whole filtered wall on its first page and omits statistics on cursor pages", async () => {
     const env = environment();
     const cookie = await adminOf(env);
     for (let index = 0; index < 4; index += 1) {
@@ -706,8 +706,16 @@ describe("newest-first gallery feed", () => {
     const first = await galleryPage(env);
     expect(first.entries).toHaveLength(3);
     expect(first.total).toBe(7);
+    const before = env.galleryQueries.length;
     const second = await galleryPage(env, first.nextCursor!);
-    expect(second.total).toBe(7);
+    expect(second.entries).toHaveLength(3);
+    for (const field of ["total", "filterCounts", "authors", "sources"])
+      expect(second).not.toHaveProperty(field);
+    expect(
+      env.galleryQueries
+        .slice(before)
+        .filter((query) => /^\s*SELECT (?:COUNT|MAX)/iu.test(query)),
+    ).toEqual([]);
 
     // With a filter on, the total counts the filtered set, not the gallery.
     const filtered = (await (
@@ -895,7 +903,7 @@ describe("newest-first gallery feed", () => {
           `limit=1&tags=amplifier&cursor=${encodeURIComponent(first.nextCursor)}`,
         )
       ).authors,
-    ).toEqual(first.authors);
+    ).toBeUndefined();
     expect((await list("tags=amplifier&netlistable=1")).authors).toEqual([
       { author: "Alice", ownerUserId: "owner-a", count: 1 },
       { author: "Bob", ownerUserId: "owner-c", count: 1 },
@@ -1044,10 +1052,10 @@ describe("netlist marks and thumbs", () => {
       `limit=1&cursor=${encodeURIComponent(firstPage.nextCursor!)}`,
       cookie,
     );
-    expect(secondPage.filterCounts).toEqual(firstPage.filterCounts);
+    expect(secondPage).not.toHaveProperty("filterCounts");
     expect(firstPage.authors).toHaveLength(1);
     expect(firstPage.authors[0]!.count).toBe(2);
-    expect(secondPage.authors).toEqual(firstPage.authors);
+    expect(secondPage).not.toHaveProperty("authors");
     expect((await list("")).filterCounts).toEqual({
       attention: 0,
       netlistable: 1,

@@ -126,6 +126,7 @@ describe("Gallery readers", () => {
     const wall = { entries: withoutReservedEntries(listed.entries) };
     expect(wall.entries).toHaveLength(SIGNED_OUT_WALL_SIZE + 1);
 
+    const beforeSignedOut = env.galleryQueries.length;
     const signedOut = await direct(env, "/api/gallery");
     expect(signedOut.status).toBe(200);
     expect(signedOut.headers.get("cache-control")).toBe("no-store");
@@ -142,6 +143,13 @@ describe("Gallery readers", () => {
     expect(shown.nextCursor).toBeNull();
     expect(shown.signedOut).toBe(true);
     expect(shown).not.toHaveProperty("total");
+    expect(
+      env.galleryQueries
+        .slice(beforeSignedOut)
+        .filter((query) =>
+          /^\s*SELECT (?:COUNT|MAX|json_extract)/iu.test(query),
+        ),
+    ).toEqual([]);
     // The wall asks in its order, shuffled by default (#1615); signed out,
     // the answer is the same twelve, and any filter still asks to sign in.
     for (const order of ["?order=random&seed=abc123", "?order=parts"]) {

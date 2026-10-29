@@ -20,6 +20,7 @@ import {
   unwrapTags,
 } from "./gallery-store";
 import { SIMULATION_CHECK_PASSES } from "./gallery-store-simulation-checks";
+import type { GalleryWallStatisticsCache } from "./gallery-store-wall-cache";
 
 /** Longest search a reader may send; longer text is cut, not refused. */
 const GALLERY_MAX_SEARCH_LENGTH = 200;
@@ -58,7 +59,7 @@ const GALLERY_DEFAULT_LIST_LIMIT = 30;
 const GALLERY_MAX_LIST_LIMIT = 60;
 
 /** The search a feed request asks, if any. */
-function requestedSearch(body: Record<string, unknown>): string | null {
+export function requestedSearch(body: Record<string, unknown>): string | null {
   const query =
     typeof body.q === "string"
       ? body.q.slice(0, GALLERY_MAX_SEARCH_LENGTH)
@@ -384,15 +385,36 @@ export function compareWallKeys(
   return 0;
 }
 
-export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
-  const limit = wallPageLimit(body);
-  const cursor = typeof body.cursor === "string" ? body.cursor : null;
-  // The viewer id leads the bindings because its sub-select comes first.
+/** Cache only inputs interpreted by feedConditions, never paging or order. */
+function statisticsKey(body: Record<string, unknown>): string {
+  const owner = typeof body.ownerUserId === "string" ? body.ownerUserId : "";
+  return JSON.stringify({
+    owner,
+    author: owner ? "" : typeof body.author === "string" ? body.author : "",
+    tags: sanitizeGalleryTags(body.tags, 256).sort(),
+    attention: body.attention === true,
+    attentionKind: requestedAttentionKind(body),
+    netlist:
+      body.netlistable === true
+        ? "with"
+        : body.withoutNetlist === true
+          ? "without"
+          : "",
+    ai: ["ai", "human", "none"].includes(String(body.ai)) ? body.ai : null,
+    liked: body.liked === true,
+    parts: requestedComponentRanges(body.parts).map((range) => range.key),
+    search: normalizeGallerySearchText(requestedSearch(body) ?? ""),
+    viewerId: typeof body.viewerId === "string" ? body.viewerId : "",
+    isAdmin: body.isAdmin === true,
+  });
+}
+
+export type GalleryWallStatistics = ReturnType<typeof wallStatistics>;
+
+function wallStatistics(sql: SqlStorage, body: Record<string, unknown>) {
   const { conditions, bindings, viewerId } = feedConditions(sql, body, {
     tags: true,
   });
-  // The whole filtered wall's size, not the page's: counted before the
-  // cursor narrows the query, so every page carries the same total.
   const counts = sql
     .exec<{
       total: number;
@@ -417,6 +439,37 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
     body.attention === true ? attentionKindCounts(sql, body) : undefined;
   const componentRanges = componentRangeCounts(sql, body);
   const authors = contributorCounts(sql, conditions, bindings);
+  return {
+    total: Number(counts.total),
+    authors,
+    filterCounts: {
+      attention: Number(counts.attention),
+      liked: Number(counts.liked),
+      ...pairs,
+      ...(attentionKinds ? { attentionKinds } : {}),
+      componentRanges,
+    },
+  };
+}
+
+export function list(
+  sql: SqlStorage,
+  body: Record<string, unknown>,
+  cache?: GalleryWallStatisticsCache,
+): Response {
+  const limit = wallPageLimit(body);
+  const cursor = typeof body.cursor === "string" ? body.cursor : null;
+  const statistics =
+    cursor || body.statistics === false
+      ? {}
+      : cache
+        ? cache.read(sql, statisticsKey(body), () => wallStatistics(sql, body))
+        : wallStatistics(sql, body);
+  if (body.entries === false)
+    return Response.json({ entries: [], nextCursor: null, ...statistics });
+  const { conditions, bindings, viewerId } = feedConditions(sql, body, {
+    tags: true,
+  });
   const { order, seed } = wallOrder(body);
   // A page's rows, read by id alone: the order and the filters chose the
   // ids from the covering index, so no other row is read whole (each
@@ -615,19 +668,11 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
         : {}),
     })),
     nextCursor,
-    total: Number(counts.total),
+    ...statistics,
     // Which search this answers, so a reader knows the counts are its.
     ...(requestedSearch(body) !== null
       ? { search: requestedSearch(body)!.trim() }
       : {}),
-    authors,
-    filterCounts: {
-      attention: Number(counts.attention),
-      liked: Number(counts.liked),
-      ...pairs,
-      ...(attentionKinds ? { attentionKinds } : {}),
-      componentRanges,
-    },
   });
 }
 
