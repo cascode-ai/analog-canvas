@@ -72,6 +72,13 @@ export type Harness = GalleryEnv & {
   gallerySql: ReturnType<typeof sqliteState>["storage"]["sql"];
   galleryQueries: string[];
   galleryCalls: string[];
+  galleryStoreCalls: {
+    store: string;
+    operation: string;
+    body: Record<string, unknown>;
+  }[];
+  galleryStoreQueries: Map<string, string[]>;
+  galleryStoreStates: Map<string, ReturnType<typeof sqliteState>>;
 };
 
 /**
@@ -82,6 +89,9 @@ export function environment(): Harness {
   const galleryQueries: string[] = [];
   const galleryCalls: string[] = [];
   const galleryState = sqliteState(galleryQueries);
+  const galleryStoreCalls: Harness["galleryStoreCalls"] = [];
+  const galleryStoreQueries = new Map([["gallery", galleryQueries]]);
+  const galleryStoreStates = new Map([["gallery", galleryState]]);
   const durable = new DeployedGalleryDO(galleryState);
   // Each store by its name, as the Worker binds them: the community wall's,
   // and each reference dataset's of its own (#1510).
@@ -90,8 +100,13 @@ export function environment(): Harness {
   ]);
   const store = (name: string) => {
     let found = stores.get(name);
-    if (!found)
-      stores.set(name, (found = new DeployedGalleryDO(sqliteState())));
+    if (!found) {
+      const queries: string[] = [];
+      const state = sqliteState(queries);
+      galleryStoreQueries.set(name, queries);
+      galleryStoreStates.set(name, state);
+      stores.set(name, (found = new DeployedGalleryDO(state)));
+    }
     return found;
   };
   const authState = sqliteState();
@@ -105,6 +120,11 @@ export function environment(): Harness {
       getByName: (name: string) => ({
         fetch: (input: string, init?: RequestInit) => {
           galleryCalls.push(input);
+          galleryStoreCalls.push({
+            store: name,
+            operation: new URL(input).pathname.slice(1),
+            body: JSON.parse(String(init?.body ?? "{}")),
+          });
           return store(name).fetch(new Request(input, init));
         },
       }),
@@ -122,6 +142,9 @@ export function environment(): Harness {
     gallerySql: galleryState.storage.sql,
     galleryQueries,
     galleryCalls,
+    galleryStoreCalls,
+    galleryStoreQueries,
+    galleryStoreStates,
   };
 }
 

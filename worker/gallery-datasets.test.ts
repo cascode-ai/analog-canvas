@@ -277,8 +277,20 @@ describe("reference datasets in stores of their own (#1510)", () => {
       for (let pages = 0; pages < 10; pages += 1) {
         const params = new URLSearchParams({ limit: "3", order, seed });
         if (cursor) params.set("cursor", cursor);
+        for (const queries of env.galleryStoreQueries.values())
+          queries.length = 0;
         const answer = await page(params.toString());
-        expect(answer.total).toBe(everyId.length);
+        if (!cursor) expect(answer.total).toBe(everyId.length);
+        else {
+          for (const field of ["total", "filterCounts", "authors", "sources"])
+            expect(answer).not.toHaveProperty(field);
+          for (const queries of env.galleryStoreQueries.values())
+            expect(
+              queries.filter((query) =>
+                /^\s*SELECT (?:COUNT|MAX|json_extract)/iu.test(query),
+              ),
+            ).toEqual([]);
+        }
         seen.push(...answer.entries.map((entry) => entry.id));
         if (!answer.nextCursor) break;
         cursor = answer.nextCursor;

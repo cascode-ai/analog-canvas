@@ -104,10 +104,14 @@ restrictive CSP.
 
 ### List
 
-`GET /api/gallery` → `{entries, nextCursor, total}`, newest-first `public`
+`GET /api/gallery` → `{entries, nextCursor}`, newest-first `public`
 entries, keyset cursor, limit ≤60.
 
-- Filters, all before the cursor so `total` (repeated per page) matches:
+- The first page adds `total`, `filterCounts`, `authors` and, on the merged
+  wall, `sources`. Cursor pages omit these statistics and run no wall-wide
+  aggregate queries; callers retain the first page's statistics until a
+  refresh or filter change.
+- Filters, all applied before the first page's statistics:
   `author` (byline) or `owner` (account), `tags=a,b` (ANY), `netlistable=0|1`,
   `ai=1|0|dataset` (the AI mark; community circuits without it; reference
   datasets' circuits), `liked=1` (signed out selects none), `parts=0-5,…` (ANY
@@ -373,6 +377,11 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
   the wall while the reader leaves the datasets out (the contributor list's
   Datasets box unticked; kept with the other filters, in the link as
   `source=community`).
+- List entries are requested only from stores included by the AI/human/dataset
+  selection. The first page can read other stores' statistics for facets that
+  ignore their own selection. Dataset statistics are cached by normalized
+  filters, access scope and data revision; imports and netlist-mark
+  recomputation invalidate them.
 - Every write answers 403 `dataset-read-only`; entries have no owner or AI mark
   (they count under `datasets`, not `human`) and show no like or owner tools;
   an opened copy publishes as a new community entry.

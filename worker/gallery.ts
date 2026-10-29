@@ -272,6 +272,7 @@ async function signedOutWallEntries(
       isAdmin: false,
       viewerId: "",
       limit: String(SIGNED_OUT_WALL_SIZE),
+      statistics: false,
       cursor: null,
       tags: [],
     },
