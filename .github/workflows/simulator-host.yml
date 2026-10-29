@@ -108,6 +108,7 @@ jobs:
           test "$(git -C compat-build/source rev-parse HEAD)" = c1a1c84f1b2b9aa71c0cddf06e555441434db7b7
           cp -R containers/vacask/patches compat-build/patches
       - name: Build simulator without pidfd dependency (no deployment)
+        id: native_build
         uses: docker/build-push-action@v6
         with:
           context: compat-build
@@ -124,6 +125,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - name: Prepare native test dependencies and pinned conversion sources
+        id: native_resources
         run: |
           pnpm install --frozen-lockfile
           pnpm --filter @icm/simulation-service... --filter @icm/mcp-server... --filter '@icm/editor^...' --if-present build
@@ -137,12 +139,19 @@ jobs:
           git -C compat-build/sky130 checkout --detach FETCH_HEAD
           test "$(git -C compat-build/sky130 rev-parse HEAD)" = 403964dc7f9cca5ec1a8cc7b4f2a6f532b781676
       - name: Qualify actual native compiler, model and service assertions
+        id: native_tests
+        if: ${{ !cancelled() && steps.native_resources.outcome == 'success' }}
         run: node scripts/run-environment-tests.mjs vacask
       - name: Verify pinned BSIM4 repair and SKY130 source conversion
+        id: source_tests
+        if: ${{ !cancelled() && steps.native_resources.outcome == 'success' }}
         run: node scripts/run-environment-tests.mjs vacask-source
       - name: Execute real native source through public stdio MCP and the local relay
+        id: mcp_tests
+        if: ${{ !cancelled() && steps.native_resources.outcome == 'success' }}
         run: node scripts/run-environment-tests.mjs mcp-native
       - name: Stage existing Production inputs with only the qualified simulator replaced
+        if: success() && steps.native_tests.outcome == 'success' && steps.source_tests.outcome == 'success' && steps.mcp_tests.outcome == 'success'
         run: |
           node scripts/package-vacask-image.mjs --simulator-build compat-build/context compat-artifact compat-build/native-compose-config.json compat-artifact/native-compose-config.json
           docker build --platform linux/amd64 -f containers/vacask/Dockerfile -t icm-vacask-qualified compat-build/context
@@ -157,6 +166,21 @@ jobs:
           path: |
             output/environment-tests/
             test-results/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve unqualified simulator build for failure diagnosis
+        if: ${{ !cancelled() && steps.native_build.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vacask-unqualified-build-${{ github.sha }}
+          path: |
+            compat-artifact/vacask
+            compat-artifact/SHA256SUMS
+            compat-artifact/hard-switch.patch
+            compat-artifact/upstream-revision.txt
+            compat-artifact/upstream-source.tar.gz
+            compat-artifact/os-packages.txt
+            compat-artifact/ldd.txt
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v4

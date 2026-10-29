@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   compileNativeDeviceOperatingPoints,
   nativeDeviceOpAcquisitions,
@@ -333,8 +334,19 @@ include "dut.inc"`,
 it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
   "executes public compiler plus native OP helper and matches independently captured N/P output keys and values",
   async () => {
+    const modulesDirectory = resolve(process.env.VACASK_MODULES!);
+    const modulePath = join(modulesDirectory, "spice/bsim4v8.osdi");
+    // The independent capture records this repaired module's identity.
+    // The controlled startup and SIM_MODULE_PATH below select the same file.
+    expect(
+      createHash("sha256").update(readFileSync(modulePath)).digest("hex"),
+      `${modulePath} must match the chainrule-corrected native OP reference`,
+    ).toBe("5c06ffb2aec8d96c2bbfdbde854e788ac704cbdf2f8d60ae90146aa22e3659a9");
     const reference = parseVacaskRawfile(
-      readFileSync("netlists/vacask-device-outputs/bias.raw", "utf8"),
+      readFileSync(
+        "netlists/vacask-device-outputs/chainrule-corrected/bias.raw",
+        "utf8",
+      ),
     );
     if (!reference.ok) throw Error(reference.error.message);
     for (const pmos of [false, true]) {
@@ -433,7 +445,7 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
           encoding: "utf8",
           windowsHide: true,
           timeout: 15000,
-          env: { ...process.env, SIM_MODULE_PATH: process.env.VACASK_MODULES },
+          env: { ...process.env, SIM_MODULE_PATH: modulesDirectory },
         },
       );
       writeFileSync(join(cwd, "stdout.log"), run.stdout ?? "");
