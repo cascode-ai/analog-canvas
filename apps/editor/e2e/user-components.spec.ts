@@ -3711,9 +3711,14 @@ test("publication checkpoints the published JSON without marking later input as 
   try {
     await button(editor, PUBLISH).click();
     await expect.poll(() => publishing).toBe(true);
-    await editor
-      .getByRole("textbox", { name: "Component definition code", exact: true })
-      .fill("{");
+    const code = editor.getByRole("textbox", {
+      name: "Component definition code",
+      exact: true,
+    });
+    // Select the whole CodeMirror document, including lines outside its viewport.
+    await code.press("ControlOrMeta+a");
+    await page.keyboard.insertText("{");
+    await expect(code).toHaveText("{");
   } finally {
     release();
   }
