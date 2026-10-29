@@ -3,7 +3,11 @@ import { executeTransaction, type SchematicEdit } from "@icm/edit-engine";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { arrangeInstanceLabels, partLabelOf } from "./arrange-instance-labels";
+import {
+  arrangeInstanceLabels,
+  partLabelOf,
+  type ArrangeInstanceLabelsOptions,
+} from "./arrange-instance-labels";
 
 /** The part a label belongs to: a part's name or value, or a Pin's name. */
 function ownerOf(
@@ -16,27 +20,22 @@ function ownerOf(
 }
 
 /**
- * The labels a wire or a part is drawn over, with the parts they belong to.
- * A part counts as well as a wire: a Cell whose Pins moved can draw its
- * block taller, over the name that stood under it.
+ * The labels a wire or a part is drawn over, as VISUAL_LABEL_CLEARANCE
+ * reports them, with the parts they belong to. A part counts as well as a
+ * wire: a Cell whose Pins moved can draw its block taller, over the name
+ * that stood under it.
  */
 function struckLabels(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): Map<string, string> {
   const context = createLabelClearanceContext(document, resolver);
-  const drawn = new Set([
-    ...document.instances.map((instance) => instance.id),
-    ...document.routes.map((route) => route.id),
-  ]);
   const struck = new Map<string, string>();
   for (const label of context.visible) {
     const owner = ownerOf(label, context.visible);
     if (
       owner &&
-      context
-        .conflictsAt(context.measure(label).inkBounds, label.id)
-        .some((id) => drawn.has(id))
+      context.struckAt(context.measure(label).inkBounds, label.id).length
     )
       struck.set(label.id, owner);
   }
@@ -60,6 +59,7 @@ export function arrangeNewlyStruckLabels(
   before: { document: SchematicDocument; resolver: SymbolResolver },
   after: SchematicDocument,
   resolver: SymbolResolver,
+  options: Pick<ArrangeInstanceLabelsOptions, "rowsOnly"> = {},
 ): SchematicEdit[] {
   const now = struckLabels(after, resolver);
   if (!now.size) return [];
@@ -73,7 +73,10 @@ export function arrangeNewlyStruckLabels(
   // Rows stay as they are: only a struck group moves, not a value that
   // could also take its hidden Reference's row.
   return owners.size
-    ? arrangeInstanceLabels(after, resolver, [...owners], { compact: false })
+    ? arrangeInstanceLabels(after, resolver, [...owners], {
+        ...options,
+        compact: false,
+      })
     : [];
 }
 
@@ -100,6 +103,39 @@ export function withStruckLabelsArranged(
   edits: readonly SchematicEdit[],
 ): SchematicEdit[] {
   if (!edits.some((edit) => GEOMETRY_EDITS.has(edit.kind))) return [...edits];
+  return [...edits, ...newlyStruckLabelEdits(document, resolver, edits)];
+}
+
+/**
+ * An Agent's placement, then the label moves it calls for: a part placed
+ * over a neighbour's name or value moves that label clear, as a part moved
+ * there does (#1366), to its part's rows only, so a later arrangement still
+ * moves it (#1836). A W/L placed in its default row had stood under the
+ * next transistor placed beside it. When the moves would take the
+ * transaction past `maxEdits`, none is added and the warnings stay.
+ */
+export function withLabelsClearOfPlacedParts(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  edits: readonly SchematicEdit[],
+  maxEdits: number,
+): SchematicEdit[] {
+  if (!edits.some((edit) => edit.kind === "add_instance")) return [...edits];
+  const moves = newlyStruckLabelEdits(document, resolver, edits, {
+    rowsOnly: true,
+  });
+  return edits.length + moves.length <= maxEdits
+    ? [...edits, ...moves]
+    : [...edits];
+}
+
+/** The label moves `edits` call for, previewed on `document`. */
+function newlyStruckLabelEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  edits: readonly SchematicEdit[],
+  options: Pick<ArrangeInstanceLabelsOptions, "rowsOnly"> = {},
+): SchematicEdit[] {
   const result = executeTransaction(
     document,
     {
@@ -111,13 +147,11 @@ export function withStruckLabelsArranged(
     },
     { symbolResolver: resolver },
   );
-  if (!result.ok) return [...edits];
-  return [
-    ...edits,
-    ...arrangeNewlyStruckLabels(
-      { document, resolver },
-      result.document,
-      resolver,
-    ),
-  ];
+  if (!result.ok) return [];
+  return arrangeNewlyStruckLabels(
+    { document, resolver },
+    result.document,
+    resolver,
+    options,
+  );
 }

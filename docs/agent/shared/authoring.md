@@ -377,8 +377,9 @@ at each end: `connect` the pin to an open `{kind:"point"}` a grid step or two
 out, then `add-label` with the Net's name and target
 `{kind:"pin",instance:"M4",pin:"G"}`; same-name Nets in a Cell are one Net. A
 label not clear on the stub stands at its open end or slides along a longer
-run to the nearest clear spot; else it stays and `VISUAL_LABEL_CLEARANCE` says
-so.
+run to the nearest clear spot, then tries the Net's other wires within eight
+grid steps (either side of a vertical run); else it stays and
+`VISUAL_LABEL_CLEARANCE` says so.
 
 A pin unused on purpose (QBAR) needs No Connect or the netlist blocks with
 `MISSING_PIN_NET`:

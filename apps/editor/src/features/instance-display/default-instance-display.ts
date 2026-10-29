@@ -204,11 +204,13 @@ export function defaultInstanceDisplayAnnotations(
 
 /**
  * A new part's labels stay in their default rows unless those cross a wire,
- * a junction dot or another label, or sit boxed in by a loop of wire; then
- * they are arranged as `arrange-labels` places them (#1519). Placed by an
- * Agent beside
- * existing wiring, a sideways varactor had put its name inside its tie loop,
- * and short stacked parts their names and values on the next wire.
+ * a part, a junction dot or another label, run on into a neighbour's label,
+ * or sit boxed in by a loop of wire; then they are arranged as
+ * `arrange-labels` places them (#1519). Placed by an Agent beside existing
+ * wiring, a sideways varactor had put its name inside its tie loop, and
+ * short stacked parts their names and values on the next wire. A drawing
+ * with no wire yet counts too: a W/L placed in its default row had stood
+ * over the part beside it, and two neighbours' names had run on (#1836).
  */
 function clearOfWiring(
   document: SchematicDocument,
@@ -216,8 +218,7 @@ function clearOfWiring(
   resolver: SymbolResolver,
   annotations: Annotation[],
 ): Annotation[] {
-  if (!annotations.length || !instance.placement || !document.routes.length)
-    return annotations;
+  if (!annotations.length || !instance.placement) return annotations;
   const ids = new Set(annotations.map((annotation) => annotation.id));
   const placed: SchematicDocument = {
     ...document,
@@ -235,26 +236,46 @@ function clearOfWiring(
     annotations.every(
       (annotation) =>
         !context.conflicts(annotation).length &&
-        !context.dotsAt(context.measure(annotation).inkBounds).length &&
+        context.clearAt(annotation) &&
         !context.enclosedAt(context.measure(annotation).inkBounds),
     )
   )
     return annotations;
-  const arranged = new Map(
-    arrangeInstanceLabelsReport(
-      placed,
+  // The part's rows first, where a later arrangement still moves them. A
+  // slide or a nearby spot, which a later pass leaves alone, only beside
+  // wiring already drawn and when no row is clear of the diagnostics: a
+  // part placed before its wires keeps its labels the preset's to move.
+  const arrangedIn = (rowsOnly: boolean) => {
+    const arranged = new Map(
+      arrangeInstanceLabelsReport(placed, resolver, [instance.id], {
+        rowsOnly,
+      }).edits.flatMap((edit) =>
+        edit.kind === "upsert_schematic_annotation"
+          ? [[edit.annotation.id, edit.annotation] as const]
+          : [],
+      ),
+    );
+    return annotations.map(
+      (annotation) => arranged.get(annotation.id) ?? annotation,
+    );
+  };
+  const reportedCount = (labels: readonly Annotation[]) => {
+    const settled = createLabelClearanceContext(
+      {
+        ...placed,
+        annotations: [
+          ...placed.annotations.filter((annotation) => !ids.has(annotation.id)),
+          ...labels,
+        ],
+      },
       resolver,
-      [instance.id],
-      {},
-    ).edits.flatMap((edit) =>
-      edit.kind === "upsert_schematic_annotation"
-        ? [[edit.annotation.id, edit.annotation] as const]
-        : [],
-    ),
-  );
-  return annotations.map(
-    (annotation) => arranged.get(annotation.id) ?? annotation,
-  );
+    );
+    return labels.filter((label) => !settled.clearAt(label)).length;
+  };
+  const inRows = arrangedIn(true);
+  if (!reportedCount(inRows) || !document.routes.length) return inRows;
+  const anywhere = arrangedIn(false);
+  return reportedCount(anywhere) < reportedCount(inRows) ? anywhere : inRows;
 }
 
 /**
