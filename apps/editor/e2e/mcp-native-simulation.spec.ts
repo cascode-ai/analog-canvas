@@ -222,10 +222,12 @@ test("public MCP connects to the real local relay and executes native source", a
       measurements ? JSON.parse(measurements.toString("utf8")) : [],
     );
     const environment = result.metadata.environment;
-    expect(await verifySimulationEnvironmentMetadata(environment)).toBe(true);
-    expect(await verifySimulationEnvironmentMetadata(expectedEnvironment)).toBe(
-      true,
+    expect(await verifySimulationEnvironmentMetadata(environment)).toEqual(
+      environment,
     );
+    expect(
+      await verifySimulationEnvironmentMetadata(expectedEnvironment),
+    ).toEqual(expectedEnvironment);
     expect(environment.profileId).toBe(expectedEnvironment.profileId);
     expect(environment.fingerprint).toBe(expectedEnvironment.fingerprint);
     expect(environment.simulator).toEqual(expectedEnvironment.simulator);
