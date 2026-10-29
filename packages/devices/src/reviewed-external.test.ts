@@ -20,6 +20,34 @@ import {
 } from "./reviewed-external.js";
 
 describe("reviewed external device bindings", () => {
+  it("offers generic poly on a resistor only with its exact two-terminal interface", () => {
+    const binding = resolveReviewedExternalBinding(
+      "sky130_fd_pr__res_generic_po",
+      ["t1", "t2"],
+    );
+    expect(binding).toMatchObject({
+      id: "sky130-res-generic-po",
+      symbolId: "resistor",
+      terminals: [
+        { targetName: "t1", pinName: "1", interaction: "canvas" },
+        { targetName: "t2", pinName: "2", interaction: "canvas" },
+      ],
+    });
+    expect(reviewedExternalModelSuggestions("resistor")).toContain(
+      "sky130_fd_pr__res_generic_po",
+    );
+    for (const terminals of [
+      ["t2", "t1"],
+      ["t1", "t2", "B"],
+    ])
+      expect(
+        resolveReviewedExternalBinding(
+          "sky130_fd_pr__res_generic_po",
+          terminals,
+        ),
+      ).toBeUndefined();
+  });
+
   it("recognizes only exact reviewed names and exact public interfaces", () => {
     expect(
       resolveReviewedExternalBinding("sky130_fd_pr__res_high_po", [
