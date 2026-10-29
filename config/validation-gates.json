@@ -202,6 +202,13 @@
       "apps/editor/e2e/editor-fixtures.ts",
       "apps/editor/e2e/gallery-fixtures.ts"
     ],
+    "galleryRequestFailures": [
+      "apps/editor/e2e/gallery-request-failures.spec.ts",
+      "apps/editor/src/features/editor-shell/examples-panel.tsx",
+      "apps/editor/src/components/shelf-wall.tsx",
+      "apps/editor/src/components/my-submissions.tsx",
+      "apps/editor/src/request-failure.ts"
+    ],
     "gallery": [
       "worker/auth.ts",
       "worker/auth.test.ts",
@@ -550,6 +557,18 @@
       }
     },
     {
+      "id": "gallery-request-failures-browser",
+      "stage": "affected",
+      "groups": ["galleryRequestFailures"],
+      "description": "Validate Gallery paging and member action failure recovery.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/gallery-request-failures.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/gallery-request-failures.spec.ts"] }
+    },
+    {
       "id": "gallery-browser",
       "stage": "affected",
       "groups": ["gallery"],
@@ -892,6 +911,7 @@
         "hierarchy-browser",
         "project-file-browser",
         "gallery-browser",
+        "gallery-request-failures-browser",
         "agent-browser",
         "analog-simulation-browser",
         "editor-browser",

@@ -69,6 +69,60 @@ function editorWith(server: ReturnType<typeof galleryServer>, shown = true) {
 const envelope = { apiVersion: "3.0" as const, requestId: "publish-1" };
 
 describe("an Agent publishes to the Gallery (#1415)", () => {
+  it("preserves a block between the update read and write", async () => {
+    const server = galleryServer();
+    const editor = editorWith({
+      ...server,
+      fetch: async (url, init) =>
+        init?.method === "PUT"
+          ? Response.json({ error: "account-blocked" }, { status: 403 })
+          : server.fetch(url, init),
+    });
+    await editor.client.connect("session-1.code");
+    expect(
+      await editor.client.projectResource({
+        ...envelope,
+        operation: "update-gallery-entry",
+        galleryEntryId: "entry-7",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "GALLERY_ACCOUNT_BLOCKED",
+        recovery: "fix-input",
+        message: expect.stringContaining("Owner"),
+      },
+    });
+    expect(editor.recorded).toEqual([]);
+  });
+  it.each(["publish-gallery-entry", "update-gallery-entry"] as const)(
+    "keeps account-blocked distinct in %s",
+    async (operation) => {
+      const editor = editorWith({
+        sent: [],
+        fetch: async () =>
+          Response.json({ error: "account-blocked" }, { status: 403 }),
+      });
+      await editor.client.connect("session-1.code");
+      expect(
+        await editor.client.projectResource({
+          ...envelope,
+          operation,
+          ...(operation === "update-gallery-entry"
+            ? { galleryEntryId: "entry-7" }
+            : {}),
+        }),
+      ).toMatchObject({
+        ok: false,
+        error: {
+          code: "GALLERY_ACCOUNT_BLOCKED",
+          recovery: "fix-input",
+          message: expect.stringContaining("Owner"),
+        },
+      });
+      expect(editor.recorded).toEqual([]);
+    },
+  );
   it("publishes the shown working copy as a new entry, marked AI", async () => {
     const server = galleryServer();
     const { client, recorded } = editorWith(server);

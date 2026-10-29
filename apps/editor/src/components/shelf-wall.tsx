@@ -198,7 +198,13 @@ export function ShelfWall() {
       } else if (action === "export") {
         const loaded = await openCloudProject(project.id);
         if (loaded.status !== "opened")
-          throw new Error("Could not load the Project for export. Try again.");
+          throw new Error(
+            loaded.status === "signed-out"
+              ? "Sign in to export this Project."
+              : loaded.status === "not-found"
+                ? "This Project was not found."
+                : loaded.message,
+          );
         downloadBlob(
           new Blob([loaded.project.projectText], { type: "application/json" }),
           `${loaded.project.name.replace(/[\\/:*?"<>|]/gu, "_")}.icproj.json`,

@@ -59,7 +59,7 @@ export async function requestFailureOf(
   if (status === 403 && body?.error === "account-blocked")
     return {
       failure: "blocked",
-      message: `This account's Gallery access is paused. If this is a mistake, reply to our email or write to ${SITE_USAGE_CONTACT}.`,
+      message: `This account's Gallery access is paused. Contact the Owner by replying to our email or writing to ${SITE_USAGE_CONTACT}.`,
     };
   if (await isDailyAllowanceRefusal(response)) {
     const resetAt = typeof body?.resetAt === "string" ? body.resetAt : "";

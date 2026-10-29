@@ -2,9 +2,57 @@ import { describe, expect, it } from "vitest";
 
 import {
   loadMySubmissions,
+  deleteMyEntry,
+  setMyEntryRecycled,
   RECYCLED_KEEP_COUNT,
   recycledRetentionNote,
 } from "./my-submissions";
+
+it("reports offline actions and accepts successful empty replies", async () => {
+  for (const run of [
+    deleteMyEntry,
+    (id: string, fetcher: typeof fetch) =>
+      setMyEntryRecycled(id, "restore", fetcher),
+  ]) {
+    expect(
+      await run("g1", async () => {
+        throw new TypeError("network");
+      }),
+    ).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("Check your connection"),
+    });
+    expect(
+      await run("g1", async () => new Response(null, { status: 204 })),
+    ).toEqual({ ok: true });
+  }
+});
+
+it.each([
+  [401, {}, "Sign in"],
+  [403, { error: "account-blocked" }, "Owner"],
+  [404, {}, "Not found"],
+  [
+    429,
+    { error: "too-many-requests", retryAfterSeconds: 12 },
+    "Wait 12 seconds",
+  ],
+  [503, {}, "server could not answer"],
+] as const)(
+  "names HTTP %s for each submission action",
+  async (status, body, message) => {
+    const fetcher: typeof fetch = async () => Response.json(body, { status });
+    for (const outcome of [
+      await deleteMyEntry("g1", fetcher),
+      await setMyEntryRecycled("g1", "recycle", fetcher),
+      await setMyEntryRecycled("g1", "restore", fetcher),
+    ])
+      expect(outcome).toMatchObject({
+        ok: false,
+        message: expect.stringContaining(message),
+      });
+  },
+);
 
 describe("recycledRetentionNote", () => {
   // The bin holds a fixed number of withdrawals per account and expires

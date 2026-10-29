@@ -89,6 +89,11 @@ export function createAgentGalleryPublisher<
           fetchLike,
         );
       } catch (error) {
+        if (
+          error instanceof GalleryReadError &&
+          error.failure?.failure === "blocked"
+        )
+          return fail("GALLERY_ACCOUNT_BLOCKED", error.message, "fix-input");
         return error instanceof GalleryReadError && error.status === 401
           ? fail(
               "SIGN_IN_REQUIRED",
@@ -143,17 +148,19 @@ export function createAgentGalleryPublisher<
         );
     if (outcome.status !== "published")
       return fail(
-        outcome.status === "unauthorized"
-          ? "SIGN_IN_REQUIRED"
-          : outcome.status === "rate-limited"
-            ? "GALLERY_DAILY_LIMIT"
-            : outcome.status === "too-large"
-              ? "GALLERY_TOO_LARGE"
-              : outcome.status === "gate-failed"
-                ? "GALLERY_QUALITY_GATES"
-                : outcome.status === "unreachable"
-                  ? "GALLERY_UNAVAILABLE"
-                  : "GALLERY_REJECTED",
+        outcome.status === "rejected" && outcome.failure?.failure === "blocked"
+          ? "GALLERY_ACCOUNT_BLOCKED"
+          : outcome.status === "unauthorized"
+            ? "SIGN_IN_REQUIRED"
+            : outcome.status === "rate-limited"
+              ? "GALLERY_DAILY_LIMIT"
+              : outcome.status === "too-large"
+                ? "GALLERY_TOO_LARGE"
+                : outcome.status === "gate-failed"
+                  ? "GALLERY_QUALITY_GATES"
+                  : outcome.status === "unreachable"
+                    ? "GALLERY_UNAVAILABLE"
+                    : "GALLERY_REJECTED",
         describePublishOutcome(outcome),
         outcome.status === "unauthorized"
           ? "sign-in"
