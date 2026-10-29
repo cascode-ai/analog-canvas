@@ -156,10 +156,6 @@ const loadComponentDefinitionEditor = () =>
 export function preloadComponentDefinitionEditor() {
   void loadComponentDefinitionEditor().catch(() => undefined);
 }
-export const LazyComponentDefinitionEditor = lazyChunk(
-  "dialog",
-  loadComponentDefinitionEditor,
-);
 
 export const LazyAgentPropertiesSection = import.meta.env?.ICM_DESKTOP
   ? (
