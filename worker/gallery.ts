@@ -471,6 +471,9 @@ export async function routeGalleryRequest(
   // The preview gate's one-minute cache must not supply list permissions.
   let session: Promise<SessionUser | null> | undefined;
   const readSession = () => (session ??= sessionUserOf(request, env));
+  // Reuse only this request's membership and publication check on an edge hit.
+  let signedOutPreviewAccess:
+    { status?: string; previewRevision?: string } | undefined;
   // The Community Gallery is for signed-in readers. Without a session or the
   // read-only Gallery credential every read asks to sign in: the list and its
   // search, an entry, its Project and its preview alike. The one exception is
@@ -510,13 +513,18 @@ export async function routeGalleryRequest(
         segments[0] === "tags" ? { tags: [], groups: [] } : { sources: [] },
         { headers: { "cache-control": "no-store" } },
       );
-    const firstTwelvePreview =
-      segments.length === 2 &&
-      segments[1] === "preview.svg" &&
-      (await signedOutWallEntries(env)).some(
-        (entry) => entry.id === segments[0],
-      );
-    if (!firstTwelvePreview)
+    if (segments.length === 2 && segments[1] === "preview.svg") {
+      const access = await callGallery<{
+        status?: string;
+        previewRevision?: string;
+      }>(env, "preview-access", {
+        id: segments[0],
+        signedOutWallSize: SIGNED_OUT_WALL_SIZE,
+      });
+      if (access.status === 200 && access.payload.status === "public")
+        signedOutPreviewAccess = access.payload;
+    }
+    if (!signedOutPreviewAccess)
       return Response.json(
         { error: "sign-in-required" },
         { status: 401, headers: { "cache-control": "no-store" } },
@@ -737,10 +745,12 @@ export async function routeGalleryRequest(
       // A content URL stays immutable, but publication status does not. Check
       // the tiny access row before serving an edge hit so recycle/reject/delete
       // and a newer current revision retain exactly their existing behavior.
-      const access = await callGallery<{
-        status?: string;
-        previewRevision?: string;
-      }>(env, "preview-access", { id: segments[0] });
+      const access = signedOutPreviewAccess
+        ? { status: 200, payload: signedOutPreviewAccess }
+        : await callGallery<{
+            status?: string;
+            previewRevision?: string;
+          }>(env, "preview-access", { id: segments[0] });
       if (
         access.status === 200 &&
         access.payload.status === "public" &&

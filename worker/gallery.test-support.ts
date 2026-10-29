@@ -71,6 +71,7 @@ export type Harness = GalleryEnv & {
   /** The gallery's own storage, for seeding rows a route cannot create. */
   gallerySql: ReturnType<typeof sqliteState>["storage"]["sql"];
   galleryQueries: string[];
+  galleryCalls: string[];
 };
 
 /**
@@ -79,6 +80,7 @@ export type Harness = GalleryEnv & {
  */
 export function environment(): Harness {
   const galleryQueries: string[] = [];
+  const galleryCalls: string[] = [];
   const galleryState = sqliteState(galleryQueries);
   const durable = new DeployedGalleryDO(galleryState);
   // Each store by its name, as the Worker binds them: the community wall's,
@@ -101,8 +103,10 @@ export function environment(): Harness {
     GALLERY_BACKUP_TOKEN: READER_TOKEN,
     GALLERY: {
       getByName: (name: string) => ({
-        fetch: (input: string, init?: RequestInit) =>
-          store(name).fetch(new Request(input, init)),
+        fetch: (input: string, init?: RequestInit) => {
+          galleryCalls.push(input);
+          return store(name).fetch(new Request(input, init));
+        },
       }),
     },
     AUTH: {
@@ -117,6 +121,7 @@ export function environment(): Harness {
     authSql: authState.storage.sql,
     gallerySql: galleryState.storage.sql,
     galleryQueries,
+    galleryCalls,
   };
 }
 
