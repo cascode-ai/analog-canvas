@@ -97,7 +97,17 @@ The merge queue runs two required checks once on the PR merged with current
 smoke, packaging, performance budgets) and `Browser tests` (specs mapped to
 changed product paths). On the PR itself CI only plans scope and checks
 Test-Impact trailers. Only `pnpm test:e2e`, run locally, covers every browser
-spec.
+spec. Core accepts only successful planning, build preparation and all three
+parallel check branches; failed, cancelled or unexpected skipped prerequisites
+fail it. Pull requests and successfully planned documentation-only changes
+keep their existing skips.
+
+Queue formatting checks use the merged candidate's changed files within the
+normal formatting scope. Formatter configuration, ignore rules or lockfile
+changes, or an untrusted base/configuration, require the full formatting check.
+All other static contracts still run in full. Shared package output must match
+the candidate, platform, toolchain, source inputs and file digests; local
+standalone tests continue to build their own dependencies.
 
 ## Change discipline
 
