@@ -90,7 +90,7 @@ describe("CI workflow", () => {
 
   it("runs every unit shard without filtering tests or masking a failed shard", () => {
     const unit = job("core_unit");
-    expect(unit).toContain("shard: [1/3, 2/3, 3/3]");
+    expect(unit).toContain("shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]");
     expect(unit).toContain("fail-fast: false");
     expect(unit).not.toContain("continue-on-error:");
     expect(unit.match(/        run: pnpm ci:unit.*$/mu)[0].trim()).toBe(
