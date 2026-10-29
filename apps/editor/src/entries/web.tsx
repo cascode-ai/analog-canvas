@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { useVisitStats } from "../../analytics/client";
 import { EditorErrorBoundary } from "../components/editor-error-boundary";
 import { guardedRouteChunk } from "../components/route-chunk-loader";
+import { AccountStatePreload, loadAccountState } from "../components/account";
 import {
   galleryFeedQueryKey,
   galleryQueryFromFilters,
@@ -77,6 +78,11 @@ export function mountWebEditor() {
   if (!container) {
     throw new Error("Editor root element is missing");
   }
+
+  // Start both account reads beside the editor's download. The menu receives
+  // this same promise even if the response arrives before its code does.
+  const initialAccountState =
+    editorRoute && !isPhoneViewing() ? loadAccountState() : null;
 
   function galleryLandingPreload(): GalleryLandingPreload | undefined {
     if (!/^\/?$/.test(window.location.pathname) || localhostExamplesEnabled())
@@ -313,10 +319,12 @@ export function mountWebEditor() {
       <Suspense
         fallback={<div className="analytics-loading">Loading editor…</div>}
       >
-        <EditorWorkspace
-          visitStats={stats}
-          initialGalleryEntryId={galleryEntryIdOf(path)}
-        />
+        <AccountStatePreload value={initialAccountState}>
+          <EditorWorkspace
+            visitStats={stats}
+            initialGalleryEntryId={galleryEntryIdOf(path)}
+          />
+        </AccountStatePreload>
       </Suspense>
     );
   }

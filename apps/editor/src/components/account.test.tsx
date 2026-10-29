@@ -3,8 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  cacheSessionUser,
   deleteAccount,
   fetchSessionUser,
+  loadAccountState,
   requestEmailCode,
   verifyEmailCode,
   type AccountState,
@@ -347,6 +349,105 @@ describe("AccountMenuView", () => {
     expect(accountTabFromSearch("?tab=settings")).toBe("settings");
     expect(accountTabFromSearch("?tab=elsewhere")).toBe("circuits");
   });
+});
+
+describe("loadAccountState", () => {
+  it("starts the session read without waiting for the providers response", async () => {
+    const providers = { github: true, google: false, email: true };
+    const pendingProviders = Promise.withResolvers<Response>();
+    const requests: string[] = [];
+    const fetchLike: typeof fetch = async (input) => {
+      requests.push(String(input));
+      return input === "/api/auth/providers"
+        ? pendingProviders.promise
+        : Response.json({ user: null });
+    };
+
+    const account = loadAccountState(fetchLike);
+    try {
+      expect(requests).toEqual(["/api/auth/providers", "/api/auth/me"]);
+    } finally {
+      pendingProviders.resolve(Response.json(providers));
+    }
+    expect(await account).toEqual({ providers, user: null });
+  });
+
+  it("shares the session with other readers and uses an updated account on refresh", async () => {
+    const providers = { github: true, google: false, email: false };
+    const user = {
+      id: "u1",
+      displayName: "Ada",
+      email: null,
+      provider: "github",
+      role: "user",
+      isAdmin: false,
+    };
+    const requests: string[] = [];
+    const fetchLike: typeof fetch = async (input) => {
+      requests.push(String(input));
+      return Response.json(
+        input === "/api/auth/providers" ? providers : { user },
+      );
+    };
+
+    const [account, session] = await Promise.all([
+      loadAccountState(fetchLike),
+      fetchSessionUser(fetchLike),
+    ]);
+    expect(account).toEqual({ providers, user });
+    expect(session).toEqual(user);
+    expect(requests).toEqual(["/api/auth/providers", "/api/auth/me"]);
+
+    const renamed = { ...user, displayName: "Ada Lovelace" };
+    cacheSessionUser(fetchLike, renamed);
+    expect(await loadAccountState(fetchLike)).toEqual({
+      providers,
+      user: renamed,
+    });
+    expect(requests).toEqual([
+      "/api/auth/providers",
+      "/api/auth/me",
+      "/api/auth/providers",
+    ]);
+  });
+
+  it.each(["disabled", "http-error", "invalid-json", "offline"])(
+    "keeps the account hidden when providers are %s",
+    async (failure) => {
+      const fetchLike: typeof fetch = async (input) => {
+        if (input !== "/api/auth/providers")
+          return Response.json({ user: { id: "u1" } });
+        if (failure === "offline") throw new TypeError("offline");
+        if (failure === "http-error")
+          return new Response(null, { status: 503 });
+        if (failure === "invalid-json") return new Response("invalid");
+        return Response.json({ github: false, google: false, email: false });
+      };
+      expect(await loadAccountState(fetchLike)).toEqual({
+        providers: { github: false, google: false, email: false },
+        user: null,
+      });
+    },
+  );
+
+  it.each(["signed-out", "http-error", "invalid-json", "offline"])(
+    "keeps the enabled sign-in choices when the session is %s",
+    async (failure) => {
+      const providers = { github: true, google: false, email: true };
+      const fetchLike: typeof fetch = async (input) => {
+        if (input === "/api/auth/providers") return Response.json(providers);
+        if (failure === "offline") throw new TypeError("offline");
+        if (failure === "http-error")
+          return new Response(null, { status: 503 });
+        if (failure === "invalid-json") return new Response("invalid");
+        return Response.json({ user: null });
+      };
+      expect(await loadAccountState(fetchLike)).toEqual({
+        providers,
+        user: null,
+      });
+    },
+  );
 });
 
 describe("fetchSessionUser", () => {
