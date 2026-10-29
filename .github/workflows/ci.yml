@@ -124,11 +124,15 @@ jobs:
           retention-days: 1
 
   core_unit:
-    name: Core unit
+    name: Core unit (${{ matrix.shard }})
     needs: [changes, core_build]
     if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/3, 2/3, 3/3]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -147,7 +151,7 @@ jobs:
       - name: Unit and integration tests
         env:
           ICM_CI_PACKAGE_BUILD: "1"
-        run: pnpm ci:unit
+        run: pnpm ci:unit --shard=${{ matrix.shard }}
 
   core_release:
     name: Core release
