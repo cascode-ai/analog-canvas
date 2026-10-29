@@ -136,7 +136,6 @@ export function EditorAppChrome({
   hierarchyToolbar,
   telemetry,
 }: EditorAppChromeProps) {
-  const accountPreload = useContext(AccountStatePreload);
   const copyNetlist = (format: "spice" | "spectre") => {
     dismissOpenCommandMenus();
     onExportNetlist(format);
@@ -477,7 +476,7 @@ export function EditorAppChrome({
           ) : null}
           {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
           {!import.meta.env?.ICM_DESKTOP && identityEnabled ? (
-            <AccountMenu inEditor alwaysVisible preload={accountPreload} />
+            <EditorAccountMenu />
           ) : null}
           {hostActions}
           {externalLinksEnabled ? (
@@ -563,4 +562,10 @@ export function EditorAppChrome({
       <EditorTestTelemetry {...telemetry} />
     </header>
   );
+}
+
+/** Keep the online context read inside the Web-only account branch. */
+function EditorAccountMenu() {
+  const preload = useContext(AccountStatePreload);
+  return <AccountMenu inEditor alwaysVisible preload={preload} />;
 }
