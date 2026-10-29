@@ -152,6 +152,7 @@ test("public MCP connects to the real local relay and executes native source", a
       request,
       requestId: "native-mcp-start",
     });
+    expect(repeated.ok, JSON.stringify(repeated)).toBe(true);
     expect(repeated.run.id).toBe(started.run.id);
     let finished: any;
     await expect
@@ -177,24 +178,10 @@ test("public MCP connects to the real local relay and executes native source", a
       name: "vacask",
       version: "0.3.4-icm-hard-switch2",
     });
-    const opIndex = finished.result.data.analyses.findIndex(
-      (a: { analysis: string }) => a.analysis === "op",
-    );
-    expect(finished.result.data.analyses[opIndex].probes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: "mid", value: 0.5 }),
-      ]),
-    );
-    const csv = finished.artifacts.find(
-      (a: { name: string }) => a.name === `op-${opIndex}.csv`,
-    );
-    const outputPath = join(root, "op.csv");
-    const exported = await child.tool("simulation_files", {
-      request: { action: "artifact", artifactId: csv.id },
-      outputPath,
-    });
-    expect(exported.ok, JSON.stringify(exported)).toBe(true);
-    expect(await readFile(outputPath, "utf8")).toContain("0.5");
+    // Even full reads carry metadata only; complete samples are File artifacts.
+    expect(finished.resultPreview).toBe(true);
+    expect(finished.result.data).toBeUndefined();
+    const evidenceDirectory = join(root, "downloaded-evidence");
     const evidence = await collectNativeRunEvidence({
       tool: async (name: string, args: unknown) => {
         const reply = await child!.tool(name, args);
@@ -202,10 +189,36 @@ test("public MCP connects to the real local relay and executes native source", a
         return reply;
       },
       run: finished,
-      directory: join(root, "downloaded-evidence"),
+      directory: evidenceDirectory,
       compiled: { files: [{ path: "main.sim", text: agentNativeSource }] },
       expectedEnvironment,
     });
+    const result = JSON.parse(
+      await readFile(join(evidenceDirectory, "result.json"), "utf8"),
+    );
+    const opIndex = result.data.analyses.findIndex(
+      (a: { analysis: string }) => a.analysis === "op",
+    );
+    expect(
+      opIndex,
+      "The downloaded result must contain native OP data",
+    ).toBeGreaterThanOrEqual(0);
+    expect(result.data.analyses[opIndex].probes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "mid", value: 0.5 }),
+      ]),
+    );
+    const csv = finished.artifacts.find(
+      (a: { name: string }) => a.name === `op-${opIndex}.csv`,
+    );
+    expect(csv, "The OP CSV must be a registered artifact").toBeDefined();
+    const outputPath = join(root, "op.csv");
+    const exported = await child.tool("simulation_files", {
+      request: { action: "artifact", artifactId: csv.id },
+      outputPath,
+    });
+    expect(exported.ok, JSON.stringify(exported)).toBe(true);
+    expect(await readFile(outputPath, "utf8")).toContain("0.5");
     expect(evidence.datasets.map((dataset) => dataset.analysis).sort()).toEqual(
       ["ac", "op"],
     );
@@ -229,14 +242,21 @@ test("public MCP connects to the real local relay and executes native source", a
     // A new MCP process resumes this browser-approved connector, not a new claim.
     await child.close();
     child = startMcp(baseURL!, join(root, "connector.json"));
-    await child.request("initialize", { protocolVersion: "2025-03-26" });
+    await child.request("initialize", {
+      protocolVersion: "2025-03-26",
+      capabilities: {},
+      clientInfo: { name: "native-journey", version: "1" },
+    });
     child.notify("notifications/initialized");
     const resumed = await child.tool("connect", {});
     expect(resumed.ok, JSON.stringify(resumed)).toBe(true);
     const reread = await child.tool("simulation", {
       request: { operation: "read", runId: started.run.id },
     });
+    expect(reread.ok, JSON.stringify(reread)).toBe(true);
     expect(reread.run.id).toBe(started.run.id);
+    expect(reread.run.state).toBe("finished");
+    expect(reread.run.resultPreview).toBe(true);
     expect(executions).toBe(1);
   } finally {
     try {
