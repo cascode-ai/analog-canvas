@@ -3076,6 +3076,26 @@ test("live preview and the administrator lifecycle keep captured Projects", asyn
   expect(errors).toEqual([]);
 });
 
+test("a later component editor offers sign-in after the page's initial account signs out", async ({
+  page,
+  service,
+}) => {
+  await service.openEditorAs(page, "alice");
+  await expect(page.getByTestId("account-name")).toHaveText("alice");
+  await page.clock.install();
+  // The server session changes as it would after signing out in another tab.
+  await service.connect(page.context(), null);
+  await page.clock.fastForward(31_000);
+
+  await openUserComponents(page);
+  await button(page, "Create Component…").click();
+  const editor = componentEditor(page);
+  await expect(editor.getByTestId("account-signin")).toBeVisible();
+  await expect(editor.getByTestId("account-name")).toHaveCount(0);
+  await editor.getByTestId("account-signin").locator("summary").click();
+  await expect(editor.getByTestId("signin-github")).toBeVisible();
+});
+
 test("anonymous creation keeps public publication disabled and invalid code leaves the circuit untouched", async ({
   page,
   service,

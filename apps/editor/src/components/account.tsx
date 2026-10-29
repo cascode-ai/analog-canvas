@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { createContext, lazy, Suspense, useEffect, useState } from "react";
 
 import { isDailyAllowanceRefusal } from "../daily-allowance";
 
@@ -39,6 +39,10 @@ export interface AccountState {
   providers: AuthProviders;
   user: SessionUser | null;
 }
+
+/** The page's initial read, consumed by the persistent editor chrome. */
+export const AccountStatePreload =
+  /* @__PURE__ */ createContext<Promise<AccountState> | null>(null);
 
 const NO_PROVIDERS: AuthProviders = {
   github: false,
@@ -99,19 +103,21 @@ export async function readSessionUser(
 }
 
 /** Providers plus session; a dark or unreachable worker reads as no-auth. */
-async function loadAccountState(
+export async function loadAccountState(
   fetchLike: typeof fetch = fetch,
 ): Promise<AccountState> {
   try {
-    const response = await fetchLike("/api/auth/providers", {
+    const providersRequest = fetchLike("/api/auth/providers", {
       credentials: "same-origin",
     });
+    const userRequest = fetchSessionUser(fetchLike);
+    const response = await providersRequest;
     if (!response.ok) return { providers: NO_PROVIDERS, user: null };
     const providers = (await response.json()) as AuthProviders;
     const anyProvider = providers.github || providers.google || providers.email;
     return {
       providers,
-      user: anyProvider ? await fetchSessionUser(fetchLike) : null,
+      user: anyProvider ? await userRequest : null,
     };
   } catch {
     return { providers: NO_PROVIDERS, user: null };
@@ -304,11 +310,14 @@ export interface AccountMenuViewProps {
 export function AccountMenu({
   inEditor = false,
   alwaysVisible = false,
+  preload = null,
 }: {
   /** Where a drawing is open, the account opens in a new tab beside it. */
   inEditor?: boolean;
   /** Keep the account affordance mounted while identity data is loading. */
   alwaysVisible?: boolean;
+  /** Reuse the page's initial request only in its persistent account menu. */
+  preload?: Promise<AccountState> | null;
 }) {
   const [state, setState] = useState<AccountState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -319,17 +328,18 @@ export function AccountMenu({
       setNotice("Sign-in failed — try again.");
       window.history.replaceState(null, "", window.location.pathname);
     }
-    const load = () =>
-      void loadAccountState().then((next) => {
+    const show = (request: Promise<AccountState>) =>
+      void request.then((next) => {
         if (!cancelled) setState(next);
       });
-    load();
+    const load = () => show(loadAccountState());
+    show(preload ?? loadAccountState());
     window.addEventListener(ACCOUNT_CHANGED_EVENT, load);
     return () => {
       cancelled = true;
       window.removeEventListener(ACCOUNT_CHANGED_EVENT, load);
     };
-  }, []);
+  }, [preload]);
 
   if (!state) return alwaysVisible ? <AccountMenuFallback /> : null;
   if (

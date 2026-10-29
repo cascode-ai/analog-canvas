@@ -20,6 +20,67 @@ import { serializeProject } from "@icm/project-protocol";
 
 const ALL_PROVIDERS = { github: true, google: true, email: true };
 
+for (const signedIn of [true, false]) {
+  test(`the editor preloads a ${signedIn ? "signed-in" : "signed-out"} account and reuses it in the menu`, async ({
+    page,
+  }) => {
+    const editorCode = Promise.withResolvers<void>();
+    const providersResponse = Promise.withResolvers<void>();
+    let editorRequested = false;
+    const reads = { providers: 0, session: 0 };
+    await page.route(
+      /\/(?:assets\/App-[^/]+\.js|src\/app\/App\.tsx)(?:\?.*)?$/u,
+      async (route) => {
+        editorRequested = true;
+        await editorCode.promise;
+        await route.continue();
+      },
+    );
+    await page.route("**/api/auth/providers", async (route) => {
+      reads.providers += 1;
+      await providersResponse.promise;
+      await route.fulfill({ json: ALL_PROVIDERS });
+    });
+    await page.route("**/api/auth/me", (route) => {
+      reads.session += 1;
+      return route.fulfill({
+        json: { user: signedIn ? sessionUser({ displayName: "Ada" }) : null },
+      });
+    });
+
+    try {
+      await page.goto("/editor", { waitUntil: "commit" });
+      await expect.poll(() => editorRequested).toBe(true);
+      await expect.poll(() => reads).toEqual({ providers: 1, session: 1 });
+      await expect(page.getByTestId("schematic-canvas")).toHaveCount(0);
+      if (signedIn) {
+        // A completed preload must still be reused by the later menu.
+        const response = page.waitForResponse("**/api/auth/providers");
+        providersResponse.resolve();
+        await response;
+      } else {
+        // A menu that mounts first must share the still-pending preload.
+        editorCode.resolve();
+        await awaitEditorReady(page);
+        expect(reads).toEqual({ providers: 1, session: 1 });
+      }
+    } finally {
+      providersResponse.resolve();
+      editorCode.resolve();
+    }
+    await awaitEditorReady(page);
+    if (signedIn) {
+      await expect(page.getByTestId("account-name")).toHaveText("Ada");
+    } else {
+      await expect(page.getByTestId("account-signin")).toBeVisible();
+      await page.getByTestId("account-signin").locator("summary").click();
+      await expect(page.getByTestId("signin-github")).toBeVisible();
+      await expect(page.getByTestId("signin-google")).toBeVisible();
+    }
+    expect(reads).toEqual({ providers: 1, session: 1 });
+  });
+}
+
 /** Open the wall signed out, at the prompt to sign in. */
 async function openSignedOut(page: Page): Promise<Locator> {
   await mockProviders(page, ALL_PROVIDERS);
