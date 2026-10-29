@@ -22,6 +22,11 @@ Normal delivery:
    and any unfulfilled affected/build/release obligations (build and release
    checks apply when rendering, export, Symbols or packaging can move). Final
    suites follow [validation timing](testing/README.md#validation-timing).
+   Every product release also compares the full public Gallery `insert`
+   census with the last successfully deployed SHA and resolves any new open
+   or insert failures before delivery. Follow the
+   [census contract](testing/README.md#gallery-census) for comparable inputs,
+   baseline reconstruction, private evidence and accepted limitations.
 3. Write the PR with the original pr Summary / Evidence / Merge Danger template:
    before/after evidence, local results, pending queue and deployed checks.
 4. Push, open/update the PR and queue the exact pushed SHA:

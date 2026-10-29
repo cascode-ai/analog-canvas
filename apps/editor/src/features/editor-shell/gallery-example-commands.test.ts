@@ -469,5 +469,11 @@ describe("Gallery and example commands", () => {
     expect(input.setStatus).toHaveBeenLastCalledWith(
       "Fine grid LDO is drawn on grid 1, finer than this canvas's grid 10, so it cannot be placed here; it opened in a new tab",
     );
+
+    input.openProjectInTab.mockResolvedValue(false);
+    await createGalleryExampleCommands(input).insertGalleryEntryById("fine");
+    expect(input.setStatus).toHaveBeenLastCalledWith(
+      "Project tab was not opened; the current circuit was kept",
+    );
   });
 });
