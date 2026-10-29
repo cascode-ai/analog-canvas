@@ -36,7 +36,8 @@ before running. `full-delivery` is a batch delivery obligation, not a command
 after every edit: record in the PR how final local, risk and queue checks fulfil it, and
 skip `gate:full` when they already cover it. Run `pnpm setup:e2e` once per
 machine or Playwright version. A new `apps/editor/e2e/*.spec.ts` needs a focused
-path group that selects it.
+path group or a named `manualChecks` entry in the catalog. Environment-gated
+specs must not appear in ordinary gate commands or CI browser arguments.
 
 ## Validation timing
 
@@ -51,8 +52,10 @@ path group that selects it.
   pnpm test:e2e:local
   ```
 
-  This repository reads the original's "full suite" as all Vitest and
-  Playwright tests. Local browser runs use one worker; pass `--workers` for more.
+  These commands collect all Vitest and Playwright tests; conditional skips do
+  not prove environment-dependent behavior. Complete the affected named
+  [environment checks](#environment-dependent-execution) with evidence from the
+  same candidate. Local browser runs use one worker; pass `--workers` for more.
 
 - An unchanged candidate needs no repeated run; a repair or rebase that changes
   behavior needs its affected checks again.
@@ -93,14 +96,14 @@ real-data defect also gets a small synthetic regression.
 ## Pull-request checks
 
 The merge queue runs two required checks once on the PR merged with current
-`main`: `Core contracts` (static, full unit/module suite, build, goldens,
+`main`: `Core contracts` (static, ordinary unit/module suite, build, goldens,
 smoke, packaging, performance budgets) and `Browser tests` (specs mapped to
-changed product paths). On the PR itself CI only plans scope and checks
-Test-Impact trailers. Only `pnpm test:e2e`, run locally, covers every browser
-spec. Core accepts only successful planning, build preparation and all three
-parallel check branches; failed, cancelled or unexpected skipped prerequisites
-fail it. Pull requests and successfully planned documentation-only changes
-keep their existing skips.
+changed product paths). The primary CI workflow plans PR scope and checks
+Test-Impact trailers; the additional environment workflows below also run on
+affected PRs. They are separate from the two required queue checks. Core
+accepts only successful planning, build preparation and all three parallel
+check branches; failed, cancelled or unexpected skipped prerequisites fail it.
+The primary workflow's PR and documentation-only skips remain unchanged.
 
 Queue formatting checks use the merged candidate's changed files within the
 normal formatting scope. Formatter configuration, ignore rules or lockfile
@@ -108,6 +111,27 @@ changes, or an untrusted base/configuration, require the full formatting check.
 All other static contracts still run in full. Shared package output must match
 the candidate, platform, toolchain, source inputs and file digests; local
 standalone tests continue to build their own dependencies.
+
+## Environment-dependent execution
+
+[Ngspice model tests](../../.github/workflows/ngspice-tests.yml) and
+[Windows platform tests](../../.github/workflows/platform-tests.yml) qualify
+affected PRs and support manual runs. [Simulator host](../../.github/workflows/simulator-host.yml),
+action/job `vacask-compat-build`, manually qualifies native execution, pinned
+source conversion and the real MCP journey. [Browser performance
+evidence](../../.github/workflows/performance.yml), job `measure`, measures a
+fresh production build with synthetic fixtures. These checks do not deploy or
+replace required merge checks or existing performance budgets.
+
+Prepare the selected lane's resources from the
+[environment manifest](../../scripts/lib/environment-test-lanes.mjs).
+Workflows own installation and pinned inputs; the
+[runner](../../scripts/run-environment-tests.mjs) owns preflight and result
+acceptance. Every named target must be present and pass. A file's pure
+assertions cannot substitute for skipped environment targets; a different
+engine's assertions do not qualify the selected engine. Preserve reports for
+the candidate SHA. Missing resources or unrun workflows remain explicit
+validation gaps.
 
 ## Change discipline
 

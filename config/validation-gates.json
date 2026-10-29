@@ -572,7 +572,9 @@
         "test:e2e:local",
         "apps/editor/e2e/gallery-request-failures.spec.ts"
       ],
-      "ci": { "e2eArgs": ["apps/editor/e2e/gallery-request-failures.spec.ts"] }
+      "ci": {
+        "e2eArgs": ["apps/editor/e2e/gallery-request-failures.spec.ts"]
+      }
     },
     {
       "id": "gallery-browser",
@@ -613,16 +615,14 @@
         "apps/editor/e2e/web-agent-session.spec.ts",
         "apps/editor/e2e/agent-bus-reuse.spec.ts",
         "apps/editor/e2e/agent-bus-productivity.spec.ts",
-        "apps/editor/e2e/agent-simulation.spec.ts",
-        "apps/editor/e2e/mcp-native-simulation.spec.ts"
+        "apps/editor/e2e/agent-simulation.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/web-agent-session.spec.ts",
           "apps/editor/e2e/agent-bus-reuse.spec.ts",
           "apps/editor/e2e/agent-bus-productivity.spec.ts",
-          "apps/editor/e2e/agent-simulation.spec.ts",
-          "apps/editor/e2e/mcp-native-simulation.spec.ts"
+          "apps/editor/e2e/agent-simulation.spec.ts"
         ]
       }
     },
@@ -636,7 +636,6 @@
         "test:e2e:local",
         "apps/editor/e2e/agent-simulation.spec.ts",
         "apps/editor/e2e/gui-native-simulation.spec.ts",
-        "apps/editor/e2e/mcp-native-simulation.spec.ts",
         "apps/editor/e2e/simulation-batch.spec.ts",
         "apps/editor/e2e/simulation-code-editor.spec.ts",
         "apps/editor/e2e/simulation-profile-probes.spec.ts",
@@ -650,7 +649,6 @@
         "e2eArgs": [
           "apps/editor/e2e/agent-simulation.spec.ts",
           "apps/editor/e2e/gui-native-simulation.spec.ts",
-          "apps/editor/e2e/mcp-native-simulation.spec.ts",
           "apps/editor/e2e/simulation-batch.spec.ts",
           "apps/editor/e2e/simulation-code-editor.spec.ts",
           "apps/editor/e2e/simulation-profile-probes.spec.ts",
@@ -831,14 +829,10 @@
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/wheel-behavior.spec.ts",
-        "apps/editor/e2e/performance.spec.ts"
+        "apps/editor/e2e/wheel-behavior.spec.ts"
       ],
       "ci": {
-        "e2eArgs": [
-          "apps/editor/e2e/wheel-behavior.spec.ts",
-          "apps/editor/e2e/performance.spec.ts"
-        ]
+        "e2eArgs": ["apps/editor/e2e/wheel-behavior.spec.ts"]
       }
     },
     {
@@ -942,5 +936,32 @@
     "preflightGate": "static-contracts",
     "affectedGate": "branch-verification",
     "finalGate": "full-delivery"
-  }
+  },
+  "manualChecks": [
+    {
+      "id": "mcp-native",
+      "groups": ["agent", "analogSimulation"],
+      "specs": ["apps/editor/e2e/mcp-native-simulation.spec.ts"],
+      "workflow": ".github/workflows/simulator-host.yml",
+      "job": "vacask-compat-build",
+      "workflowInputs": {
+        "action": "vacask-compat-build"
+      },
+      "command": ["node", "scripts/run-environment-tests.mjs", "mcp-native"],
+      "requires": "Built editor/MCP dependencies, Chromium and the pinned VACASK executable/modules; ICM_E2E_VACASK_REAL=1."
+    },
+    {
+      "id": "browser-performance",
+      "groups": ["editorViewport"],
+      "specs": ["apps/editor/e2e/performance.spec.ts"],
+      "workflow": ".github/workflows/performance.yml",
+      "job": "measure",
+      "command": [
+        "node",
+        "scripts/run-environment-tests.mjs",
+        "browser-performance"
+      ],
+      "requires": "Fresh production build and Chromium; ICM_PERF=1. Synthetic fixtures only in the workflow."
+    }
+  ]
 }
