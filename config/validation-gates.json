@@ -380,6 +380,12 @@
       "scripts/gate-*.mjs",
       "scripts/check-test-impact.mjs",
       "scripts/ci-plan.mjs",
+      "scripts/check-core-results*.mjs",
+      "scripts/format*.mjs",
+      "scripts/ci-package-build*.mjs",
+      "scripts/ci-workflow.test.mjs",
+      "scripts/test-standalone-setup.mjs",
+      "scripts/lib/ci-package-build.mjs",
       "scripts/lib/test-impact*.mjs",
       "scripts/lib/ci-validation-plan*.mjs",
       "scripts/lib/validation-gates*.mjs"
