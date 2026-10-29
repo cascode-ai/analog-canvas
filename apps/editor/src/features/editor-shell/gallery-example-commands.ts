@@ -1,8 +1,5 @@
 import type { CircuitProject, GridRect } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
-import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
-
-import { normalizeImportedProject } from "../../document/project-import-normalization";
 import type { ReplaceProjectOptions } from "../../document/use-project-file-lifecycle";
 import type { LibraryProjectExample } from "../../examples/library-examples";
 import type { SchematicClipboard } from "../clipboard/clipboard";
@@ -12,7 +9,7 @@ import {
 } from "../../gallery-client";
 import { GRID_INCOMPATIBLE } from "../clipboard/paste-proposal";
 import { OFFLINE_FAILURE, requestFailureOf } from "../../request-failure";
-import { captureGalleryDrawing } from "./gallery-import";
+import { captureGalleryDrawing, prepareGalleryProject } from "./gallery-import";
 
 export interface GalleryEntryContext {
   id: string;
@@ -104,12 +101,6 @@ export function createGalleryExampleCommands({
   setDailyOpenLimit,
   fetchImpl = fetch,
 }: GalleryExampleCommandDependencies) {
-  const repairOnOpen = (imported: CircuitProject): CircuitProject =>
-    normalizeImportedProject(
-      imported,
-      createProjectSymbolResolver(imported, builtInSymbols),
-    ).project;
-
   /**
    * Starts placing `imported`: "placing", "none" when it has nothing to
    * place, or the grid a drawing on a finer grid than this canvas cannot be
@@ -163,7 +154,7 @@ export function createGalleryExampleCommands({
     opened: (name: string) => string,
     inTab = false,
   ): Promise<void> => {
-    const galleryProject = repairOnOpen(parseProject(projectText));
+    const galleryProject = prepareGalleryProject(parseProject(projectText));
     const name = payload.entry?.name ?? galleryProject.name;
     const sourceDigest = await textDigest(projectText);
     const context: GalleryEntryContext = {
@@ -184,6 +175,8 @@ export function createGalleryExampleCommands({
       }
       if (await openProjectInTab(galleryProject, defaultViewBox, context)) {
         setStatus(opened(name));
+      } else {
+        setStatus("Project tab was not opened; the current circuit was kept");
       }
       return;
     }
@@ -341,9 +334,14 @@ export function createGalleryExampleCommands({
         const sourceGrid = imported.documents.find(
           (document) => document.id === imported.topDocumentId,
         )?.presentation.grid;
-        await openGalleryEntryById(entryId, true, true);
-        setStatus(
-          `${label} is drawn on grid ${sourceGrid ?? "?"}, finer than this canvas's grid ${placement.targetGrid}, so it cannot be placed here; it opened in a new tab`,
+        await installGalleryEntry(
+          entryId,
+          payload.projectText,
+          payload,
+          true,
+          () =>
+            `${label} is drawn on grid ${sourceGrid ?? "?"}, finer than this canvas's grid ${placement.targetGrid}, so it cannot be placed here; it opened in a new tab`,
+          true,
         );
         return;
       }

@@ -66,29 +66,41 @@ path group that selects it.
 
 ## Gallery census
 
-`pnpm gallery:census` runs every drawing of the newest private Gallery snapshot
-through loading, netlisting, copying and rotation
-(`apps/editor/census/gallery.census.ts`); `--base <ref>` lists drawings that
-behave differently on the base. It reads user drawings, so it runs only
-locally; reports stay in `plan/`.
+The census reads private drawings and runs locally. Keep snapshots private and
+reports and entry-level failures in ignored `plan/`, outside CI and published
+artifacts. `pnpm gallery:census -- --help` describes the checks and filters.
+The `insert` group runs each entry through the editor's Gallery commands on
+independent fresh canvases. Open succeeds after project installation; insert
+succeeds after a placement commit or an installed fallback. Reports distinguish
+insertion, new-tab fallback, empty-scene opening and failure.
 
-Run it before acceptance or delivery for changes to the paths
-`scripts/lib/verify-pr-selection.mjs` selects (copying and placement, instance
-labels, netlist extraction and printing, Gallery import, Agent copy);
-`pnpm verify:pr` prints the command. It cannot certify VACASK compilation,
-source assertions or result parsing: simulation changes need their own
-source/engine regressions and any named original case.
+Before accepting changes selected by `scripts/lib/verify-pr-selection.mjs`,
+run its selected groups; `pnpm verify:pr` prints the command. For every product
+release, also run the full-entry `insert` group against the last successfully
+deployed SHA as required by [delivery](../deployment.md#development-and-delivery-cadence).
 
-Snapshot: `node scripts/gallery-private-snapshot.mjs --cached`; for an
-operator-provided one, `node scripts/gallery-private-snapshot.mjs --local <dir>`
-then `pnpm gallery:census -- --backup <dir>/gallery.sqlite`. Unavailable
-private data is a recorded, explicitly accepted delivery limitation, never a
-census pass.
+Use `--base <git-ref>` to measure both refs with the current harness, or
+`--compare BASE.json HEAD.json` for saved reports. Both reports must cover the
+same complete snapshot, statuses, check groups and insertion target with the
+same harness. Partial reports, older formats without the required results,
+different snapshots and incomplete entry coverage require both refs to rerun.
+A baseline rerun measures the older code with the current harness; it is not
+the original release's historical measurement.
 
-The census rejects new drawing failures, netlist text changes, labels that stop
-following parts and changed Gallery marks while `NETLIST_MARK_RULE_VERSION` is
-unchanged. Fix each finding or explain the accepted change in the commit. A
-real-data defect also gets a small synthetic regression.
+Record the snapshot's capture time, content digest, source inventory and public
+entry count. Confirm the input covers Community and all public Dataset sources;
+an empty anonymous source listing does not establish complete coverage.
+Use [Gallery backup](../gallery-backup.md) for authorized input collection.
+Missing or incomplete private input is an explicitly accepted delivery
+limitation, never a census pass.
+
+The comparison rejects new failures, changed netlists, labels that stop
+following parts and changed Gallery marks without a `NETLIST_MARK_RULE_VERSION`
+bump. Historical failures remain visible; they are not new regressions. Fix
+each new finding or record its accepted explanation and add a small synthetic
+regression for a real-data defect. The census does not certify simulation
+compilation, source assertions or result parsing; those need engine-specific
+checks and any named original case.
 
 ## Pull-request checks
 

@@ -4,6 +4,7 @@
 // user drawings, so it is a local check only: never wire it into CI, and
 // keep its reports in the untracked plan/ directory.
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -20,13 +21,17 @@ import { fileURLToPath } from "node:url";
 import { newestSnapshot } from "./lib/gallery-snapshots.mjs";
 
 const CENSUS_CONFIG = "apps/editor/census/vitest.config.ts";
-const HARNESS_FILES = [CENSUS_CONFIG, "apps/editor/census/gallery.census.ts"];
+const HARNESS_FILES = [
+  CENSUS_CONFIG,
+  "apps/editor/census/gallery.census.ts",
+  "apps/editor/census/gallery-entry.ts",
+];
 /** The check groups of apps/editor/census/gallery.census.ts. */
-export const CHECK_GROUPS = ["netlist", "copy", "transform"];
+export const CHECK_GROUPS = ["netlist", "copy", "transform", "insert"];
 
 const USAGE = `Usage:
   pnpm gallery:census [--base REF | --ref REF] [--backup PATH]
-                      [--checks netlist,copy,transform]
+                      [--checks netlist,copy,transform,insert]
                       [--status public|all] [--only ID,ID] [--limit N]
                       [--out PATH]
   pnpm gallery:census --compare BASE.json HEAD.json
@@ -41,10 +46,12 @@ and the exit status is 1.
 
 --checks runs only those groups (verify:pr names the ones a change needs):
 netlist (extraction and the Gallery netlist mark), copy (copying, placement,
-supply markers), transform (a quarter turn and a mirror). A full report of
-the same tree, snapshot and harness already in plan/ is reused instead of
-running the census again; after a squash merge, the batch's own report is
-the next batch's base.`;
+supply markers), transform (a quarter turn and a mirror), insert (real Gallery
+open, placement commit and open fallback on fresh canvases). A full report of
+the same tree, snapshot, harness and selected groups already in plan/ is
+reused. Both refs must measure every selected entry of the same snapshot;
+partial reports, older report versions and different harnesses cannot be
+compared. Rerun both refs with this harness to reconstruct an older baseline.`;
 
 export function parseArguments(argv) {
   const options = { status: "public", only: [], limit: 0, checks: [] };
@@ -89,29 +96,123 @@ export function parseArguments(argv) {
 
 /**
  * A report that may stand in for a new run: same tree, snapshot, harness
- * and statuses, every drawing, and at least the requested check groups.
+ * and statuses, every drawing, and exactly the requested check groups.
  */
 export function reusableReport(reports, wanted) {
   if (!wanted.tree || !wanted.harness) return null;
   const groups = wanted.checks.length ? wanted.checks : CHECK_GROUPS;
   return (
-    reports.find(
-      (report) =>
+    reports.find((report) => {
+      if (!(
         report.tree === wanted.tree &&
         report.harness === wanted.harness &&
-        report.backup === wanted.backup &&
+        wanted.snapshotHash &&
+        report.snapshotHash === wanted.snapshotHash &&
         report.complete === true &&
         JSON.stringify(report.statuses) ===
           JSON.stringify(wanted.status.split(",")) &&
-        groups.every((group) => report.checkGroups?.includes(group)),
-    ) ?? null
+        JSON.stringify([...(report.checkGroups ?? [])].sort()) ===
+          JSON.stringify([...groups].sort())
+      ))
+        return false;
+      try {
+        compareReports(report, report);
+        return true;
+      } catch {
+        return false;
+      }
+    }) ?? null
   );
 }
 
 /** What changed between two census reports of the same snapshot. */
 export function compareReports(base, head) {
+  const incompatible = (reason) => {
+    throw new Error(
+      `Gallery reports are not comparable: ${reason}; rerun both refs with the same complete snapshot and harness`,
+    );
+  };
+  for (const report of [base, head]) {
+    if (
+      report?.format !== "analog-canvas/gallery-census" ||
+      report.version !== 2
+    )
+      incompatible("unsupported report version");
+    if (report.complete !== true) incompatible("partial report");
+  }
+  for (const field of ["snapshotHash", "harness", "target"])
+    if (!base[field] || base[field] !== head[field])
+      incompatible(`different or missing ${field}`);
+  for (const field of ["statuses", "checkGroups"])
+    if (
+      !Array.isArray(base[field]) ||
+      !base[field].length ||
+      !Array.isArray(head[field]) ||
+      JSON.stringify([...base[field]].sort()) !==
+        JSON.stringify([...head[field]].sort())
+    )
+      incompatible(`different or missing ${field}`);
+  const required = {
+    copy: [
+      "markers",
+      "copyToProject",
+      "copyLooksAlike",
+      "copyKeepsConnections",
+      "copyInPlace",
+      "copyOfCopies",
+    ],
+    netlist: ["netlist"],
+    transform: ["turn", "mirror"],
+    insert: ["open", "insert"],
+  };
+  for (const report of [base, head]) {
+    if (!Array.isArray(report.entries)) incompatible("missing entries");
+    if (report.checkGroups.some((group) => !Object.hasOwn(required, group)))
+      incompatible("unknown check group");
+    const ids = new Set();
+    for (const entry of report.entries) {
+      if (
+        !entry ||
+        typeof entry.id !== "string" ||
+        !entry.id ||
+        ids.has(entry.id)
+      )
+        incompatible("missing or duplicate entry id");
+      ids.add(entry.id);
+      const checks = [
+        "load",
+        ...report.checkGroups.flatMap((group) =>
+          group === "insert" || entry.checks?.load === "ok"
+            ? required[group]
+            : [],
+        ),
+      ];
+      if (
+        checks.some(
+          (check) =>
+            typeof entry.checks?.[check] !== "string" || !entry.checks[check],
+        )
+      )
+        incompatible(`unmeasured checks for ${entry.id}`);
+      if (
+        report.checkGroups.includes("insert") &&
+        (!["inserted", "new-tab", "opened-empty", "failed"].includes(
+          entry.insertOutcome,
+        ) ||
+          (entry.checks.insert === "ok") !== (entry.insertOutcome !== "failed"))
+      )
+        incompatible(
+          `missing or inconsistent insertion outcome for ${entry.id}`,
+        );
+    }
+  }
   const before = new Map(base.entries.map((entry) => [entry.id, entry]));
   const after = new Set(head.entries.map((entry) => entry.id));
+  if (
+    before.size !== after.size ||
+    [...before.keys()].some((id) => !after.has(id))
+  )
+    incompatible("entry coverage differs within the same snapshot");
   const findings = {
     newlyFailing: [],
     newlyPassing: [],
@@ -258,6 +359,19 @@ export function summarizeReport(report) {
       .slice(0, 3))
       lines.push(`      ${count} × ${message}`);
   }
+  const pathFailures = report.entries.flatMap((entry) =>
+    ["open", "insert"].flatMap((check) =>
+      entry.checks[check] && entry.checks[check] !== "ok"
+        ? [`${entry.id} (${entry.name}) ${check}: ${entry.checks[check]}`]
+        : [],
+    ),
+  );
+  if (pathFailures.length) {
+    lines.push(`Gallery open/insert failures: ${pathFailures.length}`);
+    lines.push(...pathFailures.slice(0, 12).map((failure) => `  ${failure}`));
+    if (pathFailures.length > 12)
+      lines.push(`  … ${pathFailures.length - 12} more in the report`);
+  }
   return lines.join("\n");
 }
 
@@ -266,7 +380,7 @@ function git(cwd, ...args) {
 }
 
 function commitLabel(cwd, ref = "HEAD") {
-  const sha = git(cwd, "rev-parse", "--short", ref);
+  const sha = git(cwd, "rev-parse", `${ref}^{commit}`);
   return ref === "HEAD" && git(cwd, "status", "--porcelain")
     ? `${sha}+dirty`
     : sha;
@@ -278,11 +392,16 @@ function treeOf(cwd, ref) {
   return git(cwd, "rev-parse", `${ref ?? "HEAD"}^{tree}`);
 }
 
-/** The harness the census runs, by the commit that last changed it; null
- * while it has uncommitted changes, so no report is reused across them. */
+/** Both refs run these exact harness bytes, including local changes. */
 function harnessOf(root) {
-  if (git(root, "status", "--porcelain", "--", ...HARNESS_FILES)) return null;
-  return git(root, "log", "-1", "--format=%H", "--", ...HARNESS_FILES) || null;
+  const hash = createHash("sha256");
+  for (const file of HARNESS_FILES)
+    hash
+      .update(file)
+      .update("\0")
+      .update(readFileSync(join(root, file)))
+      .update("\0");
+  return hash.digest("hex");
 }
 
 function savedReports(root) {
@@ -302,25 +421,35 @@ function savedReports(root) {
     });
 }
 
+function pnpm(cwd, args, env = process.env) {
+  // Fixed repository commands only; paths and user input travel via cwd/env.
+  if (args.some((arg) => !/^[-A-Za-z0-9_./]+$/u.test(arg)))
+    throw new Error("Unsafe census command argument");
+  return spawnSync(
+    process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "pnpm",
+    process.platform === "win32"
+      ? ["/d", "/v:off", "/s", "/c", `pnpm ${args.join(" ")}`]
+      : args,
+    { cwd, stdio: "inherit", env },
+  );
+}
+
 function runCensus(cwd, options, out, commit, identity = {}) {
-  const result = spawnSync(
-    "pnpm",
+  const result = pnpm(
+    cwd,
     ["exec", "vitest", "run", "--config", CENSUS_CONFIG],
     {
-      cwd,
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        ICM_GALLERY_CENSUS_BACKUP: options.backup,
-        ICM_GALLERY_CENSUS_OUT: out,
-        ICM_GALLERY_CENSUS_STATUS: options.status,
-        ICM_GALLERY_CENSUS_ONLY: options.only.join(","),
-        ICM_GALLERY_CENSUS_LIMIT: String(options.limit),
-        ICM_GALLERY_CENSUS_COMMIT: commit,
-        ICM_GALLERY_CENSUS_CHECKS: options.checks.join(","),
-        ICM_GALLERY_CENSUS_TREE: identity.tree ?? "",
-        ICM_GALLERY_CENSUS_HARNESS: identity.harness ?? "",
-      },
+      ...process.env,
+      ICM_GALLERY_CENSUS_BACKUP: options.backup,
+      ICM_GALLERY_CENSUS_OUT: out,
+      ICM_GALLERY_CENSUS_STATUS: options.status,
+      ICM_GALLERY_CENSUS_ONLY: options.only.join(","),
+      ICM_GALLERY_CENSUS_LIMIT: String(options.limit),
+      ICM_GALLERY_CENSUS_COMMIT: commit,
+      ICM_GALLERY_CENSUS_CHECKS: options.checks.join(","),
+      ICM_GALLERY_CENSUS_TREE: identity.tree ?? "",
+      ICM_GALLERY_CENSUS_HARNESS: identity.harness ?? "",
+      ICM_GALLERY_CENSUS_SNAPSHOT_HASH: options.snapshotHash,
     },
   );
   if (result.status !== 0)
@@ -339,6 +468,7 @@ function runCensusAt(root, options, ref, out) {
   const saved = reusableReport(savedReports(root), {
     ...identity,
     backup: options.backup,
+    snapshotHash: options.snapshotHash,
     status: options.status,
     checks: options.checks,
   });
@@ -357,11 +487,11 @@ function runCensusAt(root, options, ref, out) {
       mkdirSync(dirname(join(directory, file)), { recursive: true });
       copyFileSync(join(root, file), join(directory, file));
     }
-    const install = spawnSync(
-      "pnpm",
-      ["install", "--frozen-lockfile", "--prefer-offline"],
-      { cwd: directory, stdio: "inherit" },
-    );
+    const install = pnpm(directory, [
+      "install",
+      "--frozen-lockfile",
+      "--prefer-offline",
+    ]);
     if (install.status !== 0)
       throw new Error(`Dependencies did not install for ${ref}`);
     return runCensus(
@@ -372,7 +502,16 @@ function runCensusAt(root, options, ref, out) {
       identity,
     );
   } finally {
-    git(root, "worktree", "remove", "--force", directory);
+    // pnpm dependency paths can exceed Windows' default Git path limit.
+    git(
+      root,
+      "-c",
+      "core.longpaths=true",
+      "worktree",
+      "remove",
+      "--force",
+      directory,
+    );
     rmSync(dirname(directory), { recursive: true, force: true });
   }
 }
@@ -383,12 +522,12 @@ function main(argv) {
     console.log(USAGE);
     return 0;
   }
+  if (process.env.CI)
+    throw new Error("Private Gallery census is local only; never run it in CI");
   if (options.compare) {
     const [base, head] = options.compare.map((path) =>
       JSON.parse(readFileSync(path, "utf8")),
     );
-    if (base.backup !== head.backup)
-      throw new Error("The reports come from different snapshots");
     const findings = compareReports(base, head);
     console.log(formatComparison(findings));
     return blockingFindings(findings) ? 1 : 0;
@@ -399,6 +538,9 @@ function main(argv) {
     throw new Error(
       "No Gallery snapshot: run `node scripts/gallery-private-snapshot.mjs --cached`, or pass --backup PATH",
     );
+  options.snapshotHash = createHash("sha256")
+    .update(readFileSync(options.backup))
+    .digest("hex");
   console.log(`Snapshot: ${options.backup}`);
   const commit = options.ref
     ? commitLabel(root, options.ref)
@@ -410,6 +552,7 @@ function main(argv) {
       ? reusableReport(savedReports(root), {
           ...headIdentity,
           backup: options.backup,
+          snapshotHash: options.snapshotHash,
           status: options.status,
           checks: options.checks,
         })

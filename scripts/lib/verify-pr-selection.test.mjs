@@ -98,7 +98,7 @@ describe("verify:pr selection", () => {
   });
 
   it("asks the census only for the checks the change touches", () => {
-    expect(censusChecks(changed)).toEqual(["copy", "netlist"]);
+    expect(censusChecks(changed)).toEqual(["copy", "insert", "netlist"]);
     expect(
       censusChecks([
         "packages/derived/src/instance-label-placement.ts",
@@ -124,7 +124,47 @@ describe("verify:pr selection", () => {
         "apps/editor/src/features/editor-shell/gallery-import.ts",
         "apps/editor/src/agent/browser-agent-project-host.ts",
       ]),
-    ).toEqual(["copy", "netlist"]);
+    ).toEqual(["copy", "insert", "netlist"]);
+  });
+
+  it("selects real Gallery paths for import and placement changes", () => {
+    for (const path of [
+      "apps/editor/src/features/clipboard/project-copy.ts",
+      "apps/editor/src/features/editor-shell/gallery-import.ts",
+      "apps/editor/src/features/editor-shell/gallery-example-commands.ts",
+      "apps/editor/src/agent/workspace-copy.ts",
+      "apps/editor/src/document/project-import-normalization.ts",
+    ])
+      expect(censusChecks([path])).toEqual(["copy", "insert"]);
+  });
+
+  it("selects all census groups for shared drawing contracts and the harness", () => {
+    for (const path of [
+      "packages/model/src/schema/instance.ts",
+      "packages/devices/src/reviewed-external.ts",
+      "packages/devices/src/built-in-model-contracts.ts",
+      "packages/project-protocol/src/load.ts",
+      "packages/project-protocol/src/transforms/misdrawn-reviewed-binding.ts",
+      "packages/symbols/src/expanded-device-catalog.ts",
+      "packages/components/definitions/resistor.json",
+      "packages/edit-engine/src/transaction-instance-netlist.ts",
+      "packages/edit-engine/src/transaction-property-terminal.ts",
+      "apps/editor/census/gallery-entry.ts",
+      "scripts/gallery-census.mjs",
+    ])
+      expect(censusChecks([path])).toEqual([
+        "copy",
+        "insert",
+        "netlist",
+        "transform",
+      ]);
+    expect(
+      censusChecks([
+        "packages/devices/src/reviewed-external.test.ts",
+        "apps/editor/census/gallery-entry.test.ts",
+        "scripts/gallery-census.test.mjs",
+      ]),
+    ).toEqual([]);
   });
 
   it("warns about changed product files past the soft size limit, not tests or generated files", () => {
