@@ -498,7 +498,13 @@ export class GalleryDO {
       case "forget-opens":
         return forgetOpens(this.sql, String(body.day));
       case "preview-access":
-        return previewAccess(this.sql, String(body.id));
+        return previewAccess(
+          this.sql,
+          String(body.id),
+          typeof body.signedOutWallSize === "number"
+            ? body.signedOutWallSize
+            : undefined,
+        );
       case "preview":
         return preview(this.sql, String(body.id));
       case "set-status":
