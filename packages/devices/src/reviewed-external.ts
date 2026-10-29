@@ -17,6 +17,7 @@ export type ReviewedExternalBindingId =
   | "sky130-pfet-g5v0d10v5"
   | "sky130-pfet-g5v0d16v0"
   | "sky130-pfet-20v0"
+  | "sky130-res-generic-po"
   | "sky130-res-high-po"
   | "sky130-res-xhigh-po"
   | "sky130-cap-mim-m3-1"
@@ -579,6 +580,23 @@ const sky130FixedMosBinding = (
   nativeElement: "m1",
 });
 
+const sky130GenericPolyResistorBinding = (): ReviewedExternalDeviceBinding => ({
+  id: "sky130-res-generic-po",
+  libraryId: "sky130_fd_pr",
+  masterName: "sky130_fd_pr__res_generic_po",
+  invocationKind: "external-subcircuit",
+  symbolId: "resistor",
+  deviceClass: "resistor",
+  terminals: [
+    { targetName: "t1", pinName: "1", interaction: "canvas" },
+    { targetName: "t2", pinName: "2", interaction: "canvas" },
+  ],
+  parameters: [
+    geometry("w", "W", "1u", "1", 0),
+    geometry("l", "L", "1u", "1", 1),
+  ],
+});
+
 const sky130ResistorBinding = (
   id: ReviewedExternalBindingId,
   masterName: string,
@@ -1027,6 +1045,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "500n",
       sky130Limits(5e-7, 2.02e-5),
     ),
+    sky130GenericPolyResistorBinding(),
     sky130ResistorBinding("sky130-res-high-po", "sky130_fd_pr__res_high_po"),
     sky130ResistorBinding("sky130-res-xhigh-po", "sky130_fd_pr__res_xhigh_po"),
     sky130MimCapBinding("sky130-cap-mim-m3-1", "sky130_fd_pr__cap_mim_m3_1"),

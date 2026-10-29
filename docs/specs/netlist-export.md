@@ -63,10 +63,13 @@ Instance bindings; export defines no parallel shape.
   `definitionId` (ordered terminals, master `name`); instances own raw overrides
   and extra keys are kept. `unresolved-subcircuit` keeps only a master name.
   Artwork never turns a call into a primitive.
-- Reviewed native mappings may rename pins: SKY130 resistor `R0/R1/B` from
-  `1/2/B` (B is a Properties-only membership, never a Symbol pin, Route end or
-  NoConnect); MIM capacitor and varactor `sky130_fd_pr__cap_var_lvt` `C0/C1`
-  from `1/2`. Mappings are offered only on their symbol; Var Cap (`P1/P2`) stays
+- Reviewed native mappings may rename pins: SKY130 `res_high_po` and
+  `res_xhigh_po` map `R0/R1/B` from resistor `1/2/B` (B is a Properties-only
+  membership, never a Symbol pin, Route end or NoConnect).
+  [Generic poly `res_generic_po`](https://github.com/efabless/skywater-pdk-libs-sky130_fd_pr/blob/1232782c1b9fab3aacda74d67ce7c92bf7da8105/models/sky130_fd_pr__model__r%2Bc.model.spice#L210)
+  maps `t1/t2` from resistor `1/2`, with `w/l` and no substrate or multiplier.
+  MIM capacitor and varactor `sky130_fd_pr__cap_var_lvt` map `C0/C1` from
+  `1/2`. Mappings are offered only on their symbol; Var Cap (`P1/P2`) stays
   ideal and refuses a model.
 - SPICE adds the invocation prefix only in derived IR (`M1` → `XM1` for
   subcircuit bindings); Spectre keeps the authored spelling. Legal names are
@@ -330,7 +333,7 @@ parameters or renumbers first.
 
 #### Substrate and negative supplies
 
-- Reviewed p-substrate terminals (SKY130 PNP collector; NPN, poly resistor,
+- Reviewed p-substrate terminals (SKY130 PNP collector; NPN, high/xhigh poly resistor,
   varactor and inductor substrates) belong on ground or the lowest supply (a Net
   named `VSS`, `AVSS`, `GND`, `VEE`, `VNEG`, `SUB`, `VSUB`, any case); elsewhere
   `PDK_SUBSTRATE_TERMINAL`.
