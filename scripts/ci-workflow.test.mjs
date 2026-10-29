@@ -87,4 +87,19 @@ describe("CI workflow", () => {
     for (const id of ["core_unit", "core_release"])
       expect(job(id)).toContain("merge-multiple: true");
   });
+
+  it("runs every unit shard without filtering tests or masking a failed shard", () => {
+    const unit = job("core_unit");
+    expect(unit).toContain("shard: [1/3, 2/3, 3/3]");
+    expect(unit).toContain("fail-fast: false");
+    expect(unit).not.toContain("continue-on-error:");
+    expect(unit.match(/        run: pnpm ci:unit.*$/mu)[0].trim()).toBe(
+      "run: pnpm ci:unit --shard=${{ matrix.shard }}",
+    );
+    expect(unit).toContain('ICM_CI_PACKAGE_BUILD: "1"');
+    expect(unit).toContain("run: node scripts/ci-package-build.mjs verify");
+    expect(job("core")).toContain(
+      "needs: [changes, core_build, core_static, core_unit, core_release]",
+    );
+  });
 });
