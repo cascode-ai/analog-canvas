@@ -55,7 +55,8 @@ on:
       - packages/spice-run/**
       - packages/simulation-service/src/execution-receipt.ts
       - scripts/package-ngspice-harness.mjs
-      - .github/workflows/simulator-host.yml
+      # Workflow-only qualification edits do not restart the host. Use the
+      # explicit deploy action when changing host orchestration itself.
 
 concurrency:
   group: simulator-host
@@ -79,7 +80,17 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
+    env:
+      VACASK_BIN: ${{ github.workspace }}/compat-artifact/vacask
+      VACASK_MODULES: ${{ github.workspace }}/compat-build/context/modules
+      ICM_PYTHON: python3
+      ICM_VACASK_BSIM4_SOURCE: ${{ github.workspace }}/compat-build/context/vacask/src/vacask/devices/spice/bsim4v8.va
+      ICM_VACASK_CONVERTER_SOURCE: ${{ github.workspace }}/compat-build/source
+      ICM_SKY130_MODEL_SOURCE: ${{ github.workspace }}/compat-build/sky130
+      ICM_E2E_VACASK_REAL: "1"
+      ICM_E2E_ISOLATED: "1"
+      PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -97,6 +108,7 @@ jobs:
           test "$(git -C compat-build/source rev-parse HEAD)" = c1a1c84f1b2b9aa71c0cddf06e555441434db7b7
           cp -R containers/vacask/patches compat-build/patches
       - name: Build simulator without pidfd dependency (no deployment)
+        id: native_build
         uses: docker/build-push-action@v6
         with:
           context: compat-build
@@ -112,24 +124,65 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - name: Qualify actual hard-switch edges and unchanged generated model families
+      - name: Prepare native test dependencies and pinned conversion sources
+        id: native_resources
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter @icm/netlist... build
+          pnpm --filter @icm/simulation-service... --filter @icm/mcp-server... --filter '@icm/editor^...' --if-present build
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgomp1 libfftw3-double3 libklu2 libopenblas0-pthread libtomlplusplus3t64
+          sudo apt-get install -y --no-install-recommends libgomp1 libfftw3-double3 libklu2 libopenblas0-pthread libtomlplusplus3t64 python3
           chmod 755 compat-artifact/vacask compat-build/context/vacask/bin/openvaf-r
-          export VACASK_BIN="$PWD/compat-artifact/vacask"
-          export SIM_MODULE_PATH="$PWD/compat-build/context/modules"
-          export PATH="$PWD/compat-build/context/vacask/bin:$PATH"
-          pnpm test:local packages/netlist/src/model-contract-acceptance.test.ts
+          echo "$PWD/compat-build/context/vacask/bin" >> "$GITHUB_PATH"
+          git init compat-build/sky130
+          git -C compat-build/sky130 remote add origin https://github.com/fossi-foundation/skywater-pdk-libs-sky130_fd_pr.git
+          git -C compat-build/sky130 fetch --depth 1 origin 403964dc7f9cca5ec1a8cc7b4f2a6f532b781676
+          git -C compat-build/sky130 checkout --detach FETCH_HEAD
+          test "$(git -C compat-build/sky130 rev-parse HEAD)" = 403964dc7f9cca5ec1a8cc7b4f2a6f532b781676
+      - name: Qualify actual native compiler, model and service assertions
+        id: native_tests
+        if: ${{ !cancelled() && steps.native_resources.outcome == 'success' }}
+        run: node scripts/run-environment-tests.mjs vacask
+      - name: Verify pinned BSIM4 repair and SKY130 source conversion
+        id: source_tests
+        if: ${{ !cancelled() && steps.native_resources.outcome == 'success' }}
+        run: node scripts/run-environment-tests.mjs vacask-source
+      - name: Execute real native source through public stdio MCP and the local relay
+        id: mcp_tests
+        if: ${{ !cancelled() && steps.native_resources.outcome == 'success' }}
+        run: node scripts/run-environment-tests.mjs mcp-native
       - name: Stage existing Production inputs with only the qualified simulator replaced
+        if: success() && steps.native_tests.outcome == 'success' && steps.source_tests.outcome == 'success' && steps.mcp_tests.outcome == 'success'
         run: |
           node scripts/package-vacask-image.mjs --simulator-build compat-build/context compat-artifact compat-build/native-compose-config.json compat-artifact/native-compose-config.json
           docker build --platform linux/amd64 -f containers/vacask/Dockerfile -t icm-vacask-qualified compat-build/context
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 1g --cpus 1 --pids-limit 128 --tmpfs /var/lib/vacask:rw,exec,nosuid,nodev,size=268435456,uid=10001,gid=10001,mode=0700 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864 --mount type=bind,source="$PWD/compat-artifact/native-compose-config.json",target=/proof/config.json,readonly --entrypoint node icm-vacask-qualified --input-type=module -e 'import {readFile} from "node:fs/promises"; import {startVacaskService} from "/opt/harness/vacask-harness.mjs"; const config=JSON.parse(await readFile("/proof/config.json","utf8")); const service=await startVacaskService(config); try {const runtime=await service.ready; console.log(JSON.stringify(runtime.environment));} finally {await service.stop();}'
           tar -czf compat-artifact/vacask-candidate-source.tgz -C compat-build/context .
           docker image inspect icm-vacask-qualified --format '{{.Id}}'
+      - name: Preserve test execution evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vacask-test-evidence-${{ github.sha }}
+          path: |
+            output/environment-tests/
+            test-results/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve unqualified simulator build for failure diagnosis
+        if: ${{ !cancelled() && steps.native_build.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vacask-unqualified-build-${{ github.sha }}
+          path: |
+            compat-artifact/vacask
+            compat-artifact/SHA256SUMS
+            compat-artifact/hard-switch.patch
+            compat-artifact/upstream-revision.txt
+            compat-artifact/upstream-source.tar.gz
+            compat-artifact/os-packages.txt
+            compat-artifact/ldd.txt
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: vacask-compat-${{ github.sha }}
@@ -137,7 +190,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   host:
-    if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["probe", "bootstrap-tunnel", "deploy"]'), inputs.action)
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["probe", "bootstrap-tunnel", "deploy"]'), inputs.action))
     name: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
     runs-on: ubuntu-latest
     # The account id and the deploy token live in this environment's secrets,

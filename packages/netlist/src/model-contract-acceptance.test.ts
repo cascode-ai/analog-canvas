@@ -655,7 +655,7 @@ describe("shared built-in model acceptance", () => {
       const metadata = builtInModelContract(target)!;
       const voltageGain =
         metadata.parameters.some((p) => p.name === "gain") &&
-        metadata.family === "linear";
+        (metadata.family === "linear" || metadata.family === "opamp");
       const { project, folder, ports } = fixture(
         symbol,
         voltageGain

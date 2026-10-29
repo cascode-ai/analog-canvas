@@ -4,6 +4,16 @@ import type {
   SimulationResult,
 } from "@icm/spice-run";
 
+export function validateNativeExampleResult(
+  result: SimulationResult,
+  measurements?: Array<{
+    name: string;
+    occurrence?: number;
+    status: string;
+    value?: number;
+  }>,
+): NonNullable<SimulationResult["data"]>["analyses"];
+
 export function collectNativeRunEvidence(options: {
   tool: (name: string, args: unknown) => Promise<unknown>;
   run: Run;

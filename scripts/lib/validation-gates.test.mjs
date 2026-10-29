@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, rmdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   globPattern,
+  formatGatePlan,
+  formatGatePlanMarkdown,
   loadGateCatalog,
   matchesAny,
   planValidation,
@@ -33,6 +36,36 @@ function ids(paths) {
 }
 
 describe("validation gate planning", () => {
+  it("rejects an opt-in spec advertised as an ordinary executable gate", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "icm-gates-"));
+    const path = join(directory, "catalog.json");
+    try {
+      const invalid = structuredClone(catalog);
+      invalid.gates[0].command.push("apps/editor/e2e/performance.spec.ts");
+      await writeFile(path, JSON.stringify(invalid));
+      await expect(loadGateCatalog(path)).rejects.toThrow(
+        "manual spec in ordinary gate",
+      );
+    } finally {
+      await rm(path, { force: true });
+      await rmdir(directory);
+    }
+  });
+
+  it("shows the workflow and prerequisites for manual evidence without making it an executable gate", () => {
+    const plan = planValidation(
+      ["apps/editor/e2e/mcp-native-simulation.spec.ts"],
+      catalog,
+    );
+    for (const text of [formatGatePlan(plan), formatGatePlanMarkdown(plan)]) {
+      expect(text).toContain("Manual evidence");
+      expect(text).toContain(".github/workflows/simulator-host.yml");
+      expect(text).toContain("vacask-compat-build");
+      expect(text).toContain("ICM_E2E_VACASK_REAL=1");
+    }
+    expect(plan.gates.map((gate) => gate.id)).not.toContain("mcp-native");
+  });
+
   it("references only declared pnpm scripts", () => {
     const missing = catalog.gates
       .filter((gate) => gate.command[0] === "pnpm")

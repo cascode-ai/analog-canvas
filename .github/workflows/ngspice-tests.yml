@@ -1,0 +1,68 @@
+name: Ngspice model tests
+
+# Additional PR qualification; the merge queue's Core contracts stays fast.
+on:
+  pull_request:
+    paths:
+      - "packages/netlist/**"
+      - "packages/devices/**"
+      - "packages/components/**"
+      - "packages/edit-engine/**"
+      - "packages/model/**"
+      - "packages/derived/**"
+      - "packages/project-protocol/**"
+      - "packages/spice/**"
+      - "packages/spice-run/**"
+      - "netlists/**"
+      - "fixtures/simulation-acceptance/**"
+      - "containers/ngspice/cells/**"
+      - "scripts/run-environment-tests*.mjs"
+      - "scripts/lib/environment-test-lanes.mjs"
+      - ".github/workflows/ngspice-tests.yml"
+      - "vitest.config.ts"
+      - "tsconfig*.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ngspice-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Ngspice execution evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NGSPICE_BIN: /usr/bin/ngspice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install and identify the simulator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ngspice
+          ngspice --version
+      - name: Build test dependencies
+        run: pnpm --filter @icm/netlist... --filter @icm/edit-engine... --if-present build
+      - name: Require every selected ngspice assertion to execute
+        run: node scripts/run-environment-tests.mjs ngspice
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ngspice-tests-${{ github.sha }}
+          path: output/environment-tests/ngspice.json
+          if-no-files-found: error
+          retention-days: 14
