@@ -1,6 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { pathToFileURL } from "node:url";
+import { cpus } from "node:os";
+import { build } from "vite";
+import { editSampling, sampleEditWorkload } from "./lib/edit-performance.mjs";
 
 import { createAgentCircuitService } from "../packages/agent-adapter/dist/index.js";
 import {
@@ -37,43 +41,92 @@ const budgets = {
   libraryOverlay: 1000,
 };
 
+const args = process.argv.slice(2);
+if (
+  args.some(
+    (arg) => !["--calibrate-edits", "--verify-edit-budgets"].includes(arg),
+  ) ||
+  args.length > 1
+)
+  throw new Error(
+    "Use no argument, --calibrate-edits, or --verify-edit-budgets",
+  );
+const calibrating = args.includes("--calibrate-edits");
+const verifyingBudgets = args.includes("--verify-edit-budgets");
+const outputDirectory = resolve("output/performance");
+// Editor controller/GUI planning have no separately published Node entrypoint.
+// Bundle their real source once, outside every measured operation.
+await build({
+  configFile: false,
+  logLevel: "error",
+  resolve: { conditions: ["development"] },
+  ssr: {
+    noExternal: true,
+    resolve: {
+      conditions: ["development"],
+      externalConditions: ["development"],
+    },
+  },
+  build: {
+    ssr: resolve("apps/editor/benchmarks/edit-workloads.ts"),
+    outDir: outputDirectory,
+    emptyOutDir: false,
+    target: "node24",
+    minify: false,
+    rollupOptions: {
+      output: { entryFileNames: "edit-workloads.mjs", codeSplitting: false },
+    },
+  },
+});
+const { createEditPerformanceProject, createEditWorkload, editWorkloadNames } =
+  await import(
+    pathToFileURL(resolve(outputDirectory, "edit-workloads.mjs")).href
+  );
+const reference = calibrating
+  ? null
+  : JSON.parse(
+      await readFile(resolve("config/performance-edit-baseline.json"), "utf8"),
+    );
+if (
+  reference &&
+  editWorkloadNames.some(
+    (name) =>
+      !Number.isFinite(reference.budgets[name]) || reference.budgets[name] <= 0,
+  )
+)
+  throw new Error("Every editing workload needs a finite positive budget");
+
 async function measure(action) {
   const started = performance.now();
   const result = await action();
   return { result, milliseconds: performance.now() - started };
 }
 
-const generated = await measure(() => {
-  const base = createEmptyProject("phase-7-large", "Phase 7 Large Project");
-  return CircuitProjectSchema.parse({
-    ...base,
-    documents: [
-      {
-        ...base.documents[0],
-        instances: Array.from({ length: 500 }, (_, index) => ({
-          id: `R${index + 1}`,
-          symbolId: "resistor",
-          placement: {
-            position: {
-              x: 60 + (index % 25) * 80,
-              y: 60 + Math.floor(index / 25) * 80,
-            },
-            rotation: index % 2 === 0 ? 0 : 90,
-            mirror: "none",
-          },
-          reference: `R${index + 1}`,
-          netlist: {
-            binding: { kind: "primitive", deviceClass: "resistor" },
-            parameters: { value: `${index + 1}k` },
-          },
-        })),
-      },
-    ],
-  });
-});
+const generated = await measure(createEditPerformanceProject);
 const project = generated.result;
 let document = project.documents[0];
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+const editWorkloads = Object.fromEntries(
+  editWorkloadNames.map((name) => [
+    name,
+    sampleEditWorkload(
+      () => createEditWorkload(project, name),
+      reference?.budgets[name],
+    ),
+  ]),
+);
+const slowdownEvidence = verifyingBudgets
+  ? Object.fromEntries(
+      editWorkloadNames.map((name) => [
+        name,
+        sampleEditWorkload(
+          () => createEditWorkload(project, name),
+          reference.budgets[name],
+          { slowdown: 2 },
+        ),
+      ]),
+    )
+  : undefined;
 
 const connectivityProject = createEmptyProject(
   "connectivity-performance",
@@ -260,12 +313,23 @@ const measurements = {
 const failures = Object.entries(measurements).filter(
   ([name, value]) => value > budgets[name],
 );
+for (const [name, result] of Object.entries(editWorkloads)) {
+  if (result.passed === false) failures.push([name, result.medianMs]);
+  if (verifyingBudgets && slowdownEvidence[name].passed !== false)
+    failures.push([
+      `${name}: doubled edit was not rejected`,
+      slowdownEvidence[name].medianMs,
+    ]);
+}
 const report = {
   version: "0.1.0",
   environment: {
     node: process.version,
     platform: process.platform,
     arch: process.arch,
+    cpu: cpus()[0]?.model,
+    runner: process.env.RUNNER_OS,
+    sha: process.env.GITHUB_SHA,
   },
   fixture: {
     instances: 500,
@@ -291,11 +355,27 @@ const report = {
     ]),
   ),
   budgets,
-  passed: failures.length === 0,
+  editSampling,
+  editWorkloads,
+  slowdownEvidence,
+  mode: calibrating
+    ? "calibration"
+    : verifyingBudgets
+      ? "rejection-verification"
+      : "check",
+  passed: calibrating ? null : failures.length === 0,
+  failures,
 };
 await mkdir(resolve("output/performance"), { recursive: true });
 await writeFile(
-  resolve("output/performance/phase-7-baseline.json"),
+  resolve(
+    outputDirectory,
+    calibrating
+      ? "edit-calibration.json"
+      : verifyingBudgets
+        ? "edit-rejection.json"
+        : "phase-7-baseline.json",
+  ),
   `${JSON.stringify(report, null, 2)}\n`,
 );
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

@@ -10,6 +10,7 @@ import {
   executeProjectTransaction,
   rejectTransaction,
   diffDocumentObjectIds,
+  EditTransactionSchema,
 } from "@icm/edit-engine";
 import type {
   EditActor,
@@ -466,6 +467,16 @@ export class EditorDocumentController {
     try {
       // expectedStructureRevision is a controller fence, not a Document edit field.
       const { expectedStructureRevision: _, ...envelope } = request;
+      const history =
+        envelope.edits.length === 1 ? envelope.edits[0] : undefined;
+      // History belongs to this controller. Validate the same envelope/fence
+      // before restoring it, without allocating a rejected Document copy first.
+      if (
+        (history?.kind === "undo" || history?.kind === "redo") &&
+        envelope.expectedRevision === document.revision &&
+        EditTransactionSchema.safeParse(envelope).success
+      )
+        return this.restoreHistory(request, history.kind);
       result = executeTransaction(document, envelope, {
         symbolResolver: this.resolverValue,
         ...(evidence?.document === document &&
