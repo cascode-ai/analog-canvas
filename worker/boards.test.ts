@@ -1,6 +1,8 @@
 // Selection boards (docs/specs/selection-boards.md): read by link, made by an
 // administrator, changed by signed-in accounts with every change recorded.
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { type AuthEnv } from "./auth";
@@ -384,5 +386,15 @@ describe("selection boards", () => {
     expect(decodeURIComponent(state.split(".")[1]!)).toBe(
       "/boards/AbCdEfGhIjKlMnOpQrStUvWx",
     );
+  });
+
+  it("reaches the Worker before the asset layer answers with the shell", () => {
+    // Without these, Production serves the editor shell at /boards/<id>.
+    const wrangler = readFileSync(
+      resolve(process.cwd(), "wrangler.jsonc"),
+      "utf8",
+    );
+    expect(wrangler).toContain(`"/boards",`);
+    expect(wrangler).toContain(`"/boards/*",`);
   });
 });
