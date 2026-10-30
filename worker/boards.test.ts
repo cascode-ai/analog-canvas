@@ -3,7 +3,11 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
+import { createEmptyProject } from "@icm/model";
+import {
+  CURRENT_PROJECT_FILE_VERSION,
+  serializeProject,
+} from "@icm/project-protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { type AuthEnv } from "./auth";
 import { entryIdOf, routeBoardsRequest } from "./boards";
@@ -17,12 +21,35 @@ import {
 } from "./gallery.test-support";
 import { AuthDO as DeployedAuthDO } from "./index";
 
-function seed(env: Harness, id: string, name: string, status = "public") {
+/** A one-Cell drawing of the given parts, none of them wired. */
+function partsProjectText(name: string, symbols: string[]): string {
+  const project = createEmptyProject("parts", name);
+  project.documents[0]!.instances = symbols.map((symbolId, index) => ({
+    id: `P${index}`,
+    symbolId,
+    placement: {
+      position: { x: index * 100, y: 0 },
+      rotation: 0,
+      mirror: "none",
+    },
+    reference: `P${index}`,
+    netlist: { parameters: {} },
+  }));
+  return serializeProject(project);
+}
+
+function seed(
+  env: Harness,
+  id: string,
+  name: string,
+  status = "public",
+  extra: { project?: string; tags?: string } = {},
+) {
   env.gallerySql.exec(
     `INSERT INTO gallery_entries
        (id, name, author, description, created_at, schema_version, status,
-        project_text, svg_text, preview_revision)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        project_text, svg_text, preview_revision, tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     name,
     `${name} author`,
@@ -30,9 +57,10 @@ function seed(env: Harness, id: string, name: string, status = "public") {
     "2026-10-01T00:00:00.000Z",
     CURRENT_PROJECT_FILE_VERSION,
     status,
-    projectText(name),
+    extra.project ?? projectText(name),
     `<svg viewBox="0 0 10 10"><title>${name}</title></svg>`,
     `rev-${id}`,
+    extra.tags ?? "",
   );
 }
 
@@ -312,7 +340,7 @@ describe("selection boards", () => {
     );
     expect(shown.status).toBe(200);
     expect(shown.headers.get("content-type")).toBe("image/svg+xml");
-    expect(await shown.text()).toContain("Five-transistor OTA");
+    expect(await shown.text()).toMatch(/^<svg/u);
     expect(
       (await call(env, `/api/boards/${id}/preview/entry-c`, { origin: null }))
         .status,
@@ -396,5 +424,117 @@ describe("selection boards", () => {
     );
     expect(wrangler).toContain(`"/boards",`);
     expect(wrangler).toContain(`"/boards/*",`);
+  });
+
+  it("draws each entry plain: no colour, no frames or notes", async () => {
+    const raw = JSON.parse(partsProjectText("Coloured", ["nmos", "resistor"]));
+    raw.documents[0].instances[0].color = "#dc2626";
+    raw.documents[0].drafting = {
+      ...(raw.documents[0].drafting ?? {}),
+      objects: [
+        {
+          anchor: { kind: "free", position: { x: 0, y: 0 } },
+          center: { x: 0, y: 0 },
+          height: 100,
+          id: "rectangle-1",
+          kind: "rectangle",
+          lineStyle: "solid",
+          locked: false,
+          rotation: 0,
+          styleOverride: { color: "#2563eb", lineStyle: "dashed" },
+          width: 100,
+          zIndex: 0,
+        },
+      ],
+    };
+    seed(env, "entry-coloured", "Coloured", "public", {
+      project: JSON.stringify(raw),
+    });
+    const id = await makeBoard(["entry-coloured"]);
+    const svg = await (
+      await call(
+        env,
+        `/api/boards/${id}/preview/entry-coloured?v=rev-entry-coloured`,
+        { origin: null },
+      )
+    ).text();
+    expect(svg).toMatch(/^<svg/u);
+    expect(svg.toLowerCase()).not.toContain("#dc2626");
+    expect(svg.toLowerCase()).not.toContain("#2563eb");
+  });
+
+  it("counts transistors and levels, and types each entry by its tags or by hand", async () => {
+    seed(env, "entry-flat", "Flat pair", "public", {
+      project: partsProjectText("Flat pair", [
+        "nmos",
+        "nmos",
+        "pmos",
+        "resistor",
+      ]),
+      tags: ",two stage,cmfb,",
+    });
+    seed(env, "entry-block", "With an op-amp", "public", {
+      project: partsProjectText("With an op-amp", ["opamp", "pnp", "resistor"]),
+      tags: ",bandgap,",
+    });
+    const id = await makeBoard(["entry-flat", "entry-block"]);
+    let board = await json(await call(env, `/api/boards/${id}`));
+    expect(board.types).toContain("Amplifiers");
+    expect(board.types).not.toContain("Design Attributes");
+    expect(
+      board.items.map((item: any) => [
+        item.entryId,
+        item.type,
+        item.entry.tagType,
+        item.entry.transistors,
+        item.entry.levels,
+      ]),
+    ).toEqual([
+      ["entry-flat", null, "Amplifiers", 3, "single"],
+      ["entry-block", null, "Bias & references", 1, "multi"],
+    ]);
+
+    const change = async (changes: unknown[]) =>
+      call(env, `/api/boards/${id}/changes`, {
+        method: "POST",
+        cookie: collaborator,
+        body: { changes },
+      });
+    board = await json(
+      await change([
+        { kind: "type", itemId: board.items[1].id, type: "Power" },
+      ]),
+    );
+    expect(board.items[1].type).toBe("Power");
+    expect(board.events[0]).toMatchObject({
+      actor: "friend",
+      action: "type",
+      entryId: "entry-block",
+      detail: "Power",
+    });
+    expect(
+      await json(
+        await change([
+          {
+            kind: "type",
+            itemId: board.items[1].id,
+            type: "Design Attributes",
+          },
+        ]),
+      ),
+    ).toEqual({
+      error: "bad-type",
+    });
+    const exported = await json(await call(env, `/api/boards/${id}/export`));
+    expect(
+      exported.items.map((item: any) => [
+        item.type,
+        item.transistors,
+        item.levels,
+      ]),
+    ).toEqual([
+      ["Amplifiers", 3, "single"],
+      ["Power", 1, "multi"],
+    ]);
   });
 });

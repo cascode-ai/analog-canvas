@@ -5,10 +5,63 @@
 
 import { sessionUserOf, type SessionUser } from "./auth";
 import { BOARDS_HOME_PAGE, BOARD_PAGE } from "./boards-page";
-import { callGallery, recoverFormulaPreview } from "./gallery-requests";
+import { parseProject } from "@icm/project-protocol";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import {
+  callGallery,
+  recoverFormulaPreview,
+  renderPreview,
+} from "./gallery-requests";
 import { type GalleryEnv } from "./gallery-store";
 import { type BoardActor } from "./gallery-store-boards";
 import { sameOrigin } from "./same-origin";
+
+/**
+ * A board draws each entry plain, as a benchmark Task holds it: no colour on parts,
+ * labels or wires, and none of the drafting drawn over the circuit (frames,
+ * construction lines, notes, arrows, circles). Net and supply labels stay. Bump the
+ * rule's version when it changes, so cached drawings are drawn again.
+ */
+const PLAIN_RULE = 1;
+const COLOUR_KEYS = new Set(["color", "textColor", "fillColor", "strokeColor"]);
+
+export function plainProjectText(text: string): string {
+  const uncolour = (value: unknown): void => {
+    if (Array.isArray(value)) return value.forEach(uncolour);
+    if (!value || typeof value !== "object") return;
+    const object = value as Record<string, unknown>;
+    for (const [key, field] of Object.entries(object)) {
+      if (COLOUR_KEYS.has(key) && typeof field === "string") delete object[key];
+      else uncolour(field);
+    }
+    const style = object.styleOverride;
+    if (style && typeof style === "object" && Object.keys(style).length === 0)
+      delete object.styleOverride;
+  };
+  const project = JSON.parse(text) as {
+    documents?: { drafting?: { objects?: unknown[] } }[];
+  };
+  for (const document of project.documents ?? []) {
+    if (document.drafting?.objects) document.drafting.objects = [];
+    uncolour(document);
+  }
+  return JSON.stringify(project);
+}
+
+async function plainPreview(projectText: string): Promise<string> {
+  const project = parseProject(plainProjectText(projectText));
+  return renderPreview(
+    project,
+    createProjectSymbolResolver(project, builtInSymbols),
+  );
+}
+
+function edgeCache(): Cache | null {
+  if (typeof caches === "undefined") return null;
+  return (
+    (caches as CacheStorage & { readonly default?: Cache }).default ?? null
+  );
+}
 
 /** A board's id is its link: 24 letters and digits, about 143 bits. */
 const BOARD_ID = /^[A-Za-z0-9]{24}$/u;
@@ -238,7 +291,14 @@ export async function routeBoardsRequest(
         note: string;
         addedBy: string;
         addedAt: string;
-        entry: { name: string; author: string } | null;
+        type: string | null;
+        entry: {
+          name: string;
+          author: string;
+          tagType: string | null;
+          transistors: number | null;
+          levels: string | null;
+        } | null;
       }[];
     }>(env, "board-read", { id: boardId });
     if (status !== 200 || !payload.board) return json(payload, status);
@@ -253,6 +313,9 @@ export async function routeBoardsRequest(
         url: `${url.origin}/g/${encodeURIComponent(item.entryId)}`,
         name: item.entry?.name ?? null,
         author: item.entry?.author ?? null,
+        type: item.type ?? item.entry?.tagType ?? null,
+        transistors: item.entry?.transistors ?? null,
+        levels: item.entry?.levels ?? null,
         note: item.note,
         addedBy: item.addedBy,
         addedAt: item.addedAt,
@@ -274,18 +337,44 @@ export async function routeBoardsRequest(
       return json({ error: "not-found" }, 404);
     const immutable =
       url.searchParams.get("v") === String(payload.previewRevision);
-    return new Response(
-      await recoverFormulaPreview(payload.svgText, payload.projectText),
-      {
-        headers: {
-          "content-type": "image/svg+xml",
-          "cache-control": immutable ? "private, max-age=86400" : "no-store",
-          "x-robots-tag": "noindex",
-          "content-security-policy":
-            "default-src 'none'; style-src 'unsafe-inline'",
-        },
-      },
+    const headers = (cacheControl: string) => ({
+      "content-type": "image/svg+xml",
+      "cache-control": cacheControl,
+      "x-robots-tag": "noindex",
+      "content-security-policy":
+        "default-src 'none'; style-src 'unsafe-inline'",
+    });
+    // One plain drawing per revision and rule, kept at the edge for the next reader.
+    const cache = immutable ? edgeCache() : null;
+    const key = new Request(
+      `${url.origin}${url.pathname}?v=${encodeURIComponent(String(payload.previewRevision))}&rule=${PLAIN_RULE}`,
     );
+    const cached = await cache?.match(key).catch(() => undefined);
+    if (cached)
+      return new Response(cached.body, {
+        headers: headers("private, max-age=86400"),
+      });
+    let svg: string;
+    try {
+      svg = payload.projectText
+        ? await plainPreview(payload.projectText)
+        : payload.svgText;
+    } catch {
+      // A drawing this build cannot redraw keeps the Gallery's own preview.
+      svg = await recoverFormulaPreview(payload.svgText, payload.projectText);
+    }
+    if (cache)
+      await cache
+        .put(
+          key,
+          new Response(svg, {
+            headers: headers("public, max-age=31536000, immutable"),
+          }),
+        )
+        .catch(() => undefined);
+    return new Response(svg, {
+      headers: headers(immutable ? "private, max-age=86400" : "no-store"),
+    });
   }
 
   return json({ error: "not-found" }, 404);

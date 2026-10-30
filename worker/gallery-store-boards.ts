@@ -4,8 +4,26 @@
 // as an event: who, when, what. A board's id is its unguessable link; who may read
 // or change one is decided by worker/boards.ts, never here.
 
-import { type SqlStorage } from "./gallery-store";
-import { preview } from "./gallery-store-entries";
+import { parseProject } from "@icm/project-protocol";
+import { getRazaviCatalogEntry } from "@icm/symbols";
+import taxonomy from "../config/gallery-taxonomy.json";
+import { type SqlStorage, unwrapTags } from "./gallery-store";
+
+/**
+ * The circuit types a board sorts its entries by: the Gallery taxonomy's groups
+ * of circuit function. Design Attributes describe how a circuit is drawn, not
+ * what it is, so they name no type.
+ */
+export const BOARD_TYPES: readonly string[] = Object.keys(
+  taxonomy.tagsByGroup,
+).filter((group) => group !== "Design Attributes");
+const TYPE_OF_TAG = new Map(
+  Object.entries(taxonomy.tagsByGroup as Record<string, string[]>)
+    .filter(([group]) => BOARD_TYPES.includes(group))
+    .flatMap(([group, tags]) => tags.map((tag) => [tag, group] as const)),
+);
+/** A part that is a block of other parts rather than a device: an op-amp, a gate, a signal-flow block. */
+const BLOCK_CATEGORIES = new Set(["analog-block", "logic", "signal-flow"]);
 
 export const BOARD_TITLE_MAX = 120;
 export const BOARD_NOTE_MAX = 500;
@@ -56,6 +74,116 @@ export function installBoards(sql: SqlStorage): void {
   sql.exec(
     "CREATE INDEX IF NOT EXISTS idx_board_events_board ON board_events(board_id, seq)",
   );
+  const itemColumns = sql
+    .exec<{ name: string }>("PRAGMA table_info(board_items)")
+    .toArray()
+    .map((column) => column.name);
+  if (!itemColumns.includes("type"))
+    sql.exec("ALTER TABLE board_items ADD COLUMN type TEXT");
+  // What a board shows of each drawing, kept per preview revision so an edit recounts it.
+  sql.exec(`
+    CREATE TABLE IF NOT EXISTS board_entry_facts (
+      entry_id TEXT PRIMARY KEY,
+      revision TEXT NOT NULL,
+      transistors INTEGER,
+      cells INTEGER,
+      blocks INTEGER
+    )`);
+}
+
+interface EntryFacts {
+  transistors: number | null;
+  /** Single-level: one Cell drawn down to devices; multi-level: more Cells, or blocks of parts. */
+  levels: "single" | "multi" | null;
+}
+
+/** An entry's transistor count and levels, from its drawing, counted once per revision. */
+function entryFacts(
+  sql: SqlStorage,
+  entryId: string,
+  revision: string,
+): EntryFacts {
+  let row = sql
+    .exec<{
+      revision: string;
+      transistors: number | null;
+      cells: number | null;
+      blocks: number | null;
+    }>(
+      "SELECT revision, transistors, cells, blocks FROM board_entry_facts WHERE entry_id = ?",
+      entryId,
+    )
+    .toArray()[0];
+  if (!row || row.revision !== revision) {
+    let counted: {
+      transistors: number | null;
+      cells: number | null;
+      blocks: number | null;
+    } = {
+      transistors: null,
+      cells: null,
+      blocks: null,
+    };
+    try {
+      const text = sql
+        .exec<{ project_text: string }>(
+          "SELECT project_text FROM gallery_entries WHERE id = ?",
+          entryId,
+        )
+        .one().project_text;
+      const project = parseProject(text);
+      const top =
+        project.documents.find(
+          (document) => document.id === project.topDocumentId,
+        ) ?? project.documents[0];
+      const parts = (top?.instances ?? []).filter(
+        (instance) => instance.placement !== null,
+      );
+      // A part outside the catalog is a User Component: a block of other parts.
+      const categories = parts.map(
+        (instance) =>
+          getRazaviCatalogEntry(instance.symbolId)?.category ?? "analog-block",
+      );
+      counted = {
+        transistors: categories.filter((category) => category === "transistor")
+          .length,
+        cells: project.documents.length,
+        blocks: categories.filter((category) => BLOCK_CATEGORIES.has(category))
+          .length,
+      };
+    } catch {
+      // A drawing this build cannot read counts nothing; its card says so.
+    }
+    sql.exec(
+      `INSERT INTO board_entry_facts (entry_id, revision, transistors, cells, blocks) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(entry_id) DO UPDATE SET revision = excluded.revision, transistors = excluded.transistors,
+         cells = excluded.cells, blocks = excluded.blocks`,
+      entryId,
+      revision,
+      counted.transistors,
+      counted.cells,
+      counted.blocks,
+    );
+    row = { revision, ...counted };
+  }
+  return {
+    transistors: row.transistors,
+    levels:
+      row.cells === null || row.blocks === null
+        ? null
+        : row.cells > 1 || row.blocks > 0
+          ? "multi"
+          : "single",
+  };
+}
+
+/** The type an entry's own Gallery tags name: its first tag of a circuit-function group. */
+function tagType(tags: string | null): string | null {
+  for (const tag of unwrapTags(tags)) {
+    const type = TYPE_OF_TAG.get(tag);
+    if (type) return type;
+  }
+  return null;
 }
 
 export interface BoardActor {
@@ -69,6 +197,7 @@ export type BoardChange =
   | { kind: "replace"; itemId: string; entryId: string; note?: string }
   | { kind: "remove"; itemId: string }
   | { kind: "note"; itemId: string; note: string }
+  | { kind: "type"; itemId: string; type: string | null }
   | { kind: "move"; itemId: string; to: number }
   | { kind: "rename"; title: string }
   | { kind: "slots"; slots: number }
@@ -88,6 +217,8 @@ interface BoardRow {
 
 interface ItemRow {
   id: string;
+  type: string | null;
+  tags: string | null;
   position: number;
   entry_id: string;
   note: string;
@@ -327,6 +458,20 @@ function apply(
       });
       return;
     }
+    case "type": {
+      const item = itemRow(sql, board.id, change.itemId);
+      const type =
+        change.type === null || change.type === "" ? null : String(change.type);
+      if (type !== null && !BOARD_TYPES.includes(type))
+        throw new BoardError("bad-type", 400);
+      sql.exec("UPDATE board_items SET type = ? WHERE id = ?", type, item.id);
+      record(sql, board.id, actor, "type", {
+        itemId: item.id,
+        entryId: item.entry_id,
+        detail: type ?? "",
+      });
+      return;
+    }
     case "note": {
       const item = itemRow(sql, board.id, change.itemId);
       const note = text(change.note, BOARD_NOTE_MAX);
@@ -405,9 +550,9 @@ export function boardRead(sql: SqlStorage, id: string): Response {
     const board = boardRow(sql, id);
     const items = sql
       .exec<ItemRow>(
-        `SELECT i.id, i.position, i.entry_id, i.note, i.added_by_name, i.added_at,
+        `SELECT i.id, i.position, i.entry_id, i.note, i.added_by_name, i.added_at, i.type,
                 e.name, e.author, e.status, e.component_count,
-                e.preview_revision, e.ai_generated
+                e.preview_revision, e.ai_generated, e.tags
          FROM board_items i LEFT JOIN gallery_entries e ON e.id = i.entry_id
          WHERE i.board_id = ? ORDER BY i.position, i.added_at, i.id`,
         id,
@@ -415,8 +560,10 @@ export function boardRead(sql: SqlStorage, id: string): Response {
       .toArray()
       .map((row) => {
         const visible = row.status === "public";
+        const revision = row.preview_revision || "legacy";
         return {
           id: row.id,
+          type: row.type,
           position: row.position,
           entryId: row.entry_id,
           note: row.note,
@@ -429,6 +576,8 @@ export function boardRead(sql: SqlStorage, id: string): Response {
                 components: row.component_count,
                 previewRevision: row.preview_revision || "legacy",
                 ai: row.ai_generated === 1,
+                tagType: tagType(row.tags),
+                ...entryFacts(sql, row.entry_id, revision),
               }
             : null,
         };
@@ -477,6 +626,7 @@ export function boardRead(sql: SqlStorage, id: string): Response {
       items,
       events,
       entryNames: Object.fromEntries(names),
+      types: BOARD_TYPES,
     });
   } catch (error) {
     return failure(error);
@@ -555,7 +705,25 @@ export function boardPreview(
 ): Response {
   if (!onBoard(sql, boardId, entryId))
     return Response.json({ error: "not-found" }, { status: 404 });
-  return preview(sql, entryId);
+  const row = sql
+    .exec<{
+      status: string;
+      preview_revision: string | null;
+      svg_text: string;
+      project_text: string;
+    }>(
+      "SELECT status, preview_revision, svg_text, project_text FROM gallery_entries WHERE id = ?",
+      entryId,
+    )
+    .toArray()[0];
+  if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+  // The board draws each entry plain (worker/boards.ts), so it takes the drawing, not the stored preview.
+  return Response.json({
+    status: row.status,
+    previewRevision: row.preview_revision || "legacy",
+    svgText: row.svg_text,
+    projectText: row.project_text,
+  });
 }
 
 /** A deleted account's name leaves every board it touched. */

@@ -66,6 +66,22 @@ h1 { font-size: 22px; line-height: 1.3; margin: 0; overflow-wrap: anywhere; }
 .dialog input, .dialog textarea { width: 100%; }
 .dialog .row { display: flex; justify-content: flex-end; gap: 8px; }
 .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+.map { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.map-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; margin-bottom: 8px; }
+.map-head b { font-size: 15px; }
+.map-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 10px 24px; }
+.map h3 { font-size: 13px; color: var(--muted); font-weight: 600; margin: 0 0 6px; }
+.bar { display: grid; grid-template-columns: 7.5em 1fr 2.2em; gap: 8px; align-items: center; width: 100%; padding: 3px 6px;
+       border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+.bar:hover { background: var(--bg); }
+.bar.on { background: var(--soft); }
+.bar .track { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.bar .fill { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
+.bar .num { text-align: right; font-variant-numeric: tabular-nums; }
+.bar .lab { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.chip { background: var(--bg); border-radius: 999px; padding: 1px 8px; color: var(--muted); }
+.chips select { font-size: 13px; padding: 1px 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 form.make { display: grid; gap: 10px; max-width: 640px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
 form.make label { display: grid; gap: 4px; }
 form.make textarea { min-height: 160px; }
@@ -145,6 +161,7 @@ export const BOARD_PAGE =
     <button class="primary" id="add-go">加入</button>
   </div>
   <p class="status" id="status"></p>
+  <section class="map" id="map" hidden></section>
   <div class="grid" id="grid"></div>
 </div>
 <script>
@@ -154,6 +171,26 @@ export const BOARD_PAGE =
 var id = location.pathname.split("/").filter(Boolean)[1];
 var api = "/api/boards/" + encodeURIComponent(id);
 var state = null, busy = false, lightbox = null;
+// What the map filters the grid by: one value per dimension, or null.
+var filter = { type: null, size: null, level: null };
+var TYPE_LABELS = { "Amplifiers": "放大器", "Buffers": "缓冲器", "Bias & references": "偏置与基准", "Filters": "滤波器",
+  "Conversion": "数据转换", "Clock & timing": "时钟与定时", "Logic & memory": "逻辑与存储", "Power": "电源",
+  "RF & communications": "射频与通信", "Sampling": "采样", "Sensors": "传感器", "Devices & models": "器件与模型", "Computing": "计算" };
+var SIZES = [["≤5", 0, 5], ["6–10", 6, 10], ["11–20", 11, 20], ["21–40", 21, 40], [">40", 41, Infinity]];
+function typeOf(item) { return item.type || (item.entry && item.entry.tagType) || null; }
+function typeLabel(type) { return type ? (TYPE_LABELS[type] || type) : "未分类"; }
+function sizeOf(item) {
+  var n = item.entry ? item.entry.transistors : null;
+  if (n === null || n === undefined) return "未知";
+  for (var i = 0; i < SIZES.length; i++) if (n >= SIZES[i][1] && n <= SIZES[i][2]) return SIZES[i][0];
+  return "未知";
+}
+function levelOf(item) { var l = item.entry && item.entry.levels; return l === "single" ? "单层" : l === "multi" ? "多层" : "未知"; }
+function shown(item) {
+  return (filter.type === null || typeLabel(typeOf(item)) === filter.type)
+    && (filter.size === null || sizeOf(item) === filter.size)
+    && (filter.level === null || levelOf(item) === filter.level);
+}
 function $(name) { return document.getElementById(name); }
 function say(text, bad) { $("status").textContent = text || ""; $("status").className = "status" + (bad ? " bad" : ""); }
 function when(iso) {
@@ -221,11 +258,65 @@ function render() {
   var events = $("events"); events.textContent = "";
   state.events.forEach(function (event) { events.append(el("li", null, [el("time", { text: when(event.at) }), sentence(event)])); });
 
+  renderMap(items);
   var grid = $("grid"); grid.textContent = "";
   if (!items.length) grid.append(el("div", { class: "empty", text: editable() ? "还没有题。把 Gallery 链接贴到上面，点“加入”。" : "还没有题。" }));
-  items.forEach(function (item, index) { grid.append(card(item, index, items.length)); });
+  items.forEach(function (item, index) { if (shown(item)) grid.append(card(item, index, items.length)); });
 }
 
+// The map: the board's entries counted by type, transistor count and levels, from what the board holds now.
+function renderMap(items) {
+  var map = $("map"); map.textContent = "";
+  if (!items.length) { map.hidden = true; return; }
+  map.hidden = false;
+  function counts(key) { var c = {}; items.forEach(function (item) { var k = key(item); c[k] = (c[k] || 0) + 1; }); return c; }
+  function column(title, dimension, c, keys) {
+    var max = 1;
+    for (var k in c) max = Math.max(max, c[k]);
+    return el("div", null, [el("h3", { text: title })].concat(keys.filter(function (k) { return c[k]; }).map(function (k) {
+      return el("button", { class: "bar" + (filter[dimension] === k ? " on" : ""), title: k + "：" + c[k] + " 道",
+        onclick: function () { filter[dimension] = filter[dimension] === k ? null : k; render(); } }, [
+        el("span", { class: "lab", text: k }),
+        el("span", { class: "track" }, [el("span", { class: "fill", style: "width:" + Math.round(100 * c[k] / max) + "%" })]),
+        el("span", { class: "num", text: String(c[k]) })
+      ]);
+    })));
+  }
+  var types = counts(function (item) { return typeLabel(typeOf(item)); });
+  var typeKeys = Object.keys(types).filter(function (k) { return k !== "未分类"; })
+    .sort(function (a, b) { return types[b] - types[a] || a.localeCompare(b); }).concat(["未分类"]);
+  var active = filter.type !== null || filter.size !== null || filter.level !== null;
+  var showing = items.filter(shown).length;
+  map.append(el("div", { class: "map-head" }, [
+    el("b", { text: "分类图谱" }),
+    el("span", { class: "small", text: active ? "显示 " + showing + " / " + items.length + " 道" : "共 " + items.length + " 道，点一条只看那一类" }),
+    active ? el("button", { text: "清除筛选", onclick: function () { filter = { type: null, size: null, level: null }; render(); } }) : null
+  ]));
+  map.append(el("div", { class: "map-cols" }, [
+    column("电路类型", "type", types, typeKeys),
+    column("晶体管数量", "size", counts(sizeOf), SIZES.map(function (s) { return s[0]; }).concat(["未知"])),
+    column("单层 / 多层", "level", counts(levelOf), ["单层", "多层", "未知"])
+  ]));
+}
+
+function chips(item) {
+  var type = typeOf(item), auto = !item.type && type;
+  var typeChip;
+  if (editable()) {
+    typeChip = el("select", { title: auto ? "按 Gallery 标签自动归类，可以改" : "电路类型", onchange: function (e) {
+      var next = e.target.value || null;
+      change([{ kind: "type", itemId: item.id, type: next }], next ? "已归为「" + typeLabel(next) + "」" : "已改为未分类");
+    } }, [el("option", { value: "", text: "未分类" })].concat((state.types || []).map(function (t) {
+      return el("option", { value: t, text: typeLabel(t) + (auto && t === type ? "（自动）" : "") });
+    })));
+    typeChip.value = type || "";
+  } else typeChip = el("span", { class: "chip", text: typeLabel(type) });
+  return el("div", { class: "chips" }, [
+    typeChip,
+    el("span", { class: "chip", text: item.entry.transistors === null ? "晶体管 ?" : "晶体管 " + item.entry.transistors }),
+    el("span", { class: "chip", text: levelOf(item) })
+  ]);
+}
 function nameOf(entryId) { return (state.entryNames && state.entryNames[entryId]) || entryId; }
 function sentence(event) {
   var who = event.actor + " ";
@@ -234,6 +325,7 @@ function sentence(event) {
     case "add": return who + "加入了「" + nameOf(event.entryId) + "」" + (event.detail ? "，备注：" + event.detail : "");
     case "replace": return who + "把「" + nameOf(event.previousEntryId) + "」换成了「" + nameOf(event.entryId) + "」" + (event.detail ? "，备注：" + event.detail : "");
     case "remove": return who + "移出了「" + nameOf(event.previousEntryId) + "」";
+    case "type": return who + (event.detail ? "把「" + nameOf(event.entryId) + "」归为「" + typeLabel(event.detail) + "」" : "取消了「" + nameOf(event.entryId) + "」的类型");
     case "note": return who + "给「" + nameOf(event.entryId) + "」写了备注：" + (event.detail || "（清空）");
     case "move": return who + "把「" + nameOf(event.entryId) + "」从第 " + event.detail.replace("→", " 位挪到第 ") + " 位";
     case "rename": return who + "把板改名为「" + event.detail + "」";
@@ -254,6 +346,7 @@ function card(item, index, count) {
     el("div", { class: "name", text: entry ? entry.name : item.entryId }),
     entry ? el("div", { class: "small", text: "作者：" + entry.author + (entry.ai ? "（AI）" : "") + (entry.components ? " · 元件 " + entry.components : "") }) : null,
     el("div", { class: "small", text: "放入：" + item.addedBy + " · " + when(item.addedAt) }),
+    entry ? chips(item) : null,
     item.note ? el("div", { class: "note", text: item.note }) : null
   ]);
   var actions = el("div", { class: "actions" }, [el("a", { href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "在 Canvas 打开 ↗" })]);

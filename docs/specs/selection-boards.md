@@ -22,6 +22,17 @@ accounts and previews stay the [Gallery's](community-gallery.md).
 - Every change records the account's display name, the time and what changed;
   the page shows the latest 300. Deleting an account replaces its name on
   every board with "(deleted account)".
+- A board draws each entry plain, as a benchmark Task holds it: no colour on parts,
+  labels or wires and none of the drafting drawn over the circuit (frames,
+  construction lines, notes, arrows, circles); net and supply labels stay. The
+  Gallery entry itself is unchanged.
+- Each entry shows its circuit type, transistor count and levels, and the page
+  maps the board by all three. A type is one of the Gallery taxonomy's groups
+  but Design Attributes, set by hand or else taken from the entry's first tag in
+  such a group. Transistors are the top Cell's parts of the catalog's
+  transistor category; an entry is multi-level when its project has more than
+  one Cell or its top Cell places an analog, logic or signal-flow block or a User
+  Component, else single-level. Both are counted once per preview revision.
 - A locked board refuses every change but unlock.
 - Changes in one request apply all or none, as one revision; an open page
   reloads the board when the revision moves.
@@ -41,14 +52,15 @@ accounts and previews stay the [Gallery's](community-gallery.md).
 
 A change is `{kind: "add", entry, note?}`, `{kind: "replace", itemId, entry,
 note?}`, `{kind: "remove" | "note" | "move", itemId, note? | to?}`,
-`{kind: "rename", title}`, `{kind: "slots", slots}`, `{kind: "lock" |
+`{kind: "type", itemId, type}`, `{kind: "rename", title}`, `{kind: "slots", slots}`, `{kind: "lock" |
 "unlock"}`; `entry` is an entry id or any Canvas link naming one. Errors:
-`board-not-found`, `entry-not-public`, `entry-already-on-board` (with
+`board-not-found`, `entry-not-public`, `bad-type`, `entry-already-on-board` (with
 `entryId`), `board-full`, `board-locked`, `slots-below-items`, `not-allowed`,
 `sign-in-required`, `blocked`, `admin-only`, `bad-changes`.
 
 ## Acceptance criteria
 
 `worker/boards.test.ts` pins reading by link, making by administrators only,
-each change and its record, all-or-none batches, lock and unlock, previews
+each change and its record, all-or-none batches, plain previews,
+types, transistor counts and levels, lock and unlock, previews
 only for entries on the board, and the sign-in return to a board.
