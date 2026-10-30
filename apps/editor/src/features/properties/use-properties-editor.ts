@@ -233,7 +233,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       !resolveTextEditingTarget(options.document, textEditing, options.resolver)
     )
       setTextEditing(null);
-  }, [options.document, textEditing]);
+  }, [options.document, options.resolver, textEditing]);
   const netLabelDraftRouteRef = useRef<string | null>(null);
   const netLabelDraftDirtyRef = useRef(false);
   const lastSelectedInstanceKeyRef = useRef<string | null>(null);
