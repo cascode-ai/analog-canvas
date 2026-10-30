@@ -192,19 +192,22 @@ function bodyTerminals(
  * its order.
  */
 export function rnlBodyPortOrder(project: CircuitProject): BodyPortOrder {
-  const parts = new Map<StableId, { symbolId: string; variant?: string }>();
+  // An Instance's id is unique within its Document only.
+  const key = (documentId: StableId, instanceId: StableId) =>
+    `${documentId}\u0000${instanceId}`;
+  const parts = new Map<string, { symbolId: string; variant?: string }>();
   for (const document of project.documents)
     for (const instance of document.instances)
-      parts.set(instance.id, {
+      parts.set(key(document.id, instance.id), {
         symbolId: instance.symbolId,
         ...(instance.symbolVariantId
           ? { variant: instance.symbolVariantId }
           : {}),
       });
-  return ({ name, ports, instanceIds }) => {
+  return ({ name, ports, calls }) => {
     let wanted: readonly string[] | null = null;
-    for (const id of instanceIds) {
-      const part = parts.get(id);
+    for (const { cellId, instanceId } of calls) {
+      const part = parts.get(key(cellId, instanceId));
       const entry = part && rnlSymbolFor(part.symbolId, part.variant);
       const order = entry?.acNetlistOrder;
       if (!entry || !order) continue;
