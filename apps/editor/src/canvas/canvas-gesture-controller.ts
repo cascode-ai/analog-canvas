@@ -233,6 +233,21 @@ export function classifyWheelSource(event: WheelSourceShape): WheelSource {
 const TRACKPAD_EVIDENCE_WINDOW_MS = 1500;
 let lastTrackpadWheelAt = Number.NEGATIVE_INFINITY;
 
+/**
+ * Said the first time "auto" reads a wheel as a trackpad and pans, once per
+ * page: a mouse it misreads (#1898) learns how to zoom anyway.
+ */
+export const WHEEL_PAN_HINT =
+  "The wheel pans here, as on a trackpad. Ctrl+wheel zooms; to make the wheel always zoom, open Properties (O) and set Scroll behavior to Always zoom.";
+let wheelPanHinted = false;
+
+/** The hint the first time "auto" pans with the wheel, then nothing. */
+export function wheelPanHint(): string | null {
+  if (wheelPanHinted) return null;
+  wheelPanHinted = true;
+  return WHEEL_PAN_HINT;
+}
+
 /** Own viewport gestures and canvas-background pointer progression. */
 export function createCanvasGestureController({
   model: {
@@ -396,6 +411,10 @@ export function createCanvasGestureController({
           (source === "unknown" &&
             event.timeStamp - lastTrackpadWheelAt <
               TRACKPAD_EVIDENCE_WINDOW_MS)));
+    if (trackpad && wheelBehavior() === "auto") {
+      const hint = wheelPanHint();
+      if (hint) setStatus(hint);
+    }
     if (!trackpad) {
       if (event.shiftKey) {
         if (deltaY === 0) return;
