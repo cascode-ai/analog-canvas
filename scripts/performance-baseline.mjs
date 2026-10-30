@@ -1,6 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { pathToFileURL } from "node:url";
+import { cpus } from "node:os";
+import { editSampling } from "./lib/edit-performance.mjs";
+import { compareEditPerformance } from "./lib/edit-performance-comparison.mjs";
 
 import { createAgentCircuitService } from "../packages/agent-adapter/dist/index.js";
 import {
@@ -37,44 +41,61 @@ const budgets = {
   libraryOverlay: 1000,
 };
 
+const args = process.argv.slice(2);
+if (
+  args.length > 1 ||
+  args.some(
+    (arg) => arg !== "--verify-edit-budgets" && !arg.startsWith("--slow-edit="),
+  )
+)
+  throw new Error(
+    "Use no argument, --verify-edit-budgets, or --slow-edit=NAME",
+  );
+const verifyingBudgets = args.includes("--verify-edit-budgets");
+const slowEdit = args
+  .find((arg) => arg.startsWith("--slow-edit="))
+  ?.slice("--slow-edit=".length);
+if (
+  slowEdit !== undefined &&
+  !["rotate", "undo", "paste", "wireCommit"].includes(slowEdit)
+)
+  throw new Error(`Unknown editing workload: ${slowEdit}`);
+const outputDirectory = resolve("output/performance");
+const comparison = await compareEditPerformance(
+  outputDirectory,
+  verifyingBudgets,
+  slowEdit,
+);
+if (verifyingBudgets) {
+  const report = { mode: "rejection-verification", ...comparison };
+  await writeFile(
+    resolve(outputDirectory, "edit-rejection.json"),
+    `${JSON.stringify(report, null, 2)}\n`,
+  );
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  process.exit(report.passed ? 0 : 1);
+}
+const editWorkloads = comparison.runs[0].result?.editWorkloads;
+if (
+  !editWorkloads ||
+  comparison.runs[0].exitCode !== (comparison.runs[0].result.passed ? 0 : 1)
+)
+  throw new Error(
+    `Editing measurement failed: ${JSON.stringify(comparison.runs[0])}`,
+  );
+const { createEditPerformanceProject } = await import(
+  pathToFileURL(resolve(outputDirectory, "edit-workloads.mjs")).href
+);
 async function measure(action) {
   const started = performance.now();
   const result = await action();
   return { result, milliseconds: performance.now() - started };
 }
 
-const generated = await measure(() => {
-  const base = createEmptyProject("phase-7-large", "Phase 7 Large Project");
-  return CircuitProjectSchema.parse({
-    ...base,
-    documents: [
-      {
-        ...base.documents[0],
-        instances: Array.from({ length: 500 }, (_, index) => ({
-          id: `R${index + 1}`,
-          symbolId: "resistor",
-          placement: {
-            position: {
-              x: 60 + (index % 25) * 80,
-              y: 60 + Math.floor(index / 25) * 80,
-            },
-            rotation: index % 2 === 0 ? 0 : 90,
-            mirror: "none",
-          },
-          reference: `R${index + 1}`,
-          netlist: {
-            binding: { kind: "primitive", deviceClass: "resistor" },
-            parameters: { value: `${index + 1}k` },
-          },
-        })),
-      },
-    ],
-  });
-});
+const generated = await measure(createEditPerformanceProject);
 const project = generated.result;
 let document = project.documents[0];
 const resolver = new InMemorySymbolResolver(builtInSymbols);
-
 const connectivityProject = createEmptyProject(
   "connectivity-performance",
   "Connectivity Performance",
@@ -260,12 +281,18 @@ const measurements = {
 const failures = Object.entries(measurements).filter(
   ([name, value]) => value > budgets[name],
 );
+for (const [name, result] of Object.entries(editWorkloads)) {
+  if (result.passed === false) failures.push([name, result.medianMs]);
+}
 const report = {
   version: "0.1.0",
   environment: {
     node: process.version,
     platform: process.platform,
     arch: process.arch,
+    cpu: cpus()[0]?.model,
+    runner: process.env.RUNNER_OS,
+    sha: process.env.GITHUB_SHA,
   },
   fixture: {
     instances: 500,
@@ -291,11 +318,22 @@ const report = {
     ]),
   ),
   budgets,
+  editSampling,
+  editReference: comparison.baselineCommit,
+  editBaseline: comparison.baseline,
+  editBudgets: comparison.budgets,
+  editWorkloads,
+  slowEdit,
+  mode: slowEdit ? "slowdown-injection" : "check",
   passed: failures.length === 0,
+  failures,
 };
 await mkdir(resolve("output/performance"), { recursive: true });
 await writeFile(
-  resolve("output/performance/phase-7-baseline.json"),
+  resolve(
+    outputDirectory,
+    slowEdit ? `edit-slow-${slowEdit}.json` : "phase-7-baseline.json",
+  ),
   `${JSON.stringify(report, null, 2)}\n`,
 );
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

@@ -7,8 +7,8 @@ Primary owner: `scripts/performance-baseline.mjs`
 ## Workloads and budgets
 
 The release benchmark's deterministic workloads and per-operation ceilings
-live in the script's `budgets`. It must keep covering: a 500-instance,
-499-Net Project (canonical save, formal SVG, complete Agent Snapshot, one
+live in the script's `budgets` and `scripts/lib/edit-performance.mjs`.
+It must keep covering: a 500-instance Project (canonical save, formal SVG, complete Agent Snapshot, one
 atomic transaction, a prepared dry run then the same real commit); the
 ngspice baseline import corpus; 200 Nets / 200 Routes / 400 Junctions / 200
 route-bound labels (guards against per-Net full-document rescans); and a
@@ -17,6 +17,22 @@ library-size-dependent validation per edit; catalog loading measured
 separately). Budgets are release regression ceilings over warmed,
 whole-operation timings, not UI latency claims; unit tests assert structure,
 the script enforces budgets.
+
+Rotate, Undo, twelve-instance paste and wire commit each have an independent
+same-machine ceiling on that Project. Repeated fresh-editor samples measure
+planning, commit and history, excluding setup and result verification. Their
+median must pass normally and fail with an injected 2× operation cost. Normal
+and injected checks run in separate measurement processes through the release CLI, with
+matching setup and prewarm counts; a crash is not slowdown-rejection evidence.
+Each run measures the immutable baseline commit pinned in
+`scripts/lib/edit-performance-comparison.mjs` on the same machine and Node
+runtime, using the baseline's frozen dependencies and the same workload and
+sampler as the candidate. Each ceiling is 1.5 times that operation's baseline
+median. Baseline extraction, dependency installation and builds are outside
+timing. No CPU registration or saved timing result qualifies a run. Missing
+baseline source or a failed baseline measurement fails the check.
+Changing the pinned version requires review and normal plus four independent
+2× slowdown checks; it never follows the branch head automatically.
 
 Raising a budget needs a recorded reason and a representative fixture
 review; a faster machine is no reason to lower one. The same policy covers

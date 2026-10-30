@@ -751,25 +751,33 @@ describe("EditorDocumentController", () => {
     expect(controller.resolver).toBe(resolverBefore);
   });
 
-  it("rejects a stale revision and reports the current revision", () => {
-    const controller = new EditorDocumentController(hierarchicalProject());
-    controller.transact([{ kind: "add_instance", instance: instance("R1") }]);
-    const current = controller.document.revision;
+  it.each(["add_instance", "undo", "redo"] as const)(
+    "rejects a stale %s revision and preserves history",
+    (kind) => {
+      const controller = new EditorDocumentController(hierarchicalProject());
+      controller.transact([{ kind: "add_instance", instance: instance("R1") }]);
+      const current = controller.document.revision;
 
-    const result = controller.dispatchTransaction({
-      transactionId: "agent-stale",
-      documentId: controller.activeDocumentId,
-      expectedRevision: current - 1,
-      actor: { kind: "agent", id: "codex" },
-      edits: [{ kind: "add_instance", instance: instance("Rstale") }],
-    });
+      const result = controller.dispatchTransaction({
+        transactionId: "agent-stale",
+        documentId: controller.activeDocumentId,
+        expectedRevision: current - 1,
+        actor: { kind: "agent", id: "codex" },
+        edits:
+          kind === "add_instance"
+            ? [{ kind, instance: instance("Rstale") }]
+            : [{ kind }],
+      });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("STALE_REVISION");
-      expect(result.revision).toBe(current);
-    }
-  });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("STALE_REVISION");
+        expect(result.revision).toBe(current);
+      }
+      expect(controller.canUndo).toBe(true);
+      expect(controller.canRedo).toBe(false);
+    },
+  );
 
   it("dispatches to a non-active Document without retargeting the active one", () => {
     const controller = new EditorDocumentController(hierarchicalProject());

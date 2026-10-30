@@ -222,12 +222,25 @@ export function proposePaste(
       const instance = createNewInstance(allocationDocument, source, {
         id: instanceIds.get(source.id)!,
         project,
-        reference: keptReferences.get(source.id),
+        reference:
+          keptReferences.get(source.id) ??
+          nextReference(
+            referenceIndex,
+            referencePolicyForInstance(source, project),
+            { reservedReferences: taken },
+          ),
       });
       freshInstances.set(source.id, instance);
       allocationDocument.instances.push(instance);
-      if (instance.reference)
+      if (instance.reference) {
         instanceReferences.set(source.id, instance.reference);
+        taken.add(instance.reference.toLowerCase());
+        const policy = referencePolicyForInstance(instance, project);
+        const suffix = referenceSuffixForPolicy(instance.reference, policy);
+        // R01 also occupies suffix 1 when later copies need a new Reference.
+        if (policy.kind !== "none" && suffix !== null)
+          taken.add(`${policy.prefix}${suffix}`.toLowerCase());
+      }
     }
   }
   const routeIds = new Map(

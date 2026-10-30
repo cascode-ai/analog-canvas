@@ -3,6 +3,14 @@ name: Browser performance evidence
 # Timing evidence is opt-in, separate from the release performance budgets.
 on:
   workflow_dispatch:
+    inputs:
+      edit_mode:
+        description: Editing performance measurement
+        type: choice
+        default: check
+        options:
+          - check
+          - verify-rejection
 
 permissions:
   contents: read
@@ -32,7 +40,18 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+        id: build
+      - name: Measure editing operations
+        env:
+          EDIT_MODE: ${{ inputs.edit_mode }}
+        run: |
+          case "$EDIT_MODE" in
+            verify-rejection) node scripts/performance-baseline.mjs --verify-edit-budgets ;;
+            check) node scripts/performance-baseline.mjs ;;
+            *) exit 1 ;;
+          esac
       - run: node scripts/run-environment-tests.mjs browser-performance
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -40,5 +59,6 @@ jobs:
           path: |
             output/environment-tests/browser-performance.json
             output/performance/
+            !output/performance/*.mjs
           if-no-files-found: error
           retention-days: 14
