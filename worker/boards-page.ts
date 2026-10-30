@@ -40,7 +40,9 @@ h1 { font-size: 22px; line-height: 1.3; margin: 0; overflow-wrap: anywhere; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
 .thumb { position: relative; display: block; background: #fff; aspect-ratio: 4 / 3; cursor: zoom-in; border: 0; padding: 10px; width: 100%; border-radius: 0; }
-.thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* Inside a button, height: 100% does not hold a drawing to the box; place it in the padding instead. */
+.thumb img { position: absolute; inset: 10px; width: calc(100% - 20px); height: calc(100% - 20px); object-fit: contain; display: block; }
+.thumb .gone { position: absolute; inset: 0; }
 .thumb .n { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.62); color: #fff; font-size: 12px; border-radius: 999px; padding: 0 8px; }
 .gone { display: grid; place-items: center; height: 100%; color: #8a8a84; }
 .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
