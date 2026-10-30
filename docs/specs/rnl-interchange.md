@@ -111,9 +111,11 @@ the RNL language and its runtime belong to rnl.
   input-swapped states round-trip without an external symbol-package update.
   Import recognizes the local Symbol only when its name, artwork and positional
   pins match; an edited stencil keeps the electrically imported part and reports
-  `RNL_IMPORT_UNMAPPED_SYMBOL`. A retargeted custom interface with different
-  positional terminals refuses with `RNL_INLINE_INTERFACE_MISMATCH`, rather
-  than drawing a wire on the wrong signal; plain SPICE/SCS remains available.
+  `RNL_IMPORT_UNMAPPED_SYMBOL`. On a project Cell that prints their pins
+  elsewhere they take a call symbol, as a gate does. Any other custom
+  interface with different positional terminals refuses with
+  `RNL_INLINE_INTERFACE_MISMATCH`, rather than drawing a wire on the wrong
+  signal; plain SPICE/SCS remains available.
 - RNL's op-amp kinds (op-amps, comparators, differential transconductors) put
   - on top, at the inputs and at a differential op-amp's outputs. An Analog
     Canvas variant with − on top is that symbol flipped top to bottom: it is

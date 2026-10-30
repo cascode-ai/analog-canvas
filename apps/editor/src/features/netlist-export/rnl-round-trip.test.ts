@@ -959,6 +959,51 @@ it.each(["spice", "spectre"] as const)(
 );
 
 it.each(["spice", "spectre"] as const)(
+  "reads a Delay Cell whose Cell prints its supplies first back as the Delay Cell on that Cell through %s+RNL",
+  async (format) => {
+    // Its Cell's Pins are VDD, VSS, A, Y: the export draws it as it draws
+    // such a gate, with each pin on the position the call prints it at (#1819).
+    const project = delayCellFixture(true);
+    const part = project.documents[0]!.instances.find((i) => i.id === "X1")!;
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain("$CANVAS_CALL_DELAY_CELL__0_0_1_2");
+    expect(written.text).not.toContain("$CANVAS_DELAY_CELL");
+    const result = await importRnl(written.text, format);
+    expect(failures(result)).toEqual([]);
+    const top = result.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    const back = top.instances.find((instance) => instance.reference === "X1");
+    expect(back?.symbolId).toBe("delay-cell");
+    expect(back?.placement).toEqual(part.placement);
+    const binding = back?.netlist?.binding;
+    expect(
+      binding?.kind === "subcircuit" &&
+        result.project.documents.find(
+          (document) => document.id === binding.childDocumentId,
+        )?.netlist?.name,
+    ).toBe("delay_cmos");
+    expect(
+      top.nets
+        .flatMap((net) => net.terminals)
+        .filter((terminal) => terminal.instanceId === back!.id)
+        .map((terminal) => terminal.pinName)
+        .sort(),
+    ).toEqual(["A", "VDD", "VSS", "Y"]);
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(result.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
   "takes no Cell Pin for the supplies a Library gate's rails print through %s+RNL",
   async (format) => {
     // The gate's rails left to the Cell, as a gate is drawn: dut prints VDD

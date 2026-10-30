@@ -20,6 +20,7 @@ import {
   externalSubcircuitSymbolId,
 } from "@icm/symbols";
 
+import { delayCellFixture } from "../../netlist/src/delay-cell-fixture.test-support.js";
 import { rnlExportOps, type RnlOp, type RnlVertex } from "./export-ops.js";
 import { rnlBodyPortOrder } from "./symbol-map.js";
 
@@ -468,6 +469,19 @@ describe("blocks' symbols", () => {
       expect(of(ops, "set").find((op) => op.object === id)?.symbol).toBe(
         "$sky130_fd_pr__nfet_01v8_SYMBOL",
       );
+  });
+
+  it("draws a Delay Cell on a supplies-first Cell with its artwork defined for that call only", () => {
+    const { ops, diagnostics } = exported(delayCellFixture(true));
+    expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const files = of(ops, "define-symbol").filter((op) => op.level === "file");
+    expect(files.map((op) => op.name)).toEqual([
+      "$CANVAS_CALL_DELAY_CELL__0_0_1_2",
+    ]);
+    expect(files[0]!.pins.map((pin) => pin.terminals)).toEqual([[3], [4]]);
+    expect(of(ops, "set").find((op) => op.object === "#X1")?.symbol).toBe(
+      "$CANVAS_CALL_DELAY_CELL__0_0_1_2",
+    );
   });
 });
 

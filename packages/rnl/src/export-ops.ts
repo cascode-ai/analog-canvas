@@ -230,6 +230,7 @@ export function rnlExportOps(
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const blocks = blockSymbols(project, ir, resolver, format);
   const callSymbols = new Map<string, RnlSymbol>();
+  const calledParts = new Set<StableId>();
   const top = ir.cells.find((cell) => cell.id === ir.topCellId);
   for (const cell of ir.cells) {
     if (cell.origin === "generated-model") continue;
@@ -245,6 +246,7 @@ export function rnlExportOps(
       resolver,
       blocks,
       callSymbols,
+      calledParts,
     });
   }
   // The editor's top, where a Cell printed beside it calls it and so is the
@@ -292,6 +294,8 @@ export function rnlExportOps(
           (object) => object.kind === "floating-symbol",
         ),
       ])
+      // A part drawn with a call symbol needs no library one.
+      .filter((instance) => !calledParts.has(instance.id))
       .flatMap((instance) => {
         const row = rnlSymbolFor(
           instance.symbolId,
@@ -321,6 +325,8 @@ interface ExportContext {
   blocks: ReturnType<typeof blockSymbols>;
   /** Library artwork defined for calls that print its pins in another order, by name. */
   callSymbols: Map<string, RnlSymbol>;
+  /** The parts drawn with one of those. */
+  calledParts: Set<StableId>;
 }
 
 /**
@@ -624,31 +630,6 @@ function exportCell(
   const placeOf = new Map<StableId, { object: string; at: RnlPoint }>();
   for (const instance of document.instances) {
     let symbol = rnlSymbolFor(instance.symbolId, instance.symbolVariantId);
-    if (symbol?.inline) {
-      const descriptor = subcircuitDescriptor(
-        instance.symbolId,
-        context.project,
-      );
-      const call = cell.instances.find(
-        (candidate) => candidate.id === instance.id,
-      );
-      if (
-        call &&
-        symbol.pins.some(
-          (pin) =>
-            call.nodes[pin.terminal - 1]?.pinName !==
-            descriptor?.ports.find((port) => port.pinName === pin.acPin)?.name,
-        )
-      ) {
-        report(
-          "error",
-          "RNL_INLINE_INTERFACE_MISMATCH",
-          `${describe(instance)} calls a custom interface with a different terminal order; export plain SPICE/SCS or use a custom block Symbol`,
-          [instance.id],
-        );
-        continue;
-      }
-    }
     const block = symbol
       ? undefined
       : blockTerminals(instance, context.project, context.ir);
@@ -695,16 +676,22 @@ function exportCell(
     const call = cell.instances.find(
       (candidate) => candidate.id === instance.id,
     );
-    if (symbol && call?.invocationKind === "subcircuit") {
-      // A Library gate bound to a Cell meets its Pins by name (#1450).
-      const gate =
-        instance.netlist?.binding?.kind === "subcircuit" &&
-        bindsProjectCell(instance.symbolId)
-          ? matchGateCellPins(instance.symbolId, {
-              name: call.target ?? "",
-              portNames: call.nodes.map((node) => node.pinName),
-            })
-          : undefined;
+    // A Library gate bound to a Cell meets its Pins by name (#1450).
+    const gate =
+      call?.invocationKind === "subcircuit" &&
+      instance.netlist?.binding?.kind === "subcircuit" &&
+      bindsProjectCell(instance.symbolId)
+        ? matchGateCellPins(instance.symbolId, {
+            name: call.target ?? "",
+            portNames: call.nodes.map((node) => node.pinName),
+          })
+        : undefined;
+    // A symbol the file defines takes a call symbol only on such a Cell.
+    if (
+      symbol &&
+      call?.invocationKind === "subcircuit" &&
+      (!symbol.inline || gate?.ok)
+    ) {
       // A Library block's call names its ports, as its contract does (a
       // DAC's VIN is its pin IN).
       const ports = call.target
@@ -725,7 +712,35 @@ function exportCell(
       );
       if (ordered !== symbol) {
         context.callSymbols.set(ordered.symbol, ordered);
+        context.calledParts.add(instance.id);
         symbol = ordered;
+      }
+    }
+    // Elsewhere it binds the call's terminals in its own order.
+    if (
+      symbol?.inline &&
+      call &&
+      !gate?.ok &&
+      !context.calledParts.has(instance.id)
+    ) {
+      const descriptor = subcircuitDescriptor(
+        instance.symbolId,
+        context.project,
+      );
+      if (
+        symbol.pins.some(
+          (pin) =>
+            call.nodes[pin.terminal - 1]?.pinName !==
+            descriptor?.ports.find((port) => port.pinName === pin.acPin)?.name,
+        )
+      ) {
+        report(
+          "error",
+          "RNL_INLINE_INTERFACE_MISMATCH",
+          `${describe(instance)} calls a custom interface with a different terminal order; export plain SPICE/SCS or use a custom block Symbol`,
+          [instance.id],
+        );
+        continue;
       }
     }
     if (!instance.placement) {

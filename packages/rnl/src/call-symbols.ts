@@ -68,9 +68,9 @@ function callSymbol(
  * terminal at that position of the instance line (language standard 9.2.4),
  * so a library symbol fits a call only when each pin's Analog Canvas pin is
  * printed at the pin's terminal number. A call that prints them elsewhere,
- * such as a gate Cell whose ports start with its supplies, gets the same
- * artwork defined in the file with each pin on the position it is printed
- * at. The name records, for each position of the call, the library terminal
+ * such as a gate's or a Delay Cell's Cell whose ports start with its
+ * supplies, gets the same artwork defined in the file with each pin on the
+ * position it is printed at. The name records, for each position of the call, the library terminal
  * there (0 for none), so the same order gives the same symbol.
  */
 export function symbolForCall(
@@ -80,7 +80,7 @@ export function symbolForCall(
   pinOf: (node: DesignNetlistNode) => string | undefined = (node) =>
     node.canvasPinName ?? node.pinName,
 ): RnlSymbol {
-  if (row.inline || row.definition || !row.ac) return row;
+  if (row.definition || !row.ac) return row;
   const position = (acPin: string) =>
     call.nodes.findIndex((node) => pinOf(node) === acPin) + 1;
   const placed = row.pins.map((pin) => ({ pin, at: position(pin.acPin) }));
@@ -117,7 +117,7 @@ export function callSymbolFromDefinition(
   )
     return null;
   for (const row of RNL_SYMBOLS) {
-    if (row.inline || row.definition || !row.ac || row.importOnly) continue;
+    if (row.definition || !row.ac || row.importOnly) continue;
     const head = callSymbolHead(row);
     if (!symbol.name.startsWith(head)) continue;
     const order = symbol.name.slice(head.length).split("_").map(Number);

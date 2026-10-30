@@ -17,6 +17,14 @@ const call = (
     nodes: nodes.map((node) => ({ ...node, netName: node.pinName })),
   }) as unknown as DesignNetlistInstance;
 
+/** A gate's Cell whose ports start with its supplies. */
+const supplyFirst = [
+  { pinName: "VDD" },
+  { pinName: "VSS" },
+  { pinName: "a", canvasPinName: "A" },
+  { pinName: "y", canvasPinName: "Y" },
+];
+
 describe("library artwork on a call", () => {
   const inverter = rnlSymbolFor("inverter")!;
 
@@ -33,15 +41,7 @@ describe("library artwork on a call", () => {
   });
 
   it("defines the artwork with each pin on the position a supplies-first Cell prints it at", () => {
-    const ordered = symbolForCall(
-      inverter,
-      call([
-        { pinName: "VDD" },
-        { pinName: "VSS" },
-        { pinName: "a", canvasPinName: "A" },
-        { pinName: "y", canvasPinName: "Y" },
-      ]),
-    );
+    const ordered = symbolForCall(inverter, call(supplyFirst));
     expect(ordered.symbol).toBe("$CANVAS_CALL_INVERTER__0_0_1_2");
     expect(ordered.inline).toBe(true);
     expect(
@@ -74,6 +74,16 @@ describe("library artwork on a call", () => {
     ).toEqual({ A: 3, Y: 4 });
   });
 
+  it("does the same for the Delay Cell, whose own symbol the file defines", () => {
+    const delay = rnlSymbolFor("delay-cell")!;
+    expect(delay.inline).toBe(true);
+    const ordered = symbolForCall(delay, call(supplyFirst));
+    expect(ordered.symbol).toBe("$CANVAS_CALL_DELAY_CELL__0_0_1_2");
+    expect(
+      Object.fromEntries(ordered.pins.map((pin) => [pin.acPin, pin.terminal])),
+    ).toEqual({ A: 3, Y: 4 });
+  });
+
   it("leaves the library symbol when the call does not print one of its pins", () => {
     expect(symbolForCall(inverter, call([{ pinName: "a" }]))).toBe(inverter);
   });
@@ -101,22 +111,14 @@ describe("library artwork on a call", () => {
 });
 
 describe("library artwork of a call read back", () => {
-  const inverter = rnlSymbolFor("inverter")!;
-  const ordered = symbolForCall(
-    inverter,
-    call([
-      { pinName: "VDD" },
-      { pinName: "VSS" },
-      { pinName: "a", canvasPinName: "A" },
-      { pinName: "y", canvasPinName: "Y" },
-    ]),
-  );
+  const ordered = symbolForCall(rnlSymbolFor("inverter")!, call(supplyFirst));
   /** The symbol as the file defines it, as the runtime's snapshot reads it. */
   const defined = (
-    name = ordered.symbol,
+    of = ordered,
+    name = of.symbol,
     edit = (pins: number[][]) => pins,
   ) => {
-    const definition = inlineRnlDefinition(ordered);
+    const definition = inlineRnlDefinition(of);
     const terminals = edit(definition.pins.map((pin) => pin.terminals));
     return {
       id: name,
@@ -129,7 +131,7 @@ describe("library artwork of a call read back", () => {
         pins: definition.pins.map((pin, index) => ({
           terminals: terminals[index]!.map(String),
           at: pin.at,
-          dir: ordered.pins[index]!.dir,
+          dir: of.pins[index]!.dir,
         })),
         prims: definition.prims,
       },
@@ -144,17 +146,28 @@ describe("library artwork of a call read back", () => {
     ).toEqual({ A: 3, Y: 4 });
   });
 
+  it("reads the Delay Cell back from its call symbol", () => {
+    const delay = symbolForCall(rnlSymbolFor("delay-cell")!, call(supplyFirst));
+    const row = callSymbolFromDefinition(defined(delay));
+    expect(row?.ac).toBe("delay-cell");
+    expect(
+      Object.fromEntries(row!.pins.map((pin) => [pin.acPin, pin.terminal])),
+    ).toEqual({ A: 3, Y: 4 });
+  });
+
   it("reads nothing back from a call symbol whose pins are moved", () => {
     expect(
       callSymbolFromDefinition(
-        defined(undefined, (pins) => [...pins].reverse()),
+        defined(ordered, undefined, (pins) => [...pins].reverse()),
       ),
     ).toBeNull();
   });
 
   it("reads nothing back from a name that orders the pins otherwise", () => {
     expect(
-      callSymbolFromDefinition(defined("$CANVAS_CALL_INVERTER__1_2_0_0")),
+      callSymbolFromDefinition(
+        defined(ordered, "$CANVAS_CALL_INVERTER__1_2_0_0"),
+      ),
     ).toBeNull();
   });
 });
