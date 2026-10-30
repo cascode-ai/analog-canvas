@@ -2,26 +2,64 @@
   "references": {
     "linux-x64-ci": {
       "AMD EPYC 7763 64-Core Processor": {
-        "source": "https://github.com/cascode-ai/analog-canvas/actions/runs/41033543882",
+        "source": [
+          "https://github.com/cascode-ai/analog-canvas/actions/runs/41037879859",
+          "https://github.com/cascode-ai/analog-canvas/actions/runs/41038703377"
+        ],
         "environment": {
           "node": "v24.22.1",
           "platform": "linux",
           "arch": "x64",
           "cpu": "AMD EPYC 7763 64-Core Processor",
           "runner": "Linux",
-          "sha": "55e75f24c4bccf61c9718b1ab138eb323ef47f66"
+          "sha": "9bcb364e9dabea7735861a1a85b3f668814b1b41"
         },
+        "sampling": {
+          "warmups": 30,
+          "samples": 21
+        },
+        "runnerSamples": 5,
         "medianMs": {
-          "rotate": 12.619,
-          "undo": 5.09,
-          "paste": 36.96,
-          "wireCommit": 24.847
+          "rotate": 12.473,
+          "undo": 5.056,
+          "paste": 31.132,
+          "wireCommit": 24.918
         },
         "budgets": {
-          "rotate": 18.929,
-          "undo": 7.635,
-          "paste": 55.44,
-          "wireCommit": 37.271
+          "rotate": 18.71,
+          "undo": 7.583,
+          "paste": 46.698,
+          "wireCommit": 37.377
+        }
+      },
+      "AMD EPYC 9V45 96-Core Processor": {
+        "source": [
+          "https://github.com/cascode-ai/analog-canvas/actions/runs/41038703377"
+        ],
+        "environment": {
+          "node": "v24.22.1",
+          "platform": "linux",
+          "arch": "x64",
+          "cpu": "AMD EPYC 9V45 96-Core Processor",
+          "runner": "Linux",
+          "sha": "9bcb364e9dabea7735861a1a85b3f668814b1b41"
+        },
+        "sampling": {
+          "warmups": 30,
+          "samples": 21
+        },
+        "runnerSamples": 1,
+        "medianMs": {
+          "rotate": 6.561,
+          "undo": 2.659,
+          "paste": 16.218,
+          "wireCommit": 15.364
+        },
+        "budgets": {
+          "rotate": 9.842,
+          "undo": 3.989,
+          "paste": 24.327,
+          "wireCommit": 23.046
         }
       }
     },
