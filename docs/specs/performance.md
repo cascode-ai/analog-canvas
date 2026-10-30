@@ -24,6 +24,9 @@ planning, commit and history, excluding setup and result verification. Their
 median must pass normally and fail with an injected 2× operation cost.
 Calibration records evidence without qualifying a release; changing the
 reference requires both normal and slowdown checks on the CI runner.
+The fixed Windows workstation reference provides a separate local ceiling;
+it does not qualify CI or promise the same sensitivity on other hardware.
+Uncalibrated platforms fail with a request for calibration evidence.
 
 Raising a budget needs a recorded reason and a representative fixture
 review; a faster machine is no reason to lower one. The same policy covers

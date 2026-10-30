@@ -1,5 +1,30 @@
 import { expect, it } from "vitest";
-import { sampleEditWorkload } from "./edit-performance.mjs";
+import {
+  sampleEditWorkload,
+  selectEditReference,
+} from "./edit-performance.mjs";
+
+it("keeps CI and local machine ceilings separate and refuses an uncalibrated environment", () => {
+  const references = {
+    "linux-x64-ci": { environment: { arch: "x64" }, budgets: { rotate: 10 } },
+    "win32-x64-local": {
+      environment: { arch: "x64" },
+      budgets: { rotate: 40 },
+    },
+  };
+  expect(
+    selectEditReference(references, "linux", "x64", true).budgets.rotate,
+  ).toBe(10);
+  expect(selectEditReference(references, "win32", "x64").budgets.rotate).toBe(
+    40,
+  );
+  expect(() => selectEditReference(references, "win32", "x64", true)).toThrow(
+    /No editing performance reference/,
+  );
+  expect(() => selectEditReference(references, "darwin", "arm64")).toThrow(
+    /calibrate-edits/,
+  );
+});
 
 it("budgets the median edit cost, excluding setup and verification, and rejects a doubled edit", () => {
   let now = 0;

@@ -2,6 +2,19 @@ import { performance } from "node:perf_hooks";
 
 export const editSampling = { warmups: 7, samples: 15 };
 
+export function selectEditReference(references, platform, arch, ci = false) {
+  const key = `${platform}-${arch}${ci ? "-ci" : "-local"}`;
+  // A Linux workstation may check against the CI ceiling, but never qualifies CI.
+  const selected =
+    references[key] ??
+    (!ci && platform === "linux" ? references["linux-x64-ci"] : undefined);
+  if (!selected || selected.environment.arch !== arch)
+    throw new Error(
+      `No editing performance reference for ${key}; use --calibrate-edits and review the resulting reference before checking`,
+    );
+  return { key: references[key] ? key : "linux-x64-ci", ...selected };
+}
+
 function delay(milliseconds) {
   const end = performance.now() + milliseconds;
   while (performance.now() < end) {

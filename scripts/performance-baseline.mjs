@@ -4,7 +4,11 @@ import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { cpus } from "node:os";
 import { build } from "vite";
-import { editSampling, sampleEditWorkload } from "./lib/edit-performance.mjs";
+import {
+  editSampling,
+  sampleEditWorkload,
+  selectEditReference,
+} from "./lib/edit-performance.mjs";
 
 import { createAgentCircuitService } from "../packages/agent-adapter/dist/index.js";
 import {
@@ -84,8 +88,16 @@ const { createEditPerformanceProject, createEditWorkload, editWorkloadNames } =
   );
 const reference = calibrating
   ? null
-  : JSON.parse(
-      await readFile(resolve("config/performance-edit-baseline.json"), "utf8"),
+  : selectEditReference(
+      JSON.parse(
+        await readFile(
+          resolve("config/performance-edit-baseline.json"),
+          "utf8",
+        ),
+      ).references,
+      process.platform,
+      process.arch,
+      Boolean(process.env.CI),
     );
 if (
   reference &&
@@ -356,6 +368,7 @@ const report = {
   ),
   budgets,
   editSampling,
+  editReference: reference?.key,
   editWorkloads,
   slowdownEvidence,
   mode: calibrating
