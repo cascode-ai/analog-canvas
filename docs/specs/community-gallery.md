@@ -265,8 +265,10 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
   `POST /api/auth/users/role` `{email, role}` for every account with that
   verified email. Bin and maintenance stay admin-only. No bulk model fill.
 - `POST /api/gallery/<id>/like` (same-origin) toggles one like per account.
-- Withdraw is immediate and restorable; Reject takes preset reasons plus a note;
-  Delete is one click (rejected entries are recycled first, since the server
+- Withdraw is immediate and restorable; Reject takes preset reasons plus a note
+  and, ticked by default, emails the author that reason (the account's address,
+  else the one it published with; replies to the Owner; never an AI account);
+  a failed email leaves the rejection standing and says so. Delete is one click (rejected entries are recycled first, since the server
   deletes only from the bin).
 
 ## Owner editing
@@ -459,7 +461,8 @@ Admin routes need a super-admin session (`GALLERY_ADMIN_TOKEN` is retired),
 else 401.
 
 - `POST /api/gallery/<id>/recycle`, `/reject` (required `{reason}` ≤500, reviewer
-  and time recorded), `/restore`; `DELETE /api/gallery/<id>` only from the bin
+  and time recorded; `notify: true` emails the author and answers `emailed`),
+  `/restore`; `DELETE /api/gallery/<id>` only from the bin
   (409 otherwise); `GET /api/gallery/recycled`, `/rejected`.
 - `GET /api/gallery/maintenance/schema-backup?table=…`: bounded pages of the
   whole store; `table=inventory` for counts and revision; missing `table` is

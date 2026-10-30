@@ -133,11 +133,13 @@ export function RejectEntryDialog({
 }: {
   entry: GalleryFeedEntry;
   busy: boolean;
-  onSubmit: (reason: string) => void;
+  onSubmit: (reason: string, notify: boolean) => void;
   onClose: () => void;
 }) {
   const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  // Emailing the author is the default; a bot's or a spam entry needs none.
+  const [notify, setNotify] = useState(true);
   const reason = joinedRejectReason(selectedReasons, note);
 
   function toggleReason(candidate: string): void {
@@ -165,12 +167,12 @@ export function RejectEntryDialog({
         <h2 id="gallery-reject-title">Reject “{entry.name}”</h2>
         <p>
           The circuit will leave the Gallery immediately. The submitter will see
-          this reason in My submissions.
+          this reason in My submissions and, if you choose, by email.
         </p>
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (reason) onSubmit(reason);
+            if (reason) onSubmit(reason, notify);
           }}
         >
           <fieldset className="gallery-owner-reason-options">
@@ -201,6 +203,15 @@ export function RejectEntryDialog({
             data-testid="gallery-owner-reject-note"
             onChange={(event) => setNote(event.currentTarget.value)}
           />
+          <label className="gallery-owner-reject-email">
+            <input
+              type="checkbox"
+              checked={notify}
+              data-testid="gallery-owner-reject-email"
+              onChange={(event) => setNotify(event.currentTarget.checked)}
+            />
+            <span>Email the author this reason (replies come to you)</span>
+          </label>
           <div className="gallery-owner-dialog-actions">
             <button type="button" disabled={busy} onClick={onClose}>
               Cancel
