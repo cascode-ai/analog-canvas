@@ -464,7 +464,11 @@ export function diagnoseLabelClearance(
         ]
       : [];
   });
-  return [...labelFindings(), ...runOnLabels(document, context), ...struck];
+  return [
+    ...labelFindings(),
+    ...runOnLabels(document, context, resolver),
+    ...struck,
+  ];
 
   function labelFindings() {
     return context.visible.flatMap((annotation) => {
@@ -598,6 +602,7 @@ function runOnGap(
 function runOnLabels(
   document: SchematicDocument,
   context: ReturnType<typeof createLabelClearanceContext>,
+  resolver: SymbolResolver,
 ): VisualDiagnostic[] {
   const style = resolveDocumentStyleProfile(document.presentation);
   const parts = new Set(document.instances.map((instance) => instance.id));
@@ -617,7 +622,7 @@ function runOnLabels(
   const named = ({ annotation, owner }: RowLabel) =>
     `${partName(document, owner)}'s ${
       annotation.kind === "instance-value" ? "value" : "name"
-    } "${flattenRichText(resolveAnnotationText(document, annotation))}"`;
+    } "${flattenRichText(resolveAnnotationText(document, annotation, undefined, resolver))}"`;
   const findings: VisualDiagnostic[] = [];
   for (const left of labels.values())
     for (const id of context.labelsWithin(

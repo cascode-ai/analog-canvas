@@ -130,7 +130,7 @@ export function defaultInstanceDisplayAnnotations(
         showsDesignator ? "value" : "reference",
       )
     : options.showValue &&
-        displayableInstanceValue(instance).kind === "displayable"
+        displayableInstanceValue(instance, resolver).kind === "displayable"
       ? defaultInstanceValue(
           document,
           instance,

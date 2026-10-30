@@ -33,9 +33,10 @@ cross-Document edits use one Project transaction guarded by
   names without rewriting it (`M1` may emit `XM1`). Its prefix must match the
   invocation kind and it is unique case-folded within the Cell. Cell Pins
   project `CellTerminal.name` instead.
-- Parameters live in `Instance.netlist`, defined only by the Device
-  Descriptor (key, requiredness, editor kind, unit/example/help, display
-  role); Insert, Properties, validation, Value and export all consume it.
+- Parameters live in `Instance.netlist`, defined by the selected model
+  contract (reviewed external binding, declared Cell/external parameters, or
+  built-in Device Descriptor). Insert, Properties, validation, parameter display
+  and export consume the same names and meanings.
   Import terminal order and symbol mapping live only in
   `Instance.importProvenance`; `Instance.properties` does not persist.
 - A Base Net indexes physical membership; a terminal `{instanceId, pinName, memberId?}`
@@ -118,7 +119,13 @@ annotations and unlocked layout references.
   diagnostics.
 - `instance-reference` resolves only `Instance.reference`; it, `net-name` and
   `cell-terminal-name` may carry a same-text `formatOverride`;
-  `instance-value` resolves typed parameters. Editing an `instance-label`'s
+  `instance-value` resolves authored parameters through the selected model's
+  contract. Show Value keeps scalar values and MOS W/L typography; geometry
+  R/C uses `W=… L=…` and the model's non-unit multiplier. Individual parameter
+  labels bind declared names. Missing definitions/values paint no stale text;
+  placeholders never supply a value. Opening a Project creates no labels.
+  Display toggles preserve anchors, styles and existing visibility semantics.
+  Editing an `instance-label`'s
   text makes it literal (drops `binding` and `formatOverride`) until explicit
   reset. Literal and custom attached text has no identity or export
   authority. Renderers never derive text from IDs, bindings, provenance or

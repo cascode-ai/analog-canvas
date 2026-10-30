@@ -79,7 +79,7 @@ function sameDocumentJson(
   });
 }
 
-function documentSymbolDefinitionChanged(
+function documentResolverContextChanged(
   before: SchematicDocument,
   after: SchematicDocument,
 ): boolean {
@@ -89,6 +89,8 @@ function documentSymbolDefinitionChanged(
       JSON.stringify(after.sourceBinding) ||
     JSON.stringify(before.netlist?.name) !==
       JSON.stringify(after.netlist?.name) ||
+    JSON.stringify(before.netlist?.formalParameters) !==
+      JSON.stringify(after.netlist?.formalParameters) ||
     JSON.stringify(before.netlist?.terminals) !==
       JSON.stringify(after.netlist?.terminals) ||
     JSON.stringify(before.presentation.cellSymbol) !==
@@ -576,7 +578,7 @@ export class EditorDocumentController {
       return true;
     return after.documents.some((document) => {
       const previous = before.documents.find((item) => item.id === document.id);
-      return !previous || documentSymbolDefinitionChanged(previous, document);
+      return !previous || documentResolverContextChanged(previous, document);
     });
   }
 

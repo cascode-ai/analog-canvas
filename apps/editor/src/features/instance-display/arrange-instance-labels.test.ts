@@ -22,7 +22,7 @@ import {
 } from "@icm/derived";
 import { defaultInstanceDisplayAnnotations } from "./default-instance-display";
 import { arrangeInstanceLabels } from "./arrange-instance-labels";
-import { instanceParameterVisibilityEdits } from "./instance-parameter-display";
+import { instanceParameterVisibilityEdits } from "@icm/edit-engine";
 import { vddPowerLabelAnnotation } from "../component-insert/vdd-power-label";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);

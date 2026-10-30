@@ -1,3 +1,4 @@
+import type { SymbolResolver } from "@icm/symbols";
 import {
   lazy,
   Suspense,
@@ -32,6 +33,7 @@ const PropertyJsonEditor = lazy(
 );
 
 export interface ComponentPropertyCodeEditorProps {
+  resolver?: SymbolResolver;
   instance: Instance;
   displayName?: string | null;
   itemName?: string;
@@ -62,6 +64,7 @@ export interface ComponentPropertyCodeEditorProps {
 
 /** Compact editable JSON for placement, display, and appearance. */
 export function ComponentPropertyCodeEditor({
+  resolver,
   instance,
   displayName,
   itemName,
@@ -103,8 +106,8 @@ export function ComponentPropertyCodeEditor({
     ...(inductorCoupling ? { inductorCoupling } : {}),
   });
   const context = useMemo<ComponentPropertyCodeContext>(
-    () => JSON.parse(contextKey),
-    [contextKey],
+    () => ({ ...JSON.parse(contextKey), resolver }),
+    [contextKey, resolver],
   );
   const nativeBaseline = useMemo(
     () => formatComponentPropertyCode(context),

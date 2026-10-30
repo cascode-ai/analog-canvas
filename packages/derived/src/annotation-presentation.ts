@@ -105,16 +105,22 @@ export function isSchematicAnnotationVisible(
     binding?.kind === "instance-value" &&
     binding.parameter !== undefined &&
     valuePrintsMultiplier(
-      document.instances.find((item) => item.id === binding.instanceId)
-        ?.symbolId,
+      document.instances.find((item) => item.id === binding.instanceId),
       binding.parameter,
+      resolver,
     ) &&
     document.annotations.some(
       (other) =>
         other.binding?.kind === "instance-value" &&
         other.binding.instanceId === binding.instanceId &&
         other.binding.parameter === undefined &&
-        isSchematicAnnotationVisible(document, other, logicalNets),
+        isSchematicAnnotationVisible(
+          document,
+          other,
+          logicalNets,
+          undefined,
+          resolver,
+        ),
     )
   )
     return false;

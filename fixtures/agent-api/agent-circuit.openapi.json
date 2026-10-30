@@ -10057,30 +10057,12 @@
               },
               "showParameters": {
                 "type": "object",
-                "properties": {
-                  "k": {
-                    "type": "boolean"
-                  },
-                  "lp": {
-                    "type": "boolean"
-                  },
-                  "ls": {
-                    "type": "boolean"
-                  },
-                  "l1": {
-                    "type": "boolean"
-                  },
-                  "l2": {
-                    "type": "boolean"
-                  },
-                  "cb": {
-                    "type": "boolean"
-                  },
-                  "m": {
-                    "type": "boolean"
-                  }
+                "propertyNames": {
+                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema30"
                 },
-                "additionalProperties": false
+                "additionalProperties": {
+                  "type": "boolean"
+                }
               }
             },
             "required": [

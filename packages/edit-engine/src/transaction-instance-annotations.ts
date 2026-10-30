@@ -212,12 +212,13 @@ export function refreshInstanceValueAnnotation(
   before: SchematicDocument["instances"][number],
   instanceId: string,
   changedObjectIds: Set<string>,
+  resolver?: SymbolResolver,
 ): void {
   const instance = draft.instances.find(
     (candidate) => candidate.id === instanceId,
   );
   if (!instance) return;
-  const previous = displayableInstanceValue(before);
+  const previous = displayableInstanceValue(before, resolver);
   for (const annotation of draft.annotations) {
     if (
       annotation.kind !== "instance-value" ||
@@ -232,6 +233,7 @@ export function refreshInstanceValueAnnotation(
             before,
             annotation.binding.parameter,
             annotation.binding.showValue === false ? { showValue: false } : {},
+            resolver,
           )
         : previous;
       const next = annotation.binding.parameter
@@ -239,8 +241,9 @@ export function refreshInstanceValueAnnotation(
             instance,
             annotation.binding.parameter,
             annotation.binding.showValue === false ? { showValue: false } : {},
+            resolver,
           )
-        : displayableInstanceValue(instance);
+        : displayableInstanceValue(instance, resolver);
       if (next.kind !== "displayable") {
         annotation.visible = false;
       } else if (annotation.formatOverride) {
@@ -266,7 +269,7 @@ export function refreshInstanceValueAnnotation(
     ) {
       continue;
     }
-    const next = displayableInstanceValue(instance);
+    const next = displayableInstanceValue(instance, resolver);
     if (next.kind === "displayable") {
       annotation.content = structuredClone(next.content);
     } else {
@@ -339,6 +342,7 @@ function isCanonicalInstanceLabel(
   document: SchematicDocument,
   oldPosition: Point,
   oldOrientation: Orientation,
+  resolver?: SymbolResolver,
 ): boolean {
   return (
     canonicalInstanceLabelRow(
@@ -348,6 +352,7 @@ function isCanonicalInstanceLabel(
       document,
       oldPosition,
       oldOrientation,
+      resolver,
     ) !== null
   );
 }
@@ -414,6 +419,7 @@ export function canonicalInstanceLabelRow(
   document: SchematicDocument,
   oldPosition: Point,
   oldOrientation: Orientation,
+  resolver?: SymbolResolver,
 ): number | null {
   const slot = instanceAnnotationSlot(annotation);
   if (!slot || annotation.anchor.kind !== "object") {
@@ -449,7 +455,14 @@ export function canonicalInstanceLabelRow(
         legacyDefaultInstanceParameterLabelPlacement,
       ].some((rule) =>
         matches(
-          rule({ ...instance, placement }, resolved, profile, grid, parameter),
+          rule(
+            { ...instance, placement },
+            resolved,
+            profile,
+            grid,
+            parameter,
+            resolver,
+          ),
         ),
       )
       ? 0
@@ -599,6 +612,7 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
       draft,
       before.placement.position,
       before.placement,
+      resolver,
     );
     if (row === null) continue;
     const profile = objectStyleProfile(
@@ -616,6 +630,7 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
           profile,
           draft.presentation.grid,
           parameter,
+          resolver,
         )
       : defaultInstanceLabelPlacement(
           instance,
@@ -879,6 +894,7 @@ export function followAttachedAnnotations(
         draft,
         oldPosition,
         oldOrientation,
+        resolver,
       )
     ) {
       const next = defaultInstanceParameterLabelPlacement(
@@ -893,6 +909,7 @@ export function followAttachedAnnotations(
         ),
         draft.presentation.grid,
         parameter,
+        resolver,
       );
       if (next) {
         annotation.anchor = {
@@ -931,6 +948,7 @@ export function followAttachedAnnotations(
             draft,
             oldPosition,
             oldOrientation,
+            resolver,
           )
         : null;
     if (slot !== null && instance && resolved && row !== null) {

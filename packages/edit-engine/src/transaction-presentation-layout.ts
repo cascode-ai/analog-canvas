@@ -128,8 +128,9 @@ export function applyPresentationLayoutEdit(
                 instance,
                 binding.parameter,
                 binding.showValue === false ? { showValue: false } : {},
+                resolver,
               )
-            : displayableInstanceValue(instance);
+            : displayableInstanceValue(instance, resolver);
         if (
           display?.kind !== "displayable" ||
           flattenRichText(annotation.formatOverride) !==

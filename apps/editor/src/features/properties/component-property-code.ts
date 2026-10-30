@@ -1,3 +1,4 @@
+import type { SymbolResolver } from "@icm/symbols";
 import { instanceDisplayParameters } from "@icm/derived";
 import type { Rotation, SchematicDocument } from "@icm/model";
 import { LINEAR_CONTROLLED_SOURCE_KINDS } from "@icm/model";
@@ -73,6 +74,7 @@ export interface ComponentPropertyCodeValue
 }
 
 export interface ComponentPropertyCodeContext {
+  resolver?: SymbolResolver;
   supplyTerminals?: readonly {
     pinName: string;
     netId: string;
@@ -207,7 +209,10 @@ function parseDisplay(
   const supported = new Set<string>();
   if (context.referenceVisible !== null) supported.add("visualAnnotation");
   if (context.valueVisible !== null) supported.add("value");
-  const parameters = instanceDisplayParameters(context.instance.symbolId);
+  const parameters = instanceDisplayParameters(
+    context.instance,
+    context.resolver,
+  );
   if (parameters.length) supported.add("parameters");
   if (supported.size === 0) {
     if (value !== undefined) {
@@ -316,7 +321,7 @@ export function componentPropertyCodeValue(
     display.visualAnnotation = context.referenceVisible;
   }
   if (context.valueVisible !== null) display.value = context.valueVisible;
-  const parameters = instanceDisplayParameters(instance.symbolId);
+  const parameters = instanceDisplayParameters(instance, context.resolver);
   const controlled = LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId);
   const voltageControl =
     instance.symbolId === "vcvs" || instance.symbolId === "vccs";

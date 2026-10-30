@@ -203,7 +203,13 @@ export function buildSvgScene(
       resolver,
     );
     if (
-      !isSchematicAnnotationVisible(document, annotation, logicalNets, content)
+      !isSchematicAnnotationVisible(
+        document,
+        annotation,
+        logicalNets,
+        content,
+        resolver,
+      )
     )
       continue;
     resolvedAnnotations.push({

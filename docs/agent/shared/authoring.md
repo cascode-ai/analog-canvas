@@ -64,11 +64,13 @@ their IDs, never resolved to the first.
   new Instance ID); Cell markers and ground take neither. Later,
   `set-instance-display` (`instanceIds`, `showReference`, `showValue`,
   `showParameters`) toggles the same attached labels, keeping placement and
-  style; never imitate them with free text. Parameter keys are lowercase
-  (transformer `k/lp/ls`, T-Coil `k/l1/l2/cb`, Center-Tap Inductor `k/l1/l2`);
-  omitted keys stay, an unsupported key rejects the action, and `showValue`
-  never controls them. `showParameters:{m:true}` shows a MOS or BJT "×8" bound
-  to `m`; for a MOS only while its W/L (which prints ×m) is hidden.
+  style; never imitate them with free text. Parameter keys come from the actual
+  model contract (magnetics keep `k/lp/ls/l1/l2/cb`, MOS/BJT keep `m`; bound
+  geometry offers its `w/l/mult/mf/vm`, and custom definitions their declared
+  parameters). Omitted keys stay; an unsupported key rejects the whole action.
+  Show Value uses authored values: scalar parts keep their value, MOS keeps
+  its W/L fraction, and geometry R/C shows `W=… L=…` with its non-unit multiplier.
+  A separate multiplier label shows only while that summary is hidden.
 - A placed Cell shows its Cell name and hides `X1`; `set-instance-display`
   `showReference:true` shows `X1` above it (to tell which block is `x1` in
   `v(xdut.x1.net0)`).
