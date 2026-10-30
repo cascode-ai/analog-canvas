@@ -4,97 +4,191 @@
 // is set as text, never as markup.
 
 const STYLE = String.raw`
+/* The Gallery's tokens (apps/editor/src/styles.css); the Gallery has no dark theme, nor do these pages. */
 :root {
-  --bg: #f6f6f3; --panel: #ffffff; --ink: #1c1c1a; --muted: #6a6a64; --line: #deded8;
-  --accent: #1f6f5c; --accent-ink: #ffffff; --soft: #e6f1ec; --warn: #9a3412; --warn-bg: #fdf0e6;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #151514; --panel: #1f1f1d; --ink: #ecece8; --muted: #a3a39c; --line: #34342f;
-          --accent: #52b596; --accent-ink: #0c1f19; --soft: #1c3830; --warn: #f2b277; --warn-bg: #3a2a18; }
+  --chrome-bg: #f7f6f3; --surface: #ffffff; --surface-muted: #f1f1ef; --surface-hover: #ebebea;
+  --border: #e9e9e7; --border-hover: #cfcfcd; --text: #37352f; --muted: #787774; --disabled: #b4b4b0;
+  --accent: #2383e2; --accent-strong: #1b6ec2; --accent-soft: rgb(35 131 226 / 10%);
+  --ai: #6a3cbf; --ai-soft: #efe7fb; --error: #eb5757; --warning: #9a6700; --warning-soft: #fdf3d7;
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --control-h: 28px; --menubar-h: 44px;
+  --shadow-lg: 0 18px 48px rgb(15 15 15 / 12%);
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; background: var(--bg); color: var(--ink);
-       font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Segoe UI", sans-serif; }
-a { color: var(--accent); }
+body { margin: 0; background: var(--chrome-bg); color: var(--text); -webkit-font-smoothing: antialiased;
+       font: 13px/1.35 ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
 button, input, textarea, select { font: inherit; color: inherit; }
-button { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-button:disabled { opacity: .5; cursor: default; }
-input, textarea { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; }
-.wrap { max-width: 1400px; margin: 0 auto; padding: 0 16px 40px; }
-header { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px 16px; padding: 18px 0 12px; }
-header .title { flex: 1 1 320px; min-width: 0; }
-h1 { font-size: 22px; line-height: 1.3; margin: 0; overflow-wrap: anywhere; }
-.meta { color: var(--muted); margin-top: 4px; }
-.badge { display: inline-block; font-size: 12px; border-radius: 999px; padding: 1px 8px; background: var(--soft); color: var(--accent); margin-left: 6px; }
-.badge.warn { background: var(--warn-bg); color: var(--warn); }
-.who { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); }
-.editable { cursor: text; border-radius: 4px; }
-.editable:hover { background: var(--soft); box-shadow: 0 0 0 3px var(--soft); }
-input.inline { font: inherit; color: inherit; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--panel); }
-h1 input.inline { font-size: 22px; font-weight: 700; width: min(100%, 36ch); }
-.meta input.inline { width: 5em; }
-.meta a, .meta button { margin-left: 8px; }
-.recent { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 12px 0 0; font-size: 13px; color: var(--muted); }
-.recent .text { flex: 1 1 260px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recent button { font-size: 13px; padding: 2px 8px; }
-.history { margin-top: 8px; }
-.add { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; background: var(--panel); border: 1px solid var(--line);
-       border-radius: 10px; padding: 10px; margin-bottom: 12px; }
-.add textarea { flex: 2 1 360px; min-height: 38px; resize: vertical; }
-.add input { flex: 1 1 200px; }
-.status { min-height: 1.5em; color: var(--muted); margin: 0 0 10px; }
-.status.bad { color: var(--warn); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
-.thumb { position: relative; display: block; background: #fff; aspect-ratio: 4 / 3; cursor: zoom-in; border: 0; padding: 10px; width: 100%; border-radius: 0; }
-/* Inside a button, height: 100% does not hold a drawing to the box; place it in the padding instead. */
-.thumb img { position: absolute; inset: 10px; width: calc(100% - 20px); height: calc(100% - 20px); object-fit: contain; display: block; }
-.thumb .gone { position: absolute; inset: 0; }
-.thumb .n { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.62); color: #fff; font-size: 12px; border-radius: 999px; padding: 0 8px; }
-.gone { display: grid; place-items: center; height: 100%; color: #8a8a84; }
-.body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.name { font-weight: 600; overflow-wrap: anywhere; }
-.small { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
-.note { background: var(--bg); border-radius: 6px; padding: 4px 8px; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; }
-.actions button, .actions a { font-size: 13px; padding: 3px 8px; }
-.actions a { border: 1px solid var(--line); border-radius: 6px; text-decoration: none; }
-.history { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
-.history ol { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; }
-.history li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: var(--control-h); padding: 0 10px;
+         border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 12px; font-weight: 500;
+         white-space: nowrap; cursor: pointer; }
+button:hover:not(:disabled) { background: var(--surface-hover); }
+button.primary { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover:not(:disabled) { border-color: var(--accent-strong); background: var(--accent-strong); }
+button:disabled { color: var(--disabled); cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input, textarea, select { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); padding: 6px 10px; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input::placeholder, textarea::placeholder { color: var(--disabled); }
+
+/* The Gallery's header band: the brand, the soft-blue Editor link, the account at the right. */
+.chrome { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 12px; height: var(--menubar-h); padding: 0 12px;
+          border-bottom: 1px solid var(--border); background: var(--surface); }
+.brand { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: inherit; }
+.brand:hover { text-decoration: none; }
+.brand:hover b { color: var(--accent); }
+.brand-mark { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 6px; background: #fff url("/icon.svg?v=nmos-4") center / cover no-repeat; }
+.brand b { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: var(--control-h); padding: 0 11px 0 9px; border-radius: 999px;
+        color: var(--accent); background: var(--accent-soft); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill:hover { color: #fff; background: var(--accent); text-decoration: none; }
+.pill svg { width: 15px; height: 15px; }
+.crumb { min-width: 0; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.who { display: flex; align-items: center; gap: 6px; min-width: 0; margin-left: auto; }
+.who a { display: inline-flex; align-items: center; height: var(--control-h); padding: 0 10px; border: 1px solid var(--border);
+         border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.who a:hover { background: var(--surface-hover); text-decoration: none; }
+.who a.account { max-width: 240px; overflow: hidden; font-size: 13px; }
+.who a.account::before { content: attr(data-initial); display: inline-grid; place-items: center; flex: 0 0 20px; width: 20px; height: 20px;
+                         margin-right: 7px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; }
+
+/* The board: the map in the Gallery's sidebar at the left, the tiles beside it. */
+.layout { display: flex; min-height: calc(100vh - var(--menubar-h)); }
+.side-slot { flex: 0 0 220px; width: 220px; border-right: 1px solid var(--border); background: var(--surface); }
+.side { position: sticky; top: var(--menubar-h); max-height: calc(100vh - var(--menubar-h)); overflow-y: auto; overscroll-behavior: contain;
+        scrollbar-width: thin; padding: 20px 10px; }
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 0 8px; margin-bottom: 4px; }
+.side h2, .side h3 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.side-note { margin: 0 0 12px; padding: 0 8px; color: var(--muted); font-size: 12px; }
+.clear { height: auto; padding: 2px 0; border: 0; background: transparent; color: var(--accent); font-size: 11px; }
+.clear:hover:not(:disabled) { background: transparent; text-decoration: underline; }
+.group { display: grid; gap: 2px; padding: 12px 0; border-top: 1px solid var(--border); }
+.group h3 { padding: 0 8px 6px; }
+.bar { justify-content: flex-start; gap: 8px; width: 100%; min-width: 0; height: auto; padding: 4px 8px; border-color: transparent;
+       background: transparent; font-weight: 400; text-align: left; }
+.bar[aria-pressed="true"], .bar[aria-pressed="true"]:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.bar .lab { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar .track { flex: 0 0 56px; height: 4px; overflow: hidden; border-radius: 2px; background: var(--surface-muted); }
+.bar .fill { display: block; height: 100%; border-radius: 2px; background: var(--border-hover); }
+.bar:hover .fill, .bar[aria-pressed="true"] .fill { background: var(--accent); }
+.bar .num { flex: 0 0 2em; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.main { flex: 1 1 auto; min-width: 0; padding: 16px 22px 48px; }
+
+/* The latest change on top; the whole log opens under it. */
+.recent { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 4px 4px 4px 12px; border: 1px solid var(--border);
+          border-radius: var(--radius-md); background: var(--surface); color: var(--muted); font-size: 12px; }
+.recent:empty { display: none; }
+.recent .text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent b { margin-right: 6px; color: var(--text); font-weight: 600; }
+.recent button { height: 24px; }
+.history { margin: -6px 0 14px; padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.history ol { max-height: 360px; margin: 0; padding: 0; overflow: auto; font-size: 12px; list-style: none; }
+.history li { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .history li:last-child { border-bottom: 0; }
-.history time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 8px; }
-.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.72); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 10; }
-.lightbox .box { background: var(--panel); border-radius: 12px; max-width: 96vw; max-height: 94vh; display: flex; flex-direction: column; overflow: hidden; }
-.lightbox .img { background: #fff; flex: 1; min-height: 0; padding: 14px; }
-.lightbox img { max-width: 92vw; max-height: 78vh; width: auto; height: auto; display: block; margin: 0 auto; }
-.lightbox .cap { padding: 10px 14px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-.lightbox .dialog { padding: 16px; gap: 10px; width: min(440px, 92vw); }
+.history time { margin-right: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.head { margin-bottom: 14px; }
+h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; overflow-wrap: anywhere; }
+.meta { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.meta a, .meta .badge, .meta button { margin-left: 10px; white-space: nowrap; }
+.meta button { height: 22px; }
+.badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badge.warn { color: var(--warning); background: var(--warning-soft); }
+.editable { border-radius: 4px; cursor: text; }
+.editable:hover { background: var(--surface-hover); box-shadow: 0 0 0 3px var(--surface-hover); }
+input.inline { padding: 0 4px; border-color: var(--accent); border-radius: 4px; box-shadow: 0 0 0 3px var(--accent-soft); }
+h1 input.inline { width: min(100%, 36ch); font-size: 20px; font-weight: 600; }
+.meta input.inline { width: 5em; font-size: 12px; }
+
+.add { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-bottom: 8px; padding: 8px; border: 1px solid var(--border);
+       border-radius: var(--radius-md); background: var(--surface); }
+.add textarea { flex: 2 1 340px; height: 32px; min-height: 32px; padding: 6px 10px; line-height: 1.35; resize: vertical; }
+.add input { flex: 1 1 200px; height: 32px; }
+.add button { height: 32px; padding: 0 16px; }
+.status { min-height: 1.35em; margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+.status.bad { color: var(--error); }
+
+/* A tile as the Gallery draws one: the drawing on white, the name, a quiet meta line, its tags as pills. */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 16px; }
+.card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md);
+        background: var(--surface); transition: border-color 120ms ease, box-shadow 120ms ease; }
+.card:hover { border-color: var(--border-hover); box-shadow: 0 4px 16px rgb(0 0 0 / 8%); }
+.thumb { position: relative; display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; padding: 0; border: 0;
+         border-bottom: 1px solid var(--border); border-radius: 0; background: #fff; cursor: zoom-in; }
+.thumb:hover:not(:disabled) { background: #fff; }
+/* Inside a button, height: 100% does not hold a drawing to the box; place it in the padding instead. */
+.thumb img { position: absolute; inset: 10px; display: block; width: calc(100% - 20px); height: calc(100% - 20px); object-fit: contain; }
+.thumb .gone { position: absolute; inset: 0; display: grid; place-items: center; background: var(--chrome-bg); color: var(--muted); font-size: 12px; }
+.thumb .n { position: absolute; left: 8px; top: 8px; display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px;
+            border: 1px solid var(--border); border-radius: 999px; background: rgb(255 255 255 / 92%); color: var(--muted);
+            font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.body { display: flex; flex: 1; flex-direction: column; gap: 2px; padding: 10px 12px 12px; }
+.name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.mark { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: 4px; font-size: 11px; font-weight: 600; vertical-align: 1px; }
+.mark.ai { color: var(--ai); background: var(--ai-soft); }
+.small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.note { margin-top: 4px; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--surface-muted); font-size: 12px;
+        white-space: pre-wrap; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
+.chip { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-muted); color: var(--muted); font-size: 11px; }
+.chips select { height: 22px; padding: 0 6px; border-radius: 999px; font-size: 11px; cursor: pointer; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 10px; }
+.actions .pill { height: 24px; }
+/* The edit buttons keep together: beside the link on a wide tile, on their own row at its right on a narrow one. */
+.actions .tools { display: flex; gap: 4px; margin-left: auto; }
+.actions button { height: 24px; padding: 0 8px; }
+.empty { padding: 40px 0; color: var(--muted); text-align: center; }
+
+.lightbox { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 20px;
+            background: rgb(15 15 15 / 45%); }
+.lightbox .box { display: flex; flex-direction: column; max-width: 96vw; max-height: 94vh; overflow: hidden; border-radius: var(--radius-lg);
+                 background: var(--surface); box-shadow: var(--shadow-lg); }
+.lightbox .img { flex: 1; min-height: 0; padding: 16px; border-bottom: 1px solid var(--border); background: #fff; }
+.lightbox img { display: block; width: auto; height: auto; max-width: 92vw; max-height: 78vh; margin: 0 auto; }
+.lightbox .cap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; }
+.lightbox .cap b { font-size: 14px; }
+.lightbox .cap button { margin-left: auto; }
+.lightbox .dialog { gap: 12px; width: min(420px, 92vw); padding: 18px; }
+.dialog b { font-size: 14px; font-weight: 600; }
 .dialog input, .dialog textarea { width: 100%; }
 .dialog .row { display: flex; justify-content: flex-end; gap: 8px; }
-.empty { color: var(--muted); padding: 30px 0; text-align: center; }
-.map { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
-.map-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; margin-bottom: 8px; }
-.map-head b { font-size: 15px; }
-.map-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 10px 24px; }
-.map h3 { font-size: 13px; color: var(--muted); font-weight: 600; margin: 0 0 6px; }
-.bar { display: grid; grid-template-columns: 7.5em 1fr 2.2em; gap: 8px; align-items: center; width: 100%; padding: 3px 6px;
-       border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
-.bar:hover { background: var(--bg); }
-.bar.on { background: var(--soft); }
-.bar .track { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
-.bar .fill { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
-.bar .num { text-align: right; font-variant-numeric: tabular-nums; }
-.bar .lab { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
-.chip { background: var(--bg); border-radius: 999px; padding: 1px 8px; color: var(--muted); }
-.chips select { font-size: 13px; padding: 1px 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
-form.make { display: grid; gap: 10px; max-width: 640px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-form.make label { display: grid; gap: 4px; }
-form.make textarea { min-height: 160px; }
+
+.page { max-width: 640px; margin: 0 auto; padding: 28px 22px 48px; }
+.lead { margin: 6px 0 18px; color: var(--muted); line-height: 1.5; }
+form.make { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+form.make label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+form.make input, form.make textarea { color: var(--text); font-size: 13px; font-weight: 400; }
+form.make textarea { min-height: 160px; resize: vertical; }
+form.make button { justify-self: start; height: 32px; padding: 0 16px; }
+
+/* Narrow, the map sits above the tiles and the header keeps one row. */
+@media (max-width: 760px) {
+  .layout { display: block; }
+  .side-slot { width: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+  .side { position: static; max-height: none; padding: 14px 8px 4px; }
+  .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: start; column-gap: 12px; }
+  .groups .group:first-child { grid-row: span 2; }
+  .bar .track { flex-basis: 32px; }
+  .main { padding: 14px 16px 40px; }
+}
+@media (max-width: 620px) {
+  .chrome { gap: 8px; padding: 0 8px; }
+  .crumb, .chrome .pill span { display: none; }
+  .chrome .pill { padding: 0 7px; }
+  .who a:nth-child(n+3) { display: none; }
+  .who a.account { padding: 0 4px; font-size: 0; }
+  .who a.account::before { margin-right: 0; }
+}
 `;
+
+const CHROME = String.raw`<header class="chrome">
+  <a class="brand" href="/" title="回到 Gallery"><span class="brand-mark" aria-hidden="true"></span><b>Analog Canvas</b></a>
+  <a class="pill" href="/editor" title="打开编辑器"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.9 2.6 3.5 3.5-6.8 6.8-4.1.7.7-4.1 6.7-6.9Zm-1.6 1.6 3.5 3.5M3.2 12.8l2.5-.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Editor</span></a>
+  <span class="crumb">选题板</span>
+  <div class="who" id="who"></div>
+</header>`;
 
 const SHARED = String.raw`
 var MESSAGES = {
@@ -136,8 +230,11 @@ function signInLinks(path) {
   return [
     el("a", { href: "/api/auth/github/start?return=" + back, text: "用 GitHub 登录" }),
     el("a", { href: "/api/auth/google/start?return=" + back, text: "用 Google 登录" }),
-    el("a", { href: "/", target: "_blank", rel: "noopener", text: "其他方式：去 Canvas 登录" })
+    el("a", { href: "/", target: "_blank", rel: "noopener", text: "其他登录方式" })
   ];
+}
+function account(name) {
+  return el("a", { class: "account", href: "/account", title: "你的账号", "data-initial": (name || "?").trim().charAt(0).toUpperCase(), text: name });
 }
 function splitEntries(text) {
   return text.split(/[\s,，]+/).map(function (part) { return part.trim(); }).filter(Boolean);
@@ -157,21 +254,23 @@ export const BOARD_PAGE =
   String.raw`</style>
 </head>
 <body>
-<div class="wrap">
-  <div class="recent" id="recent"></div>
-  <div class="history" id="history" hidden><ol id="events"></ol></div>
-  <header>
-    <div class="title"><h1 id="title">选题板</h1><div class="meta" id="meta"></div></div>
-    <div class="who" id="who"></div>
-  </header>
-  <div class="add" id="add" hidden>
-    <textarea id="add-entries" rows="1" placeholder="粘贴 Gallery 链接或编号，一次可以贴多个"></textarea>
-    <input id="add-note" placeholder="备注（选填，比如入选理由）">
-    <button class="primary" id="add-go">加入</button>
-  </div>
-  <p class="status" id="status"></p>
-  <section class="map" id="map" hidden></section>
-  <div class="grid" id="grid"></div>
+` +
+  CHROME +
+  String.raw`
+<div class="layout">
+  <aside class="side-slot" id="map" hidden></aside>
+  <main class="main">
+    <div class="recent" id="recent"></div>
+    <div class="history" id="history" hidden><ol id="events"></ol></div>
+    <div class="head"><h1 id="title">选题板</h1><div class="meta" id="meta"></div></div>
+    <div class="add" id="add" hidden>
+      <textarea id="add-entries" rows="1" placeholder="粘贴 Gallery 链接或编号，一次可以贴多个"></textarea>
+      <input id="add-note" placeholder="备注（选填，比如入选理由）">
+      <button class="primary" id="add-go">加入</button>
+    </div>
+    <p class="status" id="status"></p>
+    <div class="grid" id="grid"></div>
+  </main>
 </div>
 <script>
 ` +
@@ -253,8 +352,8 @@ function render() {
   if (board.lockedAt) meta.append(el("span", { class: "badge warn", text: "已锁定" }));
   if (board.lockedAt && viewer.canUnlock) meta.append(el("button", { text: "解锁", onclick: function () { change([{ kind: "unlock" }], "已解锁"); } }));
   var who = $("who"); who.textContent = "";
-  if (viewer.signedIn) who.append("已登录：" + viewer.name);
-  else { who.append("登录后才能修改："); signInLinks(location.pathname).forEach(function (a) { who.append(a); }); }
+  if (viewer.signedIn) who.append(account(viewer.name));
+  else signInLinks(location.pathname).forEach(function (a) { a.title = "登录后才能修改"; who.append(a); });
 
   var recent = $("recent"); recent.textContent = "";
   var latest = state.events[0];
@@ -285,8 +384,8 @@ function renderMap(items) {
   function column(title, dimension, c, keys) {
     var max = 1;
     for (var k in c) max = Math.max(max, c[k]);
-    return el("div", null, [el("h3", { text: title })].concat(keys.filter(function (k) { return c[k]; }).map(function (k) {
-      return el("button", { class: "bar" + (filter[dimension] === k ? " on" : ""), title: k + "：" + c[k] + " 道",
+    return el("section", { class: "group" }, [el("h3", { text: title })].concat(keys.filter(function (k) { return c[k]; }).map(function (k) {
+      return el("button", { class: "bar", "aria-pressed": filter[dimension] === k ? "true" : "false", title: k + "：" + c[k] + " 道",
         onclick: function () { filter[dimension] = filter[dimension] === k ? null : k; render(); } }, [
         el("span", { class: "lab", text: k }),
         el("span", { class: "track" }, [el("span", { class: "fill", style: "width:" + Math.round(100 * c[k] / max) + "%" })]),
@@ -299,15 +398,17 @@ function renderMap(items) {
     .sort(function (a, b) { return types[b] - types[a] || a.localeCompare(b); }).concat(["未分类"]);
   var active = filter.type !== null || filter.size !== null || filter.level !== null;
   var showing = items.filter(shown).length;
-  map.append(el("div", { class: "map-head" }, [
-    el("b", { text: "分类图谱" }),
-    el("span", { class: "small", text: active ? "显示 " + showing + " / " + items.length + " 道" : "共 " + items.length + " 道，点一条只看那一类" }),
-    active ? el("button", { text: "清除筛选", onclick: function () { filter = { type: null, size: null, level: null }; render(); } }) : null
-  ]));
-  map.append(el("div", { class: "map-cols" }, [
-    column("电路类型", "type", types, typeKeys),
-    column("晶体管数量", "size", counts(sizeOf), SIZES.map(function (s) { return s[0]; }).concat(["未知"])),
-    column("单层 / 多层", "level", counts(levelOf), ["单层", "多层", "未知"])
+  map.append(el("div", { class: "side" }, [
+    el("div", { class: "side-head" }, [
+      el("h2", { text: "分类图谱" }),
+      active ? el("button", { class: "clear", text: "清除筛选", onclick: function () { filter = { type: null, size: null, level: null }; render(); } }) : null
+    ]),
+    el("p", { class: "side-note", text: active ? "显示 " + showing + " / " + items.length + " 道" : "共 " + items.length + " 道，点一类只看它" }),
+    el("div", { class: "groups" }, [
+      column("电路类型", "type", types, typeKeys),
+      column("晶体管数量", "size", counts(sizeOf), SIZES.map(function (s) { return s[0]; }).concat(["未知"])),
+      column("单层 / 多层", "level", counts(levelOf), ["单层", "多层", "未知"])
+    ])
   ]));
 }
 
@@ -355,31 +456,33 @@ function card(item, index, count) {
     el("span", { class: "n", text: String(index + 1) })
   ]);
   var body = el("div", { class: "body" }, [
-    el("div", { class: "name", text: entry ? entry.name : item.entryId }),
-    entry ? el("div", { class: "small", text: "作者：" + entry.author + (entry.ai ? "（AI）" : "") + (entry.components ? " · 元件 " + entry.components : "") }) : null,
-    el("div", { class: "small", text: "放入：" + item.addedBy + " · " + when(item.addedAt) }),
+    el("div", { class: "name" }, [entry ? entry.name : item.entryId, entry && entry.ai ? el("span", { class: "mark ai", text: "AI" }) : null]),
+    entry ? el("div", { class: "small", text: "作者 " + entry.author + (entry.components ? " · 元件 " + entry.components : "") }) : null,
+    el("div", { class: "small", text: item.addedBy + " 放入 · " + when(item.addedAt) }),
     entry ? chips(item) : null,
     item.note ? el("div", { class: "note", text: item.note }) : null
   ]);
-  var actions = el("div", { class: "actions" }, [el("a", { href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "在 Canvas 打开 ↗" })]);
+  var actions = el("div", { class: "actions" }, [el("a", { class: "pill", href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "在 Canvas 打开 ↗" })]);
   if (editable()) {
-    actions.append(el("button", { text: "换", onclick: function () {
+    var tools = el("div", { class: "tools" });
+    tools.append(el("button", { text: "换", onclick: function () {
       ask("把「" + (entry ? entry.name : item.entryId) + "」换成哪道题？", { placeholder: "贴 Gallery 链接或编号" }).then(function (next) {
         if (next && next.trim()) change([{ kind: "replace", itemId: item.id, entry: next.trim() }], "已换");
       });
     } }));
-    actions.append(el("button", { text: "备注", onclick: function () {
+    tools.append(el("button", { text: "备注", onclick: function () {
       ask("备注", { value: item.note, multiline: true }).then(function (note) {
         if (note !== null && note !== item.note) change([{ kind: "note", itemId: item.id, note: note }], "备注已存");
       });
     } }));
-    actions.append(el("button", { text: "↑", title: "往前挪", disabled: index === 0, onclick: function () { change([{ kind: "move", itemId: item.id, to: index - 1 }], "已挪动"); } }));
-    actions.append(el("button", { text: "↓", title: "往后挪", disabled: index === count - 1, onclick: function () { change([{ kind: "move", itemId: item.id, to: index + 1 }], "已挪动"); } }));
-    actions.append(el("button", { text: "移出", onclick: function () {
+    tools.append(el("button", { text: "↑", title: "往前挪", disabled: index === 0, onclick: function () { change([{ kind: "move", itemId: item.id, to: index - 1 }], "已挪动"); } }));
+    tools.append(el("button", { text: "↓", title: "往后挪", disabled: index === count - 1, onclick: function () { change([{ kind: "move", itemId: item.id, to: index + 1 }], "已挪动"); } }));
+    tools.append(el("button", { text: "移出", onclick: function () {
       confirmBox("把「" + (entry ? entry.name : item.entryId) + "」移出这个板？", "移出").then(function (yes) {
         if (yes) change([{ kind: "remove", itemId: item.id }], "已移出");
       });
     } }));
+    actions.append(tools);
   }
   body.append(actions);
   return el("article", { class: "card" }, [thumb, body]);
@@ -392,8 +495,8 @@ function open(item) {
       el("div", { class: "img" }, [el("img", { src: preview(item), alt: item.entry.name })]),
       el("div", { class: "cap" }, [
         el("b", { text: item.entry.name }),
-        el("span", { class: "small", text: "作者：" + item.entry.author }),
-        el("a", { href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "在 Canvas 打开 ↗" }),
+        el("span", { class: "small", text: "作者 " + item.entry.author }),
+        el("a", { class: "pill", href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "在 Canvas 打开 ↗" }),
         el("button", { text: "关闭", onclick: close })
       ])
     ])
@@ -500,8 +603,12 @@ export const BOARDS_HOME_PAGE =
   String.raw`</style>
 </head>
 <body>
-<div class="wrap">
-  <header><div class="title"><h1>选题板</h1><div class="meta">一个选题板是一串 Gallery 电路的有序名单，拿到链接的人都能看；登录后可以加、换、删，每次改动都记下是谁做的。</div></div><div class="who" id="who"></div></header>
+` +
+  CHROME +
+  String.raw`
+<div class="page">
+  <h1>选题板</h1>
+  <p class="lead">一个选题板是一串 Gallery 电路的有序名单，拿到链接的人都能看；登录后可以加、换、删，每次改动都记下是谁做的。</p>
   <p class="status" id="status"></p>
   <div id="main"></div>
 </div>
@@ -514,7 +621,7 @@ function $(name) { return document.getElementById(name); }
   var me = await fetch("/api/auth/me", { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; });
   var user = me && me.user;
   var who = $("who");
-  if (user) who.append("已登录：" + user.displayName);
+  if (user) who.append(account(user.displayName));
   else signInLinks("/boards").forEach(function (a) { who.append(a); });
   if (!user || !user.isAdmin) {
     $("main").append(el("p", { class: "empty", text: "只有管理员能新建选题板。要看或修改一个板，请向管理员要它的链接。" }));
