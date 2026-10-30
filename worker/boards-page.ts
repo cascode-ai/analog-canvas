@@ -30,7 +30,16 @@ h1 { font-size: 22px; line-height: 1.3; margin: 0; overflow-wrap: anywhere; }
 .badge { display: inline-block; font-size: 12px; border-radius: 999px; padding: 1px 8px; background: var(--soft); color: var(--accent); margin-left: 6px; }
 .badge.warn { background: var(--warn-bg); color: var(--warn); }
 .who { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); }
-.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0 12px; }
+.editable { cursor: text; border-radius: 4px; }
+.editable:hover { background: var(--soft); box-shadow: 0 0 0 3px var(--soft); }
+input.inline { font: inherit; color: inherit; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--panel); }
+h1 input.inline { font-size: 22px; font-weight: 700; width: min(100%, 36ch); }
+.meta input.inline { width: 5em; }
+.meta a, .meta button { margin-left: 8px; }
+.recent { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 12px 0 0; font-size: 13px; color: var(--muted); }
+.recent .text { flex: 1 1 260px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent button { font-size: 13px; padding: 2px 8px; }
+.history { margin-top: 8px; }
 .add { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; background: var(--panel); border: 1px solid var(--line);
        border-radius: 10px; padding: 10px; margin-bottom: 12px; }
 .add textarea { flex: 2 1 360px; min-height: 38px; resize: vertical; }
@@ -149,12 +158,12 @@ export const BOARD_PAGE =
 </head>
 <body>
 <div class="wrap">
+  <div class="recent" id="recent"></div>
+  <div class="history" id="history" hidden><ol id="events"></ol></div>
   <header>
     <div class="title"><h1 id="title">选题板</h1><div class="meta" id="meta"></div></div>
     <div class="who" id="who"></div>
   </header>
-  <div class="tools" id="tools"></div>
-  <div class="history" id="history" hidden><ol id="events"></ol></div>
   <div class="add" id="add" hidden>
     <textarea id="add-entries" rows="1" placeholder="粘贴 Gallery 链接或编号，一次可以贴多个"></textarea>
     <input id="add-note" placeholder="备注（选填，比如入选理由）">
@@ -223,35 +232,38 @@ async function change(changes, done) {
 function render() {
   var board = state.board, viewer = state.viewer, items = state.items;
   document.title = board.title + " · 选题板";
-  $("title").textContent = board.title;
-  $("meta").textContent = "";
-  $("meta").append(items.length + " / " + board.slots + " 道 · " + board.createdBy + " 创建于 " + when(board.createdAt));
-  if (board.lockedAt) $("meta").append(el("span", { class: "badge warn", text: "已锁定" }));
+  var title = $("title");
+  title.textContent = board.title;
+  title.className = editable() ? "editable" : "";
+  title.title = editable() ? "点击改名" : "";
+  title.onclick = editable() ? function () {
+    inlineEdit(title, board.title, {}, function (next) { change([{ kind: "rename", title: next }], "已改名"); });
+  } : null;
+  var meta = $("meta"); meta.textContent = "";
+  var slots = el("span", { text: String(board.slots) });
+  if (editable()) {
+    slots.className = "editable";
+    slots.title = "点击改名额";
+    slots.onclick = function () {
+      inlineEdit(slots, String(board.slots), { type: "number" }, function (next) { change([{ kind: "slots", slots: Number(next) }], "名额已改"); });
+    };
+  }
+  meta.append(items.length + " / ", slots, " 道 · " + board.createdBy + " 创建于 " + when(board.createdAt));
+  meta.append(el("a", { href: api + "/export", target: "_blank", rel: "noopener", text: "导出名单（JSON）" }));
+  if (board.lockedAt) meta.append(el("span", { class: "badge warn", text: "已锁定" }));
+  if (board.lockedAt && viewer.canUnlock) meta.append(el("button", { text: "解锁", onclick: function () { change([{ kind: "unlock" }], "已解锁"); } }));
   var who = $("who"); who.textContent = "";
   if (viewer.signedIn) who.append("已登录：" + viewer.name);
   else { who.append("登录后才能修改："); signInLinks(location.pathname).forEach(function (a) { who.append(a); }); }
 
-  var tools = $("tools"); tools.textContent = "";
-  tools.append(el("button", { text: $("history").hidden ? "改动记录" : "收起改动记录", onclick: function () { $("history").hidden = !$("history").hidden; render(); } }));
-  tools.append(el("a", { href: api + "/export", target: "_blank", rel: "noopener", text: "导出名单（JSON）" }));
-  if (editable()) {
-    tools.append(el("button", { text: "改名", onclick: function () {
-      ask("新的名字", { value: board.title }).then(function (title) {
-        if (title && title.trim() && title.trim() !== board.title) change([{ kind: "rename", title: title.trim() }], "已改名");
-      });
-    } }));
-    tools.append(el("button", { text: "名额", onclick: function () {
-      ask("名额（1–500）", { value: String(board.slots), type: "number" }).then(function (slots) {
-        if (slots && Number(slots) !== board.slots) change([{ kind: "slots", slots: Number(slots) }], "名额已改");
-      });
-    } }));
-    tools.append(el("button", { text: "锁定", onclick: function () {
-      confirmBox("锁定后谁都不能再改，只有创建者或管理员能解锁。确定锁定？", "锁定").then(function (yes) {
-        if (yes) change([{ kind: "lock" }], "已锁定");
-      });
-    } }));
+  var recent = $("recent"); recent.textContent = "";
+  var latest = state.events[0];
+  if (latest) {
+    recent.append(
+      el("span", { class: "text", title: sentence(latest) }, [el("b", { text: "最近改动 " }), when(latest.at) + " · " + sentence(latest)]),
+      el("button", { text: $("history").hidden ? "全部改动（" + state.events.length + "）" : "收起", onclick: function () { $("history").hidden = !$("history").hidden; render(); } })
+    );
   }
-  if (board.lockedAt && viewer.canUnlock) tools.append(el("button", { text: "解锁", onclick: function () { change([{ kind: "unlock" }], "已解锁"); } }));
 
   $("add").hidden = !editable();
 
@@ -390,6 +402,34 @@ function open(item) {
 }
 function close() { if (lightbox) { lightbox.remove(); lightbox = null; } }
 
+// The title and slots are edited where they stand: Enter or leaving the field saves, Escape cancels.
+var editing = false;
+function inlineEdit(host, value, options, save) {
+  if (editing) return;
+  editing = true;
+  var input = el("input", { class: "inline", type: options.type || "text" });
+  input.value = value;
+  host.textContent = "";
+  host.append(input);
+  input.focus();
+  input.select();
+  var done = false;
+  function finish(commit) {
+    if (done) return;
+    done = true;
+    editing = false;
+    var next = input.value.trim();
+    render();
+    if (commit && next && next !== value) save(next);
+  }
+  input.addEventListener("click", function (e) { e.stopPropagation(); });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); finish(true); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false); }
+  });
+  input.addEventListener("blur", function () { finish(true); });
+}
+
 // The page asks in its own dialog: a browser may refuse prompt() and confirm() (an embedded one does).
 var dialog = null;
 function ask(title, options) {
@@ -435,7 +475,7 @@ $("add-go").addEventListener("click", function () {
 
 // Collaborators' changes arrive while the page is open.
 setInterval(async function () {
-  if (document.visibilityState !== "visible" || busy || lightbox || dialog || !state) return;
+  if (document.visibilityState !== "visible" || busy || lightbox || dialog || editing || !state) return;
   var response = await fetch(api, { cache: "no-store" }).catch(function () { return null; });
   if (!response || !response.ok) return;
   var payload = await response.json();

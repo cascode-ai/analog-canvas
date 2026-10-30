@@ -33,7 +33,7 @@ accounts and previews stay the [Gallery's](community-gallery.md).
   transistor category; an entry is multi-level when its project has more than
   one Cell or its top Cell places an analog, logic or signal-flow block or a User
   Component, else single-level. Both are counted once per preview revision.
-- A locked board refuses every change but unlock.
+- A locked board refuses every change but unlock. The page offers no lock (only the API does) and shows unlock on a locked board; it edits the title and slots in place and puts the latest change, with the whole log, at its top.
 - Changes in one request apply all or none, as one revision; an open page
   reloads the board when the revision moves.
 - Board pages and previews are `noindex`, never cached by shared caches, and
