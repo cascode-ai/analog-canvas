@@ -3145,6 +3145,46 @@ describe("RNL round trip", () => {
   });
 
   it.each(["spice", "spectre"] as const)(
+    "lays out the top's block, which no call draws, as it was laid out, through %s+RNL",
+    async (format) => {
+      const project = example("two-stage-op-amp");
+      const top = (from: CircuitProject) =>
+        from.documents.find((document) => document.id === from.topDocumentId)!;
+      const vout = top(project).netlist!.terminals.find(
+        (terminal) => terminal.name === "Vout",
+      )!;
+      top(project).presentation.cellSymbol = {
+        pinPlacements: [{ terminalId: vout.id, side: "north", offset: 0 }],
+      };
+      const result = await roundTrip(project, format);
+      expect(failures(result)).toEqual([]);
+      const named = (from: CircuitProject) => {
+        const cell = top(from);
+        const names = new Map(
+          cell.netlist!.terminals.map((terminal) => [
+            terminal.id,
+            terminal.name,
+          ]),
+        );
+        return {
+          stored: (cell.presentation.cellSymbol?.pinPlacements ?? []).map(
+            (item) =>
+              `${names.get(item.terminalId)} ${item.side} ${item.offset}`,
+          ),
+          slots: cellSymbolPinSlots(from, cell)
+            .map(
+              (slot) =>
+                `${names.get(slot.terminalId)} ${slot.side} ${slot.offset}`,
+            )
+            .sort(),
+        };
+      };
+      expect(named(result.project).stored).toContain("Vout north 0");
+      expect(named(result.project).slots).toEqual(named(project).slots);
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "keeps pins left open, on the top and inside a Cell, through %s+RNL",
     async (format) => {
       const project = example("simulation-ota");

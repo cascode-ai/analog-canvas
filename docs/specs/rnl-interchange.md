@@ -191,8 +191,11 @@ the RNL language and its runtime belong to rnl.
   symbol is a `$FIGURE` mark drawn with the part's RNL symbol.
 - A drawn Cell's block is a symbol defined in the Cell's own level and set on
   the Cell itself, so every call is drawn with it; its pins name the printed
-  ports and show their names. An external subcircuit's block is defined once
-  in the file level, its pins numbered, and set on each call.
+  ports and show their names. A Cell no call draws, such as the top, carries
+  its block the same way where the author laid it out
+  (`presentation.cellSymbol`), as the editor shows it; it reads back with
+  every pin placed where it was shown. An external subcircuit's block is
+  defined once in the file level, its pins numbered, and set on each call.
 - Drawing objects are RNL shapes, each in the line style it is drawn with
   (its override, else its own), in their stacking order: rectangles,
   circles, lines and curves (a quadratic leg as the cubic that draws it),
