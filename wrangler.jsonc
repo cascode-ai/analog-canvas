@@ -51,6 +51,9 @@
       "/assets/*",
       "/",
       "/g/*",
+      // Selection boards (docs/specs/selection-boards.md), served whole by the Worker.
+      "/boards",
+      "/boards/*",
       "/robots.txt",
       "/sitemap.xml",
       "/llms.txt",
