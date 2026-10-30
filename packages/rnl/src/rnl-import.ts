@@ -1925,6 +1925,35 @@ function applyLevel(
       });
     });
   });
+  // A body tie branches: a dashed wire between junctions is one where it
+  // meets one, though no body stands at either end.
+  const junctionsOf = ({ start, legs }: RouteBranch) =>
+    [
+      start,
+      ...legs.flatMap((leg) =>
+        leg.to.kind === "endpoint" ? [leg.to.endpoint] : [],
+      ),
+    ].flatMap((end) => (end.kind === "junction" ? [end.junctionId] : []));
+  for (let spread = true; spread;) {
+    spread = false;
+    const tied = new Set(
+      drawn
+        .filter(({ route }) => route.presentation === "bulk-dashed")
+        .flatMap(({ route }) => junctionsOf(route)),
+    );
+    for (const { route } of drawn) {
+      if (
+        route.styleOverride?.lineStyle !== "dashed" ||
+        !junctionsOf(route).some((id) => tied.has(id))
+      )
+        continue;
+      const { lineStyle: _dashed, ...own } = route.styleOverride;
+      if (Object.keys(own).length) route.styleOverride = own;
+      else delete route.styleOverride;
+      route.presentation = "bulk-dashed";
+      spread = true;
+    }
+  }
   if (skipped)
     warn(
       "RNL_IMPORT_WIRE_SKIPPED",
