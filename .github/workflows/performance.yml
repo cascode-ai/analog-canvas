@@ -12,6 +12,13 @@ on:
           - check
           - calibrate
           - verify-rejection
+      repeat:
+        description: Independent runner samples (for CPU coverage)
+        type: choice
+        default: "1"
+        options:
+          - "1"
+          - "3"
 
 permissions:
   contents: read
@@ -22,6 +29,10 @@ concurrency:
 
 jobs:
   measure:
+    strategy:
+      fail-fast: false
+      matrix:
+        sample: ${{ fromJSON(inputs.repeat == '3' && '[1,2,3]' || '[1]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -57,7 +68,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: browser-performance-${{ github.sha }}
+          name: browser-performance-${{ github.sha }}-${{ matrix.sample }}
           path: |
             output/environment-tests/browser-performance.json
             output/performance/
