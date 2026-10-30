@@ -228,13 +228,20 @@ the RNL language and its runtime belong to rnl.
 - File → Import → `RNL…` reads a rich netlist with its includes and package
   files. Project File, SPICE / SCS and Cadence SPICE are unchanged.
 - The electrical import is the SPICE / SCS importer, called unchanged but for
-  one thing: a model the files call but no model card declares is the device
-  type the drawing draws its parts as (`$NMOS…` an nmos, `$PMOS…` a pmos,
-  `$NPN`, `$PNP`, `$DIODE`), where they all agree; a declared card decides.
-  The rnl runtime reads the same files (its snapshot, rnl-dev's
-  editor-interface draft) and the drawing is laid over the imported circuit as
-  a separate layer: CircuitIR never carries geometry
+  the two things below. The rnl runtime reads the same files (its snapshot,
+  rnl-dev's editor-interface draft) and the drawing is laid over the imported
+  circuit as a separate layer: CircuitIR never carries geometry
   ([circuit IR](circuit-ir.md)).
+  - A model the files call but no model card declares is the device type the
+    drawing draws its parts as (`$NMOS…` an nmos, `$PMOS…` a pmos, `$NPN`,
+    `$PNP`, `$DIODE`), where they all agree; a declared card decides.
+  - Where the files draw a circuit, a subcircuit a SPICE file defines but
+    writes no RNL of (a library's body, as the export prints a Project's model
+    sources after its Cells) is no Cell, and nothing in it needs a symbol. It
+    stays text: one model source holds those bodies with the file level's
+    parameters, options, functions and model cards, and each call of one is
+    an external subcircuit declared by its header's ports and parameters
+    (#1791).
 - Read back so far:
   - a Spectre card's own name: the import reads Spectre as SPICE, which calls
     a subcircuit with X (`M1` as `XM1`), and the part is `M1` again where it
@@ -463,7 +470,9 @@ the RNL language and its runtime belong to rnl.
   circles or diamonds keep their appearance through their canonical symbols,
   and legacy diamond aliases remain readable (in Spectre the voltage-controlled
   ones, as the Spectre import reads no native `ccvs` or `cccs`); a Spectre netlist with
-  a SPICE section keeps every record out of it
+  a SPICE section keeps every record out of it; parts bound to a model
+  source's subcircuits, a Q card and a B source in their bodies, come back
+  bound to them with the source's text
   (`apps/editor/src/features/netlist-export/rnl-round-trip.test.ts`).
 - Each built-in block's body, in either dialect and in RNL's port order,
   imports as the block and exports again unchanged

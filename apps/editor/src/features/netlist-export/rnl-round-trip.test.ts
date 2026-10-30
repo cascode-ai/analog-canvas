@@ -453,17 +453,162 @@ it.each(["spice", "spectre"] as const)(
     const document = plan.project.documents.find((d) =>
       d.instances.some((i) => i.symbolId === "nmos"),
     )!;
-    // The import brings nch_mac in as a Cell, whose calls take names
-    // starting with X, so XM1 keeps its card's name for now (#1789).
+    // nch_mac, a SPICE body the file writes no RNL of, stays the model
+    // source it was rather than a Cell, whose calls take names starting
+    // with X: XM1 is M1 again (#1791). Spectre reads its SPICE section as a
+    // Cell still, whose call keeps the X the conversion gave it.
     expect(
       plan.diagnostics.some((item) => item.code === "RNL_IMPORT_NAME_REFUSED"),
-    ).toBe(format === "spice");
+    ).toBe(false);
+    expect(
+      document.instances.find((i) => i.symbolId === "nmos")?.reference,
+    ).toBe(format === "spice" ? "M1" : "XM1");
     expect(document.presentation.labelSubscriptItalic).toBe(false);
     expect(document.presentation.textFace).toBe("serif");
     expect(document.presentation.crossingStyle).toBe("hop");
     expect(document.presentation.labelFirstLetterItalic).toBeUndefined();
   },
 );
+
+/**
+ * An NPN Q1 and a block X1 bound to the subcircuits of a model source whose
+ * bodies Analog Canvas has no symbols for: a four-terminal Q card and a
+ * behavioural B source, beside the file-level parameter and model card they
+ * read.
+ */
+function libraryBoundParts(): CircuitProject {
+  const project = createEmptyProject("library-parts", "Library parts", "dut");
+  project.documents[0]!.netlist!.name = "dut";
+  project.modelSources = [
+    {
+      id: "library",
+      language: "spice",
+      revision: 1,
+      entry: "library.spice",
+      dependencies: [],
+      files: [
+        {
+          path: "library.spice",
+          text: [
+            ".param GAIN=2",
+            ".model qmod npn",
+            ".subckt bjt_wrap C B E params: AREA=1",
+            "Q1 C B E C qmod area={AREA}",
+            ".ends bjt_wrap",
+            ".subckt shaper IN OUT",
+            "BOUT OUT 0 V={GAIN*tanh(V(IN))}",
+            ".ends shaper",
+            "",
+          ].join("\n"),
+        },
+      ],
+    },
+  ];
+  const definition = (
+    id: string,
+    name: string,
+    ports: string[],
+    formalParameters: { name: string; defaultValue: string }[] = [],
+  ) => ({
+    id,
+    name,
+    interfaceStatus: "declared" as const,
+    terminals: ports.map((port) => ({
+      id: `${id}-${port}`,
+      name: port,
+      direction: "passive" as const,
+    })),
+    formalParameters,
+    implementation: {
+      kind: "source" as const,
+      sourceId: "library",
+      entry: name,
+    },
+  });
+  project.externalSubcircuitDefinitions = [
+    definition(
+      "wrap",
+      "bjt_wrap",
+      ["C", "B", "E"],
+      [{ name: "AREA", defaultValue: "1" }],
+    ),
+    definition("shaper", "shaper", ["IN", "OUT"]),
+  ];
+  const document = project.documents[0]!;
+  const part = (
+    id: string,
+    symbolId: string,
+    definitionId: string,
+    y: number,
+    pins: string[],
+    parameters: Record<string, string> = {},
+  ) => {
+    document.instances.push({
+      id,
+      reference: id,
+      symbolId,
+      placement: { position: { x: 200, y }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId },
+        parameters,
+      },
+    });
+    for (const pinName of pins)
+      document.noConnects.push({
+        id: `${id}${pinName}`,
+        endpoint: { kind: "terminal", instanceId: id, pinName },
+      });
+  };
+  part("Q1", "npn", "wrap", 160, ["C", "B", "E"], { AREA: "2" });
+  part("X1", externalSubcircuitSymbolId("shaper"), "shaper", 320, [
+    "IN",
+    "OUT",
+  ]);
+  return project;
+}
+
+it("keeps a library's bodies the file draws nothing of as the model source they were through spice+RNL (#1791)", async () => {
+  const project = libraryBoundParts();
+  const plan = await roundTrip(project);
+  expect(failures(plan)).toEqual([]);
+  // Only the circuit is a Cell; nothing in the bodies needs a symbol.
+  expect(plan.project.documents.map((d) => d.netlist?.name)).toEqual(["dut"]);
+  const parts = plan.project.documents[0]!.instances;
+  const bound = (reference: string) => {
+    const part = parts.find((instance) => instance.reference === reference)!;
+    const binding = part.netlist?.binding;
+    const definition = plan.project.externalSubcircuitDefinitions.find(
+      (item) =>
+        binding?.kind === "external-subcircuit" &&
+        item.id === binding.definitionId,
+    );
+    return { part, definition };
+  };
+  const q1 = bound("Q1");
+  expect(q1.part.symbolId).toBe("npn");
+  expect(q1.part.placement).toEqual(
+    project.documents[0]!.instances[0]!.placement,
+  );
+  expect(q1.part.netlist?.parameters).toEqual({ AREA: "2" });
+  expect(q1.definition).toMatchObject({
+    name: "bjt_wrap",
+    interfaceStatus: "declared",
+    terminals: [{ name: "C" }, { name: "B" }, { name: "E" }],
+    formalParameters: [{ name: "AREA", defaultValue: "1" }],
+    implementation: { kind: "source", entry: "bjt_wrap" },
+  });
+  expect(bound("X1").definition?.name).toBe("shaper");
+  // The bodies, and the parameter and card they read, are their own text.
+  expect(plan.project.modelSources?.[0]?.files[0]?.text).toBe(
+    project.modelSources![0]!.files[0]!.text,
+  );
+  const netlist = (item: CircuitProject) => {
+    const written = createDesignNetlistExport(item, { format: "spice" });
+    if (written.status !== "ready") throw Error(JSON.stringify(written));
+    return written.file.text;
+  };
+  expect(netlist(plan.project)).toBe(netlist(project));
+});
 
 /**
  * Labels the import cannot tell from their text alone: a Cell Pin drawn as

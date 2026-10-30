@@ -762,6 +762,39 @@ export function drawnCalledBlocks(
   return [...found.values()].flatMap((block) => (block ? [block] : []));
 }
 
+/**
+ * The subcircuits the files define but write no RNL of, where they write a
+ * circuit: a library's bodies, such as a process's devices or the models a
+ * Project's parts are bound to, which the circuit calls as written and the
+ * export prints after it (#1791). A level is written where it places or
+ * wires anything, shows a text of its own, or states a record of its own (a
+ * named object, or one at a place in `files`), as Analog Canvas states each
+ * Cell's Pins even where it places none of its parts; what a package fills
+ * in is no record. Files that write nothing have none.
+ */
+export function undrawnBodies(
+  snapshot: RnlSnapshot,
+  files: readonly string[],
+): string[] {
+  const written = ({ model }: RnlLevelSnapshot) =>
+    !!model &&
+    (model.objects.some(
+      (object) =>
+        object.at.value !== null ||
+        (object.kind !== "instance" &&
+          (object.id.startsWith("%") ||
+            files.some((path) => object.id.startsWith(`@${path}:`)))),
+    ) ||
+      model.points.some((point) => point.at.value !== null) ||
+      model.wires.length > 0 ||
+      model.texts.some((text) => text.written) ||
+      (model.shapes?.length ?? 0) > 0);
+  if (!snapshot.levels.some(written)) return [];
+  return snapshot.levels
+    .filter((level) => level.kind === "subckt" && !written(level))
+    .map(({ name }) => name);
+}
+
 /** The model type of an Analog Canvas device symbol, if it calls a model. */
 function modelTypeOf(symbolId: string): string | null {
   const descriptor = deviceDescriptor(symbolId);
