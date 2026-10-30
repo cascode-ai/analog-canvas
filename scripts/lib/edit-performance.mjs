@@ -1,6 +1,8 @@
 import { performance } from "node:perf_hooks";
 
-export const editSampling = { warmups: 7, samples: 15 };
+// Seven warmups left paste measurably faster in the later rejection phase
+// than in calibration. Warm longer before measuring either phase.
+export const editSampling = { warmups: 30, samples: 21 };
 
 export function selectEditReference(references, platform, arch, ci = false) {
   const key = `${platform}-${arch}${ci ? "-ci" : "-local"}`;
