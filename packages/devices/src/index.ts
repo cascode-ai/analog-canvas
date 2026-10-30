@@ -6,6 +6,7 @@ export * from "./validation.js";
 export * from "./parameter-expression.js";
 export * from "./parameter-validation.js";
 export * from "./instance-parameters.js";
+export * from "./parameter-display.js";
 export * from "./built-in-model-contracts.js";
 export * from "./adder.js";
 export * from "./ideal-comparator.js";

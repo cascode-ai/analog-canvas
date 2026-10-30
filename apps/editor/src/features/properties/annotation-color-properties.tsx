@@ -45,7 +45,9 @@ export function AnnotationColorProperties({
   onRename?(name: string): { ok: boolean; message?: string };
 }) {
   const name = document
-    ? flattenRichText(resolveAnnotationText(document, annotation))
+    ? flattenRichText(
+        resolveAnnotationText(document, annotation, undefined, resolver),
+      )
     : annotation.content
       ? flattenRichText(annotation.content)
       : annotation.id;

@@ -5,7 +5,7 @@ import {
   objectStyleProfile,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
-import type { SchematicEdit } from "@icm/edit-engine";
+import type { SchematicEdit } from "./edit-schema.js";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -28,9 +28,10 @@ function parameterAnnotations(
 export function instanceParameterVisibility(
   document: SchematicDocument,
   instance: Instance,
+  resolver?: SymbolResolver,
 ): Record<string, boolean> {
   return Object.fromEntries(
-    instanceDisplayParameters(instance.symbolId).map((parameter) => [
+    instanceDisplayParameters(instance, resolver).map((parameter) => [
       parameter.name,
       parameterAnnotations(document, instance.id, parameter.name).some(
         (annotation) => annotation.visible !== false,
@@ -46,8 +47,15 @@ export function instanceParameterVisibilityEdits(
   resolver: SymbolResolver,
   desired: Readonly<Record<string, boolean>>,
 ): SchematicEdit[] {
+  const parameters = instanceDisplayParameters(instance, resolver);
+  for (const name of Object.keys(desired)) {
+    if (!parameters.some((p) => p.name === name))
+      throw new Error(
+        `Parameter display ${name} is not supported by ${instance.symbolId}`,
+      );
+  }
   const edits: SchematicEdit[] = [];
-  for (const parameter of instanceDisplayParameters(instance.symbolId)) {
+  for (const parameter of parameters) {
     const visible = desired[parameter.name];
     if (visible === undefined) continue;
     const existing = parameterAnnotations(
@@ -59,8 +67,8 @@ export function instanceParameterVisibilityEdits(
     if (visible === current) continue;
     if (
       visible &&
-      displayableInstanceParameter(instance, parameter.name).kind !==
-        "displayable"
+      displayableInstanceParameter(instance, parameter.name, {}, resolver)
+        .kind !== "displayable"
     ) {
       throw new Error(`Set ${parameter.label} before enabling its display`);
     }
@@ -93,6 +101,7 @@ export function instanceParameterVisibilityEdits(
         profile,
         document.presentation.grid,
         parameter.name,
+        resolver,
       );
     if (!placement || !instance.placement)
       throw new Error("Place the component before showing its parameters");

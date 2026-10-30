@@ -1,3 +1,4 @@
+import type { SymbolResolver } from "@icm/symbols";
 // The property model needs syntax ranges, not CodeMirror's editor runtime.
 // Use the same underlying grammar without pulling view/state into App startup.
 import { parser } from "@lezer/json";
@@ -82,14 +83,18 @@ export function propertyCodeSpans(
           ]
       : []),
     ...(context
-      ? instanceDisplayParameters(context.instance.symbolId).map(
+      ? instanceDisplayParameters(context.instance, context.resolver).map(
           (parameter) => ({
             path: `display.parameters.${parameter.name}`,
             label: parameter.label,
             kind: "boolean" as const,
             description: "",
             help: `Show ${parameter.label} on the canvas`,
-            ...multiplierNote(context.instance, parameter.name),
+            ...multiplierNote(
+              context.instance,
+              parameter.name,
+              context.resolver,
+            ),
           }),
         )
       : []),
@@ -377,14 +382,15 @@ export function reflectedPropertyCode(
 function multiplierNote(
   instance: ComponentPropertyCodeContext["instance"],
   parameter: string,
+  resolver?: SymbolResolver,
 ): Pick<CanvasPropertyField, "note"> {
   if (
-    !valuePrintsMultiplier(instance.symbolId, parameter) ||
+    !valuePrintsMultiplier(instance, parameter, resolver) ||
     !instance.netlist?.parameters[parameter]?.trim() ||
-    displayableInstanceValue(instance).kind !== "displayable"
+    displayableInstanceValue(instance, resolver).kind !== "displayable"
   )
     return {};
-  const printed = printedValueMultiplier(instance);
+  const printed = printedValueMultiplier(instance, resolver);
   return {
     note: {
       text: printed ? "in W/L" : "hidden by W/L",

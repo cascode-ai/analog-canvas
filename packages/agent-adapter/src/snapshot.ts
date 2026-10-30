@@ -500,6 +500,7 @@ function instanceLabels(
         annotation,
         logicalNets,
         text,
+        resolver,
       ),
       resolvedText: flattenRichText(text),
       position: {

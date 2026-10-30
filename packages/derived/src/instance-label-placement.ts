@@ -1,4 +1,8 @@
-import { deviceDescriptor } from "@icm/devices";
+import {
+  deviceDescriptor,
+  parameterDisplayContract,
+  type InstanceParameterResolver,
+} from "@icm/devices";
 import { transformPoint } from "@icm/model";
 import type {
   Annotation,
@@ -1547,6 +1551,7 @@ export function defaultInstanceParameterLabelPlacement(
   profile: SchematicStyleProfile,
   grid: number,
   parameter: string,
+  resolver?: InstanceParameterResolver,
 ): InstanceLabelPlacement | null {
   return parameterPlacementWith(
     instanceLabelRowOffset,
@@ -1555,6 +1560,7 @@ export function defaultInstanceParameterLabelPlacement(
     profile,
     grid,
     parameter,
+    resolver,
   );
 }
 
@@ -1566,6 +1572,7 @@ export function previousDefaultInstanceParameterLabelPlacement(
   profile: SchematicStyleProfile,
   grid: number,
   parameter: string,
+  resolver?: InstanceParameterResolver,
 ): InstanceLabelPlacement | null {
   return parameterPlacementWith(
     previousInstanceLabelRowOffset,
@@ -1574,6 +1581,7 @@ export function previousDefaultInstanceParameterLabelPlacement(
     profile,
     grid,
     parameter,
+    resolver,
   );
 }
 
@@ -1584,11 +1592,18 @@ function parameterPlacementWith(
   profile: SchematicStyleProfile,
   grid: number,
   parameter: string,
+  resolver?: InstanceParameterResolver,
 ): InstanceLabelPlacement | null {
+  const contract = parameterDisplayContract(instance, resolver);
   if (
-    deviceDescriptor(instance.symbolId)?.parameters.some(
+    contract.individual.some(
       (candidate) =>
-        candidate.name === parameter && candidate.displayRole === "multiplier",
+        candidate.name === parameter &&
+        candidate.displayRole === "multiplier" &&
+        deviceDescriptor(instance.symbolId)?.parameters.some(
+          (prior) =>
+            prior.name === parameter && prior.displayRole === "multiplier",
+        ),
     )
   ) {
     // A multiplier reads with its device's name, a text row under it: a BJT
@@ -1604,6 +1619,31 @@ function parameterPlacementWith(
       "value",
       1,
     );
+  }
+  if (
+    instance.netlist?.binding?.kind === "external-subcircuit" ||
+    instance.netlist?.binding?.kind === "subcircuit"
+  ) {
+    const index = contract.individual.findIndex((p) => p.name === parameter);
+    if (index < 0) return null;
+    const base = defaultPlacementWith(
+      nameFirstPlacer,
+      rows,
+      instance,
+      resolved,
+      profile,
+      grid,
+      "value",
+      1,
+    );
+    if (!base) return null;
+    return {
+      ...base,
+      position: {
+        x: base.position.x,
+        y: base.position.y + index * rows(profile, grid, instance.symbolId),
+      },
+    };
   }
   const index = magneticDisplayParameters(instance.symbolId).findIndex(
     (candidate) => candidate.name === parameter,

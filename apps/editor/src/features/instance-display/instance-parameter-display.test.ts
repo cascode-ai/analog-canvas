@@ -16,7 +16,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import {
   instanceParameterVisibility,
   instanceParameterVisibilityEdits,
-} from "./instance-parameter-display";
+} from "@icm/edit-engine";
 import { copySelection } from "../clipboard/clipboard";
 import { proposePaste } from "../clipboard/paste-proposal";
 import {

@@ -1,3 +1,4 @@
+import type { SymbolResolver } from "@icm/symbols";
 import {
   createReferenceIndex,
   referenceIssuesForInstance,
@@ -26,6 +27,7 @@ type InstanceNetlistEdit = Extract<
 >;
 
 export interface InstanceNetlistEditContext {
+  resolver?: SymbolResolver | undefined;
   draft: SchematicDocument;
   changedObjectIds: Set<string>;
   reject: RejectEdit;
@@ -82,7 +84,7 @@ export function applyInstanceNetlistEdit(
   edit: InstanceNetlistEdit,
   context: InstanceNetlistEditContext,
 ): InstanceNetlistEditOutcome {
-  const { draft, changedObjectIds, reject } = context;
+  const { draft, changedObjectIds, reject, resolver } = context;
 
   switch (edit.kind) {
     case "patch_instance_netlist_parameters": {
@@ -198,6 +200,7 @@ export function applyInstanceNetlistEdit(
         before,
         edit.instanceId,
         changedObjectIds,
+        resolver,
       );
       changedObjectIds.add(edit.instanceId);
       return { ok: true, connectivityChanged: false };
@@ -293,6 +296,7 @@ export function applyInstanceNetlistEdit(
           ),
         };
       }
+      const before = structuredClone(instance);
       const current = instance.netlist.binding ?? null;
       if (JSON.stringify(current) === JSON.stringify(edit.binding)) {
         return {
@@ -319,6 +323,13 @@ export function applyInstanceNetlistEdit(
           rejection: reject("EDIT_PRECONDITION", failure, [], [instance.id]),
         };
       }
+      refreshInstanceValueAnnotation(
+        draft,
+        before,
+        edit.instanceId,
+        changedObjectIds,
+        resolver,
+      );
       changedObjectIds.add(edit.instanceId);
       return { ok: true, connectivityChanged: true };
     }
@@ -370,6 +381,7 @@ export function applyInstanceNetlistEdit(
         before,
         edit.instanceId,
         changedObjectIds,
+        resolver,
       );
       changedObjectIds.add(edit.instanceId);
       return { ok: true, connectivityChanged: true };
@@ -508,6 +520,7 @@ export function applyInstanceNetlistEdit(
             before,
             instance.id,
             changedObjectIds,
+            resolver,
           );
         }
         refreshInstanceReferenceAnnotation(

@@ -1,3 +1,4 @@
+import { NetlistParameterNameSchema } from "@icm/model";
 import { z } from "zod";
 import { ApplyModelSourceEditSchema } from "@icm/edit-engine";
 import {
@@ -278,16 +279,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     showReference: z.boolean().optional(),
     showValue: z.boolean().optional(),
     showParameters: z
-      .strictObject({
-        k: z.boolean().optional(),
-        lp: z.boolean().optional(),
-        ls: z.boolean().optional(),
-        l1: z.boolean().optional(),
-        l2: z.boolean().optional(),
-        cb: z.boolean().optional(),
-        // A MOS or BJT's multiplier, drawn "×8" with its name.
-        m: z.boolean().optional(),
-      })
+      .record(NetlistParameterNameSchema, z.boolean())
       .optional(),
   }),
   z

@@ -5,7 +5,7 @@ import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { arrangeInstanceLabels } from "./arrange-instance-labels";
 import { instanceDisplayEdits } from "./instance-display-edits";
-import { instanceParameterVisibilityEdits } from "./instance-parameter-display";
+import { instanceParameterVisibilityEdits } from "@icm/edit-engine";
 
 /**
  * A textbook figure's labels (#1350), as the edits of one transaction: each
@@ -67,8 +67,14 @@ export function textbookLabelEdits(
   const multiplied = instanceIds.flatMap((id) => {
     const instance = draft.instances.find((item) => item.id === id);
     const multiplier = instance
-      ? instanceDisplayParameters(instance.symbolId).find(
-          (parameter) => parameter.displayRole === "multiplier",
+      ? instanceDisplayParameters(instance, resolver).find(
+          (parameter) =>
+            parameter.displayRole === "multiplier" &&
+            deviceDescriptor(instance.symbolId)?.parameters.some(
+              (prior) =>
+                prior.name === parameter.name &&
+                prior.displayRole === "multiplier",
+            ),
         )
       : undefined;
     const value = Object.entries(instance?.netlist?.parameters ?? {})

@@ -86,3 +86,5 @@ export {
 } from "./project-copy-members.js";
 
 export * from "./expanded-label-planner.js";
+
+export * from "./instance-parameter-display.js";

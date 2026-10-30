@@ -1155,8 +1155,16 @@ function exportTexts(
       hidden.push(annotation.id);
       continue;
     }
-    const text = resolveAnnotationText(document, annotation, logical);
-    if (!isSchematicAnnotationVisible(document, annotation, logical, text))
+    const text = resolveAnnotationText(document, annotation, logical, resolver);
+    if (
+      !isSchematicAnnotationVisible(
+        document,
+        annotation,
+        logical,
+        text,
+        resolver,
+      )
+    )
       continue;
     const shown = resolveAnnotationPresentation(
       document,

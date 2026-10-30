@@ -353,6 +353,7 @@ function ruleLabelsAtDefault(
               profile,
               grid,
               binding.parameter,
+              resolver,
             )
           : null;
     return expected &&

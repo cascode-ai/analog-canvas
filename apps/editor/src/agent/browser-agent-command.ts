@@ -80,7 +80,6 @@ import {
   resolveRouteGeometry,
   resolveDocumentLogicalNets,
   resolveAnnotationName,
-  instanceDisplayParameters,
   derivePowerRailComponent,
   netLabelAttachmentForText,
   netLabelBaselineForName,
@@ -126,7 +125,7 @@ import {
 } from "../features/instance-display/struck-label-arrangement";
 import { textbookLabelEdits } from "../features/instance-display/label-preset";
 import { netLabelAtClearSpot } from "./net-label-clear-spot";
-import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
+import { instanceParameterVisibilityEdits } from "@icm/edit-engine";
 import {
   dragNetLabelAttachmentAtPoint,
   netLabelPlacementTargetAtPoint,
@@ -407,7 +406,7 @@ export function planBrowserAgentCommand(
     case "set-properties":
       return planSetProperties(project, document, resolver, command);
     case "set-text":
-      return planSetText(document, command);
+      return planSetText(document, command, resolver);
     case "add-text":
       return planAddText(command);
     case "arrange-instances": {
@@ -1227,13 +1226,6 @@ export function planBrowserAgentCommand(
         for (const id of new Set(command.instanceIds)) {
           const instance = document.instances.find((item) => item.id === id);
           if (!instance) throw new Error(`Instance not found: ${id}`);
-          const supported = instanceDisplayParameters(instance.symbolId);
-          for (const parameter of Object.keys(desired)) {
-            if (!supported.some((item) => item.name === parameter))
-              throw new Error(
-                `Parameter display ${parameter} is not supported by ${instance.symbolId}`,
-              );
-          }
           edits.push(
             ...instanceParameterVisibilityEdits(
               document,

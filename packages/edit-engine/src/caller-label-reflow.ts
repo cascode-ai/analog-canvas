@@ -85,6 +85,7 @@ export function planInstanceLabelReflow(
       document,
       position,
       instance.placement,
+      formerResolver,
     );
     if (row !== null)
       next = parameter
@@ -94,6 +95,7 @@ export function planInstanceLabelReflow(
             profile,
             grid,
             parameter,
+            resolver,
           )
         : defaultInstanceLabelPlacement(
             instance,

@@ -228,7 +228,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     null,
   );
   useEffect(() => {
-    if (textEditing && !resolveTextEditingTarget(options.document, textEditing))
+    if (
+      textEditing &&
+      !resolveTextEditingTarget(options.document, textEditing, options.resolver)
+    )
       setTextEditing(null);
   }, [options.document, textEditing]);
   const netLabelDraftRouteRef = useRef<string | null>(null);
@@ -1058,7 +1061,9 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
 
   const commitTextEditing = (): void => {
     if (!textEditing) return;
-    if (!resolveTextEditingTarget(options.document, textEditing)) {
+    if (
+      !resolveTextEditingTarget(options.document, textEditing, options.resolver)
+    ) {
       setTextEditing(null);
       return;
     }
@@ -1226,7 +1231,11 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
           return;
       }
     }
-    const proposal = proposeTextEditingCommit(options.document, textEditing);
+    const proposal = proposeTextEditingCommit(
+      options.document,
+      textEditing,
+      options.resolver,
+    );
     if (proposal.kind === "blocked") {
       options.setStatus(
         proposal.message ??
@@ -1413,7 +1422,11 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
           deviceLetter ? { deviceLetter } : {},
         ) ?? semanticTextDocument(reference, "instance-label"));
     const next = { ...textEditing, content, displayAlias: enabled };
-    const proposal = proposeTextEditingCommit(options.document, next);
+    const proposal = proposeTextEditingCommit(
+      options.document,
+      next,
+      options.resolver,
+    );
     if (proposal.kind === "blocked" || proposal.kind === "delete") return;
     if (
       proposal.kind === "update" &&

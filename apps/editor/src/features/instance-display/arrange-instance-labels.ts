@@ -332,7 +332,7 @@ export function arrangeInstanceLabelsReport(
     // Above the part a lone value's row is also the Reference's slot.
     const inReferenceSlot = alone && at("reference");
     // A ×m shown for its hidden W/L stands in its own slot (#1434).
-    const multiplier = multiplierLabel(original, instance.symbolId);
+    const multiplier = multiplierLabel(original, instance, resolver);
     const inOwnSlot =
       multiplier !== undefined &&
       offsetFromPlacement(
@@ -343,6 +343,7 @@ export function arrangeInstanceLabelsReport(
           style,
           grid,
           multiplier,
+          resolver,
         ),
       ) !== null;
     // A label in its slot's rows on another side stands where an earlier
@@ -438,7 +439,7 @@ export function arrangeInstanceLabelsReport(
     // fraction's taller row (#1434). Its name keeps the rows it is placed
     // in, a W/L's row over the ×m above the part.
     const valueRowOf = (label: EligibleLabel) =>
-      multiplierLabel(label.original, instance.symbolId)
+      multiplierLabel(label.original, instance, resolver)
         ? instanceLabelRowOffset(styleOf(label), grid)
         : undefined;
     /**
@@ -1124,7 +1125,7 @@ export function arrangeInstanceLabelsReport(
         (arranged.get(value.id) ?? value);
       if (above && !valueNow) continue;
       for (const label of document.annotations) {
-        const parameter = multiplierLabel(label, instance.symbolId);
+        const parameter = multiplierLabel(label, instance, resolver);
         if (
           parameter === undefined ||
           label.anchor.kind !== "object" ||
@@ -1158,6 +1159,7 @@ export function arrangeInstanceLabelsReport(
             style,
             grid,
             parameter,
+            resolver,
           ),
           ...(value ? [placeOf(value)] : []),
           ...(name
@@ -1343,12 +1345,13 @@ function sameRow(a: Rect, b: Rect): boolean {
  */
 function multiplierLabel(
   label: Annotation,
-  symbolId: string,
+  instance: SchematicDocument["instances"][number],
+  resolver: SymbolResolver,
 ): string | undefined {
   const binding = label.binding;
   return binding?.kind === "instance-value" &&
     binding.parameter !== undefined &&
-    valuePrintsMultiplier(symbolId, binding.parameter)
+    valuePrintsMultiplier(instance, binding.parameter, resolver)
     ? binding.parameter
     : undefined;
 }
