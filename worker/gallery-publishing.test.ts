@@ -455,6 +455,138 @@ describe("gallery submissions", () => {
     expect(hidden?.headers.get("cache-control")).toBe("no-store");
   });
 
+  it("serves a warm signed-out preview with one lightweight Gallery call", async () => {
+    const env = environment();
+    const id = await submitOne(env, "Signed-out preview", {
+      cookie: await adminOf(env),
+    });
+    const wall = await routeGalleryRequest(
+      new Request(`${ORIGIN}/api/gallery`),
+      env,
+    );
+    const { entries } = (await wall!.json()) as {
+      entries: { id: string; previewRevision: string }[];
+    };
+    const previewUrl = `${ORIGIN}/api/gallery/${id}/preview.svg?v=${entries[0]!.previewRevision}`;
+    const cache = memoryPreviewCache();
+    const read = () =>
+      routeGalleryRequest(new Request(previewUrl), env, {
+        previewCache: cache,
+      });
+    const cold = await read();
+    expect(cold?.status).toBe(200);
+    const svg = await cold!.text();
+    env.galleryCalls.length = 0;
+    env.galleryQueries.length = 0;
+    const warm = await read();
+    expect(warm?.status).toBe(200);
+    expect(await warm!.text()).toBe(svg);
+    expect(env.galleryCalls).toHaveLength(1);
+    expect(env.galleryQueries.join("\n")).not.toMatch(
+      /COUNT\s*\(|svg_text|project_text/iu,
+    );
+    expect(cache.putCalls).toHaveLength(1);
+  });
+
+  it.each(["recycle", "reject", "delete", "displace"] as const)(
+    "rechecks signed-out membership after %s even with warm preview bytes",
+    async (action) => {
+      const env = environment();
+      const cookie = await adminOf(env);
+      const id = await submitOne(env, "Previously visible", { cookie });
+      const wall = await routeGalleryRequest(
+        new Request(`${ORIGIN}/api/gallery`),
+        env,
+      );
+      const { entries } = (await wall!.json()) as {
+        entries: { previewRevision: string }[];
+      };
+      const cache = memoryPreviewCache();
+      const url = `${ORIGIN}/api/gallery/${id}/preview.svg?v=${entries[0]!.previewRevision}`;
+      const read = () =>
+        routeGalleryRequest(new Request(url), env, { previewCache: cache });
+      expect((await read())?.status).toBe(200);
+      expect((await read())?.status).toBe(200);
+      if (action === "displace") {
+        for (let index = 0; index < 12; index++)
+          await submitOne(env, `Newer ${index}`, { cookie });
+      } else {
+        const response = await route(
+          env,
+          new Request(
+            `${ORIGIN}/api/gallery/${id}/${action === "reject" ? "reject" : "recycle"}`,
+            {
+              method: "POST",
+              headers: {
+                ...cookieHeaders(cookie),
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({ reason: "Withdraw this preview" }),
+            },
+          ),
+        );
+        expect(response.status).toBe(200);
+        if (action === "delete")
+          expect(
+            (
+              await route(
+                env,
+                new Request(`${ORIGIN}/api/gallery/${id}`, {
+                  method: "DELETE",
+                  headers: cookieHeaders(cookie),
+                }),
+              )
+            ).status,
+          ).toBe(200);
+      }
+      env.galleryCalls.length = 0;
+      const hidden = await read();
+      expect(hidden?.status).toBe(401);
+      expect(await hidden!.json()).toEqual({ error: "sign-in-required" });
+      expect(hidden?.headers.get("cache-control")).toBe("no-store");
+      expect(env.galleryCalls).toHaveLength(1);
+      expect(cache.putCalls).toHaveLength(1);
+    },
+  );
+
+  it("does not serve old cached bytes after a signed-out preview changes", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Before update", { cookie });
+    const wall = await routeGalleryRequest(
+      new Request(`${ORIGIN}/api/gallery`),
+      env,
+    );
+    const { entries } = (await wall!.json()) as {
+      entries: { previewRevision: string }[];
+    };
+    const cache = memoryPreviewCache();
+    const url = `${ORIGIN}/api/gallery/${id}/preview.svg?v=${entries[0]!.previewRevision}`;
+    const read = () =>
+      routeGalleryRequest(new Request(url), env, { previewCache: cache });
+    const oldSvg = await (await read())!.text();
+    const updated = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "PUT",
+        headers: {
+          ...cookieHeaders(cookie),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Updated",
+          projectText: wiredProjectText("Updated"),
+        }),
+      }),
+    );
+    expect(updated.status).toBe(200);
+    const current = await read();
+    expect(current?.status).toBe(200);
+    expect(current?.headers.get("cache-control")).toBe("no-store");
+    expect(await current!.text()).not.toBe(oldSvg);
+    expect(cache.putCalls).toHaveLength(1);
+  });
+
   it("publishes and updates a hierarchical Project with its top-level Cell preview", async () => {
     const env = environment();
     const cookie = await makerOf(env);

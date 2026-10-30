@@ -33,7 +33,7 @@ import {
 } from "@icm/derived";
 import {
   createReferenceIndex,
-  deviceDescriptor,
+  parameterDisplayContract,
   referenceDeviceLetter,
   referenceIssuesForInstance,
 } from "@icm/devices";
@@ -524,6 +524,7 @@ export function updateTextEditingSession(
 export function resolveTextEditingTarget(
   document: SchematicDocument,
   session: TextEditingSession,
+  resolver?: SymbolResolver,
 ): EditableTextTarget | null {
   if (session.owner === "annotation") {
     const object = document.annotations.find(
@@ -531,7 +532,9 @@ export function resolveTextEditingTarget(
     );
     if (
       object?.binding?.kind === "instance-value" &&
-      !flattenRichText(resolveAnnotationText(document, object)).trim()
+      !flattenRichText(
+        resolveAnnotationText(document, object, undefined, resolver),
+      ).trim()
     )
       return null;
     return object ? { owner: "annotation", object } : null;
@@ -592,6 +595,7 @@ function proposeInstanceValueCommit(
   document: SchematicDocument,
   annotation: Annotation,
   session: TextEditingSession,
+  resolver?: SymbolResolver,
 ): TextEditingCommitProposal {
   const binding = annotation.binding;
   if (binding?.kind !== "instance-value" || annotation.locked)
@@ -600,15 +604,17 @@ function proposeInstanceValueCommit(
     (item) => item.id === binding.instanceId,
   );
   if (!instance?.netlist) return { kind: "blocked" };
-  const definition = deviceDescriptor(instance.symbolId)?.parameters.find(
-    (parameter) =>
-      binding.parameter
-        ? parameter.name.toLowerCase() === binding.parameter.toLowerCase()
-        : parameter.displayRole === "value",
+  const definition = parameterDisplayContract(
+    instance,
+    resolver,
+  ).definitions.find((parameter) =>
+    binding.parameter
+      ? parameter.name.toLowerCase() === binding.parameter.toLowerCase()
+      : parameter.displayRole === "value",
   );
   const parameter = binding.parameter ?? definition?.name;
   const currentText = flattenRichText(
-    resolveAnnotationText(document, annotation),
+    resolveAnnotationText(document, annotation, undefined, resolver),
   );
   const editedText = flattenRichText(session.content).trim();
   if (session.contentEdited && !editedText) {
@@ -705,14 +711,15 @@ function proposeInstanceValueCommit(
 export function proposeTextEditingCommit(
   document: SchematicDocument,
   session: TextEditingSession,
+  resolver?: SymbolResolver,
 ): TextEditingCommitProposal {
   if (
     session.owner === "annotation" &&
     session.bindingKind === "instance-value"
   ) {
-    const target = resolveTextEditingTarget(document, session);
+    const target = resolveTextEditingTarget(document, session, resolver);
     return target?.owner === "annotation"
-      ? proposeInstanceValueCommit(document, target.object, session)
+      ? proposeInstanceValueCommit(document, target.object, session, resolver)
       : { kind: "blocked" };
   }
   if (session.owner === "instance-formula") {
@@ -775,7 +782,7 @@ export function proposeTextEditingCommit(
   const plainText = flattenRichText(session.content).trim();
   const emptied = !plainText;
   const emptyTarget = emptied
-    ? resolveTextEditingTarget(document, session)
+    ? resolveTextEditingTarget(document, session, resolver)
     : null;
   // A polarity label survives with its center text removed: the + / − marks
   // are the object, and the text is one deletable part of it. Every other
@@ -800,7 +807,7 @@ export function proposeTextEditingCommit(
     };
   }
 
-  const target = resolveTextEditingTarget(document, session);
+  const target = resolveTextEditingTarget(document, session, resolver);
   // Symbol body text returned above; what remains carries a lock of its own.
   if (!target || target.owner === "instance-formula")
     return { kind: "blocked" };

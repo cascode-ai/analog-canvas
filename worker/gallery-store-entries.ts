@@ -185,12 +185,21 @@ export function submit(
 }
 
 /** Minimum row needed to decide whether an immutable preview cache hit is valid. */
-export function previewAccess(sql: SqlStorage, id: string): Response {
+export function previewAccess(
+  sql: SqlStorage,
+  id: string,
+  signedOutWallSize?: number,
+): Response {
   const row = sql
     .exec<PreviewAccessRow>(
       `SELECT status, owner_user_id, preview_revision
-       FROM gallery_entries WHERE id = ?`,
+       FROM gallery_entries WHERE id = ?${
+         signedOutWallSize === undefined
+           ? ""
+           : " AND id IN (SELECT id FROM gallery_entries WHERE status = 'public' ORDER BY created_at DESC, id DESC LIMIT ?)"
+       }`,
       id,
+      ...(signedOutWallSize === undefined ? [] : [signedOutWallSize]),
     )
     .toArray()[0];
   if (!row) return Response.json({ error: "not-found" }, { status: 404 });

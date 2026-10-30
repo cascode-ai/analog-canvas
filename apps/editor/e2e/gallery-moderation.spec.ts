@@ -36,14 +36,23 @@ test("the Owner withdraws an entry from its tile menu and rejects another with a
   await mockPreviews(page);
   const calls: string[] = [];
   let rejectReason = "";
+  let rejectNotify: boolean | undefined;
   await page.route("**/api/gallery/*/{recycle,reject}", async (route) => {
     const [, , , id, action] = new URL(route.request().url()).pathname.split(
       "/",
     );
     calls.push(`${action} ${id}`);
-    if (action === "reject")
-      rejectReason = (route.request().postDataJSON() as { reason: string })
-        .reason;
+    if (action === "reject") {
+      const body = route.request().postDataJSON() as {
+        reason: string;
+        notify?: boolean;
+      };
+      rejectReason = body.reason;
+      rejectNotify = body.notify;
+      return route.fulfill({
+        json: { id, status: "rejected", emailed: body.notify === true },
+      });
+    }
     await route.fulfill({ json: { id } });
   });
 
@@ -109,9 +118,11 @@ test("the Owner withdraws an entry from its tile menu and rejects another with a
   await confirm.click();
 
   await expect(page.getByTestId(`gallery-tile-${other.id}`)).toHaveCount(0);
+  // The author is emailed the reason unless the box is cleared.
   await expect(page.getByTestId("gallery-owner-notice")).toContainText(
-    "rejected",
+    "its author was emailed the reason",
   );
+  expect(rejectNotify).toBe(true);
   expect(rejectReason).toBe(
     "too ugly; circuit incorrect — Note: Label the ports and remove the loose wire.",
   );

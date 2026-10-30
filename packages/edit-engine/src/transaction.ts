@@ -476,6 +476,7 @@ export function executeTransaction(
       case "set_instance_netlist":
       case "bulk_patch_instance_netlist": {
         const outcome = applyInstanceNetlistEdit(edit, {
+          resolver,
           references,
           draft,
           changedObjectIds,

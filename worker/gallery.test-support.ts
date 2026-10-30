@@ -71,6 +71,14 @@ export type Harness = GalleryEnv & {
   /** The gallery's own storage, for seeding rows a route cannot create. */
   gallerySql: ReturnType<typeof sqliteState>["storage"]["sql"];
   galleryQueries: string[];
+  galleryCalls: string[];
+  galleryStoreCalls: {
+    store: string;
+    operation: string;
+    body: Record<string, unknown>;
+  }[];
+  galleryStoreQueries: Map<string, string[]>;
+  galleryStoreStates: Map<string, ReturnType<typeof sqliteState>>;
 };
 
 /**
@@ -79,7 +87,11 @@ export type Harness = GalleryEnv & {
  */
 export function environment(): Harness {
   const galleryQueries: string[] = [];
+  const galleryCalls: string[] = [];
   const galleryState = sqliteState(galleryQueries);
+  const galleryStoreCalls: Harness["galleryStoreCalls"] = [];
+  const galleryStoreQueries = new Map([["gallery", galleryQueries]]);
+  const galleryStoreStates = new Map([["gallery", galleryState]]);
   const durable = new DeployedGalleryDO(galleryState);
   // Each store by its name, as the Worker binds them: the community wall's,
   // and each reference dataset's of its own (#1510).
@@ -88,8 +100,13 @@ export function environment(): Harness {
   ]);
   const store = (name: string) => {
     let found = stores.get(name);
-    if (!found)
-      stores.set(name, (found = new DeployedGalleryDO(sqliteState())));
+    if (!found) {
+      const queries: string[] = [];
+      const state = sqliteState(queries);
+      galleryStoreQueries.set(name, queries);
+      galleryStoreStates.set(name, state);
+      stores.set(name, (found = new DeployedGalleryDO(state)));
+    }
     return found;
   };
   const authState = sqliteState();
@@ -101,8 +118,15 @@ export function environment(): Harness {
     GALLERY_BACKUP_TOKEN: READER_TOKEN,
     GALLERY: {
       getByName: (name: string) => ({
-        fetch: (input: string, init?: RequestInit) =>
-          store(name).fetch(new Request(input, init)),
+        fetch: (input: string, init?: RequestInit) => {
+          galleryCalls.push(input);
+          galleryStoreCalls.push({
+            store: name,
+            operation: new URL(input).pathname.slice(1),
+            body: JSON.parse(String(init?.body ?? "{}")),
+          });
+          return store(name).fetch(new Request(input, init));
+        },
       }),
     },
     AUTH: {
@@ -117,6 +141,10 @@ export function environment(): Harness {
     authSql: authState.storage.sql,
     gallerySql: galleryState.storage.sql,
     galleryQueries,
+    galleryCalls,
+    galleryStoreCalls,
+    galleryStoreQueries,
+    galleryStoreStates,
   };
 }
 

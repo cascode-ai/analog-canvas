@@ -1,3 +1,4 @@
+import type { SymbolResolver } from "@icm/symbols";
 import type {
   AgentAuthoringCommand,
   AgentCommandPlan,
@@ -50,6 +51,7 @@ function typedContent(
 export function planSetText(
   document: SchematicDocument,
   command: SetText,
+  resolver?: SymbolResolver,
 ): AgentCommandPlan {
   let session: TextEditingSession;
   if (command.target.kind === "annotation") {
@@ -71,7 +73,9 @@ export function planSetText(
       const name = boundAnnotationName(document, annotation);
       const shown = (text: string) =>
         text.trim() ===
-        flattenRichText(resolveAnnotationText(document, annotation)).trim();
+        flattenRichText(
+          resolveAnnotationText(document, annotation, undefined, resolver),
+        ).trim();
       const restyles =
         typeof command.text === "string"
           ? shown(command.text)
@@ -106,6 +110,7 @@ export function planSetText(
     session = createTextEditingSession(
       { owner: "annotation", object: annotation },
       document,
+      resolver,
     );
   } else {
     const object = document.drafting?.objects.find(
@@ -132,6 +137,7 @@ export function planSetText(
   const proposal = proposeTextEditingCommit(
     document,
     updateTextEditingSession(session, { content }),
+    resolver,
   );
   switch (proposal.kind) {
     case "unchanged":

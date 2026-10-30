@@ -24,7 +24,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import { snapCoordinate } from "../../snap/engine";
 import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../instance-display/instance-display-edits";
-import { instanceParameterVisibilityEdits } from "../instance-display/instance-parameter-display";
+import { instanceParameterVisibilityEdits } from "@icm/edit-engine";
 import { withStruckLabelsArranged } from "../instance-display/struck-label-arrangement";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
@@ -184,7 +184,8 @@ export function planPropertyApply(
   if (typeof desiredValue === "boolean" && desiredValue !== currentValue) {
     if (
       desiredValue &&
-      displayableInstanceValue(candidateInstance).kind !== "displayable"
+      displayableInstanceValue(candidateInstance, resolver).kind !==
+        "displayable"
     ) {
       return {
         kind: "rejected",

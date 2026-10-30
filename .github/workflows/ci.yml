@@ -70,9 +70,92 @@ jobs:
         if: steps.plan.outputs.mode == 'documentation'
         run: node scripts/check-markdown-links.mjs
 
-  core_suite:
-    name: Core suite
+  core_static:
+    name: Core static
     needs: changes
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Static contracts
+        env:
+          FORMAT_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: pnpm ci:static
+
+  core_build:
+    name: Core package build
+    needs: changes
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      artifact_id: ${{ steps.shared_build.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build shared standalone dependencies
+        run: node scripts/ci-package-build.mjs build
+      - id: shared_build
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-packages-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            packages/*/dist
+            output/ci-packages.json
+          if-no-files-found: error
+          retention-days: 1
+
+  core_unit:
+    name: Core unit (${{ matrix.shard }})
+    needs: [changes, core_build]
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.core_build.outputs.artifact_id }}
+          merge-multiple: true
+      - run: node scripts/ci-package-build.mjs verify
+      - name: Unit and integration tests
+        env:
+          ICM_CI_PACKAGE_BUILD: "1"
+        run: pnpm ci:unit --shard=${{ matrix.shard }}
+
+  core_release:
+    name: Core release
+    needs: [changes, core_build]
     if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     env:
@@ -88,27 +171,65 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Static contracts
-        run: pnpm ci:static
-      - name: Unit and integration tests
-        run: pnpm ci:unit
-      - name: Release contracts
-        # GitHub's Ubuntu image already carries Chrome. Keep setup:e2e as an
-        # explicit one-time local command instead of pulling a CI container.
-        run: pnpm release:verify
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.core_build.outputs.artifact_id }}
+          merge-multiple: true
+      - name: Build remaining workspace packages and applications
+        run: node scripts/ci-package-build.mjs remaining
+      - name: Offline renderer boundary
+        timeout-minutes: 5
+        run: pnpm test:desktop-build
+      - name: editor-bundle-budget
+        timeout-minutes: 5
+        run: node scripts/editor-bundle-budget.mjs --check
+      - name: performance-baseline
+        timeout-minutes: 5
+        run: node scripts/performance-baseline.mjs
+      - name: visual-golden
+        timeout-minutes: 5
+        run: node scripts/visual-golden.mjs --check
+      - name: export-golden
+        timeout-minutes: 5
+        run: node scripts/export-golden.mjs --check
+      - name: pwa-icons
+        timeout-minutes: 5
+        run: node scripts/pwa-icons.mjs --check
+      - name: agent-api-artifacts
+        timeout-minutes: 5
+        run: node scripts/agent-api-artifacts.mjs --check
+      - name: editor-production-smoke
+        timeout-minutes: 5
+        run: node scripts/editor-production-smoke.mjs --check
+      - name: package-mcp
+        timeout-minutes: 5
+        run: node scripts/package-mcp.mjs
+      - name: package-release
+        timeout-minutes: 5
+        run: node scripts/package-release.mjs
+      - name: release-smoke
+        timeout-minutes: 5
+        run: node scripts/release-smoke.mjs
+      - name: mcp-release-smoke
+        timeout-minutes: 5
+        run: node scripts/mcp-release-smoke.mjs
 
   # The packaged Windows preview is accepted when it is released (Desktop
   # preview release), not on every merge: no merge ships it.
   core:
     name: Core contracts
-    needs: [changes, core_suite]
-    if: always() && github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    needs: [changes, core_build, core_static, core_unit, core_release]
+    if: always() && github.event_name == 'merge_group' && !(needs.changes.result == 'success' && needs.changes.outputs.heavy == 'false' && needs.changes.outputs.mode == 'documentation')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Require the core suite
         env:
-          CORE_RESULT: ${{ needs.core_suite.result }}
-        run: test "$CORE_RESULT" = "success"
+          CORE_NEEDS: ${{ toJSON(needs) }}
+        run: node scripts/check-core-results.mjs
 
   browser_shard:
     name: Browser tests (${{ matrix.shard }})
@@ -139,6 +260,14 @@ jobs:
           read -r -a specs <<< "$E2E_ARGS"
           test "${#specs[@]}" -gt 0
           pnpm ci:e2e --workers=3 --shard=${{ matrix.shard }} "${specs[@]}"
+      - name: Preserve browser timing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-report-${{ strategy.job-index }}-${{ github.run_attempt }}
+          path: test-results/e2e-report.json
+          if-no-files-found: warn
+          retention-days: 14
 
   browser:
     name: Browser tests

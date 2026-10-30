@@ -1,6 +1,7 @@
 import {
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
   AGENT_SESSION_PROTOCOL_VERSION,
+  AgentAdapterVersionSchema,
   AgentCircuitResponseSchema,
   AgentFileResourceResponseSchema,
   AgentSimulationResourceResponseSchema,
@@ -80,6 +81,21 @@ function scopedRequestHash(
 /** Downloads an ended session still has to delete from R2. */
 const ARTIFACT_CLEANUP_KEY = "agent-artifact-cleanup";
 const ARTIFACT_CLEANUP_RETRY_MS = 60_000;
+/** The release the paired adapter named, for the editor to show (#1844). */
+const ADAPTER_VERSION_KEY = "agent-adapter-version";
+
+/** One event in the envelope the editor socket carries. */
+function editorEventMessage(event: AgentSessionEvent): string {
+  return JSON.stringify({
+    protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
+    sessionId: event.sessionId,
+    messageId: crypto.randomUUID(),
+    requestId: `event-${crypto.randomUUID()}`,
+    sentAt: new Date().toISOString(),
+    kind: "event",
+    payload: event,
+  });
+}
 
 interface RequestTrace {
   started: number;
@@ -286,7 +302,7 @@ export class AgentSessionDO {
       return this.resumeConnector(request, machine, allowedOrigin);
     }
     if (url.pathname === "/editor") {
-      return this.connectEditor(request, machine);
+      return await this.connectEditor(request, machine);
     }
     if (request.method === "GET" && url.pathname === "/status") {
       const now = Date.now();
@@ -748,6 +764,7 @@ export class AgentSessionDO {
   ): Promise<Response> {
     const body = (await request.json().catch(() => null)) as {
       code?: unknown;
+      adapterVersion?: unknown;
     } | null;
     const code = typeof body?.code === "string" ? body.code : "";
     const result = redeemClaimResponse(machine, code, Date.now());
@@ -761,6 +778,7 @@ export class AgentSessionDO {
     }
     this.emit({ type: "session.ready", sessionId: machine.sessionId });
     this.notifyEditor({ type: "session.ready", sessionId: machine.sessionId });
+    await this.pairedAdapter(machine, body);
     return jsonResponse(
       {
         ...result,
@@ -781,6 +799,7 @@ export class AgentSessionDO {
   ): Promise<Response> {
     const body = (await request.json().catch(() => null)) as {
       connectorToken?: unknown;
+      adapterVersion?: unknown;
     } | null;
     const token =
       typeof body?.connectorToken === "string" ? body.connectorToken : "";
@@ -799,6 +818,7 @@ export class AgentSessionDO {
         : "session.ready";
     this.emit({ type, sessionId: machine.sessionId });
     this.notifyEditor({ type, sessionId: machine.sessionId });
+    await this.pairedAdapter(machine, body);
     return jsonResponse(
       {
         ok: true,
@@ -819,10 +839,28 @@ export class AgentSessionDO {
     );
   }
 
-  private connectEditor(
+  /**
+   * Keep the release the adapter named on this claim or resume, or none,
+   * and tell the editor (#1844).
+   */
+  private async pairedAdapter(
+    machine: AgentSessionMachine,
+    body: { adapterVersion?: unknown } | null,
+  ): Promise<void> {
+    const named = AgentAdapterVersionSchema.safeParse(body?.adapterVersion);
+    const version = named.success ? named.data : null;
+    await this.state.storage.put(ADAPTER_VERSION_KEY, version);
+    this.notifyEditor({
+      type: "agent.adapter",
+      sessionId: machine.sessionId,
+      ...(version ? { version } : {}),
+    });
+  }
+
+  private async connectEditor(
     request: Request,
     machine: AgentSessionMachine,
-  ): Response {
+  ): Promise<Response> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return jsonResponse({ error: "WebSocket upgrade required" }, 426);
     }
@@ -848,6 +886,9 @@ export class AgentSessionDO {
     if (!Pair || !this.state.acceptWebSocket) {
       return jsonResponse({ error: "WebSocket runtime unavailable" }, 501);
     }
+    const version = await this.state.storage.get<string | null>(
+      ADAPTER_VERSION_KEY,
+    );
     const pair = new Pair();
     const previousSockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
     this.state.acceptWebSocket(pair[1], [EDITOR_SOCKET_TAG]);
@@ -864,33 +905,29 @@ export class AgentSessionDO {
     });
     if (status === "paused") {
       pair[1].send(
-        JSON.stringify({
-          protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
+        editorEventMessage({
+          type: "session.paused",
           sessionId: machine.sessionId,
-          messageId: crypto.randomUUID(),
-          requestId: `event-${crypto.randomUUID()}`,
-          sentAt: new Date().toISOString(),
-          kind: "event",
-          payload: { type: "session.paused", sessionId: machine.sessionId },
         }),
       );
     } else if (machine.claimed) {
       pair[1].send(
-        JSON.stringify({
-          protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
+        editorEventMessage({
+          type: "session.ready",
           sessionId: machine.sessionId,
-          messageId: crypto.randomUUID(),
-          requestId: `event-${crypto.randomUUID()}`,
-          sentAt: new Date().toISOString(),
-          kind: "event",
-          payload: {
-            type: "session.ready",
-            sessionId: machine.sessionId,
-            expiresAt: new Date(machine.expiresAt).toISOString(),
-          },
+          expiresAt: new Date(machine.expiresAt).toISOString(),
         }),
       );
     }
+    // A reloaded tab learns which adapter release is paired.
+    if (machine.claimed && version)
+      pair[1].send(
+        editorEventMessage({
+          type: "agent.adapter",
+          sessionId: machine.sessionId,
+          version,
+        }),
+      );
     return new Response(null, {
       status: 101,
       headers: { "sec-websocket-protocol": EDITOR_PROTOCOL },
@@ -1892,17 +1929,7 @@ export class AgentSessionDO {
     const sockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
     for (const socket of sockets) {
       if (socket.readyState !== WebSocket.OPEN) continue;
-      socket.send(
-        JSON.stringify({
-          protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
-          sessionId: event.sessionId,
-          messageId: crypto.randomUUID(),
-          requestId: `event-${crypto.randomUUID()}`,
-          sentAt: new Date().toISOString(),
-          kind: "event",
-          payload: event,
-        }),
-      );
+      socket.send(editorEventMessage(event));
     }
   }
 

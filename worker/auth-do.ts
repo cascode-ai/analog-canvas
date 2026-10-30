@@ -38,6 +38,10 @@ import { unlinkArenaVoter, type ArenaService } from "./arena-account";
 import { exemptFromTraps } from "./trap-exempt";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import {
+  rejectionNotice,
+  type RejectionAuthor,
+} from "./gallery-rejection-notice";
+import {
   ARENA_ORIGIN,
   CANVAS_HOST,
   SCHEMATIC_ARENA_PATH,
@@ -573,6 +577,11 @@ export class AuthDO {
       return this.blockAccount(request);
     if (url.pathname === "/internal/block-notices" && request.method === "POST")
       return noStoreJson({ sent: await this.sendBlockNotices() });
+    if (
+      url.pathname === "/internal/gallery-rejection" &&
+      request.method === "POST"
+    )
+      return noStoreJson({ sent: await this.sendRejectionNotice(request) });
     if (!url.pathname.startsWith("/api/auth/")) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
@@ -798,6 +807,36 @@ export class AuthDO {
       sent += 1;
     }
     return sent;
+  }
+
+  /**
+   * Tells a rejected entry's author why, at the account's address now (else
+   * the one it published with), replies going to the Owner. An AI account
+   * is the Owner's own and is told nothing.
+   */
+  private async sendRejectionNotice(request: Request): Promise<boolean> {
+    const body = (await request.json().catch(() => null)) as
+      (Partial<RejectionAuthor> & { reason?: unknown }) | null;
+    if (typeof body?.entryName !== "string" || typeof body.reason !== "string")
+      return false;
+    const userId =
+      typeof body.ownerUserId === "string" ? body.ownerUserId : null;
+    if (userId && AI_SEATS.some((seat) => seat.userId === userId)) return false;
+    const row = userId
+      ? this.sql
+          .exec<UserRow>("SELECT * FROM users WHERE id = ?", userId)
+          .toArray()[0]
+      : undefined;
+    const to =
+      row?.email ??
+      (typeof body.submitterEmail === "string" ? body.submitterEmail : null);
+    if (!to) return false;
+    const { subject, text } = rejectionNotice(
+      row?.display_name ?? null,
+      body.entryName,
+      body.reason,
+    );
+    return this.sendEmail(to, subject, text, SITE_USAGE_CONTACT);
   }
 
   /** One plain-text email through Resend; false when it was not sent. */

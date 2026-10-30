@@ -6,6 +6,8 @@ import { isSimulationInputPath } from "../../packages/model/dist/index.js";
 import { verifySimulationEnvironmentMetadata } from "../../packages/spice-run/dist/index.js";
 import { validateNativeExampleResult } from "./native-example-acceptance.mjs";
 
+export { validateNativeExampleResult };
+
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 export function nativeRunnerOptions(argv) {

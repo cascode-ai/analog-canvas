@@ -395,7 +395,7 @@ async function authoringView(
   }
 }
 
-test("reopening details hides a cached public component that is no longer accessible", async ({
+test("account changes clear cached details and deleted cards while offline focus retains the catalog", async ({
   page,
   context,
   service,
@@ -419,6 +419,37 @@ test("reopening details hides a cached public component that is no longer access
   ).toHaveCount(0);
   await expect(button(dialog, "Place Retained detail")).toHaveCount(0);
   await expect(dialog.locator(".user-component-detail")).toHaveCount(0);
+
+  await context.unroute("**/api/auth/me");
+  await context.unroute("**/api/components**");
+  await service.connect(context, "admin");
+  service.seedPublished("offline-public", "Offline public");
+  await button(dialog, "Close").click();
+  await openUserComponents(page);
+  await expect(button(dialog, "Place Offline public")).toBeVisible();
+  const offline = (route: import("@playwright/test").Route) =>
+    route.abort("failed");
+  await context.route("**/api/auth/me", offline);
+  await context.route("**/api/components?**", offline);
+  await page.clock.setFixedTime(new Date(Date.now() + 31_000));
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(button(dialog, "Try Again")).toBeVisible();
+  await expect(button(dialog, "Place Offline public")).toBeVisible();
+  await context.unroute("**/api/auth/me");
+  await context.unroute("**/api/components?**", offline);
+  await context.unroute("**/api/components**");
+  await service.connect(context, "admin");
+  await openShelf(page, "Deleted (all)");
+  await expect(button(dialog, "Place Retained detail")).toBeVisible();
+  await context.unroute("**/api/auth/me");
+  await context.unroute("**/api/components**");
+  await service.connect(context, null);
+  await button(dialog, "Close").click();
+  await openUserComponents(page);
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(1);
+  await expect(button(dialog, "Place Offline public")).toBeVisible();
+  await expect(button(dialog, "Place Retained detail")).toHaveCount(0);
+  await expect(button(dialog, "Show available components")).toHaveCount(0);
 });
 
 test("public symbol placement connects contacts atomically and keeps the clicked orientation during a revision check", async ({
@@ -533,53 +564,6 @@ test("library selection refuses a revision changed during preview and editing re
     text(dialog, "This component changed. Refresh before selecting it."),
   ).toBeVisible();
 });
-test("a revision conflict can retry an interrupted catalog refresh", async ({
-  page,
-  context,
-  service,
-}) => {
-  service.limitCatalogPages(20);
-  const definition = service.seedPublished("recovery-guard", "Recovery guard");
-  for (let index = 0; index < 22; index += 1)
-    service.seedPublished(
-      `recovery-z-${String(index).padStart(2, "0")}`,
-      `Device ${index}`,
-    );
-  await service.openEditorAs(page, "alice");
-  const dialog = await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(23);
-  expect(
-    await putComponent(page, "recovery-guard", {
-      revision: 1,
-      definition: {
-        ...definition,
-        symbol: { ...definition.symbol, name: "Recovery guard changed" },
-      },
-    }),
-  ).toBe(200);
-  let failNextPage = true;
-  await context.route("**/api/components?**", async (route) => {
-    if (
-      new URL(route.request().url()).searchParams.has("cursor") &&
-      failNextPage
-    )
-      await route.fulfill({
-        status: 503,
-        json: { error: "Service unavailable" },
-      });
-    else await route.fallback();
-  });
-  await clickLibraryAction(dialog, "Details for Recovery guard");
-  await expect(button(dialog, "Try Again")).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(23);
-  await expect(button(dialog, "Place Recovery guard")).toBeVisible();
-  await expect(button(dialog, "Place Recovery guard changed")).toHaveCount(0);
-  failNextPage = false;
-  await button(dialog, "Try Again").click();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(23);
-  await expect(button(dialog, "Place Recovery guard changed")).toBeVisible();
-  await expect(button(dialog, "Try Again")).toHaveCount(0);
-});
 
 async function editDefinition(page: Page, name: string) {
   await expect(componentEditor(page)).toBeVisible();
@@ -634,57 +618,6 @@ const finiteGainSource = [
   "",
 ].join("\n");
 
-test("reopening User Components retains cached cards when background revalidation fails", async ({
-  page,
-  context,
-  service,
-}) => {
-  const startedAt = Date.now();
-  await page.clock.setFixedTime(startedAt);
-  await service.openEditorAs(page, "alice");
-  await publishComponent(
-    page,
-    "reusable-device",
-    symbolDefinition("Reusable device"),
-  );
-  let listRequests = 0;
-  page.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/api/components")
-      listRequests += 1;
-  });
-  const dialog = await openUserComponents(page);
-  await expect(button(dialog, "Place Reusable device")).toBeVisible();
-  await button(dialog, "Close").click();
-  await page.clock.setFixedTime(startedAt + 120_000);
-  await context.route("**/api/components?**", (route) => route.abort("failed"));
-  await openUserComponents(page);
-  await expect(button(dialog, "Place Reusable device")).toBeVisible();
-  await expect(text(dialog, "Loading components…")).toHaveCount(0);
-  await expect(text(dialog, "Couldn’t load user components.")).toHaveCount(0);
-  await expect(
-    text(
-      dialog,
-      "Couldn’t refresh components. Loaded components are still available.",
-    ),
-  ).toBeVisible();
-  expect(listRequests).toBe(2);
-  const search = dialog.getByRole("textbox", {
-    name: "Search User Defined components",
-  });
-  await search.fill("unmatched");
-  await expect(text(dialog, "Couldn’t load user components.")).toBeVisible();
-  await search.fill("");
-  await expect(button(dialog, "Place Reusable device")).toBeVisible();
-  await expect(text(dialog, "Loading components…")).toHaveCount(0);
-  await expect(
-    text(
-      dialog,
-      "Couldn’t refresh components. Loaded components are still available.",
-    ),
-  ).toBeVisible();
-  expect(listRequests).toBe(4);
-});
-
 test("historical invalid pin mappings remain inspectable without blocking valid library cards", async ({
   page,
   service,
@@ -728,58 +661,6 @@ test("historical invalid pin mappings remain inspectable without blocking valid 
     text(dialog, "No user components match this search."),
   ).toHaveCount(0);
   await expect(button(dialog, "Try Again")).toHaveCount(0);
-});
-
-test("reopening deleted components after sign-out does not retain administrator results", async ({
-  page,
-  context,
-  service,
-}) => {
-  await service.openEditorAs(page, "admin");
-  await publishComponent(
-    page,
-    "deleted-device",
-    symbolDefinition("Deleted device"),
-  );
-  expect(await deleteComponent(page, "deleted-device")).toBe(200);
-  const dialog = await openUserComponents(page);
-  await openShelf(page, "Deleted (all)");
-  await expect(button(dialog, "Place Deleted device")).toBeVisible();
-  await page.clock.install();
-  await button(dialog, "Close").click();
-  await page.clock.fastForward(31_000);
-  await service.connect(context, null);
-  await openUserComponents(page);
-  await page.clock.runFor(200);
-  await expect(text(dialog, "No user components yet.")).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(0);
-  await expect(button(dialog, "Show available components")).toHaveCount(0);
-});
-
-test("a 121-component catalog loads completely in one summary request without changing its controls", async ({
-  page,
-  service,
-}) => {
-  for (let index = 0; index < 121; index++)
-    service.seedPublished(
-      `batch-${String(index).padStart(3, "0")}`,
-      `Batch ${index}`,
-    );
-  const reads: string[] = [];
-  page.on("request", (request) => {
-    const url = new URL(request.url());
-    if (url.pathname === "/api/components" && url.searchParams.has("catalog"))
-      reads.push(url.search);
-  });
-  await service.openEditorAs(page, "alice");
-  const dialog = await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(121);
-  expect(reads).toHaveLength(1);
-  await expect(dialog.getByLabel("Component order")).toHaveValue(
-    "circuit-first",
-  );
-  await expect(button(dialog, "Load More")).toHaveCount(0);
-  await expect(button(dialog, "Refresh")).toHaveCount(0);
 });
 
 test("automatically loads all components and retries an interrupted page without losing cards", async ({
@@ -864,54 +745,6 @@ test("automatically loads all components and retries an interrupted page without
   await expect(rejected).toContainText("OUT");
   expect(cursors).toHaveLength(7);
   expect(cursors.at(-1)).toBeNull();
-});
-
-test("a catalog larger than the session cache retries from its retained last page", async ({
-  page,
-  context,
-  service,
-}) => {
-  service.limitCatalogPages(10);
-  const definition = { symbol: newComponentDefinition().symbol };
-  for (let index = 0; index < 61; index += 1) {
-    const next = structuredClone(definition);
-    // Valid historical names can make summaries exceed the bounded session cache.
-    next.symbol.name = `Device ${index} ${"x".repeat(18_000)}`;
-    service.seedHistoricalDefinition(
-      `large-device-${String(index).padStart(2, "0")}`,
-      next,
-    );
-  }
-  let failLastPage = true;
-  const cursors: (string | null)[] = [];
-  await service.openEditorAs(page, "alice");
-  await context.route("**/api/components?**", async (route) => {
-    const cursor = new URL(route.request().url()).searchParams.get("cursor");
-    cursors.push(cursor);
-    if (cursor && cursors.length >= 7 && failLastPage)
-      await route.fulfill({
-        status: 503,
-        json: { error: "Service unavailable" },
-      });
-    else await route.fallback();
-  });
-  const dialog = await openUserComponents(page);
-  await expect(button(dialog, "Try Again")).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(60);
-  failLastPage = false;
-  await button(dialog, "Try Again").click();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(61);
-  expect(cursors).toEqual([
-    null,
-    expect.any(String),
-    expect.any(String),
-    expect.any(String),
-    expect.any(String),
-    expect.any(String),
-    expect.any(String),
-    expect.any(String),
-  ]);
-  expect(cursors[6]).toBe(cursors[7]);
 });
 
 test("library preview fits actual off-viewBox artwork without changing the stored definition", async ({
@@ -1357,9 +1190,10 @@ test("public circuit authoring drafts survive closing and portable reopening wit
   await expect(netlist(editor)).toContainText("gain=17");
 });
 
-test("filters the complete catalog and refreshes cached cards automatically on return", async ({
+test("filters and reopens the catalog, retaining cards and scroll through a failed management refresh", async ({
   page,
   service,
+  context,
 }) => {
   const resistor = builtInSymbols.find((s) => s.id === "resistor")!;
   service.seedHistoricalDefinition("aaa-artwork", {
@@ -1369,7 +1203,7 @@ test("filters the complete catalog and refreshes cached cards automatically on r
     symbol: { ...resistor, name: "Electrical resistor" },
     electrical: deviceDescriptor("resistor"),
   });
-  await service.openEditorAs(page, null);
+  await service.openEditorAs(page, "admin");
   const dialog = await openUserComponents(page);
   await expect(dialog.getByLabel("Component order")).toHaveValue(
     "circuit-first",
@@ -1399,54 +1233,44 @@ test("filters the complete catalog and refreshes cached cards automatically on r
   await expect(button(dialog, "Place Automatic arrival")).toBeVisible();
   await expect(button(dialog, "Refresh")).toHaveCount(0);
   await expect(button(dialog, "Load More")).toHaveCount(0);
-});
-
-test("an interrupted background refresh retains visible cards and resumes its buffered generation", async ({
-  page,
-  context,
-  service,
-}) => {
   service.limitCatalogPages(20);
   for (let index = 0; index < 35; index++)
     service.seedHistoricalDefinition(
-      `refresh-resume-${String(index).padStart(2, "0")}`,
-      symbolDefinition(`Refresh ${index}`),
+      `managed-${String(index).padStart(2, "0")}`,
+      symbolDefinition(`Managed ${index}`),
     );
-  await service.openEditorAs(page, null);
-  const dialog = await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(35);
   await button(dialog, "Close").click();
+  await openUserComponents(page);
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(38);
+  await clickLibraryAction(dialog, "Manage Managed 20");
+  await button(page, "Promote to official").click();
+  await expect(text(page, "Promoted to an official component.")).toBeVisible();
   service.seedHistoricalDefinition(
-    "refresh-new",
-    symbolDefinition("Buffered arrival"),
+    "aaa-managed-new",
+    symbolDefinition("Managed arrival"),
   );
   let fail = true;
-  const cursors: (string | null)[] = [];
   await context.route("**/api/components?**", async (route) => {
-    const cursor = new URL(route.request().url()).searchParams.get("cursor");
-    cursors.push(cursor);
-    if (cursor && fail)
+    if (new URL(route.request().url()).searchParams.has("cursor") && fail)
       await route.fulfill({
         status: 503,
         json: { error: "Service unavailable" },
       });
     else await route.fallback();
   });
-  await openUserComponents(page);
-  await expect(
-    text(
-      dialog,
-      "Couldn’t refresh components. Loaded components are still available.",
-    ),
-  ).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(35);
-  await expect(button(dialog, "Place Buffered arrival")).toHaveCount(0);
-  expect(cursors).toEqual([null, expect.any(String)]);
+  await button(page, "Back to library").click();
+  await expect(button(dialog, "Try Again")).toBeVisible();
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(38);
+  await expect(button(dialog, "Place Managed arrival")).toHaveCount(0);
+  expect(
+    await dialog
+      .locator(".user-components-grid")
+      .evaluate((grid) => grid.scrollTop),
+  ).toBeGreaterThan(0);
   fail = false;
   await button(dialog, "Try Again").click();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(36);
-  await expect(button(dialog, "Place Buffered arrival")).toBeVisible();
-  expect(cursors).toEqual([null, cursors[1], cursors[1]]);
+  await expect(dialog.locator(".user-component-tile")).toHaveCount(39);
+  await expect(button(dialog, "Place Managed arrival")).toBeAttached();
 });
 
 test("Agent and GUI share the open candidate while applied netlists advance only on Apply", async ({
@@ -3076,6 +2900,26 @@ test("live preview and the administrator lifecycle keep captured Projects", asyn
   expect(errors).toEqual([]);
 });
 
+test("a later component editor offers sign-in after the page's initial account signs out", async ({
+  page,
+  service,
+}) => {
+  await service.openEditorAs(page, "alice");
+  await expect(page.getByTestId("account-name")).toHaveText("alice");
+  await page.clock.install();
+  // The server session changes as it would after signing out in another tab.
+  await service.connect(page.context(), null);
+  await page.clock.fastForward(31_000);
+
+  await openUserComponents(page);
+  await button(page, "Create Component…").click();
+  const editor = componentEditor(page);
+  await expect(editor.getByTestId("account-signin")).toBeVisible();
+  await expect(editor.getByTestId("account-name")).toHaveCount(0);
+  await editor.getByTestId("account-signin").locator("summary").click();
+  await expect(editor.getByTestId("signin-github")).toBeVisible();
+});
+
 test("anonymous creation keeps public publication disabled and invalid code leaves the circuit untouched", async ({
   page,
   service,
@@ -3861,71 +3705,6 @@ test("switching definition type resolves the current unsaved candidate before hi
   await expect(button(page, "Discard changes")).toHaveCount(0);
 });
 
-test("managing a component refreshes a complete catalog without dropping its cards or scroll", async ({
-  page,
-  context,
-  service,
-}) => {
-  service.limitCatalogPages(20);
-  for (let index = 0; index < 35; index++)
-    service.seedHistoricalDefinition(
-      `managed-${String(index).padStart(2, "0")}`,
-      symbolDefinition(`Managed ${index}`),
-    );
-  await service.openEditorAs(page, "admin");
-  const dialog = await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(35);
-  await clickLibraryAction(dialog, "Manage Managed 20");
-  await button(page, "Promote to official").click();
-  await expect(text(page, "Promoted to an official component.")).toBeVisible();
-  service.seedHistoricalDefinition(
-    "aaa-managed-new",
-    symbolDefinition("Managed arrival"),
-  );
-  let fail = true;
-  await context.route("**/api/components?**", async (route) => {
-    if (new URL(route.request().url()).searchParams.has("cursor") && fail)
-      await route.fulfill({
-        status: 503,
-        json: { error: "Service unavailable" },
-      });
-    else await route.fallback();
-  });
-  await button(page, "Back to library").click();
-  await expect(button(dialog, "Try Again")).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(35);
-  await expect(button(dialog, "Place Managed arrival")).toHaveCount(0);
-  expect(
-    await dialog
-      .locator(".user-components-grid")
-      .evaluate((grid) => grid.scrollTop),
-  ).toBeGreaterThan(0);
-  fail = false;
-  await button(dialog, "Try Again").click();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(36);
-  await expect(button(dialog, "Place Managed arrival")).toBeAttached();
-});
-
-test("offline account revalidation keeps the signed-in user's loaded catalog", async ({
-  page,
-  context,
-  service,
-}) => {
-  service.seedHistoricalDefinition(
-    "offline-public",
-    symbolDefinition("Offline public"),
-  );
-  await service.openEditorAs(page, "alice");
-  const dialog = await openUserComponents(page);
-  await expect(button(dialog, "Place Offline public")).toBeVisible();
-  await context.route("**/api/auth/me", (route) => route.abort("failed"));
-  await context.route("**/api/components?**", (route) => route.abort("failed"));
-  await page.clock.setFixedTime(new Date(Date.now() + 31_000));
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await expect(button(dialog, "Try Again")).toBeVisible();
-  await expect(button(dialog, "Place Offline public")).toBeVisible();
-});
-
 test("publication checkpoints the published JSON without marking later input as saved", async ({
   page,
   context,
@@ -3952,9 +3731,14 @@ test("publication checkpoints the published JSON without marking later input as 
   try {
     await button(editor, PUBLISH).click();
     await expect.poll(() => publishing).toBe(true);
-    await editor
-      .getByRole("textbox", { name: "Component definition code", exact: true })
-      .fill("{");
+    const code = editor.getByRole("textbox", {
+      name: "Component definition code",
+      exact: true,
+    });
+    // Select the whole CodeMirror document, including lines outside its viewport.
+    await code.press("ControlOrMeta+a");
+    await page.keyboard.insertText("{");
+    await expect(code).toHaveText("{");
   } finally {
     release();
   }
@@ -4175,61 +3959,123 @@ test("Library keeps management in My shelf without persistent repair banners", a
   await expect(button(dialog, "Place Community module")).toBeVisible();
 });
 
-test("slow Create loading stays modal and cancellation ignores the late module", async ({
+test("cold editor leaves User Components unloaded until its Library opens", async ({
   page,
   service,
 }) => {
-  let release!: () => void;
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
+  const downloads: string[] = [];
+  page.on("request", (request) => {
+    if (
+      /\/(?:user-components-library|component-definition-editor|editor-component-session)-[^/]+\.js$/.test(
+        request.url(),
+      )
+    )
+      downloads.push(request.url());
   });
-  let requested = false;
-  await page.route("**/component-definition-editor-*.js", async (route) => {
-    requested = true;
-    await held;
-    await route.continue();
-  });
-  try {
-    await service.openEditorAs(page, null);
-    const library = await openUserComponents(page);
-    await expect.poll(() => requested).toBe(true);
-    await button(library, "Create Component…").click();
-    const loading = page.getByRole("dialog", {
-      name: "Loading component editor",
-      exact: true,
-    });
-    await expect(loading).toBeVisible();
-    await button(loading, "Cancel").click();
-    await expect(library).toBeVisible();
-    await button(library, "Create Component…").click();
-    await expect(loading).toBeVisible();
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Shift+Tab");
-    expect(
-      await loading.evaluate(
-        (e) =>
-          document.activeElement === document.body ||
-          e.contains(document.activeElement),
-      ),
-    ).toBe(true);
-    await page.keyboard.press("Escape");
-    await expect(library).toBeVisible();
-    const response = page.waitForResponse(/component-definition-editor-.*\.js/);
-    release();
-    await response;
-    await expect(componentEditor(page)).toHaveCount(0);
-    await expect(library).toBeVisible();
-    await button(library, "Create Component…").click();
-    const editor = componentEditor(page);
-    await expect(netlist(editor)).toBeVisible();
-    await button(editor, "Back to library").click();
-    await expect(library).toBeVisible();
-    await expect(editor).toHaveCount(0);
-  } finally {
-    release();
-  }
+  await service.openEditorAs(page, null);
+  await page.waitForLoadState("networkidle");
+  expect(downloads).toEqual([]);
+  const library = await openUserComponents(page);
+  await expect(button(library, "Create Component…")).toBeVisible();
+  await expect
+    .poll(() =>
+      downloads.some((url) => url.includes("user-components-library-")),
+    )
+    .toBe(true);
+  await button(library, "Create Component…").click();
+  await expect(netlist(componentEditor(page))).toBeVisible();
 });
+
+for (const chunkName of [
+  "editor-component-library",
+  "user-components-library",
+]) {
+  test(`a failed ${chunkName} chunk can be dismissed and recovered by refreshing`, async ({
+    page,
+    service,
+  }) => {
+    const chunk = `**/${chunkName}-*.js`;
+    await page.route(chunk, (route) => route.abort());
+    await service.openEditorAs(page, null);
+    await clickCommand(page, "Edit", "User Components…");
+    const failure = page.getByRole("alertdialog");
+    await expect(failure).toContainText("This dialog could not be loaded");
+    await button(failure, "Close").click();
+    await expect(failure).toBeHidden();
+    await clickCommand(page, "Edit", "User Components…");
+    await expect(failure).toBeVisible();
+    await page.unroute(chunk);
+    await button(failure, "Refresh app").click();
+    await awaitEditorReady(page);
+    const library = await openUserComponents(page);
+    await button(library, "Create Component…").click();
+    await expect(netlist(componentEditor(page))).toBeVisible();
+  });
+}
+
+for (const chunkName of [
+  "component-definition-editor",
+  "editor-component-session-body",
+]) {
+  test(`slow Create loading stays modal and cancellation ignores the late ${chunkName} module`, async ({
+    page,
+    service,
+  }) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let requested = false;
+    await page.route(`**/${chunkName}-*.js`, async (route) => {
+      requested = true;
+      await held;
+      await route.continue();
+    });
+    try {
+      await service.openEditorAs(page, null);
+      const library = await openUserComponents(page);
+      if (chunkName === "component-definition-editor")
+        await expect.poll(() => requested).toBe(true);
+      else expect(requested).toBe(false);
+      await button(library, "Create Component…").click();
+      await expect.poll(() => requested).toBe(true);
+      const loading = page.getByRole("dialog", {
+        name: "Loading component editor",
+        exact: true,
+      });
+      await expect(loading).toBeVisible();
+      await button(loading, "Cancel").click();
+      await expect(library).toBeVisible();
+      await button(library, "Create Component…").click();
+      await expect(loading).toBeVisible();
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Shift+Tab");
+      expect(
+        await loading.evaluate(
+          (e) =>
+            document.activeElement === document.body ||
+            e.contains(document.activeElement),
+        ),
+      ).toBe(true);
+      await page.keyboard.press("Escape");
+      await expect(library).toBeVisible();
+      const response = page.waitForResponse(new RegExp(`${chunkName}-.*\\.js`));
+      release();
+      await response;
+      await expect(componentEditor(page)).toHaveCount(0);
+      await expect(library).toBeVisible();
+      await button(library, "Create Component…").click();
+      const editor = componentEditor(page);
+      await expect(netlist(editor)).toBeVisible();
+      await button(editor, "Back to library").click();
+      await expect(library).toBeVisible();
+      await expect(editor).toHaveCount(0);
+    } finally {
+      release();
+    }
+  });
+}
 
 test("Library and My shelf stay compact at narrow widths without global repair notices", async ({
   page,

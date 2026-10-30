@@ -32,6 +32,42 @@ export function unitSourcePaths(paths) {
   );
 }
 
+/** Import tracing cannot prove deleted sources, fixtures or build configuration. */
+export function unitTestCommand(plan, present) {
+  const sources = unitSourcePaths(plan.paths);
+  const untraceable = plan.paths.some(
+    (path) =>
+      !path.endsWith(".md") &&
+      !path.startsWith("docs/") &&
+      !path.startsWith("apps/editor/e2e/") &&
+      !sources.includes(path),
+  );
+  if (
+    plan.requiresFull ||
+    plan.groupPaths.highRisk?.length ||
+    untraceable ||
+    sources.some((path) => !present.includes(path))
+  ) {
+    return ["pnpm", "test:local"];
+  }
+  if (!sources.length) return null;
+  return [
+    "pnpm",
+    "exec",
+    "vitest",
+    "related",
+    "--run",
+    "--maxWorkers=2",
+    strictUnitRun(sources) ? "--no-passWithNoTests" : "--passWithNoTests",
+    ...sources,
+  ];
+}
+
+/** Built boundaries are explicit catalog obligations, independent of import tracing. */
+export function buildBoundaryGates(plan) {
+  return (plan.selectedGates ?? plan.gates).filter((gate) => gate.localBuild);
+}
+
 /**
  * Files `pnpm lint` checks: workspace code, its tests and the browser specs
  * (.oxlintrc.json leaves out generated code). A change to the lint
@@ -65,51 +101,56 @@ export function strictUnitRun(paths) {
 }
 
 /**
- * Paths for which AGENTS.md runs the Gallery census: copying, placement,
- * instance labels and netlist extraction.
+ * Local census groups affected by drawing contracts and editor paths.
  */
 function censusGroup(path) {
-  if (/\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(path)) return null;
+  if (/\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(path)) return [];
+  // Schema, codecs, device bindings, symbols and transaction validation can
+  // affect every historical drawing path, including the real Gallery insert.
+  if (
+    /^packages\/(?:model|devices|project-protocol|symbols|edit-engine)\/src\//u.test(
+      path,
+    ) ||
+    path.startsWith("packages/components/definitions/") ||
+    path.startsWith("apps/editor/census/") ||
+    path === "scripts/gallery-census.mjs"
+  )
+    return ["copy", "insert", "netlist", "transform"];
   if (
     path.startsWith("apps/editor/src/features/clipboard/") ||
     path.startsWith("apps/editor/src/features/component-insert/") ||
     path === "apps/editor/src/features/editor-shell/gallery-import.ts" ||
     path ===
       "apps/editor/src/features/editor-shell/gallery-example-commands.ts" ||
+    path === "apps/editor/src/document/project-import-normalization.ts" ||
     path === "apps/editor/src/agent/browser-agent-project-host.ts" ||
     path === "apps/editor/src/agent/workspace-copy.ts"
   )
-    return "copy";
-  if (
-    path === "packages/derived/src/instance-label-placement.ts" ||
-    path === "packages/edit-engine/src/transaction-instance-annotations.ts"
-  )
-    return "transform";
+    return ["copy", "insert"];
+  if (path === "packages/derived/src/instance-label-placement.ts")
+    return ["transform"];
   // The census exports historical drawings as SPICE, not simulation source or
   // VACASK results. Unknown design helpers still get the conservative check.
   if (
     path.startsWith("packages/netlist/src/") &&
     !/^packages\/netlist\/src\/(?:simulation-|vacask-)/u.test(path)
   )
-    return "netlist";
-  return null;
+    return ["netlist"];
+  return [];
 }
 
 export function censusPaths(paths) {
-  return paths.filter((path) => censusGroup(path) !== null);
+  return paths.filter((path) => censusGroup(path).length > 0);
 }
 
 /**
- * The census check groups a change needs, by what it touches: copying and
- * placement (`copy`, which includes supply markers), instance labels
- * (`transform`, a quarter turn and a mirror the labels must follow) and
- * netlist extraction (`netlist`, with the Gallery's netlist mark).
+ * A path may affect several groups: copying/placement, real Gallery
+ * open/insert, label transforms and netlist extraction with its Gallery mark.
  */
 export function censusChecks(paths) {
   const checks = new Set();
   for (const path of paths) {
-    const group = censusGroup(path);
-    if (group) checks.add(group);
+    for (const group of censusGroup(path)) checks.add(group);
   }
   return [...checks].sort();
 }

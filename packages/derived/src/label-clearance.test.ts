@@ -59,6 +59,19 @@ it("reports wire intersection and owner distance as observations, ignores hidden
     ["warning", false],
     ["info", false],
   ]);
+  // A placement planner tests a spot with the same findings (#1836): over
+  // the wire and far from its part where it stands, clear beside the part.
+  const context = createLabelClearanceContext(doc, resolver);
+  const far = doc.annotations[0]!;
+  const ink = context.measure(far).inkBounds;
+  expect(context.findingsAt(far)).toEqual({
+    struck: ["w"],
+    overlapped: [],
+    ownerGap: checks[1]!.parameters!.gap,
+    runsOn: [],
+  });
+  const beside = { ...ink, x: 130, y: 95 };
+  expect(context.clearAt(far, beside)).toBe(true);
   doc.annotations[0]!.visible = false;
   expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
 });
@@ -683,6 +696,14 @@ describe("labels that run on (#1412)", () => {
           'C3\'s value "637pF" and C5\'s value "197pF" share a line 6 units apart and read as one',
       }),
     ]);
+    // A placement planner reads the same run-on, either way along the row.
+    const context = createLabelClearanceContext(doc, resolver);
+    const [c3, c5] = ["C3-value", "C5-value"].map((id) =>
+      doc.annotations.find((a) => a.id === id)!,
+    );
+    expect(context.findingsAt(c3!).runsOn).toEqual(["C5-value"]);
+    expect(context.findingsAt(c5!).runsOn).toEqual(["C3-value"]);
+    expect(context.clearAt(c3!)).toBe(false);
     // Moving the second part twelve units left overlaps the labels; that
     // belongs to VISUAL_LABEL_OVERLAP and is not reported twice.
     doc.instances[1]!.placement!.position.x = 380;

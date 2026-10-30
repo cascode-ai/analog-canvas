@@ -63,6 +63,7 @@ import {
   projectCellInterface,
   foldNetName,
   labelTextDocument,
+  type Annotation,
   type CircuitProject,
   type Instance,
   type RichTextDocument,
@@ -79,7 +80,6 @@ import {
   resolveRouteGeometry,
   resolveDocumentLogicalNets,
   resolveAnnotationName,
-  instanceDisplayParameters,
   derivePowerRailComponent,
   netLabelAttachmentForText,
   netLabelBaselineForName,
@@ -119,10 +119,13 @@ import {
   arrangeInstanceLabelsReport,
   type LabelLeftInPlace,
 } from "../features/instance-display/arrange-instance-labels";
-import { withStruckLabelsArranged } from "../features/instance-display/struck-label-arrangement";
+import {
+  withLabelsClearOfPlacedParts,
+  withStruckLabelsArranged,
+} from "../features/instance-display/struck-label-arrangement";
 import { textbookLabelEdits } from "../features/instance-display/label-preset";
 import { netLabelAtClearSpot } from "./net-label-clear-spot";
-import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
+import { instanceParameterVisibilityEdits } from "@icm/edit-engine";
 import {
   dragNetLabelAttachmentAtPoint,
   netLabelPlacementTargetAtPoint,
@@ -403,7 +406,7 @@ export function planBrowserAgentCommand(
     case "set-properties":
       return planSetProperties(project, document, resolver, command);
     case "set-text":
-      return planSetText(document, command);
+      return planSetText(document, command, resolver);
     case "add-text":
       return planAddText(command);
     case "arrange-instances": {
@@ -1067,9 +1070,40 @@ export function planBrowserAgentCommand(
               edits,
             ),
           );
+        // Its labels keep clear of the other parts and labels placed before
+        // it in this batch as well as the drawing's: a stack placed in one
+        // call had put each W/L over the part beside it (#1836). A repeated
+        // ID is left for the commit to refuse, as before.
+        const own = (annotation: Annotation) =>
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === instance.id;
+        const drawn: SchematicDocument = {
+          ...document,
+          instances: [
+            ...document.instances,
+            ...edits.flatMap((edit) =>
+              edit.kind === "add_instance" && edit.instance.id !== instance.id
+                ? [edit.instance]
+                : [],
+            ),
+          ],
+          annotations: [
+            ...new Map(
+              [
+                ...document.annotations,
+                ...edits.flatMap((edit) =>
+                  edit.kind === "upsert_schematic_annotation" &&
+                  !own(edit.annotation)
+                    ? [edit.annotation]
+                    : [],
+                ),
+              ].map((annotation) => [annotation.id, annotation]),
+            ).values(),
+          ],
+        };
         edits.push(
           ...defaultInstanceDisplayAnnotations(
-            document,
+            drawn,
             instance,
             resolver,
             resolveDocumentStyleProfile(document.presentation),
@@ -1114,9 +1148,16 @@ export function planBrowserAgentCommand(
           },
         );
       }
+      // Labels of parts already drawn that the new ones cover move clear.
+      const settled = withLabelsClearOfPlacedParts(
+        document,
+        resolver,
+        edits,
+        maxTransactionEdits - (changesInterface ? 1 : 0),
+      );
       // A BJT the Process maps to a reviewed subcircuit arrives bound to it,
       // with its definition, exactly as a GUI placement does.
-      const filled = context.processFill?.(project, documentId, edits);
+      const filled = context.processFill?.(project, documentId, settled);
       if (filled) return { structureEdits: filled };
       // Keep mixed device/Port batches atomic, including the interface facts.
       return changesInterface
@@ -1126,11 +1167,11 @@ export function planBrowserAgentCommand(
                 kind: "transact_document",
                 documentId,
                 expectedRevision: document.revision,
-                edits,
+                edits: settled,
               },
             ],
           }
-        : { edits };
+        : { edits: settled };
     }
     case "set-display-alias": {
       const { instanceId, annotationId } = command;
@@ -1185,13 +1226,6 @@ export function planBrowserAgentCommand(
         for (const id of new Set(command.instanceIds)) {
           const instance = document.instances.find((item) => item.id === id);
           if (!instance) throw new Error(`Instance not found: ${id}`);
-          const supported = instanceDisplayParameters(instance.symbolId);
-          for (const parameter of Object.keys(desired)) {
-            if (!supported.some((item) => item.name === parameter))
-              throw new Error(
-                `Parameter display ${parameter} is not supported by ${instance.symbolId}`,
-              );
-          }
           edits.push(
             ...instanceParameterVisibilityEdits(
               document,
@@ -1244,13 +1278,29 @@ export function planBrowserAgentCommand(
           clearOfWiring: true,
         },
       );
+      // Labels of parts already drawn that the block covers move clear.
+      const placing: SchematicEdit[] = [
+        { kind: "add_instance", instance },
+        ...annotations.map((annotation): SchematicEdit => ({
+          kind: "upsert_schematic_annotation",
+          annotation,
+        })),
+      ];
+      const moved = withLabelsClearOfPlacedParts(
+        document,
+        resolver,
+        placing,
+        maxTransactionEdits,
+      )
+        .slice(placing.length)
+        .flatMap((edit) =>
+          edit.kind === "upsert_schematic_annotation" ? [edit.annotation] : [],
+        );
       return {
-        structureEdits: planPlaceCellInstance(
-          project,
-          documentId,
-          instance,
-          annotations,
-        ),
+        structureEdits: planPlaceCellInstance(project, documentId, instance, [
+          ...annotations,
+          ...moved,
+        ]),
       };
     }
     case "place-existing": {

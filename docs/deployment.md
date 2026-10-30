@@ -19,9 +19,15 @@ Normal delivery:
    `pnpm install --frozen-lockfile`; install Playwright Chromium once per
    machine/version.
 2. Refresh the gate plan and preflight, run `pnpm verify:pr -- --base <base-ref>`
-   and any unfulfilled affected/build/release obligations (build and release
-   checks apply when rendering, export, Symbols or packaging can move). Final
-   suites follow [validation timing](testing/README.md#validation-timing).
+   and only the unfulfilled affected/build/release obligations, recording evidence
+   for the candidate and environment. Build and release checks apply when
+   rendering, export, Symbols or packaging can move. Full-suite triggers and
+   evidence reuse follow [validation timing](testing/README.md#validation-timing).
+   Every product release also compares the full public Gallery `insert`
+   census with the last successfully deployed SHA and resolves any new open
+   or insert failures before delivery. Follow the
+   [census contract](testing/README.md#gallery-census) for comparable inputs,
+   baseline reconstruction, private evidence and accepted limitations.
 3. Write the PR with the original pr Summary / Evidence / Merge Danger template:
    before/after evidence, local results, pending queue and deployed checks.
 4. Push, open/update the PR and queue the exact pushed SHA:
@@ -148,8 +154,12 @@ enters the executor, which
 [`containers/ngspice/host/compose.yaml`](../containers/ngspice/host/compose.yaml)
 keeps without credentials, host port or egress.
 
-The [Simulator host workflow](../.github/workflows/simulator-host.yml) deploys
-the host. Before a manual ngspice Docker build, run
+The [Simulator host workflow](../.github/workflows/simulator-host.yml) rebuilds
+the host on `main` pushes affecting its declared runtime paths. Changes only
+to that workflow file do not deploy; apply host orchestration changes through
+the explicit `deploy` action. Qualification actions do not enter the host
+deployment job, and the workflow has no PR or merge-queue trigger. Before a
+manual ngspice Docker build, run
 `node scripts/package-ngspice-harness.mjs` after building workspace
 dependencies. Collector changes need this host deployment as well as a Worker
 deploy. After deploying verify `/health`: intended `limits.outputBytes` and

@@ -850,7 +850,7 @@ export function GalleryFeed({
           <RejectEntryDialog
             entry={rejecting}
             busy={ownerBusy === rejecting.id}
-            onSubmit={(reason) => void rejectEntry(reason)}
+            onSubmit={(reason, notify) => void rejectEntry(reason, notify)}
             onClose={() => setRejecting(null)}
           />
         </Suspense>

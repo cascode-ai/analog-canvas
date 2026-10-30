@@ -745,6 +745,7 @@ export function EditorDialogs({
               expiresAt: agentSession.expiresAt,
               error: agentSession.error,
               backgroundRequests: agentSession.backgroundRequests,
+              adapterVersion: agentSession.adapterVersion,
               now: claimNow(),
               onPause: () => void agentSession.pause(),
               onResume: () => void agentSession.resume(),

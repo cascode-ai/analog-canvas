@@ -1,9 +1,14 @@
-import { type ReactNode, type ComponentProps, type MouseEvent } from "react";
+import {
+  type ReactNode,
+  type ComponentProps,
+  type MouseEvent,
+  useContext,
+} from "react";
 
 import { BugReportLink } from "../components/bug-report-link";
 import { CrossedSwordsIcon } from "../components/crossed-swords-icon";
 import { ProjectMenu } from "./project-menu";
-import { AccountMenu } from "../components/account";
+import { AccountMenu, AccountStatePreload } from "../components/account";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
@@ -471,7 +476,7 @@ export function EditorAppChrome({
           ) : null}
           {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
           {!import.meta.env?.ICM_DESKTOP && identityEnabled ? (
-            <AccountMenu inEditor alwaysVisible />
+            <EditorAccountMenu />
           ) : null}
           {hostActions}
           {externalLinksEnabled ? (
@@ -557,4 +562,10 @@ export function EditorAppChrome({
       <EditorTestTelemetry {...telemetry} />
     </header>
   );
+}
+
+/** Keep the online context read inside the Web-only account branch. */
+function EditorAccountMenu() {
+  const preload = useContext(AccountStatePreload);
+  return <AccountMenu inEditor alwaysVisible preload={preload} />;
 }

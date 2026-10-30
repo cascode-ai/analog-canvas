@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { userWorkspaceRoot } from "./workspace-location.js";
+import { AGENT_MCP_VERSION } from "@icm/agent-adapter";
 import {
   AgentHttpClient,
   AgentSessionClient,
@@ -64,7 +65,10 @@ export function createOperationSession(
     ...(config.workspaceRoot ? { workspaceRoot: config.workspaceRoot } : {}),
     ...(config.taskDirectory ? { taskDirectory: config.taskDirectory } : {}),
     client: new AgentSessionClient({
-      http: new AgentHttpClient({ baseUrl: config.apiBaseUrl }),
+      http: new AgentHttpClient({
+        baseUrl: config.apiBaseUrl,
+        adapterVersion: AGENT_MCP_VERSION,
+      }),
       connectorStore,
       ...(config.taskDirectory
         ? {

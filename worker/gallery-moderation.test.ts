@@ -7,6 +7,7 @@ import {
   serializeProject,
 } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
+import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import { GalleryDO } from "./gallery";
 import {
   type Harness,
@@ -567,6 +568,81 @@ describe("gallery administration", () => {
         )
         .one().count,
     ).toBe(0);
+  });
+
+  it("emails the author the reason when asked, replies going to the Owner, and says when it could not", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const ownerCookie = await makerOf(env);
+    const ids = [];
+    for (const name of ["Loose wires", "Unlabeled", "Quiet"])
+      ids.push(
+        await submitOne(env, name, {
+          cookie: ownerCookie,
+          text: wiredProjectText(name),
+        }),
+      );
+    // Sign-in sends its own codes: the outbox starts after every sign-in.
+    const sent: {
+      to: string[];
+      subject: string;
+      text: string;
+      reply_to?: string;
+    }[] = [];
+    let up = true;
+    env.authDurable.fetchLike = (async (
+      _input: unknown,
+      init?: RequestInit,
+    ) => {
+      sent.push(JSON.parse(String(init?.body)));
+      return up
+        ? Response.json({ id: "email-1" })
+        : new Response("down", { status: 503 });
+    }) as typeof fetch;
+    const reject = async (id: string, body: object) => {
+      const response = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}/reject`, {
+          method: "POST",
+          headers: {
+            Cookie: adminCookie,
+            Origin: ORIGIN,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+      return (await response.json()) as Record<string, unknown>;
+    };
+
+    expect(
+      await reject(ids[0]!, {
+        reason: "Remove the loose wires at M3.",
+        notify: true,
+      }),
+    ).toEqual({ id: ids[0], status: "rejected", emailed: true });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      to: ["maker@example.com"],
+      subject:
+        'Your Analog Canvas Gallery circuit "Loose wires" was not accepted',
+      reply_to: SITE_USAGE_CONTACT,
+    });
+    expect(sent[0]!.text).toContain("Remove the loose wires at M3.");
+    expect(sent[0]!.text).toContain("My submissions");
+
+    // Not asked: no email, and the answer says nothing of one.
+    expect(await reject(ids[1]!, { reason: "Label the ports." })).toEqual({
+      id: ids[1],
+      status: "rejected",
+    });
+    expect(sent).toHaveLength(1);
+
+    // The mail service down: rejected all the same, and said so.
+    up = false;
+    expect(
+      await reject(ids[2]!, { reason: "Too quiet.", notify: true }),
+    ).toEqual({ id: ids[2], status: "rejected", emailed: false });
   });
 
   it("rejects with an owner-visible reason and prevents owner self-restore", async () => {

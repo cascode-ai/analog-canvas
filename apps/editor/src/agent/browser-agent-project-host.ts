@@ -35,7 +35,7 @@ import {
   loadGalleryFeed,
   type GalleryFeedEntry,
 } from "../gallery-client";
-import { isRequestFailure } from "../request-failure";
+import { isRequestFailure, requestFailureOf } from "../request-failure";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
 import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
@@ -168,9 +168,11 @@ export class BrowserAgentProjectHost {
       if (isRequestFailure(page)) {
         return this.error(
           request,
-          "GALLERY_UNAVAILABLE",
+          page.failure === "blocked"
+            ? "GALLERY_ACCOUNT_BLOCKED"
+            : "GALLERY_UNAVAILABLE",
           `The public Gallery could not be read: ${page.message}`,
-          "retry",
+          page.failure === "blocked" ? "fix-input" : "retry",
         );
       }
       return {
@@ -428,14 +430,29 @@ export class BrowserAgentProjectHost {
           GALLERY_SIGN_IN_MESSAGE,
           "sign-in",
         );
-      if (response.status === 403)
+      if (!response.ok) {
+        const failure = await requestFailureOf(response);
+        if (failure.failure === "blocked")
+          return this.error(
+            request,
+            "GALLERY_ACCOUNT_BLOCKED",
+            failure.message,
+            "fix-input",
+          );
+        if (response.status !== 403)
+          return this.error(
+            request,
+            "GALLERY_UNAVAILABLE",
+            failure.message,
+            "retry",
+          );
         return this.error(
           request,
           "AI_ACCOUNT_REQUIRED",
           "Only an AI account lists the AI accounts' entries; the Editor is signed in as a person",
           "fix-input",
         );
-      if (!response.ok) throw new Error(String(response.status));
+      }
       entries =
         ((await response.json()) as { entries?: typeof entries }).entries ?? [];
     } catch {
@@ -489,6 +506,14 @@ export class BrowserAgentProjectHost {
     if (limited)
       return this.error(request, "GALLERY_DAILY_LIMIT", limited, "retry");
     if (!response.ok) {
+      const failure = await requestFailureOf(response);
+      if (failure.failure === "blocked")
+        return this.error(
+          request,
+          "GALLERY_ACCOUNT_BLOCKED",
+          failure.message,
+          "fix-input",
+        );
       return this.error(
         request,
         response.status === 404
@@ -500,7 +525,7 @@ export class BrowserAgentProjectHost {
           ? "The Gallery entry does not exist"
           : response.status === 401
             ? GALLERY_SIGN_IN_MESSAGE
-            : `The Gallery entry could not be read (${response.status})`,
+            : failure.message,
         response.status === 404
           ? "fix-input"
           : response.status === 401

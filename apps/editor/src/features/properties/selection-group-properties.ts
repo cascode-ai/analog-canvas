@@ -1,4 +1,5 @@
-import { symbolSupportsValueAnnotation } from "@icm/derived";
+import type { SymbolResolver } from "@icm/symbols";
+import { instanceSupportsValueAnnotation } from "@icm/derived";
 import { instanceValueAnnotation } from "@icm/edit-engine";
 import type { Annotation, Instance, SchematicDocument } from "@icm/model";
 import type { ComponentParameter } from "../component-insert/component-parameters";
@@ -19,6 +20,7 @@ export function readSelectionGroupProperties(
     instance: Instance,
   ) => readonly ComponentParameter[],
   foreground: string,
+  resolver?: SymbolResolver,
 ) {
   const instancesById = new Map<string, Instance>();
   for (const instance of document.instances)
@@ -59,7 +61,7 @@ export function readSelectionGroupProperties(
     }),
   );
   const selectedGroupValueInstances = selectedGroupInstances.filter(
-    (instance) => symbolSupportsValueAnnotation(instance.symbolId),
+    (instance) => instanceSupportsValueAnnotation(instance, resolver),
   );
   const valuesById = new Map(
     selectedGroupValueInstances.map((instance) => [
@@ -119,7 +121,7 @@ export function readSelectionGroupProperties(
               return label !== undefined && label.visible !== false;
             },
             valueVisible: (instance) => {
-              if (!symbolSupportsValueAnnotation(instance.symbolId))
+              if (!instanceSupportsValueAnnotation(instance, resolver))
                 return null;
               const value = valuesById.get(instance.id) ?? null;
               return value !== null && value.visible !== false;

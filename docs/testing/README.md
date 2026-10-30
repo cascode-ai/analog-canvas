@@ -36,26 +36,35 @@ before running. `full-delivery` is a batch delivery obligation, not a command
 after every edit: record in the PR how final local, risk and queue checks fulfil it, and
 skip `gate:full` when they already cover it. Run `pnpm setup:e2e` once per
 machine or Playwright version. A new `apps/editor/e2e/*.spec.ts` needs a focused
-path group that selects it.
+path group or a named `manualChecks` entry in the catalog. Environment-gated
+specs must not appear in ordinary gate commands or CI browser arguments.
+Adjacent compatible browser gates execute as one deduplicated batch; other
+commands retain their execution order.
+Use the plan to identify remaining work after a PR check; rerunning an entire
+stage is unnecessary when its checks already have valid evidence.
 
 ## Validation timing
 
 - Edit loop: focused unit/browser checks and typecheck at the confirmed seam.
 - Before affected, build or release gates: run the target-base preflight and
   refresh the plan from the real diff.
-- At the end of each original `implement` invocation (each ticket separately),
-  before its code-review and commit, run once:
-
-  ```powershell
-  pnpm test:local
-  pnpm test:e2e:local
-  ```
-
-  This repository reads the original's "full suite" as all Vitest and
-  Playwright tests. Local browser runs use one worker; pass `--workers` for more.
-
-- An unchanged candidate needs no repeated run; a repair or rebase that changes
-  behavior needs its affected checks again.
+- Before review and commit, run the local PR checks and fulfil the affected
+  build/browser/environment obligations from the final diff. Local unit checks
+  trace ordinary source changes; shared-core, deleted source, configuration and
+  unclassified inputs require the full unit suite. Built Web/offline boundaries
+  are explicit obligations: import tracing alone cannot qualify them.
+- Run full local unit and browser suites once for shared-core, validation
+  infrastructure or uncertain impact (the plan's high-risk/full-fallback routes).
+  Ordinary changes need their affected checks, not a full suite per ticket.
+  The queue still qualifies its merged candidate with full ordinary units and
+  mapped browser tests.
+- Reuse evidence only for the same candidate, inputs, configuration and environment.
+  List completed checks and outstanding obligations in the PR; run only the
+  remainder. A repair or rebase invalidates affected evidence; uncertain impact
+  invalidates the full result. No persistent local pass cache substitutes for this.
+- Conditional skips do not qualify environment-dependent behavior. Complete the
+  affected named [environment checks](#environment-dependent-execution); missing
+  resources and unrun targets remain explicit gaps.
 - Docs and mechanical maintenance outside `implement` use their deterministic
   checks; tooling and gate changes are validated by actual risk.
 - Bases: `HEAD` before committing, `HEAD^` after one target commit, else the
@@ -66,38 +75,90 @@ path group that selects it.
 
 ## Gallery census
 
-`pnpm gallery:census` runs every drawing of the newest private Gallery snapshot
-through loading, netlisting, copying and rotation
-(`apps/editor/census/gallery.census.ts`); `--base <ref>` lists drawings that
-behave differently on the base. It reads user drawings, so it runs only
-locally; reports stay in `plan/`.
+The census reads private drawings and runs locally. Keep snapshots private and
+reports and entry-level failures in ignored `plan/`, outside CI and published
+artifacts. `pnpm gallery:census -- --help` describes the checks and filters.
+The `insert` group runs each entry through the editor's Gallery commands on
+independent fresh canvases. Open succeeds after project installation; insert
+succeeds after a placement commit or an installed fallback. Reports distinguish
+insertion, new-tab fallback, empty-scene opening and failure.
 
-Run it before acceptance or delivery for changes to the paths
-`scripts/lib/verify-pr-selection.mjs` selects (copying and placement, instance
-labels, netlist extraction and printing, Gallery import, Agent copy);
-`pnpm verify:pr` prints the command. It cannot certify VACASK compilation,
-source assertions or result parsing: simulation changes need their own
-source/engine regressions and any named original case.
+Before accepting changes selected by `scripts/lib/verify-pr-selection.mjs`,
+run its selected groups; `pnpm verify:pr` prints the command. For every product
+release, also run the full-entry `insert` group against the last successfully
+deployed SHA as required by [delivery](../deployment.md#development-and-delivery-cadence).
 
-Snapshot: `node scripts/gallery-private-snapshot.mjs --cached`; for an
-operator-provided one, `node scripts/gallery-private-snapshot.mjs --local <dir>`
-then `pnpm gallery:census -- --backup <dir>/gallery.sqlite`. Unavailable
-private data is a recorded, explicitly accepted delivery limitation, never a
-census pass.
+Use `--base <git-ref>` to measure both refs with the current harness, or
+`--compare BASE.json HEAD.json` for saved reports. Both reports must cover the
+same complete snapshot, statuses, check groups and insertion target with the
+same harness. Partial reports, older formats without the required results,
+different snapshots and incomplete entry coverage require both refs to rerun.
+A baseline rerun measures the older code with the current harness; it is not
+the original release's historical measurement.
 
-The census rejects new drawing failures, netlist text changes, labels that stop
-following parts and changed Gallery marks while `NETLIST_MARK_RULE_VERSION` is
-unchanged. Fix each finding or explain the accepted change in the commit. A
-real-data defect also gets a small synthetic regression.
+Record the snapshot's capture time, content digest, source inventory and public
+entry count. Confirm the input covers Community and all public Dataset sources;
+an empty anonymous source listing does not establish complete coverage.
+Use [Gallery backup](../gallery-backup.md) for authorized input collection.
+Missing or incomplete private input is an explicitly accepted delivery
+limitation, never a census pass.
+
+The comparison rejects new failures, changed netlists, labels that stop
+following parts and changed Gallery marks without a `NETLIST_MARK_RULE_VERSION`
+bump. Historical failures remain visible; they are not new regressions. Fix
+each new finding or record its accepted explanation and add a small synthetic
+regression for a real-data defect. The census does not certify simulation
+compilation, source assertions or result parsing; those need engine-specific
+checks and any named original case.
 
 ## Pull-request checks
 
 The merge queue runs two required checks once on the PR merged with current
-`main`: `Core contracts` (static, full unit/module suite, build, goldens,
+`main`: `Core contracts` (static, ordinary unit/module suite, build, goldens,
 smoke, packaging, performance budgets) and `Browser tests` (specs mapped to
-changed product paths). On the PR itself CI only plans scope and checks
-Test-Impact trailers. Only `pnpm test:e2e`, run locally, covers every browser
-spec.
+changed product paths). The primary CI workflow plans PR scope and checks
+Test-Impact trailers; the additional environment workflows below also run on
+affected PRs. They are separate from the two required queue checks. Core
+accepts only successful planning, build preparation and all three parallel
+check branches; failed, cancelled or unexpected skipped prerequisites fail it.
+The primary workflow's PR and documentation-only skips remain unchanged.
+
+Queue formatting checks use the merged candidate's changed files within the
+normal formatting scope. Formatter configuration, ignore rules or lockfile
+changes, or an untrusted base/configuration, require the full formatting check.
+All other static contracts still run in full. Shared package output must match
+the candidate, platform, toolchain, source inputs and file digests; local
+standalone tests continue to build their own dependencies.
+
+## Environment-dependent execution
+
+[Ngspice model tests](../../.github/workflows/ngspice-tests.yml) and
+[Windows platform tests](../../.github/workflows/platform-tests.yml) qualify
+affected PRs and support manual runs. [Simulator host](../../.github/workflows/simulator-host.yml),
+action/job `vacask-compat-build`, manually qualifies native execution, pinned
+source conversion and the real MCP journey. [Browser performance
+evidence](../../.github/workflows/performance.yml), job `measure`, measures a
+fresh production build with synthetic fixtures. These checks do not deploy or
+replace required merge checks or existing performance budgets.
+
+Prepare the selected lane's resources from the
+[environment manifest](../../scripts/lib/environment-test-lanes.mjs).
+Workflows own installation and pinned inputs; the
+[runner](../../scripts/run-environment-tests.mjs) owns preflight and result
+acceptance. Every named target must be present and pass. A file's pure
+assertions cannot substitute for skipped environment targets; a different
+engine's assertions do not qualify the selected engine. Preserve reports for
+the candidate SHA. Missing resources or unrun workflows remain explicit
+validation gaps.
+
+## Timing evidence
+
+Browser reports distinguish cumulative attempt cost (including retries), the
+slowest single attempt and elapsed time per run. Parallel runs can overlap;
+neither summed test cost nor runner queue time is test execution wall time.
+CI retains each shard report after failure. A run killed before producing its
+report has missing timing evidence, not zero cost. Release checks expose
+individual bounded steps; diagnose the failed step before changing timeouts.
 
 ## Change discipline
 

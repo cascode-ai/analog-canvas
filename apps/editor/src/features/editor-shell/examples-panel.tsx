@@ -47,9 +47,9 @@ export interface ExamplesPanelProps {
 interface FeedState {
   status: "loading" | "ready" | "unavailable" | "signed-out";
   /** Why the feed is unavailable. */
-  failure?: string;
+  failure?: string | undefined;
   /** The failure is the account's Gallery block, shown as its own notice. */
-  blocked?: boolean;
+  blocked?: boolean | undefined;
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
@@ -340,6 +340,8 @@ function GalleryPanel({
     if (
       !open ||
       !sentinel ||
+      feed.failure ||
+      feed.blocked ||
       feed.nextCursor === null ||
       firstPagePendingRef.current
     )
@@ -365,15 +367,34 @@ function GalleryPanel({
           cursor,
         })
         .then((page) => {
-          if (
-            page === GALLERY_SIGN_IN_REQUIRED ||
-            isRequestFailure(page) ||
-            generation !== loadGenerationRef.current
-          )
+          if (generation !== loadGenerationRef.current) return;
+          if (page === GALLERY_SIGN_IN_REQUIRED) {
+            baseCountRef.current = null;
+            setFeed({ ...EMPTY_FEED, status: "signed-out" });
             return;
+          }
+          if (isRequestFailure(page)) {
+            if (page.failure === "blocked") {
+              baseCountRef.current = null;
+              setFeed({
+                ...EMPTY_FEED,
+                status: "unavailable",
+                failure: page.message,
+                blocked: true,
+              });
+              return;
+            }
+            setFeed((previous) => ({
+              ...previous,
+              failure: page.message,
+            }));
+            return;
+          }
           setFeed((previous) => {
             const next = {
               ...previous,
+              failure: undefined,
+              blocked: undefined,
               entries: [...previous.entries, ...page.entries],
               nextCursor: page.nextCursor,
               total: selectedTags.length
@@ -403,6 +424,8 @@ function GalleryPanel({
     feed.status,
     feed.entries,
     feed.nextCursor,
+    feed.failure,
+    feed.blocked,
     serverSearch,
     selectedTags,
   ]);
@@ -563,7 +586,23 @@ function GalleryPanel({
             matches once the feed is exhausted — a wall of 120 circuits paged
             30 at a time would otherwise deny a circuit that is simply not
             loaded yet. */}
-            {emptyMessage ? (
+            {feed.status === "ready" && feed.failure ? (
+              <p
+                className="examples-panel-empty"
+                data-testid="examples-panel-more-failed"
+              >
+                {feed.failure}{" "}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFeed((previous) => ({ ...previous, failure: undefined }))
+                  }
+                >
+                  Retry
+                </button>
+              </p>
+            ) : null}
+            {emptyMessage && !feed.failure ? (
               <p
                 className="examples-panel-empty"
                 data-testid="examples-panel-empty"

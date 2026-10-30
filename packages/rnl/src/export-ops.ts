@@ -1339,8 +1339,16 @@ function exportTexts(
         : undefined;
     const text = unnamed
       ? labelTextDocument(unnamed, document.presentation)
-      : resolveAnnotationText(document, annotation, logical);
-    if (!isSchematicAnnotationVisible(document, annotation, logical, text))
+      : resolveAnnotationText(document, annotation, logical, resolver);
+    if (
+      !isSchematicAnnotationVisible(
+        document,
+        annotation,
+        logical,
+        text,
+        resolver,
+      )
+    )
       continue;
     const shown = resolveAnnotationPresentation(
       document,

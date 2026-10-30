@@ -56,7 +56,7 @@ import {
   resolveDraftingObjectGeometry,
   displayableInstanceValue,
   instanceCarriesReference,
-  symbolSupportsValueAnnotation,
+  instanceSupportsValueAnnotation,
   resolveMosBulkConnection,
   supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
@@ -339,7 +339,7 @@ import {
 import { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import { deferFocus } from "../interaction/deferred-focus";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
-import { instanceParameterVisibility } from "../features/instance-display/instance-parameter-display";
+import { instanceParameterVisibility } from "@icm/edit-engine";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
 import {
   groupVisibilityTargets,
@@ -2662,12 +2662,14 @@ function WorkspaceEditor({
         selectedIds,
         propertyParametersForInstance,
         styleProfile.foreground,
+        resolver,
       ),
     [
       document,
       selectedIds,
       propertyParametersForInstance,
       styleProfile.foreground,
+      resolver,
     ],
   );
   const wireUnderSymbolWarnings = useMemo(
@@ -3162,7 +3164,7 @@ function WorkspaceEditor({
   });
 
   const textEditingTarget = textEditing
-    ? resolveTextEditingTarget(document, textEditing)
+    ? resolveTextEditingTarget(document, textEditing, resolver)
     : null;
   const editingAnnotation =
     textEditingTarget?.owner === "annotation"
@@ -6043,8 +6045,8 @@ function WorkspaceEditor({
                       candidateDocument.instances.some(
                         (instance) =>
                           values.show.includes(instance.id) &&
-                          symbolSupportsValueAnnotation(instance.symbolId) &&
-                          displayableInstanceValue(instance).kind !==
+                          instanceSupportsValueAnnotation(instance, resolver) &&
+                          displayableInstanceValue(instance, resolver).kind !==
                             "displayable",
                       )
                     )
@@ -6181,6 +6183,7 @@ function WorkspaceEditor({
                 selectedInstance
                   ? {
                       code: {
+                        resolver,
                         instance: selectedInstance,
                         // A Cell Pin's authored interface name is independent
                         // of its optional canvas annotation and opaque ID.
@@ -6206,8 +6209,9 @@ function WorkspaceEditor({
                             ? selectedInstanceLabel !== undefined &&
                               selectedInstanceLabel.visible !== false
                             : null,
-                        valueVisible: symbolSupportsValueAnnotation(
-                          selectedInstance.symbolId,
+                        valueVisible: instanceSupportsValueAnnotation(
+                          selectedInstance,
+                          resolver,
                         )
                           ? selectedInstanceValue !== null &&
                             selectedInstanceValue.visible !== false
@@ -6215,6 +6219,7 @@ function WorkspaceEditor({
                         parameterVisibility: instanceParameterVisibility(
                           document,
                           selectedInstance,
+                          resolver,
                         ),
                         ...(() => {
                           const inductorCoupling =

@@ -1,6 +1,6 @@
 // The Gallery census puts every drawing of a private Gallery snapshot through
 // the paths tests exercise only on tidy fixtures: loading, the netlist,
-// copying, and turning parts with their labels. Real drawings carry states
+// copying, Gallery open/insert, and turning parts with their labels. Real drawings carry states
 // earlier versions left behind that no fixture thought of. It reads user
 // drawings, so it runs only on request, through `pnpm gallery:census`
 // (scripts/gallery-census.mjs), and never in CI.
@@ -47,15 +47,17 @@ import {
   encodeCircuitClipboard,
 } from "../src/features/clipboard/system-clipboard";
 import { createSelectionTransformController } from "../src/features/selection/selection-transform-controller";
+import { exerciseGalleryEntry } from "./gallery-entry";
 
 const OK = "ok";
 
 /**
  * What a census can check, in groups a change selects (`--checks`):
  * extraction with the Gallery's netlist mark, copying and placement with
- * supply markers, and a quarter turn and mirror with the labels that follow.
+ * supply markers, a quarter turn and mirror with the labels that follow,
+ * and the real Gallery open/insert commands through installation or commit.
  */
-const CHECK_GROUPS = ["netlist", "copy", "transform"] as const;
+const CHECK_GROUPS = ["netlist", "copy", "transform", "insert"] as const;
 type CheckGroup = (typeof CHECK_GROUPS)[number];
 const requestedGroups = (process.env.ICM_GALLERY_CENSUS_CHECKS ?? "")
   .split(",")
@@ -81,6 +83,8 @@ interface CensusEntry {
   /** Name and value labels that followed their part through a quarter turn. */
   labelsFollowing?: string[];
   markerCopies?: number;
+  insertOutcome?: "inserted" | "new-tab" | "opened-empty" | "failed";
+  adoptedGrid?: number;
 }
 
 function failure(error: unknown): string {
@@ -349,6 +353,7 @@ function ruleLabelsAtDefault(
               profile,
               grid,
               binding.parameter,
+              resolver,
             )
           : null;
     return expected &&
@@ -466,12 +471,22 @@ function drawnSheet(document: SchematicDocument, resolver: SymbolResolver) {
   });
 }
 
-function censusEntry(row: {
+async function censusEntry(row: {
   id: string;
   name: string;
   project_text: string;
-}): CensusEntry {
+}): Promise<CensusEntry> {
   const entry: CensusEntry = { id: row.id, name: row.name, checks: {} };
+  if (runs("insert")) {
+    const result = await exerciseGalleryEntry(row.project_text);
+    entry.checks.open =
+      result.open.status === "failed" ? failure(result.open.message) : OK;
+    entry.checks.insert =
+      result.insert.status === "failed" ? failure(result.insert.message) : OK;
+    entry.insertOutcome = result.insert.status;
+    if (result.insert.status !== "failed" && result.insert.adoptedGrid)
+      entry.adoptedGrid = result.insert.adoptedGrid;
+  }
   let project: CircuitProject;
   try {
     project = parseProject(row.project_text);
@@ -649,7 +664,9 @@ function transformChecks(
   });
 }
 
-it("puts every Gallery drawing through the census", () => {
+it("puts every Gallery drawing through the census", async () => {
+  if (process.env.CI)
+    throw new Error("Private Gallery census is local only; never run it in CI");
   const backup = process.env.ICM_GALLERY_CENSUS_BACKUP;
   const out = process.env.ICM_GALLERY_CENSUS_OUT;
   if (!backup || !out)
@@ -679,7 +696,7 @@ it("puts every Gallery drawing through the census", () => {
   if (limit > 0) rows = rows.slice(0, limit);
   const entries: CensusEntry[] = [];
   for (const [index, row] of rows.entries()) {
-    entries.push(censusEntry(row));
+    entries.push(await censusEntry(row));
     if ((index + 1) % 100 === 0)
       console.log(`gallery census: ${index + 1}/${rows.length}`);
   }
@@ -689,7 +706,7 @@ it("puts every Gallery drawing through the census", () => {
     `${JSON.stringify(
       {
         format: "analog-canvas/gallery-census",
-        version: 1,
+        version: 2,
         commit: process.env.ICM_GALLERY_CENSUS_COMMIT ?? null,
         // What a later census may reuse this report for: the same tree,
         // snapshot, harness and statuses, all drawings, these checks.
@@ -699,6 +716,8 @@ it("puts every Gallery drawing through the census", () => {
         complete: !only?.length && !(limit > 0),
         netlistMarkRuleVersion: NETLIST_MARK_RULE_VERSION,
         backup,
+        snapshotHash: process.env.ICM_GALLERY_CENSUS_SNAPSHOT_HASH || null,
+        target: "fresh-project-grid10-offset0-v1",
         statuses,
         generatedAt: new Date().toISOString(),
         entries,

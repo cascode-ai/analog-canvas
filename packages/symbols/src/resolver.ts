@@ -8,6 +8,11 @@ import {
 } from "@icm/model";
 import { builtInSymbols } from "./builtins.js";
 import {
+  instanceParameterContract,
+  type InstanceParameterResolver,
+  type ParameterOwner,
+} from "@icm/devices";
+import {
   createProjectHierarchicalSymbols,
   projectSymbolSources,
 } from "./hierarchical-block.js";
@@ -17,13 +22,14 @@ export interface ResolvedSymbol {
   variant?: SymbolVariant;
 }
 
-export interface SymbolResolver {
+export interface SymbolResolver extends InstanceParameterResolver {
   resolve(symbolId: string, variantId?: string): ResolvedSymbol | undefined;
 }
 
 const validatedSymbols = new WeakMap<SymbolDefinition, SymbolDefinition>();
 
 export class InMemorySymbolResolver implements SymbolResolver {
+  readonly resolveParameters?: InstanceParameterResolver["resolveParameters"];
   readonly #symbols = new Map<string, SymbolDefinition>();
   readonly #variants = new Map<string, ReadonlyMap<string, SymbolVariant>>();
   readonly #base: InMemorySymbolResolver | undefined;
@@ -31,8 +37,10 @@ export class InMemorySymbolResolver implements SymbolResolver {
   constructor(
     definitions: readonly SymbolDefinition[],
     base?: InMemorySymbolResolver,
+    resolveParameters?: InstanceParameterResolver["resolveParameters"],
   ) {
     this.#base = base;
+    this.resolveParameters = resolveParameters ?? base?.resolveParameters;
     for (const input of definitions) {
       const reusable = isFrozenSnapshot(input)
         ? validatedSymbols.get(input)
@@ -153,7 +161,26 @@ export function createProjectSymbolResolver(
     )
       generatedOverrides.push(definition);
   }
-  return new InMemorySymbolResolver(generatedOverrides, overlay);
+  return new InMemorySymbolResolver(
+    generatedOverrides,
+    overlay,
+    (instance: ParameterOwner) => {
+      const binding = instance.netlist?.binding;
+      if (
+        binding?.kind === "external-subcircuit" &&
+        !project.externalSubcircuitDefinitions?.some(
+          (d) => d.id === binding.definitionId,
+        )
+      )
+        return undefined;
+      if (
+        binding?.kind === "subcircuit" &&
+        !project.documents.some((d) => d.id === binding.childDocumentId)
+      )
+        return undefined;
+      return instanceParameterContract(project, instance);
+    },
+  );
 }
 
 export function findUnsupportedProjectSymbolIds(

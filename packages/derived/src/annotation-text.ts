@@ -117,8 +117,9 @@ export function resolveAnnotationText(
             instance,
             binding.parameter,
             binding.showValue === false ? { showValue: false } : {},
+            resolver,
           )
-        : displayableInstanceValue(instance);
+        : displayableInstanceValue(instance, resolver);
       if (display.kind !== "displayable") return EMPTY_TEXT;
       // A value's live parameter remains authoritative. A stale authored look
       // must never display an old electrical value after an edit/import.

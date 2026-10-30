@@ -1,3 +1,4 @@
+import { createProjectSymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { displayableInstanceValue } from "@icm/derived";
@@ -12,12 +13,13 @@ import { prepareNetlistExample } from "./netlist-process";
 
 /** What each part's value label shows, Cell by Cell: reference to text. */
 function valueLabels(project: CircuitProject) {
+  const resolver = createProjectSymbolResolver(project, builtInSymbols);
   return Object.fromEntries(
     project.documents.map((document) => [
       (document.netlist?.name ?? document.name).toLowerCase(),
       Object.fromEntries(
         document.instances.flatMap((instance) => {
-          const shown = displayableInstanceValue(instance);
+          const shown = displayableInstanceValue(instance, resolver);
           return shown.kind === "displayable" && instance.reference
             ? [
                 [

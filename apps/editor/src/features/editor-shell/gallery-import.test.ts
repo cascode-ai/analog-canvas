@@ -40,11 +40,13 @@ describe("a Gallery drawing to insert (2026-10-17)", () => {
     document.drafting = {
       objects: [rectangle("mask", "#ffffff"), rectangle("panel", "#f0fdfa")],
     };
+    const original = structuredClone(project);
     const drawing = captureGalleryDrawing(project);
     expect(drawing?.coversLeftOut).toBe(1);
     expect(
       drawing?.clipboard.draftingObjects.map((object) => object.id),
     ).toEqual(["panel"]);
+    expect(project).toEqual(original);
   });
 
   it("is placed on a coarser canvas by making the canvas's grid fine enough to hold it", () => {

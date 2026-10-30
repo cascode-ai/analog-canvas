@@ -6,7 +6,9 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createSimulationFolder } from "@icm/model";
-import { collectNativeRunEvidence } from "../../../scripts/lib/native-example-runner.mjs";
+import type { ArtifactRef } from "@icm/simulation-service/contract";
+import { verifySimulationEnvironmentMetadata } from "@icm/spice-run";
+import { validateNativeExampleResult } from "../../../scripts/lib/native-example-runner.mjs";
 import {
   agentNativeSource,
   agentNativeProfile,
@@ -152,6 +154,7 @@ test("public MCP connects to the real local relay and executes native source", a
       request,
       requestId: "native-mcp-start",
     });
+    expect(repeated.ok, JSON.stringify(repeated)).toBe(true);
     expect(repeated.run.id).toBe(started.run.id);
     let finished: any;
     await expect
@@ -175,41 +178,91 @@ test("public MCP connects to the real local relay and executes native source", a
     ).toBe("completed");
     expect(finished.result.metadata.environment.simulator).toMatchObject({
       name: "vacask",
-      version: "0.3.4",
+      version: "0.3.4-icm-hard-switch2",
     });
-    const opIndex = finished.result.data.analyses.findIndex(
+    // Even full reads carry metadata only; complete samples are File artifacts.
+    expect(finished.resultPreview).toBe(true);
+    expect(finished.result.data).toBeUndefined();
+    expect(finished.error).toBeUndefined();
+    // Sync batches publication/transfer metadata within the relay request budget.
+    const synced = await child.tool("simulation_files", {
+      request: { action: "sync", runId: finished.id },
+      basePath: join(root, "downloaded-evidence"),
+      detail: "full",
+    });
+    expect(synced.ok, JSON.stringify(synced)).toBe(true);
+    expect(synced.runId).toBe(finished.id);
+    const artifacts: ArtifactRef[] = finished.artifacts;
+    const files: { id: string; outputPath: string }[] = synced.files;
+    expect(files.map((file) => file.id).sort()).toEqual(
+      artifacts.map((artifact) => artifact.id).sort(),
+    );
+    expect(synced.transfer).toMatchObject({
+      selected: artifacts.length,
+      downloaded: artifacts.length,
+      reused: 0,
+      remaining: 0,
+    });
+    const contents = new Map<string, Buffer>();
+    for (const artifact of artifacts) {
+      const file = files.find((file) => file.id === artifact.id)!;
+      const bytes = await readFile(file.outputPath);
+      expect(bytes.length, artifact.name).toBe(artifact.byteLength);
+      expect(
+        createHash("sha256").update(bytes).digest("hex"),
+        artifact.name,
+      ).toBe(artifact.sha256);
+      contents.set(artifact.name, bytes);
+    }
+    expect(contents.has("result.json")).toBe(true);
+    const result = JSON.parse(contents.get("result.json")!.toString("utf8"));
+    const measurements = contents.get("native-measurements.json");
+    const analyses = validateNativeExampleResult(
+      result,
+      measurements ? JSON.parse(measurements.toString("utf8")) : [],
+    );
+    const environment = result.metadata.environment;
+    expect(await verifySimulationEnvironmentMetadata(environment)).toEqual(
+      environment,
+    );
+    expect(
+      await verifySimulationEnvironmentMetadata(expectedEnvironment),
+    ).toEqual(expectedEnvironment);
+    expect(environment.profileId).toBe(expectedEnvironment.profileId);
+    expect(environment.fingerprint).toBe(expectedEnvironment.fingerprint);
+    expect(environment.simulator).toEqual(expectedEnvironment.simulator);
+    expect(contents.get("executed/main.sim")?.toString("utf8")).toBe(
+      agentNativeSource,
+    );
+    const opIndex = analyses.findIndex(
       (a: { analysis: string }) => a.analysis === "op",
     );
-    expect(finished.result.data.analyses[opIndex].probes).toEqual(
+    expect(
+      opIndex,
+      "The downloaded result must contain native OP data",
+    ).toBeGreaterThanOrEqual(0);
+    expect(analyses[opIndex]!.probes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "mid", value: 0.5 }),
       ]),
     );
-    const csv = finished.artifacts.find(
-      (a: { name: string }) => a.name === `op-${opIndex}.csv`,
+    const csv = artifacts.find(
+      (artifact) => artifact.name === `op-${opIndex}.csv`,
     );
+    expect(csv, "The OP CSV must be a registered artifact").toBeDefined();
     const outputPath = join(root, "op.csv");
     const exported = await child.tool("simulation_files", {
-      request: { action: "artifact", artifactId: csv.id },
+      request: { action: "artifact", artifactId: csv!.id },
       outputPath,
     });
     expect(exported.ok, JSON.stringify(exported)).toBe(true);
     expect(await readFile(outputPath, "utf8")).toContain("0.5");
-    const evidence = await collectNativeRunEvidence({
-      tool: async (name: string, args: unknown) => {
-        const reply = await child!.tool(name, args);
-        expect(reply.ok, JSON.stringify(reply)).toBe(true);
-        return reply;
-      },
-      run: finished,
-      directory: join(root, "downloaded-evidence"),
-      compiled: { files: [{ path: "main.sim", text: agentNativeSource }] },
-      expectedEnvironment,
-    });
-    expect(evidence.datasets.map((dataset) => dataset.analysis).sort()).toEqual(
-      ["ac", "op"],
-    );
-    expect(evidence.artifacts.map((a: { name: string }) => a.name)).toEqual(
+    expect(
+      analyses
+        .map((analysis: { analysis: string }) => analysis.analysis)
+        .sort(),
+    ).toEqual(["ac", "op"]);
+    expect(artifacts.map((artifact) => artifact.name)).toEqual(
       expect.arrayContaining([
         "result.json",
         "executed/main.sim",
@@ -229,14 +282,21 @@ test("public MCP connects to the real local relay and executes native source", a
     // A new MCP process resumes this browser-approved connector, not a new claim.
     await child.close();
     child = startMcp(baseURL!, join(root, "connector.json"));
-    await child.request("initialize", { protocolVersion: "2025-03-26" });
+    await child.request("initialize", {
+      protocolVersion: "2025-03-26",
+      capabilities: {},
+      clientInfo: { name: "native-journey", version: "1" },
+    });
     child.notify("notifications/initialized");
     const resumed = await child.tool("connect", {});
     expect(resumed.ok, JSON.stringify(resumed)).toBe(true);
     const reread = await child.tool("simulation", {
       request: { operation: "read", runId: started.run.id },
     });
+    expect(reread.ok, JSON.stringify(reread)).toBe(true);
     expect(reread.run.id).toBe(started.run.id);
+    expect(reread.run.state).toBe("finished");
+    expect(reread.run.resultPreview).toBe(true);
     expect(executions).toBe(1);
   } finally {
     try {

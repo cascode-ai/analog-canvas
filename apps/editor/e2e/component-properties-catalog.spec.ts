@@ -37,6 +37,71 @@ async function openPropertiesWithQ(
   );
 }
 
+test("Show Value uses bound geometry through the existing Properties controls", async ({
+  page,
+}) => {
+  const project = createEmptyProject("geometry-display", "Geometry display");
+  project.externalSubcircuitDefinitions.push({
+    id: "poly",
+    name: "sky130_fd_pr__res_high_po",
+    interfaceStatus: "declared",
+    terminals: ["R0", "R1", "B"].map((name) => ({
+      id: name,
+      name,
+      direction: "passive" as const,
+    })),
+    formalParameters: [],
+  });
+  project.documents[0]!.instances.push({
+    ...placedInstance("R1", "resistor", 300, 220),
+    reference: "R1",
+    netlist: {
+      binding: { kind: "external-subcircuit", definitionId: "poly" },
+      parameters: { w: "1u", l: "43u", mult: "2" },
+    },
+  });
+  await openProject(page, project, "geometry.icproj.json");
+  await page.getByTestId("hit-R1").click({ force: true });
+  await closeSelectionShelf(page);
+  await page.keyboard.press("q");
+  await expect(
+    page.getByRole("region", { name: "Component properties" }),
+  ).toBeVisible();
+  await expectComponentCodeField(page, "display.parameters", {
+    w: false,
+    l: false,
+    mult: false,
+  });
+  await editComponentPropertyCode(page, (code) => {
+    code.display.value = true;
+  });
+  const label = page.locator(
+    '[data-layer="annotations"] [data-object-id="instance-value-R1"]',
+  );
+  await expect(label).toHaveText("W=1u L=43u ×2");
+  const before = await label.boundingBox();
+  await editComponentPropertyCode(page, (code) => {
+    code.parameters.l = "50u";
+  });
+  await expect(label).toHaveText("W=1u L=50u ×2");
+  expect((await label.boundingBox())?.y).toBe(before?.y);
+  await editComponentPropertyCode(page, (code) => {
+    code.display.value = false;
+    code.display.parameters.l = true;
+  });
+  await expect(label).toHaveCount(0);
+  await expect(
+    page.locator(
+      '[data-layer="annotations"] [data-object-id="instance-parameter-R1-l"]',
+    ),
+  ).toHaveText("L = 50u");
+  await page
+    .getByTestId("annotation-hit-instance-parameter-R1-l")
+    .click({ force: true });
+  await openSelectionShelf(page);
+  await expectComponentCodeField(page, "name", "L = 50u");
+});
+
 test("Delay Cell switches formula parameters and project transistor Cell without moving pins", async ({
   page,
 }) => {

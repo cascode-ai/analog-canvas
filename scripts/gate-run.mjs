@@ -4,6 +4,7 @@ import {
   loadGateCatalog,
   planValidation,
   runGateCommand,
+  executionGates,
 } from "./lib/validation-gates.mjs";
 
 function valueAfter(args, flag, fallback) {
@@ -24,8 +25,6 @@ const plan = planValidation(
   catalog,
 );
 process.stdout.write(formatGatePlan(plan, { base }));
-for (const gate of plan.gates.filter(
-  (candidate) => candidate.stage === stage,
-)) {
+for (const gate of executionGates(plan, stage)) {
   runGateCommand(gate, { base });
 }

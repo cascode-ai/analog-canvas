@@ -64,6 +64,29 @@ const fallbackSpecs = [
 ];
 
 describe("CI validation planning", () => {
+  it("plans opt-in browser evidence separately from ordinary CI coverage", () => {
+    for (const [spec, workflow, job] of [
+      [
+        "mcp-native-simulation",
+        ".github/workflows/simulator-host.yml",
+        "vacask-compat-build",
+      ],
+      ["performance", ".github/workflows/performance.yml", "measure"],
+    ]) {
+      const path = `apps/editor/e2e/${spec}.spec.ts`;
+      const plan = planValidation([path], catalog);
+      expect(plan.selectedGates.flatMap((gate) => gate.command)).not.toContain(
+        path,
+      );
+      expect(planCiValidation(plan).e2eArgs).not.toContain(path);
+      expect(plan.manualChecks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ workflow, job, specs: [path] }),
+        ]),
+      );
+    }
+  });
+
   it("sizes the browser shards to the tests selected, from two to eight", () => {
     const shards = (counts, mode = "focused") =>
       browserShardMatrix(
@@ -211,7 +234,6 @@ describe("CI validation planning", () => {
       e2eArgs: [
         "apps/editor/e2e/agent-simulation.spec.ts",
         "apps/editor/e2e/gui-native-simulation.spec.ts",
-        "apps/editor/e2e/mcp-native-simulation.spec.ts",
         "apps/editor/e2e/simulation-batch.spec.ts",
         "apps/editor/e2e/simulation-code-editor.spec.ts",
         "apps/editor/e2e/simulation-evidence-benchmark.spec.ts",
@@ -242,16 +264,19 @@ describe("CI validation planning", () => {
     }
   });
 
-  it("selects native MCP acceptance for MCP implementation and spec edits", () => {
+  it("requires named manual native MCP evidence for MCP implementation and spec edits", () => {
     for (const path of [
       "apps/mcp-server/src/main.ts",
       "apps/editor/e2e/mcp-native-simulation.spec.ts",
     ]) {
       const plan = ciPlan([path]);
       expect(plan.mode, path).toBe("focused");
-      expect(plan.e2eArgs, path).toContain(
+      expect(plan.e2eArgs, path).not.toContain(
         "apps/editor/e2e/mcp-native-simulation.spec.ts",
       );
+      expect(
+        planValidation([path], catalog).manualChecks.map((check) => check.id),
+      ).toContain("mcp-native");
     }
   });
 
@@ -573,7 +598,7 @@ describe("CI validation planning", () => {
     ).toEqual(["apps/editor/e2e/component-insert.spec.ts"]);
   });
 
-  it("keeps every browser spec reachable through a focused route", async () => {
+  it("keeps every browser spec reachable through a focused or named manual route", async () => {
     const directory = new URL("../../apps/editor/e2e/", import.meta.url);
     const specs = (await readdir(directory))
       .filter((name) => name.endsWith(".spec.ts"))
@@ -582,6 +607,13 @@ describe("CI validation planning", () => {
 
     for (const spec of specs) {
       const plan = ciPlan([spec]);
+      const manual = planValidation([spec], catalog).manualChecks.some(
+        (check) => check.specs.includes(spec),
+      );
+      if (manual) {
+        expect(plan.e2eArgs, spec).not.toContain(spec);
+        continue;
+      }
       expect(plan.mode, spec).toBe("focused");
       expect(plan.e2eArgs, spec).toContain(spec);
     }

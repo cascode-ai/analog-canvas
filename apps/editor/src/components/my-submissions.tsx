@@ -104,18 +104,33 @@ export async function loadMySubmissions(
  * entries that still stand, so deleting hands the slot straight back — an
  * author is not rationed on changing their mind.
  */
+type MineActionOutcome = { ok: true } | { ok: false; message: string };
+
+async function mineActionOutcome(
+  response: Response,
+): Promise<MineActionOutcome> {
+  if (response.ok) return { ok: true };
+  return {
+    ok: false,
+    message:
+      response.status === 401
+        ? "Sign in to manage your submissions."
+        : (await requestFailureOf(response)).message,
+  };
+}
+
 export async function deleteMyEntry(
   id: string,
   fetchLike: typeof fetch = fetch,
-): Promise<boolean> {
+): Promise<MineActionOutcome> {
   try {
     const response = await fetchLike(`/api/gallery/${id}`, {
       method: "DELETE",
       credentials: "same-origin",
     });
-    return response.ok;
+    return mineActionOutcome(response);
   } catch {
-    return false;
+    return { ok: false, message: OFFLINE_FAILURE.message };
   }
 }
 
@@ -123,16 +138,16 @@ export async function setMyEntryRecycled(
   id: string,
   action: "recycle" | "restore",
   fetchLike: typeof fetch = fetch,
-): Promise<boolean> {
+): Promise<MineActionOutcome> {
   try {
     const response = await fetchLike(`/api/gallery/${id}/${action}`, {
       method: "POST",
       credentials: "same-origin",
     });
     if (response.ok) announceGalleryChange({ entryId: id });
-    return response.ok;
+    return mineActionOutcome(response);
   } catch {
-    return false;
+    return { ok: false, message: OFFLINE_FAILURE.message };
   }
 }
 
@@ -165,12 +180,10 @@ export function MySubmissionsContent() {
   ): Promise<void> {
     setBusy(entry.id);
     setNotice(null);
-    const ok = await setMyEntryRecycled(entry.id, action);
+    const outcome = await setMyEntryRecycled(entry.id, action);
     setBusy(null);
-    if (!ok) {
-      setNotice(
-        `Could not ${action === "recycle" ? "withdraw" : "restore"} "${entry.name}".`,
-      );
+    if (!outcome.ok) {
+      setNotice(outcome.message);
       return;
     }
     setNotice(
@@ -184,10 +197,10 @@ export function MySubmissionsContent() {
   async function remove(entry: MineEntry): Promise<void> {
     setBusy(entry.id);
     setNotice(null);
-    const ok = await deleteMyEntry(entry.id);
+    const outcome = await deleteMyEntry(entry.id);
     setBusy(null);
-    if (!ok) {
-      setNotice(`Could not delete "${entry.name}". Try again.`);
+    if (!outcome.ok) {
+      setNotice(outcome.message);
       return;
     }
     setNotice(`Deleted "${entry.name}".`);

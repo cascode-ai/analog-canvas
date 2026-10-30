@@ -1,0 +1,49 @@
+name: Windows platform tests
+
+on:
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - "scripts/gallery-private-snapshot*.mjs"
+      - "scripts/lib/gallery-snapshots.mjs"
+      - "scripts/run-environment-tests*.mjs"
+      - "scripts/lib/environment-test-lanes.mjs"
+      - ".github/workflows/platform-tests.yml"
+      - "vitest.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows registry and synthetic ACL contracts
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Both tests create isolated temporary data. No private snapshot/census
+      # or desktop release is read, created or published by this job.
+      - run: node scripts/run-environment-tests.mjs windows
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-tests-${{ github.sha }}
+          path: output/environment-tests/windows.json
+          if-no-files-found: error
+          retention-days: 14

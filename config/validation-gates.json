@@ -202,6 +202,13 @@
       "apps/editor/e2e/editor-fixtures.ts",
       "apps/editor/e2e/gallery-fixtures.ts"
     ],
+    "galleryRequestFailures": [
+      "apps/editor/e2e/gallery-request-failures.spec.ts",
+      "apps/editor/src/features/editor-shell/examples-panel.tsx",
+      "apps/editor/src/components/shelf-wall.tsx",
+      "apps/editor/src/components/my-submissions.tsx",
+      "apps/editor/src/request-failure.ts"
+    ],
     "gallery": [
       "worker/auth.ts",
       "worker/auth.test.ts",
@@ -373,9 +380,21 @@
       "scripts/gate-*.mjs",
       "scripts/check-test-impact.mjs",
       "scripts/ci-plan.mjs",
+      "scripts/check-core-results*.mjs",
+      "scripts/format*.mjs",
+      "scripts/ci-package-build*.mjs",
+      "scripts/ci-workflow.test.mjs",
+      "scripts/test-standalone-setup.mjs",
+      "scripts/lib/ci-package-build.mjs",
       "scripts/lib/test-impact*.mjs",
       "scripts/lib/ci-validation-plan*.mjs",
-      "scripts/lib/validation-gates*.mjs"
+      "scripts/lib/validation-gates*.mjs",
+      "scripts/test-affected.mjs",
+      "scripts/verify-pr.mjs",
+      "scripts/lib/verify-pr-selection*.mjs",
+      "**/vite*.config.*",
+      "**/vitest.config.*",
+      "**/playwright.config.*"
     ],
     "editorProperties": [
       "apps/editor/src/app/editor-properties-dock.tsx",
@@ -445,6 +464,14 @@
       "apps/editor/e2e/label-census.ts",
       "apps/editor/e2e/bipolar-project.ts",
       "apps/editor/e2e/editor-fixtures.ts"
+    ],
+    "editorBuild": [
+      "apps/editor/src/**",
+      "apps/editor/build/**",
+      "apps/editor/vite*.ts",
+      "apps/editor/index.html",
+      "apps/editor/package.json",
+      "pnpm-lock.yaml"
     ]
   },
   "gates": [
@@ -473,8 +500,8 @@
       "id": "workspace-unit",
       "stage": "affected",
       "groups": ["source"],
-      "description": "Run the bounded-concurrency workspace unit and module contracts.",
-      "command": ["pnpm", "test:local"]
+      "description": "Trace local unit impact, with full fallback for shared or untraceable changes.",
+      "command": ["pnpm", "test:affected", "--", "--base", "{base}"]
     },
     {
       "id": "component-insert-browser",
@@ -550,6 +577,20 @@
       }
     },
     {
+      "id": "gallery-request-failures-browser",
+      "stage": "affected",
+      "groups": ["galleryRequestFailures"],
+      "description": "Validate Gallery paging and member action failure recovery.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/gallery-request-failures.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": ["apps/editor/e2e/gallery-request-failures.spec.ts"]
+      }
+    },
+    {
       "id": "gallery-browser",
       "stage": "affected",
       "groups": ["gallery"],
@@ -588,16 +629,14 @@
         "apps/editor/e2e/web-agent-session.spec.ts",
         "apps/editor/e2e/agent-bus-reuse.spec.ts",
         "apps/editor/e2e/agent-bus-productivity.spec.ts",
-        "apps/editor/e2e/agent-simulation.spec.ts",
-        "apps/editor/e2e/mcp-native-simulation.spec.ts"
+        "apps/editor/e2e/agent-simulation.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/web-agent-session.spec.ts",
           "apps/editor/e2e/agent-bus-reuse.spec.ts",
           "apps/editor/e2e/agent-bus-productivity.spec.ts",
-          "apps/editor/e2e/agent-simulation.spec.ts",
-          "apps/editor/e2e/mcp-native-simulation.spec.ts"
+          "apps/editor/e2e/agent-simulation.spec.ts"
         ]
       }
     },
@@ -611,7 +650,6 @@
         "test:e2e:local",
         "apps/editor/e2e/agent-simulation.spec.ts",
         "apps/editor/e2e/gui-native-simulation.spec.ts",
-        "apps/editor/e2e/mcp-native-simulation.spec.ts",
         "apps/editor/e2e/simulation-batch.spec.ts",
         "apps/editor/e2e/simulation-code-editor.spec.ts",
         "apps/editor/e2e/simulation-profile-probes.spec.ts",
@@ -625,7 +663,6 @@
         "e2eArgs": [
           "apps/editor/e2e/agent-simulation.spec.ts",
           "apps/editor/e2e/gui-native-simulation.spec.ts",
-          "apps/editor/e2e/mcp-native-simulation.spec.ts",
           "apps/editor/e2e/simulation-batch.spec.ts",
           "apps/editor/e2e/simulation-code-editor.spec.ts",
           "apps/editor/e2e/simulation-profile-probes.spec.ts",
@@ -806,14 +843,10 @@
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/wheel-behavior.spec.ts",
-        "apps/editor/e2e/performance.spec.ts"
+        "apps/editor/e2e/wheel-behavior.spec.ts"
       ],
       "ci": {
-        "e2eArgs": [
-          "apps/editor/e2e/wheel-behavior.spec.ts",
-          "apps/editor/e2e/performance.spec.ts"
-        ]
+        "e2eArgs": ["apps/editor/e2e/wheel-behavior.spec.ts"]
       }
     },
     {
@@ -863,6 +896,14 @@
       }
     },
     {
+      "id": "editor-build",
+      "stage": "affected",
+      "groups": ["editorBuild"],
+      "localBuild": true,
+      "description": "Validate web composition and the offline renderer module boundary.",
+      "command": ["pnpm", "test:editor-build"]
+    },
+    {
       "id": "release-verification",
       "stage": "affected",
       "groups": ["release"],
@@ -892,6 +933,7 @@
         "hierarchy-browser",
         "project-file-browser",
         "gallery-browser",
+        "gallery-request-failures-browser",
         "agent-browser",
         "analog-simulation-browser",
         "editor-browser",
@@ -907,7 +949,8 @@
         "branch-verification",
         "editor-properties-browser",
         "editor-netlist-browser",
-        "editor-rnl-browser"
+        "editor-rnl-browser",
+        "editor-build"
       ]
     }
   ],
@@ -916,5 +959,32 @@
     "preflightGate": "static-contracts",
     "affectedGate": "branch-verification",
     "finalGate": "full-delivery"
-  }
+  },
+  "manualChecks": [
+    {
+      "id": "mcp-native",
+      "groups": ["agent", "analogSimulation"],
+      "specs": ["apps/editor/e2e/mcp-native-simulation.spec.ts"],
+      "workflow": ".github/workflows/simulator-host.yml",
+      "job": "vacask-compat-build",
+      "workflowInputs": {
+        "action": "vacask-compat-build"
+      },
+      "command": ["node", "scripts/run-environment-tests.mjs", "mcp-native"],
+      "requires": "Built editor/MCP dependencies, Chromium and the pinned VACASK executable/modules; ICM_E2E_VACASK_REAL=1."
+    },
+    {
+      "id": "browser-performance",
+      "groups": ["editorViewport"],
+      "specs": ["apps/editor/e2e/performance.spec.ts"],
+      "workflow": ".github/workflows/performance.yml",
+      "job": "measure",
+      "command": [
+        "node",
+        "scripts/run-environment-tests.mjs",
+        "browser-performance"
+      ],
+      "requires": "Fresh production build and Chromium; ICM_PERF=1. Synthetic fixtures only in the workflow."
+    }
+  ]
 }

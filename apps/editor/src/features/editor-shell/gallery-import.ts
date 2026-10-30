@@ -4,6 +4,17 @@ import { normalizeImportedProject } from "../../document/project-import-normaliz
 import { clipboardPlacementAnchor } from "../clipboard/copy-placement";
 import { captureProjectCopy } from "../clipboard/project-copy";
 
+/** Opening and capturing a Gallery drawing repair an owned copy of its source. */
+export function prepareGalleryProject(
+  imported: CircuitProject,
+): CircuitProject {
+  const { project } = normalizeImportedProject(
+    imported,
+    createProjectSymbolResolver(imported, builtInSymbols),
+  );
+  return project === imported ? structuredClone(project) : project;
+}
+
 /**
  * GUI and Agent insert the same normalized drawing with the same grab point.
  * A white mask an older entry still holds is left out: drafting in the
@@ -14,10 +25,7 @@ export function captureGalleryDrawing(
   imported: CircuitProject,
   sourceDocumentId = imported.topDocumentId,
 ) {
-  const normalized = normalizeImportedProject(
-    imported,
-    createProjectSymbolResolver(imported, builtInSymbols),
-  ).project;
+  const normalized = prepareGalleryProject(imported);
   const document = normalized.documents.find(
     (item) => item.id === sourceDocumentId,
   );

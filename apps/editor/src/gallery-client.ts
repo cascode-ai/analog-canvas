@@ -264,7 +264,7 @@ export interface GalleryFeedPage {
    * dimmed, never opened, and never followed by another page.
    */
   signedOut?: true;
-  /** Whole filtered wall's size; null while a pre-totals API answers. */
+  /** Whole filtered wall's size; null on cursor pages or older API replies. */
   total: number | null;
   /** Counts across the filtered wall, before pagination, scoped to this viewer. */
   filterCounts?: GalleryQuickFilterCounts;

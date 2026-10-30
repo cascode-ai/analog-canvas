@@ -1,6 +1,7 @@
 // Moderation: curation, duplicate cleanup, rejection, the recycle bin, and
 // deleting an entry or a whole account's data.
 
+import type { RejectionAuthor } from "./gallery-rejection-notice";
 import {
   readGalleryCuration,
   type GalleryAttention,
@@ -254,7 +255,13 @@ export function reject(
     String(body.reviewerId),
     id,
   );
-  return Response.json({ id, status: "rejected" });
+  // Who to tell, for the route alone: it never reaches the curator's answer.
+  const author: RejectionAuthor = {
+    entryName: row.name,
+    ownerUserId: row.owner_user_id,
+    submitterEmail: row.submitter_email,
+  };
+  return Response.json({ id, status: "rejected", author });
 }
 
 /**

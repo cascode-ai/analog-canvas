@@ -9,19 +9,15 @@
  * 2. Prettier on the changed files it formats;
  * 3. the type-aware lint (`pnpm lint`) on the changed code: its errors fail,
  *    and it prints the warnings on the lines the change touched;
- * 4. every unit test that imports a changed file (`vitest related`): a leaf
- *    change runs a few, a core package most of the suite, so neither a guess
- *    at the "touched areas" nor the whole suite. A change to a test file runs
- *    strictly, so a describe its deletions emptied fails here, not in the
- *    merge queue;
+ * 4. related units for ordinary changes; full units for shared, deleted or
+ *    untraceable inputs. Explicit build boundaries run independently of imports;
  * 5. the browser cases the change adds or edits, by `file:line`, on the built
  *    editor with the local one-worker default, so the run leaves the machine
  *    usable (a change a spec file's tests share runs that file). `--mapped`
  *    runs every spec the merge queue maps instead.
  *
- * The merge queue owns ci:static, the full unit suite, release:verify and
- * the mapped specs on the candidate merged with main, in a few minutes, so
- * running the mapped specs here first only repeats them, slower. It stops
+ * The merge queue qualifies the candidate merged with main. Local validation
+ * timing and full-suite triggers live in docs/testing/README.md. This stops
  * at the first failure, ends with each step's time, and names the Gallery
  * census, with the checks the change needs, when AGENTS.md calls for it.
  * It warns, without failing, about each changed product file past 1,000
@@ -46,8 +42,8 @@ import {
   lintPaths,
   oversizedProductFiles,
   PRODUCT_FILE_LINE_LIMIT,
-  strictUnitRun,
-  unitSourcePaths,
+  unitTestCommand,
+  buildBoundaryGates,
 } from "./lib/verify-pr-selection.mjs";
 
 const args = process.argv.slice(2).filter((value) => value !== "--");
@@ -64,7 +60,8 @@ const present = changed.filter((path) => existsSync(path));
 const oversized = oversizedProductFiles(present, (path) =>
   readFileSync(path, "utf8"),
 );
-const ciPlan = planCiValidation(planValidation(changed, catalog));
+const gatePlan = planValidation(changed, catalog);
+const ciPlan = planCiValidation(gatePlan);
 
 const steps = [];
 function step(name, command, commandArgs, env = {}) {
@@ -88,7 +85,7 @@ function finish(status) {
       steps
         .map(
           (item) =>
-            `  ${item.ok ? "✓" : "✗"} ${item.name.padEnd(10)} ${
+            `  ${item.skipped ? "-" : item.ok ? "✓" : "✗"} ${item.name.padEnd(10)} ${
               item.skipped
                 ? `skipped: ${item.skipped}`
                 : `${item.seconds.toFixed(0)} s`
@@ -106,6 +103,17 @@ function finish(status) {
         "\n",
     );
   const census = censusPaths(changed);
+  if (gatePlan.requiresFull || gatePlan.groupPaths.highRisk?.length)
+    process.stdout.write(
+      "\nFull browser evidence required before review: pnpm test:e2e:local (reuse an unchanged candidate's completed run).\n",
+    );
+  for (const check of gatePlan.manualChecks ?? [])
+    process.stdout.write(
+      `\nEnvironment evidence required: ${check.id} — ${check.workflow} / ${check.job}\n`,
+    );
+  process.stdout.write(
+    "\nMerge-candidate Core contracts and Browser tests remain separate queue obligations.\n",
+  );
   if (census.length)
     process.stdout.write(
       `\nAGENTS.md asks for the Gallery census (${census[0]}${
@@ -135,18 +143,12 @@ if (linted.length)
   step("lint", "node", ["scripts/lint.mjs", "--base", base, ...linted]);
 else skip("lint", "no changed file the lint checks");
 
-const sources = unitSourcePaths(present);
-if (sources.length)
-  step("unit", "pnpm", [
-    "exec",
-    "vitest",
-    "related",
-    "--run",
-    "--maxWorkers=2",
-    strictUnitRun(sources) ? "--no-passWithNoTests" : "--passWithNoTests",
-    ...sources,
-  ]);
+const unit = unitTestCommand(gatePlan, present);
+if (unit) step("unit", unit[0], unit.slice(1));
 else skip("unit", "no changed source or test file");
+
+for (const gate of buildBoundaryGates(gatePlan))
+  step(gate.id, gate.command[0], gate.command.slice(1));
 
 /** The browser cases this change adds or edits, as `file:line` arguments. */
 function changedCases() {

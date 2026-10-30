@@ -19,6 +19,7 @@ export async function loadComponentCatalog(
     resume: ComponentLibrarySummaryPage | undefined;
     retain(page: ComponentLibrarySummaryPage | undefined): void;
   },
+  loadSummaries: typeof loadSharedComponentSummaries = loadSharedComponentSummaries,
 ) {
   let page = progress?.resume ?? previous;
   let cursor = page?.nextCursor ?? null;
@@ -31,7 +32,7 @@ export async function loadComponentCatalog(
     if (cursor) visited.add(cursor);
     let next: ComponentLibrarySummaryPage;
     try {
-      next = await loadSharedComponentSummaries(
+      next = await loadSummaries(
         query,
         cursor,
         deleted,

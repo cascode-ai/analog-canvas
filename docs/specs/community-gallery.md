@@ -104,10 +104,14 @@ restrictive CSP.
 
 ### List
 
-`GET /api/gallery` → `{entries, nextCursor, total}`, newest-first `public`
+`GET /api/gallery` → `{entries, nextCursor}`, newest-first `public`
 entries, keyset cursor, limit ≤60.
 
-- Filters, all before the cursor so `total` (repeated per page) matches:
+- The first page adds `total`, `filterCounts`, `authors` and, on the merged
+  wall, `sources`. Cursor pages omit these statistics and run no wall-wide
+  aggregate queries; callers retain the first page's statistics until a
+  refresh or filter change.
+- Filters, all applied before the first page's statistics:
   `author` (byline) or `owner` (account), `tags=a,b` (ANY), `netlistable=0|1`,
   `ai=1|0|dataset` (the AI mark; community circuits without it; reference
   datasets' circuits), `liked=1` (signed out selects none), `parts=0-5,…` (ANY
@@ -261,8 +265,10 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
   `POST /api/auth/users/role` `{email, role}` for every account with that
   verified email. Bin and maintenance stay admin-only. No bulk model fill.
 - `POST /api/gallery/<id>/like` (same-origin) toggles one like per account.
-- Withdraw is immediate and restorable; Reject takes preset reasons plus a note;
-  Delete is one click (rejected entries are recycled first, since the server
+- Withdraw is immediate and restorable; Reject takes preset reasons plus a note
+  and, ticked by default, emails the author that reason (the account's address,
+  else the one it published with; replies to the Owner; never an AI account);
+  a failed email leaves the rejection standing and says so. Delete is one click (rejected entries are recycled first, since the server
   deletes only from the bin).
 
 ## Owner editing
@@ -373,6 +379,11 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
   the wall while the reader leaves the datasets out (the contributor list's
   Datasets box unticked; kept with the other filters, in the link as
   `source=community`).
+- List entries are requested only from stores included by the AI/human/dataset
+  selection. The first page can read other stores' statistics for facets that
+  ignore their own selection. Dataset statistics are cached by normalized
+  filters, access scope and data revision; imports and netlist-mark
+  recomputation invalidate them.
 - Every write answers 403 `dataset-read-only`; entries have no owner or AI mark
   (they count under `datasets`, not `human`) and show no like or owner tools;
   an opened copy publishes as a new community entry.
@@ -450,7 +461,8 @@ Admin routes need a super-admin session (`GALLERY_ADMIN_TOKEN` is retired),
 else 401.
 
 - `POST /api/gallery/<id>/recycle`, `/reject` (required `{reason}` ≤500, reviewer
-  and time recorded), `/restore`; `DELETE /api/gallery/<id>` only from the bin
+  and time recorded; `notify: true` emails the author and answers `emailed`),
+  `/restore`; `DELETE /api/gallery/<id>` only from the bin
   (409 otherwise); `GET /api/gallery/recycled`, `/rejected`.
 - `GET /api/gallery/maintenance/schema-backup?table=…`: bounded pages of the
   whole store; `table=inventory` for counts and revision; missing `table` is

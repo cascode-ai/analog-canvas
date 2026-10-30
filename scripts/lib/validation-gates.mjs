@@ -40,12 +40,21 @@ export async function loadGateCatalog(path = defaultCatalogPath) {
   if (new Set(ids).size !== ids.length) {
     throw new Error("validation gate ids must be unique");
   }
+  const manualSpecs = new Set(
+    (catalog.manualChecks ?? []).flatMap((check) => check.specs),
+  );
   for (const gate of catalog.gates) {
     if (!Array.isArray(gate.command) || gate.command.length === 0) {
       throw new Error(`${gate.id}: command must be a non-empty array`);
     }
     if (!["preflight", "affected", "final"].includes(gate.stage)) {
       throw new Error(`${gate.id}: unsupported stage ${gate.stage}`);
+    }
+    for (const argument of [...gate.command, ...(gate.ci?.e2eArgs ?? [])]) {
+      if (manualSpecs.has(argument))
+        throw new Error(
+          `${gate.id}: manual spec in ordinary gate: ${argument}`,
+        );
     }
     for (const group of gate.groups ?? []) {
       if (!catalog.pathGroups[group]) {
@@ -151,8 +160,42 @@ export function planValidation(paths, catalog) {
     requiresFull: fullReasons.length > 0,
     fullReasons,
     selectedGates: selected,
+    manualChecks: (catalog.manualChecks ?? [])
+      .filter((check) => uniquePaths.length > 0 && applies(check, context))
+      .map((check) => ({ ...check, reasons: matchedReasons(check, context) })),
     gates,
   };
+}
+
+/** Batch compatible browser selections; flags and other commands keep their order. */
+export function executionGates(plan, stage) {
+  const runs = [];
+  let browser;
+  for (const gate of plan.gates.filter((item) => item.stage === stage)) {
+    const [program, script, ...specs] = gate.command;
+    if (
+      program !== "pnpm" ||
+      script !== "test:e2e:local" ||
+      !specs.length ||
+      !specs.every((spec) => safeCiE2eArg.test(spec))
+    ) {
+      runs.push(gate);
+      browser = undefined;
+      continue;
+    }
+    if (!browser) {
+      browser = {
+        ...gate,
+        id: "browser-workflows",
+        command: [program, script],
+        reasons: [],
+      };
+      runs.push(browser);
+    }
+    browser.command = [...new Set([...browser.command, ...specs])];
+    browser.reasons = [...new Set([...browser.reasons, ...gate.reasons])];
+  }
+  return runs;
 }
 
 function gitPaths(args, cwd = root) {
@@ -223,6 +266,19 @@ export function windowsCommandLine(command) {
   return command.join(" ");
 }
 
+function manualEvidenceLines(plan) {
+  if (!plan.manualChecks?.length) return [];
+  return [
+    "",
+    "Manual evidence (separate from automatic / required merge checks):",
+    ...plan.manualChecks.flatMap((check) => [
+      `  - ${check.id}: ${check.workflow} / ${check.job}${check.workflowInputs ? ` ${JSON.stringify(check.workflowInputs)}` : ""}`,
+      `    Local command after preparation: ${check.command.join(" ")}`,
+      `    Requires: ${check.requires}`,
+    ]),
+  ];
+}
+
 export function formatGatePlan(plan, { base = "origin/main" } = {}) {
   const lines = [
     `Validation gate plan (base: ${base})`,
@@ -234,7 +290,7 @@ export function formatGatePlan(plan, { base = "origin/main" } = {}) {
     lines.push(...plan.fullReasons.map((reason) => `  - ${reason}`));
   }
   for (const stage of ["preflight", "affected", "final"]) {
-    const gates = plan.gates.filter((gate) => gate.stage === stage);
+    const gates = executionGates(plan, stage);
     lines.push(`${stage}:`);
     if (gates.length === 0) lines.push("  - (none)");
     for (const gate of gates) {
@@ -249,7 +305,7 @@ export function formatGatePlan(plan, { base = "origin/main" } = {}) {
       }
     }
   }
-  return `${lines.join("\n")}\n`;
+  return `${[...lines, ...manualEvidenceLines(plan)].join("\n")}\n`;
 }
 
 export function formatGatePlanMarkdown(plan, { base = "origin/main" } = {}) {
@@ -264,7 +320,9 @@ export function formatGatePlanMarkdown(plan, { base = "origin/main" } = {}) {
     "| Stage | Gate | Command |",
     "| --- | --- | --- |",
   ];
-  for (const gate of plan.gates) {
+  for (const gate of ["preflight", "affected", "final"].flatMap((stage) =>
+    executionGates(plan, stage),
+  )) {
     lines.push(
       `| ${gate.stage} | \`${gate.id}\` | \`${renderCommand(gate.command, base).join(" ")}\` |`,
     );
@@ -274,7 +332,7 @@ export function formatGatePlanMarkdown(plan, { base = "origin/main" } = {}) {
     lines.push("", "Full-fallback reasons:", "");
     lines.push(...plan.fullReasons.map((reason) => `- ${reason}`));
   }
-  return `${lines.join("\n")}\n`;
+  return `${[...lines, ...manualEvidenceLines(plan)].join("\n")}\n`;
 }
 
 export function runGateCommand(gate, { base = "origin/main" } = {}) {

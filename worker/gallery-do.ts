@@ -90,6 +90,7 @@ import {
   schemaBackup,
   schemaRestore,
 } from "./gallery-store-backup";
+import { GalleryWallStatisticsCache } from "./gallery-store-wall-cache";
 import {
   installSimulationChecks,
   nextSimulationCheck,
@@ -113,6 +114,7 @@ const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
  */
 export class GalleryDO {
   private readonly sql: SqlStorage;
+  private readonly wallStatisticsCache = new GalleryWallStatisticsCache();
   /**
    * This start of the object. A restart — a deploy, or a point-in-time
    * restore that also rewinds the revisions — restarts a capture too.
@@ -481,7 +483,11 @@ export class GalleryDO {
             .map((row) => row.id),
         });
       case "list":
-        return list(this.sql, body);
+        return list(
+          this.sql,
+          body,
+          body.cacheStatistics === true ? this.wallStatisticsCache : undefined,
+        );
       case "catalog":
         return catalog(this.sql);
       case "entry":
@@ -498,7 +504,13 @@ export class GalleryDO {
       case "forget-opens":
         return forgetOpens(this.sql, String(body.day));
       case "preview-access":
-        return previewAccess(this.sql, String(body.id));
+        return previewAccess(
+          this.sql,
+          String(body.id),
+          typeof body.signedOutWallSize === "number"
+            ? body.signedOutWallSize
+            : undefined,
+        );
       case "preview":
         return preview(this.sql, String(body.id));
       case "set-status":

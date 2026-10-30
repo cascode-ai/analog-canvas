@@ -297,12 +297,110 @@ export function createLabelClearanceContext(
     }
     return true;
   };
+  // What the label diagnostics count as drawn over a label: parts and wires.
+  const owners = new Map(symbols.map((symbol) => [symbol.id, symbol.bounds]));
+  const obstacles = new Set([
+    ...owners.keys(),
+    ...document.routes.map((route) => route.id),
+  ]);
+  /** VISUAL_LABEL_CLEARANCE's objects for text at `box`, a dot's wires too. */
+  const struckAt = (box: Rect, annotationId: string) =>
+    [...new Set([...conflictsAt(box, annotationId), ...dotsAt(box)])]
+      .filter((id) => obstacles.has(id))
+      .sort();
+  /** VISUAL_LABEL_OWNER_DISTANCE's gap for an attached label at `box`. */
+  const ownerGapAt = (annotation: Annotation, box: Rect) => {
+    const owner =
+      annotation.anchor.kind === "object"
+        ? owners.get(annotation.anchor.objectId)
+        : undefined;
+    const gap = owner ? rectangleGap(box, owner) : 0;
+    return owner && gap > grid * 8 ? gap : undefined;
+  };
+  const parts = new Set(document.instances.map((instance) => instance.id));
+  const rows = new Map<string, RowLabel | undefined>();
+  /** A part's upright name or value, as VISUAL_LABEL_RUN_ON reads it. */
+  const rowLabel = (annotation: Annotation) => {
+    if (rows.has(annotation.id)) return rows.get(annotation.id);
+    const row = runOnRowLabel(annotation, parts, style);
+    rows.set(annotation.id, row);
+    return row;
+  };
+  const visibleById = new Map(visible.map((a) => [a.id, a]));
+  let reach: number | undefined;
+  /** The widest figure of any part's label: no run-on reaches further. */
+  const runOnReach = () =>
+    (reach ??= Math.max(
+      0,
+      ...visible.map((annotation) => rowLabel(annotation)?.figure ?? 0),
+    ));
+  /** Other parts' labels `annotation` at `box` reads on into, or they into it. */
+  const runsOnAt = (
+    annotation: Annotation,
+    box: Rect,
+    ignore: ReadonlySet<string> = new Set(),
+  ) => {
+    const row = rowLabel(annotation);
+    if (!row) return [];
+    const ids = labelsAt(
+      box,
+      annotation.id,
+      Math.max(row.figure, runOnReach()),
+      Math.max(row.figure, runOnReach()),
+    ).filter((id) => {
+      const theirs = visibleById.get(id);
+      const other = theirs && !ignore.has(id) && rowLabel(theirs);
+      const ink = other && (moved.get(id) ?? labels.get(id));
+      return (
+        other &&
+        ink &&
+        other.owner !== row.owner &&
+        (runOnGap({ ...row, ink: box }, { ...other, ink }) !== undefined ||
+          runOnGap({ ...other, ink }, { ...row, ink: box }) !== undefined)
+      );
+    });
+    return ids.sort();
+  };
+  /**
+   * What the label diagnostics would report of `annotation` drawn with its
+   * ink at `box`: VISUAL_LABEL_CLEARANCE's parts and wires, the labels
+   * VISUAL_LABEL_OVERLAP would cluster it with, VISUAL_LABEL_OWNER_DISTANCE's
+   * gap and VISUAL_LABEL_RUN_ON's labels. Labels in `ignore` count as not
+   * drawn: a planner moving a group tests each member without the stale
+   * places of the others. A spot a planner chooses where a clear one exists
+   * raises none of these (#1836).
+   */
+  const findingsAt = (
+    annotation: Annotation,
+    box: Rect = measure(annotation).inkBounds,
+    ignore: ReadonlySet<string> = new Set(),
+  ): LabelSpotFindings => {
+    const ownerGap = ownerGapAt(annotation, box);
+    return {
+      struck: struckAt(box, annotation.id),
+      overlapped: labelsAt(box, annotation.id)
+        .filter((id) => !ignore.has(id))
+        .sort(),
+      ...(ownerGap === undefined ? {} : { ownerGap }),
+      runsOn: runsOnAt(annotation, box, ignore),
+    };
+  };
   return {
     visible,
     /** The Document's wire geometry this context measured against. */
     routing,
     symbols,
     measure,
+    struckAt,
+    ownerGapAt,
+    runsOnAt,
+    findingsAt,
+    /** Whether `annotation` at `box` raises none of the label findings. */
+    clearAt: (
+      annotation: Annotation,
+      box?: Rect,
+      ignore?: ReadonlySet<string>,
+    ) => isClearSpot(findingsAt(annotation, box, ignore)),
     conflicts: (annotation: Annotation) =>
       conflictsAt(measure(annotation).inkBounds, annotation.id),
     conflictsAt,
@@ -338,11 +436,6 @@ export function diagnoseLabelClearance(
   if (!document.annotations.some((a) => a.visible !== false) && !notes.length)
     return [];
   const context = createLabelClearanceContext(document, resolver);
-  const owners = new Map(context.symbols.map((s) => [s.id, s.bounds]));
-  const obstacles = new Set([
-    ...owners.keys(),
-    ...document.routes.map((r) => r.id),
-  ]);
   // Free drawing text struck through by a wire, as a label is (#1323). Text
   // over a part's bounds is left alone: notes inside a block's outline and
   // marks beside a terminal are drawn there on purpose.
@@ -371,28 +464,19 @@ export function diagnoseLabelClearance(
         ]
       : [];
   });
-  return [...labelFindings(), ...runOnLabels(document, context), ...struck];
+  return [
+    ...labelFindings(),
+    ...runOnLabels(document, context, resolver),
+    ...struck,
+  ];
 
   function labelFindings() {
     return context.visible.flatMap((annotation) => {
       const bounds = context.measure(annotation).inkBounds;
       // Label/label overlap already has a clustered visual diagnostic. Text
       // on a junction dot is on its wires.
-      const conflicts = [
-        ...new Set([
-          ...context.conflicts(annotation),
-          ...context.dotsAt(bounds),
-        ]),
-      ]
-        .filter((id) => obstacles.has(id))
-        .sort();
-      const ownerId =
-        annotation.anchor.kind === "object"
-          ? annotation.anchor.objectId
-          : undefined;
-      const owner = ownerId ? owners.get(ownerId) : undefined;
-      const gap = owner ? rectangleGap(bounds, owner) : 0;
-      const maxGap = document.presentation.grid * 8;
+      const conflicts = context.struckAt(bounds, annotation.id);
+      const gap = context.ownerGapAt(annotation, bounds);
       const diagnostics: VisualDiagnostic[] = [];
       if (conflicts.length)
         diagnostics.push({
@@ -407,7 +491,7 @@ export function diagnoseLabelClearance(
           bounds,
           parameters: { conflictingObjectCount: conflicts.length },
         });
-      if (owner && gap > maxGap)
+      if (gap !== undefined && annotation.anchor.kind === "object")
         diagnostics.push({
           code: "VISUAL_LABEL_OWNER_DISTANCE",
           severity: "info",
@@ -416,22 +500,96 @@ export function diagnoseLabelClearance(
           gateEligible: false,
           message:
             "Attached label is far from its owner; this may be intentional",
-          objectIds: [annotation.id, ownerId!],
+          objectIds: [annotation.id, annotation.anchor.objectId],
           bounds,
-          parameters: { gap, reviewThreshold: maxGap },
+          parameters: { gap, reviewThreshold: document.presentation.grid * 8 },
         });
       return diagnostics;
     });
   }
 }
 
+/** What the label diagnostics would report of one label at one spot. */
+export interface LabelSpotFindings {
+  /** Parts and wires drawn over it, a junction dot's wires among them. */
+  readonly struck: readonly string[];
+  /** Other labels and free text its ink meets. */
+  readonly overlapped: readonly string[];
+  /** Its gap from its part, where that is past the review threshold. */
+  readonly ownerGap?: number;
+  /** Other parts' names or values it runs on with along its row. */
+  readonly runsOn: readonly string[];
+}
+
+/** Whether a spot raises none of the label findings. */
+function isClearSpot(findings: LabelSpotFindings): boolean {
+  return (
+    !findings.struck.length &&
+    !findings.overlapped.length &&
+    findings.ownerGap === undefined &&
+    !findings.runsOn.length
+  );
+}
+
 /** A part's name or value, as a run-on reads it. */
 interface RowLabel {
   readonly annotation: Annotation;
   readonly owner: string;
-  readonly ink: Rect;
   /** A figure's width at the label's size: less between labels runs on. */
   readonly figure: number;
+}
+
+/** A part's upright name or value as a run-on reads it, or undefined. */
+function runOnRowLabel(
+  annotation: Annotation,
+  parts: ReadonlySet<string>,
+  style: ReturnType<typeof resolveDocumentStyleProfile>,
+): RowLabel | undefined {
+  const owner =
+    annotation.anchor.kind === "object"
+      ? annotation.anchor.objectId
+      : undefined;
+  if (
+    (annotation.kind !== "instance-label" &&
+      annotation.kind !== "instance-value") ||
+    annotation.rotation !== 0 ||
+    !owner ||
+    !parts.has(owner)
+  )
+    return undefined;
+  const fontSize =
+    objectStyleProfile(style, annotation).typography.instanceFontSize *
+    (annotation.sizeScale ?? 1);
+  return {
+    annotation,
+    owner,
+    figure: measureLabelText(RUN_ON_FIGURE, {
+      ...richTextMetrics(style, "label"),
+      fontSize,
+    }).width,
+  };
+}
+
+/**
+ * The gap at which `right` follows `left` on one row closer than a figure,
+ * so the two read as one string, or undefined. Labels drawn over each
+ * other are VISUAL_LABEL_OVERLAP's.
+ */
+function runOnGap(
+  left: { readonly ink: Rect; readonly figure: number },
+  right: { readonly ink: Rect; readonly figure: number },
+): number | undefined {
+  const gap = right.ink.x - (left.ink.x + left.ink.width);
+  const threshold = Math.max(left.figure, right.figure);
+  const top = Math.max(left.ink.y, right.ink.y);
+  const bottom = Math.min(
+    left.ink.y + left.ink.height,
+    right.ink.y + right.ink.height,
+  );
+  // One row: the two overlap by half a line or more.
+  const oneRow =
+    bottom - top >= Math.min(left.ink.height, right.ink.height) / 2;
+  return gap < 0 || gap >= threshold || !oneRow ? undefined : gap;
 }
 
 /**
@@ -444,35 +602,18 @@ interface RowLabel {
 function runOnLabels(
   document: SchematicDocument,
   context: ReturnType<typeof createLabelClearanceContext>,
+  resolver: SymbolResolver,
 ): VisualDiagnostic[] {
   const style = resolveDocumentStyleProfile(document.presentation);
   const parts = new Set(document.instances.map((instance) => instance.id));
-  const labels = new Map<string, RowLabel>();
+  const labels = new Map<string, RowLabel & { readonly ink: Rect }>();
   for (const annotation of context.visible) {
-    const owner =
-      annotation.anchor.kind === "object"
-        ? annotation.anchor.objectId
-        : undefined;
-    if (
-      (annotation.kind !== "instance-label" &&
-        annotation.kind !== "instance-value") ||
-      annotation.rotation !== 0 ||
-      !owner ||
-      !parts.has(owner)
-    )
-      continue;
-    const fontSize =
-      objectStyleProfile(style, annotation).typography.instanceFontSize *
-      (annotation.sizeScale ?? 1);
-    labels.set(annotation.id, {
-      annotation,
-      owner,
-      ink: context.measure(annotation).inkBounds,
-      figure: measureLabelText(RUN_ON_FIGURE, {
-        ...richTextMetrics(style, "label"),
-        fontSize,
-      }).width,
-    });
+    const row = runOnRowLabel(annotation, parts, style);
+    if (row)
+      labels.set(annotation.id, {
+        ...row,
+        ink: context.measure(annotation).inkBounds,
+      });
   }
   const reach = Math.max(
     0,
@@ -481,7 +622,7 @@ function runOnLabels(
   const named = ({ annotation, owner }: RowLabel) =>
     `${partName(document, owner)}'s ${
       annotation.kind === "instance-value" ? "value" : "name"
-    } "${flattenRichText(resolveAnnotationText(document, annotation))}"`;
+    } "${flattenRichText(resolveAnnotationText(document, annotation, undefined, resolver))}"`;
   const findings: VisualDiagnostic[] = [];
   for (const left of labels.values())
     for (const id of context.labelsWithin(
@@ -492,17 +633,9 @@ function runOnLabels(
       const right = labels.get(id);
       if (!right || right.owner === left.owner) continue;
       // Each pair once, read from left to right.
-      const gap = right.ink.x - (left.ink.x + left.ink.width);
+      const gap = runOnGap(left, right);
+      if (gap === undefined) continue;
       const threshold = Math.max(left.figure, right.figure);
-      const top = Math.max(left.ink.y, right.ink.y);
-      const bottom = Math.min(
-        left.ink.y + left.ink.height,
-        right.ink.y + right.ink.height,
-      );
-      // One row: the two overlap by half a line or more.
-      const oneRow =
-        bottom - top >= Math.min(left.ink.height, right.ink.height) / 2;
-      if (gap < 0 || gap >= threshold || !oneRow) continue;
       const units = Math.round(gap);
       const y = Math.min(left.ink.y, right.ink.y);
       findings.push({

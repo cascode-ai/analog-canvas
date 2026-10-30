@@ -17,7 +17,12 @@ Primary test boundary per behavior, as an index for change impact.
 | Agent authentication, permissions, and session lifetime          | `packages/agent-adapter/src/{session-state,service,request-contract}.test.ts`                                      | browser Agent session workflow                  |
 | Browser recovery and persistence hardening                       | editor document unit contracts                                                                                     | recovery dialog and hardening Playwright specs  |
 | User-visible editing workflows                                   | focused editor unit contracts                                                                                      | `apps/editor/e2e/` scenarios                    |
-| Validation policy and change-impact selection                    | `scripts/lib/{validation-gates,ci-validation-plan,test-impact}.test.mjs`                                           | focused required browser checks, small fallback |
+| Validation policy and change-impact selection                    | `scripts/lib/{validation-gates,ci-validation-plan,verify-pr-selection,test-impact}.test.mjs`                                           | focused required browser checks, small fallback |
+
+Timing report accounting is protected by
+`scripts/lib/e2e-durations.test.mjs`; elapsed run time and cumulative retry cost
+remain distinct. Workflow tests protect required-result propagation and parity
+between local release commands and CI steps.
 
 A change touching several rows adds a cross-module test only for the shared
 fact, without repeating lower-level cases in Playwright.

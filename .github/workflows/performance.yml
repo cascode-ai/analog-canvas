@@ -1,0 +1,44 @@
+name: Browser performance evidence
+
+# Timing evidence is opt-in, separate from the release performance budgets.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-performance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ICM_PERF: "1"
+      ICM_PERF_PROJECT: ""
+      # The spec starts its own production preview at this loopback origin.
+      ICM_E2E_BASE_URL: http://127.0.0.1:4175
+      PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/run-environment-tests.mjs browser-performance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-performance-${{ github.sha }}
+          path: |
+            output/environment-tests/browser-performance.json
+            output/performance/
+          if-no-files-found: error
+          retention-days: 14

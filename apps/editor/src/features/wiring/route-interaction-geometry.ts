@@ -880,7 +880,8 @@ export function defaultInstanceValue(
 ): Annotation | null {
   if (!instance.placement) return null;
   if (instanceValueAnnotation(document, instance.id)) return null;
-  if (displayableInstanceValue(instance).kind !== "displayable") return null;
+  if (displayableInstanceValue(instance, resolver).kind !== "displayable")
+    return null;
   const resolved = resolver.resolve(
     instance.symbolId,
     instance.symbolVariantId,

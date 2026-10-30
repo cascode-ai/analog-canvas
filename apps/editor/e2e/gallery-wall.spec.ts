@@ -251,6 +251,13 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
   page,
 }) => {
   const listRequests: string[] = [];
+  await page.route("**/api/gallery/sources", (route) =>
+    route.fulfill({
+      json: {
+        sources: [{ key: "analoggenie", name: "AnalogGenie", count: 35 }],
+      },
+    }),
+  );
   await serveWall(page, (url) => {
     listRequests.push(url.search);
     const second = url.searchParams.get("cursor") === "c1";
@@ -258,6 +265,22 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
     return {
       entries: ids.map((id) => tile(id)),
       nextCursor: second ? null : "c1",
+      ...(!second
+        ? {
+            total: 40,
+            authors: [{ author: "tz", count: 5 }],
+            sources: { analoggenie: 35 },
+            filterCounts: {
+              attention: 0,
+              liked: 0,
+              netlistable: 30,
+              withoutNetlist: 10,
+              ai: 0,
+              human: 5,
+              datasets: 35,
+            },
+          }
+        : {}),
     };
   });
 
@@ -268,6 +291,29 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
   // double-mounts the initial effect in dev, so the plain request may
   // fire twice; the cursor page must load exactly once.)
   await expect(page.getByTestId("gallery-tile-p2-b")).toBeVisible();
+  await expect(page.getByTestId("gallery-count-panel")).toContainText(
+    "40 circuits",
+  );
+  await expect(
+    page
+      .getByTestId("gallery-filter-netlistable")
+      .locator(".gallery-sidebar-count"),
+  ).toHaveText("30");
+  await page.getByTestId("gallery-count-panel").click();
+  await expect(
+    page.getByTestId("gallery-contributor-dataset-analoggenie"),
+  ).toContainText("35 circuits");
+  await expect(
+    page
+      .getByRole("listitem")
+      .filter({
+        has: page.getByRole("button", {
+          name: "View tz's gallery",
+          exact: true,
+        }),
+      })
+      .locator(".gallery-contributor-count"),
+  ).toHaveText("5 circuits");
   const cursors = listRequests.map((query) =>
     new URLSearchParams(query).get("cursor"),
   );

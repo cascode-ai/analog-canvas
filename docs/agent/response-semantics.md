@@ -28,6 +28,7 @@ re-inspect and reconsider, not retry.
 | LIMIT_EXCEEDED | Split coherent edits within the advertised bounds, keeping all connectivity work |
 | SNAPSHOT_TOO_LARGE | Select an existing child Document or report the limit |
 | RENDER_TOO_LARGE | Request bounded render regions |
+| GALLERY_ACCOUNT_BLOCKED | Contact the Owner using the message's address; do not retry, reconnect or change accounts to bypass the block. `recovery:"fix-input"` preserves the existing Project response contract; the code identifies this account intervention. |
 
 Credentials, offline transport and request-cache recovery belong to the
 transport's entry guide. File and Simulation resources return their own domain
