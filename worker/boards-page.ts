@@ -62,6 +62,9 @@ h1 { font-size: 22px; line-height: 1.3; margin: 0; overflow-wrap: anywhere; }
 .lightbox .img { background: #fff; flex: 1; min-height: 0; padding: 14px; }
 .lightbox img { max-width: 92vw; max-height: 78vh; width: auto; height: auto; display: block; margin: 0 auto; }
 .lightbox .cap { padding: 10px 14px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.lightbox .dialog { padding: 16px; gap: 10px; width: min(440px, 92vw); }
+.dialog input, .dialog textarea { width: 100%; }
+.dialog .row { display: flex; justify-content: flex-end; gap: 8px; }
 .empty { color: var(--muted); padding: 30px 0; text-align: center; }
 form.make { display: grid; gap: 10px; max-width: 640px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
 form.make label { display: grid; gap: 4px; }
@@ -196,15 +199,19 @@ function render() {
   tools.append(el("a", { href: api + "/export", target: "_blank", rel: "noopener", text: "导出名单（JSON）" }));
   if (editable()) {
     tools.append(el("button", { text: "改名", onclick: function () {
-      var title = prompt("新的名字", board.title);
-      if (title && title.trim() && title.trim() !== board.title) change([{ kind: "rename", title: title.trim() }], "已改名");
+      ask("新的名字", { value: board.title }).then(function (title) {
+        if (title && title.trim() && title.trim() !== board.title) change([{ kind: "rename", title: title.trim() }], "已改名");
+      });
     } }));
     tools.append(el("button", { text: "名额", onclick: function () {
-      var slots = prompt("名额（1–500）", String(board.slots));
-      if (slots && Number(slots) !== board.slots) change([{ kind: "slots", slots: Number(slots) }], "名额已改");
+      ask("名额（1–500）", { value: String(board.slots), type: "number" }).then(function (slots) {
+        if (slots && Number(slots) !== board.slots) change([{ kind: "slots", slots: Number(slots) }], "名额已改");
+      });
     } }));
     tools.append(el("button", { text: "锁定", onclick: function () {
-      if (confirm("锁定后谁都不能再改，只有创建者或管理员能解锁。确定锁定？")) change([{ kind: "lock" }], "已锁定");
+      confirmBox("锁定后谁都不能再改，只有创建者或管理员能解锁。确定锁定？", "锁定").then(function (yes) {
+        if (yes) change([{ kind: "lock" }], "已锁定");
+      });
     } }));
   }
   if (board.lockedAt && viewer.canUnlock) tools.append(el("button", { text: "解锁", onclick: function () { change([{ kind: "unlock" }], "已解锁"); } }));
@@ -252,17 +259,21 @@ function card(item, index, count) {
   var actions = el("div", { class: "actions" }, [el("a", { href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "在 Canvas 打开 ↗" })]);
   if (editable()) {
     actions.append(el("button", { text: "换", onclick: function () {
-      var next = prompt("换成哪道题？贴 Gallery 链接或编号");
-      if (next && next.trim()) change([{ kind: "replace", itemId: item.id, entry: next.trim() }], "已换");
+      ask("把「" + (entry ? entry.name : item.entryId) + "」换成哪道题？", { placeholder: "贴 Gallery 链接或编号" }).then(function (next) {
+        if (next && next.trim()) change([{ kind: "replace", itemId: item.id, entry: next.trim() }], "已换");
+      });
     } }));
     actions.append(el("button", { text: "备注", onclick: function () {
-      var note = prompt("备注", item.note);
-      if (note !== null && note !== item.note) change([{ kind: "note", itemId: item.id, note: note }], "备注已存");
+      ask("备注", { value: item.note, multiline: true }).then(function (note) {
+        if (note !== null && note !== item.note) change([{ kind: "note", itemId: item.id, note: note }], "备注已存");
+      });
     } }));
     actions.append(el("button", { text: "↑", title: "往前挪", disabled: index === 0, onclick: function () { change([{ kind: "move", itemId: item.id, to: index - 1 }], "已挪动"); } }));
     actions.append(el("button", { text: "↓", title: "往后挪", disabled: index === count - 1, onclick: function () { change([{ kind: "move", itemId: item.id, to: index + 1 }], "已挪动"); } }));
     actions.append(el("button", { text: "移出", onclick: function () {
-      if (confirm("把「" + (entry ? entry.name : item.entryId) + "」移出这个板？")) change([{ kind: "remove", itemId: item.id }], "已移出");
+      confirmBox("把「" + (entry ? entry.name : item.entryId) + "」移出这个板？", "移出").then(function (yes) {
+        if (yes) change([{ kind: "remove", itemId: item.id }], "已移出");
+      });
     } }));
   }
   body.append(actions);
@@ -285,7 +296,40 @@ function open(item) {
   document.body.append(lightbox);
 }
 function close() { if (lightbox) { lightbox.remove(); lightbox = null; } }
-document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+
+// The page asks in its own dialog: a browser may refuse prompt() and confirm() (an embedded one does).
+var dialog = null;
+function ask(title, options) {
+  options = options || {};
+  return new Promise(function (resolve) {
+    if (dialog) dialog.cancel();
+    var field = options.multiline ? el("textarea", { rows: "4" }) : el("input", { type: options.type || "text" });
+    field.value = options.value || "";
+    if (options.placeholder) field.placeholder = options.placeholder;
+    function finish(value) { if (dialog) { dialog.remove(); dialog = null; } resolve(value); }
+    var ok = el("button", { class: "primary", text: options.ok || "确定", onclick: function () { finish(options.confirmOnly ? "" : field.value); } });
+    dialog = el("div", { class: "lightbox", onclick: function (e) { if (e.target === dialog) finish(null); } }, [
+      el("div", { class: "box dialog" }, [
+        el("b", { text: title }),
+        options.confirmOnly ? null : field,
+        el("div", { class: "row" }, [el("button", { text: "取消", onclick: function () { finish(null); } }), ok])
+      ])
+    ]);
+    dialog.cancel = function () { finish(null); };
+    field.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !options.multiline) { e.preventDefault(); finish(field.value); }
+    });
+    document.body.append(dialog);
+    if (options.confirmOnly) ok.focus(); else { field.focus(); field.select(); }
+  });
+}
+function confirmBox(message, okText) {
+  return ask(message, { confirmOnly: true, ok: okText }).then(function (value) { return value !== null; });
+}
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Escape") return;
+  if (dialog) dialog.cancel(); else close();
+});
 
 $("add-go").addEventListener("click", function () {
   var entries = splitEntries($("add-entries").value);
@@ -298,7 +342,7 @@ $("add-go").addEventListener("click", function () {
 
 // Collaborators' changes arrive while the page is open.
 setInterval(async function () {
-  if (document.visibilityState !== "visible" || busy || lightbox || !state) return;
+  if (document.visibilityState !== "visible" || busy || lightbox || dialog || !state) return;
   var response = await fetch(api, { cache: "no-store" }).catch(function () { return null; });
   if (!response || !response.ok) return;
   var payload = await response.json();
