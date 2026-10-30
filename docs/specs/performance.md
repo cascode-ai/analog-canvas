@@ -21,7 +21,9 @@ the script enforces budgets.
 Rotate, Undo, twelve-instance paste and wire commit each have an independent
 CI-calibrated ceiling on that Project. Repeated fresh-editor samples measure
 planning, commit and history, excluding setup and result verification. Their
-median must pass normally and fail with an injected 2× operation cost.
+median must pass normally and fail with an injected 2× operation cost. Normal
+and injected checks run in separate processes through the release CLI, with
+matching setup and prewarm counts; a crash is not slowdown-rejection evidence.
 Calibration records evidence without qualifying a release; changing the
 reference requires both normal and slowdown checks on the CI runner.
 The fixed Windows workstation reference provides a separate local ceiling;
