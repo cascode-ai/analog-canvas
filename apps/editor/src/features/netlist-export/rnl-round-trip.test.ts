@@ -8,7 +8,11 @@ import {
   resolveDocumentLogicalNets,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
-import { IDEAL_COMPARATOR_TARGET, subcircuitDescriptor } from "@icm/devices";
+import {
+  IDEAL_COMPARATOR_TARGET,
+  reviewedExternalBindingById,
+  subcircuitDescriptor,
+} from "@icm/devices";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import {
   createEmptyProject,
@@ -1319,6 +1323,119 @@ it.each(["spice", "spectre"] as const)(
     // stand-in card is a separate matter (#1789).
     for (const [id, symbolId] of parts)
       expect(back.find((i) => i.reference === id)?.symbolId).toBe(symbolId);
+  },
+);
+
+it.each(
+  (["spice", "spectre"] as const).flatMap((format) =>
+    [
+      "sky130-npn-05v5-w1p00l1p00",
+      "sky130-res-high-po",
+      "sky130-ind-05-125",
+    ].map((id) => [id, format] as const),
+  ),
+)(
+  "reads back a %s part whose call prints its property terminals too, as drawn, through %s+RNL (#1786)",
+  async (bindingId, format) => {
+    // The call prints the substrate (and a centre tap), which no symbol
+    // draws: the part's own symbol still draws the rest.
+    const binding = reviewedExternalBindingById(bindingId)!;
+    const project = createEmptyProject("pdk", "PDK part", "dut");
+    project.externalSubcircuitDefinitions = [
+      {
+        id: "device",
+        name: binding.masterName,
+        interfaceStatus: "declared",
+        terminals: binding.terminals.map((terminal) => ({
+          id: terminal.targetName,
+          name: terminal.targetName,
+          direction: "passive" as const,
+        })),
+        formalParameters: binding.parameters.map((parameter) => ({
+          name: parameter.name,
+          defaultValue:
+            parameter.targetDefaultValue ?? parameter.defaultValue ?? "1",
+        })),
+      },
+    ];
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    document.instances.push(
+      {
+        id: "D1",
+        reference: "X1",
+        symbolId: binding.symbolId,
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: "device" },
+          parameters: {},
+        },
+      },
+      {
+        id: "GND1",
+        symbolId: "ground",
+        placement: {
+          position: { x: 400, y: 400 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    for (const terminal of binding.terminals)
+      if (terminal.interaction === "canvas")
+        document.noConnects.push({
+          id: `nc-${terminal.pinName}`,
+          endpoint: {
+            kind: "terminal",
+            instanceId: "D1",
+            pinName: terminal.pinName,
+          },
+        });
+    document.nets.push({
+      id: "ground",
+      terminals: [
+        { instanceId: "GND1", pinName: "0" },
+        ...binding.terminals
+          .filter((terminal) => terminal.interaction === "property")
+          .map((terminal) => ({
+            instanceId: "D1",
+            pinName: terminal.pinName,
+          })),
+      ],
+    });
+    document.connectivityEvidence.push({
+      id: "gnd-claim",
+      kind: "name-claim",
+      netId: "ground",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND1" },
+    });
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    const symbol = rnlSymbolFor(binding.symbolId)!.symbol;
+    expect(written.text).toContain(`@SET-SYMBOL ${symbol}`);
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    expect(
+      plan.diagnostics.filter(
+        (item) => item.code === "RNL_IMPORT_UNMAPPED_SYMBOL",
+      ),
+    ).toEqual([]);
+    const part = plan.project.documents
+      .flatMap((d) => d.instances)
+      .find((i) => i.reference === "X1");
+    expect(part?.symbolId).toBe(binding.symbolId);
+    expect(part?.placement).toEqual(document.instances[0]!.placement);
   },
 );
 

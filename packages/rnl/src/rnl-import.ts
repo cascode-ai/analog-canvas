@@ -39,7 +39,7 @@ import {
 
 type Junction = SchematicDocument["junctions"][number];
 
-import { hierarchicalSymbolId } from "@icm/symbols";
+import { builtInSymbols, hierarchicalSymbolId } from "@icm/symbols";
 
 import { callSymbolFromDefinition } from "./call-symbols.js";
 import {
@@ -265,6 +265,11 @@ function acSymbolFor(
   /** The part's pins by the names this symbol gives them, where they differ. */
   pins?: ReadonlyMap<string, string>;
 } | null {
+  // A terminal the part's own symbol has no pin for, such as a PDK device's
+  // substrate, is set as a property: no symbol draws it, its own included.
+  const own = builtInSymbols.find((item) => item.id === instance.symbolId);
+  const property = (pin: string) =>
+    own !== undefined && !own.pins.some((item) => item.name === pin);
   const rows: { row: RnlSymbol; pins?: ReadonlyMap<string, string> }[] =
     RNL_SYMBOLS.flatMap((row) => {
       if (
@@ -280,6 +285,7 @@ function acSymbolFor(
       if (
         pinNames.every(
           (pin) =>
+            (row.ac === instance.symbolId && property(pin)) ||
             row.pins.some((item) => item.acPin === pin) ||
             row.undrawnPins.some((item) => item.acPin === pin),
         )

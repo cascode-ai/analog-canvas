@@ -248,6 +248,8 @@ the RNL language and its runtime belong to rnl.
     and P2 on a capacitor's 1 and 2) by terminal, as RNL binds pins, where
     it is the same kind of device and its own netlist order prints each pin
     at the same place; the part's pins take the symbol's names;
+    a part whose call also prints a terminal its own symbol has no pin for
+    (a PDK device's substrate, set as a property) reads back as that symbol;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant the file names (`$CANVAS_VARIANT`, since 0.4), else as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
