@@ -230,7 +230,7 @@ export function rnlExportOps(
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const blocks = blockSymbols(project, ir, resolver, format);
   const callSymbols = new Map<string, RnlSymbol>();
-  const calledParts = new Set<StableId>();
+  const calledParts = new Set<string>();
   const top = ir.cells.find((cell) => cell.id === ir.topCellId);
   for (const cell of ir.cells) {
     if (cell.origin === "generated-model") continue;
@@ -288,14 +288,16 @@ export function rnlExportOps(
   }));
   const inline = new Map(
     project.documents
-      .flatMap((document) => [
-        ...document.instances,
-        ...(document.drafting?.objects ?? []).filter(
-          (object) => object.kind === "floating-symbol",
-        ),
-      ])
-      // A part drawn with a call symbol needs no library one.
-      .filter((instance) => !calledParts.has(instance.id))
+      .flatMap((document) =>
+        [
+          ...document.instances,
+          ...(document.drafting?.objects ?? []).filter(
+            (object) => object.kind === "floating-symbol",
+          ),
+        ]
+          // A part drawn with a call symbol needs no library one.
+          .filter((instance) => !calledParts.has(partKey(document, instance))),
+      )
       .flatMap((instance) => {
         const row = rnlSymbolFor(
           instance.symbolId,
@@ -325,8 +327,8 @@ interface ExportContext {
   blocks: ReturnType<typeof blockSymbols>;
   /** Library artwork defined for calls that print its pins in another order, by name. */
   callSymbols: Map<string, RnlSymbol>;
-  /** The parts drawn with one of those. */
-  calledParts: Set<StableId>;
+  /** The parts drawn with one of those (`partKey`). */
+  calledParts: Set<string>;
 }
 
 /**
@@ -518,6 +520,10 @@ function authoredTexts(
   });
   return [...scaled, ...rest];
 }
+
+/** A part's key across the project: its id is unique within its Document only. */
+const partKey = (document: SchematicDocument, part: { id: StableId }) =>
+  `${document.id}\u0000${part.id}`;
 
 function exportCell(
   document: SchematicDocument,
@@ -712,7 +718,7 @@ function exportCell(
       );
       if (ordered !== symbol) {
         context.callSymbols.set(ordered.symbol, ordered);
-        context.calledParts.add(instance.id);
+        context.calledParts.add(partKey(document, instance));
         symbol = ordered;
       }
     }
@@ -721,7 +727,7 @@ function exportCell(
       symbol?.inline &&
       call &&
       !gate?.ok &&
-      !context.calledParts.has(instance.id)
+      !context.calledParts.has(partKey(document, instance))
     ) {
       const descriptor = subcircuitDescriptor(
         instance.symbolId,

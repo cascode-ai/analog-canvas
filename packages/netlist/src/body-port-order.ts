@@ -12,8 +12,11 @@ export interface GeneratedBody {
   name: string;
   /** Its ports in the order the netlist prints them by default. */
   ports: readonly string[];
-  /** The Instances that call it, in IR order. */
-  instanceIds: readonly StableId[];
+  /**
+   * The Instances that call it, in IR order, each with the Cell it sits in:
+   * an Instance's id is unique within its Document only.
+   */
+  calls: readonly { cellId: StableId; instanceId: StableId }[];
 }
 
 /** The order to print a body's ports in, a permutation of its own; null keeps it. */
@@ -35,23 +38,28 @@ export function withBodyPortOrder(
   order: BodyPortOrder,
 ): DesignNetlistIR {
   const next = structuredClone(ir);
-  const callers = (name: string): DesignNetlistInstance[] =>
+  const callers = (
+    name: string,
+  ): { cellId: StableId; call: DesignNetlistInstance }[] =>
     next.cells.flatMap((cell) =>
-      cell.instances.filter(
-        (instance) =>
-          instance.invocationKind === "subcircuit" && instance.target === name,
-      ),
+      cell.instances
+        .filter(
+          (instance) =>
+            instance.invocationKind === "subcircuit" &&
+            instance.target === name,
+        )
+        .map((call) => ({ cellId: cell.id, call })),
     );
   const reorder = (
     name: string,
     ports: readonly string[],
     setPorts: (ports: readonly string[]) => void,
   ) => {
-    const calls = callers(name);
+    const found = callers(name);
     const wanted = order({
       name,
       ports,
-      instanceIds: calls.map((call) => call.id),
+      calls: found.map(({ cellId, call }) => ({ cellId, instanceId: call.id })),
     });
     if (
       !wanted ||
@@ -68,7 +76,7 @@ export function withBodyPortOrder(
       throw new Error(
         `Port order ${wanted.join(" ")} is not a reordering of ${name}'s ports ${ports.join(" ")}`,
       );
-    for (const call of calls) {
+    for (const { call } of found) {
       if (call.nodes.length !== ports.length)
         throw new Error(
           `${call.reference} calls ${name} with ${call.nodes.length} nodes for ${ports.length} ports`,

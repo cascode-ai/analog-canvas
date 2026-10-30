@@ -212,7 +212,8 @@ describe("bodies printed in another port order", () => {
 
   it("offers only the bodies the netlist writes itself, with their callers", () => {
     const offered: GeneratedBody[] = [];
-    text(block("opamp"), "spice", (body) => {
+    const project = block("opamp");
+    text(project, "spice", (body) => {
       offered.push(body);
       return null;
     });
@@ -220,7 +221,7 @@ describe("bodies printed in another port order", () => {
       {
         name: "opamp",
         ports: ["VDD", "VSS", "VIP", "VIN", "VOUT"],
-        instanceIds: ["block"],
+        calls: [{ cellId: project.documents[0]!.id, instanceId: "block" }],
       },
     ]);
   });

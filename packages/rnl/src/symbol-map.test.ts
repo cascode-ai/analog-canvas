@@ -288,6 +288,15 @@ describe("netlists the RNL modes print", () => {
     expect(file).toMatch(/\.subckt \S+ A B C Y VDD VSS params:/);
   });
 
+  it("read each call's part in its own Document, where another shares its id", () => {
+    const project = block("nand-gate-3");
+    // An op-amp in another Document with the gate's id: ids are unique
+    // within a Document only.
+    const other = block("opamp").documents[0]!;
+    project.documents.push({ ...other, id: "other", name: "other" });
+    expect(text(project)).toBe(text(block("nand-gate-3")));
+  });
+
   it("keep a primitive's nodes in SPICE's order", () => {
     const project = block("opamp");
     const plain = createDesignNetlistExport(project);
