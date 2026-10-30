@@ -23,6 +23,7 @@ import type {
   InstanceNetlistBinding,
   NetlistDeviceClass,
   Net,
+  ProjectModelSource,
   SchematicDocument,
 } from "@icm/model";
 
@@ -32,6 +33,7 @@ import { diagnostic } from "./diagnostics.js";
 import type { SpiceDiagnostic } from "./diagnostics.js";
 import type { CircuitCellIR, CircuitIR, CircuitInstanceIR } from "./ir.js";
 import type { SourceBundle, SpiceSourceInput } from "./source-types.js";
+import type { SpiceStatement } from "./syntax.js";
 import { compileSpiceSources } from "./compiler.js";
 import {
   decodeSourceContent,
@@ -112,6 +114,17 @@ export interface SpiceImportOptions {
    * decides.
    */
   calledBlocks?: readonly ImportedBody[];
+  /**
+   * Subcircuits the sources define that are a library's, not the circuit's,
+   * by name, as another reading of the same files says it, such as the
+   * levels an RNL drawing leaves undrawn. None becomes a Cell, and nothing
+   * in one needs a symbol: each call of one is a call of an external
+   * subcircuit, its pins the body's ports, and the bodies stay the text they
+   * are, with the file level's parameters, options, functions and model
+   * cards, as a model source the Project keeps (`librarySource`). A built-in
+   * body is the part that wrote it still; only a SPICE source is read so.
+   */
+  libraryBodies?: readonly string[];
 }
 
 /** What a built-in body imports as, wherever the sources have it. */
@@ -1341,12 +1354,122 @@ function importDocument(
   };
 }
 
+/** The file-level statements a library keeps beside its bodies. */
+const libraryStatement = (statement: SpiceStatement) =>
+  statement.kind === "parameter" ||
+  statement.kind === "model" ||
+  statement.kind === "function" ||
+  (statement.kind === "directive" && statement.category === "option");
+
+/**
+ * The library bodies the sources define (`libraryBodies`) as the text they
+ * are: every statement of each, and the file level's parameters, options,
+ * functions and model cards, which their bodies and the circuit's cards
+ * read, with the comments between them, in source order. What the circuit
+ * itself is (its Cells, the bodies Analog Canvas writes, its own cards)
+ * stays out, and so do the comments beside it. Each call of a body is bound
+ * to its declared interface, the ports and the parameters its header gives.
+ */
+function librarySource(
+  bundle: SourceBundle,
+  library: ReadonlySet<string>,
+  spectreFileIds: ReadonlySet<string>,
+): {
+  source: ProjectModelSource;
+  definitions: Map<string, ExternalSubcircuitDefinition>;
+} | null {
+  const sourceId = deriveStableId("model-source", "library", bundle.entryPath);
+  const definitions = new Map<string, ExternalSubcircuitDefinition>();
+  const texts: string[] = [];
+  for (const syntax of bundle.syntaxFiles) {
+    const text = bundle.files.find((file) => file.id === syntax.fileId)?.text;
+    if (text === undefined || spectreFileIds.has(syntax.fileId)) continue;
+    let open: string | null = null;
+    let kept = "";
+    let previousEnd: number | null = null;
+    for (const statement of syntax.statements) {
+      if (statement.kind === "subckt_start") {
+        open = statement.name.toLowerCase();
+        if (library.has(open)) {
+          const key = open;
+          definitions.set(key, {
+            id: externalDefinitionId(statement.name),
+            name: statement.name,
+            terminals: statement.ports.map((name, index) => ({
+              id: deriveStableId(
+                "external-subcircuit-terminal",
+                key,
+                String(index),
+              ),
+              name,
+              direction: "passive" as const,
+            })),
+            formalParameters: statement.parameters.map((parameter) => ({
+              name: parameter.name,
+              defaultValue: parameter.rawText,
+            })),
+            interfaceStatus: "declared",
+            implementation: { kind: "source", sourceId, entry: statement.name },
+          });
+        }
+      }
+      const keep =
+        open === null ? libraryStatement(statement) : library.has(open);
+      if (statement.kind === "subckt_end") open = null;
+      const { start, end } = statement.sourceRef;
+      if (keep)
+        kept +=
+          previousEnd === null
+            ? `${kept ? "\n" : ""}${text.slice(start.offset, end.offset)}`
+            : text.slice(previousEnd, end.offset);
+      previousEnd = keep ? end.offset : null;
+    }
+    if (kept) texts.push(`${kept}\n`);
+  }
+  if (!definitions.size) return null;
+  return {
+    source: {
+      id: sourceId,
+      language: "spice",
+      entry: "library.spice",
+      files: [{ path: "library.spice", text: texts.join("\n") }],
+      dependencies: [],
+      revision: 1,
+    },
+    definitions,
+  };
+}
+
+/**
+ * A call's parameters named as the body's header names them (`W` where the
+ * card reads `w`), so the call prints as it was written.
+ */
+function formallyNamed(
+  parameters: Readonly<Record<string, string>>,
+  definition: ExternalSubcircuitDefinition,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(parameters).map(([name, value]) => [
+      definition.formalParameters.find(
+        (formal) => formal.name.toLowerCase() === name,
+      )?.name ?? name,
+      value,
+    ]),
+  );
+}
+
 /**
  * Records a stable document link for an imported `X` instance. Typed
  * `netlist.binding` is the navigation authority; import provenance retains the
  * source spelling without becoming an electrical runtime fallback.
  */
-function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
+function bindImportedChildDocuments(
+  documents: readonly SchematicDocument[],
+  libraryDefinitions: ReadonlyMap<
+    string,
+    ExternalSubcircuitDefinition
+  > = new Map(),
+): {
   documents: SchematicDocument[];
   externalSubcircuitDefinitions: ExternalSubcircuitDefinition[];
 } {
@@ -1376,8 +1499,12 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
         ? (() => {
             const key =
               instance.importProvenance!.sourceMasterName.toLowerCase();
-            const existing = externalDefinitions.get(key);
-            if (existing) return existing;
+            const existing =
+              externalDefinitions.get(key) ?? libraryDefinitions.get(key);
+            if (existing) {
+              externalDefinitions.set(key, existing);
+              return existing;
+            }
             const definition: ExternalSubcircuitDefinition = {
               id: externalDefinitionId(
                 instance.importProvenance!.sourceMasterName,
@@ -1433,6 +1560,7 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
           ...instance.importProvenance,
           status:
             childDocumentId ||
+            externalDefinition?.implementation ||
             (isImportedExternal &&
               Boolean(instance.importProvenance?.symbolMappingRegistryId))
               ? ("resolved" as const)
@@ -1441,6 +1569,14 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
         netlist: instance.netlist
           ? {
               ...instance.netlist,
+              ...(externalDefinition?.implementation
+                ? {
+                    parameters: formallyNamed(
+                      instance.netlist.parameters,
+                      externalDefinition,
+                    ),
+                  }
+                : {}),
               binding: childDocumentId
                 ? {
                     kind: "subcircuit" as const,
@@ -1459,6 +1595,36 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
     documents: boundDocuments,
     externalSubcircuitDefinitions: [...externalDefinitions.values()],
   };
+}
+
+/**
+ * The library bodies `libraryBodies` names that the SPICE sources define,
+ * less a built-in body; none where the circuit would be left without a top.
+ */
+function libraryCells(
+  ir: CircuitIR,
+  options: SpiceImportOptions,
+  isBody: (name: string) => boolean,
+  spectreFileIds: ReadonlySet<string>,
+): Set<string> {
+  const named = new Set(
+    (options.libraryBodies ?? []).map((name) => name.toLowerCase()),
+  );
+  const library = new Set(
+    ir.cells
+      .filter(
+        (cell) =>
+          named.has(cell.name.toLowerCase()) &&
+          !isBody(cell.name) &&
+          !spectreFileIds.has(cell.sourceRef.fileId),
+      )
+      .map((cell) => cell.name.toLowerCase()),
+  );
+  return ir.topCells.some(
+    (name) => !isBody(name) && !library.has(name.toLowerCase()),
+  )
+    ? library
+    : new Set();
 }
 
 function sourceProjectName(bundle: SourceBundle): string {
@@ -1529,7 +1695,6 @@ function importCircuitIR(
   // A built-in body imports as the part each call of it is, not as a Cell.
   const isBody = (name: string) =>
     builtInBodies.has(builtInBodyKey("subcircuit", name));
-  const cells = ir.cells.filter((cell) => !isBody(cell.name));
   const spectreFileIds = new Set(
     bundle.files
       .filter((file) =>
@@ -1541,6 +1706,29 @@ function importCircuitIR(
       )
       .map((file) => file.id),
   );
+  const library = libraryCells(ir, options, isBody, spectreFileIds);
+  const inLibrary = (name: string) => library.has(name.toLowerCase());
+  const cells = ir.cells
+    .filter((cell) => !isBody(cell.name) && !inLibrary(cell.name))
+    .map((cell) => ({
+      ...cell,
+      // A call of a library body calls it as the external subcircuit it is.
+      instances: cell.instances.map((instance) =>
+        instance.target.kind === "subcircuit" &&
+        inLibrary(instance.target.cellName)
+          ? {
+              ...instance,
+              target: {
+                kind: "external-subcircuit" as const,
+                masterName: instance.target.cellName,
+              },
+            }
+          : instance,
+      ),
+    }));
+  const kept = library.size
+    ? librarySource(bundle, library, spectreFileIds)
+    : null;
   const importedDocuments = cells.map((cell) =>
     importDocument(
       cell,
@@ -1552,13 +1740,15 @@ function importCircuitIR(
     ),
   );
   const { documents, externalSubcircuitDefinitions } =
-    bindImportedChildDocuments(importedDocuments);
+    bindImportedChildDocuments(importedDocuments, kept?.definitions);
   for (const document of documents) {
     document.importReference!.files = bundle.files.map((file) => ({
       fileId: file.id,
     }));
   }
-  const topCell = ir.topCells.find((name) => !isBody(name)) ?? cells[0]?.name;
+  const topCell =
+    ir.topCells.find((name) => !isBody(name) && !inLibrary(name)) ??
+    cells[0]?.name;
   const topDocument = documents.find(
     (document) =>
       document.sourceBinding?.cellName.toLowerCase() === topCell?.toLowerCase(),
@@ -1606,6 +1796,13 @@ function importCircuitIR(
     topDocumentId: topDocument.id,
     documents,
     externalSubcircuitDefinitions,
+    // Kept where a call is bound to it.
+    ...(kept &&
+    externalSubcircuitDefinitions.some(
+      (definition) => definition.implementation?.kind === "source",
+    )
+      ? { modelSources: [kept.source] }
+      : {}),
     simulationFolders: [],
   });
   return { project, diagnostics };

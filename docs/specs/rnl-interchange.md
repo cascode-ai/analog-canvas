@@ -111,9 +111,11 @@ the RNL language and its runtime belong to rnl.
   input-swapped states round-trip without an external symbol-package update.
   Import recognizes the local Symbol only when its name, artwork and positional
   pins match; an edited stencil keeps the electrically imported part and reports
-  `RNL_IMPORT_UNMAPPED_SYMBOL`. A retargeted custom interface with different
-  positional terminals refuses with `RNL_INLINE_INTERFACE_MISMATCH`, rather
-  than drawing a wire on the wrong signal; plain SPICE/SCS remains available.
+  `RNL_IMPORT_UNMAPPED_SYMBOL`. On a project Cell that prints their pins
+  elsewhere they take a call symbol, as a gate does. Any other custom
+  interface with different positional terminals refuses with
+  `RNL_INLINE_INTERFACE_MISMATCH`, rather than drawing a wire on the wrong
+  signal; plain SPICE/SCS remains available.
 - RNL's op-amp kinds (op-amps, comparators, differential transconductors) put
   - on top, at the inputs and at a differential op-amp's outputs. An Analog
     Canvas variant with − on top is that symbol flipped top to bottom: it is
@@ -126,7 +128,8 @@ the RNL language and its runtime belong to rnl.
   bring with them (name, value, model), so the drawing shows only the labels
   the editor writes; formulas stay.
 - Ground, supply and Cell Pin markers are written as `$GROUND`, `$SUPPLY` and
-  `$IO_PORT`. Wires keep every bend. What the editor joins by contact (a wire
+  `$IO_PORT`, and a `NoConnect` as the standard `$NO_CONNECT` on its pin's
+  terminal. Wires keep every bend. What the editor joins by contact (a wire
   through a junction or pin, touching endpoints) is joined explicitly, since
   RNL never connects by position; the dots the editor draws are written.
   Every marker and wire is written on the net the netlist prints it on: the
@@ -188,8 +191,11 @@ the RNL language and its runtime belong to rnl.
   symbol is a `$FIGURE` mark drawn with the part's RNL symbol.
 - A drawn Cell's block is a symbol defined in the Cell's own level and set on
   the Cell itself, so every call is drawn with it; its pins name the printed
-  ports and show their names. An external subcircuit's block is defined once
-  in the file level, its pins numbered, and set on each call.
+  ports and show their names. A Cell no call draws, such as the top, carries
+  its block the same way where the author laid it out
+  (`presentation.cellSymbol`), as the editor shows it; it reads back with
+  every pin placed where it was shown. An external subcircuit's block is
+  defined once in the file level, its pins numbered, and set on each call.
 - Drawing objects are RNL shapes, each in the line style it is drawn with
   (its override, else its own), in their stacking order: rectangles,
   circles, lines and curves (a quadratic leg as the cubic that draws it),
@@ -212,20 +218,30 @@ the RNL language and its runtime belong to rnl.
   wire written at a fixed place, formulas written as LaTeX source, tilted text
   written level, a floating symbol with no RNL symbol, parts in the tray, a
   block whose artwork RNL cannot
-  take drawn as RNL's stand-in box, a direction arrow on a slanted wire.
+  take drawn as RNL's stand-in box, a direction arrow on a slanted wire, a
+  `NoConnect` on a pin RNL cannot name (a glyph's, a bus member) left out
+  (`RNL_NO_CONNECT_UNNAMED`), a `NoConnect`'s reason, which `$NO_CONNECT`
+  does not keep (`RNL_NO_CONNECT_REASON`).
 
 ### Import
 
 - File → Import → `RNL…` reads a rich netlist with its includes and package
   files. Project File, SPICE / SCS and Cadence SPICE are unchanged.
 - The electrical import is the SPICE / SCS importer, called unchanged but for
-  one thing: a model the files call but no model card declares is the device
-  type the drawing draws its parts as (`$NMOS…` an nmos, `$PMOS…` a pmos,
-  `$NPN`, `$PNP`, `$DIODE`), where they all agree; a declared card decides.
-  The rnl runtime reads the same files (its snapshot, rnl-dev's
-  editor-interface draft) and the drawing is laid over the imported circuit as
-  a separate layer: CircuitIR never carries geometry
+  the two things below. The rnl runtime reads the same files (its snapshot,
+  rnl-dev's editor-interface draft) and the drawing is laid over the imported
+  circuit as a separate layer: CircuitIR never carries geometry
   ([circuit IR](circuit-ir.md)).
+  - A model the files call but no model card declares is the device type the
+    drawing draws its parts as (`$NMOS…` an nmos, `$PMOS…` a pmos, `$NPN`,
+    `$PNP`, `$DIODE`), where they all agree; a declared card decides.
+  - Where the files draw a circuit, a subcircuit a SPICE file defines but
+    writes no RNL of (a library's body, as the export prints a Project's model
+    sources after its Cells) is no Cell, and nothing in it needs a symbol. It
+    stays text: one model source holds those bodies with the file level's
+    parameters, options, functions and model cards, and each call of one is
+    an external subcircuit declared by its header's ports and parameters
+    (#1791).
 - Read back so far:
   - a Spectre card's own name: the import reads Spectre as SPICE, which calls
     a subcircuit with X (`M1` as `XM1`), and the part is `M1` again where it
@@ -246,6 +262,8 @@ the RNL language and its runtime belong to rnl.
     and P2 on a capacitor's 1 and 2) by terminal, as RNL binds pins, where
     it is the same kind of device and its own netlist order prints each pin
     at the same place; the part's pins take the symbol's names;
+    a part whose call also prints a terminal its own symbol has no pin for
+    (a PDK device's substrate, set as a property) reads back as that symbol;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
     variant the file names (`$CANVAS_VARIANT`, since 0.4), else as the
     variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
@@ -291,6 +309,10 @@ the RNL language and its runtime belong to rnl.
   - a wire RNL draws on ground (0) in a Cell with a net named GND and none
     named 0: RNL reads SPICE's GND as ground, as ngspice does, where the
     import keeps it a net of that name (#1784);
+  - a pin marked `$NO_CONNECT` as a `NoConnect` again: the net the netlist
+    import made for its node alone goes, and the marks keep the order the
+    netlist numbered those nodes in (NC0001 …); a pin the file connects to
+    anything else keeps its net (`RNL_IMPORT_NO_CONNECT_CONNECTED`);
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a point one route; a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, any other line style or
@@ -418,7 +440,8 @@ the RNL language and its runtime belong to rnl.
   `RNL_TEXT_ALONG_WIRE`, `RNL_TEXT_FORMULA`, `RNL_TEXT_TILTED`,
   `RNL_DRAWING_NOT_EXPORTED`, `RNL_NOT_PLACED`, `RNL_BLOCK_STAND_IN`,
   `RNL_HIDDEN_PIN_WIRED`, `RNL_GLYPH_UNCONNECTED`, `RNL_NOT_NETLISTED`,
-  `RNL_WIRE_UNNAMED`, `RNL_WIRE_ARROW`.
+  `RNL_WIRE_UNNAMED`, `RNL_WIRE_ARROW`, `RNL_NO_CONNECT_UNNAMED`,
+  `RNL_NO_CONNECT_REASON`.
 
 ## Acceptance criteria
 
@@ -440,13 +463,16 @@ the RNL language and its runtime belong to rnl.
   WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`,
   `apps/local-host/src/local-host.test.ts`).
 - A file the export wrote imports with every part where it was drawn, its
-  labels, block layout, marks and shapes, and the same netlist; 4-input gates
+  labels, block layout, marks and shapes, its pins left open on the top and
+  inside Cells, and the same netlist; 4-input gates
   are drawn with Analog Canvas's own symbols, every wire as drawn, and RNL's
   standard ones read back as Analog Canvas's; controlled sources drawn as
   circles or diamonds keep their appearance through their canonical symbols,
   and legacy diamond aliases remain readable (in Spectre the voltage-controlled
   ones, as the Spectre import reads no native `ccvs` or `cccs`); a Spectre netlist with
-  a SPICE section keeps every record out of it
+  a SPICE section keeps every record out of it; parts bound to a model
+  source's subcircuits, a Q card and a B source in their bodies, come back
+  bound to them with the source's text
   (`apps/editor/src/features/netlist-export/rnl-round-trip.test.ts`).
 - Each built-in block's body, in either dialect and in RNL's port order,
   imports as the block and exports again unchanged

@@ -20,6 +20,7 @@ import {
   externalSubcircuitSymbolId,
 } from "@icm/symbols";
 
+import { delayCellFixture } from "../../netlist/src/delay-cell-fixture.test-support.js";
 import { rnlExportOps, type RnlOp, type RnlVertex } from "./export-ops.js";
 import { rnlBodyPortOrder } from "./symbol-map.js";
 
@@ -262,6 +263,56 @@ describe("RNL export of the simulation examples", () => {
     ]);
   });
 
+  it("marks a pin left open with the standard no-connect on its terminal", () => {
+    const project = example("simulation-rc");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R9",
+      reference: "R9",
+      symbolId: "resistor",
+      placement: { position: { x: 400, y: 400 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "1k" },
+      },
+    });
+    document.noConnects.push(
+      {
+        id: "open-2",
+        endpoint: { kind: "terminal", instanceId: "R9", pinName: "2" },
+      },
+      {
+        id: "open-bus",
+        endpoint: {
+          kind: "terminal",
+          instanceId: "R9",
+          pinName: "1",
+          memberId: "b0",
+        },
+      },
+    );
+    const { ops, diagnostics, text } = exported(project);
+    expect(text).toMatch(/^R9 NC\d+ NC\d+ 1k$/mu);
+    expect(
+      of(ops, "add-usage").filter((op) => op.definition === "$NO_CONNECT"),
+    ).toEqual([
+      {
+        level: expect.stringMatching(/^subckt:/u),
+        op: "add-usage",
+        definition: "$NO_CONNECT",
+        attach: { t: "#R9:2" },
+      },
+    ]);
+    // A bus member has no terminal of its own in RNL.
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "warning",
+        code: "RNL_NO_CONNECT_UNNAMED",
+        objectIds: ["open-bus"],
+      }),
+    );
+  });
+
   it("wires a drawn Cell's block by its printed port positions", () => {
     const { ops, diagnostics } = exported(example("simulation-ota"));
     expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);
@@ -468,6 +519,19 @@ describe("blocks' symbols", () => {
       expect(of(ops, "set").find((op) => op.object === id)?.symbol).toBe(
         "$sky130_fd_pr__nfet_01v8_SYMBOL",
       );
+  });
+
+  it("draws a Delay Cell on a supplies-first Cell with its artwork defined for that call only", () => {
+    const { ops, diagnostics } = exported(delayCellFixture(true));
+    expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const files = of(ops, "define-symbol").filter((op) => op.level === "file");
+    expect(files.map((op) => op.name)).toEqual([
+      "$CANVAS_CALL_DELAY_CELL__0_0_1_2",
+    ]);
+    expect(files[0]!.pins.map((pin) => pin.terminals)).toEqual([[3], [4]]);
+    expect(of(ops, "set").find((op) => op.object === "#X1")?.symbol).toBe(
+      "$CANVAS_CALL_DELAY_CELL__0_0_1_2",
+    );
   });
 });
 

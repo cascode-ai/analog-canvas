@@ -1,7 +1,20 @@
 import { resolveDocumentLogicalNets } from "@icm/derived";
-import type { CircuitProject, Instance, StableId } from "@icm/model";
-import type { DesignNetlistIR, NetlistFormat } from "@icm/netlist";
-import type { SymbolDefinition, SymbolResolver } from "@icm/symbols";
+import type {
+  CircuitProject,
+  Instance,
+  SchematicDocument,
+  StableId,
+} from "@icm/model";
+import type {
+  DesignNetlistCell,
+  DesignNetlistIR,
+  NetlistFormat,
+} from "@icm/netlist";
+import {
+  hierarchicalSymbolId,
+  type SymbolDefinition,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 import { toRnlPoint, type RnlPoint } from "./place.js";
 import { rnlName } from "./rnl-name.js";
@@ -53,22 +66,7 @@ export function blockTerminals(
     const printed = ir.cells.find(
       (cell) => cell.id === binding.childDocumentId,
     );
-    if (!child || !printed) return undefined;
-    // A printed port is keyed by one Net of its logical Net, the block's pin
-    // by its Cell Pin; a pin drawn twice joins two Nets, and the port may be
-    // keyed by either, so both sides are compared as logical Nets.
-    const logical = resolveDocumentLogicalNets(child);
-    const logicalOf = (netId: string) => logical.byBaseNetId.get(netId)?.id;
-    return (pin) => {
-      const terminal = child.netlist?.terminals.find(
-        (item) => item.name === pin,
-      );
-      const net = terminal && logicalOf(terminal.netId);
-      const index = printed.ports.findIndex((port) =>
-        net ? (logicalOf(port.id) ?? port.id) === net : port.name === pin,
-      );
-      return index < 0 ? undefined : index + 1;
-    };
+    return child && printed ? cellPorts(child, printed) : undefined;
   }
   if (binding?.kind === "external-subcircuit") {
     const master = ir.externalMasters?.find(
@@ -81,6 +79,26 @@ export function blockTerminals(
     };
   }
   return undefined;
+}
+
+/** For a drawn Cell's block, the printed port each Cell Pin's pin is. */
+function cellPorts(
+  child: SchematicDocument,
+  printed: DesignNetlistCell,
+): (pin: string) => number | undefined {
+  // A printed port is keyed by one Net of its logical Net, the block's pin
+  // by its Cell Pin; a pin drawn twice joins two Nets, and the port may be
+  // keyed by either, so both sides are compared as logical Nets.
+  const logical = resolveDocumentLogicalNets(child);
+  const logicalOf = (netId: string) => logical.byBaseNetId.get(netId)?.id;
+  return (pin) => {
+    const terminal = child.netlist?.terminals.find((item) => item.name === pin);
+    const net = terminal && logicalOf(terminal.netId);
+    const index = printed.ports.findIndex((port) =>
+      net ? (logicalOf(port.id) ?? port.id) === net : port.name === pin,
+    );
+    return index < 0 ? undefined : index + 1;
+  };
 }
 
 /**
@@ -123,12 +141,14 @@ function definedSymbol(
 }
 
 /**
- * The symbols of the blocks the printed Cells place. A drawn Cell's goes in
- * its own level, where `# @SET-SYMBOL` makes it how every call is drawn
- * (9.2.6); its pins name the printed ports. An external subcircuit has no
- * level in the file, so its symbol goes in the file level, where every Cell
- * sees it (6.8), and each call sets it; its pins number the ports. A name
- * the standard or Analog Canvas package already has takes a number.
+ * The symbols of the blocks the printed Cells place, and of each printed
+ * Cell no call draws whose block the author laid out, such as the top. A
+ * drawn Cell's goes in its own level, where `# @SET-SYMBOL` makes it how
+ * every call is drawn (9.2.6); its pins name the printed ports. An external
+ * subcircuit has no level in the file, so its symbol goes in the file level,
+ * where every Cell sees it (6.8), and each call sets it; its pins number the
+ * ports. A name the standard or Analog Canvas package already has takes a
+ * number.
  */
 export function blockSymbols(
   project: CircuitProject,
@@ -142,6 +162,19 @@ export function blockSymbols(
   const cells = new Map<StableId, RnlSymbolDefinition>();
   const externals = new Map<StableId, RnlSymbolDefinition>();
   const names = new Set(RNL_SYMBOLS.map((symbol) => symbol.symbol));
+  const cellSymbol = (
+    printed: DesignNetlistCell,
+    definition: SymbolDefinition,
+    terminalOf: (pin: string) => number | undefined,
+  ) =>
+    definedSymbol(rnlName("%", `${printed.name}_SYMBOL`), definition, (pin) => {
+      const index = terminalOf(pin);
+      if (index === undefined) return undefined;
+      // A Spectre netlist escapes a port's other characters (`Vin\+`); the
+      // pin shows the name it means.
+      const name = printed.ports[index - 1]!.name;
+      return format === "spectre" ? name.replace(/\\(.)/gu, "$1") : name;
+    });
   const unique = (name: string) => {
     let candidate = name;
     for (let count = 2; names.has(rnlName("$", candidate)); count++)
@@ -165,18 +198,7 @@ export function blockSymbols(
         const printed = ir.cells.find(
           (item) => item.id === binding.childDocumentId,
         )!;
-        const symbol = definedSymbol(
-          rnlName("%", `${printed.name}_SYMBOL`),
-          definition,
-          (pin) => {
-            const index = terminalOf(pin);
-            if (index === undefined) return undefined;
-            // A Spectre netlist escapes a port's other characters (`Vin\+`);
-            // the pin shows the name it means.
-            const name = printed.ports[index - 1]!.name;
-            return format === "spectre" ? name.replace(/\\(.)/gu, "$1") : name;
-          },
-        );
+        const symbol = cellSymbol(printed, definition, terminalOf);
         if (symbol) cells.set(binding.childDocumentId, symbol);
       }
       if (
@@ -194,6 +216,24 @@ export function blockSymbols(
         if (symbol) externals.set(binding.definitionId, symbol);
       }
     }
+  }
+  // A Cell no call draws, such as the top, whose block the author laid out:
+  // its own level carries that block, as the editor shows it.
+  for (const printed of ir.cells) {
+    const document = project.documents.find((item) => item.id === printed.id);
+    if (
+      cells.has(printed.id) ||
+      !document?.presentation.cellSymbol ||
+      !document.netlist
+    )
+      continue;
+    const definition = resolver.resolve(
+      hierarchicalSymbolId(document.netlist.name),
+    )?.definition;
+    const symbol =
+      definition &&
+      cellSymbol(printed, definition, cellPorts(document, printed));
+    if (symbol) cells.set(printed.id, symbol);
   }
   return { cells, externals };
 }

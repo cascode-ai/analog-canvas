@@ -31,6 +31,7 @@ import {
   type Annotation,
   type CircuitProject,
   type Instance,
+  type NoConnect,
   type RouteBranch,
   type RouteEndpoint,
   type SchematicDocument,
@@ -39,7 +40,7 @@ import {
 
 type Junction = SchematicDocument["junctions"][number];
 
-import { hierarchicalSymbolId } from "@icm/symbols";
+import { builtInSymbols, hierarchicalSymbolId } from "@icm/symbols";
 
 import { callSymbolFromDefinition } from "./call-symbols.js";
 import {
@@ -265,6 +266,11 @@ function acSymbolFor(
   /** The part's pins by the names this symbol gives them, where they differ. */
   pins?: ReadonlyMap<string, string>;
 } | null {
+  // A terminal the part's own symbol has no pin for, such as a PDK device's
+  // substrate, is set as a property: no symbol draws it, its own included.
+  const own = builtInSymbols.find((item) => item.id === instance.symbolId);
+  const property = (pin: string) =>
+    own !== undefined && !own.pins.some((item) => item.name === pin);
   const rows: { row: RnlSymbol; pins?: ReadonlyMap<string, string> }[] =
     RNL_SYMBOLS.flatMap((row) => {
       if (
@@ -280,6 +286,7 @@ function acSymbolFor(
       if (
         pinNames.every(
           (pin) =>
+            (row.ac === instance.symbolId && property(pin)) ||
             row.pins.some((item) => item.acPin === pin) ||
             row.undrawnPins.some((item) => item.acPin === pin),
         )
@@ -753,6 +760,39 @@ export function drawnCalledBlocks(
     }
   }
   return [...found.values()].flatMap((block) => (block ? [block] : []));
+}
+
+/**
+ * The subcircuits the files define but write no RNL of, where they write a
+ * circuit: a library's bodies, such as a process's devices or the models a
+ * Project's parts are bound to, which the circuit calls as written and the
+ * export prints after it (#1791). A level is written where it places or
+ * wires anything, shows a text of its own, or states a record of its own (a
+ * named object, or one at a place in `files`), as Analog Canvas states each
+ * Cell's Pins even where it places none of its parts; what a package fills
+ * in is no record. Files that write nothing have none.
+ */
+export function undrawnBodies(
+  snapshot: RnlSnapshot,
+  files: readonly string[],
+): string[] {
+  const written = ({ model }: RnlLevelSnapshot) =>
+    !!model &&
+    (model.objects.some(
+      (object) =>
+        object.at.value !== null ||
+        (object.kind !== "instance" &&
+          (object.id.startsWith("%") ||
+            files.some((path) => object.id.startsWith(`@${path}:`)))),
+    ) ||
+      model.points.some((point) => point.at.value !== null) ||
+      model.wires.length > 0 ||
+      model.texts.some((text) => text.written) ||
+      (model.shapes?.length ?? 0) > 0);
+  if (!snapshot.levels.some(written)) return [];
+  return snapshot.levels
+    .filter((level) => level.kind === "subckt" && !written(level))
+    .map(({ name }) => name);
 }
 
 /** The model type of an Analog Canvas device symbol, if it calls a model. */
@@ -1438,6 +1478,76 @@ function applyLevel(
       );
   };
 
+  /**
+   * A pin left open on purpose (`$NO_CONNECT`, 12.6) takes the mark again.
+   * The netlist names such a pin's node alone (NC0001); the net the import
+   * made for that node goes. A pin the file connects to anything else keeps
+   * its net, without the mark.
+   */
+  const opened: { node: string; endpoint: NoConnect["endpoint"] }[] = [];
+  const openAgain = (object: RnlObjectView) => {
+    const attached = object.attach?.["t"];
+    const terminal = typeof attached === "string" ? terminalOf(attached) : null;
+    const instance = terminal ? instanceOf(terminal.name) : undefined;
+    const pinName =
+      instance && terminal ? pinOf(instance, terminal.n) : undefined;
+    if (!instance || !pinName) {
+      warn(
+        "RNL_IMPORT_NO_CONNECT_NO_PIN",
+        `RNL marks ${String(attached)} as left unconnected, which the netlist import has no pin for`,
+      );
+      return;
+    }
+    const net = document.nets.find((item) =>
+      item.terminals.some(
+        (held) => held.instanceId === instance.id && held.pinName === pinName,
+      ),
+    );
+    if (
+      net &&
+      (net.terminals.length > 1 ||
+        document.netlist?.terminals.some((item) => item.netId === net.id) ||
+        model.wires.some((wire) =>
+          wire.nets.some((name) => netOf(name) === net.id),
+        ) ||
+        document.instances.some(
+          (item) => item !== instance && item.mosBulkBinding?.netId === net.id,
+        ))
+    ) {
+      warn(
+        "RNL_IMPORT_NO_CONNECT_CONNECTED",
+        `RNL marks ${instance.reference ?? instance.id}:${pinName} as left unconnected, but the netlist connects it; it keeps its net`,
+      );
+      return;
+    }
+    if (net) {
+      document.nets = document.nets.filter((item) => item !== net);
+      document.connectivityEvidence = document.connectivityEvidence.filter(
+        (evidence) => evidence.netId !== net.id,
+      );
+      // A MOS's open bulk is no Cell's bulk default.
+      if (instance.mosBulkBinding?.netId === net.id)
+        delete instance.mosBulkBinding;
+      const defaults = document.mosBulkDefaults;
+      if (defaults?.nmosNetId === net.id) delete defaults.nmosNetId;
+      if (defaults?.pmosNetId === net.id) delete defaults.pmosNetId;
+      if (defaults && !Object.keys(defaults).length)
+        delete document.mosBulkDefaults;
+    }
+    if (
+      !opened.some(
+        ({ endpoint }) =>
+          endpoint.instanceId === instance.id && endpoint.pinName === pinName,
+      )
+    )
+      opened.push({
+        node:
+          document.importReference?.nets.find((item) => item.id === net?.id)
+            ?.name ?? "",
+        endpoint: { kind: "terminal", instanceId: instance.id, pinName },
+      });
+  };
+
   // Glyphs: each usage of a virtual element on an Analog Canvas glyph. A
   // Cell Pin is the importer's own, moved where RNL draws it; ground and
   // supply glyphs are added on their nets, each claiming its supply.
@@ -1474,6 +1584,10 @@ function applyLevel(
     }
     if (object.definition === "$CANVAS_PARAMETER") {
       keepAgain(object);
+      continue;
+    }
+    if (object.definition === "$NO_CONNECT") {
+      openAgain(object);
       continue;
     }
     if (LATER.has(object.definition)) {
@@ -1617,6 +1731,17 @@ function applyLevel(
     }
     marks.set(object.definition, (marks.get(object.definition) ?? 0) + 1);
   }
+  // The netlist numbers open pins' nodes (NC0001 …) in the order of their
+  // marks' ids, so the ids keep the order of the nodes the file has.
+  opened.sort((a, b) => a.node.localeCompare(b.node, "en", { numeric: true }));
+  const base = deriveStableId("no-connect", document.id, level.id);
+  const digits = Math.max(4, String(opened.length).length);
+  document.noConnects.push(
+    ...opened.map(({ endpoint }, index) => ({
+      id: `${base}-${String(index + 1).padStart(digits, "0")}`,
+      endpoint,
+    })),
+  );
 
   // Named points that wires meet become junctions, on the net of the first.
   const junctions = new Map<string, Junction>();

@@ -211,9 +211,9 @@ const AC_PACKAGE_VERSION = "0.5";
  * Canvas draws it: each part's symbol, place and orientation, each block's
  * symbol, the ground, supply and Cell Pin glyphs, every wire with all its
  * bends and direction arrows, junctions and the dots Analog Canvas draws, the
- * contacts it makes by touching, its labels and texts, the current and
- * voltage marks on wires, and the drawing objects. The header pins the
- * standard series and every other package the drawing uses.
+ * contacts it makes by touching, its no-connect marks, its labels and texts,
+ * the current and voltage marks on wires, and the drawing objects. The
+ * header pins the standard series and every other package the drawing uses.
  *
  * `ir` is the IR the netlist was printed from (`includeIr`), with the body
  * port order `rnlBodyPortOrder` gives, so names and terminals match the file;
@@ -230,6 +230,7 @@ export function rnlExportOps(
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const blocks = blockSymbols(project, ir, resolver, format);
   const callSymbols = new Map<string, RnlSymbol>();
+  const calledParts = new Set<StableId>();
   const top = ir.cells.find((cell) => cell.id === ir.topCellId);
   for (const cell of ir.cells) {
     if (cell.origin === "generated-model") continue;
@@ -245,6 +246,7 @@ export function rnlExportOps(
       resolver,
       blocks,
       callSymbols,
+      calledParts,
     });
   }
   // The editor's top, where a Cell printed beside it calls it and so is the
@@ -292,6 +294,8 @@ export function rnlExportOps(
           (object) => object.kind === "floating-symbol",
         ),
       ])
+      // A part drawn with a call symbol needs no library one.
+      .filter((instance) => !calledParts.has(instance.id))
       .flatMap((instance) => {
         const row = rnlSymbolFor(
           instance.symbolId,
@@ -321,6 +325,8 @@ interface ExportContext {
   blocks: ReturnType<typeof blockSymbols>;
   /** Library artwork defined for calls that print its pins in another order, by name. */
   callSymbols: Map<string, RnlSymbol>;
+  /** The parts drawn with one of those. */
+  calledParts: Set<StableId>;
 }
 
 /**
@@ -624,31 +630,6 @@ function exportCell(
   const placeOf = new Map<StableId, { object: string; at: RnlPoint }>();
   for (const instance of document.instances) {
     let symbol = rnlSymbolFor(instance.symbolId, instance.symbolVariantId);
-    if (symbol?.inline) {
-      const descriptor = subcircuitDescriptor(
-        instance.symbolId,
-        context.project,
-      );
-      const call = cell.instances.find(
-        (candidate) => candidate.id === instance.id,
-      );
-      if (
-        call &&
-        symbol.pins.some(
-          (pin) =>
-            call.nodes[pin.terminal - 1]?.pinName !==
-            descriptor?.ports.find((port) => port.pinName === pin.acPin)?.name,
-        )
-      ) {
-        report(
-          "error",
-          "RNL_INLINE_INTERFACE_MISMATCH",
-          `${describe(instance)} calls a custom interface with a different terminal order; export plain SPICE/SCS or use a custom block Symbol`,
-          [instance.id],
-        );
-        continue;
-      }
-    }
     const block = symbol
       ? undefined
       : blockTerminals(instance, context.project, context.ir);
@@ -695,16 +676,22 @@ function exportCell(
     const call = cell.instances.find(
       (candidate) => candidate.id === instance.id,
     );
-    if (symbol && call?.invocationKind === "subcircuit") {
-      // A Library gate bound to a Cell meets its Pins by name (#1450).
-      const gate =
-        instance.netlist?.binding?.kind === "subcircuit" &&
-        bindsProjectCell(instance.symbolId)
-          ? matchGateCellPins(instance.symbolId, {
-              name: call.target ?? "",
-              portNames: call.nodes.map((node) => node.pinName),
-            })
-          : undefined;
+    // A Library gate bound to a Cell meets its Pins by name (#1450).
+    const gate =
+      call?.invocationKind === "subcircuit" &&
+      instance.netlist?.binding?.kind === "subcircuit" &&
+      bindsProjectCell(instance.symbolId)
+        ? matchGateCellPins(instance.symbolId, {
+            name: call.target ?? "",
+            portNames: call.nodes.map((node) => node.pinName),
+          })
+        : undefined;
+    // A symbol the file defines takes a call symbol only on such a Cell.
+    if (
+      symbol &&
+      call?.invocationKind === "subcircuit" &&
+      (!symbol.inline || gate?.ok)
+    ) {
       // A Library block's call names its ports, as its contract does (a
       // DAC's VIN is its pin IN).
       const ports = call.target
@@ -725,7 +712,35 @@ function exportCell(
       );
       if (ordered !== symbol) {
         context.callSymbols.set(ordered.symbol, ordered);
+        context.calledParts.add(instance.id);
         symbol = ordered;
+      }
+    }
+    // Elsewhere it binds the call's terminals in its own order.
+    if (
+      symbol?.inline &&
+      call &&
+      !gate?.ok &&
+      !context.calledParts.has(instance.id)
+    ) {
+      const descriptor = subcircuitDescriptor(
+        instance.symbolId,
+        context.project,
+      );
+      if (
+        symbol.pins.some(
+          (pin) =>
+            call.nodes[pin.terminal - 1]?.pinName !==
+            descriptor?.ports.find((port) => port.pinName === pin.acPin)?.name,
+        )
+      ) {
+        report(
+          "error",
+          "RNL_INLINE_INTERFACE_MISMATCH",
+          `${describe(instance)} calls a custom interface with a different terminal order; export plain SPICE/SCS or use a custom block Symbol`,
+          [instance.id],
+        );
+        continue;
       }
     }
     if (!instance.placement) {
@@ -929,6 +944,42 @@ function exportCell(
         items: [rnlName("&", plain(port.name))],
         set: "$PORT_FILL_SET",
       });
+
+  // A pin left open on purpose: the standard no-connect mark on its
+  // terminal (12.6). RNL names no glyph's pin and no bus member.
+  for (const mark of document.noConnects) {
+    const { instanceId, pinName, memberId } = mark.endpoint;
+    const reference = usageOf.has(instanceId)
+      ? undefined
+      : references.get(instanceId);
+    const terminal =
+      memberId === undefined
+        ? terminalsOf.get(instanceId)?.(pinName)
+        : undefined;
+    const pin = `${references.get(instanceId) ?? instanceId}:${pinName}`;
+    if (!reference || terminal === undefined) {
+      report(
+        "warning",
+        "RNL_NO_CONNECT_UNNAMED",
+        `The no-connect mark on ${pin} is on a pin RNL cannot name; it is left out`,
+        [mark.id],
+      );
+      continue;
+    }
+    if (mark.reason)
+      report(
+        "warning",
+        "RNL_NO_CONNECT_REASON",
+        `The no-connect mark on ${pin} has a reason, which RNL's mark does not keep`,
+        [mark.id],
+      );
+    ops.push({
+      level,
+      op: "add-usage",
+      definition: "$NO_CONNECT",
+      attach: { t: `${rnlName("#", reference)}:${terminal}` },
+    });
+  }
 
   // Junctions are named points; the dots come below.
   const pointOf = new Map<StableId, string>();

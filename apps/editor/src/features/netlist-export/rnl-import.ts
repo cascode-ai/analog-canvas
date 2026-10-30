@@ -10,6 +10,7 @@ import {
   canvasTopDocument,
   drawnCalledBlocks,
   drawnModelTypes,
+  undrawnBodies,
   withPowerLabelPorts,
   rnlBodyPortOrder,
   type RnlHiddenLabels,
@@ -172,6 +173,7 @@ export async function writesFileNetlist(
   fileImported: CircuitProject,
   inputs: SpiceSourceInput[],
   entryPath: string,
+  libraryBodies: readonly string[] = [],
 ): Promise<boolean> {
   const entry = inputs.find((input) => input.path === entryPath)!;
   const written = createDesignNetlistExport(project, {
@@ -193,6 +195,7 @@ export async function writesFileNetlist(
       namingProfile: "native",
       originalSources: rewritten,
       builtInBodies: prepared.builtInBodies,
+      libraryBodies,
     },
   );
   if (!again.project || !again.successful) return false;
@@ -284,6 +287,10 @@ async function buildImportPlan({
     parts: { drawing: false, host: true, model: true },
   });
   const prepared = prepareImportSources(inputs);
+  const libraryBodies = undrawnBodies(
+    snapshot,
+    inputs.map((input) => input.path),
+  );
   const imported = await importSpiceSources(
     prepared.inputs,
     entryPath,
@@ -297,6 +304,8 @@ async function buildImportPlan({
       // A library block the file calls without its body is the block its
       // parts are drawn as.
       calledBlocks: drawnCalledBlocks(snapshot, dialect),
+      // A library body the drawing's parts call stays the text it is.
+      libraryBodies,
     },
   );
   if (!imported.project || !imported.successful)
@@ -317,7 +326,13 @@ async function buildImportPlan({
     "code" in drawn
       ? drawn
       : await drawnProject(fileImported, drawn, (project) =>
-          writesFileNetlist(project, fileImported, inputs, entryPath),
+          writesFileNetlist(
+            project,
+            fileImported,
+            inputs,
+            entryPath,
+            libraryBodies,
+          ),
         );
   const read = "code" in drawn ? null : drawn;
   const parameterTexts = read?.parameterTexts ?? [];
