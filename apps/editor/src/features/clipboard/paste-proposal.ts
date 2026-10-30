@@ -235,6 +235,11 @@ export function proposePaste(
       if (instance.reference) {
         instanceReferences.set(source.id, instance.reference);
         taken.add(instance.reference.toLowerCase());
+        const policy = referencePolicyForInstance(instance, project);
+        const suffix = referenceSuffixForPolicy(instance.reference, policy);
+        // R01 also occupies suffix 1 when later copies need a new Reference.
+        if (policy.kind !== "none" && suffix !== null)
+          taken.add(`${policy.prefix}${suffix}`.toLowerCase());
       }
     }
   }

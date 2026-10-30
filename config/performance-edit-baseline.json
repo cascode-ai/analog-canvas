@@ -61,6 +61,36 @@
           "paste": 24.327,
           "wireCommit": 23.046
         }
+      },
+      "INTEL(R) XEON(R) PLATINUM 8573C": {
+        "source": [
+          "https://github.com/cascode-ai/analog-canvas/actions/runs/41040167465"
+        ],
+        "environment": {
+          "node": "v24.22.1",
+          "platform": "linux",
+          "arch": "x64",
+          "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+          "runner": "Linux",
+          "sha": "f8d02246cfc5f173b7f21de8a61bbea9b2f0617e"
+        },
+        "sampling": {
+          "warmups": 30,
+          "samples": 21
+        },
+        "runnerSamples": 1,
+        "medianMs": {
+          "rotate": 10.446,
+          "undo": 4.191,
+          "paste": 24.234,
+          "wireCommit": 21.151
+        },
+        "budgets": {
+          "rotate": 15.669,
+          "undo": 6.286,
+          "paste": 36.351,
+          "wireCommit": 31.726
+        }
       }
     },
     "win32-x64-local": {

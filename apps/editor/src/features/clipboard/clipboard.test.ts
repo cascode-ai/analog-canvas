@@ -2800,6 +2800,43 @@ describe("captureDocumentComposition", () => {
 });
 
 describe("a copy stands on its own", () => {
+  it("reserves the numeric suffix of a preserved zero-padded reference", () => {
+    const source = createEmptyDocument("source", "Source");
+    source.instances.push(
+      ...["R01", "R2"].map((reference, index) => ({
+        id: reference,
+        symbolId: "resistor",
+        reference,
+        placement: {
+          position: { x: 100 + index * 100, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      })),
+    );
+    const target = createEmptyDocument("target", "Target");
+    target.instances.push(structuredClone(source.instances[1]!));
+    const clipboard = copySelection(source, ["R01", "R2"]);
+    const proposal = proposePaste(target, clipboard!, { x: 0, y: 100 }, 1);
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "paste-padded-references",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+    expect(
+      result.document.instances
+        .filter((instance) => proposal.instanceIds.includes(instance.id))
+        .map((instance) => instance.reference),
+    ).toEqual(["R01", "R3"]);
+  });
+
   it("gives a device without a netlist block a fresh designator", () => {
     const document = createEmptyDocument("document-main", "Copy");
     // An ideal switch carries no netlist block, so the internal copy id once
