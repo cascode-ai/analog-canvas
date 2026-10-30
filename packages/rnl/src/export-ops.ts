@@ -212,8 +212,8 @@ const AC_PACKAGE_VERSION = "0.5";
  * symbol, the ground, supply and Cell Pin glyphs, every wire with all its
  * bends and direction arrows, junctions and the dots Analog Canvas draws, the
  * contacts it makes by touching, its no-connect marks, its labels and texts,
- * the current and voltage marks on wires, and the drawing objects. The header pins the
- * standard series and every other package the drawing uses.
+ * the current and voltage marks on wires, and the drawing objects. The
+ * header pins the standard series and every other package the drawing uses.
  *
  * `ir` is the IR the netlist was printed from (`includeIr`), with the body
  * port order `rnlBodyPortOrder` gives, so names and terminals match the file;

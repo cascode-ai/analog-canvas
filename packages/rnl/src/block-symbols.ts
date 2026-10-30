@@ -144,10 +144,11 @@ function definedSymbol(
  * The symbols of the blocks the printed Cells place, and of each printed
  * Cell no call draws whose block the author laid out, such as the top. A
  * drawn Cell's goes in its own level, where `# @SET-SYMBOL` makes it how
- * every call is drawn (9.2.6); its pins name the printed ports. An external subcircuit has no
- * level in the file, so its symbol goes in the file level, where every Cell
- * sees it (6.8), and each call sets it; its pins number the ports. A name
- * the standard or Analog Canvas package already has takes a number.
+ * every call is drawn (9.2.6); its pins name the printed ports. An external
+ * subcircuit has no level in the file, so its symbol goes in the file level,
+ * where every Cell sees it (6.8), and each call sets it; its pins number the
+ * ports. A name the standard or Analog Canvas package already has takes a
+ * number.
  */
 export function blockSymbols(
   project: CircuitProject,
