@@ -360,6 +360,11 @@ describe("electrical duplicate comparison", () => {
     const b = circuit(structuredClone(parts).reverse(), ["n0", "n8"]);
     const graph = (ir: DesignNetlistIR) => ready(electricalGraphFromIR(ir));
     expect(compareElectricalGraphs(graph(a), graph(b), 0)).toBe("equal");
+    // The same Cells read back from their netlist have other Documents' ids.
+    const renamed = structuredClone(b);
+    renamed.cells[0]!.id = "read-back";
+    renamed.topCellId = "read-back";
+    expect(compareElectricalGraphs(graph(a), graph(renamed), 0)).toBe("equal");
     // Another card is no proof: then the search decides, as before.
     b.cells[0]!.instances[0]!.parameters[0]!.rawValue = "2k";
     expect(compareElectricalGraphs(graph(a), graph(b))).toBe("different");

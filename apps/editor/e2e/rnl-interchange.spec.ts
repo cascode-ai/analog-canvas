@@ -53,7 +53,7 @@ test("loads each Canvas package version once for both RNL formats", async ({
     const text = await copiedNetlist(page, mode);
     rich = text;
     expect(text).toContain(
-      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.3")',
+      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.4")',
     );
     expect(text).toContain("$CANVAS_VCVS_CIRCLE");
     await expect(
@@ -90,8 +90,8 @@ test("loads each Canvas package version once for both RNL formats", async ({
   expect(after.status).toBe("ready");
   if (before.status === "ready" && after.status === "ready")
     expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
-  // 0.1 and 0.2, so a file written with either reads.
-  expect(requested).toHaveLength(3);
+  // Every locked version, 0.1 to 0.4, so a file written with any reads.
+  expect(requested).toHaveLength(4);
   for (const url of requested)
     expect(new URL(url).origin).toBe(new URL(page.url()).origin);
 });
@@ -252,7 +252,8 @@ test("writes SPICE+RNL and Spectre+RNL, and imports the file it wrote as it was 
     .click();
   await expectStatus(page, /^Imported 1 Document/u);
   // Every part where it was drawn, the op-amp and amplifier as built-in
-  // blocks again, and the plain netlist the same.
+  // blocks again, the op-amp the variant it was drawn as ($CANVAS_VARIANT),
+  // and the plain netlist the same.
   const imported = await exportedProject(page);
   const placement = (from: typeof project, reference: string) =>
     from.documents
@@ -273,7 +274,7 @@ test("writes SPICE+RNL and Spectre+RNL, and imports the file it wrote as it was 
       )
       .map((instance: { symbolId: string }) => instance.symbolId)
       .sort(),
-  ).toEqual(["opamp-inputs-swapped", "voltage-amplifier"]);
+  ).toEqual(["opamp", "voltage-amplifier"]);
   expect(await copiedNetlist(page, "spice")).toBe(spice);
 });
 
@@ -420,7 +421,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
       await viewer.locator("#tab-files").click();
       await expect(
         viewer.getByRole("button", {
-          name: "Open analog-canvas-extensions 0.3",
+          name: "Open analog-canvas-extensions 0.4",
           exact: true,
         }),
       ).toBeVisible();
@@ -435,7 +436,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
         type: "open",
         name: mode === "spice+rnl" ? "circuit.sp" : "circuit.scs",
         text: expected,
-        packages: [{ name: "analog-canvas-extensions", version: "0.3" }],
+        packages: [{ name: "analog-canvas-extensions", version: "0.4" }],
       });
     }
     expect(page.context().pages()).toHaveLength(2);

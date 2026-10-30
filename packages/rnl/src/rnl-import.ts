@@ -3,6 +3,7 @@ import {
   resolveAnnotationText,
   drawnSwitchControl,
   mosBulkKind,
+  portableCellIdentifier,
   resolveDocumentStyleProfile,
   richTextMetrics,
   supplyMarkerForSymbol,
@@ -16,13 +17,16 @@ import {
 } from "@icm/devices";
 import {
   analyzeDesignNetlistForAuthoring,
+  callOnlyBlock,
   createDesignNetlistExport,
+  encodeNetName,
   spectreNumber,
 } from "@icm/netlist";
 import {
   deriveStableId,
   flattenRichText,
   labelTextDocument,
+  plainNameDocument,
   sameStyledText,
   type Annotation,
   type CircuitProject,
@@ -35,8 +39,15 @@ import {
 
 type Junction = SchematicDocument["junctions"][number];
 
+import { hierarchicalSymbolId } from "@icm/symbols";
+
 import { callSymbolFromDefinition } from "./call-symbols.js";
-import { acOrientation, composeOrient, type RnlOrient } from "./orientation.js";
+import {
+  acOrientation,
+  composeOrient,
+  inverseOrient as inverse,
+  type RnlOrient,
+} from "./orientation.js";
 import { acPosition, AC_UNITS_PER_RNL_UNIT } from "./place.js";
 import { RNL_SYMBOLS, type RnlSymbol } from "./symbol-map.js";
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
@@ -196,7 +207,7 @@ export interface RnlImportDiagnostic {
 
 /** The standard series and Analog Canvas package versions the mapping table is for. */
 const MAPPED_VERSIONS: Readonly<Record<string, readonly string[]>> = {
-  "analog-canvas-extensions": ["0.1", "0.2", "0.3"],
+  "analog-canvas-extensions": ["0.1", "0.2", "0.3", "0.4"],
 };
 const STD_VERSION = "0.3";
 
@@ -229,31 +240,17 @@ const acPoint = ([x, y]: Point) => ({
   y: Math.round(-y * AC_UNITS_PER_RNL_UNIT * 1e6) / 1e6 + 0,
 });
 
-/** The orientation that undoes `orient`. */
-function inverse(orient: RnlOrient): RnlOrient {
-  const codes: RnlOrient[] = [
-    "R0",
-    "R90",
-    "R180",
-    "R270",
-    "MX",
-    "MY",
-    "MXR90",
-    "MYR90",
-  ];
-  return codes.find((code) => composeOrient(code, orient) === "R0")!;
-}
-
 const isOrient = (value: string | null): value is RnlOrient =>
   value !== null &&
   ["R0", "R90", "R180", "R270", "MX", "MY", "MXR90", "MYR90"].includes(value);
 
 /**
  * The Analog Canvas symbol a part RNL draws with `symbol`, turned `orient`,
- * reads back as: of the symbol's rows, the one whose Analog Canvas
- * orientation needs no mirror (an op-amp turned MX is the plain op-amp,
- * unturned the inputs-swapped one), the part's own symbol first, and only a
- * symbol whose pins keep the part's pin names, so its connections stand.
+ * reads back as: of the symbol's rows, the one the file names (`variant`,
+ * `$CANVAS_VARIANT`), else the one whose Analog Canvas orientation needs no
+ * mirror (an op-amp turned MX is the plain op-amp, unturned the
+ * inputs-swapped one), the part's own symbol first, and only a symbol whose
+ * pins keep the part's pin names, so its connections stand.
  */
 function acSymbolFor(
   symbol: RnlSymbolRef,
@@ -261,6 +258,7 @@ function acSymbolFor(
   instance: Pick<Instance, "symbolId"> &
     Partial<Pick<Instance, "importProvenance">>,
   pinNames: readonly string[],
+  variant?: string,
 ): {
   row: RnlSymbol;
   orient: RnlOrient;
@@ -297,6 +295,7 @@ function acSymbolFor(
     }))
     .sort(
       (a, b) =>
+        Number(a.row.ac !== variant) - Number(b.row.ac !== variant) ||
         Number(a.orient.startsWith("M")) - Number(b.orient.startsWith("M")) ||
         Number(a.pins !== undefined) - Number(b.pins !== undefined) ||
         Number(a.row.ac !== instance.symbolId) -
@@ -428,6 +427,25 @@ function documentOf(
 }
 
 /**
+ * The Cell the file names as the editor's top (`$CANVAS_TOP`, Canvas 0.4),
+ * which the netlist need not show: a Cell that calls it may be printed too.
+ */
+export function canvasTopDocument(
+  project: CircuitProject,
+  snapshot: RnlSnapshot,
+): StableId | undefined {
+  const level = snapshot.levels.find((item) =>
+    item.model?.objects.some(
+      (object) =>
+        object.kind === "usage" &&
+        object.definition === "$CANVAS_TOP" &&
+        object.attach?.["level"] === "#",
+    ),
+  );
+  return level ? documentOf(project, level)?.id : undefined;
+}
+
+/**
  * A Project the SPICE / SCS importer made from a rich netlist, drawn as the
  * netlist's RNL draws it (rnl-dev `notes/analog-canvas-rnl-import-export.md`,
  * 6): parts placed, turned and in the variant their RNL symbol stands for;
@@ -447,6 +465,14 @@ export function applyRnlSnapshot(
   const diagnostics: RnlImportDiagnostic[] = [];
   const hiddenLabels: RnlHiddenLabels[] = [];
   const parameterTexts: RnlParameterText[] = [];
+  const cellNames: { documentId: StableId; name: string }[] = [];
+  const keptParameters: KeptParameter[] = [];
+  // A file Canvas 0.4 or later wrote draws every Pin a Cell has and says
+  // which wire each net label is on.
+  const canvas04 = snapshot.packages.some(({ name, version }) => {
+    const [major = 0, minor = 0] = version.split(".").map(Number);
+    return name === "analog-canvas-extensions" && (major > 0 || minor >= 4);
+  });
   const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
     diagnostics.push({
@@ -504,9 +530,30 @@ export function applyRnlSnapshot(
       parameterTexts,
       undrawnPins,
       powerLabelPorts,
+      cellNames,
+      snapshot.dialect === "spectre" ? "spectre" : "spice",
+      keptParameters,
+      canvas04,
     );
   }
-  removeAddedPins(next, undrawnPins);
+  for (const { documentId, name } of cellNames)
+    if (!renameCell(next, documentId, name))
+      diagnostics.push({
+        severity: "warning",
+        code: "RNL_IMPORT_CELL_NAME_REFUSED",
+        message: `A Cell is named ${JSON.stringify(name.slice(0, 40))} in Analog Canvas, which another Cell is or which would print as another subcircuit; it keeps the netlist's name`,
+      });
+  if (!restoreKeptParameters(next, keptParameters))
+    diagnostics.push({
+      severity: "warning",
+      code: "RNL_IMPORT_PARAMETERS_IGNORED",
+      message: `${keptParameters.length} parameters the file keeps for its parts would change the netlist, so none is given back`,
+    });
+  removeAddedPins(next, undrawnPins, (trial) =>
+    printsFileCircuit(trial, snapshot),
+  );
+  // Only a file Canvas 0.4 or later wrote draws every Pin a Cell has.
+  if (canvas04) unpinUndrawnPorts(next, undrawnPins, powerLabelPorts);
   trimCallMappings(next);
   return {
     project: next,
@@ -515,6 +562,95 @@ export function applyRnlSnapshot(
     parameterTexts,
     powerLabelPorts,
   };
+}
+
+/** A parameter the editor keeps that a part's card does not print. */
+interface KeptParameter {
+  documentId: StableId;
+  instanceId: StableId;
+  name: string;
+  text: string;
+}
+
+/**
+ * Gives back the parameters the file keeps for its parts (Canvas 0.4), all
+ * or none: only where the netlist then prints as it does without them, so
+ * a stale or forged record (a field the card now prints) changes nothing.
+ * False when some were kept and none could be given back.
+ */
+function restoreKeptParameters(
+  project: CircuitProject,
+  kept: readonly KeptParameter[],
+): boolean {
+  if (!kept.length) return true;
+  const trial = structuredClone(project);
+  for (const { documentId, instanceId, name, text } of kept) {
+    const parameters = trial.documents
+      .find((document) => document.id === documentId)
+      ?.instances.find((instance) => instance.id === instanceId)
+      ?.netlist?.parameters;
+    if (parameters) parameters[name] = text;
+  }
+  const printed = (from: CircuitProject) => {
+    const result = createDesignNetlistExport(from, { format: "spice" });
+    return result.status === "ready" ? result.file.text : null;
+  };
+  const now = printed(project);
+  if (now === null || printed(trial) !== now) return false;
+  project.documents = trial.documents;
+  return true;
+}
+
+/**
+ * A Cell named as the editor renames one: its title too where that was its
+ * name, each call of it drawn with the block of its new name (a Library gate
+ * keeps its own symbol), and a call's master label that showed the old name.
+ */
+function renameCell(
+  project: CircuitProject,
+  documentId: StableId,
+  name: string,
+): boolean {
+  const document = project.documents.find((item) => item.id === documentId);
+  if (!document?.netlist || document.netlist.name === name) return true;
+  const previous = document.netlist.name;
+  // A name another Cell has, or one that would print as another subcircuit,
+  // would change the netlist; the Cell keeps the netlist's name.
+  const folded = name.trim().toLowerCase();
+  if (
+    portableCellIdentifier(name, documentId) !==
+      portableCellIdentifier(previous, documentId) ||
+    project.documents.some(
+      (other) =>
+        other.id !== documentId &&
+        [other.name, other.netlist?.name].some(
+          (taken) => taken?.trim().toLowerCase() === folded,
+        ),
+    )
+  )
+    return false;
+  if (document.name === previous) document.name = name;
+  document.netlist.name = name;
+  for (const parent of project.documents)
+    for (const instance of parent.instances) {
+      const binding = instance.netlist?.binding;
+      if (
+        binding?.kind !== "subcircuit" ||
+        binding.childDocumentId !== documentId
+      )
+        continue;
+      if (!bindsProjectCell(instance.symbolId))
+        instance.symbolId = hierarchicalSymbolId(name);
+      const master = parent.annotations.find(
+        (annotation) =>
+          annotation.id === `instance-master-${instance.id}` &&
+          annotation.kind === "instance-value" &&
+          annotation.content &&
+          flattenRichText(annotation.content) === previous,
+      );
+      if (master) master.content = plainNameDocument(name);
+    }
+  return true;
 }
 
 /**
@@ -562,6 +698,61 @@ export function drawnModelTypes(snapshot: RnlSnapshot): Map<string, string> {
       types.size === 1 ? [[master, [...types][0]!] as const] : [],
     ),
   );
+}
+
+/**
+ * The library blocks the drawing's parts call where Analog Canvas writes
+ * their calls without a body for `format` (`callOnlyBlock`), as the symbols
+ * it draws them with say it: `$DAC` a DAC, a call symbol of the file a
+ * flip-flop's artwork. A master whose parts are drawn as anything else is
+ * none.
+ */
+export function drawnCalledBlocks(
+  snapshot: RnlSnapshot,
+  format: "spice" | "spectre",
+): NonNullable<ReturnType<typeof callOnlyBlock>>[] {
+  const found = new Map<string, ReturnType<typeof callOnlyBlock>>();
+  for (const level of snapshot.levels) {
+    if (!level.model || !level.host) continue;
+    const symbols = new Map(
+      level.model.symbols.map((symbol) => [symbol.id, symbol]),
+    );
+    const masters = new Map(
+      level.host.instances.map((instance) => [instance.id, instance.master]),
+    );
+    for (const object of level.model.objects) {
+      if (object.kind !== "instance") continue;
+      const master = masters.get(object.host[0] ?? object.id);
+      const symbol = object.symbol.value
+        ? symbols.get(object.symbol.value)
+        : undefined;
+      if (!master || !symbol || symbol.default) continue;
+      const drawn = [
+        ...RNL_SYMBOLS.filter(
+          (row) =>
+            row.ac !== null &&
+            !row.inline &&
+            row.symbol === symbol.name &&
+            family(row.package) === family(symbol.package),
+        ),
+        ...[callSymbolFromDefinition(symbol) ?? []].flat(),
+      ];
+      const blocks = drawn.flatMap((row) => {
+        const block = row.ac ? callOnlyBlock(master, row.ac, format) : null;
+        return block ? [block] : [];
+      });
+      const key = master.toLowerCase();
+      const before = found.get(key);
+      found.set(
+        key,
+        blocks.length === 1 &&
+          (before === undefined || before?.symbolId === blocks[0]!.symbolId)
+          ? blocks[0]!
+          : null,
+      );
+    }
+  }
+  return [...found.values()].flatMap((block) => (block ? [block] : []));
 }
 
 /** The model type of an Analog Canvas device symbol, if it calls a model. */
@@ -683,6 +874,14 @@ function applyLevel(
   /** The Cell Pins the drawing does not place, gathered across levels. */
   undrawnPins: Set<string>,
   powerLabelPorts: RnlPowerLabelPort[],
+  /** The Cells' own names (Canvas 0.4), given once every level is read. */
+  cellNames: { documentId: StableId; name: string }[],
+  /** The dialect the file is written in, which spells its names. */
+  format: "spice" | "spectre",
+  /** Parameters the cards do not print (Canvas 0.4), given back together. */
+  keptParameters: KeptParameter[],
+  /** The file says which wire each net label is on (Canvas 0.4). */
+  wiresNamed: boolean,
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -875,6 +1074,20 @@ function applyLevel(
   // Parts: placed, turned and in the variant their symbol stands for.
   const unplaced: string[] = [];
   const placed: Instance[] = [];
+  // The symbol each part is drawn as, where the file names it (Canvas 0.4).
+  const variantOf = new Map(
+    model.objects.flatMap((object) => {
+      const part = object.attach?.["part"];
+      const symbol = object.params?.["symbol"];
+      const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+      return object.kind === "usage" &&
+        object.definition === "$CANVAS_VARIANT" &&
+        card !== null &&
+        typeof symbol === "string"
+        ? [[card.toLowerCase(), symbol] as const]
+        : [];
+    }),
+  );
   for (const object of model.objects) {
     if (object.kind !== "instance") continue;
     const name = rnlIdName(object.host[0] ?? object.id, "#");
@@ -903,11 +1116,24 @@ function applyLevel(
       symbol && !symbol.default
         ? gateCallSymbol(symbol, orient, instance)
         : null;
+    // A called block's call symbol draws the block the part already is.
+    const blockCall =
+      symbol && !symbol.default && !gateCall
+        ? callSymbolFromDefinition(symbol)
+        : null;
     const mapped =
       gateCall ??
+      (blockCall?.ac === instance.symbolId
+        ? { row: blockCall, orient }
+        : null) ??
       (symbol && !symbol.default
-        ? (acSymbolFor(symbol, orient, instance, pinNames) ??
-          phaseSwitchSymbol(symbol, orient, instance))
+        ? (acSymbolFor(
+            symbol,
+            orient,
+            instance,
+            pinNames,
+            name === null ? undefined : variantOf.get(name.toLowerCase()),
+          ) ?? phaseSwitchSymbol(symbol, orient, instance))
         : null);
     if (
       symbol &&
@@ -1028,6 +1254,20 @@ function applyLevel(
    * it does not have: another part of the Cell has it, as SPICE compares
    * names without case, or the part as read takes names of another prefix.
    */
+  /**
+   * A part the author never named, as it was (Canvas 0.4): one with no name
+   * has no netlist record and emits as its symbol's own body, so the record
+   * the netlist import made for its card goes, where it holds no parameter.
+   */
+  const unnameAgain = (object: RnlObjectView) => {
+    const part = object.attach?.["part"];
+    const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+    const instance = card === null ? undefined : instanceOf(card);
+    if (!instance || Object.keys(instance.netlist?.parameters ?? {}).length)
+      return;
+    delete instance.reference;
+    delete instance.netlist;
+  };
   const nameAgain = (object: RnlObjectView) => {
     const part = object.attach?.["part"];
     const name = object.params?.["name"];
@@ -1055,6 +1295,16 @@ function applyLevel(
     );
   };
 
+  /** The Cell's own name, where the netlist had to write it otherwise (Canvas 0.4). */
+  const cellNameAgain = (object: RnlObjectView) => {
+    const name = object.params?.["name"];
+    if (
+      object.attach?.["level"] === "#" &&
+      typeof name === "string" &&
+      name.trim()
+    )
+      cellNames.push({ documentId: document.id, name });
+  };
   /**
    * How the Cell sets names in its labels (`$CANVAS_TYPESETTING` on the
    * level): each setting it writes, and Analog Canvas's default for each
@@ -1103,6 +1353,36 @@ function applyLevel(
     );
   };
 
+  /**
+   * A parameter the editor keeps that the card does not print (Canvas 0.4),
+   * given again where the netlist import did not bring it: a source's fields
+   * of other waveforms, an op-amp's rails. A parameter the card prints is
+   * the card's.
+   */
+  const keepAgain = (object: RnlObjectView) => {
+    const part = object.attach?.["part"];
+    const card = typeof part === "string" ? rnlIdName(part, "#") : null;
+    const instance = card === null ? undefined : instanceOf(card);
+    const name = object.params?.["name"];
+    const text = object.params?.["text"];
+    const parameters = instance?.netlist?.parameters;
+    if (
+      !instance ||
+      !parameters ||
+      typeof name !== "string" ||
+      typeof text !== "string" ||
+      Object.keys(parameters).some(
+        (key) => key.toLowerCase() === name.toLowerCase(),
+      )
+    )
+      return;
+    keptParameters.push({
+      documentId: document.id,
+      instanceId: instance.id,
+      name,
+      text,
+    });
+  };
   /**
    * The text the author wrote for a parameter the netlist writes otherwise
    * (`$CANVAS_PARAMETER_TEXT`), named as the netlist names it: a resistor's,
@@ -1172,13 +1452,28 @@ function applyLevel(
       nameAgain(object);
       continue;
     }
+    if (object.definition === "$CANVAS_UNNAMED") {
+      unnameAgain(object);
+      continue;
+    }
     if (object.definition === "$CANVAS_TYPESETTING") {
       typesetAgain(object);
       continue;
     }
+    if (object.definition === "$CANVAS_CELL_NAME") {
+      cellNameAgain(object);
+      continue;
+    }
     if (object.definition === "$CANVAS_LABEL") continue; // read with the labels
+    if (object.definition === "$CANVAS_TYPOGRAPHY") continue; // with the texts
+    if (object.definition === "$CANVAS_VARIANT") continue; // with the parts
+    if (object.definition === "$CANVAS_TOP") continue; // read with the file
     if (object.definition === "$CANVAS_PARAMETER_TEXT") {
       textAgain(object);
+      continue;
+    }
+    if (object.definition === "$CANVAS_PARAMETER") {
+      keepAgain(object);
       continue;
     }
     if (LATER.has(object.definition)) {
@@ -1361,8 +1656,12 @@ function applyLevel(
   };
   let skipped = 0;
   /** Each route made, with its corners in Analog Canvas coordinates. */
-  const drawn: { route: RouteBranch; corners: { x: number; y: number }[] }[] =
-    [];
+  const drawn: {
+    route: RouteBranch;
+    corners: { x: number; y: number }[];
+    /** The RNL wire it was read from. */
+    wire: string;
+  }[] = [];
   model.wires.forEach((wire, wireIndex) => {
     const netId = wire.nets.length === 1 ? netOf(wire.nets[0]!) : undefined;
     if (!netId) {
@@ -1488,6 +1787,7 @@ function applyLevel(
       document.routes.push(route);
       drawn.push({
         route,
+        wire: wire.id,
         // One corner per end of a leg: the start, each bend, the end. A
         // vertex the wire passes without a place of its own makes no leg, so
         // a text never reaches for a leg the route does not have (#1792).
@@ -1555,6 +1855,8 @@ function applyLevel(
     point: { x: number; y: number },
     netId: string,
     reach: number,
+    /** Only the routes read from this wire. */
+    only?: string,
   ) => {
     let best: {
       route: RouteBranch;
@@ -1562,8 +1864,9 @@ function applyLevel(
       t: number;
       normalOffset: number;
     } | null = null;
-    for (const { route, corners } of drawn) {
-      if (route.netId !== netId) continue;
+    for (const { route, corners, wire } of drawn) {
+      if (route.netId !== netId || (only !== undefined && wire !== only))
+        continue;
       for (let index = 0; index + 1 < corners.length; index++) {
         const from = corners[index]!;
         const to = corners[index + 1]!;
@@ -1776,6 +2079,15 @@ function applyLevel(
     instanceOf,
     netOf,
     legNear,
+    format,
+    wiresNamed,
+    called: project.documents.some((item) =>
+      item.instances.some(
+        (instance) =>
+          instance.netlist?.binding?.kind === "subcircuit" &&
+          instance.netlist.binding.childDocumentId === document.id,
+      ),
+    ),
   });
   for (const terminal of document.netlist?.terminals ?? [])
     for (const id of terminal.interfaceInstanceIds)
@@ -1894,6 +2206,22 @@ function applyLevel(
  * a label its symbol alone gives is left to the symbol.
  */
 /** A text's size as the scale of the size Analog Canvas gives that label. */
+/**
+ * Whether the netlist spells `name` as `printed`, its node in the file's own
+ * dialect, where the two differ: a Greek letter spelled out, a bracket
+ * dropped.
+ */
+function spelledAs(
+  name: string,
+  printed: string,
+  scope: "local" | "global",
+  format: "spice" | "spectre",
+): boolean {
+  if (name === printed) return false;
+  const encoded = encodeNetName(name, scope, format);
+  return encoded.ok && encoded.token === printed;
+}
+
 function sizeScale(size: number | null, base: number) {
   const scale = size === null ? 1 : (size * AC_UNITS_PER_RNL_UNIT) / base;
   return Math.abs(scale - 1) > 1e-3
@@ -1911,6 +2239,9 @@ function importTexts(
     instanceOf,
     netOf,
     legNear,
+    format,
+    wiresNamed,
+    called,
   }: {
     consumed: ReadonlySet<string>;
     glyphOf: ReadonlyMap<string, { instanceId: string; pinName: string }>;
@@ -1920,12 +2251,19 @@ function importTexts(
       point: { x: number; y: number },
       netId: string,
       reach: number,
+      only?: string,
     ) => {
       route: RouteBranch;
       index: number;
       t: number;
       normalOffset: number;
     } | null;
+    /** Whether a call meets the Cell's Pins, which it does by name. */
+    /** The dialect the file is written in, which spells its names. */
+    format: "spice" | "spectre";
+    /** The file says which wire each net label is on (Canvas 0.4). */
+    wiresNamed: boolean;
+    called: boolean;
   },
 ): void {
   const profile = resolveDocumentStyleProfile(document.presentation);
@@ -1951,6 +2289,19 @@ function importTexts(
         ? [[object.attach["label"], object.params ?? {}] as const]
         : [],
     ),
+  );
+  // A drawing text's typography role, where Canvas 0.4 states it.
+  const tokenOf = new Map(
+    model.objects.flatMap((object) => {
+      const text = object.attach?.["text"];
+      const token = object.params?.["token"];
+      return object.kind === "usage" &&
+        object.definition === "$CANVAS_TYPOGRAPHY" &&
+        typeof text === "string" &&
+        (token === "caption" || token === "body" || token === "label")
+        ? [[text, token] as const]
+        : [];
+    }),
   );
   /** Undefined where the drawing does not say, null for its own text. */
   const stated = (text: RnlTextView) => {
@@ -2076,14 +2427,20 @@ function importTexts(
         kind: "instance-label",
         // Bound to the part's reference when it reads as that and the
         // drawing does not say otherwise; a name drawn otherwise (M1 on the
-        // card XM1) is the label's own text, as drawn.
-        ...(shown === instance.reference &&
-        (says === undefined || says?.bind === "name")
-          ? {
-              binding,
-              ...formatted({ kind: "instance-label", binding }, content),
-            }
-          : { content }),
+        // card XM1) is the label's own text, as drawn. A part the author
+        // never named (Canvas 0.4) shows the name the netlist gave it,
+        // which is no name of its own: its label is bound, and shows none.
+        // The export says so of every bound label; one that holds the
+        // author's own text says nothing, and keeps that text.
+        ...(instance.reference === undefined && says?.bind === "name"
+          ? { binding }
+          : shown === instance.reference &&
+              (says === undefined || says?.bind === "name")
+            ? {
+                binding,
+                ...formatted({ kind: "instance-label", binding }, content),
+              }
+            : { content }),
         anchor: onObject(instance),
         ...common,
         ...scaled(text.size, profile.typography.instanceFontSize),
@@ -2130,6 +2487,15 @@ function importTexts(
     }
     if (pin && terminal && text.key === "name" && !labelled.has(pin.id)) {
       labelled.add(pin.id);
+      // A Pin's name the netlist had to spell otherwise (`SEL[3]` prints as
+      // `SEL3_`) is the name its label shows, where the netlist spells that
+      // so; only in a Cell no call meets, since a call meets Pins by name.
+      if (
+        (says === undefined || says?.bind === "port") &&
+        !called &&
+        spelledAs(shown, terminal.name, "local", format)
+      )
+        terminal.name = shown;
       const binding = {
         kind: "cell-terminal-name" as const,
         terminalId: terminal.id,
@@ -2152,9 +2518,48 @@ function importTexts(
       return;
     }
 
+    // A net's or power label hangs where its record attaches it (13.3): on
+    // a wire of its net, on the glyph or Cell Pin it hangs on, or on its net.
+    const wire = text.attach
+      ? model.wires.find((item) => item.id === text.attach)
+      : undefined;
+    const hungOn = glyph ? instanceOf(glyph.instanceId) : undefined;
+    const netId = text.attach
+      ? (netOf(text.attach) ??
+        (wire?.nets.length === 1 ? netOf(wire.nets[0]!) : undefined) ??
+        (hungOn
+          ? document.nets.find((net) =>
+              net.terminals.some((item) => item.instanceId === hungOn.id),
+            )?.id
+          : undefined))
+      : undefined;
+    /**
+     * On the wire it is attached to, where it stands along it; in a file
+     * that does not say which wire (before Canvas 0.4, or another tool's),
+     * on the wire of its net it stands beside.
+     */
+    const onWire = (net: string) => {
+      const leg = wire
+        ? legNear(exact, net, Infinity, wire.id)
+        : wiresNamed
+          ? null
+          : legNear(exact, net, 3 * PART_GRID);
+      return leg
+        ? {
+            kind: "route" as const,
+            routeId: leg.route.id,
+            legId: leg.route.legs[leg.index]!.id,
+            t: Math.round(leg.t * 1e9) / 1e9,
+            normalOffset: Math.round(leg.normalOffset * 1e6) / 1e6 + 0,
+            direction: "forward" as const,
+            orientation: "follow" as const,
+            fallbackPosition: at,
+          }
+        : undefined;
+    };
+
     // A power label, which the export names for what it is: on the junction
     // of its net it stands beside, as Analog Canvas keeps one.
-    const netId = text.attach ? netOf(text.attach) : undefined;
     if (netId && /^%power\d+$/u.test(text.id)) {
       // One that names the Cell Pin of its net shows that Pin's name.
       const port =
@@ -2196,14 +2601,17 @@ function importTexts(
               ...formatted({ kind: "power-label", netId, binding }, content),
             }
           : { content }),
-        anchor: near
-          ? {
-              kind: "object",
-              objectId: near.id,
-              localOffset: { x: at.x - near.at.x, y: at.y - near.at.y },
-              fallbackPosition: at,
-            }
-          : { kind: "free", position: at },
+        anchor:
+          (wire ? onWire(netId) : undefined) ??
+          (hungOn ? onObject(hungOn) : undefined) ??
+          (near
+            ? {
+                kind: "object",
+                objectId: near.id,
+                localOffset: { x: at.x - near.at.x, y: at.y - near.at.y },
+                fallbackPosition: at,
+              }
+            : { kind: "free", position: at }),
         ...common,
         ...scaled(text.size, profile.typography.powerFontSize),
       });
@@ -2215,8 +2623,14 @@ function importTexts(
       (item) => item.id === netId,
     );
     if (netId && named) {
-      // Where the editor keeps it: on the Cell Pin it names, else on the wire
-      // it stands beside, else where it stands.
+      // A name the netlist had to spell otherwise (`φ1` prints as `phi1`)
+      // is the name the label shows, where the netlist spells that so.
+      const name = spelledAs(shown, named.name, named.scope, format)
+        ? shown
+        : named.name;
+      // Where its record attaches it: on a wire of its net, on what it hangs
+      // on; attached to its net, on the Cell Pin it names, else where it
+      // stands.
       const pin = document.netlist?.terminals
         .filter((item) => item.netId === netId)
         .flatMap((item) => item.interfaceInstanceIds)
@@ -2228,22 +2642,13 @@ function importTexts(
             : [];
         })
         .sort((a, b) => a.distance - b.distance)[0];
-      const wire = legNear(exact, netId, 3 * PART_GRID);
       const anchor =
-        pin && pin.distance <= 4 * PART_GRID + NEAR
-          ? onObject(pin.owner)
-          : wire
-            ? {
-                kind: "route" as const,
-                routeId: wire.route.id,
-                legId: wire.route.legs[wire.index]!.id,
-                t: Math.round(wire.t * 1e9) / 1e9,
-                normalOffset: Math.round(wire.normalOffset * 1e6) / 1e6 + 0,
-                direction: "forward" as const,
-                orientation: "follow" as const,
-                fallbackPosition: at,
-              }
-            : { kind: "free" as const, position: at };
+        (wire ? onWire(netId) : undefined) ??
+        (hungOn
+          ? onObject(hungOn)
+          : pin && pin.distance <= 4 * PART_GRID + NEAR
+            ? onObject(pin.owner)
+            : (onWire(netId) ?? { kind: "free" as const, position: at }));
       document.annotations.push({
         id,
         kind: "net-label",
@@ -2255,9 +2660,9 @@ function importTexts(
           : {
               binding: { kind: "net-name" as const, netId },
               // The name its claim gives the net, set as the Cell sets names.
-              ...(shown === named.name &&
+              ...(shown === name &&
               !sameStyledText(
-                labelTextDocument(named.name, document.presentation),
+                labelTextDocument(name, document.presentation),
                 content,
               )
                 ? { formatOverride: content }
@@ -2271,16 +2676,28 @@ function importTexts(
         id: deriveStableId("connectivity-evidence", document.id, id),
         kind: "name-claim",
         netId,
-        name: named.name,
+        name,
         owner: { kind: "net-label", annotationId: id },
         scope: named.scope,
       });
       return;
     }
 
-    // Anything else is a drawing text, bold unless RNL sets it plain.
+    // Anything else is a drawing text, bold as the export writes one that
+    // is not set plain (`bold`); text bold only in its markup is plain text
+    // with bold runs, which draws the same.
     document.drafting ??= { objects: [] };
-    const bold = text.style["bold"] === true || boldThroughout(text.lines);
+    const bold = text.style["bold"] === true;
+    const token = tokenOf.get(text.id);
+    const styleOverride = {
+      ...(bold ? {} : { weight: "normal" as const }),
+      ...(text.style["italic"] === true ? { italic: true } : {}),
+      ...(color.textColor ? { color: color.textColor } : {}),
+      ...scaled(text.size, richTextMetrics(profile, token).fontSize),
+    };
+    // On the part RNL hangs it on, as the editor anchors one; else where it
+    // stands. The export hangs a drawing text on a part only.
+    const host = instance;
     document.drafting.objects.push({
       id: deriveStableId(
         "drafting",
@@ -2291,21 +2708,13 @@ function importTexts(
       ),
       locked: false,
       zIndex: document.drafting.objects.length,
-      anchor: { kind: "free", position: at },
+      anchor: host ? onObject(host) : { kind: "free", position: at },
       kind: "text",
       content,
       alignment,
       rotation,
-      ...(bold && !text.style["italic"] && !color.textColor && !text.size
-        ? {}
-        : {
-            styleOverride: {
-              ...(bold ? {} : { weight: "normal" as const }),
-              ...(text.style["italic"] === true ? { italic: true } : {}),
-              ...(color.textColor ? { color: color.textColor } : {}),
-              ...scaled(text.size, richTextMetrics(profile).fontSize),
-            },
-          }),
+      ...(token ? { typographyToken: token } : {}),
+      ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
     });
   });
 }
@@ -2488,7 +2897,8 @@ function importShapes(
         ...(path.controls.some(Boolean)
           ? { curveControls: path.controls }
           : {}),
-        styleOverride: { ...styleOverride, ...ends },
+        // An arrow is made solid; the line it is drawn with is its own.
+        styleOverride: { ...styleOverride, ...drawnOver("solid"), ...ends },
       });
       continue;
     }
@@ -2679,6 +3089,9 @@ function regroupDrawings(
           content: text.content,
           alignment: text.alignment,
           rotation: text.rotation,
+          ...(text.typographyToken
+            ? { typographyToken: text.typographyToken }
+            : {}),
           target: free(last),
           ...(Object.keys(style).length ? { styleOverride: style } : {}),
         };
@@ -3148,12 +3561,6 @@ function paintOf(
     : {};
 }
 
-/** Whether every run of a text is bold, as a drawing text is by default. */
-function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
-  const runs = lines.flat();
-  return runs.length > 0 && runs.every((run) => run.style.bold);
-}
-
 /**
  * The pins Analog Canvas adds to a Cell printed as a subcircuit (#1787):
  * ground (VSS, or GND, GND__n) where the Cell meets ground only through the
@@ -3167,12 +3574,17 @@ function boldThroughout(lines: readonly (readonly RnlRun[])[]): boolean {
  * would print under another name, or not at all, is the author's and stays.
  *
  * All or none: the pins go only where the netlist then prints as it prints
- * now. A call that passes such a pin a node of its own (a body bias, the
- * other phase) keeps every pin, as does a netlist the export cannot print.
+ * now, or prints the file's own circuit (`printsFileCircuit`). A Cell whose
+ * added ground pin reads as a port prints a second one beside it now (GND
+ * beside VSS), which the file never had: there the file's circuit is the
+ * reference. A call that passes such a pin a node of its own (a body bias,
+ * the other phase) keeps every pin, as does a netlist the export cannot
+ * print.
  */
 function removeAddedPins(
   project: CircuitProject,
   undrawnPins: ReadonlySet<string>,
+  printsFile: (trial: CircuitProject) => boolean,
 ): void {
   const trial = structuredClone(project);
   removeEachAddedPin(trial, undrawnPins);
@@ -3181,8 +3593,129 @@ function removeAddedPins(
     return result.status === "ready" ? result.file.text : null;
   };
   const now = printed(project);
-  if (now !== null && printed(trial) === now)
+  if (now !== null && (printed(trial) === now || printsFile(trial)))
     project.documents = trial.documents;
+}
+
+/**
+ * Whether a Project prints the circuit the file's own netlist holds, as the
+ * runtime read it (each level's host): every Cell it prints, generated
+ * bodies aside, is a subcircuit of the file, with the same ports in order
+ * and cards on the same nets, each card's in order, the cards in any order.
+ */
+function printsFileCircuit(
+  project: CircuitProject,
+  snapshot: RnlSnapshot,
+): boolean {
+  const result = createDesignNetlistExport(project, {
+    format: snapshot.dialect === "spectre" ? "spectre" : "spice",
+    includeIr: true,
+  });
+  if (result.status !== "ready" || !result.ir) return false;
+  // Nets as both sides spell them: RNL's `&VSS`, Spectre's `Vin\+`.
+  const plain = (net: string) => net.replace(/^&/u, "").replace(/\\/gu, "");
+  const cards = (nets: readonly string[][]) =>
+    nets.map((card) => JSON.stringify(card.map(plain))).sort();
+  const hosts = new Map(
+    snapshot.levels.flatMap((level) =>
+      level.kind === "subckt" && level.host ? [[level.name, level.host]] : [],
+    ),
+  );
+  const cells = result.ir.cells.filter(
+    (cell) => cell.origin !== "generated-model",
+  );
+  return (
+    cells.length > 0 &&
+    cells.every((cell) => {
+      const host = hosts.get(cell.name);
+      return (
+        !!host &&
+        JSON.stringify(cell.ports.map((port) => plain(port.netName))) ===
+          JSON.stringify(host.ports.map(plain)) &&
+        JSON.stringify(
+          cards(
+            cell.instances.map((instance) =>
+              instance.nodes.map((node) => node.netName),
+            ),
+          ),
+        ) ===
+          JSON.stringify(
+            cards(
+              host.instances.map((instance) =>
+                [...instance.terminals]
+                  .sort((a, b) => a.n - b.n)
+                  .map((terminal) => terminal.net),
+              ),
+            ),
+          )
+      );
+    })
+  );
+}
+
+/**
+ * A Cell port the drawing does not draw, as it was: one whose interface is a
+ * hidden power label. A file Analog Canvas writes draws each Pin a Cell has
+ * and each power label it shows, so a port it draws neither for was owned
+ * by a hidden power label, the only interface a port has without a Pin. The
+ * Pin the netlist import gave it goes, as for a port drawn as its power
+ * label (#1783), and a hidden one bound to the port takes its place there.
+ * The port stays, and the netlist with it.
+ */
+function unpinUndrawnPorts(
+  project: CircuitProject,
+  undrawnPins: ReadonlySet<string>,
+  powerLabelPorts: RnlPowerLabelPort[],
+): void {
+  const labelled = new Set(powerLabelPorts.map((port) => port.terminalId));
+  const next = structuredClone(project);
+  const ports: RnlPowerLabelPort[] = [];
+  for (const document of next.documents)
+    for (const terminal of document.netlist?.terminals ?? []) {
+      const [pinId, ...more] = terminal.interfaceInstanceIds;
+      if (
+        !pinId ||
+        more.length ||
+        labelled.has(terminal.id) ||
+        !undrawnPins.has(pinId)
+      )
+        continue;
+      // A pin alone on its net but for unwired bodies and rails is one the
+      // export adds, which removeAddedPins kept: it is no power label's.
+      const net = document.nets.find((item) => item.id === terminal.netId);
+      if (
+        net?.terminals.every(
+          (item) => item.instanceId === pinId || unwiredSupply(project, item),
+        )
+      )
+        continue;
+      const pin = document.instances.find((item) => item.id === pinId);
+      const labelId = deriveStableId("power-label", document.id, terminal.id);
+      document.annotations.push({
+        id: labelId,
+        kind: "power-label",
+        netId: terminal.netId,
+        binding: { kind: "cell-terminal-name", terminalId: terminal.id },
+        anchor: {
+          kind: "free",
+          position: pin?.placement?.position ?? { x: 0, y: 0 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+        visible: false,
+      });
+      ports.push({ documentId: document.id, terminalId: terminal.id, labelId });
+    }
+  if (!ports.length) return;
+  const printed = (from: CircuitProject) => {
+    const result = createDesignNetlistExport(from, { format: "spice" });
+    return result.status === "ready" ? result.file.text : null;
+  };
+  const now = printed(project);
+  if (now === null || printed(withPowerLabelPorts(next, ports)) !== now) return;
+  project.documents = next.documents;
+  powerLabelPorts.push(...ports);
 }
 
 function removeEachAddedPin(
@@ -3200,7 +3733,7 @@ function removeEachAddedPin(
           !pins.size ||
           [...pins].some((id) => !undrawnPins.has(id)) ||
           !net.terminals.every(
-            (item) => pins.has(item.instanceId) || unwiredSupply(item),
+            (item) => pins.has(item.instanceId) || unwiredSupply(project, item),
           ) ||
           document.annotations.some(
             (item) => "netId" in item && item.netId === net.id,
@@ -3237,26 +3770,30 @@ function removeEachAddedPin(
         removed = true;
       }
   }
+}
 
-  /**
-   * A pin no drawing wires, which takes the Cell's supply when left alone:
-   * a MOS body left unwired, as the netlist import binds it, or the rail of
-   * a Library gate drawn on a Cell of the Project, which its symbol draws no
-   * pin for (#1450).
-   */
-  function unwiredSupply(item: { instanceId: string; pinName: string }) {
-    const instance = project.documents
-      .flatMap((document) => document.instances)
-      .find((candidate) => candidate.id === item.instanceId);
-    if (!instance) return false;
-    if (item.pinName === "B")
-      return !!mosBulkKind(instance) && !instance.mosBulkBinding;
-    return (
-      (item.pinName === "VDD" || item.pinName === "VSS") &&
-      instance.netlist?.binding?.kind === "subcircuit" &&
-      bindsProjectCell(instance.symbolId)
-    );
-  }
+/**
+ * A pin no drawing wires, which takes the Cell's supply when left alone:
+ * a MOS body left unwired, as the netlist import binds it, or the rail of
+ * a Library gate or flip-flop, which its symbol draws no pin for, drawn on
+ * a Cell of the Project (#1450) or on the body the netlist writes itself.
+ */
+function unwiredSupply(
+  project: CircuitProject,
+  item: { instanceId: string; pinName: string },
+) {
+  const instance = project.documents
+    .flatMap((document) => document.instances)
+    .find((candidate) => candidate.id === item.instanceId);
+  if (!instance) return false;
+  if (item.pinName === "B")
+    return !!mosBulkKind(instance) && !instance.mosBulkBinding;
+  return (
+    (item.pinName === "VDD" || item.pinName === "VSS") &&
+    (instance.netlist?.binding?.kind === "subcircuit" ||
+      instance.netlist?.binding?.kind === "unresolved-subcircuit") &&
+    bindsProjectCell(instance.symbolId)
+  );
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { CircuitProject } from "@icm/model";
+import type { CircuitProject, StableId } from "@icm/model";
 import {
   createDesignNetlistExport,
   type DesignNetlistAnalysisOptions,
@@ -51,6 +51,10 @@ export type RnlExport =
  * with the RNL port order of the bodies the netlist writes itself, and the
  * operations that draw it as this editor does. An RNL error (a part turned by
  * 45°, a part with no RNL symbol) blocks it; warnings travel with the request.
+ *
+ * The netlist also prints the Cells the top does not call, so the file
+ * carries every Cell's drawing; one the netlist cannot print stays out, and
+ * the others are printed. A Cell the file does not carry is reported.
  */
 export function createRnlExport(
   project: CircuitProject,
@@ -59,11 +63,55 @@ export function createRnlExport(
     "namingProfile" | "rootDocumentId"
   > & { format: NetlistFormat },
 ): RnlExport {
-  const result = createDesignNetlistExport(project, {
-    ...options,
-    bodyPortOrder: rnlBodyPortOrder(project),
-    includeIr: true,
-  });
+  const print = (uncalledCells: boolean, leaveOutCells: StableId[] = []) =>
+    createDesignNetlistExport(project, {
+      ...options,
+      bodyPortOrder: rnlBodyPortOrder(project),
+      includeIr: true,
+      uncalledCells,
+      leaveOutCells,
+    });
+  // An uncalled Cell the netlist cannot print, such as one not finished,
+  // stays out with what only it calls; the others are printed.
+  const reached = reachedCells(project, options.rootDocumentId);
+  const leaveOut: StableId[] = [];
+  let result = print(true);
+  while (result.status !== "ready") {
+    const blocking = [
+      ...new Set(
+        result.diagnostics.flatMap((item) =>
+          item.severity === "error" &&
+          item.documentId &&
+          !reached.has(item.documentId) &&
+          !leaveOut.includes(item.documentId)
+            ? [item.documentId]
+            : [],
+        ),
+      ),
+    ];
+    if (!blocking.length) {
+      result = print(false);
+      break;
+    }
+    leaveOut.push(...blocking);
+    result = print(true, leaveOut);
+  }
+  // An uncalled Cell adds nothing the Cells the top reaches do not print: a
+  // global net only it has (a testbench's VDD marker) would make a port of
+  // the top that global, so the file then carries the reached Cells alone.
+  if (
+    result.status === "ready" &&
+    result.ir?.cells.some(
+      (cell) => cell.origin !== "generated-model" && !reached.has(cell.id),
+    )
+  ) {
+    const reachedOnly = print(false);
+    if (
+      reachedOnly.status === "ready" &&
+      result.ir.globals.some((name) => !reachedOnly.ir?.globals.includes(name))
+    )
+      result = reachedOnly;
+  }
   if (result.status !== "ready")
     return {
       status: "blocked",
@@ -75,6 +123,22 @@ export function createRnlExport(
     result.ir!,
     options.format,
   );
+  const printed = new Set(result.ir!.cells.map((cell) => cell.id));
+  const left = project.documents.filter(
+    (document) => !printed.has(document.id),
+  );
+  if (left.length) {
+    const names = left.map(
+      (document) => document.netlist?.name ?? document.name,
+    );
+    diagnostics.push({
+      severity: "warning",
+      code: "RNL_CELL_NOT_WRITTEN",
+      message: `${left.length} Cells are not in the file, with their drawings: ${names.join(", ")}. A Cell the netlist cannot print stays out, with every Cell the top does not call`,
+      documentId: options.rootDocumentId ?? project.topDocumentId,
+      objectIds: left.map((document) => document.id),
+    });
+  }
   if (diagnostics.some((item) => item.severity === "error"))
     return {
       status: "blocked",
@@ -96,4 +160,24 @@ export function createRnlExport(
     netlistDiagnostics: result.diagnostics,
     diagnostics,
   };
+}
+
+/** The Cells the top reaches through its calls, itself among them. */
+function reachedCells(
+  project: CircuitProject,
+  rootDocumentId: StableId = project.topDocumentId,
+): Set<StableId> {
+  const reached = new Set<StableId>();
+  const visit = (documentId: StableId) => {
+    if (reached.has(documentId)) return;
+    reached.add(documentId);
+    for (const instance of project.documents.find(
+      (document) => document.id === documentId,
+    )?.instances ?? []) {
+      const binding = instance.netlist?.binding;
+      if (binding?.kind === "subcircuit") visit(binding.childDocumentId);
+    }
+  };
+  visit(rootDocumentId);
+  return reached;
 }

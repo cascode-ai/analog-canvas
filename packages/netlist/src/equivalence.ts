@@ -111,26 +111,8 @@ const WAVEFORM_FIELDS: Readonly<Record<string, readonly string[]>> = {
 function comparedParameters(
   instance: DesignNetlistInstance,
 ): DesignNetlistParameter[] {
-  if (
-    instance.invocationKind !== "primitive" ||
-    (instance.deviceClass !== "voltage-source" &&
-      instance.deviceClass !== "current-source")
-  )
-    return instance.parameters;
-  const waveform =
-    instance.parameters
-      .find((item) => item.name.toLowerCase() === "waveform")
-      ?.rawValue.trim()
-      .toLowerCase() ?? "dc";
-  const fields = WAVEFORM_FIELDS[waveform];
-  if (!fields) return instance.parameters;
-  const current = new Set(fields.map((name) => name.toLowerCase()));
-  const unprinted = new Set(
-    Object.values(WAVEFORM_FIELDS)
-      .flat()
-      .map((name) => name.toLowerCase())
-      .filter((name) => !current.has(name)),
-  );
+  const unprinted = unprintedSourceFields(instance);
+  if (!unprinted) return instance.parameters;
   return instance.parameters.filter((item) => {
     const name = item.name.toLowerCase();
     return (
@@ -141,14 +123,46 @@ function comparedParameters(
 }
 
 /**
+ * The fields, folded to lower case, of the waveforms an independent source
+ * is not set to, which the editor keeps and the netlist does not print;
+ * null for any other part, or a waveform the editor does not know.
+ */
+export function unprintedSourceFields(
+  instance: DesignNetlistInstance,
+): ReadonlySet<string> | null {
+  if (
+    instance.invocationKind !== "primitive" ||
+    (instance.deviceClass !== "voltage-source" &&
+      instance.deviceClass !== "current-source")
+  )
+    return null;
+  const waveform =
+    instance.parameters
+      .find((item) => item.name.toLowerCase() === "waveform")
+      ?.rawValue.trim()
+      .toLowerCase() ?? "dc";
+  const fields = WAVEFORM_FIELDS[waveform];
+  if (!fields) return null;
+  const current = new Set(fields.map((name) => name.toLowerCase()));
+  return new Set(
+    Object.values(WAVEFORM_FIELDS)
+      .flat()
+      .map((name) => name.toLowerCase())
+      .filter((name) => !current.has(name)),
+  );
+}
+
+/**
  * The netlist an IR prints, each Cell's cards in no order, read as the
  * graph reads them. Net names count here, so it only ever proves two
  * graphs equal: a symmetric circuit whose cards come back in another order
  * is that, where the search may run out of steps before it says so.
  */
 function printedCards(ir: DesignNetlistIR): string {
+  // Cells go by the names the netlist prints, not their Documents' ids: a
+  // Project read back from its netlist has other ids for the same Cells.
   return JSON.stringify({
-    top: ir.topCellId,
+    top: ir.cells.find((cell) => cell.id === ir.topCellId)?.name ?? null,
     masters: (ir.externalMasters ?? [])
       .map((master) =>
         JSON.stringify([
@@ -164,7 +178,6 @@ function printedCards(ir: DesignNetlistIR): string {
     cells: ir.cells
       .map((cell) =>
         JSON.stringify([
-          cell.id,
           cell.name,
           cell.ports.map((port) => [port.name, port.netName]),
           cell.nets

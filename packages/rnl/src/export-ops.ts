@@ -18,6 +18,7 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import {
+  labelTextDocument,
   labelTypography,
   type Annotation,
   type CircuitProject,
@@ -28,6 +29,7 @@ import {
 } from "@icm/model";
 import {
   normalizeIndependentSource,
+  unprintedSourceFields,
   printedParameterConversion,
   restorePrintedParameter,
   spectreNumber,
@@ -39,6 +41,7 @@ import {
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import {
   bindsProjectCell,
+  builtInModelContract,
   matchGateCellPins,
   subcircuitDescriptor,
 } from "@icm/devices";
@@ -49,7 +52,12 @@ import {
   type RnlSymbolDefinition,
 } from "./block-symbols.js";
 import { draftingLayer, draftingShapes, drawingGroup } from "./drawing-ops.js";
-import { composeOrient, rnlOrient, type RnlOrient } from "./orientation.js";
+import {
+  composeOrient,
+  inverseOrient,
+  rnlOrient,
+  type RnlOrient,
+} from "./orientation.js";
 import {
   AC_UNITS_PER_RNL_UNIT,
   rnlPlace,
@@ -58,7 +66,12 @@ import {
 } from "./place.js";
 import { rnlName } from "./rnl-name.js";
 import type { RnlShape } from "./shapes.js";
-import { rnlSymbolFor, terminalOfPin, type RnlSymbol } from "./symbol-map.js";
+import {
+  RNL_SYMBOLS,
+  rnlSymbolFor,
+  terminalOfPin,
+  type RnlSymbol,
+} from "./symbol-map.js";
 import { symbolForCall } from "./call-symbols.js";
 import { inlineRnlDefinition } from "./inline-symbols.js";
 import { plainLines, rnlTextLines, type RnlRun } from "./text.js";
@@ -106,6 +119,8 @@ export type RnlOp = { level: string } & (
   | { op: "add-point"; name: string; at: RnlPoint; junction?: true }
   | {
       op: "add-wire";
+      /** Its name, for a label hung on it to attach to (13.3). */
+      name?: string;
       nets: string[];
       via: RnlVertex[];
       mode: "straight";
@@ -189,7 +204,7 @@ const NO_LABELS_PACKAGE = "rnl-std-no-labels";
  * only Analog Canvas keeps of a drawing; not standard.
  */
 const AC_PACKAGE = "analog-canvas-extensions";
-const AC_PACKAGE_VERSION = "0.3";
+const AC_PACKAGE_VERSION = "0.4";
 
 /**
  * The edit transaction's operations that draw a netlisted Project as Analog
@@ -230,6 +245,28 @@ export function rnlExportOps(
       resolver,
       blocks,
       callSymbols,
+    });
+  }
+  // The editor's top, where a Cell printed beside it calls it and so is the
+  // netlist's top in its place (Canvas 0.4).
+  const calledTop =
+    top &&
+    ir.cells.some((cell) =>
+      project.documents
+        .find((document) => document.id === cell.id)
+        ?.instances.some(
+          (instance) =>
+            instance.netlist?.binding?.kind === "subcircuit" &&
+            instance.netlist.binding.childDocumentId === top.id,
+        ),
+    );
+  if (top && calledTop) {
+    packages.add(AC_PACKAGE);
+    ops.push({
+      level: `subckt:${top.name}`,
+      op: "add-usage",
+      definition: "$CANVAS_TOP",
+      attach: { level: "#" },
     });
   }
   const header: RnlOp[] = [
@@ -365,6 +402,34 @@ const SPECTRE_SOURCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
+ * The parameters of a part the editor keeps and its card does not print: a
+ * source's fields of the waveforms it is not set to, and its waveform where
+ * that is dc, which a card without one is; any other part's parameters its
+ * card has none of, such as an op-amp's rails, which choose its body.
+ */
+function unprintedParameters(
+  cell: DesignNetlistCell,
+  instance: Instance,
+): { name: string; text: string }[] {
+  const printed = cell.instances.find((item) => item.id === instance.id);
+  if (!printed) return [];
+  const fields = unprintedSourceFields(printed);
+  const names = new Set(
+    printed.parameters.map((item) => item.name.toLowerCase()),
+  );
+  return Object.entries(instance.netlist?.parameters ?? {}).flatMap(
+    ([name, text]) => {
+      const folded = name.toLowerCase();
+      const unprinted = fields
+        ? fields.has(folded) ||
+          (folded === "waveform" && text.trim().toLowerCase() === "dc")
+        : !names.has(folded);
+      return unprinted ? [{ name, text }] : [];
+    },
+  );
+}
+
+/**
  * The parameters of a part the netlist writes as other text than the
  * author's, by the name the netlist gives each. A SKY130 size prints in
  * plain micrometres in either dialect, and reads back as 150n where the
@@ -474,6 +539,16 @@ function exportCell(
     attach: { level: "#" },
     params: canvasTypesetting(document.presentation),
   });
+  // The Cell's own name, where the netlist must write it otherwise: a
+  // subcircuit name has no spaces (Canvas 0.4).
+  if (document.netlist?.name && document.netlist.name !== cell.name)
+    ops.push({
+      level,
+      op: "add-usage",
+      definition: "$CANVAS_CELL_NAME",
+      attach: { level: "#" },
+      params: { name: document.netlist.name },
+    });
   const report = (
     severity: RnlExportDiagnostic["severity"],
     code: string,
@@ -630,13 +705,23 @@ function exportCell(
               portNames: call.nodes.map((node) => node.pinName),
             })
           : undefined;
+      // A Library block's call names its ports, as its contract does (a
+      // DAC's VIN is its pin IN).
+      const ports = call.target
+        ? builtInModelContract(call.target)?.ports
+        : undefined;
       const ordered = symbolForCall(
         symbol,
         call,
         gate
           ? (node) =>
               gate.pins.find((pin) => pin.portName === node.pinName)?.pinName
-          : undefined,
+          : ports
+            ? (node) =>
+                node.canvasPinName ??
+                ports.find((port) => port.name === node.pinName)?.pinName ??
+                node.pinName
+            : undefined,
       );
       if (ordered !== symbol) {
         context.callSymbols.set(ordered.symbol, ordered);
@@ -753,6 +838,32 @@ function exportCell(
       ...paint,
       ...where,
     });
+    // The symbol the part is drawn as, where RNL draws it as another one
+    // the import would take instead: an op-amp flipped top to bottom is the
+    // op-amp with its inputs swapped, unflipped (Canvas 0.4).
+    if (
+      symbol &&
+      orient?.startsWith("M") &&
+      where.orient &&
+      RNL_SYMBOLS.some(
+        (other) =>
+          other.symbol === symbol.symbol &&
+          other.ac !== null &&
+          other.ac !== instance.symbolId &&
+          !composeOrient(where.orient!, inverseOrient(other.orient)).startsWith(
+            "M",
+          ),
+      )
+    ) {
+      packages.add(AC_PACKAGE);
+      ops.push({
+        level,
+        op: "add-usage",
+        definition: "$CANVAS_VARIANT",
+        attach: { part: object },
+        params: { symbol: instance.symbolId },
+      });
+    }
     // The part's own name, where the netlist spells it otherwise: SPICE
     // starts a subcircuit call's card with X, so M1 prints as XM1.
     if (instance.reference && instance.reference !== reference) {
@@ -763,6 +874,17 @@ function exportCell(
         definition: "$CANVAS_NAME",
         attach: { part: object },
         params: { name: instance.reference },
+      });
+    }
+    // A part the author never named, which the netlist must name to print
+    // its card (Canvas 0.4).
+    if (!instance.reference) {
+      packages.add(AC_PACKAGE);
+      ops.push({
+        level,
+        op: "add-usage",
+        definition: "$CANVAS_UNNAMED",
+        attach: { part: object },
       });
     }
     // The author's text of each value the netlist writes otherwise: Spectre
@@ -778,6 +900,18 @@ function exportCell(
         level,
         op: "add-usage",
         definition: "$CANVAS_PARAMETER_TEXT",
+        attach: { part: object },
+        params: { name, text },
+      });
+    }
+    // Each parameter the editor keeps that the card does not print, by the
+    // editor's name for it (Canvas 0.4).
+    for (const { name, text } of unprintedParameters(cell, instance)) {
+      packages.add(AC_PACKAGE);
+      ops.push({
+        level,
+        op: "add-usage",
+        definition: "$CANVAS_PARAMETER",
         attach: { part: object },
         params: { name, text },
       });
@@ -862,6 +996,18 @@ function exportCell(
   const routing = resolveDocumentRoutingGeometry(document, context.resolver);
   const profile = resolveDocumentStyleProfile(document.presentation);
 
+  // The routes a net's or power label hangs on: their wires are named, for
+  // the label to attach to (13.3).
+  const hungOn = new Set(
+    document.annotations.flatMap((annotation) =>
+      (annotation.kind === "net-label" || annotation.kind === "power-label") &&
+      annotation.anchor.kind === "route"
+        ? [annotation.anchor.routeId]
+        : [],
+    ),
+  );
+  const wireOf = new Map<StableId, string>();
+
   // Wires, every bend written, so RNL draws them as drawn.
   for (const route of document.routes) {
     const net = netOf(route.netId);
@@ -910,9 +1056,12 @@ function exportCell(
     if (route.styleOverride?.lineStyle)
       style.linestyle = route.styleOverride.lineStyle;
     if (route.styleOverride?.color) style.linecolor = route.styleOverride.color;
+    const wire = hungOn.has(route.id) ? nextName("wire") : undefined;
+    if (wire) wireOf.set(route.id, wire);
     ops.push({
       level,
       op: "add-wire",
+      ...(wire ? { name: wire } : {}),
       nets: [rnlName("&", net)],
       via: via as RnlVertex[],
       mode: "straight",
@@ -984,9 +1133,11 @@ function exportCell(
     logical,
     routing,
     placeOf,
+    wireOf,
     netOf,
     nextName,
     report,
+    references,
   });
 }
 
@@ -1085,14 +1236,18 @@ function exportTexts(
     logical,
     routing,
     placeOf,
+    wireOf,
     netOf,
     nextName,
     report,
+    references,
   }: {
     context: ExportContext;
     logical: ReturnType<typeof resolveDocumentLogicalNets>;
     routing: ResolvedDocumentRoutingGeometry;
     placeOf: ReadonlyMap<StableId, { object: string; at: RnlPoint }>;
+    /** The wire each route a label hangs on is written as. */
+    wireOf: ReadonlyMap<StableId, string>;
     netOf: (baseNetId: string) => string | undefined;
     nextName: (prefix: string) => string;
     report: (
@@ -1101,6 +1256,8 @@ function exportTexts(
       message: string,
       objectIds: StableId[],
     ) => void;
+    /** The name the netlist prints each part with. */
+    references: ReadonlyMap<StableId, string | undefined>;
   },
 ): void {
   const { ops, resolver } = context;
@@ -1126,6 +1283,19 @@ function exportTexts(
       definition: "$CANVAS_LABEL",
       attach: { label },
       params,
+    });
+  };
+  // A drawing text's typography role, which RNL has no form for, on the
+  // text, named for it (Canvas 0.4); its size is written as well.
+  const typeset = (text: string, token: string | undefined) => {
+    if (!token) return;
+    context.packages.add(AC_PACKAGE);
+    ops.push({
+      level,
+      op: "add-usage",
+      definition: "$CANVAS_TYPOGRAPHY",
+      attach: { text },
+      params: { token },
     });
   };
   const write = (
@@ -1155,7 +1325,21 @@ function exportTexts(
       hidden.push(annotation.id);
       continue;
     }
-    const text = resolveAnnotationText(document, annotation, logical, resolver);
+    // A part the author never named shows its name label empty; it is
+    // written with the name the netlist gives the part, which the import,
+    // told the part is unnamed (Canvas 0.4), binds to its name again.
+    const named =
+      annotation.binding?.kind === "instance-reference"
+        ? annotation.binding.instanceId
+        : undefined;
+    const unnamed =
+      named &&
+      !document.instances.find((instance) => instance.id === named)?.reference
+        ? references.get(named)
+        : undefined;
+    const text = unnamed
+      ? labelTextDocument(unnamed, document.presentation)
+      : resolveAnnotationText(document, annotation, logical, resolver);
     if (
       !isSchematicAnnotationVisible(
         document,
@@ -1294,11 +1478,31 @@ function exportTexts(
         : net && canvasLabel(binding)
           ? nextName("label")
           : undefined;
+    // Where it hangs (13.3): on the wire of its route, placed where it
+    // stands, since a wire has no point to offset from; on the part, glyph
+    // or Cell Pin it hangs on, offset from it; else on its net.
+    const wire =
+      net && annotation.anchor.kind === "route"
+        ? wireOf.get(annotation.anchor.routeId)
+        : undefined;
+    const object =
+      net && annotation.anchor.kind === "object"
+        ? placeOf.get(annotation.anchor.objectId)
+        : undefined;
     write(annotation.id, text, shown.rotation, {
       ...common,
-      ...(net ? { attach: rnlName("&", net) } : {}),
+      ...(wire
+        ? { attach: wire, at: anchor }
+        : object
+          ? {
+              attach: object.object,
+              offset: [
+                Math.round((anchor[0] - object.at[0]) * 1e6) / 1e6 + 0,
+                Math.round((anchor[1] - object.at[1]) * 1e6) / 1e6 + 0,
+              ],
+            }
+          : { ...(net ? { attach: rnlName("&", net) } : {}), at: anchor }),
       ...(name ? { name } : {}),
-      at: anchor,
     });
     if (name) bindLabel(name, binding);
   }
@@ -1365,7 +1569,6 @@ function exportTexts(
       if (object.styleOverride?.italic) style.italic = true;
       if (object.styleOverride?.color)
         style.textcolor = object.styleOverride.color;
-      if (object.typographyToken) drawings.push(object.id);
       write(object.id, object.content, geometry.rotation, {
         ...named("text"),
         at: toRnlPoint(geometry.textPosition),
@@ -1379,6 +1582,7 @@ function exportTexts(
         ),
         ...(Object.keys(style).length ? { style } : {}),
       });
+      typeset(`${group}_text`, object.typographyToken);
       continue;
     }
     if (object.kind !== "text") {
@@ -1395,16 +1599,35 @@ function exportTexts(
       object.anchor,
       routing,
     );
-    if (object.typographyToken) drawings.push(object.id);
     // Analog Canvas draws drawing text bold unless it is set plain.
     const style: Record<string, string | boolean> = {};
     if (object.styleOverride?.weight !== "normal") style.bold = true;
     if (object.styleOverride?.italic) style.italic = true;
     if (object.styleOverride?.color)
       style.textcolor = object.styleOverride.color;
+    // On the part it hangs on (13.3), offset from it, so it moves with it as
+    // in the editor; else where it stands. A text on a glyph is written
+    // where it stands: one attached to a glyph reads back as its net's label.
+    const placed =
+      object.anchor.kind === "object"
+        ? placeOf.get(object.anchor.objectId)
+        : undefined;
+    const host = placed?.object.startsWith("#") ? placed : undefined;
+    const at = toRnlPoint(anchor.position);
+    const name =
+      named(null).name ??
+      (object.typographyToken ? nextName("text") : undefined);
     write(object.id, object.content, anchor.rotation + object.rotation, {
-      ...named(null),
-      at: toRnlPoint(anchor.position),
+      ...(name ? { name } : {}),
+      ...(host
+        ? {
+            attach: host.object,
+            offset: [
+              Math.round((at[0] - host.at[0]) * 1e6) / 1e6 + 0,
+              Math.round((at[1] - host.at[1]) * 1e6) / 1e6 + 0,
+            ],
+          }
+        : { at }),
       halign: object.alignment,
       // On an object, or between polarity marks, a drawing text is centred
       // on its anchor; free, it stands on it.
@@ -1421,6 +1644,7 @@ function exportTexts(
       ),
       ...(Object.keys(style).length ? { style } : {}),
     });
+    if (name) typeset(name, object.typographyToken);
   }
 
   const say = (code: string, ids: StableId[], message: string) => {
@@ -1450,7 +1674,7 @@ function exportTexts(
   say(
     "RNL_DRAWING_NOT_EXPORTED",
     drawings,
-    "drawing objects keep only part of their look: a floating symbol with no RNL symbol is left out, and a typography token is written as its size",
+    "drawing objects keep only part of their look: a floating symbol with no RNL symbol is left out",
   );
 }
 

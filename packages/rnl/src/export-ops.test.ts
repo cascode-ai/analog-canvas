@@ -76,7 +76,7 @@ describe("RNL export of the simulation examples", () => {
       ).toEqual([
         "rnl-std 0.3",
         "rnl-std-no-labels 0.3",
-        "analog-canvas-extensions 0.3",
+        "analog-canvas-extensions 0.4",
       ]);
       expect(
         of(ops, "add-usage").filter(
@@ -95,6 +95,11 @@ describe("RNL export of the simulation examples", () => {
       for (const op of of(ops, "add-usage"))
         if (op.name) declare(op.level, op.name);
       for (const op of of(ops, "add-point")) declare(op.level, op.name);
+      for (const op of of(ops, "add-wire"))
+        if (op.name) declare(op.level, op.name);
+      const wireNames = new Set(
+        of(ops, "add-wire").flatMap((op) => (op.name ? [op.name] : [])),
+      );
       const known = (level: string, vertex: RnlVertex) =>
         "terminal" in vertex
           ? levelOf.get(level)!.has(vertex.terminal.split(":")[0]!)
@@ -128,15 +133,19 @@ describe("RNL export of the simulation examples", () => {
             "$CANVAS_NAME",
             "$CANVAS_TYPESETTING",
             "$CANVAS_LABEL",
+            "$CANVAS_PARAMETER",
           ].includes(op.definition)
         )
           expect(op.orient, op.name).toBeDefined();
       for (const label of of(ops, "add-text")) {
         // A part's or glyph's label hangs on something declared, by key and
-        // offset; a net's stands at an absolute place; a free text on its point.
-        if (label.attach?.startsWith("&")) {
+        // offset; a net's stands at an absolute place, on its net or on the
+        // wire it hangs on, which has no point to offset from; a free text
+        // on its point.
+        if (label.attach?.startsWith("&") || wireNames.has(label.attach!)) {
           expect(label.at).toBeDefined();
           expect(label.key).toBeUndefined();
+          expect(label.offset).toBeUndefined();
         } else if (label.attach) {
           expect(levelOf.get(label.level)!.has(label.attach)).toBe(true);
           expect(label.offset).toBeDefined();
@@ -171,10 +180,16 @@ describe("RNL export of the simulation examples", () => {
     );
   });
 
-  it("puts a net's label on the net at its place, and leaves hidden labels out", () => {
+  it("hangs a net's label on the wire it hangs on at its place, and leaves hidden labels out", () => {
     const { ops, diagnostics } = exported(example("simulation-rlc"));
+    // The label of out hangs on a wire of out: that wire is named, and the
+    // label attached to it, placed where it stands (13.3).
+    const wire = of(ops, "add-wire").find(
+      (op) => op.name && op.nets.includes("&out"),
+    )!;
+    expect(wire.name).toMatch(/^%wire\d+$/u);
     expect(of(ops, "add-text")).toContainEqual(
-      expect.objectContaining({ attach: "&out", at: expect.any(Array) }),
+      expect.objectContaining({ attach: wire.name, at: expect.any(Array) }),
     );
     expect(diagnostics.map((item) => item.code)).toEqual(
       expect.arrayContaining(["RNL_TEXT_HIDDEN", "RNL_TEXT_ALONG_WIRE"]),
@@ -318,7 +333,7 @@ describe("what RNL cannot write", () => {
     [
       "opamp-lettered",
       "$CANVAS_OPAMP_LETTERED",
-      "analog-canvas-extensions 0.3",
+      "analog-canvas-extensions 0.4",
       true,
     ],
   ] as const)(
@@ -389,7 +404,7 @@ describe("what RNL cannot write", () => {
           "rnl-std 0.3",
           "rnl-std-no-labels 0.3",
           // Every Cell says how it sets names ($CANVAS_TYPESETTING).
-          "analog-canvas-extensions 0.3",
+          "analog-canvas-extensions 0.4",
           pinned,
         ]),
       ]);

@@ -101,6 +101,8 @@ function reachableDocuments(
   project: CircuitProject,
   rootDocumentId: StableId,
   diagnostics: NetlistDiagnostic[],
+  uncalled = false,
+  leaveOut: readonly StableId[] = [],
 ): SchematicDocument[] {
   const byId = new Map(
     project.documents.map((document) => [document.id, document]),
@@ -161,6 +163,13 @@ function reachableDocuments(
   }
 
   visit(rootDocumentId);
+  // The Cells the root does not reach come after it, each with the Cells it
+  // reaches. One that calls the root is the netlist's top in its place; the
+  // file names the root as the editor's (the RNL export's `$CANVAS_TOP`).
+  if (uncalled)
+    for (const document of project.documents)
+      if (!visited.has(document.id) && !leaveOut.includes(document.id))
+        visit(document.id);
   if (ordered.length > MAX_CELLS) {
     diagnostic(
       diagnostics,
@@ -206,6 +215,14 @@ export interface DesignNetlistAnalysisOptions {
    * without one.
    */
   deckSources?: readonly string[];
+  /**
+   * Whether the Cells the root does not reach are printed too, after it, so
+   * that a file carries every Cell's drawing (the RNL export, which names
+   * the root where a Cell printed beside it calls it).
+   */
+  uncalledCells?: boolean;
+  /** Uncalled Cells not to print, such as one the netlist cannot print. */
+  leaveOutCells?: readonly StableId[];
 }
 
 /** Ground as the Cell's own pin, or as SPICE's global node. */
@@ -297,6 +314,8 @@ function analyzeSnapshot(
     rootAsTopLevel: options.rootAsTopLevel ?? false,
     groundPin: options.groundPin ?? "global",
     deckSources: options.deckSources ?? [],
+    uncalledCells: options.uncalledCells ?? false,
+    leaveOutCells: options.leaveOutCells ?? [],
     run: options.deckSources !== undefined,
   };
   // Mutable authoring callers may change a model without advancing a revision.
@@ -348,6 +367,8 @@ function analyzeDesign(
     project,
     resolvedOptions.rootDocumentId,
     diagnostics,
+    resolvedOptions.uncalledCells,
+    resolvedOptions.leaveOutCells,
   );
   const nameProjection = deriveProjectNetNameProjection(
     resolvedOptions.rootDocumentId === project.topDocumentId
