@@ -50,7 +50,7 @@ import {
   type RnlOrient,
 } from "./orientation.js";
 import { acPosition, AC_UNITS_PER_RNL_UNIT } from "./place.js";
-import { RNL_SYMBOLS, type RnlSymbol } from "./symbol-map.js";
+import { RNL_SYMBOLS, rnlBodyPortOrder, type RnlSymbol } from "./symbol-map.js";
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
 import { acRichText, type RnlRun } from "./text.js";
 
@@ -557,7 +557,7 @@ export function applyRnlSnapshot(
       message: `${keptParameters.length} parameters the file keeps for its parts would change the netlist, so none is given back`,
     });
   removeAddedPins(next, undrawnPins, (trial) =>
-    printsFileCircuit(trial, snapshot),
+    printsFileCircuit(withPowerLabelPorts(trial, powerLabelPorts), snapshot),
   );
   // Only a file Canvas 0.4 or later wrote draws every Pin a Cell has.
   if (canvas04) unpinUndrawnPorts(next, undrawnPins, powerLabelPorts);
@@ -3702,9 +3702,9 @@ function paintOf(
  * now, or prints the file's own circuit (`printsFileCircuit`). A Cell whose
  * added ground pin reads as a port prints a second one beside it now (GND
  * beside VSS), which the file never had: there the file's circuit is the
- * reference. A call that passes such a pin a node of its own (a body bias,
- * the other phase) keeps every pin, as does a netlist the export cannot
- * print.
+ * reference, even where the pins leave the netlist unprintable (a pin on a
+ * global net). A call that passes such a pin a node of its own (a body bias,
+ * the other phase) keeps every pin.
  */
 function removeAddedPins(
   project: CircuitProject,
@@ -3718,7 +3718,7 @@ function removeAddedPins(
     return result.status === "ready" ? result.file.text : null;
   };
   const now = printed(project);
-  if (now !== null && (printed(trial) === now || printsFile(trial)))
+  if ((now !== null && printed(trial) === now) || printsFile(trial))
     project.documents = trial.documents;
 }
 
@@ -3734,6 +3734,7 @@ function printsFileCircuit(
 ): boolean {
   const result = createDesignNetlistExport(project, {
     format: snapshot.dialect === "spectre" ? "spectre" : "spice",
+    bodyPortOrder: rnlBodyPortOrder(project),
     includeIr: true,
   });
   if (result.status !== "ready" || !result.ir) return false;
