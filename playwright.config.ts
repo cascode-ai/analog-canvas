@@ -40,11 +40,11 @@ export default defineConfig({
   timeout: 60_000,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  // Locally, also keep each case's duration, so a slow case is found by
-  // reading test-results/e2e-report.json (`pnpm e2e:slowest`), not by guessing.
-  reporter: process.env.CI
-    ? "line"
-    : [["line"], ["json", { outputFile: "test-results/e2e-report.json" }]],
+  // Keep local and CI attempt timings for e2e:slowest; CI saves each shard's report.
+  reporter: [
+    ["line"],
+    ["json", { outputFile: "test-results/e2e-report.json" }],
+  ],
   use: {
     baseURL: externalBaseUrl ?? e2eBaseUrl,
     screenshot: "only-on-failure",

@@ -167,6 +167,37 @@ export function planValidation(paths, catalog) {
   };
 }
 
+/** Batch compatible browser selections; flags and other commands keep their order. */
+export function executionGates(plan, stage) {
+  const runs = [];
+  let browser;
+  for (const gate of plan.gates.filter((item) => item.stage === stage)) {
+    const [program, script, ...specs] = gate.command;
+    if (
+      program !== "pnpm" ||
+      script !== "test:e2e:local" ||
+      !specs.length ||
+      !specs.every((spec) => safeCiE2eArg.test(spec))
+    ) {
+      runs.push(gate);
+      browser = undefined;
+      continue;
+    }
+    if (!browser) {
+      browser = {
+        ...gate,
+        id: "browser-workflows",
+        command: [program, script],
+        reasons: [],
+      };
+      runs.push(browser);
+    }
+    browser.command = [...new Set([...browser.command, ...specs])];
+    browser.reasons = [...new Set([...browser.reasons, ...gate.reasons])];
+  }
+  return runs;
+}
+
 function gitPaths(args, cwd = root) {
   try {
     return execFileSync("git", args, { cwd, encoding: "utf8" })
@@ -259,7 +290,7 @@ export function formatGatePlan(plan, { base = "origin/main" } = {}) {
     lines.push(...plan.fullReasons.map((reason) => `  - ${reason}`));
   }
   for (const stage of ["preflight", "affected", "final"]) {
-    const gates = plan.gates.filter((gate) => gate.stage === stage);
+    const gates = executionGates(plan, stage);
     lines.push(`${stage}:`);
     if (gates.length === 0) lines.push("  - (none)");
     for (const gate of gates) {
@@ -289,7 +320,9 @@ export function formatGatePlanMarkdown(plan, { base = "origin/main" } = {}) {
     "| Stage | Gate | Command |",
     "| --- | --- | --- |",
   ];
-  for (const gate of plan.gates) {
+  for (const gate of ["preflight", "affected", "final"].flatMap((stage) =>
+    executionGates(plan, stage),
+  )) {
     lines.push(
       `| ${gate.stage} | \`${gate.id}\` | \`${renderCommand(gate.command, base).join(" ")}\` |`,
     );

@@ -38,27 +38,33 @@ skip `gate:full` when they already cover it. Run `pnpm setup:e2e` once per
 machine or Playwright version. A new `apps/editor/e2e/*.spec.ts` needs a focused
 path group or a named `manualChecks` entry in the catalog. Environment-gated
 specs must not appear in ordinary gate commands or CI browser arguments.
+Adjacent compatible browser gates execute as one deduplicated batch; other
+commands retain their execution order.
+Use the plan to identify remaining work after a PR check; rerunning an entire
+stage is unnecessary when its checks already have valid evidence.
 
 ## Validation timing
 
 - Edit loop: focused unit/browser checks and typecheck at the confirmed seam.
 - Before affected, build or release gates: run the target-base preflight and
   refresh the plan from the real diff.
-- At the end of each original `implement` invocation (each ticket separately),
-  before its code-review and commit, run once:
-
-  ```powershell
-  pnpm test:local
-  pnpm test:e2e:local
-  ```
-
-  These commands collect all Vitest and Playwright tests; conditional skips do
-  not prove environment-dependent behavior. Complete the affected named
-  [environment checks](#environment-dependent-execution) with evidence from the
-  same candidate. Local browser runs use one worker; pass `--workers` for more.
-
-- An unchanged candidate needs no repeated run; a repair or rebase that changes
-  behavior needs its affected checks again.
+- Before review and commit, run the local PR checks and fulfil the affected
+  build/browser/environment obligations from the final diff. Local unit checks
+  trace ordinary source changes; shared-core, deleted source, configuration and
+  unclassified inputs require the full unit suite. Built Web/offline boundaries
+  are explicit obligations: import tracing alone cannot qualify them.
+- Run full local unit and browser suites once for shared-core, validation
+  infrastructure or uncertain impact (the plan's high-risk/full-fallback routes).
+  Ordinary changes need their affected checks, not a full suite per ticket.
+  The queue still qualifies its merged candidate with full ordinary units and
+  mapped browser tests.
+- Reuse evidence only for the same candidate, inputs, configuration and environment.
+  List completed checks and outstanding obligations in the PR; run only the
+  remainder. A repair or rebase invalidates affected evidence; uncertain impact
+  invalidates the full result. No persistent local pass cache substitutes for this.
+- Conditional skips do not qualify environment-dependent behavior. Complete the
+  affected named [environment checks](#environment-dependent-execution); missing
+  resources and unrun targets remain explicit gaps.
 - Docs and mechanical maintenance outside `implement` use their deterministic
   checks; tooling and gate changes are validated by actual risk.
 - Bases: `HEAD` before committing, `HEAD^` after one target commit, else the
@@ -144,6 +150,15 @@ assertions cannot substitute for skipped environment targets; a different
 engine's assertions do not qualify the selected engine. Preserve reports for
 the candidate SHA. Missing resources or unrun workflows remain explicit
 validation gaps.
+
+## Timing evidence
+
+Browser reports distinguish cumulative attempt cost (including retries), the
+slowest single attempt and elapsed time per run. Parallel runs can overlap;
+neither summed test cost nor runner queue time is test execution wall time.
+CI retains each shard report after failure. A run killed before producing its
+report has missing timing evidence, not zero cost. Release checks expose
+individual bounded steps; diagnose the failed step before changing timeouts.
 
 ## Change discipline
 

@@ -4,6 +4,7 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+const scripts = JSON.parse(readFileSync("package.json", "utf8")).scripts;
 function job(id) {
   return workflow.split(`\n  ${id}:\n`)[1]?.split(/\n  [a-z_]+:\n/u)[0];
 }
@@ -71,7 +72,25 @@ describe("CI workflow", () => {
     );
     expect(job("core_static")).toContain("run: pnpm ci:static");
     expect(job("core_unit")).toContain("run: pnpm ci:unit");
-    expect(job("core_release")).toContain("run: pnpm release:verify:built");
+    const release = job("core_release");
+    const checks = [
+      ...release.matchAll(/run: (node scripts\/(?!ci-package-build)[^\n]+)/gu),
+    ].map((match) => match[1].trim());
+    expect(checks).toEqual(scripts["release:verify:built"].split(" && "));
+    expect(release).toContain("run: pnpm test:desktop-build");
+    expect((release.match(/timeout-minutes: 5/gu) ?? []).length).toBe(
+      checks.length + 1,
+    );
+  });
+
+  it("retains each browser shard report on failure without hiding its result", () => {
+    const browser = job("browser_shard");
+    expect(browser).toContain("if: always()");
+    expect(browser).toContain("path: test-results/e2e-report.json");
+    expect(browser).toContain(
+      "name: browser-report-${{ strategy.job-index }}-${{ github.run_attempt }}",
+    );
+    expect(browser).not.toContain("continue-on-error:");
   });
 
   it("retains the successful producer's artifact when only failed consumers rerun", () => {

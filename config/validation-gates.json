@@ -388,7 +388,13 @@
       "scripts/lib/ci-package-build.mjs",
       "scripts/lib/test-impact*.mjs",
       "scripts/lib/ci-validation-plan*.mjs",
-      "scripts/lib/validation-gates*.mjs"
+      "scripts/lib/validation-gates*.mjs",
+      "scripts/test-affected.mjs",
+      "scripts/verify-pr.mjs",
+      "scripts/lib/verify-pr-selection*.mjs",
+      "**/vite*.config.*",
+      "**/vitest.config.*",
+      "**/playwright.config.*"
     ],
     "editorProperties": [
       "apps/editor/src/app/editor-properties-dock.tsx",
@@ -458,6 +464,14 @@
       "apps/editor/e2e/label-census.ts",
       "apps/editor/e2e/bipolar-project.ts",
       "apps/editor/e2e/editor-fixtures.ts"
+    ],
+    "editorBuild": [
+      "apps/editor/src/**",
+      "apps/editor/build/**",
+      "apps/editor/vite*.ts",
+      "apps/editor/index.html",
+      "apps/editor/package.json",
+      "pnpm-lock.yaml"
     ]
   },
   "gates": [
@@ -486,8 +500,8 @@
       "id": "workspace-unit",
       "stage": "affected",
       "groups": ["source"],
-      "description": "Run the bounded-concurrency workspace unit and module contracts.",
-      "command": ["pnpm", "test:local"]
+      "description": "Trace local unit impact, with full fallback for shared or untraceable changes.",
+      "command": ["pnpm", "test:affected", "--", "--base", "{base}"]
     },
     {
       "id": "component-insert-browser",
@@ -882,6 +896,14 @@
       }
     },
     {
+      "id": "editor-build",
+      "stage": "affected",
+      "groups": ["editorBuild"],
+      "localBuild": true,
+      "description": "Validate web composition and the offline renderer module boundary.",
+      "command": ["pnpm", "test:editor-build"]
+    },
+    {
       "id": "release-verification",
       "stage": "affected",
       "groups": ["release"],
@@ -927,7 +949,8 @@
         "branch-verification",
         "editor-properties-browser",
         "editor-netlist-browser",
-        "editor-rnl-browser"
+        "editor-rnl-browser",
+        "editor-build"
       ]
     }
   ],

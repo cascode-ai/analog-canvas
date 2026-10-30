@@ -32,6 +32,42 @@ export function unitSourcePaths(paths) {
   );
 }
 
+/** Import tracing cannot prove deleted sources, fixtures or build configuration. */
+export function unitTestCommand(plan, present) {
+  const sources = unitSourcePaths(plan.paths);
+  const untraceable = plan.paths.some(
+    (path) =>
+      !path.endsWith(".md") &&
+      !path.startsWith("docs/") &&
+      !path.startsWith("apps/editor/e2e/") &&
+      !sources.includes(path),
+  );
+  if (
+    plan.requiresFull ||
+    plan.groupPaths.highRisk?.length ||
+    untraceable ||
+    sources.some((path) => !present.includes(path))
+  ) {
+    return ["pnpm", "test:local"];
+  }
+  if (!sources.length) return null;
+  return [
+    "pnpm",
+    "exec",
+    "vitest",
+    "related",
+    "--run",
+    "--maxWorkers=2",
+    strictUnitRun(sources) ? "--no-passWithNoTests" : "--passWithNoTests",
+    ...sources,
+  ];
+}
+
+/** Built boundaries are explicit catalog obligations, independent of import tracing. */
+export function buildBoundaryGates(plan) {
+  return (plan.selectedGates ?? plan.gates).filter((gate) => gate.localBuild);
+}
+
 /**
  * Files `pnpm lint` checks: workspace code, its tests and the browser specs
  * (.oxlintrc.json leaves out generated code). A change to the lint

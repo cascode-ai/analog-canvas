@@ -16,6 +16,7 @@ import {
   planValidation,
   renderCommand,
   windowsCommandLine,
+  executionGates,
 } from "./validation-gates.mjs";
 
 const catalog = await loadGateCatalog();
@@ -36,6 +37,50 @@ function ids(paths) {
 }
 
 describe("validation gate planning", () => {
+  it("keeps a build between browser batches in execution order", () => {
+    const commands = [
+      ["pnpm", "test:e2e:local", "apps/editor/e2e/group-mirror.spec.ts"],
+      ["pnpm", "test:editor-build"],
+      ["pnpm", "test:e2e:local", "apps/editor/e2e/copy-paste.spec.ts"],
+    ];
+    const plan = {
+      gates: commands.map((command, index) => ({
+        id: String(index),
+        stage: "affected",
+        command,
+        reasons: ["selected"],
+      })),
+    };
+    expect(
+      executionGates(plan, "affected").map((gate) => gate.command),
+    ).toEqual(commands);
+  });
+
+  it("runs overlapping browser gates once while keeping their reasons and other checks", () => {
+    const plan = planValidation(
+      ["apps/editor/e2e/canvas-fixtures.ts"],
+      catalog,
+    );
+    const runs = executionGates(plan, "affected");
+    const browser = runs.filter((gate) => gate.command[1] === "test:e2e:local");
+    expect(browser).toHaveLength(1);
+    const specs = browser[0].command.slice(2);
+    expect(specs).toContain("apps/editor/e2e/component-insert.spec.ts");
+    expect(specs).toContain("apps/editor/e2e/group-mirror.spec.ts");
+    expect(specs.length).toBe(new Set(specs).size);
+    expect(formatGatePlan(plan).match(/pnpm test:e2e:local/gu)).toHaveLength(1);
+    expect(
+      formatGatePlanMarkdown(plan).match(/pnpm test:e2e:local/gu),
+    ).toHaveLength(1);
+    expect(browser[0].reasons).toContain(
+      "componentInsert: apps/editor/e2e/canvas-fixtures.ts",
+    );
+    expect(runs.some((gate) => gate.id === "workspace-unit")).toBe(true);
+    expect(executionGates(plan, "preflight")).toEqual(
+      plan.gates.filter((gate) => gate.stage === "preflight"),
+    );
+  });
+
   it("rejects an opt-in spec advertised as an ordinary executable gate", async () => {
     const directory = await mkdtemp(join(tmpdir(), "icm-gates-"));
     const path = join(directory, "catalog.json");
@@ -114,6 +159,7 @@ describe("validation gate planning", () => {
       "test-impact",
       "workspace-unit",
       "component-insert-browser",
+      "editor-build",
     ]);
   });
 
