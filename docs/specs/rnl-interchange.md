@@ -50,7 +50,8 @@ the RNL language and its runtime belong to rnl.
   the editor's (`$CANVAS_TOP` on `#`, since 0.4). An uncalled Cell the
   netlist cannot print, such as one not finished, stays out, and the others
   are printed; the export names the Cells it leaves out
-  (`RNL_CELL_NOT_WRITTEN`).
+  (`RNL_CELL_NOT_WRITTEN`). Uncalled Cells that would add a global net the
+  reached Cells do not print stay out together.
 - An RNL format is read-only in the panel; Copy and Save take its text.
 - Under an RNL format the panel carries an "About RNL" link to the
   introduction to RNL (<https://rich-netlist.github.io/rnl/en/>): a new tab in
@@ -136,8 +137,9 @@ the RNL language and its runtime belong to rnl.
   attached where it hangs (13.3): on the wire of the route it hangs on,
   that wire named for it and the label placed where it stands, since a
   wire has no point to offset from; on the part, glyph or Cell Pin it hangs
-  on, offset from it; else on its net. A drawing text anchored to a part or
-  glyph is attached to it the same way, offset from it.
+  on, offset from it; else on its net. A drawing text anchored to a part is
+  attached to it the same way, offset from it; one on a glyph is written
+  where it stands, since a text on a glyph reads back as its net's label.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename. The
   name label of a part the author never named, which shows nothing, is
@@ -262,8 +264,9 @@ the RNL language and its runtime belong to rnl.
     rails; the Pin the netlist import gave it goes. It is applied once the
     drawing is known to keep the circuit, since only who owns the port, and
     with it where the netlist prints the port, changes (#1783);
-  - a port the drawing draws neither as a Pin nor as a power label: its
-    interface is a hidden power label again, bound to the port where the
+  - in a file Canvas 0.4 or later wrote, a port the drawing draws neither
+    as a Pin nor as a power label, and whose net holds more than its Pin
+    and unwired bodies or rails: its interface is a hidden power label again, bound to the port where the
     netlist import put its Pin, and that Pin goes; the export draws every
     Pin and each power label it shows, so the hidden label was the port's
     only interface. Applied the same way, where the netlist stays the same;
@@ -317,7 +320,9 @@ the RNL language and its runtime belong to rnl.
     netlist's name, is bound to the name again, and shows none;
   - a Cell's own name (`$CANVAS_CELL_NAME`), as the editor renames a Cell:
     its title too where that was its name, each call drawn with the block of
-    the new name, a call's master label that showed the old name;
+    the new name, a call's master label that showed the old name; a name
+    another Cell has, or that would print as another subcircuit, leaves the
+    netlist's (`RNL_IMPORT_CELL_NAME_REFUSED`);
   - the top the file names (`$CANVAS_TOP`) as the Project's, before the
     drawing is read and checked;
   - a value's text the author wrote (`$CANVAS_PARAMETER_TEXT`) where it is
@@ -325,14 +330,19 @@ the RNL language and its runtime belong to rnl.
     in micrometres; it belongs to the part, so it stands whether the drawing
     comes in or not, and another text leaves the netlist's with
     `RNL_IMPORT_PARAMETER_TEXT`;
-  - a parameter the card does not print (`$CANVAS_PARAMETER`) where the
-    netlist import did not bring it; one the card prints is the card's;
+  - each parameter the card does not print (`$CANVAS_PARAMETER`) where the
+    netlist import did not bring it, all or none: only where the netlist
+    then prints as it does without them, else none
+    (`RNL_IMPORT_PARAMETERS_IGNORED`); one the card prints is the card's;
   - a label as it was drawn: a part's name that is not its reference (M1 on
     the card XM1) is the label's own text; a net's or power label hangs
     where its record attaches it, on the wire's route, or on the part,
     glyph or Cell Pin; one attached to its net stands on the Cell Pin it
     names when it is within four grid steps of one (a power label on the
-    junction of its net within four), else where it stands; a current or
+    junction of its net within four), else, in a file that does not name
+    its wire (before Canvas 0.4, or another tool's), on a wire of its net
+    within three, else where it stands; a name the netlist had to spell
+    otherwise is matched in the file's own dialect; a current or
     voltage marker's label keeps its size and colour; a label in its part's
     colour follows the part, one in another colour keeps it as its own;
     scripts stand outside bold (`bold`, `italic`, then the scripts), so a

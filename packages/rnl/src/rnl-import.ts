@@ -3,6 +3,7 @@ import {
   resolveAnnotationText,
   drawnSwitchControl,
   mosBulkKind,
+  portableCellIdentifier,
   resolveDocumentStyleProfile,
   richTextMetrics,
   supplyMarkerForSymbol,
@@ -465,6 +466,13 @@ export function applyRnlSnapshot(
   const hiddenLabels: RnlHiddenLabels[] = [];
   const parameterTexts: RnlParameterText[] = [];
   const cellNames: { documentId: StableId; name: string }[] = [];
+  const keptParameters: KeptParameter[] = [];
+  // A file Canvas 0.4 or later wrote draws every Pin a Cell has and says
+  // which wire each net label is on.
+  const canvas04 = snapshot.packages.some(({ name, version }) => {
+    const [major = 0, minor = 0] = version.split(".").map(Number);
+    return name === "analog-canvas-extensions" && (major > 0 || minor >= 4);
+  });
   const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
     diagnostics.push({
@@ -523,14 +531,29 @@ export function applyRnlSnapshot(
       undrawnPins,
       powerLabelPorts,
       cellNames,
+      snapshot.dialect === "spectre" ? "spectre" : "spice",
+      keptParameters,
+      canvas04,
     );
   }
   for (const { documentId, name } of cellNames)
-    renameCell(next, documentId, name);
+    if (!renameCell(next, documentId, name))
+      diagnostics.push({
+        severity: "warning",
+        code: "RNL_IMPORT_CELL_NAME_REFUSED",
+        message: `A Cell is named ${JSON.stringify(name.slice(0, 40))} in Analog Canvas, which another Cell is or which would print as another subcircuit; it keeps the netlist's name`,
+      });
+  if (!restoreKeptParameters(next, keptParameters))
+    diagnostics.push({
+      severity: "warning",
+      code: "RNL_IMPORT_PARAMETERS_IGNORED",
+      message: `${keptParameters.length} parameters the file keeps for its parts would change the netlist, so none is given back`,
+    });
   removeAddedPins(next, undrawnPins, (trial) =>
     printsFileCircuit(trial, snapshot),
   );
-  unpinUndrawnPorts(next, undrawnPins, powerLabelPorts);
+  // Only a file Canvas 0.4 or later wrote draws every Pin a Cell has.
+  if (canvas04) unpinUndrawnPorts(next, undrawnPins, powerLabelPorts);
   trimCallMappings(next);
   return {
     project: next,
@@ -539,6 +562,43 @@ export function applyRnlSnapshot(
     parameterTexts,
     powerLabelPorts,
   };
+}
+
+/** A parameter the editor keeps that a part's card does not print. */
+interface KeptParameter {
+  documentId: StableId;
+  instanceId: StableId;
+  name: string;
+  text: string;
+}
+
+/**
+ * Gives back the parameters the file keeps for its parts (Canvas 0.4), all
+ * or none: only where the netlist then prints as it does without them, so
+ * a stale or forged record (a field the card now prints) changes nothing.
+ * False when some were kept and none could be given back.
+ */
+function restoreKeptParameters(
+  project: CircuitProject,
+  kept: readonly KeptParameter[],
+): boolean {
+  if (!kept.length) return true;
+  const trial = structuredClone(project);
+  for (const { documentId, instanceId, name, text } of kept) {
+    const parameters = trial.documents
+      .find((document) => document.id === documentId)
+      ?.instances.find((instance) => instance.id === instanceId)
+      ?.netlist?.parameters;
+    if (parameters) parameters[name] = text;
+  }
+  const printed = (from: CircuitProject) => {
+    const result = createDesignNetlistExport(from, { format: "spice" });
+    return result.status === "ready" ? result.file.text : null;
+  };
+  const now = printed(project);
+  if (now === null || printed(trial) !== now) return false;
+  project.documents = trial.documents;
+  return true;
 }
 
 /**
@@ -550,10 +610,25 @@ function renameCell(
   project: CircuitProject,
   documentId: StableId,
   name: string,
-) {
+): boolean {
   const document = project.documents.find((item) => item.id === documentId);
-  if (!document?.netlist || document.netlist.name === name) return;
+  if (!document?.netlist || document.netlist.name === name) return true;
   const previous = document.netlist.name;
+  // A name another Cell has, or one that would print as another subcircuit,
+  // would change the netlist; the Cell keeps the netlist's name.
+  const folded = name.trim().toLowerCase();
+  if (
+    portableCellIdentifier(name, documentId) !==
+      portableCellIdentifier(previous, documentId) ||
+    project.documents.some(
+      (other) =>
+        other.id !== documentId &&
+        [other.name, other.netlist?.name].some(
+          (taken) => taken?.trim().toLowerCase() === folded,
+        ),
+    )
+  )
+    return false;
   if (document.name === previous) document.name = name;
   document.netlist.name = name;
   for (const parent of project.documents)
@@ -575,6 +650,7 @@ function renameCell(
       );
       if (master) master.content = plainNameDocument(name);
     }
+  return true;
 }
 
 /**
@@ -800,6 +876,12 @@ function applyLevel(
   powerLabelPorts: RnlPowerLabelPort[],
   /** The Cells' own names (Canvas 0.4), given once every level is read. */
   cellNames: { documentId: StableId; name: string }[],
+  /** The dialect the file is written in, which spells its names. */
+  format: "spice" | "spectre",
+  /** Parameters the cards do not print (Canvas 0.4), given back together. */
+  keptParameters: KeptParameter[],
+  /** The file says which wire each net label is on (Canvas 0.4). */
+  wiresNamed: boolean,
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -1213,12 +1295,6 @@ function applyLevel(
     );
   };
 
-  /**
-   * How the Cell sets names in its labels (`$CANVAS_TYPESETTING` on the
-   * level): each setting it writes, and Analog Canvas's default for each
-   * it leaves out or writes as nothing Analog Canvas knows. A Cell whose
-   * level has none keeps the import's own.
-   */
   /** The Cell's own name, where the netlist had to write it otherwise (Canvas 0.4). */
   const cellNameAgain = (object: RnlObjectView) => {
     const name = object.params?.["name"];
@@ -1229,6 +1305,12 @@ function applyLevel(
     )
       cellNames.push({ documentId: document.id, name });
   };
+  /**
+   * How the Cell sets names in its labels (`$CANVAS_TYPESETTING` on the
+   * level): each setting it writes, and Analog Canvas's default for each
+   * it leaves out or writes as nothing Analog Canvas knows. A Cell whose
+   * level has none keeps the import's own.
+   */
   const typesetAgain = (object: RnlObjectView) => {
     if (object.attach?.["level"] !== "#") return;
     const params = object.params ?? {};
@@ -1272,14 +1354,6 @@ function applyLevel(
   };
 
   /**
-   * The text the author wrote for a parameter the netlist writes otherwise
-   * (`$CANVAS_PARAMETER_TEXT`), named as the netlist names it: a resistor's,
-   * capacitor's or inductor's value is its r, c or l. It stands only where
-   * it is the number the part has, written as Spectre writes it, or the
-   * same size: a SKY130 size prints in micrometres, 0.15 for 0.15u, and
-   * reads back as 150n.
-   */
-  /**
    * A parameter the editor keeps that the card does not print (Canvas 0.4),
    * given again where the netlist import did not bring it: a source's fields
    * of other waveforms, an op-amp's rails. A parameter the card prints is
@@ -1293,6 +1367,7 @@ function applyLevel(
     const text = object.params?.["text"];
     const parameters = instance?.netlist?.parameters;
     if (
+      !instance ||
       !parameters ||
       typeof name !== "string" ||
       typeof text !== "string" ||
@@ -1301,8 +1376,21 @@ function applyLevel(
       )
     )
       return;
-    parameters[name] = text;
+    keptParameters.push({
+      documentId: document.id,
+      instanceId: instance.id,
+      name,
+      text,
+    });
   };
+  /**
+   * The text the author wrote for a parameter the netlist writes otherwise
+   * (`$CANVAS_PARAMETER_TEXT`), named as the netlist names it: a resistor's,
+   * capacitor's or inductor's value is its r, c or l. It stands only where
+   * it is the number the part has, written as Spectre writes it, or the
+   * same size: a SKY130 size prints in micrometres, 0.15 for 0.15u, and
+   * reads back as 150n.
+   */
   const textAgain = (object: RnlObjectView) => {
     const part = object.attach?.["part"];
     const card = typeof part === "string" ? rnlIdName(part, "#") : null;
@@ -1991,6 +2079,8 @@ function applyLevel(
     instanceOf,
     netOf,
     legNear,
+    format,
+    wiresNamed,
     called: project.documents.some((item) =>
       item.instances.some(
         (instance) =>
@@ -2117,21 +2207,19 @@ function applyLevel(
  */
 /** A text's size as the scale of the size Analog Canvas gives that label. */
 /**
- * Whether the netlist spells `name` as `printed`, its node in either dialect,
- * where the two differ: a Greek letter spelled out, a bracket dropped.
+ * Whether the netlist spells `name` as `printed`, its node in the file's own
+ * dialect, where the two differ: a Greek letter spelled out, a bracket
+ * dropped.
  */
 function spelledAs(
   name: string,
   printed: string,
   scope: "local" | "global",
+  format: "spice" | "spectre",
 ): boolean {
-  return (
-    name !== printed &&
-    (["spice", "spectre"] as const).some((format) => {
-      const encoded = encodeNetName(name, scope, format);
-      return encoded.ok && encoded.token === printed;
-    })
-  );
+  if (name === printed) return false;
+  const encoded = encodeNetName(name, scope, format);
+  return encoded.ok && encoded.token === printed;
 }
 
 function sizeScale(size: number | null, base: number) {
@@ -2151,6 +2239,8 @@ function importTexts(
     instanceOf,
     netOf,
     legNear,
+    format,
+    wiresNamed,
     called,
   }: {
     consumed: ReadonlySet<string>;
@@ -2169,6 +2259,10 @@ function importTexts(
       normalOffset: number;
     } | null;
     /** Whether a call meets the Cell's Pins, which it does by name. */
+    /** The dialect the file is written in, which spells its names. */
+    format: "spice" | "spectre";
+    /** The file says which wire each net label is on (Canvas 0.4). */
+    wiresNamed: boolean;
     called: boolean;
   },
 ): void {
@@ -2336,8 +2430,9 @@ function importTexts(
         // card XM1) is the label's own text, as drawn. A part the author
         // never named (Canvas 0.4) shows the name the netlist gave it,
         // which is no name of its own: its label is bound, and shows none.
-        ...(instance.reference === undefined &&
-        (says === undefined || says?.bind === "name")
+        // The export says so of every bound label; one that holds the
+        // author's own text says nothing, and keeps that text.
+        ...(instance.reference === undefined && says?.bind === "name"
           ? { binding }
           : shown === instance.reference &&
               (says === undefined || says?.bind === "name")
@@ -2398,7 +2493,7 @@ function importTexts(
       if (
         (says === undefined || says?.bind === "port") &&
         !called &&
-        spelledAs(shown, terminal.name, "local")
+        spelledAs(shown, terminal.name, "local", format)
       )
         terminal.name = shown;
       const binding = {
@@ -2438,9 +2533,17 @@ function importTexts(
             )?.id
           : undefined))
       : undefined;
-    /** On the wire it is attached to, where it stands along it. */
+    /**
+     * On the wire it is attached to, where it stands along it; in a file
+     * that does not say which wire (before Canvas 0.4, or another tool's),
+     * on the wire of its net it stands beside.
+     */
     const onWire = (net: string) => {
-      const leg = wire ? legNear(exact, net, Infinity, wire.id) : null;
+      const leg = wire
+        ? legNear(exact, net, Infinity, wire.id)
+        : wiresNamed
+          ? null
+          : legNear(exact, net, 3 * PART_GRID);
       return leg
         ? {
             kind: "route" as const,
@@ -2522,7 +2625,7 @@ function importTexts(
     if (netId && named) {
       // A name the netlist had to spell otherwise (`φ1` prints as `phi1`)
       // is the name the label shows, where the netlist spells that so.
-      const name = spelledAs(shown, named.name, named.scope)
+      const name = spelledAs(shown, named.name, named.scope, format)
         ? shown
         : named.name;
       // Where its record attaches it: on a wire of its net, on what it hangs
@@ -2545,7 +2648,7 @@ function importTexts(
           ? onObject(hungOn)
           : pin && pin.distance <= 4 * PART_GRID + NEAR
             ? onObject(pin.owner)
-            : { kind: "free" as const, position: at });
+            : (onWire(netId) ?? { kind: "free" as const, position: at }));
       document.annotations.push({
         id,
         kind: "net-label",
@@ -2592,9 +2695,9 @@ function importTexts(
       ...(color.textColor ? { color: color.textColor } : {}),
       ...scaled(text.size, richTextMetrics(profile, token).fontSize),
     };
-    // On the part or glyph RNL hangs it on, as the editor anchors one; else
-    // where it stands.
-    const host = instance ?? pin;
+    // On the part RNL hangs it on, as the editor anchors one; else where it
+    // stands. The export hangs a drawing text on a part only.
+    const host = instance;
     document.drafting.objects.push({
       id: deriveStableId(
         "drafting",
@@ -3577,6 +3680,15 @@ function unpinUndrawnPorts(
         !undrawnPins.has(pinId)
       )
         continue;
+      // A pin alone on its net but for unwired bodies and rails is one the
+      // export adds, which removeAddedPins kept: it is no power label's.
+      const net = document.nets.find((item) => item.id === terminal.netId);
+      if (
+        net?.terminals.every(
+          (item) => item.instanceId === pinId || unwiredSupply(project, item),
+        )
+      )
+        continue;
       const pin = document.instances.find((item) => item.id === pinId);
       const labelId = deriveStableId("power-label", document.id, terminal.id);
       document.annotations.push({
@@ -3621,7 +3733,7 @@ function removeEachAddedPin(
           !pins.size ||
           [...pins].some((id) => !undrawnPins.has(id)) ||
           !net.terminals.every(
-            (item) => pins.has(item.instanceId) || unwiredSupply(item),
+            (item) => pins.has(item.instanceId) || unwiredSupply(project, item),
           ) ||
           document.annotations.some(
             (item) => "netId" in item && item.netId === net.id,
@@ -3658,27 +3770,30 @@ function removeEachAddedPin(
         removed = true;
       }
   }
+}
 
-  /**
-   * A pin no drawing wires, which takes the Cell's supply when left alone:
-   * a MOS body left unwired, as the netlist import binds it, or the rail of
-   * a Library gate or flip-flop, which its symbol draws no pin for, drawn on
-   * a Cell of the Project (#1450) or on the body the netlist writes itself.
-   */
-  function unwiredSupply(item: { instanceId: string; pinName: string }) {
-    const instance = project.documents
-      .flatMap((document) => document.instances)
-      .find((candidate) => candidate.id === item.instanceId);
-    if (!instance) return false;
-    if (item.pinName === "B")
-      return !!mosBulkKind(instance) && !instance.mosBulkBinding;
-    return (
-      (item.pinName === "VDD" || item.pinName === "VSS") &&
-      (instance.netlist?.binding?.kind === "subcircuit" ||
-        instance.netlist?.binding?.kind === "unresolved-subcircuit") &&
-      bindsProjectCell(instance.symbolId)
-    );
-  }
+/**
+ * A pin no drawing wires, which takes the Cell's supply when left alone:
+ * a MOS body left unwired, as the netlist import binds it, or the rail of
+ * a Library gate or flip-flop, which its symbol draws no pin for, drawn on
+ * a Cell of the Project (#1450) or on the body the netlist writes itself.
+ */
+function unwiredSupply(
+  project: CircuitProject,
+  item: { instanceId: string; pinName: string },
+) {
+  const instance = project.documents
+    .flatMap((document) => document.instances)
+    .find((candidate) => candidate.id === item.instanceId);
+  if (!instance) return false;
+  if (item.pinName === "B")
+    return !!mosBulkKind(instance) && !instance.mosBulkBinding;
+  return (
+    (item.pinName === "VDD" || item.pinName === "VSS") &&
+    (instance.netlist?.binding?.kind === "subcircuit" ||
+      instance.netlist?.binding?.kind === "unresolved-subcircuit") &&
+    bindsProjectCell(instance.symbolId)
+  );
 }
 
 /**

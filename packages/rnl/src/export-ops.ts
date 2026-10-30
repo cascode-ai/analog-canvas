@@ -1605,12 +1605,14 @@ function exportTexts(
     if (object.styleOverride?.italic) style.italic = true;
     if (object.styleOverride?.color)
       style.textcolor = object.styleOverride.color;
-    // On the part or glyph it hangs on (13.3), offset from it, so it moves
-    // with it as in the editor; else where it stands.
-    const host =
+    // On the part it hangs on (13.3), offset from it, so it moves with it as
+    // in the editor; else where it stands. A text on a glyph is written
+    // where it stands: one attached to a glyph reads back as its net's label.
+    const placed =
       object.anchor.kind === "object"
         ? placeOf.get(object.anchor.objectId)
         : undefined;
+    const host = placed?.object.startsWith("#") ? placed : undefined;
     const at = toRnlPoint(anchor.position);
     const name =
       named(null).name ??

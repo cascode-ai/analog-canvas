@@ -96,6 +96,22 @@ export function createRnlExport(
     leaveOut.push(...blocking);
     result = print(true, leaveOut);
   }
+  // An uncalled Cell adds nothing the Cells the top reaches do not print: a
+  // global net only it has (a testbench's VDD marker) would make a port of
+  // the top that global, so the file then carries the reached Cells alone.
+  if (
+    result.status === "ready" &&
+    result.ir?.cells.some(
+      (cell) => cell.origin !== "generated-model" && !reached.has(cell.id),
+    )
+  ) {
+    const reachedOnly = print(false);
+    if (
+      reachedOnly.status === "ready" &&
+      result.ir.globals.some((name) => !reachedOnly.ir?.globals.includes(name))
+    )
+      result = reachedOnly;
+  }
   if (result.status !== "ready")
     return {
       status: "blocked",

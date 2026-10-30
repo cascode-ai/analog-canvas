@@ -1897,6 +1897,48 @@ describe("RNL round trip", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "refuses a Cell name another Cell has and a kept parameter the card would print, keeping the drawing, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-ota");
+      const cell = project.documents.find(
+        (document) => document.id === "document-ota-5t",
+      )!;
+      cell.name = "OTA five-T";
+      cell.netlist!.name = "OTA five-T";
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported));
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      // Hand-edited: the Cell takes the testbench's name, and the bias
+      // source keeps an AC magnitude its card would print.
+      const comment = format === "spice" ? "*" : "//";
+      const edited = written.text
+        .replace('name="OTA five-T"', 'name="Testbench"')
+        .replace(
+          /^(IBIAS\b.*)$/mu,
+          `$1\n${comment} @RNL { $CANVAS_PARAMETER @ATTACH(name="acMagnitude", text="1") #IBIAS(part) }`,
+        );
+      expect(edited).toContain('name="Testbench"');
+      expect(edited).toContain("#IBIAS(part) }");
+      const plan = await importRnl(edited, format);
+      expect(failures(plan)).toEqual([]);
+      const codes = plan.diagnostics.map((item) => item.code);
+      expect(codes).toContain("RNL_IMPORT_CELL_NAME_REFUSED");
+      expect(codes).toContain("RNL_IMPORT_PARAMETERS_IGNORED");
+      expect(
+        plan.project.documents.map((document) => document.netlist?.name).sort(),
+      ).toEqual(["OTA_five_T", "Testbench"]);
+      const source = plan.project.documents
+        .flatMap((document) => document.instances)
+        .find((instance) => instance.reference === "IBIAS")!;
+      expect(source.netlist?.parameters.acMagnitude).toBeUndefined();
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "keeps the op-amp variant a part was drawn as, flipped or with its inputs swapped, through %s+RNL",
     async (format) => {
       for (const [symbolId, mirror] of [
