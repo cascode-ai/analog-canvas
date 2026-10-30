@@ -70,8 +70,9 @@ function callSymbol(
  * printed at the pin's terminal number. A call that prints them elsewhere,
  * such as a gate's or a Delay Cell's Cell whose ports start with its
  * supplies, gets the same artwork defined in the file with each pin on the
- * position it is printed at. The name records, for each position of the call, the library terminal
- * there (0 for none), so the same order gives the same symbol.
+ * position it is printed at. The name records, for each position of the
+ * call, the library terminal there (0 for none), so the same order gives the
+ * same symbol.
  */
 export function symbolForCall(
   row: RnlSymbol,
