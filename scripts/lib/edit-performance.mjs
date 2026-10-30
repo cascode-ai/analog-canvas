@@ -1,28 +1,18 @@
 import { performance } from "node:perf_hooks";
 
-// Seven warmups left paste measurably faster in the later rejection phase
-// than in calibration. Warm longer before measuring either phase.
-export const editSampling = { warmups: 30, samples: 21 };
+// Let controller/history code finish warming before collecting either version.
+export const editSampling = { warmups: 100, samples: 21 };
 
-export function selectEditReference(
-  references,
-  platform,
-  arch,
-  cpu,
-  ci = false,
-) {
-  let key = `${platform}-${arch}${ci ? "-ci" : "-local"}`;
-  // A Linux workstation may check against the CI ceiling, but never qualifies CI.
-  if (!references[key] && !ci && platform === "linux")
-    key = `${platform}-${arch}-ci`;
-  const selected = references[key]?.[cpu];
-  if (!selected)
-    throw new Error(
-      `No editing performance reference for ${key}/${cpu}; use --calibrate-edits and review the resulting reference before checking`,
-    );
-  return { key: `${key}/${cpu}`, ...selected };
+export function editBudgets(measurements, names) {
+  return Object.fromEntries(
+    names.map((name) => {
+      const median = measurements[name]?.medianMs;
+      if (!Number.isFinite(median) || median <= 0)
+        throw new Error(`Missing or invalid baseline measurement: ${name}`);
+      return [name, median * 1.5];
+    }),
+  );
 }
-
 function delay(milliseconds) {
   const end = performance.now() + milliseconds;
   while (performance.now() < end) {

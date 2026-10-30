@@ -1,15 +1,10 @@
-import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { cpus } from "node:os";
-import { build } from "vite";
-import {
-  editSampling,
-  sampleEditWorkload,
-  selectEditReference,
-} from "./lib/edit-performance.mjs";
+import { editSampling } from "./lib/edit-performance.mjs";
+import { compareEditPerformance } from "./lib/edit-performance-comparison.mjs";
 
 import { createAgentCircuitService } from "../packages/agent-adapter/dist/index.js";
 import {
@@ -48,95 +43,31 @@ const budgets = {
 
 const args = process.argv.slice(2);
 if (
+  args.length > 1 ||
   args.some(
-    (arg) =>
-      !["--calibrate-edits", "--verify-edit-budgets"].includes(arg) &&
-      !arg.startsWith("--slow-edit="),
-  ) ||
-  args.length > 1
+    (arg) => arg !== "--verify-edit-budgets" && !arg.startsWith("--slow-edit="),
+  )
 )
   throw new Error(
-    "Use no argument, --calibrate-edits, --verify-edit-budgets, or --slow-edit=NAME",
+    "Use no argument, --verify-edit-budgets, or --slow-edit=NAME",
   );
-const calibrating = args.includes("--calibrate-edits");
 const verifyingBudgets = args.includes("--verify-edit-budgets");
 const slowEdit = args
   .find((arg) => arg.startsWith("--slow-edit="))
   ?.slice("--slow-edit=".length);
-const outputDirectory = resolve("output/performance");
-// Editor controller/GUI planning have no separately published Node entrypoint.
-// Bundle their real source once, outside every measured operation.
-await build({
-  configFile: false,
-  logLevel: "error",
-  resolve: { conditions: ["development"] },
-  ssr: {
-    noExternal: true,
-    resolve: {
-      conditions: ["development"],
-      externalConditions: ["development"],
-    },
-  },
-  build: {
-    ssr: resolve("apps/editor/benchmarks/edit-workloads.ts"),
-    outDir: outputDirectory,
-    emptyOutDir: false,
-    target: "node24",
-    minify: false,
-    rollupOptions: {
-      output: { entryFileNames: "edit-workloads.mjs", codeSplitting: false },
-    },
-  },
-});
-const { createEditPerformanceProject, createEditWorkload, editWorkloadNames } =
-  await import(
-    pathToFileURL(resolve(outputDirectory, "edit-workloads.mjs")).href
-  );
-if (slowEdit !== undefined && !editWorkloadNames.includes(slowEdit))
+if (
+  slowEdit !== undefined &&
+  !["rotate", "undo", "paste", "wireCommit"].includes(slowEdit)
+)
   throw new Error(`Unknown editing workload: ${slowEdit}`);
+const outputDirectory = resolve("output/performance");
+const comparison = await compareEditPerformance(
+  outputDirectory,
+  verifyingBudgets,
+  slowEdit,
+);
 if (verifyingBudgets) {
-  // Each probe executes the actual release CLI from the same starting state.
-  // A second sampling phase in this process would inherit extra optimization.
-  const runs = [];
-  for (const name of [null, ...editWorkloadNames]) {
-    const path = resolve(
-      outputDirectory,
-      name ? `edit-slow-${name}.json` : "phase-7-baseline.json",
-    );
-    await rm(path, { force: true });
-    const child = spawnSync(
-      process.execPath,
-      [import.meta.filename, ...(name ? [`--slow-edit=${name}`] : [])],
-      { encoding: "utf8", timeout: 180_000 },
-    );
-    let result;
-    try {
-      result = JSON.parse(await readFile(path, "utf8"));
-    } catch {
-      /* A crash is not evidence of rejecting a slowdown. */
-    }
-    const accepted = name
-      ? child.status === 1 &&
-        result?.passed === false &&
-        result.failures.length === 1 &&
-        result.failures[0][0] === name
-      : child.status === 0 && result?.passed === true;
-    runs.push({
-      workload: name ?? "normal",
-      exitCode: child.status,
-      accepted,
-      result,
-      ...(accepted ? {} : { error: child.error?.message ?? child.stderr }),
-    });
-    if (!name && !accepted) break;
-  }
-  const report = {
-    mode: "rejection-verification",
-    passed:
-      runs.length === editWorkloadNames.length + 1 &&
-      runs.every((run) => run.accepted),
-    runs,
-  };
+  const report = { mode: "rejection-verification", ...comparison };
   await writeFile(
     resolve(outputDirectory, "edit-rejection.json"),
     `${JSON.stringify(report, null, 2)}\n`,
@@ -144,29 +75,17 @@ if (verifyingBudgets) {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   process.exit(report.passed ? 0 : 1);
 }
-const reference = calibrating
-  ? null
-  : selectEditReference(
-      JSON.parse(
-        await readFile(
-          resolve("config/performance-edit-baseline.json"),
-          "utf8",
-        ),
-      ).references,
-      process.platform,
-      process.arch,
-      cpus()[0]?.model,
-      Boolean(process.env.CI),
-    );
+const editWorkloads = comparison.runs[0].result?.editWorkloads;
 if (
-  reference &&
-  editWorkloadNames.some(
-    (name) =>
-      !Number.isFinite(reference.budgets[name]) || reference.budgets[name] <= 0,
-  )
+  !editWorkloads ||
+  comparison.runs[0].exitCode !== (comparison.runs[0].result.passed ? 0 : 1)
 )
-  throw new Error("Every editing workload needs a finite positive budget");
-
+  throw new Error(
+    `Editing measurement failed: ${JSON.stringify(comparison.runs[0])}`,
+  );
+const { createEditPerformanceProject } = await import(
+  pathToFileURL(resolve(outputDirectory, "edit-workloads.mjs")).href
+);
 async function measure(action) {
   const started = performance.now();
   const result = await action();
@@ -177,17 +96,6 @@ const generated = await measure(createEditPerformanceProject);
 const project = generated.result;
 let document = project.documents[0];
 const resolver = new InMemorySymbolResolver(builtInSymbols);
-const editWorkloads = Object.fromEntries(
-  editWorkloadNames.map((name) => [
-    name,
-    sampleEditWorkload(
-      () => createEditWorkload(project, name),
-      reference?.budgets[name],
-      { slowdown: name === slowEdit ? 2 : 1 },
-    ),
-  ]),
-);
-
 const connectivityProject = createEmptyProject(
   "connectivity-performance",
   "Connectivity Performance",
@@ -411,22 +319,20 @@ const report = {
   ),
   budgets,
   editSampling,
-  editReference: reference?.key,
+  editReference: comparison.baselineCommit,
+  editBaseline: comparison.baseline,
+  editBudgets: comparison.budgets,
   editWorkloads,
   slowEdit,
-  mode: calibrating ? "calibration" : slowEdit ? "slowdown-injection" : "check",
-  passed: calibrating ? null : failures.length === 0,
+  mode: slowEdit ? "slowdown-injection" : "check",
+  passed: failures.length === 0,
   failures,
 };
 await mkdir(resolve("output/performance"), { recursive: true });
 await writeFile(
   resolve(
     outputDirectory,
-    calibrating
-      ? "edit-calibration.json"
-      : slowEdit
-        ? `edit-slow-${slowEdit}.json`
-        : "phase-7-baseline.json",
+    slowEdit ? `edit-slow-${slowEdit}.json` : "phase-7-baseline.json",
   ),
   `${JSON.stringify(report, null, 2)}\n`,
 );
