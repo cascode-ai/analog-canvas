@@ -18,6 +18,7 @@
     "comparator-differential-inputs-swapped",
     "comparator-differential-unmarked",
     "comparator-differential-unmarked-inputs-swapped",
+    "crystal",
     "current-source",
     "vccs",
     "cccs",

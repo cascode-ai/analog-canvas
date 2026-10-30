@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(78);
+    expect(symbols).toHaveLength(79);
     expect(markup).toContain("All devices");
     expect(markup).toContain('aria-label="Place NoConn"');
     expect(markup).toContain(">NoConn</span>");
@@ -44,7 +44,7 @@ describe("shapes quick-place", () => {
       ["Logic Gates", 12],
       ["Signal Flow", 6],
       ["Annotations", 9],
-      ["Extended Devices", 12],
+      ["Extended Devices", 13],
     ]);
     const categoryTestIds = [
       "transistors",

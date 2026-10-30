@@ -7481,6 +7481,47 @@
     "note": "AC 的扩展：开关端在前、时钟在后（与 S 一致）；AC 印成子电路 ideal_chopper；时钟不画"
   },
   {
+    "symbol": "$CANVAS_CRYSTAL",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "crystal",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "n1",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n2",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "n1",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n2",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.2, -2.4, 1.2, 2.4],
+    "ac_netlist_order": ["n1", "n2"],
+    "note": "AC 的扩展（0.5 起）：AC 印成子电路 crystal（Butterworth-Van Dyke 等效电路）"
+  },
+  {
     "symbol": "$CANVAS_AND_4INPUT",
     "definition": null,
     "package": "analog-canvas-extensions",

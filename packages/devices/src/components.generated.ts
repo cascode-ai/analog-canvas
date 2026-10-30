@@ -2008,6 +2008,15 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "crystal",
+      symbolId: "crystal",
+      target: "crystal",
+      ports: [
+        { name: "n1", direction: "passive", pinName: "1" },
+        { name: "n2", direction: "passive", pinName: "2" },
+      ],
+    },
+    {
       id: "d-flip-flop",
       symbolId: "d-flip-flop",
       target: "d_flip_flop",

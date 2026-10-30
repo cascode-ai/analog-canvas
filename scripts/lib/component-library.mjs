@@ -98,9 +98,11 @@ export function validateComponentDefinition(component, id) {
         fail(`${id}: supply port ${port.name} must retain its canonical name`);
       }
     }
+    // A passive body such as the crystal's takes no supplies at all.
     if (
-      subcircuit.ports[0]?.supply !== "VDD" ||
-      subcircuit.ports[1]?.supply !== "VSS"
+      subcircuit.ports.some((port) => port.supply) &&
+      (subcircuit.ports[0]?.supply !== "VDD" ||
+        subcircuit.ports[1]?.supply !== "VSS")
     ) {
       fail(`${id}: subcircuit supplies must be ordered VDD, VSS first`);
     }

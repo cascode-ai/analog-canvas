@@ -28,6 +28,12 @@ const records = [
     url: "packages/analog-canvas-extensions/0.4/analog-canvas-extensions.rnl",
     sha256: "40843a19ccbe02f81e7cbb4b5d7acb351bf2d3a4e737cb9be1f7b5fe6f83ac4a",
   },
+  {
+    name: "analog-canvas-extensions",
+    version: "0.5",
+    url: "packages/analog-canvas-extensions/0.5/analog-canvas-extensions.rnl",
+    sha256: "4b902f72322d88c74bbd92a760d16b0bc38232e413b9140cb7e039efab8be3a5",
+  },
 ];
 const bytes = Object.fromEntries(
   await Promise.all(
@@ -62,17 +68,18 @@ it("downloads each locked version even when the catalog adds newer versions", as
     .fn()
     .mockResolvedValueOnce(
       catalog([
-        { ...records[3], version: "0.5", sha256: "new-version" },
+        { ...records[4], version: "0.6", sha256: "new-version" },
         ...records,
       ]),
     )
     .mockResolvedValueOnce(new Response(bytes["0.1"]))
     .mockResolvedValueOnce(new Response(bytes["0.2"]))
     .mockResolvedValueOnce(new Response(bytes["0.3"]))
-    .mockResolvedValueOnce(new Response(bytes["0.4"]));
+    .mockResolvedValueOnce(new Response(bytes["0.4"]))
+    .mockResolvedValueOnce(new Response(bytes["0.5"]));
   const packages = await downloadCanvasPackages(request);
-  expect([...packages.keys()]).toEqual(["0.1", "0.2", "0.3", "0.4"]);
-  expect(packages.get("0.4")).toEqual(new Uint8Array(bytes["0.4"]));
+  expect([...packages.keys()]).toEqual(["0.1", "0.2", "0.3", "0.4", "0.5"]);
+  expect(packages.get("0.5")).toEqual(new Uint8Array(bytes["0.5"]));
   expect(request.mock.calls.map(([url]) => url)).toEqual([
     `${base}catalog.json`,
     ...records.map((record) => `${base}${record.url}`),
@@ -86,8 +93,9 @@ it("rejects changed raw bytes even when the catalog hash still matches", async (
     .mockResolvedValueOnce(new Response(bytes["0.1"]))
     .mockResolvedValueOnce(new Response(bytes["0.2"]))
     .mockResolvedValueOnce(new Response(bytes["0.3"]))
+    .mockResolvedValueOnce(new Response(bytes["0.4"]))
     .mockResolvedValueOnce(
-      new Response(Buffer.concat([bytes["0.4"], Buffer.from("\n")])),
+      new Response(Buffer.concat([bytes["0.5"], Buffer.from("\n")])),
     );
   await expect(downloadCanvasPackages(request)).rejects.toThrow(
     /Canvas package SHA-256 mismatch/u,

@@ -28,7 +28,7 @@ the RNL language and its runtime belong to rnl.
   adapter preserves the caller's files, includes and search order. One fetch
   of each version serves the shared Worker; fetch failures identify the
   package and can be retried.
-- Every Canvas version the editor ships, 0.1 to 0.4, is locked by name,
+- Every Canvas version the editor ships, 0.1 to 0.5, is locked by name,
   version, URL and raw-byte SHA-256 against the public
   [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json),
   so a file written with any of them reads; the editor writes the newest.
@@ -100,6 +100,9 @@ the RNL language and its runtime belong to rnl.
   `$VCVS`, `$VCCS`, `$CCVS` and `$CCCS` symbols. Default circle appearances
   export as `$CANVAS_*_CIRCLE` from `analog-canvas-extensions`. Both preserve
   their appearance, pin positions and control connections through import.
+- The crystal, which the standard series lacks, exports as `$CANVAS_CRYSTAL`
+  from `analog-canvas-extensions` 0.5 on the call of its body; import reads it
+  back as the crystal.
 - Fully differential comparators and Delay Cell define their exact artwork in the file
   using the runtime's `define-symbol` operation. Signals precede supplies;
   Delay Cell retains both VDD/VSS, while comparator numeric-high bodies omit

@@ -55,6 +55,7 @@ export type BuiltInModelRecipe =
       readonly implementation: "multiplier" | "quantizer";
     }
   | { readonly family: "comparator"; readonly implementation: "comparator" }
+  | { readonly family: "passive"; readonly implementation: "crystal" }
   | { readonly family: "opamp"; readonly implementation: "opamp" };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
@@ -170,6 +171,38 @@ const delay = [
     expressions: false,
   },
 ].map((definition) => ({ ...definition, expressions: false }));
+// A 10 MHz fundamental crystal's Butterworth-Van Dyke equivalent: series
+// resonance fs = 1/(2π·√(lm·cm)) ≈ 10 MHz, Q = 2π·fs·lm/rm ≈ 32,000.
+const crystal: readonly DeviceParameterDefinition[] = [
+  parameter(
+    "rm",
+    "Motional resistance",
+    "25",
+    "Ohm",
+    "Series loss of the motional branch; sets the resonance's Q = 2π·fs·Lm/Rm.",
+  ),
+  parameter(
+    "lm",
+    "Motional inductance",
+    "12.7m",
+    "H",
+    "Mass of the vibrating quartz; with Cm it sets the series resonance fs = 1/(2π·√(Lm·Cm)).",
+  ),
+  parameter(
+    "cm",
+    "Motional capacitance",
+    "20f",
+    "F",
+    "Compliance of the vibrating quartz; with Lm it sets the series resonance fs = 1/(2π·√(Lm·Cm)).",
+  ),
+  parameter(
+    "c0",
+    "Shunt capacitance",
+    "5p",
+    "F",
+    "Electrode and holder capacitance across the pins; parallel resonance lies just above fs.",
+  ),
+];
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.
 const comparator: readonly DeviceParameterDefinition[] = [
@@ -254,6 +287,7 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
         ]),
     ),
   ),
+  crystal: { family: "passive", implementation: "crystal" },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
@@ -299,17 +333,20 @@ function contract(target: string): BuiltInModelContract | undefined {
           ? comparator
           : family === "opamp"
             ? opamp
-            : target === ADDER_TARGET
-              ? ADDER_SIGN_PARAMETERS
-              : Object.hasOwn(analog, target)
-                ? [analog[target as keyof typeof analog]]
-                : [],
+            : family === "passive"
+              ? crystal
+              : target === ADDER_TARGET
+                ? ADDER_SIGN_PARAMETERS
+                : Object.hasOwn(analog, target)
+                  ? [analog[target as keyof typeof analog]]
+                  : [],
     backends: {
       spice: "included",
       spectre:
         family === "linear" ||
         family === "opamp" ||
         family === "comparator" ||
+        family === "passive" ||
         (family === "logic" && implementation !== "flip-flop")
           ? "included"
           : "external",

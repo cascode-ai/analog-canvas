@@ -1,5 +1,6 @@
 import {
   builtInModelContract,
+  builtInModelDefaults,
   idealComparatorBodyContract,
   idealOpampBodyContract,
   isIdealComparatorBody,
@@ -15,6 +16,7 @@ import {
 } from "./ideal-switch-model.js";
 import { idealSignalModel } from "./ideal-signal-block-models.js";
 import {
+  passive,
   voltage,
   printSpiceBehavioralModel,
   type BehavioralModel,
@@ -95,6 +97,30 @@ function idealOpampModel(target: IdealOpampBody): BehavioralModel {
 }
 
 /**
+ * The crystal's Butterworth-Van Dyke equivalent between its two pins: the
+ * motional branch rm, lm, cm in series, and c0 across it. SPICE has no
+ * crystal card, so a crystal prints as a call of this body.
+ */
+function crystalModel(target: string): BehavioralModel {
+  const model = builtInModelContract(target)!;
+  const [a, b] = model.ports.map((port) => port.name) as [string, string];
+  return {
+    name: target,
+    ports: [a, b],
+    comment: "Crystal: Butterworth-Van Dyke model, fs = 1/(2*pi*sqrt(lm*cm))",
+    parameters: Object.entries(builtInModelDefaults(target)).map(
+      ([name, defaultValue]) => ({ name, defaultValue }),
+    ),
+    elements: [
+      passive("resistor", "Rm", a, "nr", "rm", true),
+      passive("inductor", "Lm", "nr", "nl", "lm", true),
+      passive("capacitor", "Cm", "nl", b, "cm", true),
+      passive("capacitor", "C0", a, b, "c0", true),
+    ],
+  };
+}
+
+/**
  * One family dispatch; printers never own model equations or defaults.
  * `ports` prints the same body with its ports in another order (see
  * `withBodyPortOrder`); its elements name ports, never positions.
@@ -114,6 +140,7 @@ function familyDefinition(target: string): BehavioralModel {
   const model = builtInModelContract(target);
   if (model?.family === "logic") return idealLogicModel(target);
   if (model?.family === "signal") return idealSignalModel(target);
+  if (model?.family === "passive") return crystalModel(target);
   throw new Error(`No generated behavioral model: ${target}`);
 }
 

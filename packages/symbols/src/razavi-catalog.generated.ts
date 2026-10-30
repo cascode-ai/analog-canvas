@@ -445,6 +445,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "crystal",
+    name: "Crystal",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A quartz crystal does not appear on the reviewed page; it is drawn as oscillator schematics draw it, the resonator's slab between two Capacitor-width plates, its leads on the Capacitor's pins.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no crystal card; it prints as a call of the generated Butterworth-Van Dyke body, Rm-Lm-Cm in series across the pins with C0 in parallel.",
+    assetPath: "crystal.json",
+    assetHash:
+      "cc6134c88c456f39247971fd9c27252be4ac3751ee2e0dd4d67968c7689667e7",
+  },
+  {
     symbolId: "current-source",
     name: "Independent Current Source",
     category: "source",
@@ -5490,6 +5507,128 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -7,
           width: 16,
           height: 14,
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "crystal",
+    name: "Crystal",
+    viewBox: {
+      x: -12,
+      y: -24,
+      width: 24,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 8,
+          y: -7,
+        },
+        to: {
+          x: -8,
+          y: -7,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 8,
+          y: 7,
+        },
+        to: {
+          x: -8,
+          y: 7,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -5 -4 L 5 -4 L 5 4 L -5 4 Z",
+        bounds: {
+          x: -5,
+          y: -4,
+          width: 10,
+          height: 8,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -7,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 7,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
         },
       },
     ],
