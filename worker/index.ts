@@ -15,6 +15,7 @@ import {
 import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
 import { serveAsset } from "./static-assets";
 import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
+import { routeBoardsRequest } from "./boards";
 import {
   galleryReadableDocument,
   type GalleryReadableDocument,
@@ -160,6 +161,9 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const topologyResponse = await routeTopologyTaskRequest(request, env);
   if (topologyResponse) return topologyResponse;
+
+  const boardsResponse = await routeBoardsRequest(request, env);
+  if (boardsResponse) return boardsResponse;
 
   const galleryResponse = await routeGalleryRequest(request, env);
   if (galleryResponse) return galleryResponse;

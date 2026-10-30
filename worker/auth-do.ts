@@ -36,6 +36,7 @@ import {
 } from "./account-blocks";
 import { unlinkArenaVoter, type ArenaService } from "./arena-account";
 import { exemptFromTraps } from "./trap-exempt";
+import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import {
   rejectionNotice,
@@ -352,7 +353,8 @@ function signInReturnPath(requested: string | null, origin: string): string {
   } catch {
     return "/";
   }
-  return url.origin === origin && isArenaPagePath(url.pathname)
+  return url.origin === origin &&
+    (isArenaPagePath(url.pathname) || isBoardPagePath(url.pathname))
     ? url.pathname + url.search
     : "/";
 }

@@ -69,6 +69,14 @@ import {
   updateEntry,
 } from "./gallery-store-entries";
 import {
+  boardChange,
+  boardCreate,
+  boardPreview,
+  boardRead,
+  forgetBoardAccount,
+  installBoards,
+} from "./gallery-store-boards";
+import {
   curate,
   deleteAccount,
   deleteEntry,
@@ -315,6 +323,7 @@ export class GalleryDO {
       ) WITHOUT ROWID
     `);
     installBackupRevisions(this.sql);
+    installBoards(this.sql);
     // Which circuits each account opened today; the scheduled pass (and the
     // first counted open of a new day) drops earlier days. Not a backup table.
     this.sql.exec(`
@@ -532,7 +541,16 @@ export class GalleryDO {
           body.requireRecycled !== false,
         );
       case "delete-account":
+        if (body.userId) forgetBoardAccount(this.sql, String(body.userId));
         return deleteAccount(this.state, String(body.userId ?? ""));
+      case "board-create":
+        return boardCreate(this.state, body);
+      case "board-read":
+        return boardRead(this.sql, String(body.id));
+      case "board-change":
+        return boardChange(this.state, body);
+      case "board-preview":
+        return boardPreview(this.sql, String(body.id), String(body.entryId));
       case "recycled":
         return recycled(this.sql);
       case "rejected":
