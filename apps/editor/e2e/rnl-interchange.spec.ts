@@ -252,7 +252,8 @@ test("writes SPICE+RNL and Spectre+RNL, and imports the file it wrote as it was 
     .click();
   await expectStatus(page, /^Imported 1 Document/u);
   // Every part where it was drawn, the op-amp and amplifier as built-in
-  // blocks again, and the plain netlist the same.
+  // blocks again, the op-amp the variant it was drawn as ($CANVAS_VARIANT),
+  // and the plain netlist the same.
   const imported = await exportedProject(page);
   const placement = (from: typeof project, reference: string) =>
     from.documents
@@ -273,7 +274,7 @@ test("writes SPICE+RNL and Spectre+RNL, and imports the file it wrote as it was 
       )
       .map((instance: { symbolId: string }) => instance.symbolId)
       .sort(),
-  ).toEqual(["opamp-inputs-swapped", "voltage-amplifier"]);
+  ).toEqual(["opamp", "voltage-amplifier"]);
   expect(await copiedNetlist(page, "spice")).toBe(spice);
 });
 
