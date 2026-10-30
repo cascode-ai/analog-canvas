@@ -13,7 +13,12 @@ import {
   strictUnitRun,
   testStartLines,
   unitSourcePaths,
+  unitTestCommand,
+  buildBoundaryGates,
 } from "./verify-pr-selection.mjs";
+import { loadGateCatalog, planValidation } from "./validation-gates.mjs";
+
+const catalog = await loadGateCatalog();
 
 const changed = [
   "packages/netlist/src/extract.ts",
@@ -29,6 +34,53 @@ const changed = [
 ];
 
 describe("verify:pr selection", () => {
+  it("selects real web and offline builds for shared account/chrome changes even without test imports", () => {
+    for (const path of [
+      "apps/editor/src/components/account.tsx",
+      "apps/editor/src/app/editor-app-chrome.tsx",
+      "apps/editor/vite.desktop.config.ts",
+    ]) {
+      expect(
+        buildBoundaryGates(planValidation([path], catalog)).map(
+          (gate) => gate.command,
+        ),
+      ).toEqual([["pnpm", "test:editor-build"]]);
+    }
+    expect(
+      buildBoundaryGates(planValidation(["worker/gallery.ts"], catalog)),
+    ).toEqual([]);
+  });
+
+  it("traces a leaf but runs full units for shared, unknown, configuration and deleted inputs", () => {
+    const leaf = "apps/editor/src/components/account.tsx";
+    const choose = (paths, present = paths) =>
+      unitTestCommand(planValidation(paths, catalog), present);
+    expect(choose([leaf])).toEqual([
+      "pnpm",
+      "exec",
+      "vitest",
+      "related",
+      "--run",
+      "--maxWorkers=2",
+      "--passWithNoTests",
+      leaf,
+    ]);
+    for (const path of [
+      "packages/model/src/schema.ts",
+      "tooling/unknown.toml",
+      "vitest.config.ts",
+      "apps/editor/vite.config.ts",
+      "apps/editor/vite.desktop.config.ts",
+      "apps/editor/census/vitest.config.ts",
+      "pnpm-lock.yaml",
+      "fixtures/example.json",
+    ])
+      expect(choose([path]), path).toEqual(["pnpm", "test:local"]);
+    expect(choose([leaf], [])).toEqual(["pnpm", "test:local"]);
+    expect(choose(["docs/user/getting-started.md"])).toBeNull();
+    expect(choose(["apps/editor/e2e/copy-paste.spec.ts"])).toBeNull();
+  });
+
   it("checks the files format:check reads, and no others", () => {
     // config/, docs/, fixtures/ and worker/ are outside format:check's
     // globs: generated artifacts there keep their generator's layout.

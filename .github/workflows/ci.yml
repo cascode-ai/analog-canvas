@@ -177,10 +177,42 @@ jobs:
           merge-multiple: true
       - name: Build remaining workspace packages and applications
         run: node scripts/ci-package-build.mjs remaining
-      - name: Release contracts
-        # GitHub's Ubuntu image already carries Chrome. Keep setup:e2e as an
-        # explicit one-time local command instead of pulling a CI container.
-        run: pnpm release:verify:built
+      - name: Offline renderer boundary
+        timeout-minutes: 5
+        run: pnpm test:desktop-build
+      - name: editor-bundle-budget
+        timeout-minutes: 5
+        run: node scripts/editor-bundle-budget.mjs --check
+      - name: performance-baseline
+        timeout-minutes: 5
+        run: node scripts/performance-baseline.mjs
+      - name: visual-golden
+        timeout-minutes: 5
+        run: node scripts/visual-golden.mjs --check
+      - name: export-golden
+        timeout-minutes: 5
+        run: node scripts/export-golden.mjs --check
+      - name: pwa-icons
+        timeout-minutes: 5
+        run: node scripts/pwa-icons.mjs --check
+      - name: agent-api-artifacts
+        timeout-minutes: 5
+        run: node scripts/agent-api-artifacts.mjs --check
+      - name: editor-production-smoke
+        timeout-minutes: 5
+        run: node scripts/editor-production-smoke.mjs --check
+      - name: package-mcp
+        timeout-minutes: 5
+        run: node scripts/package-mcp.mjs
+      - name: package-release
+        timeout-minutes: 5
+        run: node scripts/package-release.mjs
+      - name: release-smoke
+        timeout-minutes: 5
+        run: node scripts/release-smoke.mjs
+      - name: mcp-release-smoke
+        timeout-minutes: 5
+        run: node scripts/mcp-release-smoke.mjs
 
   # The packaged Windows preview is accepted when it is released (Desktop
   # preview release), not on every merge: no merge ships it.
@@ -228,6 +260,14 @@ jobs:
           read -r -a specs <<< "$E2E_ARGS"
           test "${#specs[@]}" -gt 0
           pnpm ci:e2e --workers=3 --shard=${{ matrix.shard }} "${specs[@]}"
+      - name: Preserve browser timing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-report-${{ strategy.job-index }}-${{ github.run_attempt }}
+          path: test-results/e2e-report.json
+          if-no-files-found: warn
+          retention-days: 14
 
   browser:
     name: Browser tests

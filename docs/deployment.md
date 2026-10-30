@@ -19,9 +19,10 @@ Normal delivery:
    `pnpm install --frozen-lockfile`; install Playwright Chromium once per
    machine/version.
 2. Refresh the gate plan and preflight, run `pnpm verify:pr -- --base <base-ref>`
-   and any unfulfilled affected/build/release obligations (build and release
-   checks apply when rendering, export, Symbols or packaging can move). Final
-   suites follow [validation timing](testing/README.md#validation-timing).
+   and only the unfulfilled affected/build/release obligations, recording evidence
+   for the candidate and environment. Build and release checks apply when
+   rendering, export, Symbols or packaging can move. Full-suite triggers and
+   evidence reuse follow [validation timing](testing/README.md#validation-timing).
    Every product release also compares the full public Gallery `insert`
    census with the last successfully deployed SHA and resolves any new open
    or insert failures before delivery. Follow the
