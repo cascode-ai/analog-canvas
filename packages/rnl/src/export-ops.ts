@@ -211,8 +211,8 @@ const AC_PACKAGE_VERSION = "0.5";
  * Canvas draws it: each part's symbol, place and orientation, each block's
  * symbol, the ground, supply and Cell Pin glyphs, every wire with all its
  * bends and direction arrows, junctions and the dots Analog Canvas draws, the
- * contacts it makes by touching, its labels and texts, the current and
- * voltage marks on wires, and the drawing objects. The header pins the
+ * contacts it makes by touching, its no-connect marks, its labels and texts,
+ * the current and voltage marks on wires, and the drawing objects. The header pins the
  * standard series and every other package the drawing uses.
  *
  * `ir` is the IR the netlist was printed from (`includeIr`), with the body
@@ -944,6 +944,42 @@ function exportCell(
         items: [rnlName("&", plain(port.name))],
         set: "$PORT_FILL_SET",
       });
+
+  // A pin left open on purpose: the standard no-connect mark on its
+  // terminal (12.6). RNL names no glyph's pin and no bus member.
+  for (const mark of document.noConnects) {
+    const { instanceId, pinName, memberId } = mark.endpoint;
+    const reference = usageOf.has(instanceId)
+      ? undefined
+      : references.get(instanceId);
+    const terminal =
+      memberId === undefined
+        ? terminalsOf.get(instanceId)?.(pinName)
+        : undefined;
+    const pin = `${references.get(instanceId) ?? instanceId}:${pinName}`;
+    if (!reference || terminal === undefined) {
+      report(
+        "warning",
+        "RNL_NO_CONNECT_UNNAMED",
+        `The no-connect mark on ${pin} is on a pin RNL cannot name; it is left out`,
+        [mark.id],
+      );
+      continue;
+    }
+    if (mark.reason)
+      report(
+        "warning",
+        "RNL_NO_CONNECT_REASON",
+        `The no-connect mark on ${pin} has a reason, which RNL's mark does not keep`,
+        [mark.id],
+      );
+    ops.push({
+      level,
+      op: "add-usage",
+      definition: "$NO_CONNECT",
+      attach: { t: `${rnlName("#", reference)}:${terminal}` },
+    });
+  }
 
   // Junctions are named points; the dots come below.
   const pointOf = new Map<StableId, string>();

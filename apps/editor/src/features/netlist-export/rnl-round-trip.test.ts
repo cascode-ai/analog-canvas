@@ -3144,6 +3144,62 @@ describe("RNL round trip", () => {
     expect(slots(drawn)).toEqual(slots(project));
   });
 
+  it.each(["spice", "spectre"] as const)(
+    "keeps pins left open, on the top and inside a Cell, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-ota");
+      // A resistor left open at both ends in each Cell.
+      for (const document of project.documents) {
+        document.instances.push({
+          id: "R9",
+          reference: "R9",
+          symbolId: "resistor",
+          placement: {
+            position: { x: 600, y: 600 },
+            rotation: 0,
+            mirror: "none",
+          },
+          netlist: {
+            binding: { kind: "primitive", deviceClass: "resistor" },
+            parameters: { value: "1k" },
+          },
+        });
+        for (const pinName of ["2", "1"])
+          document.noConnects.push({
+            id: `open-${pinName}`,
+            endpoint: { kind: "terminal", instanceId: "R9", pinName },
+          });
+      }
+      const result = await roundTrip(project, format);
+      expect(failures(result)).toEqual([]);
+      const drawn = result.project;
+      const open = (from: CircuitProject) =>
+        from.documents
+          .flatMap((document) =>
+            document.noConnects.map(
+              ({ endpoint }) =>
+                `${document.netlist?.name} ${endpoint.instanceId}:${endpoint.pinName}`,
+            ),
+          )
+          .sort();
+      expect(open(drawn)).toEqual(open(project));
+      // No net is left on an open pin, and the netlist numbers the open
+      // nodes as before.
+      for (const document of drawn.documents)
+        expect(
+          document.nets.filter((net) =>
+            net.terminals.some((terminal) => terminal.instanceId === "R9"),
+          ),
+        ).toEqual([]);
+      const netlist = (from: CircuitProject) => {
+        const result = createDesignNetlistExport(from, { format });
+        if (result.status !== "ready") throw new Error("netlist blocked");
+        return result.file.text.match(/^R9\b.*$/gmu);
+      };
+      expect(netlist(drawn)).toEqual(netlist(project));
+    },
+  );
+
   it("reads back wire arrows, a current marker and a floating symbol", async () => {
     const project = example("simulation-rc");
     const document = project.documents.find(

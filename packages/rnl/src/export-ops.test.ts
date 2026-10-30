@@ -263,6 +263,56 @@ describe("RNL export of the simulation examples", () => {
     ]);
   });
 
+  it("marks a pin left open with the standard no-connect on its terminal", () => {
+    const project = example("simulation-rc");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R9",
+      reference: "R9",
+      symbolId: "resistor",
+      placement: { position: { x: 400, y: 400 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "1k" },
+      },
+    });
+    document.noConnects.push(
+      {
+        id: "open-2",
+        endpoint: { kind: "terminal", instanceId: "R9", pinName: "2" },
+      },
+      {
+        id: "open-bus",
+        endpoint: {
+          kind: "terminal",
+          instanceId: "R9",
+          pinName: "1",
+          memberId: "b0",
+        },
+      },
+    );
+    const { ops, diagnostics, text } = exported(project);
+    expect(text).toMatch(/^R9 NC\d+ NC\d+ 1k$/mu);
+    expect(
+      of(ops, "add-usage").filter((op) => op.definition === "$NO_CONNECT"),
+    ).toEqual([
+      {
+        level: expect.stringMatching(/^subckt:/u),
+        op: "add-usage",
+        definition: "$NO_CONNECT",
+        attach: { t: "#R9:2" },
+      },
+    ]);
+    // A bus member has no terminal of its own in RNL.
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "warning",
+        code: "RNL_NO_CONNECT_UNNAMED",
+        objectIds: ["open-bus"],
+      }),
+    );
+  });
+
   it("wires a drawn Cell's block by its printed port positions", () => {
     const { ops, diagnostics } = exported(example("simulation-ota"));
     expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);

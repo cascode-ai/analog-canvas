@@ -128,7 +128,8 @@ the RNL language and its runtime belong to rnl.
   bring with them (name, value, model), so the drawing shows only the labels
   the editor writes; formulas stay.
 - Ground, supply and Cell Pin markers are written as `$GROUND`, `$SUPPLY` and
-  `$IO_PORT`. Wires keep every bend. What the editor joins by contact (a wire
+  `$IO_PORT`, and a `NoConnect` as the standard `$NO_CONNECT` on its pin's
+  terminal. Wires keep every bend. What the editor joins by contact (a wire
   through a junction or pin, touching endpoints) is joined explicitly, since
   RNL never connects by position; the dots the editor draws are written.
   Every marker and wire is written on the net the netlist prints it on: the
@@ -214,7 +215,10 @@ the RNL language and its runtime belong to rnl.
   wire written at a fixed place, formulas written as LaTeX source, tilted text
   written level, a floating symbol with no RNL symbol, parts in the tray, a
   block whose artwork RNL cannot
-  take drawn as RNL's stand-in box, a direction arrow on a slanted wire.
+  take drawn as RNL's stand-in box, a direction arrow on a slanted wire, a
+  `NoConnect` on a pin RNL cannot name (a glyph's, a bus member) left out
+  (`RNL_NO_CONNECT_UNNAMED`), a `NoConnect`'s reason, which `$NO_CONNECT`
+  does not keep (`RNL_NO_CONNECT_REASON`).
 
 ### Import
 
@@ -295,6 +299,10 @@ the RNL language and its runtime belong to rnl.
   - a wire RNL draws on ground (0) in a Cell with a net named GND and none
     named 0: RNL reads SPICE's GND as ground, as ngspice does, where the
     import keeps it a net of that name (#1784);
+  - a pin marked `$NO_CONNECT` as a `NoConnect` again: the net the netlist
+    import made for its node alone goes, and the marks keep the order the
+    netlist numbered those nodes in (NC0001 …); a pin the file connects to
+    anything else keeps its net (`RNL_IMPORT_NO_CONNECT_CONNECTED`);
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a point one route; a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, any other line style or
@@ -422,7 +430,8 @@ the RNL language and its runtime belong to rnl.
   `RNL_TEXT_ALONG_WIRE`, `RNL_TEXT_FORMULA`, `RNL_TEXT_TILTED`,
   `RNL_DRAWING_NOT_EXPORTED`, `RNL_NOT_PLACED`, `RNL_BLOCK_STAND_IN`,
   `RNL_HIDDEN_PIN_WIRED`, `RNL_GLYPH_UNCONNECTED`, `RNL_NOT_NETLISTED`,
-  `RNL_WIRE_UNNAMED`, `RNL_WIRE_ARROW`.
+  `RNL_WIRE_UNNAMED`, `RNL_WIRE_ARROW`, `RNL_NO_CONNECT_UNNAMED`,
+  `RNL_NO_CONNECT_REASON`.
 
 ## Acceptance criteria
 
@@ -444,7 +453,8 @@ the RNL language and its runtime belong to rnl.
   WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`,
   `apps/local-host/src/local-host.test.ts`).
 - A file the export wrote imports with every part where it was drawn, its
-  labels, block layout, marks and shapes, and the same netlist; 4-input gates
+  labels, block layout, marks and shapes, its pins left open on the top and
+  inside Cells, and the same netlist; 4-input gates
   are drawn with Analog Canvas's own symbols, every wire as drawn, and RNL's
   standard ones read back as Analog Canvas's; controlled sources drawn as
   circles or diamonds keep their appearance through their canonical symbols,
