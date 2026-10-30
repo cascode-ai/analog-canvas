@@ -62,7 +62,7 @@ export function useGalleryOwnerTools({
     }
   }
 
-  async function rejectEntry(reason: string): Promise<void> {
+  async function rejectEntry(reason: string, notify: boolean): Promise<void> {
     if (!rejecting || !reason.trim()) return;
     setOwnerBusy(rejecting.id);
     setOwnerNotice(null);
@@ -71,15 +71,26 @@ export function useGalleryOwnerTools({
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify({ reason: reason.trim(), notify }),
       });
       if (!response.ok) throw new Error();
+      const { emailed } = (await response.json().catch(() => ({}))) as {
+        emailed?: boolean;
+      };
       removeManagedEntry(rejecting);
       announceGalleryChange({ entryId: rejecting.id });
-      setOwnerNotice({
-        ok: true,
-        text: `“${rejecting.name}” was rejected and hidden from the Gallery.`,
-      });
+      // The rejection stands either way; a failed email is said, not hidden.
+      setOwnerNotice(
+        notify && emailed !== true
+          ? {
+              ok: false,
+              text: `“${rejecting.name}” was rejected and hidden, but the email to its author was not sent.`,
+            }
+          : {
+              ok: true,
+              text: `“${rejecting.name}” was rejected and hidden from the Gallery${notify ? "; its author was emailed the reason" : ""}.`,
+            },
+      );
       setRejecting(null);
     } catch {
       setOwnerNotice({
