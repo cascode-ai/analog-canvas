@@ -371,7 +371,9 @@ the RNL language and its runtime belong to rnl.
     voltage marker's label keeps its size and colour; a label in its part's
     colour follows the part, one in another colour keeps it as its own;
     scripts stand outside bold (`bold`, `italic`, then the scripts), so a
-    subscript and the superscript after it stay stacked;
+    subscript and the superscript after it stay stacked; the export writes a
+    script upright inside italic, as it is drawn, unless it has its own italic
+    span;
   - a part's colour (its `linecolor`) as its foreground, a glyph's and a Cell
     Pin's included;
   - drawing shapes, each made in its kind's line style (a closed shape solid,
