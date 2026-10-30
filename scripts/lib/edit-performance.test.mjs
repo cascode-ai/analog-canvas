@@ -6,24 +6,35 @@ import {
 
 it("keeps CI and local machine ceilings separate and refuses an uncalibrated environment", () => {
   const references = {
-    "linux-x64-ci": { environment: { arch: "x64" }, budgets: { rotate: 10 } },
+    "linux-x64-ci": {
+      fast: { budgets: { rotate: 10 } },
+      slow: { budgets: { rotate: 18 } },
+    },
     "win32-x64-local": {
-      environment: { arch: "x64" },
-      budgets: { rotate: 40 },
+      workstation: { budgets: { rotate: 40 } },
     },
   };
   expect(
-    selectEditReference(references, "linux", "x64", true).budgets.rotate,
+    selectEditReference(references, "linux", "x64", "fast", true).budgets
+      .rotate,
   ).toBe(10);
-  expect(selectEditReference(references, "win32", "x64").budgets.rotate).toBe(
-    40,
-  );
-  expect(() => selectEditReference(references, "win32", "x64", true)).toThrow(
-    /No editing performance reference/,
-  );
-  expect(() => selectEditReference(references, "darwin", "arm64")).toThrow(
-    /calibrate-edits/,
-  );
+  expect(
+    selectEditReference(references, "linux", "x64", "slow", true).budgets
+      .rotate,
+  ).toBe(18);
+  expect(
+    selectEditReference(references, "win32", "x64", "workstation").budgets
+      .rotate,
+  ).toBe(40);
+  expect(() =>
+    selectEditReference(references, "win32", "x64", "workstation", true),
+  ).toThrow(/No editing performance reference/);
+  expect(() =>
+    selectEditReference(references, "linux", "x64", "unknown", true),
+  ).toThrow(/calibrate-edits/);
+  expect(() =>
+    selectEditReference(references, "darwin", "arm64", "M1"),
+  ).toThrow(/calibrate-edits/);
 });
 
 it("budgets the median edit cost, excluding setup and verification, and rejects a doubled edit", () => {

@@ -4,17 +4,23 @@ import { performance } from "node:perf_hooks";
 // than in calibration. Warm longer before measuring either phase.
 export const editSampling = { warmups: 30, samples: 21 };
 
-export function selectEditReference(references, platform, arch, ci = false) {
-  const key = `${platform}-${arch}${ci ? "-ci" : "-local"}`;
+export function selectEditReference(
+  references,
+  platform,
+  arch,
+  cpu,
+  ci = false,
+) {
+  let key = `${platform}-${arch}${ci ? "-ci" : "-local"}`;
   // A Linux workstation may check against the CI ceiling, but never qualifies CI.
-  const selected =
-    references[key] ??
-    (!ci && platform === "linux" ? references["linux-x64-ci"] : undefined);
-  if (!selected || selected.environment.arch !== arch)
+  if (!references[key] && !ci && platform === "linux")
+    key = `${platform}-${arch}-ci`;
+  const selected = references[key]?.[cpu];
+  if (!selected)
     throw new Error(
-      `No editing performance reference for ${key}; use --calibrate-edits and review the resulting reference before checking`,
+      `No editing performance reference for ${key}/${cpu}; use --calibrate-edits and review the resulting reference before checking`,
     );
-  return { key: references[key] ? key : "linux-x64-ci", ...selected };
+  return { key: `${key}/${cpu}`, ...selected };
 }
 
 function delay(milliseconds) {

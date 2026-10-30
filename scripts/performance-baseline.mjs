@@ -97,6 +97,7 @@ const reference = calibrating
       ).references,
       process.platform,
       process.arch,
+      cpus()[0]?.model,
       Boolean(process.env.CI),
     );
 if (
