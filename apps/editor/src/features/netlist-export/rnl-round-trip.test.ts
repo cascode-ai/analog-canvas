@@ -102,11 +102,11 @@ it.each(["spice", "spectre"] as const)(
 );
 
 /**
- * A D flip-flop X1 and a DAC X2 from the Library in Cell `dut`, each pin
- * wired straight across to a Cell Pin level with it: blocks a Spectre
- * export calls without their bodies.
+ * Library blocks X1, X2… in Cell `dut`, by default a D flip-flop and a DAC,
+ * each pin wired straight across to a Cell Pin level with it: blocks a
+ * Spectre export calls without their bodies.
  */
-function calledBlocks(): CircuitProject {
+function calledBlocks(symbolIds = ["d-flip-flop", "dac"]): CircuitProject {
   const project = createEmptyProject("blocks", "Blocks", "dut");
   const document = project.documents[0]!;
   document.netlist!.name = "dut";
@@ -114,7 +114,7 @@ function calledBlocks(): CircuitProject {
   const portPin = symbols.get("port")!.pins[0]!.at;
   const at = (x: number, y: number) =>
     ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
-  ["d-flip-flop", "dac"].forEach((symbolId, row) => {
+  symbolIds.forEach((symbolId, row) => {
     const reference = `X${row + 1}`;
     const position = { x: 200, y: 100 + row * 150 };
     document.instances.push({
@@ -221,6 +221,33 @@ it.each(["spice", "spectre"] as const)(
     ).toEqual(["d-flip-flop", "dac"]);
     expect(plan.project.externalSubcircuitDefinitions ?? []).toEqual([]);
     expect(dut.routes).toHaveLength(project.documents[0]!.routes.length);
+    const netlist = (circuit: CircuitProject) => {
+      const result = createDesignNetlistExport(circuit, { format });
+      return result.status === "ready" ? result.file.text : result.status;
+    };
+    expect(netlist(plan.project)).toBe(netlist(project));
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "brings back a crystal as the crystal through %s+RNL",
+  async (format) => {
+    const project = calledBlocks(["crystal"]);
+    project.documents[0]!.instances[0]!.netlist!.parameters = { rm: "30" };
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain("@SET-SYMBOL $CANVAS_CRYSTAL");
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const crystal = plan.project.documents
+      .flatMap((document) => document.instances)
+      .find((instance) => instance.reference === "X1");
+    expect(crystal?.symbolId).toBe("crystal");
+    expect(crystal?.netlist?.parameters).toEqual({ rm: "30" });
     const netlist = (circuit: CircuitProject) => {
       const result = createDesignNetlistExport(circuit, { format });
       return result.status === "ready" ? result.file.text : result.status;
@@ -3769,7 +3796,7 @@ describe("RNL round trip of 4-input gates", () => {
           `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
         );
       expect(written.text).toContain(
-        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.4")',
+        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.5")',
       );
       // RNL's standard gates have their inputs elsewhere; Analog Canvas's
       // own keep each wire level, in RNL as in the editor.
@@ -3828,7 +3855,7 @@ describe("RNL round trip of 4-input gates", () => {
         JSON.stringify(withoutCanvasMeaning(exported.request))
           .replaceAll("$CANVAS_", "$")
           .replace(
-            '"name":"analog-canvas-extensions","version":"0.4"',
+            '"name":"analog-canvas-extensions","version":"0.5"',
             '"name":"rnl-std-logic","version":"0.3"',
           ),
       ) as typeof exported.request;

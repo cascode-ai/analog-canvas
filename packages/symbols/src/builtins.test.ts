@@ -16,6 +16,7 @@ const PRODUCT_IDS = [
   "closed-switch",
   "comparator",
   "comparator-differential",
+  "crystal",
   "current-source",
   "vccs",
   "cccs",

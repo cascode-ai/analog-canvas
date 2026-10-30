@@ -109,7 +109,8 @@ derive from `parameters`.
 Bodies live in [analog blocks](../../packages/netlist/src/ideal-analog-block-models.ts),
 [signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts) and
 [generated models](../../packages/netlist/src/generated-models.ts). Every Block
-declares fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
+but the crystal declares fixed `VDD`/`VSS` ports; logic ports follow Symbol
+pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
   differential op-amp (unlimited) are frequency-independent E/G sources that
@@ -167,16 +168,21 @@ declares fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
   VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   read neither VSS nor an implicit clock. The model is ideal, unlatched and
   memoryless; the Symbol's step mark adds no hysteresis or propagation delay.
+- Crystal (`crystal`: `n1 n2`, no supplies) is its Butterworth-Van Dyke
+  equivalent: `rm`, `lm`, `cm` in series across the pins and `c0` across them,
+  defaults 25 Ω, 12.7 mH, 20 fF and 5 pF, a 10 MHz fundamental
+  (fs = 1/(2π√(lm·cm))). SPICE has no crystal card, so the part is an `X` call
+  of that body; its Reference takes `X` like every call.
 - Like gates and DFFs, a project Cell can replace an op-amp's, fully
   differential op-amp's or comparator's body without changing artwork. Its
   Pins are the part's own (`IN+`, `IN-`, `OUT` or `OUT+`/`OUT-`, not the
   bodies' `VIP`/`VIN`/`VOUT`) and optional VDD/VSS; the call follows the
   Cell's Pin order. That Cell owns its parameters and supplies; clearing its
   selection restores the ideal body and its defaults.
-- SPICE and VACASK include all bodies; Spectre includes comparator and
-  combinational gates (`bsource` with RC delay); DFF, multiplier and converters
-  stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`. Other Analog Blocks are
-  black-box calls.
+- SPICE and VACASK include all bodies; Spectre includes comparator,
+  combinational gates (`bsource` with RC delay) and the crystal; DFF,
+  multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.
+  Other Analog Blocks are black-box calls.
 
 ### Switches
 

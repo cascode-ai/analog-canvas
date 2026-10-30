@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyWheelSource } from "./canvas-gesture-controller";
+import {
+  classifyWheelSource,
+  WHEEL_PAN_HINT,
+  wheelPanHint,
+} from "./canvas-gesture-controller";
+
+it("says once how to zoom when the wheel pans as a trackpad does (#1898)", () => {
+  expect(wheelPanHint()).toBe(WHEEL_PAN_HINT);
+  expect(WHEEL_PAN_HINT).toContain("Ctrl+wheel zooms");
+  expect(wheelPanHint()).toBeNull();
+});
 
 /**
  * Signatures taken from what each engine actually reports. The point of

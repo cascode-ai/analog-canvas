@@ -53,7 +53,7 @@ test("loads each Canvas package version once for both RNL formats", async ({
     const text = await copiedNetlist(page, mode);
     rich = text;
     expect(text).toContain(
-      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.4")',
+      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.5")',
     );
     expect(text).toContain("$CANVAS_VCVS_CIRCLE");
     await expect(
@@ -90,8 +90,8 @@ test("loads each Canvas package version once for both RNL formats", async ({
   expect(after.status).toBe("ready");
   if (before.status === "ready" && after.status === "ready")
     expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
-  // Every locked version, 0.1 to 0.4, so a file written with any reads.
-  expect(requested).toHaveLength(4);
+  // Every locked version, 0.1 to 0.5, so a file written with any reads.
+  expect(requested).toHaveLength(5);
   for (const url of requested)
     expect(new URL(url).origin).toBe(new URL(page.url()).origin);
 });
@@ -436,7 +436,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
         type: "open",
         name: mode === "spice+rnl" ? "circuit.sp" : "circuit.scs",
         text: expected,
-        packages: [{ name: "analog-canvas-extensions", version: "0.4" }],
+        packages: [{ name: "analog-canvas-extensions", version: "0.5" }],
       });
     }
     expect(page.context().pages()).toHaveLength(2);

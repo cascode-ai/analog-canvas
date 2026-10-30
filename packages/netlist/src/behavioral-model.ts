@@ -13,7 +13,7 @@ export type BehavioralElement =
       expression: string;
     }
   | {
-      kind: "resistor" | "capacitor";
+      kind: "resistor" | "capacitor" | "inductor";
       name: string;
       nodes: readonly [string, string];
       value: string;
@@ -45,7 +45,7 @@ export function current(
   return { kind: "current", name, nodes: [positive, negative], expression };
 }
 export function passive(
-  kind: "resistor" | "capacitor",
+  kind: "resistor" | "capacitor" | "inductor",
   name: string,
   positive: string,
   negative: string,
@@ -54,6 +54,13 @@ export function passive(
 ): BehavioralElement {
   return { kind, name, nodes: [positive, negative], value, expression };
 }
+
+/** The instance parameter a passive element's value sets, in Spectre and VACASK. */
+export const PASSIVE_VALUE = {
+  resistor: "r",
+  capacitor: "c",
+  inductor: "l",
+} as const;
 
 export function printSpiceBehavioralModel(model: BehavioralModel): string[] {
   return [
@@ -83,7 +90,7 @@ export function printSpectreBehavioralModel(model: BehavioralModel): string[] {
       const prefix = `${element.name} (${element.nodes.join(" ")})`;
       return element.kind === "voltage" || element.kind === "current"
         ? `${prefix} bsource ${element.kind === "voltage" ? "v" : "i"}=${projectBehavioralExpression(element.expression, (value) => value)}`
-        : `${prefix} ${element.kind} ${element.kind === "capacitor" ? "c" : "r"}=${element.value}`;
+        : `${prefix} ${element.kind} ${PASSIVE_VALUE[element.kind]}=${element.value}`;
     }),
     `ends ${model.name}`,
   ];

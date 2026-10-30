@@ -208,7 +208,9 @@ function builtInBody(
   const behavioral =
     isIdealOpampBody(name) ||
     isIdealComparatorBody(name) ||
-    ["logic", "signal"].includes(builtInModelContract(name)?.family ?? "");
+    ["logic", "signal", "passive"].includes(
+      builtInModelContract(name)?.family ?? "",
+    );
   const cell = behavioral ? null : idealAnalogBlockCell(name, format);
   if (!behavioral && !cell) return null;
   const own = cell

@@ -345,6 +345,10 @@ export function printVacaskWithLocations(
     } else if (builtInModelContract(definition.name)?.family === "logic") {
       classes.add("resistor");
       classes.add("capacitor");
+    } else if (builtInModelContract(definition.name)?.family === "passive") {
+      classes.add("resistor");
+      classes.add("inductor");
+      classes.add("capacitor");
     }
   }
   for (const deviceClass of classes) {

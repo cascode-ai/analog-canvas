@@ -15,6 +15,7 @@ import {
   type PlacedMosBody,
 } from "@icm/derived";
 import {
+  builtInModelContract,
   gateCellBinding,
   IDEAL_COMPARATOR_TARGET,
   idealComparatorReadsSupply,
@@ -39,7 +40,8 @@ import type { NetlistFormat } from "./net-name-codec.js";
  * nothing inside used. The ideal comparator whose high level is its own VDD
  * reads that supply alone. The ideal op-amp reads its supplies only once a
  * drawn or selected VDD powers it (ideal-opamp.ts), so an undrawn supply
- * takes no default. Every other body reads both. An authored Cell or
+ * takes no default. The crystal has no supply ports. Every other body reads
+ * both. An authored Cell or
  * a declared external definition of the same name replaces the body, and may
  * well use both supplies.
  */
@@ -56,6 +58,7 @@ export function bodySupplies(
   )
     return idealComparatorReadsSupply(target) ? ["VDD"] : [];
   if (isIdealOpampBody(target)) return [];
+  if (builtInModelContract(target)?.family === "passive") return [];
   return idealAnalogBlockCell(target, format) !== null ||
     (format === "spice" &&
       (target === "multiplier" || target === IDEAL_COMPARATOR_TARGET))

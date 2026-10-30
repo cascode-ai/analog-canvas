@@ -56,6 +56,7 @@ export function symbolCategory(symbolId: string): string {
       "tcoil",
       "center-tap-inductor",
       "xfmr",
+      "crystal",
     ].includes(symbolId)
   ) {
     return EXTENDED_DEVICE_CATEGORY;
@@ -290,6 +291,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "tcoil",
   "center-tap-inductor",
   "xfmr",
+  "crystal",
   "depletion-nmos",
   "depletion-pmos",
   "ndmos",

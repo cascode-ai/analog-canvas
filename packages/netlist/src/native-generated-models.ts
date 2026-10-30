@@ -1,5 +1,8 @@
 import { generatedBehavioralDefinition } from "./generated-models.js";
-import { projectBehavioralExpression } from "./behavioral-model.js";
+import {
+  PASSIVE_VALUE,
+  projectBehavioralExpression,
+} from "./behavioral-model.js";
 
 /** Native syntax projection, with no SPICE card parsing or model equations. */
 export function nativeBehavioralModel(
@@ -20,7 +23,7 @@ export function nativeBehavioralModel(
         return `${element.name.toLowerCase()} (${element.nodes.join(" ")}) ${element.kind === "voltage" ? "v" : "i"}=${projectBehavioralExpression(element.expression, scalar)}`;
       const master = models.get(element.kind);
       if (!master) throw new Error(`Missing native primitive for ${target}`);
-      return `${element.name} (${element.nodes.join(" ")}) ${master} ${element.kind === "capacitor" ? "c" : "r"}=${scalar(element.value)}`;
+      return `${element.name} (${element.nodes.join(" ")}) ${master} ${PASSIVE_VALUE[element.kind]}=${scalar(element.value)}`;
     }),
     "ends",
   ];

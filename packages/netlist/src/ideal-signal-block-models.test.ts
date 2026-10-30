@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  builtInModelContract,
   builtInSubcircuitDescriptors,
   isIdealOpampBody,
   isIdealComparatorBody,
@@ -83,7 +84,8 @@ describe("generated block bodies", () => {
         !isIdealComparatorBody(target) &&
         !idealAnalogBlockCell(target, "spice") &&
         !IDEAL_LOGIC_TARGETS.includes(target) &&
-        !IDEAL_SIGNAL_TARGETS.includes(target),
+        !IDEAL_SIGNAL_TARGETS.includes(target) &&
+        builtInModelContract(target)?.family !== "passive",
     );
     expect(missing).toEqual([]);
   });
@@ -345,6 +347,46 @@ describe("generated block bodies", () => {
         objectIds: ["block"],
       }),
     ]);
+  });
+
+  it("export a crystal as a call of its Butterworth-Van Dyke body", () => {
+    const project = blockCell("crystal");
+    project.documents[0]!.instances[0]!.netlist!.parameters = {
+      rm: "25",
+      lm: "12.7m",
+      cm: "20f",
+      c0: "5p",
+    };
+    const [spice, spectre] = (["spice", "spectre"] as const).map((format) => {
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      return result.status === "ready" ? result.file.text : "";
+    });
+    expect(spice).toContain(
+      [
+        ".subckt crystal n1 n2 params: rm=25 lm=12.7m cm=20f c0=5p",
+        "Rm n1 nr {rm}",
+        "Lm nr nl {lm}",
+        "Cm nl n2 {cm}",
+        "C0 n1 n2 {c0}",
+        ".ends crystal",
+      ].join("\n"),
+    );
+    expect(spice).toMatch(/^X1 n1 n2 crystal c0=5p cm=20f lm=12.7m rm=25$/mu);
+    expect(spectre).toContain(
+      [
+        "subckt crystal (n1 n2)",
+        "parameters rm=25 lm=12.7m cm=20f c0=5p",
+        "Rm (n1 nr) resistor r=rm",
+        "Lm (nr nl) inductor l=lm",
+        "Cm (nl n2) capacitor c=cm",
+        "C0 (n1 n2) capacitor c=c0",
+        "ends crystal",
+      ].join("\n"),
+    );
+    expect(spectre).toMatch(
+      /^X1 \(n1 n2\) crystal c0=5p cm=20f lm=12.7m rm=25$/mu,
+    );
   });
 
   it.each(["multiplier", "adc", "dac"])(

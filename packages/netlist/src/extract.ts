@@ -61,10 +61,10 @@ import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
 import { extractCell } from "./extract-cell.js";
 import { projectCouplingReferences } from "./extract-coupling.js";
-/** A target with a shared generated recipe: logic, multiplier, converters. */
+/** A target with a shared generated recipe: logic, multiplier, converters, crystal. */
 function isBehaviouralTarget(target: string): boolean {
   const family = builtInModelContract(target)?.family;
-  return family === "logic" || family === "signal";
+  return family === "logic" || family === "signal" || family === "passive";
 }
 
 const MAX_CELLS = 1024;
