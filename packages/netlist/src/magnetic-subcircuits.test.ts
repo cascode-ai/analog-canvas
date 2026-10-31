@@ -283,6 +283,40 @@ describe("drawn magnetic devices", () => {
       ).toMatchObject({ kind: "subcircuit", symbolId: "tcoil" });
   });
 
+  it.each([
+    ["xfmr", transformer],
+    [
+      "ct_inductor",
+      () =>
+        magneticProject(
+          "center-tap-inductor",
+          [
+            ["1", "von"],
+            ["2", "vop"],
+            ["3", "vdd"],
+          ],
+          { l1: "2n", l2: "2n", k: "0" },
+        ),
+    ],
+  ] as const)(
+    "reads the %s body written under its reserved name back as the part that wrote it (#1928)",
+    (body, fixture) => {
+      const project = fixture();
+      project.documents[0]!.netlist!.name = body;
+      const symbolId = project.documents[0]!.instances[0]!.symbolId;
+      for (const format of ["spice", "spectre"] as const) {
+        const written = exported(project, format);
+        expect(written).toMatch(new RegExp(`\\bicm_${body}\\b`, "u"));
+        expect(
+          findBuiltInBodies(written, format, "dut.sp").bodies.find(
+            (found) => found.name === `icm_${body}`,
+          ),
+          format,
+        ).toMatchObject({ kind: "subcircuit", symbolId });
+      }
+    },
+  );
+
   it("projects coupled windings through the native mutual primitive", () => {
     const analysis = analyzeDesignNetlist(transformer());
     const printed = printVacaskWithLocations(analysis.ir!);

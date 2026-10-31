@@ -1,7 +1,6 @@
 import {
   arrowArtwork,
   resolveAnnotationText,
-  drawnSwitchControl,
   mosBulkKind,
   portableCellIdentifier,
   resolveDocumentStyleProfile,
@@ -12,6 +11,7 @@ import {
   bindsProjectCell,
   createReferenceIndex,
   deviceDescriptor,
+  drawnSwitchControl,
   matchGateCellPins,
   projectLengthToSky130Micrometres,
 } from "@icm/devices";

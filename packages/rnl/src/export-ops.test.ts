@@ -582,6 +582,73 @@ describe("blocks' symbols", () => {
     );
   });
 
+  it.each([
+    // The chopper's clock reaches the Cell's ck, a terminal it does not draw.
+    [
+      "chopper",
+      "CH1",
+      "#XCH1",
+      ["INP", "INN", "OUTP", "OUTN"],
+      ["ck", "OUTN", "OUTP", "INN", "INP"],
+      "$CANVAS_CALL_CHOPPER__0_4_3_2_1",
+    ],
+    ["tcoil", "X1", "#X1", ["1", "2", "3"], ["3", "2", "1"], /_3_2_1$/u],
+  ] as const)(
+    "draws a %s bound to a Cell as itself, each pin where the call prints it (#1928)",
+    (symbolId, reference, object, pins, cellPins, order) => {
+      const project = createEmptyProject("bound", "Bound", "top");
+      const top = project.documents[0]!;
+      top.netlist!.name = "top";
+      top.instances.push({
+        id: "part",
+        symbolId,
+        reference,
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: "own" },
+          parameters: {},
+        },
+      });
+      for (const pin of pins)
+        top.nets.push({
+          id: `net-${pin}`,
+          terminals: [{ instanceId: "part", pinName: pin }],
+        });
+      const own = createEmptyDocument("own", "own");
+      own.netlist!.name = "own";
+      for (const pin of cellPins) {
+        own.instances.push({
+          id: `port-${pin}`,
+          symbolId: "port",
+          placement: null,
+        });
+        own.nets.push({
+          id: `own-${pin}`,
+          terminals: [{ instanceId: `port-${pin}`, pinName: "P" }],
+        });
+        own.netlist!.terminals.push({
+          id: `own-terminal-${pin}`,
+          name: pin,
+          netId: `own-${pin}`,
+          direction: "inout",
+          interfaceInstanceIds: [`port-${pin}`],
+        });
+      }
+      project.documents.push(own);
+      const { ops, diagnostics } = exported(project);
+      expect(diagnostics.filter((item) => item.severity === "error")).toEqual(
+        [],
+      );
+      expect(of(ops, "set").find((op) => op.object === object)?.symbol).toMatch(
+        order,
+      );
+    },
+  );
+
   it("draws Delay Cells whose body yields its name to a Cell as on the body itself (#1928)", () => {
     const symbols = (project: CircuitProject) =>
       of(exported(project).ops, "set")

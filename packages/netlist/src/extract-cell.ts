@@ -411,6 +411,7 @@ export function extractCell(
               ),
               captured,
               context,
+              options,
               diagnostics,
             )
           : extractDeviceInstance(

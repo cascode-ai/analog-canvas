@@ -132,25 +132,30 @@ their IDs, never resolved to the first.
   body's `VIP`/`VIN`/`VOUT`, in any order and letter case, plus `VDD`/`VSS`
   unless its supplies are global:
 
-  | Parts                                                    | Pins                    |
-  | -------------------------------------------------------- | ----------------------- |
-  | 2/3/4-input gates, adder, multiplier                     | `A`, `B`(, `C`, `D`), `Y` |
-  | `inverter`, `buffer`, `delay-cell`, `transconductance`   | `A`, `Y`                |
-  | `opamp`, `comparator`, `differential-transconductance`   | `IN+`, `IN-`, `OUT`     |
-  | `opamp-differential`, `comparator-differential`          | `IN+`, `IN-`, `OUT+`, `OUT-` |
-  | `voltage-amplifier`, `adc`, `dac`                        | `IN`, `OUT`             |
-  | `d-flip-flop`, `-q`, `-reset`                            | `D`, `CK`, `Q`, `QBAR` where drawn, `RST` for reset |
-  | `crystal`                                                | `1`, `2`                |
+  | Parts                                                  | Pins                                                                                |
+  | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+  | 2/3/4-input gates, adder, multiplier                   | `A`, `B`(, `C`, `D`), `Y`                                                           |
+  | `inverter`, `buffer`, `delay-cell`, `transconductance` | `A`, `Y`                                                                            |
+  | `opamp`, `comparator`, `differential-transconductance` | `IN+`, `IN-`, `OUT`                                                                 |
+  | `opamp-differential`, `comparator-differential`        | `IN+`, `IN-`, `OUT+`, `OUT-`                                                        |
+  | `voltage-amplifier`, `adc`, `dac`                      | `IN`, `OUT`                                                                         |
+  | `d-flip-flop`, `-q`, `-reset`                          | `D`, `CK`, `Q`, `QBAR` where drawn, `RST` for reset                                 |
+  | `crystal`                                              | `1`, `2`                                                                            |
+  | `tcoil`, `center-tap-inductor`                         | `1`, `2`, `3`                                                                       |
+  | `xfmr`                                                 | `P+`, `P-`, `S+`, `S-`                                                              |
+  | `chopper`                                              | `INP`, `INN`, `OUTP`, `OUTN`, plus `CK` for the clock its label names unless global |
 
   Others are refused by name, as is a subcircuit that names its ports only by
   position. The call goes to the definition by Pin name, its parameters win, a
   VDD/VSS Net it lacks a Pin for is cleared, the part's own Cell is refused,
   and a Cell's used Pins cannot be renamed or removed. An empty model returns
-  the ideal body and default parameters. A part with no model calls its ideal
-  body; where a Cell or subcircuit of the Project has the body's name, the
-  netlist writes the body as `icm_<name>` (`LIBRARY_PART_NAME_COLLISION` when
-  that name is taken too, or for a Spectre call-only part). Only `set-model`
-  reaches the Project's own.
+  the generated body; the part's own parameters keep their values, or take
+  their defaults where unset (a Delay Cell's all reset). A part with no model
+  calls its ideal body; where a Cell or subcircuit of the Project has the
+  body's name, the netlist writes the body as `icm_<name>`
+  (`LIBRARY_PART_NAME_COLLISION` when that name is taken too, or for a Spectre
+  call-only part). Only `set-model` reaches the Project's own.
+
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the

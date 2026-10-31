@@ -1,7 +1,15 @@
 import { canonicalPortTextDocument, createRoutePath } from "@icm/model";
-import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
+import {
+  builtInModelDefaults,
+  deviceDescriptor,
+  subcircuitDescriptor,
+} from "@icm/devices";
 import { describe, expect, it } from "vitest";
-import { createDesignNetlistExport } from "@icm/netlist";
+import {
+  analyzeDesignNetlist,
+  createDesignNetlistExport,
+  printVacaskWithLocations,
+} from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
@@ -1053,6 +1061,142 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     );
     expect(() => plan("amp")).toThrow(
       "amp is not a Cell or external subcircuit of this Project that fits opamp; use ota",
+    );
+  });
+
+  /**
+   * A chopper or magnetic part X1 as placed: no binding, its parameters at
+   * their defaults, each pin on a Net of its own.
+   */
+  function deviceProject(symbolId: string, pins: readonly string[]) {
+    const project = createEmptyProject("devices", "Devices");
+    project.documents[0]!.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId,
+      placement: null,
+      netlist: {
+        parameters: Object.fromEntries(
+          deviceDescriptor(symbolId)!.parameters.flatMap((parameter) =>
+            parameter.defaultValue === undefined
+              ? []
+              : [[parameter.name, parameter.defaultValue]],
+          ),
+        ),
+      },
+    });
+    project.documents[0]!.nets.push(
+      ...pins.map((pin) => ({
+        id: `net-${pin.toLowerCase()}`,
+        terminals: [{ instanceId: "X1", pinName: pin }],
+      })),
+    );
+    return project;
+  }
+
+  it.each([
+    ["tcoil", ["1", "2", "3"]],
+    ["xfmr", ["P-", "P+", "S-", "S+"]],
+    ["center-tap-inductor", ["1", "2", "3"]],
+    ["chopper", ["INP", "INN", "OUTP", "OUTN"]],
+  ] as const)(
+    "binds a %s, whose call goes to a generated body too, to a Cell or an external definition whose Pins are its own (#1928)",
+    (symbolId, pins) => {
+      const project = deviceProject(symbolId, pins);
+      const placed = structuredClone(gate(project).netlist);
+      addCell(project, "own", "own", [...pins].reverse());
+      addExternal(project, "ext", [...pins].reverse());
+      expect(
+        gateCellTargets(project, project.topDocumentId, symbolId).map(
+          (cell) => cell.id,
+        ),
+      ).toEqual(["own"]);
+      expect(
+        gateExternalTargets(project, symbolId).map(
+          (definition) => definition.id,
+        ),
+      ).toEqual(["external-ext"]);
+      for (const [model, binding] of [
+        ["own", { kind: "subcircuit", childDocumentId: "own" }],
+        ["ext", { kind: "external-subcircuit", definitionId: "external-ext" }],
+      ] as const) {
+        const bound = bind(project, model);
+        // Neither declares a parameter, so the part's own give way.
+        expect(gate(bound)).toMatchObject({
+          symbolId,
+          netlist: { binding, parameters: {} },
+        });
+        for (const format of ["spice", "spectre"] as const) {
+          const exported = createDesignNetlistExport(bound, { format });
+          if (exported.status !== "ready")
+            throw new Error(JSON.stringify(exported.diagnostics));
+          expect(exported.file.text).toMatch(
+            format === "spice"
+              ? new RegExp(`^X1 .* ${model}$`, "mu")
+              : new RegExp(`^X1 \\(.*\\) ${model}\\b`, "mu"),
+          );
+          // Nothing calls the generated body, so it is not written.
+          expect(exported.file.text).not.toMatch(
+            /subckt (?:tcoil|xfmr|ct_inductor|ideal_chopper)\b/u,
+          );
+        }
+        const vacask = printVacaskWithLocations(
+          analyzeDesignNetlist(bound).ir!,
+        );
+        if (!vacask.ok) throw new Error(JSON.stringify(vacask));
+        expect(vacask.text).toMatch(new RegExp(`\\) ${model}\\b`, "u"));
+        expect(vacask.text).not.toMatch(
+          /subckt (?:tcoil|xfmr|ct_inductor|ideal_chopper)\b/u,
+        );
+        // Clearing the model returns the part as it was placed.
+        expect(gate(bind(bound, "")).netlist).toEqual(placed);
+      }
+    },
+  );
+
+  it("gives a bound chopper's clock to the Pin CK of its Cell (#1928)", () => {
+    const project = deviceProject("chopper", ["INP", "INN", "OUTP", "OUTN"]);
+    gate(project).reference = "CH1";
+    addCell(project, "chop", "chop", ["ck", "OUTN", "OUTP", "INN", "INP"]);
+    const exported = createDesignNetlistExport(bind(project, "chop"), {
+      format: "spice",
+    });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // The clock is the phase the chopper's label names, CH1 while it shows
+    // its reference; INN, INP, OUTN and OUTP are net0 to net3.
+    expect(exported.file.text).toMatch(/^XCH1 CH1 net2 net3 net0 net1 chop$/mu);
+  });
+
+  it("refuses a Cell that does not fit a chopper or a T-coil, naming what it lacks (#1928)", () => {
+    const plan = (project: ReturnType<typeof gateProject>, model: string) =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
+    const chopper = deviceProject("chopper", ["INP", "INN", "OUTP", "OUTN"]);
+    addCell(chopper, "half", "half", ["INP", "INN", "OUTP"]);
+    expect(() => plan(chopper, "half")).toThrow(
+      "Cell half does not fit the chopper: it has no Pin OUTN. Its Pins must be INP, INN, OUTP and OUTN, in any letter case, and CK for the clock its label names unless the Cell takes its clock globally",
+    );
+    const tcoil = deviceProject("tcoil", ["1", "2", "3"]);
+    addCell(tcoil, "pair", "pair", ["1", "2"]);
+    expect(() => plan(tcoil, "pair")).toThrow(
+      "Cell pair does not fit the tcoil: it has no Pin 3. Its Pins must be 1, 2 and 3, in any letter case",
+    );
+    expect(() => plan(tcoil, "ota")).toThrow(
+      "ota is not a Cell or external subcircuit of this Project that fits tcoil",
+    );
+    // A definition that names its ports only by position fits neither.
+    addExternal(
+      chopper,
+      "imported",
+      ["1", "2", "3", "4", "5"],
+      "inferred-positional",
+    );
+    expect(() => plan(chopper, "imported")).toThrow(
+      "External subcircuit imported names its ports only by position; name them INP, INN, OUTP and OUTN to bind the chopper to it",
+    );
+    addExternal(tcoil, "imported", ["a", "b", "c"], "inferred-positional");
+    expect(() => plan(tcoil, "imported")).toThrow(
+      "External subcircuit imported names its ports only by position; name them 1, 2 and 3 to bind the tcoil to it",
     );
   });
 

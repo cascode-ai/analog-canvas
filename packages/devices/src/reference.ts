@@ -1,5 +1,6 @@
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 
+import { bindsProjectCell } from "./gate-cell.js";
 import { deviceDescriptor, subcircuitDescriptor } from "./registry.js";
 
 export type ReferencePolicy =
@@ -40,16 +41,20 @@ export function referencePolicyForInstance(
   project?: Pick<CircuitProject, "componentDefinitions">,
 ): ReferencePolicy {
   const binding = instance.netlist?.binding;
+  const prefix = deviceDescriptor(instance.symbolId, project)?.referencePrefix;
+  // A chopper bound to a Cell keeps its look, and so its References (#1928).
+  const keepsDevicePrefix =
+    binding?.kind === "subcircuit" &&
+    bindsProjectCell(instance.symbolId) &&
+    Boolean(prefix);
   if (
-    binding?.kind === "subcircuit" ||
+    (binding?.kind === "subcircuit" && !keepsDevicePrefix) ||
     binding?.kind === "unresolved-subcircuit" ||
-    (binding?.kind === "external-subcircuit" &&
-      !deviceDescriptor(instance.symbolId, project)?.referencePrefix) ||
+    (binding?.kind === "external-subcircuit" && !prefix) ||
     subcircuitDescriptor(instance.symbolId, project)
   ) {
     return hierarchyReferencePolicy;
   }
-  const prefix = deviceDescriptor(instance.symbolId, project)?.referencePrefix;
   return prefix ? { kind: "required", prefix } : { kind: "none" };
 }
 

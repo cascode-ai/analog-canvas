@@ -13,7 +13,6 @@ import {
   findExternalMasterCollisions,
   libraryPartMaster,
   directObjectLocator,
-  drawnMagneticNetwork,
   resolveCommittedDocumentLogicalNets,
 } from "@icm/derived";
 import type { CircuitProject, SchematicDocument, StableId } from "@icm/model";
@@ -24,6 +23,7 @@ import {
   adderBodySigns,
   builtInModelContract,
   deviceDescriptor,
+  drawnMagneticNetwork,
   callsIdealComparatorBody,
   callsIdealOpampBody,
   idealComparatorBodyPorts,
@@ -468,7 +468,8 @@ function analyzeDesign(
   bubblePhasePins(cells, documentsById, resolvedOptions);
   // Each kind of drawn magnetic device calls one coupled-winding subcircuit,
   // defined once in the file under the library's name, which yields to an
-  // author's definition of that name like every generated body below.
+  // author's definition of that name like every generated body below. One
+  // bound to a Cell or external definition calls that instead (#1928).
   const magneticSubcircuits = new Map<
     string,
     DesignNetlistMagneticSubcircuit
@@ -477,7 +478,8 @@ function analyzeDesign(
     for (const instance of document.instances) {
       const definition = deviceDescriptor(instance.symbolId, project);
       const network = definition ? drawnMagneticNetwork(definition) : null;
-      if (!definition || !network) continue;
+      if (!definition || !network || callOwner(project, instance) === "bound")
+        continue;
       if (!magneticSubcircuits.has(network.subcircuit))
         magneticSubcircuits.set(
           network.subcircuit,

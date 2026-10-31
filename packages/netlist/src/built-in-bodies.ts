@@ -1,4 +1,3 @@
-import { drawnMagneticNetwork } from "@icm/derived";
 import {
   ADDER_SIGNED_INPUTS,
   ADDER_TARGET,
@@ -6,6 +5,7 @@ import {
   OPAMP_TARGET,
   adderBodySigns,
   builtInDeviceDescriptors,
+  drawnMagneticNetwork,
   builtInModelContract,
   builtInSubcircuitDescriptors,
   isIdealComparatorBody,

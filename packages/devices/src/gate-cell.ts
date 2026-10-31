@@ -1,7 +1,8 @@
 // A Library part with a generated body (logic gate, D flip-flop, Delay Cell,
-// op-amp, comparator, signal or analog block, crystal) implemented by a Cell
-// or an external definition of its Project: the part keeps its symbol, and
-// its call goes to that subcircuit, Pin by name.
+// op-amp, comparator, signal or analog block, crystal, chopper, T-coil,
+// transformer, centre-tapped inductor) implemented by a Cell or an external
+// definition of its Project: the part keeps its symbol, and its call goes to
+// that subcircuit, Pin by name.
 import {
   foldNetName,
   projectCellInterface,
@@ -10,6 +11,9 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 
+import type { DeviceDescriptor } from "./contract.js";
+import { drawnMagneticNetwork } from "./drawn-magnetic.js";
+import { drawnSwitchControl } from "./drawn-switch-control.js";
 import {
   DIFFERENTIAL_COMPARATOR_TARGET,
   callsIdealComparatorBody,
@@ -17,7 +21,7 @@ import {
 } from "./ideal-comparator.js";
 import { OPAMP_TARGET } from "./ideal-opamp.js";
 import type { ParameterOwner } from "./instance-parameters.js";
-import { subcircuitDescriptor } from "./registry.js";
+import { deviceDescriptor, subcircuitDescriptor } from "./registry.js";
 import {
   isLibraryLogicGate,
   resolveReviewedExternalBinding,
@@ -45,12 +49,28 @@ const amplifierKind = (symbolId: string) =>
   CELL_AMPLIFIERS.get(subcircuitDescriptor(symbolId)?.target ?? "");
 
 /**
+ * A drawn device whose call goes to a generated body, as a Library part's
+ * does: the chopper's four switches, or the coupled windings of a T-coil,
+ * transformer or centre-tapped inductor (#1928).
+ */
+function generatedBodyDevice(symbolId: string): DeviceDescriptor | undefined {
+  const device = deviceDescriptor(symbolId);
+  return device &&
+    (drawnSwitchControl(device) === "chopper" || drawnMagneticNetwork(device))
+    ? device
+    : undefined;
+}
+
+/**
  * Whether a Library symbol keeps its look while a Cell of its Project
- * implements it: every Library part whose call goes to a generated body
- * (#1928).
+ * implements it: every Library part whose call goes to a generated body,
+ * the chopper and the magnetic parts too (#1928).
  */
 export function bindsProjectCell(symbolId: string): boolean {
-  return subcircuitDescriptor(symbolId) !== undefined;
+  return (
+    subcircuitDescriptor(symbolId) !== undefined ||
+    generatedBodyDevice(symbolId) !== undefined
+  );
 }
 
 /**
@@ -155,16 +175,30 @@ function partKind(symbolId: string): string {
       ? "Delay Cell"
       : isLibraryLogicGate(symbolId)
         ? "gate"
-        : (amplifierKind(symbolId) ?? "part");
+        : symbolId === "chopper"
+          ? "chopper"
+          : (amplifierKind(symbolId) ?? "part");
+}
+
+/**
+ * A terminal of a part that a binding meets: one of its pins, its VDD or VSS
+ * terminal, or the clock a chopper's label names.
+ */
+export interface PartTerminal {
+  readonly pinName: string;
+  readonly supply?: "VDD" | "VSS";
+  readonly clock?: true;
 }
 
 /** One Pin of the Cell a gate calls, and the gate terminal on it. */
-export interface GateCellPin {
+export interface GateCellPin extends PartTerminal {
   /** The Cell's Pin, as its `.subckt` line spells it. */
   readonly portName: string;
-  /** The part's pin (A, Y; D, CK, Q; IN+, OUT), or its VDD or VSS terminal. */
+  /**
+   * The part's pin (A, Y; D, CK, Q; IN+, OUT), its VDD or VSS terminal, or a
+   * chopper's CK.
+   */
   readonly pinName: string;
-  readonly supply?: "VDD" | "VSS";
 }
 
 export type GateCellPinMatch = {
@@ -182,17 +216,33 @@ export type GateCellPinMatch = {
     }
 );
 
-/** A Library part's pins, then its VDD and VSS terminals. */
+/**
+ * A Library part's pins, then its VDD and VSS terminals. A chopper's clock is
+ * no pin of it: the phase its label names reaches its body's CK.
+ */
 export function libraryGateTerminals(
   symbolId: string,
-): readonly { readonly pinName: string; readonly supply?: "VDD" | "VSS" }[] {
-  if (!bindsProjectCell(symbolId)) return [];
-  return (subcircuitDescriptor(symbolId)?.ports ?? []).map((port) =>
-    port.supply
-      ? { pinName: port.supply, supply: port.supply }
-      : { pinName: port.pinName },
-  );
+): readonly PartTerminal[] {
+  const subcircuit = subcircuitDescriptor(symbolId);
+  if (subcircuit)
+    return subcircuit.ports.map((port) =>
+      port.supply
+        ? { pinName: port.supply, supply: port.supply }
+        : { pinName: port.pinName },
+    );
+  const device = generatedBodyDevice(symbolId);
+  if (!device) return [];
+  return [
+    ...device.pinOrder.map((pinName) => ({ pinName })),
+    ...(drawnSwitchControl(device) === "chopper"
+      ? [{ pinName: "CK", clock: true as const }]
+      : []),
+  ];
 }
+
+/** Whether a terminal is one of a part's own pins: not a supply or a clock. */
+const isPartPin = (terminal: PartTerminal) =>
+  !terminal.supply && !terminal.clock;
 
 const spokenList = (names: readonly string[]) =>
   names.length < 2
@@ -203,7 +253,7 @@ const spokenList = (names: readonly string[]) =>
 export function spokenGatePins(symbolId: string): string {
   return spokenList(
     libraryGateTerminals(symbolId)
-      .filter((terminal) => !terminal.supply)
+      .filter(isPartPin)
       .map((terminal) => terminal.pinName),
   );
 }
@@ -246,7 +296,7 @@ export function matchGateExternalPins(
     ok: false,
     pins: [],
     missing: libraryGateTerminals(symbolId)
-      .filter((terminal) => !terminal.supply)
+      .filter(isPartPin)
       .map((terminal) => terminal.pinName),
     extra: portNames,
     message: `External subcircuit ${definition.name} names its ports only by position; name them ${spokenGatePins(symbolId)} to bind the ${symbolId} to it`,
@@ -270,7 +320,7 @@ function matchPartPins(
     if (!terminal) extra.push(portName);
     else pins.push({ portName, ...terminal });
   }
-  const signals = terminals.filter((terminal) => !terminal.supply);
+  const signals = terminals.filter(isPartPin);
   const missing = signals
     .filter((terminal) => !pins.some((pin) => pin.pinName === terminal.pinName))
     .map((terminal) => terminal.pinName);
@@ -291,6 +341,17 @@ function matchPartPins(
         ]
       : []),
   ];
+  // The terminals it may leave out, as the part has them.
+  const optional = [
+    ...(terminals.some((terminal) => terminal.supply)
+      ? [`VDD and VSS unless the ${noun} takes its supplies globally`]
+      : []),
+    ...(terminals.some((terminal) => terminal.clock)
+      ? [
+          `CK for the clock its label names unless the ${noun} takes its clock globally`,
+        ]
+      : []),
+  ];
   return {
     ok: false,
     pins,
@@ -298,7 +359,7 @@ function matchPartPins(
     extra,
     message: `${title} ${cell.name} does not fit the ${symbolId}: ${problems.join(", and ")}. Its Pins must be ${spokenList(
       signals.map((terminal) => terminal.pinName),
-    )}, in any letter case, and VDD and VSS unless the ${noun} takes its supplies globally`,
+    )}, in any letter case${optional.map((clause) => `, and ${clause}`).join("")}`,
   };
 }
 

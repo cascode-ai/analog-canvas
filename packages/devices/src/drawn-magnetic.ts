@@ -1,4 +1,4 @@
-import type { DeviceDescriptor } from "@icm/devices";
+import type { DeviceDescriptor } from "./contract.js";
 
 /** One winding of a drawn magnetic device. */
 export interface DrawnMagneticWinding {

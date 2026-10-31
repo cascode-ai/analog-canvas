@@ -26,6 +26,7 @@ import {
   reviewedSizeModelled,
   reviewedSizeOutOfRange,
   type GateCellPin,
+  type PartTerminal,
   type ReviewedExternalDeviceBinding,
   type ReviewedSize,
   type ReviewedSizeOutOfRange,
@@ -38,6 +39,7 @@ import {
   diagnostic,
 } from "./extract-common.js";
 import { type CellNetContext, terminalNetName } from "./extract-nets.js";
+import { switchPhaseNode } from "./extract-switch.js";
 import {
   addsGroundPin,
   groundPinName,
@@ -76,6 +78,45 @@ function autoRailNetName(
     );
   }
   return drawnName ?? null;
+}
+
+/**
+ * The node a subcircuit call passes for one of a part's terminals: the clock
+ * a chopper's label names (#1928), the rail of a supply no Net was chosen
+ * for, or the terminal's own Net.
+ */
+function callTerminalNetName(
+  document: SchematicDocument,
+  instance: Instance,
+  terminal: PartTerminal,
+  context: CellNetContext,
+  options: ResolvedDesignNetlistAnalysisOptions,
+  diagnostics: NetlistDiagnostic[],
+  railsAsked: Set<string>,
+  memberId?: string,
+): string | null {
+  if (terminal.clock)
+    return switchPhaseNode(document, instance, context, options, diagnostics);
+  if (
+    terminal.supply &&
+    !context.netByTerminal.has(`${instance.id}\u0000${terminal.pinName}`)
+  )
+    return autoRailNetName(
+      document,
+      instance,
+      terminal.supply,
+      context,
+      diagnostics,
+      railsAsked,
+    );
+  return terminalNetName(
+    document,
+    instance,
+    terminal.pinName,
+    context,
+    diagnostics,
+    memberId,
+  );
 }
 
 export function extractHierarchyInstance(
@@ -157,24 +198,16 @@ export function extractHierarchyInstance(
     // explicit non-executable slot rather than shifting positional arguments.
     const netName = !pin
       ? null
-      : pin.supply &&
-          !context.netByTerminal.has(`${instance.id}\u0000${pin.pinName}`)
-        ? autoRailNetName(
-            document,
-            instance,
-            pin.supply,
-            context,
-            diagnostics,
-            railsAsked,
-          )
-        : terminalNetName(
-            document,
-            instance,
-            pin.pinName,
-            context,
-            diagnostics,
-            member?.memberId,
-          );
+      : callTerminalNetName(
+          document,
+          instance,
+          pin,
+          context,
+          options,
+          diagnostics,
+          railsAsked,
+          member?.memberId,
+        );
     return {
       pinName: port.name,
       netName: netName ?? `<unconnected:${port.name}>`,
@@ -256,12 +289,10 @@ function validateFormalParameterOverrides(
   }
 }
 
-/** One port of an external call, and the part's pin written on it. */
-interface ExternalCallTerminal {
+/** One port of an external call, and the part's terminal written on it. */
+interface ExternalCallTerminal extends PartTerminal {
   readonly targetName: string;
-  readonly pinName: string;
   readonly interaction: string;
-  readonly supply?: "VDD" | "VSS";
 }
 
 export function extractExternalSubcircuitInstance(
@@ -270,6 +301,7 @@ export function extractExternalSubcircuitInstance(
   definition: ExternalSubcircuitDefinition | undefined,
   component: ComponentDefinition | undefined,
   context: CellNetContext,
+  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const netlist = instance.netlist;
@@ -341,6 +373,7 @@ export function extractExternalSubcircuitInstance(
               pinName: pin?.pinName ?? terminal.name,
               interaction: "canvas" as const,
               ...(pin?.supply ? { supply: pin.supply } : {}),
+              ...(pin?.clock ? { clock: true as const } : {}),
             };
           });
   const allowedPins = new Set(
@@ -405,25 +438,15 @@ export function extractExternalSubcircuitInstance(
   }
   const railsAsked = new Set<string>();
   const nodes = terminalBindings.map((terminal) => {
-    const rail = terminal.supply;
-    const netName =
-      rail &&
-      !context.netByTerminal.has(`${instance.id}\u0000${terminal.pinName}`)
-        ? autoRailNetName(
-            document,
-            instance,
-            rail,
-            context,
-            diagnostics,
-            railsAsked,
-          )
-        : terminalNetName(
-            document,
-            instance,
-            terminal.pinName,
-            context,
-            diagnostics,
-          );
+    const netName = callTerminalNetName(
+      document,
+      instance,
+      terminal,
+      context,
+      options,
+      diagnostics,
+      railsAsked,
+    );
     return {
       pinName: terminal.targetName,
       ...(terminal.targetName !== terminal.pinName

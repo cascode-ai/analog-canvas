@@ -1190,4 +1190,61 @@ describe("Agent property actions are planned as Apply in Properties", () => {
       parameters: { signA: "+", signB: "+" },
     });
   });
+
+  it("binds a chopper to an external definition, as Properties offers it, and clears it to the chopper as placed (#1928)", async () => {
+    const project = createEmptyProject("project-1", "Properties");
+    const ports = ["CK", "OUTN", "OUTP", "INN", "INP"];
+    project.modelSources = [
+      {
+        id: "source-chop",
+        language: "spice",
+        revision: 1,
+        entry: "chop.spice",
+        dependencies: [],
+        files: [
+          {
+            path: "chop.spice",
+            text: `.subckt chop ${ports.join(" ")}\nR1 INP OUTP 1k\n.ends chop\n`,
+          },
+        ],
+      },
+    ];
+    project.externalSubcircuitDefinitions.push({
+      id: "external-chop",
+      name: "chop",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: ports.map((port) => ({
+        id: `external-chop-${port}`,
+        name: port,
+        direction: "inout" as const,
+      })),
+      implementation: {
+        kind: "source",
+        sourceId: "source-chop",
+        entry: "chop",
+      },
+    });
+    const { controller, apply, instance } = await session(project);
+    await apply([place("chopper", "CH1", 200)]);
+    const placed = structuredClone(instance("CH1").netlist);
+    const target = { kind: "instance", reference: "CH1" };
+
+    const document = controller.project.documents[0]!;
+    const chopper = document.instances.find(
+      (item) => item.reference === "CH1",
+    )!;
+    expect(gateExternalChoices(controller.project, chopper)).toEqual(["chop"]);
+
+    await apply([{ kind: "set-model", target, model: "chop" }]);
+    // It keeps its symbol and its Reference.
+    expect(instance("CH1")).toMatchObject({
+      symbolId: "chopper",
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "external-chop" },
+      },
+    });
+    await apply([{ kind: "set-model", target, model: "" }]);
+    expect(instance("CH1").netlist).toEqual(placed);
+  });
 });
