@@ -386,4 +386,37 @@ describe("netlist-crawler structural conversion", () => {
       }).status,
     ).toBe("blocked");
   });
+  it("leaves a Spectre source's SPICE sections out of its limits only when asked (#1933)", () => {
+    const resistors = Array.from(
+      { length: 40_000 },
+      (_, index) => `R${index} a${index} 0 1k`,
+    );
+    const text = [
+      "subckt top (a)",
+      "X1 (a) lib",
+      "ends top",
+      "simulator lang=spice",
+      ".subckt lib a",
+      ...resistors,
+      ".ends lib",
+      "simulator lang=spectre",
+    ].join("\n");
+    const convert = (uncountedSpiceSections: boolean) =>
+      convertNetlist({
+        text,
+        source: "spectre",
+        target: "spice",
+        uncountedSpiceSections,
+      });
+    const bounded = convert(false);
+    expect(bounded.status).toBe("blocked");
+    expect(bounded.status === "blocked" && bounded.issues[0]!.code).toBe(
+      "RESOURCE_LIMIT",
+    );
+    const passed = convert(true);
+    expect(passed.status).toBe("converted");
+    expect(passed.status === "converted" && passed.text).toContain(
+      "\nR39999 a39999 0 1k\n",
+    );
+  });
 });

@@ -62,6 +62,7 @@ import { planNetlistProcess, prepareNetlistExample } from "./netlist-process";
 import { planRnlImport } from "./rnl-import";
 import type { RnlRuntime } from "./rnl-runtime";
 import { delayCellFixture } from "../../../../../packages/netlist/src/delay-cell-fixture.test-support.js";
+import { externalModelFixture } from "../../../../../packages/netlist/src/external-model-fixture.test-support.js";
 
 /** An arrow end's style, as a drawing object keeps it. */
 type ArrowEnd =
@@ -5659,3 +5660,21 @@ describe("RNL round trip of examples as the editor opens them", () => {
     },
   );
 });
+
+// #1933: a SPICE model library the Spectre conversion refuses goes into the
+// Spectre netlist as SPICE, and reads back as the library it is.
+it.each(["spice", "spectre"] as const)(
+  "brings back a SPICE model library Spectre conversion refuses, through %s+RNL",
+  async (format) => {
+    const project = externalModelFixture();
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.status).toBe("ready");
+    if (plan.status !== "ready") return;
+    const before = createDesignNetlistExport(project, { format: "spice" });
+    const after = createDesignNetlistExport(plan.project, { format: "spice" });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);

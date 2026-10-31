@@ -281,7 +281,16 @@ export function collectProjectModelSources(
               message: `Model ${definition.name} cannot be emitted as ${options.format}`,
               path: source.entry,
             };
-      if (failure) diagnostics.push({ ...failure, modelSource });
+      if (failure && spectreKeepsSpice(source, options.format))
+        diagnostics.push({
+          code: "MODEL_SOURCE_SPICE_SECTION",
+          severity: "warning",
+          message: `Model ${definition.name} does not convert to Spectre, so its source is written as SPICE in a simulator lang=spice section: ${failure.message}`,
+          ...(failure.path ? { path: failure.path } : {}),
+          ...(failure.sourceRef ? { sourceRef: failure.sourceRef } : {}),
+          modelSource,
+        });
+      else if (failure) diagnostics.push({ ...failure, modelSource });
     }
     for (const declared of inspected.entries) {
       const nativeSpectre =
@@ -428,6 +437,18 @@ export function projectModelConversionDiagnostic(
     path,
     sourceRef: { fileId: path, start: point, end: point },
   };
+}
+
+/**
+ * Whether a SPICE source the converter refuses goes into a Spectre netlist
+ * as it is, in a `simulator lang=spice` section (#1933): only then, so a
+ * source that converts keeps its converted text.
+ */
+function spectreKeepsSpice(
+  source: ProjectModelSource,
+  format: string | undefined,
+): boolean {
+  return format === "spectre" && source.language === "spice";
 }
 
 function convertExpandedModelSource(
@@ -606,6 +627,24 @@ export function renderProjectModelSource(
       options.format,
       options.conversionLocations,
     );
+    if (
+      converted.status === "blocked" &&
+      spectreKeepsSpice(source, options.format)
+    ) {
+      // The source as it is, its bytes still mapping to their owners.
+      const opening = "simulator lang=spice\n";
+      const body = result.text.endsWith("\n")
+        ? result.text
+        : `${result.text}\n`;
+      return {
+        text: `${opening}${body}simulator lang=spectre\n`,
+        segments: result.segments.map((segment) => ({
+          ...segment,
+          startOffset: segment.startOffset + opening.length,
+          endOffset: segment.endOffset + opening.length,
+        })),
+      };
+    }
     if (converted.status === "blocked")
       throw Error(converted.issues[0]!.message);
     if (converted.lineOrigins) {

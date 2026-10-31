@@ -48,6 +48,10 @@ export interface NetlistConversionOptions {
   /** Execution projections can retain native owners without reverse-writing
    * converted text. Entries are 1-based input lines; 0 is a generated header. */
   withLineOrigins?: boolean;
+  /** A Spectre source's SPICE sections pass through untranslated; set, they
+   * do not count toward the size and statement limits (#1933). The editor's
+   * import sets it; the public endpoint bounds the whole text. */
+  uncountedSpiceSections?: boolean;
 }
 export type NetlistConversionResult =
   | {
@@ -177,7 +181,11 @@ function uncomment(text: string, dialect: Statement["dialect"]): string {
   }
   return text;
 }
-function statements(text: string, source: NetlistDialect): Statement[] {
+function statements(
+  text: string,
+  source: NetlistDialect,
+  uncountedSpiceSections = false,
+): Statement[] {
   const result: Statement[] = [];
   let dialect: Statement["dialect"] =
     source === "spectre" ? "spectre" : "spice";
@@ -226,9 +234,13 @@ function statements(text: string, source: NetlistDialect): Statement[] {
     }
   }
   if (pending) refuse(pending, "Unfinished continuation line.");
-  if (result.length > 10000)
+  const translated =
+    uncountedSpiceSections && source === "spectre"
+      ? result.filter((statement) => statement.dialect === "spectre")
+      : result;
+  if (translated.length > 10000)
     refuse(
-      result[10000]!,
+      translated[10000]!,
       "Conversion is limited to 10,000 statements.",
       "RESOURCE_LIMIT",
     );
@@ -889,6 +901,20 @@ function checkSpiceReferenceCase(
   }
 }
 
+/** The bytes of a Spectre source's SPICE sections, which pass through as they are. */
+function passedThroughBytes(text: string, source: unknown): number {
+  if (source !== "spectre" || typeof text !== "string") return 0;
+  const encoder = new TextEncoder();
+  let spice = false;
+  let bytes = 0;
+  for (const line of text.split(/\r\n?|\n/u)) {
+    const language = /^simulator\s+lang\s*=\s*(\w+)$/iu.exec(line.trim());
+    if (language) spice = language[1]!.toLowerCase() === "spice";
+    else if (spice) bytes += encoder.encode(line).length + 1;
+  }
+  return bytes;
+}
+
 export function convertNetlist(
   options: NetlistConversionOptions,
 ): NetlistConversionResult {
@@ -909,7 +935,10 @@ export function convertNetlist(
         "Supply text and supported source/target dialects.",
         "INVALID_REQUEST",
       );
-    if (new TextEncoder().encode(text).length > MAX_CONVERSION_BYTES)
+    const passed = options.uncountedSpiceSections
+      ? passedThroughBytes(text, source)
+      : 0;
+    if (new TextEncoder().encode(text).length - passed > MAX_CONVERSION_BYTES)
       refuse(
         root,
         "Netlist exceeds the 512 KiB conversion limit.",
@@ -923,7 +952,7 @@ export function convertNetlist(
       source !== "spectre" && options.fragment === false
         ? text.replace(/^[^\r\n]*/u, "")
         : text;
-    const input = statements(inputText, source);
+    const input = statements(inputText, source, options.uncountedSpiceSections);
     const ctx: Context = {
       subckts: new Set(
         options.subcircuitNames?.map((name) => name.toLowerCase()),
@@ -1070,7 +1099,10 @@ export function convertNetlist(
       lineOrigins.push(0);
     }
     const converted = out.join("\n") + "\n";
-    if (new TextEncoder().encode(converted).length > MAX_CONVERSION_BYTES * 2)
+    if (
+      new TextEncoder().encode(converted).length - passed >
+      MAX_CONVERSION_BYTES * 2
+    )
       refuse(
         root,
         "Converted output exceeds the size limit.",
