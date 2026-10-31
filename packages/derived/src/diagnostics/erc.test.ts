@@ -1919,3 +1919,49 @@ describe("Nets that reach only gates, bulks and block inputs (#1473)", () => {
     expect(diagnostics).not.toContain("ERC_UNDRIVEN_GATE_NET");
   });
 });
+
+describe("a Library part bound to an external definition (#1928)", () => {
+  /** An op-amp X1 bound to external definition `ota` with `ports`. */
+  function boundOpamp(ports: readonly string[]): CircuitProject {
+    const project = emptyProject();
+    project.externalSubcircuitDefinitions.push({
+      id: "ota",
+      name: "ota",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: ports.map((name) => ({
+        id: `ota-${name}`,
+        name,
+        direction: "inout" as const,
+      })),
+    });
+    project.documents[0]!.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: "opamp",
+      placement: {
+        position: { x: 0, y: 0 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "ota" },
+        parameters: {},
+      },
+    });
+    return project;
+  }
+
+  it("meets the definition's ports by name, and reports those that do not fit", () => {
+    expect(
+      codes(boundOpamp(["out", "VSS", "in-", "VDD", "in+"])),
+    ).not.toContain("ERC_PORT_NAME_MISMATCH");
+    expect(
+      run(boundOpamp(["VIP", "VIN", "OUT"])).find(
+        (item) => item.code === "ERC_PORT_NAME_MISMATCH",
+      )?.message,
+    ).toContain(
+      "External subcircuit ota does not fit the opamp: it has no Pins IN+ and IN-",
+    );
+  });
+});

@@ -1,22 +1,22 @@
-// What Properties shows for a Library gate that may be bound to a Cell of
-// its Project (#1450).
+// What Properties shows for a Library part that may be bound to a Cell of its
+// Project (#1450) or to one of its external definitions (#1928).
 import type { CircuitProject, Instance } from "@icm/model";
 import {
-  gateCellBinding,
   bindsProjectCell,
+  libraryPartBinding,
   subcircuitDescriptor,
 } from "@icm/devices";
-import { gateCellTargets } from "@icm/edit-engine";
+import { gateCellTargets, gateExternalTargets } from "@icm/edit-engine";
 
-/** The name of the Cell a gate is bound to, as its model shows it. */
+/** The name of the Cell or definition a part is bound to, as its model shows it. */
 export function gateCellTargetName(
   project: CircuitProject,
   instance: Instance,
 ): string | undefined {
-  return gateCellBinding(project, instance)?.cell.netlist?.name;
+  return libraryPartBinding(project, instance)?.name;
 }
 
-/** The Cells whose Pins fit a gate drawn in this Cell; none for another part. */
+/** The Cells whose Pins fit a part drawn in this Cell; none for another part. */
 export function gateCellChoices(
   project: CircuitProject,
   documentId: string,
@@ -28,9 +28,20 @@ export function gateCellChoices(
   );
 }
 
+/** The external definitions whose ports fit a part; none for another part. */
+export function gateExternalChoices(
+  project: CircuitProject,
+  instance: Instance,
+): string[] {
+  if (!instance.netlist || !bindsProjectCell(instance.symbolId)) return [];
+  return gateExternalTargets(project, instance.symbolId).map(
+    (definition) => definition.name,
+  );
+}
+
 /**
- * A block's VDD and VSS rows. A gate bound to a Cell has those its Cell has
- * Pins for: a Cell that takes a supply globally has no Net to choose.
+ * A block's VDD and VSS rows. A part bound to a Cell or definition has those
+ * it has Pins for: one that takes a supply globally has no Net to choose.
  */
 export function blockSupplyTerminals(
   project: CircuitProject,
@@ -40,7 +51,7 @@ export function blockSupplyTerminals(
     instance.symbolId,
     project,
   )?.ports.flatMap((port) => (port.supply ? [port.supply] : []));
-  const bound = gateCellBinding(project, instance);
+  const bound = libraryPartBinding(project, instance);
   return bound
     ? supplies?.filter((supply) =>
         bound.match.pins.some((pin) => pin.supply === supply),

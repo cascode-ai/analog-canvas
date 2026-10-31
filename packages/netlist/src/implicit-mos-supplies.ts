@@ -16,7 +16,7 @@ import {
 } from "@icm/derived";
 import {
   builtInModelContract,
-  gateCellBinding,
+  libraryPartBinding,
   IDEAL_COMPARATOR_TARGET,
   idealComparatorReadsSupply,
   isIdealComparatorBody,
@@ -148,17 +148,19 @@ export interface ImplicitMosSupplyProjection {
   placedBodies: ReadonlyMap<string, PlacedMosBodies>;
 }
 
-/** The rails of a gate bound to a standard cell, or to a Cell's VDD/VSS Pins. */
+/**
+ * The rails of a gate bound to a standard cell, or to the VDD/VSS Pins of a
+ * Cell or external definition (#1928).
+ */
 function boundGateRails(
   source: CircuitProject,
   instance: CircuitProject["documents"][number]["instances"][number],
 ): readonly ("VDD" | "VSS")[] {
   const binding = instance.netlist?.binding;
-  if (binding?.kind === "subcircuit")
+  const bound = libraryPartBinding(source, instance);
+  if (bound || binding?.kind === "subcircuit")
     return (
-      gateCellBinding(source, instance)?.match.pins.flatMap((pin) =>
-        pin.supply ? [pin.supply] : [],
-      ) ?? []
+      bound?.match.pins.flatMap((pin) => (pin.supply ? [pin.supply] : [])) ?? []
     );
   if (binding?.kind !== "external-subcircuit") return [];
   const definition = source.externalSubcircuitDefinitions.find(

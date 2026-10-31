@@ -533,6 +533,53 @@ describe("blocks' symbols", () => {
       "$CANVAS_CALL_DELAY_CELL__0_0_1_2",
     );
   });
+
+  it("draws a Delay Cell bound to a supplies-first external definition as it draws one on such a Cell (#1928)", () => {
+    const project = delayCellFixture(true);
+    project.documents = project.documents.filter(
+      (document) => document.id !== "delay_cmos",
+    );
+    project.modelSources = [
+      {
+        id: "delay-source",
+        language: "spice",
+        revision: 1,
+        entry: "delay.spice",
+        dependencies: [],
+        files: [
+          {
+            path: "delay.spice",
+            text: ".subckt delay_ext VDD VSS A Y\nR1 A Y 1k\n.ends delay_ext\n",
+          },
+        ],
+      },
+    ];
+    project.externalSubcircuitDefinitions.push({
+      id: "delay-ext",
+      name: "delay_ext",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: ["VDD", "VSS", "A", "Y"].map((name) => ({
+        id: `delay-ext-${name}`,
+        name,
+        direction: "inout" as const,
+      })),
+      implementation: {
+        kind: "source",
+        sourceId: "delay-source",
+        entry: "delay_ext",
+      },
+    });
+    project.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "external-subcircuit",
+      definitionId: "delay-ext",
+    };
+    const { ops, diagnostics } = exported(project);
+    expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(of(ops, "set").find((op) => op.object === "#X1")?.symbol).toBe(
+      "$CANVAS_CALL_DELAY_CELL__0_0_1_2",
+    );
+  });
 });
 
 /** The RC example with one drawing object of each kind, and marks on its wires. */

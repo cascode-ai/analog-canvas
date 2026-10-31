@@ -114,37 +114,39 @@ their IDs, never resolved to the first.
   panel's `nfet_01v8` is the same device in a SKY130 Project), keep terminal
   mapping and export the `X` call. Any other name is a raw binding for custom
   definitions and leaves the Process Custom.
-- A Library logic gate (`inverter`, `buffer`, `nand-gate`, … `xnor-gate-4`)
-  keeps its symbol, pins and VDD/VSS Nets (Auto as unbound) when `set-model`
-  binds it to:
-  - a standard cell of its function and input count: SKY130 HD
-    (`sky130_fd_sc_hd__nand2_1`), IHP SG13G2 (`sg13g2_nand2_1`) or TSMC 28 HPC+
-    12-track (`ND2D1BWP12T30P140`, `…LVT`), any drive or variant, called in
-    library pin order and defined by the library's `.include`. Hosted ngspice
-    simulates SKY130 HD; a Profile without the library refuses
+- Every Library part with a generated body keeps its symbol, pins and VDD/VSS
+  Nets (Auto as unbound) when `set-model` binds it to the first of:
+  - a Project Cell drawn at transistor level (name, any case, or ID);
+  - for a logic gate, a standard cell of its function and input count: SKY130
+    HD (`sky130_fd_sc_hd__nand2_1`), IHP SG13G2 (`sg13g2_nand2_1`) or TSMC 28
+    HPC+ 12-track (`ND2D1BWP12T30P140`, `…LVT`), any drive or variant, called
+    in library pin order and defined by the library's `.include`. Hosted
+    ngspice simulates SKY130 HD; a Profile without the library refuses
     (`STANDARD_CELL_LIBRARY_UNAVAILABLE`); another pin order or no matching
     gate is `STANDARD_CELL_UNSUPPORTED`; another function is refused with the
     cells that fit. A SPICE-imported cell stays an external block.
-  - a Project Cell drawn at transistor level (name, any case, or ID) whose
-    Pins are the gate's (`A`, `B`, `Y`) plus `VDD`/`VSS` unless its supplies
-    are global; others are refused by name. The call goes to its subcircuit by
-    Pin name, its parameters win, a VDD/VSS Net it lacks a Pin for is cleared,
-    the gate's own Cell is refused, and used Pins cannot be renamed or removed.
+  - an external subcircuit of the Project (SPICE-imported or model-source), by
+    name or ID.
 
-  An empty model returns the ideal body and default parameters.
+  A Cell's Pins or a subcircuit's ports are the part's own pins, never an ideal
+  body's `VIP`/`VIN`/`VOUT`, in any order and letter case, plus `VDD`/`VSS`
+  unless its supplies are global:
 
-- A D flip-flop (`d-flip-flop`, `d-flip-flop-q`, `d-flip-flop-reset`) binds to
-  a Project Cell the same way, keeping its symbol: the Cell's Pins are `D`,
-  `CK`, `Q`, `QBAR` where the symbol has it and `RST` for the reset form, plus
-  `VDD`/`VSS` unless its supplies are global. It takes no standard cell; an
-  empty model returns its ideal body.
-- An op-amp (`opamp`, `opamp-differential`, … and their variants) or
-  comparator (`comparator`, `comparator-differential`, …) binds to a Project
-  Cell the same way, keeping its triangle: the Cell's Pins are the part's own
-  (`IN+`, `IN-`, `OUT`, or `OUT+`/`OUT-`), not the ideal body's `VIP`/`VIN`/
-  `VOUT`, plus `VDD`/`VSS` unless its supplies are global. It takes no
-  standard cell; an empty model returns the ideal op-amp or comparator with
-  its default parameters.
+  | Parts                                                    | Pins                    |
+  | -------------------------------------------------------- | ----------------------- |
+  | 2/3/4-input gates, adder, multiplier                     | `A`, `B`(, `C`, `D`), `Y` |
+  | `inverter`, `buffer`, `delay-cell`, `transconductance`   | `A`, `Y`                |
+  | `opamp`, `comparator`, `differential-transconductance`   | `IN+`, `IN-`, `OUT`     |
+  | `opamp-differential`, `comparator-differential`          | `IN+`, `IN-`, `OUT+`, `OUT-` |
+  | `voltage-amplifier`, `adc`, `dac`                        | `IN`, `OUT`             |
+  | `d-flip-flop`, `-q`, `-reset`                            | `D`, `CK`, `Q`, `QBAR` where drawn, `RST` for reset |
+  | `crystal`                                                | `1`, `2`                |
+
+  Others are refused by name, as is a subcircuit that names its ports only by
+  position. The call goes to the definition by Pin name, its parameters win, a
+  VDD/VSS Net it lacks a Pin for is cleared, the part's own Cell is refused,
+  and a Cell's used Pins cannot be renamed or removed. An empty model returns
+  the ideal body and default parameters.
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the

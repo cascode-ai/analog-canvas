@@ -437,18 +437,21 @@ export function buildNetContext(
                 instance.symbolId,
               )
             : undefined;
-        // A Library gate or flip-flop bound to a Cell keeps its own pins
-        // (#1450, #1689).
+        // A Library part bound to a Cell or to an external definition keeps
+        // its own pins (#1450, #1689, #1928).
+        const partPins = bindsProjectCell(instance.symbolId)
+          ? libraryGateTerminals(instance.symbolId).map(
+              (gateTerminal) => gateTerminal.pinName,
+            )
+          : undefined;
         const allowedPins = child?.netlist
-          ? bindsProjectCell(instance.symbolId)
-            ? libraryGateTerminals(instance.symbolId).map(
-                (gateTerminal) => gateTerminal.pinName,
-              )
-            : projectCellInterface(child.netlist).ports.map((port) => port.name)
+          ? (partPins ??
+            projectCellInterface(child.netlist).ports.map((port) => port.name))
           : reviewed
             ? reviewed.terminals.map((terminal) => terminal.pinName)
             : externalDefinition
-              ? externalDefinition.terminals.map((terminal) => terminal.name)
+              ? (partPins ??
+                externalDefinition.terminals.map((terminal) => terminal.name))
               : deviceDescriptor(instance.symbolId, project)?.pinOrder;
         if (allowedPins && !allowedPins.includes(terminal.pinName)) {
           diagnostic(

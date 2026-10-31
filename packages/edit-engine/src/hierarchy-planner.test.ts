@@ -1,4 +1,5 @@
 import { canonicalPortTextDocument, createRoutePath } from "@icm/model";
+import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
 import { describe, expect, it } from "vitest";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
@@ -35,6 +36,7 @@ import {
 } from "./cell-interface-change-planner.js";
 import {
   gateCellTargets,
+  gateExternalTargets,
   planSetDeviceModelTarget,
 } from "./device-model-target-planner.js";
 import {
@@ -365,7 +367,7 @@ describe("a Library gate takes a standard cell of its function (#1450)", () => {
     expect(() =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", "nor2"),
     ).toThrow(
-      "nor2 is neither a Cell of this Project nor a reviewed standard cell for nor-gate; use sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
+      "nor2 is not a Cell or external subcircuit of this Project, nor a reviewed standard cell for nor-gate; use sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
     );
   });
 
@@ -527,7 +529,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
       "Cell inv1 does not fit the nor-gate: it has no Pin B, and its Pin EN is not one of the gate's. Its Pins must be A, B and Y, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
     );
     expect(() => plan("nor3")).toThrow(
-      "nor3 is neither a Cell of this Project nor a reviewed standard cell for nor-gate; use nor2, sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
+      "nor3 is not a Cell or external subcircuit of this Project, nor a reviewed standard cell for nor-gate; use nor2, sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
     );
     expect(
       gateCellTargets(project, project.topDocumentId, "nor-gate").map(
@@ -700,7 +702,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
       "Cell dff does not fit the d-flip-flop-reset: it has no Pin RST. Its Pins must be D, CK, RST, Q and QBAR, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
     );
     expect(() => plan("dffr")).toThrow(
-      "dffr is not a Cell of this Project, and no Cell of it fits d-flip-flop-reset",
+      "dffr is not a Cell or external subcircuit of this Project that fits d-flip-flop-reset",
     );
     addCell(project, "dffr", "dffr", ["D", "CK", "RST", "Q", "QBAR", "EN"]);
     expect(() => plan("dffr")).toThrow(
@@ -857,7 +859,200 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     expect(() =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", "ota"),
     ).toThrow(
-      "ota is not a Cell of this Project, and no Cell of it fits opamp",
+      "ota is not a Cell or external subcircuit of this Project that fits opamp",
+    );
+  });
+
+  /** A Library part X1 with its default parameters, each pin on a Net of its own. */
+  function partProject(symbolId: string, pins: readonly string[]) {
+    const project = createEmptyProject("parts", "Parts");
+    const target = subcircuitDescriptor(symbolId)!.target;
+    project.documents[0]!.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId,
+      placement: null,
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: target },
+        parameters: builtInModelDefaults(target),
+      },
+    });
+    project.documents[0]!.nets.push(
+      ...pins.map((pin) => ({
+        id: `net-${pin.toLowerCase()}`,
+        terminals: [{ instanceId: "X1", pinName: pin }],
+      })),
+    );
+    return project;
+  }
+
+  it("binds an adder to a transistor-level Cell by Pin name, and clears it back to its ideal body (#1928)", () => {
+    const project = partProject("adder", ["A", "B", "Y", "VDD"]);
+    addCell(project, "sum", "sum", ["y", "VDD", "VSS", "a", "b"]);
+    expect(
+      gateCellTargets(project, project.topDocumentId, "adder").map(
+        (cell) => cell.id,
+      ),
+    ).toEqual(["sum"]);
+    const bound = bind(project, "SUM");
+    expect(gate(bound)).toMatchObject({
+      symbolId: "adder",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "sum" },
+        parameters: {},
+      },
+    });
+    const exported = createDesignNetlistExport(bound, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // The Cell's supplies come first; its y, a and b take the adder's Y, A
+    // and B (net3, net0 and net1; Nets are numbered by ID).
+    expect(exported.file.text).toMatch(/^X1 net2 VSS net3 net0 net1 sum$/mu);
+    // A Cell rename leaves it an adder.
+    const renamed = execute(bound, planRenameCell(bound, "sum", "sum_cmos"));
+    expect(gate(renamed).symbolId).toBe("adder");
+    expect(gate(bind(bound, "")).netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "adder" },
+      parameters: { signA: "+", signB: "+" },
+    });
+  });
+
+  it.each([
+    ["multiplier", ["A", "B", "Y"]],
+    ["adc", ["IN", "OUT"]],
+    ["dac", ["IN", "OUT"]],
+    ["voltage-amplifier", ["IN", "OUT"]],
+    ["transconductance", ["A", "Y"]],
+    ["differential-transconductance", ["IN+", "IN-", "OUT"]],
+    ["crystal", ["1", "2"]],
+  ] as const)(
+    "binds a %s to a Cell or an external definition whose Pins are its own, keeping its symbol (#1928)",
+    (symbolId, pins) => {
+      const project = partProject(symbolId, pins);
+      addCell(project, "own", "own", [...pins].reverse());
+      addExternal(project, "ext", [...pins].reverse());
+      expect(
+        gateCellTargets(project, project.topDocumentId, symbolId).map(
+          (cell) => cell.id,
+        ),
+      ).toEqual(["own"]);
+      expect(
+        gateExternalTargets(project, symbolId).map(
+          (definition) => definition.id,
+        ),
+      ).toEqual(["external-ext"]);
+      for (const [model, binding] of [
+        ["own", { kind: "subcircuit", childDocumentId: "own" }],
+        ["ext", { kind: "external-subcircuit", definitionId: "external-ext" }],
+      ] as const) {
+        const bound = bind(project, model);
+        expect(gate(bound)).toMatchObject({ symbolId, netlist: { binding } });
+        for (const format of ["spice", "spectre"] as const) {
+          const exported = createDesignNetlistExport(bound, { format });
+          if (exported.status !== "ready")
+            throw new Error(JSON.stringify(exported.diagnostics));
+          expect(exported.file.text).toMatch(
+            format === "spice"
+              ? new RegExp(`^X1 .* ${model}$`, "mu")
+              : new RegExp(`^X1 \\(.*\\) ${model}\\b`, "mu"),
+          );
+        }
+      }
+    },
+  );
+
+  /**
+   * An external definition `name` declaring `terminals`, in that order, and
+   * implemented by a model source of the Project.
+   */
+  function addExternal(
+    project: ReturnType<typeof gateProject>,
+    name: string,
+    terminals: readonly string[],
+    interfaceStatus: "declared" | "inferred-positional" = "declared",
+  ) {
+    const sourceId = `source-${name}`;
+    (project.modelSources ??= []).push({
+      id: sourceId,
+      language: "spice",
+      revision: 1,
+      entry: `${name}.spice`,
+      dependencies: [],
+      files: [
+        {
+          path: `${name}.spice`,
+          text: `.subckt ${name} ${terminals.join(" ")}\nR1 ${terminals[0]} ${terminals[1]} 1k\n.ends ${name}\n`,
+        },
+      ],
+    });
+    project.externalSubcircuitDefinitions.push({
+      id: `external-${name}`,
+      name,
+      interfaceStatus,
+      formalParameters: [],
+      terminals: terminals.map((terminal) => ({
+        id: `external-${name}-${terminal}`,
+        name: terminal,
+        direction: "inout" as const,
+      })),
+      implementation: { kind: "source", sourceId, entry: name },
+    });
+  }
+
+  it("binds an op-amp to an external definition of its Project by Pin name, in the definition's order (#1928)", () => {
+    const project = amplifierProject("opamp", "opamp", {
+      gain: "1e5",
+      vhigh: "VDD",
+      vlow: "VSS",
+    });
+    addExternal(project, "ota", ["out", "VSS", "in-", "VDD", "in+"]);
+    const bound = bind(project, "OTA");
+    expect(gate(bound)).toMatchObject({
+      symbolId: "opamp",
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "external-ota" },
+        parameters: {},
+      },
+    });
+    // The definition has a VDD Pin, so the op-amp's VDD Net stays.
+    expect(pinsOf(bound)).toEqual(["IN+", "IN-", "OUT", "VDD"]);
+    const exported = createDesignNetlistExport(bound, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // out, VSS, in-, VDD and in+ take OUT (net2), ground, IN- (net0), VDD
+    // (net3) and IN+ (net1).
+    expect(exported.file.text).toMatch(/^X1 net2 VSS net0 net3 net1 ota$/mu);
+    expect(exported.file.text).not.toContain("icm_opamp");
+    // The definition's ID names it as well as its name.
+    expect(
+      planSetDeviceModelTarget(
+        bound,
+        bound.topDocumentId,
+        "X1",
+        "external-ota",
+      ),
+    ).toEqual([]);
+    expect(gate(bind(bound, "")).netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "opamp" },
+      parameters: { gain: "1e6", vhigh: "VDD", vlow: "VSS" },
+    });
+  });
+
+  it("refuses an external definition that does not fit, or declares its ports only by position (#1928)", () => {
+    const project = amplifierProject("opamp", "opamp", {});
+    addExternal(project, "half", ["VIP", "VIN", "OUT"]);
+    addExternal(project, "imported", ["1", "2", "3"], "inferred-positional");
+    addExternal(project, "ota", ["IN+", "IN-", "OUT"]);
+    const plan = (model: string) =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
+    expect(() => plan("half")).toThrow(
+      "External subcircuit half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins VIP and VIN are not of the op-amp's. Its Pins must be IN+, IN- and OUT, in any letter case, and VDD and VSS unless the subcircuit takes its supplies globally",
+    );
+    expect(() => plan("imported")).toThrow(
+      "External subcircuit imported names its ports only by position; name them IN+, IN- and OUT to bind the opamp to it",
+    );
+    expect(() => plan("amp")).toThrow(
+      "amp is not a Cell or external subcircuit of this Project that fits opamp; use ota",
     );
   });
 
