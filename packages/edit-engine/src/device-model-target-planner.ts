@@ -11,6 +11,7 @@ import {
   builtInModelDefaults,
   deviceDescriptor,
   bindsProjectCell,
+  boundPartParameters,
   matchGateCellPins,
   matchGateExternalPins,
   placedSubcircuitTarget,
@@ -303,13 +304,12 @@ function planGateCellBinding(
       pinName: supply,
       netId: null,
     }));
-  const formals = new Set(
-    implementation.formalParameters.map((parameter) =>
-      parameter.name.toLowerCase(),
-    ),
+  const kept = boundPartParameters(
+    netlist.parameters,
+    implementation.formalParameters,
   );
   const unset = Object.keys(netlist.parameters).filter(
-    (parameter) => !formals.has(parameter.toLowerCase()),
+    (parameter) => !Object.hasOwn(kept, parameter),
   );
   if (
     JSON.stringify(netlist.binding ?? null) !== JSON.stringify(binding) ||

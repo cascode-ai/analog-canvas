@@ -18,10 +18,7 @@ import {
 } from "@icm/model";
 
 import { createDesignNetlistExport } from "./export.js";
-import {
-  analyzeDesignNetlist,
-  analyzeDesignNetlistForAuthoring,
-} from "./extract.js";
+import { analyzeDesignNetlist } from "./extract.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import { IDEAL_LOGIC_TARGETS } from "./ideal-logic-gate-models.js";
 import {
@@ -241,10 +238,10 @@ describe("generated block bodies", () => {
   });
 
   it.each(["adder", "ADDER"])(
-    "keep calling the Project's own %s whatever the signs, warning when one subtracts",
+    "keep an unbound adder on the bodies its signs choose beside the Project's own %s (#1928)",
     (name) => {
-      // An external definition of the same name replaces any body: the
-      // signs cannot choose a generated one over it.
+      // The author's definition keeps its name; the body named adder
+      // yields it, and the signs still choose among the generated bodies.
       const project = blockCell("adder");
       project.externalSubcircuitDefinitions.push({
         id: "own-adder",
@@ -260,8 +257,8 @@ describe("generated block bodies", () => {
       const block = project.documents[0]!.instances[0]!;
       const sum = createDesignNetlistExport(project);
       if (sum.status !== "ready") throw new Error("sum blocked");
-      expect(sum.file.text).toMatch(/^X1 VDD VSS A B Y adder$/mu);
-      expect(sum.file.text).not.toMatch(/^\.subckt adder/imu);
+      expect(sum.file.text).toMatch(/^X1 VDD VSS A B Y icm_adder$/mu);
+      expect(sum.file.text).toMatch(/^\.subckt icm_adder VDD VSS A B Y$/mu);
       expect(
         sum.diagnostics.filter((item) => item.code.startsWith("ADDER_")),
       ).toEqual([]);
@@ -269,28 +266,17 @@ describe("generated block bodies", () => {
       block.netlist!.parameters = { signA: "+", signB: "-" };
       const difference = createDesignNetlistExport(project);
       if (difference.status !== "ready") throw new Error("difference blocked");
-      expect(difference.file.text).toMatch(/^X1 VDD VSS A B Y adder$/mu);
-      expect(difference.file.text).not.toMatch(
-        /adder_minus|^\.subckt adder/imu,
+      expect(difference.file.text).toMatch(
+        /^X1 VDD VSS A B Y adder_minus_b$/mu,
       );
+      expect(difference.file.text).toMatch(/^\.subckt adder_minus_b /mu);
       expect(
         difference.diagnostics.filter((item) => item.code.startsWith("ADDER_")),
-      ).toEqual([
-        expect.objectContaining({
-          code: "ADDER_SIGN_NOT_EXPORTED",
-          severity: "warning",
-          objectIds: ["block"],
-          message: expect.stringContaining(
-            "subtracts B, but calls adder, which this Project defines",
-          ),
-        }),
-      ]);
+      ).toEqual([]);
     },
   );
 
-  it("keep calling the Project's own adder Cell whatever the signs", () => {
-    // A Cell named Adder beside the block: export refuses the shared name
-    // whatever the signs, and the authoring view still calls the Cell.
+  it("keep an unbound adder on the bodies its signs choose beside a Cell named Adder (#1928)", () => {
     const project = blockCell("adder");
     const top = project.documents[0]!;
     const own = createEmptyDocument("own-adder", "Adder");
@@ -307,27 +293,19 @@ describe("generated block bodies", () => {
       },
     });
     top.instances[0]!.netlist!.parameters = { signA: "-", signB: "+" };
-    const strict = analyzeDesignNetlist(project);
-    expect(strict.ir).toBeNull();
-    expect(strict.diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: "MASTER_NAME_COLLISION",
-        objectIds: ["block"],
-      }),
-    );
-    const { ir, diagnostics } = analyzeDesignNetlistForAuthoring(project);
-    const call = ir!.cells
-      .find((cell) => cell.id === top.id)!
-      .instances.find((instance) => instance.id === "block")!;
-    expect(call.target).toBe("adder");
-    expect(ir!.cells.map((cell) => cell.name)).not.toContain("adder_minus_a");
-    expect(diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: "ADDER_SIGN_NOT_EXPORTED",
-        severity: "warning",
-        objectIds: ["block"],
-      }),
-    );
+    const call = (project: CircuitProject) => {
+      const { ir, diagnostics } = analyzeDesignNetlist(project);
+      expect(diagnostics.filter((item) => item.severity === "error")).toEqual(
+        [],
+      );
+      expect(ir!.cells.map((cell) => cell.name)).toContain("Adder");
+      return ir!.cells
+        .find((cell) => cell.id === top.id)!
+        .instances.find((instance) => instance.id === "block")!.target;
+    };
+    expect(call(project)).toBe("adder_minus_a");
+    top.instances[0]!.netlist!.parameters = { signA: "+", signB: "+" };
+    expect(call(project)).toBe("icm_adder");
   });
 
   it("warn that an adder bound to another subcircuit calls it whatever its signs", () => {

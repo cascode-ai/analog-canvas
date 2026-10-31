@@ -8,6 +8,7 @@ import {
   deriveDocumentContactEvidence,
 } from "@icm/derived";
 import {
+  createEmptyDocument,
   createEmptyProject,
   type CircuitProject,
   type SchematicDocument,
@@ -579,6 +580,21 @@ describe("blocks' symbols", () => {
     expect(of(ops, "set").find((op) => op.object === "#X1")?.symbol).toBe(
       "$CANVAS_CALL_DELAY_CELL__0_0_1_2",
     );
+  });
+
+  it("draws Delay Cells whose body yields its name to a Cell as on the body itself (#1928)", () => {
+    const symbols = (project: CircuitProject) =>
+      of(exported(project).ops, "set")
+        .filter((op) => /^#X[123]$/u.test(op.object))
+        .map((op) => op.symbol);
+    const renamed = delayCellFixture(false);
+    const own = createEmptyDocument("own-delay", "delay_cell");
+    own.netlist!.name = "delay_cell";
+    renamed.documents.push(own);
+    const { text, diagnostics } = exported(renamed);
+    expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(text).toMatch(/^X1 .* icm_delay_cell( |$)/mu);
+    expect(symbols(renamed)).toEqual(symbols(delayCellFixture(false)));
   });
 });
 

@@ -46,6 +46,7 @@ import {
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
+  withProjectComponentDefinitions,
 } from "@icm/symbols";
 import { createRnlTestCore } from "./rnl-core.test-support";
 
@@ -104,6 +105,26 @@ it.each(["spice", "spectre"] as const)(
     if (before.status !== "ready" || after.status !== "ready")
       throw Error("Delay Cell graph was not ready");
     expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "reads Delay Cells whose body yields its name to a Cell back as the Delay Cells through %s+RNL (#1928)",
+  async (format) => {
+    const project = delayCellFixture();
+    const own = createEmptyDocument("own-delay", "delay_cell");
+    own.netlist!.name = "delay_cell";
+    project.documents.push(own);
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    expect(exported.request.netlist).toMatch(/ icm_delay_cell\b/u);
+    const result = await roundTrip(project, format);
+    expect(failures(result)).toEqual([]);
+    const parts = result.project.documents
+      .flatMap((d) => d.instances)
+      .filter((i) => i.symbolId === "delay-cell");
+    expect(parts).toHaveLength(3);
+    expect(parts.every((i) => i.netlist?.parameters.tpd === "100p")).toBe(true);
   },
 );
 
@@ -4068,7 +4089,7 @@ function comparator(
 }
 
 describe("RNL round trip of built-in blocks", () => {
-  it("refuses an inline comparator stencil on a different custom master interface", () => {
+  it("refuses a comparator retargeted to the Project's master whose ports are not its own pins (#1928)", () => {
     const project = comparator("comparator-differential", {}, true);
     const ports = ["VDD", "VSS", "VIP", "VIN", "VOP", "VON"];
     project.documents[0]!.instances[0]!.netlist!.binding = {
@@ -4106,6 +4127,49 @@ describe("RNL round trip of built-in blocks", () => {
           sourceId: "source",
           entry: "custom_cmp",
         },
+      },
+    ];
+    // The retarget binds the comparator to custom_cmp, Pin by name, as
+    // set-model would; its VIP/VIN/VOP/VON are the ideal body's, not the
+    // comparator's, so the netlist refuses before any stencil is drawn.
+    const result = createRnlExport(project, { format: "spice" });
+    expect(result.status).toBe("blocked");
+    if (result.status !== "blocked") return;
+    expect(result.netlistDiagnostics).toContainEqual(
+      expect.objectContaining({ code: "GATE_CELL_PIN_MISMATCH" }),
+    );
+  });
+
+  it("refuses an inline comparator stencil on a component's own master with another port order", () => {
+    // A User Component drawn with the comparator's symbol calls its own
+    // master, its ports in its own order: the inline stencil's terminals
+    // would land on the wrong nodes.
+    const project = withProjectComponentDefinitions(
+      comparator("comparator-differential", {}, true),
+    );
+    const component = project.componentDefinitions!.find(
+      (definition) => definition.symbol.id === "comparator-differential",
+    )!;
+    component.subcircuit = {
+      ...component.subcircuit!,
+      target: "custom_cmp",
+      ports: [...component.subcircuit!.ports].reverse(),
+    };
+    project.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "unresolved-subcircuit",
+      name: "custom_cmp",
+    };
+    project.externalSubcircuitDefinitions = [
+      {
+        id: "custom-cmp",
+        name: "custom_cmp",
+        interfaceStatus: "declared",
+        terminals: component.subcircuit.ports.map((port) => ({
+          id: port.name,
+          name: port.name,
+          direction: "inout" as const,
+        })),
+        formalParameters: [],
       },
     ];
     const result = createRnlExport(project, { format: "spice" });

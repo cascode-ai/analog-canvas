@@ -1964,4 +1964,30 @@ describe("a Library part bound to an external definition (#1928)", () => {
       "External subcircuit ota does not fit the opamp: it has no Pins IN+ and IN-",
     );
   });
+
+  it("checks a comparator naming the Project's comparator as export binds it", () => {
+    // An older comparator names `comparator`; the Project's definition of it
+    // is reached by Pin name, never by position.
+    const retargeted = (ports: readonly string[]) => {
+      const project = boundOpamp(ports);
+      project.externalSubcircuitDefinitions[0]!.name = "comparator";
+      const comparator = project.documents[0]!.instances[0]!;
+      comparator.symbolId = "comparator";
+      comparator.netlist!.binding = {
+        kind: "unresolved-subcircuit",
+        name: "comparator",
+      };
+      return project;
+    };
+    expect(codes(retargeted(["OUT", "IN-", "IN+"]))).not.toContain(
+      "ERC_PORT_NAME_MISMATCH",
+    );
+    expect(
+      run(retargeted(["VIP", "VIN", "VOUT"])).find(
+        (item) => item.code === "ERC_PORT_NAME_MISMATCH",
+      )?.message,
+    ).toContain(
+      "External subcircuit comparator does not fit the comparator: it has no Pins IN+, IN- and OUT",
+    );
+  });
 });

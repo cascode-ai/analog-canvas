@@ -33,6 +33,7 @@ import {
   printedParameterConversion,
   restorePrintedParameter,
   spectreNumber,
+  plainBodyName,
   withNetlistPowerMarkerClaims,
   type DesignNetlistCell,
   type DesignNetlistIR,
@@ -705,7 +706,7 @@ function exportCell(
       // A Library block's call names its ports, as its contract does (a
       // DAC's VIN is its pin IN).
       const ports = call.target
-        ? builtInModelContract(call.target)?.ports
+        ? builtInModelContract(plainBodyName(context.ir, call.target))?.ports
         : undefined;
       const ordered = symbolForCall(
         symbol,

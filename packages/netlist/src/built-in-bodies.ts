@@ -29,6 +29,7 @@ import {
 } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
 import { bodySupplies } from "./implicit-mos-supplies.js";
+import { withoutReservedPrefix } from "./library-part-calls.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import {
   printGeneratedCell,
@@ -179,11 +180,15 @@ function chopperBody(
   format: NetlistFormat,
 ): Omit<SpiceBuiltInBody, "source"> | null {
   const name = format === "spice" ? header.name.toLowerCase() : header.name;
-  if (name !== IDEAL_CHOPPER_TARGET) return null;
+  if (
+    name !== IDEAL_CHOPPER_TARGET &&
+    withoutReservedPrefix(name) !== IDEAL_CHOPPER_TARGET
+  )
+    return null;
   const printed =
     format === "spice"
-      ? spiceChopperBody()
-      : printSpectreBehavioralModel(chopperBehavioralDefinition());
+      ? spiceChopperBody(name)
+      : printSpectreBehavioralModel({ ...chopperBehavioralDefinition(), name });
   if (!samePrinting(printed, body, format)) return null;
   return {
     name: header.name,
@@ -256,13 +261,23 @@ function builtInBody(
   body: readonly Statement[],
   format: NetlistFormat,
 ): Omit<SpiceBuiltInBody, "source"> | null {
-  const name = format === "spice" ? header.name.toLowerCase() : header.name;
-  const behavioral =
+  const written = format === "spice" ? header.name.toLowerCase() : header.name;
+  const behavioralBody = (name: string) =>
     isIdealOpampBody(name) ||
     isIdealComparatorBody(name) ||
     ["logic", "signal", "passive"].includes(
       builtInModelContract(name)?.family ?? "",
     );
+  // A body that yielded its name to an author's definition is written with
+  // the reserved prefix (#1928).
+  const name = [written, withoutReservedPrefix(written)].find(
+    (candidate): candidate is string =>
+      candidate !== undefined &&
+      (behavioralBody(candidate) ||
+        idealAnalogBlockCell(candidate, format) !== null),
+  );
+  if (!name) return null;
+  const behavioral = behavioralBody(name);
   const cell = behavioral ? null : idealAnalogBlockCell(name, format);
   if (!behavioral && !cell) return null;
   const own = cell
@@ -285,6 +300,7 @@ function builtInBody(
     ? printGeneratedCell(
         {
           ...cell,
+          name: written,
           ports: order.flatMap((port) =>
             cell.ports.filter((candidate) => candidate.name === port),
           ),
@@ -292,8 +308,10 @@ function builtInBody(
         format,
       )
     : format === "spice"
-      ? generatedBehavioralModel(name, order)
-      : printSpectreBehavioralModel(generatedBehavioralDefinition(name, order));
+      ? generatedBehavioralModel(name, order, written)
+      : printSpectreBehavioralModel(
+          generatedBehavioralDefinition(name, order, written),
+        );
   if (!samePrinting(printed, body, format)) return null;
   const target = isIdealOpampBody(name)
     ? OPAMP_TARGET
@@ -317,7 +335,7 @@ function builtInBody(
   // A body that reads neither supply takes ground for one nothing was
   // bound to. The op-amp is the exception: a bound VDD powers it, and only
   // its numeric body is unpowered.
-  const unread = bodySupplies(name, new Set(), format).length === 0;
+  const unread = bodySupplies(name, format).length === 0;
   const signs = adderBodySigns(name);
   return {
     name: header.name,

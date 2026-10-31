@@ -20,11 +20,15 @@ import { resolveDocumentRoutingGeometry } from "../resolved-route-geometry.js";
 import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic } from "./diagnostic.js";
-import { findExternalMasterCollisions } from "../master-names.js";
+import {
+  findExternalMasterCollisions,
+  libraryPartRetarget,
+} from "../master-names.js";
 import {
   deviceDescriptor,
   gateCellBinding,
   gateExternalBinding,
+  libraryPartBinding,
   type GateCellPinMatch,
   instanceParameterContract,
   milliScaleReading,
@@ -384,6 +388,30 @@ export function runErcChecks(
           partPinMismatch(document.id, instance.id, external.match, {
             definitionId: external.definition.id,
           }),
+        );
+      // A part naming another master the Project defines is bound to it, as
+      // export binds it (#1928).
+      const retarget = libraryPartRetarget(project, instance);
+      const retargeted =
+        retarget &&
+        libraryPartBinding(project, {
+          ...instance,
+          netlist: {
+            parameters: {},
+            ...instance.netlist,
+            binding: retarget.binding,
+          },
+        });
+      if (retarget && retargeted && !retargeted.match.ok)
+        diagnostics.push(
+          partPinMismatch(
+            document.id,
+            instance.id,
+            retargeted.match,
+            retarget.binding.kind === "subcircuit"
+              ? { childDocumentId: retarget.binding.childDocumentId }
+              : { definitionId: retarget.binding.definitionId },
+          ),
         );
       const childBinding = instance.netlist?.binding;
       if (childBinding?.kind !== "subcircuit") continue;

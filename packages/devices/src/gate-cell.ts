@@ -10,7 +10,11 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 
-import { DIFFERENTIAL_COMPARATOR_TARGET } from "./ideal-comparator.js";
+import {
+  DIFFERENTIAL_COMPARATOR_TARGET,
+  callsIdealComparatorBody,
+  placedSubcircuitTarget,
+} from "./ideal-comparator.js";
 import { OPAMP_TARGET } from "./ideal-opamp.js";
 import type { ParameterOwner } from "./instance-parameters.js";
 import { subcircuitDescriptor } from "./registry.js";
@@ -47,6 +51,82 @@ const amplifierKind = (symbolId: string) =>
  */
 export function bindsProjectCell(symbolId: string): boolean {
   return subcircuitDescriptor(symbolId) !== undefined;
+}
+
+/**
+ * Whether a symbol draws a Library part with a generated body: the Library's
+ * own, or a Project's captured copy that still names that body. A component
+ * whose subcircuit names another master calls the author's own.
+ */
+export function isLibraryPart(
+  project: Partial<Pick<CircuitProject, "componentDefinitions">>,
+  symbolId: string,
+): boolean {
+  const library = subcircuitDescriptor(symbolId);
+  const placed = subcircuitDescriptor(
+    symbolId,
+    project.componentDefinitions
+      ? { componentDefinitions: project.componentDefinitions }
+      : undefined,
+  );
+  return (
+    library !== undefined &&
+    placed?.target.toLowerCase() === library.target.toLowerCase()
+  );
+}
+
+/**
+ * Whose name a part's call reaches (#1928): `bound`, the author's Cell or
+ * external definition it is bound to by identity; `component`, a User
+ * Component's or imported block's own subcircuit, by name; `library`, for a
+ * Library part, magnetic device or the chopper, a generated body or a master
+ * of the reader's libraries, never the author's by name.
+ */
+export function callOwner(
+  project: Partial<Pick<CircuitProject, "componentDefinitions">>,
+  instance: ParameterOwner,
+): "bound" | "component" | "library" {
+  const kind = instance.netlist?.binding?.kind;
+  if (kind === "subcircuit" || kind === "external-subcircuit") return "bound";
+  return kind === "unresolved-subcircuit" &&
+    !isLibraryPart(project, instance.symbolId)
+    ? "component"
+    : "library";
+}
+
+/**
+ * The parameters a part keeps once bound to a Cell or external definition:
+ * those it declares. The body's own (an adder's signs, a gate's vt) give way
+ * (#1450, #1928).
+ */
+export function boundPartParameters(
+  parameters: Readonly<Record<string, string>>,
+  formalParameters: readonly { readonly name: string }[],
+): Record<string, string> {
+  const formals = new Set(
+    formalParameters.map((formal) => formal.name.toLowerCase()),
+  );
+  return Object.fromEntries(
+    Object.entries(parameters).filter(([name]) =>
+      formals.has(name.toLowerCase()),
+    ),
+  );
+}
+
+/**
+ * Whether the master a Library part stores is the generated body it is
+ * placed with, which leaves the part unbound (#1928): its own target, or
+ * either body of the ideal comparator. An older comparator's `comparator`
+ * names no body.
+ */
+export function namesOwnBody(symbolId: string, name: string): boolean {
+  const descriptor = subcircuitDescriptor(symbolId);
+  if (!descriptor) return false;
+  const folded = name.toLowerCase();
+  return (
+    folded === placedSubcircuitTarget(descriptor.target).toLowerCase() ||
+    callsIdealComparatorBody(descriptor, folded)
+  );
 }
 
 /** What a refusal calls a part a Cell may implement: gate, op-amp, … */

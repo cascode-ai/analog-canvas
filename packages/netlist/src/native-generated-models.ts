@@ -4,15 +4,20 @@ import {
   projectBehavioralExpression,
 } from "./behavioral-model.js";
 
-/** Native syntax projection, with no SPICE card parsing or model equations. */
+/**
+ * Native syntax projection, with no SPICE card parsing or model equations.
+ * `name` writes the body under another name, where an author's definition
+ * has its own (#1928).
+ */
 export function nativeBehavioralModel(
   target: string,
   scalar: (raw: string) => string,
   models: ReadonlyMap<string, string>,
+  name = target,
 ): string[] {
   const model = generatedBehavioralDefinition(target);
   return [
-    `subckt ${target} (${model.ports.join(" ")})`,
+    `subckt ${name} (${model.ports.join(" ")})`,
     ...model.parameters.map(
       (p) => `parameters ${p.name}=${scalar(p.defaultValue)}`,
     ),

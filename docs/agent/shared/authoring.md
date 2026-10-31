@@ -146,7 +146,11 @@ their IDs, never resolved to the first.
   position. The call goes to the definition by Pin name, its parameters win, a
   VDD/VSS Net it lacks a Pin for is cleared, the part's own Cell is refused,
   and a Cell's used Pins cannot be renamed or removed. An empty model returns
-  the ideal body and default parameters.
+  the ideal body and default parameters. A part with no model calls its ideal
+  body; where a Cell or subcircuit of the Project has the body's name, the
+  netlist writes the body as `icm_<name>` (`LIBRARY_PART_NAME_COLLISION` when
+  that name is taken too, or for a Spectre call-only part). Only `set-model`
+  reaches the Project's own.
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the

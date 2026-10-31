@@ -4,7 +4,12 @@ import {
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
-import { subcircuitDescriptor } from "@icm/devices";
+import {
+  callOwner,
+  isLibraryPart,
+  namesOwnBody,
+  subcircuitDescriptor,
+} from "@icm/devices";
 
 /**
  * Shared exported Cell spelling for both checks and netlist generation. Greek
@@ -27,6 +32,12 @@ export function portableCellIdentifier(
   return /^[A-Za-z_]/u.test(body) ? body : `Cell_${body}`;
 }
 
+/**
+ * Calls by name that a local Cell of the same exported name would shadow:
+ * two of the author's definitions under one name. An unbound Library part
+ * calls its generated body, and one retargeted to the Cell's name is bound
+ * to that Cell, so neither collides (#1928).
+ */
 export function findExternalMasterCollisions(
   project: CircuitProject,
   documents: readonly SchematicDocument[] = project.documents,
@@ -49,7 +60,11 @@ export function findExternalMasterCollisions(
   return documents.flatMap((document) =>
     document.instances.flatMap((instance) => {
       const binding = instance.netlist?.binding;
-      if (binding?.kind === "subcircuit") return [];
+      if (
+        binding?.kind === "subcircuit" ||
+        callOwner(project, instance) === "library"
+      )
+        return [];
       const target =
         binding?.kind === "external-subcircuit"
           ? project.externalSubcircuitDefinitions.find(
@@ -71,5 +86,74 @@ export function findExternalMasterCollisions(
           ]
         : [];
     }),
+  );
+}
+
+/**
+ * The master a Library part names in place of its own body (#1928), if any.
+ * An older part with no binding names its symbol's own master, which for a
+ * comparator placed before the ideal comparator is `comparator`.
+ */
+export function libraryPartMaster(
+  project: Pick<CircuitProject, "componentDefinitions">,
+  instance: SchematicDocument["instances"][number],
+): string | undefined {
+  if (!isLibraryPart(project, instance.symbolId)) return undefined;
+  const binding = instance.netlist?.binding;
+  const name =
+    binding?.kind === "unresolved-subcircuit"
+      ? binding.name
+      : binding
+        ? undefined
+        : subcircuitDescriptor(instance.symbolId)?.target;
+  return name && !namesOwnBody(instance.symbolId, name) ? name : undefined;
+}
+
+/**
+ * The Cell or external definition of the master a Library part names in
+ * place of its own body (#1928), and the parameters it declares: the part is
+ * bound to it, Pins by name, as set-model binds it. Undefined for an unbound
+ * part and for a name the Project does not define, which stays a call to the
+ * reader's libraries.
+ */
+export function libraryPartRetarget(
+  project: Pick<
+    CircuitProject,
+    "documents" | "externalSubcircuitDefinitions" | "componentDefinitions"
+  >,
+  instance: SchematicDocument["instances"][number],
+):
+  | {
+      binding:
+        | { kind: "subcircuit"; childDocumentId: string }
+        | { kind: "external-subcircuit"; definitionId: string };
+      formalParameters: readonly { readonly name: string }[];
+    }
+  | undefined {
+  const name = libraryPartMaster(project, instance);
+  if (!name) return undefined;
+  const folded = name.toLowerCase();
+  const cell = project.documents.find(
+    (document) =>
+      document.netlist &&
+      (document.netlist.name.toLowerCase() === folded ||
+        portableCellIdentifier(
+          document.netlist.name,
+          document.id,
+        ).toLowerCase() === folded),
+  );
+  if (cell)
+    return {
+      binding: { kind: "subcircuit", childDocumentId: cell.id },
+      formalParameters: cell.netlist!.formalParameters,
+    };
+  const definition = project.externalSubcircuitDefinitions.find(
+    (candidate) => candidate.name.toLowerCase() === folded,
+  );
+  return (
+    definition && {
+      binding: { kind: "external-subcircuit", definitionId: definition.id },
+      formalParameters: definition.formalParameters,
+    }
   );
 }
