@@ -64,6 +64,11 @@ export interface DesignNetlistCell {
   origin?: "generated-model";
   id: StableId;
   name: string;
+  /**
+   * The generated model a generated-model Cell is, when written under
+   * another name: one of the author's definitions takes its own (#1928).
+   */
+  body?: string;
   ports: Array<{ id: StableId; name: string; netName: string }>;
   nets: Array<{
     id: StableId;
@@ -147,7 +152,13 @@ export type DesignNetlistGeneratedDefinition =
   | DesignNetlistMagneticSubcircuit
   | {
       kind: "behavioral";
+      /** The name this netlist writes it under. */
       name: string;
+      /**
+       * The generated body it prints, when written under another name: one
+       * of the author's definitions takes the body's own (#1928).
+       */
+      body?: string;
       /**
        * Its ports in the order this netlist prints them, when that is not the
        * definition's own; only `withBodyPortOrder` sets it.

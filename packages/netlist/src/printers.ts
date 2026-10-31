@@ -5,6 +5,7 @@ import type {
   DesignNetlistMagneticSubcircuit,
 } from "./ir.js";
 import {
+  definitionBody,
   generatedBehavioralModel,
   generatedBehavioralDefinition,
 } from "./generated-models.js";
@@ -231,7 +232,11 @@ function renderSpice(
     append(
       ...(definition.kind === "magnetic"
         ? spiceMagneticSubcircuit(definition)
-        : generatedBehavioralModel(definition.name, definition.ports)),
+        : generatedBehavioralModel(
+            definitionBody(definition),
+            definition.ports,
+            definition.name,
+          )),
     );
   }
   for (const cell of ir.cells) {
@@ -381,7 +386,11 @@ function renderSpectre(
       ...(definition.kind === "magnetic"
         ? spectreMagneticSubcircuit(definition)
         : printSpectreBehavioralModel(
-            generatedBehavioralDefinition(definition.name, definition.ports),
+            generatedBehavioralDefinition(
+              definitionBody(definition),
+              definition.ports,
+              definition.name,
+            ),
           )),
     );
   let length = lines.join("\n").length;

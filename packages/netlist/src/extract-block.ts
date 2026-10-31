@@ -44,8 +44,11 @@ export function extractBuiltInSubcircuitInstance(
   context: CellNetContext,
   _options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
-  /** The Project's own subcircuit names; see projectSubcircuitNames. */
-  projectNames: ReadonlySet<string>,
+  /**
+   * A Library part, whose call reaches its generated body, not a User
+   * Component calling the author's own subcircuit (#1928).
+   */
+  libraryPart: boolean,
   /** The body never reads VDD/VSS, so an undrawn supply is tied to ground. */
   supplyFree = false,
 ): DesignNetlistInstance | null {
@@ -61,7 +64,7 @@ export function extractBuiltInSubcircuitInstance(
     );
     return null;
   }
-  const target = builtInBlockCallTarget(instance, definition, projectNames);
+  const target = builtInBlockCallTarget(instance, definition);
   if (!isIdentifier(reference) || !isIdentifier(target)) {
     diagnostic(
       diagnostics,
@@ -93,12 +96,12 @@ export function extractBuiltInSubcircuitInstance(
       );
   }
   // The signs choose among the generated adder bodies only. A call that
-  // reaches anything else must subtract as drawn: a subcircuit the adder
-  // was retargeted to, or the Project's own definition of the name.
+  // reaches anything else must subtract as drawn: a subcircuit of the
+  // reader's libraries the adder was retargeted to, or the author's own.
   const retargeted =
     binding?.kind === "unresolved-subcircuit" &&
     binding.name.toLowerCase() !== definition.target;
-  const ownDefinition = projectNames.has(target.toLowerCase());
+  const ownDefinition = !libraryPart;
   if (target.toLowerCase() === "delay_cell" && !ownDefinition) {
     const seen = new Set<string>();
     for (const [name, value] of Object.entries(netlist?.parameters ?? {})) {
@@ -205,10 +208,8 @@ export function extractBuiltInSubcircuitInstance(
       );
     }
   }
-  // A Project's own definition of the op-amp's name replaces every body.
-  const idealOpamp =
-    callsIdealOpampBody(definition, target) &&
-    !projectNames.has(target.toLowerCase());
+  // A Library op-amp calls its ideal body, whatever the Project defines.
+  const idealOpamp = libraryPart && callsIdealOpampBody(definition, target);
   const opampParameters = Object.fromEntries(parameters);
   const followsSupply = idealOpamp && {
     VDD: limitFollowsSupply(opampParameters, OPAMP_HIGH_LIMIT),

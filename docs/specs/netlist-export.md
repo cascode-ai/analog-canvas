@@ -106,8 +106,22 @@ derive from `parameters`.
   simulation, each emitted once. Factories produce typed recipes; printers own
   syntax only. VACASK prints reviewed nonlinear equations as behavioral sources
   (OpenVAF). Backend availability is not a PDK gate.
-- An authored Cell or external definition with a built-in body's name replaces
-  it, except where a collision code is listed below.
+- The name is never the key ([rules](../../packages/netlist/src/library-part-calls.ts)):
+  - An unbound Library part, storing its own body's name (or no binding, its
+    symbol's master being that body), calls its generated body, whatever the
+    Project defines.
+  - The author's Cells, external subcircuits and model-source subcircuits
+    keep their names, counted across the whole Project. A generated body one
+    of them names is written as `icm_<name>` with its calls, else
+    `LIBRARY_PART_NAME_COLLISION` (that name taken too, or the body already
+    `icm_`).
+  - A part naming another master (a comparator placed before the ideal one
+    names `comparator`, stored or as its symbol's master) is bound, as
+    `set-model` binds, to the Project's Cell or external subcircuit of that
+    name, and ERC checks it so. A name only a model source defines is
+    `LIBRARY_PART_NAME_COLLISION`; any other name stays a call to the
+    reader's libraries in the part's port order.
+  - `MASTER_NAME_COLLISION` is two of the author's definitions under one name.
 - MOS pin order is D/G/S/B; hidden pins stay. Decorative symbols have no
   definition; an unsupported electrical Symbol blocks. Sources export only from
   a structural specification, never a display string.
@@ -131,7 +145,7 @@ pins.
   candidates read ±5 V (ground low) with non-blocking
   `IDEAL_OPAMP_SUPPLY_AMBIGUOUS`. Bodies `opamp`, `icm_opamp_vdd`,
   `icm_opamp_vss`, `icm_opamp_vdd_vss`; no call carries `vhigh=VDD`. Errors:
-  `IDEAL_OPAMP_NAME_COLLISION`, `INVALID_IDEAL_OPAMP_LIMIT`.
+  `INVALID_IDEAL_OPAMP_LIMIT`.
 - Logic (SPICE): gates, buffer, inverter and D flip-flops print once ahead of the
   Cells; inputs are high above V(VDD,VSS)/2 via a `tanh` step `vt` (10 mV);
   outputs swing VSS→VDD through a one-pole delay `td` (10 ps); flip-flops sample D
@@ -151,9 +165,8 @@ pins.
   and stored as `-`); signs pick the body (`adder`, `adder_minus_a`,
   `adder_minus_b`, `adder_minus_ab`), never a call parameter; `+ +` is
   byte-identical to unsigned. Errors and warnings: `INVALID_ADDER_SIGN`,
-  `MASTER_NAME_COLLISION` (a Cell named `adder`), `ADDER_SIGN_NOT_EXPORTED`
-  (subtracting adder calling a custom body). A Project `adder` definition
-  replaces every body. [`adder.ts`](../../packages/devices/src/adder.ts) is the
+  `ADDER_SIGN_NOT_EXPORTED` (a subtracting adder calling another master).
+  [`adder.ts`](../../packages/devices/src/adder.ts) is the
   single table; drawing: [Razavi contract](razavi-visual-contract.md#signal-flow-adder-signs).
 - Multiplier: `gain`·V(A)·V(B), `gain` default 1/V. ADC/DAC: 2^`bits` (default 8)
   levels between VSS and VDD, unclocked, output VSS + LSB·code clamped, so
@@ -165,8 +178,7 @@ pins.
   calls `icm_ideal_comparator_vdd` (`VDD VIP VIN VOUT`, adds a VDD pin, no
   ground); numbers call `icm_ideal_comparator` (`VIP VIN VOUT`) byte-identically
   (stored `vhigh=1` is not migrated). Errors:
-  `INVALID_IDEAL_COMPARATOR_PARAMETER` (also ERC and immediate Agent refusal),
-  `IDEAL_COMPARATOR_NAME_COLLISION`.
+  `INVALID_IDEAL_COMPARATOR_PARAMETER` (also ERC and immediate Agent refusal).
 - Fully differential comparator (`comparator-differential`) shares those
   parameters and checks. `OUT+` uses the comparator transfer above; `OUT-`
   uses its complement, so their sum is high + vlow and equal inputs put both
@@ -182,6 +194,9 @@ pins.
 - SPICE and VACASK include all bodies; Spectre includes comparator,
   combinational gates (`bsource` with RC delay) and the crystal; DFF,
   multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.
+  That call's name is the reader's interface: where a Cell, or an external
+  subcircuit or model source, in the netlist defines it, an unbound part
+  refuses with `LIBRARY_PART_NAME_COLLISION` naming `set-model`.
   Other Analog Blocks are black-box calls.
 
 ### Switches
@@ -238,8 +253,7 @@ pins.
   `ct_inductor` (the T-coil without `CB`, `k` default 0).
 - Windings start at the polarity dot (pin 1 and the tap; P+ and S+). Spectre uses
   `inductor`/`mutual_inductor`; VACASK `mutual` with nonnegative coupling.
-- Errors: `MAGNETIC_PARAMETER_NOT_ACCEPTED`, `MAGNETIC_COUPLING_OUT_OF_RANGE`,
-  `MAGNETIC_SUBCIRCUIT_NAME_COLLISION`.
+- Errors: `MAGNETIC_PARAMETER_NOT_ACCEPTED`, `MAGNETIC_COUPLING_OUT_OF_RANGE`.
 
 ## Net rules
 

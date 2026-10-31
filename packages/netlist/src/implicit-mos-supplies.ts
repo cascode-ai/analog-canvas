@@ -8,7 +8,6 @@ import {
   drawnSupplyNet,
   drawsSupply,
   mosBulkKind,
-  portableCellIdentifier,
   resolveMosBulkConnection,
   resolveCommittedDocumentLogicalNets,
   type PlacedMosBodies,
@@ -22,13 +21,13 @@ import {
   isIdealComparatorBody,
   instanceBuiltInSubcircuit,
   isIdealOpampBody,
+  isLibraryPart,
   resolveReviewedExternalBinding,
 } from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
 import {
   builtInBlockCallTarget,
   idealAnalogBlockCell,
-  projectSubcircuitNames,
 } from "./ideal-analog-block-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
@@ -41,17 +40,12 @@ import type { NetlistFormat } from "./net-name-codec.js";
  * reads that supply alone. The ideal op-amp reads its supplies only once a
  * drawn or selected VDD powers it (ideal-opamp.ts), so an undrawn supply
  * takes no default. The crystal has no supply ports. Every other body reads
- * both. An authored Cell or
- * a declared external definition of the same name replaces the body, and may
- * well use both supplies.
+ * both.
  */
 export function bodySupplies(
   target: string,
-  /** The Project's own subcircuit names; see projectSubcircuitNames. */
-  projectNames: ReadonlySet<string>,
   format: NetlistFormat,
 ): readonly ("VDD" | "VSS")[] {
-  if (projectNames.has(target.toLowerCase())) return ["VDD", "VSS"];
   if (
     isIdealComparatorBody(target) &&
     (target !== IDEAL_COMPARATOR_TARGET || format === "spice")
@@ -82,14 +76,6 @@ function blockSuppliesToDefault(
   supply: "VDD" | "VSS";
   reads: readonly ("VDD" | "VSS")[];
 }[] {
-  const projectNames = projectSubcircuitNames(
-    source,
-    source.documents.flatMap((document) =>
-      document.netlist?.name
-        ? [portableCellIdentifier(document.netlist.name, document.id)]
-        : [],
-    ),
-  );
   return source.documents.flatMap((document) => {
     let logical:
       ReturnType<typeof resolveCommittedDocumentLogicalNets> | undefined;
@@ -103,11 +89,13 @@ function blockSuppliesToDefault(
     return document.instances.flatMap((instance) => {
       const descriptor = instanceBuiltInSubcircuit(source, instance);
       if (!descriptor) return [];
-      const reads = bodySupplies(
-        builtInBlockCallTarget(instance, descriptor, projectNames),
-        projectNames,
-        options.format ?? "spice",
-      );
+      // A User Component's own subcircuit may read both supplies.
+      const reads = isLibraryPart(source, instance.symbolId)
+        ? bodySupplies(
+            builtInBlockCallTarget(instance, descriptor),
+            options.format ?? "spice",
+          )
+        : (["VDD", "VSS"] as const);
       return descriptor.ports.flatMap((port) => {
         const supply = port.supply;
         if (!supply || !reads.includes(supply)) return [];

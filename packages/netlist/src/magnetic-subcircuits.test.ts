@@ -256,14 +256,19 @@ describe("drawn magnetic devices", () => {
     ).toEqual([["MISSING_REQUIRED_PARAMETER", "ls"]]);
   });
 
-  it("refuses a Cell that already exports under the subcircuit's name", () => {
+  it("writes its subcircuit under the reserved name where a Cell has the library's (#1928)", () => {
     const project = tcoil();
     project.documents[0]!.netlist!.name = "tcoil";
-    const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("blocked");
-    expect(result.diagnostics.map((item) => item.code)).toContain(
-      "MAGNETIC_SUBCIRCUIT_NAME_COLLISION",
+    const text = exported(project, "spice");
+    expect(text).toContain("X1 a b tap icm_tcoil l1=1n l2=2n k=0.5 cb=10f");
+    expect(text).toContain(".subckt icm_tcoil n1 n2 n3 ");
+    expect(text).toContain(".subckt tcoil ");
+    expect(text.split(".subckt tcoil").length).toBe(2);
+    const spectre = exported(project, "spectre");
+    expect(spectre).toContain(
+      "X1 (a b tap) icm_tcoil l1=1n l2=2n k=0.5 cb=10f",
     );
+    expect(spectre).toMatch(/^subckt icm_tcoil \(n1 n2 n3\)/mu);
   });
 
   it("projects coupled windings through the native mutual primitive", () => {

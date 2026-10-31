@@ -16,7 +16,10 @@ import type {
   PrintedNetlistParameter,
 } from "./printed-netlist.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
-import { generatedBehavioralDefinition } from "./generated-models.js";
+import {
+  definitionBody,
+  generatedBehavioralDefinition,
+} from "./generated-models.js";
 import { nativeBehavioralModel } from "./native-generated-models.js";
 import { switchBehavioralDefinition } from "./ideal-switch-model.js";
 
@@ -240,7 +243,8 @@ export function printVacaskWithLocations(
         formalParameters:
           definition.kind === "magnetic"
             ? definition.formalParameters
-            : generatedBehavioralDefinition(definition.name).parameters,
+            : generatedBehavioralDefinition(definitionBody(definition))
+                .parameters,
       })),
     ].map((master) => [master.name, master]),
   );
@@ -342,10 +346,14 @@ export function printVacaskWithLocations(
     if (definition.kind === "magnetic") {
       classes.add("inductor");
       if (definition.capacitors.length) classes.add("capacitor");
-    } else if (builtInModelContract(definition.name)?.family === "logic") {
+    } else if (
+      builtInModelContract(definitionBody(definition))?.family === "logic"
+    ) {
       classes.add("resistor");
       classes.add("capacitor");
-    } else if (builtInModelContract(definition.name)?.family === "passive") {
+    } else if (
+      builtInModelContract(definitionBody(definition))?.family === "passive"
+    ) {
       classes.add("resistor");
       classes.add("inductor");
       classes.add("capacitor");
@@ -654,9 +662,10 @@ export function printVacaskWithLocations(
       continue;
     if (definition.kind === "behavioral") {
       for (const line of nativeBehavioralModel(
-        definition.name,
+        definitionBody(definition),
         (raw) => vacaskProjectValue(raw),
         models,
+        definition.name,
       ))
         append(line);
     } else {
