@@ -2857,6 +2857,20 @@ function importTexts(
       return;
     }
 
+    // An instance label that stands free of any part, which the export names
+    // for what it is.
+    if (!text.attach && /^%free_label\d+$/u.test(text.id)) {
+      document.annotations.push({
+        id,
+        kind: "instance-label",
+        content,
+        anchor: { kind: "free", position: at },
+        ...common,
+        ...scaled(text.size, profile.typography.instanceFontSize),
+      });
+      return;
+    }
+
     // Anything else is a drawing text, bold as the export writes one that
     // is not set plain (`bold`); text bold only in its markup is plain text
     // with bold runs, which draws the same.

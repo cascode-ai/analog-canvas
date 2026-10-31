@@ -4714,6 +4714,43 @@ function gates4(): CircuitProject {
 }
 
 it.each(["spice", "spectre"] as const)(
+  "keeps an instance label that stands free of any part, through %s+RNL",
+  async (format) => {
+    const project = hiddenPowerPort();
+    project.documents[0]!.annotations.push({
+      id: "free",
+      kind: "instance-label",
+      alignment: "end",
+      rotation: 0,
+      locked: false,
+      anchor: { kind: "free", position: { x: 500, y: 240 } },
+      content: { runs: [{ kind: "text", value: "VOUT" }] },
+    });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const document = plan.project.documents[0]!;
+    expect(document.drafting?.objects ?? []).toEqual([]);
+    expect(
+      document.annotations.filter(
+        (annotation) =>
+          annotation.kind === "instance-label" &&
+          annotation.anchor.kind === "free",
+      ),
+    ).toMatchObject([
+      {
+        kind: "instance-label",
+        alignment: "end",
+        anchor: { position: { x: 500, y: 240 } },
+        content: { runs: [{ kind: "text", value: "VOUT" }] },
+      },
+    ]);
+    expect(
+      labelDifferences(labelCensus(project), labelCensus(plan.project)),
+    ).toEqual([]);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
   "draws a project's exact copy of a Library symbol with that symbol, through %s+RNL",
   async (format) => {
     const project = hiddenPowerPort();
