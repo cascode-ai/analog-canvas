@@ -350,6 +350,16 @@ function spectreCell(
   return lines;
 }
 
+/** A drawn magnetic device's coupled windings, as a file holds them. */
+export function printMagneticSubcircuit(
+  subcircuit: DesignNetlistMagneticSubcircuit,
+  format: NetlistFormat,
+): string[] {
+  return format === "spice"
+    ? spiceMagneticSubcircuit(subcircuit)
+    : spectreMagneticSubcircuit(subcircuit);
+}
+
 /** A Cell the netlist generates, an ideal block's body, as a file holds it. */
 export function printGeneratedCell(
   cell: DesignNetlistCell,

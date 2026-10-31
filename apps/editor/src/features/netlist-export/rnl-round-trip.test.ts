@@ -15,6 +15,7 @@ import {
 } from "@icm/devices";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import {
+  createEmptyDocument,
   createEmptyProject,
   flattenRichText,
   sameStyledText,
@@ -23,6 +24,7 @@ import {
   type DraftingObject,
   type Instance,
   type RichTextRun,
+  type RouteBranch,
 } from "@icm/model";
 import {
   compareElectricalGraphs,
@@ -1768,6 +1770,402 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+/** A netlist's text, or its status where the export cannot print it. */
+function printed(project: CircuitProject, format: "spice" | "spectre") {
+  const result = createDesignNetlistExport(project, { format });
+  return result.status === "ready" ? result.file.text : result.status;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "leaves an op-amp's unwired supplies off the ground pin a switch adds, through %s+RNL",
+  async (format) => {
+    // The Cell prints VSS for the switch alone; the op-amp's body writes its
+    // ports in another order in the file than in a plain netlist. A kept VSS
+    // pin would take the op-amp's unwired supply.
+    const project = createEmptyProject("opamp-switch", "Op-amp", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    const at = (x: number, y: number) =>
+      ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+    document.instances.push(
+      {
+        id: "S1",
+        symbolId: "simple-switch",
+        reference: "S1",
+        placement: at(100, 100),
+      },
+      {
+        id: "X1",
+        symbolId: "opamp-differential-wide",
+        reference: "X1",
+        placement: at(300, 100),
+        netlist: {
+          binding: {
+            kind: "unresolved-subcircuit",
+            name: "opamp_differential",
+          },
+          parameters: { gain: "1e6" },
+        },
+      },
+    );
+    document.nets.push(
+      { id: "a", terminals: [{ instanceId: "S1", pinName: "1" }] },
+      {
+        id: "b",
+        terminals: [
+          { instanceId: "S1", pinName: "2" },
+          { instanceId: "X1", pinName: "IN+" },
+        ],
+      },
+      { id: "c", terminals: [{ instanceId: "X1", pinName: "IN-" }] },
+      { id: "d", terminals: [{ instanceId: "X1", pinName: "OUT+" }] },
+      { id: "e", terminals: [{ instanceId: "X1", pinName: "OUT-" }] },
+    );
+    const text = printed(project, format);
+    expect(text).toMatch(/VSS/u);
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(printed(plan.project, format)).toBe(text);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "takes no Cell Pin for a supply a Cell's body gives it where another Cell draws that supply global, through %s+RNL",
+  async (format) => {
+    // Cell a's unwired PMOS body gives dut a VDD port; Cell b draws the
+    // global VDD. As a Pin, dut's VDD would be both a port and the global
+    // net, which the export refuses to print.
+    const project = createEmptyProject("global-vdd", "Global VDD", "dut");
+    const top = project.documents[0]!;
+    top.netlist!.name = "dut";
+    const at = (x: number, y: number) =>
+      ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+    const pmosCell = (name: string, drawsVdd: boolean) => {
+      const cell = createEmptyDocument(name, name);
+      cell.netlist = { name, formalParameters: [], terminals: [] };
+      cell.instances.push(
+        {
+          id: "M1",
+          symbolId: "pmos",
+          reference: "M1",
+          placement: at(200, 100),
+          netlist: {
+            binding: { kind: "model", deviceClass: "mos", name: "DP" },
+            parameters: { w: "1u", l: "1u" },
+          },
+        },
+        { id: "PA", symbolId: "port", placement: at(100, 100) },
+      );
+      cell.netlist.terminals.push({
+        id: "terminal-a",
+        name: "a",
+        netId: "a",
+        direction: "inout",
+        interfaceInstanceIds: ["PA"],
+      });
+      cell.nets.push(
+        {
+          id: "a",
+          terminals: [
+            { instanceId: "PA", pinName: "P" },
+            { instanceId: "M1", pinName: "G" },
+            { instanceId: "M1", pinName: "D" },
+          ],
+        },
+        { id: "s", terminals: [{ instanceId: "M1", pinName: "S" }] },
+      );
+      if (drawsVdd) {
+        cell.instances.push({
+          id: "V1",
+          symbolId: "vdd-port",
+          placement: at(200, 40),
+        });
+        cell.nets
+          .find((net) => net.id === "s")!
+          .terminals.push({ instanceId: "V1", pinName: "P" });
+        cell.connectivityEvidence.push({
+          id: "vdd-claim",
+          kind: "name-claim",
+          netId: "s",
+          name: "VDD",
+          scope: "global",
+          powerDomain: "vdd",
+          owner: { kind: "power-marker", objectId: "V1" },
+        });
+      }
+      return cell;
+    };
+    const cells = [pmosCell("a", false), pmosCell("b", true)];
+    project.documents.push(...cells);
+    cells.forEach((cell, index) => {
+      const id = `X${index + 1}`;
+      top.instances.push({
+        id,
+        symbolId: hierarchicalSymbolId(cell.id),
+        reference: id,
+        placement: at(100 + 300 * index, 100),
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: cell.id },
+          parameters: {},
+        },
+      });
+      top.nets.push({
+        id: `n${id}`,
+        terminals: [{ instanceId: id, pinName: "a" }],
+      });
+    });
+    const text = printed(project, format);
+    expect(text).toMatch(/global VDD/iu);
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(printed(plan.project, format)).toBe(text);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "takes no ground pin where a port drawn as a power label orders the file's ports, through %s+RNL",
+  async (format) => {
+    // dut's VREF is a power label's port, so it prints with the supplies:
+    // VREF before VSS, which only the label makes so. The rest is the gate
+    // case: kept as a port, VSS would bring a GND pin beside it.
+    const project = delayCellFixture(true);
+    const top = project.documents[0]!;
+    top.instances.find((i) => i.id === "X1")!.symbolId = "inverter";
+    for (const net of top.nets)
+      net.terminals = net.terminals.filter(
+        (t) =>
+          t.instanceId !== "X1" || (t.pinName !== "VDD" && t.pinName !== "VSS"),
+      );
+    top.nets = top.nets.filter((net) => net.terminals.length);
+    top.connectivityEvidence = top.connectivityEvidence.filter((evidence) =>
+      top.nets.some((net) => net.id === evidence.netId),
+    );
+    top.instances.push({
+      id: "R9",
+      reference: "R9",
+      symbolId: "resistor",
+      placement: { position: { x: 500, y: 100 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    top.nets.push(
+      { id: "net-vref", terminals: [{ instanceId: "R9", pinName: "1" }] },
+      { id: "net-load", terminals: [{ instanceId: "R9", pinName: "2" }] },
+    );
+    top.netlist!.terminals.push({
+      id: "terminal-vref",
+      name: "VREF",
+      netId: "net-vref",
+      direction: "inout",
+      interfaceInstanceIds: [],
+      interfaceAnnotationId: "label-vref",
+    });
+    top.annotations.push({
+      id: "label-vref",
+      kind: "power-label",
+      netId: "net-vref",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-vref" },
+      anchor: { kind: "free", position: { x: 500, y: 40 } },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    top.connectivityEvidence.push({
+      id: "evidence-vref",
+      kind: "name-claim",
+      netId: "net-vref",
+      name: "VREF",
+      owner: { kind: "power-marker", objectId: "label-vref" },
+      scope: "local",
+      powerDomain: "vdd",
+    });
+    const cell = project.documents.find((d) => d.id === "delay_cmos")!;
+    const kept = new Set(["pin-VDD", "pin-A", "pin-Y", "C2"]);
+    cell.instances = cell.instances.filter((i) => kept.has(i.id));
+    cell.netlist!.terminals = cell.netlist!.terminals.filter(
+      (t) => t.name !== "VSS",
+    );
+    cell.instances.push(
+      {
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: null,
+        netlist: { parameters: { value: "1k" } },
+      },
+      {
+        id: "GND1",
+        symbolId: "ground",
+        placement: {
+          position: { x: 300, y: 300 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    for (const net of cell.nets) {
+      net.terminals = net.terminals.filter((t) => kept.has(t.instanceId));
+      if (net.id === "A" || net.id === "Y")
+        net.terminals.push({
+          instanceId: "R1",
+          pinName: net.id === "A" ? "1" : "2",
+        });
+      if (net.id === "VSS")
+        net.terminals.push({ instanceId: "GND1", pinName: "0" });
+    }
+    cell.nets = cell.nets.filter((net) => net.terminals.length);
+    cell.connectivityEvidence = [
+      ...cell.connectivityEvidence.filter((evidence) =>
+        cell.nets.some((net) => net.id === evidence.netId),
+      ),
+      {
+        id: "gnd-claim",
+        kind: "name-claim",
+        netId: "VSS",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "GND1" },
+      },
+    ];
+    const text = printed(project, format);
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(printed(plan.project, format)).toBe(text);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "keeps a body tie that runs between junctions a body tie, through %s+RNL",
+  async (format) => {
+    const project = createEmptyProject("body-tie", "Body tie", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    const at = (x: number, y: number) =>
+      ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+    for (const [id, x] of [
+      ["M1", 100],
+      ["M2", 300],
+    ] as const) {
+      document.instances.push({
+        id,
+        reference: id,
+        symbolId: "nmos",
+        placement: at(x, 100),
+        mosBulkBinding: { origin: "instance-override", netId: "bulk" },
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "DN" },
+          parameters: { w: "1u", l: "1u" },
+        },
+      });
+      for (const pinName of ["D", "G", "S"])
+        document.noConnects.push({
+          id: `${id}${pinName}`,
+          endpoint: { kind: "terminal", instanceId: id, pinName },
+        });
+    }
+    document.instances.push({
+      id: "PB",
+      symbolId: "port",
+      placement: at(200, 300),
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-b",
+      name: "B",
+      netId: "bulk",
+      direction: "inout",
+      interfaceInstanceIds: ["PB"],
+    });
+    document.nets.push({
+      id: "bulk",
+      terminals: [
+        { instanceId: "M1", pinName: "B" },
+        { instanceId: "M2", pinName: "B" },
+        { instanceId: "PB", pinName: "P" },
+      ],
+    });
+    const junction = (id: string, x: number, y: number) => ({
+      id,
+      netId: "bulk",
+      position: { x, y },
+    });
+    document.junctions.push(junction("J1", 200, 200), junction("J2", 250, 200));
+    const tie = (
+      id: string,
+      start: RouteBranch["start"],
+      end: RouteBranch["start"],
+    ): RouteBranch => ({
+      id,
+      netId: "bulk",
+      start,
+      legs: [
+        {
+          id: `${id}-leg`,
+          to: { kind: "endpoint", endpoint: end },
+          mode: "manual",
+        },
+      ],
+      presentation: "bulk-dashed",
+    });
+    const onJunction = (junctionId: string) =>
+      ({ kind: "junction", junctionId }) as const;
+    const onBody = (instanceId: string) =>
+      ({ kind: "terminal", instanceId, pinName: "B" }) as const;
+    document.routes.push(
+      tie("r1", onBody("M1"), onJunction("J1")),
+      tie("r2", onJunction("J1"), onJunction("J2")),
+      tie("r3", onJunction("J2"), onBody("M2")),
+      tie("r4", onJunction("J1"), {
+        kind: "terminal",
+        instanceId: "PB",
+        pinName: "P",
+      }),
+      tie("r5", onJunction("J2"), {
+        kind: "terminal",
+        instanceId: "PB",
+        pinName: "P",
+      }),
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const routes = plan.project.documents[0]!.routes;
+    expect(routes).toHaveLength(5);
+    for (const route of routes) {
+      expect(route.presentation).toBe("bulk-dashed");
+      expect(route.styleOverride?.lineStyle).toBeUndefined();
+    }
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "leaves a dashed wire that meets no body tie its own line style, through %s+RNL",
+  async (format) => {
+    const project = hiddenPowerPort();
+    const document = project.documents[0]!;
+    document.routes.push({
+      id: "wire",
+      netId: "net-a",
+      start: { kind: "terminal", instanceId: "pin-a", pinName: "P" },
+      legs: [
+        {
+          id: "wire-leg",
+          to: {
+            kind: "endpoint",
+            endpoint: { kind: "terminal", instanceId: "R1", pinName: "1" },
+          },
+          mode: "manual",
+        },
+      ],
+      styleOverride: { lineStyle: "dashed" },
+    });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.project.documents[0]!.routes[0]).toMatchObject({
+      styleOverride: { lineStyle: "dashed" },
+    });
+    expect(plan.project.documents[0]!.routes[0]!.presentation).toBeUndefined();
+  },
+);
+
 it.each(["spice", "spectre"] as const)(
   "hangs each net's and power label where it was drawn, on its wire, glyph or net, through %s+RNL",
   async (format) => {
@@ -2806,6 +3204,45 @@ describe("RNL round trip", () => {
     ]);
   });
 
+  it("reads a curved arrow's control back where it was, though raising it falls between units", async () => {
+    const project = example("simulation-rc");
+    const document = project.documents.find(
+      (item) => item.id === project.topDocumentId,
+    )!;
+    const free = (x: number, y: number) =>
+      ({ kind: "free", position: { x, y } }) as const;
+    document.drafting = {
+      objects: [
+        {
+          id: "curved",
+          locked: false,
+          zIndex: 0,
+          anchor: free(420, 355),
+          kind: "arrow",
+          from: free(420, 355),
+          to: free(455, 310),
+          curveControls: [{ x: 425, y: 320 }],
+          styleOverride: { arrowEnd: "small-arrow" },
+        },
+      ],
+    };
+    const { project: drawn } = await roundTrip(project);
+    const cell = drawn.documents.find(
+      (item) => item.netlist?.name === document.netlist?.name,
+    )!;
+    const objects = (cell.drafting?.objects ?? []).filter(
+      (object) => object.kind !== "text",
+    );
+    expect(objects).toEqual([
+      expect.objectContaining({
+        kind: "arrow",
+        from: free(420, 355),
+        to: free(455, 310),
+        curveControls: [{ x: 425, y: 320 }],
+      }),
+    ]);
+  });
+
   it("reads back leaders, callouts, polarity marks and arrows as Analog Canvas drew them", async () => {
     const project = example("simulation-rc");
     const document = project.documents.find(
@@ -2927,6 +3364,10 @@ describe("RNL round trip", () => {
       content: bare,
       polarity: "positive",
     });
+    // Its size comes through: its strokes are off Canvas's whole units.
+    expect(
+      plus && "styleOverride" in plus && plus.styleOverride?.sizeScale,
+    ).toBeFalsy();
     expect(minus).toMatchObject({
       anchor: free(950, -500),
       polarity: "negative",
@@ -3141,6 +3582,77 @@ describe("RNL round trip", () => {
       expect(
         drawn.documents.map((document) => document.netlist?.name).sort(),
       ).toEqual(["rc_highpass", "rc_lowpass"]);
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "reads back a block the file draws in lines, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const lowpass = project.documents.find(
+        (document) => document.id === project.topDocumentId,
+      )!;
+      const highpass = project.documents.find(
+        (document) => document.netlist?.name === "rc_highpass",
+      )!;
+      const symbolId = hierarchicalSymbolId(lowpass.netlist!.name);
+      highpass.instances.push({
+        id: "XLOW",
+        reference: "XLOW",
+        symbolId,
+        placement: {
+          position: { x: 500, y: 500 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: lowpass.id },
+          parameters: {},
+        },
+      });
+      const block = createProjectSymbolResolver(
+        project,
+        builtInSymbols,
+      ).resolve(symbolId)!.definition;
+      const primitives = [
+        {
+          kind: "polygon",
+          points: [
+            { x: -50, y: -50 },
+            { x: 50, y: 0 },
+            { x: -50, y: 50 },
+          ],
+          fill: "none",
+          stroke: "foreground",
+        },
+        {
+          kind: "line",
+          from: { x: -60, y: 30 },
+          to: { x: -50, y: 30 },
+        },
+      ];
+      project.componentDefinitions = [
+        ...(project.componentDefinitions ?? []),
+        { symbol: { ...block, primitives } },
+      ] as CircuitProject["componentDefinitions"];
+      const plan = await roundTrip(project, format);
+      expect(failures(plan)).toEqual([]);
+      const artwork = (from: CircuitProject) =>
+        from.componentDefinitions?.find(
+          (definition) => definition.symbol.id === symbolId,
+        )?.symbol;
+      expect(artwork(plan.project)?.primitives).toMatchObject(primitives);
+      expect(
+        plan.diagnostics.filter(
+          (item) => item.code === "RNL_IMPORT_BLOCK_APPROXIMATE",
+        ),
+      ).toEqual([]);
+      // Written again, it draws the same.
+      const again = await roundTrip(plan.project, format);
+      expect(failures(again)).toEqual([]);
+      expect(artwork(again.project)?.primitives).toEqual(
+        artwork(plan.project)?.primitives,
+      );
     },
   );
 
@@ -4135,6 +4647,39 @@ function gates4(): CircuitProject {
   });
   return project;
 }
+
+it.each(["spice", "spectre"] as const)(
+  "reads a transformer back the transformer, through %s+RNL",
+  async (format) => {
+    const project = createEmptyProject("magnetic", "Magnetic", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    document.instances.push({
+      id: "X1",
+      symbolId: "xfmr",
+      reference: "X1",
+      placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { lp: "2n", ls: "3n", k: "0.5" } },
+    });
+    for (const pinName of ["P+", "P-", "S+", "S-"])
+      document.noConnects.push({
+        id: `X1${pinName}`,
+        endpoint: { kind: "terminal", instanceId: "X1", pinName },
+      });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.project.documents).toHaveLength(1);
+    expect(plan.project.documents[0]!.instances[0]).toMatchObject({
+      symbolId: "xfmr",
+      netlist: { parameters: { lp: "2n", ls: "3n", k: "0.5" } },
+    });
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
 
 describe("RNL round trip of 4-input gates", () => {
   it("keeps the name of a Cell Pin that SPICE spells without its brackets", async () => {

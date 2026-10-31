@@ -280,6 +280,46 @@ describe("built-in bodies on import", () => {
     },
   );
 
+  it.each([
+    [
+      "spice",
+      `.subckt xfmr p_plus p_minus s_plus s_minus params: lp=1n ls=1n k=1
+LP p_plus p_minus {lp}
+LS s_plus s_minus {ls}
+K1 LP LS {k}
+.ends xfmr
+`,
+    ],
+    [
+      "spectre",
+      `subckt xfmr (p_plus p_minus s_plus s_minus)
+parameters lp=1n ls=1n k=1
+LP (p_plus p_minus) inductor l=lp
+LS (s_plus s_minus) inductor l=ls
+K1 mutual_inductor coupling=k ind1=LP ind2=LS
+ends xfmr
+`,
+    ],
+  ] as const)(
+    "knows a transformer's windings in its RNL port order, in %s",
+    (format, text) => {
+      const [body] = findBuiltInBodies(text, format, "circuit").bodies;
+      expect(body).toMatchObject({
+        symbolId: "xfmr",
+        ports: [
+          { pinName: "P+" },
+          { pinName: "P-" },
+          { pinName: "S+" },
+          { pinName: "S-" },
+        ],
+      });
+      expect(body).not.toHaveProperty("target");
+      // Another coupling is an author's subcircuit of the same name.
+      const edited = text.replace(/K1 .*/u, (card) => card.replace("LP", "LS"));
+      expect(findBuiltInBodies(edited, format, "circuit").bodies).toEqual([]);
+    },
+  );
+
   it("leaves an author's subcircuit of a body's name as a Cell", async () => {
     const changed = exported(block("opamp"), "spice").replace(
       "params: gain=1e6",
