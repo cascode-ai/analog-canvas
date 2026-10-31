@@ -682,10 +682,14 @@ function exportCell(
     const call = cell.instances.find(
       (candidate) => candidate.id === instance.id,
     );
-    // A Library gate bound to a Cell meets its Pins by name (#1450).
+    // A Library part bound to a Cell or an external definition meets its
+    // Pins by name (#1450, #1928); a reviewed standard cell keeps its own
+    // order.
     const gate =
       call?.invocationKind === "subcircuit" &&
-      instance.netlist?.binding?.kind === "subcircuit" &&
+      (instance.netlist?.binding?.kind === "subcircuit" ||
+        (instance.netlist?.binding?.kind === "external-subcircuit" &&
+          !call.reviewedExternalBindingId)) &&
       bindsProjectCell(instance.symbolId)
         ? matchGateCellPins(instance.symbolId, {
             name: call.target ?? "",

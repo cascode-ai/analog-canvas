@@ -178,6 +178,7 @@ import {
   blockSupplyTerminals,
   gateCellChoices,
   gateCellTargetName,
+  gateExternalChoices,
 } from "../features/properties/gate-cell-target";
 import { componentSourceCode } from "../features/properties/component-source-code";
 import {
@@ -4086,7 +4087,8 @@ function WorkspaceEditor({
     ? blockSupplyTerminals(project, selectedInstance)
     : undefined;
   // The model Properties shows: a model, a reviewed device or standard cell,
-  // or the Cell a Library gate is bound to (#1450).
+  // or the Cell or external definition a Library part is bound to (#1450,
+  // #1928).
   const selectedModelTargetName = !selectedInstance?.netlist
     ? ""
     : selectedInstance.netlist.binding?.kind === "model"
@@ -6516,22 +6518,31 @@ function WorkspaceEditor({
                                 selectedInstance.symbolId,
                             ).length > 0 ||
                             selectedReviewedExternalBinding ||
-                            // A flip-flop, op-amp or comparator takes only
-                            // Cells: the field shows once one fits, or while
-                            // one is bound (#1689, #1878).
+                            // Any other Library part takes only Cells and
+                            // external definitions: the field shows once one
+                            // fits, or while one is bound (#1689, #1878,
+                            // #1928).
                             (bindsProjectCell(selectedInstance.symbolId) &&
                               (selectedInstance.netlist.binding?.kind ===
                                 "subcircuit" ||
+                                selectedInstance.netlist.binding?.kind ===
+                                  "external-subcircuit" ||
                                 gateCellChoices(
                                   project,
                                   document.id,
                                   selectedInstance,
-                                ).length > 0)))
+                                ).length > 0 ||
+                                gateExternalChoices(project, selectedInstance)
+                                  .length > 0)))
                             ? {
                                 defaultValue: selectedModelTargetName,
                                 cells: gateCellChoices(
                                   project,
                                   document.id,
+                                  selectedInstance,
+                                ),
+                                externals: gateExternalChoices(
+                                  project,
                                   selectedInstance,
                                 ),
                                 suggestions: reviewedExternalModelSuggestions(

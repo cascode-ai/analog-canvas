@@ -93,6 +93,14 @@ derive from `parameters`.
   serve Properties, Agent, ERC and Circuit source;
   [built-in model contracts](../../packages/devices/src/built-in-model-contracts.ts)
   own selectors, families, backend availability and defaults.
+- Any Library part with a generated body can be bound (`set-model`) to a
+  Project Cell or external subcircuit without changing artwork. Its Pins or
+  ports are the part's own pins (an op-amp's `IN+`, `IN-`, `OUT`, not its
+  body's `VIP`/`VIN`/`VOUT`) and optional VDD/VSS, met by name; the call follows
+  the definition's order. A mismatch, or an external subcircuit that names its
+  ports only by position, is `GATE_CELL_PIN_MISMATCH`. The definition owns its
+  parameters and supplies; clearing restores the body and its defaults.
+  [Binding rules](../../packages/devices/src/gate-cell.ts).
 - Generated masters are compiler-owned: one `generatedDefinitions` inventory
   carries comparator, logic, signal and magnetic bodies through printing and
   simulation, each emitted once. Factories produce typed recipes; printers own
@@ -138,9 +146,7 @@ pins.
   output is an ideal voltage drive; no physical loading or power is modeled.
   Invalid parameters block export with `INVALID_DELAY_CELL_PARAMETER`.
   SPICE, VACASK and Spectre project the same recipe; Spectre execution is not
-  qualified. Like gates and DFFs, a project Cell with A/Y and optional VDD/VSS
-  Pins can replace the body without changing artwork. That Cell owns its
-  parameters and supplies; clearing its selection restores formula defaults.
+  qualified.
 - Adder: V(Y) = ±V(A) ± V(B). `signA`/`signB` are `+` (default) or `-` (`−` read
   and stored as `-`); signs pick the body (`adder`, `adder_minus_a`,
   `adder_minus_b`, `adder_minus_ab`), never a call parameter; `+ +` is
@@ -173,12 +179,6 @@ pins.
   defaults 25 Ω, 12.7 mH, 20 fF and 5 pF, a 10 MHz fundamental
   (fs = 1/(2π√(lm·cm))). SPICE has no crystal card, so the part is an `X` call
   of that body; its Reference takes `X` like every call.
-- Like gates and DFFs, a project Cell can replace an op-amp's, fully
-  differential op-amp's or comparator's body without changing artwork. Its
-  Pins are the part's own (`IN+`, `IN-`, `OUT` or `OUT+`/`OUT-`, not the
-  bodies' `VIP`/`VIN`/`VOUT`) and optional VDD/VSS; the call follows the
-  Cell's Pin order. That Cell owns its parameters and supplies; clearing its
-  selection restores the ideal body and its defaults.
 - SPICE and VACASK include all bodies; Spectre includes comparator,
   combinational gates (`bsource` with RC delay) and the crystal; DFF,
   multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.

@@ -369,3 +369,106 @@ describe.skipIf(!ngspiceOnPath())(
     });
   },
 );
+
+describe("a Library part bound to an external definition (#1928)", () => {
+  /**
+   * An inverter X1 bound to external definition inv_ext with `ports`, its A
+   * and Y on the top Cell's Pins IN and OUT; no supply is drawn.
+   */
+  function inverterOverExternal(
+    ports: readonly string[],
+    interfaceStatus: "declared" | "inferred-positional" = "declared",
+  ): CircuitProject {
+    const project = createEmptyProject("external-gate", "External gate", "top");
+    const top = project.documents[0]!;
+    top.netlist!.name = "top";
+    project.modelSources = [
+      {
+        id: "inv-source",
+        language: "spice",
+        revision: 1,
+        entry: "inv.spice",
+        dependencies: [],
+        files: [
+          {
+            path: "inv.spice",
+            text: `.subckt inv_ext ${ports.join(" ")}\nR1 ${ports[0]} ${ports[1]} 1k\n.ends inv_ext\n`,
+          },
+        ],
+      },
+    ];
+    project.externalSubcircuitDefinitions.push({
+      id: "inv-ext",
+      name: "inv_ext",
+      interfaceStatus,
+      formalParameters: [],
+      terminals: ports.map((name) => ({
+        id: `inv-ext-${name}`,
+        name,
+        direction: "inout" as const,
+      })),
+      implementation: {
+        kind: "source",
+        sourceId: "inv-source",
+        entry: "inv_ext",
+      },
+    });
+    top.instances.push({
+      id: "gate",
+      symbolId: "inverter",
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "inv-ext" },
+        parameters: {},
+      },
+    });
+    for (const [name, pinName] of [
+      ["IN", "A"],
+      ["OUT", "Y"],
+    ] as const) {
+      cellPin(top, name);
+      connect(top, name, "gate", pinName);
+    }
+    return project;
+  }
+
+  const errors = (project: CircuitProject) => {
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status).toBe("blocked");
+    return result.diagnostics.filter((item) => item.severity === "error");
+  };
+
+  it("calls the definition in its own port order, each port on the inverter's pin of its name", () => {
+    // y, VSS, a and VDD take Y (OUT), the conventional ground, A (IN) and
+    // the conventional supply.
+    expect(exported(inverterOverExternal(["y", "VSS", "a", "VDD"]))).toMatch(
+      /^X1 OUT VSS IN VDD inv_ext$/mu,
+    );
+  });
+
+  it("reports ports that stop fitting, without calling the inverter's own pins unknown", () => {
+    const found = errors(inverterOverExternal(["out", "VSS", "a", "VDD"]));
+    expect(found.map((item) => item.code)).not.toContain(
+      "UNKNOWN_TERMINAL_PIN",
+    );
+    expect(found.map((item) => item.code)).not.toContain(
+      "UNKNOWN_EXTERNAL_SUBCIRCUIT_PIN",
+    );
+    expect(
+      found.find((item) => item.code === "GATE_CELL_PIN_MISMATCH")?.message,
+    ).toContain(
+      "External subcircuit inv_ext does not fit the inverter: it has no Pin Y, and its Pin out is not one of the gate's.",
+    );
+  });
+
+  it("refuses a definition that names its ports only by position", () => {
+    expect(
+      errors(
+        inverterOverExternal(["1", "2", "3", "4"], "inferred-positional"),
+      ).find((item) => item.code === "GATE_CELL_PIN_MISMATCH")?.message,
+    ).toContain(
+      "External subcircuit inv_ext names its ports only by position; name them A and Y to bind the inverter to it",
+    );
+  });
+});
