@@ -1,11 +1,11 @@
 // Drawn T-coils and transformers: the call each one makes, and the
 // coupled-winding subcircuit it calls.
+import type { Instance, SchematicDocument } from "@icm/model";
 import {
   drawnMagneticParameters,
+  type DeviceDescriptor,
   type DrawnMagneticNetwork,
-} from "@icm/derived";
-import type { Instance, SchematicDocument } from "@icm/model";
-import type { DeviceDescriptor } from "@icm/devices";
+} from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 import type {
   DesignNetlistInstance,

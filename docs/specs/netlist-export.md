@@ -19,7 +19,7 @@ belong to a simulation deck ([simulation](simulation.md)).
 | Fact                       | Authority                                                         | Never inferred from                                    |
 | -------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
 | Cell name                  | `Document.netlist.name`                                           | Document title or filename                             |
-| Cell interface order       | first occurrence, then explicit signal member order                        | coordinates or alphabetical order                      |
+| Cell interface order       | first occurrence, then explicit signal member order               | coordinates or alphabetical order                      |
 | Connectivity               | Base-Net membership and the shared Logical-Net/interface resolver | SVG geometry, loose label text, or uncommitted overlap |
 | Logical Net name/scope     | resolved owner-addressed marker claims                            | legacy Base fields or text appearance                  |
 | Instance reference         | `Instance.reference`                                              | object ID or annotation text                           |
@@ -93,13 +93,17 @@ derive from `parameters`.
   serve Properties, Agent, ERC and Circuit source;
   [built-in model contracts](../../packages/devices/src/built-in-model-contracts.ts)
   own selectors, families, backend availability and defaults.
-- Any Library part with a generated body can be bound (`set-model`) to a
-  Project Cell or external subcircuit without changing artwork. Its Pins or
-  ports are the part's own pins (an op-amp's `IN+`, `IN-`, `OUT`, not its
-  body's `VIP`/`VIN`/`VOUT`) and optional VDD/VSS, met by name; the call follows
-  the definition's order. A mismatch, or an external subcircuit that names its
+- Any Library part with a generated body, the chopper and magnetic parts
+  included, can be bound (`set-model`) to a Project Cell or external
+  subcircuit without changing artwork or References. Its Pins or ports are the
+  part's own pins (an op-amp's `IN+`, `IN-`, `OUT`, not its body's
+  `VIP`/`VIN`/`VOUT`) and optional VDD/VSS, or a chopper's optional `CK` for
+  the clock its label names, met by name; the call follows the definition's
+  order. A mismatch, or an external subcircuit that names its
   ports only by position, is `GATE_CELL_PIN_MISMATCH`. The definition owns its
-  parameters and supplies; clearing restores the body and its defaults.
+  parameters and supplies; clearing restores the body, and the part's own
+  parameters keep their values or take their defaults where unset (a Delay
+  Cell's all reset).
   [Binding rules](../../packages/devices/src/gate-cell.ts).
 - Generated masters are compiler-owned: one `generatedDefinitions` inventory
   carries comparator, logic, signal and magnetic bodies through printing and
@@ -183,7 +187,7 @@ pins.
   parameters and checks. `OUT+` uses the comparator transfer above; `OUT-`
   uses its complement, so their sum is high + vlow and equal inputs put both
   at the midpoint. Bodies `icm_ideal_comparator_differential` (`VIP VIN VOP
-  VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
+VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   read neither VSS nor an implicit clock. The model is ideal, unlatched and
   memoryless; the Symbol's step mark adds no hysteresis or propagation delay.
 - Crystal (`crystal`: `n1 n2`, no supplies) is its Butterworth-Van Dyke
@@ -246,8 +250,8 @@ pins.
 
 ### Magnetics
 
-- T-coil, transformer and center-tap inductor are `X` calls on built-ins defined
-  once ahead of the Cells: `tcoil` (`n1 n2 n3`: `L1 n1 n3 {l1}`, `L2 n3 n2 {l2}`,
+- An unbound T-coil, transformer or center-tap inductor is an `X` call on a
+  built-in defined once ahead of the Cells: `tcoil` (`n1 n2 n3`: `L1 n1 n3 {l1}`, `L2 n3 n2 {l2}`,
   `K12 L1 L2 {k}`, `CB n1 n2 {cb}`), `xfmr` (`p_minus p_plus s_minus s_plus`:
   `LP p_plus p_minus {lp}`, `LS s_plus s_minus {ls}`, `K1 LP LS {k}`),
   `ct_inductor` (the T-coil without `CB`, `k` default 0).
@@ -342,7 +346,7 @@ parameters or renumbers first.
   arrive as reviewed `X` wrappers. Reviewed BJT wrappers take `m`.
 - IHP SG13G2 binds like its xschem symbols: `sg13_lv_*`/`sg13_hv_*`
   (`d g s b`; `w l ng m`), `npn13G2`/`npn13G2l`/`npn13G2v` (`c b e bn`; `le we
-  Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
+Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   `w l [b] m`), `cap_cmim`/`cap_rfcmim`; metres throughout.
 - TSMC 28 maps `m` to `multi` and back. Process changes keep names, IDs and
   authored values (except 16 V DMOS sizing); the panel offers filling only
@@ -413,7 +417,7 @@ parameters or renumbers first.
   analyzer default keeps `0`.
 - Block `VDD`/`VSS` are hidden property terminals. An explicit binding
   (Properties or Agent `circuit_properties` `set-block-supply {target, supply,
-  net}`, `net: null` for Auto) wins; Auto takes the one drawn Net of the domain;
+net}`, `net: null` for Auto) wins; Auto takes the one drawn Net of the domain;
   with none drawn, the one Net named `VDD`/`VSS`, else a new `VDD` pin plus
   ground (owner decision); competition blocks with `MISSING_BLOCK_SUPPLY`. Imported VDD hints are not supplies.
 - Bodies that never read supplies (ideal amplifiers, adder; SPICE multiplier and

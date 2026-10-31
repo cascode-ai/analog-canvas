@@ -1,6 +1,5 @@
 // A primitive device as its card: model target, parameters, the controls
 // of a controlled source, and the built-in Zener model's name.
-import { drawnMagneticNetwork, drawnSwitchControl } from "@icm/derived";
 import type {
   CircuitProject,
   Instance,
@@ -9,6 +8,8 @@ import type {
 } from "@icm/model";
 import {
   deviceDescriptor,
+  drawnMagneticNetwork,
+  drawnSwitchControl,
   milliScaleReading,
   requiredParameterNames,
   reviewedExternalBindingForMaster,

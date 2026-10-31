@@ -8,6 +8,7 @@ import {
   type ComponentDefinition,
 } from "@icm/model";
 
+import { findBuiltInBodies } from "./built-in-bodies.js";
 import { createDesignNetlistExport } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
@@ -269,7 +270,52 @@ describe("drawn magnetic devices", () => {
       "X1 (a b tap) icm_tcoil l1=1n l2=2n k=0.5 cb=10f",
     );
     expect(spectre).toMatch(/^subckt icm_tcoil \(n1 n2 n3\)/mu);
+    // Read back, the renamed body is still the T-coil that wrote it.
+    for (const [format, written] of [
+      ["spice", text],
+      ["spectre", spectre],
+    ] as const)
+      expect(
+        findBuiltInBodies(written, format, "dut.sp").bodies.find(
+          (body) => body.name === "icm_tcoil",
+        ),
+        format,
+      ).toMatchObject({ kind: "subcircuit", symbolId: "tcoil" });
   });
+
+  it.each([
+    ["xfmr", transformer],
+    [
+      "ct_inductor",
+      () =>
+        magneticProject(
+          "center-tap-inductor",
+          [
+            ["1", "von"],
+            ["2", "vop"],
+            ["3", "vdd"],
+          ],
+          { l1: "2n", l2: "2n", k: "0" },
+        ),
+    ],
+  ] as const)(
+    "reads the %s body written under its reserved name back as the part that wrote it (#1928)",
+    (body, fixture) => {
+      const project = fixture();
+      project.documents[0]!.netlist!.name = body;
+      const symbolId = project.documents[0]!.instances[0]!.symbolId;
+      for (const format of ["spice", "spectre"] as const) {
+        const written = exported(project, format);
+        expect(written).toMatch(new RegExp(`\\bicm_${body}\\b`, "u"));
+        expect(
+          findBuiltInBodies(written, format, "dut.sp").bodies.find(
+            (found) => found.name === `icm_${body}`,
+          ),
+          format,
+        ).toMatchObject({ kind: "subcircuit", symbolId });
+      }
+    },
+  );
 
   it("projects coupled windings through the native mutual primitive", () => {
     const analysis = analyzeDesignNetlist(transformer());

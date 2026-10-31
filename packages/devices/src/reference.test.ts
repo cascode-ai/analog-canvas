@@ -67,6 +67,41 @@ describe("ReferencePolicy and ReferenceIndex", () => {
     expect(nextReference(createReferenceIndex(document), policy)).toBe("M2");
   });
 
+  it("keeps a chopper's CH References while a Cell implements it, as any bound part keeps its look (#1928)", () => {
+    const bound = (symbolId: string, reference: string) => ({
+      id: reference,
+      symbolId,
+      placement: null,
+      reference,
+      netlist: {
+        binding: { kind: "subcircuit" as const, childDocumentId: "own" },
+        parameters: {},
+      },
+    });
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      bound("chopper", "CH1"),
+      bound("tcoil", "X1"),
+      bound("resistor", "X2"),
+    );
+    const [chopper, tcoil, resistor] = document.instances;
+    expect(referencePolicyForInstance(chopper!)).toEqual({
+      kind: "required",
+      prefix: "CH",
+    });
+    // A T-coil's References are X calls either way; a part drawn as the Cell
+    // it calls takes the Cell's X.
+    expect(referencePolicyForInstance(tcoil!)).toEqual({
+      kind: "required",
+      prefix: "X",
+    });
+    expect(referencePolicyForInstance(resistor!)).toEqual({
+      kind: "required",
+      prefix: "X",
+    });
+    expect(createReferenceIndex(document).issues).toEqual([]);
+  });
+
   // All three switches designate `S`, so they draw from one sequence: the
   // index is keyed by prefix, not by device, and the next free suffix skips
   // whatever the other two already occupy. A sheet numbers its switches S1,

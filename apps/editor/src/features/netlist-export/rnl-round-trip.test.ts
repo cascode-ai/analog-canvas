@@ -4471,6 +4471,81 @@ describe("RNL round trip of switches", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "brings a chopper bound to a Cell back bound to it, clocked by its label (%s, #1928)",
+    async (format) => {
+      const project = switches();
+      // Cell chop takes the chopper's pins and its clock CK, in its own order.
+      const chop = createEmptyDocument("chop", "chop");
+      chop.netlist!.name = "chop";
+      for (const [index, pin] of [
+        "CK",
+        "OUTN",
+        "OUTP",
+        "INN",
+        "INP",
+      ].entries()) {
+        chop.instances.push({
+          id: `port-${pin}`,
+          symbolId: "port",
+          placement: {
+            position: { x: index * 100, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+        });
+        chop.nets.push({
+          id: `net-${pin}`,
+          terminals: [{ instanceId: `port-${pin}`, pinName: "P" }],
+        });
+        chop.netlist!.terminals.push({
+          id: `terminal-${pin}`,
+          name: pin,
+          netId: `net-${pin}`,
+          direction: "inout",
+          interfaceInstanceIds: [`port-${pin}`],
+        });
+      }
+      project.documents.push(chop);
+      project.documents[0]!.instances.find(
+        (instance) => instance.id === "CH1",
+      )!.netlist = {
+        binding: { kind: "subcircuit", childDocumentId: "chop" },
+        parameters: {},
+      };
+      const before = createDesignNetlistExport(project, { format });
+      if (before.status !== "ready") throw new Error(JSON.stringify(before));
+      expect(before.file.text).toMatch(/ chop\s*$/mu);
+      const plan = await roundTrip(project, format);
+      expect(failures(plan)).toEqual([]);
+      const parts = plan.project.documents.flatMap(
+        (document) => document.instances,
+      );
+      const chopper = parts.find((instance) => instance.reference === "CH1");
+      expect(chopper).toMatchObject({
+        symbolId: "chopper",
+        netlist: { binding: { kind: "subcircuit" } },
+      });
+      // Its label names its clock again.
+      expect(
+        plan.project.documents.flatMap((document) =>
+          document.annotations.flatMap((annotation) =>
+            annotation.kind === "instance-label" &&
+            annotation.content &&
+            annotation.anchor.kind === "object" &&
+            annotation.anchor.objectId === chopper?.id
+              ? [flattenRichText(annotation.content)]
+              : [],
+          ),
+        ),
+      ).toContain("Φ2");
+      const after = createDesignNetlistExport(plan.project, { format });
+      expect(after.status === "ready" && after.file.text).toBe(
+        before.file.text,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "takes no Cell Pin for the ground pin a Cell drawing no ground prints (%s)",
     async (format) => {
       // The switches read their control against ground, so the Cell prints

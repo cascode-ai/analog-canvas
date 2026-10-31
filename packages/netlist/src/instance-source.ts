@@ -1,9 +1,9 @@
+import { resolveCommittedDocumentLogicalNets } from "@icm/derived";
 import {
+  deviceDescriptor,
   drawnMagneticNetwork,
   drawnMagneticParameters,
-  resolveCommittedDocumentLogicalNets,
-} from "@icm/derived";
-import { deviceDescriptor } from "@icm/devices";
+} from "@icm/devices";
 import {
   spellGreekLetters,
   type CircuitProject,

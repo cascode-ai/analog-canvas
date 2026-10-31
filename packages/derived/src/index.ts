@@ -51,7 +51,6 @@ export * from "./visual.js";
 export * from "./label-clearance.js";
 export * from "./net-label-turn.js";
 export * from "./drawn-switch.js";
-export * from "./drawn-magnetic.js";
 export * from "./arrow-artwork.js";
 export * from "./inductor-coupling.js";
 export * from "./master-names.js";

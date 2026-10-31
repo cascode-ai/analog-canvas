@@ -1965,6 +1965,24 @@ describe("a Library part bound to an external definition (#1928)", () => {
     );
   });
 
+  it("checks a T-coil bound to a definition by its own Pins, as any part whose call goes to a generated body", () => {
+    const tcoil = (ports: readonly string[]) => {
+      const project = boundOpamp(ports);
+      project.documents[0]!.instances[0]!.symbolId = "tcoil";
+      return project;
+    };
+    expect(codes(tcoil(["3", "2", "1"]))).not.toContain(
+      "ERC_PORT_NAME_MISMATCH",
+    );
+    expect(
+      run(tcoil(["a", "b", "c"])).find(
+        (item) => item.code === "ERC_PORT_NAME_MISMATCH",
+      )?.message,
+    ).toContain(
+      "External subcircuit ota does not fit the tcoil: it has no Pins 1, 2 and 3",
+    );
+  });
+
   it("leaves a Circuit Component that takes the op-amp's symbol id to its own mapping", () => {
     // A Gallery LDO's error amplifier: its artwork maps IN+, IN- and OUT to
     // VIP, VIN and VOUT of the definition it is drawn over.

@@ -21,6 +21,7 @@ import {
   reviewedExternalModelSuggestions,
   standardCellBindingForMaster,
   subcircuitDescriptor,
+  type DeviceDescriptor,
   type GateCellPinMatch,
 } from "@icm/devices";
 import type { ProjectStructureEdit } from "./project-transaction.js";
@@ -331,6 +332,50 @@ function planGateCellBinding(
 }
 
 /**
+ * Returns a chopper or magnetic part to how it is placed (#1928): no binding,
+ * and its own parameters, at their defaults where it has none.
+ */
+function planClearDeviceBinding(
+  project: CircuitProject,
+  document: SchematicDocument,
+  instance: SchematicDocument["instances"][number],
+  device: DeviceDescriptor,
+): ProjectStructureEdit[] {
+  const parameters = instance.netlist?.parameters ?? {};
+  const own = new Set(
+    device.parameters.map((parameter) => parameter.name.toLowerCase()),
+  );
+  const set = Object.fromEntries(
+    device.parameters.flatMap((parameter) =>
+      parameter.defaultValue !== undefined &&
+      parameters[parameter.name] === undefined
+        ? [[parameter.name, parameter.defaultValue]]
+        : [],
+    ),
+  );
+  const unset = Object.keys(parameters).filter(
+    (name) => !own.has(name.toLowerCase()),
+  );
+  if (!instance.netlist?.binding && !Object.keys(set).length && !unset.length)
+    return [];
+  return [
+    transactDocument(project, document.id, [
+      {
+        kind: "bulk_patch_instance_netlist",
+        assignments: [
+          {
+            instanceId: instance.id,
+            binding: null,
+            ...(Object.keys(set).length ? { set } : {}),
+            ...(unset.length ? { unset } : {}),
+          },
+        ],
+      },
+    ]),
+  ];
+}
+
+/**
  * Switches a native device between its ordinary binding and one exact reviewed
  * external target without renaming the schematic Instance. Invocation prefixes
  * belong to the derived SPICE netlist, not to process/model authoring.
@@ -375,6 +420,13 @@ export function planSetDeviceModelTarget(
   const gate = sourceDescriptor
     ? undefined
     : subcircuitDescriptor(sourceSymbolId, project);
+  // A chopper or magnetic part calls a generated body as a Library part does,
+  // and takes the same Cells and external definitions; clearing returns it
+  // to how it is placed (#1928).
+  const generatedBodyDevice =
+    sourceDescriptor && bindsProjectCell(sourceSymbolId)
+      ? sourceDescriptor
+      : undefined;
   const gateTargets = gate
     ? reviewedExternalModelSuggestions(sourceSymbolId)
     : [];
@@ -386,7 +438,10 @@ export function planSetDeviceModelTarget(
         ? standardCellBindingForMaster(normalizedName)
         : undefined))
     : undefined;
-  if (gate && (gateTargets.length > 0 || bindsProjectCell(sourceSymbolId))) {
+  if (
+    (gate && (gateTargets.length > 0 || bindsProjectCell(sourceSymbolId))) ||
+    generatedBodyDevice
+  ) {
     // A Cell of the Project comes first: the Project defines that name.
     const cell = normalizedName
       ? projectCellNamed(project, normalizedName)
@@ -428,7 +483,14 @@ export function planSetDeviceModelTarget(
           : `${normalizedName} is not a Cell or external subcircuit of this Project that fits ${sourceSymbolId}${choices.length > 0 ? `; use ${choices.join(", ")}` : ""}`,
       );
     }
-    if (!targetBinding) {
+    if (!targetBinding && generatedBodyDevice)
+      return planClearDeviceBinding(
+        project,
+        document,
+        instance,
+        generatedBodyDevice,
+      );
+    if (!targetBinding && gate) {
       // The gate's VDD/VSS Nets are its own supply choice and stay.
       const binding = {
         kind: "unresolved-subcircuit" as const,
