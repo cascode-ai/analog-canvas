@@ -139,7 +139,8 @@ the RNL language and its runtime belong to rnl.
 - A wire is written as drawn: a power rail bold, a body tie dashed, and a
   color or line style set on the wire as set. A wire through a junction stays
   one wire through it. A power label is written as a label of its net,
-  named so the import knows it as a power label. A net's or power label is
+  named so the import knows it as a power label; an instance label free of any
+  part and binding is named likewise. A net's or power label is
   attached where it hangs (13.3): on the wire of the route it hangs on,
   that wire named for it and the label placed where it stands, since a
   wire has no point to offset from; on the part, glyph or Cell Pin it hangs

@@ -4134,6 +4134,43 @@ function gates4(): CircuitProject {
   return project;
 }
 
+it.each(["spice", "spectre"] as const)(
+  "keeps an instance label that stands free of any part, through %s+RNL",
+  async (format) => {
+    const project = hiddenPowerPort();
+    project.documents[0]!.annotations.push({
+      id: "free",
+      kind: "instance-label",
+      alignment: "end",
+      rotation: 0,
+      locked: false,
+      anchor: { kind: "free", position: { x: 500, y: 240 } },
+      content: { runs: [{ kind: "text", value: "VOUT" }] },
+    });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const document = plan.project.documents[0]!;
+    expect(document.drafting?.objects ?? []).toEqual([]);
+    expect(
+      document.annotations.filter(
+        (annotation) =>
+          annotation.kind === "instance-label" &&
+          annotation.anchor.kind === "free",
+      ),
+    ).toMatchObject([
+      {
+        kind: "instance-label",
+        alignment: "end",
+        anchor: { position: { x: 500, y: 240 } },
+        content: { runs: [{ kind: "text", value: "VOUT" }] },
+      },
+    ]);
+    expect(
+      labelDifferences(labelCensus(project), labelCensus(plan.project)),
+    ).toEqual([]);
+  },
+);
+
 describe("RNL round trip of 4-input gates", () => {
   it("keeps the name of a Cell Pin that SPICE spells without its brackets", async () => {
     const project = gates4();

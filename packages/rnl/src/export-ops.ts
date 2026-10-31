@@ -1528,13 +1528,16 @@ function exportTexts(
         ? netOf(netId)
         : undefined;
     // A power label is named for what it is, which RNL has no kind for: the
-    // import makes it one again. A bound net label is named to say so.
+    // import makes it one again, as it does an instance label that stands
+    // free of any part. A bound net label is named to say so.
     const name =
       annotation.kind === "power-label" && net
         ? nextName("power")
         : net && canvasLabel(binding)
           ? nextName("label")
-          : undefined;
+          : annotation.kind === "instance-label" && !net && !binding
+            ? nextName("free_label")
+            : undefined;
     // Where it hangs (13.3): on the wire of its route, placed where it
     // stands, since a wire has no point to offset from; on the part, glyph
     // or Cell Pin it hangs on, offset from it; else on its net.
