@@ -218,7 +218,14 @@ function magneticBody(
   const name = format === "spice" ? header.name.toLowerCase() : header.name;
   for (const definition of builtInDeviceDescriptors) {
     const network = drawnMagneticNetwork(definition);
-    if (network?.subcircuit !== name) continue;
+    // A body that yielded its name is written with the reserved prefix
+    // (#1928).
+    if (
+      !network ||
+      (network.subcircuit !== name &&
+        network.subcircuit !== withoutReservedPrefix(name))
+    )
+      continue;
     const order = header.ports.map((port) =>
       network.ports.find((candidate) =>
         format === "spice"
@@ -235,6 +242,7 @@ function magneticBody(
     const printed = printMagneticSubcircuit(
       {
         ...magneticSubcircuit(network, definition),
+        name,
         ports: order.map((port) => port.port),
       },
       format,
