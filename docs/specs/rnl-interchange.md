@@ -77,7 +77,9 @@ the RNL language and its runtime belong to rnl.
   drawn as `$COMPARATOR` (in+ in− out) and print as other blocks do: their
   bodies take no VSS, and the one with a numeric high level no VDD. A
   body's definition and its calls move together, so the circuit is the same;
-  `SPICE` and `SCS` keep the editor's order.
+  `SPICE` and `SCS` keep the editor's order. On import, a magnetic body printed
+  statement for statement as the netlist prints it, in any port order, is that
+  part and no Cell.
 - Each part is drawn with the RNL symbol the mapping table names, from a
   standard package or, for an appearance variant, the chopper or a 4-input
   gate, the `analog-canvas-extensions` package; it is placed at that symbol's

@@ -4536,6 +4536,39 @@ function gates4(): CircuitProject {
   return project;
 }
 
+it.each(["spice", "spectre"] as const)(
+  "reads a transformer back the transformer, through %s+RNL",
+  async (format) => {
+    const project = createEmptyProject("magnetic", "Magnetic", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    document.instances.push({
+      id: "X1",
+      symbolId: "xfmr",
+      reference: "X1",
+      placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { lp: "2n", ls: "3n", k: "0.5" } },
+    });
+    for (const pinName of ["P+", "P-", "S+", "S-"])
+      document.noConnects.push({
+        id: `X1${pinName}`,
+        endpoint: { kind: "terminal", instanceId: "X1", pinName },
+      });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.project.documents).toHaveLength(1);
+    expect(plan.project.documents[0]!.instances[0]).toMatchObject({
+      symbolId: "xfmr",
+      netlist: { parameters: { lp: "2n", ls: "3n", k: "0.5" } },
+    });
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 describe("RNL round trip of 4-input gates", () => {
   it("keeps the name of a Cell Pin that SPICE spells without its brackets", async () => {
     const project = gates4();
