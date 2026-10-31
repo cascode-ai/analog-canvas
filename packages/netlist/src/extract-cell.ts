@@ -17,6 +17,7 @@ import {
   createReferenceIndex,
   instanceBuiltInSubcircuit,
   hasBuiltInSubcircuitInterface,
+  isLibraryPart,
   nextReference,
 } from "@icm/devices";
 import type {
@@ -78,8 +79,6 @@ export function extractCell(
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   cellNameByDocumentId: ReadonlyMap<string, string>,
-  /** The Project's own subcircuit names; see projectSubcircuitNames. */
-  projectNames: ReadonlySet<string>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   placedBodies: PlacedMosBodies | undefined,
   options: ResolvedDesignNetlistAnalysisOptions,
@@ -376,6 +375,7 @@ export function extractCell(
         [instance.id],
       );
     const builtInSubcircuit = instanceBuiltInSubcircuit(project, instance);
+    const libraryPart = isLibraryPart(project, instance.symbolId);
     const extracted = builtInSubcircuit
       ? extractBuiltInSubcircuitInstance(
           document,
@@ -385,12 +385,12 @@ export function extractCell(
           context,
           options,
           diagnostics,
-          projectNames,
-          bodySupplies(
-            builtInBlockCallTarget(instance, builtInSubcircuit, projectNames),
-            projectNames,
-            options.format,
-          ).length === 0,
+          libraryPart,
+          libraryPart &&
+            bodySupplies(
+              builtInBlockCallTarget(instance, builtInSubcircuit),
+              options.format,
+            ).length === 0,
         )
       : binding?.kind === "subcircuit"
         ? extractHierarchyInstance(

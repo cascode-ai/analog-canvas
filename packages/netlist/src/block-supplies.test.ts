@@ -12,6 +12,7 @@ import {
 } from "@icm/model";
 
 import { createDesignNetlistExport } from "./export.js";
+import { addOwnSubcircuit } from "./own-subcircuit.test-support.js";
 
 /**
  * One Cell holding one block with no supply drawn: each signal pin is a Cell
@@ -104,22 +105,14 @@ describe("blocks whose body never reads its supplies", () => {
     }
   });
 
-  it("power a Project's own op-amp from the Cell's default supplies", () => {
-    // A transistor-level `opamp` Cell or external model may use VDD/VSS.
+  it("power an op-amp bound to the Project's own model from the Cell's default supplies", () => {
+    // A transistor-level op-amp the author binds may use VDD/VSS (#1928).
     const project = unpoweredBlock("opamp");
-    project.externalSubcircuitDefinitions = [
-      {
-        id: "own-opamp",
-        name: "opamp",
-        terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
-          id: `own-${name}`,
-          name,
-          direction: "inout" as const,
-        })),
-        formalParameters: [],
-        source: { kind: "declaration-only" },
-      },
-    ] as unknown as CircuitProject["externalSubcircuitDefinitions"];
+    addOwnSubcircuit(project, "opamp", ["VDD", "VSS", "IN+", "IN-", "OUT"]);
+    project.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "external-subcircuit",
+      definitionId: "own-opamp",
+    };
     const result = createDesignNetlistExport(project);
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;

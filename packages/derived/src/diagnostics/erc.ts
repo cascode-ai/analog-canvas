@@ -20,10 +20,16 @@ import { resolveDocumentRoutingGeometry } from "../resolved-route-geometry.js";
 import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic } from "./diagnostic.js";
-import { findExternalMasterCollisions } from "../master-names.js";
+import {
+  findExternalMasterCollisions,
+  libraryPartRetarget,
+} from "../master-names.js";
 import {
   deviceDescriptor,
   gateCellBinding,
+  gateExternalBinding,
+  libraryPartBinding,
+  type GateCellPinMatch,
   instanceParameterContract,
   milliScaleReading,
   validateDeviceParameters,
@@ -65,6 +71,35 @@ function terminalLocator(
   return {
     ...directObjectLocator(documentId, "terminal", `${instanceId}:${pinName}`),
     endpoint: { kind: "terminal", instanceId, pinName },
+  };
+}
+
+/**
+ * A Library part whose Cell or external definition does not meet its pins by
+ * name (#1450, #1928).
+ */
+function partPinMismatch(
+  documentId: string,
+  instanceId: string,
+  match: GateCellPinMatch & { readonly ok: false },
+  target: { childDocumentId: string } | { definitionId: string },
+): ErcDiagnostic {
+  return {
+    id: `erc:port-name-mismatch:${documentId}:${instanceId}`,
+    domain: "erc",
+    code: "ERC_PORT_NAME_MISMATCH",
+    severity: "error",
+    confidence: "high",
+    gateEligible: true,
+    message: match.message,
+    primary: directObjectLocator(documentId, "instance", instanceId),
+    related: [],
+    parameters: {
+      instanceId,
+      ...target,
+      unmatchedPortCount: match.extra.length,
+      unmatchedPinCount: match.missing.length,
+    },
   };
 }
 
@@ -345,6 +380,39 @@ export function runErcChecks(
         }
       }
 
+      // A Library part bound to an external definition meets its ports by
+      // name, as one bound to a Cell does below (#1928).
+      const external = gateExternalBinding(project, instance);
+      if (external && !external.match.ok)
+        diagnostics.push(
+          partPinMismatch(document.id, instance.id, external.match, {
+            definitionId: external.definition.id,
+          }),
+        );
+      // A part naming another master the Project defines is bound to it, as
+      // export binds it (#1928).
+      const retarget = libraryPartRetarget(project, instance);
+      const retargeted =
+        retarget &&
+        libraryPartBinding(project, {
+          ...instance,
+          netlist: {
+            parameters: {},
+            ...instance.netlist,
+            binding: retarget.binding,
+          },
+        });
+      if (retarget && retargeted && !retargeted.match.ok)
+        diagnostics.push(
+          partPinMismatch(
+            document.id,
+            instance.id,
+            retargeted.match,
+            retarget.binding.kind === "subcircuit"
+              ? { childDocumentId: retarget.binding.childDocumentId }
+              : { definitionId: retarget.binding.definitionId },
+          ),
+        );
       const childBinding = instance.netlist?.binding;
       if (childBinding?.kind !== "subcircuit") continue;
       const childDocumentId = childBinding.childDocumentId;
@@ -372,23 +440,11 @@ export function runErcChecks(
       const gate = gateCellBinding(project, instance);
       if (gate) {
         if (!gate.match.ok)
-          diagnostics.push({
-            id: `erc:port-name-mismatch:${document.id}:${instance.id}`,
-            domain: "erc",
-            code: "ERC_PORT_NAME_MISMATCH",
-            severity: "error",
-            confidence: "high",
-            gateEligible: true,
-            message: gate.match.message,
-            primary: directObjectLocator(document.id, "instance", instance.id),
-            related: [],
-            parameters: {
-              instanceId: instance.id,
+          diagnostics.push(
+            partPinMismatch(document.id, instance.id, gate.match, {
               childDocumentId: child.id,
-              unmatchedPortCount: gate.match.extra.length,
-              unmatchedPinCount: gate.match.missing.length,
-            },
-          });
+            }),
+          );
         continue;
       }
       const pinNames = new Set(resolved.definition.pins.map((pin) => pin.name));

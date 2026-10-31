@@ -1,6 +1,9 @@
 import type { StableId } from "@icm/model";
 
-import { generatedBehavioralDefinition } from "./generated-models.js";
+import {
+  definitionBody,
+  generatedBehavioralDefinition,
+} from "./generated-models.js";
 import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
 import type { DesignNetlistInstance, DesignNetlistIR } from "./ir.js";
 
@@ -91,10 +94,10 @@ export function withBodyPortOrder(
       reorder(definition.name, definition.ports, (ports) => {
         definition.ports = [...ports];
       });
-    else if (definition.name !== IDEAL_CHOPPER_TARGET)
+    else if (definitionBody(definition) !== IDEAL_CHOPPER_TARGET)
       reorder(
         definition.name,
-        generatedBehavioralDefinition(definition.name).ports,
+        generatedBehavioralDefinition(definitionBody(definition)).ports,
         (ports) => {
           definition.ports = [...ports];
         },

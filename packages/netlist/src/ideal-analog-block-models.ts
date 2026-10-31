@@ -1,4 +1,4 @@
-import { deriveStableId, type CircuitProject } from "@icm/model";
+import { deriveStableId } from "@icm/model";
 import {
   ADDER_TARGET,
   adderBodyFor,
@@ -16,32 +16,13 @@ import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
 /**
- * The subcircuit names a Project defines itself, in lower case, as SPICE
- * compares names: its exported Cells and its declared external definitions.
- * Each replaces any generated body of the same name.
- */
-export function projectSubcircuitNames(
-  project: Pick<CircuitProject, "externalSubcircuitDefinitions">,
-  cellNames: Iterable<string>,
-): ReadonlySet<string> {
-  return new Set([
-    ...Array.from(cellNames, (name) => name.toLowerCase()),
-    ...project.externalSubcircuitDefinitions.map((definition) =>
-      definition.name.toLowerCase(),
-    ),
-  ]);
-}
-
-/**
  * The master a built-in block's call names. An authored target wins: any
  * subcircuit the author retargeted the block to. A comparator bound to the
  * ideal comparator, under either body's name, calls the body its high level
  * chooses: the one reading its own VDD, or the numeric one. An adder left on
- * its own body calls the body its input signs choose, unless the Project
- * defines `adder` itself: a Cell or an external definition of that name
- * replaces every built-in adder body, so the call keeps calling it, whatever
- * the signs. An invalid sign leaves the adder on `adder`, for export to
- * refuse.
+ * its own body calls the body its input signs choose, whatever the Project
+ * defines (#1928). An invalid sign leaves the adder on `adder`, for export
+ * to refuse.
  */
 export function builtInBlockCallTarget(
   instance: {
@@ -55,8 +36,6 @@ export function builtInBlockCallTarget(
       | undefined;
   },
   descriptor: BuiltInSubcircuitDescriptor,
-  /** The Project's own subcircuit names; see projectSubcircuitNames. */
-  projectNames: ReadonlySet<string>,
 ): string {
   const binding = instance.netlist?.binding;
   const target =
@@ -71,8 +50,7 @@ export function builtInBlockCallTarget(
     );
   if (
     descriptor.target !== ADDER_TARGET ||
-    target.toLowerCase() !== ADDER_TARGET ||
-    projectNames.has(ADDER_TARGET)
+    target.toLowerCase() !== ADDER_TARGET
   )
     return target;
   const signs = adderInputSigns(instance.netlist?.parameters).map(

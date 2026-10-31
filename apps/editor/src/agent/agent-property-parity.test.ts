@@ -14,7 +14,10 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
-import { gateCellChoices } from "../features/properties/gate-cell-target";
+import {
+  gateCellChoices,
+  gateExternalChoices,
+} from "../features/properties/gate-cell-target";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { BrowserAgentHost } from "./browser-agent-host";
@@ -1116,6 +1119,75 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     expect(instance("X1").netlist).toEqual({
       binding: { kind: "unresolved-subcircuit", name: "opamp" },
       parameters: { gain: "1e6", vhigh: "VDD", vlow: "VSS" },
+    });
+  });
+
+  it("binds an adder to an external definition of the Project, as Properties offers it, and clears it (#1928)", async () => {
+    const project = createEmptyProject("project-1", "Properties");
+    const subcircuit = (name: string, ports: readonly string[]) => ({
+      id: `source-${name}`,
+      language: "spice" as const,
+      revision: 1,
+      entry: `${name}.spice`,
+      dependencies: [],
+      files: [
+        {
+          path: `${name}.spice`,
+          text: `.subckt ${name} ${ports.join(" ")}\nR1 ${ports[0]} ${ports[1]} 1k\n.ends ${name}\n`,
+        },
+      ],
+    });
+    const definition = (name: string, ports: readonly string[]) => ({
+      id: `external-${name}`,
+      name,
+      interfaceStatus: "declared" as const,
+      formalParameters: [],
+      terminals: ports.map((port) => ({
+        id: `external-${name}-${port}`,
+        name: port,
+        direction: "inout" as const,
+      })),
+      implementation: {
+        kind: "source" as const,
+        sourceId: `source-${name}`,
+        entry: name,
+      },
+    });
+    project.modelSources = [
+      subcircuit("sum", ["y", "VDD", "VSS", "a", "b"]),
+      subcircuit("pair", ["A", "Y"]),
+    ];
+    project.externalSubcircuitDefinitions.push(
+      definition("sum", ["y", "VDD", "VSS", "a", "b"]),
+      definition("pair", ["A", "Y"]),
+    );
+    const { controller, apply, refuse, instance } = await session(project);
+    await apply([place("adder", "X3", 200)]);
+    const target = { kind: "instance", reference: "X3" };
+
+    // Properties offers the definition that fits, and no Cell.
+    const document = controller.project.documents[0]!;
+    const adder = document.instances.find((item) => item.reference === "X3")!;
+    expect(gateCellChoices(controller.project, document.id, adder)).toEqual([]);
+    expect(gateExternalChoices(controller.project, adder)).toEqual(["sum"]);
+
+    await apply([{ kind: "set-model", target, model: "SUM" }]);
+    expect(instance("X3")).toMatchObject({
+      symbolId: "adder",
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "external-sum" },
+        parameters: {},
+      },
+    });
+    expect(
+      await refuse([{ kind: "set-model", target, model: "pair" }]),
+    ).toContain(
+      "External subcircuit pair does not fit the adder: it has no Pin B.",
+    );
+    await apply([{ kind: "set-model", target, model: "" }]);
+    expect(instance("X3").netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "adder" },
+      parameters: { signA: "+", signB: "+" },
     });
   });
 });

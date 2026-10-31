@@ -33,6 +33,7 @@ import {
   printedParameterConversion,
   restorePrintedParameter,
   spectreNumber,
+  plainBodyName,
   withNetlistPowerMarkerClaims,
   type DesignNetlistCell,
   type DesignNetlistIR,
@@ -40,6 +41,7 @@ import {
 } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import {
+  bindsExternalByPartPins,
   bindsProjectCell,
   builtInModelContract,
   matchGateCellPins,
@@ -682,11 +684,16 @@ function exportCell(
     const call = cell.instances.find(
       (candidate) => candidate.id === instance.id,
     );
-    // A Library gate bound to a Cell meets its Pins by name (#1450).
+    // A Library part bound to a Cell or an external definition meets its
+    // Pins by name (#1450, #1928); a reviewed standard cell keeps its own
+    // order, and a Circuit Component its own mapping.
     const gate =
       call?.invocationKind === "subcircuit" &&
-      instance.netlist?.binding?.kind === "subcircuit" &&
-      bindsProjectCell(instance.symbolId)
+      (binding?.kind === "subcircuit"
+        ? bindsProjectCell(instance.symbolId)
+        : binding?.kind === "external-subcircuit" &&
+          !call.reviewedExternalBindingId &&
+          bindsExternalByPartPins(context.project, instance.symbolId))
         ? matchGateCellPins(instance.symbolId, {
             name: call.target ?? "",
             portNames: call.nodes.map((node) => node.pinName),
@@ -701,7 +708,7 @@ function exportCell(
       // A Library block's call names its ports, as its contract does (a
       // DAC's VIN is its pin IN).
       const ports = call.target
-        ? builtInModelContract(call.target)?.ports
+        ? builtInModelContract(plainBodyName(context.ir, call.target))?.ports
         : undefined;
       const ordered = symbolForCall(
         symbol,

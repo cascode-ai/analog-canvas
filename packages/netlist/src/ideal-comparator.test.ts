@@ -150,22 +150,27 @@ describe("ideal comparator", () => {
       expect(vacask.text.split("\n"), vacask.text).toContain(line);
   });
 
-  it("rejects a user Cell named after either generated comparator body", () => {
-    for (const [name, vhigh] of [
-      [IDEAL_COMPARATOR_TARGET, "1"],
-      [IDEAL_COMPARATOR_TARGET, "VDD"],
-      ["icm_ideal_comparator_vdd", "1"],
-      ["icm_ideal_comparator_vdd", "VDD"],
-    ]) {
-      const project = comparatorProject({ vhigh: vhigh! });
-      project.documents[0]!.netlist!.name = name!;
+  it("refuses a user Cell named after the comparator body it writes, which has no other name (#1928)", () => {
+    for (const [name, vhigh, clashes] of [
+      [IDEAL_COMPARATOR_TARGET, "1", true],
+      [IDEAL_COMPARATOR_TARGET, "VDD", false],
+      ["icm_ideal_comparator_vdd", "1", false],
+      ["icm_ideal_comparator_vdd", "VDD", true],
+    ] as const) {
+      const project = comparatorProject({ vhigh });
+      project.documents[0]!.netlist!.name = name;
       const result = createDesignNetlistExport(project);
+      const found = result.diagnostics.find(
+        (item) => item.code === "LIBRARY_PART_NAME_COLLISION",
+      );
+      if (!clashes) {
+        expect(found, `${name} ${vhigh}`).toBeUndefined();
+        continue;
+      }
       expect(result.status, `${name} ${vhigh}`).toBe("blocked");
-      expect(
-        result.diagnostics.find(
-          (item) => item.code === "IDEAL_COMPARATOR_NAME_COLLISION",
-        )?.message,
-      ).toBe(`Ideal comparator X1 conflicts with Cell ${name} named ${name}`);
+      expect(found?.message).toBe(
+        `X1's generated body ${name} has a name Analog Canvas reserves, but Cell ${name} of this Project has it too; rename it`,
+      );
     }
   });
 });

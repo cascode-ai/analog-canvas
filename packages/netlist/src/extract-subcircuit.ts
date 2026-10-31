@@ -15,8 +15,11 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  bindsExternalByPartPins,
   bindsProjectCell,
+  libraryGateTerminals,
   matchGateCellPins,
+  matchGateExternalPins,
   projectLengthToSky130Micrometres,
   resolveReviewedExternalBinding,
   reviewedSize,
@@ -253,6 +256,14 @@ function validateFormalParameterOverrides(
   }
 }
 
+/** One port of an external call, and the part's pin written on it. */
+interface ExternalCallTerminal {
+  readonly targetName: string;
+  readonly pinName: string;
+  readonly interaction: string;
+  readonly supply?: "VDD" | "VSS";
+}
+
 export function extractExternalSubcircuitInstance(
   document: SchematicDocument,
   instance: Instance,
@@ -296,17 +307,46 @@ export function extractExternalSubcircuitInstance(
         definition.terminals.map((terminal) => terminal.name),
         instance.symbolId,
       );
-  const terminalBindings = component?.circuitBinding
-    ? circuitComponentTerminals(component, definition)
-    : reviewed
-      ? reviewed.terminals
-      : definition.terminals.map((terminal) => ({
-          targetName: terminal.name,
-          pinName: terminal.name,
-          interaction: "canvas" as const,
-        }));
+  // A Library part bound to the definition keeps its own pins, and meets the
+  // definition's ports by name (#1928).
+  const gate =
+    !reviewed &&
+    bindsExternalByPartPins(
+      { componentDefinitions: component ? [component] : [] },
+      instance.symbolId,
+    )
+      ? matchGateExternalPins(instance.symbolId, definition)
+      : undefined;
+  if (gate && !gate.ok) {
+    const reference = instance.reference ?? instance.id;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "GATE_CELL_PIN_MISMATCH",
+      `${gate.message}. ${reference} is bound to it: fix its ports, or clear ${reference}'s model`,
+      [instance.id, definition.id],
+    );
+  }
+  const terminalBindings: readonly ExternalCallTerminal[] =
+    component?.circuitBinding
+      ? circuitComponentTerminals(component, definition)
+      : reviewed
+        ? reviewed.terminals
+        : definition.terminals.map((terminal) => {
+            const pin = gate?.pins.find(
+              (item) => item.portName === terminal.name,
+            );
+            return {
+              targetName: terminal.name,
+              pinName: pin?.pinName ?? terminal.name,
+              interaction: "canvas" as const,
+              ...(pin?.supply ? { supply: pin.supply } : {}),
+            };
+          });
   const allowedPins = new Set(
-    terminalBindings.map((terminal) => terminal.pinName.toLowerCase()),
+    (gate ? libraryGateTerminals(instance.symbolId) : terminalBindings).map(
+      (terminal) => terminal.pinName.toLowerCase(),
+    ),
   );
   const referencedPins = new Set<string>();
   for (const net of document.nets) {
@@ -365,7 +405,7 @@ export function extractExternalSubcircuitInstance(
   }
   const railsAsked = new Set<string>();
   const nodes = terminalBindings.map((terminal) => {
-    const rail = "supply" in terminal ? terminal.supply : undefined;
+    const rail = terminal.supply;
     const netName =
       rail &&
       !context.netByTerminal.has(`${instance.id}\u0000${terminal.pinName}`)
