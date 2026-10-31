@@ -196,6 +196,8 @@ the RNL language and its runtime belong to rnl.
   (`presentation.cellSymbol`), as the editor shows it; it reads back with
   every pin placed where it was shown. An external subcircuit's block is
   defined once in the file level, its pins numbered, and set on each call.
+  A Cell's symbol drawn only in lines, with no box, reads back as the block's
+  own artwork, its pins where the symbol has them.
 - Drawing objects are RNL shapes, each in the line style it is drawn with
   (its override, else its own), in their stacking order: rectangles,
   circles, lines and curves (a quadratic leg as the cubic that draws it),

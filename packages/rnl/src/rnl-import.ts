@@ -30,6 +30,7 @@ import {
   sameStyledText,
   type Annotation,
   type CircuitProject,
+  type ComponentDefinition,
   type Instance,
   type NoConnect,
   type RouteBranch,
@@ -40,7 +41,11 @@ import {
 
 type Junction = SchematicDocument["junctions"][number];
 
-import { builtInSymbols, hierarchicalSymbolId } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createHierarchicalBlockSymbol,
+  hierarchicalSymbolId,
+} from "@icm/symbols";
 
 import { callSymbolFromDefinition } from "./call-symbols.js";
 import {
@@ -134,6 +139,8 @@ export interface RnlSymbolDefinitionView {
     at: Point;
     /** The exit direction in degrees: 0 right, 90 up, 180 left, 270 down. */
     dir: number | null;
+    /** What it shows beside the pin, if anything. */
+    label?: unknown;
   }[];
   prims: readonly {
     shape: string;
@@ -1077,7 +1084,15 @@ function applyLevel(
     laidOut.add(cell.id);
     const layout = cellSymbolOf(cell, definition);
     cell.presentation.cellSymbol = layout.cellSymbol;
-    if (!layout.exact)
+    const artwork = cellArtwork(cell, definition);
+    if (artwork)
+      project.componentDefinitions = [
+        ...(project.componentDefinitions ?? []).filter(
+          (item) => item.symbol.id !== artwork.symbol.id,
+        ),
+        artwork,
+      ];
+    else if (!layout.exact)
       warn(
         "RNL_IMPORT_BLOCK_APPROXIMATE",
         `${cell.name}'s block is drawn as a box: RNL draws it otherwise, or off the grid`,
@@ -4069,6 +4084,67 @@ function cellSymbolOf(
     },
     exact,
   };
+}
+
+/**
+ * A Cell's block drawn as its symbol in the file draws it, where that is lines
+ * and no box: the block keeps its generated pins, each where the file has it,
+ * and takes the lines as its artwork. Null for any other symbol, which the
+ * Cell's block layout draws.
+ */
+function cellArtwork(
+  cell: SchematicDocument,
+  definition: RnlSymbolDefinitionView,
+): ComponentDefinition | null {
+  if (!definition.prims.length) return null;
+  if (definition.prims.some((prim) => prim.shape !== "line")) return null;
+  const block = createHierarchicalBlockSymbol(cell);
+  const terminals = cell.netlist?.terminals ?? [];
+  if (!block) return null;
+  const pins = block.pins.map((pin) => {
+    const drawn = definition.pins.find((item) => {
+      const key = item.terminals[0] ?? "";
+      const terminal = /^\d+$/u.test(key)
+        ? terminals[Number(key) - 1]
+        : terminals.find(
+            (candidate) => candidate.name.toLowerCase() === key.toLowerCase(),
+          );
+      return terminal?.name === pin.name;
+    });
+    const side = drawn?.dir === null ? undefined : SIDE[drawn?.dir ?? -1];
+    if (!drawn || !side) return pin;
+    return {
+      ...pin,
+      at: acPoint(drawn.at),
+      direction: side,
+      presentation: { ...pin.presentation, showName: Boolean(drawn.label) },
+    };
+  });
+  const primitives = definition.prims.map((prim) => {
+    const points = prim.points.map(acPoint);
+    const [first, last] = [points[0]!, points.at(-1)!];
+    if (points.length === 2)
+      return { kind: "line" as const, from: first, to: last };
+    return points.length > 3 && first.x === last.x && first.y === last.y
+      ? {
+          kind: "polygon" as const,
+          points: points.slice(0, -1),
+          fill: "none" as const,
+          stroke: "foreground" as const,
+        }
+      : {
+          kind: "path" as const,
+          data: points
+            .map(({ x, y }, index) => `${index ? "L" : "M"} ${x} ${y}`)
+            .join(" "),
+          style: {
+            lineCap: "butt" as const,
+            lineJoin: "miter" as const,
+            strokeRole: "normal" as const,
+          },
+        };
+  });
+  return { symbol: { ...block, pins, primitives } } as ComponentDefinition;
 }
 
 /** An offset turned clockwise by `rotation` degrees, y down, as Analog Canvas turns. */
