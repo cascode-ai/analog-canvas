@@ -48,7 +48,9 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
   replacing the source.
 - Quoted local includes are kept unopened. SPICE model/library declarations go
   in a `simulator lang=spice` section for SCS (no translation or
-  qualification); existing SPICE sections stay SPICE.
+  qualification); existing SPICE sections stay SPICE. The editor's import
+  reads each SPICE section as its own SPICE file, its bytes as written, and
+  leaves it out of the size and statement limits; the endpoint counts it.
 - Native export stand-ins read as SPICE models: `bsim4 type=n|p` as
   `nmos|pmos level=54`, `bjt type=npn|pnp` with `is`, `bf`, `vaf`, and
   `diode` with `is`, `n`. The bipolar and diode mappings cover only these

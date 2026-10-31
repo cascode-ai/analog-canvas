@@ -43,6 +43,48 @@ describe("complete external model export", () => {
     expect(designExtractsNetlist(project)).toBe(false);
   });
 
+  // #1933: only a source the conversion refuses goes in as SPICE.
+  it("writes a SPICE model Spectre conversion refuses as SPICE, its bytes mapped to their owners", () => {
+    const project = externalModelFixture();
+    const result = createDesignNetlistExport(project, {
+      format: "spectre",
+      includeLocations: true,
+    });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "MODEL_SOURCE_SPICE_SECTION",
+        severity: "warning",
+      }),
+    );
+    expect(result.file.text).toMatch(
+      /^simulator lang=spice\n\.subckt helper A B\n[^]*^BOUT B A V=\{gain\*v\(A,B\)\}\n[^]*^\.ends gain_block\nsimulator lang=spectre\n$/mu,
+    );
+    expectModelSourceMapping(
+      result.file.text,
+      result.locations.modelSources!,
+      project.modelSources![0]!,
+    );
+
+    const converts = externalModelFixture();
+    converts.modelSources![0]!.files[0]!.text =
+      converts.modelSources![0]!.files[0]!.text.replace(
+        "BOUT B A V={gain*v(A,B)}",
+        "ROUT B A 1k",
+      );
+    const converted = createDesignNetlistExport(converts, {
+      format: "spectre",
+    });
+    expect(converted.status).toBe("ready");
+    if (converted.status !== "ready") return;
+    expect(converted.file.text).toMatch(/^ROUT \(B A\) resistor r=1000$/mu);
+    expect(converted.file.text).not.toContain("simulator lang=spice");
+    expect(converted.diagnostics.map((item) => item.code)).not.toContain(
+      "MODEL_SOURCE_SPICE_SECTION",
+    );
+  });
+
   it("refuses an unimplemented placeholder and emits applied bodies with exact mappings", () => {
     const project = externalModelFixture();
     project.externalSubcircuitDefinitions[0]!.implementation = {

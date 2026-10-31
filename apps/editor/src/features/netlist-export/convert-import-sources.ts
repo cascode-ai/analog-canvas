@@ -8,6 +8,25 @@ import {
 
 export { isSpectreSource } from "@icm/spice";
 
+/** The lines (1-based, inclusive) of each SPICE section of a Spectre source. */
+function spiceSections(
+  lines: readonly string[],
+): { from: number; to: number }[] {
+  const sections: { from: number; to: number }[] = [];
+  let open: number | null = null;
+  lines.forEach((raw, index) => {
+    const language = /^simulator\s+lang\s*=\s*(\w+)$/iu.exec(raw.trim());
+    if (!language) return;
+    if (language[1]!.toLowerCase() === "spice") open ??= index + 2;
+    else if (open !== null) {
+      sections.push({ from: open, to: index });
+      open = null;
+    }
+  });
+  if (open !== null) sections.push({ from: open, to: lines.length });
+  return sections;
+}
+
 /**
  * Sources as the ordinary SPICE loader takes them, which keeps ownership of
  * include resolution and import validation: native Spectre converted, and
@@ -29,7 +48,7 @@ export function prepareImportSources(inputs: SpiceSourceInput[]): {
           input.path,
         ).bodies,
       );
-      return input;
+      return [input];
     }
     let text: string;
     try {
@@ -48,23 +67,56 @@ export function prepareImportSources(inputs: SpiceSourceInput[]): {
       target: "spice",
       fragment: true,
       withLineOrigins: true,
+      // A model library the export wrote as SPICE (#1933) is read as it is.
+      uncountedSpiceSections: true,
     });
     if (converted.status === "blocked") {
       const issue = converted.issues[0]!;
       throw new Error(`${input.path}:${issue.line}: ${issue.message}`);
     }
+    // Each SPICE section is its own SPICE file, its bytes as written, which
+    // the converted source includes where the section stood: a model library
+    // the export wrote as SPICE (#1933) reads back as the SPICE it is.
+    const lines = text.split(/\r\n?|\n/u);
+    const sections = spiceSections(lines);
+    const output = converted.text.split("\n");
+    const kept: string[] = [];
+    const origins: number[] = [];
+    const sectionFiles: SpiceSourceInput[] = [];
+    output.forEach((line, index) => {
+      const origin = converted.lineOrigins?.[index] ?? 0;
+      const section = sections.findIndex(
+        ({ from, to }) => origin >= from && origin <= to,
+      );
+      if (section < 0) {
+        kept.push(line);
+        origins.push(origin);
+        return;
+      }
+      const path = `${input.path}.section${section + 1}.sp`;
+      if (sectionFiles.some((file) => file.path === path)) return;
+      const { from, to } = sections[section]!;
+      sectionFiles.push({
+        path,
+        bytes: new TextEncoder().encode(
+          `${lines.slice(from - 1, to).join("\n")}\n`,
+        ),
+      });
+      kept.push(`.include "${path.split("/").at(-1)}"`);
+      origins.push(origin);
+    });
     builtInBodies.push(
       ...found.bodies.flatMap((body) => {
-        const line = converted.lineOrigins?.indexOf(body.source.line) ?? -1;
+        const line = origins.indexOf(body.source.line);
         return line < 0
           ? []
           : [{ ...body, source: { path: input.path, line: line + 1 } }];
       }),
     );
-    return {
-      path: input.path,
-      bytes: new TextEncoder().encode(converted.text),
-    };
+    return [
+      { path: input.path, bytes: new TextEncoder().encode(kept.join("\n")) },
+      ...sectionFiles,
+    ];
   });
-  return { inputs: prepared, builtInBodies };
+  return { inputs: prepared.flat(), builtInBodies };
 }

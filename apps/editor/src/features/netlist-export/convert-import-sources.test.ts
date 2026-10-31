@@ -227,4 +227,41 @@ ends top`;
       );
     },
   );
+  // #1933: a model library the export wrote as SPICE reads back as the
+  // SPICE it is, and bounds no conversion.
+  it("reads a SPICE section as its own SPICE file, its bytes as written", () => {
+    const section = [
+      "* the author's library",
+      ".subckt lib a",
+      "R1 a 0",
+      "+ 1k",
+      ".ends lib",
+    ];
+    const prepared = prepareImportSources([
+      file(
+        "dir/top.scs",
+        [
+          "simulator lang=spectre",
+          "subckt top (a)",
+          "X1 (a) lib",
+          "ends top",
+          "simulator lang=spice",
+          ...section,
+          "simulator lang=spectre",
+          "",
+        ].join("\n"),
+      ),
+    ]);
+    const decoded = prepared.inputs.map((input) => ({
+      path: input.path,
+      text: new TextDecoder().decode(input.bytes),
+    }));
+    expect(decoded[1]).toEqual({
+      path: "dir/top.scs.section1.sp",
+      text: `${section.join("\n")}\n`,
+    });
+    expect(decoded[0]!.text).toMatch(/^X1 a lib$/mu);
+    expect(decoded[0]!.text).toMatch(/^\.include "top\.scs\.section1\.sp"$/mu);
+    expect(decoded[0]!.text).not.toContain("R1");
+  });
 });

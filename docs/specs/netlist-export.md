@@ -286,6 +286,9 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 - Project-owned external text is composed after printing through the shared
   model-source inventory (each owner and helper closure once; environment
   libraries keep pinned identities), identically for copy, panel and export.
+  A SPICE source the Spectre conversion refuses goes into SCS as written, in
+  a `simulator lang=spice` section (`MODEL_SOURCE_SPICE_SECTION`, a warning);
+  one that converts is converted.
 - Printed body spans map to owner, applied revision, file and offset; body and
   default edits Apply to that owner; interface and cross-owner edits need the
   Cell Manager editor. Drafts never replace applied bytes; interface-only

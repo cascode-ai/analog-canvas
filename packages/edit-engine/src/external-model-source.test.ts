@@ -1992,15 +1992,17 @@ describe("Project-owned external model source", () => {
             s.origin.sourceId === "booster-source",
         ),
     ).toBe(true);
+    // Spectre conversion refuses the behavioral source, so SCS carries it
+    // as written, in a SPICE section (#1933).
     const converted = createDesignNetlistExport(project, { format: "spectre" });
-    expect(converted.status).toBe("blocked");
+    expect(converted.status).toBe("ready");
     expect(
-      converted.diagnostics.find((d) => d.code === "MODEL_SOURCE_DIALECT")
+      converted.diagnostics.find((d) => d.code === "MODEL_SOURCE_SPICE_SECTION")
         ?.message,
     ).toContain("booster.spice");
-    expect(
-      converted.diagnostics.some((d) => d.code === "MODEL_SOURCE_DIALECT"),
-    ).toBe(true);
+    expect(converted.status === "ready" && converted.file.text).toContain(
+      `simulator lang=spice\n${text.trim()}`,
+    );
     folder.input.files.find((f) => f.path === folder.input.entry)!.text =
       folder.input.files
         .find((f) => f.path === folder.input.entry)!
