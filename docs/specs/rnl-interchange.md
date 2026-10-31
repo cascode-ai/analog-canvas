@@ -78,6 +78,9 @@ the RNL language and its runtime belong to rnl.
   bodies take no VSS, and the one with a numeric high level no VDD. A
   body's definition and its calls move together, so the circuit is the same;
   `SPICE` and `SCS` keep the editor's order.
+- A part on the project's own copy of a Library symbol, with the same pins,
+  shapes and device class and no block binding, is drawn as that Library symbol
+  and reads back as it.
 - Each part is drawn with the RNL symbol the mapping table names, from a
   standard package or, for an appearance variant, the chopper or a 4-input
   gate, the `analog-canvas-extensions` package; it is placed at that symbol's

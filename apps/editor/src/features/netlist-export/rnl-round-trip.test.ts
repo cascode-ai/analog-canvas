@@ -10,6 +10,7 @@ import {
 } from "@icm/derived";
 import {
   IDEAL_COMPARATOR_TARGET,
+  deviceDescriptor,
   reviewedExternalBindingById,
   subcircuitDescriptor,
 } from "@icm/devices";
@@ -4133,6 +4134,53 @@ function gates4(): CircuitProject {
   });
   return project;
 }
+
+it.each(["spice", "spectre"] as const)(
+  "draws a project's exact copy of a Library symbol with that symbol, through %s+RNL",
+  async (format) => {
+    const project = hiddenPowerPort();
+    const library = builtInSymbols.find((symbol) => symbol.id === "resistor")!;
+    const copyId = "own-resistor";
+    project.componentDefinitions = [
+      {
+        symbol: {
+          ...library,
+          id: copyId,
+          primitives: library.primitives.map(({ part: _, ...shape }) => shape),
+        },
+        electrical: {
+          ...deviceDescriptor("resistor")!,
+          id: copyId,
+          symbolId: copyId,
+        },
+      },
+    ] as CircuitProject["componentDefinitions"];
+    const part = project.documents[0]!.instances.find(
+      (instance) => instance.id === "R1",
+    )!;
+    part.symbolId = copyId;
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(
+      plan.project.documents[0]!.instances.find(
+        (instance) => instance.reference === "R1",
+      )!.symbolId,
+    ).toBe("resistor");
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+
+    // A copy drawn otherwise is the project's own symbol, which RNL lacks.
+    project.componentDefinitions![0]!.symbol.primitives = [];
+    const refused = createRnlExport(project, { format });
+    expect(refused.status).toBe("blocked");
+    expect(refused.diagnostics.map((item) => item.code)).toContain(
+      "RNL_NO_SYMBOL",
+    );
+  },
+);
 
 describe("RNL round trip of 4-input gates", () => {
   it("keeps the name of a Cell Pin that SPICE spells without its brackets", async () => {
