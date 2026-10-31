@@ -5,6 +5,7 @@ import type {
   DesignNetlistMagneticSubcircuit,
 } from "./ir.js";
 import {
+  definitionBody,
   generatedBehavioralModel,
   generatedBehavioralDefinition,
 } from "./generated-models.js";
@@ -231,7 +232,11 @@ function renderSpice(
     append(
       ...(definition.kind === "magnetic"
         ? spiceMagneticSubcircuit(definition)
-        : generatedBehavioralModel(definition.name, definition.ports)),
+        : generatedBehavioralModel(
+            definitionBody(definition),
+            definition.ports,
+            definition.name,
+          )),
     );
   }
   for (const cell of ir.cells) {
@@ -350,6 +355,16 @@ function spectreCell(
   return lines;
 }
 
+/** A drawn magnetic device's coupled windings, as a file holds them. */
+export function printMagneticSubcircuit(
+  subcircuit: DesignNetlistMagneticSubcircuit,
+  format: NetlistFormat,
+): string[] {
+  return format === "spice"
+    ? spiceMagneticSubcircuit(subcircuit)
+    : spectreMagneticSubcircuit(subcircuit);
+}
+
 /** A Cell the netlist generates, an ideal block's body, as a file holds it. */
 export function printGeneratedCell(
   cell: DesignNetlistCell,
@@ -381,7 +396,11 @@ function renderSpectre(
       ...(definition.kind === "magnetic"
         ? spectreMagneticSubcircuit(definition)
         : printSpectreBehavioralModel(
-            generatedBehavioralDefinition(definition.name, definition.ports),
+            generatedBehavioralDefinition(
+              definitionBody(definition),
+              definition.ports,
+              definition.name,
+            ),
           )),
     );
   let length = lines.join("\n").length;

@@ -13,6 +13,7 @@ import {
 } from "@icm/devices";
 
 import { createDesignNetlistExport } from "./export.js";
+import { addOwnSubcircuit } from "./own-subcircuit.test-support.js";
 import { analyzeDesignNetlistForAuthoring } from "./extract.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { generateCircuitSource } from "./simulation-circuit-source.js";
@@ -237,19 +238,23 @@ describe("built-in Analog Block subcircuits", () => {
       );
     });
 
-    it("accepts an older comparator when the Project defines comparator", () => {
+    it("refuses an older comparator's Project comparator named after the body's ports, not reaching it by position (#1928)", () => {
       const project = analogBlockProject(["comparator"], comparatorPins, false);
-      project.externalSubcircuitDefinitions = [
-        {
-          id: "own-comparator",
-          name: "comparator",
-          terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
-            name,
-          })),
-          formalParameters: [],
-        },
-      ] as never;
+      addOwnSubcircuit(project, "comparator", [
+        "VDD",
+        "VSS",
+        "VIP",
+        "VIN",
+        "VOUT",
+      ]);
       const result = createDesignNetlistExport(project);
+      expect(result.status).toBe("blocked");
+      expect(
+        result.diagnostics.find((d) => d.code === "GATE_CELL_PIN_MISMATCH")
+          ?.message,
+      ).toContain(
+        "External subcircuit comparator does not fit the comparator: it has no Pins IN+, IN- and OUT",
+      );
       expect(
         result.diagnostics.filter(
           (d) => d.code === "UNDEFINED_SUBCIRCUIT_TARGET",
@@ -331,7 +336,7 @@ describe("built-in Analog Block subcircuits", () => {
     },
   );
 
-  it("keeps an explicitly declared master ahead of the built-in ideal model", () => {
+  it("keeps an unbound op-amp on its ideal body beside a declared master named opamp (#1928)", () => {
     const project = analogBlockProject(
       ["opamp"],
       [
@@ -354,8 +359,10 @@ describe("built-in Analog Block subcircuits", () => {
     const result = createDesignNetlistExport(project);
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    expect(result.file.text).not.toContain(".subckt opamp ");
-    expect(result.externalMasterCount).toBe(1);
+    // The declared master is the author's, reached only by set-model.
+    expect(result.file.text).toMatch(/^X1 .* icm_opamp\w*( |$)/mu);
+    expect(result.file.text).not.toMatch(/^X1 .* opamp( |$)/mu);
+    expect(result.externalMasterCount).toBe(0);
   });
 
   it("limits an ideal op-amp to its drawn supplies, and to ±5 V without them (#1463)", () => {
@@ -1009,19 +1016,17 @@ describe("built-in Analog Block subcircuits", () => {
     },
   ])("exports the $symbolId contract", ({ symbolId, connections, card }) => {
     const project = analogBlockProject([symbolId], connections);
-    // The bare comparator target is a contract with a definition the Project
-    // supplies; nothing built in defines it (#1255).
+    // The bare comparator target names a definition the Project supplies;
+    // nothing built in defines it (#1255). The call reaches it by the
+    // comparator's own Pins (#1928).
     if (card.endsWith(" comparator"))
-      project.externalSubcircuitDefinitions = [
-        {
-          id: "own-comparator",
-          name: "comparator",
-          terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
-            name,
-          })),
-          formalParameters: [],
-        },
-      ] as never;
+      addOwnSubcircuit(project, "comparator", [
+        "VDD",
+        "VSS",
+        "IN+",
+        "IN-",
+        "OUT",
+      ]);
     const result = createDesignNetlistExport(project, {
       format: "spice",
       portCase: "upper",

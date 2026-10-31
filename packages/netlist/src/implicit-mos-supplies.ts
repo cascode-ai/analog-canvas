@@ -8,7 +8,6 @@ import {
   drawnSupplyNet,
   drawsSupply,
   mosBulkKind,
-  portableCellIdentifier,
   resolveMosBulkConnection,
   resolveCommittedDocumentLogicalNets,
   type PlacedMosBodies,
@@ -16,19 +15,19 @@ import {
 } from "@icm/derived";
 import {
   builtInModelContract,
-  gateCellBinding,
+  libraryPartBinding,
   IDEAL_COMPARATOR_TARGET,
   idealComparatorReadsSupply,
   isIdealComparatorBody,
   instanceBuiltInSubcircuit,
   isIdealOpampBody,
+  isLibraryPart,
   resolveReviewedExternalBinding,
 } from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
 import {
   builtInBlockCallTarget,
   idealAnalogBlockCell,
-  projectSubcircuitNames,
 } from "./ideal-analog-block-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
@@ -41,17 +40,12 @@ import type { NetlistFormat } from "./net-name-codec.js";
  * reads that supply alone. The ideal op-amp reads its supplies only once a
  * drawn or selected VDD powers it (ideal-opamp.ts), so an undrawn supply
  * takes no default. The crystal has no supply ports. Every other body reads
- * both. An authored Cell or
- * a declared external definition of the same name replaces the body, and may
- * well use both supplies.
+ * both.
  */
 export function bodySupplies(
   target: string,
-  /** The Project's own subcircuit names; see projectSubcircuitNames. */
-  projectNames: ReadonlySet<string>,
   format: NetlistFormat,
 ): readonly ("VDD" | "VSS")[] {
-  if (projectNames.has(target.toLowerCase())) return ["VDD", "VSS"];
   if (
     isIdealComparatorBody(target) &&
     (target !== IDEAL_COMPARATOR_TARGET || format === "spice")
@@ -82,14 +76,6 @@ function blockSuppliesToDefault(
   supply: "VDD" | "VSS";
   reads: readonly ("VDD" | "VSS")[];
 }[] {
-  const projectNames = projectSubcircuitNames(
-    source,
-    source.documents.flatMap((document) =>
-      document.netlist?.name
-        ? [portableCellIdentifier(document.netlist.name, document.id)]
-        : [],
-    ),
-  );
   return source.documents.flatMap((document) => {
     let logical:
       ReturnType<typeof resolveCommittedDocumentLogicalNets> | undefined;
@@ -103,11 +89,13 @@ function blockSuppliesToDefault(
     return document.instances.flatMap((instance) => {
       const descriptor = instanceBuiltInSubcircuit(source, instance);
       if (!descriptor) return [];
-      const reads = bodySupplies(
-        builtInBlockCallTarget(instance, descriptor, projectNames),
-        projectNames,
-        options.format ?? "spice",
-      );
+      // A User Component's own subcircuit may read both supplies.
+      const reads = isLibraryPart(source, instance.symbolId)
+        ? bodySupplies(
+            builtInBlockCallTarget(instance, descriptor),
+            options.format ?? "spice",
+          )
+        : (["VDD", "VSS"] as const);
       return descriptor.ports.flatMap((port) => {
         const supply = port.supply;
         if (!supply || !reads.includes(supply)) return [];
@@ -148,17 +136,19 @@ export interface ImplicitMosSupplyProjection {
   placedBodies: ReadonlyMap<string, PlacedMosBodies>;
 }
 
-/** The rails of a gate bound to a standard cell, or to a Cell's VDD/VSS Pins. */
+/**
+ * The rails of a gate bound to a standard cell, or to the VDD/VSS Pins of a
+ * Cell or external definition (#1928).
+ */
 function boundGateRails(
   source: CircuitProject,
   instance: CircuitProject["documents"][number]["instances"][number],
 ): readonly ("VDD" | "VSS")[] {
   const binding = instance.netlist?.binding;
-  if (binding?.kind === "subcircuit")
+  const bound = libraryPartBinding(source, instance);
+  if (bound || binding?.kind === "subcircuit")
     return (
-      gateCellBinding(source, instance)?.match.pins.flatMap((pin) =>
-        pin.supply ? [pin.supply] : [],
-      ) ?? []
+      bound?.match.pins.flatMap((pin) => (pin.supply ? [pin.supply] : [])) ?? []
     );
   if (binding?.kind !== "external-subcircuit") return [];
   const definition = source.externalSubcircuitDefinitions.find(

@@ -80,19 +80,20 @@ export function chopperBehavioralDefinition(): BehavioralModel {
  * The ideal chopper for SPICE: the same four paths as native S cards, as a
  * drawn switch is. The crossed pair reads its control reversed against the
  * negated threshold, so it closes below the threshold the straight pair
- * closes above.
+ * closes above. `name` writes it under another name, where an author's
+ * definition has its own (#1928).
  */
-export function spiceChopperBody(): string[] {
-  const model = (name: string, threshold: string) =>
-    `.model ${name} SW(RON=${idealSwitchValue("RON")} ROFF=${idealSwitchValue("ROFF")} VT=${threshold} VH=${idealSwitchValue("VH")})`;
+export function spiceChopperBody(name = IDEAL_CHOPPER_TARGET): string[] {
+  const model = (card: string, threshold: string) =>
+    `.model ${card} SW(RON=${idealSwitchValue("RON")} ROFF=${idealSwitchValue("ROFF")} VT=${threshold} VH=${idealSwitchValue("VH")})`;
   return [
-    `.subckt ${IDEAL_CHOPPER_TARGET} INP INN OUTP OUTN CK`,
+    `.subckt ${name} INP INN OUTP OUTN CK`,
     ...CHOPPER_PATHS.map(
       ([from, to, pair], index) =>
         `S${index + 1} ${from} ${to} ${pair === "straight" ? "CK 0 chopper_straight" : "0 CK chopper_crossed"}`,
     ),
     model("chopper_straight", idealSwitchValue("VT")),
     model("chopper_crossed", `-${idealSwitchValue("VT")}`),
-    `.ends ${IDEAL_CHOPPER_TARGET}`,
+    `.ends ${name}`,
   ];
 }

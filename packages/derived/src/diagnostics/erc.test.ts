@@ -1919,3 +1919,117 @@ describe("Nets that reach only gates, bulks and block inputs (#1473)", () => {
     expect(diagnostics).not.toContain("ERC_UNDRIVEN_GATE_NET");
   });
 });
+
+describe("a Library part bound to an external definition (#1928)", () => {
+  /** An op-amp X1 bound to external definition `ota` with `ports`. */
+  function boundOpamp(ports: readonly string[]): CircuitProject {
+    const project = emptyProject();
+    project.externalSubcircuitDefinitions.push({
+      id: "ota",
+      name: "ota",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: ports.map((name) => ({
+        id: `ota-${name}`,
+        name,
+        direction: "inout" as const,
+      })),
+    });
+    project.documents[0]!.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: "opamp",
+      placement: {
+        position: { x: 0, y: 0 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "ota" },
+        parameters: {},
+      },
+    });
+    return project;
+  }
+
+  it("meets the definition's ports by name, and reports those that do not fit", () => {
+    expect(
+      codes(boundOpamp(["out", "VSS", "in-", "VDD", "in+"])),
+    ).not.toContain("ERC_PORT_NAME_MISMATCH");
+    expect(
+      run(boundOpamp(["VIP", "VIN", "OUT"])).find(
+        (item) => item.code === "ERC_PORT_NAME_MISMATCH",
+      )?.message,
+    ).toContain(
+      "External subcircuit ota does not fit the opamp: it has no Pins IN+ and IN-",
+    );
+  });
+
+  it("leaves a Circuit Component that takes the op-amp's symbol id to its own mapping", () => {
+    // A Gallery LDO's error amplifier: its artwork maps IN+, IN- and OUT to
+    // VIP, VIN and VOUT of the definition it is drawn over.
+    const project = boundOpamp(["VDD", "VSS", "VIP", "VIN", "VOUT"]);
+    project.componentDefinitions = [
+      {
+        symbol: {
+          schemaVersion: 1,
+          id: "opamp",
+          name: "Operational Amplifier",
+          viewBox: { x: -40, y: -30, width: 80, height: 60 },
+          pins: (
+            [
+              ["IN+", -40, 10, "west", "non-inverting-input"],
+              ["IN-", -40, -10, "west", "inverting-input"],
+              ["OUT", 30, 0, "east", "output"],
+            ] as const
+          ).map(([name, x, y, direction, role]) => ({
+            name,
+            at: { x, y },
+            direction,
+            role,
+            presentation: { leadLength: 10, visibility: "visible" as const },
+          })),
+          primitives: [],
+          variants: [],
+        },
+        circuitBinding: {
+          definitionId: "ota",
+          terminals: [
+            { terminalId: "ota-VDD", supply: "VDD" },
+            { terminalId: "ota-VSS", supply: "VSS" },
+            { terminalId: "ota-VIP", pinName: "IN+" },
+            { terminalId: "ota-VIN", pinName: "IN-" },
+            { terminalId: "ota-VOUT", pinName: "OUT" },
+          ],
+        },
+      },
+    ];
+    expect(codes(project)).not.toContain("ERC_PORT_NAME_MISMATCH");
+  });
+
+  it("checks a comparator naming the Project's comparator as export binds it", () => {
+    // An older comparator names `comparator`; the Project's definition of it
+    // is reached by Pin name, never by position.
+    const retargeted = (ports: readonly string[]) => {
+      const project = boundOpamp(ports);
+      project.externalSubcircuitDefinitions[0]!.name = "comparator";
+      const comparator = project.documents[0]!.instances[0]!;
+      comparator.symbolId = "comparator";
+      comparator.netlist!.binding = {
+        kind: "unresolved-subcircuit",
+        name: "comparator",
+      };
+      return project;
+    };
+    expect(codes(retargeted(["OUT", "IN-", "IN+"]))).not.toContain(
+      "ERC_PORT_NAME_MISMATCH",
+    );
+    expect(
+      run(retargeted(["VIP", "VIN", "VOUT"])).find(
+        (item) => item.code === "ERC_PORT_NAME_MISMATCH",
+      )?.message,
+    ).toContain(
+      "External subcircuit comparator does not fit the comparator: it has no Pins IN+, IN- and OUT",
+    );
+  });
+});

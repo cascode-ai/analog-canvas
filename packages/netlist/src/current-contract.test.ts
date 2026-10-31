@@ -2216,6 +2216,28 @@ describe("drawn switches", () => {
     );
   });
 
+  it("writes the chopper's body as icm_ideal_chopper beside a Cell named ideal_chopper (#1928)", () => {
+    const project = chopped([["CH1", ["inp", "inn", "ap", "an"]]]);
+    const own = createEmptyDocument("own", "ideal_chopper");
+    own.netlist!.name = "ideal_chopper";
+    project.documents.push(own);
+    const spice = createDesignNetlistExport(project);
+    const spectre = createDesignNetlistExport(project, { format: "spectre" });
+    if (spice.status !== "ready" || spectre.status !== "ready")
+      throw new Error(JSON.stringify([spice, spectre]));
+    expect(spice.file.text).toContain(
+      "XCH1 inp inn ap an PHIch icm_ideal_chopper",
+    );
+    expect(spice.file.text).toContain(
+      ".subckt icm_ideal_chopper INP INN OUTP OUTN CK",
+    );
+    expect(spice.file.text).toContain(".ends icm_ideal_chopper");
+    expect(spectre.file.text).toContain(
+      "CH1 (inp inn ap an PHIch) icm_ideal_chopper",
+    );
+    expect(spectre.file.text).toMatch(/^subckt icm_ideal_chopper /mu);
+  });
+
   it("closes a two-terminal switch on the phase its label names", () => {
     const analysis = analyzeDesignNetlist(switched("ideal-switch", phi("1")));
     expect(

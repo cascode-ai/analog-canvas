@@ -11,7 +11,9 @@ import {
   builtInModelDefaults,
   deviceDescriptor,
   bindsProjectCell,
+  boundPartParameters,
   matchGateCellPins,
+  matchGateExternalPins,
   placedSubcircuitTarget,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
@@ -19,6 +21,7 @@ import {
   reviewedExternalModelSuggestions,
   standardCellBindingForMaster,
   subcircuitDescriptor,
+  type GateCellPinMatch,
 } from "@icm/devices";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import {
@@ -180,6 +183,19 @@ export function gateCellTargets(
     );
 }
 
+/**
+ * The external definitions of the Project a Library part may call (#1928):
+ * those that name their ports, and whose ports fit it.
+ */
+export function gateExternalTargets(
+  project: CircuitProject,
+  symbolId: string,
+): ExternalSubcircuitDefinition[] {
+  return project.externalSubcircuitDefinitions.filter(
+    (definition) => matchGateExternalPins(symbolId, definition)?.ok,
+  );
+}
+
 /** A Cell of the Project by its name, as SPICE compares names, or its ID. */
 function projectCellNamed(
   project: CircuitProject,
@@ -195,28 +211,79 @@ function projectCellNamed(
 }
 
 /**
- * Binds a Library gate, flip-flop, op-amp or comparator to a transistor-level
- * Cell of its Project (#1450, #1689, #1878). The part keeps its symbol and
- * pins; its call goes to the Cell, Pin by name. Its own parameters give way
- * to the Cell's, and a VDD or VSS Net it was given is cleared where the Cell
- * takes that supply globally.
+ * An external definition of the Project by its name, as SPICE compares
+ * names, or its ID.
+ */
+function projectExternalNamed(
+  project: CircuitProject,
+  name: string,
+): ExternalSubcircuitDefinition | undefined {
+  const folded = name.toLowerCase();
+  const definitions = project.externalSubcircuitDefinitions;
+  return (
+    definitions.find(
+      (definition) => definition.name.toLowerCase() === folded,
+    ) ?? definitions.find((definition) => definition.id === name)
+  );
+}
+
+/** What a Library part would be bound to, and how it meets its Pins. */
+interface PartImplementation {
+  readonly binding:
+    | { kind: "subcircuit"; childDocumentId: string }
+    | { kind: "external-subcircuit"; definitionId: string };
+  readonly match: GateCellPinMatch | undefined;
+  readonly formalParameters: readonly { readonly name: string }[];
+}
+
+/** A Cell a part drawn in `document` may call: never one that contains it. */
+function cellImplementation(
+  project: CircuitProject,
+  document: SchematicDocument,
+  instance: SchematicDocument["instances"][number],
+  cell: Cell,
+): PartImplementation {
+  const gateName = instance.reference ?? instance.id;
+  if (cellReaches(project, cell.id, document.id))
+    throw new Error(
+      cell.id === document.id
+        ? `${gateName} is drawn in Cell ${cell.netlist.name}, which cannot call itself`
+        : `Cell ${cell.netlist.name} contains Cell ${document.name}, where ${gateName} is drawn; a Cell cannot call itself`,
+    );
+  return {
+    binding: { kind: "subcircuit", childDocumentId: cell.id },
+    match: cellPinMatch(cell, instance.symbolId),
+    formalParameters: cell.netlist.formalParameters,
+  };
+}
+
+function externalImplementation(
+  instance: SchematicDocument["instances"][number],
+  definition: ExternalSubcircuitDefinition,
+): PartImplementation {
+  return {
+    binding: { kind: "external-subcircuit", definitionId: definition.id },
+    match: matchGateExternalPins(instance.symbolId, definition),
+    formalParameters: definition.formalParameters,
+  };
+}
+
+/**
+ * Binds a Library part with a generated body to a transistor-level Cell of
+ * its Project (#1450, #1689, #1878), or to one of its external definitions
+ * (#1928). The part keeps its symbol and pins; its call goes to the
+ * definition, Pin by name. Its own parameters give way to the definition's,
+ * and a VDD or VSS Net it was given is cleared where the definition takes
+ * that supply globally.
  */
 function planGateCellBinding(
   project: CircuitProject,
   document: SchematicDocument,
   instance: SchematicDocument["instances"][number],
   netlist: NonNullable<SchematicDocument["instances"][number]["netlist"]>,
-  cell: Cell,
+  implementation: PartImplementation,
 ): ProjectStructureEdit[] {
-  const name = cell.netlist.name;
-  const gateName = instance.reference ?? instance.id;
-  if (cellReaches(project, cell.id, document.id))
-    throw new Error(
-      cell.id === document.id
-        ? `${gateName} is drawn in Cell ${name}, which cannot call itself`
-        : `Cell ${name} contains Cell ${document.name}, where ${gateName} is drawn; a Cell cannot call itself`,
-    );
-  const match = cellPinMatch(cell, instance.symbolId);
+  const { binding, match } = implementation;
   if (match && !match.ok) throw new Error(match.message);
   const supplies = new Set(match?.pins.map((pin) => pin.supply));
   const documentEdits: DocumentEdits = (["VDD", "VSS"] as const)
@@ -237,14 +304,12 @@ function planGateCellBinding(
       pinName: supply,
       netId: null,
     }));
-  const binding = { kind: "subcircuit" as const, childDocumentId: cell.id };
-  const formals = new Set(
-    cell.netlist.formalParameters.map((parameter) =>
-      parameter.name.toLowerCase(),
-    ),
+  const kept = boundPartParameters(
+    netlist.parameters,
+    implementation.formalParameters,
   );
   const unset = Object.keys(netlist.parameters).filter(
-    (parameter) => !formals.has(parameter.toLowerCase()),
+    (parameter) => !Object.hasOwn(kept, parameter),
   );
   if (
     JSON.stringify(netlist.binding ?? null) !== JSON.stringify(binding) ||
@@ -332,18 +397,35 @@ export function planSetDeviceModelTarget(
         document,
         instance,
         instance.netlist,
-        cell,
+        cellImplementation(project, document, instance, cell),
+      );
+    // Then a reviewed standard cell, below, and then any other external
+    // definition of the Project (#1928).
+    const external =
+      !targetBinding && normalizedName
+        ? projectExternalNamed(project, normalizedName)
+        : undefined;
+    if (external)
+      return planGateCellBinding(
+        project,
+        document,
+        instance,
+        instance.netlist,
+        externalImplementation(instance, external),
       );
     if (!targetBinding && normalizedName) {
-      const cells = gateCellTargets(project, documentId, sourceSymbolId).map(
-        (candidate) => candidate.netlist.name,
-      );
+      const choices = [
+        ...gateCellTargets(project, documentId, sourceSymbolId).map(
+          (candidate) => candidate.netlist.name,
+        ),
+        ...gateExternalTargets(project, sourceSymbolId).map(
+          (candidate) => candidate.name,
+        ),
+      ];
       throw new Error(
         gateTargets.length > 0
-          ? `${normalizedName} is neither a Cell of this Project nor a reviewed standard cell for ${sourceSymbolId}; use ${[...cells, ...gateTargets].join(", ")}`
-          : cells.length > 0
-            ? `${normalizedName} is not a Cell of this Project; for ${sourceSymbolId} use ${cells.join(", ")}`
-            : `${normalizedName} is not a Cell of this Project, and no Cell of it fits ${sourceSymbolId}`,
+          ? `${normalizedName} is not a Cell or external subcircuit of this Project, nor a reviewed standard cell for ${sourceSymbolId}; use ${[...choices, ...gateTargets].join(", ")}`
+          : `${normalizedName} is not a Cell or external subcircuit of this Project that fits ${sourceSymbolId}${choices.length > 0 ? `; use ${choices.join(", ")}` : ""}`,
       );
     }
     if (!targetBinding) {

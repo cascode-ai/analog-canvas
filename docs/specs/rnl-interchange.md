@@ -77,7 +77,12 @@ the RNL language and its runtime belong to rnl.
   drawn as `$COMPARATOR` (in+ in− out) and print as other blocks do: their
   bodies take no VSS, and the one with a numeric high level no VDD. A
   body's definition and its calls move together, so the circuit is the same;
-  `SPICE` and `SCS` keep the editor's order.
+  `SPICE` and `SCS` keep the editor's order. On import, a magnetic body printed
+  statement for statement as the netlist prints it, in any port order, is that
+  part and no Cell.
+- A part on the project's own copy of a Library symbol, with the same pins,
+  shapes and device class and no block binding, is drawn as that Library symbol
+  and reads back as it.
 - Each part is drawn with the RNL symbol the mapping table names, from a
   standard package or, for an appearance variant, the chopper or a 4-input
   gate, the `analog-canvas-extensions` package; it is placed at that symbol's
@@ -197,6 +202,8 @@ the RNL language and its runtime belong to rnl.
   (`presentation.cellSymbol`), as the editor shows it; it reads back with
   every pin placed where it was shown. An external subcircuit's block is
   defined once in the file level, its pins numbered, and set on each call.
+  A Cell's symbol drawn only in lines, with no box, reads back as the block's
+  own artwork, its pins where the symbol has them.
 - Drawing objects are RNL shapes, each in the line style it is drawn with
   (its override, else its own), in their stacking order: rectangles,
   circles, lines and curves (a quadratic leg as the cubic that draws it),
@@ -305,8 +312,8 @@ the RNL language and its runtime belong to rnl.
     prints the file's own circuit (each subcircuit's ports in order and its
     cards' nets), so a call passing one a node of its own (a body bias, the
     other phase) keeps them; a Cell whose added ground pin reads as a port
-    prints a GND pin beside it, which the file never had, so there the
-    file's circuit is the reference;
+    prints a GND pin beside it, or a pin on a global net cannot print at all,
+    which the file never had, so there the file's circuit is the reference;
   - a wire RNL draws on ground (0) in a Cell with a net named GND and none
     named 0: RNL reads SPICE's GND as ground, as ngspice does, where the
     import keeps it a net of that name (#1784);
@@ -316,8 +323,9 @@ the RNL language and its runtime belong to rnl.
     anything else keeps its net (`RNL_IMPORT_NO_CONNECT_CONNECTED`);
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a point one route; a bold wire as a power
-    rail, a dashed one to a MOS body as a body tie, any other line style or
-    color as the wire's own; junctions at named points; wires of no length,
+    rail, a dashed one to a MOS body as a body tie, and a dashed one between
+    junctions where it meets a body tie, any other line style or color as the
+    wire's own; junctions at named points; wires of no length,
     which join what touches, are left to touching;
   - wire direction arrows, current and voltage markers (a label on a wire
     with + and − where the export puts them), and floating symbols;
@@ -372,7 +380,9 @@ the RNL language and its runtime belong to rnl.
     voltage marker's label keeps its size and colour; a label in its part's
     colour follows the part, one in another colour keeps it as its own;
     scripts stand outside bold (`bold`, `italic`, then the scripts), so a
-    subscript and the superscript after it stay stacked;
+    subscript and the superscript after it stay stacked; the export writes a
+    script upright inside italic, as it is drawn, unless it has its own italic
+    span;
   - a part's colour (its `linecolor`) as its foreground, a glyph's and a Cell
     Pin's included;
   - drawing shapes, each made in its kind's line style (a closed shape solid,

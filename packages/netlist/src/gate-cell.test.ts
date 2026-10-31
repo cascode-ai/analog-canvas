@@ -369,3 +369,165 @@ describe.skipIf(!ngspiceOnPath())(
     });
   },
 );
+
+describe("a Library part bound to an external definition (#1928)", () => {
+  /**
+   * An inverter X1 bound to external definition inv_ext with `ports`, its A
+   * and Y on the top Cell's Pins IN and OUT; no supply is drawn.
+   */
+  function inverterOverExternal(
+    ports: readonly string[],
+    interfaceStatus: "declared" | "inferred-positional" = "declared",
+  ): CircuitProject {
+    const project = createEmptyProject("external-gate", "External gate", "top");
+    const top = project.documents[0]!;
+    top.netlist!.name = "top";
+    project.modelSources = [
+      {
+        id: "inv-source",
+        language: "spice",
+        revision: 1,
+        entry: "inv.spice",
+        dependencies: [],
+        files: [
+          {
+            path: "inv.spice",
+            text: `.subckt inv_ext ${ports.join(" ")}\nR1 ${ports[0]} ${ports[1]} 1k\n.ends inv_ext\n`,
+          },
+        ],
+      },
+    ];
+    project.externalSubcircuitDefinitions.push({
+      id: "inv-ext",
+      name: "inv_ext",
+      interfaceStatus,
+      formalParameters: [],
+      terminals: ports.map((name) => ({
+        id: `inv-ext-${name}`,
+        name,
+        direction: "inout" as const,
+      })),
+      implementation: {
+        kind: "source",
+        sourceId: "inv-source",
+        entry: "inv_ext",
+      },
+    });
+    top.instances.push({
+      id: "gate",
+      symbolId: "inverter",
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "inv-ext" },
+        parameters: {},
+      },
+    });
+    for (const [name, pinName] of [
+      ["IN", "A"],
+      ["OUT", "Y"],
+    ] as const) {
+      cellPin(top, name);
+      connect(top, name, "gate", pinName);
+    }
+    return project;
+  }
+
+  const errors = (project: CircuitProject) => {
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status).toBe("blocked");
+    return result.diagnostics.filter((item) => item.severity === "error");
+  };
+
+  it("calls the definition in its own port order, each port on the inverter's pin of its name", () => {
+    // y, VSS, a and VDD take Y (OUT), the conventional ground, A (IN) and
+    // the conventional supply.
+    expect(exported(inverterOverExternal(["y", "VSS", "a", "VDD"]))).toMatch(
+      /^X1 OUT VSS IN VDD inv_ext$/mu,
+    );
+  });
+
+  it("reports ports that stop fitting, without calling the inverter's own pins unknown", () => {
+    const found = errors(inverterOverExternal(["out", "VSS", "a", "VDD"]));
+    expect(found.map((item) => item.code)).not.toContain(
+      "UNKNOWN_TERMINAL_PIN",
+    );
+    expect(found.map((item) => item.code)).not.toContain(
+      "UNKNOWN_EXTERNAL_SUBCIRCUIT_PIN",
+    );
+    expect(
+      found.find((item) => item.code === "GATE_CELL_PIN_MISMATCH")?.message,
+    ).toContain(
+      "External subcircuit inv_ext does not fit the inverter: it has no Pin Y, and its Pin out is not one of the gate's.",
+    );
+  });
+
+  it("refuses a definition that names its ports only by position", () => {
+    expect(
+      errors(
+        inverterOverExternal(["1", "2", "3", "4"], "inferred-positional"),
+      ).find((item) => item.code === "GATE_CELL_PIN_MISMATCH")?.message,
+    ).toContain(
+      "External subcircuit inv_ext names its ports only by position; name them A and Y to bind the inverter to it",
+    );
+  });
+
+  it("leaves a Circuit Component that takes the inverter's symbol id on its definition's own terminals", () => {
+    // Its artwork maps A and Y to in and out, and its Nets name those, as a
+    // Gallery LDO's op-amp drawn over LDO_TEACH_EA does.
+    const project = inverterOverExternal(["in", "out", "VDD", "VSS"]);
+    const top = project.documents[0]!;
+    project.componentDefinitions = [
+      {
+        symbol: {
+          schemaVersion: 1,
+          id: "inverter",
+          name: "Inverter",
+          viewBox: { x: -20, y: -20, width: 40, height: 40 },
+          pins: (
+            [
+              ["A", -20, "west", "input"],
+              ["Y", 20, "east", "output"],
+            ] as const
+          ).map(([name, x, direction, role]) => ({
+            name,
+            at: { x, y: 0 },
+            direction,
+            role,
+            presentation: { leadLength: 10, visibility: "visible" as const },
+          })),
+          primitives: [],
+          variants: [],
+        },
+        circuitBinding: {
+          definitionId: "inv-ext",
+          terminals: [
+            { terminalId: "inv-ext-in", pinName: "A" },
+            { terminalId: "inv-ext-out", pinName: "Y" },
+            { terminalId: "inv-ext-VDD", supply: "VDD" },
+            { terminalId: "inv-ext-VSS", supply: "VSS" },
+          ],
+        },
+      },
+    ];
+    for (const net of top.nets)
+      for (const terminal of net.terminals)
+        if (terminal.instanceId === "gate")
+          terminal.pinName = terminal.pinName === "A" ? "in" : "out";
+    // Its supplies are properties, met by the drawn rails; ground is written
+    // as VSS.
+    drawTopSupply(project, "VDDA");
+    top.instances.push({ id: "GND", symbolId: "ground", placement: null });
+    connect(top, "net-ground", "GND", "0");
+    top.connectivityEvidence.push({
+      id: "GND-claim",
+      kind: "name-claim",
+      netId: "net-ground",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND" },
+    });
+    expect(exported(project)).toMatch(/^X1 IN OUT VDDA VSS inv_ext$/mu);
+  });
+});

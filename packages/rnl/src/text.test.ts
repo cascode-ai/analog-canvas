@@ -1,3 +1,4 @@
+import type { RichTextRun } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { acRichText, rnlTextLines } from "./text.js";
@@ -163,6 +164,44 @@ describe("RNL runs as rich text", () => {
     });
     expect(text.runs[2]).toEqual({ kind: "line-break" });
     expect(rnlTextLines(text).lines).toEqual(lines);
+  });
+
+  it("leaves a script upright inside italic, as Analog Canvas draws it", () => {
+    const within = (style: "subscript" | "superscript", inner: RichTextRun) =>
+      rnlTextLines({
+        runs: [
+          {
+            kind: "span",
+            style: "italic",
+            children: [
+              { kind: "text", value: "V" },
+              { kind: "span", style, children: [inner] },
+            ],
+          },
+        ],
+      }).lines[0];
+    const text = { kind: "text", value: "out" } as const;
+    expect(within("subscript", text)).toEqual([
+      { kind: "text", text: "V", style: { ...plain, italic: true } },
+      { kind: "text", text: "out", style: { ...plain, level: -1 } },
+    ]);
+    expect(within("superscript", text)?.[1]).toEqual({
+      kind: "text",
+      text: "out",
+      style: { ...plain, level: 1 },
+    });
+    // Its own italic span still slants it.
+    expect(
+      within("subscript", {
+        kind: "span",
+        style: "italic",
+        children: [text],
+      })?.[1],
+    ).toEqual({
+      kind: "text",
+      text: "out",
+      style: { ...plain, level: -1, italic: true },
+    });
   });
 
   it("is nothing for text with nothing to show", () => {

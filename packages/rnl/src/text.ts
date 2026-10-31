@@ -166,10 +166,12 @@ function styled(style: RnlRunStyle, mark: string): RnlRunStyle {
       return { ...style, italic: true };
     case "bold":
       return { ...style, bold: true };
+    // A script is upright inside italic, as Analog Canvas draws it: only an
+    // italic span inside the script slants it.
     case "subscript":
-      return { ...style, level: style.level - 1 };
+      return { ...style, italic: false, level: style.level - 1 };
     case "superscript":
-      return { ...style, level: style.level + 1 };
+      return { ...style, italic: false, level: style.level + 1 };
     case "overbar":
       return { ...style, overline: true };
     default:

@@ -19,7 +19,7 @@ import {
 import { toRnlPoint, type RnlPoint } from "./place.js";
 import { rnlName } from "./rnl-name.js";
 import { symbolShapes, type RnlShape } from "./shapes.js";
-import { RNL_SYMBOLS, rnlSymbolFor } from "./symbol-map.js";
+import { RNL_SYMBOLS, rnlSymbolForPart } from "./symbol-map.js";
 import { plainLines, rnlTextLines, type RnlRun } from "./text.js";
 
 /** A pin of a symbol an edit transaction defines (language standard 9.2.4). */
@@ -186,7 +186,7 @@ export function blockSymbols(
     const document = project.documents.find((item) => item.id === cell.id);
     for (const instance of document?.instances ?? []) {
       // A call drawn with a mapped symbol, such as a PDK MOS, is no block.
-      if (rnlSymbolFor(instance.symbolId, instance.symbolVariantId)) continue;
+      if (rnlSymbolForPart(instance, project)) continue;
       const binding = instance.netlist?.binding;
       const definition = resolver.resolve(instance.symbolId)?.definition;
       const terminalOf = blockTerminals(instance, project, ir);

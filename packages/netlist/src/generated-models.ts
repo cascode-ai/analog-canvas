@@ -121,16 +121,35 @@ function crystalModel(target: string): BehavioralModel {
 }
 
 /**
+ * The generated body an IR definition prints, under whatever name it is
+ * written: its own, or the reserved one it takes where an author's
+ * definition has its own (#1928).
+ */
+export function definitionBody(definition: {
+  readonly name: string;
+  readonly body?: string;
+}): string {
+  return definition.body ?? definition.name;
+}
+
+/**
  * One family dispatch; printers never own model equations or defaults.
  * `ports` prints the same body with its ports in another order (see
- * `withBodyPortOrder`); its elements name ports, never positions.
+ * `withBodyPortOrder`); its elements name ports, never positions. `name`
+ * writes it under another name, where an author's definition has its own
+ * (#1928).
  */
 export function generatedBehavioralDefinition(
   target: string,
   ports?: readonly string[],
+  name?: string,
 ): BehavioralModel {
   const model = familyDefinition(target);
-  return ports ? { ...model, ports } : model;
+  return {
+    ...model,
+    ...(ports ? { ports } : {}),
+    ...(name ? { name } : {}),
+  };
 }
 
 function familyDefinition(target: string): BehavioralModel {
@@ -147,13 +166,14 @@ function familyDefinition(target: string): BehavioralModel {
 export function generatedBehavioralModel(
   target: string,
   ports?: readonly string[],
+  name?: string,
 ): string[] {
   // SPICE switches the chopper's paths with its native S cards (#1641).
   if (target === IDEAL_CHOPPER_TARGET) {
     if (ports) throw new Error("The SPICE chopper body keeps its own ports");
-    return spiceChopperBody();
+    return spiceChopperBody(name);
   }
   return printSpiceBehavioralModel(
-    generatedBehavioralDefinition(target, ports),
+    generatedBehavioralDefinition(target, ports, name),
   );
 }

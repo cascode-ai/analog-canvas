@@ -24,8 +24,10 @@ export interface ComponentPropertyDetailsContext {
   modelTarget?: {
     defaultValue: string;
     suggestions: readonly string[];
-    /** The Project's Cells a Library gate may be bound to (#1450). */
+    /** The Project's Cells a Library part may be bound to (#1450). */
     cells?: readonly string[];
+    /** The Project's external definitions a Library part may be bound to (#1928). */
+    externals?: readonly string[];
   };
   signalFlow?: boolean;
 }
@@ -253,13 +255,15 @@ export function componentDetailFields(
       label: "Target netlist",
       kind:
         context.modelTarget?.suggestions.length ||
-        context.modelTarget?.cells?.length
+        context.modelTarget?.cells?.length ||
+        context.modelTarget?.externals?.length
           ? "choice"
           : "text",
       options: [
         ...new Set([
           "",
           ...(context.modelTarget?.cells ?? []),
+          ...(context.modelTarget?.externals ?? []),
           ...(context.modelTarget?.suggestions ?? []),
           context.modelTarget?.defaultValue ?? "",
         ]),
@@ -269,7 +273,9 @@ export function componentDetailFields(
           ? "None"
           : context.modelTarget?.cells?.includes(value)
             ? `${value} · Project Cell`
-            : value,
+            : context.modelTarget?.externals?.includes(value)
+              ? `${value} · External subcircuit`
+              : value,
       })),
       description: "",
       help: "Choose a suggested model or type a custom model name in JSON. An empty string clears the target; model compatibility checks still apply.",
