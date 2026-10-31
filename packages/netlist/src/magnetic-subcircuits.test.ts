@@ -8,6 +8,7 @@ import {
   type ComponentDefinition,
 } from "@icm/model";
 
+import { findBuiltInBodies } from "./built-in-bodies.js";
 import { createDesignNetlistExport } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
@@ -269,6 +270,17 @@ describe("drawn magnetic devices", () => {
       "X1 (a b tap) icm_tcoil l1=1n l2=2n k=0.5 cb=10f",
     );
     expect(spectre).toMatch(/^subckt icm_tcoil \(n1 n2 n3\)/mu);
+    // Read back, the renamed body is still the T-coil that wrote it.
+    for (const [format, written] of [
+      ["spice", text],
+      ["spectre", spectre],
+    ] as const)
+      expect(
+        findBuiltInBodies(written, format, "dut.sp").bodies.find(
+          (body) => body.name === "icm_tcoil",
+        ),
+        format,
+      ).toMatchObject({ kind: "subcircuit", symbolId: "tcoil" });
   });
 
   it("projects coupled windings through the native mutual primitive", () => {
