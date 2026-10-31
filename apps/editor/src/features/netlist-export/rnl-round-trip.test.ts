@@ -3190,6 +3190,10 @@ describe("RNL round trip", () => {
       content: bare,
       polarity: "positive",
     });
+    // Its size comes through: its strokes are off Canvas's whole units.
+    expect(
+      plus && "styleOverride" in plus && plus.styleOverride?.sizeScale,
+    ).toBeFalsy();
     expect(minus).toMatchObject({
       anchor: free(950, -500),
       polarity: "negative",

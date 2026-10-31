@@ -3236,11 +3236,19 @@ function regroupDrawings(
         if (line?.kind === "text")
           return { ...line, id: common(first ?? { x: 0, y: 0 }).id, polarity };
         // A mark alone: its stroke across, centred on its anchor, is as
-        // long as its words' size makes it.
-        const mark = (part("plus1") ?? part("minus"))?.object;
+        // long as its words' size makes it, as the file draws it: a drawing
+        // object stands on whole units, which would change its size.
+        const stroke = part("plus1") ?? part("minus");
+        const mark = stroke?.object;
         const [from, to] = (mark && pathOf(mark)?.points) ?? [];
         if (!mark || !from || !to) return null;
-        const fontSize = span(from, to) / 2 / 0.23;
+        const [start, end] = stroke.shape?.points ?? [];
+        const length =
+          start && end
+            ? Math.hypot(start[0] - end[0], start[1] - end[1]) *
+              AC_UNITS_PER_RNL_UNIT
+            : span(from, to);
+        const fontSize = length / 2 / 0.23;
         const sizeScale =
           Math.round((fontSize / richTextMetrics(profile).fontSize) * 1e3) /
           1e3;
