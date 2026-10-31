@@ -2804,6 +2804,45 @@ describe("RNL round trip", () => {
     ]);
   });
 
+  it("reads a curved arrow's control back where it was, though raising it falls between units", async () => {
+    const project = example("simulation-rc");
+    const document = project.documents.find(
+      (item) => item.id === project.topDocumentId,
+    )!;
+    const free = (x: number, y: number) =>
+      ({ kind: "free", position: { x, y } }) as const;
+    document.drafting = {
+      objects: [
+        {
+          id: "curved",
+          locked: false,
+          zIndex: 0,
+          anchor: free(420, 355),
+          kind: "arrow",
+          from: free(420, 355),
+          to: free(455, 310),
+          curveControls: [{ x: 425, y: 320 }],
+          styleOverride: { arrowEnd: "small-arrow" },
+        },
+      ],
+    };
+    const { project: drawn } = await roundTrip(project);
+    const cell = drawn.documents.find(
+      (item) => item.netlist?.name === document.netlist?.name,
+    )!;
+    const objects = (cell.drafting?.objects ?? []).filter(
+      (object) => object.kind !== "text",
+    );
+    expect(objects).toEqual([
+      expect.objectContaining({
+        kind: "arrow",
+        from: free(420, 355),
+        to: free(455, 310),
+        curveControls: [{ x: 425, y: 320 }],
+      }),
+    ]);
+  });
+
   it("reads back leaders, callouts, polarity marks and arrows as Analog Canvas drew them", async () => {
     const project = example("simulation-rc");
     const document = project.documents.find(

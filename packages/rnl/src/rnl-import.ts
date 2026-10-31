@@ -2989,7 +2989,7 @@ function importShapes(
     }
     const path =
       shape.shape === "bezier"
-        ? quadraticPath(points)
+        ? quadraticPath(shape.points.map((point) => acPoint(point)))
         : shape.shape === "ellipse"
           ? ellipticCurve(
               points[0] ?? { x: 0, y: 0 },
@@ -3618,13 +3618,18 @@ function turnedRectangle(points: readonly { x: number; y: number }[]): {
 /**
  * A cubic Bézier path as Analog Canvas's: its ends, each leg's quadratic
  * control (null for a straight leg), the one a raised quadratic came from
- * or the nearest.
+ * or the nearest. It takes exact points, since a raised control falls
+ * between units; the path it returns stands on whole units.
  */
 function quadraticPath(points: readonly { x: number; y: number }[]): {
   points: { x: number; y: number }[];
   controls: ({ x: number; y: number } | null)[];
 } {
-  const ends = [points[0]!];
+  const whole = ({ x, y }: { x: number; y: number }) => ({
+    x: Math.round(x) + 0,
+    y: Math.round(y) + 0,
+  });
+  const ends = [whole(points[0]!)];
   const controls: ({ x: number; y: number } | null)[] = [];
   for (let index = 0; index + 3 < points.length; index += 3) {
     const [from, c1, c2, to] = points.slice(index, index + 4) as [
@@ -3640,22 +3645,16 @@ function quadraticPath(points: readonly { x: number; y: number }[]): {
     const near = (p: typeof from, q: typeof from) =>
       Math.abs(p.x - q.x) <= 1 && Math.abs(p.y - q.y) <= 1;
     const straight = near(c1, third(1 / 3)) && near(c2, third(2 / 3));
-    ends.push(to);
+    ends.push(whole(to));
     controls.push(
       straight
         ? null
-        : {
+        : whole({
             x:
-              Math.round(
-                (from.x + 1.5 * (c1.x - from.x) + to.x + 1.5 * (c2.x - to.x)) /
-                  2,
-              ) + 0,
+              (from.x + 1.5 * (c1.x - from.x) + to.x + 1.5 * (c2.x - to.x)) / 2,
             y:
-              Math.round(
-                (from.y + 1.5 * (c1.y - from.y) + to.y + 1.5 * (c2.y - to.y)) /
-                  2,
-              ) + 0,
-          },
+              (from.y + 1.5 * (c1.y - from.y) + to.y + 1.5 * (c2.y - to.y)) / 2,
+          }),
     );
   }
   return { points: ends, controls };
