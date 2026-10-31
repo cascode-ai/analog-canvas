@@ -1,9 +1,11 @@
+import { drawnMagneticNetwork } from "@icm/derived";
 import {
   ADDER_SIGNED_INPUTS,
   ADDER_TARGET,
   IDEAL_COMPARATOR_TARGET,
   OPAMP_TARGET,
   adderBodySigns,
+  builtInDeviceDescriptors,
   builtInModelContract,
   builtInSubcircuitDescriptors,
   isIdealComparatorBody,
@@ -25,9 +27,14 @@ import {
   spiceChopperBody,
   switchBehavioralDefinition,
 } from "./ideal-switch-model.js";
+import { magneticSubcircuit } from "./extract-magnetic.js";
 import { bodySupplies } from "./implicit-mos-supplies.js";
 import type { NetlistFormat } from "./net-name-codec.js";
-import { printGeneratedCell, spiceModelCard } from "./printers.js";
+import {
+  printGeneratedCell,
+  printMagneticSubcircuit,
+  spiceModelCard,
+} from "./printers.js";
 
 /** One statement of a source: the lines it spans and its joined text. */
 interface Statement {
@@ -194,6 +201,51 @@ function chopperBody(
 }
 
 /**
+ * The T-coil or transformer a subcircuit is the coupled windings of, if
+ * Analog Canvas prints exactly these statements for it with these ports, in
+ * any order of them: an RNL file lists them in its symbol's terminal order.
+ */
+function magneticBody(
+  header: { name: string; ports: readonly string[] },
+  body: readonly Statement[],
+  format: NetlistFormat,
+): Omit<SpiceBuiltInBody, "source"> | null {
+  const name = format === "spice" ? header.name.toLowerCase() : header.name;
+  for (const definition of builtInDeviceDescriptors) {
+    const network = drawnMagneticNetwork(definition);
+    if (network?.subcircuit !== name) continue;
+    const order = header.ports.map((port) =>
+      network.ports.find((candidate) =>
+        format === "spice"
+          ? candidate.port.toLowerCase() === port.toLowerCase()
+          : candidate.port === port,
+      ),
+    );
+    if (
+      order.length !== network.ports.length ||
+      !order.every((port) => port !== undefined) ||
+      new Set(order).size !== order.length
+    )
+      return null;
+    const printed = printMagneticSubcircuit(
+      {
+        ...magneticSubcircuit(network, definition),
+        ports: order.map((port) => port.port),
+      },
+      format,
+    );
+    if (!samePrinting(printed, body, format)) return null;
+    return {
+      name: header.name,
+      kind: "subcircuit",
+      symbolId: definition.id,
+      ports: order.map((port) => ({ pinName: port.pinName })),
+    };
+  }
+  return null;
+}
+
+/**
  * The block a subcircuit is the body of, if Analog Canvas prints exactly
  * these statements for it with these ports: printing the body again and
  * comparing statement for statement tells it from an author's subcircuit of
@@ -337,8 +389,8 @@ export function callOnlyBlock(
 
 /**
  * The bodies Analog Canvas writes itself that a netlist source defines (an
- * op-amp's, a logic gate's, an ideal block's, the chopper's, the ideal
- * switch's), for the SPICE / SCS import to bring each card naming one in as
+ * op-amp's, a logic gate's, an ideal block's, the chopper's, a T-coil's or
+ * transformer's, the ideal switch's), for the SPICE / SCS import to bring each card naming one in as
  * the part that wrote it. `text` is the source as the conversion to SPICE
  * takes it: a SPICE source comes back unchanged; in a Spectre one each such
  * body's statements are blanked, its header and parameters kept, so that the
@@ -408,7 +460,8 @@ export function findBuiltInBodies(
     if (open.length) continue;
     const body =
       builtInBody(closed.header, block, format) ??
-      chopperBody(closed.header, block, format);
+      chopperBody(closed.header, block, format) ??
+      magneticBody(closed.header, block, format);
     if (!body) continue;
     bodies.push({ ...body, source: { path, line: block[0]!.first + 1 } });
     if (format !== "spectre") continue;
