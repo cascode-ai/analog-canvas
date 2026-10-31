@@ -15,6 +15,7 @@ import {
 } from "@icm/devices";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import {
+  createEmptyDocument,
   createEmptyProject,
   flattenRichText,
   type CircuitProject,
@@ -1763,6 +1764,270 @@ it.each(["spice", "spectre"] as const)(
     expect(after.status === "ready" && after.file.text).toBe(
       before.status === "ready" && before.file.text,
     );
+  },
+);
+
+/** A netlist's text, or its status where the export cannot print it. */
+function printed(project: CircuitProject, format: "spice" | "spectre") {
+  const result = createDesignNetlistExport(project, { format });
+  return result.status === "ready" ? result.file.text : result.status;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "leaves an op-amp's unwired supplies off the ground pin a switch adds, through %s+RNL",
+  async (format) => {
+    // The Cell prints VSS for the switch alone; the op-amp's body writes its
+    // ports in another order in the file than in a plain netlist. A kept VSS
+    // pin would take the op-amp's unwired supply.
+    const project = createEmptyProject("opamp-switch", "Op-amp", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    const at = (x: number, y: number) =>
+      ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+    document.instances.push(
+      {
+        id: "S1",
+        symbolId: "simple-switch",
+        reference: "S1",
+        placement: at(100, 100),
+      },
+      {
+        id: "X1",
+        symbolId: "opamp-differential-wide",
+        reference: "X1",
+        placement: at(300, 100),
+        netlist: {
+          binding: {
+            kind: "unresolved-subcircuit",
+            name: "opamp_differential",
+          },
+          parameters: { gain: "1e6" },
+        },
+      },
+    );
+    document.nets.push(
+      { id: "a", terminals: [{ instanceId: "S1", pinName: "1" }] },
+      {
+        id: "b",
+        terminals: [
+          { instanceId: "S1", pinName: "2" },
+          { instanceId: "X1", pinName: "IN+" },
+        ],
+      },
+      { id: "c", terminals: [{ instanceId: "X1", pinName: "IN-" }] },
+      { id: "d", terminals: [{ instanceId: "X1", pinName: "OUT+" }] },
+      { id: "e", terminals: [{ instanceId: "X1", pinName: "OUT-" }] },
+    );
+    const text = printed(project, format);
+    expect(text).toMatch(/VSS/u);
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(printed(plan.project, format)).toBe(text);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "takes no Cell Pin for a supply a Cell's body gives it where another Cell draws that supply global, through %s+RNL",
+  async (format) => {
+    // Cell a's unwired PMOS body gives dut a VDD port; Cell b draws the
+    // global VDD. As a Pin, dut's VDD would be both a port and the global
+    // net, which the export refuses to print.
+    const project = createEmptyProject("global-vdd", "Global VDD", "dut");
+    const top = project.documents[0]!;
+    top.netlist!.name = "dut";
+    const at = (x: number, y: number) =>
+      ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+    const pmosCell = (name: string, drawsVdd: boolean) => {
+      const cell = createEmptyDocument(name, name);
+      cell.netlist = { name, formalParameters: [], terminals: [] };
+      cell.instances.push(
+        {
+          id: "M1",
+          symbolId: "pmos",
+          reference: "M1",
+          placement: at(200, 100),
+          netlist: {
+            binding: { kind: "model", deviceClass: "mos", name: "DP" },
+            parameters: { w: "1u", l: "1u" },
+          },
+        },
+        { id: "PA", symbolId: "port", placement: at(100, 100) },
+      );
+      cell.netlist.terminals.push({
+        id: "terminal-a",
+        name: "a",
+        netId: "a",
+        direction: "inout",
+        interfaceInstanceIds: ["PA"],
+      });
+      cell.nets.push(
+        {
+          id: "a",
+          terminals: [
+            { instanceId: "PA", pinName: "P" },
+            { instanceId: "M1", pinName: "G" },
+            { instanceId: "M1", pinName: "D" },
+          ],
+        },
+        { id: "s", terminals: [{ instanceId: "M1", pinName: "S" }] },
+      );
+      if (drawsVdd) {
+        cell.instances.push({
+          id: "V1",
+          symbolId: "vdd-port",
+          placement: at(200, 40),
+        });
+        cell.nets
+          .find((net) => net.id === "s")!
+          .terminals.push({ instanceId: "V1", pinName: "P" });
+        cell.connectivityEvidence.push({
+          id: "vdd-claim",
+          kind: "name-claim",
+          netId: "s",
+          name: "VDD",
+          scope: "global",
+          powerDomain: "vdd",
+          owner: { kind: "power-marker", objectId: "V1" },
+        });
+      }
+      return cell;
+    };
+    const cells = [pmosCell("a", false), pmosCell("b", true)];
+    project.documents.push(...cells);
+    cells.forEach((cell, index) => {
+      const id = `X${index + 1}`;
+      top.instances.push({
+        id,
+        symbolId: hierarchicalSymbolId(cell.id),
+        reference: id,
+        placement: at(100 + 300 * index, 100),
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: cell.id },
+          parameters: {},
+        },
+      });
+      top.nets.push({
+        id: `n${id}`,
+        terminals: [{ instanceId: id, pinName: "a" }],
+      });
+    });
+    const text = printed(project, format);
+    expect(text).toMatch(/global VDD/iu);
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(printed(plan.project, format)).toBe(text);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "takes no ground pin where a port drawn as a power label orders the file's ports, through %s+RNL",
+  async (format) => {
+    // dut's VREF is a power label's port, so it prints with the supplies:
+    // VREF before VSS, which only the label makes so. The rest is the gate
+    // case: kept as a port, VSS would bring a GND pin beside it.
+    const project = delayCellFixture(true);
+    const top = project.documents[0]!;
+    top.instances.find((i) => i.id === "X1")!.symbolId = "inverter";
+    for (const net of top.nets)
+      net.terminals = net.terminals.filter(
+        (t) =>
+          t.instanceId !== "X1" || (t.pinName !== "VDD" && t.pinName !== "VSS"),
+      );
+    top.nets = top.nets.filter((net) => net.terminals.length);
+    top.connectivityEvidence = top.connectivityEvidence.filter((evidence) =>
+      top.nets.some((net) => net.id === evidence.netId),
+    );
+    top.instances.push({
+      id: "R9",
+      reference: "R9",
+      symbolId: "resistor",
+      placement: { position: { x: 500, y: 100 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    top.nets.push(
+      { id: "net-vref", terminals: [{ instanceId: "R9", pinName: "1" }] },
+      { id: "net-load", terminals: [{ instanceId: "R9", pinName: "2" }] },
+    );
+    top.netlist!.terminals.push({
+      id: "terminal-vref",
+      name: "VREF",
+      netId: "net-vref",
+      direction: "inout",
+      interfaceInstanceIds: [],
+      interfaceAnnotationId: "label-vref",
+    });
+    top.annotations.push({
+      id: "label-vref",
+      kind: "power-label",
+      netId: "net-vref",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-vref" },
+      anchor: { kind: "free", position: { x: 500, y: 40 } },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    top.connectivityEvidence.push({
+      id: "evidence-vref",
+      kind: "name-claim",
+      netId: "net-vref",
+      name: "VREF",
+      owner: { kind: "power-marker", objectId: "label-vref" },
+      scope: "local",
+      powerDomain: "vdd",
+    });
+    const cell = project.documents.find((d) => d.id === "delay_cmos")!;
+    const kept = new Set(["pin-VDD", "pin-A", "pin-Y", "C2"]);
+    cell.instances = cell.instances.filter((i) => kept.has(i.id));
+    cell.netlist!.terminals = cell.netlist!.terminals.filter(
+      (t) => t.name !== "VSS",
+    );
+    cell.instances.push(
+      {
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: null,
+        netlist: { parameters: { value: "1k" } },
+      },
+      {
+        id: "GND1",
+        symbolId: "ground",
+        placement: {
+          position: { x: 300, y: 300 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    for (const net of cell.nets) {
+      net.terminals = net.terminals.filter((t) => kept.has(t.instanceId));
+      if (net.id === "A" || net.id === "Y")
+        net.terminals.push({
+          instanceId: "R1",
+          pinName: net.id === "A" ? "1" : "2",
+        });
+      if (net.id === "VSS")
+        net.terminals.push({ instanceId: "GND1", pinName: "0" });
+    }
+    cell.nets = cell.nets.filter((net) => net.terminals.length);
+    cell.connectivityEvidence = [
+      ...cell.connectivityEvidence.filter((evidence) =>
+        cell.nets.some((net) => net.id === evidence.netId),
+      ),
+      {
+        id: "gnd-claim",
+        kind: "name-claim",
+        netId: "VSS",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "GND1" },
+      },
+    ];
+    const text = printed(project, format);
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(printed(plan.project, format)).toBe(text);
   },
 );
 
