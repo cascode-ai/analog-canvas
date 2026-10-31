@@ -3544,6 +3544,77 @@ describe("RNL round trip", () => {
     },
   );
 
+  it.each(["spice", "spectre"] as const)(
+    "reads back a block the file draws in lines, through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const lowpass = project.documents.find(
+        (document) => document.id === project.topDocumentId,
+      )!;
+      const highpass = project.documents.find(
+        (document) => document.netlist?.name === "rc_highpass",
+      )!;
+      const symbolId = hierarchicalSymbolId(lowpass.netlist!.name);
+      highpass.instances.push({
+        id: "XLOW",
+        reference: "XLOW",
+        symbolId,
+        placement: {
+          position: { x: 500, y: 500 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: lowpass.id },
+          parameters: {},
+        },
+      });
+      const block = createProjectSymbolResolver(
+        project,
+        builtInSymbols,
+      ).resolve(symbolId)!.definition;
+      const primitives = [
+        {
+          kind: "polygon",
+          points: [
+            { x: -50, y: -50 },
+            { x: 50, y: 0 },
+            { x: -50, y: 50 },
+          ],
+          fill: "none",
+          stroke: "foreground",
+        },
+        {
+          kind: "line",
+          from: { x: -60, y: 30 },
+          to: { x: -50, y: 30 },
+        },
+      ];
+      project.componentDefinitions = [
+        ...(project.componentDefinitions ?? []),
+        { symbol: { ...block, primitives } },
+      ] as CircuitProject["componentDefinitions"];
+      const plan = await roundTrip(project, format);
+      expect(failures(plan)).toEqual([]);
+      const artwork = (from: CircuitProject) =>
+        from.componentDefinitions?.find(
+          (definition) => definition.symbol.id === symbolId,
+        )?.symbol;
+      expect(artwork(plan.project)?.primitives).toMatchObject(primitives);
+      expect(
+        plan.diagnostics.filter(
+          (item) => item.code === "RNL_IMPORT_BLOCK_APPROXIMATE",
+        ),
+      ).toEqual([]);
+      // Written again, it draws the same.
+      const again = await roundTrip(plan.project, format);
+      expect(failures(again)).toEqual([]);
+      expect(artwork(again.project)?.primitives).toEqual(
+        artwork(plan.project)?.primitives,
+      );
+    },
+  );
+
   it("leaves out an uncalled Cell the netlist cannot print, and prints the others", () => {
     const project = example("simulation-rc");
     const highpass = project.documents.find(
