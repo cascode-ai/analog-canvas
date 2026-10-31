@@ -1,0 +1,31 @@
+[Unit]
+Description=Analog Canvas pinned standalone runtime (private acceptance)
+After=local-fs.target network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=canvas
+Group=canvas
+WorkingDirectory=/opt/analog-canvas/current-native
+ExecStart=/opt/analog-canvas/runtime/workerd-2026-09-11 serve /opt/analog-canvas/current-native/config.capnp
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/analog-canvas/native
+IPAddressDeny=any
+IPAddressAllow=localhost
+MemoryHigh=3G
+MemoryMax=4G
+TasksMax=256
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

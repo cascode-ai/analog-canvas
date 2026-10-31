@@ -1,0 +1,9 @@
+[Unit]
+Description=Consistent local snapshot of the private Canvas standalone runtime
+After=canvas-cn-native.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/share/analog-canvas/native-backup.sh
+UMask=0077
+TimeoutStartSec=5min
