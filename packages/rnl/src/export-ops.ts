@@ -41,6 +41,7 @@ import {
 } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import {
+  bindsExternalByPartPins,
   bindsProjectCell,
   builtInModelContract,
   matchGateCellPins,
@@ -685,13 +686,14 @@ function exportCell(
     );
     // A Library part bound to a Cell or an external definition meets its
     // Pins by name (#1450, #1928); a reviewed standard cell keeps its own
-    // order.
+    // order, and a Circuit Component its own mapping.
     const gate =
       call?.invocationKind === "subcircuit" &&
-      (instance.netlist?.binding?.kind === "subcircuit" ||
-        (instance.netlist?.binding?.kind === "external-subcircuit" &&
-          !call.reviewedExternalBindingId)) &&
-      bindsProjectCell(instance.symbolId)
+      (binding?.kind === "subcircuit"
+        ? bindsProjectCell(instance.symbolId)
+        : binding?.kind === "external-subcircuit" &&
+          !call.reviewedExternalBindingId &&
+          bindsExternalByPartPins(context.project, instance.symbolId))
         ? matchGateCellPins(instance.symbolId, {
             name: call.target ?? "",
             portNames: call.nodes.map((node) => node.pinName),

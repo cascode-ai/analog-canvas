@@ -75,6 +75,7 @@ import { designNetlistNetName } from "@icm/netlist";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
+  bindsExternalByPartPins,
   bindsProjectCell,
   reviewedExternalModelSuggestions,
   deviceDescriptor,
@@ -6525,13 +6526,17 @@ function WorkspaceEditor({
                             (bindsProjectCell(selectedInstance.symbolId) &&
                               (selectedInstance.netlist.binding?.kind ===
                                 "subcircuit" ||
-                                selectedInstance.netlist.binding?.kind ===
-                                  "external-subcircuit" ||
                                 gateCellChoices(
                                   project,
                                   document.id,
                                   selectedInstance,
-                                ).length > 0 ||
+                                ).length > 0)) ||
+                            (bindsExternalByPartPins(
+                              project,
+                              selectedInstance.symbolId,
+                            ) &&
+                              (selectedInstance.netlist.binding?.kind ===
+                                "external-subcircuit" ||
                                 gateExternalChoices(project, selectedInstance)
                                   .length > 0)))
                             ? {

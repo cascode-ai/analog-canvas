@@ -23,6 +23,7 @@ import type {
 } from "@icm/model";
 import {
   deviceDescriptor,
+  bindsExternalByPartPins,
   bindsProjectCell,
   libraryGateTerminals,
   resolveReviewedExternalBinding,
@@ -438,19 +439,23 @@ export function buildNetContext(
               )
             : undefined;
         // A Library part bound to a Cell or to an external definition keeps
-        // its own pins (#1450, #1689, #1928).
-        const partPins = bindsProjectCell(instance.symbolId)
-          ? libraryGateTerminals(instance.symbolId).map(
-              (gateTerminal) => gateTerminal.pinName,
-            )
-          : undefined;
+        // its own pins (#1450, #1689, #1928); a Circuit Component that takes
+        // its symbol's id names its definition's terminals.
+        const partPins = (keeps: boolean) =>
+          keeps
+            ? libraryGateTerminals(instance.symbolId).map(
+                (gateTerminal) => gateTerminal.pinName,
+              )
+            : undefined;
         const allowedPins = child?.netlist
-          ? (partPins ??
+          ? (partPins(bindsProjectCell(instance.symbolId)) ??
             projectCellInterface(child.netlist).ports.map((port) => port.name))
           : reviewed
             ? reviewed.terminals.map((terminal) => terminal.pinName)
             : externalDefinition
-              ? (partPins ??
+              ? (partPins(
+                  bindsExternalByPartPins(project, instance.symbolId),
+                ) ??
                 externalDefinition.terminals.map((terminal) => terminal.name))
               : deviceDescriptor(instance.symbolId, project)?.pinOrder;
         if (allowedPins && !allowedPins.includes(terminal.pinName)) {

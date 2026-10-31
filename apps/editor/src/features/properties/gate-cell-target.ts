@@ -2,6 +2,7 @@
 // Project (#1450) or to one of its external definitions (#1928).
 import type { CircuitProject, Instance } from "@icm/model";
 import {
+  bindsExternalByPartPins,
   bindsProjectCell,
   libraryPartBinding,
   subcircuitDescriptor,
@@ -33,7 +34,8 @@ export function gateExternalChoices(
   project: CircuitProject,
   instance: Instance,
 ): string[] {
-  if (!instance.netlist || !bindsProjectCell(instance.symbolId)) return [];
+  if (!instance.netlist || !bindsExternalByPartPins(project, instance.symbolId))
+    return [];
   return gateExternalTargets(project, instance.symbolId).map(
     (definition) => definition.name,
   );

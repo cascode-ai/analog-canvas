@@ -1965,6 +1965,48 @@ describe("a Library part bound to an external definition (#1928)", () => {
     );
   });
 
+  it("leaves a Circuit Component that takes the op-amp's symbol id to its own mapping", () => {
+    // A Gallery LDO's error amplifier: its artwork maps IN+, IN- and OUT to
+    // VIP, VIN and VOUT of the definition it is drawn over.
+    const project = boundOpamp(["VDD", "VSS", "VIP", "VIN", "VOUT"]);
+    project.componentDefinitions = [
+      {
+        symbol: {
+          schemaVersion: 1,
+          id: "opamp",
+          name: "Operational Amplifier",
+          viewBox: { x: -40, y: -30, width: 80, height: 60 },
+          pins: (
+            [
+              ["IN+", -40, 10, "west", "non-inverting-input"],
+              ["IN-", -40, -10, "west", "inverting-input"],
+              ["OUT", 30, 0, "east", "output"],
+            ] as const
+          ).map(([name, x, y, direction, role]) => ({
+            name,
+            at: { x, y },
+            direction,
+            role,
+            presentation: { leadLength: 10, visibility: "visible" as const },
+          })),
+          primitives: [],
+          variants: [],
+        },
+        circuitBinding: {
+          definitionId: "ota",
+          terminals: [
+            { terminalId: "ota-VDD", supply: "VDD" },
+            { terminalId: "ota-VSS", supply: "VSS" },
+            { terminalId: "ota-VIP", pinName: "IN+" },
+            { terminalId: "ota-VIN", pinName: "IN-" },
+            { terminalId: "ota-VOUT", pinName: "OUT" },
+          ],
+        },
+      },
+    ];
+    expect(codes(project)).not.toContain("ERC_PORT_NAME_MISMATCH");
+  });
+
   it("checks a comparator naming the Project's comparator as export binds it", () => {
     // An older comparator names `comparator`; the Project's definition of it
     // is reached by Pin name, never by position.

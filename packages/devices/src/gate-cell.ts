@@ -54,6 +54,24 @@ export function bindsProjectCell(symbolId: string): boolean {
 }
 
 /**
+ * Whether a part bound to an external definition meets its ports by the
+ * Library part's Pins (#1928). A Circuit Component of the Project that takes
+ * a Library symbol's id is drawn with its definition's own terminals.
+ */
+export function bindsExternalByPartPins(
+  project: Partial<Pick<CircuitProject, "componentDefinitions">>,
+  symbolId: string,
+): boolean {
+  return (
+    bindsProjectCell(symbolId) &&
+    !project.componentDefinitions?.some(
+      (component) =>
+        component.symbol.id === symbolId && component.circuitBinding,
+    )
+  );
+}
+
+/**
  * Whether a symbol draws a Library part with a generated body: the Library's
  * own, or a Project's captured copy that still names that body. A component
  * whose subcircuit names another master calls the author's own.
@@ -315,7 +333,8 @@ export function gateCellBinding(
  * gone, and for any other Instance.
  */
 export function gateExternalBinding(
-  project: Pick<CircuitProject, "externalSubcircuitDefinitions">,
+  project: Pick<CircuitProject, "externalSubcircuitDefinitions"> &
+    Partial<Pick<CircuitProject, "componentDefinitions">>,
   instance: ParameterOwner,
 ):
   | { definition: ExternalSubcircuitDefinition; match: GateCellPinMatch }
@@ -323,7 +342,7 @@ export function gateExternalBinding(
   const binding = instance.netlist?.binding;
   if (
     binding?.kind !== "external-subcircuit" ||
-    !bindsProjectCell(instance.symbolId)
+    !bindsExternalByPartPins(project, instance.symbolId)
   )
     return undefined;
   const definition = project.externalSubcircuitDefinitions.find(
@@ -348,7 +367,8 @@ export function gateExternalBinding(
  * and how it meets its Pins (#1450, #1928).
  */
 export function libraryPartBinding(
-  project: Pick<CircuitProject, "documents" | "externalSubcircuitDefinitions">,
+  project: Pick<CircuitProject, "documents" | "externalSubcircuitDefinitions"> &
+    Partial<Pick<CircuitProject, "componentDefinitions">>,
   instance: ParameterOwner,
 ): { name: string; match: GateCellPinMatch } | undefined {
   const cell = gateCellBinding(project, instance);
