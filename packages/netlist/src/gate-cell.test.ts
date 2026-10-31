@@ -471,4 +471,63 @@ describe("a Library part bound to an external definition (#1928)", () => {
       "External subcircuit inv_ext names its ports only by position; name them A and Y to bind the inverter to it",
     );
   });
+
+  it("leaves a Circuit Component that takes the inverter's symbol id on its definition's own terminals", () => {
+    // Its artwork maps A and Y to in and out, and its Nets name those, as a
+    // Gallery LDO's op-amp drawn over LDO_TEACH_EA does.
+    const project = inverterOverExternal(["in", "out", "VDD", "VSS"]);
+    const top = project.documents[0]!;
+    project.componentDefinitions = [
+      {
+        symbol: {
+          schemaVersion: 1,
+          id: "inverter",
+          name: "Inverter",
+          viewBox: { x: -20, y: -20, width: 40, height: 40 },
+          pins: (
+            [
+              ["A", -20, "west", "input"],
+              ["Y", 20, "east", "output"],
+            ] as const
+          ).map(([name, x, direction, role]) => ({
+            name,
+            at: { x, y: 0 },
+            direction,
+            role,
+            presentation: { leadLength: 10, visibility: "visible" as const },
+          })),
+          primitives: [],
+          variants: [],
+        },
+        circuitBinding: {
+          definitionId: "inv-ext",
+          terminals: [
+            { terminalId: "inv-ext-in", pinName: "A" },
+            { terminalId: "inv-ext-out", pinName: "Y" },
+            { terminalId: "inv-ext-VDD", supply: "VDD" },
+            { terminalId: "inv-ext-VSS", supply: "VSS" },
+          ],
+        },
+      },
+    ];
+    for (const net of top.nets)
+      for (const terminal of net.terminals)
+        if (terminal.instanceId === "gate")
+          terminal.pinName = terminal.pinName === "A" ? "in" : "out";
+    // Its supplies are properties, met by the drawn rails; ground is written
+    // as VSS.
+    drawTopSupply(project, "VDDA");
+    top.instances.push({ id: "GND", symbolId: "ground", placement: null });
+    connect(top, "net-ground", "GND", "0");
+    top.connectivityEvidence.push({
+      id: "GND-claim",
+      kind: "name-claim",
+      netId: "net-ground",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND" },
+    });
+    expect(exported(project)).toMatch(/^X1 IN OUT VDDA VSS inv_ext$/mu);
+  });
 });

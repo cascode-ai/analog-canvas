@@ -15,6 +15,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  bindsExternalByPartPins,
   bindsProjectCell,
   libraryGateTerminals,
   matchGateCellPins,
@@ -309,9 +310,11 @@ export function extractExternalSubcircuitInstance(
   // A Library part bound to the definition keeps its own pins, and meets the
   // definition's ports by name (#1928).
   const gate =
-    !component?.circuitBinding &&
     !reviewed &&
-    bindsProjectCell(instance.symbolId)
+    bindsExternalByPartPins(
+      { componentDefinitions: component ? [component] : [] },
+      instance.symbolId,
+    )
       ? matchGateExternalPins(instance.symbolId, definition)
       : undefined;
   if (gate && !gate.ok) {
