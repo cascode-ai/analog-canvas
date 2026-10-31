@@ -22,6 +22,7 @@ import {
   type Annotation,
   type DraftingObject,
   type Instance,
+  type RouteBranch,
 } from "@icm/model";
 import {
   compareElectricalGraphs,
@@ -2028,6 +2029,138 @@ it.each(["spice", "spectre"] as const)(
     const plan = await roundTrip(project, format);
     expect(failures(plan)).toEqual([]);
     expect(printed(plan.project, format)).toBe(text);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "keeps a body tie that runs between junctions a body tie, through %s+RNL",
+  async (format) => {
+    const project = createEmptyProject("body-tie", "Body tie", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    const at = (x: number, y: number) =>
+      ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+    for (const [id, x] of [
+      ["M1", 100],
+      ["M2", 300],
+    ] as const) {
+      document.instances.push({
+        id,
+        reference: id,
+        symbolId: "nmos",
+        placement: at(x, 100),
+        mosBulkBinding: { origin: "instance-override", netId: "bulk" },
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "DN" },
+          parameters: { w: "1u", l: "1u" },
+        },
+      });
+      for (const pinName of ["D", "G", "S"])
+        document.noConnects.push({
+          id: `${id}${pinName}`,
+          endpoint: { kind: "terminal", instanceId: id, pinName },
+        });
+    }
+    document.instances.push({
+      id: "PB",
+      symbolId: "port",
+      placement: at(200, 300),
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-b",
+      name: "B",
+      netId: "bulk",
+      direction: "inout",
+      interfaceInstanceIds: ["PB"],
+    });
+    document.nets.push({
+      id: "bulk",
+      terminals: [
+        { instanceId: "M1", pinName: "B" },
+        { instanceId: "M2", pinName: "B" },
+        { instanceId: "PB", pinName: "P" },
+      ],
+    });
+    const junction = (id: string, x: number, y: number) => ({
+      id,
+      netId: "bulk",
+      position: { x, y },
+    });
+    document.junctions.push(junction("J1", 200, 200), junction("J2", 250, 200));
+    const tie = (
+      id: string,
+      start: RouteBranch["start"],
+      end: RouteBranch["start"],
+    ): RouteBranch => ({
+      id,
+      netId: "bulk",
+      start,
+      legs: [
+        {
+          id: `${id}-leg`,
+          to: { kind: "endpoint", endpoint: end },
+          mode: "manual",
+        },
+      ],
+      presentation: "bulk-dashed",
+    });
+    const onJunction = (junctionId: string) =>
+      ({ kind: "junction", junctionId }) as const;
+    const onBody = (instanceId: string) =>
+      ({ kind: "terminal", instanceId, pinName: "B" }) as const;
+    document.routes.push(
+      tie("r1", onBody("M1"), onJunction("J1")),
+      tie("r2", onJunction("J1"), onJunction("J2")),
+      tie("r3", onJunction("J2"), onBody("M2")),
+      tie("r4", onJunction("J1"), {
+        kind: "terminal",
+        instanceId: "PB",
+        pinName: "P",
+      }),
+      tie("r5", onJunction("J2"), {
+        kind: "terminal",
+        instanceId: "PB",
+        pinName: "P",
+      }),
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const routes = plan.project.documents[0]!.routes;
+    expect(routes).toHaveLength(5);
+    for (const route of routes) {
+      expect(route.presentation).toBe("bulk-dashed");
+      expect(route.styleOverride?.lineStyle).toBeUndefined();
+    }
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "leaves a dashed wire that meets no body tie its own line style, through %s+RNL",
+  async (format) => {
+    const project = hiddenPowerPort();
+    const document = project.documents[0]!;
+    document.routes.push({
+      id: "wire",
+      netId: "net-a",
+      start: { kind: "terminal", instanceId: "pin-a", pinName: "P" },
+      legs: [
+        {
+          id: "wire-leg",
+          to: {
+            kind: "endpoint",
+            endpoint: { kind: "terminal", instanceId: "R1", pinName: "1" },
+          },
+          mode: "manual",
+        },
+      ],
+      styleOverride: { lineStyle: "dashed" },
+    });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.project.documents[0]!.routes[0]).toMatchObject({
+      styleOverride: { lineStyle: "dashed" },
+    });
+    expect(plan.project.documents[0]!.routes[0]!.presentation).toBeUndefined();
   },
 );
 

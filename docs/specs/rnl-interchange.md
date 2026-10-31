@@ -315,8 +315,9 @@ the RNL language and its runtime belong to rnl.
     anything else keeps its net (`RNL_IMPORT_NO_CONNECT_CONNECTED`);
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a point one route; a bold wire as a power
-    rail, a dashed one to a MOS body as a body tie, any other line style or
-    color as the wire's own; junctions at named points; wires of no length,
+    rail, a dashed one to a MOS body as a body tie, and a dashed one between
+    junctions where it meets a body tie, any other line style or color as the
+    wire's own; junctions at named points; wires of no length,
     which join what touches, are left to touching;
   - wire direction arrows, current and voltage markers (a label on a wire
     with + and − where the export puts them), and floating symbols;
