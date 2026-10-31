@@ -14,7 +14,7 @@ import { type SqlStorage, unwrapTags } from "./gallery-store";
  * of circuit function. Design Attributes describe how a circuit is drawn, not
  * what it is, so they name no type.
  */
-export const BOARD_TYPES: readonly string[] = Object.keys(
+const BOARD_TYPES: readonly string[] = Object.keys(
   taxonomy.tagsByGroup,
 ).filter((group) => group !== "Design Attributes");
 const TYPE_OF_TAG = new Map(
@@ -25,9 +25,9 @@ const TYPE_OF_TAG = new Map(
 /** A part that is a block of other parts rather than a device: an op-amp, a gate, a signal-flow block. */
 const BLOCK_CATEGORIES = new Set(["analog-block", "logic", "signal-flow"]);
 
-export const BOARD_TITLE_MAX = 120;
-export const BOARD_NOTE_MAX = 500;
-export const BOARD_SLOTS_MAX = 500;
+const BOARD_TITLE_MAX = 120;
+const BOARD_NOTE_MAX = 500;
+const BOARD_SLOTS_MAX = 500;
 /** How many of a board's latest events a read returns. */
 const BOARD_EVENTS_READ = 300;
 
