@@ -1,5 +1,7 @@
-import type { CircuitProject, StableId } from "@icm/model";
+import { deviceDescriptor } from "@icm/devices";
+import type { CircuitProject, Instance, StableId } from "@icm/model";
 import type { BodyPortOrder } from "@icm/netlist";
+import { builtInSymbols, type SymbolDefinition } from "@icm/symbols";
 
 import list from "./symbol-list.json";
 import { inlineRnlSymbols } from "./inline-symbols.js";
@@ -156,6 +158,47 @@ export function rnlSymbolFor(
     drawn.find((entry) => entry.variant === (variantId ?? null)) ??
     drawn.find((entry) => entry.variant === null)
   );
+}
+
+/**
+ * A symbol's pins and primitives as text, to compare two by: each object's
+ * keys in order, without a primitive's `part`, which names it and draws nothing.
+ */
+const drawingOf = (symbol: Pick<SymbolDefinition, "pins" | "primitives">) =>
+  JSON.stringify([symbol.pins, symbol.primitives], (_, item: unknown) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.entries(item)
+            .filter(([key]) => key !== "part")
+            .sort(([left], [right]) => (left < right ? -1 : 1)),
+        )
+      : item,
+  );
+
+/**
+ * The symbol that draws a part. A part may stand on the project's own copy of
+ * a Library symbol, under an id of its own: where the copy draws exactly what
+ * the Library symbol does, with the same pins and the same kind of device,
+ * the Library symbol's row draws it. A call of a Cell or an external
+ * subcircuit stays the block it is.
+ */
+export function rnlSymbolForPart(
+  instance: Pick<Instance, "symbolId" | "symbolVariantId" | "netlist">,
+  project: Pick<CircuitProject, "componentDefinitions">,
+): RnlSymbol | undefined {
+  const own = rnlSymbolFor(instance.symbolId, instance.symbolVariantId);
+  if (own) return own;
+  const copy = project.componentDefinitions?.find(
+    (definition) => definition.symbol.id === instance.symbolId,
+  );
+  if (!copy?.electrical || instance.netlist?.binding) return undefined;
+  const drawing = drawingOf(copy.symbol);
+  const library = builtInSymbols.find(
+    (symbol) =>
+      drawingOf(symbol) === drawing &&
+      deviceDescriptor(symbol.id)?.deviceClass === copy.electrical!.deviceClass,
+  );
+  return library && rnlSymbolFor(library.id, instance.symbolVariantId);
 }
 
 /**

@@ -71,6 +71,7 @@ import type { RnlShape } from "./shapes.js";
 import {
   RNL_SYMBOLS,
   rnlSymbolFor,
+  rnlSymbolForPart,
   terminalOfPin,
   type RnlSymbol,
 } from "./symbol-map.js";
@@ -637,7 +638,7 @@ function exportCell(
   /** Where each drawn part or glyph is registered, and the name RNL knows it by. */
   const placeOf = new Map<StableId, { object: string; at: RnlPoint }>();
   for (const instance of document.instances) {
-    let symbol = rnlSymbolFor(instance.symbolId, instance.symbolVariantId);
+    let symbol = rnlSymbolForPart(instance, context.project);
     const block = symbol
       ? undefined
       : blockTerminals(instance, context.project, context.ir);
