@@ -17,10 +17,12 @@ import { executeProjectTransaction } from "@icm/edit-engine";
 import {
   createEmptyProject,
   flattenRichText,
+  sameStyledText,
   type CircuitProject,
   type Annotation,
   type DraftingObject,
   type Instance,
+  type RichTextRun,
 } from "@icm/model";
 import {
   compareElectricalGraphs,
@@ -4166,6 +4168,58 @@ describe("RNL round trip of 4-input gates", () => {
         .map((item) => item.name);
     expect(pin(drawn)).toEqual(["SEL[3]"]);
   });
+
+  it.each(["spice", "spectre"] as const)(
+    "keeps the styles of a Cell Pin label whose name it sets with a subscript (%s)",
+    async (format) => {
+      const project = gates4();
+      const document = project.documents[0]!;
+      const terminal = document.netlist!.terminals[0]!;
+      terminal.name = "N_Vos_B";
+      const span = (
+        style: "italic" | "bold" | "subscript",
+        ...children: RichTextRun[]
+      ): RichTextRun => ({ kind: "span", style, children });
+      const text = (value: string): RichTextRun => ({ kind: "text", value });
+      // Written otherwise than the name would set it: V slants, os does not.
+      const formatOverride = {
+        runs: [
+          span("bold", span("italic", text("N"))),
+          span("subscript", span("bold", span("italic", text("V")))),
+          span("subscript", span("bold", text("os_B"))),
+        ],
+      };
+      document.annotations.push({
+        id: "offset-label",
+        kind: "instance-label",
+        binding: { kind: "cell-terminal-name", terminalId: terminal.id },
+        formatOverride,
+        anchor: {
+          kind: "object",
+          objectId: terminal.interfaceInstanceIds[0]!,
+          localOffset: { x: -20, y: 5 },
+          fallbackPosition: { x: 0, y: 0 },
+        },
+        alignment: "end",
+        rotation: 0,
+        locked: false,
+      });
+      const { project: drawn } = await roundTrip(project, format);
+      const back = drawn.documents.find(
+        (item) => item.netlist?.name === document.netlist?.name,
+      )!;
+      const pin = back.netlist!.terminals.find(
+        (item) => item.name === "N_Vos_B",
+      )!;
+      const label = back.annotations.find(
+        (item) =>
+          item.binding?.kind === "cell-terminal-name" &&
+          item.binding.terminalId === pin.id,
+      );
+      expect(label?.formatOverride).toBeDefined();
+      expect(sameStyledText(label!.formatOverride!, formatOverride)).toBe(true);
+    },
+  );
 
   it.each(["spice", "spectre"] as const)(
     "adds no supply Cell Pins for gates whose bodies the netlist writes, whose rails it ties itself (%s)",

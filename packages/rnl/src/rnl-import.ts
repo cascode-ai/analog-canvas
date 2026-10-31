@@ -2440,24 +2440,25 @@ function importTexts(
    * The drawn text as a format of a bound label, where it differs from what
    * the binding shows anyway: the same text with other styles.
    */
-  const formatted = (
+  const boundText = (
     annotation: Omit<
       Annotation,
       "id" | "anchor" | "alignment" | "rotation" | "locked"
     >,
+  ) =>
+    resolveAnnotationText(document, {
+      id: "",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+      ...annotation,
+    });
+  const formatted = (
+    annotation: Parameters<typeof boundText>[0],
     content: NonNullable<Annotation["content"]>,
   ) =>
-    sameStyledText(
-      resolveAnnotationText(document, {
-        id: "",
-        anchor: { kind: "free", position: { x: 0, y: 0 } },
-        alignment: "start",
-        rotation: 0,
-        locked: false,
-        ...annotation,
-      }),
-      content,
-    )
+    sameStyledText(boundText(annotation), content)
       ? {}
       : { formatOverride: content };
 
@@ -2631,7 +2632,11 @@ function importTexts(
         ...(says === undefined || says?.bind === "port"
           ? {
               binding,
-              ...(shown === terminal.name
+              // A name its label sets with a subscript (`N_V` as N with V
+              // below) reads without the underscore.
+              ...(shown === terminal.name ||
+              shown ===
+                flattenRichText(boundText({ kind: "instance-label", binding }))
                 ? formatted({ kind: "instance-label", binding }, content)
                 : {}),
             }
