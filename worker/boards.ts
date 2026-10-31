@@ -25,7 +25,7 @@ import { sameOrigin } from "./same-origin";
 const PLAIN_RULE = 1;
 const COLOUR_KEYS = new Set(["color", "textColor", "fillColor", "strokeColor"]);
 
-export function plainProjectText(text: string): string {
+function plainProjectText(text: string): string {
   const uncolour = (value: unknown): void => {
     if (Array.isArray(value)) return value.forEach(uncolour);
     if (!value || typeof value !== "object") return;
