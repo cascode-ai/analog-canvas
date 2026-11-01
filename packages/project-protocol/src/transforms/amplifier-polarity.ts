@@ -1,4 +1,5 @@
-import { deriveStableId, type CircuitProject } from "@icm/model";
+import type { CircuitProject } from "@icm/model";
+import { symbolSignature } from "./symbol-signature.js";
 
 /**
  * Repair v1: exact built-in snapshots from op-amp converter v8 (#1392).
@@ -47,17 +48,6 @@ const LEGACY_SYMBOLS = new Map([
   ["opamp-differential", "fd-polarity-v8-ad1d4de857de2585"],
 ]);
 
-function ordered(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(ordered);
-  if (value && typeof value === "object")
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, item]) => [key, ordered(item)]),
-    );
-  return value;
-}
-
 export function repairAmplifierPolaritySnapshots(
   project: CircuitProject,
 ): CircuitProject {
@@ -67,10 +57,7 @@ export function repairAmplifierPolaritySnapshots(
     if (
       !expected ||
       definition.generatedFrom ||
-      deriveStableId(
-        "fd-polarity-v8",
-        JSON.stringify(ordered(definition.symbol)),
-      ) !== expected
+      symbolSignature("fd-polarity-v8", definition.symbol) !== expected
     )
       return definition;
     repaired = true;

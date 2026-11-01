@@ -29,6 +29,20 @@ export const ANALOG_TRIANGLE_BOUNDS = {
   height: ANALOG_TRIANGLE.bottomY - ANALOG_TRIANGLE.topY,
 };
 
+/**
+ * An op-amp's supplies, drawn when an Instance shows them (#1833): the roles
+ * of their pins, the parts of their leads, and the variants that hide them
+ * (the default) or draw them. A form derived from the op-amp keeps them where
+ * the op-amp draws them.
+ */
+export const OPAMP_SUPPLY_ROLES = new Set([
+  "positive-supply",
+  "negative-supply",
+]);
+export const OPAMP_SUPPLY_LEAD_PARTS = { VDD: "vdd-lead", VSS: "vss-lead" };
+export const OPAMP_SIGNAL_PINS_VARIANT = "signal-pins";
+export const OPAMP_SUPPLY_PINS_VARIANT = "supply-pins";
+
 export const ANALOG_TRIANGLE_VIEWBOX = {
   x: -44,
   y: -34,

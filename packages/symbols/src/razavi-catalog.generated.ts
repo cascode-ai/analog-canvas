@@ -251,7 +251,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 6,
+      converterVersion: 7,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -317,7 +317,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 6,
+      converterVersion: 7,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1399,14 +1399,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Operational Amplifier",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT"],
+    pinOrder: ["IN+", "IN-", "OUT", "VDD", "VSS"],
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp.json",
     assetHash:
-      "162bb0b53fa197d07896f44f4cd77ecc5a41f0ca6bafa246aea01df29c340638",
+      "cec6d70512d36083aeb97272795e263604b7ae5bad77955deadd2a9bb4f364a8",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1425,7 +1425,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 6,
+      converterVersion: 7,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1434,14 +1434,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Op Amp Wide",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT"],
+    pinOrder: ["IN+", "IN-", "OUT", "VDD", "VSS"],
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-wide.json",
     assetHash:
-      "bdd2a3bd55046a1fd0e5df8a4b9171968c929738b196d29a803e6da61227d1d9",
+      "a21c3a61f39690d580982972d87aae77c5b05fb3ce78942422bb288ba5387fde",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1465,14 +1465,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Operational Amplifier (lettered)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT"],
+    pinOrder: ["IN+", "IN-", "OUT", "VDD", "VSS"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered.json",
     assetHash:
-      "7d6b25a1f9c5066212ab647cc33852574b9d7ca0dddcf5a64162624bf1dde5bf",
+      "a3b160ed3353bdeb667a1c8f1a9786eba582e3e877dcc2cb1c62894f2189ae59",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1496,14 +1496,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Op Amp Wide (lettered)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT"],
+    pinOrder: ["IN+", "IN-", "OUT", "VDD", "VSS"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-wide-lettered.json",
     assetHash:
-      "b86b6795882ad3d3377fefc329f6c41331c397f6f08773b3b29035dcd64f6b6a",
+      "8c3df72584bfb95e0b4e5faf39b993fe26782bf10b560748d6506664a7ce33bd",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1527,14 +1527,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Operational Amplifier (lettered) (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT"],
+    pinOrder: ["IN+", "IN-", "OUT", "VDD", "VSS"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered-inputs-swapped.json",
     assetHash:
-      "00ed86b7c3eba1369e6957a14803ec3c181a79f24075dc2a7472b268e20477d7",
+      "087d308d2d594f1c8db73fde96a519a67b2332ee9ba6623f918bd03685d514cc",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1558,14 +1558,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Op Amp Wide (lettered) (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT"],
+    pinOrder: ["IN+", "IN-", "OUT", "VDD", "VSS"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-wide-lettered-inputs-swapped.json",
     assetHash:
-      "7fc38ea248deaddebb84690410618f5449309e0bc5a69dfb174e638e805f383d",
+      "b03b622879cba8f7507917ff25fc5f29f2b1da641920fbdf4c4a7d5864347fd2",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1589,14 +1589,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Operational Amplifier (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT"],
+    pinOrder: ["IN+", "IN-", "OUT", "VDD", "VSS"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-inputs-swapped.json",
     assetHash:
-      "450fccd1b4f951244bd05fa5b70ec5c13dae9ea7c7f71cbd438deac26a1c061e",
+      "305162930e34d41a7a4733060c392dedf5990b74c53e5f47b8bcbee07aca5313",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1620,14 +1620,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Op Amp Wide (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT"],
+    pinOrder: ["IN+", "IN-", "OUT", "VDD", "VSS"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-wide-inputs-swapped.json",
     assetHash:
-      "1f2d330938c20ee721069a8dc9976a92678f807c7f69fa4792f4d684fd6b719f",
+      "cede0e2275549005d1720279b212708bafeace7475a340a33352b12949f46a0c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -10859,6 +10859,32 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -10976,8 +11002,56 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "round",
         },
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vdd-lead",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vss-lead",
+      },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
   },
   {
     schemaVersion: 1,
@@ -11029,6 +11103,32 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -11146,8 +11246,56 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "round",
         },
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vdd-lead",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vss-lead",
+      },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
   },
   {
     schemaVersion: 1,
@@ -11199,6 +11347,32 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -11316,8 +11490,56 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "round",
         },
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vdd-lead",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vss-lead",
+      },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
     formulaPresentation: {
       defaultFormula: "A",
       supportsCoefficient: false,
@@ -11378,6 +11600,32 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -11495,8 +11743,55 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "round",
         },
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vdd-lead",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vss-lead",
+      },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
     formulaPresentation: {
       defaultFormula: "A",
       supportsCoefficient: false,
@@ -11506,6 +11801,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       fontSize: 16,
     },
+    defaultVariantId: "signal-pins",
   },
   {
     schemaVersion: 1,
@@ -11552,6 +11848,32 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
         presentation: {
           visibility: "visible",
           leadLength: 10,
@@ -11674,8 +11996,56 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "round",
         },
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vdd-lead",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vss-lead",
+      },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
     formulaPresentation: {
       defaultFormula: "A",
       supportsCoefficient: false,
@@ -11736,6 +12106,32 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -11853,8 +12249,55 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "round",
         },
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vdd-lead",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vss-lead",
+      },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
     formulaPresentation: {
       defaultFormula: "A",
       supportsCoefficient: false,
@@ -11864,6 +12307,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       fontSize: 16,
     },
+    defaultVariantId: "signal-pins",
   },
   {
     schemaVersion: 1,
@@ -11915,6 +12359,32 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -12032,8 +12502,56 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "round",
         },
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vdd-lead",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vss-lead",
+      },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
   },
   {
     schemaVersion: 1,
@@ -12085,6 +12603,32 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -12202,8 +12746,56 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "round",
         },
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vdd-lead",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vss-lead",
+      },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
   },
   {
     schemaVersion: 1,

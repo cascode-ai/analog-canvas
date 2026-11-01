@@ -356,6 +356,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     { path: "appearance.inputPolarity", label: "input polarity" },
     { path: "appearance.inputsSwapped", label: "inputs" },
     { path: "appearance.outputsSwapped", label: "outputs" },
+    { path: "appearance.supplyPins", label: "supply pins" },
     ...spans
       .filter(
         (span) =>
@@ -899,7 +900,9 @@ class DisplayToggleWidget extends WidgetType {
               ? "Visual annotation"
               : this.label === "value"
                 ? "Value"
-                : this.label
+                : this.path === "appearance.supplyPins"
+                  ? "Supply pins"
+                  : this.label
         } · ${
           this.checked === "mixed"
             ? "Mixed"

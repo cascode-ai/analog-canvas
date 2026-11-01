@@ -1,4 +1,10 @@
-import { ANALOG_TRIANGLE } from "./analog-triangle.mjs";
+import {
+  ANALOG_TRIANGLE,
+  OPAMP_SUPPLY_LEAD_PARTS,
+  OPAMP_SUPPLY_ROLES,
+} from "./analog-triangle.mjs";
+
+const supplyLeads = new Set(Object.values(OPAMP_SUPPLY_LEAD_PARTS));
 
 // Wide is a drawing choice. Derive the complete definition so its electrical
 // interface and options cannot drift from the compact amplifier it names.
@@ -16,6 +22,7 @@ export function deriveWideAmplifier(source) {
   // The textbook FD pair spans 2/3 of its triangle's vertical base. Keep the
   // existing 60-unit equilateral body and six-unit signs, and spread the pins
   // to +/-20. The signs at +/-14 now sit inward from their associated wires.
+  // The supplies stay at the body's extent, as the compact form draws them.
   const pairY = (y) => Math.sign(y) * 20;
   const { leftX, apexX, bottomY } = ANALOG_TRIANGLE;
   const contactX = (y) =>
@@ -24,13 +31,18 @@ export function deriveWideAmplifier(source) {
     ...structuredClone(symbol),
     id,
     name,
-    pins: symbol.pins.map((pin) => ({
-      ...structuredClone(pin),
-      at: { ...pin.at, y: pairY(pin.at.y) },
-    })),
+    pins: symbol.pins.map((pin) =>
+      OPAMP_SUPPLY_ROLES.has(pin.role)
+        ? structuredClone(pin)
+        : { ...structuredClone(pin), at: { ...pin.at, y: pairY(pin.at.y) } },
+    ),
     primitives: symbol.primitives.map((original) => {
       const primitive = structuredClone(original);
-      if (primitive.kind !== "line" || primitive.part?.includes("polarity")) {
+      if (
+        primitive.kind !== "line" ||
+        primitive.part?.includes("polarity") ||
+        supplyLeads.has(primitive.part)
+      ) {
         return primitive;
       }
       const y = pairY(primitive.from.y);

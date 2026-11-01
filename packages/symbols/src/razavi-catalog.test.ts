@@ -904,10 +904,14 @@ describe("Razavi symbol catalog", () => {
         if (triangleBlocks.has(symbolId)) {
           // The base and input ports are one grid apart; the fixed output
           // column also includes the altitude from the differential contact.
+          // An op-amp's supply runs from its slanted edge at x 0 to the
+          // body's extent: 30 - (30 - 10√3).
           const expectedLength =
             pin.direction === "east"
               ? 60 - (30 - Math.abs(pin.at.y)) * Math.sqrt(3)
-              : 10;
+              : pin.direction === "west"
+                ? 10
+                : 10 * Math.sqrt(3);
           expect(drawnLength, `${symbolId}.${pin.name} drawn lead`).toBeCloseTo(
             expectedLength,
             5,
@@ -1368,11 +1372,15 @@ describe("Razavi symbol catalog", () => {
 
   it("preserves three-terminal pin contracts and polarity strokes in the equilateral op-amp", () => {
     const opamp = requireRazaviCatalogSymbol("opamp");
+    // Its supplies are pins too, hidden unless an Instance shows them (#1833).
     expect(opamp.pins).toMatchObject([
       { name: "IN+", at: { x: -40, y: 10 }, direction: "west" },
       { name: "IN-", at: { x: -40, y: -10 }, direction: "west" },
       { name: "OUT", at: { x: 30, y: 0 }, direction: "east" },
+      { name: "VDD", at: { x: 0, y: -30 }, direction: "north" },
+      { name: "VSS", at: { x: 0, y: 30 }, direction: "south" },
     ]);
+    expect(opamp.defaultVariantId).toBe("signal-pins");
     expect(opamp.primitives).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

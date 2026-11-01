@@ -4057,7 +4057,7 @@ function WorkspaceEditor({
   // code, Auto while unset; a reviewed device's own terminal (a substrate, an
   // inductor's CT) is a Net row of its own.
   const selectedHiddenTerminals = selectedInstance
-    ? hiddenTerminals(project, selectedInstance)
+    ? hiddenTerminals(project, selectedInstance, resolver)
     : [];
   const selectedPropertyOnlyTerminals = selectedHiddenTerminals.filter(
     (terminal) => !terminal.rail,

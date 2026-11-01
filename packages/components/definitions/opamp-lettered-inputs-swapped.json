@@ -49,6 +49,32 @@
           "visibility": "visible",
           "leadLength": 10
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": 0,
+          "y": -30
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": 0,
+          "y": 30
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -166,9 +192,57 @@
           "lineCap": "round",
           "lineJoin": "round"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -12.679492
+        },
+        "to": {
+          "x": 0,
+          "y": -30
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 12.679492
+        },
+        "to": {
+          "x": 0,
+          "y": 30
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": [],
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins",
     "formulaPresentation": {
       "defaultFormula": "A",
       "supportsCoefficient": false,
@@ -218,7 +292,7 @@
     "name": "Operational Amplifier (lettered) (swapped inputs)",
     "category": "analog-block",
     "reviewStatus": "reviewed",
-    "pinOrder": ["IN+", "IN-", "OUT"],
+    "pinOrder": ["IN+", "IN-", "OUT", "VDD", "VSS"],
     "palette": false,
     "automaticMappings": [],
     "manualOnlyReason": "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",

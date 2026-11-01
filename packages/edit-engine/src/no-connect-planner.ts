@@ -4,7 +4,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { endpointKey } from "@icm/derived";
-import type { SymbolResolver } from "@icm/symbols";
+import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
 import { signalEndpointMembers } from "./signal-endpoint.js";
 import { migrateSignalContacts } from "./signal-contact-migration.js";
@@ -26,14 +26,20 @@ export function planSetNoConnect(
     const instance = document.instances.find(
       (item) => item.id === endpoint.instanceId,
     );
-    const pin =
-      instance &&
-      resolver
-        .resolve(instance.symbolId, instance.symbolVariantId)
-        ?.definition.pins.find((item) => item.name === endpoint.pinName);
+    const symbol =
+      instance && resolver.resolve(instance.symbolId, instance.symbolVariantId);
+    const pin = symbol?.definition.pins.find(
+      (item) => item.name === endpoint.pinName,
+    );
     if (!pin)
       throw new Error(
         `Unknown pin: ${endpoint.instanceId}.${endpoint.pinName}`,
+      );
+    // A pin the part does not draw, as an op-amp's hidden VDD, takes its Net
+    // or Auto, never a mark (#1833); an old mark may still be removed.
+    if (marked && !drawnPinNames(symbol!).includes(pin.name))
+      throw new Error(
+        `${instance!.reference ?? instance!.id}.${pin.name} is not drawn; only a drawn pin takes a No Connect mark`,
       );
     const members = signalEndpointMembers(document, resolver, {
       ...endpoint,

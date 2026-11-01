@@ -244,7 +244,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       "converterPath": "scripts/generate-razavi-opamp-asset.mjs",
-      "converterVersion": 6,
+      "converterVersion": 7,
       "bodyNormalization": "equilateral-triangle"
     }
   }

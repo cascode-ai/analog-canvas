@@ -802,9 +802,27 @@ function exportCell(
         [instance.id],
       );
     const mapped = symbol;
+    // A pin the part shows that its RNL symbol draws none for, as an op-amp's
+    // shown supply on $OPAMP_5TERM (#1833): RNL fails a wire to a terminal
+    // with no pin (9.2.4), so none is written; the netlist still joins it.
+    const unwritten = (mapped?.undrawnPins ?? []).filter((pin) =>
+      reached.has(`${instance.id}\u0000${pin.acPin}`),
+    );
+    if (unwritten.length)
+      report(
+        "warning",
+        "RNL_PIN_NOT_DRAWN",
+        `${describe(instance)} has a wire on ${unwritten.map((pin) => pin.acPin).join(" and ")}, which RNL's ${mapped!.symbol} draws no pin for; the wire is left out, and the netlist still joins it`,
+        [instance.id],
+      );
     terminalsOf.set(
       instance.id,
-      mapped ? (pin) => terminalOfPin(mapped, pin) : block!,
+      mapped
+        ? (pin) =>
+            unwritten.some((item) => item.acPin === pin)
+              ? undefined
+              : terminalOfPin(mapped, pin)
+        : block!,
     );
     const where =
       placement && orient

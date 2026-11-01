@@ -95,17 +95,25 @@ export class CircuitComponentMappingError extends Error {
   }
 }
 
-/** Initialize only a complete, exact same-name correspondence to the selected owner. */
+/**
+ * Initialize only a complete, exact same-name correspondence to the selected
+ * owner; an optional supply pin no terminal names stays unmapped.
+ */
 export function initializeCircuitComponent(
   component: ComponentDefinition,
   definition: ExternalSubcircuitDefinition,
 ): ComponentDefinition {
   if (component.circuitBinding) return component;
   const names = component.symbol.pins.map((pin) => pin.name);
+  const terminals = new Set(definition.terminals.map((t) => t.name));
   if (
-    names.length !== definition.terminals.length ||
     new Set(names).size !== names.length ||
-    !definition.terminals.every((terminal) => names.includes(terminal.name))
+    terminals.size !== definition.terminals.length ||
+    !definition.terminals.every((terminal) => names.includes(terminal.name)) ||
+    !component.symbol.pins.every(
+      (pin) =>
+        terminals.has(pin.name) || isOptionalSupplyPin(component.symbol, pin),
+    )
   )
     return component;
   return ComponentDefinitionSchema.parse({

@@ -287,6 +287,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     showParameters: z
       .record(NetlistParameterNameSchema, z.boolean())
       .optional(),
+    showSupplyPins: z.boolean().optional(),
   }),
   z
     .strictObject({

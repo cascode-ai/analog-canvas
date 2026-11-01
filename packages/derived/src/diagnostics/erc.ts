@@ -2,6 +2,7 @@ import {
   boundAnnotationName,
   flattenRichText,
   hasRichTextOverbar,
+  isOptionalSupplyPin,
   projectCellInterface,
   routeEnd,
 } from "@icm/model";
@@ -748,6 +749,10 @@ export function runErcChecks(
         // passive-pin tolerance is deferred).
         if (hidden.has(pin.name)) continue;
         if (assessment.electricallySatisfied) continue;
+        // A supply pin drawn on request, as an op-amp's, left unwired takes
+        // its Net in Properties or Auto, as it does hidden (#1833);
+        // MISSING_BLOCK_SUPPLY reports one with no Cell supply.
+        if (isOptionalSupplyPin(resolved.definition, pin)) continue;
         diagnostics.push({
           id: `erc:unconnected-pin:${document.id}:${instance.id}:${pin.name}`,
           domain: "erc",

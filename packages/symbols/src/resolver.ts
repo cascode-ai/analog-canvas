@@ -26,6 +26,24 @@ export interface SymbolResolver extends InstanceParameterResolver {
   resolve(symbolId: string, variantId?: string): ResolvedSymbol | undefined;
 }
 
+/**
+ * The pins a part's symbol draws in its variant, where wires end: each pin
+ * but an implicit one and those the variant hides, with any it offers
+ * elsewhere on its art, as a 3-terminal MOS body. The rest take their Net in
+ * Properties, as an op-amp's hidden supplies do (#1833).
+ */
+export function drawnPinNames(resolved: ResolvedSymbol): string[] {
+  const hidden = new Set(resolved.variant?.hiddenPinNames);
+  for (const pin of resolved.variant?.auxiliaryPins ?? [])
+    hidden.delete(pin.name);
+  return resolved.definition.pins
+    .filter(
+      (pin) =>
+        pin.presentation.visibility !== "implicit" && !hidden.has(pin.name),
+    )
+    .map((pin) => pin.name);
+}
+
 const validatedSymbols = new WeakMap<SymbolDefinition, SymbolDefinition>();
 
 export class InMemorySymbolResolver implements SymbolResolver {

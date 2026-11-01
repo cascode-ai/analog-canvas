@@ -1675,7 +1675,7 @@ export const agentRazaviAuthoringCatalog = {
       symbolId: "opamp",
       name: "Operational Amplifier",
       category: "analog-block",
-      defaultVariantId: null,
+      defaultVariantId: "signal-pins",
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
@@ -1716,14 +1716,55 @@ export const agentRazaviAuthoringCatalog = {
             y: 0,
           },
         },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
     },
     {
       symbolId: "opamp-wide",
       name: "Op Amp Wide",
       category: "analog-block",
-      defaultVariantId: null,
+      defaultVariantId: "signal-pins",
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
@@ -1764,8 +1805,49 @@ export const agentRazaviAuthoringCatalog = {
             y: 0,
           },
         },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
     },
     {
       symbolId: "opamp-differential",

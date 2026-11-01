@@ -20,6 +20,8 @@ import {
   gateExternalChoices,
 } from "../features/properties/gate-cell-target";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
+import { componentPropertyCodeValue } from "../features/properties/component-property-code";
+import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { BrowserAgentHost } from "./browser-agent-host";
 
@@ -1319,6 +1321,98 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     );
   });
 
+  it("shows an op-amp's supply pins as Properties does, wires one, and keeps a wired one shown (#1833)", async () => {
+    // X2 keeps an old fill, a style Properties no longer offers.
+    const fill = { background: "#FFF2CC" };
+    const project = createEmptyProject("project-1", "Properties");
+    project.documents[0]!.instances.push({
+      id: "filled",
+      reference: "X2",
+      symbolId: "opamp",
+      styleOverride: fill,
+      placement: { position: { x: 900, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const { controller, apply, refuse, instance } = await session(project);
+    await apply([place("vdd-port", "VDD", 300, 0), place("opamp", "X1", 300)]);
+    const marker = controller.document.instances.find(
+      (item) => item.symbolId === "vdd-port",
+    )!;
+    const wire = {
+      kind: "connect",
+      from: { kind: "pin", instance: "X1", pin: "VDD" },
+      to: {
+        kind: "pin",
+        instance: { kind: "instance", id: marker.id },
+        pin: "P",
+      },
+    };
+    // Hidden, VDD has no pin to wire; the refusal says how to reach it.
+    expect(await refuse([wire])).toContain(
+      "X1.VDD is not drawn: show its supply pins",
+    );
+    const show = (shown: boolean) => ({
+      kind: "set-instance-display",
+      instanceIds: [instance("X1").id],
+      showSupplyPins: shown,
+    });
+    // What the Supply pins switch in Properties commits for the same choice.
+    const gui = new EditorDocumentController(
+      structuredClone(controller.project),
+    );
+    const part = gui.document.instances.find(
+      (item) => item.reference === "X1",
+    )!;
+    const value = componentPropertyCodeValue({
+      resolver: createProjectSymbolResolver(gui.project, builtInSymbols),
+      instance: part,
+      referenceVisible: true,
+      valueVisible: false,
+    });
+    expect(
+      gui.transact(
+        planComponentPropertyCodeEdits(gui.document, part, {
+          placement: null,
+          appearance: { ...value.appearance, supplyPins: true },
+        }),
+      ).ok,
+    ).toBe(true);
+
+    await apply([show(true)]);
+    expect(instance("X1").symbolVariantId).toBe("supply-pins");
+    expect(controller.document.instances).toEqual(gui.document.instances);
+    await apply([wire]);
+    expect(netOf(controller.document, instance("X1").id, "VDD")).toBe(
+      netOf(controller.document, marker.id, "P"),
+    );
+    // A wired supply stays drawn until its wire is removed.
+    expect(await refuse([show(false)])).toContain(
+      "X1.VDD has a wire; disconnect it before its pin is hidden",
+    );
+    await apply([place("resistor", "R1", 600)]);
+    expect(
+      await refuse([
+        {
+          kind: "set-instance-display",
+          instanceIds: [instance("R1").id],
+          showSupplyPins: true,
+        },
+      ]),
+    ).toContain("R1 (resistor) has no supply pins to show");
+    // The action changes the variant alone, as the other display flags do:
+    // the old fill stays, where any Apply in Properties retires it.
+    await apply([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("X2").id],
+        showSupplyPins: true,
+      },
+    ]);
+    expect(instance("X2")).toMatchObject({
+      symbolVariantId: "supply-pins",
+      styleOverride: fill,
+    });
+  });
+
   it("sets a supply a Circuit Component maps to no pin of its artwork (#1833)", async () => {
     // A Gallery LDO's error amplifier: IN+, IN- and OUT on VIP, VIN and VOUT.
     const project = createEmptyProject("project-1", "Properties");
@@ -1387,7 +1481,7 @@ describe("Agent property actions are planned as Apply in Properties", () => {
         parameters: {},
       },
     });
-    const { controller, apply } = await session(project);
+    const { controller, apply, refuse } = await session(project);
     await apply([
       place("port", "VREG", 100, 0),
       place("port", "VNEG", 100, 300),
@@ -1397,6 +1491,16 @@ describe("Agent property actions are planned as Apply in Properties", () => {
         (terminal) => terminal.name === name,
       )!.netId;
     const target = { kind: "instance", reference: "X1" };
+    // Its artwork leaves VDD unmapped, so no switch draws it: only its Net.
+    expect(
+      await refuse([
+        {
+          kind: "connect",
+          from: { kind: "pin", instance: "X1", pin: "VDD" },
+          to: { kind: "pin", instance: "X1", pin: "VIP" },
+        },
+      ]),
+    ).toContain("X1.VDD is not drawn: set its Net (set-terminal-net)");
     // As Properties' VDD and VSS rows choose them.
     await apply([
       {

@@ -6,6 +6,7 @@ import {
   controlledSourceExpressionDocument,
   controlledSourceExpressionSource,
   semanticTextDocument,
+  SUPPLY_PINS_VARIANT_ID,
   type SchematicDocument,
 } from "@icm/model";
 
@@ -21,6 +22,7 @@ import {
   componentSourceShape,
   DIAMOND_SOURCE_VARIANT,
   NO_INTERNAL_MARK,
+  supplyPinsEdit,
   symbolForInputPolarity,
   symbolForInputsSwapped,
   symbolForInternalMark,
@@ -323,12 +325,20 @@ export function planComponentPropertyCodeEdits(
       });
     }
   }
+  // An op-amp's supply pins stay as chosen across its forms (#1833); the
+  // choice alone changes only its variant, as a source's shape does.
+  const supplyPins = value.appearance.supplyPins;
   if (nextSymbolId !== instance.symbolId)
     edits.push({
       kind: "set_instance_symbol",
       instanceId: instance.id,
       symbolId: nextSymbolId,
+      ...(supplyPins ? { symbolVariantId: SUPPLY_PINS_VARIANT_ID } : {}),
     });
+  else if (supplyPins !== undefined) {
+    const edit = supplyPinsEdit(instance, supplyPins);
+    if (edit) edits.push(edit);
+  }
   // A controlled source's outline is its variant; the part stays the same.
   if (value.appearance.shape !== undefined) {
     const currentShape = componentSourceShape(instance);

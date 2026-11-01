@@ -315,7 +315,7 @@ export function planSetProperties(
   if (command.supplies || command.terminals) {
     // Those Properties lists (#1833): a gate bound to a Cell has the Cell's
     // supplies (#1450), a Circuit Component those it maps to no pin.
-    const hidden = hiddenTerminals(project, instance);
+    const hidden = hiddenTerminals(project, instance, resolver);
     const choose = (terminal: HiddenTerminal, netId: string | null) => {
       if (netId !== null && !document.nets.some((net) => net.id === netId))
         throw new Error(`Net not found: ${netId}`);

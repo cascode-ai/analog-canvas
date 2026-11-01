@@ -9005,6 +9005,9 @@
           "additionalProperties": {
             "type": "boolean"
           }
+        },
+        "showSupplyPins": {
+          "type": "boolean"
         }
       },
       "required": [

@@ -243,6 +243,44 @@ test("a SKY130 inductor shows a Net row for each terminal it draws no pin for (#
   ).toContainEqual({ instanceId: "L1", pinName: "CT" });
 });
 
+test("an op-amp's Supply pins switch draws VDD and VSS as pins to wire, and back (#1833)", async ({
+  page,
+}) => {
+  const project = createEmptyProject("supply-pins", "Supply pins");
+  project.documents[0]!.instances.push({
+    ...placedInstance("X1", "opamp", 360, 230),
+    reference: "X1",
+  });
+  await openProject(page, project, "supply-pins.icproj.json");
+  await page.getByTestId("hit-X1").click();
+  await openSelectionShelf(page);
+  const supplies = page.getByRole("switch", {
+    name: "Toggle supply pins visibility",
+  });
+  const vdd = page.getByTestId("terminal-X1-VDD");
+  const vss = page.getByTestId("terminal-X1-VSS");
+  await expect(supplies).toHaveAttribute("aria-checked", "false");
+  await expect(vdd).toHaveCount(0);
+
+  await supplies.click();
+  await expect(supplies).toHaveAttribute("aria-checked", "true");
+  await expect(vdd).toHaveCount(1);
+  await expect(vss).toHaveCount(1);
+  // VDD above the triangle, VSS below it.
+  expect((await vdd.boundingBox())!.y).toBeLessThan(
+    (await vss.boundingBox())!.y,
+  );
+  const shown = await exportedProject(page);
+  expect(shown.documents[0].instances[0].symbolVariantId).toBe("supply-pins");
+  await page
+    .locator('[data-layer="symbols"] [data-object-id="X1"]')
+    .screenshot({ path: test.info().outputPath("supply-pins-shown.png") });
+
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(supplies).toHaveAttribute("aria-checked", "false");
+  await expect(vdd).toHaveCount(0);
+});
+
 test("placed parts, the VDD marker and a legacy clock use the text-first Properties surface", async ({
   page,
 }) => {

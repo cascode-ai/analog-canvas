@@ -64,7 +64,10 @@ their IDs, never resolved to the first.
   new Instance ID); Cell markers and ground take neither. Later,
   `set-instance-display` (`instanceIds`, `showReference`, `showValue`,
   `showParameters`) toggles the same attached labels, keeping placement and
-  style; never imitate them with free text. Parameter keys come from the actual
+  style; never imitate them with free text. `showSupplyPins` draws an op-amp's
+  `VDD`/`VSS` as pins to wire (a wired one must be disconnected before
+  `false`, one set by `set-terminal-net` returned to `net: null` before
+  `true`); hidden, each takes `set-terminal-net`. Parameter keys come from the actual
   model contract (magnetics keep `k/lp/ls/l1/l2/cb`, MOS/BJT keep `m`; bound
   geometry offers its `w/l/mult/mf/vm`, and custom definitions their declared
   parameters). Omitted keys stay; an unsupported key rejects the whole action.

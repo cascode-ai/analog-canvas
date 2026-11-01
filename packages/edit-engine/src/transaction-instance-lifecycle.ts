@@ -1,6 +1,11 @@
-import { InstanceSchema, NoConnectSchema, routeEndpoints } from "@icm/model";
+import {
+  InstanceSchema,
+  isOptionalSupplyPin,
+  NoConnectSchema,
+  routeEndpoints,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 
 import type { EditTransaction } from "./edit-schema.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
@@ -331,6 +336,89 @@ export function applyInstanceLifecycleEdit(
         }
         mappedPins.set(targetPin, sourcePin);
       }
+      // A symbol hides a pin only where nothing is drawn to it: a wire or a
+      // No Connect mark on an op-amp's shown supply stays until removed
+      // (#1833).
+      const drawn = new Set(drawnPinNames(resolved));
+      const hides = (pinName: string) => !drawn.has(pinMap[pinName] ?? pinName);
+      const wired = draft.routes
+        .flatMap(routeEndpoints)
+        .find(
+          (endpoint) =>
+            endpoint.kind === "terminal" &&
+            endpoint.instanceId === edit.instanceId &&
+            hides(endpoint.pinName),
+        );
+      const marked = draft.noConnects.find(
+        (noConnect) =>
+          noConnect.endpoint.instanceId === edit.instanceId &&
+          hides(noConnect.endpoint.pinName),
+      );
+      const covered =
+        wired?.kind === "terminal"
+          ? { pinName: wired.pinName, what: "a wire", undo: "disconnect it" }
+          : marked
+            ? {
+                pinName: marked.endpoint.pinName,
+                what: "a No Connect mark",
+                undo: "remove it",
+              }
+            : undefined;
+      if (covered) {
+        const pin = `${instance.reference ?? instance.id}.${pinMap[covered.pinName] ?? covered.pinName}`;
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            `${pin} has ${covered.what}; ${covered.undo} before its pin is hidden`,
+            [],
+            [edit.instanceId],
+          ),
+        };
+      }
+      // A supply whose Net Properties chose stays hidden until set back to
+      // Auto: drawn, it would show no wire to the Net it joins (#1833).
+      const before = resolver.resolve(
+        instance.symbolId,
+        instance.symbolVariantId,
+      );
+      const wasDrawn = new Set(before ? drawnPinNames(before) : []);
+      const routed = new Set(
+        draft.routes
+          .flatMap(routeEndpoints)
+          .flatMap((endpoint) =>
+            endpoint.kind === "terminal" &&
+            endpoint.instanceId === edit.instanceId
+              ? [endpoint.pinName]
+              : [],
+          ),
+      );
+      const chosen = draft.nets
+        .flatMap((net) => net.terminals)
+        .find((terminal) => {
+          if (terminal.instanceId !== edit.instanceId) return false;
+          const target = pinMap[terminal.pinName] ?? terminal.pinName;
+          const pin = resolved.definition.pins.find(
+            (candidate) => candidate.name === target,
+          );
+          return (
+            pin !== undefined &&
+            isOptionalSupplyPin(resolved.definition, pin) &&
+            drawn.has(target) &&
+            !wasDrawn.has(terminal.pinName) &&
+            !routed.has(terminal.pinName)
+          );
+        });
+      if (chosen)
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            `${instance.reference ?? instance.id}.${pinMap[chosen.pinName] ?? chosen.pinName} has its Net set in Properties; set it to Auto before its pin is drawn`,
+            [],
+            [edit.instanceId],
+          ),
+        };
       for (const net of draft.nets) {
         let changed = false;
         for (const terminal of net.terminals) {

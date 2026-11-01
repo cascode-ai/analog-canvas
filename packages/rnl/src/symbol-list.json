@@ -2341,7 +2341,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "宏模型顺序；电源不画；+ 在上"
@@ -2404,7 +2415,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "opamp 画成本符号上下翻转（MX）"
@@ -5235,7 +5257,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "同 $OPAMP_5TERM 的端子；+ 在上"
@@ -5298,7 +5331,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "opamp-lettered 画成本符号上下翻转（MX）"
@@ -5361,7 +5405,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "同 $OPAMP_5TERM 的端子；+ 在上"
@@ -5424,7 +5479,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "opamp-wide 画成本符号上下翻转（MX）"
@@ -5487,7 +5553,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "同 $OPAMP_5TERM 的端子；+ 在上"
@@ -5550,7 +5627,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "opamp-wide-lettered 画成本符号上下翻转（MX）"
