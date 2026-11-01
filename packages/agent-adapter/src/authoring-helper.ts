@@ -1036,6 +1036,19 @@ export function compileActions(
           },
         );
         break;
+      case "set-terminal-net":
+        pushProperties(
+          resolveInstance(document, index, action.kind, action.target),
+          {
+            terminals: {
+              [action.pin]:
+                action.net === null
+                  ? null
+                  : resolveNet(document, index, action.kind, action.net).id,
+            },
+          },
+        );
+        break;
       case "set-source-control":
         pushProperties(
           resolveInstance(document, index, action.kind, action.target),

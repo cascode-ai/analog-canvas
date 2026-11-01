@@ -51,6 +51,12 @@ export interface ComponentPropertyCodeValue
   extends ComponentPropertyDetailsValue, InductorCouplingPropertyValue {
   /** Empty Net ID selects the existing unique authored-supply fallback. */
   supplies?: Record<string, string>;
+  /**
+   * A device's own terminal no pin draws, such as a substrate or a centre tap
+   * (#1833); an empty Net ID leaves it unconnected. Properties sets it from
+   * its own row, the Agent through set-terminal-net.
+   */
+  terminals?: Record<string, string>;
   control?:
     | { positiveNetId: string; negativeNetId: string }
     | { instanceId: string; pinName: string; direction: "into" | "out" };

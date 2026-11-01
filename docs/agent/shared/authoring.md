@@ -182,8 +182,12 @@ their IDs, never resolved to the first.
 - Adder: `signA`/`signB` `"-"` (default `"+"`; `−` stored as `-`) subtracts that
   input, drawn ±, netlisted `adder_minus_b` (`_a`, `_ab`). V_hold − V_DAC is one
   adder with `signB:"-"`, never an undrawn −1 gain block.
-- `set-block-supply` binds a block's VDD/VSS Net (`net:null` is Auto; fixes
-  `MISSING_BLOCK_SUPPLY`). No limit below takes braces.
+- `set-terminal-net {target, pin, net}` sets a terminal no pin of the part's
+  symbol draws, as its Properties row does: a block's or Circuit Component's
+  `VDD`/`VSS` (fixes `MISSING_BLOCK_SUPPLY`), a SKY130 substrate (`B`, `SUB`,
+  `S`), an inductor's `CT`. `net:null` returns a supply to Auto and leaves
+  another unconnected; a drawn pin is refused (wire it). `apply_actions` also
+  takes `set-block-supply {target, supply, net}`. No limit below takes braces.
 - Comparator: V(OUT) = `vlow` + (high − `vlow`)·½(1 + tanh(V(IN+,IN−)/`vtransition`)),
   `vhigh` `"VDD"` (default: its bound VDD, else the one drawn positive supply,
   else a default VDD Cell Pin) or volts, `vlow` (`"0"`), `vtransition` (`"1m"`).

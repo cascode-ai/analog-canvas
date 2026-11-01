@@ -115,7 +115,10 @@ export function planComponentPropertyCodeEdits(
   value: ComponentPropertyCodeValue,
 ): SchematicEdit[] {
   const edits: SchematicEdit[] = [];
-  for (const [pinName, selectedNetId] of Object.entries(value.supplies ?? {})) {
+  for (const [pinName, selectedNetId] of Object.entries({
+    ...value.supplies,
+    ...value.terminals,
+  })) {
     const currentNetId =
       document.nets.find((net) =>
         net.terminals.some(

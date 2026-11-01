@@ -120,6 +120,12 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
         })
         .optional()
         .describe("A block's supply Net by ID; null returns it to Auto."),
+      terminals: z
+        .record(z.string().min(1), StableIdSchema.nullable())
+        .optional()
+        .describe(
+          "The Net of a terminal no pin of the part's symbol draws, by pin (a block's VDD, a substrate's B or SUB, an inductor's CT); null returns a supply to Auto and leaves another unconnected.",
+        ),
       control: InstanceNetlistDataSchema.shape.control
         .unwrap()
         .nullable()

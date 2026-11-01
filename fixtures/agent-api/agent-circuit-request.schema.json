@@ -152,10 +152,10 @@
           "$ref": "#/$defs/__schema233"
         },
         "structureEdits": {
-          "$ref": "#/$defs/__schema391"
+          "$ref": "#/$defs/__schema393"
         },
         "actions": {
-          "$ref": "#/$defs/__schema435"
+          "$ref": "#/$defs/__schema437"
         }
       },
       "required": [
@@ -5657,91 +5657,91 @@
           "$ref": "#/$defs/__schema286"
         },
         {
-          "$ref": "#/$defs/__schema304"
+          "$ref": "#/$defs/__schema306"
         },
         {
-          "$ref": "#/$defs/__schema309"
+          "$ref": "#/$defs/__schema311"
         },
         {
-          "$ref": "#/$defs/__schema310"
+          "$ref": "#/$defs/__schema312"
         },
         {
-          "$ref": "#/$defs/__schema315"
+          "$ref": "#/$defs/__schema317"
         },
         {
-          "$ref": "#/$defs/__schema319"
+          "$ref": "#/$defs/__schema321"
         },
         {
-          "$ref": "#/$defs/__schema323"
-        },
-        {
-          "$ref": "#/$defs/__schema327"
+          "$ref": "#/$defs/__schema325"
         },
         {
           "$ref": "#/$defs/__schema329"
         },
         {
-          "$ref": "#/$defs/__schema336"
+          "$ref": "#/$defs/__schema331"
         },
         {
           "$ref": "#/$defs/__schema338"
         },
         {
-          "$ref": "#/$defs/__schema339"
-        },
-        {
           "$ref": "#/$defs/__schema340"
         },
         {
-          "$ref": "#/$defs/__schema345"
+          "$ref": "#/$defs/__schema341"
         },
         {
-          "$ref": "#/$defs/__schema346"
+          "$ref": "#/$defs/__schema342"
         },
         {
-          "$ref": "#/$defs/__schema351"
+          "$ref": "#/$defs/__schema347"
         },
         {
-          "$ref": "#/$defs/__schema352"
+          "$ref": "#/$defs/__schema348"
         },
         {
-          "$ref": "#/$defs/__schema356"
+          "$ref": "#/$defs/__schema353"
         },
         {
-          "$ref": "#/$defs/__schema357"
+          "$ref": "#/$defs/__schema354"
         },
         {
           "$ref": "#/$defs/__schema358"
         },
         {
-          "$ref": "#/$defs/__schema362"
+          "$ref": "#/$defs/__schema359"
+        },
+        {
+          "$ref": "#/$defs/__schema360"
         },
         {
           "$ref": "#/$defs/__schema364"
         },
         {
+          "$ref": "#/$defs/__schema366"
+        },
+        {
           "type": "object",
           "properties": {
             "kind": {
-              "$ref": "#/$defs/__schema367"
-            },
-            "instanceIds": {
-              "$ref": "#/$defs/__schema368"
-            },
-            "compact": {
               "$ref": "#/$defs/__schema369"
             },
-            "avoidCollisions": {
+            "instanceIds": {
               "$ref": "#/$defs/__schema370"
             },
-            "referenceStyle": {
+            "compact": {
               "$ref": "#/$defs/__schema371"
             },
-            "includeManual": {
+            "avoidCollisions": {
               "$ref": "#/$defs/__schema372"
             },
-            "side": {
+            "referenceStyle": {
+              "$ref": "#/$defs/__schema373"
+            },
+            "includeManual": {
               "$ref": "#/$defs/__schema374"
+            },
+            "side": {
+              "$ref": "#/$defs/__schema376"
             }
           },
           "required": [
@@ -5755,13 +5755,13 @@
           "type": "object",
           "properties": {
             "kind": {
-              "$ref": "#/$defs/__schema376"
+              "$ref": "#/$defs/__schema378"
             },
             "preset": {
-              "$ref": "#/$defs/__schema377"
+              "$ref": "#/$defs/__schema379"
             },
             "instanceIds": {
-              "$ref": "#/$defs/__schema378"
+              "$ref": "#/$defs/__schema380"
             }
           },
           "required": [
@@ -5783,7 +5783,7 @@
               "maxItems": 64,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema379"
+                "$ref": "#/$defs/__schema381"
               },
               "description": "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode, bulk default or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies."
             }
@@ -5806,13 +5806,13 @@
               "maxItems": 64,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema380"
+                "$ref": "#/$defs/__schema382"
               },
               "description": "A part without a reference takes the next free name, as a GUI insert does."
             },
             "pinAnchors": {
               "description": "By new Instance ID. Solves placement.position from this pin; preserves rotation/mirror. No implicit connection.",
-              "$ref": "#/$defs/__schema381"
+              "$ref": "#/$defs/__schema383"
             },
             "terminalDirections": {
               "type": "object",
@@ -5831,7 +5831,7 @@
             },
             "displays": {
               "description": "By new device Instance ID: its labels from the start. Left out, the name shows alone; showValue:true shows the value given, else the catalog default (#1435).",
-              "$ref": "#/$defs/__schema382"
+              "$ref": "#/$defs/__schema384"
             }
           },
           "required": [
@@ -5855,7 +5855,7 @@
               "$ref": "#/$defs/__schema25"
             },
             "pinAnchor": {
-              "$ref": "#/$defs/__schema328"
+              "$ref": "#/$defs/__schema330"
             }
           },
           "required": [
@@ -5872,7 +5872,7 @@
               "const": "transform"
             },
             "selection": {
-              "$ref": "#/$defs/__schema383"
+              "$ref": "#/$defs/__schema385"
             },
             "transform": {
               "oneOf": [
@@ -5984,7 +5984,7 @@
               "const": "copy"
             },
             "selection": {
-              "$ref": "#/$defs/__schema383"
+              "$ref": "#/$defs/__schema385"
             },
             "offset": {
               "$ref": "#/$defs/__schema26"
@@ -6005,7 +6005,7 @@
               "const": "align"
             },
             "selection": {
-              "$ref": "#/$defs/__schema383"
+              "$ref": "#/$defs/__schema385"
             },
             "mode": {
               "type": "string",
@@ -6034,7 +6034,7 @@
               "const": "detach-move"
             },
             "instanceIds": {
-              "$ref": "#/$defs/__schema368"
+              "$ref": "#/$defs/__schema370"
             },
             "delta": {
               "$ref": "#/$defs/__schema26"
@@ -6055,7 +6055,7 @@
               "const": "unplace"
             },
             "instanceIds": {
-              "$ref": "#/$defs/__schema368"
+              "$ref": "#/$defs/__schema370"
             }
           },
           "required": [
@@ -6285,10 +6285,10 @@
           "type": "object",
           "properties": {
             "kind": {
-              "$ref": "#/$defs/__schema384"
+              "$ref": "#/$defs/__schema386"
             },
             "pins": {
-              "$ref": "#/$defs/__schema385"
+              "$ref": "#/$defs/__schema387"
             }
           },
           "required": [
@@ -6302,13 +6302,13 @@
           "type": "object",
           "properties": {
             "kind": {
-              "$ref": "#/$defs/__schema388"
+              "$ref": "#/$defs/__schema390"
             },
             "width": {
-              "$ref": "#/$defs/__schema389"
+              "$ref": "#/$defs/__schema391"
             },
             "height": {
-              "$ref": "#/$defs/__schema390"
+              "$ref": "#/$defs/__schema392"
             }
           },
           "required": [
@@ -7998,14 +7998,17 @@
         "supplies": {
           "$ref": "#/$defs/__schema294"
         },
-        "control": {
+        "terminals": {
           "$ref": "#/$defs/__schema296"
         },
-        "shape": {
+        "control": {
           "$ref": "#/$defs/__schema298"
         },
-        "placement": {
+        "shape": {
           "$ref": "#/$defs/__schema300"
+        },
+        "placement": {
+          "$ref": "#/$defs/__schema302"
         }
       },
       "required": [
@@ -8142,10 +8145,31 @@
       "additionalProperties": false
     },
     "__schema296": {
-      "description": "A controlled source's control; null clears it.",
+      "description": "The Net of a terminal no pin of the part's symbol draws, by pin (a block's VDD, a substrate's B or SUB, an inductor's CT); null returns a supply to Auto and leaves another unconnected.",
       "$ref": "#/$defs/__schema297"
     },
     "__schema297": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/__schema1"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "__schema298": {
+      "description": "A controlled source's control; null clears it.",
+      "$ref": "#/$defs/__schema299"
+    },
+    "__schema299": {
       "anyOf": [
         {
           "$ref": "#/$defs/__schema35"
@@ -8155,25 +8179,25 @@
         }
       ]
     },
-    "__schema298": {
+    "__schema300": {
       "description": "A controlled source's outline (vccs, cccs, vcvs, ccvs): circle, the default, or diamond. Its netlist, pins and wires stay.",
-      "$ref": "#/$defs/__schema299"
+      "$ref": "#/$defs/__schema301"
     },
-    "__schema299": {
+    "__schema301": {
       "type": "string",
       "enum": [
         "circle",
         "diamond"
       ]
     },
-    "__schema300": {
+    "__schema302": {
       "type": "object",
       "properties": {
         "position": {
           "$ref": "#/$defs/__schema26"
         },
         "pinAnchor": {
-          "$ref": "#/$defs/__schema301"
+          "$ref": "#/$defs/__schema303"
         },
         "rotation": {
           "$ref": "#/$defs/__schema27"
@@ -8183,16 +8207,16 @@
         },
         "reflect": {
           "description": "Reflect in place: y flips left-right, x top-bottom.",
-          "$ref": "#/$defs/__schema303"
+          "$ref": "#/$defs/__schema305"
         }
       },
       "additionalProperties": false
     },
-    "__schema301": {
+    "__schema303": {
       "type": "object",
       "properties": {
         "pinName": {
-          "$ref": "#/$defs/__schema302"
+          "$ref": "#/$defs/__schema304"
         },
         "position": {
           "$ref": "#/$defs/__schema26"
@@ -8205,28 +8229,28 @@
       "additionalProperties": false,
       "description": "Exact routing grid landing, not artwork contact. Unreachable positions are rejected with the nearest reachable landing."
     },
-    "__schema302": {
+    "__schema304": {
       "type": "string",
       "minLength": 1
     },
-    "__schema303": {
+    "__schema305": {
       "type": "string",
       "enum": [
         "x",
         "y"
       ]
     },
-    "__schema304": {
+    "__schema306": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema305"
+          "$ref": "#/$defs/__schema307"
         },
         "target": {
-          "$ref": "#/$defs/__schema306"
+          "$ref": "#/$defs/__schema308"
         },
         "text": {
-          "$ref": "#/$defs/__schema307"
+          "$ref": "#/$defs/__schema309"
         }
       },
       "required": [
@@ -8237,11 +8261,11 @@
       "additionalProperties": false,
       "description": "Commit a text as the canvas editor does; on a part's or Cell Pin's name label, RichText that spells the name only restyles it. A Net label takes set-net-label."
     },
-    "__schema305": {
+    "__schema307": {
       "type": "string",
       "const": "set-text"
     },
-    "__schema306": {
+    "__schema308": {
       "oneOf": [
         {
           "type": "object",
@@ -8279,22 +8303,22 @@
         }
       ]
     },
-    "__schema307": {
+    "__schema309": {
       "anyOf": [
         {
-          "$ref": "#/$defs/__schema308"
+          "$ref": "#/$defs/__schema310"
         },
         {
           "$ref": "#/$defs/__schema45"
         }
       ]
     },
-    "__schema308": {
+    "__schema310": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "__schema309": {
+    "__schema311": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8308,7 +8332,7 @@
           "$ref": "#/$defs/__schema26"
         },
         "text": {
-          "$ref": "#/$defs/__schema307"
+          "$ref": "#/$defs/__schema309"
         },
         "alignment": {
           "type": "string",
@@ -8347,20 +8371,20 @@
       ],
       "additionalProperties": false
     },
-    "__schema310": {
+    "__schema312": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema311"
-        },
-        "instanceIds": {
-          "$ref": "#/$defs/__schema312"
-        },
-        "axis": {
           "$ref": "#/$defs/__schema313"
         },
-        "coordinate": {
+        "instanceIds": {
           "$ref": "#/$defs/__schema314"
+        },
+        "axis": {
+          "$ref": "#/$defs/__schema315"
+        },
+        "coordinate": {
+          "$ref": "#/$defs/__schema316"
         }
       },
       "required": [
@@ -8371,11 +8395,11 @@
       "additionalProperties": false,
       "description": "Line up part origins on one coordinate (the first part's when left out)."
     },
-    "__schema311": {
+    "__schema313": {
       "type": "string",
       "const": "arrange-instances"
     },
-    "__schema312": {
+    "__schema314": {
       "minItems": 2,
       "maxItems": 256,
       "type": "array",
@@ -8383,32 +8407,32 @@
         "$ref": "#/$defs/__schema1"
       }
     },
-    "__schema313": {
+    "__schema315": {
       "type": "string",
       "enum": [
         "x",
         "y"
       ]
     },
-    "__schema314": {
+    "__schema316": {
       "type": "integer",
       "minimum": -9007199254740991,
       "maximum": 9007199254740991
     },
-    "__schema315": {
+    "__schema317": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema316"
+          "$ref": "#/$defs/__schema318"
         },
         "instanceId": {
           "$ref": "#/$defs/__schema1"
         },
         "pinName": {
-          "$ref": "#/$defs/__schema317"
+          "$ref": "#/$defs/__schema319"
         },
         "memberId": {
-          "$ref": "#/$defs/__schema318"
+          "$ref": "#/$defs/__schema320"
         }
       },
       "required": [
@@ -8419,29 +8443,29 @@
       "additionalProperties": false,
       "description": "Free one pin from its Net, as its menu does. For a bus, memberId is required and detaches only that lane while preserving other connections."
     },
-    "__schema316": {
+    "__schema318": {
       "type": "string",
       "const": "disconnect-pin"
     },
-    "__schema317": {
+    "__schema319": {
       "type": "string",
       "minLength": 1,
       "maxLength": 128
     },
-    "__schema318": {
+    "__schema320": {
       "$ref": "#/$defs/__schema1"
     },
-    "__schema319": {
+    "__schema321": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema320"
+          "$ref": "#/$defs/__schema322"
         },
         "endpoints": {
-          "$ref": "#/$defs/__schema321"
+          "$ref": "#/$defs/__schema323"
         },
         "marked": {
-          "$ref": "#/$defs/__schema322"
+          "$ref": "#/$defs/__schema324"
         }
       },
       "required": [
@@ -8452,11 +8476,11 @@
       "additionalProperties": false,
       "description": "Mark or clear an explicit set of unused scalar pins or bus members atomically. Connected members require explicit disconnection first."
     },
-    "__schema320": {
+    "__schema322": {
       "type": "string",
       "const": "set-no-connect"
     },
-    "__schema321": {
+    "__schema323": {
       "minItems": 1,
       "maxItems": 256,
       "type": "array",
@@ -8464,17 +8488,17 @@
         "$ref": "#/$defs/__schema152"
       }
     },
-    "__schema322": {
+    "__schema324": {
       "type": "boolean"
     },
-    "__schema323": {
+    "__schema325": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema324"
+          "$ref": "#/$defs/__schema326"
         },
         "selection": {
-          "$ref": "#/$defs/__schema325"
+          "$ref": "#/$defs/__schema327"
         }
       },
       "required": [
@@ -8484,30 +8508,30 @@
       "additionalProperties": false,
       "description": "Explicit selection. Includes owned displays and formal interface declarations, and, as in the GUI, a wire that only tapped a deleted part into other wiring. Select all object IDs for complete Cell deletion."
     },
-    "__schema324": {
+    "__schema326": {
       "type": "string",
       "const": "delete-selection"
     },
-    "__schema325": {
+    "__schema327": {
       "type": "object",
       "properties": {
         "instanceIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "routeIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "junctionIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "annotationIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "draftingIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "noConnectIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         }
       },
       "required": [
@@ -8520,7 +8544,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema326": {
+    "__schema328": {
       "default": [],
       "maxItems": 256,
       "type": "array",
@@ -8528,7 +8552,7 @@
         "$ref": "#/$defs/__schema1"
       }
     },
-    "__schema327": {
+    "__schema329": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8549,7 +8573,7 @@
           "$ref": "#/$defs/__schema25"
         },
         "pinAnchor": {
-          "$ref": "#/$defs/__schema328"
+          "$ref": "#/$defs/__schema330"
         }
       },
       "required": [
@@ -8560,11 +8584,11 @@
       ],
       "additionalProperties": false
     },
-    "__schema328": {
+    "__schema330": {
       "description": "When supplied, solves the origin instead of using placement.position; keeps orientation.",
-      "$ref": "#/$defs/__schema301"
+      "$ref": "#/$defs/__schema303"
     },
-    "__schema329": {
+    "__schema331": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8574,23 +8598,23 @@
         "target": {
           "oneOf": [
             {
-              "$ref": "#/$defs/__schema330"
-            },
-            {
-              "$ref": "#/$defs/__schema331"
-            },
-            {
               "$ref": "#/$defs/__schema332"
             },
             {
+              "$ref": "#/$defs/__schema333"
+            },
+            {
               "$ref": "#/$defs/__schema334"
+            },
+            {
+              "$ref": "#/$defs/__schema336"
             }
           ],
           "description": "Current Net ID/name, member pin, explicit pins to join, or an original import-reference Net. Routes only missing visible connections."
         },
         "trunk": {
           "description": "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic, not an obstacle autorouter.",
-          "$ref": "#/$defs/__schema335"
+          "$ref": "#/$defs/__schema337"
         }
       },
       "required": [
@@ -8599,7 +8623,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema330": {
+    "__schema332": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8617,7 +8641,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema331": {
+    "__schema333": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8639,7 +8663,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema332": {
+    "__schema334": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8651,7 +8675,7 @@
           "maxItems": 64,
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema333"
+            "$ref": "#/$defs/__schema335"
           }
         }
       },
@@ -8661,7 +8685,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema333": {
+    "__schema335": {
       "type": "object",
       "properties": {
         "instanceId": {
@@ -8678,7 +8702,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema334": {
+    "__schema336": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8695,7 +8719,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema335": {
+    "__schema337": {
       "type": "object",
       "properties": {
         "start": {
@@ -8711,11 +8735,11 @@
       ],
       "additionalProperties": false
     },
-    "__schema336": {
+    "__schema338": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema337"
+          "$ref": "#/$defs/__schema339"
         },
         "junctionId": {
           "$ref": "#/$defs/__schema1"
@@ -8732,11 +8756,11 @@
       "additionalProperties": false,
       "description": "Move an existing Junction and reshape every incident Route atomically; preserve connectivity and respect protected geometry."
     },
-    "__schema337": {
+    "__schema339": {
       "type": "string",
       "const": "move-junction"
     },
-    "__schema338": {
+    "__schema340": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8816,7 +8840,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema339": {
+    "__schema341": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8841,17 +8865,17 @@
       ],
       "additionalProperties": false
     },
-    "__schema340": {
+    "__schema342": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema341"
+          "$ref": "#/$defs/__schema343"
         },
         "mos": {
-          "$ref": "#/$defs/__schema342"
+          "$ref": "#/$defs/__schema344"
         },
         "net": {
-          "$ref": "#/$defs/__schema343"
+          "$ref": "#/$defs/__schema345"
         }
       },
       "required": [
@@ -8862,21 +8886,21 @@
       "additionalProperties": false,
       "description": "The Cell's NMOS or PMOS body default, as its settings in Properties set it: bodies on the old default move to the Net; wired bodies stay."
     },
-    "__schema341": {
+    "__schema343": {
       "type": "string",
       "const": "set-mos-bulk-default"
     },
-    "__schema342": {
+    "__schema344": {
       "type": "string",
       "enum": [
         "nmos",
         "pmos"
       ]
     },
-    "__schema343": {
+    "__schema345": {
       "anyOf": [
         {
-          "$ref": "#/$defs/__schema344"
+          "$ref": "#/$defs/__schema346"
         },
         {
           "type": "null"
@@ -8884,11 +8908,11 @@
       ],
       "description": "Net ID or name; null clears the default."
     },
-    "__schema344": {
+    "__schema346": {
       "type": "string",
       "minLength": 1
     },
-    "__schema345": {
+    "__schema347": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8905,20 +8929,20 @@
       ],
       "additionalProperties": false
     },
-    "__schema346": {
+    "__schema348": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema347"
-        },
-        "instanceId": {
-          "$ref": "#/$defs/__schema348"
-        },
-        "annotationId": {
           "$ref": "#/$defs/__schema349"
         },
-        "text": {
+        "instanceId": {
           "$ref": "#/$defs/__schema350"
+        },
+        "annotationId": {
+          "$ref": "#/$defs/__schema351"
+        },
+        "text": {
+          "$ref": "#/$defs/__schema352"
         }
       },
       "required": [
@@ -8928,19 +8952,19 @@
       "additionalProperties": false,
       "description": "Show text on a part's or Port's name label, or on a Net label, while the part keeps its own Reference, the Pin its name and the Net its name in the netlist, connectivity and same-name joining, e.g. an op-amp X1 drawn A1 or Net VEA_OUT drawn VEA,OUT; give exactly one of instanceId or annotationId; null shows the name again. Survives Project Code and Copy as the label's text."
     },
-    "__schema347": {
+    "__schema349": {
       "type": "string",
       "const": "set-display-alias"
     },
-    "__schema348": {
+    "__schema350": {
       "description": "A part or Port, whose name label shows the text.",
       "$ref": "#/$defs/__schema1"
     },
-    "__schema349": {
+    "__schema351": {
       "description": "A Net label instead of a part.",
       "$ref": "#/$defs/__schema1"
     },
-    "__schema350": {
+    "__schema352": {
       "anyOf": [
         {
           "type": "string",
@@ -8952,7 +8976,7 @@
         }
       ]
     },
-    "__schema351": {
+    "__schema353": {
       "type": "object",
       "properties": {
         "kind": {
@@ -8989,17 +9013,17 @@
       ],
       "additionalProperties": false
     },
-    "__schema352": {
+    "__schema354": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema353"
+          "$ref": "#/$defs/__schema355"
         },
         "expression": {
-          "$ref": "#/$defs/__schema354"
+          "$ref": "#/$defs/__schema356"
         },
         "routeIds": {
-          "$ref": "#/$defs/__schema355"
+          "$ref": "#/$defs/__schema357"
         }
       },
       "required": [
@@ -9010,16 +9034,16 @@
       "additionalProperties": false,
       "description": "Expand a signal expression onto distinct existing scalar branches in explicit routeIds order, with one atomic Label edit."
     },
-    "__schema353": {
+    "__schema355": {
       "type": "string",
       "const": "expand-net-labels"
     },
-    "__schema354": {
+    "__schema356": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "__schema355": {
+    "__schema357": {
       "minItems": 1,
       "maxItems": 256,
       "type": "array",
@@ -9027,7 +9051,7 @@
         "$ref": "#/$defs/__schema1"
       }
     },
-    "__schema356": {
+    "__schema358": {
       "type": "object",
       "properties": {
         "kind": {
@@ -9063,7 +9087,7 @@
         },
         "text": {
           "description": "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own, and only restyles an existing label whose name it spells.",
-          "$ref": "#/$defs/__schema307"
+          "$ref": "#/$defs/__schema309"
         },
         "position": {
           "$ref": "#/$defs/__schema26"
@@ -9077,7 +9101,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema357": {
+    "__schema359": {
       "type": "object",
       "properties": {
         "kind": {
@@ -9099,11 +9123,11 @@
       ],
       "additionalProperties": false
     },
-    "__schema358": {
+    "__schema360": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema359"
+          "$ref": "#/$defs/__schema361"
         },
         "annotationId": {
           "$ref": "#/$defs/__schema1"
@@ -9112,7 +9136,7 @@
           "$ref": "#/$defs/__schema26"
         },
         "alignment": {
-          "$ref": "#/$defs/__schema360"
+          "$ref": "#/$defs/__schema362"
         }
       },
       "required": [
@@ -9123,15 +9147,15 @@
       "additionalProperties": false,
       "description": "Absolute drawing position; preserve electrical binding and object ownership."
     },
-    "__schema359": {
+    "__schema361": {
       "type": "string",
       "const": "move-annotation"
     },
-    "__schema360": {
+    "__schema362": {
       "description": "Which end of the text stands at position: start (text to its right), middle or end; omitted keeps the label's.",
-      "$ref": "#/$defs/__schema361"
+      "$ref": "#/$defs/__schema363"
     },
-    "__schema361": {
+    "__schema363": {
       "type": "string",
       "enum": [
         "start",
@@ -9139,7 +9163,7 @@
         "end"
       ]
     },
-    "__schema362": {
+    "__schema364": {
       "type": "object",
       "properties": {
         "kind": {
@@ -9160,7 +9184,7 @@
         },
         "scope": {
           "description": "Defaults to the existing Net scope, otherwise local; global must be intentional.",
-          "$ref": "#/$defs/__schema363"
+          "$ref": "#/$defs/__schema365"
         }
       },
       "required": [
@@ -9170,21 +9194,21 @@
       ],
       "additionalProperties": false
     },
-    "__schema363": {
+    "__schema365": {
       "type": "string",
       "enum": [
         "local",
         "global"
       ]
     },
-    "__schema364": {
+    "__schema366": {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/__schema365"
+          "$ref": "#/$defs/__schema367"
         },
         "routeId": {
-          "$ref": "#/$defs/__schema366"
+          "$ref": "#/$defs/__schema368"
         },
         "start": {
           "$ref": "#/$defs/__schema26"
@@ -9202,19 +9226,19 @@
       "additionalProperties": false,
       "description": "Set a straight Power Rail's two ends on its own line. Taps and the one label stay; no pin is joined."
     },
-    "__schema365": {
+    "__schema367": {
       "type": "string",
       "const": "extend-power-rail"
     },
-    "__schema366": {
+    "__schema368": {
       "description": "Any segment of the rail.",
       "$ref": "#/$defs/__schema1"
     },
-    "__schema367": {
+    "__schema369": {
       "type": "string",
       "const": "arrange-labels"
     },
-    "__schema368": {
+    "__schema370": {
       "minItems": 1,
       "maxItems": 256,
       "type": "array",
@@ -9222,31 +9246,31 @@
         "$ref": "#/$defs/__schema1"
       }
     },
-    "__schema369": {
-      "type": "boolean"
-    },
-    "__schema370": {
-      "type": "boolean"
-    },
     "__schema371": {
+      "type": "boolean"
+    },
+    "__schema372": {
+      "type": "boolean"
+    },
+    "__schema373": {
       "type": "string",
       "enum": [
         "preserve",
         "first-letter-subscript"
       ]
     },
-    "__schema372": {
-      "description": "Also re-place labels moved by hand.",
-      "$ref": "#/$defs/__schema373"
-    },
-    "__schema373": {
-      "type": "boolean"
-    },
     "__schema374": {
-      "description": "Side tried first; outside = away from the drawing's centre line, mirrored halves.",
+      "description": "Also re-place labels moved by hand.",
       "$ref": "#/$defs/__schema375"
     },
     "__schema375": {
+      "type": "boolean"
+    },
+    "__schema376": {
+      "description": "Side tried first; outside = away from the drawing's centre line, mirrored halves.",
+      "$ref": "#/$defs/__schema377"
+    },
+    "__schema377": {
       "type": "string",
       "enum": [
         "left",
@@ -9256,104 +9280,104 @@
         "outside"
       ]
     },
-    "__schema376": {
+    "__schema378": {
       "type": "string",
       "const": "apply-label-preset"
     },
-    "__schema377": {
+    "__schema379": {
       "type": "string",
       "enum": [
         "textbook"
       ],
       "description": "textbook: MOS W/L hidden, other values left as they are, names in their role look (R_L, I_SS, M_1) and labels arranged as arrange-labels arranges them."
     },
-    "__schema378": {
+    "__schema380": {
       "description": "Left out: every placed part of the Cell.",
-      "$ref": "#/$defs/__schema368"
+      "$ref": "#/$defs/__schema370"
     },
-    "__schema379": {
+    "__schema381": {
       "oneOf": [
         {
           "$ref": "#/$defs/__schema286"
         },
         {
-          "$ref": "#/$defs/__schema304"
+          "$ref": "#/$defs/__schema306"
         },
         {
-          "$ref": "#/$defs/__schema309"
+          "$ref": "#/$defs/__schema311"
         },
         {
-          "$ref": "#/$defs/__schema310"
+          "$ref": "#/$defs/__schema312"
         },
         {
-          "$ref": "#/$defs/__schema315"
+          "$ref": "#/$defs/__schema317"
         },
         {
-          "$ref": "#/$defs/__schema319"
+          "$ref": "#/$defs/__schema321"
         },
         {
-          "$ref": "#/$defs/__schema323"
-        },
-        {
-          "$ref": "#/$defs/__schema327"
+          "$ref": "#/$defs/__schema325"
         },
         {
           "$ref": "#/$defs/__schema329"
         },
         {
-          "$ref": "#/$defs/__schema336"
+          "$ref": "#/$defs/__schema331"
         },
         {
           "$ref": "#/$defs/__schema338"
         },
         {
-          "$ref": "#/$defs/__schema339"
-        },
-        {
           "$ref": "#/$defs/__schema340"
         },
         {
-          "$ref": "#/$defs/__schema345"
+          "$ref": "#/$defs/__schema341"
         },
         {
-          "$ref": "#/$defs/__schema346"
+          "$ref": "#/$defs/__schema342"
         },
         {
-          "$ref": "#/$defs/__schema351"
+          "$ref": "#/$defs/__schema347"
         },
         {
-          "$ref": "#/$defs/__schema352"
+          "$ref": "#/$defs/__schema348"
         },
         {
-          "$ref": "#/$defs/__schema356"
+          "$ref": "#/$defs/__schema353"
         },
         {
-          "$ref": "#/$defs/__schema357"
+          "$ref": "#/$defs/__schema354"
         },
         {
           "$ref": "#/$defs/__schema358"
         },
         {
-          "$ref": "#/$defs/__schema362"
+          "$ref": "#/$defs/__schema359"
+        },
+        {
+          "$ref": "#/$defs/__schema360"
         },
         {
           "$ref": "#/$defs/__schema364"
+        },
+        {
+          "$ref": "#/$defs/__schema366"
         }
       ]
     },
-    "__schema380": {
+    "__schema382": {
       "$ref": "#/$defs/__schema69"
     },
-    "__schema381": {
+    "__schema383": {
       "type": "object",
       "propertyNames": {
         "$ref": "#/$defs/__schema1"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema301"
+        "$ref": "#/$defs/__schema303"
       }
     },
-    "__schema382": {
+    "__schema384": {
       "type": "object",
       "propertyNames": {
         "$ref": "#/$defs/__schema1"
@@ -9371,23 +9395,23 @@
         "additionalProperties": false
       }
     },
-    "__schema383": {
+    "__schema385": {
       "type": "object",
       "properties": {
         "instanceIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "routeIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "junctionIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "annotationIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         },
         "draftingIds": {
-          "$ref": "#/$defs/__schema326"
+          "$ref": "#/$defs/__schema328"
         }
       },
       "required": [
@@ -9399,19 +9423,19 @@
       ],
       "additionalProperties": false
     },
-    "__schema384": {
+    "__schema386": {
       "type": "string",
       "const": "set-cell-symbol-pins"
     },
-    "__schema385": {
+    "__schema387": {
       "minItems": 1,
       "maxItems": 256,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema386"
+        "$ref": "#/$defs/__schema388"
       }
     },
-    "__schema386": {
+    "__schema388": {
       "type": "object",
       "properties": {
         "name": {
@@ -9422,7 +9446,7 @@
         },
         "offset": {
           "description": "Along the side from the Symbol origin, a multiple of 10. Left out: a Pin keeping its side stays put, one changing side takes the first free slot inside the body (0, -20, 20, …).",
-          "$ref": "#/$defs/__schema387"
+          "$ref": "#/$defs/__schema389"
         }
       },
       "required": [
@@ -9431,34 +9455,34 @@
       ],
       "additionalProperties": false
     },
-    "__schema387": {
+    "__schema389": {
       "type": "integer",
       "minimum": -9007199254740991,
       "maximum": 9007199254740991
     },
-    "__schema388": {
+    "__schema390": {
       "type": "string",
       "const": "set-cell-symbol-size"
     },
-    "__schema389": {
-      "type": "integer",
-      "exclusiveMinimum": 0,
-      "maximum": 100000
-    },
-    "__schema390": {
-      "type": "integer",
-      "exclusiveMinimum": 0,
-      "maximum": 100000
-    },
     "__schema391": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 100000
+    },
+    "__schema392": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 100000
+    },
+    "__schema393": {
       "minItems": 1,
       "maxItems": 256,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema392"
+        "$ref": "#/$defs/__schema394"
       }
     },
-    "__schema392": {
+    "__schema394": {
       "oneOf": [
         {
           "type": "object",
@@ -9585,7 +9609,7 @@
               "maxItems": 256,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema393"
+                "$ref": "#/$defs/__schema395"
               }
             }
           },
@@ -9805,7 +9829,7 @@
               "minItems": 1,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema394"
+                "$ref": "#/$defs/__schema396"
               }
             }
           },
@@ -9855,10 +9879,10 @@
                   "minLength": 1
                 },
                 "content": {
-                  "$ref": "#/$defs/__schema395"
+                  "$ref": "#/$defs/__schema397"
                 },
                 "originalContent": {
-                  "$ref": "#/$defs/__schema395"
+                  "$ref": "#/$defs/__schema397"
                 }
               },
               "required": [
@@ -9889,61 +9913,61 @@
                   "$ref": "#/$defs/__schema1"
                 },
                 "name": {
-                  "$ref": "#/$defs/__schema396"
-                },
-                "revision": {
-                  "$ref": "#/$defs/__schema397"
-                },
-                "sourceBinding": {
                   "$ref": "#/$defs/__schema398"
                 },
-                "importReference": {
+                "revision": {
                   "$ref": "#/$defs/__schema399"
                 },
+                "sourceBinding": {
+                  "$ref": "#/$defs/__schema400"
+                },
+                "importReference": {
+                  "$ref": "#/$defs/__schema401"
+                },
                 "sourceStatus": {
-                  "$ref": "#/$defs/__schema402"
+                  "$ref": "#/$defs/__schema404"
                 },
                 "netlist": {
-                  "$ref": "#/$defs/__schema403"
-                },
-                "instances": {
                   "$ref": "#/$defs/__schema405"
                 },
-                "nets": {
-                  "$ref": "#/$defs/__schema406"
-                },
-                "connectivityEvidence": {
+                "instances": {
                   "$ref": "#/$defs/__schema407"
                 },
-                "routes": {
+                "nets": {
                   "$ref": "#/$defs/__schema408"
                 },
-                "junctions": {
+                "connectivityEvidence": {
                   "$ref": "#/$defs/__schema409"
                 },
-                "annotations": {
+                "routes": {
                   "$ref": "#/$defs/__schema410"
                 },
-                "presentation": {
+                "junctions": {
                   "$ref": "#/$defs/__schema411"
                 },
-                "mosBulkDefaults": {
+                "annotations": {
                   "$ref": "#/$defs/__schema412"
                 },
-                "layoutGroups": {
+                "presentation": {
                   "$ref": "#/$defs/__schema413"
                 },
-                "constraints": {
+                "mosBulkDefaults": {
                   "$ref": "#/$defs/__schema414"
                 },
-                "noConnects": {
+                "layoutGroups": {
                   "$ref": "#/$defs/__schema415"
                 },
-                "inductorCouplings": {
+                "constraints": {
                   "$ref": "#/$defs/__schema416"
                 },
-                "drafting": {
+                "noConnects": {
                   "$ref": "#/$defs/__schema417"
+                },
+                "inductorCouplings": {
+                  "$ref": "#/$defs/__schema418"
+                },
+                "drafting": {
+                  "$ref": "#/$defs/__schema419"
                 }
               },
               "required": [
@@ -10046,28 +10070,28 @@
                   "$ref": "#/$defs/__schema1"
                 },
                 "name": {
-                  "$ref": "#/$defs/__schema418"
-                },
-                "libraryOrigin": {
-                  "$ref": "#/$defs/__schema419"
-                },
-                "terminals": {
                   "$ref": "#/$defs/__schema420"
                 },
-                "formalParameters": {
+                "libraryOrigin": {
+                  "$ref": "#/$defs/__schema421"
+                },
+                "terminals": {
                   "$ref": "#/$defs/__schema422"
                 },
-                "interfaceStatus": {
+                "formalParameters": {
                   "$ref": "#/$defs/__schema424"
                 },
-                "presentation": {
-                  "$ref": "#/$defs/__schema425"
-                },
-                "symbolId": {
+                "interfaceStatus": {
                   "$ref": "#/$defs/__schema426"
                 },
-                "implementation": {
+                "presentation": {
                   "$ref": "#/$defs/__schema427"
+                },
+                "symbolId": {
+                  "$ref": "#/$defs/__schema428"
+                },
+                "implementation": {
+                  "$ref": "#/$defs/__schema429"
                 }
               },
               "required": [
@@ -10122,7 +10146,7 @@
                   "type": "object",
                   "properties": {
                     "kind": {
-                      "$ref": "#/$defs/__schema428"
+                      "$ref": "#/$defs/__schema430"
                     },
                     "entry": {
                       "$ref": "#/$defs/__schema271"
@@ -10131,16 +10155,16 @@
                       "$ref": "#/$defs/__schema271"
                     },
                     "files": {
-                      "$ref": "#/$defs/__schema429"
+                      "$ref": "#/$defs/__schema431"
                     },
                     "circuitBindings": {
-                      "$ref": "#/$defs/__schema430"
-                    },
-                    "dependencies": {
                       "$ref": "#/$defs/__schema432"
                     },
+                    "dependencies": {
+                      "$ref": "#/$defs/__schema434"
+                    },
                     "drafts": {
-                      "$ref": "#/$defs/__schema433"
+                      "$ref": "#/$defs/__schema435"
                     }
                   },
                   "required": [
@@ -10230,15 +10254,15 @@
         }
       ]
     },
-    "__schema393": {
-      "type": "string",
-      "minLength": 1
-    },
-    "__schema394": {
-      "type": "string",
-      "minLength": 1
-    },
     "__schema395": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema396": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema397": {
       "type": "object",
       "properties": {
         "text": {
@@ -10261,16 +10285,16 @@
       ],
       "additionalProperties": false
     },
-    "__schema396": {
+    "__schema398": {
       "type": "string",
       "minLength": 1
     },
-    "__schema397": {
+    "__schema399": {
       "type": "integer",
       "minimum": 0,
       "maximum": 9007199254740991
     },
-    "__schema398": {
+    "__schema400": {
       "type": "object",
       "properties": {
         "cellName": {
@@ -10287,14 +10311,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema399": {
+    "__schema401": {
       "type": "object",
       "properties": {
         "files": {
-          "$ref": "#/$defs/__schema400"
+          "$ref": "#/$defs/__schema402"
         },
         "nets": {
-          "$ref": "#/$defs/__schema401"
+          "$ref": "#/$defs/__schema403"
         }
       },
       "required": [
@@ -10303,7 +10327,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema400": {
+    "__schema402": {
       "default": [],
       "type": "array",
       "items": {
@@ -10319,7 +10343,7 @@
         "additionalProperties": false
       }
     },
-    "__schema401": {
+    "__schema403": {
       "type": "array",
       "items": {
         "type": "object",
@@ -10389,7 +10413,7 @@
         "additionalProperties": false
       }
     },
-    "__schema402": {
+    "__schema404": {
       "type": "string",
       "enum": [
         "in-sync",
@@ -10397,7 +10421,7 @@
         "connectivity-modified"
       ]
     },
-    "__schema403": {
+    "__schema405": {
       "type": "object",
       "properties": {
         "name": {
@@ -10414,7 +10438,7 @@
           "maxItems": 128,
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema404"
+            "$ref": "#/$defs/__schema406"
           }
         }
       },
@@ -10425,7 +10449,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema404": {
+    "__schema406": {
       "type": "object",
       "properties": {
         "name": {
@@ -10440,13 +10464,13 @@
       ],
       "additionalProperties": false
     },
-    "__schema405": {
+    "__schema407": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema16"
       }
     },
-    "__schema406": {
+    "__schema408": {
       "type": "array",
       "items": {
         "type": "object",
@@ -10468,19 +10492,19 @@
         "additionalProperties": false
       }
     },
-    "__schema407": {
+    "__schema409": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema143"
       }
     },
-    "__schema408": {
+    "__schema410": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema108"
       }
     },
-    "__schema409": {
+    "__schema411": {
       "type": "array",
       "items": {
         "type": "object",
@@ -10518,13 +10542,13 @@
         "additionalProperties": false
       }
     },
-    "__schema410": {
+    "__schema412": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema169"
       }
     },
-    "__schema411": {
+    "__schema413": {
       "type": "object",
       "properties": {
         "styleProfileId": {
@@ -10611,7 +10635,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema412": {
+    "__schema414": {
       "type": "object",
       "properties": {
         "nmosNetId": {
@@ -10623,32 +10647,32 @@
       },
       "additionalProperties": false
     },
-    "__schema413": {
+    "__schema415": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema206"
       }
     },
-    "__schema414": {
+    "__schema416": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema209"
       }
     },
-    "__schema415": {
+    "__schema417": {
       "default": [],
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema151"
       }
     },
-    "__schema416": {
+    "__schema418": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema155"
       }
     },
-    "__schema417": {
+    "__schema419": {
       "type": "object",
       "properties": {
         "objects": {
@@ -10663,22 +10687,22 @@
       ],
       "additionalProperties": false
     },
-    "__schema418": {
+    "__schema420": {
       "type": "string",
       "minLength": 1,
       "maxLength": 128
     },
-    "__schema419": {
+    "__schema421": {
       "$ref": "#/$defs/__schema267"
     },
-    "__schema420": {
+    "__schema422": {
       "maxItems": 128,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema421"
+        "$ref": "#/$defs/__schema423"
       }
     },
-    "__schema421": {
+    "__schema423": {
       "type": "object",
       "properties": {
         "id": {
@@ -10706,14 +10730,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema422": {
+    "__schema424": {
       "maxItems": 128,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema423"
+        "$ref": "#/$defs/__schema425"
       }
     },
-    "__schema423": {
+    "__schema425": {
       "type": "object",
       "properties": {
         "name": {
@@ -10732,20 +10756,20 @@
       ],
       "additionalProperties": false
     },
-    "__schema424": {
+    "__schema426": {
       "type": "string",
       "enum": [
         "declared",
         "inferred-positional"
       ]
     },
-    "__schema425": {
+    "__schema427": {
       "$ref": "#/$defs/__schema161"
     },
-    "__schema426": {
+    "__schema428": {
       "$ref": "#/$defs/__schema1"
     },
-    "__schema427": {
+    "__schema429": {
       "oneOf": [
         {
           "type": "object",
@@ -10788,25 +10812,25 @@
         }
       ]
     },
-    "__schema428": {
+    "__schema430": {
       "type": "string",
       "const": "source"
     },
-    "__schema429": {
+    "__schema431": {
       "maxItems": 4096,
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema273"
       }
     },
-    "__schema430": {
+    "__schema432": {
       "maxItems": 1024,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema431"
+        "$ref": "#/$defs/__schema433"
       }
     },
-    "__schema431": {
+    "__schema433": {
       "type": "object",
       "properties": {
         "id": {
@@ -10834,21 +10858,21 @@
       ],
       "additionalProperties": false
     },
-    "__schema432": {
+    "__schema434": {
       "maxItems": 1024,
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema275"
       }
     },
-    "__schema433": {
+    "__schema435": {
       "maxItems": 4096,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema434"
+        "$ref": "#/$defs/__schema436"
       }
     },
-    "__schema434": {
+    "__schema436": {
       "type": "object",
       "properties": {
         "path": {
@@ -10861,7 +10885,7 @@
           "type": "string"
         },
         "binding": {
-          "$ref": "#/$defs/__schema431"
+          "$ref": "#/$defs/__schema433"
         }
       },
       "required": [
@@ -10871,14 +10895,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema435": {
+    "__schema437": {
       "minItems": 1,
       "maxItems": 256,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema436"
+        "$ref": "#/$defs/__schema438"
       }
     },
-    "__schema436": {}
+    "__schema438": {}
   }
 }

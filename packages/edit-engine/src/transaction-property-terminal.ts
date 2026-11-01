@@ -32,7 +32,15 @@ export function applyPropertyTerminalEdit(
       [],
       [instance.id],
     );
-  if (symbol.definition.pins.some((pin) => pin.name === edit.pinName))
+  // A pin the symbol draws is wired. An implicit one has no canvas presence,
+  // such as a supply a Circuit Component maps to no pin of its artwork
+  // (#1833); a variant-hidden MOS body follows its own body binding.
+  if (
+    symbol.definition.pins.some(
+      (pin) =>
+        pin.name === edit.pinName && pin.presentation.visibility !== "implicit",
+    )
+  )
     return refuse(
       "EDIT_PRECONDITION",
       `Canvas terminal ${instance.id}.${edit.pinName} must be wired, not property-bound`,

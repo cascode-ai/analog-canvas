@@ -195,7 +195,7 @@ export function ComponentIdentityProperties({
   revision,
   targetDescription,
   capacitorPlateRows,
-  propertyTerminal,
+  propertyTerminals,
   modelTarget,
   sourceCode,
   onEditAnnotation,
@@ -207,7 +207,8 @@ export function ComponentIdentityProperties({
   revision: number;
   targetDescription: string | null;
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
-  propertyTerminal?: PropertyNetTerminalView | null;
+  /** A reviewed device's own terminals no pin draws: a substrate, a centre tap. */
+  propertyTerminals?: readonly PropertyNetTerminalView[];
   modelTarget: ComponentModelTargetView | null;
   /** Null while its Properties dock is hidden; other draft controls stay mounted. */
   sourceCode: ComponentSourceCode | null;
@@ -287,25 +288,25 @@ export function ComponentIdentityProperties({
           </dl>
         </div>
       ) : null}
-      {propertyTerminal ? (
+      {propertyTerminals?.length ? (
         <div
           className="property-card property-terminal-card"
           role="group"
           aria-label="Property-only electrical terminals"
         >
           <div className="property-section-heading">Electrical terminals</div>
-          {propertyTerminal ? (
-            <label>
-              {propertyTerminal.label}
+          {propertyTerminals.map((terminal) => (
+            <label key={terminal.pinName}>
+              {terminal.label}
               <select
-                aria-label={propertyTerminal.label}
-                value={propertyTerminal.netId ?? ""}
+                aria-label={terminal.label}
+                value={terminal.netId ?? ""}
                 onChange={(event) =>
-                  propertyTerminal.onChange(event.currentTarget.value || null)
+                  terminal.onChange(event.currentTarget.value || null)
                 }
               >
                 <option value="">Unconnected</option>
-                {propertyTerminal.options.map((option) => (
+                {terminal.options.map((option) => (
                   <option value={option.netId} key={option.netId}>
                     {option.label}
                   </option>
@@ -313,7 +314,7 @@ export function ComponentIdentityProperties({
               </select>
               <small>Property-only terminal · no canvas pin or wire</small>
             </label>
-          ) : null}
+          ))}
         </div>
       ) : null}
       {modelTarget && !fieldsMovedToCode ? (
