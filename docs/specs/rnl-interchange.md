@@ -331,7 +331,10 @@ the RNL language and its runtime belong to rnl.
     netlist numbered those nodes in (NC0001 …); a pin the file connects to
     anything else keeps its net (`RNL_IMPORT_NO_CONNECT_CONNECTED`);
   - wires with every bend, a route from each pin or point to the next, a
-    wire running straight through a point one route; a bold wire as a power
+    wire running straight through a pin or point one route, but one through a
+    point another wire (not a dashed body tie) also reaches a route each
+    side, which reach it there;
+    a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, and a dashed one between
     junctions where it meets a body tie, any other line style or color as the
     wire's own; junctions at named points; wires of no length,
