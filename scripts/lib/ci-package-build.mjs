@@ -72,7 +72,9 @@ function identity(root) {
     commit: git(root, ["rev-parse", "HEAD"]).trim(),
     platform: process.platform,
     arch: process.arch,
-    node: process.version,
+    // Runners pick up a new Node patch at different times; compiled
+    // packages differ only by major.
+    node: process.versions.node.split(".")[0],
     pnpm: pnpm(root, ["--version"]).trim(),
     inputs: digest(
       JSON.stringify(
