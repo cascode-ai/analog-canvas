@@ -1567,6 +1567,11 @@ function applyLevel(
   // Cell Pin is the importer's own, moved where RNL draws it; ground and
   // supply glyphs are added on their nets, each claiming its supply.
   const glyphOf = new Map<string, { instanceId: string; pinName: string }>();
+  /** Glyphs drawn as no glyph of their net: their net, and the port drawn as its label. */
+  const openGlyphs = new Map<
+    string,
+    { netId: string; label?: RnlObjectView }
+  >();
   const movedPins = new Set<string>();
   const marks = new Map<string, number>();
   /** Marks read once the wires are routes, and figures, by usage. */
@@ -1678,10 +1683,13 @@ function applyLevel(
         glyphOf.set(object.id, { instanceId: id, pinName: "P" });
         continue;
       }
+      // A port on a net the Cell has but not as a port (a flat file's
+      // inputs) is a label of its net, where its wires end.
       if (object.definition === "$IO_PORT") {
+        if (netId) openGlyphs.set(object.id, { netId, label: object });
         warn(
           "RNL_IMPORT_PORT_UNMATCHED",
-          `${object.id} draws a port on ${String(attached)}, which is not one of the Cell's ports`,
+          `${object.id} draws a port on ${String(attached)}, which is not one of the Cell's ports${netId ? "; it is drawn as a label of its net" : ""}`,
         );
         continue;
       }
@@ -1700,6 +1708,7 @@ function applyLevel(
         (named?.name === "0" && named.scope === "global");
       const pinName = mapped?.row.pins[0]?.acPin;
       if (!net || !mapped || !pinName || (ground && !isGround)) {
+        if (net) openGlyphs.set(object.id, { netId: net.id });
         if (mapped && at) {
           document.drafting ??= { objects: [] };
           document.drafting.objects.push({
@@ -1772,7 +1781,44 @@ function applyLevel(
         position: snap(acPoint(point.at.value), CORNER_GRID),
       });
     }
-  document.junctions.push(...junctions.values());
+  // A glyph drawn as a picture or as its net's label: the wires RNL ends on
+  // its pin end at a junction there, and run on from there as drawn.
+  /** Each such junction, by glyph, and which way its first wire leaves it. */
+  const openEnds = new Map<
+    string,
+    { junction: Junction; away: { x: number; y: number } }
+  >();
+  for (const wire of model.wires)
+    wire.via.forEach((vertex, index) => {
+      if (!("usage" in vertex) || openEnds.has(vertex.usage)) return;
+      const glyph = openGlyphs.get(vertex.usage);
+      const place = wire.points[index];
+      const next = wire.points[index === 0 ? 1 : index - 1];
+      if (
+        !glyph ||
+        !place ||
+        wire.nets.length !== 1 ||
+        netOf(wire.nets[0]!) !== glyph.netId
+      )
+        return;
+      const position = snap(acPoint(place), CORNER_GRID);
+      const toward = next ? acPoint(next) : position;
+      openEnds.set(vertex.usage, {
+        junction: {
+          id: deriveStableId("junction", document.id, level.id, vertex.usage),
+          netId: glyph.netId,
+          position,
+        },
+        away: {
+          x: Math.sign(position.x - toward.x) + 0,
+          y: Math.sign(position.y - toward.y) + 0,
+        },
+      });
+    });
+  document.junctions.push(
+    ...junctions.values(),
+    ...[...openEnds.values()].map(({ junction }) => junction),
+  );
 
   // Wires: a route from each pin or point to the next, through its bends.
   const endpointOf = (vertex: RnlSnapshotVertex): RouteEndpoint | null => {
@@ -1790,7 +1836,12 @@ function applyLevel(
     }
     if ("usage" in vertex) {
       const glyph = glyphOf.get(vertex.usage);
-      return glyph ? { kind: "terminal", ...glyph } : null;
+      const open = openEnds.get(vertex.usage)?.junction;
+      return glyph
+        ? { kind: "terminal", ...glyph }
+        : open
+          ? { kind: "junction", junctionId: open.id }
+          : null;
     }
     return null;
   };
@@ -2245,6 +2296,11 @@ function applyLevel(
   importTexts(document, level, model, {
     consumed,
     glyphOf,
+    ports: new Map(
+      [...openGlyphs].flatMap(([id, { netId, label }]) =>
+        label ? [[id, { netId, object: label, ...openEnds.get(id) }]] : [],
+      ),
+    ),
     instanceOf,
     netOf,
     legNear,
@@ -2398,6 +2454,15 @@ function sizeScale(size: number | null, base: number) {
     : {};
 }
 
+/** A port drawn on no port of its Cell, and the junction its wires end at. */
+type OpenPort = {
+  netId: string;
+  object: RnlObjectView;
+  junction?: Junction;
+  /** Which way from the wire the junction lies. */
+  away?: { x: number; y: number };
+};
+
 function importTexts(
   document: SchematicDocument,
   level: RnlLevelSnapshot,
@@ -2405,6 +2470,7 @@ function importTexts(
   {
     consumed,
     glyphOf,
+    ports,
     instanceOf,
     netOf,
     legNear,
@@ -2414,6 +2480,8 @@ function importTexts(
   }: {
     consumed: ReadonlySet<string>;
     glyphOf: ReadonlyMap<string, { instanceId: string; pinName: string }>;
+    /** Ports drawn on no port of the Cell, by glyph: the junction their wires end at. */
+    ports: ReadonlyMap<string, OpenPort>;
     instanceOf: (name: string) => Instance | undefined;
     netOf: (id: string) => string | undefined;
     legNear: (
@@ -2505,6 +2573,93 @@ function importTexts(
     sameStyledText(boundText(annotation), content)
       ? {}
       : { formatOverride: content };
+
+  /**
+   * A port drawn on no port of the Cell as a label of its net, claiming the
+   * net by the name it has: on the junction its wires end at, showing what
+   * its own text shows, else its net's name beyond the wire's end.
+   */
+  const portLabel = (
+    glyph: string,
+    port: OpenPort,
+    text?: {
+      at: { x: number; y: number };
+      content: NonNullable<Annotation["content"]>;
+      look: Pick<Annotation, "alignment" | "rotation" | "textColor"> & {
+        sizeScale?: number;
+      };
+    },
+  ) => {
+    const named = document.importReference?.nets.find(
+      (item) => item.id === port.netId,
+    );
+    if (!named) return;
+    const id = deriveStableId("annotation", document.id, level.id, glyph);
+    const { junction, away = { x: 0, y: 0 } } = port;
+    const gap = 2 * CORNER_GRID;
+    const at =
+      text?.at ??
+      (junction
+        ? {
+            x: junction.position.x + away.x * gap,
+            y: junction.position.y + away.y * 2 * gap,
+          }
+        : acPoint(port.object.at.value ?? [0, 0]));
+    const colour = port.object.style?.["textcolor"];
+    const look = text?.look ?? {
+      alignment:
+        away.x > 0
+          ? ("start" as const)
+          : away.x < 0
+            ? ("end" as const)
+            : ("middle" as const),
+      rotation: 0 as const,
+      ...(typeof colour === "string" ? { textColor: colour } : {}),
+    };
+    const content =
+      text?.content ?? labelTextDocument(named.name, document.presentation);
+    const shown = flattenRichText(content);
+    const name = spelledAs(shown, named.name, named.scope, format)
+      ? shown
+      : named.name;
+    document.annotations.push({
+      id,
+      kind: "net-label",
+      netId: port.netId,
+      ...(shown === name
+        ? {
+            binding: { kind: "net-name" as const, netId: port.netId },
+            ...(sameStyledText(
+              labelTextDocument(name, document.presentation),
+              content,
+            )
+              ? {}
+              : { formatOverride: content }),
+          }
+        : { content }),
+      anchor: junction
+        ? {
+            kind: "object",
+            objectId: junction.id,
+            localOffset: {
+              x: at.x - junction.position.x,
+              y: at.y - junction.position.y,
+            },
+            fallbackPosition: at,
+          }
+        : { kind: "free", position: at },
+      locked: false,
+      ...look,
+    });
+    document.connectivityEvidence.push({
+      id: deriveStableId("connectivity-evidence", document.id, id),
+      kind: "name-claim",
+      netId: port.netId,
+      name,
+      owner: { kind: "net-label", annotationId: id },
+      scope: named.scope,
+    });
+  };
 
   model.texts.forEach((text, index) => {
     if (!text.written || consumed.has(text.id)) return;
@@ -2652,6 +2807,23 @@ function importTexts(
         anchor: onObject(instance),
         ...common,
         ...scaled(text.size, profile.typography.instanceFontSize),
+      });
+      return;
+    }
+    // A port drawn on no port of the Cell: its name is its net's label.
+    const port = text.attach ? ports.get(text.attach) : undefined;
+    if (port && text.key === "name" && !labelled.has(text.attach!)) {
+      labelled.add(text.attach!);
+      const colour = textcolor ?? ownerColour;
+      portLabel(text.attach!, port, {
+        at,
+        content,
+        look: {
+          alignment,
+          rotation,
+          ...(typeof colour === "string" ? { textColor: colour } : {}),
+          ...scaled(text.size, profile.typography.netFontSize),
+        },
       });
       return;
     }
@@ -2905,6 +3077,8 @@ function importTexts(
       ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
     });
   });
+  for (const [glyph, port] of ports)
+    if (!labelled.has(glyph)) portLabel(glyph, port);
 }
 
 /**
