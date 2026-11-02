@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, ComponentDefinitionSchema } from "@icm/model";
-import { builtInSymbols, withProjectComponentDefinitions } from "@icm/symbols";
+import {
+  componentInterfaceIssues,
+  createEmptyProject,
+  ComponentDefinitionSchema,
+  type SymbolDefinition,
+} from "@icm/model";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  withProjectComponentDefinitions,
+} from "@icm/symbols";
 import {
   parseProject,
   serializeProject,
@@ -288,5 +297,168 @@ describe("portable component interfaces meet real netlist export", () => {
         severity: "error",
       }),
     );
+  });
+});
+
+/**
+ * `symbol` drawing VDD above and VSS below as supply pins its default
+ * variant hides and a supply-pins variant draws, as an op-amp will (#1833).
+ */
+function withSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
+  const supply = (name: "VDD" | "VSS", side: -1 | 1) => ({
+    name,
+    role: side < 0 ? "positive-supply" : "negative-supply",
+    at: { x: 0, y: 30 * side },
+    direction: side < 0 ? ("north" as const) : ("south" as const),
+    presentation: { visibility: "visible" as const, leadLength: 10 },
+  });
+  return {
+    ...structuredClone(symbol),
+    pins: [
+      ...symbol.pins.filter((pin) => !["VDD", "VSS"].includes(pin.name)),
+      supply("VDD", -1),
+      supply("VSS", 1),
+    ],
+    defaultVariantId: "signal-pins",
+    variants: [
+      { id: "signal-pins", hiddenPinNames: ["VDD", "VSS"] },
+      { id: "supply-pins", hiddenPinNames: [] },
+    ],
+  };
+}
+
+describe("a Project whose symbols draw supplies as pins on request opens (#1833)", () => {
+  it("opens an op-amp interface whose VDD and VSS pins draw its supply ports, and netlists it as before", () => {
+    const plain = amplifierProject();
+    // X1's VDD on the VDD rail: by Properties here, by a wire once drawn.
+    plain.documents[0]!.nets.find((net) => net.id === "VDD")!.terminals.push({
+      instanceId: "tested",
+      pinName: "VDD",
+    });
+    const drawn = structuredClone(plain);
+    const captured = drawn.componentDefinitions!.find(
+      (definition) => definition.symbol.id === "opamp",
+    )!;
+    captured.symbol = withSupplyPins(captured.symbol);
+    drawn.documents[0]!.instances[0]!.symbolVariantId = "supply-pins";
+    const loaded = parseProject(serializeProject(drawn));
+    const before = createDesignNetlistExport(plain, { format: "spice" });
+    const after = createDesignNetlistExport(loaded, { format: "spice" });
+    expect(before.status).toBe("ready");
+    expect(after).toEqual(before);
+  });
+
+  it("keeps a port that maps a pin named after a supply, beside that supply's port", () => {
+    expect(
+      componentInterfaceIssues({
+        symbol: { id: "io-cell", pins: [{ name: "VDD" }, { name: "OUT" }] },
+        subcircuit: {
+          symbolId: "io-cell",
+          ports: [
+            { name: "vdd_core", supply: "VDD" },
+            { name: "vdd_io", pinName: "VDD" },
+            { name: "out", pinName: "OUT" },
+          ],
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it("opens a Circuit Component on that artwork, its supply pins unmapped, mapped to supplies or mapped to pins", () => {
+    const artwork = withSupplyPins(
+      builtInSymbols.find((symbol) => symbol.id === "opamp")!,
+    );
+    const signals = [
+      { terminalId: "ea-VIP", pinName: "IN+" },
+      { terminalId: "ea-VIN", pinName: "IN-" },
+      { terminalId: "ea-VOUT", pinName: "OUT" },
+    ];
+    const open = (
+      ports: string[],
+      supplies: ({ terminalId: string } & (
+        { pinName: string } | { supply: "VDD" | "VSS" }
+      ))[],
+    ) => {
+      const project = createEmptyProject("ea", "Error amplifier");
+      project.externalSubcircuitDefinitions.push({
+        id: "ea",
+        name: "EA",
+        interfaceStatus: "declared",
+        formalParameters: [],
+        terminals: ports.map((name) => ({
+          id: `ea-${name}`,
+          name,
+          direction: "passive" as const,
+        })),
+      });
+      project.componentDefinitions = [
+        {
+          symbol: { ...artwork, id: "ea-artwork" },
+          circuitBinding: {
+            definitionId: "ea",
+            terminals: [...signals, ...supplies],
+          },
+        },
+      ];
+      project.documents[0]!.instances.push({
+        id: "X1",
+        reference: "X1",
+        symbolId: "ea-artwork",
+        placement: null,
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: "ea" },
+          parameters: {},
+        },
+      });
+      const loaded = parseProject(serializeProject(project));
+      const resolver = createProjectSymbolResolver(loaded, builtInSymbols);
+      return (variant?: string) => {
+        const resolved = resolver.resolve("ea-artwork", variant)!;
+        return resolved.definition.pins.map((pin) => [
+          pin.name,
+          pin.role,
+          pin.presentation.visibility === "implicit" ||
+          resolved.variant?.hiddenPinNames.includes(pin.name)
+            ? "hidden"
+            : "drawn",
+        ]);
+      };
+    };
+    // Unmapped, they draw nothing, shown or not.
+    const signalOnly = open(["VIP", "VIN", "VOUT"], []);
+    expect(signalOnly("supply-pins").map(([name]) => name)).toEqual([
+      "VIP",
+      "VIN",
+      "VOUT",
+    ]);
+    // A supply mapping stays a property terminal.
+    expect(
+      open(
+        ["VIP", "VIN", "VOUT", "VDD", "VSS"],
+        [
+          { terminalId: "ea-VDD", supply: "VDD" },
+          { terminalId: "ea-VSS", supply: "VSS" },
+        ],
+      )("supply-pins").slice(3),
+    ).toEqual([
+      ["VDD", "inout", "hidden"],
+      ["VSS", "inout", "hidden"],
+    ]);
+    // Mapped to pins, they are their terminals' plain pins, drawn on request.
+    const pinned = open(
+      ["VIP", "VIN", "VOUT", "VDD", "VSS"],
+      [
+        { terminalId: "ea-VDD", pinName: "VDD" },
+        { terminalId: "ea-VSS", pinName: "VSS" },
+      ],
+    );
+    expect(pinned().slice(3)).toEqual([
+      ["VDD", "inout", "hidden"],
+      ["VSS", "inout", "hidden"],
+    ]);
+    expect(pinned("supply-pins").slice(3)).toEqual([
+      ["VDD", "inout", "drawn"],
+      ["VSS", "inout", "drawn"],
+    ]);
   });
 });

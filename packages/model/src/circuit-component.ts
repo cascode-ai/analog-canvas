@@ -4,7 +4,10 @@ import type {
   SymbolDefinition,
   ProjectModelSource,
 } from "./schema.js";
-import type { ComponentInterfaceIssue } from "./component-interface.js";
+import {
+  isOptionalSupplyPin,
+  type ComponentInterfaceIssue,
+} from "./component-interface.js";
 import { ComponentDefinitionSchema } from "./schema/component-definition.js";
 import { deriveStableId } from "./ids.js";
 
@@ -166,11 +169,17 @@ export function circuitComponentIssues(
         ["circuitBinding", "terminals"],
         `Map native terminal ${terminal.name} to a graphical pin or an explicit supply`,
       );
-  for (const pin of pins)
-    if (!mappedPins.has(pin))
+  // A supply pin the artwork draws only on request may stay unmapped: it
+  // then draws nothing, and the supply mapping, if any, is a property
+  // terminal as with artwork that has no such pin (#1833).
+  for (const pin of component.symbol.pins)
+    if (
+      !mappedPins.has(pin.name) &&
+      !isOptionalSupplyPin(component.symbol, pin)
+    )
       report(
         ["symbol", "pins"],
-        `Map graphical pin ${pin} to a native terminal`,
+        `Map graphical pin ${pin.name} to a native terminal`,
       );
   return issues;
 }
@@ -217,17 +226,28 @@ export function projectCircuitSymbol(
     ),
   );
   const rename = (name: string) => names.get(name) ?? name;
+  // An unmapped optional supply pin draws nothing (#1833). A mapped one is
+  // its native terminal's pin, no supply: unwired, it is unconnected.
+  const optional = new Set(
+    component.symbol.pins
+      .filter((pin) => isOptionalSupplyPin(component.symbol, pin))
+      .map((pin) => pin.name),
+  );
+  const dropped = new Set([...optional].filter((name) => !names.has(name)));
   return {
     ...component.symbol,
     pins: [
-      ...component.symbol.pins.map((pin) => ({
-        ...pin,
-        name: rename(pin.name),
-        presentation: {
-          ...pin.presentation,
-          displayName: pin.presentation.displayName ?? pin.name,
-        },
-      })),
+      ...component.symbol.pins
+        .filter((pin) => !dropped.has(pin.name))
+        .map((pin) => ({
+          ...pin,
+          name: rename(pin.name),
+          ...(optional.has(pin.name) ? { role: "inout" } : {}),
+          presentation: {
+            ...pin.presentation,
+            displayName: pin.presentation.displayName ?? pin.name,
+          },
+        })),
       ...component.circuitBinding!.terminals.flatMap((mapping) =>
         "supply" in mapping
           ? [
@@ -246,7 +266,9 @@ export function projectCircuitSymbol(
     ],
     variants: component.symbol.variants.map((variant) => ({
       ...variant,
-      hiddenPinNames: variant.hiddenPinNames.map(rename),
+      hiddenPinNames: variant.hiddenPinNames
+        .filter((name) => !dropped.has(name))
+        .map(rename),
       ...(variant.auxiliaryPins
         ? {
             auxiliaryPins: variant.auxiliaryPins.map((pin) => ({

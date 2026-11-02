@@ -25,6 +25,36 @@ interface ComponentInterface {
     | undefined;
 }
 
+/** The roles of supply pins a drawing shows on request (#1833). */
+const OPTIONAL_SUPPLY_PIN_ROLES: ReadonlySet<string> = new Set([
+  "positive-supply",
+  "negative-supply",
+]);
+
+/**
+ * A supply pin a symbol draws only on request: a supply role its default
+ * variant hides. It draws the supply port of its name; left unwired, shown or
+ * hidden, that supply takes its Net in Properties or Auto.
+ */
+export function isOptionalSupplyPin(
+  symbol: {
+    readonly variants: readonly {
+      readonly id: string;
+      readonly hiddenPinNames: readonly string[];
+    }[];
+    readonly defaultVariantId?: string | undefined;
+  },
+  pin: { readonly name: string; readonly role: string },
+): boolean {
+  return (
+    OPTIONAL_SUPPLY_PIN_ROLES.has(pin.role) &&
+    (symbol.variants
+      .find((variant) => variant.id === symbol.defaultVariantId)
+      ?.hiddenPinNames.includes(pin.name) ??
+      false)
+  );
+}
+
 export function componentInterfaceIssues(
   definition: ComponentInterface,
 ): ComponentInterfaceIssue[] {
@@ -61,7 +91,24 @@ export function componentInterfaceIssues(
     });
   if (!definition.subcircuit) return issues;
   const names = new Set<string>();
-  const mapped = new Set<string>();
+  // A Symbol pin named after a supply, and mapped by no port, draws that
+  // supply's ports (#1833); ports of one supply meet one Net, so they share
+  // it. A pin a port maps stays that port's, beside a supply of its name.
+  const named = new Set(
+    definition.subcircuit.ports.flatMap((port) =>
+      port.pinName === undefined ? [] : [port.pinName],
+    ),
+  );
+  const mapped = new Set<string>(
+    definition.subcircuit.ports.flatMap((port) =>
+      port.pinName === undefined &&
+      port.supply &&
+      pins.has(port.supply) &&
+      !named.has(port.supply)
+        ? [port.supply]
+        : [],
+    ),
+  );
   for (const [index, port] of definition.subcircuit.ports.entries()) {
     const name = port.name.toLowerCase();
     if (names.has(name))
