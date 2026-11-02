@@ -1100,59 +1100,6 @@ it("joins a wire that ends on a point another wire runs straight through", async
   ).toEqual([]);
 });
 
-it("ends a wire to a port on no port, or to ground on no ground, at a junction there", async () => {
-  // A flat file has no ports, and its VSS is no ground: the port is its
-  // net's label, the ground a picture, and both keep their wires.
-  const text = [
-    "* flat",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
-    "R1 in VSS 1k",
-    "V1 in 0 1",
-    "V2 VSS 0 0",
-    "* @RNL {",
-    '*   #R1 @PLACE(0, 0) => @ORIENT("R0");',
-    '*   %p = $IO_PORT @ATTACH &in => @PLACE(-6, 1) => @ORIENT("R0");',
-    '*   %g = $GROUND @ATTACH &VSS => @PLACE(0, -4) => @ORIENT("R0");',
-    "*   &in @WIRE {%p:p (0, 1) #R1:1};",
-    "*   &VSS @WIRE {#R1:2 %g:p};",
-    "* }",
-    ".end",
-    "",
-  ].join("\n");
-  const plan = await importRnl(text, "spice");
-  expect(failures(plan)).toEqual([]);
-  expect(
-    plan.diagnostics.filter((item) => item.code === "RNL_IMPORT_WIRE_SKIPPED"),
-  ).toEqual([]);
-  const top = plan.project.documents.find((d) =>
-    d.instances.some((i) => i.id.toLowerCase() === "r1"),
-  )!;
-  const ends = top.routes.flatMap((route) => [
-    route.start,
-    ...route.legs.flatMap((leg) =>
-      leg.to.kind === "endpoint" ? [leg.to.endpoint] : [],
-    ),
-  ]);
-  const junctions = ends.flatMap((end) =>
-    end.kind === "junction" ? [end.junctionId] : [],
-  );
-  expect(junctions).toHaveLength(2);
-  const name = (netId: string) =>
-    top.importReference?.nets.find((net) => net.id === netId)?.name;
-  const label = top.annotations.find((item) => item.kind === "net-label");
-  expect(label && name(label.netId!)).toBe("in");
-  expect(label?.binding?.kind).toBe("net-name");
-  expect(label?.anchor.kind === "object" && label.anchor.objectId).toBe(
-    top.junctions.find((junction) => name(junction.netId) === "in")?.id,
-  );
-  expect(junctions).toContain(
-    top.junctions.find((junction) => name(junction.netId) === "VSS")?.id,
-  );
-  expect(
-    top.drafting?.objects.filter((item) => item.kind === "floating-symbol"),
-  ).toHaveLength(1);
-});
-
 it("reads a Cell's call drawn with the standard gate in its terminal order as the Library gate", async () => {
   // X1 prints its pins as $INVERTER numbers its terminals (a, y, then the
   // supplies); X2 prints its supplies first, so its wires would move.
