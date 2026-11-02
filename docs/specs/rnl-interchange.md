@@ -98,7 +98,9 @@ the RNL language and its runtime belong to rnl.
   Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
   Delay Cell, op-amp or comparator) back as that library symbol, a gate's
   pins meeting its Cell's Pins by name, only when the name, artwork and positional pins are the ones
-  the export writes; any other call keeps its block and warns
+  the export writes. A call drawn with a standard gate symbol reads back as
+  that Library gate when it prints the Cell's Pins in the symbol's terminal
+  order and they meet the gate's pins by name; any other call keeps its block and warns
   `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
   as a cubic, a straight one as a cubic with its controls on the leg.
 - Diamond appearances of VCVS, VCCS, CCVS and CCCS export as the standard
