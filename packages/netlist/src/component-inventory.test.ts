@@ -163,12 +163,17 @@ describe("authoring inventory agrees with real electrical extraction", () => {
               !definition.symbol.id.startsWith("comparator-differential") ||
               port.supply !== "VSS",
           )
-          .map((port) => ({
-            pinName: port.name,
-            netName:
-              port.supply ??
-              `N${definition.symbol.pins.findIndex((pin) => pin.name === port.pinName)}`,
-          })),
+          .map((port) => {
+            // A supply the symbol draws a pin for, as an op-amp's VDD, meets
+            // that pin's Net (#1833); another meets the Cell's supply.
+            const pin = definition.symbol.pins.findIndex(
+              (item) => item.name === (port.pinName ?? port.supply),
+            );
+            return {
+              pinName: port.name,
+              netName: pin < 0 ? port.supply : `N${pin}`,
+            };
+          }),
       );
     },
   );

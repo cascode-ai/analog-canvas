@@ -1,5 +1,5 @@
 import { routeEnd, type SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
 import { rejectedEditMutation, type RejectEdit } from "./transaction-domain.js";
 
@@ -32,7 +32,11 @@ export function applyPropertyTerminalEdit(
       [],
       [instance.id],
     );
-  if (symbol.definition.pins.some((pin) => pin.name === edit.pinName))
+  // A pin the symbol draws is wired; a 3-terminal MOS body follows its own
+  // body binding. One without canvas presence takes its Net here (#1833): a
+  // supply a Circuit Component maps to no pin of its artwork, or one an
+  // op-amp's variant hides.
+  if (drawnPinNames(symbol).includes(edit.pinName))
     return refuse(
       "EDIT_PRECONDITION",
       `Canvas terminal ${instance.id}.${edit.pinName} must be wired, not property-bound`,

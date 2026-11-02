@@ -16,6 +16,10 @@ import {
   ANALOG_TRIANGLE_PATH,
   ANALOG_TRIANGLE_OUTPUT_X,
   ANALOG_TRIANGLE_VIEWBOX,
+  OPAMP_SIGNAL_PINS_VARIANT,
+  OPAMP_SUPPLY_LEAD_PARTS as SUPPLY_LEAD_PARTS,
+  OPAMP_SUPPLY_PINS_VARIANT,
+  OPAMP_SUPPLY_ROLES as SUPPLY_ROLES,
 } from "./lib/analog-triangle.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -191,6 +195,57 @@ symbol.primitives.push(
     symbol.pins.find((pin) => pin.role === "non-inverting-input"),
   ),
 );
+// Its supplies are pins a drawing may show (#1833): VDD above and VSS below,
+// each on a lead from the slanted edge to the body's extent, so a wire leaves
+// clear of the body. The textbook draws neither, so neither is drawn unless
+// an Instance shows them; the netlist meets each supply either way. They
+// follow the signal pins and marks, whose positions the forms derived below
+// read.
+const SUPPLY_PIN_X = 0;
+const supplyContactY = Number(
+  (
+    ((OPAMP_BODY_APEX_X - SUPPLY_PIN_X) /
+      (OPAMP_BODY_APEX_X - OPAMP_BODY_LEFT_X)) *
+    ANALOG_TRIANGLE.bottomY
+  ).toFixed(6),
+);
+for (const [name, role, side, direction] of [
+  ["VDD", "positive-supply", -1, "north"],
+  ["VSS", "negative-supply", 1, "south"],
+]) {
+  const at = { x: SUPPLY_PIN_X, y: side * ANALOG_TRIANGLE.bottomY };
+  symbol.pins.push({
+    name,
+    role,
+    at,
+    direction,
+    presentation: {
+      visibility: "visible",
+      leadLength: ANALOG_BLOCK_LEAD_LENGTH,
+    },
+  });
+  symbol.primitives.push({
+    ...line({ from: { x: SUPPLY_PIN_X, y: side * supplyContactY }, to: at }),
+    part: SUPPLY_LEAD_PARTS[name],
+  });
+}
+symbol.defaultVariantId = OPAMP_SIGNAL_PINS_VARIANT;
+symbol.variants = [
+  {
+    id: OPAMP_SIGNAL_PINS_VARIANT,
+    hiddenPinNames: ["VDD", "VSS"],
+    hiddenPrimitiveParts: Object.values(SUPPLY_LEAD_PARTS),
+    additionalPrimitives: [],
+  },
+  {
+    id: OPAMP_SUPPLY_PINS_VARIANT,
+    hiddenPinNames: [],
+    hiddenPrimitiveParts: [],
+    additionalPrimitives: [],
+  },
+];
+/** The op-amp's own pins, without the supplies only it may show. */
+const signalPins = symbol.pins.filter((pin) => !SUPPLY_ROLES.has(pin.role));
 const assetSource = normalize(
   await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
 );
@@ -391,7 +446,7 @@ const generation = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 6,
+  converterVersion: 7,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialGeneration = {
@@ -436,7 +491,7 @@ for (const id of ["comparator", "comparator-unmarked"]) {
   const next = {
     ...previous,
     viewBox: symbol.viewBox,
-    pins: symbol.pins,
+    pins: signalPins,
     primitives: [
       ...symbol.primitives.slice(0, id === "comparator" ? 7 : 4),
       ...previous.primitives

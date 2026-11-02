@@ -180,6 +180,13 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     description: "",
     help: "Draw the controlled source as a circle or a diamond. Only the outline changes: its netlist, pins and wiring stay the same.",
   },
+  {
+    path: "appearance.supplyPins",
+    label: "Supply pins",
+    kind: "boolean",
+    description: "",
+    help: "Draw the op-amp's VDD and VSS as pins to wire. Hidden, each takes the Net chosen in its row, or the Cell's supply on Auto; the netlist is the same either way.",
+  },
 ];
 
 export function colorToRgb(value: string): [number, number, number] {

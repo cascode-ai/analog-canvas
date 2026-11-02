@@ -19,9 +19,15 @@ owns visual authority.
 - A variant may hide named pins or parts and add reviewed primitives; it never
   adds, deletes, reconnects or renames electrical pins. Hidden pins keep
   membership but leave snap, flightline and formal-pin presentation.
+- A pin a variant hides without offering it elsewhere on its art takes its Net
+  in Properties; no wire or No Connect ends on it. A variant that would hide a
+  wired or marked pin is refused, as is one that would draw a supply whose Net
+  Properties set (set it to Auto first).
 - An optional supply pin has role `positive-supply` or `negative-supply` and
-  is hidden by its symbol's default variant. A subcircuit supply port is drawn
-  by the Symbol pin named after its supply where no port maps that pin.
+  is hidden by its symbol's default variant, as an op-amp's `VDD`/`VSS`:
+  `signal-pins`, the default, hides them and their leads; `supply-pins` draws
+  them. Drawn and unwired, it is Auto, as hidden. A subcircuit supply port is
+  drawn by the Symbol pin named after its supply where no port maps that pin.
 - `port`, `port-filled`, `vdd-port` have one pin `P`; naming and interface
   follow the [schematic model](schematic-model.md). `nmos`/`pmos` keep D/G/S/B;
   default variant `textbook-3terminal` may hide bulk and never implies `B=S`;
@@ -41,7 +47,8 @@ owns visual authority.
   pins; none is inferred from model spelling.
 - Instances keep exact Symbol and variant IDs; Projects capture definitions,
   which override the shipped catalog (a catalog update never repairs
-  captured artwork).
+  captured artwork; only the snapshot repairs in
+  [persistence](persistence-and-recovery.md#protocol-level-rules) do).
 - Signed amplifier strokes sit beside their named pins, derived from semantic
   pins and verified separately.
 

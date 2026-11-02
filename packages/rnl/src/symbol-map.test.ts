@@ -166,8 +166,18 @@ describe("the RNL symbol list", () => {
   it("draws a pin wherever Analog Canvas shows one, and only there", () => {
     for (const entry of drawnFromCanvas) {
       const symbol = symbols.get(entry.ac!)!;
+      // A row of no variant draws a default variant no row of its own draws,
+      // as an op-amp's that hides its supplies (#1833); a MOS default has one.
+      const variantId =
+        entry.variant ??
+        (drawnFromCanvas.some(
+          (row) =>
+            row.ac === entry.ac && row.variant === symbol.defaultVariantId,
+        )
+          ? null
+          : symbol.defaultVariantId);
       const hidden = new Set(
-        symbol.variants?.find((variant) => variant.id === entry.variant)
+        symbol.variants?.find((variant) => variant.id === variantId)
           ?.hiddenPinNames ?? [],
       );
       const shown = symbol.pins.filter((pin) => !hidden.has(pin.name));

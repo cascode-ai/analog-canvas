@@ -1036,6 +1036,42 @@ describe("authoring helper compilation", () => {
     ).toBe(false);
   });
 
+  it("sends set-terminal-net as the Properties choice of a hidden terminal's Net (#1833)", () => {
+    const snapshot = testSnapshot();
+    snapshot.document.instances.push({
+      ...structuredClone(snapshot.document.instances[1]!),
+      id: "instance-inverter",
+      reference: "X1",
+      symbolId: "inverter",
+    });
+    const target = { kind: "instance", reference: "X1" };
+    const [chosen] = compile(
+      [
+        {
+          kind: "set-terminal-net",
+          target,
+          pin: "VDD",
+          net: { kind: "net", name: "VDD" },
+        },
+      ],
+      snapshot,
+    );
+    expect(chosen?.command).toEqual({
+      kind: "set-properties",
+      instanceId: "instance-inverter",
+      terminals: { VDD: "net-vdd" },
+    });
+    const [cleared] = compile(
+      [{ kind: "set-terminal-net", target, pin: "CT", net: null }],
+      snapshot,
+    );
+    expect(cleared?.command).toEqual({
+      kind: "set-properties",
+      instanceId: "instance-inverter",
+      terminals: { CT: null },
+    });
+  });
+
   it("compiles add-label with a derived position from net geometry", () => {
     const [transaction] = compile([
       {

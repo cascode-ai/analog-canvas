@@ -112,6 +112,10 @@ import {
 } from "../features/instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import {
+  componentSupplyPins,
+  supplyPinsEdit,
+} from "../features/properties/component-visual-variants";
+import {
   planDisplayAlias,
   planNetLabelAlias,
 } from "../features/properties/group-naming";
@@ -1236,6 +1240,19 @@ export function planBrowserAgentCommand(
           );
         }
       }
+      // An op-amp's VDD and VSS drawn as pins, as its Properties Supply pins
+      // switch draws them (#1833).
+      if (command.showSupplyPins !== undefined)
+        for (const id of new Set(command.instanceIds)) {
+          const instance = document.instances.find((item) => item.id === id);
+          if (!instance) throw new Error(`Instance not found: ${id}`);
+          if (componentSupplyPins(instance, resolver) === undefined)
+            throw new Error(
+              `${instance.reference ?? instance.id} (${instance.symbolId}) has no supply pins to show; showSupplyPins is for an op-amp`,
+            );
+          const edit = supplyPinsEdit(instance, command.showSupplyPins);
+          if (edit) edits.push(edit);
+        }
       return { edits };
     }
     case "place-cell": {

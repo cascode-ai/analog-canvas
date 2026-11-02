@@ -151,7 +151,9 @@ export const FOCUSED_TOOLS = [
       "set-reference",
       "set-property",
       "set-signal-flow",
-      "set-block-supply",
+      // set-terminal-net covers set-block-supply (pin VDD or VSS), which
+      // apply_actions still takes; both together exceed the host budget.
+      "set-terminal-net",
       "set-source-control",
       "set-model",
       "set-instance-display",

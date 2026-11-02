@@ -18,6 +18,7 @@ import { executeProjectTransaction } from "@icm/edit-engine";
 import {
   createEmptyDocument,
   createEmptyProject,
+  createRoutePath,
   flattenRichText,
   sameStyledText,
   type CircuitProject,
@@ -1645,6 +1646,91 @@ it("keeps a wire RNL draws on a Cell's GND, which it reads as ground (#1784)", a
   );
   const dut = plan.project.documents.find((d) => d.netlist?.name === "dut")!;
   expect(dut.routes).toHaveLength(1);
+});
+
+it("keeps an op-amp's wired VDD on its Net through spice+RNL, which draws no supply pin (#1833)", async () => {
+  const project = createEmptyProject("supplies", "Supplies", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const at = (x: number, y: number) => ({
+    position: { x, y },
+    rotation: 0 as const,
+    mirror: "none" as const,
+  });
+  // The op-amp's VDD pin at (100, 70); the marker's P straight above it.
+  document.instances.push(
+    {
+      id: "block",
+      symbolId: "opamp",
+      symbolVariantId: "supply-pins",
+      reference: "X1",
+      placement: at(100, 100),
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "opamp" },
+        parameters: {},
+      },
+    },
+    { id: "rail", symbolId: "vdd-port", placement: at(100, 30) },
+  );
+  for (const [pinName, port] of [
+    ["IN+", "VIP"],
+    ["IN-", "VIN"],
+    ["OUT", "VOUT"],
+  ] as const) {
+    const id = `pin-${port}`;
+    document.instances.push({ id, symbolId: "port", placement: null });
+    document.nets.push({
+      id: `net-${port}`,
+      terminals: [
+        { instanceId: id, pinName: "P" },
+        { instanceId: "block", pinName },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: `terminal-${port}`,
+      name: port,
+      netId: `net-${port}`,
+      direction: "inout",
+      interfaceInstanceIds: [id],
+    });
+  }
+  document.nets.push({
+    id: "net-vdd",
+    terminals: [
+      { instanceId: "block", pinName: "VDD" },
+      { instanceId: "rail", pinName: "P" },
+    ],
+  });
+  document.routes.push(
+    createRoutePath({
+      id: "wire",
+      netId: "net-vdd",
+      start: { kind: "terminal", instanceId: "block", pinName: "VDD" },
+      end: { kind: "terminal", instanceId: "rail", pinName: "P" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  // RNL fails a wire to a terminal its symbol draws no pin for (9.2.4).
+  const exported = createRnlExport(project, { format: "spice" });
+  expect(exported.diagnostics.map((item) => item.code)).toContain(
+    "RNL_PIN_NOT_DRAWN",
+  );
+  const plan = await roundTrip(project);
+  expect(failures(plan)).toEqual([]);
+  const dut = plan.project.documents.find((d) => d.netlist?.name === "dut")!;
+  const amplifier = dut.instances.find((item) => item.symbolId === "opamp")!;
+  const netOf = (instanceId: string, pinName: string) =>
+    dut.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === pinName,
+      ),
+    )?.id;
+  const rail = dut.instances.find((item) => item.symbolId === "vdd-port");
+  expect(netOf(amplifier.id, "VDD")).toBeDefined();
+  expect(rail).toBeDefined();
+  expect(netOf(amplifier.id, "VDD")).toBe(netOf(rail!.id, "P"));
 });
 
 it("gives a Spectre card its own name again through Spectre+RNL", async () => {

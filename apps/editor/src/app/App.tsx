@@ -176,11 +176,11 @@ import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
 import {
-  blockSupplyTerminals,
   gateCellChoices,
   gateCellTargetName,
   gateExternalChoices,
 } from "../features/properties/gate-cell-target";
+import { hiddenTerminals } from "../features/properties/hidden-terminals";
 import { componentSourceCode } from "../features/properties/component-source-code";
 import {
   endpointTestId,
@@ -4053,15 +4053,19 @@ function WorkspaceEditor({
   const selectedPortLogicalName = selectedPortNet
     ? logicalNets.byBaseNetId.get(selectedPortNet.id)?.name
     : undefined;
-  // A standard cell's rails are the gate's VDD/VSS supply rows (#1450).
-  const selectedPropertyOnlyTerminal =
-    selectedReviewedExternalBinding?.terminals.find(
-      (terminal) => terminal.interaction === "property" && !terminal.supply,
-    );
+  // The terminals no pin draws (#1833): a supply is a row of the property
+  // code, Auto while unset; a reviewed device's own terminal (a substrate, an
+  // inductor's CT) is a Net row of its own.
+  const selectedHiddenTerminals = selectedInstance
+    ? hiddenTerminals(project, selectedInstance, resolver)
+    : [];
+  const selectedPropertyOnlyTerminals = selectedHiddenTerminals.filter(
+    (terminal) => !terminal.rail,
+  );
   // Only the property-terminal identity card displays this source. Ordinary
   // component controls use their own editable property code, not this projection.
   const componentSourceVisible =
-    selectionOpen && Boolean(selectedPropertyOnlyTerminal);
+    selectionOpen && selectedPropertyOnlyTerminals.length > 0;
   const selectedComponentSourceCode = useMemo(
     () =>
       componentSourceVisible && selectedInstance
@@ -4074,19 +4078,9 @@ function WorkspaceEditor({
         : null,
     [document.id, project, resolver, selectedInstance, componentSourceVisible],
   );
-  const selectedPropertyOnlyTerminalNet =
-    selectedInstance && selectedPropertyOnlyTerminal
-      ? document.nets.find((net) =>
-          net.terminals.some(
-            (terminal) =>
-              terminal.instanceId === selectedInstance.id &&
-              terminal.pinName === selectedPropertyOnlyTerminal.pinName,
-          ),
-        )
-      : undefined;
-  const selectedBuiltInSupplies = selectedInstance
-    ? blockSupplyTerminals(project, selectedInstance)
-    : undefined;
+  const selectedSupplyTerminals = selectedHiddenTerminals.filter(
+    (terminal) => terminal.rail,
+  );
   // The model Properties shows: a model, a reviewed device or standard cell,
   // or the Cell or external definition a Library part is bound to (#1450,
   // #1928).
@@ -6241,41 +6235,41 @@ function WorkspaceEditor({
                           selectedSupplyMarker && !selectedFormalTerminal
                             ? (selectedPortLogicalName ?? "")
                             : null,
-                        supplyTerminals: selectedBuiltInSupplies?.map(
-                          (supply) => {
-                            const netId =
-                              document.nets.find((net) =>
-                                net.terminals.some(
-                                  (terminal) =>
-                                    terminal.instanceId ===
-                                      selectedInstance.id &&
-                                    terminal.pinName === supply,
-                                ),
-                              )?.id ?? "";
-                            const auto = logicalSupplyNetChoice(
-                              document,
-                              supply === "VDD" ? "vdd" : "ground",
-                            );
-                            return {
-                              pinName: supply,
-                              netId,
-                              options: [
-                                {
-                                  value: "",
-                                  label: auto
-                                    ? `Auto · ${auto.label}`
-                                    : "Auto · unresolved",
-                                  previewNetId: auto?.netId ?? null,
-                                },
-                                ...netChoices.map((choice) => ({
-                                  value: choice.netId,
-                                  label: choice.label,
-                                  baseNetIds: choice.baseNetIds,
-                                })),
-                              ],
-                            };
-                          },
-                        ),
+                        supplyTerminals: selectedSupplyTerminals.length
+                          ? selectedSupplyTerminals.map((supply) => {
+                              const netId =
+                                document.nets.find((net) =>
+                                  net.terminals.some(
+                                    (terminal) =>
+                                      terminal.instanceId ===
+                                        selectedInstance.id &&
+                                      terminal.pinName === supply.pinName,
+                                  ),
+                                )?.id ?? "";
+                              const auto = logicalSupplyNetChoice(
+                                document,
+                                supply.rail === "VDD" ? "vdd" : "ground",
+                              );
+                              return {
+                                pinName: supply.pinName,
+                                netId,
+                                options: [
+                                  {
+                                    value: "",
+                                    label: auto
+                                      ? `Auto · ${auto.label}`
+                                      : "Auto · unresolved",
+                                    previewNetId: auto?.netId ?? null,
+                                  },
+                                  ...netChoices.map((choice) => ({
+                                    value: choice.netId,
+                                    label: choice.label,
+                                    baseNetIds: choice.baseNetIds,
+                                  })),
+                                ],
+                              };
+                            })
+                          : undefined,
                         onPreviewControlNet: (netId: string | null) =>
                           setControlOptionPreview(
                             netId
@@ -6475,41 +6469,42 @@ function WorkspaceEditor({
                               )
                             : null,
                         capacitorPlateRows: selectedCapacitorPlateRows,
-                        propertyTerminal:
-                          selectedInstance && selectedPropertyOnlyTerminal
-                            ? {
-                                label:
-                                  selectedPropertyOnlyTerminal.role ===
-                                  "substrate"
-                                    ? "Substrate Net"
-                                    : `${selectedPropertyOnlyTerminal.targetName} Net`,
-                                pinName: selectedPropertyOnlyTerminal.pinName,
-                                netId:
-                                  selectedPropertyOnlyTerminalNet?.id ?? null,
-                                options: netChoices.map((logicalNet) => ({
-                                  netId: logicalNet.netId,
-                                  label: logicalNet.label,
-                                })),
-                                onChange: (netId) => {
-                                  const result = transact([
-                                    {
-                                      kind: "set_property_terminal_net",
-                                      instanceId: selectedInstance.id,
-                                      pinName:
-                                        selectedPropertyOnlyTerminal.pinName,
-                                      netId,
-                                    },
-                                  ]);
-                                  if (result.ok) {
-                                    setStatus(
-                                      netId
-                                        ? `Set ${selectedPropertyOnlyTerminal.targetName} to ${logicalNets.byBaseNetId.get(netId)?.name ?? netId}`
-                                        : `Cleared ${selectedPropertyOnlyTerminal.targetName} Net`,
-                                    );
-                                  }
+                        propertyTerminals: selectedPropertyOnlyTerminals.map(
+                          (hidden) => ({
+                            label: `${hidden.label} Net`,
+                            pinName: hidden.pinName,
+                            netId:
+                              document.nets.find((net) =>
+                                net.terminals.some(
+                                  (terminal) =>
+                                    terminal.instanceId ===
+                                      selectedInstance.id &&
+                                    terminal.pinName === hidden.pinName,
+                                ),
+                              )?.id ?? null,
+                            options: netChoices.map((logicalNet) => ({
+                              netId: logicalNet.netId,
+                              label: logicalNet.label,
+                            })),
+                            onChange: (netId: string | null) => {
+                              const result = transact([
+                                {
+                                  kind: "set_property_terminal_net",
+                                  instanceId: selectedInstance.id,
+                                  pinName: hidden.pinName,
+                                  netId,
                                 },
+                              ]);
+                              if (result.ok) {
+                                setStatus(
+                                  netId
+                                    ? `Set ${hidden.label} to ${logicalNets.byBaseNetId.get(netId)?.name ?? netId}`
+                                    : `Cleared ${hidden.label} Net`,
+                                );
                               }
-                            : null,
+                            },
+                          }),
+                        ),
                         modelTarget:
                           selectedInstance.netlist &&
                           (selectedInstance.netlist.binding?.kind === "model" ||

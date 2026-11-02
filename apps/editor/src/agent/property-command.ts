@@ -28,7 +28,10 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
 import { componentSourceShape } from "../features/properties/component-visual-variants";
-import { blockSupplyTerminals } from "../features/properties/gate-cell-target";
+import {
+  hiddenTerminals,
+  type HiddenTerminal,
+} from "../features/properties/hidden-terminals";
 import {
   logicGateInputInfo,
   type LogicGateInputCount,
@@ -309,17 +312,50 @@ export function planSetProperties(
   if (command.signalFlow) {
     value.signalFlow = nextSignalFlow(instance, command.signalFlow, resolver);
   }
-  if (command.supplies) {
-    // Those Properties shows: a gate bound to a Cell has the Cell's (#1450).
-    const supplies = blockSupplyTerminals(project, instance) ?? [];
-    value.supplies = {};
-    for (const [pinName, netId] of Object.entries(command.supplies)) {
-      if (netId === undefined) continue;
-      if (!supplies.some((supply) => supply === pinName))
-        throw new Error(`${name} has no ${pinName} supply to choose`);
+  if (command.supplies || command.terminals) {
+    // Those Properties lists (#1833): a gate bound to a Cell has the Cell's
+    // supplies (#1450), a Circuit Component those it maps to no pin.
+    const hidden = hiddenTerminals(project, instance, resolver);
+    const choose = (terminal: HiddenTerminal, netId: string | null) => {
       if (netId !== null && !document.nets.some((net) => net.id === netId))
         throw new Error(`Net not found: ${netId}`);
-      value.supplies[pinName] = netId ?? "";
+      if (terminal.rail)
+        (value.supplies ??= {})[terminal.pinName] = netId ?? "";
+      else (value.terminals ??= {})[terminal.pinName] = netId ?? "";
+    };
+    for (const [supply, netId] of Object.entries(command.supplies ?? {})) {
+      if (netId === undefined) continue;
+      const terminal =
+        hidden.find((item) => item.rail && item.pinName === supply) ??
+        hidden.find((item) => item.rail === supply);
+      if (!terminal)
+        throw new Error(`${name} has no ${supply} supply to choose`);
+      choose(terminal, netId);
+    }
+    for (const [pinName, netId] of Object.entries(command.terminals ?? {})) {
+      const terminal = hidden.find((item) => item.pinName === pinName);
+      if (terminal) {
+        choose(terminal, netId);
+        continue;
+      }
+      if (
+        resolver
+          .resolve(instance.symbolId, instance.symbolVariantId)
+          ?.definition.pins.some((pin) => pin.name === pinName)
+      )
+        throw new Error(`${name}.${pinName} is a pin of its symbol: wire it`);
+      const names = hidden.map((item) => item.pinName);
+      throw new Error(
+        `${name} has no terminal ${pinName} to set; ${
+          names.length
+            ? `those its symbol draws no pin for are ${
+                names.length < 2
+                  ? names[0]
+                  : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
+              }`
+            : "its symbol draws every terminal it has"
+        }`,
+      );
     }
   }
   let clearControl = false;

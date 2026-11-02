@@ -190,7 +190,7 @@ export function EditorPropertiesDock({
                     Open shared model source…
                   </button>
                 ) : null}
-                {component.identity.propertyTerminal ? (
+                {component.identity.propertyTerminals?.length ? (
                   <ComponentIdentityProperties
                     {...component.identity}
                     fieldsMovedToCode

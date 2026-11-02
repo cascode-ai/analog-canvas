@@ -22,6 +22,11 @@ current schema before import or Cloud Save.
   (idempotent, reported as migration). Resemblance to a built-in never
   authorizes repair of other artwork; the catalog never overwrites
   project-owned definitions; Gallery sources are not bulk-edited.
+- Op-amp supply-pin repair v1 gives the eight converter-v6 single-ended op-amp
+  snapshots, by content signature, their `VDD`/`VSS` pins and leads and the
+  variants that hide (default) or draw them, where the interface has both
+  supply ports; a drawing looks and netlists as it did. A Circuit Component's
+  artwork is never repaired.
 
 ## Browser recovery records
 

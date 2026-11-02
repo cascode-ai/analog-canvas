@@ -5,6 +5,7 @@ import {
   revealPropertiesShelf,
   editComponentPropertyCode,
   expectComponentCodeField,
+  exportedProject,
   openProjectFile,
   placeComponentAt,
   openProject,
@@ -183,6 +184,101 @@ test("Properties resumes displayed PDK source on opening and changing the select
   await closeSelectionShelf(page);
   await page.keyboard.press("q");
   await expect(source).toHaveText(text, { useInnerText: true });
+});
+
+test("a SKY130 inductor shows a Net row for each terminal it draws no pin for (#1833)", async ({
+  page,
+}) => {
+  const project = createEmptyProject(
+    "inductor-terminals",
+    "Inductor terminals",
+  );
+  project.externalSubcircuitDefinitions.push({
+    id: "sky-ind",
+    name: "sky130_fd_pr__ind_05_125",
+    interfaceStatus: "declared",
+    terminals: ["A", "B", "CT", "SUB"].map((name) => ({
+      id: `sky-ind-${name}`,
+      name,
+      direction: "passive",
+    })),
+    formalParameters: [],
+  });
+  const document = project.documents[0]!;
+  document.instances.push(
+    {
+      ...placedInstance("L1", "inductor", 300, 220),
+      reference: "L1",
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "sky-ind" },
+        parameters: {},
+      },
+    },
+    placedInstance("PT", "port", 100, 220),
+  );
+  document.nets.push({
+    id: "tap",
+    terminals: [{ instanceId: "PT", pinName: "P" }],
+  });
+  document.netlist!.terminals.push({
+    id: "terminal-tap",
+    name: "TAP",
+    netId: "tap",
+    direction: "inout",
+    interfaceInstanceIds: ["PT"],
+  });
+  await openProject(page, project, "inductor-terminals.icproj.json");
+  await page.getByTestId("hit-L1").click({ force: true });
+  await closeSelectionShelf(page);
+  await page.keyboard.press("q");
+  // Before, only the first of them, CT, had a row.
+  const tap = page.getByLabel("CT Net", { exact: true });
+  await expect(tap).toBeVisible();
+  await expect(page.getByLabel("Substrate Net", { exact: true })).toBeVisible();
+  await tap.selectOption("tap");
+  const saved = await exportedProject(page);
+  expect(
+    saved.documents[0].nets.find((net: { id: string }) => net.id === "tap")
+      .terminals,
+  ).toContainEqual({ instanceId: "L1", pinName: "CT" });
+});
+
+test("an op-amp's Supply pins switch draws VDD and VSS as pins to wire, and back (#1833)", async ({
+  page,
+}) => {
+  const project = createEmptyProject("supply-pins", "Supply pins");
+  project.documents[0]!.instances.push({
+    ...placedInstance("X1", "opamp", 360, 230),
+    reference: "X1",
+  });
+  await openProject(page, project, "supply-pins.icproj.json");
+  await page.getByTestId("hit-X1").click();
+  await openSelectionShelf(page);
+  const supplies = page.getByRole("switch", {
+    name: "Toggle supply pins visibility",
+  });
+  const vdd = page.getByTestId("terminal-X1-VDD");
+  const vss = page.getByTestId("terminal-X1-VSS");
+  await expect(supplies).toHaveAttribute("aria-checked", "false");
+  await expect(vdd).toHaveCount(0);
+
+  await supplies.click();
+  await expect(supplies).toHaveAttribute("aria-checked", "true");
+  await expect(vdd).toHaveCount(1);
+  await expect(vss).toHaveCount(1);
+  // VDD above the triangle, VSS below it.
+  expect((await vdd.boundingBox())!.y).toBeLessThan(
+    (await vss.boundingBox())!.y,
+  );
+  const shown = await exportedProject(page);
+  expect(shown.documents[0].instances[0].symbolVariantId).toBe("supply-pins");
+  await page
+    .locator('[data-layer="symbols"] [data-object-id="X1"]')
+    .screenshot({ path: test.info().outputPath("supply-pins-shown.png") });
+
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(supplies).toHaveAttribute("aria-checked", "false");
+  await expect(vdd).toHaveCount(0);
 });
 
 test("placed parts, the VDD marker and a legacy clock use the text-first Properties surface", async ({

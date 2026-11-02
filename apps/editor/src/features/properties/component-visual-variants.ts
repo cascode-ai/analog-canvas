@@ -1,4 +1,6 @@
-import type { Instance } from "@icm/model";
+import type { SchematicEdit } from "@icm/edit-engine";
+import { SUPPLY_PINS_VARIANT_ID, type Instance } from "@icm/model";
+import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 import { differentialInputSibling } from "../editor-shell/differential-input-swap";
 import { differentialOutputSibling } from "../editor-shell/differential-output-swap";
 
@@ -128,6 +130,45 @@ export function symbolForOutputsSwapped(
 const SHAPED_SOURCES = new Set(["vccs", "cccs", "vcvs", "ccvs"]);
 export const DIAMOND_SOURCE_VARIANT = "diamond";
 export type SourceShape = "circle" | "diamond";
+
+/**
+ * Whether a part shows its supply pins; undefined where it has none to show,
+ * as a project's own older drawing of an op-amp, or a Circuit Component whose
+ * artwork leaves them unmapped.
+ */
+export function componentSupplyPins(
+  instance: Pick<Instance, "symbolId" | "symbolVariantId">,
+  resolver: SymbolResolver | undefined,
+): boolean | undefined {
+  const shown = resolver?.resolve(instance.symbolId, SUPPLY_PINS_VARIANT_ID);
+  const placed = resolver?.resolve(instance.symbolId);
+  if (
+    !shown ||
+    !placed ||
+    drawnPinNames(shown).length <= drawnPinNames(placed).length
+  )
+    return undefined;
+  return instance.symbolVariantId === SUPPLY_PINS_VARIANT_ID;
+}
+
+/**
+ * Draws a part's VDD and VSS as pins to wire, or hides them so each takes its
+ * Net in Properties (#1833): its variant alone, as a source's shape. The
+ * netlist meets the same supplies either way. None where already as asked.
+ */
+export function supplyPinsEdit(
+  instance: Pick<Instance, "id" | "symbolId" | "symbolVariantId">,
+  shown: boolean,
+): SchematicEdit | undefined {
+  if (shown === (instance.symbolVariantId === SUPPLY_PINS_VARIANT_ID))
+    return undefined;
+  return {
+    kind: "set_instance_symbol",
+    instanceId: instance.id,
+    symbolId: instance.symbolId,
+    symbolVariantId: shown ? SUPPLY_PINS_VARIANT_ID : null,
+  };
+}
 
 export function componentSourceShape(
   instance: Pick<Instance, "symbolId" | "symbolVariantId">,

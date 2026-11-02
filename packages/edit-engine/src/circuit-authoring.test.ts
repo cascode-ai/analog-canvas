@@ -8,6 +8,7 @@ import {
 import {
   builtInSymbols,
   createProjectSymbolResolver,
+  drawnPinNames,
   externalSubcircuitSymbolId,
 } from "@icm/symbols";
 import { createExternalSubcircuitInstance } from "./hierarchy-planner.js";
@@ -592,5 +593,130 @@ describe("custom native artwork through the Project transaction", () => {
     )!;
     expect(migrated.symbol.pins.map((pin) => pin.name)).toEqual(["IN", "VSS"]);
     expect(migrated.symbol.primitives).toEqual(oldArtwork.symbol.primitives);
+  });
+});
+
+describe("op-amp artwork, its supply pins drawn on request (#1833)", () => {
+  const opamp = builtInSymbols.find((symbol) => symbol.id === "opamp")!;
+  /** Applies `ports` as native owner ea with the op-amp artwork as Custom. */
+  function applyOpampArtwork(
+    ports: string,
+    authoring: { artwork?: typeof opamp; pinMap?: Record<string, object> },
+  ) {
+    const project = createEmptyProject("ea", "Error amplifier");
+    const result = transact(project, [
+      {
+        kind: "apply_model_source",
+        source: {
+          id: "ea-source",
+          revision: 0,
+          language: "spice",
+          entry: "ea.spice",
+          dependencies: [],
+          files: [
+            {
+              path: "ea.spice",
+              text: `.subckt ea ${ports}\nR1 VIP VOUT 1k\nR2 VIN VOUT 1k\n.ends ea\n`,
+            },
+          ],
+        },
+        definitions: [
+          {
+            definitionId: "ea",
+            entry: "ea",
+            authoring: {
+              symbolMode: "custom",
+              artworkText: JSON.stringify({
+                symbol: { ...(authoring.artwork ?? opamp), id: "ea-artwork" },
+              }),
+              ...(authoring.pinMap ? { pinMap: authoring.pinMap } : {}),
+            },
+          },
+        ],
+      } as ProjectStructureEdit,
+    ]);
+    if (!result.ok) throw Error(result.error.message);
+    const owner = result.project.externalSubcircuitDefinitions[0]!;
+    const resolver = createProjectSymbolResolver(
+      result.project,
+      builtInSymbols,
+    );
+    const drawn = (variant?: string) =>
+      drawnPinNames(resolver.resolve(owner.symbolId!, variant)!);
+    return { project: result.project, owner, resolver, drawn };
+  }
+  const signalPins = {
+    VIP: { pinName: "IN+" },
+    VIN: { pinName: "IN-" },
+    VOUT: { pinName: "OUT" },
+  };
+
+  it("binds a three-terminal model by name, leaving VDD and VSS unmapped and undrawn", () => {
+    // The artwork names its signal pins as the model does; VDD and VSS no
+    // terminal names.
+    const artwork = {
+      ...opamp,
+      pins: opamp.pins.map((pin) => ({
+        ...pin,
+        name: { "IN+": "VIP", "IN-": "VIN", OUT: "VOUT" }[pin.name] ?? pin.name,
+      })),
+    };
+    const { project, owner, drawn } = applyOpampArtwork("VIP VIN VOUT", {
+      artwork,
+    });
+    const component = project.componentDefinitions!.find(
+      (item) => item.symbol.id === owner.symbolId,
+    )!;
+    expect(
+      component.circuitBinding!.terminals.map((mapping) =>
+        "pinName" in mapping ? mapping.pinName : mapping.supply,
+      ),
+    ).toEqual(["VIP", "VIN", "VOUT"]);
+    expect(drawn()).toEqual(["VIP", "VIN", "VOUT"]);
+    expect(drawn("supply-pins")).toEqual(["VIP", "VIN", "VOUT"]);
+  });
+
+  it("keeps a five-terminal model's supplies on their rails, drawn by no pin", () => {
+    const { owner, resolver, drawn } = applyOpampArtwork(
+      "VIP VIN VOUT VDD VSS",
+      {
+        pinMap: {
+          ...signalPins,
+          VDD: { supply: "VDD" },
+          VSS: { supply: "VSS" },
+        },
+      },
+    );
+    expect(drawn("supply-pins")).toEqual(["VIP", "VIN", "VOUT"]);
+    expect(
+      resolver
+        .resolve(owner.symbolId!)!
+        .definition.pins.filter(
+          (pin) => pin.presentation.visibility === "implicit",
+        )
+        .map((pin) => pin.name),
+    ).toEqual(["VDD", "VSS"]);
+  });
+
+  it("draws VDD and VSS mapped to pins only when shown, as plain pins", () => {
+    const { owner, resolver, drawn } = applyOpampArtwork(
+      "VIP VIN VOUT VDD VSS",
+      {
+        pinMap: {
+          ...signalPins,
+          VDD: { pinName: "VDD" },
+          VSS: { pinName: "VSS" },
+        },
+      },
+    );
+    expect(drawn()).toEqual(["VIP", "VIN", "VOUT"]);
+    expect(drawn("supply-pins")).toEqual(["VIP", "VIN", "VOUT", "VDD", "VSS"]);
+    // Mapped, VDD is its terminal's pin: unwired, it is unconnected.
+    expect(
+      resolver
+        .resolve(owner.symbolId!)!
+        .definition.pins.filter((pin) => ["VDD", "VSS"].includes(pin.name))
+        .map((pin) => pin.role),
+    ).toEqual(["inout", "inout"]);
   });
 });

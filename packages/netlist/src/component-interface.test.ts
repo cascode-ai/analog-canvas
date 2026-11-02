@@ -30,9 +30,14 @@ function amplifierProject(symbolId = "opamp") {
     symbolId,
     placement: null,
   });
-  for (const [index, pin] of builtInSymbols
-    .find((symbol) => symbol.id === symbolId)!
-    .pins.entries()) {
+  // Each pin the part draws as placed; an op-amp's supplies stay hidden.
+  const symbol = builtInSymbols.find((item) => item.id === symbolId)!;
+  const hidden = new Set(
+    symbol.variants.find((variant) => variant.id === symbol.defaultVariantId)
+      ?.hiddenPinNames,
+  );
+  for (const [index, pin] of symbol.pins.entries()) {
+    if (hidden.has(pin.name)) continue;
     const pinName = pin.name,
       name = `N${index}`;
     document.nets.push({
@@ -210,12 +215,24 @@ describe("portable component interfaces meet real netlist export", () => {
       )!;
       const descriptor = component.subcircuit!;
       descriptor.target = "authored_gain";
+      // An interface without a VDD supply has no VDD pin to draw (#1833).
+      const dropVddPin = () => {
+        const symbol = component.symbol;
+        symbol.pins = symbol.pins.filter((pin) => pin.name !== "VDD");
+        for (const variant of symbol.variants)
+          variant.hiddenPinNames = variant.hiddenPinNames.filter(
+            (name) => name !== "VDD",
+          );
+      };
       if (change === "identity") descriptor.id = "authored-interface";
-      else if (change === "missing-supply") descriptor.ports.shift();
-      else if (change === "duplicate-supply") {
+      else if (change === "missing-supply") {
+        descriptor.ports.shift();
+        dropVddPin();
+      } else if (change === "duplicate-supply") {
         const vdd = descriptor.ports[0]!;
         if (!("supply" in vdd)) throw Error("Missing supply in fixture");
         vdd.supply = "VSS";
+        dropVddPin();
       } else descriptor.ports[2]!.direction = "output";
       project.externalSubcircuitDefinitions.push({
         id: "unrelated-master",

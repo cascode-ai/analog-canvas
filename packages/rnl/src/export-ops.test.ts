@@ -10,6 +10,7 @@ import {
 import {
   createEmptyDocument,
   createEmptyProject,
+  createRoutePath,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
@@ -462,6 +463,94 @@ describe("what RNL cannot write", () => {
       ]);
     },
   );
+});
+
+describe("an op-amp's shown supply pins (#1833)", () => {
+  it("leaves out a wire on VDD, which RNL's symbol draws no pin for, and says so", () => {
+    const project = createEmptyProject("supplies", "Supplies", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    const at = (x: number, y: number) => ({
+      position: { x, y },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    });
+    // The op-amp's VDD pin at (100, 70); the marker's P straight above it.
+    document.instances.push(
+      {
+        id: "block",
+        symbolId: "opamp",
+        symbolVariantId: "supply-pins",
+        reference: "X1",
+        placement: at(100, 100),
+        netlist: {
+          binding: { kind: "unresolved-subcircuit", name: "opamp" },
+          parameters: {},
+        },
+      },
+      { id: "rail", symbolId: "vdd-port", placement: at(100, 30) },
+    );
+    for (const pinName of ["IN+", "IN-", "OUT"]) {
+      const id = `pin-${pinName}`;
+      document.instances.push({ id, symbolId: "port", placement: null });
+      document.nets.push({
+        id: `net-${pinName}`,
+        terminals: [
+          { instanceId: id, pinName: "P" },
+          { instanceId: "block", pinName },
+        ],
+      });
+      document.netlist!.terminals.push({
+        id: `terminal-${pinName}`,
+        name: pinName === "OUT" ? "VOUT" : pinName === "IN+" ? "VIP" : "VIN",
+        netId: `net-${pinName}`,
+        direction: "inout",
+        interfaceInstanceIds: [id],
+      });
+    }
+    const start = {
+      kind: "terminal" as const,
+      instanceId: "block",
+      pinName: "VDD",
+    };
+    const end = { kind: "terminal" as const, instanceId: "rail", pinName: "P" };
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [
+        { instanceId: "block", pinName: "VDD" },
+        { instanceId: "rail", pinName: "P" },
+      ],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "wire",
+        netId: "net-vdd",
+        start,
+        end,
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const { text, ops, diagnostics } = exported(project);
+    // RNL fails a wire to a terminal its symbol draws no pin for (9.2.4).
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "warning",
+        code: "RNL_PIN_NOT_DRAWN",
+        message:
+          "X1 (opamp) has a wire on VDD, which RNL's $OPAMP_5TERM draws no pin for; the wire is left out, and the netlist still joins it",
+      }),
+    );
+    expect(
+      of(ops, "add-wire").some((wire) =>
+        wire.via.some(
+          (vertex) => "terminal" in vertex && vertex.terminal.startsWith("#X1"),
+        ),
+      ),
+    ).toBe(false);
+    // The netlist still joins VDD to the rail.
+    expect(text).toMatch(/^X1 VIP VIN VDD 0 VOUT /mu);
+  });
 });
 
 describe("blocks' symbols", () => {

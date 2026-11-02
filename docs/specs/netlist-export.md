@@ -418,9 +418,13 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   (`GND__2`, …) with information `GROUND_PIN_RENAMED`. `groundPin` selects the
   policy and `rootAsTopLevel` the deck Cell (`SIMULATION_DECK_GROUND`); the
   analyzer default keeps `0`.
-- Block `VDD`/`VSS` are hidden property terminals. An explicit binding
-  (Properties or Agent `circuit_properties` `set-block-supply {target, supply,
-net}`, `net: null` for Auto) wins; Auto takes the one drawn Net of the domain;
+- Block `VDD`/`VSS`, and the supplies a Circuit Component maps to no pin of its
+  artwork, are hidden property terminals; an op-amp's may be drawn as
+  [optional supply pins](symbol-dsl.md), and a wire on one binds it. An
+  explicit binding wins: Properties,
+  or the Agent's `set-terminal-net {target, pin, net}` (`apply_actions` also
+  takes `set-block-supply {target, supply, net}`), `net: null` for Auto. Auto
+  takes the one drawn Net of the domain;
   with none drawn, the one Net named `VDD`/`VSS`, else a new `VDD` pin plus
   ground (owner decision); competition blocks with `MISSING_BLOCK_SUPPLY`. Imported VDD hints are not supplies.
 - Bodies that never read supplies (ideal amplifiers, adder; SPICE multiplier and

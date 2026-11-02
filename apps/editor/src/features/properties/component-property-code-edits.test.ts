@@ -447,6 +447,76 @@ describe("planComponentPropertyCodeEdits", () => {
     ).not.toHaveProperty("shape");
   });
 
+  it("shows an op-amp's supply pins and keeps them shown as its form changes (#1833)", () => {
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    let document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "U1",
+      symbolId: "opamp",
+      reference: "U1",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const appearance = () =>
+      componentPropertyCodeValue({
+        resolver,
+        instance: document.instances[0]!,
+        referenceVisible: true,
+        valueVisible: false,
+      }).appearance;
+    const apply = (
+      next: Partial<ReturnType<typeof appearance>>,
+    ): ReturnType<typeof planComponentPropertyCodeEdits> => {
+      const edits = planComponentPropertyCodeEdits(
+        document,
+        document.instances[0]!,
+        { placement: null, appearance: { ...appearance(), ...next } },
+      );
+      if (!edits.length) return edits;
+      const applied = executeTransaction(
+        document,
+        {
+          transactionId: `supply-pins-${document.revision}`,
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "test" },
+          edits,
+        },
+        { symbolResolver: resolver },
+      );
+      if (!applied.ok) throw new Error(applied.error.message);
+      document = applied.document;
+      return edits;
+    };
+    expect(appearance().supplyPins).toBe(false);
+    expect(apply({ supplyPins: true })).toEqual([
+      {
+        kind: "set_instance_symbol",
+        instanceId: "U1",
+        symbolId: "opamp",
+        symbolVariantId: "supply-pins",
+      },
+    ]);
+    expect(appearance().supplyPins).toBe(true);
+    expect(apply({ supplyPins: true })).toEqual([]);
+    // Lettering it and swapping its inputs keeps its supplies drawn.
+    apply({ internalMark: "A", inputsSwapped: true });
+    expect(document.instances[0]).toMatchObject({
+      symbolId: "opamp-lettered-inputs-swapped",
+      symbolVariantId: "supply-pins",
+    });
+    apply({ supplyPins: false });
+    expect(document.instances[0]!.symbolVariantId).toBeUndefined();
+    // A part with no supply pins to show offers no choice.
+    expect(
+      componentPropertyCodeValue({
+        resolver,
+        instance: { id: "C1", symbolId: "comparator", placement: null },
+        referenceVisible: true,
+        valueVisible: false,
+      }).appearance,
+    ).not.toHaveProperty("supplyPins");
+  });
+
   it("combines comparator mark visibility with input swapping in one edit", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = { id: "X1", symbolId: "comparator", placement: null };

@@ -27,6 +27,7 @@ import {
   componentInternalMark,
   componentOutputsSwapped,
   componentSourceShape,
+  componentSupplyPins,
   NO_INTERNAL_MARK,
   type SourceShape,
 } from "./component-visual-variants";
@@ -51,6 +52,12 @@ export interface ComponentPropertyCodeValue
   extends ComponentPropertyDetailsValue, InductorCouplingPropertyValue {
   /** Empty Net ID selects the existing unique authored-supply fallback. */
   supplies?: Record<string, string>;
+  /**
+   * A device's own terminal no pin draws, such as a substrate or a centre tap
+   * (#1833); an empty Net ID leaves it unconnected. Properties sets it from
+   * its own row, the Agent through set-terminal-net.
+   */
+  terminals?: Record<string, string>;
   control?:
     | { positiveNetId: string; negativeNetId: string }
     | { instanceId: string; pinName: string; direction: "into" | "out" };
@@ -70,6 +77,8 @@ export interface ComponentPropertyCodeValue
     outputsSwapped?: boolean;
     /** A controlled source drawn as a circle or a diamond. */
     shape?: SourceShape;
+    /** An op-amp's VDD and VSS drawn as pins to wire (#1833). */
+    supplyPins?: boolean;
   };
 }
 
@@ -263,6 +272,7 @@ function parseAppearance(
     inputPolarity,
     inputsSwapped: componentInputsSwapped(context.instance.symbolId),
     outputsSwapped: componentOutputsSwapped(context.instance.symbolId),
+    supplyPins: componentSupplyPins(context.instance, context.resolver),
   };
   const shape = componentSourceShape(context.instance);
   const supported = new Set<string>(["color"]);
@@ -316,6 +326,7 @@ export function componentPropertyCodeValue(
   const inputsSwapped = componentInputsSwapped(instance.symbolId);
   const outputsSwapped = componentOutputsSwapped(instance.symbolId);
   const shape = componentSourceShape(instance);
+  const supplyPins = componentSupplyPins(instance, context.resolver);
   const display: ComponentPropertyDisplayCode = {};
   if (context.referenceVisible !== null) {
     display.visualAnnotation = context.referenceVisible;
@@ -406,6 +417,7 @@ export function componentPropertyCodeValue(
       ...(inputsSwapped !== undefined ? { inputsSwapped } : {}),
       ...(outputsSwapped !== undefined ? { outputsSwapped } : {}),
       ...(shape !== undefined ? { shape } : {}),
+      ...(supplyPins !== undefined ? { supplyPins } : {}),
     },
   };
 }
@@ -448,6 +460,9 @@ export function serializeComponentPropertyCode(
           ? { outputsSwapped: appearance.outputsSwapped }
           : {}),
         ...(appearance.shape !== undefined ? { shape: appearance.shape } : {}),
+        ...(appearance.supplyPins !== undefined
+          ? { supplyPins: appearance.supplyPins }
+          : {}),
       },
       ...(display ? { display } : {}),
       ...(displayName !== undefined ? { displayName } : {}),
@@ -697,6 +712,7 @@ export function defaultComponentPropertyCode(
       ? { outputsSwapped: false }
       : {}),
     ...(value.appearance.shape !== undefined ? { shape: "circle" } : {}),
+    ...(value.appearance.supplyPins !== undefined ? { supplyPins: false } : {}),
   };
   if (value.parameters && context.details) {
     // Preserve unknown model overrides; only descriptor-owned defaults are known.

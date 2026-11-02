@@ -33,7 +33,8 @@ ground. Setting the NMOS default
 (`{kind:"set-mos-bulk-default",mos:"nmos",net:"VSUB"}`) moves substrates that
 followed the old one; one set to another Net stays. One bound to ground before
 the rail was drawn exports `PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY`: rebind it
-with `set_property_terminal_net`, or set a ground NMOS default to the rail. A
+with `set-terminal-net` (`pin:"S"`, its Properties Substrate Net row), or set a
+ground NMOS default to the rail. An inductor's `CT` is set the same way. A
 SKY130 PNP has no substrate pin (its wrapper ties it to the collector; three
 nodes).
 

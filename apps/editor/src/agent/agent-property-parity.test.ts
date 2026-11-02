@@ -10,6 +10,7 @@ import {
   flattenRichText,
   type CircuitProject,
 } from "@icm/model";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
@@ -19,6 +20,8 @@ import {
   gateExternalChoices,
 } from "../features/properties/gate-cell-target";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
+import { componentPropertyCodeValue } from "../features/properties/component-property-code";
+import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { BrowserAgentHost } from "./browser-agent-host";
 
@@ -1246,5 +1249,288 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     });
     await apply([{ kind: "set-model", target, model: "" }]);
     expect(instance("CH1").netlist).toEqual(placed);
+  });
+
+  /** The Net a part's pin is a member of, if any. */
+  const netOf = (
+    document: {
+      nets: {
+        id: string;
+        terminals: { instanceId: string; pinName: string }[];
+      }[];
+    },
+    instanceId: string,
+    pinName: string,
+  ) =>
+    document.nets.find((net) =>
+      net.terminals.some(
+        (pin) => pin.instanceId === instanceId && pin.pinName === pinName,
+      ),
+    )?.id;
+
+  it("sets each terminal a reviewed inductor draws no pin for, as its Properties rows do, and refuses a pin it draws (#1833)", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    await apply([
+      place("vdd-port", "VDD", 100, 0),
+      place("inductor", "L1", 300),
+    ]);
+    const target = { kind: "instance", reference: "L1" };
+    await apply([
+      { kind: "set-model", target, model: "sky130_fd_pr__ind_05_125" },
+    ]);
+    const marker = controller.document.instances.find(
+      (item) => item.symbolId === "vdd-port",
+    )!;
+    const rail = netOf(controller.document, marker.id, "P")!;
+    const inductor = () => instance("L1").id;
+    // Both its centre tap and its substrate, not only the first.
+    await apply([
+      {
+        kind: "set-terminal-net",
+        target,
+        pin: "CT",
+        net: { kind: "net", id: rail },
+      },
+      {
+        kind: "set-terminal-net",
+        target,
+        pin: "SUB",
+        net: { kind: "net", id: rail },
+      },
+    ]);
+    expect(netOf(controller.document, inductor(), "CT")).toBe(rail);
+    expect(netOf(controller.document, inductor(), "SUB")).toBe(rail);
+    await apply([{ kind: "set-terminal-net", target, pin: "CT", net: null }]);
+    expect(netOf(controller.document, inductor(), "CT")).toBeUndefined();
+    expect(
+      await refuse([
+        {
+          kind: "set-terminal-net",
+          target,
+          pin: "1",
+          net: { kind: "net", id: rail },
+        },
+      ]),
+    ).toContain("L1.1 is a pin of its symbol: wire it");
+    expect(
+      await refuse([
+        { kind: "set-terminal-net", target, pin: "VDD", net: null },
+      ]),
+    ).toContain(
+      "L1 has no terminal VDD to set; those its symbol draws no pin for are CT and SUB",
+    );
+  });
+
+  it("shows an op-amp's supply pins as Properties does, wires one, and keeps a wired one shown (#1833)", async () => {
+    // X2 keeps an old fill, a style Properties no longer offers.
+    const fill = { background: "#FFF2CC" };
+    const project = createEmptyProject("project-1", "Properties");
+    project.documents[0]!.instances.push({
+      id: "filled",
+      reference: "X2",
+      symbolId: "opamp",
+      styleOverride: fill,
+      placement: { position: { x: 900, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const { controller, apply, refuse, instance } = await session(project);
+    await apply([place("vdd-port", "VDD", 300, 0), place("opamp", "X1", 300)]);
+    const marker = controller.document.instances.find(
+      (item) => item.symbolId === "vdd-port",
+    )!;
+    const wire = {
+      kind: "connect",
+      from: { kind: "pin", instance: "X1", pin: "VDD" },
+      to: {
+        kind: "pin",
+        instance: { kind: "instance", id: marker.id },
+        pin: "P",
+      },
+    };
+    // Hidden, VDD has no pin to wire; the refusal says how to reach it.
+    expect(await refuse([wire])).toContain(
+      "X1.VDD is not drawn: show its supply pins",
+    );
+    const show = (shown: boolean) => ({
+      kind: "set-instance-display",
+      instanceIds: [instance("X1").id],
+      showSupplyPins: shown,
+    });
+    // What the Supply pins switch in Properties commits for the same choice.
+    const gui = new EditorDocumentController(
+      structuredClone(controller.project),
+    );
+    const part = gui.document.instances.find(
+      (item) => item.reference === "X1",
+    )!;
+    const value = componentPropertyCodeValue({
+      resolver: createProjectSymbolResolver(gui.project, builtInSymbols),
+      instance: part,
+      referenceVisible: true,
+      valueVisible: false,
+    });
+    expect(
+      gui.transact(
+        planComponentPropertyCodeEdits(gui.document, part, {
+          placement: null,
+          appearance: { ...value.appearance, supplyPins: true },
+        }),
+      ).ok,
+    ).toBe(true);
+
+    await apply([show(true)]);
+    expect(instance("X1").symbolVariantId).toBe("supply-pins");
+    expect(controller.document.instances).toEqual(gui.document.instances);
+    await apply([wire]);
+    expect(netOf(controller.document, instance("X1").id, "VDD")).toBe(
+      netOf(controller.document, marker.id, "P"),
+    );
+    // A wired supply stays drawn until its wire is removed.
+    expect(await refuse([show(false)])).toContain(
+      "X1.VDD has a wire; disconnect it before its pin is hidden",
+    );
+    await apply([place("resistor", "R1", 600)]);
+    expect(
+      await refuse([
+        {
+          kind: "set-instance-display",
+          instanceIds: [instance("R1").id],
+          showSupplyPins: true,
+        },
+      ]),
+    ).toContain("R1 (resistor) has no supply pins to show");
+    // The action changes the variant alone, as the other display flags do:
+    // the old fill stays, where any Apply in Properties retires it.
+    await apply([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("X2").id],
+        showSupplyPins: true,
+      },
+    ]);
+    expect(instance("X2")).toMatchObject({
+      symbolVariantId: "supply-pins",
+      styleOverride: fill,
+    });
+  });
+
+  it("sets a supply a Circuit Component maps to no pin of its artwork (#1833)", async () => {
+    // A Gallery LDO's error amplifier: IN+, IN- and OUT on VIP, VIN and VOUT.
+    const project = createEmptyProject("project-1", "Properties");
+    const ports = ["VDD", "VSS", "VIP", "VIN", "VOUT"];
+    project.modelSources = [
+      {
+        id: "source-ea",
+        language: "spice",
+        revision: 1,
+        entry: "ea.spice",
+        dependencies: [],
+        files: [
+          {
+            path: "ea.spice",
+            text: `.subckt LDO_TEACH_EA ${ports.join(" ")}\nR1 VIP VOUT 1k\n.ends LDO_TEACH_EA\n`,
+          },
+        ],
+      },
+    ];
+    project.externalSubcircuitDefinitions.push({
+      id: "ea",
+      name: "LDO_TEACH_EA",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: ports.map((port) => ({
+        id: port,
+        name: port,
+        direction: "inout" as const,
+      })),
+      implementation: {
+        kind: "source",
+        sourceId: "source-ea",
+        entry: "LDO_TEACH_EA",
+      },
+    });
+    project.componentDefinitions = [
+      {
+        symbol: {
+          ...structuredClone(
+            builtInSymbols.find((symbol) => symbol.id === "opamp")!,
+          ),
+        },
+        circuitBinding: {
+          definitionId: "ea",
+          terminals: [
+            { terminalId: "VDD", supply: "VDD" },
+            { terminalId: "VSS", supply: "VSS" },
+            { terminalId: "VIP", pinName: "IN+" },
+            { terminalId: "VIN", pinName: "IN-" },
+            { terminalId: "VOUT", pinName: "OUT" },
+          ],
+        },
+      },
+    ];
+    project.documents[0]!.instances.push({
+      id: "ea-part",
+      reference: "X1",
+      symbolId: "opamp",
+      placement: {
+        position: { x: 300, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "ea" },
+        parameters: {},
+      },
+    });
+    const { controller, apply, refuse } = await session(project);
+    await apply([
+      place("port", "VREG", 100, 0),
+      place("port", "VNEG", 100, 300),
+    ]);
+    const portNet = (name: string) =>
+      controller.document.netlist!.terminals.find(
+        (terminal) => terminal.name === name,
+      )!.netId;
+    const target = { kind: "instance", reference: "X1" };
+    // Its artwork leaves VDD unmapped, so no switch draws it: only its Net.
+    expect(
+      await refuse([
+        {
+          kind: "connect",
+          from: { kind: "pin", instance: "X1", pin: "VDD" },
+          to: { kind: "pin", instance: "X1", pin: "VIP" },
+        },
+      ]),
+    ).toContain("X1.VDD is not drawn: set its Net (set-terminal-net)");
+    // As Properties' VDD and VSS rows choose them.
+    await apply([
+      {
+        kind: "set-block-supply",
+        target,
+        supply: "VDD",
+        net: { kind: "net", id: portNet("VREG") },
+      },
+      {
+        kind: "set-terminal-net",
+        target,
+        pin: "VSS",
+        net: { kind: "net", id: portNet("VNEG") },
+      },
+    ]);
+    expect(netOf(controller.document, "ea-part", "VDD")).toBe(portNet("VREG"));
+    // The call carries them; its pins each on a Net of their own.
+    const wired = structuredClone(controller.project);
+    for (const pinName of ["VIP", "VIN", "VOUT"])
+      wired.documents[0]!.nets.push({
+        id: `net-${pinName}`,
+        terminals: [{ instanceId: "ea-part", pinName }],
+      });
+    const exported = createDesignNetlistExport(wired, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    expect(exported.file.text).toMatch(
+      /^X1 VREG VNEG \S+ \S+ \S+ LDO_TEACH_EA$/mu,
+    );
+    await apply([{ kind: "set-terminal-net", target, pin: "VDD", net: null }]);
+    expect(netOf(controller.document, "ea-part", "VDD")).toBeUndefined();
   });
 });

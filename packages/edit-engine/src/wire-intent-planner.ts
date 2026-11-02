@@ -13,8 +13,8 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import { electricalConnectionGrid } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { electricalConnectionGrid, SUPPLY_PINS_VARIANT_ID } from "@icm/model";
+import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 import { splitRoutePieceIds } from "./split-route-ids.js";
 import { signalEndpointMembers } from "./signal-endpoint.js";
 import {
@@ -127,7 +127,11 @@ function endpointWireSource(
   resolver: SymbolResolver,
   endpoint: RouteEndpoint,
 ): WireSource | string {
-  const connection = resolveEndpointConnection(document, resolver, endpoint);
+  // A wire ends only on a pin the part draws: a hidden pin keeps its place
+  // on the art, but no wire may reach it (#1833).
+  const connection = drawsEndpoint(document, resolver, endpoint)
+    ? resolveEndpointConnection(document, resolver, endpoint)
+    : null;
   if (!connection) {
     const reason = endpointConnectionFailure(document, resolver, endpoint);
     return (
@@ -155,6 +159,20 @@ function endpointWireSource(
   };
 }
 
+function drawsEndpoint(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  endpoint: RouteEndpoint,
+): boolean {
+  if (endpoint.kind === "junction") return true;
+  const instance = document.instances.find(
+    (candidate) => candidate.id === endpoint.instanceId,
+  );
+  const symbol =
+    instance && resolver.resolve(instance.symbolId, instance.symbolVariantId);
+  return Boolean(symbol && drawnPinNames(symbol).includes(endpoint.pinName));
+}
+
 function endpointConnectionFailure(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -177,10 +195,21 @@ function endpointConnectionFailure(
     return `Instance ${instance.reference ?? instance.id} uses unknown symbol ${instance.symbolId}`;
   }
 
-  const pinNames = [
-    ...symbol.definition.pins.map((pin) => pin.name),
-    ...(symbol.variant?.auxiliaryPins?.map((pin) => pin.name) ?? []),
-  ].filter((pinName, index, pins) => pins.indexOf(pinName) === index);
+  const pinNames = drawnPinNames(symbol);
+  const label = instance.reference ?? instance.id;
+  // An op-amp's supply is a pin only where its Instance shows it (#1833); a
+  // Circuit Component's mapped supply is never one.
+  const pin = symbol.definition.pins.find(
+    (candidate) => candidate.name === endpoint.pinName,
+  );
+  if (pin && !pinNames.includes(pin.name)) {
+    const shown = resolver.resolve(instance.symbolId, SUPPLY_PINS_VARIANT_ID);
+    const show =
+      shown && drawnPinNames(shown).includes(pin.name)
+        ? "show its supply pins (Properties, or set-instance-display showSupplyPins), or "
+        : "";
+    return `${label}.${pin.name} is not drawn: ${show}set its Net (set-terminal-net)`;
+  }
   if (!pinNames.includes(endpoint.pinName)) {
     const descriptor = subcircuitDescriptor(instance.symbolId);
     const exportedPort = descriptor?.ports.find(
@@ -190,13 +219,10 @@ function endpointConnectionFailure(
       exportedPort && "pinName" in exportedPort
         ? ` (exported as ${exportedPort.name}; use ${exportedPort.pinName})`
         : "";
-    const label = instance.reference
-      ? `${instance.reference} (${symbol.definition.name})`
-      : `${instance.id} (${symbol.definition.name})`;
-    return `${label} has no pin "${endpoint.pinName}"; pins: ${pinNames.join(", ")}${alias}`;
+    const described = `${label} (${symbol.definition.name})`;
+    return `${described} has no pin "${endpoint.pinName}"; pins: ${pinNames.join(", ")}${alias}`;
   }
 
-  const label = instance.reference ?? instance.id;
   return `${label}.${endpoint.pinName} has no grid landing`;
 }
 

@@ -25,6 +25,9 @@ interface ComponentInterface {
     | undefined;
 }
 
+/** The variant that draws a symbol's optional supply pins (#1833). */
+export const SUPPLY_PINS_VARIANT_ID = "supply-pins";
+
 /** The roles of supply pins a drawing shows on request (#1833). */
 const OPTIONAL_SUPPLY_PIN_ROLES: ReadonlySet<string> = new Set([
   "positive-supply",

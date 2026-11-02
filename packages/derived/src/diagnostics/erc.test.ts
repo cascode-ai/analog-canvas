@@ -1112,6 +1112,81 @@ describe("ERC engine", () => {
     ).toEqual([]);
   });
 
+  it("leaves an op-amp's shown supply pin unwired on its Auto rail (#1833)", () => {
+    const library = new InMemorySymbolResolver(builtInSymbols);
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances = [
+      {
+        id: "U1",
+        symbolId: "opamp",
+        symbolVariantId: "supply-pins",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      },
+    ];
+    document.nets = [
+      {
+        id: "net-1",
+        terminals: ["IN+", "IN-", "OUT"].map((pinName) => ({
+          instanceId: "U1",
+          pinName,
+        })),
+      },
+    ];
+    // Unwired, VDD and VSS take the Cell's supplies, as they do hidden.
+    expect(
+      runErcChecks(
+        project,
+        buildProjectConnectivityIndex(project, library),
+        library,
+      ),
+    ).toEqual([]);
+  });
+
+  it("reports a supply pin a symbol always draws, left unwired", () => {
+    // Its default variant draws VDD, so no Properties row sets its Net.
+    const railed = {
+      ...dual,
+      id: "railed",
+      pins: [
+        ...dual.pins,
+        {
+          name: "VDD",
+          role: "positive-supply",
+          at: { x: 0, y: -20 },
+          direction: "north" as const,
+          presentation: { visibility: "visible" as const },
+        },
+      ],
+    };
+    const library = new InMemorySymbolResolver([...builtInSymbols, railed]);
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances = [
+      {
+        id: "I1",
+        symbolId: "railed",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      },
+    ];
+    document.nets = [
+      {
+        id: "net-1",
+        terminals: ["L", "R"].map((pinName) => ({
+          instanceId: "I1",
+          pinName,
+        })),
+      },
+    ];
+    expect(
+      runErcChecks(
+        project,
+        buildProjectConnectivityIndex(project, library),
+        library,
+      ).map((diagnostic) => [diagnostic.code, diagnostic.parameters?.pinName]),
+    ).toEqual([["ERC_UNCONNECTED_PIN", "VDD"]]);
+  });
+
   it("distinguishes an electrically floating gate from generic pins", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

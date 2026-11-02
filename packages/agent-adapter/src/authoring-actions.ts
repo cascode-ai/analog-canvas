@@ -462,6 +462,16 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     .describe(
       "Choose the Net a block's VDD or VSS uses, as Properties does. net:null returns it to Auto (the Cell's one drawn supply).",
     ),
+  z
+    .strictObject({
+      kind: z.literal("set-terminal-net"),
+      target: InstanceRefSchema,
+      pin: z.string().min(1).max(128),
+      net: NetRefSchema.nullable(),
+    })
+    .describe(
+      "Choose the Net of a terminal no pin of the part's symbol draws, as its Properties row does: a block's or Circuit Component's VDD/VSS, a SKY130 device's substrate (B, SUB, S), an inductor's CT. net:null returns a supply to Auto and leaves another unconnected. A drawn pin is wired instead.",
+    ),
   z.strictObject({
     kind: z.literal("add-label"),
     target: z
