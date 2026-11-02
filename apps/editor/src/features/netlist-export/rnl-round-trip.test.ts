@@ -1075,6 +1075,51 @@ it("reads a rectangle given by its two corners as the one between them", async (
   ]);
 });
 
+it.each([
+  ["a net of its caller's", "VSS", true],
+  ["ground", "0", false],
+] as const)(
+  "keeps a Cell's VSS drawn as ground a port where its call ties it to %s",
+  async (_, tie, port) => {
+    const text = [
+      "* ground on a Cell's VSS",
+      // The fill packages draw no port of their own on a Cell's VSS.
+      '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3"); @USE-PACKAGE(name="rnl-std-fill") {}; @USE-PACKAGE(name="rnl-std-spice") {} }',
+      ".subckt cell a vss",
+      "R1 a vss 1k",
+      "* @RNL {",
+      '*   #R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0");',
+      "*   %p_a = $IO_PORT @ATTACH &a => @PLACE(0, 4);",
+      "*   %g = $GROUND @ATTACH &vss => @PLACE(0, -4);",
+      "*   &vss @WIRE {#R1:2 %g:p}",
+      "* }",
+      ".ends cell",
+      `X1 in ${tie} cell`,
+      "R2 VSS 0 1",
+      "V1 in 0 1",
+      ".end",
+      "",
+    ].join("\n");
+    const plan = await importRnl(text, "spice");
+    expect(failures(plan)).toEqual([]);
+    const cell = plan.project.documents.find(
+      (document) => document.netlist?.name === "cell",
+    )!;
+    expect(
+      cell.instances.find((item) => item.id === "R1")?.placement,
+    ).toBeDefined();
+    expect(
+      cell.netlist?.terminals.some((item) => item.name.toLowerCase() === "vss"),
+    ).toBe(port);
+    // Ground only on ground: elsewhere the glyph is a picture.
+    expect(
+      plan.diagnostics.some(
+        (item) => item.code === "RNL_IMPORT_GLYPH_AS_PICTURE",
+      ),
+    ).toBe(port);
+  },
+);
+
 it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
   // SPICE starts a subcircuit call's card with X: a part Analog Canvas
   // names otherwise prints as X and its name.

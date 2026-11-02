@@ -522,6 +522,7 @@ export function applyRnlSnapshot(
   }
   const next = structuredClone(project);
   const undrawnPins = new Set<string>();
+  const tiedToGround = groundTiedPins(project);
   for (const level of snapshot.levels) {
     if (!level.model) continue;
     const document = documentOf(next, level);
@@ -548,6 +549,7 @@ export function applyRnlSnapshot(
       snapshot.dialect === "spectre" ? "spectre" : "spice",
       keptParameters,
       canvas04,
+      tiedToGround,
     );
   }
   for (const { documentId, name } of cellNames)
@@ -929,6 +931,8 @@ function applyLevel(
   keptParameters: KeptParameter[],
   /** The file says which wire each net label is on (Canvas 0.4). */
   wiresNamed: boolean,
+  /** Each Cell's pins its calls all tie to ground (`groundTiedPins`). */
+  tiedToGround: Set<string>,
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -1274,8 +1278,9 @@ function applyLevel(
 
   // Ground pins Analog Canvas adds: a Cell printed as a subcircuit that meets
   // ground takes a pin for it, VSS (or GND, GND__2 …), which its drawing
-  // shows as ground, never as a port. On such a pin the Cell's ground is
-  // ground again, as drawn; its callers' ground reaches it as before.
+  // shows as ground, never as a port, and its calls tie to ground. On such a
+  // pin the Cell's ground is ground again, as drawn; its callers' ground
+  // reaches it as before. A pin a call ties elsewhere stays a port.
   const usagesOn = (definition: string) =>
     new Set(
       model.objects.flatMap((object) => {
@@ -1296,7 +1301,8 @@ function applyLevel(
     if (
       groundNets.has(terminal.netId) &&
       !portNets.has(terminal.netId) &&
-      /^(?:VSS|GND(?:__\d+)?)$/iu.test(terminal.name)
+      GROUND_PIN_NAME.test(terminal.name) &&
+      tiedToGround.has(pinKey(document.id, terminal.name))
     ) {
       removeGroundPin(project, document, terminal);
       groundPins.add(terminal.netId);
@@ -4031,6 +4037,63 @@ function removeAddedPin(
  * Undo a ground pin Analog Canvas added to a Cell: the importer's port and
  * its Cell Pin go, and each call stops passing a node to it.
  */
+const GROUND_PIN_NAME = /^(?:VSS|GND(?:__\d+)?)$/iu;
+const pinKey = (documentId: string, pin: string) => `${documentId}\n${pin}`;
+
+/**
+ * Each Cell's pins named as ground pins that every call of the Cell ties to
+ * ground: ground (0) itself, or such a pin of its caller's. A Cell no call
+ * reaches ties them all. Read from the netlist as imported, before any level
+ * undoes a pin.
+ */
+function groundTiedPins(project: CircuitProject): Set<string> {
+  const calls = (documentId: string) =>
+    project.documents.flatMap((caller) =>
+      caller.instances.flatMap((instance) => {
+        const binding = instance.netlist?.binding;
+        return binding?.kind === "subcircuit" &&
+          binding.childDocumentId === documentId
+          ? [{ caller, instance }]
+          : [];
+      }),
+    );
+  const known = new Map<string, boolean>();
+  const tied = (documentId: string, pin: string): boolean => {
+    const key = pinKey(documentId, pin);
+    const seen = known.get(key);
+    if (seen !== undefined) return seen;
+    // A Cell that calls itself through this pin does not tie it.
+    known.set(key, false);
+    const answer = calls(documentId).every(({ caller, instance }) => {
+      const net = caller.nets.find((item) =>
+        item.terminals.some(
+          (end) => end.instanceId === instance.id && end.pinName === pin,
+        ),
+      );
+      if (!net) return false;
+      const named = caller.importReference?.nets.find(
+        (item) => item.id === net.id,
+      );
+      if (named?.name === "0" && named.scope === "global") return true;
+      const own = caller.netlist?.terminals.find(
+        (item) => item.netId === net.id && GROUND_PIN_NAME.test(item.name),
+      );
+      return own !== undefined && tied(caller.id, own.name);
+    });
+    known.set(key, answer);
+    return answer;
+  };
+  const pins = new Set<string>();
+  for (const document of project.documents)
+    for (const terminal of document.netlist?.terminals ?? [])
+      if (
+        GROUND_PIN_NAME.test(terminal.name) &&
+        tied(document.id, terminal.name)
+      )
+        pins.add(pinKey(document.id, terminal.name));
+  return pins;
+}
+
 function removeGroundPin(
   project: CircuitProject,
   document: SchematicDocument,
