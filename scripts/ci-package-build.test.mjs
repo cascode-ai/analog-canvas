@@ -107,6 +107,8 @@ it("rejects artifacts from a different candidate, platform or toolchain", () => 
   const receipt = JSON.parse(
     readFileSync(join(root, "output/ci-packages.json"), "utf8"),
   );
+  // Another patch of the same Node major builds the same packages.
+  expect(receipt.identity.node).toBe(process.versions.node.split(".")[0]);
   for (const key of ["commit", "platform", "arch", "node", "pnpm", "inputs"]) {
     put(root, "output/ci-packages.json", {
       ...receipt,
