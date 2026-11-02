@@ -290,7 +290,10 @@ the RNL language and its runtime belong to rnl.
   - Cell Pins, the importer's own, moved where RNL draws `$IO_PORT` (or a
     supply drawn on a port); ground glyphs on ground, supply glyphs claiming
     their net by its own name; a glyph anywhere else is drawn as a floating
-    symbol, which the netlist does not read;
+    symbol, which the netlist does not read; a port on a net the Cell has
+    but not as a port (a flat file's inputs) as a label of its net, showing
+    its own name text, else the net's name; the wires a floating glyph or
+    such a port ends end at a junction at its pin;
   - a port the drawing shows only as a power label naming it, no Pin drawn
     (Canvas 0.2): the label is the port again, as the editor keeps a local
     power label, claiming its net's name as a supply, so its rails are
