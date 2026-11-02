@@ -1040,6 +1040,41 @@ it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not
   ).toBe(true);
 });
 
+it("reads a rectangle given by its two corners as the one between them", async () => {
+  const text = [
+    "* frames",
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
+    "R1 a 0 1k",
+    "* @RNL {",
+    '*   #R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0");',
+    "*   @RECTANGLE {(-7, 10.5) (-1, 30.5)};",
+    "*   (4, 1) @RECTANGLE(width=6, height=2)",
+    "* }",
+    ".end",
+    "",
+  ].join(String.fromCharCode(10));
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const frames = plan.project.documents
+    .flatMap((document) => document.drafting?.objects ?? [])
+    .flatMap((object) =>
+      object.kind === "rectangle"
+        ? [
+            {
+              center: object.center,
+              width: object.width,
+              height: object.height,
+            },
+          ]
+        : [],
+    );
+  // Ten units to one, y down.
+  expect(frames).toEqual([
+    { center: { x: -40, y: -205 }, width: 60, height: 200 },
+    { center: { x: 40, y: -10 }, width: 60, height: 20 },
+  ]);
+});
+
 it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
   // SPICE starts a subcircuit call's card with X: a part Analog Canvas
   // names otherwise prints as X and its name.
