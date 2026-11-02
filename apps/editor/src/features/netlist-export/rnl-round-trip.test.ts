@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  deriveImportedRoutingGuidance,
   resolveAnnotationPresentation,
   resolveAnnotationText,
   resolveDocumentLogicalNets,
@@ -1047,6 +1048,56 @@ it("ends a wire to a port on no port, or to ground on no ground, at a junction t
   expect(
     top.drafting?.objects.filter((item) => item.kind === "floating-symbol"),
   ).toHaveLength(1);
+});
+
+it("joins a wire that ends on a point another wire runs straight through", async () => {
+  // The gate wire runs straight through %j; the port's wire ends there.
+  const text = [
+    "* through",
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
+    ".model NMOS nmos level=54",
+    ".model PMOS pmos level=54",
+    ".subckt inv a y vdd vss",
+    "MP y a vdd vdd PMOS w=2u l=0.18u",
+    "MN y a vss vss NMOS w=1u l=0.18u",
+    "* @RNL {",
+    '*   #MP @PLACE(0, 3) => @ORIENT("R0");',
+    '*   #MN @PLACE(0, -3) => @ORIENT("R0");',
+    '*   %p = $IO_PORT @ATTACH &a => @PLACE(-6, 0) => @ORIENT("R0");',
+    "*   %j = (-4, 0);",
+    "*   $JUNCTION @ATTACH {%j};",
+    "*   &a @WIRE {#MP:g (-4, 3) %j (-4, -3) #MN:g};",
+    "*   &a @WIRE {%p:p %j};",
+    "* }",
+    ".ends inv",
+    "X1 in out VDD 0 inv",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const cell = plan.project.documents.find((d) => d.netlist?.name === "inv")!;
+  const net = cell.nets.find((item) =>
+    item.terminals.some((t) => t.instanceId === "MP" && t.pinName === "G"),
+  )!;
+  // The gate wire is two routes, each reaching the junction.
+  const junction = cell.junctions.find((item) => item.netId === net.id)!;
+  const routes = cell.routes.filter((route) => route.netId === net.id);
+  expect(routes).toHaveLength(3);
+  for (const route of routes) {
+    const end = route.legs.at(-1)!.to;
+    expect(
+      [route.start, end.kind === "endpoint" ? end.endpoint : null].some(
+        (item) => item?.kind === "junction" && item.junctionId === junction.id,
+      ),
+    ).toBe(true);
+  }
+  const resolver = createProjectSymbolResolver(plan.project, builtInSymbols);
+  expect(
+    deriveImportedRoutingGuidance(cell, resolver).filter(
+      (guide) => guide.netId === net.id,
+    ),
+  ).toEqual([]);
 });
 
 it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not know, and keeps the drawing", async () => {

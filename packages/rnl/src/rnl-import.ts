@@ -1859,6 +1859,18 @@ function applyLevel(
     /** The RNL wire it was read from. */
     wire: string;
   }[] = [];
+  /**
+   * How many wires reach each point. A dashed wire is a body tie, which
+   * Analog Canvas ends on the wire it ties to without splitting it.
+   */
+  const wiresAt = new Map<string, number>();
+  for (const wire of model.wires.filter(
+    (item) => item.style["linestyle"] !== "dashed",
+  ))
+    for (const point of new Set(
+      wire.via.flatMap((vertex) => ("point" in vertex ? [vertex.point] : [])),
+    ))
+      wiresAt.set(point, (wiresAt.get(point) ?? 0) + 1);
   model.wires.forEach((wire, wireIndex) => {
     const netId = wire.nets.length === 1 ? netOf(wire.nets[0]!) : undefined;
     if (!netId) {
@@ -1867,7 +1879,9 @@ function applyLevel(
     }
     // Every vertex that is a pin or point ends one route and starts the next,
     // but one the wire runs straight through: the export names it so RNL
-    // joins it, where Analog Canvas joins it by touching, as drawn.
+    // joins it, where Analog Canvas joins it by touching, as drawn. A point
+    // another wire also reaches still ends a route, since Analog Canvas
+    // joins only what a route reaches, not a junction it passes over.
     const through = (index: number) => {
       const [before, at, after] = [index - 1, index, index + 1].map(
         (item) => wire.points[item],
@@ -1888,7 +1902,9 @@ function applyLevel(
       if (
         !("at" in vertex) &&
         run.length > 1 &&
-        (index === wire.via.length - 1 || !through(index))
+        (index === wire.via.length - 1 ||
+          ("point" in vertex && (wiresAt.get(vertex.point) ?? 0) > 1) ||
+          !through(index))
       ) {
         runs.push(run);
         run = [index];
