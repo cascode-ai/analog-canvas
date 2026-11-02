@@ -3164,14 +3164,28 @@ function importShapes(
         AC_UNITS_PER_RNL_UNIT <
         1;
     if (shape.shape === "rectangle" || shape.shape === "circle" || round) {
-      const center = points[0]!;
+      // A rectangle given by two corners is the one centred between them.
+      const [from, to] = shape.points.map((point) => acPoint(point));
+      const corners =
+        shape.shape === "rectangle" &&
+        from !== undefined &&
+        to !== undefined &&
+        shape.params["width"] === undefined;
+      const center = corners
+        ? {
+            x: Math.round((from.x + to.x) / 2) + 0,
+            y: Math.round((from.y + to.y) / 2) + 0,
+          }
+        : points[0]!;
       const size = (key: string) =>
         Math.max(
           1,
           Math.round(
-            Number(shape.params[key]) *
-              AC_UNITS_PER_RNL_UNIT *
-              (round ? 0.5 : 1),
+            corners
+              ? Math.abs(key === "width" ? to!.x - from!.x : to!.y - from!.y)
+              : Number(shape.params[key]) *
+                  AC_UNITS_PER_RNL_UNIT *
+                  (round ? 0.5 : 1),
           ),
         );
       objects.push(
