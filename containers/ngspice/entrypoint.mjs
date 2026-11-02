@@ -42,7 +42,10 @@ import {
 } from "@icm/spice-run";
 import { ngspiceResultResponse } from "./result-response.mjs";
 
-const MODEL_ROOT = process.env.SKY130_MODEL_ROOT ?? "/opt/sky130/sky130A";
+const MODEL_ROOT =
+  process.env.SIMULATION_MODEL_ROOT ??
+  process.env.SKY130_MODEL_ROOT ??
+  "/opt/sky130/sky130A";
 const PROFILE_PATH = process.env.SIMULATION_PROFILE_PATH?.trim() || null;
 const STARTUP_PATH = process.env.SIMULATION_STARTUP_PATH?.trim() || null;
 const PORT = Number(process.env.PORT ?? 8080);

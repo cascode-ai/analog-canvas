@@ -65,16 +65,15 @@ export function ngspiceSimulationDevices(
           const reviewed = reviewedExternalBindingById(
             card.reviewedExternalBindingId,
           );
-          // A reviewed SKY130 MOS wrapper holds one m<masterName> primitive,
-          // or names the one it nests. This mapping is deliberately not applied
-          // to arbitrary external subcircuits.
+          // Reviewed wrappers name the primitive they contain. PSP is an OSDI
+          // N instance; SKY130's BSIM wrappers contain an M instance.
           const nativeDevice =
             card.invocationKind === "primitive"
               ? path.length
                 ? `${card.reference[0]!.toLowerCase()}.${reference}`
                 : reference
               : reviewed?.deviceClass === "mos"
-                ? `m.${reference}.${reviewed.nativeElement ?? `m${reviewed.masterName}`}`
+                ? `${reviewed.nativeMosModel === "psp103" ? "n" : "m"}.${reference}.${reviewed.nativeElement ?? `m${reviewed.masterName}`}`
                 : undefined;
           result.push({
             documentId: cell.id,
@@ -120,13 +119,35 @@ export const NATIVE_MOS_OP_PARAMETERS = [
 export function nativeDeviceOpVectors(
   device: NativeSimulationDevice,
 ): string[] {
+  return nativeDeviceOpFields(device).map(({ vector }) => vector);
+}
+
+export function nativeDeviceOpFields(device: NativeSimulationDevice): Array<{
+  parameter: (typeof NATIVE_MOS_OP_PARAMETERS)[number];
+  vector: string;
+}> {
   if (!device.polarity || !device.nativeDevice) return [];
+  const reviewed = reviewedExternalBindingById(
+    device.card.reviewedExternalBindingId,
+  );
+  // Verified against the pinned PSP103 OSDI module. `ide` includes drain
+  // leakage; `ids` is only channel current. PSP PMOS outputs are polarity-
+  // normalized model values, not signed terminal quantities. Derivatives are absent in
+  // this OpenVAF build, so no gm/gds or guessed BSIM aliases are offered.
+  if (reviewed?.nativeMosModel === "psp103")
+    return (["id", "vgs", "vds"] as const).map((parameter) => ({
+      parameter,
+      vector: `@${device.nativeDevice}[${parameter === "id" ? "ide" : parameter}]`,
+    }));
   // Threshold spellings vary across primitive model families; only the reviewed
   // BSIM SKY130 wrappers advertise vth/vdsat in Helper. Exact vectors stay editable.
   return NATIVE_MOS_OP_PARAMETERS.filter(
     (p) =>
       device.card.reviewedExternalBindingId || !["vth", "vdsat"].includes(p),
-  ).map((parameter) => `@${device.nativeDevice}[${parameter}]`);
+  ).map((parameter) => ({
+    parameter,
+    vector: `@${device.nativeDevice}[${parameter}]`,
+  }));
 }
 
 export function nativeTerminalCurrent(
@@ -158,9 +179,18 @@ export function nativeTerminalCurrent(
     };
   }
   if (device.polarity && device.nativeDevice && pinName.toLowerCase() === "d")
+    if (reviewed?.nativeMosModel === "psp103" && device.polarity === "pmos")
+      return {
+        ok: false,
+        message:
+          "PSP103 PMOS ide is polarity-normalized, not signed drain current. Use an explicit native branch-current probe in Code.",
+      };
+  if (device.polarity && device.nativeDevice && pinName.toLowerCase() === "d")
     return {
       ok: true,
-      vectors: [`@${device.nativeDevice}[id]`],
+      vectors: nativeDeviceOpFields(device)
+        .filter((field) => field.parameter === "id")
+        .map((field) => field.vector),
       directives: [],
     };
   if (

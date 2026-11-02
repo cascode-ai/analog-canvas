@@ -34,7 +34,7 @@ function defineDeviceRegistry(
 
 export const deviceRegistry = defineDeviceRegistry(componentDeviceDescriptors);
 
-/** @internal Registry tests validate every built-in descriptor. */
+/** Registry tests validate every built-in descriptor. */
 export const builtInDeviceDescriptors: readonly DeviceDescriptor[] =
   deviceRegistry.descriptors;
 

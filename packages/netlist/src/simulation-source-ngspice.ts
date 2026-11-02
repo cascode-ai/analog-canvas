@@ -61,7 +61,7 @@ import { resolveAuthoredCircuitScope } from "./simulation-source-scopes.js";
 import { nativeSourceCollection } from "./simulation-native-collection.js";
 import {
   ngspiceSimulationDevices,
-  NATIVE_MOS_OP_PARAMETERS,
+  nativeDeviceOpFields,
 } from "./simulation-ngspice-devices.js";
 import {
   prepareNgspiceAuthoredNames,
@@ -675,16 +675,12 @@ export function compileNgspiceSourceSimulation(
         occurrence: device.occurrence,
         reference: device.reference,
         polarity: device.polarity,
-        values: NATIVE_MOS_OP_PARAMETERS.map((parameter) => ({
+        values: nativeDeviceOpFields(device).map(({ parameter, vector }) => ({
           parameter,
           label: parameter.toUpperCase(),
           unit:
             parameter === "id" ? "A" : parameter.startsWith("g") ? "S" : "V",
-          expression: acquisition(
-            `@${device.nativeDevice}[${parameter}]`,
-            "native",
-            false,
-          ),
+          expression: acquisition(vector, "native", false),
         })),
       });
     }

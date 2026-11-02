@@ -23,8 +23,6 @@ import {
   createSimulationInputMetadata,
   isSimulationInputRevision,
   resolveTimeoutMs,
-  SKY130_LIBRARY_PATH,
-  SKY130_LIBRARY_SECTION,
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
   type ModelLibrarySelection,
@@ -37,7 +35,7 @@ import {
   boundExecutionStream,
   sha256,
 } from "@icm/simulation-service";
-import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
+import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json" with { type: "json" };
 import { isSimulationInputPath } from "@icm/model";
 
 /** What a container-backed runner has to offer this module. */
@@ -83,40 +81,24 @@ function advertisedMaxOutputBytes(env: SimulationEnv): number {
     : DEFAULT_MAX_OUTPUT_BYTES;
 }
 
-/**
- * Cloudflare Containers are owned by a named Durable Object. An image deploy
- * does not evict an already-warm object immediately, so a fixed key can route
- * a new Worker to the previous Profile for the rest of its idle lifetime.
- * Keying the object by the versioned Profile identity makes a Profile change
- * start a fresh container while unchanged deploys keep their warm instance.
- */
-const CLOUDFLARE_CONTAINER_INSTANCE_KEY = `profile:${hostedSky130Profile.id}`;
+export type NgspiceProfile = typeof hostedSky130Profile;
 
-/** The Profile's sectioned primitive models, as a run mounts them. */
-const MODEL_DEPENDENCY = {
-  id: hostedSky130Profile.models.id,
-  sha256: hostedSky130Profile.models.contentSha256,
-};
-/**
- * The Profile's standard-cell libraries (#1596): each a dependency of its own
- * identity, declaring the library whose cells it defines and its directive.
- */
-const CELL_LIBRARIES = hostedSky130Profile.cellLibraries.map((library) => ({
-  id: library.id,
-  sha256: library.contentSha256,
-  cells: library.cells,
-  directive: library.library.directive as "include",
-}));
-/** Whatever a run may mount, by identity. */
-const PROFILE_DEPENDENCIES = [
-  MODEL_DEPENDENCY,
-  ...CELL_LIBRARIES.map(({ id, sha256 }) => ({ id, sha256 })),
-];
-const isCellLibrary = (dependency: { id: unknown; sha256: unknown }) =>
-  CELL_LIBRARIES.some(
-    (library) =>
-      library.id === dependency.id && library.sha256 === dependency.sha256,
+async function matchesProfile(value: unknown, profile: NgspiceProfile) {
+  const actual = await verifySimulationEnvironmentMetadata(value);
+  return (
+    !!actual &&
+    actual.executor === "hosted-container" &&
+    actual.reproducibility === "pinned" &&
+    actual.profileId === profile.id &&
+    actual.platform === profile.platform &&
+    actual.simulator.name === profile.simulator.name &&
+    actual.simulator.version === profile.simulator.version &&
+    actual.simulator.binarySha256 === profile.simulator.binarySha256 &&
+    actual.models?.id === profile.models.id &&
+    actual.models.contentSha256 === profile.models.contentSha256 &&
+    actual.startupSha256 === profile.startup.contentSha256
   );
+}
 
 export interface SimulationRequestBody {
   operation?: unknown;
@@ -161,10 +143,13 @@ interface HostedExecutionMetadata {
 function remoteRunner(base: string, token: string | undefined): NgspiceRunner {
   return {
     fetch: (input, init) => {
-      const target = new URL(new URL(input).pathname, base);
+      const target = new URL(
+        new URL(input).pathname.slice(1),
+        `${base.replace(/\/$/u, "")}/`,
+      );
       const headers = new Headers(init?.headers);
       if (token) headers.set("authorization", `Bearer ${token}`);
-      return fetch(target, { ...init, headers });
+      return fetch(target, { ...init, headers, redirect: "manual" });
     },
   };
 }
@@ -284,8 +269,25 @@ async function describeRefusal(
 export async function routeNgspiceSimulationRequest(
   request: Request,
   env: SimulationEnv,
-  runnerKey = CLOUDFLARE_CONTAINER_INSTANCE_KEY,
+  runnerKey: string | undefined = undefined,
+  profile: NgspiceProfile = hostedSky130Profile,
 ): Promise<Response | null> {
+  const modelDependency = {
+    id: profile.models.id,
+    sha256: profile.models.contentSha256,
+  };
+  const cellLibrariesAvailable = profile.cellLibraries.map((library) => ({
+    id: library.id,
+    sha256: library.contentSha256,
+    cells: library.cells,
+    directive: library.library.directive as "include",
+  }));
+  const profileDependencies = [modelDependency, ...cellLibrariesAvailable];
+  const isCellLibrary = (dependency: { id: unknown; sha256: unknown }) =>
+    cellLibrariesAvailable.some(
+      (library) =>
+        library.id === dependency.id && library.sha256 === dependency.sha256,
+    );
   const url = new URL(request.url);
   if (url.pathname !== "/api/simulate") return null;
   if (request.method !== "POST") {
@@ -326,9 +328,10 @@ export async function routeNgspiceSimulationRequest(
     );
   }
   const target = body.executorTarget ?? configuredDefault;
-  const selected = runnerFor(env, runnerKey, target);
-  const defaultCorner = env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION;
-  if (!hostedSky130Profile.qualifiedScope.sections.includes(defaultCorner))
+  const selected = runnerFor(env, runnerKey ?? `profile:${profile.id}`, target);
+  const defaultCorner =
+    env.SKY130_LIB_SECTION ?? profile.models.library.sections[0]!;
+  if (!profile.qualifiedScope.sections.includes(defaultCorner))
     return Response.json(
       {
         error: "simulation-executor-configuration-invalid",
@@ -339,6 +342,9 @@ export async function routeNgspiceSimulationRequest(
   if (body.operation === "capabilities") {
     // The running collector is authoritative, including during a rolling deploy.
     let outputBytes = advertisedMaxOutputBytes(env);
+    // New model Profiles stay undiscoverable until the executor proves its
+    // identity. Preserve the historical SKY130 offline discovery contract.
+    let ready = profile.id === hostedSky130Profile.id && !!selected;
     // Only the cell libraries the running simulator measured are offered: a
     // host that predates them, or does not answer, offers none (#1596).
     let mounted: unknown[] = [];
@@ -348,9 +354,17 @@ export async function routeNgspiceSimulationRequest(
           signal: AbortSignal.timeout(5000),
         });
         const facts = (await health.json()) as {
+          status?: unknown;
+          environment?: unknown;
           limits?: { outputBytes?: number };
           dependencies?: unknown;
         };
+        if (
+          health.ok &&
+          facts.status === "ready" &&
+          (await matchesProfile(facts.environment, profile))
+        )
+          ready = true;
         if (
           Number.isSafeInteger(facts.limits?.outputBytes) &&
           facts.limits!.outputBytes! > 0
@@ -367,7 +381,7 @@ export async function routeNgspiceSimulationRequest(
       Array.isArray(body.accepts) &&
       body.accepts.includes(CAPABILITIES_ACCEPT_CELL_LIBRARIES)
         ? {
-            cellLibraries: CELL_LIBRARIES.filter((library) =>
+            cellLibraries: cellLibrariesAvailable.filter((library) =>
               mounted.some(
                 (item) =>
                   !!item &&
@@ -379,24 +393,24 @@ export async function routeNgspiceSimulationRequest(
           }
         : {};
     return Response.json({
-      configured: !!selected,
+      configured: ready,
       rawfileCollection: "declared-single-ascii",
       maxInputFiles: 24,
       inputs: ["structured", "raw"],
-      analyses: hostedSky130Profile.qualifiedScope.analyses,
+      analyses: profile.qualifiedScope.analyses,
       parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
       profiles: [
         {
-          id: hostedSky130Profile.id,
-          label: hostedSky130Profile.displayName ?? hostedSky130Profile.id,
-          corners: hostedSky130Profile.qualifiedScope.sections,
-          devices: hostedSky130Profile.qualifiedScope.devices,
-          dependencies: [MODEL_DEPENDENCY],
+          id: profile.id,
+          label: profile.displayName ?? profile.id,
+          corners: profile.qualifiedScope.sections,
+          devices: profile.qualifiedScope.devices,
+          dependencies: [modelDependency],
           ...cellLibraries,
         },
       ],
       modelLibrary: {
-        path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
+        path: env.SKY130_LIB_PATH ?? profile.models.library.runtimePath,
         section: defaultCorner,
       },
       maxTimeoutMs: 120000,
@@ -456,12 +470,10 @@ export async function routeNgspiceSimulationRequest(
     return Response.json({ error: "invalid-operation" }, { status: 400 });
   if (
     body.environment &&
-    (body.environment.profileId !== hostedSky130Profile.id ||
+    (body.environment.profileId !== profile.id ||
       (body.environment.corner !== undefined &&
         (typeof body.environment.corner !== "string" ||
-          !hostedSky130Profile.qualifiedScope.sections.includes(
-            body.environment.corner,
-          ))))
+          !profile.qualifiedScope.sections.includes(body.environment.corner))))
   )
     return Response.json(
       { error: "simulation-profile-unavailable" },
@@ -482,7 +494,7 @@ export async function routeNgspiceSimulationRequest(
     dependencies.some(
       (dependency) =>
         !dependency ||
-        !PROFILE_DEPENDENCIES.some(
+        !profileDependencies.some(
           (available) =>
             available.id === dependency.id &&
             available.sha256 === dependency.sha256,
@@ -530,14 +542,16 @@ export async function routeNgspiceSimulationRequest(
   try {
     // The corner load is the expensive part of every run; a deck with no
     // device to model is spared it (see deckNeedsModelLibrary).
-    modelLibrary = deckNeedsModelLibrary(`${netlist}\n${testbench}`)
-      ? {
-          directive: "lib",
-          path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
-          section:
-            (body.environment?.corner as string | undefined) ?? defaultCorner,
-        }
-      : null;
+    modelLibrary =
+      profile.id !== hostedSky130Profile.id ||
+      deckNeedsModelLibrary(`${netlist}\n${testbench}`)
+        ? {
+            directive: "lib",
+            path: env.SKY130_LIB_PATH ?? profile.models.library.runtimePath,
+            section:
+              (body.environment?.corner as string | undefined) ?? defaultCorner,
+          }
+        : null;
     // Raw input is already an executable deck: preserve its title, control
     // program and includes. Model directives in raw files remain author-owned.
     if (body.mode === "raw") {
@@ -673,15 +687,13 @@ export async function routeNgspiceSimulationRequest(
         !actual ||
         actual.executor !== "hosted-container" ||
         actual.reproducibility !== "pinned" ||
-        actual.profileId !== hostedSky130Profile.id ||
-        actual.platform !== hostedSky130Profile.platform ||
-        actual.simulator.version !== hostedSky130Profile.simulator.version ||
-        actual.simulator.binarySha256 !==
-          hostedSky130Profile.simulator.binarySha256 ||
-        actual.models?.id !== hostedSky130Profile.models.id ||
-        actual.models?.contentSha256 !==
-          hostedSky130Profile.models.contentSha256 ||
-        actual.startupSha256 !== hostedSky130Profile.startup.contentSha256 ||
+        actual.profileId !== profile.id ||
+        actual.platform !== profile.platform ||
+        actual.simulator.version !== profile.simulator.version ||
+        actual.simulator.binarySha256 !== profile.simulator.binarySha256 ||
+        actual.models?.id !== profile.models.id ||
+        actual.models?.contentSha256 !== profile.models.contentSha256 ||
+        actual.startupSha256 !== profile.startup.contentSha256 ||
         actual.simulator.name !== "ngspice" ||
         Object.entries(expected).some(
           ([key, value]) =>
@@ -710,8 +722,16 @@ export async function routeNgspiceSimulationRequest(
         },
       );
     }
+    const payload = (await containerResponse.json()) as {
+      environment?: unknown;
+    };
+    if (
+      profile.id !== hostedSky130Profile.id &&
+      !(await matchesProfile(payload.environment, profile))
+    )
+      throw new Error("Simulation result does not match the selected Profile");
     return Response.json(
-      await assembleNgspiceOutput(await containerResponse.json(), {
+      await assembleNgspiceOutput(payload, {
         netlist,
         testbench,
         deck,

@@ -52,6 +52,51 @@ async function startGateway(executorPort, environment = {}) {
 }
 
 describe("operator-host simulation gateway", () => {
+  it("routes SG13 health, runs and cancellation to its isolated executor without forwarding credentials", async () => {
+    const seen = [];
+    const main = createServer((request, response) => {
+      seen.push(`sky:${request.url}`);
+      request.resume();
+      response.end("sky");
+    });
+    const sg13 = createServer((request, response) => {
+      seen.push(`sg13:${request.url}`);
+      expect(request.headers.authorization).toBeUndefined();
+      request.resume();
+      response.end("sg13");
+    });
+    const port = await startGateway(await listen(main), {
+      SG13G2_EXECUTOR_URL: `http://127.0.0.1:${await listen(sg13)}`,
+    });
+    const base = `http://127.0.0.1:${port}`;
+    expect(await (await fetch(`${base}/health`)).text()).toBe("sky");
+    expect(await (await fetch(`${base}/sg13g2/health`)).text()).toBe("sg13");
+    for (const operation of ["run", "cancel"]) {
+      expect(
+        (
+          await fetch(`${base}/sg13g2/${operation}`, {
+            method: "POST",
+            body: "{}",
+          })
+        ).status,
+      ).toBe(401);
+      expect(
+        await (
+          await fetch(`${base}/sg13g2/${operation}`, {
+            method: "POST",
+            headers: { authorization: "Bearer gateway-secret" },
+            body: "{}",
+          })
+        ).text(),
+      ).toBe("sg13");
+    }
+    expect(seen).toEqual([
+      "sky:/health",
+      "sg13:/health",
+      "sg13:/run",
+      "sg13:/cancel",
+    ]);
+  });
   it("preserves internal receipts while streaming and rejects an overlong chunked body", async () => {
     let oversized = false;
     const executor = createServer((request, response) => {

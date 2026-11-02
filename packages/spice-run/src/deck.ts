@@ -90,9 +90,6 @@ export function deckRequestsRawfile(deck: string): boolean {
  */
 export const SKY130_LIBRARY_PATH = "/opt/sky130/continuous/sky130.lib.spice";
 
-/** The corner every surface defaults to. */
-export const SKY130_LIBRARY_SECTION = "tt";
-
 export function buildSimulationDeck(
   request: Pick<SimulationRequest, "netlist" | "testbench">,
   modelLibrary: ModelLibrarySelection | null,

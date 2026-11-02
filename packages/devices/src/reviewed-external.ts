@@ -124,6 +124,8 @@ export interface ReviewedExternalDeviceBinding {
    * high-voltage ones nest it or name it otherwise.
    */
   readonly nativeElement?: string;
+  /** PSP uses an OSDI N instance and its own terminal-current output names. */
+  readonly nativeMosModel?: "psp103";
   /**
    * The only sizes the process library models, for a device it models at a
    * few sizes rather than over a range (SKY130's 16 V pair). ngspice picks a
@@ -825,6 +827,8 @@ const sg13MosBinding = (
 ): ReviewedExternalDeviceBinding => ({
   id,
   libraryId: "sg13g2_pr",
+  nativeMosModel: "psp103",
+  nativeElement: `n${masterName}`,
   masterName,
   invocationKind: "external-subcircuit",
   symbolId,

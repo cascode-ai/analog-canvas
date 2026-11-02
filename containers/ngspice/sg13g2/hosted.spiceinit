@@ -1,0 +1,5 @@
+set filetype=ascii
+set sourcepath = ( /opt/sg13g2/models )
+osdi /opt/sg13g2/osdi/psp103.osdi
+osdi /opt/sg13g2/osdi/psp103_nqs.osdi
+osdi /opt/sg13g2/osdi/r3_cmc.osdi

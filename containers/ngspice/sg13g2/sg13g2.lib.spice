@@ -1,0 +1,7 @@
+* Analog Canvas nominal: independent typical sections of the upstream families.
+.lib nominal
+.lib cornerMOSlv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl nominal
