@@ -383,9 +383,11 @@ function phaseSwitchSymbol(
 
 /**
  * The Library gate a Cell's call reads back as when RNL draws it with the
- * call symbol the export defines for it (`symbolForCall`), and the gate pin
- * each Pin of its Cell becomes: by name, as a gate meets its Cell (#1450),
- * and only when each drawn pin is on the position that Pin is printed at.
+ * call symbol the export defines for it (`symbolForCall`), or with the
+ * standard package's own gate where the call prints its pins in that
+ * symbol's terminal order, and the gate pin each Pin of its Cell becomes: by
+ * name, as a gate meets its Cell (#1450), and only when each drawn pin is on
+ * the position that Pin is printed at.
  */
 function gateCallSymbol(
   symbol: RnlSymbolRef,
@@ -396,7 +398,15 @@ function gateCallSymbol(
   orient: RnlOrient;
   pins: ReadonlyMap<string, string>;
 } | null {
-  const row = callSymbolFromDefinition(symbol);
+  const row =
+    callSymbolFromDefinition(symbol) ??
+    RNL_SYMBOLS.find(
+      (item) =>
+        !item.inline &&
+        !item.definition &&
+        item.symbol === symbol.name &&
+        family(item.package) === family(symbol.package),
+    );
   if (
     !row?.ac ||
     !bindsProjectCell(row.ac) ||
@@ -419,7 +429,9 @@ function gateCallSymbol(
     );
     return terminal && pins.get(terminal.pinName) === pin.acPin;
   });
-  return fits ? { row, orient, pins } : null;
+  return fits
+    ? { row, orient: composeOrient(orient, inverse(row.orient)), pins }
+    : null;
 }
 
 /**

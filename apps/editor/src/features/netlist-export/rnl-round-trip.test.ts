@@ -1049,6 +1049,69 @@ it("ends a wire to a port on no port, or to ground on no ground, at a junction t
   ).toHaveLength(1);
 });
 
+it("reads a Cell's call drawn with the standard gate in its terminal order as the Library gate", async () => {
+  // X1 prints its pins as $INVERTER numbers its terminals (a, y, then the
+  // supplies); X2 prints its supplies first, so its wires would move.
+  const text = [
+    "* std gate",
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
+    ".model NMOS nmos level=54",
+    ".model PMOS pmos level=54",
+    ".subckt inv a y vdd vss",
+    "MP y a vdd vdd PMOS w=2u l=0.18u",
+    "MN y a vss vss NMOS w=1u l=0.18u",
+    '* @RNL { #MP @PLACE(0, 3) => @ORIENT("R0"); #MN @PLACE(0, -3) => @ORIENT("R0") }',
+    ".ends inv",
+    ".subckt invs vdd vss a y",
+    "MP y a vdd vdd PMOS w=2u l=0.18u",
+    "MN y a vss vss NMOS w=1u l=0.18u",
+    ".ends invs",
+    "X1 in out VDD 0 inv",
+    "X2 VDD 0 out out2 invs",
+    "V1 in 0 1",
+    "V2 VDD 0 1",
+    "R3 out 0 1k",
+    "* @RNL {",
+    "*   {#X1 #X2} @SET-SYMBOL $INVERTER;",
+    '*   #X1 @PLACE(0, 0) => @ORIENT("R0");',
+    '*   #X2 @PLACE(10, 6) => @ORIENT("R0");',
+    '*   #V1 @PLACE(-8, -2) => @ORIENT("R0");',
+    '*   #R3 @PLACE(4, -2) => @ORIENT("R0");',
+    "*   &out @WIRE {#X1:2 (4, 0) #R3:1};",
+    "*   &in @WIRE {#V1:1 (-8, 0) #X1:1};",
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const top = plan.project.documents.find((d) =>
+    d.instances.some((i) => i.id.toLowerCase() === "x1"),
+  )!;
+  const part = (id: string) =>
+    top.instances.find((i) => i.id.toLowerCase() === id)!;
+  expect(part("x1").symbolId).toBe("inverter");
+  expect(part("x2").symbolId).not.toBe("inverter");
+  expect(
+    plan.diagnostics
+      .filter((item) => item.code === "RNL_IMPORT_UNMAPPED_SYMBOL")
+      .map((item) => item.message.split(" ")[0]),
+  ).toEqual(["X2"]);
+  const pins = top.routes.flatMap((route) =>
+    [
+      route.start,
+      ...route.legs.flatMap((leg) =>
+        leg.to.kind === "endpoint" ? [leg.to.endpoint] : [],
+      ),
+    ].flatMap((end) =>
+      end.kind === "terminal" && end.instanceId === part("x1").id
+        ? [end.pinName]
+        : [],
+    ),
+  );
+  expect(pins.sort()).toEqual(["A", "Y"]);
+});
+
 it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not know, and keeps the drawing", async () => {
   const text = [
     "* refused names",
