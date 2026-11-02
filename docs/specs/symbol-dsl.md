@@ -19,6 +19,9 @@ owns visual authority.
 - A variant may hide named pins or parts and add reviewed primitives; it never
   adds, deletes, reconnects or renames electrical pins. Hidden pins keep
   membership but leave snap, flightline and formal-pin presentation.
+- An optional supply pin has role `positive-supply` or `negative-supply` and
+  is hidden by its symbol's default variant. A subcircuit supply port is drawn
+  by the Symbol pin named after its supply where no port maps that pin.
 - `port`, `port-filled`, `vdd-port` have one pin `P`; naming and interface
   follow the [schematic model](schematic-model.md). `nmos`/`pmos` keep D/G/S/B;
   default variant `textbook-3terminal` may hide bulk and never implies `B=S`;
@@ -47,9 +50,11 @@ owns visual authority.
 - A component may use `circuitBinding` instead of `electrical`, `subcircuit`
   or `generatedFrom`: `definitionId` selects the external owner; `terminals`
   maps each stable native `terminalId` to one graphical `pinName` or to the
-  `VDD`/`VSS` property supply. Every terminal and pin is accounted for exactly
-  once. An exact same-name interface may initialize the mapping at Apply;
-  renamed or incomplete ones need explicit mapping.
+  `VDD`/`VSS` property supply. Every terminal, and every pin but an optional
+  supply pin, is accounted for exactly once; an optional supply pin left
+  unmapped draws nothing, and a mapped one is its terminal's ordinary pin. An
+  exact same-name interface may initialize the mapping at Apply; renamed or
+  incomplete ones need explicit mapping.
 - Native source owns target, port order and defaults; graphical names,
   labels and pin order never override them or name parent Nets. Resolution
   projects mapped pins onto formal names for endpoints, routes, No Connects
