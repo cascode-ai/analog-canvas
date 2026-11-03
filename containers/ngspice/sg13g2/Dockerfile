@@ -21,17 +21,18 @@ RUN mkdir -p /opt/sg13g2/osdi /opt/sg13g2/source \
 COPY containers/ngspice/sg13g2/sg13g2.lib.spice /opt/sg13g2/sg13g2.lib.spice
 
 # Reuse the qualified simulator binary; keep SG13 models and scratch isolated.
-FROM ${BASE_IMAGE} AS nominal
+FROM ${BASE_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/lib/simulation && chown 10001:10001 /var/lib/simulation && chmod 700 /var/lib/simulation
 COPY --from=models /opt/sg13g2 /opt/sg13g2
+COPY --from=models /build/ihp/ihp-sg13g2/libs.ref/sg13g2_stdcell/spice/sg13g2_stdcell.spice /opt/sg13g2-cells/sg13g2_stdcell.spice
 COPY containers/ngspice/runtime/entrypoint.mjs /opt/harness/entrypoint.mjs
 COPY containers/simulation/run-local-files.mjs /opt/simulation/run-local-files.mjs
 COPY containers/ngspice/sg13g2/profile.json /opt/harness/profile.json
 COPY containers/ngspice/sg13g2/hosted.spiceinit /opt/harness/hosted.spiceinit
 COPY containers/ngspice/sg13g2/verify-image.mjs /opt/harness/verify-image.mjs
-RUN chmod -R a-w /opt/sg13g2 /opt/harness /opt/simulation
+RUN chmod -R a-w /opt/sg13g2 /opt/harness /opt/simulation /opt/sg13g2-cells
 ENV NGSPICE_BIN=/opt/ngspice/bin/ngspice \
     SIMULATION_MODEL_ROOT=/opt/sg13g2 \
     SIMULATION_PROFILE_PATH=/opt/harness/profile.json \
@@ -45,17 +46,3 @@ WORKDIR /var/lib/simulation
 RUN node /opt/harness/verify-image.mjs
 EXPOSE 8080
 CMD ["node", "/opt/harness/entrypoint.mjs"]
-
-# Expanded qualification is a separate immutable Profile; nominal-v1 remains
-# available for saved Projects with its original model/startup identities.
-FROM nominal AS extended
-USER root
-COPY containers/ngspice/sg13g2/extended/sg13g2.lib.spice /opt/sg13g2/sg13g2.lib.spice
-COPY containers/ngspice/sg13g2/extended/profile.json /opt/harness/profile.json
-COPY --from=models /build/ihp/ihp-sg13g2/libs.ref/sg13g2_stdcell/spice/sg13g2_stdcell.spice /opt/sg13g2-cells/sg13g2_stdcell.spice
-RUN chmod -R a-w /opt/sg13g2 /opt/harness /opt/sg13g2-cells
-USER 10001:10001
-RUN node /opt/harness/verify-image.mjs
-
-# Preserve the existing default build target and deployed v1 image contract.
-FROM nominal AS default

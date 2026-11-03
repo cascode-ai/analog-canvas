@@ -1,4 +1,3 @@
-import extended from "../containers/ngspice/sg13g2/extended/profile.json";
 import { afterEach, expect, it, vi } from "vitest";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 import sky130 from "../containers/ngspice/hosted-sky130-profile.json";
@@ -62,8 +61,8 @@ it("discovers independent SKY130 and SG13 Profiles and prepares the selected mod
   });
   expect(selected.profiles).toHaveLength(1);
   expect(selected.profiles[0].devices).toContain("npn13G2");
-  expect(selected.profiles[0].devices).not.toContain("sg13_hv_nmos");
-  expect(selected.profiles[0].corners).toEqual(["nominal"]);
+  expect(selected.profiles[0].devices).toContain("sg13_hv_nmos");
+  expect(selected.profiles[0].corners).toEqual(sg13.qualifiedScope.sections);
   const onlySg13 = await routeSimulationRequest(
     post({ operation: "capabilities" }),
     {
@@ -120,12 +119,9 @@ it("does not advertise SG13 while its host is missing or serves a different mode
   }
 });
 
-it.each([
-  [sg13.id, "sg13g2"],
-  [extended.id, "sg13g2-extended"],
-])("cancels only the selected SG13 executor %s", async (profileId, prefix) => {
+it("cancels only the selected SG13 executor", async () => {
   const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
-    expect(url.toString()).toBe(`https://sim.test/${prefix}/cancel`);
+    expect(url.toString()).toBe("https://sim.test/sg13g2/cancel");
     expect(new Headers(init.headers).get("authorization")).toBe(
       "Bearer protocol-test-token",
     );
@@ -136,12 +132,11 @@ it.each([
   const result = await routeSimulationRequest(
     post({
       operation: "cancel",
-      environment: { profileId },
+      environment: { profileId: sg13.id },
       runToken: "11111111-1111-4111-8111-111111111111",
     }),
     {
       ...env,
-      SG13G2_EXTENDED_UPSTREAM_URL: "https://sim.test/sg13g2-extended",
     },
   );
   expect(result!.status).toBe(200);
@@ -149,13 +144,13 @@ it.each([
 });
 
 it.each([
-  [extended, 200],
-  [sg13, 502],
+  [sg13, 200],
+  [{ ...sg13, id: "ihp-sg13g2-nominal-ngspice46-v1" }, 502],
 ] as const)(
-  "checks the streaming receipt identity for an extended request ($1)",
+  "checks the streaming receipt identity for the final Profile ($1)",
   async (identity, status) => {
     const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
-      expect(url.toString()).toBe("https://sim.test/sg13g2-extended/run");
+      expect(url.toString()).toBe("https://sim.test/sg13g2/run");
       const { deck, outputContext, runToken, files } = JSON.parse(
         String(init.body),
       );
@@ -199,7 +194,7 @@ it.each([
     vi.stubGlobal("fetch", fetcher);
     const result = await routeSimulationRequest(
       post({
-        environment: { profileId: extended.id },
+        environment: { profileId: sg13.id },
         mode: "raw",
         netlist: "",
         testbench:
@@ -209,7 +204,6 @@ it.each([
       }),
       {
         ...env,
-        SG13G2_EXTENDED_UPSTREAM_URL: "https://sim.test/sg13g2-extended",
       },
     );
     expect(result!.status).toBe(status);
@@ -238,6 +232,41 @@ it("does not substitute SKY130 when SG13 is unconfigured, or accept SKY130 corne
       configuration,
     );
     expect(result!.status).toBe(400);
+  }
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+it("offers exactly one SG13 Profile with all qualified devices", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json(health)),
+  );
+  const reply = await routeSimulationRequest(
+    post({ operation: "capabilities" }),
+    env,
+  );
+  const capabilities = await reply!.json();
+  expect(capabilities.profiles.map((p: { id: string }) => p.id)).toEqual([
+    sky130.id,
+    sg13.id,
+  ]);
+  expect(capabilities.profiles[1].devices).toHaveLength(13);
+});
+
+it("refuses the retired SG13 Profile without substituting the final model", async () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal("fetch", fetcher);
+  for (const operation of ["capabilities", "cancel", undefined]) {
+    const result = await routeSimulationRequest(
+      post({
+        operation,
+        environment: { profileId: "ihp-sg13g2-nominal-ngspice46-v1" },
+        runToken: crypto.randomUUID(),
+      }),
+      env,
+    );
+    expect(result!.status).toBe(400);
+    expect((await result!.json()).error).toBe("simulation-profile-unavailable");
   }
   expect(fetcher).not.toHaveBeenCalled();
 });

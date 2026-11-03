@@ -21,10 +21,7 @@ const output = mkdtempSync(join(resolve(values.output), "run-"));
 const bytes = readFileSync(values.cells);
 const manifest = JSON.parse(
   readFileSync(
-    new URL(
-      "../containers/ngspice/sg13g2/extended/profile.json",
-      import.meta.url,
-    ),
+    new URL("../containers/ngspice/sg13g2/profile.json", import.meta.url),
     "utf8",
   ),
 );

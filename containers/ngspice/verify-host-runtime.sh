@@ -4,8 +4,7 @@ set -eu
 gateway="${SIMULATION_GATEWAY_CONTAINER_NAME:-analog-canvas-ngspice}"
 sky130="${SIMULATION_EXECUTOR_CONTAINER_NAME:-analog-canvas-ngspice-executor}"
 sg13g2="${SG13G2_EXECUTOR_CONTAINER_NAME:-analog-canvas-sg13g2-executor}"
-extended="${SG13G2_EXTENDED_EXECUTOR_CONTAINER_NAME:-analog-canvas-sg13g2-extended-executor}"
-set -- "$sky130" "$sg13g2" "$extended"
+set -- "$sky130" "$sg13g2"
 
 fail() {
   printf 'simulator host runtime invalid: %s\n' "$1" >&2
