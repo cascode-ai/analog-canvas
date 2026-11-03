@@ -78,6 +78,7 @@ import {
   bindsExternalByPartPins,
   bindsProjectCell,
   reviewedExternalModelSuggestions,
+  reviewedParameterIssues,
   deviceDescriptor,
 } from "@icm/devices";
 import type {
@@ -269,6 +270,7 @@ import {
   useSimulationPickCommands,
   useSimulationPicking,
   useSimulationSurface,
+  useModelTargetProfiles,
 } from "./use-simulation-surface";
 import { EditorSimulationSurface } from "./editor-simulation-surface";
 import { EditorDialogs } from "./editor-dialogs";
@@ -1884,6 +1886,9 @@ function WorkspaceEditor({
     )
       setControlPickState(null);
   }, [selectedInstance?.id]);
+  const modelTargetProfiles = useModelTargetProfiles(
+    publicSimulationUiEnabled && selectionOpen && !!selectedInstance,
+  );
   const selectedContact = selectedEndpoint
     ? documentContactEvidence?.byEndpointKey.get(
         endpointKey(selectedEndpoint.endpoint),
@@ -6536,6 +6541,15 @@ function WorkspaceEditor({
                                   .length > 0)))
                             ? {
                                 defaultValue: selectedModelTargetName,
+                                warnings: selectedReviewedExternalBinding
+                                  ? reviewedParameterIssues(
+                                      selectedReviewedExternalBinding,
+                                      selectedInstance.netlist?.parameters ??
+                                        {},
+                                      selectedInstance.reference ??
+                                        selectedInstance.id,
+                                    ).map((issue) => issue.message)
+                                  : [],
                                 cells: gateCellChoices(
                                   project,
                                   document.id,
@@ -6551,6 +6565,9 @@ function WorkspaceEditor({
                                   processReviewedLibrary(
                                     project,
                                     netlistPreferences.preferences,
+                                  ),
+                                  modelTargetProfiles.flatMap(
+                                    (profile) => profile.cellLibraries ?? [],
                                   ),
                                 ),
                                 externalSubcircuit: Boolean(

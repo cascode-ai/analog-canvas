@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { delimiter } from "node:path";
 import { describe, expect, it } from "vitest";
+import sg13 from "../../../containers/ngspice/sg13g2/profile.json";
 
 import {
   resolveReviewedLibraryInterface,
@@ -11,6 +12,7 @@ import {
   reviewedExternalBindingSupportsSymbol,
   reviewedExternalDeviceBindings,
   reviewedExternalModelSuggestions,
+  reviewedParameterIssues,
   reviewedModelledSizeChanges,
   reviewedSizeModelled,
   reviewedSizeOutOfRange,
@@ -20,6 +22,59 @@ import {
 } from "./reviewed-external.js";
 
 describe("reviewed external device bindings", () => {
+  it.each([
+    ["rppd", { w: "100n", b: "101" }, ["w", "b"]],
+    ["rsil", { l: "2m" }, ["l"]],
+    ["rhigh", { l: "500n" }, ["l"]],
+    ["cap_cmim", { w: "1u", l: "2m" }, ["w", "l"]],
+    ["cap_rfcmim", { w: "1u" }, ["w"]],
+    ["sg13_lv_nmos", { w: "11u", ng: "1" }, ["w"]],
+  ] as const)(
+    "reports the pinned SG13 PCell bounds for %s",
+    (master, parameters, expected) => {
+      const binding = reviewedExternalBindingForMaster(master)!;
+      expect(
+        reviewedParameterIssues(binding, parameters, "DUT").map(
+          (issue) => issue.parameter,
+        ),
+      ).toEqual(expect.arrayContaining([...expected]));
+      expect(reviewedParameterIssues(binding, {}, "DUT")).toEqual([]);
+      expect(
+        reviewedParameterIssues(
+          binding,
+          { w: "{width}", l: "{length}" },
+          "DUT",
+        ),
+      ).toEqual([]);
+    },
+  );
+  it("offers the advertised SG13 gate strengths while keeping Process and function compatibility", () => {
+    expect(
+      reviewedExternalModelSuggestions(
+        "nand-gate",
+        "sg13g2_pr",
+        sg13.cellLibraries,
+      ),
+    ).toEqual(["sg13g2_nand2_1", "sg13g2_nand2_2"]);
+    expect(
+      reviewedExternalModelSuggestions(
+        "nand-gate",
+        "sky130_fd_pr",
+        sg13.cellLibraries,
+      ),
+    ).toEqual(["sky130_fd_sc_hd__nand2_1"]);
+    for (const master of sg13.cellLibraries[0]!.masters) {
+      const binding = standardCellBindingForMaster(master)!;
+      expect(
+        reviewedExternalModelSuggestions(
+          binding.symbolId,
+          "sg13g2_pr",
+          sg13.cellLibraries,
+        ),
+        master,
+      ).toContain(master);
+    }
+  });
   it("offers generic poly on a resistor only with its exact two-terminal interface", () => {
     const binding = resolveReviewedExternalBinding(
       "sky130_fd_pr__res_generic_po",

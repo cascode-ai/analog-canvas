@@ -9,6 +9,26 @@ import {
 } from "./netlist-export-preferences.js";
 
 describe("netlist authoring preferences", () => {
+  it("moves the old SG13 ideal defaults once and preserves subsequent explicit Ideal choices", () => {
+    const old = createDefaultNetlistExportPreferences();
+    delete old.sg13Defaults;
+    old.profiles.sg13g2.devices.resistor.target = "";
+    old.profiles.sg13g2.devices.capacitor.target = "";
+    old.profiles.sg13g2.devices.resistor.substrate = "VNEG";
+    const updated = readNetlistExportPreferences(JSON.stringify(old));
+    expect(updated.profiles.sg13g2.devices.resistor.target).toBe("rppd");
+    expect(updated.profiles.sg13g2.devices.capacitor.target).toBe("cap_cmim");
+    expect(updated.profiles.sg13g2.devices.resistor.substrate).toBe("VNEG");
+    const ideal = setNetlistExportDeviceTarget(
+      selectNetlistExportProfile(updated, "sg13g2"),
+      "resistor",
+      "",
+    );
+    expect(
+      readNetlistExportPreferences(JSON.stringify(ideal)).profiles.sg13g2
+        .devices.resistor.target,
+    ).toBe("");
+  });
   it("remembers an RNL mode as its dialect and a flag, and drops the flag again", () => {
     const rnl = selectNetlistExportMode(
       createDefaultNetlistExportPreferences(),

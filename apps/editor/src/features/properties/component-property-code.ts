@@ -693,32 +693,36 @@ export function parseComponentPropertyCode(
 /** Reset authored defaults in the draft without moving, renaming, or rebinding the device. */
 export function defaultComponentPropertyCode(
   context: ComponentPropertyCodeContext,
+  { parametersOnly = false }: { parametersOnly?: boolean } = {},
 ): string {
   const value = componentPropertyCodeValue(context);
-  if (value.placement)
+  if (!parametersOnly && value.placement)
     value.placement = { ...value.placement, rotation: 0, mirror: "none" };
-  value.appearance = {
-    color: "auto",
-    ...(value.appearance.internalMark !== undefined
-      ? { internalMark: NO_INTERNAL_MARK }
-      : {}),
-    ...(value.appearance.inputPolarity !== undefined
-      ? { inputPolarity: true }
-      : {}),
-    ...(value.appearance.inputsSwapped !== undefined
-      ? { inputsSwapped: false }
-      : {}),
-    ...(value.appearance.outputsSwapped !== undefined
-      ? { outputsSwapped: false }
-      : {}),
-    ...(value.appearance.shape !== undefined ? { shape: "circle" } : {}),
-    ...(value.appearance.supplyPins !== undefined ? { supplyPins: false } : {}),
-  };
+  if (!parametersOnly)
+    value.appearance = {
+      color: "auto",
+      ...(value.appearance.internalMark !== undefined
+        ? { internalMark: NO_INTERNAL_MARK }
+        : {}),
+      ...(value.appearance.inputPolarity !== undefined
+        ? { inputPolarity: true }
+        : {}),
+      ...(value.appearance.inputsSwapped !== undefined
+        ? { inputsSwapped: false }
+        : {}),
+      ...(value.appearance.outputsSwapped !== undefined
+        ? { outputsSwapped: false }
+        : {}),
+      ...(value.appearance.shape !== undefined ? { shape: "circle" } : {}),
+      ...(value.appearance.supplyPins !== undefined
+        ? { supplyPins: false }
+        : {}),
+    };
   if (value.parameters && context.details) {
     // Preserve unknown model overrides; only descriptor-owned defaults are known.
     for (const parameter of context.details.parameters)
       value.parameters[parameter.key] = parameter.defaultValue ?? "";
   }
-  if (value.signalFlow) value.signalFlow = {};
+  if (!parametersOnly && value.signalFlow) value.signalFlow = {};
   return serializeComponentPropertyCode(value);
 }

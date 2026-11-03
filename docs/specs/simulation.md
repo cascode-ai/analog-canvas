@@ -80,14 +80,14 @@ same way for Gallery [simulation checks](community-gallery.md#simulation-checks)
 New experiments use `{ "version": 2, "environment": { "profileId": "<id>" } }`.
 Without a named Profile the create takes:
 
-1. the Profile whose qualified `devices` cover every reviewed PDK device bound in
-   the Cell and its sub-Cells;
+1. the single Profile whose `devices` and `cellLibraries` cover every reviewed
+   PDK device and standard cell bound in the Cell and its sub-Cells. Gates must
+   match their library and its exact `masters` list when advertised;
 2. else the single Profile covering all once its library's high-voltage DMOS
    count as qualified (SKY130 ngspice runs 16 V and 20 V devices unlisted).
 
-Ideal blocks, the generic diode, authored models and standard-cell gates
-([execution](simulation-execution.md#standard-cells)) never count; a Profile
-listing no devices is never default. With several or none, the author names
+Ideal blocks, the generic diode and authored models never count; a Profile
+listing neither devices nor cell libraries is never default. With several or none, the author names
 one; Agent `simulation_folder` create refuses with `SIMULATION_PROFILE_REQUIRED`
 and the candidates. The GUI form mirrors this call and falls back to the VACASK
 candidate only offline.

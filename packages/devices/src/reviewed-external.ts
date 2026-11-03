@@ -69,6 +69,12 @@ export interface ReviewedExternalParameterBinding extends DeviceParameterDefinit
   readonly targetUnit?: "micrometre";
   readonly targetDefaultValue?: string;
   readonly spiceOrder: number;
+  readonly numericLimits?: {
+    readonly minimum?: number;
+    readonly maximum?: number;
+    readonly exclusiveMinimum?: boolean;
+    readonly integer?: boolean;
+  };
 }
 
 /** The Library logic gates a standard cell can stand behind (#1450). */
@@ -135,10 +141,9 @@ export interface ReviewedExternalDeviceBinding {
    */
   readonly modelledSizes?: ReviewedModelledSizes;
   /**
-   * The L range and the narrowest W per finger, in metres, a device modelled
-   * over a range runs at on Production's simulator. Outside them ngspice 46
-   * stops at the device's line, with "could not find a valid modelname" or a
-   * BSIM4 parameter fatal (#1474, #1492).
+   * Supported L range and narrowest W per finger, in metres. SKY130's model
+   * bins stop ngspice outside these bounds (#1474, #1492); SG13G2's bounds
+   * follow its pinned PCell technology parameters.
    */
   readonly sizeLimits?: {
     readonly length: readonly [shortest: number, longest: number];
@@ -779,6 +784,7 @@ const sg13Length = (
   displayRole,
   targetDefaultValue: defaultValue,
   spiceOrder,
+  numericLimits: { minimum: 0, exclusiveMinimum: true },
 });
 
 const sg13Count = (
@@ -799,6 +805,17 @@ const sg13Count = (
   displayRole,
   targetDefaultValue: defaultValue,
   spiceOrder,
+  numericLimits: {
+    minimum: name === "m" || name === "b" ? 0 : 1,
+    ...(name === "m" ? { exclusiveMinimum: true } : { integer: true }),
+    ...(name === "b"
+      ? { maximum: 100 }
+      : name === "ng"
+        ? { maximum: 100 }
+        : name === "Nx"
+          ? { maximum: 10 }
+          : {}),
+  },
 });
 
 const sg13Canvas = (
@@ -829,13 +846,22 @@ const sg13MosBinding = (
   libraryId: "sg13g2_pr",
   nativeMosModel: "psp103",
   nativeElement: `n${masterName}`,
+  // Pinned SG13G2 PCell tech parameters: n/p MOS and n/p MOS-HV ranges.
+  sizeLimits: {
+    length: [parseSpiceNumber(length), 10e-6],
+    widthPerFinger: parseSpiceNumber(width),
+  },
   masterName,
   invocationKind: "external-subcircuit",
   symbolId,
   deviceClass: "mos",
   terminals: sg13Canvas(["d", "g", "s", "b"]),
   parameters: [
-    sg13Length("w", "W", width, "Width in metres", "width", 0),
+    {
+      ...sg13Length("w", "W", width, "Width in metres", "width", 0),
+      // Declared PCell range for total W; not a simulator cutoff.
+      numericLimits: { minimum: 0, exclusiveMinimum: true, maximum: 10e-6 },
+    },
     sg13Length("l", "L", length, "Length in metres", "length", 1),
     sg13Count("ng", "NG", "Gate finger count", 2, "finger-count"),
     sg13Count("m", "M", "Parallel device count", 3),
@@ -866,7 +892,21 @@ const sg13NpnBinding = (
       "none",
       0,
     ),
-    sg13Length("we", "WE", emitterWidth, "Emitter width in metres", "none", 1),
+    {
+      ...sg13Length(
+        "we",
+        "WE",
+        emitterWidth,
+        "Emitter width in metres",
+        "none",
+        1,
+      ),
+      // The wrapper scales with LE/Nx; its fixed-width model does not scale WE.
+      numericLimits: {
+        minimum: parseSpiceNumber(emitterWidth),
+        maximum: parseSpiceNumber(emitterWidth),
+      },
+    },
     sg13Count("Nx", "NX", "Emitter count, 1 to 10", 2),
   ],
 });
@@ -884,13 +924,20 @@ const sg13ResistorBinding = (
   invocationKind: "external-subcircuit",
   symbolId: "resistor",
   deviceClass: "resistor",
+  sizeLimits: {
+    length: [parseSpiceNumber(length), 1e-3],
+    widthPerFinger: 500e-9,
+  },
   terminals: [
     { targetName: "1", pinName: "1", interaction: "canvas" },
     { targetName: "2", pinName: "2", interaction: "canvas" },
     sg13Substrate("B"),
   ],
   parameters: [
-    sg13Length("w", "W", "500n", "Width in metres", "width", 0),
+    {
+      ...sg13Length("w", "W", "500n", "Width in metres", "width", 0),
+      numericLimits: { maximum: 1e-3 },
+    },
     sg13Length("l", "L", length, "Length in metres", "length", 1),
     ...(bends ? [sg13Count("b", "B", "Number of bends", 2, "none", "0")] : []),
     sg13Count("m", "M", "Parallel resistor count", 3),
@@ -910,13 +957,20 @@ const sg13MimBinding = (
   invocationKind: "external-subcircuit",
   symbolId: "capacitor",
   deviceClass: "capacitor",
+  sizeLimits: {
+    length: [feed ? 7e-6 : 1.14e-6, 1e-3],
+    widthPerFinger: feed ? 7e-6 : 1.14e-6,
+  },
   terminals: [
     { targetName: "PLUS", pinName: "1", interaction: "canvas" },
     { targetName: "MINUS", pinName: "2", interaction: "canvas" },
     ...(feed ? [sg13Substrate("B")] : []),
   ],
   parameters: [
-    sg13Length("w", "W", side, "Width in metres", "width", 0),
+    {
+      ...sg13Length("w", "W", side, "Width in metres", "width", 0),
+      numericLimits: { maximum: 1e-3 },
+    },
     sg13Length("l", "L", side, "Length in metres", "length", 1),
     ...(feed
       ? [sg13Length("wfeed", "WFEED", feed, "Feed width in metres", "none", 2)]
@@ -1475,17 +1529,31 @@ export const LIBRARY_PROCESS: Readonly<
 export function reviewedExternalModelSuggestions(
   symbolId: string,
   libraryId?: ReviewedExternalDeviceBinding["libraryId"],
+  libraries?: readonly {
+    readonly cells: string;
+    readonly masters?: readonly string[] | undefined;
+  }[],
 ): readonly string[] {
   const sameProcess = (id: ReviewedExternalDeviceBinding["libraryId"]) =>
     !libraryId || LIBRARY_PROCESS[id] === LIBRARY_PROCESS[libraryId];
-  // A gate is offered each library's weakest cell of its function; any other
-  // drive strength or variant of the library is accepted as well.
+  // Prefer advertised qualified masters; offline export offers the weakest
+  // example. Other strengths can still be authored through the model name.
   const gate = GATE_OF_SYMBOL.get(symbolId);
   if (gate)
     return STANDARD_CELL_RULES.filter(
       (rule) =>
         sameProcess(rule.libraryId) && builds(rule, gate.fn, gate.inputs),
-    ).map((rule) => rule.example(gate.fn, gate.inputs));
+    ).flatMap((rule) => {
+      const inventories = libraries?.filter(
+        (library) => library.cells === rule.libraryId && library.masters,
+      );
+      if (!inventories?.length) return [rule.example(gate.fn, gate.inputs)];
+      return [
+        ...new Set(inventories.flatMap((library) => library.masters ?? [])),
+      ].filter(
+        (master) => standardCellBindingForMaster(master)?.symbolId === symbolId,
+      );
+    });
   return reviewedExternalDeviceBindings
     .filter(
       (binding) =>
@@ -1529,4 +1597,99 @@ export function sky130MicrometresToProjectLength(value: string): string {
     return `${Number(micrometres.toPrecision(12))}u`;
   }
   return `${Number((micrometres * 1000).toPrecision(12))}n`;
+}
+
+export interface ReviewedParameterIssue {
+  readonly code: string;
+  readonly parameter: string;
+  readonly message: string;
+}
+
+/** Shared literal model-parameter findings for Properties and design/simulation export. */
+export function reviewedParameterIssues(
+  binding: ReviewedExternalDeviceBinding,
+  parameters: Readonly<Record<string, string>>,
+  reference: string,
+): readonly ReviewedParameterIssue[] {
+  const widthRole = binding.parameters.some(
+    (p) => p.displayRole === "finger-count",
+  )
+    ? "width per finger"
+    : "width";
+  const issues: ReviewedParameterIssue[] = reviewedSizeOutOfRange(
+    binding,
+    parameters,
+  ).map((found) => ({
+    code: "REVIEWED_SIZE_OUT_OF_RANGE",
+    parameter: found.parameter,
+    message:
+      binding.libraryId === "sg13g2_pr"
+        ? `${reference} has ${found.parameter} ${found.text}, outside the supported ${found.bound} ${found.role === "width" ? widthRole : "length"} of ${micrometres(found.limit)} for ${binding.masterName}. Adjust the dimension or restore the model defaults.`
+        : sizeOutOfRangeMessage(reference, binding.masterName, found),
+  }));
+  for (const parameter of binding.parameters) {
+    const limits = parameter.numericLimits;
+    if (
+      !limits ||
+      issues.some(
+        (issue) =>
+          issue.parameter.toLowerCase() === parameter.name.toLowerCase(),
+      )
+    )
+      continue;
+    const entry = partEntry(parameters, parameter.name);
+    const text = entry?.[1] || parameter.defaultValue;
+    if (!text) continue;
+    let value: number;
+    try {
+      value = parseSpiceNumber(text);
+    } catch {
+      continue;
+    }
+    const shown = (bound: number) =>
+      parameter.unitHint === "m" ? micrometres(bound) : String(bound);
+    let required: string | undefined;
+    if (limits.integer && !Number.isInteger(value)) required = "an integer";
+    else if (
+      limits.minimum !== undefined &&
+      (limits.exclusiveMinimum
+        ? value <= limits.minimum
+        : value < limits.minimum * (1 - 1e-9))
+    )
+      required = `${limits.exclusiveMinimum ? "greater than" : "at least"} ${shown(limits.minimum)}`;
+    else if (
+      limits.maximum !== undefined &&
+      value > limits.maximum * (1 + 1e-9)
+    )
+      required = `at most ${shown(limits.maximum)}`;
+    if (required)
+      issues.push({
+        code: "REVIEWED_PARAMETER_OUT_OF_RANGE",
+        parameter: entry?.[0] ?? parameter.name,
+        message: `${reference} has ${parameter.name} ${text}, outside the supported range (${required}) for ${binding.masterName}. Adjust the value or restore the model defaults.`,
+      });
+  }
+  return issues;
+}
+const micrometres = (metres: number) =>
+  `${Number((metres / 1e-6).toPrecision(6))} µm`;
+
+function sizeOutOfRangeMessage(
+  reference: string,
+  master: string,
+  found: ReviewedSizeOutOfRange,
+): string {
+  const label = found.role === "width" ? "W" : "L";
+  if (found.bound === "slip") {
+    const text = found.text.trim();
+    const bare = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/iu.test(text);
+    return `${reference} has ${label} ${text}, which is ${found.fingers > 1 ? `${micrometres(found.metres / found.fingers)} per finger` : micrometres(found.metres)}: over ${found.limit / 1e-3} mm, larger than ${master} is made, so its unit is likely missing or wrong.${bare ? ` A size without a unit is in metres; write ${text}u if you mean ${text} µm.` : ""}`;
+  }
+  const size =
+    found.fingers === 1
+      ? micrometres(found.metres)
+      : `${micrometres(found.metres)} over ${found.fingers} fingers, ${micrometres(found.metres / found.fingers)} each`;
+  if (found.bound === "maximum")
+    return `${reference} has ${label} ${size}, above the ${micrometres(found.limit)} longest length ${master} runs at on Production's simulator, so a simulation stops at this line.`;
+  return `${reference} has ${label} ${size}, below the ${micrometres(found.limit)} minimum ${found.role === "width" ? "width per finger" : "length"} of ${master}. Its PDK has no model that ${found.role === "width" ? "narrow" : "short"}, so a simulation stops at this line.`;
 }

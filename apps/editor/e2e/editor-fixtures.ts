@@ -283,7 +283,8 @@ export async function chooseComponent(
   await dialog.getByLabel("Component search").fill(symbolId);
   // Clicking a tile starts placement immediately; the quick-pick grid has no
   // separate Apply step.
-  await dialog.getByTestId(`insert-component-${symbolId}`).click();
+  // External project models can share a symbol; choose its native Library tile.
+  await dialog.locator(`[id="insert-component-option-${symbolId}"]`).click();
 }
 
 /** Place one component at a canvas position, leaving no tool armed. */

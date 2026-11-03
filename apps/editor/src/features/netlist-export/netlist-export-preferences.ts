@@ -27,10 +27,13 @@ const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
  * move from happening a second time.
  */
 const DEFAULT_PROCESS_GENERATION = 2;
+const SG13_DEFAULTS_GENERATION = 1;
 export interface NetlistExportPreferences {
   selected: NetlistProfileId;
   /** The default-process generation this preference has been moved to. */
   defaultProcess?: number;
+  /** Records the physical R/C preset update; later explicit Ideal choices stay. */
+  sg13Defaults?: number;
   format: NetlistFormat;
   /**
    * Write the drawing into the netlist as RNL: the read-only SPICE+RNL and
@@ -44,6 +47,7 @@ export function createDefaultNetlistExportPreferences(): NetlistExportPreference
   return {
     selected: "sky130",
     defaultProcess: DEFAULT_PROCESS_GENERATION,
+    sg13Defaults: SG13_DEFAULTS_GENERATION,
     format: "spice",
     profiles: Object.fromEntries(
       NETLIST_PROFILE_IDS.map((id) => [id, createNetlistExportProfile(id)]),
@@ -72,6 +76,17 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   for (const id of ["tsmc28", "tsmc180", "sg13g2"] as const) {
     profiles[id] ??= createNetlistExportProfile(id);
   }
+  if ((parsed.sg13Defaults ?? 0) < SG13_DEFAULTS_GENERATION) {
+    const defaults = createNetlistExportProfile("sg13g2");
+    const sg13 = profiles.sg13g2;
+    for (const family of ["resistor", "capacitor"] as const) {
+      if (sg13?.devices?.[family]?.target === "")
+        sg13.devices[family] = {
+          ...defaults.devices[family],
+          substrate: sg13.devices[family].substrate,
+        };
+    }
+  }
   const moved =
     (parsed.defaultProcess ?? 1) < DEFAULT_PROCESS_GENERATION &&
     parsed.selected === "abstract";
@@ -80,6 +95,7 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
     ...parsed,
     ...(moved ? { selected: "sky130" as const } : {}),
     defaultProcess: DEFAULT_PROCESS_GENERATION,
+    sg13Defaults: SG13_DEFAULTS_GENERATION,
     profiles,
   });
 }

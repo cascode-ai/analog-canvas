@@ -24,12 +24,11 @@ import {
   resolveReviewedExternalBinding,
   reviewedSize,
   reviewedSizeModelled,
-  reviewedSizeOutOfRange,
+  reviewedParameterIssues,
   type GateCellPin,
   type PartTerminal,
   type ReviewedExternalDeviceBinding,
   type ReviewedSize,
-  type ReviewedSizeOutOfRange,
 } from "@icm/devices";
 import type { DesignNetlistInstance, NetlistDiagnostic } from "./ir.js";
 import {
@@ -531,19 +530,17 @@ export function extractExternalSubcircuitInstance(
       "warning",
     );
   }
-  // A size the PDK does not make, or one a unit slip left in metres (#1474).
-  // The part exports as drawn: which size was meant is the author's to say.
-  for (const found of reviewed
-    ? reviewedSizeOutOfRange(reviewed, netlist.parameters)
+  for (const issue of reviewed
+    ? reviewedParameterIssues(reviewed, netlist.parameters, instance.reference!)
     : [])
     diagnostic(
       diagnostics,
       document.id,
-      "REVIEWED_SIZE_OUT_OF_RANGE",
-      sizeOutOfRangeMessage(instance.reference!, definition.name, found),
+      issue.code,
+      issue.message,
       [instance.id],
       "warning",
-      found.parameter,
+      issue.parameter,
     );
   return {
     id: instance.id,
@@ -561,25 +558,6 @@ const micrometres = (metres: number) =>
   `${Number((metres / 1e-6).toPrecision(6))} µm`;
 
 /** What REVIEWED_SIZE_OUT_OF_RANGE says of one size (#1474). */
-function sizeOutOfRangeMessage(
-  reference: string,
-  master: string,
-  found: ReviewedSizeOutOfRange,
-): string {
-  const label = found.role === "width" ? "W" : "L";
-  if (found.bound === "slip") {
-    const text = found.text.trim();
-    const bare = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/iu.test(text);
-    return `${reference} has ${label} ${text}, which is ${found.fingers > 1 ? `${micrometres(found.metres / found.fingers)} per finger` : micrometres(found.metres)}: over ${found.limit / 1e-3} mm, larger than ${master} is made, so its unit is likely missing or wrong.${bare ? ` A size without a unit is in metres; write ${text}u if you mean ${text} µm.` : ""}`;
-  }
-  const size =
-    found.fingers === 1
-      ? micrometres(found.metres)
-      : `${micrometres(found.metres)} over ${found.fingers} fingers, ${micrometres(found.metres / found.fingers)} each`;
-  if (found.bound === "maximum")
-    return `${reference} has ${label} ${size}, above the ${micrometres(found.limit)} longest length ${master} runs at on Production's simulator, so a simulation stops at this line.`;
-  return `${reference} has ${label} ${size}, below the ${micrometres(found.limit)} minimum ${found.role === "width" ? "width per finger" : "length"} of ${master}. Its PDK has no model that ${found.role === "width" ? "narrow" : "short"}, so a simulation stops at this line.`;
-}
 
 /** A Net named as a Cell's ground or substrate: GND, AGND, SUB, VSUB. */
 const GROUND_OR_SUBSTRATE_NAME = /^[ad]?(?:gnd|v?sub)[a-z0-9_]*$/iu;

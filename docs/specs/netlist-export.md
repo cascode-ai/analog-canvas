@@ -346,11 +346,21 @@ parameters or renumbers first.
   Project or refills deliberately missing parameters.
 - Placing a native device under a process binds its model in the same
   transaction (GUI and Agent share the plan); SKY130 transistors, PNP and NPN
-  arrive as reviewed `X` wrappers. Reviewed BJT wrappers take `m`.
+  arrive as reviewed `X` wrappers. Reviewed SKY130 BJT wrappers take `m`.
 - IHP SG13G2 binds like its xschem symbols: `sg13_lv_*`/`sg13_hv_*`
   (`d g s b`; `w l ng m`), `npn13G2`/`npn13G2l`/`npn13G2v` (`c b e bn`; `le we
 Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   `w l [b] m`), `cap_cmim`/`cap_rfcmim`; metres throughout.
+- SG13G2 R/C presets use `rppd`/`cap_cmim`. The Netlist shortcuts include NPN
+  and PNP; R/C retain an explicit Ideal choice. Old blank SG13 R/C browser
+  presets move to these defaults once; subsequent explicit Ideal choices stay.
+- Properties and export share literal parameter warnings for reviewed models;
+  SG13 uses pinned PCell bounds and fixed HBT emitter widths as advisory
+  limits. Expressions remain authored. Changing targets preserves authored values.
+  **Model defaults** restores only the selected model's parameter defaults,
+  keeping identity, placement, appearance and connections.
+- Standard-cell target suggestions follow Process and gate function and use
+  advertised qualified masters; offline export keeps reviewed example names.
 - TSMC 28 maps `m` to `multi` and back. Process changes keep names, IDs and
   authored values (except 16 V DMOS sizing); the panel offers filling only
   missing models in one undo.

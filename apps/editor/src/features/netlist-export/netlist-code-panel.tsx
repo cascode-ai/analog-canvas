@@ -672,7 +672,7 @@ export function NetlistCodePanel({
                 ].map((value) => (
                   <option key={value} value={value}>
                     {value.replace(/^sky130_fd_pr__/u, "") ||
-                      (family === "nmos" || family === "pmos"
+                      (["nmos", "pmos", "npn", "pnp"].includes(family)
                         ? "Unspecified"
                         : "Ideal")}
                   </option>

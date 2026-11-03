@@ -19,7 +19,10 @@ export const environmentTestLanes = {
     checks: [
       {
         file: "apps/editor/e2e/sg13g2-simulation.spec.ts",
-        targets: ["GUI and public MCP run thirteen SG13G2 devices and a gate"],
+        targets: [
+          "SG13 Properties use qualified targets, model defaults and physical Process presets",
+          "GUI and public MCP run thirteen SG13G2 devices and a gate",
+        ],
       },
     ],
   },
