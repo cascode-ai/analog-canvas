@@ -101,14 +101,19 @@ type ModelLibrarySelection =
 
 ### Hosted SG13G2 Profile
 
-- [The SG13G2 manifest](../../containers/ngspice/sg13g2/profile.json) owns the
-  qualified devices, analyses, nominal section and binary/model/startup identities.
-  The model digest includes the original IHP sources and compiled OSDI modules;
-  model coefficients are unchanged. Other corners, standard cells, Monte Carlo
-  and VACASK SG13G2 are unqualified.
-- SG13G2 has a separate executor and scratch volume. Discovery advertises it
-  only when health proves the pinned identity. Prepare rejects generated devices
-  belonging to another PDK; runs and cancellation route by the selected Profile.
+- The [nominal Profile](../../containers/ngspice/sg13g2/profile.json) pins the
+  seven-device model tree for existing Projects. The [extended Profile](../../containers/ngspice/sg13g2/extended/profile.json)
+  names all 13 qualified Library primitives and 37 combinational standard-cell
+  masters. Each Profile has a separate executor and private scratch volume.
+  Discovery requires the exact model, simulator and startup identities.
+- The extended Profile offers 135 deterministic combinations of five MOS,
+  three HBT, three resistor and three capacitor corners. `nominal` selects
+  TT/typ/typ/typ. Gate truth tables qualify at each MOS corner at −40, 27 and
+  125 °C. Choose a named section in the Profile model dependency's `.lib` line.
+- For seeded sampling, select `statistical` or `nominal-mismatch`, then run
+  `setseed 7101` and `reset` before analysis in the ngspice control block.
+  Use the upstream `mm_ok=1` instance switch on models that expose it.
+  The lateral PNP has no local mismatch term. VACASK SG13G2 remains unqualified.
 - PSP103 native OP exposes `ide` as `id`, `vgs` and `vds`. These are native,
   polarity-normalized model quantities (including PMOS); derivative fields are
   unavailable. The current Helper refuses hierarchical PSP PMOS drain current

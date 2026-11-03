@@ -12,7 +12,8 @@ on:
       - worker/simulation*.ts
       - apps/editor/e2e/sg13g2-simulation.spec.ts
       - apps/editor/e2e/mcp-stdio-fixture.ts
-      - scripts/sg13g2-qualification.mjs
+      - scripts/sg13g2*qualification.mjs
+      - scripts/production-sg13g2-smoke.mjs
       - scripts/lib/environment-test-lanes.mjs
       - netlists/sg13g2-qualification/**
       - .github/workflows/sg13g2-tests.yml
@@ -21,9 +22,10 @@ permissions:
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
     env:
       ICM_SG13G2_URL: http://127.0.0.1:18083
+      ICM_SG13G2_EXTENDED_URL: http://127.0.0.1:18085
       ICM_E2E_ISOLATED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -40,16 +42,26 @@ jobs:
           pnpm exec playwright install --with-deps chromium
           node scripts/package-ngspice-harness.mjs
       - name: Build identity-verified image
-        run: docker build -f containers/ngspice/sg13g2/Dockerfile -t icm-sg13g2 .
+        run: |
+          docker build -f containers/ngspice/sg13g2/Dockerfile -t icm-sg13g2 .
+          docker build -f containers/ngspice/sg13g2/Dockerfile --target extended -t icm-sg13g2-extended .
       - name: Qualify native devices with original models
         run: |
           mkdir -p output/sg13g2-native
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 2g --cpus 2 --tmpfs /tmp --user "$(id -u):$(id -g)" --mount type=bind,source="$PWD",target=/proof --workdir /proof --entrypoint node icm-sg13g2 scripts/sg13g2-qualification.mjs --binary /opt/ngspice/bin/ngspice --models /opt/sg13g2/models --modules /opt/sg13g2/osdi --output /proof/output/sg13g2-native
+      - name: Exercise all expanded corners, standard cells and statistical sections
+        run: |
+          run=(docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 2g --cpus 2 --tmpfs /tmp --user "$(id -u):$(id -g)" --mount type=bind,source="$PWD",target=/proof --workdir /proof --entrypoint node icm-sg13g2-extended)
+          native=(--binary /opt/ngspice/bin/ngspice --models /opt/sg13g2/models --modules /opt/sg13g2/osdi)
+          "${run[@]}" scripts/sg13g2-corners-qualification.mjs "${native[@]}" --output output/sg13g2-corners
+          "${run[@]}" scripts/sg13g2-cells-qualification.mjs "${native[@]}" --cells /opt/sg13g2-cells/sg13g2_stdcell.spice --output output/sg13g2-cells
+          "${run[@]}" scripts/sg13g2-statistics-qualification.mjs --output output/sg13g2-statistics
       - name: Start isolated real executor
         run: |
           docker run -d --name sg13g2-qualification --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 2g --cpus 2 --tmpfs /tmp --tmpfs /var/lib/simulation:uid=10001,gid=10001,mode=0700 -p 127.0.0.1:18083:8080 icm-sg13g2
+          docker run -d --name sg13g2-extended --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 2g --cpus 2 --tmpfs /tmp --tmpfs /var/lib/simulation:uid=10001,gid=10001,mode=0700 -p 127.0.0.1:18085:8080 icm-sg13g2-extended
           for attempt in $(seq 1 30); do
-            if curl -fsS "$ICM_SG13G2_URL/health"; then exit 0; fi
+            if curl -fsS "$ICM_SG13G2_URL/health" && curl -fsS "$ICM_SG13G2_EXTENDED_URL/health"; then exit 0; fi
             sleep 1
           done
           exit 1
@@ -63,6 +75,9 @@ jobs:
         with:
           name: sg13g2-qualification-${{ github.sha }}
           path: |
+            output/sg13g2-corners/report.json
+            output/sg13g2-cells/*/report.json
+            output/sg13g2-statistics/*/report.json
             output/sg13g2-native/
             output/sg13g2-service-acceptance/
             output/environment-tests/

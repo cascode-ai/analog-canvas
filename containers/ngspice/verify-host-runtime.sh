@@ -4,6 +4,8 @@ set -eu
 gateway="${SIMULATION_GATEWAY_CONTAINER_NAME:-analog-canvas-ngspice}"
 sky130="${SIMULATION_EXECUTOR_CONTAINER_NAME:-analog-canvas-ngspice-executor}"
 sg13g2="${SG13G2_EXECUTOR_CONTAINER_NAME:-analog-canvas-sg13g2-executor}"
+extended="${SG13G2_EXTENDED_EXECUTOR_CONTAINER_NAME:-analog-canvas-sg13g2-extended-executor}"
+set -- "$sky130" "$sg13g2" "$extended"
 
 fail() {
   printf 'simulator host runtime invalid: %s\n' "$1" >&2
@@ -16,7 +18,7 @@ value() {
   docker inspect --format "$format" "$container"
 }
 
-for container in "$gateway" "$sky130" "$sg13g2"; do
+for container in "$gateway" "$@"; do
   restart="$(value "$container" '{{.HostConfig.RestartPolicy.Name}}')"
   case "$restart" in
     always|unless-stopped) ;;
@@ -37,7 +39,8 @@ for container in "$gateway" "$sky130" "$sg13g2"; do
   esac
 done
 
-for executor in "$sky130" "$sg13g2"; do
+previous_sources=''
+for executor in "$@"; do
   nanocpus="$(value "$executor" '{{.HostConfig.NanoCpus}}')"
   [ "$nanocpus" -eq 8000000000 ] 2>/dev/null \
     || fail "executor CPU limit is $nanocpus nanocpus, expected 8000000000"
@@ -49,6 +52,12 @@ for executor in "$sky130" "$sg13g2"; do
   run_root_rw="$(value "$executor" '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation"}}{{.RW}}{{end}}{{end}}')"
   [ "$run_root_rw" = "true" ] \
     || fail "the private run-root volume is absent or read-only"
+  source="$(value "$executor" '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation"}}{{.Source}}{{end}}{{end}}')"
+  [ -n "$source" ] || fail "$executor has no scratch mount source"
+  if printf '%s\n' "$previous_sources" | grep -Fxq -- "$source"; then
+    fail "Profiles share a run-root volume"
+  fi
+  previous_sources="$(printf '%s\n%s' "$previous_sources" "$source")"
 
   # ngspice's tmpfile() always goes to /tmp; on a read-only root that must be a
   # private tmpfs or every run dies with "tmpfile(): Read-only file system".
@@ -62,7 +71,6 @@ for executor in "$sky130" "$sg13g2"; do
   esac
 done
 
-[ "$(value "$sky130" '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation"}}{{.Source}}{{end}}{{end}}')" != "$(value "$sg13g2" '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation"}}{{.Source}}{{end}}{{end}}')" ] || fail "Profiles share a run-root volume"
 gateway_env="$(value "$gateway" '{{json .Config.Env}}')"
 case "$gateway_env" in
   *SIMULATION_ACCESS_TOKEN=*) ;;

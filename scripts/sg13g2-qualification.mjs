@@ -13,6 +13,9 @@ const { values } = parseArgs({
     models: { type: "string" },
     modules: { type: "string" },
     output: { type: "string" },
+    library: { type: "string" },
+    section: { type: "string", default: "nominal" },
+    complete: { type: "boolean", default: false },
   },
 });
 for (const name of ["binary", "models", "modules", "output"])
@@ -38,10 +41,11 @@ writeFileSync(join(output, ".spiceinit"), startup);
 writeFileSync(
   join(output, "sg13g2.lib.spice"),
   readFileSync(
-    new URL("../containers/ngspice/sg13g2/sg13g2.lib.spice", import.meta.url),
+    values.library ??
+      new URL("../containers/ngspice/sg13g2/sg13g2.lib.spice", import.meta.url),
   ),
 );
-const library = ".lib sg13g2.lib.spice nominal";
+const library = `.lib sg13g2.lib.spice ${values.section}`;
 
 function run(name, circuit, commands, vectors) {
   const deck = `${name}\n${library}\n${circuit}\n.control\n${commands}\nwrite ${name}.raw ${vectors.join(" ")}\nquit\n.endc\n.end\n`;
@@ -76,6 +80,21 @@ function run(name, circuit, commands, vectors) {
     deckSha256: digest(deck),
     rawSha256: digest(raw),
     points: plot.pointCount,
+    observations: Object.fromEntries(
+      plot.vectors.map((vector) => [
+        vector.variable.name.toLowerCase(),
+        {
+          first: vector.real[0],
+          last: vector.real.at(-1),
+          ...(vector.imag
+            ? {
+                imaginaryFirst: vector.imag[0],
+                imaginaryLast: vector.imag.at(-1),
+              }
+            : {}),
+        },
+      ]),
+    ),
   });
   return (name, imaginary = false) => {
     const vector = plot.vectors.find(
@@ -179,6 +198,50 @@ X1 d g s s sg13_lv_pmos w=1u l=0.5u ng=2 m=3`,
     ["rppd", "rppd", "d 0 0", "w=1u l=10u b=0", "", "m"],
     ["rhigh", "rhigh", "d 0 0", "w=1u l=10u b=0", "", "m"],
     ["hbt", "npn13G2", "d b 0 0", "le=900n we=70n", "Vb b 0 0.7", "Nx"],
+    ...(values.complete
+      ? [
+          [
+            "hv-nmos",
+            "sg13_hv_nmos",
+            "d g 0 0",
+            "w=2u l=1u ng=2",
+            "Vg g 0 1.8",
+            "m",
+          ],
+          [
+            "hv-pmos",
+            "sg13_hv_pmos",
+            "d g s s",
+            "w=2u l=1u ng=2",
+            "Vg g 0 1.5\nVs s 0 3.3",
+            "m",
+          ],
+          [
+            "hbt-long",
+            "npn13G2l",
+            "d b 0 0",
+            "le=1u we=70n",
+            "Vb b 0 0.7",
+            "Nx",
+          ],
+          [
+            "hbt-high-voltage",
+            "npn13G2v",
+            "d b 0 0",
+            "le=1u we=120n",
+            "Vb b 0 0.7",
+            "Nx",
+          ],
+          [
+            "pnp",
+            "pnpMPA",
+            "d b e",
+            "a=1.44p p=5.4u",
+            "Vb b 0 0.5\nVe e 0 1.2",
+            "m",
+          ],
+        ]
+      : []),
   ]) {
     const vectors = run(
       `${name}-op`,
@@ -196,7 +259,26 @@ X2 ${pins.replace(/^d /u, "d2 ")} ${master} ${parameters} ${count}=2`,
       Math.abs(first) > 1e-10 && Math.abs(first) < 1,
       `${name}: conducting bias`,
     );
-    close(second, first * 2, name === "hbt" ? 0.02 : 1e-5);
+    close(second, first * 2, name.startsWith("hbt") ? 0.02 : 1e-5);
+  }
+  if (values.complete) {
+    const rf = run(
+      "rf-mim-ac",
+      `V1 a 0 dc 0 ac 1
+V2 b 0 dc 0 ac 1
+X1 a 0 0 cap_rfcmim w=10u l=10u wfeed=5u m=1
+X2 b 0 0 cap_rfcmim w=10u l=10u wfeed=5u m=2`,
+      "ac dec 5 1Meg 10Gig",
+      ["i(v1)", "i(v2)"],
+    );
+    for (const imaginary of [false, true]) {
+      const single = rf("i(v1)", imaginary);
+      const doubled = rf("i(v2)", imaginary);
+      single.forEach((current, index) =>
+        close(doubled[index], current * 2, 1e-5, 1e-12),
+      );
+    }
+    assert(rf("i(v1)", true)[0] < -1e-7, "RF MIM capacitive response");
   }
   const cap = run(
     "cap-ac",
@@ -206,7 +288,12 @@ X1 a 0 cap_cmim w=7u l=7u m=1`,
     ["i(v1)"],
   );
   // Upstream cap_typ: area 1.5 fF/um², edge 40 aF/um. 7um square.
-  const capacitance = 49 * 1.5e-15 + 28 * 40e-18;
+  const areaFactor = values.section.includes("cap-bcs")
+    ? 0.9
+    : values.section.includes("cap-wcs")
+      ? 1.1
+      : 1;
+  const capacitance = 49 * 1.5e-15 * areaFactor + 28 * 40e-18;
   close(-cap("i(v1)", true)[0] / (2 * Math.PI * 1e6), capacitance, 1e-5, 1e-20);
   const transient = run(
     "cap-tran",

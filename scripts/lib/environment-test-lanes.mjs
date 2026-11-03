@@ -8,6 +8,8 @@ export const environmentTestLanes = {
         file: "packages/simulation-service/src/sg13g2-execution.test.ts",
         targets: [
           "matches the independent DUT numerically through the real selected-Profile transport",
+          "matches the thirteen-device and gate reference through the extended Profile",
+          "passes the extended production smoke over real HTTP",
           "passes the production smoke over real HTTP with the qualified executor",
         ],
       },
@@ -20,6 +22,7 @@ export const environmentTestLanes = {
       {
         file: "apps/editor/e2e/sg13g2-simulation.spec.ts",
         targets: [
+          "GUI and public MCP run thirteen SG13G2 devices and a gate on the extended Profile",
           "GUI and public MCP run the saved SG13G2 circuit on its real Profile",
         ],
       },

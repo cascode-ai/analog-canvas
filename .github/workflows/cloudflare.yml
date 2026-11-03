@@ -388,6 +388,8 @@ jobs:
             https://analog-canvas.tokenzhang.com
           node scripts/production-sg13g2-smoke.mjs \
             https://analog-canvas.tokenzhang.com
+          node scripts/production-sg13g2-smoke.mjs \
+            https://analog-canvas.tokenzhang.com --extended
 
       # Detection without recovery is what turned a bad deploy into twenty
       # minutes of 500s: the pipeline saw them, went red, and left production

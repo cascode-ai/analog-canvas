@@ -81,7 +81,14 @@ function advertisedMaxOutputBytes(env: SimulationEnv): number {
     : DEFAULT_MAX_OUTPUT_BYTES;
 }
 
-export type NgspiceProfile = typeof hostedSky130Profile;
+export type NgspiceProfile = Omit<
+  typeof hostedSky130Profile,
+  "cellLibraries"
+> & {
+  cellLibraries: ((typeof hostedSky130Profile.cellLibraries)[number] & {
+    masters?: string[];
+  })[];
+};
 
 async function matchesProfile(value: unknown, profile: NgspiceProfile) {
   const actual = await verifySimulationEnvironmentMetadata(value);
@@ -280,6 +287,7 @@ export async function routeNgspiceSimulationRequest(
     id: library.id,
     sha256: library.contentSha256,
     cells: library.cells,
+    ...(library.masters ? { masters: library.masters } : {}),
     directive: library.library.directive as "include",
   }));
   const profileDependencies = [modelDependency, ...cellLibrariesAvailable];

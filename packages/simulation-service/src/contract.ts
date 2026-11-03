@@ -799,6 +799,7 @@ export const CapabilitiesSchema = z.strictObject({
               id: Id,
               sha256: Digest,
               cells: Id,
+              masters: z.array(Id).optional(),
               directive: z.literal("include"),
             }),
           )

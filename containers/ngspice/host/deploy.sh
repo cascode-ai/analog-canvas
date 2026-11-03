@@ -70,7 +70,7 @@ replace_legacy_container() {
   fi
 }
 
-compose build --pull executor sg13g2
+compose build --pull executor sg13g2 sg13g2-extended
 replace_legacy_container analog-canvas-ngspice
 replace_legacy_container analog-canvas-ngspice-executor
 if [ "$tunnel_enabled" = true ]; then

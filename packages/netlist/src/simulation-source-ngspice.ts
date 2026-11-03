@@ -125,7 +125,7 @@ function missingImplementation(definition: {
     return {
       code: "STANDARD_CELL_UNSUPPORTED",
       severity: "error",
-      message: `${definition.name} is a ${library} cell that simulation does not run. Hosted ngspice runs sky130_fd_sc_hd combinational gate cells (inverters, buffers, NAND, NOR, AND, OR, XOR and XNOR) bound to a Library gate; give this cell a Project model source to run it.`,
+      message: `${definition.name} is a ${library} cell that simulation does not run. Hosted ngspice runs combinational Library gates qualified by the selected Profile. Provide a Project model source for this cell.`,
     };
   return {
     code: "MODEL_IMPLEMENTATION_MISSING",

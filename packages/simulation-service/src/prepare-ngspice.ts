@@ -269,9 +269,30 @@ export async function prepareNgspiceExecutionInput(
       unprovidedCellCalls.map(({ path, statement, libraryId }) => ({
         code: "STANDARD_CELL_LIBRARY_UNAVAILABLE",
         severity: "error" as const,
-        message: `${statement.master} is a ${libraryId} cell, and ${libraryId} is not offered by the selected Profile's simulator now. Hosted ngspice runs sky130_fd_sc_hd combinational gate cells bound to a Library gate once its simulator mounts that library; if this is one, try again shortly, otherwise bind the gate to a sky130_fd_sc_hd cell or a Project Cell, or clear its model.`,
+        message: `${statement.master} is a ${libraryId} cell, and ${libraryId} is not offered by the selected Profile's simulator now. Select a Profile that offers this cell library, or provide a Project model source.`,
         path,
         sourceRef: statement.sourceRef,
+      })),
+    );
+  const absentCells = cellCalls.filter(({ statement, libraryId }) => {
+    const masters = cellLibraries.find(
+      (library) => library.cells === libraryId,
+    )?.masters;
+    return (
+      masters &&
+      !masters.some(
+        (name) => name.toLowerCase() === statement.master!.toLowerCase(),
+      )
+    );
+  });
+  if (absentCells.length)
+    return compilationProblem(
+      absentCells.map(({ path, statement, libraryId }) => ({
+        code: "STANDARD_CELL_UNSUPPORTED",
+        severity: "error" as const,
+        path,
+        sourceRef: statement.sourceRef,
+        message: `${statement.master} is outside the qualified ${libraryId} cells offered by this Profile.`,
       })),
     );
   const supported = new Set(profile.devices?.map((name) => name.toLowerCase()));

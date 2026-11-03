@@ -10,6 +10,7 @@ import {
 } from "./simulation-ngspice";
 import ngspiceProfile from "../containers/ngspice/hosted-sky130-profile.json" with { type: "json" };
 import sg13g2Profile from "../containers/ngspice/sg13g2/profile.json" with { type: "json" };
+import sg13g2Extended from "../containers/ngspice/sg13g2/extended/profile.json" with { type: "json" };
 import { sessionUserOf } from "./auth";
 import type { AuthEnv } from "./auth-do";
 import { bearerMatches } from "./bearer";
@@ -90,6 +91,7 @@ async function boundedText(
 export interface SimulationEnv extends VacaskEnv, NgspiceEnv {
   /** SG13 executor behind the trusted ngspice gateway; same gateway bearer. */
   SG13G2_UPSTREAM_URL?: string;
+  SG13G2_EXTENDED_UPSTREAM_URL?: string;
   /** Opt-in independent native endpoint; never overwrites the ngspice origin. */
   VACASK_PROFILE_ID?: string;
   VACASK_UPSTREAM_URL?: string;
@@ -124,7 +126,10 @@ export async function routeSimulationRequest(
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
   const nativeId = env.VACASK_PROFILE_ID?.trim();
-  if (nativeId === ngspiceProfile.id || nativeId === sg13g2Profile.id)
+  if (
+    nativeId &&
+    [ngspiceProfile.id, sg13g2Profile.id, sg13g2Extended.id].includes(nativeId)
+  )
     return Response.json(
       { error: "simulation-profile-configuration-invalid" },
       { status: 503 },
@@ -132,20 +137,27 @@ export async function routeSimulationRequest(
   const profileId = body.environment?.profileId;
   const ngspiceProfiles = [
     { profile: ngspiceProfile, environment: env },
-    ...(env.SG13G2_UPSTREAM_URL?.trim()
-      ? [
-          {
-            profile: sg13g2Profile,
-            environment: {
-              SIMULATION_UPSTREAM_URL: env.SG13G2_UPSTREAM_URL,
-              ...(env.SIMULATION_UPSTREAM_TOKEN
-                ? { SIMULATION_UPSTREAM_TOKEN: env.SIMULATION_UPSTREAM_TOKEN }
-                : {}),
-              SIMULATION_DEFAULT_EXECUTOR: "operator-host",
-            } satisfies NgspiceEnv,
-          },
-        ]
-      : []),
+    ...(
+      [
+        [sg13g2Profile, env.SG13G2_UPSTREAM_URL],
+        [sg13g2Extended, env.SG13G2_EXTENDED_UPSTREAM_URL],
+      ] as const
+    ).flatMap(([profile, upstream]) =>
+      upstream?.trim()
+        ? [
+            {
+              profile,
+              environment: {
+                SIMULATION_UPSTREAM_URL: upstream,
+                ...(env.SIMULATION_UPSTREAM_TOKEN
+                  ? { SIMULATION_UPSTREAM_TOKEN: env.SIMULATION_UPSTREAM_TOKEN }
+                  : {}),
+                SIMULATION_DEFAULT_EXECUTOR: "operator-host",
+              } satisfies NgspiceEnv,
+            },
+          ]
+        : [],
+    ),
   ];
   const selectedNgspice = ngspiceProfiles.find(
     ({ profile }) => profile.id === (profileId ?? ngspiceProfile.id),
