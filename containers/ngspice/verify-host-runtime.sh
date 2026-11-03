@@ -62,7 +62,7 @@ for executor in "$sky130" "$sg13g2"; do
   esac
 done
 
-[ "$(value "$sky130" '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation"}}{{.Source}}{{end}}{{end}}')" != "$(value "$sg13g2" '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation"}}{{.Source}}{{end}}{{end}}')" || fail "Profiles share a run-root volume"
+[ "$(value "$sky130" '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation"}}{{.Source}}{{end}}{{end}}')" != "$(value "$sg13g2" '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation"}}{{.Source}}{{end}}{{end}}')" ] || fail "Profiles share a run-root volume"
 gateway_env="$(value "$gateway" '{{json .Config.Env}}')"
 case "$gateway_env" in
   *SIMULATION_ACCESS_TOKEN=*) ;;

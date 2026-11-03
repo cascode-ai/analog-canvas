@@ -1,4 +1,13 @@
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -29,4 +38,60 @@ describe("the operator simulator host", () => {
   it("never prunes the host's other Docker data", () => {
     expect(deploy).not.toMatch(/docker (?:system|volume|network) prune/u);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "accepts separate executor scratch volumes and rejects a shared volume",
+    () => {
+      const directory = mkdtempSync(join(tmpdir(), "simulator-host-inspect-"));
+      // Docker is the external boundary; execute the actual verifier with
+      // inspect responses from an otherwise valid host configuration.
+      const docker = join(directory, "docker");
+      writeFileSync(
+        docker,
+        `#!/bin/sh
+case "$3" in
+  *RestartPolicy*) echo unless-stopped ;;
+  *ReadonlyRootfs*|*.RW*) echo true ;;
+  *CapDrop*) echo '["ALL"]' ;;
+  *PidsLimit*) echo 256 ;;
+  *PortBindings*) echo '{}' ;;
+  *NanoCpus*) echo 8000000000 ;;
+  *Memory*) echo 17179869184 ;;
+  *.Type*) echo tmpfs ;;
+  *.Source*)
+    if [ "$SHARED_VOLUME" = 1 ]; then echo /volumes/shared;
+    else echo "/volumes/$4"; fi ;;
+  *.Config.Env*)
+    if [ "$4" = analog-canvas-ngspice ]; then echo '["SIMULATION_ACCESS_TOKEN=fixture"]';
+    else echo '[]'; fi ;;
+  *) exit 2 ;;
+esac
+`,
+      );
+      chmodSync(docker, 0o755);
+      try {
+        const verify = (shared) =>
+          spawnSync(
+            "sh",
+            [resolve("containers/ngspice/verify-host-runtime.sh")],
+            {
+              encoding: "utf8",
+              env: {
+                ...process.env,
+                PATH: `${directory}${delimiter}${process.env.PATH}`,
+                SHARED_VOLUME: shared ? "1" : "0",
+              },
+            },
+          );
+        const isolated = verify(false);
+        expect(isolated.status, isolated.stderr).toBe(0);
+        expect(isolated.stdout).toContain("simulator host runtime verified");
+        const shared = verify(true);
+        expect(shared.status).toBe(1);
+        expect(shared.stderr).toContain("Profiles share a run-root volume");
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
 });
