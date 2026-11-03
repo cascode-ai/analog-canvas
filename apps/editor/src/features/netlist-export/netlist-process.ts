@@ -198,9 +198,17 @@ export function placementProcessFill(
   const pending = new Set(
     placementEdits.flatMap((edit) =>
       edit.kind === "add_instance" &&
-      !edit.instance.netlist?.binding &&
-      deviceDescriptor(edit.instance.symbolId)?.targetPolicy ===
-        "required-model"
+      (!edit.instance.netlist?.binding ||
+        edit.instance.netlist.binding.kind === "primitive") &&
+      (deviceDescriptor(edit.instance.symbolId)?.targetPolicy ===
+        "required-model" ||
+        !!reviewedExternalBindingForMaster(
+          processPlacementTarget(
+            project,
+            preferences,
+            edit.instance.symbolId,
+          ) ?? "",
+        ))
         ? [edit.instance.id]
         : [],
     ),

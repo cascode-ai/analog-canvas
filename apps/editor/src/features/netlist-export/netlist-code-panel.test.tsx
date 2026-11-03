@@ -40,7 +40,9 @@ describe("live netlist controls", () => {
     expect(markup).not.toContain(">Copy</button>");
     expect(markup).toContain('aria-label="NMOS netlist target"');
     expect(markup).toContain('aria-label="L netlist target"');
-    expect(markup.match(/<select/g)).toHaveLength(7);
+    expect(markup).toContain('aria-label="NPN netlist target"');
+    expect(markup).toContain('aria-label="PNP netlist target"');
+    expect(markup.match(/<select/g)).toHaveLength(9);
     expect(markup).not.toContain("<input");
     expect(markup).toContain(">Default</button>");
     expect(markup).toMatch(

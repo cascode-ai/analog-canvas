@@ -30,12 +30,16 @@ export const NETLIST_QUICK_TARGET_FAMILIES = [
   "resistor",
   "capacitor",
   "inductor",
+  "npn",
+  "pnp",
 ] as const;
 export type NetlistQuickTargetFamily =
   (typeof NETLIST_QUICK_TARGET_FAMILIES)[number];
 
 const SKY130_QUICK_TARGETS = {
   sky130: {
+    npn: ["sky130_fd_pr__npn_05v5_W1p00L1p00"],
+    pnp: ["sky130_fd_pr__pnp_05v5_W0p68L0p68"],
     nmos: [
       "sky130_fd_pr__nfet_01v8",
       "sky130_fd_pr__nfet_01v8_lvt",
@@ -75,6 +79,8 @@ const SKY130_QUICK_TARGETS = {
  * and MIM capacitors, as IHP-Open-PDK's ngspice models name them. */
 const SG13G2_QUICK_TARGETS = {
   sg13g2: {
+    npn: ["npn13G2", "npn13G2l", "npn13G2v"],
+    pnp: ["pnpMPA"],
     nmos: ["sg13_lv_nmos", "sg13_hv_nmos"],
     pmos: ["sg13_lv_pmos", "sg13_hv_pmos"],
     resistor: ["", "rsil", "rppd", "rhigh"],
@@ -90,6 +96,8 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
   >
 > = {
   abstract: {
+    npn: [GENERIC_NPN_MODEL.name],
+    pnp: [GENERIC_PNP_MODEL.name],
     nmos: ["NMOS"],
     pmos: ["PMOS"],
     resistor: [""],
@@ -99,6 +107,8 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
   ...SKY130_QUICK_TARGETS,
   ...SG13G2_QUICK_TARGETS,
   tsmc28: {
+    npn: [""],
+    pnp: [""],
     nmos: [
       "nch_ulvt_mac",
       "nch_lvt_mac",
@@ -119,6 +129,8 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
     inductor: [""],
   },
   tsmc180: {
+    npn: [""],
+    pnp: ["pnp10_5_rpo"],
     nmos: ["nch", "nch_mac"],
     pmos: ["pch", "pch_mac"],
     resistor: [""],
@@ -126,6 +138,17 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
     inductor: [""],
   },
   custom: {
+    npn: [
+      GENERIC_NPN_MODEL.name,
+      ...SKY130_QUICK_TARGETS.sky130.npn,
+      ...SG13G2_QUICK_TARGETS.sg13g2.npn,
+    ],
+    pnp: [
+      GENERIC_PNP_MODEL.name,
+      ...SKY130_QUICK_TARGETS.sky130.pnp,
+      ...SG13G2_QUICK_TARGETS.sg13g2.pnp,
+      "pnp10_5_rpo",
+    ],
     nmos: [
       "NMOS",
       "sky130_fd_pr__nfet_01v8",
@@ -219,6 +242,8 @@ const SG13G2_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   pmos: "sg13_lv_pmos",
   npn: "npn13G2",
   pnp: "pnpMPA",
+  resistor: "rppd",
+  capacitor: "cap_cmim",
 };
 const TSMC28_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   nmos: "nch_ulvt_mac",
@@ -305,14 +330,23 @@ export function createNetlistExportProfile(
       }
       if (family === "voltage-source") parameters.dc = "1.8";
       if (family === "current-source") parameters.dc = "100u";
+      const target =
+        foundryTargets?.[family] ??
+        (foundryProfile ? undefined : GENERIC_TARGETS[family]) ??
+        "";
+      const reviewed =
+        id === "sg13g2" && (family === "resistor" || family === "capacitor")
+          ? reviewedExternalBindingForMaster(target)
+          : undefined;
       return [
         family,
         {
-          target:
-            foundryTargets?.[family] ??
-            (foundryProfile ? undefined : GENERIC_TARGETS[family]) ??
-            "",
-          parameters,
+          target,
+          parameters: reviewed
+            ? Object.fromEntries(
+                reviewed.parameters.map((p) => [p.name, p.defaultValue ?? ""]),
+              )
+            : parameters,
           substrate:
             family === "pmos" ? "VDD" : family === "nmos" ? "VSS" : "0",
         },
@@ -338,7 +372,9 @@ export function setNetlistDefaultTarget(
     ? Object.fromEntries(
         reviewed.parameters.map((p) => [p.name, p.defaultValue ?? ""]),
       )
-    : createNetlistExportProfile(profile.id).devices[family].parameters;
+    : createNetlistExportProfile(target ? profile.id : "abstract").devices[
+        family
+      ].parameters;
   return next;
 }
 

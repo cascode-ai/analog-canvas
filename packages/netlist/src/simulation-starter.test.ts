@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json";
 import hostedSky130 from "../../../containers/ngspice/hosted-sky130-profile.json";
+import hostedSg13 from "../../../containers/ngspice/sg13g2/profile.json";
+import { createEmptyProject } from "@icm/model";
 import {
   createSimulationStarter,
   newFolderCellRole,
@@ -168,6 +170,119 @@ describe("simulation starting points", () => {
 });
 
 describe("the Profile a new folder starts from (#1349)", () => {
+  it("selects the advertised cell-library Profile for a gate-only circuit and refuses unsupported or mixed masters", () => {
+    const p = createEmptyProject("gates", "Gates");
+    const cell = { project: p, documentId: p.topDocumentId };
+    const profiles = [hostedSky130, hostedSg13].map((profile) => ({
+      id: profile.id,
+      devices: profile.qualifiedScope.devices,
+      cellLibraries:
+        profile.id === hostedSg13.id
+          ? hostedSg13.cellLibraries.map((library) => ({
+              cells: library.cells,
+              masters: library.masters,
+            }))
+          : hostedSky130.cellLibraries.map((library) => ({
+              cells: library.cells,
+            })),
+    }));
+    p.documents[0]!.instances.push({
+      id: "gate",
+      reference: "X1",
+      symbolId: "nand-gate",
+      placement: null,
+      netlist: {
+        parameters: {},
+        binding: { kind: "unresolved-subcircuit", name: "sg13g2_nand2_2" },
+      },
+    });
+    expect(newFolderProfile(profiles, cell)).toEqual({
+      ok: true,
+      profileId: hostedSg13.id,
+    });
+    p.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "unresolved-subcircuit",
+      name: "sg13g2_nand2_99",
+    };
+    expect(newFolderProfile(profiles, cell)).toMatchObject({
+      ok: false,
+      message: "No Profile qualifies sg13g2_nand2_99.",
+    });
+    p.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "unresolved-subcircuit",
+      name: "sg13g2_nand2_2",
+    };
+    p.documents[0]!.instances.push({
+      id: "foreign",
+      reference: "X2",
+      symbolId: "nand-gate",
+      placement: null,
+      netlist: {
+        parameters: {},
+        binding: {
+          kind: "unresolved-subcircuit",
+          name: "sky130_fd_sc_hd__nand2_1",
+        },
+      },
+    });
+    expect(newFolderProfile(profiles, cell)).toMatchObject({ ok: false });
+    p.documents[0]!.instances[1]!.netlist!.binding = {
+      kind: "unresolved-subcircuit",
+      name: "sg13g2_dfrbp_1",
+    };
+    expect(newFolderProfile(profiles, cell)).toMatchObject({
+      ok: false,
+      message: "No Profile qualifies sg13g2_dfrbp_1.",
+    });
+    p.documents[0]!.instances[1]!.netlist!.binding = {
+      kind: "unresolved-subcircuit",
+      name: "sky130_fd_sc_hd__nand2_1",
+    };
+    p.externalSubcircuitDefinitions.push({
+      id: "authored",
+      name: "sg13g2_nand2_2",
+      terminals: ["Y", "A", "B", "VDD", "VSS"].map((name) => ({
+        id: name,
+        name,
+        direction: "passive" as const,
+      })),
+      formalParameters: [],
+      interfaceStatus: "declared",
+      implementation: {
+        kind: "source",
+        sourceId: "source",
+        entry: "sg13g2_nand2_2",
+      },
+    });
+    p.modelSources = [
+      {
+        id: "source",
+        language: "spice",
+        revision: 1,
+        entry: "gate.spice",
+        dependencies: [],
+        files: [
+          {
+            path: "gate.spice",
+            text: ".subckt sg13g2_nand2_2 Y A B VDD VSS\nR1 Y VSS 1k\n.ends sg13g2_nand2_2\n",
+          },
+        ],
+      },
+    ];
+    p.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "external-subcircuit",
+      definitionId: "authored",
+    };
+    expect(
+      newFolderProfile(profiles, {
+        ...cell,
+        project: parseProject(serializeProject(p)),
+      }),
+    ).toEqual({
+      ok: true,
+      profileId: hostedSky130.id,
+    });
+  });
   // As Production advertises them: ngspice names its qualified SKY130
   // devices, VACASK names none.
   const ngspice = {

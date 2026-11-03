@@ -214,6 +214,26 @@ export function ComponentPropertyCodeEditor({
       <header>
         <strong>Properties</strong>
         <div className="component-property-header-actions">
+          {context.details?.modelTarget?.defaultValue &&
+          context.details.parameters.length > 0 ? (
+            <button
+              type="button"
+              className="component-property-help"
+              aria-label="Model defaults"
+              title={`Restore parameters for ${context.details.modelTarget.defaultValue}`}
+              onClick={() =>
+                change(
+                  projection.format(
+                    defaultComponentPropertyCode(context, {
+                      parametersOnly: true,
+                    }),
+                  ),
+                )
+              }
+            >
+              Model defaults
+            </button>
+          ) : null}
           <button
             type="button"
             className="component-property-help"
@@ -260,6 +280,13 @@ export function ComponentPropertyCodeEditor({
           </button>
         </div>
       </header>
+      {context.details?.modelTarget?.warnings?.length ? (
+        <div className="component-property-code-status" role="status">
+          {context.details.modelTarget.warnings.map((message) => (
+            <p key={message}>{message}</p>
+          ))}
+        </div>
+      ) : null}
       <Suspense
         fallback={
           <textarea

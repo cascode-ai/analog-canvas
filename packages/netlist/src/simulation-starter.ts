@@ -1,4 +1,8 @@
-import { reviewedExternalBindingForMaster } from "@icm/devices";
+import {
+  reviewedExternalBindingForMaster,
+  standardCellBindingForMaster,
+  standardCellLibraryOfName,
+} from "@icm/devices";
 import {
   createSimulationFolder,
   projectCellInterface,
@@ -100,6 +104,12 @@ export interface AdvertisedSimulationProfile {
   readonly id: string;
   /** Exact model or wrapper names the Profile qualifies. */
   readonly devices?: readonly string[] | undefined;
+  readonly cellLibraries?:
+    | readonly {
+        readonly cells: string;
+        readonly masters?: readonly string[] | undefined;
+      }[]
+    | undefined;
 }
 
 export type NewFolderProfile =
@@ -109,11 +119,11 @@ export type NewFolderProfile =
 /**
  * The Profile a new simulation folder starts from when the author names none
  * (#1349), for the Agent's `simulation_folder` and the GUI's new-experiment
- * dialog alike: the one Profile whose qualified devices include every
- * reviewed PDK device the folder's Cell and its sub-Cells use, or failing
+ * dialog alike: the one Profile whose devices and cell libraries qualify
+ * every reviewed PDK device and gate in the Cell and its sub-Cells, or failing
  * that the one that does once its library's high-voltage DMOS devices count
  * (#1485). A folder without a Cell uses no PDK device. A Profile
- * that lists no qualified devices, as VACASK's, is never the default. With
+ * that lists neither devices nor cell libraries is never the default. With
  * several such Profiles, or none, the author names one of the candidates.
  */
 export function newFolderProfile(
@@ -121,13 +131,27 @@ export function newFolderProfile(
   cell?: { project: CircuitProject; documentId: string },
 ): NewFolderProfile {
   const used = cell ? cellPdkDevices(cell.project, cell.documentId) : [];
-  const qualifies = (profile: AdvertisedSimulationProfile, name: string) =>
-    !!profile.devices?.some(
+  const qualifies = (profile: AdvertisedSimulationProfile, name: string) => {
+    const libraryId = standardCellLibraryOfName(name);
+    if (libraryId)
+      return (
+        !!standardCellBindingForMaster(name) &&
+        !!profile.cellLibraries?.some(
+          (library) =>
+            library.cells === libraryId &&
+            (!library.masters ||
+              library.masters.some(
+                (master) => master.toLowerCase() === name.toLowerCase(),
+              )),
+        )
+      );
+    return !!profile.devices?.some(
       (device) => device.toLowerCase() === name.toLowerCase(),
     );
+  };
   const qualified = profiles.filter(
     (profile) =>
-      !!profile.devices?.length &&
+      !!(profile.devices?.length || profile.cellLibraries?.length) &&
       used.every((name) => qualifies(profile, name)),
   );
   if (qualified.length === 1) return { ok: true, profileId: qualified[0]!.id };
@@ -174,8 +198,8 @@ export function newFolderProfile(
 }
 
 /**
- * The reviewed PDK devices a Cell and its sub-Cells are bound to: the names
- * a Profile's qualified devices list. No Profile qualifies ideal blocks, the
+ * Reviewed PDK devices and standard cells bound in a Cell and its sub-Cells.
+ * No Profile qualifies ideal blocks, the
  * generic diode or authored models, so they do not count.
  */
 function cellPdkDevices(
@@ -191,15 +215,24 @@ function cellPdkDevices(
     for (const instance of document?.instances ?? []) {
       const binding = instance.netlist?.binding;
       if (binding?.kind === "subcircuit") visit(binding.childDocumentId);
+      const definition =
+        binding?.kind === "external-subcircuit"
+          ? project.externalSubcircuitDefinitions.find(
+              (item) => item.id === binding.definitionId,
+            )
+          : undefined;
+      if (definition?.implementation?.kind === "source") continue;
       const name =
         binding?.kind === "model" || binding?.kind === "unresolved-subcircuit"
           ? binding.name
           : binding?.kind === "external-subcircuit"
-            ? project.externalSubcircuitDefinitions.find(
-                (item) => item.id === binding.definitionId,
-              )?.name
+            ? definition?.name
             : undefined;
-      if (name && reviewedExternalBindingForMaster(name))
+      if (
+        name &&
+        (reviewedExternalBindingForMaster(name) ||
+          standardCellLibraryOfName(name))
+      )
         names.set(name.toLowerCase(), name);
     }
   };

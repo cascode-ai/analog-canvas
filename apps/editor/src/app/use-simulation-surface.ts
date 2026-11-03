@@ -15,6 +15,7 @@ import {
   type ProjectConnectivityIndex,
 } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type { Capabilities } from "@icm/simulation-service/contract";
 import type { WireSource } from "@icm/edit-engine";
 import type {
   EditorDocumentController,
@@ -41,6 +42,27 @@ type DocumentControllerState = ReturnType<typeof useDocumentController>;
 type ActiveSimulationFolder = ReturnType<typeof useActiveSimulationFolder>;
 type SimulationSurface = ReturnType<typeof useSimulationSurface>;
 type SimulationPicking = ReturnType<typeof useSimulationPicking>;
+
+/** Load the advertised model inventory when the author opens component Properties. */
+export function useModelTargetProfiles(enabled: boolean) {
+  const [profiles, setProfiles] = useState<Capabilities["profiles"]>([]);
+  useEffect(() => {
+    if (!enabled || profiles.length) return;
+    let active = true;
+    void import("@icm/simulation-service")
+      .then(({ createHostedExecutor }) => createHostedExecutor().capabilities())
+      .then((capabilities) => {
+        if (active) setProfiles(capabilities.profiles);
+      })
+      .catch(() => {
+        /* Offline authors keep the reviewed export suggestions. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [enabled, profiles.length]);
+  return profiles;
+}
 
 /** The Simulation folder the workspace shows, reset with each Project. */
 export function useActiveSimulationFolder({

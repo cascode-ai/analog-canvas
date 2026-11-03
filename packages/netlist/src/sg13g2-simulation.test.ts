@@ -6,6 +6,74 @@ import {
   nativeTerminalCurrent,
 } from "./simulation-ngspice-devices.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
+import { createDesignNetlistExport } from "./export.js";
+
+it("reports unsupported SG13 dimensions and HBT counts through export without rewriting authored values", () => {
+  const project = createEmptyProject("sizes", "Sizes");
+  const document = project.documents[0]!;
+  for (const [id, symbol, master, pins, parameters] of [
+    [
+      "M1",
+      "nmos",
+      "sg13_hv_nmos",
+      ["D", "G", "S", "B"],
+      { w: "1u", l: "150n", ng: "1", m: "1" },
+    ],
+    [
+      "Q1",
+      "npn",
+      "npn13G2v",
+      ["C", "B", "E", "S"],
+      { le: "1u", we: "70n", Nx: "11" },
+    ],
+  ] as const) {
+    project.externalSubcircuitDefinitions.push({
+      id,
+      name: master,
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: (symbol === "nmos"
+        ? ["d", "g", "s", "b"]
+        : ["c", "b", "e", "bn"]
+      ).map((name) => ({ id: name, name, direction: "passive" })),
+    });
+    document.instances.push({
+      id,
+      reference: id,
+      symbolId: symbol,
+      placement: null,
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: id },
+        parameters: { ...parameters },
+      },
+    });
+    for (const pin of pins)
+      document.nets.push({
+        id: id + pin,
+        terminals: [{ instanceId: id, pinName: pin }],
+      });
+  }
+  const before = structuredClone(project);
+  const exported = createDesignNetlistExport(project, { format: "spice" });
+  expect(exported.diagnostics).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        code: "REVIEWED_SIZE_OUT_OF_RANGE",
+        objectIds: ["M1"],
+      }),
+      expect.objectContaining({
+        code: "REVIEWED_PARAMETER_OUT_OF_RANGE",
+        objectIds: ["Q1"],
+      }),
+    ]),
+  );
+  expect(
+    exported.diagnostics
+      .filter((d) => d.code === "REVIEWED_PARAMETER_OUT_OF_RANGE")
+      .map((d) => d.parameter),
+  ).toEqual(expect.arrayContaining(["we", "Nx"]));
+  expect(project).toEqual(before);
+});
 
 it.each(["nmos", "pmos"] as const)(
   "offers only measured PSP operating-point fields on the actual %s OSDI instance",

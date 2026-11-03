@@ -35,6 +35,18 @@ const context = {
 };
 
 describe("unified component property details", () => {
+  it("restores only the selected model's parameter defaults", () => {
+    const restored = JSON.parse(
+      defaultComponentPropertyCode(context, { parametersOnly: true }),
+    );
+    const before = JSON.parse(formatComponentPropertyCode(context));
+    expect(restored.placement).toEqual(before.placement);
+    expect(restored.appearance).toEqual(before.appearance);
+    expect(restored.netlistTarget).toBe("model_a");
+    expect(restored.netlistName).toBe("M1");
+    expect(restored.parameters.w).toBe("1u");
+    expect(restored.parameters.custom).toBe("{x+1}");
+  });
   it("exposes a strict 2/3/4-input control only for the six configurable gates", () => {
     for (const family of configurableLogicGateIds)
       for (const count of [2, 3, 4] as const) {

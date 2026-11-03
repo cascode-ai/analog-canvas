@@ -12,6 +12,7 @@ type Instance = SchematicDocument["instances"][number];
 export interface ComponentModelTargetView {
   defaultValue: string;
   suggestions: readonly string[];
+  warnings?: readonly string[];
   /** The Project's Cells a Library part may be bound to (#1450). */
   cells?: readonly string[];
   /** The Project's external definitions a Library part may be bound to (#1928). */

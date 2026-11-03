@@ -34,6 +34,7 @@ import {
   processPlacementTarget,
   processReviewedLibrary,
 } from "./netlist-process";
+import { initialInstanceNetlist } from "./netlist-authoring";
 
 /** The devices still waiting for a model, as the Process count reads them. */
 const netlistProcessPendingInstances = (
@@ -511,6 +512,94 @@ describe("a part placed into a Process (#1251)", () => {
       /^XM1 \S+ \S+ \S+ \S+ sg13_lv_nmos w=1u l=130n ng=1 m=1$/mu,
     );
     expect(text).toMatch(/^XQ2 \S+ \S+ \S+ \S+ npn13G2 le=900n we=70n Nx=2$/mu);
+  });
+
+  it("places SG13 R/C as physical devices by default and honors an explicit Ideal choice", () => {
+    const selected = preferences("sg13g2");
+    let project = createEmptyProject("sg13-rc", "SG13 R/C");
+    for (const [id, symbol, target] of [
+      ["R1", "resistor", "rppd"],
+      ["C1", "capacitor", "cap_cmim"],
+    ] as const) {
+      expect(selected.profiles.sg13g2.devices[symbol].target).toBe(target);
+      const document = project.documents[0]!;
+      const placement = [
+        {
+          kind: "add_instance" as const,
+          instance: {
+            id,
+            reference: id,
+            symbolId: symbol,
+            placement: null,
+            netlist: initialInstanceNetlist(symbol, {
+              value: symbol === "resistor" ? "1k" : "1p",
+            })!,
+          },
+        },
+      ];
+      const edits = placementProcessFill(
+        project,
+        selected,
+        document.id,
+        placement,
+      );
+      expect(edits).toBeDefined();
+      const result = executeProjectTransaction(project, {
+        transactionId: id,
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: edits!,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      project = result.project;
+      expect(
+        instanceModelTarget(
+          project,
+          project.documents[0]!.instances.find((i) => i.id === id)!,
+        ),
+      ).toBe(target);
+    }
+    for (const [family, value] of [
+      ["resistor", "1k"],
+      ["capacitor", "1p"],
+    ] as const) {
+      const ideal = setNetlistDefaultTarget(
+        selected.profiles.sg13g2,
+        family,
+        "",
+      );
+      const result = apply(project, ideal, { family });
+      expect(
+        result.documents[0]!.instances.find((i) => i.symbolId === family)!
+          .netlist,
+      ).toMatchObject({
+        binding: { kind: "primitive" },
+        parameters: { value },
+      });
+      expect(
+        Object.keys(
+          result.documents[0]!.instances.find((i) => i.symbolId === family)!
+            .netlist!.parameters,
+        ),
+      ).toEqual(["value"]);
+    }
+    selected.profiles.sg13g2.devices.resistor.target = "";
+    expect(
+      placementProcessFill(project, selected, project.topDocumentId, [
+        {
+          kind: "add_instance",
+          instance: {
+            id: "R2",
+            reference: "R2",
+            symbolId: "resistor",
+            placement: null,
+            netlist: initialInstanceNetlist("resistor", { value: "2k" })!,
+          },
+        },
+      ]),
+    ).toBeUndefined();
   });
 
   it("gives a BJT the Process's plain model where it names one, and nothing where not", () => {
