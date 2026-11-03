@@ -4,6 +4,7 @@ import {
 } from "./managed-run.js";
 import {
   CAPABILITIES_ACCEPT_CELL_LIBRARIES,
+  CAPABILITIES_ACCEPT_CELL_MASTERS,
   CapabilitiesSchema,
   ProblemSchema,
   type Capabilities,
@@ -269,7 +270,10 @@ export function createManagedHostedExecutor(
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             operation: "capabilities",
-            accepts: [CAPABILITIES_ACCEPT_CELL_LIBRARIES],
+            accepts: [
+              CAPABILITIES_ACCEPT_CELL_LIBRARIES,
+              CAPABILITIES_ACCEPT_CELL_MASTERS,
+            ],
             ...(profileId ? { environment: { profileId } } : {}),
           }),
           signal: AbortSignal.timeout(10_000),

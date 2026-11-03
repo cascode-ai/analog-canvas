@@ -29,6 +29,7 @@ import {
 } from "@icm/spice-run";
 import {
   CAPABILITIES_ACCEPT_CELL_LIBRARIES,
+  CAPABILITIES_ACCEPT_CELL_MASTERS,
   readExecutionReceipt,
   encodeExecutionReceipt,
   EXECUTION_RECEIPT_HEADER,
@@ -389,14 +390,17 @@ export async function routeNgspiceSimulationRequest(
       Array.isArray(body.accepts) &&
       body.accepts.includes(CAPABILITIES_ACCEPT_CELL_LIBRARIES)
         ? {
-            cellLibraries: cellLibrariesAvailable.filter((library) =>
-              mounted.some(
-                (item) =>
-                  !!item &&
-                  typeof item === "object" &&
-                  (item as { id?: unknown }).id === library.id &&
-                  (item as { sha256?: unknown }).sha256 === library.sha256,
-              ),
+            cellLibraries: cellLibrariesAvailable.filter(
+              (library) =>
+                (!library.masters ||
+                  body.accepts.includes(CAPABILITIES_ACCEPT_CELL_MASTERS)) &&
+                mounted.some(
+                  (item) =>
+                    !!item &&
+                    typeof item === "object" &&
+                    (item as { id?: unknown }).id === library.id &&
+                    (item as { sha256?: unknown }).sha256 === library.sha256,
+                ),
             ),
           }
         : {};

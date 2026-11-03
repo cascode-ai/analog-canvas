@@ -145,7 +145,8 @@ type ModelLibrarySelection =
   the primitive library's. The harness verifies it, mounts it by `{id, sha256}`,
   lists it in `/health` and the receipt's `cellLibraries`; the Worker checks it.
 - Capabilities add `cellLibraries` only when the request's `accepts` lists
-  `"cell-libraries"`, limited to what `/health` reports.
+  `"cell-libraries"`, limited to what `/health` reports. A library with a qualified
+  subset of masters also requires `"cell-masters"` in the request.
 - Preparation loads a cell library after the model `.lib` when the source calls
   its gates. Errors: `STANDARD_CELL_LIBRARY_UNAVAILABLE`,
   `STANDARD_CELL_UNSUPPORTED` (wrong pin order or no Library gate),

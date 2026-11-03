@@ -75,6 +75,8 @@ jobs:
         with:
           name: sg13g2-qualification-${{ github.sha }}
           path: |
+            output/sg13g2-corners/*.log
+            output/sg13g2-corners/*/run-*/report.json
             output/sg13g2-corners/report.json
             output/sg13g2-cells/*/report.json
             output/sg13g2-statistics/*/report.json

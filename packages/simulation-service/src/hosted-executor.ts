@@ -1,5 +1,6 @@
 import {
   CAPABILITIES_ACCEPT_CELL_LIBRARIES,
+  CAPABILITIES_ACCEPT_CELL_MASTERS,
   CapabilitiesSchema,
 } from "./contract.js";
 import { SimulationResultSchema, readSimulationData } from "@icm/spice-run";
@@ -162,7 +163,10 @@ export function createHostedExecutor(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           operation: "capabilities",
-          accepts: [CAPABILITIES_ACCEPT_CELL_LIBRARIES],
+          accepts: [
+            CAPABILITIES_ACCEPT_CELL_LIBRARIES,
+            CAPABILITIES_ACCEPT_CELL_MASTERS,
+          ],
           ...(profileId ? { environment: { profileId } } : {}),
         }),
         signal: AbortSignal.timeout(10000),

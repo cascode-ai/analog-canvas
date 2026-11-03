@@ -835,7 +835,7 @@ describe("a Library gate bound to a PDK standard cell (#1596)", () => {
             code: "STANDARD_CELL_LIBRARY_UNAVAILABLE",
             message: expect.stringMatching(
               new RegExp(
-                `sky130_fd_sc_hd__${cell} .*sky130_fd_sc_hd.*not offered.*Library gate`,
+                `sky130_fd_sc_hd__${cell} .*sky130_fd_sc_hd.*not offered.*Select a Profile`,
                 "u",
               ),
             ),

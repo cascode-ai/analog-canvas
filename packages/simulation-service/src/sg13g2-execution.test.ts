@@ -102,7 +102,7 @@ for (const extended of [false, true]) {
         await (await routeSimulationRequest(
           request({
             operation: "capabilities",
-            accepts: ["cell-libraries"],
+            accepts: ["cell-libraries", "cell-masters"],
             environment: { profileId: selected.id },
           }),
           env,
@@ -110,6 +110,15 @@ for (const extended of [false, true]) {
       );
       expect(discovered.configured).toBe(true);
       if (extended) {
+        const legacy = await (await routeSimulationRequest(
+          request({
+            operation: "capabilities",
+            accepts: ["cell-libraries"],
+            environment: { profileId: selected.id },
+          }),
+          env,
+        ))!.json();
+        expect(legacy.profiles[0].cellLibraries).toEqual([]);
         const unsupported = structuredClone(project);
         unsupported.externalSubcircuitDefinitions.find(
           (d) => d.name === "sg13g2_nand2_1",
