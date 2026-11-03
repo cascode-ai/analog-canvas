@@ -101,12 +101,11 @@ type ModelLibrarySelection =
 
 ### Hosted SG13G2 Profile
 
-- The [nominal Profile](../../containers/ngspice/sg13g2/profile.json) pins the
-  seven-device model tree for existing Projects. The [extended Profile](../../containers/ngspice/sg13g2/extended/profile.json)
-  names all 13 qualified Library primitives and 37 combinational standard-cell
-  masters. Each Profile has a separate executor and private scratch volume.
-  Discovery requires the exact model, simulator and startup identities.
-- The extended Profile offers 135 deterministic combinations of five MOS,
+- The [SG13G2 Profile](../../containers/ngspice/sg13g2/profile.json) names all
+  13 qualified Library primitives and 37 combinational standard-cell masters.
+  Discovery offers this single SG13G2 environment after proving the exact
+  model, simulator and startup identities. Retired Profile ids are refused.
+- The Profile offers 135 deterministic combinations of five MOS,
   three HBT, three resistor and three capacitor corners. `nominal` selects
   TT/typ/typ/typ. Gate truth tables qualify at each MOS corner at −40, 27 and
   125 °C. Choose a named section in the Profile model dependency's `.lib` line.

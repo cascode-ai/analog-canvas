@@ -16,10 +16,7 @@ for (const key of ["binary", "models", "modules", "output"])
   assert(values[key], `Required: --${key}`);
 const profile = JSON.parse(
   readFileSync(
-    new URL(
-      "../containers/ngspice/sg13g2/extended/profile.json",
-      import.meta.url,
-    ),
+    new URL("../containers/ngspice/sg13g2/profile.json", import.meta.url),
     "utf8",
   ),
 );
@@ -39,7 +36,6 @@ for (const [index, section] of sections.entries()) {
     process.execPath,
     [
       "scripts/sg13g2-qualification.mjs",
-      "--complete",
       "--library",
       profile.models.library.runtimePath,
       "--section",

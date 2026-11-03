@@ -59,7 +59,7 @@ case "$3" in
   *Memory*) echo 17179869184 ;;
   *.Type*) echo tmpfs ;;
   *.Source*)
-    if [ "$SHARED_VOLUME" = 1 ] || { [ "$SHARED_VOLUME" = 2 ] && [ "$4" != analog-canvas-ngspice-executor ]; }; then echo /volumes/shared;
+    if [ "$SHARED_VOLUME" = 1 ]; then echo /volumes/shared;
     else echo "/volumes/$4"; fi ;;
   *.Config.Env*)
     if [ "$4" = analog-canvas-ngspice ]; then echo '["SIMULATION_ACCESS_TOKEN=fixture"]';
@@ -86,8 +86,8 @@ esac
         const isolated = verify(0);
         expect(isolated.status, isolated.stderr).toBe(0);
         expect(isolated.stdout).toContain("simulator host runtime verified");
-        for (const overlap of [1, 2]) {
-          const shared = verify(overlap);
+        {
+          const shared = verify(1);
           expect(shared.status).toBe(1);
           expect(shared.stderr).toContain("Profiles share a run-root volume");
         }

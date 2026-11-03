@@ -142,9 +142,9 @@ fresh production build with synthetic fixtures. These checks do not deploy or
 replace required merge checks or existing performance budgets.
 
 [SG13G2 qualification](../../.github/workflows/sg13g2-tests.yml), job `qualify`,
-builds both pinned images and runs native electrical, Canvas/reference and
-GUI/MCP checks. Its `sg13g2` and `mcp-sg13g2` lanes require real executors
-through `ICM_SG13G2_URL` and `ICM_SG13G2_EXTENDED_URL`; skipped targets fail qualification.
+builds the pinned image and runs native electrical, Canvas/reference and
+GUI/MCP checks. Its `sg13g2` and `mcp-sg13g2` lanes require a real executor
+through `ICM_SG13G2_URL`; skipped targets fail qualification.
 
 Prepare the selected lane's resources from the
 [environment manifest](../../scripts/lib/environment-test-lanes.mjs).

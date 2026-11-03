@@ -6,16 +6,10 @@ import { waitingWhileBusy } from "./lib/simulator-busy-wait.mjs";
 
 const baseUrl = process.argv[2];
 assert(baseUrl, "usage: node scripts/production-sg13g2-smoke.mjs <base-url>");
-const extended = process.argv.includes("--extended");
-const corner = extended ? "mos-fs_hbt-bcs_res-wcs_cap-bcs" : "nominal";
+const corner = "mos-fs_hbt-bcs_res-wcs_cap-bcs";
 const profile = JSON.parse(
   await readFile(
-    new URL(
-      extended
-        ? "../containers/ngspice/sg13g2/extended/profile.json"
-        : "../containers/ngspice/sg13g2/profile.json",
-      import.meta.url,
-    ),
+    new URL("../containers/ngspice/sg13g2/profile.json", import.meta.url),
     "utf8",
   ),
 );
@@ -43,18 +37,14 @@ for (let attempt = 0; attempt < 120; attempt++) {
 }
 assert(ready, "SG13G2 Profile did not become ready within 10 minutes");
 const circuit = await readFile(
-  new URL(
-    extended
-      ? "../netlists/sg13g2-qualification/extended-reference.spice"
-      : "../netlists/sg13g2-qualification/reference.spice",
-    import.meta.url,
-  ),
+  new URL("../netlists/sg13g2-qualification/reference.spice", import.meta.url),
   "utf8",
 );
 const deck = `SG13G2 production acceptance
 .lib "models.lib" ${corner}
-${extended ? '.include "cells.spice"\n' : ""}.include "circuit.spice"
-XDUT vdd 0 out in sub rs rh collector base${extended ? " hvout hvin vh cl cv pc pb gateout" : ""} DUT
+.include "cells.spice"
+.include "circuit.spice"
+XDUT vdd 0 out in sub rs rh collector base hvout hvin vh cl cv pc pb gateout DUT
 VDD vdd 0 1.2
 VIN in 0 0.6
 VSUB sub 0 -0.1
@@ -62,17 +52,13 @@ VRS rs 0 0.1
 VRH rh 0 0.1
 VC collector 0 0.8
 VB base 0 0.7
-${
-  extended
-    ? `VHV vh 0 3.3
+VHV vh 0 3.3
 VGH hvin 0 1.65
 VCL cl 0 0.8
 VCV cv 0 0.8
 VPC pc 0 0.3
 VPB pb 0 0.5
-`
-    : ""
-}.control
+.control
 op
 write result.raw all
 quit
@@ -115,12 +101,10 @@ const op = result.data?.analyses.find((a) => a.analysis === "op");
 assert(op, "Missing OP result");
 const output = op.probes.find((p) => p.name === "v(out)")?.value;
 assert(
-  Number.isFinite(output) &&
-    Math.abs(output - (extended ? 0.01157000269626755 : 0.0153940369314152)) <
-      1e-7,
+  Number.isFinite(output) && Math.abs(output - 0.01157000269626755) < 1e-7,
   `Unexpected SG13G2 operating point ${output}`,
 );
-if (extended) {
+{
   for (const [name, expected] of [
     ["v(gateout)", 1.134481659063592],
     ["v(hvout)", 0.06268921682441778],

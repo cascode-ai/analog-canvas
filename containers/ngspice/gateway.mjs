@@ -7,13 +7,9 @@ const PORT = Number(process.env.PORT ?? 8080);
 const EXECUTOR_URL = new URL(
   process.env.SIMULATION_EXECUTOR_URL ?? "http://executor:8080",
 );
-const profileRoutes = [
-  ["/sg13g2", process.env.SG13G2_EXECUTOR_URL],
-  ["/sg13g2-extended", process.env.SG13G2_EXTENDED_EXECUTOR_URL],
-].map(([prefix, upstream]) => ({
-  prefix,
-  executor: upstream ? new URL(upstream) : null,
-}));
+const SG13G2_EXECUTOR_URL = process.env.SG13G2_EXECUTOR_URL
+  ? new URL(process.env.SG13G2_EXECUTOR_URL)
+  : null;
 const ACCESS_TOKEN = (process.env.SIMULATION_ACCESS_TOKEN ?? "").trim();
 const MAX_REQUEST_BYTES = positiveEnv(
   "SIMULATION_GATEWAY_MAX_REQUEST_BYTES",
@@ -71,11 +67,9 @@ function readBounded(request) {
 
 const server = createServer(async (request, response) => {
   const requestedPath = request.url ?? "/";
-  const route = profileRoutes.find(({ prefix }) =>
-    requestedPath.startsWith(`${prefix}/`),
-  );
-  const path = route ? requestedPath.slice(route.prefix.length) : requestedPath;
-  const executor = route ? route.executor : EXECUTOR_URL;
+  const sg13g2 = requestedPath.startsWith("/sg13g2/");
+  const path = sg13g2 ? requestedPath.slice("/sg13g2".length) : requestedPath;
+  const executor = sg13g2 ? SG13G2_EXECUTOR_URL : EXECUTOR_URL;
   const isHealth = request.method === "GET" && path === "/health";
   const isOperation =
     request.method === "POST" && (path === "/run" || path === "/cancel");

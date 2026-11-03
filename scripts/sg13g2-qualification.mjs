@@ -15,7 +15,6 @@ const { values } = parseArgs({
     output: { type: "string" },
     library: { type: "string" },
     section: { type: "string", default: "nominal" },
-    complete: { type: "boolean", default: false },
   },
 });
 for (const name of ["binary", "models", "modules", "output"])
@@ -198,50 +197,25 @@ X1 d g s s sg13_lv_pmos w=1u l=0.5u ng=2 m=3`,
     ["rppd", "rppd", "d 0 0", "w=1u l=10u b=0", "", "m"],
     ["rhigh", "rhigh", "d 0 0", "w=1u l=10u b=0", "", "m"],
     ["hbt", "npn13G2", "d b 0 0", "le=900n we=70n", "Vb b 0 0.7", "Nx"],
-    ...(values.complete
-      ? [
-          [
-            "hv-nmos",
-            "sg13_hv_nmos",
-            "d g 0 0",
-            "w=2u l=1u ng=2",
-            "Vg g 0 1.8",
-            "m",
-          ],
-          [
-            "hv-pmos",
-            "sg13_hv_pmos",
-            "d g s s",
-            "w=2u l=1u ng=2",
-            "Vg g 0 1.5\nVs s 0 3.3",
-            "m",
-          ],
-          [
-            "hbt-long",
-            "npn13G2l",
-            "d b 0 0",
-            "le=1u we=70n",
-            "Vb b 0 0.7",
-            "Nx",
-          ],
-          [
-            "hbt-high-voltage",
-            "npn13G2v",
-            "d b 0 0",
-            "le=1u we=120n",
-            "Vb b 0 0.7",
-            "Nx",
-          ],
-          [
-            "pnp",
-            "pnpMPA",
-            "d b e",
-            "a=1.44p p=5.4u",
-            "Vb b 0 0.5\nVe e 0 1.2",
-            "m",
-          ],
-        ]
-      : []),
+    ["hv-nmos", "sg13_hv_nmos", "d g 0 0", "w=2u l=1u ng=2", "Vg g 0 1.8", "m"],
+    [
+      "hv-pmos",
+      "sg13_hv_pmos",
+      "d g s s",
+      "w=2u l=1u ng=2",
+      "Vg g 0 1.5\nVs s 0 3.3",
+      "m",
+    ],
+    ["hbt-long", "npn13G2l", "d b 0 0", "le=1u we=70n", "Vb b 0 0.7", "Nx"],
+    [
+      "hbt-high-voltage",
+      "npn13G2v",
+      "d b 0 0",
+      "le=1u we=120n",
+      "Vb b 0 0.7",
+      "Nx",
+    ],
+    ["pnp", "pnpMPA", "d b e", "a=1.44p p=5.4u", "Vb b 0 0.5\nVe e 0 1.2", "m"],
   ]) {
     const vectors = run(
       `${name}-op`,
@@ -261,7 +235,7 @@ X2 ${pins.replace(/^d /u, "d2 ")} ${master} ${parameters} ${count}=2`,
     );
     close(second, first * 2, name.startsWith("hbt") ? 0.02 : 1e-5);
   }
-  if (values.complete) {
+  {
     const rf = run(
       "rf-mim-ac",
       `V1 a 0 dc 0 ac 1
