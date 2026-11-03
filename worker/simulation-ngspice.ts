@@ -386,24 +386,23 @@ export async function routeNgspiceSimulationRequest(
     }
     // A client that predates cell libraries parses a strict shape and asks
     // for none; it keeps that shape, and its single model dependency.
-    const cellLibraries =
-      Array.isArray(body.accepts) &&
-      body.accepts.includes(CAPABILITIES_ACCEPT_CELL_LIBRARIES)
-        ? {
-            cellLibraries: cellLibrariesAvailable.filter(
-              (library) =>
-                (!library.masters ||
-                  body.accepts.includes(CAPABILITIES_ACCEPT_CELL_MASTERS)) &&
-                mounted.some(
-                  (item) =>
-                    !!item &&
-                    typeof item === "object" &&
-                    (item as { id?: unknown }).id === library.id &&
-                    (item as { sha256?: unknown }).sha256 === library.sha256,
-                ),
-            ),
-          }
-        : {};
+    const accepts = Array.isArray(body.accepts) ? body.accepts : [];
+    const cellLibraries = accepts.includes(CAPABILITIES_ACCEPT_CELL_LIBRARIES)
+      ? {
+          cellLibraries: cellLibrariesAvailable.filter(
+            (library) =>
+              (!library.masters ||
+                accepts.includes(CAPABILITIES_ACCEPT_CELL_MASTERS)) &&
+              mounted.some(
+                (item) =>
+                  !!item &&
+                  typeof item === "object" &&
+                  (item as { id?: unknown }).id === library.id &&
+                  (item as { sha256?: unknown }).sha256 === library.sha256,
+              ),
+          ),
+        }
+      : {};
     return Response.json({
       configured: ready,
       rawfileCollection: "declared-single-ascii",
