@@ -117,7 +117,6 @@ function drawingOf(
  * file's netlist itself (`writesFileNetlist`); nothing else counts as the
  * same netlist.
  *
- * @internal Exported for its unit test, which pins the guard.
  */
 export async function drawnProject(
   imported: CircuitProject,
@@ -166,7 +165,6 @@ export async function drawnProject(
  * beside it, where the drawing, which shows that pin as ground, writes the
  * file's netlist again.
  *
- * @internal Exported for its unit test, which pins the guard.
  */
 export async function writesFileNetlist(
   project: CircuitProject,

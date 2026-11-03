@@ -1,0 +1,70 @@
+name: SG13G2 qualification
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - containers/ngspice/**
+      - containers/simulation/**
+      - packages/devices/**
+      - packages/netlist/**
+      - packages/simulation-service/**
+      - packages/spice-run/**
+      - worker/simulation*.ts
+      - apps/editor/e2e/sg13g2-simulation.spec.ts
+      - apps/editor/e2e/mcp-stdio-fixture.ts
+      - scripts/sg13g2-qualification.mjs
+      - scripts/lib/environment-test-lanes.mjs
+      - netlists/sg13g2-qualification/**
+      - .github/workflows/sg13g2-tests.yml
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ICM_SG13G2_URL: http://127.0.0.1:18083
+      ICM_E2E_ISOLATED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @icm/mcp-server... --filter @icm/simulation-service... --filter '@icm/editor^...' --if-present build
+          pnpm exec playwright install --with-deps chromium
+          node scripts/package-ngspice-harness.mjs
+      - name: Build identity-verified image
+        run: docker build -f containers/ngspice/sg13g2/Dockerfile -t icm-sg13g2 .
+      - name: Qualify native devices with original models
+        run: |
+          mkdir -p output/sg13g2-native
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 2g --cpus 2 --tmpfs /tmp --user "$(id -u):$(id -g)" --mount type=bind,source="$PWD",target=/proof --workdir /proof --entrypoint node icm-sg13g2 scripts/sg13g2-qualification.mjs --binary /opt/ngspice/bin/ngspice --models /opt/sg13g2/models --modules /opt/sg13g2/osdi --output /proof/output/sg13g2-native
+      - name: Start isolated real executor
+        run: |
+          docker run -d --name sg13g2-qualification --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 2g --cpus 2 --tmpfs /tmp --tmpfs /var/lib/simulation:uid=10001,gid=10001,mode=0700 -p 127.0.0.1:18083:8080 icm-sg13g2
+          for attempt in $(seq 1 30); do
+            if curl -fsS "$ICM_SG13G2_URL/health"; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Compare Canvas and independent reference through Worker and executor
+        run: node scripts/run-environment-tests.mjs sg13g2
+      - name: Run saved Project through GUI and public stdio MCP
+        run: node scripts/run-environment-tests.mjs mcp-sg13g2
+      - name: Preserve numerical evidence and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sg13g2-qualification-${{ github.sha }}
+          path: |
+            output/sg13g2-native/
+            output/sg13g2-service-acceptance/
+            output/environment-tests/
+            test-results/
+          if-no-files-found: error

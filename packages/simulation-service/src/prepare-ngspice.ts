@@ -275,13 +275,26 @@ export async function prepareNgspiceExecutionInput(
       })),
     );
   const supported = new Set(profile.devices?.map((name) => name.toLowerCase()));
-  const conflicts = reviewedCalls.filter(
-    (call) =>
-      call.origin?.kind === "model-source" &&
+  const supportedLibraries = new Set(
+    (profile.devices ?? [])
+      .map((name) => reviewedExternalBindingForMaster(name)?.libraryId)
+      .filter(Boolean),
+  );
+  const conflicts = reviewedCalls.filter((call) => {
+    const library = reviewedExternalBindingForMaster(
+      call.statement.master!,
+    )?.libraryId;
+    return (
+      (call.origin?.kind === "model-source" ||
+        library === "sg13g2_pr" ||
+        (library &&
+          supportedLibraries.size > 0 &&
+          !supportedLibraries.has(library))) &&
       (profile.devices
         ? !supported.has(call.statement.master!.toLowerCase())
-        : true),
-  );
+        : true)
+    );
+  });
   if (conflicts.length)
     return compilationProblem(
       conflicts.map(({ path, statement, origin }) => {

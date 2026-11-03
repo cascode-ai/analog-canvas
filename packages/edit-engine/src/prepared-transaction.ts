@@ -120,7 +120,7 @@ export function prepareTransaction(
   return { result, prepared };
 }
 
-/** @internal Only registered, matching calculations can bypass repeated work. */
+/** Only registered, matching calculations can bypass repeated work. */
 export function reusePreparedTransaction(
   document: SchematicDocument,
   transaction: EditTransaction,

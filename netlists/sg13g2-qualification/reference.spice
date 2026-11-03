@@ -1,0 +1,10 @@
+* Independently authored nominal DUT, SI geometry. Port order is part of acceptance.
+.subckt DUT vdd VSS out in sub rs rh collector base
+XN out in VSS sub sg13_lv_nmos w=2u l=500n ng=2 m=3
+XP out in vdd vdd sg13_lv_pmos w=4u l=500n ng=2 m=1
+XS rs VSS sub rsil w=1u l=10u m=2
+XR out VSS sub rppd w=1u l=10u b=1 m=1
+XH rh VSS sub rhigh w=1u l=10u b=0 m=2
+XC out VSS cap_cmim w=7u l=7u m=2
+XQ collector base VSS sub npn13G2 le=900n we=70n Nx=2
+.ends DUT

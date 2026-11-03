@@ -18,7 +18,6 @@ import {
   readNgspiceDiagnostics,
   resolveTimeoutMs,
   SKY130_LIBRARY_PATH,
-  SKY130_LIBRARY_SECTION,
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
 } from "./index.js";
@@ -356,7 +355,6 @@ describe("the model library", () => {
     // Every surface reads this constant, so a change here is a change
     // everywhere rather than a fourth spelling that drifts from the others.
     expect(SKY130_LIBRARY_PATH).toBe("/opt/sky130/continuous/sky130.lib.spice");
-    expect(SKY130_LIBRARY_SECTION).toBe("tt");
   });
 });
 

@@ -49,6 +49,7 @@ export default {
         "worker/index.ts!",
         "containers/*/entrypoint.mjs!",
         "containers/ngspice/gateway.mjs!",
+        "containers/ngspice/sg13g2/verify-image.mjs!",
         "containers/simulation/*.mjs!",
         "containers/vacask/image-smoke.mjs!",
         "tools/**/*.mjs!",

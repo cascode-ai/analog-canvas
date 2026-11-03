@@ -1,6 +1,30 @@
 // Each target names the environment-dependent assertions, not the pure tests
 // beside them. A missing, renamed or skipped target fails qualification.
 export const environmentTestLanes = {
+  sg13g2: {
+    runner: "vitest",
+    checks: [
+      {
+        file: "packages/simulation-service/src/sg13g2-execution.test.ts",
+        targets: [
+          "matches the independent DUT numerically through the real selected-Profile transport",
+          "passes the production smoke over real HTTP with the qualified executor",
+        ],
+      },
+    ],
+  },
+  "mcp-sg13g2": {
+    runner: "playwright",
+    files: ["apps/mcp-server/dist/main.js"],
+    checks: [
+      {
+        file: "apps/editor/e2e/sg13g2-simulation.spec.ts",
+        targets: [
+          "GUI and public MCP run the saved SG13G2 circuit on its real Profile",
+        ],
+      },
+    ],
+  },
   "vacask-source": {
     runner: "vitest",
     values: { ICM_PYTHON: "python3" },

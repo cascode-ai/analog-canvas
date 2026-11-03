@@ -16,7 +16,7 @@ esac
   exit 1
 }
 
-probe='const response = await fetch("http://127.0.0.1:8080/health"); const text = await response.text(); if (!response.ok) throw new Error(`health ${response.status}: ${text}`); const value = JSON.parse(text); if (value.status !== "ready") throw new Error(`health status ${value.status}`); process.stdout.write(text);'
+probe='for (const path of ["/health", "/sg13g2/health"]) { const response = await fetch(`http://127.0.0.1:8080${path}`); const text = await response.text(); if (!response.ok) throw new Error(`health ${response.status}: ${text}`); const value = JSON.parse(text); if (value.status !== "ready") throw new Error(`health status ${value.status}`); process.stdout.write(text + "\n"); }'
 
 i=1
 while [ "$i" -le "$attempts" ]; do
@@ -31,4 +31,5 @@ done
 printf 'simulator host health failed after %s attempts\n' "$attempts" >&2
 docker logs --tail 100 "$container" >&2 || true
 docker logs --tail 100 "${SIMULATION_EXECUTOR_CONTAINER_NAME:-analog-canvas-ngspice-executor}" >&2 || true
+docker logs --tail 100 "${SG13G2_EXECUTOR_CONTAINER_NAME:-analog-canvas-sg13g2-executor}" >&2 || true
 exit 1

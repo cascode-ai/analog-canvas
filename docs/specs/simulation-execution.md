@@ -99,6 +99,25 @@ type ModelLibrarySelection =
 - The library is added only for decks with a semiconductor card or a Sky130
   model name outside comments; otherwise `modelLibrary: null`.
 
+### Hosted SG13G2 Profile
+
+- [The SG13G2 manifest](../../containers/ngspice/sg13g2/profile.json) owns the
+  qualified devices, analyses, nominal section and binary/model/startup identities.
+  The model digest includes the original IHP sources and compiled OSDI modules;
+  model coefficients are unchanged. Other corners, standard cells, Monte Carlo
+  and VACASK SG13G2 are unqualified.
+- SG13G2 has a separate executor and scratch volume. Discovery advertises it
+  only when health proves the pinned identity. Prepare rejects generated devices
+  belonging to another PDK; runs and cancellation route by the selected Profile.
+- PSP103 native OP exposes `ide` as `id`, `vgs` and `vds`. These are native,
+  polarity-normalized model quantities (including PMOS); derivative fields are
+  unavailable. The current Helper refuses hierarchical PSP PMOS drain current
+  rather than presenting normalized `ide` as signed terminal current.
+- Qualification requires original-model electrical checks, Canvas/reference
+  numerical agreement, and saved-Project GUI/MCP execution through the real
+  executor. [The qualification workflow](../../.github/workflows/sg13g2-tests.yml)
+  retains native, service and browser evidence.
+
 ### Hosted SKY130 Profile
 
 - `containers/ngspice/hosted-sky130-profile.json` is the single runtime contract
@@ -170,18 +189,18 @@ Shared minimums for the hosted runner and the local host:
   lease watchdog covers admission through cleanup; on expiry the harness marks
   itself fatal and exits. Health never extends it.
 
-| Limit                   | Value                        | Enforcement                                                         |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------------- |
-| Deck size               | 2 MiB                        | `413 deck-too-large`                                                |
-| Request envelope        | 8 MiB                        | connection closed, `413 request-too-large`                          |
-| Raw waveform collection | 64 MiB per run               | incomplete collection reported, never certified complete            |
-| Simulator logs          | 1 MiB per run, independently | split between stdout and stderr; truncation reported                |
-| Default deadline        | 30 s                         | when the caller names none                                          |
-| Maximum deadline        | 120 s                        | longer requests clamped                                             |
-| Lifecycle grace         | 10 s                         | hard lease watchdog after the run deadline                          |
-| Identity / limits probe | 5 s                          | identity: abandoned; limits: not ready until read back              |
-| Processes               | 128 (`RLIMIT_NPROC`)         | image `ulimit` (host-wide per uid); not ready without it            |
-| Written file size       | 256 MiB (`RLIMIT_FSIZE`)     | image `ulimit`; not ready without it                                |
+| Limit                   | Value                        | Enforcement                                              |
+| ----------------------- | ---------------------------- | -------------------------------------------------------- |
+| Deck size               | 2 MiB                        | `413 deck-too-large`                                     |
+| Request envelope        | 8 MiB                        | connection closed, `413 request-too-large`               |
+| Raw waveform collection | 64 MiB per run               | incomplete collection reported, never certified complete |
+| Simulator logs          | 1 MiB per run, independently | split between stdout and stderr; truncation reported     |
+| Default deadline        | 30 s                         | when the caller names none                               |
+| Maximum deadline        | 120 s                        | longer requests clamped                                  |
+| Lifecycle grace         | 10 s                         | hard lease watchdog after the run deadline               |
+| Identity / limits probe | 5 s                          | identity: abandoned; limits: not ready until read back   |
+| Processes               | 128 (`RLIMIT_NPROC`)         | image `ulimit` (host-wide per uid); not ready without it |
+| Written file size       | 256 MiB (`RLIMIT_FSIZE`)     | image `ulimit`; not ready without it                     |
 
 - `SIMULATION_MAX_OUTPUT_BYTES` sets waveform collection, `SIMULATION_MAX_LOG_BYTES`
   logs (defaults in `packages/spice-run`); capabilities use the harness's

@@ -8,7 +8,8 @@ import {
   routeNgspiceSimulationRequest,
   type SimulationEnv as NgspiceEnv,
 } from "./simulation-ngspice";
-import ngspiceProfile from "../containers/ngspice/hosted-sky130-profile.json";
+import ngspiceProfile from "../containers/ngspice/hosted-sky130-profile.json" with { type: "json" };
+import sg13g2Profile from "../containers/ngspice/sg13g2/profile.json" with { type: "json" };
 import { sessionUserOf } from "./auth";
 import type { AuthEnv } from "./auth-do";
 import { bearerMatches } from "./bearer";
@@ -87,6 +88,8 @@ async function boundedText(
 }
 
 export interface SimulationEnv extends VacaskEnv, NgspiceEnv {
+  /** SG13 executor behind the trusted ngspice gateway; same gateway bearer. */
+  SG13G2_UPSTREAM_URL?: string;
   /** Opt-in independent native endpoint; never overwrites the ngspice origin. */
   VACASK_PROFILE_ID?: string;
   VACASK_UPSTREAM_URL?: string;
@@ -121,17 +124,33 @@ export async function routeSimulationRequest(
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
   const nativeId = env.VACASK_PROFILE_ID?.trim();
-  if (nativeId === ngspiceProfile.id)
+  if (nativeId === ngspiceProfile.id || nativeId === sg13g2Profile.id)
     return Response.json(
       { error: "simulation-profile-configuration-invalid" },
       { status: 503 },
     );
   const profileId = body.environment?.profileId;
-  if (
-    profileId !== undefined &&
-    profileId !== ngspiceProfile.id &&
-    profileId !== nativeId
-  )
+  const ngspiceProfiles = [
+    { profile: ngspiceProfile, environment: env },
+    ...(env.SG13G2_UPSTREAM_URL?.trim()
+      ? [
+          {
+            profile: sg13g2Profile,
+            environment: {
+              SIMULATION_UPSTREAM_URL: env.SG13G2_UPSTREAM_URL,
+              ...(env.SIMULATION_UPSTREAM_TOKEN
+                ? { SIMULATION_UPSTREAM_TOKEN: env.SIMULATION_UPSTREAM_TOKEN }
+                : {}),
+              SIMULATION_DEFAULT_EXECUTOR: "operator-host",
+            } satisfies NgspiceEnv,
+          },
+        ]
+      : []),
+  ];
+  const selectedNgspice = ngspiceProfiles.find(
+    ({ profile }) => profile.id === (profileId ?? ngspiceProfile.id),
+  );
+  if (profileId !== undefined && !selectedNgspice && profileId !== nativeId)
     return Response.json(
       { error: "simulation-profile-unavailable" },
       { status: 400 },
@@ -160,36 +179,66 @@ export async function routeSimulationRequest(
       { error: "simulation-engine-profile-mismatch" },
       { status: 400 },
     );
-  if (body.operation === "cancel" && nativeId && profileId === undefined)
+  if (
+    body.operation === "cancel" &&
+    (nativeId || ngspiceProfiles.length > 1) &&
+    profileId === undefined
+  )
     return Response.json(
       { error: "simulation-cancel-profile-required" },
       { status: 400 },
     );
   const response = await annotateEngine(
-    await routeNgspiceSimulationRequest(request, env, runnerKey),
+    await routeNgspiceSimulationRequest(
+      request,
+      selectedNgspice!.environment,
+      runnerKey,
+      selectedNgspice!.profile,
+    ),
     body.operation,
     "ngspice",
   );
   if (
     body.operation !== "capabilities" ||
     profileId !== undefined ||
-    !nativeId ||
     !response?.ok
   )
     return response;
   // Discovery advertises both Profiles. Prepare must fetch selected-Profile caps;
   // global limits and collection protocol here describe the default ngspice path.
-  const native = await routeVacaskSimulationRequest(
-    new Request(request.url, {
-      method: "POST",
-      body: JSON.stringify({ operation: "capabilities" }),
-    }),
-    nativeEnv,
-  );
+  const native = nativeId
+    ? await routeVacaskSimulationRequest(
+        new Request(request.url, {
+          method: "POST",
+          body: JSON.stringify({ operation: "capabilities" }),
+        }),
+        nativeEnv,
+      )
+    : null;
   const defaults = (await response.json()) as {
     configured: boolean;
     profiles: unknown[];
   };
+  for (const entry of ngspiceProfiles.slice(1)) {
+    const additional = await routeNgspiceSimulationRequest(
+      new Request(request.url, { method: "POST", body: text }),
+      entry.environment,
+      runnerKey,
+      entry.profile,
+    );
+    if (additional?.ok) {
+      const caps = (await additional.json()) as {
+        configured: boolean;
+        profiles: object[];
+      };
+      if (caps.configured) {
+        defaults.configured = true;
+        defaults.profiles.push(
+          ...caps.profiles.map((p) => ({ ...p, engine: "ngspice" })),
+        );
+      }
+    }
+  }
   if (native?.ok) {
     const caps = (await native.json()) as {
       configured: boolean;

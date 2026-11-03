@@ -7,6 +7,9 @@ const PORT = Number(process.env.PORT ?? 8080);
 const EXECUTOR_URL = new URL(
   process.env.SIMULATION_EXECUTOR_URL ?? "http://executor:8080",
 );
+const SG13G2_EXECUTOR_URL = process.env.SG13G2_EXECUTOR_URL
+  ? new URL(process.env.SG13G2_EXECUTOR_URL)
+  : null;
 const ACCESS_TOKEN = (process.env.SIMULATION_ACCESS_TOKEN ?? "").trim();
 const MAX_REQUEST_BYTES = positiveEnv(
   "SIMULATION_GATEWAY_MAX_REQUEST_BYTES",
@@ -63,11 +66,14 @@ function readBounded(request) {
 }
 
 const server = createServer(async (request, response) => {
-  const path = request.url ?? "/";
+  const requestedPath = request.url ?? "/";
+  const sg13g2 = requestedPath.startsWith("/sg13g2/");
+  const path = sg13g2 ? requestedPath.slice("/sg13g2".length) : requestedPath;
+  const executor = sg13g2 ? SG13G2_EXECUTOR_URL : EXECUTOR_URL;
   const isHealth = request.method === "GET" && path === "/health";
   const isOperation =
     request.method === "POST" && (path === "/run" || path === "/cancel");
-  if (!isHealth && !isOperation) {
+  if (!executor || (!isHealth && !isOperation)) {
     send(response, 404, Buffer.from('{"error":"not-found"}'));
     return;
   }
@@ -80,7 +86,7 @@ const server = createServer(async (request, response) => {
   }
   try {
     const body = isOperation ? await readBounded(request) : undefined;
-    const upstream = new URL(path, EXECUTOR_URL);
+    const upstream = new URL(path, executor);
     const result = await fetch(upstream, {
       method: request.method,
       ...(body

@@ -339,7 +339,9 @@
       "scripts/preview-simulation-smoke.mjs",
       "scripts/simulation-acceptance.mjs",
       "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "apps/editor/e2e/editor-fixtures.ts",
+      "apps/editor/e2e/sg13g2-simulation.spec.ts",
+      "apps/editor/e2e/mcp-stdio-fixture.ts"
     ],
     "release": [
       "apps/local-host/**",
@@ -985,6 +987,15 @@
         "browser-performance"
       ],
       "requires": "Fresh production build and Chromium; ICM_PERF=1. Synthetic fixtures only in the workflow."
+    },
+    {
+      "id": "mcp-sg13g2",
+      "groups": ["analogSimulation"],
+      "specs": ["apps/editor/e2e/sg13g2-simulation.spec.ts"],
+      "workflow": ".github/workflows/sg13g2-tests.yml",
+      "job": "qualify",
+      "command": ["node", "scripts/run-environment-tests.mjs", "mcp-sg13g2"],
+      "requires": "Built editor/MCP dependencies, Chromium and ICM_SG13G2_URL pointing at the qualified SG13G2 executor."
     }
   ]
 }
