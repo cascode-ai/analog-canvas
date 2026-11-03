@@ -65,8 +65,18 @@ it("selects the only SG13 Profile and prepares all dependencies without changing
   expect(project).toEqual(before);
 });
 
-it("refuses an SG13 model dependency on a SKY130 Profile before submitting a run", async () => {
-  const { project, folder } = sg13g2Project();
+it("refuses generated SG13 devices on a SKY130 Profile before submitting a run", async () => {
+  const { project, folder, entry } = sg13g2Project();
+  folder.input.dependencies = [];
+  entry.text = entry.text.replace(/^\.lib .+\n/mu, "");
+  const document = project.documents[0]!;
+  document.instances = document.instances.filter((i) => i.id !== "X1");
+  for (const net of document.nets)
+    net.terminals = net.terminals.filter((t) => t.instanceId !== "X1");
+  project.externalSubcircuitDefinitions =
+    project.externalSubcircuitDefinitions.filter(
+      (d) => d.name !== "sg13g2_nand2_1",
+    );
   folder.input.files.find((f) => f.path === folder.input.configPath)!.text =
     JSON.stringify({ version: 2, environment: { profileId: sky130.id } });
   const result = await prepareFolderExecutionInput(project, folder, {
@@ -75,8 +85,7 @@ it("refuses an SG13 model dependency on a SKY130 Profile before submitting a run
     modelLibrary: { path: sky130.models.library.runtimePath, section: "tt" },
   });
   expect(result.ok).toBe(false);
-  if (result.ok) return;
-  expect(JSON.stringify(result)).toContain("SIMULATION_DEPENDENCY_UNAVAILABLE");
+  expect(JSON.stringify(result)).toContain("MODEL_SOURCE_PROFILE_CONFLICT");
 });
 
 it("refuses a gate strength outside the qualified SG13 cells", async () => {

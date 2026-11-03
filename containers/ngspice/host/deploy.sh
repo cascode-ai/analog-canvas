@@ -77,7 +77,7 @@ if [ "$tunnel_enabled" = true ]; then
   replace_legacy_container analog-canvas-tunnel
   compose up -d --remove-orphans
 else
-  compose up -d simulator
+  compose up -d --remove-orphans simulator
 fi
 
 "$script_dir/health.sh" >/dev/null
