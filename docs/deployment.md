@@ -149,14 +149,14 @@ Never delete Production or retained Preview data while cleaning up.
 ## Where the simulator runs
 
 The Worker forwards SKY130 ngspice runs to `SIMULATION_UPSTREAM_URL` and
-SG13G2 runs to `SG13G2_UPSTREAM_URL` (the gateway’s `/sg13g2` prefix), with
-`SIMULATION_UPSTREAM_TOKEN`; the gateway's `SIMULATION_ACCESS_TOKEN` never
-enters the executor, which
-[`containers/ngspice/host/compose.yaml`](../containers/ngspice/host/compose.yaml)
-keeps without credentials, host ports or egress. Both executors have separate
-scratch volumes. SG13G2 image builds must prove the bundled Profile identity
-before host replacement. Host health verifies both `/health` and
-`/sg13g2/health`; Production smoke runs the SG13G2 seven-device circuit.
+SG13G2 runs to `SG13G2_UPSTREAM_URL` (gateway prefix `/sg13g2`) or
+`SG13G2_EXTENDED_UPSTREAM_URL` (`/sg13g2-extended`) according to Profile.
+The gateway authenticates with `SIMULATION_UPSTREAM_TOKEN`. The [host
+composition](../containers/ngspice/host/compose.yaml) gives each executor a
+private scratch volume, without credentials, host ports or egress. The SG13G2
+Dockerfile builds the nominal image by default and the expanded image with
+`--target extended`. Each build proves its bundled identity. Host health checks
+all three routes and Production smoke runs both SG13G2 reference circuits.
 
 The [Simulator host workflow](../.github/workflows/simulator-host.yml) rebuilds
 the host on `main` pushes affecting its declared runtime paths. Changes only

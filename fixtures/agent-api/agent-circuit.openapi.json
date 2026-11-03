@@ -26427,6 +26427,12 @@
                 "cells": {
                   "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
                 },
+                "masters": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
+                  }
+                },
                 "directive": {
                   "type": "string",
                   "const": "include"

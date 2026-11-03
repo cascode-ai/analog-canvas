@@ -1,8 +1,17 @@
+import extended from "../containers/ngspice/sg13g2/extended/profile.json";
 import { afterEach, expect, it, vi } from "vitest";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 import sky130 from "../containers/ngspice/hosted-sky130-profile.json";
 import sg13 from "../containers/ngspice/sg13g2/profile.json";
-import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
+import {
+  encodeExecutionReceipt,
+  EXECUTION_RECEIPT_HEADER,
+  sha256,
+} from "@icm/simulation-service";
+import {
+  createSimulationInputMetadata,
+  createSimulationEnvironmentMetadata,
+} from "@icm/spice-run";
 
 const health = {
   status: "ready",
@@ -111,9 +120,12 @@ it("does not advertise SG13 while its host is missing or serves a different mode
   }
 });
 
-it("cancels only the selected SG13 executor, retaining its gateway path", async () => {
+it.each([
+  [sg13.id, "sg13g2"],
+  [extended.id, "sg13g2-extended"],
+])("cancels only the selected SG13 executor %s", async (profileId, prefix) => {
   const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
-    expect(url.toString()).toBe("https://sim.test/sg13g2/cancel");
+    expect(url.toString()).toBe(`https://sim.test/${prefix}/cancel`);
     expect(new Headers(init.headers).get("authorization")).toBe(
       "Bearer protocol-test-token",
     );
@@ -124,14 +136,89 @@ it("cancels only the selected SG13 executor, retaining its gateway path", async 
   const result = await routeSimulationRequest(
     post({
       operation: "cancel",
-      environment: { profileId: sg13.id },
+      environment: { profileId },
       runToken: "11111111-1111-4111-8111-111111111111",
     }),
-    env,
+    {
+      ...env,
+      SG13G2_EXTENDED_UPSTREAM_URL: "https://sim.test/sg13g2-extended",
+    },
   );
   expect(result!.status).toBe(200);
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+it.each([
+  [extended, 200],
+  [sg13, 502],
+] as const)(
+  "checks the streaming receipt identity for an extended request ($1)",
+  async (identity, status) => {
+    const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
+      expect(url.toString()).toBe("https://sim.test/sg13g2-extended/run");
+      const { deck, outputContext, runToken, files } = JSON.parse(
+        String(init.body),
+      );
+      const environment = await createSimulationEnvironmentMetadata({
+        executor: "hosted-container",
+        reproducibility: "pinned",
+        profileId: identity.id,
+        platform: identity.platform,
+        simulator: { ...identity.simulator, name: "ngspice" },
+        models: {
+          id: identity.models.id,
+          contentSha256: identity.models.contentSha256,
+        },
+        startupSha256: identity.startup.contentSha256,
+      });
+      const metadata = {
+        schemaVersion: 1,
+        environment,
+        configuration: { modelLibrary: null },
+        input: await createSimulationInputMetadata({ ...outputContext, deck }),
+      };
+      const outcome = { status: "completed" };
+      const text = JSON.stringify({ metadata, outcome });
+      return new Response(text, {
+        headers: {
+          [EXECUTION_RECEIPT_HEADER]: encodeExecutionReceipt({
+            schemaVersion: 1,
+            runToken,
+            byteLength: new TextEncoder().encode(text).length,
+            sha256: await sha256(text),
+            executedFilesSha256: await sha256(JSON.stringify(files)),
+            outcome,
+            metadata,
+            execution: outputContext.execution,
+            cancelled: false,
+            collectionStatus: "complete",
+          }),
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const result = await routeSimulationRequest(
+      post({
+        environment: { profileId: extended.id },
+        mode: "raw",
+        netlist: "",
+        testbench:
+          "title\nV1 a 0 1\nR a 0 1k\n.control\nop\nquit\n.endc\n.end\n",
+        inputRevision: "identity-refusal",
+        runToken: crypto.randomUUID(),
+      }),
+      {
+        ...env,
+        SG13G2_EXTENDED_UPSTREAM_URL: "https://sim.test/sg13g2-extended",
+      },
+    );
+    expect(result!.status).toBe(status);
+    if (status === 502)
+      expect((await result!.json()).error).toBe("simulator-protocol-invalid");
+    else expect(result!.headers.has(EXECUTION_RECEIPT_HEADER)).toBe(true);
+    expect(fetcher).toHaveBeenCalledOnce();
+  },
+);
 
 it("does not substitute SKY130 when SG13 is unconfigured, or accept SKY130 corners on SG13", async () => {
   const fetcher = vi.fn();

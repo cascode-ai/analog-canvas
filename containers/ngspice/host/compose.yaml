@@ -36,7 +36,7 @@ services:
     networks:
       - simulation
 
-  sg13g2:
+  sg13g2: &sg13g2-executor
     image: analog-canvas-sg13g2:${SIMULATION_IMAGE_TAG:-local}
     build:
       context: ../../..
@@ -61,6 +61,21 @@ services:
     networks:
       - simulation
 
+  sg13g2-extended:
+    <<: *sg13g2-executor
+    image: analog-canvas-sg13g2-extended:${SIMULATION_IMAGE_TAG:-local}
+    build:
+      context: ../../..
+      dockerfile: containers/ngspice/sg13g2/Dockerfile
+      target: extended
+    container_name: analog-canvas-sg13g2-extended-executor
+    volumes:
+      - sg13g2-extended-run-root:/var/lib/simulation
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 1073741824
+
   # The public tunnel reaches this small trusted process. The bearer token is
   # deliberately absent from `executor`: an authored .control program runs
   # there under the same uid as the harness and must not be able to recover
@@ -77,9 +92,11 @@ services:
       SIMULATION_ACCESS_TOKEN: ${SIMULATION_ACCESS_TOKEN:?set SIMULATION_ACCESS_TOKEN in the host runtime env}
       SIMULATION_EXECUTOR_URL: http://executor:8080
       SG13G2_EXECUTOR_URL: http://sg13g2:8080
+      SG13G2_EXTENDED_EXECUTOR_URL: http://sg13g2-extended:8080
     depends_on:
       - executor
       - sg13g2
+      - sg13g2-extended
     restart: unless-stopped
     read_only: true
     cap_drop:
@@ -118,6 +135,8 @@ services:
 volumes:
   sg13g2-run-root:
     name: analog-canvas-sg13g2-run-root
+  sg13g2-extended-run-root:
+    name: analog-canvas-sg13g2-extended-run-root
   run-root:
     name: analog-canvas-simulation-run-root
 

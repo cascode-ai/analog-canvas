@@ -16,7 +16,7 @@ esac
   exit 1
 }
 
-probe='for (const path of ["/health", "/sg13g2/health"]) { const response = await fetch(`http://127.0.0.1:8080${path}`); const text = await response.text(); if (!response.ok) throw new Error(`health ${response.status}: ${text}`); const value = JSON.parse(text); if (value.status !== "ready") throw new Error(`health status ${value.status}`); process.stdout.write(text + "\n"); }'
+probe='for (const path of ["/health", "/sg13g2/health", "/sg13g2-extended/health"]) { const response = await fetch(`http://127.0.0.1:8080${path}`); const text = await response.text(); if (!response.ok) throw new Error(`health ${response.status}: ${text}`); const value = JSON.parse(text); if (value.status !== "ready") throw new Error(`health status ${value.status}`); process.stdout.write(text + "\n"); }'
 
 i=1
 while [ "$i" -le "$attempts" ]; do

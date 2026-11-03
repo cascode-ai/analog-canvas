@@ -1,0 +1,1096 @@
+* Independent original IHP family corners; no model coefficient overrides.
+.lib nominal
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl nominal
+
+.lib mos-tt_hbt-typ_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-typ_res-typ_cap-bcs
+
+.lib mos-tt_hbt-typ_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-typ_res-typ_cap-wcs
+
+.lib mos-tt_hbt-typ_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-tt_hbt-typ_res-bcs_cap-typ
+
+.lib mos-tt_hbt-typ_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-typ_res-bcs_cap-bcs
+
+.lib mos-tt_hbt-typ_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-typ_res-bcs_cap-wcs
+
+.lib mos-tt_hbt-typ_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-tt_hbt-typ_res-wcs_cap-typ
+
+.lib mos-tt_hbt-typ_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-typ_res-wcs_cap-bcs
+
+.lib mos-tt_hbt-typ_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-typ_res-wcs_cap-wcs
+
+.lib mos-tt_hbt-bcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-tt_hbt-bcs_res-typ_cap-typ
+
+.lib mos-tt_hbt-bcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-bcs_res-typ_cap-bcs
+
+.lib mos-tt_hbt-bcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-bcs_res-typ_cap-wcs
+
+.lib mos-tt_hbt-bcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-tt_hbt-bcs_res-bcs_cap-typ
+
+.lib mos-tt_hbt-bcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-bcs_res-bcs_cap-bcs
+
+.lib mos-tt_hbt-bcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-bcs_res-bcs_cap-wcs
+
+.lib mos-tt_hbt-bcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-tt_hbt-bcs_res-wcs_cap-typ
+
+.lib mos-tt_hbt-bcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-bcs_res-wcs_cap-bcs
+
+.lib mos-tt_hbt-bcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-bcs_res-wcs_cap-wcs
+
+.lib mos-tt_hbt-wcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-tt_hbt-wcs_res-typ_cap-typ
+
+.lib mos-tt_hbt-wcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-wcs_res-typ_cap-bcs
+
+.lib mos-tt_hbt-wcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-wcs_res-typ_cap-wcs
+
+.lib mos-tt_hbt-wcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-tt_hbt-wcs_res-bcs_cap-typ
+
+.lib mos-tt_hbt-wcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-wcs_res-bcs_cap-bcs
+
+.lib mos-tt_hbt-wcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-wcs_res-bcs_cap-wcs
+
+.lib mos-tt_hbt-wcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-tt_hbt-wcs_res-wcs_cap-typ
+
+.lib mos-tt_hbt-wcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-tt_hbt-wcs_res-wcs_cap-bcs
+
+.lib mos-tt_hbt-wcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_tt
+.lib cornerMOShv.lib mos_tt
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-tt_hbt-wcs_res-wcs_cap-wcs
+
+.lib mos-ff_hbt-typ_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-typ_res-typ_cap-typ
+
+.lib mos-ff_hbt-typ_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-typ_res-typ_cap-bcs
+
+.lib mos-ff_hbt-typ_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-typ_res-typ_cap-wcs
+
+.lib mos-ff_hbt-typ_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-typ_res-bcs_cap-typ
+
+.lib mos-ff_hbt-typ_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-typ_res-bcs_cap-bcs
+
+.lib mos-ff_hbt-typ_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-typ_res-bcs_cap-wcs
+
+.lib mos-ff_hbt-typ_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-typ_res-wcs_cap-typ
+
+.lib mos-ff_hbt-typ_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-typ_res-wcs_cap-bcs
+
+.lib mos-ff_hbt-typ_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-typ_res-wcs_cap-wcs
+
+.lib mos-ff_hbt-bcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-bcs_res-typ_cap-typ
+
+.lib mos-ff_hbt-bcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-bcs_res-typ_cap-bcs
+
+.lib mos-ff_hbt-bcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-bcs_res-typ_cap-wcs
+
+.lib mos-ff_hbt-bcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-bcs_res-bcs_cap-typ
+
+.lib mos-ff_hbt-bcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-bcs_res-bcs_cap-bcs
+
+.lib mos-ff_hbt-bcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-bcs_res-bcs_cap-wcs
+
+.lib mos-ff_hbt-bcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-bcs_res-wcs_cap-typ
+
+.lib mos-ff_hbt-bcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-bcs_res-wcs_cap-bcs
+
+.lib mos-ff_hbt-bcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-bcs_res-wcs_cap-wcs
+
+.lib mos-ff_hbt-wcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-wcs_res-typ_cap-typ
+
+.lib mos-ff_hbt-wcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-wcs_res-typ_cap-bcs
+
+.lib mos-ff_hbt-wcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-wcs_res-typ_cap-wcs
+
+.lib mos-ff_hbt-wcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-wcs_res-bcs_cap-typ
+
+.lib mos-ff_hbt-wcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-wcs_res-bcs_cap-bcs
+
+.lib mos-ff_hbt-wcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-wcs_res-bcs_cap-wcs
+
+.lib mos-ff_hbt-wcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ff_hbt-wcs_res-wcs_cap-typ
+
+.lib mos-ff_hbt-wcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ff_hbt-wcs_res-wcs_cap-bcs
+
+.lib mos-ff_hbt-wcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_ff
+.lib cornerMOShv.lib mos_ff
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ff_hbt-wcs_res-wcs_cap-wcs
+
+.lib mos-ss_hbt-typ_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-typ_res-typ_cap-typ
+
+.lib mos-ss_hbt-typ_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-typ_res-typ_cap-bcs
+
+.lib mos-ss_hbt-typ_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-typ_res-typ_cap-wcs
+
+.lib mos-ss_hbt-typ_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-typ_res-bcs_cap-typ
+
+.lib mos-ss_hbt-typ_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-typ_res-bcs_cap-bcs
+
+.lib mos-ss_hbt-typ_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-typ_res-bcs_cap-wcs
+
+.lib mos-ss_hbt-typ_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-typ_res-wcs_cap-typ
+
+.lib mos-ss_hbt-typ_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-typ_res-wcs_cap-bcs
+
+.lib mos-ss_hbt-typ_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-typ_res-wcs_cap-wcs
+
+.lib mos-ss_hbt-bcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-bcs_res-typ_cap-typ
+
+.lib mos-ss_hbt-bcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-bcs_res-typ_cap-bcs
+
+.lib mos-ss_hbt-bcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-bcs_res-typ_cap-wcs
+
+.lib mos-ss_hbt-bcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-bcs_res-bcs_cap-typ
+
+.lib mos-ss_hbt-bcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-bcs_res-bcs_cap-bcs
+
+.lib mos-ss_hbt-bcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-bcs_res-bcs_cap-wcs
+
+.lib mos-ss_hbt-bcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-bcs_res-wcs_cap-typ
+
+.lib mos-ss_hbt-bcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-bcs_res-wcs_cap-bcs
+
+.lib mos-ss_hbt-bcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-bcs_res-wcs_cap-wcs
+
+.lib mos-ss_hbt-wcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-wcs_res-typ_cap-typ
+
+.lib mos-ss_hbt-wcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-wcs_res-typ_cap-bcs
+
+.lib mos-ss_hbt-wcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-wcs_res-typ_cap-wcs
+
+.lib mos-ss_hbt-wcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-wcs_res-bcs_cap-typ
+
+.lib mos-ss_hbt-wcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-wcs_res-bcs_cap-bcs
+
+.lib mos-ss_hbt-wcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-wcs_res-bcs_cap-wcs
+
+.lib mos-ss_hbt-wcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-ss_hbt-wcs_res-wcs_cap-typ
+
+.lib mos-ss_hbt-wcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-ss_hbt-wcs_res-wcs_cap-bcs
+
+.lib mos-ss_hbt-wcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_ss
+.lib cornerMOShv.lib mos_ss
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-ss_hbt-wcs_res-wcs_cap-wcs
+
+.lib mos-fs_hbt-typ_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-typ_res-typ_cap-typ
+
+.lib mos-fs_hbt-typ_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-typ_res-typ_cap-bcs
+
+.lib mos-fs_hbt-typ_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-typ_res-typ_cap-wcs
+
+.lib mos-fs_hbt-typ_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-typ_res-bcs_cap-typ
+
+.lib mos-fs_hbt-typ_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-typ_res-bcs_cap-bcs
+
+.lib mos-fs_hbt-typ_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-typ_res-bcs_cap-wcs
+
+.lib mos-fs_hbt-typ_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-typ_res-wcs_cap-typ
+
+.lib mos-fs_hbt-typ_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-typ_res-wcs_cap-bcs
+
+.lib mos-fs_hbt-typ_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-typ_res-wcs_cap-wcs
+
+.lib mos-fs_hbt-bcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-bcs_res-typ_cap-typ
+
+.lib mos-fs_hbt-bcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-bcs_res-typ_cap-bcs
+
+.lib mos-fs_hbt-bcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-bcs_res-typ_cap-wcs
+
+.lib mos-fs_hbt-bcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-bcs_res-bcs_cap-typ
+
+.lib mos-fs_hbt-bcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-bcs_res-bcs_cap-bcs
+
+.lib mos-fs_hbt-bcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-bcs_res-bcs_cap-wcs
+
+.lib mos-fs_hbt-bcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-bcs_res-wcs_cap-typ
+
+.lib mos-fs_hbt-bcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-bcs_res-wcs_cap-bcs
+
+.lib mos-fs_hbt-bcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-bcs_res-wcs_cap-wcs
+
+.lib mos-fs_hbt-wcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-wcs_res-typ_cap-typ
+
+.lib mos-fs_hbt-wcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-wcs_res-typ_cap-bcs
+
+.lib mos-fs_hbt-wcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-wcs_res-typ_cap-wcs
+
+.lib mos-fs_hbt-wcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-wcs_res-bcs_cap-typ
+
+.lib mos-fs_hbt-wcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-wcs_res-bcs_cap-bcs
+
+.lib mos-fs_hbt-wcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-wcs_res-bcs_cap-wcs
+
+.lib mos-fs_hbt-wcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-fs_hbt-wcs_res-wcs_cap-typ
+
+.lib mos-fs_hbt-wcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-fs_hbt-wcs_res-wcs_cap-bcs
+
+.lib mos-fs_hbt-wcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_fs
+.lib cornerMOShv.lib mos_fs
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-fs_hbt-wcs_res-wcs_cap-wcs
+
+.lib mos-sf_hbt-typ_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-typ_res-typ_cap-typ
+
+.lib mos-sf_hbt-typ_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-typ_res-typ_cap-bcs
+
+.lib mos-sf_hbt-typ_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-typ_res-typ_cap-wcs
+
+.lib mos-sf_hbt-typ_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-typ_res-bcs_cap-typ
+
+.lib mos-sf_hbt-typ_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-typ_res-bcs_cap-bcs
+
+.lib mos-sf_hbt-typ_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-typ_res-bcs_cap-wcs
+
+.lib mos-sf_hbt-typ_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-typ_res-wcs_cap-typ
+
+.lib mos-sf_hbt-typ_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-typ_res-wcs_cap-bcs
+
+.lib mos-sf_hbt-typ_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_typ
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-typ_res-wcs_cap-wcs
+
+.lib mos-sf_hbt-bcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-bcs_res-typ_cap-typ
+
+.lib mos-sf_hbt-bcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-bcs_res-typ_cap-bcs
+
+.lib mos-sf_hbt-bcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-bcs_res-typ_cap-wcs
+
+.lib mos-sf_hbt-bcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-bcs_res-bcs_cap-typ
+
+.lib mos-sf_hbt-bcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-bcs_res-bcs_cap-bcs
+
+.lib mos-sf_hbt-bcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-bcs_res-bcs_cap-wcs
+
+.lib mos-sf_hbt-bcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-bcs_res-wcs_cap-typ
+
+.lib mos-sf_hbt-bcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-bcs_res-wcs_cap-bcs
+
+.lib mos-sf_hbt-bcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_bcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-bcs_res-wcs_cap-wcs
+
+.lib mos-sf_hbt-wcs_res-typ_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-wcs_res-typ_cap-typ
+
+.lib mos-sf_hbt-wcs_res-typ_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-wcs_res-typ_cap-bcs
+
+.lib mos-sf_hbt-wcs_res-typ_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_typ
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-wcs_res-typ_cap-wcs
+
+.lib mos-sf_hbt-wcs_res-bcs_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-wcs_res-bcs_cap-typ
+
+.lib mos-sf_hbt-wcs_res-bcs_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-wcs_res-bcs_cap-bcs
+
+.lib mos-sf_hbt-wcs_res-bcs_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_bcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-wcs_res-bcs_cap-wcs
+
+.lib mos-sf_hbt-wcs_res-wcs_cap-typ
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_typ
+.endl mos-sf_hbt-wcs_res-wcs_cap-typ
+
+.lib mos-sf_hbt-wcs_res-wcs_cap-bcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_bcs
+.endl mos-sf_hbt-wcs_res-wcs_cap-bcs
+
+.lib mos-sf_hbt-wcs_res-wcs_cap-wcs
+.lib cornerMOSlv.lib mos_sf
+.lib cornerMOShv.lib mos_sf
+.lib cornerHBT.lib hbt_wcs
+.lib cornerRES.lib res_wcs
+.lib cornerCAP.lib cap_wcs
+.endl mos-sf_hbt-wcs_res-wcs_cap-wcs
+
+.lib statistical
+.lib cornerMOSlv.lib mos_tt_stat
+.lib cornerMOShv.lib mos_tt_stat
+.lib cornerHBT.lib hbt_typ_stat
+.lib cornerRES.lib res_stat
+.lib cornerCAP.lib cap_typ_stat
+.endl statistical
+
+.lib nominal-mismatch
+.lib cornerMOSlv.lib mos_tt_mismatch
+.lib cornerMOShv.lib mos_tt_mismatch
+.lib cornerHBT.lib hbt_typ_mismatch
+.lib cornerRES.lib res_typ_mismatch
+.lib cornerCAP.lib cap_typ_mismatch
+.endl nominal-mismatch

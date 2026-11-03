@@ -13,6 +13,7 @@ import type { CircuitProject, ProjectSimulationFolder } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import {
   CAPABILITIES_ACCEPT_CELL_LIBRARIES,
+  CAPABILITIES_ACCEPT_CELL_MASTERS,
   CapabilitiesSchema,
   ExecutionFailure,
   createManagedHostedExecutor,
@@ -114,7 +115,10 @@ async function profileCapabilities(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         operation: "capabilities",
-        accepts: [CAPABILITIES_ACCEPT_CELL_LIBRARIES],
+        accepts: [
+          CAPABILITIES_ACCEPT_CELL_LIBRARIES,
+          CAPABILITIES_ACCEPT_CELL_MASTERS,
+        ],
         environment: { profileId },
       }),
     }),

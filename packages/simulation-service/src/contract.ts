@@ -750,6 +750,7 @@ export const NativeModelLibrarySymbolsSchema: z.ZodType<NativeModelLibrarySymbol
  * omit it and get the shape they parse.
  */
 export const CAPABILITIES_ACCEPT_CELL_LIBRARIES = "cell-libraries";
+export const CAPABILITIES_ACCEPT_CELL_MASTERS = "cell-masters";
 
 export const CapabilitiesSchema = z.strictObject({
   discovery: z
@@ -799,6 +800,7 @@ export const CapabilitiesSchema = z.strictObject({
               id: Id,
               sha256: Digest,
               cells: Id,
+              masters: z.array(Id).optional(),
               directive: z.literal("include"),
             }),
           )

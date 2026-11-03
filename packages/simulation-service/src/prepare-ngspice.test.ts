@@ -835,7 +835,7 @@ describe("a Library gate bound to a PDK standard cell (#1596)", () => {
             code: "STANDARD_CELL_LIBRARY_UNAVAILABLE",
             message: expect.stringMatching(
               new RegExp(
-                `sky130_fd_sc_hd__${cell} .*sky130_fd_sc_hd.*not offered.*Library gate`,
+                `sky130_fd_sc_hd__${cell} .*sky130_fd_sc_hd.*not offered.*Select a Profile`,
                 "u",
               ),
             ),
@@ -905,7 +905,7 @@ describe("a Library gate bound to a PDK standard cell (#1596)", () => {
           expect.objectContaining({
             code: "STANDARD_CELL_UNSUPPORTED",
             message:
-              "sky130_fd_sc_hd__dfxtp_1 is a sky130_fd_sc_hd cell that simulation does not run. Hosted ngspice runs sky130_fd_sc_hd combinational gate cells (inverters, buffers, NAND, NOR, AND, OR, XOR and XNOR) bound to a Library gate; give this cell a Project model source to run it.",
+              "sky130_fd_sc_hd__dfxtp_1 is a sky130_fd_sc_hd cell that simulation does not run. Hosted ngspice runs combinational Library gates qualified by the selected Profile. Provide a Project model source for this cell.",
           }),
         ]),
       },
