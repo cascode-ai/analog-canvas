@@ -1,8 +1,8 @@
 import type { CircuitProject } from "@icm/model";
 import {
-  compareElectricalGraphs,
   createDesignNetlistExport,
   projectElectricalGraph,
+  sameElectricalCircuit,
 } from "@icm/netlist";
 import { serializeProject } from "@icm/project-protocol";
 import {
@@ -127,15 +127,16 @@ export async function drawnProject(
     const before = projectElectricalGraph(imported);
     const after = projectElectricalGraph(drawn.project);
     if (
-      before.status === "ready" &&
-      (after.status !== "ready" ||
-        compareElectricalGraphs(before.graph, after.graph) !== "equal") &&
+      !sameElectricalCircuit(before, after) &&
       !(await writesFileNetlist(drawn.project))
     )
       return {
         code: "RNL_IMPORT_CHANGES_NETLIST",
+        // A circuit the comparison cannot check comes in undrawn too (#1932).
         message:
-          "The RNL drawing would change the netlist, so the circuit comes in undrawn",
+          before.status === "ready"
+            ? "The RNL drawing would change the netlist, so the circuit comes in undrawn"
+            : `The RNL drawing may change a netlist that cannot be compared (${before.reason}), so the circuit comes in undrawn`,
       };
     // A port the drawing shows only as its power label is that label again
     // (#1783): the circuit is the same, only who owns the port changes.
@@ -159,7 +160,7 @@ export async function drawnProject(
 /**
  * Whether the drawn circuit writes the file's own netlist: its netlist,
  * written as the RNL export writes it and read back as the file was, is the
- * same circuit to the comparison as the file's, "equal" and nothing less.
+ * same circuit as the file's (`sameElectricalCircuit`), and nothing less.
  * The file's netlist read alone does not always write what it read: a
  * ground pin the export named VSS reads as a port, and writes a GND pin
  * beside it, where the drawing, which shows that pin as ground, writes the
@@ -197,12 +198,9 @@ export async function writesFileNetlist(
     },
   );
   if (!again.project || !again.successful) return false;
-  const file = projectElectricalGraph(fileImported);
-  const read = projectElectricalGraph(again.project);
-  return (
-    file.status === "ready" &&
-    read.status === "ready" &&
-    compareElectricalGraphs(file.graph, read.graph) === "equal"
+  return sameElectricalCircuit(
+    projectElectricalGraph(fileImported),
+    projectElectricalGraph(again.project),
   );
 }
 
