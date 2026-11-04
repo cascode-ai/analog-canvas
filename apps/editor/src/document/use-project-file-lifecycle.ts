@@ -1178,7 +1178,8 @@ export function useProjectFileLifecycle({
         liveSessionRef.current === session &&
         liveProjectRef.current === snapshot &&
         replacementEpochRef.current === epoch &&
-        !hasPendingEdits?.();
+        !hasPendingEdits?.() &&
+        !describeOpenBlocker?.();
     },
     captureFileSession: (): ProjectFileSession => ({
       nativeBinding: nativeBindingRef.current,

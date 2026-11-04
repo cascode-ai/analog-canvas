@@ -89,6 +89,7 @@ async function mount(
   };
   const statuses: string[] = [];
   let pendingEdits = false;
+  let openBlocker: string | null = null;
   function Harness() {
     const doc = useDocumentController(initial, () => {});
     const file = useProjectFileLifecycle({
@@ -100,6 +101,7 @@ async function mount(
       recovery,
       beforeSnapshot: async () => doc.controller.project,
       hasPendingEdits: () => pendingEdits,
+      describeOpenBlocker: () => openBlocker,
       installProject: (next) => doc.replaceProject(next),
       setStatus: (message) => statuses.push(message),
       onCloudProjectSaved: () => {},
@@ -128,6 +130,9 @@ async function mount(
     statuses,
     setPendingEdits(value: boolean) {
       pendingEdits = value;
+    },
+    setOpenBlocker(value: string) {
+      openBlocker = value;
     },
     async rename(name: string) {
       await act(async () => {
@@ -186,7 +191,7 @@ it("keeps edits made during Save and continue, and can save them on retry", asyn
   expect(editor.current.file.replaceGuard).toBeNull();
 });
 
-it.each(["switch", "edit", "replace"])(
+it.each(["switch", "edit", "replace", "unapplied code draft"])(
   "ignores Gallery refresh after %s",
   async (action) => {
     const response = deferred<Response>();
@@ -219,6 +224,8 @@ it.each(["switch", "edit", "replace"])(
       });
     } else if (action === "edit") {
       await editor.rename("Edited A");
+    } else if (action === "unapplied code draft") {
+      editor.setOpenBlocker("a code panel holds a draft that is not applied");
     } else {
       await act(async () => {
         editor.current.file.replaceActiveProject(project("B"));
