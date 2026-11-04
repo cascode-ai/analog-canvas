@@ -34,7 +34,10 @@ import {
   requestProjectDownload,
   stageProjectFile,
 } from "./project-file-service";
-import { projectChangeToken } from "./project-session-lifecycle";
+import {
+  projectChangeToken,
+  sameProjectContent,
+} from "./project-session-lifecycle";
 import {
   createProjectSaveCoordinator,
   type ProjectSaveSnapshot,
@@ -217,6 +220,7 @@ export function useProjectFileLifecycle({
   liveProjectRef.current = project;
   const liveSessionRef = useRef(projectSessionId);
   liveSessionRef.current = projectSessionId;
+  const replacementEpochRef = useRef(0);
   /** Change token of the last snapshot published or exported; see hasUnsafeWork. */
   const safeSnapshotTokenRef = useRef<string | null>(null);
   /** Change token of the last snapshot published; see hasUnsavedChanges. */
@@ -226,8 +230,13 @@ export function useProjectFileLifecycle({
   const [cloudBinding, setCloudBinding] = useState<CloudProjectBinding | null>(
     null,
   );
-  const [savedProjectBaseline, setSavedProjectBaseline] =
+  const [savedProjectBaseline, setSavedProjectBaselineState] =
     useState<SavedProjectBaseline | null>(null);
+  const savedProjectBaselineRef = useRef(savedProjectBaseline);
+  const setSavedProjectBaseline = (baseline: SavedProjectBaseline | null) => {
+    savedProjectBaselineRef.current = baseline;
+    setSavedProjectBaselineState(baseline);
+  };
   const persistenceChangeRef = useRef<{
     session: string;
     token: string;
@@ -302,6 +311,7 @@ export function useProjectFileLifecycle({
     nextViewBox: GridRect = defaultViewBox,
     options: ReplaceProjectOptions = {},
   ): SchematicDocument {
+    replacementEpochRef.current++;
     const previousBinding = nativeBindingRef.current;
     if (previousBinding && previousBinding.id !== options.nativeBinding?.id)
       void nativeProjectStore?.release(previousBinding.id).catch(() => {});
@@ -634,6 +644,7 @@ export function useProjectFileLifecycle({
     intent: string,
     perform: (discarded: boolean) => void | Promise<void>,
   ): Promise<void> {
+    replacementEpochRef.current++;
     if (nativeProjectStore && nativeSaveCoordinator.isSaving()) {
       setStatus(
         "Wait for the file save to finish before replacing this Project",
@@ -709,8 +720,18 @@ export function useProjectFileLifecycle({
         setReplaceGuardSaving(false);
         return;
       }
+      const savingSession = liveSessionRef.current;
+      const savingEpoch = replacementEpochRef.current;
       const outcome = await saveProjectToCloud();
-      if (outcome.status === "saved") {
+      const baseline = savedProjectBaselineRef.current;
+      if (
+        outcome.status === "saved" &&
+        liveSessionRef.current === savingSession &&
+        replacementEpochRef.current === savingEpoch &&
+        !hasPendingEdits?.() &&
+        baseline !== null &&
+        sameProjectContent(liveProjectRef.current, baseline.project)
+      ) {
         setReplaceGuard(null);
         await guard.perform(false);
       }
@@ -1117,11 +1138,15 @@ export function useProjectFileLifecycle({
       };
       const matchesSavedProject =
         savedProjectBaseline !== null &&
-        projectChangeToken(savedProjectBaseline.project) ===
-          currentProjectChangeToken;
+        sameProjectContent(savedProjectBaseline.project, project);
       setPersistenceState(matchesSavedProject ? "clean" : "dirty");
     }
-  }, [currentProjectChangeToken, projectSessionId, savedProjectBaseline]);
+  }, [
+    currentProjectChangeToken,
+    projectSessionId,
+    savedProjectBaseline,
+    project,
+  ]);
 
   const startupRecovery =
     !externalWorkspaceRestored && !restoreAfterRefresh && !isDirtyWork()
@@ -1144,6 +1169,18 @@ export function useProjectFileLifecycle({
     startupRecovery === null;
 
   return {
+    /** Automatic refresh is valid only for the untouched initiating session. */
+    captureReplacementTarget: () => {
+      const session = liveSessionRef.current;
+      const snapshot = liveProjectRef.current;
+      const epoch = replacementEpochRef.current;
+      return () =>
+        liveSessionRef.current === session &&
+        liveProjectRef.current === snapshot &&
+        replacementEpochRef.current === epoch &&
+        !hasPendingEdits?.() &&
+        !describeOpenBlocker?.();
+    },
     captureFileSession: (): ProjectFileSession => ({
       nativeBinding: nativeBindingRef.current,
       persistenceState,
@@ -1153,6 +1190,7 @@ export function useProjectFileLifecycle({
       publishedSnapshotToken: publishedSnapshotTokenRef.current,
     }),
     restoreFileSession: (session: ProjectFileSession) => {
+      replacementEpochRef.current++;
       setNativeBinding(session.nativeBinding ?? null);
       setPersistenceState(session.persistenceState);
       setCloudBinding(session.cloudBinding);

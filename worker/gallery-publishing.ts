@@ -38,7 +38,6 @@ import {
 } from "./gallery-requests";
 import {
   storedProject,
-  testbenchOf,
   withTestbench,
   withoutTestbench,
 } from "./gallery-testbench";
@@ -50,25 +49,6 @@ import {
 function aiMark(value: unknown): boolean | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === "boolean" ? value : null;
-}
-
-/**
- * The simulation folders an entry holds now, as the current model spells
- * them: what an update keeps for a writer who never received them.
- */
-function heldFolders(
-  projectText: string,
-  testbench: string | null | undefined,
-): CircuitProject["simulationFolders"] {
-  if (!testbenchOf({ project_text: projectText, testbench_text: testbench }))
-    return [];
-  try {
-    return parseProject(withTestbench(projectText, testbench))
-      .simulationFolders;
-  } catch {
-    // Unreadable now; the version the update leaves behind still holds it.
-    return [];
-  }
 }
 
 function publicationBindingFields(body: {
@@ -322,21 +302,14 @@ export async function handleEntryUpdate(
   if (cover) return cover;
   const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
   project.name = name;
-  // A writer who may not read the testbench never received it: the entry
-  // keeps the one it holds. One who may replaces it with the Project's own,
-  // as the update replaces the rest of the content (#1545).
-  if (
-    !readsTestbench(user, {
-      ownerUserId: existing.payload.ownerUserId,
-      author: existing.payload.entry?.author,
-    })
-  )
-    project.simulationFolders = heldFolders(
-      existing.payload.projectText ?? "",
-      existing.payload.testbench,
-    );
+  // Storage preserves its current testbench for non-readers, even if its
+  // owner saves a newer one while this drawing's preview is rendering.
+  const preserveTestbench = !readsTestbench(user, {
+    ownerUserId: existing.payload.ownerUserId,
+    author: existing.payload.entry?.author,
+  });
+  if (preserveTestbench) project.simulationFolders = [];
   const stored = storedProject(serializeProject(project));
-  const nextStatus = existing.payload.status ?? "public";
   // Every republication re-answers this; the badge follows the drawing.
   const netlistable = designExtractsNetlist(project) ? 1 : 0;
   const { status, payload } = await callGallery(env, "replace-entry", {
@@ -350,10 +323,10 @@ export async function handleEntryUpdate(
     projectText: stored.projectText,
     testbench: stored.testbench,
     svgText: await renderPreview(project, projectResolver),
+    preserveTestbench,
     schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     netlistable,
     componentCount: galleryComponentCount(project),
-    status: nextStatus,
     tags: wrapTags(sanitizeGalleryTags(body.tags)),
     // Absent leaves the stored mark as it is; an AI account's entry always
     // keeps it, whoever updates it.

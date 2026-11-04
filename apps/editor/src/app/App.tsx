@@ -1171,6 +1171,7 @@ function WorkspaceEditor({
     hasUnsafeWork,
     noteProjectPublished,
     replaceActiveProject,
+    captureReplacementTarget,
     saveProjectToCloud,
     saveProjectToCloudByHand,
     saveByHand,
@@ -1541,6 +1542,7 @@ function WorkspaceEditor({
     insertGalleryEntryById,
   } = createGalleryExampleCommands({
     defaultViewBox: DEFAULT_VIEWBOX,
+    captureRefreshTarget: captureReplacementTarget,
     prepareLibraryExample: (example) =>
       prepareNetlistExample(
         example,
