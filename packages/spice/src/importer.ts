@@ -1248,9 +1248,14 @@ function importDocument(
                       sourceNetId: net.id,
                     },
                     scope: "global" as const,
+                    // A global the Cell also takes as a Pin is the supply the
+                    // Pin states (Analog Canvas writes a supply port so), one
+                    // node under one name, not a Pin on a Global Net.
                     ...(importedName.name === "0"
                       ? { powerDomain: "ground" as const }
-                      : {}),
+                      : cell.ports.some((port) => port.netId === net.id)
+                        ? { powerDomain: "vdd" as const }
+                        : {}),
                   }
                 : {
                     id: deriveStableId(

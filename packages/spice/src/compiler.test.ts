@@ -159,6 +159,48 @@ describe("SPICE elaboration and Project import", () => {
     );
   });
 
+  it("reads a global a Cell also takes as a Pin as the supply that Pin states", async () => {
+    const imported = importCompileResult(
+      await compileSpiceSources(
+        [
+          {
+            path: "supply-pin.spi",
+            bytes: Buffer.from(
+              [
+                "Supply pin",
+                ".global VDD clk",
+                ".subckt load VDD a",
+                "R1 a VDD 1k",
+                "R2 a clk 1k",
+                ".ends",
+                "X1 VDD n load",
+                ".end",
+                "",
+              ].join("\n"),
+            ),
+          },
+        ],
+        "supply-pin.spi",
+      ),
+    );
+    const claims = imported
+      .project!.documents.find(
+        (document) => document.sourceBinding?.cellName === "load",
+      )!
+      .connectivityEvidence.filter((item) => item.kind === "name-claim");
+    expect(claims).toContainEqual(
+      expect.objectContaining({
+        name: "VDD",
+        scope: "global",
+        powerDomain: "vdd",
+      }),
+    );
+    // A global the Cell does not take as a Pin stays only global.
+    expect(
+      claims.find((item) => "name" in item && item.name === "clk"),
+    ).not.toHaveProperty("powerDomain");
+  });
+
   it("imports capacitor source positions onto stable plate pins", async () => {
     const imported = importCompileResult(
       await compileSpiceSources(
