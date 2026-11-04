@@ -1,6 +1,6 @@
 import type { CircuitProject } from "@icm/model";
 import { isFrozenSnapshot } from "@icm/model";
-import { projectChangeToken } from "./project-session-lifecycle";
+import { sameProjectContent } from "./project-session-lifecycle";
 
 export interface ProjectSaveSession {
   id: string;
@@ -16,14 +16,13 @@ export function captureProjectSaveSnapshot(
   const project = isFrozenSnapshot(candidate)
     ? candidate
     : structuredClone(candidate);
-  const token = projectChangeToken(project);
   return {
     project,
     isCurrent: () => current()?.id === sessionId,
     matchesCurrentProject: () => {
       const live = current();
       return (
-        live?.id === sessionId && projectChangeToken(live.project) === token
+        live?.id === sessionId && sameProjectContent(live.project, project)
       );
     },
   };

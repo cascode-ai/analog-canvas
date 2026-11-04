@@ -17,6 +17,7 @@ const digest = (text: string) =>
 function dependencies(fetchImpl: typeof fetch = vi.fn<typeof fetch>()) {
   return {
     defaultViewBox,
+    captureRefreshTarget: () => () => true,
     replaceActiveProject: vi.fn(),
     guardDirtyReplacement: vi.fn(async (_intent, perform) => {
       await perform();

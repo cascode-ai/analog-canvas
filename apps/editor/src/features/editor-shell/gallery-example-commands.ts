@@ -42,6 +42,8 @@ interface GalleryEntryPayload {
 
 export interface GalleryExampleCommandDependencies {
   defaultViewBox: GridRect;
+  /** Hosts with live sessions can refresh only an unchanged initiating target. */
+  captureRefreshTarget?: () => () => boolean;
   prepareLibraryExample?: (project: CircuitProject) => CircuitProject;
   replaceActiveProject: (
     project: CircuitProject,
@@ -90,6 +92,7 @@ async function textDigest(text: string): Promise<string | undefined> {
  */
 export function createGalleryExampleCommands({
   defaultViewBox,
+  captureRefreshTarget,
   prepareLibraryExample = (project) => project,
   replaceActiveProject,
   openProjectInTab,
@@ -153,10 +156,12 @@ export function createGalleryExampleCommands({
     protectCurrentProject: boolean,
     opened: (name: string) => string,
     inTab = false,
+    isCurrent?: () => boolean,
   ): Promise<void> => {
     const galleryProject = prepareGalleryProject(parseProject(projectText));
     const name = payload.entry?.name ?? galleryProject.name;
     const sourceDigest = await textDigest(projectText);
+    if (isCurrent && !isCurrent()) return;
     const context: GalleryEntryContext = {
       id: entryId,
       name,
@@ -181,6 +186,7 @@ export function createGalleryExampleCommands({
       return;
     }
     const install = () => {
+      if (isCurrent && !isCurrent()) return;
       replaceActiveProject(galleryProject, defaultViewBox);
       setGalleryEntryContext(context);
       setStatus(opened(name));
@@ -280,6 +286,8 @@ export function createGalleryExampleCommands({
     context: GalleryEntryContext,
   ): Promise<void> => {
     if (import.meta.env?.ICM_DESKTOP) return;
+    const isCurrent = captureRefreshTarget?.();
+    if (!isCurrent) return;
     try {
       const response = await fetchImpl(`/api/gallery/${context.id}`, {
         credentials: "same-origin",
@@ -296,8 +304,10 @@ export function createGalleryExampleCommands({
         context.id,
         payload.projectText,
         payload,
-        true,
+        false,
         (name) => `Opened the current Gallery version of ${name}`,
+        false,
+        isCurrent,
       );
     } catch {
       // The copy in hand stays.

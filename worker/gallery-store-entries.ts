@@ -3,6 +3,11 @@
 
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { sha256Hex } from "@icm/derived";
+import {
+  CURRENT_PROJECT_FILE_VERSION,
+  parseProject,
+  serializeProject,
+} from "@icm/project-protocol";
 import { NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
 import { AI_SEATS } from "./auth";
 import {
@@ -25,6 +30,7 @@ import {
   simulationCheckWaiting,
 } from "./gallery-store-simulation-checks";
 import { sweepRecycledRows } from "./gallery-store-moderation";
+import { storedProject, testbenchOf, withTestbench } from "./gallery-testbench";
 
 interface PreviewAccessRow {
   status: string;
@@ -441,7 +447,7 @@ export function replaceEntry(
     sql.exec(
       `UPDATE gallery_entries
        SET name = ?, author = ?, description = ?, project_text = ?,
-           testbench_text = ?, svg_text = ?, schema_version = ?, status = ?,
+           testbench_text = ?, svg_text = ?, schema_version = ?,
            tags = ?, netlistable = ?, netlistable_version = ?,
            component_count = ?, component_count_version = ?,
            preview_revision = ?, preview_width = ?, preview_height = ?,
@@ -451,10 +457,13 @@ export function replaceEntry(
       String(body.author),
       String(body.description),
       String(body.projectText),
-      typeof body.testbench === "string" ? body.testbench : null,
+      body.preserveTestbench === true
+        ? preservedTestbench(row)
+        : typeof body.testbench === "string"
+          ? body.testbench
+          : null,
       svgText,
       Number(body.schemaVersion),
-      String(body.status),
       typeof body.tags === "string" ? body.tags : "",
       Number(body.netlistable) === 1 ? 1 : 0,
       NETLIST_MARK_RULE_VERSION,
@@ -469,9 +478,19 @@ export function replaceEntry(
   });
   return Response.json({
     id: row.id,
-    status: String(body.status),
+    status: row.status,
     previewRevision,
   });
+}
+
+/** Keep current private content, migrating old folder shapes with their Project. */
+function preservedTestbench(row: EntryRow): string | null {
+  const testbench = testbenchOf(row);
+  if (!testbench || row.schema_version === CURRENT_PROJECT_FILE_VERSION)
+    return testbench;
+  return storedProject(
+    serializeProject(parseProject(withTestbench(row.project_text, testbench))),
+  ).testbench;
 }
 
 /** The day's allowance, counted as a submission counts it. */

@@ -72,6 +72,7 @@ describe("shared Project save coordination", () => {
     expect(snapshot.project).not.toBe(f.project);
     expect(snapshot.matchesCurrentProject()).toBe(true);
     f.project.documents[0]!.revision += 1;
+    f.project.documents[0]!.name = "Newer Cell name";
     expect(snapshot.project.documents[0]!.revision).toBe(1);
     expect(snapshot.matchesCurrentProject()).toBe(false);
     receipt.resolve("saved");
@@ -121,6 +122,7 @@ describe("shared Project save coordination", () => {
     const candidate = structuredClone(f.project);
     const beforeSnapshot = vi.fn(async () => null);
     f.project.structureRevision += 1;
+    f.project.name = "Newer Project name";
     await f.coordinator.save({ ...f.request, candidate, beforeSnapshot });
     expect(beforeSnapshot).not.toHaveBeenCalled();
     expect(f.request.write.mock.calls[0]![0].project).toEqual(candidate);
@@ -163,6 +165,7 @@ describe("shared Project save coordination", () => {
     );
     expect(snapshot.isCurrent()).toBe(true);
     f.project.structureRevision += 1;
+    f.project.name = "Edited during acknowledgement";
     expect(snapshot.isCurrent()).toBe(true);
     expect(snapshot.matchesCurrentProject()).toBe(false);
     f.setLive(null);
