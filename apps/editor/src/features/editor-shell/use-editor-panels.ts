@@ -104,9 +104,12 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
     persistLibraryOpen(true);
   };
 
-  const toggleLibraryPanel = (): void => {
-    if (leftPanelMode !== "library") {
-      showLeftPanel("library");
+  /** Each left-panel mode has its own toggle; another mode's toggle switches. */
+  const toggleLeftPanel = (
+    mode: "library" | "examples" | "hierarchy",
+  ): void => {
+    if (leftPanelMode !== mode) {
+      showLeftPanel(mode);
       return;
     }
     if (compactLayout) {
@@ -123,26 +126,9 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
       return next;
     });
   };
-
-  const toggleExamplesPanel = (): void => {
-    if (leftPanelMode !== "examples") {
-      showLeftPanel("examples");
-      return;
-    }
-    if (compactLayout) {
-      setCompactLibraryPanelOpen((current) => {
-        const next = !current;
-        if (next) setSelectionOpen(false);
-        return next;
-      });
-      return;
-    }
-    setLibraryPanelOpen((current) => {
-      const next = !current;
-      persistLibraryOpen(next);
-      return next;
-    });
-  };
+  const toggleLibraryPanel = (): void => toggleLeftPanel("library");
+  const toggleExamplesPanel = (): void => toggleLeftPanel("examples");
+  const toggleHierarchyPanel = (): void => toggleLeftPanel("hierarchy");
 
   const closeSearch = (): void => {
     setSearchOpen(false);
@@ -175,6 +161,7 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
     setSelectionOpen,
     showLeftPanel,
     toggleExamplesPanel,
+    toggleHierarchyPanel,
     toggleLibraryPanel,
   };
 }

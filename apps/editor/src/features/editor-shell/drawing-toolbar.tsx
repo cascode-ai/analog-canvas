@@ -24,6 +24,8 @@ export interface DrawingToolbarProps {
   redo: ToolbarCommand;
   onToggleExamples: () => void;
   onToggleLibrary: () => void;
+  /** The Cell tree shares the Library's place; absent, no toggle is shown. */
+  onToggleHierarchy?: () => void;
   onToggleNetlist: () => void;
   onToggleProjectCode: () => void;
   onActivateTool: (tool: EditorTool) => void;
@@ -142,6 +144,7 @@ export function DrawingToolbar({
   redo,
   onToggleExamples,
   onToggleLibrary,
+  onToggleHierarchy,
   onToggleNetlist,
   onToggleProjectCode,
   onActivateTool,
@@ -151,6 +154,7 @@ export function DrawingToolbar({
 }: DrawingToolbarProps) {
   const examplesOpen = leftPanelMode === "examples" && libraryPanelOpen;
   const libraryOpen = leftPanelMode === "library" && libraryPanelOpen;
+  const hierarchyOpen = leftPanelMode === "hierarchy" && libraryPanelOpen;
 
   return (
     <div
@@ -195,6 +199,24 @@ export function DrawingToolbar({
           <ToolIcon name="library" />
           <span>Library</span>
         </ImmediatePanelButton>
+        {onToggleHierarchy ? (
+          <ImmediatePanelButton
+            testId="hierarchy-toggle"
+            label="Hierarchy"
+            tooltip={
+              hierarchyOpen
+                ? "Hide the Cell hierarchy"
+                : "Show the Cell hierarchy"
+            }
+            pressed={hierarchyOpen}
+            controls="hierarchy-panel"
+            disabled={leftPanelsDisabled}
+            onClick={onToggleHierarchy}
+          >
+            <ToolIcon name="hierarchy" />
+            <span>Hierarchy</span>
+          </ImmediatePanelButton>
+        ) : null}
         <ImmediatePanelButton
           testId="netlist-panel-toggle"
           label="Netlist"

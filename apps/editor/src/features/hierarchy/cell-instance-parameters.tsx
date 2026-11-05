@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 import { buildProjectHierarchy } from "@icm/derived";
 
@@ -13,51 +13,61 @@ function ParameterOverrideField({
   override: string | undefined;
   onChange(value: string | null): boolean;
 }) {
+  const inputId = useId();
   const [draft, setDraft] = useState(override ?? "");
   useEffect(() => setDraft(override ?? ""), [override]);
+  const overridden = override !== undefined;
   return (
-    <div className="cell-instance-parameter">
-      <label>
-        {name}
-        <input
-          aria-label={`Instance parameter ${name}`}
-          value={draft}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          placeholder={defaultValue ?? "Required"}
-          onBlur={() => {
-            const value = draft.trim();
-            if (value !== (override ?? "") && !onChange(value || null))
-              setDraft(override ?? "");
-            else setDraft(value);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur();
-          }}
-        />
-      </label>
-      <small>
-        {override === undefined
-          ? `Inherited default: ${defaultValue ?? "none (required)"}`
-          : `Override · default: ${defaultValue ?? "none"}`}
-      </small>
-      <button
-        type="button"
-        disabled={override === undefined && !draft.trim()}
-        aria-label={`Reset ${name} to default`}
-        onPointerDown={(event) => {
-          // Pointer Reset discards the draft; keyboard blur still commits it.
-          if (event.button === 0) event.preventDefault();
+    <div
+      className="cell-instance-parameter"
+      data-overridden={overridden || undefined}
+    >
+      <label htmlFor={inputId}>{name}</label>
+      <input
+        id={inputId}
+        aria-label={`Instance parameter ${name}`}
+        value={draft}
+        onChange={(event) => setDraft(event.currentTarget.value)}
+        placeholder={defaultValue ?? "Required"}
+        title={
+          overridden
+            ? `Overrides the default ${defaultValue ?? "(none)"}`
+            : `Inherits the default ${defaultValue ?? "(required)"}`
+        }
+        onBlur={() => {
+          const value = draft.trim();
+          if (value !== (override ?? "") && !onChange(value || null))
+            setDraft(override ?? "");
+          else setDraft(value);
         }}
-        onClick={() => {
-          if (override === undefined || onChange(null)) setDraft("");
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
         }}
-      >
-        Reset
-      </button>
+      />
+      {overridden || draft.trim() ? (
+        <button
+          type="button"
+          className="cell-instance-parameter-reset"
+          aria-label={`Reset ${name} to default`}
+          title={`Reset to the default ${defaultValue ?? ""}`.trim()}
+          onPointerDown={(event) => {
+            // Pointer Reset discards the draft; keyboard blur still commits it.
+            if (event.button === 0) event.preventDefault();
+          }}
+          onClick={() => {
+            if (override === undefined || onChange(null)) setDraft("");
+          }}
+        >
+          ↺
+        </button>
+      ) : (
+        <span aria-hidden="true" />
+      )}
     </div>
   );
 }
 
+/** Instance overrides: one line each, with sharing named only when it applies. */
 export function CellInstanceParameters({
   project,
   parent,
@@ -83,15 +93,18 @@ export function CellInstanceParameters({
       className="cell-instance-parameters"
       aria-label="Instance parameters"
     >
-      <h3>
-        {instance.reference ?? instance.id} · {cell.name}
-      </h3>
-      <p>
-        Overrides are stored in {parent.name}.{" "}
-        {usage.total > 1
-          ? `All ${usage.total}${usage.atLeast ? "+" : ""} occurrences of ${parent.name} share these overrides.`
-          : "Other instances of this child keep their own overrides."}
-      </p>
+      <header>
+        <h3>Cell parameters</h3>
+        <button type="button" onClick={onDefinition}>
+          Edit {cell.name}…
+        </button>
+      </header>
+      {usage.total > 1 ? (
+        <p className="cell-instance-shared">
+          Shared by all {usage.total}
+          {usage.atLeast ? "+" : ""} uses of {parent.name}.
+        </p>
+      ) : null}
       {parameters.map((parameter) => {
         const values = instance.netlist?.parameters ?? {};
         const key = Object.keys(values).find(
@@ -108,10 +121,9 @@ export function CellInstanceParameters({
           />
         );
       })}
-      {!parameters.length ? <p>No parameters declared.</p> : null}
-      <button type="button" onClick={onDefinition}>
-        Edit shared Cell definition…
-      </button>
+      {!parameters.length ? (
+        <p className="cell-instance-shared">No parameters declared.</p>
+      ) : null}
     </section>
   );
 }

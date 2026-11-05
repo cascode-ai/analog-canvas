@@ -864,6 +864,23 @@
   cursor: pointer;
   list-style: none;
   text-align: center;
+  color: var(--icm-text-muted);
+}
+.hierarchy-node-menu summary::-webkit-details-marker {
+  display: none;
+}
+/* Row actions appear where the user is looking: hover, focus, current row. */
+.hierarchy-node:not(:hover, :focus-within, [data-active])
+  .hierarchy-node-menu:not([open])
+  summary {
+  visibility: hidden;
+}
+.hierarchy-uses {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 .hierarchy-node-menu[open] {
   position: relative;
@@ -887,21 +904,31 @@
 .hierarchy-node-menu button:hover {
   background: var(--icm-surface-hover);
 }
-.hierarchy-scope {
+.hierarchy-other-roots > summary {
+  padding: 12px 4px 8px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.hierarchy-uses-list {
   border-top: 1px solid var(--icm-border);
-  padding: 12px 4px;
+  padding: 8px 4px;
   font-size: 12px;
 }
-.hierarchy-scope p {
-  color: var(--icm-text-muted);
+.hierarchy-uses-list header button {
+  border: 0;
+  background: transparent;
 }
-.hierarchy-scope ul {
+.hierarchy-uses-list ul {
+  margin: 8px 0 0;
   padding-left: 16px;
 }
-.hierarchy-scope li {
-  margin-block: 8px;
+.hierarchy-uses-list li {
+  margin-block: 6px;
 }
-.hierarchy-scope li button {
+.hierarchy-uses-list li button {
+  border: 0;
+  background: transparent;
   text-align: left;
   overflow-wrap: anywhere;
 }
@@ -909,22 +936,108 @@
   margin-top: auto;
   padding: 8px 4px;
 }
+
+/* The instance path floats at the canvas top edge only inside a child Cell.
+   It touches the top edge alone, so Fit insets the drawing below it. */
+.hierarchy-breadcrumb-overlay {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: var(--icm-space-3);
+  max-width: calc(100% - var(--icm-space-6));
+  padding-top: var(--icm-space-2);
+  pointer-events: none;
+}
 .hierarchy-breadcrumb {
-  display: flex;
-  flex: 1;
+  display: inline-flex;
   align-items: center;
-  min-width: 120px;
-  overflow-x: auto;
+  max-width: 100%;
+  padding: 2px;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--icm-shadow-sm);
+  font-size: 12px;
   white-space: nowrap;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
 }
-.hierarchy-breadcrumb button {
+.hierarchy-breadcrumb-step {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.hierarchy-breadcrumb button,
+.hierarchy-breadcrumb-current {
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
   background: transparent;
-  border-color: transparent;
+  font: inherit;
 }
-.hierarchy-breadcrumb [aria-current="page"] {
+.hierarchy-breadcrumb button:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+.hierarchy-breadcrumb button:disabled {
+  color: var(--icm-text-disabled);
+}
+.hierarchy-breadcrumb .hierarchy-breadcrumb-separator {
+  padding-inline: 3px;
+  color: var(--icm-text-muted);
+}
+.hierarchy-breadcrumb-current {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.hierarchy-breadcrumb .hierarchy-breadcrumb-uses {
+  margin-left: 4px;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+}
+.hierarchy-breadcrumb-divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 4px 2px;
+  background: var(--icm-border);
+}
+.hierarchy-breadcrumb-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  display: grid;
+  min-width: 200px;
+  max-width: 360px;
+  max-height: 320px;
+  padding: 4px;
+  overflow: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+  pointer-events: auto;
+}
+.hierarchy-breadcrumb-menu button {
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+}
+.hierarchy-breadcrumb-menu button:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+.hierarchy-breadcrumb-menu [aria-current="true"] {
   font-weight: 600;
 }
-.hierarchy-toolbar .document-nav {
-  flex-wrap: wrap;
-  width: 100%;
+.hierarchy-breadcrumb-menu small {
+  padding: 6px 8px;
+  color: var(--icm-text-muted);
+}
+.hierarchy-breadcrumb-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--icm-border);
 }

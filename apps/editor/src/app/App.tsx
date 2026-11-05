@@ -1,6 +1,7 @@
 import { CellHierarchyTree } from "../features/hierarchy/cell-hierarchy-tree";
+import { HierarchyBreadcrumb } from "../features/hierarchy/hierarchy-breadcrumb";
 import { hierarchyPathKey } from "../features/hierarchy/project-hierarchy";
-import { reconcileHierarchyPath } from "@icm/derived";
+import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
 import { NewChildDialog } from "../features/hierarchy/new-child-dialog";
 import { createChildCellDraft } from "../features/hierarchy/new-child-cell";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
@@ -721,6 +722,7 @@ function WorkspaceEditor({
     closeSearch,
     toggleExamplesPanel: toggleExamplesPanelFromShell,
     toggleLibraryPanel,
+    toggleHierarchyPanel,
   } = useEditorPanels({
     initialCompact: compactLayoutMatches(COMPACT_LAYOUT_MEDIA_QUERY),
     compactMediaQuery: COMPACT_LAYOUT_MEDIA_QUERY,
@@ -3857,10 +3859,29 @@ function WorkspaceEditor({
   }, [project]);
   useEffect(() => {
     if (!newChildOccurrence) return;
+    // The breadcrumb shows where the new child is; the Library stays open
+    // for drawing inside it.
     openCellOccurrence(newChildOccurrence.id, newChildOccurrence.path);
-    showLeftPanel("hierarchy");
     setNewChildOccurrence(null);
   }, [project, newChildOccurrence]);
+  // The first edit of a shared definition says once, in the status bar, that
+  // it changes every use; the breadcrumb keeps the count in view afterwards.
+  const sharedEditNotices = useRef(new Set<string>());
+  const lastEditedDocument = useRef(document);
+  useEffect(() => {
+    const previous = lastEditedDocument.current;
+    lastEditedDocument.current = document;
+    if (previous.id !== document.id || previous.revision === document.revision)
+      return;
+    const key = `${projectSessionId}/${document.id}`;
+    if (sharedEditNotices.current.has(key)) return;
+    const uses = buildProjectHierarchy(project).usage(document.id, 0).total;
+    if (uses < 2) return;
+    sharedEditNotices.current.add(key);
+    setStatus(
+      `${document.name} has ${uses} uses; this edit changes all of them`,
+    );
+  }, [document]);
   useEffect(() => {
     const root = documentStack[0]?.parentDocumentId ?? document.id;
     const ancestors = documentStack.map((_, index) =>
@@ -5254,11 +5275,14 @@ function WorkspaceEditor({
       <EditorMenuBar
         hierarchyActions={{
           onUp: returnToParentDocument,
-          onOpenOccurrence: openCellOccurrence,
-          onShowHierarchy: () => showLeftPanel("hierarchy"),
           onNewChild: beginNewChild,
-          onManageCells: () => openCellProperties(document.id),
+          onCellProperties: () => openCellProperties(document.id),
+          onExternalCircuits: () => {
+            setCellManagerTarget({ kind: "external" });
+            setCellManagerOpen(true);
+          },
         }}
+        toggleHierarchyPanel={toggleHierarchyPanel}
         identity={identity}
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
@@ -7748,6 +7772,20 @@ function WorkspaceEditor({
               setStatus("Text cancelled");
             },
           }}
+          navigation={
+            <HierarchyBreadcrumb
+              project={project}
+              activeDocumentId={document.id}
+              path={documentStack}
+              onOpen={(id, path, fromInstanceId) => {
+                openCellOccurrence(id, path);
+                if (fromInstanceId) selectOnly("instance", [fromInstanceId]);
+              }}
+              onUp={returnToParentDocument}
+              onTop={returnToTopDocument}
+              onShowTree={() => showLeftPanel("hierarchy")}
+            />
+          }
           notice={
             !import.meta.env?.ICM_DESKTOP && galleryDailyLimit ? (
               <GalleryDailyLimitCard
@@ -7769,6 +7807,17 @@ function WorkspaceEditor({
             openSelectedComponentDefinition={openSelectedComponentDefinition}
             hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
+            hierarchyCell={
+              selectedHierarchyCell
+                ? {
+                    onOpenDefinition: () =>
+                      openCellOccurrence(selectedHierarchyCell.id, []),
+                    onProperties: () =>
+                      openCellProperties(selectedHierarchyCell.id),
+                  }
+                : null
+            }
+            onUpToCaller={documentStack.length ? returnToParentDocument : null}
             coupleInductors={(() => {
               const edit = planCoupleInductors(document, selectedIds);
               if (!edit || edit.kind !== "set_inductor_coupling") return null;

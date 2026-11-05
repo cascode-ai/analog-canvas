@@ -1260,30 +1260,51 @@
 }
 
 .cell-instance-parameters {
+  display: grid;
+  gap: 4px;
   border-top: 1px solid var(--icm-border);
-  padding: 12px 0;
+  padding: 8px 0;
   font-size: 12px;
+}
+.cell-instance-parameters header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .cell-instance-parameters h3 {
+  margin: 0;
   font-size: 12px;
 }
-.cell-instance-parameters p,
-.cell-instance-parameters small {
+.cell-instance-parameters header button {
+  border: 0;
+  background: transparent;
+  color: var(--icm-accent);
+  font-size: 12px;
+}
+.cell-instance-shared {
+  margin: 0;
   color: var(--icm-text-muted);
 }
 .cell-instance-parameter {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 4px 8px;
-  padding-block: 8px;
+  grid-template-columns: minmax(48px, 30%) minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 6px;
 }
 .cell-instance-parameter label {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cell-instance-parameter input {
   min-width: 0;
-  width: 55%;
+}
+.cell-instance-parameter[data-overridden] input {
+  font-weight: 600;
+}
+.cell-instance-parameter-reset {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--icm-text-muted);
 }

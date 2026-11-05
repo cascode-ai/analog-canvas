@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CircuitProject, HierarchyFrame } from "@icm/model";
 import { buildProjectHierarchy, type ProjectHierarchy } from "@icm/derived";
 import { hierarchyPathKey, occurrenceLabel } from "./project-hierarchy";
@@ -19,6 +19,7 @@ type TreeProps = {
 function Branch(
   props: TreeProps & {
     hierarchy: ProjectHierarchy;
+    useCounts: ReadonlyMap<string, number>;
     rootId: string;
     documentId: string;
     branchPath: readonly HierarchyFrame[];
@@ -26,6 +27,7 @@ function Branch(
   },
 ) {
   const { project, hierarchy, rootId, documentId, branchPath } = props;
+  const [menuOpen, setMenuOpen] = useState(false);
   const cell = hierarchy.document(documentId);
   if (!cell) return null;
   const key = hierarchyPathKey(rootId, branchPath);
@@ -49,12 +51,24 @@ function Branch(
     : documentId === project.topDocumentId
       ? `Top · ${cell.name}`
       : cell.name;
-  const issue = cellPlacementIssue(project, props.activeDocumentId, documentId);
+  const uses = props.useCounts.get(documentId) ?? 0;
+  // Placement is checked only when the menu that offers it is open.
+  const issue = menuOpen
+    ? cellPlacementIssue(project, props.activeDocumentId, documentId)
+    : undefined;
+  const run = (action: () => void) => () => {
+    setMenuOpen(false);
+    action();
+  };
   return (
     <li>
       <div
         className="hierarchy-node"
         data-active={key === activeKey || undefined}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenuOpen(true);
+        }}
       >
         {children.length && !cycle ? (
           <button
@@ -70,12 +84,10 @@ function Branch(
               )
             }
           >
-            {expanded ? "−" : "+"}
+            {expanded ? "▾" : "▸"}
           </button>
         ) : (
-          <span className="hierarchy-expand" aria-hidden="true">
-            ·
-          </span>
+          <span className="hierarchy-expand" aria-hidden="true" />
         )}
         <button
           type="button"
@@ -87,42 +99,54 @@ function Branch(
         >
           {label}
         </button>
+        {uses > 1 ? (
+          <span
+            className="hierarchy-uses"
+            title={`${cell.name} has ${uses} uses; editing it changes all of them`}
+          >
+            ×{uses}
+          </span>
+        ) : null}
         <details
           className="hierarchy-node-menu"
-          onClick={(event) => {
-            if (
-              event.target instanceof Element &&
-              event.target.closest("button")
-            )
-              event.currentTarget.open = false;
+          open={menuOpen}
+          onToggle={(event) => setMenuOpen(event.currentTarget.open)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node))
+              setMenuOpen(false);
           }}
         >
           <summary aria-label={`Actions for ${label}`}>⋯</summary>
-          <div>
-            <button
-              type="button"
-              onClick={() => props.onDefinition(documentId)}
-            >
-              Open definition
-            </button>
-            <button
-              type="button"
-              onClick={() => props.onProperties(documentId)}
-            >
-              Cell properties…
-            </button>
-            <button type="button" onClick={() => props.onUses(documentId)}>
-              Show uses
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(issue)}
-              title={issue ?? undefined}
-              onClick={() => props.onPlace(documentId)}
-            >
-              Place in current Cell
-            </button>
-          </div>
+          {menuOpen ? (
+            <div>
+              <button
+                type="button"
+                onClick={run(() => props.onDefinition(documentId))}
+              >
+                Open definition
+              </button>
+              <button
+                type="button"
+                onClick={run(() => props.onProperties(documentId))}
+              >
+                Cell properties…
+              </button>
+              <button
+                type="button"
+                onClick={run(() => props.onUses(documentId))}
+              >
+                Show uses
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(issue)}
+                title={issue ?? undefined}
+                onClick={run(() => props.onPlace(documentId))}
+              >
+                Place in current Cell
+              </button>
+            </div>
+          ) : null}
         </details>
       </div>
       {expanded && !cycle ? (
@@ -148,11 +172,29 @@ export function CellHierarchyTree(
     () => buildProjectHierarchy(props.project),
     [props.project],
   );
+  const useCounts = useMemo(
+    () =>
+      new Map(
+        props.project.documents.map((cell) => [
+          cell.id,
+          hierarchy.usage(cell.id, 0).total,
+        ]),
+      ),
+    [hierarchy, props.project],
+  );
   const [usesId, setUsesId] = useState<string | null>(null);
-  const usage = hierarchy.usage(usesId ?? props.activeDocumentId);
-  const rootProps = { ...props, hierarchy, onUses: setUsesId };
+  const otherRoots = hierarchy.roots.slice(1);
+  const activeRoot = props.path[0]?.parentDocumentId ?? props.activeDocumentId;
+  const activeInOtherRoots = otherRoots.includes(activeRoot);
+  const [otherRootsOpen, setOtherRootsOpen] = useState(activeInOtherRoots);
+  useEffect(() => {
+    if (activeInOtherRoots) setOtherRootsOpen(true);
+  }, [activeInOtherRoots]);
+  const rootProps = { ...props, hierarchy, useCounts, onUses: setUsesId };
+  const usage = usesId ? hierarchy.usage(usesId) : null;
   return (
     <aside
+      id="hierarchy-panel"
       className={`shapes-panel hierarchy-panel${props.open ? "" : " collapsed"}`}
       aria-label="Circuit hierarchy"
       hidden={!props.open}
@@ -171,11 +213,17 @@ export function CellHierarchyTree(
           branchPath={[]}
         />
       </ul>
-      {hierarchy.roots.length > 1 ? (
-        <section aria-label="Not connected to Top">
-          <h3>Not connected to Top</h3>
+      {otherRoots.length ? (
+        <details
+          className="hierarchy-other-roots"
+          open={otherRootsOpen}
+          onToggle={(event) => setOtherRootsOpen(event.currentTarget.open)}
+        >
+          <summary title="Cells that Top does not use, such as testbenches or drafts">
+            Other roots ({otherRoots.length})
+          </summary>
           <ul className="hierarchy-tree">
-            {hierarchy.roots.slice(1).map((id) => (
+            {otherRoots.map((id) => (
               <Branch
                 {...rootProps}
                 key={id}
@@ -185,23 +233,25 @@ export function CellHierarchyTree(
               />
             ))}
           </ul>
-        </section>
+        </details>
       ) : null}
-      <section className="hierarchy-scope" aria-label="Shared Cell definition">
-        <strong>
-          {hierarchy.document(usesId ?? props.activeDocumentId)?.name}
-        </strong>
-        <p>Editing this definition changes all its uses.</p>
-        <button
-          type="button"
-          onClick={() => setUsesId(usesId ? null : props.activeDocumentId)}
-        >
-          {usesId
-            ? "Close uses"
-            : `Show uses (${usage.total}${usage.atLeast ? "+" : ""})`}
-        </button>
-        {usesId ? (
-          <ul aria-label="Cell uses">
+      {usesId && usage ? (
+        <section className="hierarchy-uses-list" aria-label="Cell uses">
+          <header>
+            <strong>
+              Uses of {hierarchy.document(usesId)?.name ?? usesId} (
+              {usage.total}
+              {usage.atLeast ? "+" : ""})
+            </strong>
+            <button
+              type="button"
+              aria-label="Close uses"
+              onClick={() => setUsesId(null)}
+            >
+              ×
+            </button>
+          </header>
+          <ul>
             {usage.occurrences.map((use) => (
               <li key={hierarchyPathKey(use.rootDocumentId, use.path)}>
                 <button
@@ -224,8 +274,8 @@ export function CellHierarchyTree(
               </li>
             ) : null}
           </ul>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
       <footer>
         <button type="button" onClick={props.onExternal}>
           External Circuits…

@@ -1,4 +1,3 @@
-import type { HierarchyToolbarProps } from "../features/hierarchy/hierarchy-toolbar";
 // The editor's menus bound to its commands: the header with its project tabs,
 // File, Edit and Circuit menus and toolbars, and the canvas context menu.
 import { cloudShelfOpened } from "../components/arena-gate-request";
@@ -88,6 +87,7 @@ export function EditorMenuBar({
   setSelectionOpen,
   searchOpen,
   toggleLibraryPanel,
+  toggleHierarchyPanel,
   visibleLibraryPanelOpen,
   recoverySessions,
   project,
@@ -174,14 +174,12 @@ export function EditorMenuBar({
   leaveForGallery,
   leaveForArena,
 }: {
-  hierarchyActions: Pick<
-    HierarchyToolbarProps,
-    | "onUp"
-    | "onOpenOccurrence"
-    | "onShowHierarchy"
-    | "onNewChild"
-    | "onManageCells"
-  >;
+  hierarchyActions: {
+    onUp: () => void;
+    onNewChild: () => void;
+    onCellProperties: () => void;
+    onExternalCircuits: () => void;
+  };
   identity: EditorServices["identity"];
   projectStore: EditorServices["projectStore"];
   nativeProjectStore: EditorServices["nativeProjectStore"];
@@ -198,6 +196,7 @@ export function EditorMenuBar({
   setSelectionOpen: EditorPanels["setSelectionOpen"];
   searchOpen: EditorPanels["searchOpen"];
   toggleLibraryPanel: EditorPanels["toggleLibraryPanel"];
+  toggleHierarchyPanel: EditorPanels["toggleHierarchyPanel"];
   visibleLibraryPanelOpen: boolean;
   recoverySessions: UseRecoveryCoordinatorResult["sessions"];
   project: CircuitProject;
@@ -463,8 +462,6 @@ export function EditorMenuBar({
       }}
       searchOpen={searchOpen}
       selectionFilterOpen={selectionFilterOpen}
-      cellManagerOpen={leftPanelMode === "hierarchy" && visibleLibraryPanelOpen}
-      onManageCells={hierarchyActions.onShowHierarchy}
       userComponentsOpen={userComponentsOpen}
       onOpenUserComponents={() => {
         cancelAllTransientInteraction();
@@ -597,6 +594,7 @@ export function EditorMenuBar({
         },
         onToggleExamples: toggleExamplesPanel,
         onToggleLibrary: toggleLibraryPanel,
+        onToggleHierarchy: toggleHierarchyPanel,
         onToggleNetlist: () => toggleProjectPanel("netlist"),
         onToggleProjectCode: () => toggleProjectPanel("project-code"),
         onActivateTool: (nextTool) =>
@@ -625,16 +623,29 @@ export function EditorMenuBar({
           },
         },
       }}
-      hierarchyToolbar={{
-        documents: project.documents,
-        activeDocumentId: document.id,
-        topDocumentId: project.topDocumentId,
-        path: documentStack,
-        canEnter: hasHierarchyEnterSelection,
-        onTop: returnToTopDocument,
-        onEnter: enterSelectedHierarchy,
-        ...hierarchyActions,
-        onPlaceCell: placeCellInstance,
+      hierarchy={{
+        treeOpen: leftPanelMode === "hierarchy" && visibleLibraryPanelOpen,
+        onToggleTree: toggleHierarchyPanel,
+        enter: {
+          enabled: hasHierarchyEnterSelection,
+          execute: enterSelectedHierarchy,
+        },
+        up: {
+          enabled: documentStack.length > 0,
+          execute: hierarchyActions.onUp,
+        },
+        top: {
+          enabled:
+            documentStack.length > 0 || document.id !== project.topDocumentId,
+          execute: returnToTopDocument,
+        },
+        onNewChild: hierarchyActions.onNewChild,
+        placeCell: {
+          enabled: cellInsertCandidates.length > 0,
+          execute: placeCellInstance,
+        },
+        onCellProperties: hierarchyActions.onCellProperties,
+        onExternalCircuits: hierarchyActions.onExternalCircuits,
       }}
       telemetry={{
         snapshot: {
@@ -675,6 +686,8 @@ export function EditorCanvasContextMenu({
   hasDefinitionSelection,
   editorCommands,
   coupleInductors,
+  hierarchyCell,
+  onUpToCaller,
 }: {
   canvasContextMenu: { x: number; y: number };
   setCanvasContextMenu: Dispatch<
@@ -689,6 +702,10 @@ export function EditorCanvasContextMenu({
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   /** Offered only while two uncoupled inductors are the selection. */
   coupleInductors?: (() => void) | null;
+  /** The selected Cell instance's definition, opened in place or as a form. */
+  hierarchyCell?: { onOpenDefinition(): void; onProperties(): void } | null;
+  /** Offered only inside a child Cell occurrence. */
+  onUpToCaller?: (() => void) | null;
 }) {
   return (
     <CanvasContextMenu
@@ -709,6 +726,29 @@ export function EditorCanvasContextMenu({
                 label: "Enter Cell (E)",
                 enabled: true,
                 execute: enterSelectedHierarchy,
+              },
+            ]
+          : []),
+        ...(hierarchyCell
+          ? [
+              {
+                label: "Open Cell definition",
+                enabled: true,
+                execute: hierarchyCell.onOpenDefinition,
+              },
+              {
+                label: "Cell properties…",
+                enabled: true,
+                execute: hierarchyCell.onProperties,
+              },
+            ]
+          : []),
+        ...(onUpToCaller
+          ? [
+              {
+                label: "Up to caller (Shift+E)",
+                enabled: true,
+                execute: onUpToCaller,
               },
             ]
           : []),

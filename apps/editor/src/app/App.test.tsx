@@ -86,12 +86,15 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Cell netlist interface");
     expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
-    // A flat Project offers its first child directly from the hierarchy row.
-    expect(markup).toContain('data-testid="cell-navigation"');
+    // A flat Project gives no space to hierarchy: no row and no path; the
+    // commands live in Circuit and the tree behind the Panels toggle.
+    expect(markup).not.toContain('data-testid="cell-navigation"');
+    expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
     expect(markup).toContain('data-testid="hierarchy-entry"');
+    expect(markup).toContain('data-testid="hierarchy-toggle"');
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
-    expect(markup).toContain('data-testid="cell-command-menu"');
-    expect(markup).toContain(">Hierarchy tree…</button>");
+    expect(markup).toContain(">Show hierarchy tree</button>");
+    expect(markup).toContain(">New child Cell…</button>");
     expect(markup).toContain("Edit Device Data…");
     // Three header menus: File (the file commands), Edit, and Circuit
     // (Hierarchy and Netlist); the command row keeps actions.
@@ -217,9 +220,11 @@ describe("editor shell", () => {
       <App services={services} project={project} />,
     );
     expect(markup).toContain('data-testid="hierarchy-entry"');
-    expect(markup).toContain('data-testid="cell-navigation"');
-    expect(markup).toContain("Enter Cell");
-    expect(markup).toContain("Cell properties");
+    expect(markup).not.toContain('data-testid="cell-navigation"');
+    // At Top the path stays hidden even though the Project has a child.
+    expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
+    expect(markup).toContain("Enter Cell (E)");
+    expect(markup).toContain("Cell properties…");
   });
 
   it("links GitHub and the change log directly without a Help surface", () => {

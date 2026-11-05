@@ -120,6 +120,8 @@ export interface EditorCanvasSurfaceProps {
   textDraft?: ComponentProps<typeof TextDraftEditorOverlay>;
   /** A card in the middle of the canvas, above the drawing. */
   notice?: ReactNode;
+  /** Where the open Cell sits in the hierarchy, floating at the top edge. */
+  navigation?: ReactNode;
   noConnectPreview?: ReactNode;
 }
 
@@ -166,6 +168,7 @@ export function EditorCanvasSurface({
   interactionPreviews,
   textDraft,
   notice,
+  navigation,
   noConnectPreview,
 }: EditorCanvasSurfaceProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -428,6 +431,7 @@ export function EditorCanvasSurface({
           {textDraft ? <TextDraftEditorOverlay {...textDraft} /> : null}
         </g>
       </svg>
+      {navigation}
       {cellSymbolLayoutControls}
       {notice}
     </section>
