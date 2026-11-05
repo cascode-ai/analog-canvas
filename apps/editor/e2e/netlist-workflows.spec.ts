@@ -453,8 +453,7 @@ test("File > Export > Netlist saves the netlist the Netlist panel shows, in the 
 test("grows and shrinks the live netlist with content, scrolling only at the viewport limit, with aligned controls", async ({
   page,
 }) => {
-  // Leave room for the hierarchy row and the code's existing 30-line floor.
-  await page.setViewportSize({ width: 1440, height: 1040 });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/editor");
   const panel = page.getByRole("region", { name: "Live netlist", exact: true });
   const viewport = panel.locator(".netlist-code-viewport");
@@ -545,7 +544,7 @@ test("grows and shrinks the live netlist with content, scrolling only at the vie
   expect(await height()).toBeGreaterThan(0.6 * 1400);
   expect(await dockScrolls()).toBe(false);
   await checkOptionsFollow();
-  await page.setViewportSize({ width: 1440, height: 1040 });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await expect.poll(height).toBeCloseTo(filled, 0);
   const scroller = viewport.locator(".cm-scroller");
   expect(

@@ -356,7 +356,7 @@ export function EditorAppChrome({
                   aria-expanded={cellManagerOpen}
                   onClick={onManageCells}
                 >
-                  Hierarchy tree…
+                  Cell Manager…
                 </button>
               </div>
               <div

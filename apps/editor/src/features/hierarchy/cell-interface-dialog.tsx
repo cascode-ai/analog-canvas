@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { projectCellInterface } from "@icm/model";
 import { CellParametersEditor } from "./cell-parameters-editor";
@@ -12,7 +11,6 @@ export function CellInterfaceEditor({
   cell,
   project,
   callerCount,
-  onRenamePort,
   onSetPortDirection,
   onMovePort,
   onEditParameter,
@@ -20,7 +18,6 @@ export function CellInterfaceEditor({
   cell: SchematicDocument;
   project: CircuitProject;
   callerCount: number;
-  onRenamePort?: ((portId: string, name: string) => void) | undefined;
   onSetPortDirection(
     portId: string,
     direction: "input" | "output" | "inout" | "passive",
@@ -73,28 +70,7 @@ export function CellInterfaceEditor({
                       {index + 1}
                     </span>
                     <span className="cell-interface-port-name">
-                      {onRenamePort ? (
-                        port.terminalIds.map((id) => {
-                          const terminal = cell.netlist!.terminals.find(
-                            (item) => item.id === id,
-                          )!;
-                          return (
-                            <label key={`${id}/${terminal.name}`}>
-                              {port.terminalIds.length > 1 ? (
-                                <small>
-                                  {terminal.interfaceInstanceIds.join(", ")}
-                                </small>
-                              ) : null}
-                              <CellPinName
-                                name={terminal.name}
-                                onRename={(name) => onRenamePort(id, name)}
-                              />
-                            </label>
-                          );
-                        })
-                      ) : (
-                        <strong>{port.name}</strong>
-                      )}
+                      <strong>{port.name}</strong>
                       {port.interfaceInstanceIds.length > 1 ? (
                         <small>
                           {port.interfaceInstanceIds.length} markers
@@ -156,31 +132,5 @@ export function CellInterfaceEditor({
         />
       </div>
     </div>
-  );
-}
-
-function CellPinName({
-  name,
-  onRename,
-}: {
-  name: string;
-  onRename(name: string): void;
-}) {
-  const [draft, setDraft] = useState(name);
-  useEffect(() => setDraft(name), [name]);
-  return (
-    <input
-      aria-label={`Port ${name} name`}
-      value={draft}
-      title="Rename this Pin declaration. Equal names form one Port."
-      onChange={(event) => setDraft(event.currentTarget.value)}
-      onBlur={() => {
-        if (draft !== name) onRename(draft);
-        setDraft(name);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-      }}
-    />
   );
 }

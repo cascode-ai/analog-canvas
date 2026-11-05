@@ -122,7 +122,6 @@ export interface WireLabelDraft {
 }
 
 export interface PendingComponentPlacement {
-  draftCell?: import("@icm/model").SchematicDocument;
   capture?: import("../features/user-components/component-placement").PendingCircuitCapture;
   componentDefinition?: ComponentDefinition;
   kind:

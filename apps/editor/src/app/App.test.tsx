@@ -86,12 +86,13 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Cell netlist interface");
     expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
-    // A flat Project offers its first child directly from the hierarchy row.
-    expect(markup).toContain('data-testid="cell-navigation"');
+    // Hierarchy stays discoverable for a flat Project; the operational row is
+    // still omitted until there is hierarchy to navigate or enter.
+    expect(markup).not.toContain('data-testid="cell-navigation"');
     expect(markup).toContain('data-testid="hierarchy-entry"');
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
-    expect(markup).toContain('data-testid="cell-command-menu"');
-    expect(markup).toContain(">Hierarchy tree…</button>");
+    expect(markup).not.toContain('data-testid="cell-command-menu"');
+    expect(markup).toContain(">Cell Manager…</button>");
     expect(markup).toContain("Edit Device Data…");
     // Three header menus: File (the file commands), Edit, and Circuit
     // (Hierarchy and Netlist); the command row keeps actions.
@@ -219,7 +220,7 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="hierarchy-entry"');
     expect(markup).toContain('data-testid="cell-navigation"');
     expect(markup).toContain("Enter Cell");
-    expect(markup).toContain("Cell properties");
+    expect(markup).toContain("Manage Cells…");
   });
 
   it("links GitHub and the change log directly without a Help surface", () => {
@@ -256,12 +257,12 @@ describe("editor shell", () => {
     expect(markup).toContain("Presented by");
     expect(markup).toContain('href="https://tokenzhang.com"');
     expect(markup).toContain('src="/tokenzhang-favicon.png"');
-    const header = markup.slice(0, markup.indexOf("</header>"));
-    expect(header).toContain('data-testid="editor-repository-link"');
+    const navigationEnd = markup.indexOf("</nav>");
     const repositoryLink = markup.indexOf(
       'data-testid="editor-repository-link"',
     );
     const ownerLink = markup.indexOf('href="https://tokenzhang.com"');
+    expect(repositoryLink).toBeGreaterThan(navigationEnd);
     expect(ownerLink).toBeGreaterThan(repositoryLink);
     expect(markup).not.toContain('role="dialog"');
     // Agent connects directly from the command row; no one-item menu or

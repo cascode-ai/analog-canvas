@@ -20,11 +20,6 @@ export {
   type SchematicTextFace,
 } from "./fraction-text-metrics.js";
 export * from "./hierarchy-navigation.js";
-export {
-  buildProjectHierarchy,
-  reconcileHierarchyPath,
-  type ProjectHierarchy,
-} from "./project-hierarchy.js";
 export * from "./instance-label-placement.js";
 export * from "./instance-value.js";
 export * from "./logical-net.js";

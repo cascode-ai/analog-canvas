@@ -103,9 +103,7 @@ export function CellParametersEditor({
   onEdit: Edit;
 }) {
   const parameters = cell.netlist?.formalParameters ?? [];
-  const [name, setName] = useState("");
-  const [value, setValue] = useState("");
-  const [error, setError] = useState("");
+  if (!parameters.length) return null;
   return (
     <section className="cell-interface-section" aria-label="Cell parameters">
       <header>
@@ -132,35 +130,6 @@ export function CellParametersEditor({
           />
         ))}
       </div>
-      <form
-        className="cell-parameter-add"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const result = onEdit(name, { kind: "add", value });
-          setError(result.ok ? "" : result.message);
-          if (result.ok) {
-            setName("");
-            setValue("");
-          }
-        }}
-      >
-        <input
-          aria-label="New parameter name"
-          placeholder="Name"
-          value={name}
-          onChange={(event) => setName(event.currentTarget.value)}
-        />
-        <input
-          aria-label="New parameter default"
-          placeholder="Default"
-          value={value}
-          onChange={(event) => setValue(event.currentTarget.value)}
-        />
-        <button type="submit" disabled={!name.trim() || !value.trim()}>
-          Add parameter
-        </button>
-      </form>
-      {error ? <p role="alert">{error}</p> : null}
     </section>
   );
 }

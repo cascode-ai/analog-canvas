@@ -290,11 +290,8 @@ test("keeps every line of a multi-line note on its own line", async ({
   await expect(note.locator('tspan[data-text-run="line-break"]')).toHaveCount(
     2,
   );
-  // Measure schematic units so opening toolbar rows cannot change the check.
-  const height = await note.evaluate(
-    (element) => (element as SVGGraphicsElement).getBBox().height,
-  );
-  expect(height).toBeGreaterThan(40);
+  const box = await note.boundingBox();
+  expect(box?.height).toBeGreaterThan(40);
 
   // Reopening edits the same three lines rather than one run of joined text.
   await note.dblclick({ force: true });
