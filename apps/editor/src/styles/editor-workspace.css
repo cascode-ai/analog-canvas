@@ -798,3 +798,133 @@
     height: 36px;
   }
 }
+
+/* One hierarchy surface: occurrence navigation and definition actions. */
+.hierarchy-panel {
+  padding: 12px 8px;
+  overflow: auto;
+  gap: 12px;
+}
+.hierarchy-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hierarchy-panel h2,
+.hierarchy-panel h3 {
+  font-size: 12px;
+  margin: 0;
+}
+.hierarchy-panel h3 {
+  color: var(--icm-text-muted);
+  padding: 12px 4px 8px;
+}
+.hierarchy-tree,
+.hierarchy-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hierarchy-tree ul {
+  padding-left: 14px;
+  border-left: 1px solid var(--icm-border);
+  margin-left: 10px;
+}
+.hierarchy-node {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  border-radius: 4px;
+}
+.hierarchy-node[data-active] {
+  background: var(--icm-accent-soft);
+}
+.hierarchy-expand {
+  flex: 0 0 22px;
+  text-align: center;
+}
+.hierarchy-node button {
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+}
+.hierarchy-node-label {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hierarchy-node-menu {
+  flex: 0 0 24px;
+}
+.hierarchy-node-menu summary {
+  cursor: pointer;
+  list-style: none;
+  text-align: center;
+}
+.hierarchy-node-menu[open] {
+  position: relative;
+  z-index: 5;
+}
+.hierarchy-node-menu > div {
+  position: absolute;
+  right: 0;
+  width: 190px;
+  padding: 6px;
+  display: grid;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: var(--icm-surface);
+  box-shadow: 0 4px 16px #0002;
+}
+.hierarchy-node-menu button {
+  text-align: left;
+  padding: 8px;
+}
+.hierarchy-node-menu button:hover {
+  background: var(--icm-surface-hover);
+}
+.hierarchy-scope {
+  border-top: 1px solid var(--icm-border);
+  padding: 12px 4px;
+  font-size: 12px;
+}
+.hierarchy-scope p {
+  color: var(--icm-text-muted);
+}
+.hierarchy-scope ul {
+  padding-left: 16px;
+}
+.hierarchy-scope li {
+  margin-block: 8px;
+}
+.hierarchy-scope li button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.hierarchy-panel footer {
+  margin-top: auto;
+  padding: 8px 4px;
+}
+.hierarchy-breadcrumb {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 120px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.hierarchy-breadcrumb button {
+  background: transparent;
+  border-color: transparent;
+}
+.hierarchy-breadcrumb [aria-current="page"] {
+  font-weight: 600;
+}
+.hierarchy-toolbar .document-nav {
+  flex-wrap: wrap;
+  width: 100%;
+}

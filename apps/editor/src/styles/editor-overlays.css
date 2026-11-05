@@ -416,7 +416,8 @@
 
 .selection-filter-popover {
   position: fixed;
-  z-index: 12;
+  /* Keep its header clickable when the hierarchy row expands the chrome. */
+  z-index: 21;
   top: 7.25rem;
   right: var(--icm-space-4);
   display: grid;

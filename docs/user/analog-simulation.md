@@ -57,7 +57,7 @@ Edit an entry's existing control block rather than pasting a second one.
 ## Testbench from a drawing
 
 1. Draw the DUT Cell with its Cell Pins.
-2. In **Cell Manager…**, **New Cell** for the testbench, then **Place Cell**
+2. In **Cell properties**, **New definition** for the testbench, then **Place Cell**
    to place the DUT in it.
 3. Draw sources and loads and create an experiment for the testbench.
 

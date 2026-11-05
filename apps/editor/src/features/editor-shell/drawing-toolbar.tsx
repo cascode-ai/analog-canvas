@@ -12,7 +12,7 @@ interface ToolbarCommand {
 
 export interface DrawingToolbarProps {
   communityEnabled?: boolean;
-  leftPanelMode: "examples" | "library";
+  leftPanelMode: "examples" | "library" | "hierarchy";
   libraryPanelOpen: boolean;
   projectPanel: "netlist" | "project-code" | null;
   leftPanelsDisabled?: boolean;

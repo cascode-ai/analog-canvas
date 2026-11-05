@@ -1,3 +1,4 @@
+import { projectHierarchyCalls } from "./project-hierarchy.js";
 import type { CircuitProject } from "@icm/model";
 import { projectCellInterface } from "@icm/model";
 
@@ -19,25 +20,19 @@ export interface ProjectCellSummary {
 export function summarizeProjectCells(
   project: CircuitProject,
 ): readonly ProjectCellSummary[] {
+  const calls = projectHierarchyCalls(project);
+  const names = new Map(project.documents.map((cell) => [cell.id, cell.name]));
   return project.documents.map((cell) => ({
     id: cell.id,
     name: cell.name,
     isTop: cell.id === project.topDocumentId,
     portCount: projectCellInterface(cell.netlist).ports.length,
-    callers: project.documents.flatMap((parent) =>
-      parent.instances.flatMap((instance) => {
-        const binding = instance.netlist?.binding;
-        return binding?.kind === "subcircuit" &&
-          binding.childDocumentId === cell.id
-          ? [
-              {
-                documentId: parent.id,
-                documentName: parent.name,
-                instanceId: instance.id,
-              },
-            ]
-          : [];
-      }),
-    ),
+    callers: calls
+      .filter((call) => call.childDocumentId === cell.id)
+      .map((call) => ({
+        documentId: call.parentDocumentId,
+        documentName: names.get(call.parentDocumentId)!,
+        instanceId: call.instanceId,
+      })),
   }));
 }
