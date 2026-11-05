@@ -22,6 +22,9 @@ GET  /api/agent/openapi.json
 
 ## Pairing
 
+- The one-copy Agent handoff carries the [connection authorization and recovery
+  rules](../agent/shared/session.md#connection). Setup, host loading and circuit
+  readiness are separate milestones; installation never establishes pairing.
 - **Agent** creates a tab/workspace session with every supported scope (no
   tier picker; replacement also grants full access; recovery resumes the
   original scopes). The relay returns a short-lived Claim; redemption returns

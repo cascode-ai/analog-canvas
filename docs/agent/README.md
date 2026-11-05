@@ -19,11 +19,11 @@ rules: [maintenance](maintenance.md).
 An entry is a starting point; `load` (`entry`, `required`, `on-demand`) is a
 distribution role, never a permission gate.
 
-MCP is the default. Configuration success is not proof of callable tools; if a
-host cannot load the adapter, explain the failed stage and possible restart
-once, without restarting it or switching protocols. Raw HTTP and CLI are
-explicit user choices; CLI shares MCP's client, raw HTTP implements its own
-lifecycle.
+MCP is the default. The copied handoff authorizes raw HTTP recovery for
+bootstrap failures under the [connection rules](shared/session.md#connection).
+Installation and host loading are separate milestones; [installation](mcp-install.md)
+covers their evidence. CLI shares MCP's client and Node requirement; raw HTTP
+implements its own lifecycle without the package.
 
 ## Authority
 

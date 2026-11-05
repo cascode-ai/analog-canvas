@@ -299,6 +299,7 @@
     ],
     "agent": [
       "apps/editor/src/agent/**",
+      "apps/editor/e2e/agent-connection.spec.ts",
       "apps/editor/e2e/web-agent-session.spec.ts",
       "apps/editor/e2e/agent-bus-reuse.spec.ts",
       "apps/editor/e2e/agent-bus-productivity.spec.ts",
@@ -628,6 +629,7 @@
       "command": [
         "pnpm",
         "test:e2e:local",
+        "apps/editor/e2e/agent-connection.spec.ts",
         "apps/editor/e2e/web-agent-session.spec.ts",
         "apps/editor/e2e/agent-bus-reuse.spec.ts",
         "apps/editor/e2e/agent-bus-productivity.spec.ts",
@@ -635,6 +637,7 @@
       ],
       "ci": {
         "e2eArgs": [
+          "apps/editor/e2e/agent-connection.spec.ts",
           "apps/editor/e2e/web-agent-session.spec.ts",
           "apps/editor/e2e/agent-bus-reuse.spec.ts",
           "apps/editor/e2e/agent-bus-productivity.spec.ts",

@@ -1,4 +1,8 @@
 import { spawn } from "node:child_process";
+import {
+  InstallationFailure,
+  installationFailureAt,
+} from "./installation-diagnostics.js";
 
 /** Real MCP handshake, never an HTTP fallback. No Claim, connector, or relay needed. */
 export function probeInstalledMcp(
@@ -19,11 +23,20 @@ export function probeInstalledMcp(
         success: { version: string; toolCount: number } | undefined;
       let failure: Error | undefined;
       const timer = setTimeout(
-        () => finish(Error("MCP initialize/tools/list timed out")),
+        () =>
+          finish(
+            new InstallationFailure(
+              "local-probe",
+              "MCP_PROBE_TIMEOUT",
+              "MCP initialize/tools/list timed out",
+              "use-http-kit",
+            ),
+          ),
         10000,
       );
       function finish(error?: Error) {
-        if (error && !failure) failure = error;
+        if (error && !failure)
+          failure = installationFailureAt("local-probe", error);
         child.stdin.end();
         if (error) child.kill();
       }
@@ -34,7 +47,7 @@ export function probeInstalledMcp(
       child.stdin.on("error", (error) => finish(error));
       child.on("error", (error) => {
         clearTimeout(timer);
-        reject(error);
+        reject(installationFailureAt("local-probe", error));
       });
       child.on("spawn", () =>
         send({
@@ -68,8 +81,11 @@ export function probeInstalledMcp(
                 message.result?.serverInfo?.name !== "analog-canvas" ||
                 message.result?.serverInfo?.version !== version
               )
-                throw Error(
+                throw new InstallationFailure(
+                  "local-probe",
+                  "MCP_IDENTITY_MISMATCH",
                   `MCP runtime identity does not match installed version ${version}`,
+                  "stop",
                 );
               send({ jsonrpc: "2.0", method: "notifications/initialized" });
               send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
@@ -103,7 +119,15 @@ export function probeInstalledMcp(
         clearTimeout(timer);
         if (failure) reject(failure);
         else if (code !== 0 || !success)
-          reject(Error("MCP exited before local readiness"));
+          reject(
+            new InstallationFailure(
+              "local-probe",
+              "MCP_EXITED",
+              "MCP exited before local readiness",
+              "use-http-kit",
+              code === null ? {} : { exitCode: code },
+            ),
+          );
         else resolve(success);
       });
     },

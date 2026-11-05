@@ -632,9 +632,11 @@ describe("public Agent session routes", () => {
       mcpDistribution.release.asset,
     );
     expect(manifest.installation.command).toContain(
-      '--install --origin "https://editor.example" --host codex',
+      '--install --origin "https://editor.example" --host config',
     );
-    expect(manifest.hosts.codex.command).toContain("https://editor.example");
+    expect(manifest.hosts.codex.command).toContain(
+      '--origin "https://editor.example" --host codex',
+    );
     expect(manifest.launch.env.ANALOG_CANVAS_API_URL).toBe(
       "https://editor.example",
     );

@@ -9,6 +9,7 @@ import {
   runHttpCommand,
 } from "./http-cli.js";
 import { installMcp } from "./install.js";
+import { installationFailureAt } from "./installation-diagnostics.js";
 import {
   createOperationSession,
   type OperationSession,
@@ -32,9 +33,9 @@ if (process.argv[2] === "--install") {
       `${JSON.stringify(await installMcp(process.argv.slice(3)), null, 2)}\n`,
     );
   } catch (error) {
-    process.stderr.write(
-      `MCP installation failed: ${error instanceof Error ? error.message : "unknown error"}\n`,
-    );
+    const { diagnostic } = installationFailureAt("arguments", error);
+    process.stdout.write(`${JSON.stringify(diagnostic)}\n`);
+    process.stderr.write(`MCP installation failed: ${diagnostic.message}\n`);
     process.exitCode = 1;
   }
 } else if (process.argv[2] === "--local") {

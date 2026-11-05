@@ -272,7 +272,8 @@ function ClaimHandOff({
       {instructions !== null ? (
         <div className="agent-claim" data-testid="agent-claim">
           <p className="agent-connection-hint">
-            Paste this message into your Agent chat to connect.
+            Paste this message into your Agent chat to connect. MCP first; HTTP
+            API fallback is authorized if setup is unavailable.
           </p>
           <textarea
             ref={textRef}
