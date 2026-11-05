@@ -1,4 +1,3 @@
-import { planChildCellPlacement } from "../hierarchy/new-child-cell";
 import { useRef, useState } from "react";
 import { planComponentPlacement } from "../user-components/component-placement";
 import { checkNativeComponentRevision } from "../../hosts/native-component-library";
@@ -30,12 +29,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { createDraftText, defaultDraftTextDocument } from "@icm/model";
-import {
-  builtInSymbols,
-  createProjectSymbolResolver,
-  hierarchicalSymbolId,
-  type SymbolResolver,
-} from "@icm/symbols";
+import { hierarchicalSymbolId, type SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
 import type {
@@ -112,7 +106,6 @@ export interface UseComponentPlacementOptions {
     transactionId: string,
     edits: ProjectStructureEdit[],
   ) => boolean;
-  onChildCreated?: (instanceId: string, childDocumentId: string) => void;
   selectOnly: (
     kind: "instance" | "route" | "drafting",
     ids: readonly string[],
@@ -334,11 +327,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     ) {
       return;
     }
-    const child =
-      placementRequest.draftCell ??
-      options.project.documents.find(
-        (candidate) => candidate.id === placementRequest.childDocumentId,
-      );
+    const child = options.project.documents.find(
+      (candidate) => candidate.id === placementRequest.childDocumentId,
+    );
     if (!child?.netlist) {
       options.setStatus("The selected Cell no longer exists");
       return;
@@ -365,57 +356,26 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       },
       reference,
     );
-    const draft = placementRequest.draftCell;
-    const resolver = draft
-      ? createProjectSymbolResolver(
-          {
-            ...options.project,
-            documents: [...options.project.documents, draft],
-          },
-          builtInSymbols,
-        )
-      : options.resolver;
     const annotations = defaultInstanceDisplayAnnotations(
       options.document,
       instance,
-      resolver,
+      options.resolver,
       options.styleProfile,
       {
         showDesignator: placementRequest.showReference,
         masterName: child.netlist.name,
       },
     );
-    try {
-      const edits = draft
-        ? planChildCellPlacement(
-            options.project,
-            options.document.id,
-            draft,
-            instance,
-            annotations,
-          )
-        : planPlaceCellInstance(
-            options.project,
-            options.document.id,
-            instance,
-            annotations,
-          );
-      if (
-        !options.transactProject(
-          draft ? "create-child-cell" : "place-cell-instance",
-          edits,
-        )
-      )
-        return;
-    } catch (error) {
-      options.setStatus(error instanceof Error ? error.message : String(error));
-      return;
-    }
-    if (draft) {
-      options.cancelAllTransientInteraction();
-      options.onChildCreated?.(id, draft.id);
-      return;
-    }
+    const committed = options.transactProject(
+      "place-cell-instance",
+      planPlaceCellInstance(
+        options.project,
+        options.document.id,
+        instance,
+        annotations,
+      ),
+    );
+    if (!committed) return;
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
     options.setStatus(

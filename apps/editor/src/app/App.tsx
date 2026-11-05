@@ -1,9 +1,3 @@
-import { CellHierarchyTree } from "../features/hierarchy/cell-hierarchy-tree";
-import { hierarchyPathKey } from "../features/hierarchy/project-hierarchy";
-import { reconcileHierarchyPath } from "@icm/derived";
-import { NewChildDialog } from "../features/hierarchy/new-child-dialog";
-import { createChildCellDraft } from "../features/hierarchy/new-child-cell";
-import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { useSignalMemberInspection } from "../features/selection/use-signal-member-inspection";
 import { editorSnapshotDerived } from "./editor-snapshot-derived-cache";
 import {
@@ -705,7 +699,6 @@ function WorkspaceEditor({
     compactLibraryPanelOpen,
     setCompactLibraryPanelOpen,
     leftPanelMode,
-    showLeftPanel,
     selectionOpen,
     setSelectionOpen,
     searchOpen,
@@ -923,16 +916,6 @@ function WorkspaceEditor({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
-  const [cellManagerTarget, setCellManagerTarget] = useState<
-    { kind: "cell"; id: string } | { kind: "external" } | null
-  >(null);
-  const [hierarchyExpanded, setHierarchyExpanded] = useState<string[]>([]);
-  const [newChildOpen, setNewChildOpen] = useState(false);
-  const [newChildOccurrence, setNewChildOccurrence] = useState<{
-    id: string;
-    path: HierarchyFrame[];
-  } | null>(null);
-
   const [modelEditorDefinitionId, setModelEditorDefinitionId] = useState<
     string | null
   >(null);
@@ -1280,8 +1263,6 @@ function WorkspaceEditor({
       if (options.agentEdited) editorDocumentController.noteAgentEdit();
       documentViewBoxes.current = new Map();
       setDocumentStack([]);
-      setHierarchyExpanded([]);
-      setNewChildOpen(false);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
       // Each newly opened circuit starts with its netlist. Ordinary edits and
@@ -1526,7 +1507,6 @@ function WorkspaceEditor({
   const {
     createCell,
     renameCell,
-    renameCellTerminal,
     editProjectInfo,
     deleteCell,
     updateCellPortDirection,
@@ -2907,24 +2887,8 @@ function WorkspaceEditor({
       netlistPreferences.preferences,
     ],
   );
-  const placementResolver = useMemo(
-    () =>
-      pendingComponentPlacement?.draftCell
-        ? createProjectSymbolResolver(
-            {
-              ...project,
-              documents: [
-                ...project.documents,
-                pendingComponentPlacement.draftCell,
-              ],
-            },
-            builtInSymbols,
-          )
-        : resolver,
-    [project, resolver, pendingComponentPlacement?.draftCell],
-  );
   const pendingPlacementSymbol = pendingSymbolId
-    ? (placementResolver.resolve(pendingSymbolId)?.definition ??
+    ? (resolver.resolve(pendingSymbolId)?.definition ??
       findPaletteSymbol(document.presentation.styleProfileId, pendingSymbolId))
     : undefined;
   const {
@@ -2940,14 +2904,6 @@ function WorkspaceEditor({
     mirrorPendingComponent: mirrorPendingComponentFromHook,
     startInsert: startInsertFromHook,
   } = useComponentPlacement({
-    onChildCreated: (instanceId, childDocumentId) =>
-      setNewChildOccurrence({
-        id: childDocumentId,
-        path: [
-          ...documentStack,
-          { parentDocumentId: document.id, instanceId, childDocumentId },
-        ],
-      }),
     recentStorageKey: RECENT_COMPONENTS_STORAGE_KEY,
     document,
     project,
@@ -3798,6 +3754,7 @@ function WorkspaceEditor({
   }
 
   const {
+    switchDocument,
     selectDocumentFromHierarchy,
     jumpToCaller,
     navigateToLocator,
@@ -3840,47 +3797,6 @@ function WorkspaceEditor({
     selectedInstance,
     setStatus,
   });
-  useEffect(() => {
-    const resolved = reconcileHierarchyPath(
-      project,
-      document.id,
-      documentStack,
-    );
-    if (resolved.path.length !== documentStack.length) {
-      openCellOccurrence(resolved.documentId, resolved.path);
-      setStatus(
-        "The hierarchy changed; returned to the nearest surviving parent",
-      );
-    } else if (documentStack.length && resolved.documentId !== document.id) {
-      setDocumentStack([]);
-    }
-  }, [project]);
-  useEffect(() => {
-    if (!newChildOccurrence) return;
-    openCellOccurrence(newChildOccurrence.id, newChildOccurrence.path);
-    showLeftPanel("hierarchy");
-    setNewChildOccurrence(null);
-  }, [project, newChildOccurrence]);
-  useEffect(() => {
-    const root = documentStack[0]?.parentDocumentId ?? document.id;
-    const ancestors = documentStack.map((_, index) =>
-      hierarchyPathKey(root, documentStack.slice(0, index)),
-    );
-    setHierarchyExpanded((keys) =>
-      ancestors.every((key) => keys.includes(key))
-        ? keys
-        : [...new Set([...keys, ...ancestors])],
-    );
-  }, [documentStack, document.id]);
-  const openCellProperties = (id: string) => {
-    setCellManagerTarget({ kind: "cell", id });
-    setModelEditorDefinitionId(null);
-    setCellManagerOpen(true);
-  };
-  const beginNewChild = () => {
-    cancelAllTransientInteraction();
-    setNewChildOpen(true);
-  };
   const { endpointSignalInspection, routeSignalInspection } =
     useSignalMemberInspection({
       model: {
@@ -4990,8 +4906,6 @@ function WorkspaceEditor({
     renameShelfProject,
     deleteShelfProject,
   } = useProjectTabSessions({
-    hierarchyExpanded,
-    setHierarchyExpanded,
     projectStore,
     onCloudProjectSaved: noteCloudProjectSaved,
     onCloudProjectsDeleted: noteCloudProjectsDeleted,
@@ -5252,13 +5166,6 @@ function WorkspaceEditor({
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorMenuBar
-        hierarchyActions={{
-          onUp: returnToParentDocument,
-          onOpenOccurrence: openCellOccurrence,
-          onShowHierarchy: () => showLeftPanel("hierarchy"),
-          onNewChild: beginNewChild,
-          onManageCells: () => openCellProperties(document.id),
-        }}
         identity={identity}
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
@@ -5282,6 +5189,8 @@ function WorkspaceEditor({
         documentStack={documentStack}
         visualSelection={visualSelection}
         selectionFilterOpen={selectionFilterOpen}
+        cellManagerOpen={cellManagerOpen}
+        setCellManagerOpen={setCellManagerOpen}
         netlistPreflightOpen={netlistPreflightOpen}
         setNetlistPreflightOpen={setNetlistPreflightOpen}
         projectPanel={projectPanel}
@@ -5334,6 +5243,7 @@ function WorkspaceEditor({
         alignmentParticipantCount={alignmentParticipantCount}
         internalSelection={internalSelection}
         projectInstanceCount={projectInstanceCount}
+        selectDocumentFromHierarchy={selectDocumentFromHierarchy}
         enterSelectedHierarchy={enterSelectedHierarchy}
         returnToTopDocument={returnToTopDocument}
         toggleProjectPanel={toggleProjectPanel}
@@ -5361,49 +5271,7 @@ function WorkspaceEditor({
         leaveForGallery={leaveForGallery}
         leaveForArena={leaveForArena}
       />
-      {newChildOpen ? (
-        <NewChildDialog
-          parentName={document.name}
-          onCancel={() => setNewChildOpen(false)}
-          onCreate={(name, ports) => {
-            try {
-              const draftCell = createChildCellDraft(
-                project,
-                document.id,
-                createId("document"),
-                name,
-                ports,
-              );
-              startInsertFromHook({
-                kind: "quick",
-                request: {
-                  kind: "cell",
-                  draftCell,
-                  symbolId: hierarchicalSymbolId(name),
-                  symbolName: name,
-                  childDocumentId: draftCell.id,
-                  cellName: name,
-                  parameters: {},
-                  initialRotation: 0,
-                  showReference: false,
-                  referenceText: null,
-                  showValue: true,
-                },
-              });
-              setNewChildOpen(false);
-              return undefined;
-            } catch (error) {
-              return error instanceof Error ? error.message : String(error);
-            }
-          }}
-        />
-      ) : null}
       <EditorDialogs
-        cellManagerTarget={cellManagerTarget}
-        setCellManagerTarget={setCellManagerTarget}
-        renameCellTerminal={renameCellTerminal}
-        setCellSymbolBodySize={setCellSymbolBodySize}
-        setCellSymbolPortPlacement={setCellSymbolPortPlacement}
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
         exportDelivery={exportDelivery}
@@ -5429,6 +5297,8 @@ function WorkspaceEditor({
         editorDocumentController={editorDocumentController}
         projectSessionId={projectSessionId}
         galleryTopologyProject={galleryTopologyProject}
+        projectConnectivityIndex={projectConnectivityIndex}
+        setDocumentStack={setDocumentStack}
         cellManagerOpen={cellManagerOpen}
         setCellManagerOpen={setCellManagerOpen}
         modelEditorDefinitionId={modelEditorDefinitionId}
@@ -5500,6 +5370,7 @@ function WorkspaceEditor({
         insertInitialSelectionId={insertInitialSelectionId}
         insertScope={insertScope}
         recentSymbolIds={recentSymbolIds}
+        switchDocument={switchDocument}
         jumpToCaller={jumpToCaller}
         openCellOccurrence={openCellOccurrence}
         navigateToNetlistDiagnostic={navigateToNetlistDiagnostic}
@@ -5614,46 +5485,7 @@ function WorkspaceEditor({
             }}
           />
         ) : null}
-        {leftPanelMode === "hierarchy" ? (
-          <CellHierarchyTree
-            key={projectSessionId}
-            project={project}
-            activeDocumentId={document.id}
-            path={documentStack}
-            expandedKeys={hierarchyExpanded}
-            onExpandedKeysChange={setHierarchyExpanded}
-            open={visibleLibraryPanelOpen}
-            onOpen={openCellOccurrence}
-            onDefinition={(id) => openCellOccurrence(id, [])}
-            onProperties={openCellProperties}
-            onNewChild={beginNewChild}
-            onExternal={() => {
-              setCellManagerTarget({ kind: "external" });
-              setCellManagerOpen(true);
-            }}
-            onPlace={(id) => {
-              const candidate = cellInsertCandidates.find(
-                (item) => item.childDocumentId === id,
-              );
-              if (!candidate) return;
-              startInsertFromHook({
-                kind: "quick",
-                request: {
-                  kind: "cell",
-                  symbolId: candidate.symbol.id,
-                  symbolName: candidate.cellName,
-                  childDocumentId: id,
-                  cellName: candidate.cellName,
-                  parameters: {},
-                  initialRotation: 0,
-                  showReference: false,
-                  referenceText: null,
-                  showValue: true,
-                },
-              });
-            }}
-          />
-        ) : !capabilities.community || leftPanelMode === "library" ? (
+        {!capabilities.community || leftPanelMode === "library" ? (
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
@@ -6605,26 +6437,6 @@ function WorkspaceEditor({
                             setCellManagerOpen(true);
                           }
                         : undefined,
-                      hierarchyParameters: selectedHierarchyCell
-                        ? {
-                            project,
-                            parent: document,
-                            cell: selectedHierarchyCell,
-                            instance: selectedInstance,
-                            onDefinition: () =>
-                              openCellProperties(selectedHierarchyCell.id),
-                            onChange: (name, value) =>
-                              transact([
-                                {
-                                  kind: "patch_instance_netlist_parameters",
-                                  instanceId: selectedInstance.id,
-                                  ...(value === null
-                                    ? { unset: [name] }
-                                    : { set: { [name]: value } }),
-                                },
-                              ]).ok,
-                          }
-                        : null,
                       cellSymbolLayout: selectedBlockLayout
                         ? {
                             target: selectedBlockLayout,

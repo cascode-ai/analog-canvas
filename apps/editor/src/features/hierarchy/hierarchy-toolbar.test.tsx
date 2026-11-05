@@ -6,17 +6,14 @@ import { HierarchyToolbar } from "./hierarchy-toolbar";
 
 const callbacks = {
   onTop: vi.fn(),
-  onOpenOccurrence: vi.fn(),
-  onUp: vi.fn(),
-  onShowHierarchy: vi.fn(),
-  onNewChild: vi.fn(),
+  onSelectDocument: vi.fn(),
   onEnter: vi.fn(),
   onManageCells: vi.fn(),
   onPlaceCell: vi.fn(),
 };
 
 describe("HierarchyToolbar", () => {
-  it("offers hierarchy and new child creation even in a flat Project", () => {
+  it("stays absent for a flat Project without an enter target", () => {
     const project = createEmptyProject("flat-toolbar", "Flat");
     expect(
       renderToStaticMarkup(
@@ -24,12 +21,12 @@ describe("HierarchyToolbar", () => {
           documents={project.documents}
           activeDocumentId={project.topDocumentId}
           topDocumentId={project.topDocumentId}
-          path={[]}
+          navigationDepth={0}
           canEnter={false}
           {...callbacks}
         />,
       ),
-    ).toContain("New child");
+    ).toBe("");
   });
 
   it("projects Cell navigation without owning hierarchy state", () => {
@@ -44,18 +41,17 @@ describe("HierarchyToolbar", () => {
         documents={project.documents}
         activeDocumentId={project.topDocumentId}
         topDocumentId={project.topDocumentId}
-        path={[]}
+        navigationDepth={0}
         canEnter
         {...callbacks}
       />,
     );
 
     expect(markup).toContain('data-testid="cell-navigation"');
-    expect(markup).toContain("Top");
-    expect(markup).toContain("Hierarchy");
+    expect(markup).toContain("dut (top)");
+    expect(markup).toContain("Child");
     expect(markup).toContain("Enter Cell");
-    expect(markup).toContain("Cell properties");
-    expect(markup).toContain(">Up</button>");
-    expect(markup).not.toContain("<select");
+    expect(markup).toContain("Manage Cells…");
+    expect(markup).not.toContain(">Up</button>");
   });
 });

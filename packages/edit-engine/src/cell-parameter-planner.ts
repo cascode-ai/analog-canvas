@@ -95,33 +95,6 @@ export function cellParameterCallers(
   );
 }
 
-export function planAddCellParameter(
-  project: CircuitProject,
-  documentId: string,
-  name: string,
-  defaultValue: string,
-): ProjectStructureEdit[] {
-  validateName(name);
-  validateDefaultValue(defaultValue);
-  const cell = requireCell(project, documentId);
-  if (
-    cell.netlist.formalParameters.some(
-      (parameter) => parameter.name.toLowerCase() === name.toLowerCase(),
-    )
-  )
-    throw new Error(`Parameter already exists: ${name}`);
-  const formalParameters = [
-    ...cell.netlist.formalParameters,
-    { name, defaultValue: defaultValue.trim() },
-  ];
-  validateDefaults(formalParameters);
-  return [
-    documentEdit(cell, [
-      { kind: "set_cell_formal_parameters", formalParameters },
-    ]),
-  ];
-}
-
 export function planSetCellParameterDefault(
   project: CircuitProject,
   documentId: string,

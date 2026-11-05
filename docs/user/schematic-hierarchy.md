@@ -5,38 +5,36 @@ saved default entry; other Cells can be placed any number of times or left
 unreferenced while you work on them. The top Cell can itself be placed in
 another Cell, as long as no recursion results.
 
-## Hierarchy tree
+## Cell Manager
 
-Open **Hierarchy** in the toolbar or **Circuit → Hierarchy → Hierarchy tree…**.
-The single tree starts at **Top** and expands actual instance occurrences to
-any supported depth. **Not connected to Top** contains unused root definitions
-and their children. Each row shows the instance reference and its Cell name.
+Open **Cell Manager…** (**Circuit → Hierarchy**, or **Manage Cells…** in the
+hierarchy toolbar). It lists each Cell with its Port and caller counts, opens
+or renames it, and lists callers with **Jump to caller**.
 
-- Click a row, double-click a canvas instance, or press **E** to enter it.
-  The breadcrumb records the exact instance path. **Up** / **Shift+E** returns
-  to its caller and selects that instance; **Top** opens the saved default.
-  Navigation fits the drawing as **F** does and does not edit the circuit.
-- The row's **…** menu opens the shared definition, **Cell properties**,
-  **Show uses**, or placement in the current Cell. Opening a definition has
-  no parent path; choose a concrete use to resume occurrence navigation.
-- **New child** accepts a name and optional Ports, then previews the block in
-  the current Cell. Clicking creates the definition, interface and caller in
-  one undo step and enters the child. **Esc** before placement leaves no Cell.
-- **Place Cell** reuses an existing definition with normal placement controls
-  (`R`, mirror, `Esc`). Self-instantiation and cycles are refused with a reason.
-- **Cell properties** edits the definition name, interface, parameters and
-  symbol layout. **New definition** creates an unattached Cell. **Delete**
-  removes only an unreferenced, non-top definition; deleting an instance never
-  deletes its Cell. **Move earlier** changes definition order, not Top.
-- **Set as Top** changes the saved default entry. It is undoable and does not
-  change the editing path, explicit netlist Entry or a simulation's Cell.
-- **Import Cell** copies a Cell from another Cloud Project with its children,
-  compatible external models and presentation in one undo step. The copy is
-  independent; repeating the import opens it. Symbol Library versions must match.
+- **Set as Top**, or drag a Cell onto the **Top** row, changes the default
+  entry; dragging among other rows only reorders the list (`Alt+Up/Down` with
+  a row focused). Neither changes the circuit, the editing location or a
+  simulation's chosen Cell, and both are undoable.
+- Double-click a row to open the definition; edit its heading to rename it.
+  Opening from the Manager has no caller context; enter through an instance
+  (or the **Hierarchy** tree of concrete occurrences) to keep the parent path.
+- **New Cell** creates a module. **Delete** removes only an unreferenced,
+  non-top Cell (undoable); delete its callers first. Deleting an instance
+  never deletes its Cell.
+- **Import Cell** copies a Cell from another of your Cloud Projects with its
+  child Cells, compatible external models, ports and presentation, as one
+  undoable step. The copy is independent of the source; importing the same
+  Cell again opens the existing copy. Both Projects must use the same Symbol
+  Library version.
 
-Tree expansion and instance paths are remembered per Project tab and after a
-refresh. If an edit removes part of the current path, navigation returns to
-the nearest surviving parent. Renaming a Cell does not change the path.
+**Place Cell** in the hierarchy toolbar (or **Edit → Place Cell from this
+Project…**) opens a searchable Cell picker; place the instance like any
+component (`R`, mirror, `Esc`). It shows the Cell name; its `Xn` instance name
+is the netlist identity. **Enter Cell** (`E`) opens a selected instance's
+child, **Shift+E** returns to the caller along the actual path, **Top** jumps
+to the root. Self-instantiation and cycles are refused with a reason.
+Entering or leaving a Cell this way lands fitted, as **F** does; a Cell opened
+from the **Cells** selector or Manager's definition list keeps its last view.
 
 ## Cell Pins
 
@@ -68,7 +66,7 @@ Junctions). Undo restores everything. ERC and export report conflicting
 directions in one Port and external names that collide with local Cells;
 unfinished work can still be saved.
 
-Open **Cell properties**, or select a parent instance and open **Properties**, to set the block's
+Select a Cell instance in a parent and open **Properties** to set the block's
 size and each pin's side and offset (**Auto** returns a pin to its default),
 or **Edit symbol layout on canvas** for drag grips. Changes apply to every
 instance. Highlight a Net (`H`) to see its **Hierarchy Net trace** in
@@ -77,21 +75,17 @@ Properties, with **Enter** and **Return** across instance boundaries.
 ## Cell parameters
 
 Device values can be numbers (`180um`) or expressions (`{2*Rbase}`), kept as
-typed. **Cell properties → Parameters** adds a name and default. Edit a name
-or default and press `Enter`; renaming updates internal uses and caller
-override keys in one undo step. A parameter still in use cannot be deleted.
-Cells need defaults for every parameter to export.
-
-Select a parent instance and open **Properties → Instance parameters** to
-enter overrides. **Reset** removes the override and inherits the default.
-The form shows stored expressions, without pretending to evaluate them.
-An override belongs to the instance in its parent definition: if that parent
-is reused, every occurrence of the parent shares the override. Editing the
-child definition affects all uses; **Show uses** locates them in the tree.
+typed. To add a Cell parameter, declare it with a default in the Cell's
+Project Code (`Rbase=1k`), then use it in device values. The Manager lists
+declared parameters: edit a name or default and press `Enter`. Renaming
+updates internal uses and every caller's override key in one step; a
+parameter still in use cannot be deleted. On a parent instance, enter
+overrides in its Property JSON; an empty value inherits the default. Cells
+need defaults for every parameter to export.
 
 ## External circuits
 
-The hierarchy panel's **External Circuits…** editor holds Project-owned native models.
+The Manager's **External Circuits** list holds Project-owned native models.
 **New External Circuit** takes a SPICE `.subckt` or Spectre `subckt` body;
 its name, terminal order and defaults are parsed beside a pin-labelled
 preview. The starter text is commented examples:
