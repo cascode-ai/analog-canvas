@@ -1,0 +1,35 @@
+[Unit]
+Description=Analog Canvas isolated login acceptance
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=canvas-login
+Group=canvas-login
+WorkingDirectory=/opt/analog-canvas/login-current
+ExecStart=/opt/analog-canvas/runtime/workerd-2026-09-11 serve --import-path=%d /opt/analog-canvas/login-current/config.capnp
+LoadCredential=github-client-id:/etc/analog-canvas/login/github-client-id
+LoadCredential=github-client-secret:/etc/analog-canvas/login/github-client-secret
+LoadCredential=resend-key:/etc/analog-canvas/login/resend-key
+LoadCredential=email-from:/etc/analog-canvas/login/email-from
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/analog-canvas-login
+InaccessiblePaths=/var/lib/analog-canvas /etc/analog-canvas/trial-login.conf
+MemoryHigh=512M
+MemoryMax=1G
+TasksMax=128
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
