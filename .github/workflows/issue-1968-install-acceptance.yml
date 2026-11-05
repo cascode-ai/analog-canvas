@@ -1,0 +1,44 @@
+name: Issue 1968 published installer acceptance
+on:
+  push:
+    branches: [codex/issue-1968-install-acceptance]
+permissions:
+  contents: read
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+      - name: Download and verify published bootstrap
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/bootstrap"
+          curl --fail --location --retry 1 --connect-timeout 30 --max-time 60 \
+            https://github.com/cascode-ai/analog-canvas/releases/download/mcp-v0.17.88/analog-canvas-mcp-server-0.17.88.tgz \
+            -o "$RUNNER_TEMP/bootstrap/package.tgz"
+          echo "3e629eb2cc8ded8649c0ee76af94bb12fa37a30bfb749c0bbed5d6323dabc757  $RUNNER_TEMP/bootstrap/package.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/bootstrap/package.tgz" -C "$RUNNER_TEMP/bootstrap" package/bin/analog-canvas-mcp.mjs
+      - name: Install through the published CLI and live manifest
+        shell: bash
+        run: |
+          node "$RUNNER_TEMP/bootstrap/package/bin/analog-canvas-mcp.mjs" \
+            --install --origin https://analog-canvas.tokenzhang.com --host config \
+            > "$RUNNER_TEMP/install-receipt.json"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+          import { isAbsolute } from 'node:path';
+          const receipt = JSON.parse(await readFile(`${process.env.RUNNER_TEMP}/install-receipt.json`, 'utf8'));
+          assert.equal(receipt.installed, true);
+          assert.equal(receipt.hostLoaded, false);
+          assert.equal(receipt.stage, 'host-loading');
+          assert.equal(receipt.nextAction, 'verify-host-tools');
+          assert.equal(receipt.toolCount, 38);
+          assert.equal(receipt.configPath, undefined);
+          assert.ok(isAbsolute(receipt.launch.command));
+          assert.ok(isAbsolute(receipt.launch.args[0]));
+          console.log(JSON.stringify({ installed: receipt.installed, hostLoaded: receipt.hostLoaded, stage: receipt.stage, toolCount: receipt.toolCount, node: process.version }));
+          NODE
