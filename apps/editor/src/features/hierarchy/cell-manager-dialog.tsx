@@ -1,11 +1,13 @@
-import { CellSymbolLayoutProperties } from "../properties/component-structure-properties";
-import { localBlockSymbolTarget } from "./block-symbol-layout-target";
-import type { createProjectStructureCommands } from "./project-structure-commands";
 import { useEffect, useState } from "react";
 import { resolveReviewedLibraryInterface } from "@icm/devices";
 import type { ProjectCellSummary } from "@icm/derived";
 
-import type { CircuitProject, ExternalSubcircuitDefinition } from "@icm/model";
+import type {
+  CircuitProject,
+  ExternalSubcircuitDefinition,
+  HierarchyFrame,
+} from "@icm/model";
+import { CellHierarchyTree } from "./cell-hierarchy-tree";
 import type { CloudProjectSummary } from "../editor-shell/cloud-projects";
 
 import { CellInterfaceEditor } from "./cell-interface-dialog";
@@ -58,13 +60,10 @@ function CellName({
 
 export function CellManagerDialog({
   open,
-  focusedCellId,
-  initialKind = "local",
-  onRenamePort,
-  setCellSymbolBodySize,
-  setCellSymbolPortPlacement,
   cells,
   project,
+  hierarchyCalls,
+  onOpenOccurrence,
   activeDocumentId,
   initialExternalId,
   initialModelLocation,
@@ -92,18 +91,11 @@ export function CellManagerDialog({
   onImportCloudCell,
 }: {
   open: boolean;
-  focusedCellId?: string;
-  initialKind?: "local" | "external";
-  setCellSymbolBodySize?: ReturnType<
-    typeof createProjectStructureCommands
-  >["setCellSymbolBodySize"];
-  setCellSymbolPortPlacement?: ReturnType<
-    typeof createProjectStructureCommands
-  >["setCellSymbolPortPlacement"];
-  onRenamePort?(documentId: string, portId: string, name: string): void;
   onCopyModelText?(text: string): Promise<void>;
   cells: readonly ProjectCellSummary[];
   project: CircuitProject;
+  hierarchyCalls: readonly HierarchyFrame[];
+  onOpenOccurrence(documentId: string, path: readonly HierarchyFrame[]): void;
   activeDocumentId: string;
   initialExternalId?: string | null;
   initialModelLocation?: SimulationSourceLocation | undefined;
@@ -149,17 +141,17 @@ export function CellManagerDialog({
     documentId: string,
   ): Promise<{ ok: boolean; message: string; documentId?: string }>;
 }) {
-  const [selectedId, setSelectedId] = useState(
-    focusedCellId ?? activeDocumentId,
-  );
+  const [selectedId, setSelectedId] = useState(activeDocumentId);
   const [resourceKind, setResourceKind] = useState<"local" | "external">(
-    initialExternalId ? "external" : initialKind,
+    "local",
   );
   const [externalId, setExternalId] = useState<string | null>(null);
   const [externalDraft, setExternalDraft] = useState(0);
   const [filter, setFilter] = useState("");
   const [draftName, setDraftName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropId, setDropId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProjectId, setImportProjectId] = useState("");
@@ -168,9 +160,7 @@ export function CellManagerDialog({
   const [importBusy, setImportBusy] = useState(false);
   const [importMessage, setImportMessage] = useState("");
   const [detailVisible, setDetailVisible] = useState(
-    Boolean(initialExternalId) ||
-      initialKind === "local" ||
-      externalDefinitions.length === 0,
+    Boolean(initialExternalId),
   );
   const [pendingPlacement, setPendingPlacement] = useState<string | null>(null);
   const [modelDirty, setModelDirty] = useState(false);
@@ -193,13 +183,8 @@ export function CellManagerDialog({
 
   useEffect(() => {
     if (open) {
-      setSelectedId(focusedCellId ?? activeDocumentId);
-      setResourceKind(initialExternalId ? "external" : initialKind);
-      setDetailVisible(
-        Boolean(initialExternalId) ||
-          initialKind === "local" ||
-          externalDefinitions.length === 0,
-      );
+      setSelectedId(activeDocumentId);
+      setResourceKind(initialExternalId ? "external" : "local");
       if (initialExternalId) setExternalId(initialExternalId);
       return;
     }
@@ -213,7 +198,7 @@ export function CellManagerDialog({
     setImportBusy(false);
     setImportMessage("");
     setFilter("");
-  }, [activeDocumentId, open, initialExternalId, focusedCellId, initialKind]);
+  }, [activeDocumentId, open, initialExternalId]);
 
   const selectedEntry =
     cells.find((cell) => cell.id === selectedId) ?? cells[0];
@@ -223,6 +208,7 @@ export function CellManagerDialog({
   ];
   const matchesFilter = (name: string) =>
     name.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase());
+  const visibleCells = orderedCells.filter((cell) => matchesFilter(cell.name));
   const visibleDefinitions = externalDefinitions.filter((definition) =>
     matchesFilter(definition.name),
   );
@@ -235,6 +221,8 @@ export function CellManagerDialog({
     if (!makeTop && sourceId === project.topDocumentId) return;
     ids.splice(beforeId ? ids.indexOf(beforeId) : ids.length, 0, sourceId);
     onReorder(ids, makeTop ? sourceId : project.topDocumentId);
+    setDraggedId(null);
+    setDropId(null);
   }
   const selectedDocument = project.documents.find(
     (document) => document.id === selectedEntry?.id,
@@ -341,27 +329,44 @@ export function CellManagerDialog({
               {cells.length} {cells.length === 1 ? "Cell" : "Cells"} ·{" "}
               {externalDefinitions.length} External
             </p>
-            <h2 id="cell-manager-title">
-              {resourceKind === "local"
-                ? "Cell properties"
-                : "External Circuits"}
-            </h2>
+            <h2 id="cell-manager-title">Cell Manager</h2>
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              requestLeave(() => {
-                setResourceKind(
-                  resourceKind === "local" ? "external" : "local",
-                );
-                setDetailVisible(
-                  resourceKind !== "local" || externalDefinitions.length === 0,
-                );
-              })
-            }
+          <div
+            className="cell-manager-resource-tabs"
+            role="tablist"
+            aria-label="Definition type"
           >
-            {resourceKind === "local" ? "External Circuits" : "Cell properties"}
-          </button>
+            <button
+              type="button"
+              role="tab"
+              id="cell-manager-tab-local"
+              aria-controls="cell-manager-panel-local"
+              aria-selected={resourceKind === "local"}
+              onClick={() =>
+                requestLeave(() => {
+                  setResourceKind("local");
+                  setDetailVisible(false);
+                })
+              }
+            >
+              Cells
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="cell-manager-tab-external"
+              aria-controls="cell-manager-panel-external"
+              aria-selected={resourceKind === "external"}
+              onClick={() =>
+                requestLeave(() => {
+                  setResourceKind("external");
+                  setDetailVisible(externalDefinitions.length === 0);
+                })
+              }
+            >
+              External Circuits
+            </button>
+          </div>
           <button
             type="button"
             className="cell-manager-dismiss"
@@ -373,11 +378,170 @@ export function CellManagerDialog({
         </header>
 
         <div
-          className={`cell-manager-body${resourceKind === "local" ? " cell-properties-body" : ""}`}
+          className="cell-manager-body"
+          role="tabpanel"
           id={`cell-manager-panel-${resourceKind}`}
+          aria-labelledby={`cell-manager-tab-${resourceKind}`}
           data-pane={detailVisible ? "detail" : "list"}
         >
-          {resourceKind === "external" ? (
+          {resourceKind === "local" ? (
+            <aside className="cell-manager-list" aria-label="Cells">
+              <input
+                type="search"
+                aria-label="Search definitions"
+                placeholder="Search…"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+              />
+              <div className="cell-manager-list-scroll">
+                {visibleCells.map((cell) => (
+                  <div
+                    key={cell.id}
+                    className="cell-manager-entry"
+                    data-drop={dropId === cell.id ? "active" : undefined}
+                    onDragOver={(event) => {
+                      if (
+                        draggedId &&
+                        draggedId !== cell.id &&
+                        draggedId !== project.topDocumentId
+                      ) {
+                        event.preventDefault();
+                        setDropId(cell.id);
+                      }
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggedId) moveCell(draggedId, cell.id, cell.isTop);
+                    }}
+                  >
+                    {dropId === cell.id ? (
+                      <small className="cell-drop-hint">
+                        {cell.isTop ? "Set as Top" : `Move before ${cell.name}`}
+                      </small>
+                    ) : null}
+                    <button
+                      type="button"
+                      draggable={!cell.isTop}
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData("text/plain", cell.id);
+                        event.dataTransfer.effectAllowed = "move";
+                        setDraggedId(cell.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedId(null);
+                        setDropId(null);
+                      }}
+                      onDoubleClick={() => onOpen(cell.id)}
+                      onKeyDown={(event) => {
+                        if (event.altKey && event.key === "ArrowUp") {
+                          event.preventDefault();
+                          const index = orderedCells.findIndex(
+                            (item) => item.id === cell.id,
+                          );
+                          if (index > 0)
+                            moveCell(
+                              cell.id,
+                              orderedCells[index - 1]!.id,
+                              index === 1,
+                            );
+                        }
+                        if (
+                          event.altKey &&
+                          event.key === "ArrowDown" &&
+                          !cell.isTop
+                        ) {
+                          event.preventDefault();
+                          const index = orderedCells.findIndex(
+                            (item) => item.id === cell.id,
+                          );
+                          if (index < orderedCells.length - 1)
+                            moveCell(
+                              cell.id,
+                              orderedCells[index + 2]?.id ?? "",
+                              false,
+                            );
+                        }
+                      }}
+                      className="cell-manager-list-item"
+                      aria-selected={cell.id === selectedEntry?.id}
+                      onClick={() => {
+                        setSelectedId(cell.id);
+                        setDetailVisible(true);
+                      }}
+                    >
+                      <span>
+                        <strong>{cell.name}</strong>
+                        {cell.isTop ? <em>Top</em> : null}
+                      </span>
+                      <small>
+                        {cell.portCount} ports · {cell.callers.length} callers
+                      </small>
+                    </button>
+                  </div>
+                ))}
+                {filter && !visibleCells.length ? (
+                  <p role="status">No matches</p>
+                ) : null}
+                <div
+                  className="cell-manager-drop-end"
+                  aria-label="Move Cell to end"
+                  onDragOver={(event) => {
+                    if (draggedId) {
+                      event.preventDefault();
+                      setDropId("");
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (draggedId) moveCell(draggedId, "", false);
+                  }}
+                >
+                  {draggedId ? "Move to end" : null}
+                </div>
+              </div>
+              <CellHierarchyTree
+                project={project}
+                calls={hierarchyCalls}
+                onOpen={onOpenOccurrence}
+              />
+              <footer className="cell-manager-list-actions">
+                <button
+                  type="button"
+                  className="cell-manager-new"
+                  onClick={() => {
+                    setDraftName("");
+                    setDeleteId(null);
+                    setCreating(true);
+                  }}
+                >
+                  New Cell
+                </button>
+                {onLoadCloudProject ? (
+                  <button
+                    type="button"
+                    className="cell-manager-new"
+                    disabled={cloudProjects.length === 0}
+                    title={
+                      cloudProjects.length === 0
+                        ? "Sign in and open another Project to import a Cell."
+                        : undefined
+                    }
+                    onClick={() => {
+                      setCreating(false);
+                      setDeleteId(null);
+                      setImporting(true);
+                      setImportProjectId("");
+                      setImportSource(null);
+                      setImportCellId("");
+                      setImportMessage("");
+                    }}
+                  >
+                    Import Cell
+                  </button>
+                ) : null}
+              </footer>
+            </aside>
+          ) : (
             <aside className="cell-manager-list" aria-label="External Circuits">
               <input
                 type="search"
@@ -438,18 +602,16 @@ export function CellManagerDialog({
                 </button>
               </footer>
             </aside>
-          ) : null}
+          )}
 
           <div className="cell-manager-detail">
-            {resourceKind === "external" ? (
-              <button
-                type="button"
-                className="cell-manager-back"
-                onClick={() => setDetailVisible(false)}
-              >
-                Back to list
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className="cell-manager-back"
+              onClick={() => setDetailVisible(false)}
+            >
+              Back to list
+            </button>
             {resourceKind === "external" ? (
               <>
                 <header className="cell-manager-detail-header">
@@ -507,36 +669,6 @@ export function CellManagerDialog({
                   <div className="cell-manager-actions">
                     <button
                       type="button"
-                      onClick={() => {
-                        setDraftName("");
-                        setCreating(true);
-                      }}
-                    >
-                      New definition
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        selectedEntry.isTop ||
-                        orderedCells.findIndex(
-                          (cell) => cell.id === selectedEntry.id,
-                        ) < 2
-                      }
-                      onClick={() => {
-                        const index = orderedCells.findIndex(
-                          (cell) => cell.id === selectedEntry.id,
-                        );
-                        moveCell(
-                          selectedEntry.id,
-                          orderedCells[index - 1]!.id,
-                          false,
-                        );
-                      }}
-                    >
-                      Move earlier
-                    </button>
-                    <button
-                      type="button"
                       disabled={Boolean(placementIssue)}
                       title={
                         placementIssue ??
@@ -582,33 +714,10 @@ export function CellManagerDialog({
                   <p className="cell-interface-empty">{placementIssue}</p>
                 ) : null}
 
-                {onLoadCloudProject ? (
-                  <button
-                    type="button"
-                    disabled={!cloudProjects.length}
-                    onClick={() => {
-                      setImporting(true);
-                      setImportProjectId("");
-                      setImportSource(null);
-                      setImportMessage("");
-                    }}
-                  >
-                    Import Cell
-                  </button>
-                ) : null}
-                <p>
-                  Shared definition. Changes apply to every use of this Cell.
-                </p>
                 <CellInterfaceEditor
                   cell={selectedDocument}
                   project={project}
                   callerCount={selectedEntry.callers.length}
-                  onRenamePort={
-                    onRenamePort
-                      ? (portId, name) =>
-                          onRenamePort(selectedEntry.id, portId, name)
-                      : undefined
-                  }
                   onSetPortDirection={(portId, direction) =>
                     onSetPortDirection(selectedEntry.id, portId, direction)
                   }
@@ -619,29 +728,6 @@ export function CellManagerDialog({
                     onEditParameter(selectedEntry.id, name, change)
                   }
                 />
-                {selectedDocument.netlist &&
-                setCellSymbolBodySize &&
-                setCellSymbolPortPlacement ? (
-                  <CellSymbolLayoutProperties
-                    target={localBlockSymbolTarget(selectedDocument)}
-                    enabled={false}
-                    onBodySizeChange={(width, height) =>
-                      setCellSymbolBodySize(
-                        localBlockSymbolTarget(selectedDocument),
-                        width,
-                        height,
-                      )
-                    }
-                    onPortPlacementChange={(id, side, offset) =>
-                      setCellSymbolPortPlacement(
-                        localBlockSymbolTarget(selectedDocument),
-                        id,
-                        side,
-                        offset,
-                      )
-                    }
-                  />
-                ) : null}
               </>
             ) : (
               <p className="cell-interface-empty">No Cell selected.</p>
@@ -834,7 +920,7 @@ export function CellManagerDialog({
                 }}
               >
                 <header className="editor-action-dialog-header">
-                  <h2 id="cell-name-dialog-title">New definition</h2>
+                  <h2 id="cell-name-dialog-title">New Cell</h2>
                 </header>
                 <div className="editor-action-dialog-body">
                   <label className="editor-action-dialog-field">

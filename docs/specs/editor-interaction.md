@@ -27,7 +27,7 @@ rendering and recovery.
   starts `passive`. Duplicate names are valid; placement and rename change only
   the selected Pin (never attach, merge or sync).
 - **Enter Cell** opens only a hierarchical Instance. A Pin shows only its
-  terminal-name annotation; direction lives in Cell properties. Caller
+  terminal-name annotation; direction lives in Cell Manager. Caller
   reconciliation compares the name projection before/after, does nothing while
   the old-name group survives, and never merges caller Nets.
 - Delete reuses the instance/route deletion proposal. A run that only tapped the

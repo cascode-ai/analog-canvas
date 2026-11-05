@@ -1,4 +1,3 @@
-import { CellInstanceParameters } from "../features/hierarchy/cell-instance-parameters";
 import { Suspense, useMemo, type ComponentProps, type RefObject } from "react";
 
 import { CanvasCrossingsSection } from "../features/editor-shell/canvas-crossings-section";
@@ -32,7 +31,6 @@ import {
 } from "./lazy-editor-dialogs";
 
 interface ComponentPropertiesModel {
-  hierarchyParameters?: ComponentProps<typeof CellInstanceParameters> | null;
   code: ComponentProps<typeof ComponentPropertyCodeEditor>;
   cellSymbolLayout: ComponentProps<typeof CellSymbolLayoutProperties> | null;
   identity: ComponentProps<typeof ComponentIdentityProperties>;
@@ -177,9 +175,6 @@ export function EditorPropertiesDock({
                 className="property-section component-properties"
                 aria-label="Component properties"
               >
-                {component.hierarchyParameters ? (
-                  <CellInstanceParameters {...component.hierarchyParameters} />
-                ) : null}
                 <Suspense fallback={<p role="status">Loading properties…</p>}>
                   <ComponentPropertyCodeEditor
                     key={component.code.instance.id}

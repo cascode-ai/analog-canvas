@@ -47,9 +47,9 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
   });
   const [compactLayout, setCompactLayout] = useState(options.initialCompact);
   const [compactLibraryPanelOpen, setCompactLibraryPanelOpen] = useState(false);
-  const [leftPanelMode, setLeftPanelMode] = useState<
-    "library" | "examples" | "hierarchy"
-  >("library");
+  const [leftPanelMode, setLeftPanelMode] = useState<"library" | "examples">(
+    "library",
+  );
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,7 +93,7 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
     }
   };
 
-  const showLeftPanel = (mode: "library" | "examples" | "hierarchy"): void => {
+  const showLeftPanel = (mode: "library" | "examples"): void => {
     setLeftPanelMode(mode);
     if (compactLayout) {
       setCompactLibraryPanelOpen(true);
@@ -105,7 +105,7 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
   };
 
   const toggleLibraryPanel = (): void => {
-    if (leftPanelMode !== "library") {
+    if (leftPanelMode === "examples") {
       showLeftPanel("library");
       return;
     }

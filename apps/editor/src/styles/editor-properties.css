@@ -1258,32 +1258,3 @@
 .signal-flow-actions button {
   margin: 0;
 }
-
-.cell-instance-parameters {
-  border-top: 1px solid var(--icm-border);
-  padding: 12px 0;
-  font-size: 12px;
-}
-.cell-instance-parameters h3 {
-  font-size: 12px;
-}
-.cell-instance-parameters p,
-.cell-instance-parameters small {
-  color: var(--icm-text-muted);
-}
-.cell-instance-parameter {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 4px 8px;
-  padding-block: 8px;
-}
-.cell-instance-parameter label {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-.cell-instance-parameter input {
-  min-width: 0;
-  width: 55%;
-}

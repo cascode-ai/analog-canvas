@@ -15,7 +15,6 @@ import {
   planUpdateCellTerminalDirection,
   planUpdateCellPortDirection,
   planRenameCellParameter,
-  planAddCellParameter,
   planSetCellParameterDefault,
   planRemoveCellParameter,
   proposeUpsertExternalSubcircuitDefinition,
@@ -48,7 +47,6 @@ export type { CellInterfaceConfirmation } from "./cell-interface-confirmation-ty
 type CellDirection = "input" | "output" | "inout" | "passive";
 type CellPinSide = "north" | "east" | "south" | "west" | "auto";
 export type CellParameterChange =
-  | { kind: "add"; value: string }
   | { kind: "rename"; value: string }
   | { kind: "default"; value: string }
   | { kind: "remove" };
@@ -299,9 +297,7 @@ export function createProjectStructureCommands({
     const committed = commitStructure(
       "delete-cell",
       planDeleteCell(project, documentId),
-      documentId === activeDocument.id
-        ? project.topDocumentId
-        : activeDocument.id,
+      project.topDocumentId,
     );
     if (committed) setStatus(`Deleted Cell ${target.name}`);
     return committed;
@@ -695,28 +691,21 @@ export function createProjectStructureCommands({
   ): ExternalDefinitionResult => {
     try {
       const edits =
-        change.kind === "add"
-          ? planAddCellParameter(
+        change.kind === "rename"
+          ? planRenameCellParameter(
               project,
               targetDocumentId,
-              name.trim(),
+              name,
               change.value.trim(),
             )
-          : change.kind === "rename"
-            ? planRenameCellParameter(
+          : change.kind === "default"
+            ? planSetCellParameterDefault(
                 project,
                 targetDocumentId,
                 name,
                 change.value.trim(),
               )
-            : change.kind === "default"
-              ? planSetCellParameterDefault(
-                  project,
-                  targetDocumentId,
-                  name,
-                  change.value.trim(),
-                )
-              : planRemoveCellParameter(project, targetDocumentId, name);
+            : planRemoveCellParameter(project, targetDocumentId, name);
       const ok =
         edits.length === 0 ||
         commitStructure(`cell-parameter-${change.kind}`, edits);

@@ -66,7 +66,6 @@ export interface DraftTextAnnotationInsertRequest {
 }
 
 export interface CellInsertRequest {
-  draftCell?: import("@icm/model").SchematicDocument;
   kind: "cell";
   symbolId: string;
   symbolName: string;
