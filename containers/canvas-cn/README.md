@@ -28,6 +28,30 @@ contract](../../docs/specs/china-regional-identity-sync.md) is not implemented.
   accounts use a separate dataset and verified login; public rollout must
   remove the bypass and supply production authorization configuration.
 
+## Login acceptance
+
+`login/` is a separate loopback-only service using the unchanged AuthDO bundle.
+It verifies provider login into disposable records, not regional identities.
+Its state directory, Unix user and localhost browser origin are separate from
+both the editor trial and Production. Cloud Projects, Gallery, Arena, Agent
+sessions and simulation routes are refused. Never import its account IDs into
+Production or use it to claim identity synchronization is complete.
+
+The entry allows only the login/status/logout routes. Provider egress allows
+only exact HTTPS methods and endpoints, refuses redirects, and cannot reach
+private network addresses. Systemd loads credentials from root-owned files;
+release files and logs contain no secrets. Use the same pinned workerd and
+Worker bundle as the editor trial. The service owns its state for its lifetime.
+Stopping it preserves that state; this disposable probe has no production
+backup or synchronization guarantee.
+
+GitHub and email activate only when their credentials are installed. The
+email sender must belong to the verified domain of the scoped Resend key.
+Google remains disabled until server-side token and user-info connectivity
+is qualified. Register the localhost callback at the provider before a real
+browser test. Acceptance requires actual provider authorization and a returned
+session, not just a visible sign-in link or a successful provider-start redirect.
+
 ## Backup and rollback
 
 `backup.sh` runs as root and serializes maintenance through

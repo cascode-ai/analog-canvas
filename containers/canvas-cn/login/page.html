@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Canvas 国内登录验收</title>
+  <style>
+    body {
+      max-width: 680px;
+      margin: 60px auto;
+      padding: 0 24px;
+      font: 16px/1.7 system-ui;
+      color: #202b3e;
+    }
+    button,
+    input {
+      padding: 10px;
+      margin: 6px 0;
+      font: inherit;
+    }
+    label {
+      display: block;
+    }
+    #status {
+      white-space: pre-wrap;
+      padding: 16px;
+      background: #eef3fa;
+    }
+  </style>
+  <h1>Canvas 国内登录验收</h1>
+  <p>
+    此入口仅验证登录。使用独立测试账号记录，不读取海外项目，也不开放项目保存或仿真。
+  </p>
+  <p>
+    <a id="github" hidden href="/api/auth/github/start">使用 GitHub 登录</a>
+  </p>
+  <form id="email-form" hidden>
+    <label
+      >邮箱 <input id="email" type="email" autocomplete="email" required
+    /></label>
+    <button type="submit">发送验证码</button>
+  </form>
+  <form id="code-form" hidden>
+    <label
+      >验证码
+      <input
+        id="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        required
+    /></label>
+    <button type="submit">验证并登录</button>
+  </form>
+  <button id="logout" hidden>退出登录</button>
+  <p id="status" role="status">正在检查登录状态…</p>
+  <script>
+    const status = document.getElementById("status");
+    async function post(path, body = {}) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "请求失败");
+      return result;
+    }
+    async function refresh() {
+      const providers = await (await fetch("/api/auth/providers")).json();
+      const { user } = await (await fetch("/api/auth/me")).json();
+      document.getElementById("github").hidden = !providers.github || !!user;
+      document.getElementById("email-form").hidden = !providers.email || !!user;
+      document.getElementById("logout").hidden = !user;
+      status.textContent = user
+        ? "登录成功：" +
+          user.displayName +
+          "\n这是独立验收记录，尚未关联海外账号。"
+        : "尚未登录。" +
+          (providers.email ? "" : " 邮箱登录待配置。") +
+          " Google 登录待服务器网络连通。";
+      if (new URLSearchParams(location.search).get("auth") === "failed")
+        status.textContent += " 登录未完成，请检查授权及回调配置。";
+    }
+    document.getElementById("email-form").onsubmit = async (event) => {
+      event.preventDefault();
+      try {
+        await post("/api/auth/email/start", {
+          email: document.getElementById("email").value,
+        });
+        document.getElementById("code-form").hidden = false;
+        status.textContent = "验证码已发送，请检查邮箱。";
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    };
+    document.getElementById("code-form").onsubmit = async (event) => {
+      event.preventDefault();
+      try {
+        await post("/api/auth/email/verify", {
+          email: document.getElementById("email").value,
+          code: document.getElementById("code").value,
+        });
+        document.getElementById("code-form").hidden = true;
+        await refresh();
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    };
+    document.getElementById("logout").onclick = async () => {
+      try {
+        await post("/api/auth/logout");
+        await refresh();
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    };
+    refresh().catch(() => {
+      status.textContent = "登录服务暂时不可用。";
+    });
+  </script>
+</html>
