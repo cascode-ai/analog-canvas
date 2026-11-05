@@ -5,12 +5,7 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import { flushSync } from "react-dom";
 import { claimNow } from "../agent/claim-clock";
 import { planProjectCellImport } from "@icm/edit-engine";
-import type {
-  HierarchyFrame,
-  ProjectConnectivityIndex,
-  runErcChecks,
-  summarizeProjectCells,
-} from "@icm/derived";
+import type { runErcChecks, summarizeProjectCells } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
 import type { createEditorCommandRouter } from "../commands/editor-command";
@@ -104,8 +99,11 @@ export function EditorDialogs({
   editorDocumentController,
   projectSessionId,
   galleryTopologyProject,
-  projectConnectivityIndex,
-  setDocumentStack,
+  cellManagerTarget,
+  setCellManagerTarget,
+  renameCellTerminal,
+  setCellSymbolBodySize,
+  setCellSymbolPortPlacement,
   cellManagerOpen,
   setCellManagerOpen,
   modelEditorDefinitionId,
@@ -177,7 +175,6 @@ export function EditorDialogs({
   insertInitialSelectionId,
   insertScope,
   recentSymbolIds,
-  switchDocument,
   jumpToCaller,
   openCellOccurrence,
   navigateToNetlistDiagnostic,
@@ -216,8 +213,13 @@ export function EditorDialogs({
   editorDocumentController: EditorDocumentController;
   projectSessionId: string;
   galleryTopologyProject: ReturnType<typeof projectWithTopologyRoot>;
-  projectConnectivityIndex: ProjectConnectivityIndex;
-  setDocumentStack: Dispatch<SetStateAction<HierarchyFrame[]>>;
+  cellManagerTarget: { kind: "cell"; id: string } | { kind: "external" } | null;
+  setCellManagerTarget: (
+    target: { kind: "cell"; id: string } | { kind: "external" } | null,
+  ) => void;
+  renameCellTerminal: ProjectStructureCommands["renameCellTerminal"];
+  setCellSymbolBodySize: ProjectStructureCommands["setCellSymbolBodySize"];
+  setCellSymbolPortPlacement: ProjectStructureCommands["setCellSymbolPortPlacement"];
   cellManagerOpen: boolean;
   setCellManagerOpen: Dispatch<SetStateAction<boolean>>;
   modelEditorDefinitionId: string | null;
@@ -291,7 +293,6 @@ export function EditorDialogs({
   insertInitialSelectionId: ComponentPlacement["insertInitialSelectionId"];
   insertScope: ComponentPlacement["insertScope"];
   recentSymbolIds: ComponentPlacement["recentSymbolIds"];
-  switchDocument: NavigationController["switchDocument"];
   jumpToCaller: NavigationController["jumpToCaller"];
   openCellOccurrence: NavigationController["openCellOccurrence"];
   navigateToNetlistDiagnostic: NavigationController["navigateToNetlistDiagnostic"];
@@ -427,17 +428,22 @@ export function EditorDialogs({
         cellManagerOpen
           ? {
               open: cellManagerOpen,
+              ...(cellManagerTarget?.kind === "cell"
+                ? { focusedCellId: cellManagerTarget.id }
+                : {}),
+              initialKind:
+                cellManagerTarget?.kind === "external" ? "external" : "local",
+              setCellSymbolBodySize,
+              setCellSymbolPortPlacement,
+              onRenamePort: (documentId, portId, name) =>
+                renameCellTerminal(portId, name, documentId),
               initialExternalId: modelEditorDefinitionId,
               initialModelLocation: modelEditorLocation,
               cells: cellManagerEntries,
               project,
-              hierarchyCalls: projectConnectivityIndex.hierarchy.calls,
-              onOpenOccurrence: (documentId, hierarchyPath) => {
-                openCellOccurrence(documentId, hierarchyPath);
-                setCellManagerOpen(false);
-              },
               activeDocumentId: document.id,
               onClose: () => {
+                setCellManagerTarget(null);
                 setCellManagerOpen(false);
                 setModelEditorDefinitionId(null);
                 setModelEditorLocation(undefined);
@@ -448,8 +454,7 @@ export function EditorDialogs({
               },
               onOpen: (documentId) => {
                 setCellManagerOpen(false);
-                setDocumentStack([]);
-                switchDocument(documentId);
+                openCellOccurrence(documentId, []);
               },
               onRename: renameCell,
               onReorder: (documentIds, topDocumentId) => {

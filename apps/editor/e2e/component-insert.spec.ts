@@ -336,11 +336,12 @@ test("new circuits open Library and Netlist, keep the saved preference, and mirr
     "ellipsis",
   ].entries()) {
     await pickAnnotation(symbol);
-    await canvas.hover({ position: { x: 160 + index * 150, y: 560 } });
+    const position = { x: 160 + index * 150, y: 300 };
+    await canvas.hover({ position });
     // A minus is a stroked horizontal line with a zero-height SVG geometry
     // box; Playwright's visibility heuristic excludes it despite the stroke.
     await expect(page.getByTestId("text-placement-preview")).toBeAttached();
-    await canvas.click({ position: { x: 160 + index * 150, y: 560 } });
+    await canvas.click({ position });
     if (symbol === "polarity-both") {
       await page.getByRole("button", { name: "Apply text changes" }).click();
     }

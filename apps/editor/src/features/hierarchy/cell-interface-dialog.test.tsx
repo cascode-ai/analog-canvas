@@ -6,7 +6,7 @@ import { CellInterfaceEditor } from "./cell-interface-dialog";
 import { CellParametersEditor } from "./cell-parameters-editor";
 
 describe("CellInterfaceEditor", () => {
-  it("hides an empty parameter table but retains imported declarations without defaults", () => {
+  it("offers parameter creation and retains imported declarations without defaults", () => {
     const project = createEmptyProject("project", "Project");
     const cell = project.documents[0]!;
     const render = () =>
@@ -17,7 +17,7 @@ describe("CellInterfaceEditor", () => {
           onEdit={() => ({ ok: true, message: "" })}
         />,
       );
-    expect(render()).toBe("");
+    expect(render()).toContain("Add parameter");
     cell.netlist!.formalParameters = [{ name: "Imported" }];
     const markup = render();
     expect(markup).toContain('aria-label="Parameter Imported name"');

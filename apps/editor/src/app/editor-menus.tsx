@@ -1,3 +1,4 @@
+import type { HierarchyToolbarProps } from "../features/hierarchy/hierarchy-toolbar";
 // The editor's menus bound to its commands: the header with its project tabs,
 // File, Edit and Circuit menus and toolbars, and the canvas context menu.
 import { cloudShelfOpened } from "../components/arena-gate-request";
@@ -70,6 +71,7 @@ type NativeProjectTabs = ReturnType<typeof useNativeProjectTabs>;
 
 /** The header: project tabs, menus and toolbars, bound to the editor. */
 export function EditorMenuBar({
+  hierarchyActions,
   identity,
   projectStore,
   nativeProjectStore,
@@ -93,8 +95,6 @@ export function EditorMenuBar({
   documentStack,
   visualSelection,
   selectionFilterOpen,
-  cellManagerOpen,
-  setCellManagerOpen,
   netlistPreflightOpen,
   setNetlistPreflightOpen,
   projectPanel,
@@ -147,7 +147,6 @@ export function EditorMenuBar({
   alignmentParticipantCount,
   internalSelection,
   projectInstanceCount,
-  selectDocumentFromHierarchy,
   enterSelectedHierarchy,
   returnToTopDocument,
   toggleProjectPanel,
@@ -175,6 +174,14 @@ export function EditorMenuBar({
   leaveForGallery,
   leaveForArena,
 }: {
+  hierarchyActions: Pick<
+    HierarchyToolbarProps,
+    | "onUp"
+    | "onOpenOccurrence"
+    | "onShowHierarchy"
+    | "onNewChild"
+    | "onManageCells"
+  >;
   identity: EditorServices["identity"];
   projectStore: EditorServices["projectStore"];
   nativeProjectStore: EditorServices["nativeProjectStore"];
@@ -198,8 +205,6 @@ export function EditorMenuBar({
   documentStack: HierarchyFrame[];
   visualSelection: SelectionController["selection"];
   selectionFilterOpen: boolean;
-  cellManagerOpen: boolean;
-  setCellManagerOpen: Dispatch<SetStateAction<boolean>>;
   netlistPreflightOpen: boolean;
   setNetlistPreflightOpen: Dispatch<SetStateAction<boolean>>;
   projectPanel: EditorProjectPanelMode | null;
@@ -252,7 +257,6 @@ export function EditorMenuBar({
   alignmentParticipantCount: number;
   internalSelection: ReturnType<typeof deriveRoutingAffectedClosure>;
   projectInstanceCount: number;
-  selectDocumentFromHierarchy: NavigationController["selectDocumentFromHierarchy"];
   enterSelectedHierarchy: NavigationController["enterSelectedHierarchy"];
   returnToTopDocument: NavigationController["returnToTopDocument"];
   toggleProjectPanel: (mode: EditorProjectPanelMode) => void;
@@ -459,8 +463,8 @@ export function EditorMenuBar({
       }}
       searchOpen={searchOpen}
       selectionFilterOpen={selectionFilterOpen}
-      cellManagerOpen={cellManagerOpen}
-      onManageCells={() => setCellManagerOpen(true)}
+      cellManagerOpen={leftPanelMode === "hierarchy" && visibleLibraryPanelOpen}
+      onManageCells={hierarchyActions.onShowHierarchy}
       userComponentsOpen={userComponentsOpen}
       onOpenUserComponents={() => {
         cancelAllTransientInteraction();
@@ -625,12 +629,11 @@ export function EditorMenuBar({
         documents: project.documents,
         activeDocumentId: document.id,
         topDocumentId: project.topDocumentId,
-        navigationDepth: documentStack.length,
+        path: documentStack,
         canEnter: hasHierarchyEnterSelection,
         onTop: returnToTopDocument,
-        onSelectDocument: selectDocumentFromHierarchy,
         onEnter: enterSelectedHierarchy,
-        onManageCells: () => setCellManagerOpen(true),
+        ...hierarchyActions,
         onPlaceCell: placeCellInstance,
       }}
       telemetry={{

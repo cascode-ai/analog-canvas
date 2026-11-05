@@ -1,3 +1,4 @@
+import { projectHierarchyCalls } from "./project-hierarchy.js";
 import { registerDocumentCache } from "./document-caches.js";
 import { deriveStableId, foldNetName } from "@icm/model";
 import type {
@@ -430,17 +431,12 @@ function buildHierarchyIndex(
   resolver: SymbolResolver,
   documents: ReadonlyMap<string, DocumentConnectivityIndex>,
 ): HierarchyConnectivityIndex {
-  const calls: HierarchyFrame[] = [];
+  const calls = projectHierarchyCalls(project);
   const edges: HierarchyEdge[] = [];
   for (const parent of project.documents) {
     for (const instance of parent.instances) {
       const childId = referencedDocumentId(project, instance);
       if (!childId) continue;
-      calls.push({
-        parentDocumentId: parent.id,
-        instanceId: instance.id,
-        childDocumentId: childId,
-      });
       const child = project.documents.find(
         (candidate) => candidate.id === childId,
       );

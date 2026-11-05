@@ -29,6 +29,7 @@ on. Each topic has one owner spec; others link to it.
 | [`rnl-interchange.md`](rnl-interchange.md)                         | RNL export formats and import (proposed)                              |
 | [`performance.md`](performance.md)                                 | Benchmark workloads and release budgets                               |
 | [`editor-interaction.md`](editor-interaction.md)                   | Gestures, selection, previews, controls (sole owner)                  |
+| [`hierarchy-navigation.md`](hierarchy-navigation.md)               | Unified Cell tree, occurrence paths, shared editing and child creation |
 | [`community-gallery.md`](community-gallery.md)                     | Gallery feed, accounts, moderation                                    |
 | [`selection-boards.md`](selection-boards.md)                       | Link-shared lists of Gallery entries, changes and their record        |
 | [`analog-arena.md`](analog-arena.md)                               | Contract with the AnalogArena Worker (cross-repo)                     |

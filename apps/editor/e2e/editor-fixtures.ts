@@ -96,24 +96,51 @@ export async function openMenu(page: Page, name: string): Promise<Locator> {
   return menu.getByRole("group", { name, exact: true });
 }
 
-/** Open the Cell Manager from the header's menu and return the dialog. */
+/** Open the focused definition editor without changing the current occurrence. */
 export async function openCellManager(page: Page): Promise<Locator> {
-  await (
-    await openMenu(page, "Hierarchy")
-  )
-    .getByTestId("hierarchy-entry")
+  await page
+    .getByLabel("Cell navigation", { exact: true })
+    .getByRole("button", { name: "Cell properties", exact: true })
     .click();
-  return page.getByRole("dialog", { name: "Cell Manager", exact: true });
+  return page.locator(".cell-manager-dialog");
 }
 
-/** Open the Cell Manager on one of its tabs and return the dialog. */
+/** External models retain their dedicated authoring surface. */
 export async function openCellManagerTab(
   page: Page,
   tab: string,
 ): Promise<Locator> {
   const manager = await openCellManager(page);
-  await manager.getByRole("tab", { name: tab, exact: true }).click();
+  if (tab === "External Circuits")
+    await manager.getByRole("button", { name: tab, exact: true }).click();
   return manager;
+}
+
+/** Find a definition through the unified tree; opening it invents no parent. */
+export async function openHierarchyDefinition(
+  page: Page,
+  name: string | RegExp,
+): Promise<void> {
+  await page
+    .getByLabel("Cell navigation", { exact: true })
+    .getByRole("button", { name: "Hierarchy", exact: true })
+    .click();
+  const tree = page.getByRole("complementary", { name: "Circuit hierarchy" });
+  const node = tree
+    .locator(".hierarchy-node-label")
+    .filter({ hasText: name })
+    .first();
+  for (let i = 0; !(await node.count()) && i < 100; i++) {
+    const expandable = tree.locator('button[aria-expanded="false"]').first();
+    if (!(await expandable.count())) break;
+    await expandable.click();
+  }
+  await expect(node).toBeVisible();
+  const row = node.locator("..");
+  await row.locator("summary").click();
+  await row
+    .getByRole("button", { name: "Open definition", exact: true })
+    .click();
 }
 
 /** Assert that the status line reports this text. */

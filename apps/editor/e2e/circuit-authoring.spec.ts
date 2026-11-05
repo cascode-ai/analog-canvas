@@ -371,8 +371,11 @@ test("authors components, connectivity and No Connect manually from an empty can
   page,
 }) => {
   await openEditor(page);
-  // A flat Project has no hierarchy to navigate, so that row stays hidden.
-  await expect(page.getByTestId("cell-navigation")).toHaveCount(0);
+  // The first child can be created directly from an otherwise flat Project.
+  await expect(page.getByTestId("cell-navigation")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "New child", exact: true }),
+  ).toBeEnabled();
   await expect(page.getByTestId("revision")).toHaveText("0");
 
   await placeComponent(page, "resistor", { x: 340, y: 220 });

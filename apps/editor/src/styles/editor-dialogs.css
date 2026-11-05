@@ -1383,3 +1383,34 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.cell-manager-body.cell-properties-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cell-properties-body .cell-manager-detail {
+  display: block;
+}
+.cell-interface-port-name input {
+  width: 100%;
+  min-width: 0;
+}
+.cell-parameter-add,
+.child-port-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.cell-parameter-add input,
+.child-port-row input {
+  min-width: 0;
+  flex: 1;
+}
+.new-child-dialog {
+  max-height: 90vh;
+  overflow: auto;
+  width: min(520px, 94vw);
+}
+.new-child-dialog fieldset {
+  margin-top: 16px;
+  border: 1px solid var(--icm-border);
+}
