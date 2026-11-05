@@ -103,7 +103,7 @@
     "test:local": "vitest run --maxWorkers=2",
     "test:impact": "node scripts/check-test-impact.mjs",
     "test:e2e": "playwright test",
-    "test:e2e:local": "pnpm --filter \"@icm/editor^...\" --filter \"@icm/mcp-server^...\" --if-present build && playwright test",
+    "test:e2e:local": "pnpm --filter \"@icm/editor^...\" --filter \"@icm/mcp-server...\" --if-present build && playwright test",
     "build:e2e": "node scripts/build-e2e-editor.mjs",
     "e2e:slowest": "node scripts/e2e-slowest.mjs",
     "test:production-smoke": "pnpm --filter @icm/editor build && node scripts/editor-production-smoke.mjs",

@@ -1,7 +1,8 @@
 # Shared-client command line
 
-An explicit user choice, not automatic recovery from failed MCP loading:
-report the failed MCP stage first; HTTP success is not MCP acceptance.
+Use when the user chooses the installed CLI. Bootstrap fallback in the copied
+handoff means the **raw HTTP Kit**, not this Node-dependent command. Follow
+the [connection rules](shared/session.md#connection).
 
 The version-pinned package from the MCP bootstrap manifest runs without an MCP
 host: run its binary with `--http <tool>` (connect, connection_status,

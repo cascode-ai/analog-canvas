@@ -31,6 +31,163 @@ const launch = {
   },
 };
 describe("verified offline MCP installation", () => {
+  it.each([
+    "ERR_TLS_CERT_ALTNAME_INVALID",
+    "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  ])(
+    "preserves deterministic TLS failure %s without retrying",
+    async (code) => {
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockRejectedValue(
+        new TypeError("fetch failed private host", {
+          cause: Object.assign(new Error("private certificate details"), {
+            code,
+          }),
+        }),
+      );
+      try {
+        await expect(
+          installMcp(["--origin", "https://editor.example"]),
+        ).rejects.toMatchObject({
+          diagnostic: {
+            stage: "manifest",
+            code: "MANIFEST_FETCH_FAILED",
+            evidence: { systemCode: code },
+          },
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      } finally {
+        fetchMock.mockRestore();
+      }
+    },
+  );
+  it("reports extraction failure without forwarding subprocess output", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "icm-mcp-extract-"));
+    const bytes = Buffer.from("invalid archive");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url) =>
+        String(url).endsWith("mcp-manifest.json")
+          ? Response.json({
+              format: "analog-canvas-mcp-bootstrap-v1",
+              version: "1.2.3",
+              requirements: { node: ">=24.0.0" },
+              distribution: {
+                downloadUrl:
+                  "https://github.com/cascode-ai/analog-canvas/releases/download/mcp-v1.2.3/analog-canvas-mcp-server-1.2.3.tgz",
+                sha256: createHash("sha256").update(bytes).digest("hex"),
+              },
+            })
+          : new Response(bytes),
+      );
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      await expect(
+        installMcp(["--origin", "https://editor.example"], { home: directory }),
+      ).rejects.toMatchObject({
+        diagnostic: { stage: "extract", code: "PACKAGE_EXTRACTION_FAILED" },
+      });
+      expect(stderr.mock.calls.length).toBe(0);
+    } finally {
+      stderr.mockRestore();
+      fetchMock.mockRestore();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  it("reports bounded manifest DNS failure without leaking raw error details or changing configuration", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "icm-mcp-dns-"));
+    const config = join(directory, "config.toml");
+    await writeFile(config, 'model = "keep"\n');
+    let requests = 0;
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        requests++;
+        throw new TypeError("fetch failed SECRET-CLAIM", {
+          cause: Object.assign(new Error("private host/token"), {
+            code: "ENOTFOUND",
+          }),
+        });
+      });
+    try {
+      const error = await installMcp(
+        ["--origin", "https://editor.example", "--host", "codex"],
+        { home: directory, codex: directory },
+      ).catch((failure: unknown) => failure);
+      expect(error).toMatchObject({
+        diagnostic: {
+          ok: false,
+          stage: "manifest",
+          code: "MANIFEST_FETCH_FAILED",
+          nextAction: "use-http-kit",
+          evidence: { systemCode: "ENOTFOUND" },
+        },
+      });
+      expect(requests).toBe(2);
+      expect(JSON.stringify(error)).not.toMatch(/SECRET-CLAIM|private host/);
+      expect(await readFile(config, "utf8")).toBe('model = "keep"\n');
+    } finally {
+      fetchMock.mockRestore();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  it("distinguishes invalid manifests and integrity failures from recoverable package download failures", async () => {
+    const bytes = Buffer.from("not the declared archive");
+    const declaration = {
+      format: "analog-canvas-mcp-bootstrap-v1",
+      version: "1.2.3",
+      requirements: { node: ">=24.0.0" },
+      distribution: {
+        downloadUrl:
+          "https://github.com/cascode-ai/analog-canvas/releases/download/mcp-v1.2.3/analog-canvas-mcp-server-1.2.3.tgz",
+        sha256: createHash("sha256").update("expected").digest("hex"),
+      },
+    };
+    const cases = [
+      {
+        manifest: null,
+        status: 200,
+        stage: "manifest",
+        code: "MANIFEST_INVALID",
+        nextAction: "stop",
+      },
+      {
+        manifest: declaration,
+        status: 404,
+        stage: "download",
+        code: "PACKAGE_DOWNLOAD_FAILED",
+        nextAction: "use-http-kit",
+      },
+      {
+        manifest: declaration,
+        status: 200,
+        stage: "integrity",
+        code: "PACKAGE_INTEGRITY_FAILED",
+        nextAction: "stop",
+      },
+    ];
+    for (const scenario of cases) {
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (url) =>
+          String(url).endsWith("mcp-manifest.json")
+            ? Response.json(scenario.manifest)
+            : new Response(bytes, { status: scenario.status }),
+        );
+      try {
+        await expect(
+          installMcp(["--origin", "https://editor.example"]),
+        ).rejects.toMatchObject({
+          diagnostic: {
+            stage: scenario.stage,
+            code: scenario.code,
+            nextAction: scenario.nextAction,
+          },
+        });
+      } finally {
+        fetchMock.mockRestore();
+      }
+    }
+  });
   it("installs verified bytes, backs up host settings, launches offline through Homebrew's opt link and leaves settings intact on failed update", async () => {
     const directory = await mkdtemp(join(tmpdir(), "icm-mcp-install-"));
     const fetchMock = vi.spyOn(globalThis, "fetch");
@@ -111,6 +268,10 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
           : join(brew, "opt", "node", "bin", "node"),
       );
       expect(installed.hostLoaded).toBe(false);
+      expect(installed).toMatchObject({
+        stage: "host-loading",
+        nextAction: "verify-host-tools",
+      });
       // Local mode's headless workspace lands beside the adapter it loads from.
       expect(
         await readFile(
@@ -142,7 +303,9 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
           ["--origin", launch.env.ANALOG_CANVAS_API_URL, "--host", "codex"],
           { home: directory, codex },
         ),
-      ).rejects.toThrow("offline");
+      ).rejects.toMatchObject({
+        diagnostic: { stage: "manifest", code: "MANIFEST_FETCH_FAILED" },
+      });
       expect(await readFile(config, "utf8")).toBe(configured);
       fetchMock.mockImplementation(async (url) =>
         String(url).endsWith("mcp-manifest.json")
@@ -181,6 +344,33 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
     } finally {
       fetchMock.mockRestore();
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+  it("reports an unsupported runtime before any download", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      process.versions,
+      "node",
+    )!;
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    Object.defineProperty(process.versions, "node", {
+      ...descriptor,
+      value: "22.16.0",
+    });
+    try {
+      await expect(
+        installMcp(["--origin", "https://editor.example"]),
+      ).rejects.toMatchObject({
+        diagnostic: {
+          stage: "runtime",
+          code: "NODE_VERSION_UNSUPPORTED",
+          nextAction: "use-http-kit",
+          evidence: { actual: "22.16.0", required: ">=24.0.0" },
+        },
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process.versions, "node", descriptor);
+      fetchMock.mockRestore();
     }
   });
   it("keeps a Node path unless Homebrew's opt link names the same binary", async () => {
@@ -316,7 +506,13 @@ for await (const line of readline.createInterface({input:process.stdin})) {
       ).resolves.toEqual({ version: "1.2.3", toolCount: 4 });
       await expect(
         probeInstalledMcp(process.execPath, file, "1.2.4"),
-      ).rejects.toThrow("identity");
+      ).rejects.toMatchObject({
+        diagnostic: {
+          stage: "local-probe",
+          code: "MCP_IDENTITY_MISMATCH",
+          nextAction: "stop",
+        },
+      });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

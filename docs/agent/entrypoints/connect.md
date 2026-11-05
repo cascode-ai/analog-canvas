@@ -1,9 +1,14 @@
 Connect to Analog Canvas at {{origin}}.
 Claim: {{claim}}
 
-1. If Analog Canvas MCP is callable, check `connection_status({"refresh":false})` for this exact origin, then connect with the Claim. Connect checks compatibility and returns current context; read analog-canvas://reference/quickstart. Do not fetch a package merely to connect.
-2. If MCP is missing, targets another origin, or connect reports incompatibility, fetch the public bootstrap manifest over HTTPS: {{manifestUrl}}
-   Follow its version-pinned package, runtime, integrity, and host installation instructions. Use verified local installation and its returned launch command when available; preserve unrelated host settings. Verify the tools are callable in this conversation before claiming success. Respect permission limits; do not retry indefinitely.
-3. If manifest retrieval, installation, or host loading fails, report the failed stage. A host restart or new conversation may be needed; tell the user once, but do not restart it yourself. Do not silently switch to HTTP. Only if the user explicitly chooses HTTP, fetch {{kitUrl}} and follow its Kit and published OpenAPI; HTTP success is not MCP acceptance.
+I authorize MCP first, with raw HTTP Kit fallback before pairing; respect MCP-only requests.
 
-Keep the Claim private. If it expires, ask for a new code. Keep the Editor open. For a loopback origin, run on the Editor's computer.
+1. If MCP is callable for this exact origin, check `connection_status({"refresh":false})`, connect, then read analog-canvas://reference/quickstart. No download needed.
+2. Otherwise install once only with evidence this host can run/register stdio here; shell/npm alone is insufficient. Check Node before executing the pinned package. Manifest: {{manifestUrl}}
+Use its host-specific setup, verify SHA-256 and preserve unrelated settings. Local handshake is not host loading: verify callable tools.
+3. Unknown host, unsuitable Node, download/startup failure or unloaded tools: report the stage, keep any installation and use the raw HTTP Kit and its OpenAPI: {{kitUrl}}
+The HTTP CLI still needs Node. No system Node upgrade or host restart. If HTTPS requests cannot run, report that blocker.
+
+Stop on integrity/identity failures. Retry transient public GETs at most once. Choose one transport before Claim; recover an uncertain Claim through session rules, never by switching transport. Expired Claim: ask for a new code; revoked/permission errors follow session recovery.
+Report connected only after pairing and read the actual circuit; name MCP or HTTP. HTTP success is not MCP acceptance.
+Keep Claim private and Editor open. Loopback requires the Editor's computer.

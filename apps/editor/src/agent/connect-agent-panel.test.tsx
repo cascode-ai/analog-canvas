@@ -62,20 +62,20 @@ describe("ConnectAgentPanel", () => {
     );
     expect(instructions).toContain("analog-canvas://reference/quickstart");
     expect(instructions).toContain("https://editor.example/api/agent/kit");
-    expect(instructions).toContain("public bootstrap manifest over HTTPS");
-    expect(instructions).toContain("version-pinned package");
-    expect(instructions).toContain("verified local installation");
-    expect(instructions).toContain("preserve unrelated host settings");
-    expect(instructions).toContain("tools are callable in this conversation");
-    expect(instructions).toContain("report the failed stage");
-    expect(instructions).toContain("host restart or new conversation");
-    expect(instructions).toContain("tell the user once");
-    expect(instructions).toContain("do not restart it yourself");
-    expect(instructions).toContain("Do not silently switch to HTTP");
-    expect(instructions).toContain("user explicitly chooses HTTP");
+    expect(instructions).toContain("I authorize");
+    expect(instructions).toContain("MCP-only");
+    expect(instructions).toContain("shell/npm alone");
+    expect(instructions).toContain("Check Node before executing");
+    expect(instructions).toContain("verify SHA-256");
+    expect(instructions).toContain("preserve unrelated settings");
+    expect(instructions).toContain("report the stage");
+    expect(instructions).toContain("keep any installation");
+    expect(instructions).toContain("raw HTTP Kit");
+    expect(instructions).toContain("uncertain Claim");
+    expect(instructions).toContain("read the actual circuit");
     expect(instructions).toContain("HTTP success is not MCP acceptance");
-    expect(instructions).toContain("If it expires, ask for a new code");
-    expect(instructions).toContain("For a loopback origin");
+    expect(instructions).toContain("Expired Claim");
+    expect(instructions).toContain("Loopback");
     expect(instructions).not.toMatch(/symbol IDs|pin names|raw API requests/u);
     expect(instructions).not.toMatch(/Bearer [A-Za-z0-9_-]{20,}/u);
     expect(instructions.length).toBeLessThan(1_600);
@@ -135,6 +135,9 @@ describe("ConnectAgentPanel", () => {
     expect(markup).toContain("Copy message");
     expect(markup).toContain(
       "Paste this message into your Agent chat to connect.",
+    );
+    expect(markup).toContain(
+      "MCP first; HTTP API fallback is authorized if setup is unavailable.",
     );
     expect(markup).not.toContain("<details");
     expect(markup).not.toContain("technical details");

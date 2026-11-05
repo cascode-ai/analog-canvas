@@ -57,5 +57,6 @@ unfamiliar fields, never a prerequisite.
 Sessions renew on Agent operations and manual edits with a 30-minute idle
 deadline; a person present in the open editor extends it up to 8 hours after
 the last operation or edit. Keep the editor open; closing connection details
-does not disconnect ([session rules](shared/session.md)). HTTP fallback needs
-the user's explicit choice and is not MCP acceptance.
+does not disconnect ([session rules](shared/session.md)). Bootstrap fallback
+follows the [connection rules](shared/session.md#connection); an established
+session stays on its chosen transport.

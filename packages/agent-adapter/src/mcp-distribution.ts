@@ -85,8 +85,8 @@ export function agentMcpBootstrapManifest(
     installation: {
       mode: "verified-local-bundle",
       available: localInstallation,
-      command: `${launchText} --install --origin ${JSON.stringify(origin)} --host codex`,
-      note: "One-time installation only. Verify the release SHA-256 before executing its bundle. For other hosts use --host config and copy the returned local launch object. The legacy npx launch is not recommended for steady-state host startup. Installation does not prove tools are loaded in the current conversation.",
+      command: `${launchText} --install --origin ${JSON.stringify(origin)} --host config`,
+      note: "Install only with evidence of this conversation's actual stdio host and effective configuration. Check the launching Node first and verify the archive SHA-256 before executing. Generic installation returns a local launch object; use hosts.codex only for a confirmed Codex host. Installation does not prove callable tools. When the user's handoff authorizes fallback, bootstrap/environment failures can use the raw HTTP Kit without Node; integrity/identity failures stop. Keep any completed installation if host loading needs another conversation.",
     },
     launch: {
       command: "npx",

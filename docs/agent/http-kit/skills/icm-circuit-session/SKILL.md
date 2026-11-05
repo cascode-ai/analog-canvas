@@ -1,7 +1,8 @@
 # Raw HTTP task navigator
 
-For a user who chose HTTP; MCP loading failure alone does not authorize the
-switch.
+Use for an explicit HTTP request or an authorized bootstrap fallback in the
+copied handoff. Follow the [connection rules](../../../shared/session.md#connection);
+an older handoff without that authorization still requires the user's choice.
 
 1. [API usage](../../../api-usage.md) covers claim/resume, endpoints, revision
    guards and exact retries; the origin's `/api/agent/openapi.json` gives
