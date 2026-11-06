@@ -39,11 +39,13 @@ function markupFor(
 function pageFor(
   user: NonNullable<AccountState["user"]>,
   initialTab?: AccountTab,
+  deletionUnavailableReason?: string,
 ): string {
   return renderToStaticMarkup(
     createElement(AccountDashboard, {
       user,
       ...(initialTab ? { initialTab } : {}),
+      ...(deletionUnavailableReason ? { deletionUnavailableReason } : {}),
       onRename: () => undefined,
       onSignOut: () => undefined,
       onDeleteAccount: async () => ({ ok: false, message: "unused" }) as const,
@@ -53,6 +55,25 @@ function pageFor(
 }
 
 describe("AccountMenuView", () => {
+  it("disables domestic trial deletion with a visible limitation while keeping overseas deletion available", () => {
+    const user = {
+      id: "trial-user",
+      displayName: "Trial",
+      email: null,
+      provider: "github",
+      role: "user",
+      isAdmin: false,
+    };
+    const reason = "Account deletion is unavailable in the domestic trial.";
+    const domestic = pageFor(user, "settings", reason);
+    expect(domestic).toContain(reason);
+    expect(domestic).toMatch(/data-testid="account-delete"[^>]*disabled=""/u);
+    const overseas = pageFor(user, "settings");
+    expect(overseas).not.toContain(reason);
+    expect(overseas).not.toMatch(
+      /data-testid="account-delete"[^>]*disabled=""/u,
+    );
+  });
   it("renders nothing while no provider is configured (dark ship)", () => {
     expect(
       markupFor({

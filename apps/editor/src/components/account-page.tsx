@@ -8,7 +8,7 @@ import {
   accountInitial,
   cacheSessionUser,
   deleteAccount,
-  fetchSessionUser,
+  loadAccountState,
   renameAccount,
   signOut,
   type DeleteAccountResult,
@@ -224,6 +224,7 @@ export function accountTabFromSearch(search: string): AccountTab {
 }
 
 interface AccountActions {
+  deletionUnavailableReason?: string;
   onRename: (displayName: string) => void;
   onSignOut: () => void;
   onDeleteAccount: () => Promise<DeleteAccountResult>;
@@ -233,6 +234,7 @@ interface AccountActions {
 /** Display name, signing out and, last, deleting the account. */
 function AccountSettings({
   user,
+  deletionUnavailableReason,
   onRename,
   onSignOut,
   onDeleteAccount,
@@ -349,14 +351,15 @@ function AccountSettings({
           <h3 id="account-danger">Delete account</h3>
           <div className="account-page-row">
             <span className="account-page-note">
-              Permanently deletes this account and everything the site keeps for
-              it. You will be asked to type your name.
+              {deletionUnavailableReason ??
+                "Permanently deletes this account and everything the site keeps for it. You will be asked to type your name."}
             </span>
             <button
               type="button"
               className="account-page-delete"
               data-testid="account-delete"
               aria-haspopup="dialog"
+              disabled={!!deletionUnavailableReason}
               onClick={() => setDeleting(true)}
             >
               Delete account…
@@ -365,7 +368,7 @@ function AccountSettings({
         </section>
       )}
 
-      {deleting ? (
+      {deleting && !deletionUnavailableReason ? (
         <AccountDeleteDialog
           user={user}
           onDelete={onDeleteAccount}
@@ -498,7 +501,7 @@ export function AccountDashboard({
 type AccountPageState =
   | { status: "loading" }
   | { status: "signed-out" }
-  | { status: "ready"; user: SessionUser };
+  | { status: "ready"; user: SessionUser; domestic: boolean };
 
 /** `/account`: the signed-in account's own page. */
 export function AccountPage() {
@@ -506,9 +509,13 @@ export function AccountPage() {
   const [state, setState] = useState<AccountPageState>({ status: "loading" });
   useEffect(() => {
     let cancelled = false;
-    void fetchSessionUser().then((user) => {
+    void loadAccountState().then(({ user, providers }) => {
       if (!cancelled)
-        setState(user ? { status: "ready", user } : { status: "signed-out" });
+        setState(
+          user
+            ? { status: "ready", user, domestic: providers.central === true }
+            : { status: "signed-out" },
+        );
     });
     return () => {
       cancelled = true;
@@ -528,12 +535,18 @@ export function AccountPage() {
           <AccountDashboard
             key={state.user.id}
             user={state.user}
+            {...(state.domestic
+              ? {
+                  deletionUnavailableReason:
+                    "Account deletion is unavailable in the domestic trial.",
+                }
+              : {})}
             initialTab={accountTabFromSearch(window.location.search)}
             onRename={(displayName) => {
               void renameAccount(displayName).then((user) => {
                 if (!user) return;
                 cacheSessionUser(fetch, user);
-                setState({ status: "ready", user });
+                setState({ status: "ready", user, domestic: state.domestic });
                 window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
               });
             }}

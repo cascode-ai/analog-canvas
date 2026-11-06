@@ -145,6 +145,11 @@ export class RegionalSessionDO {
     }
     if (url.origin !== this.config.clientOrigin)
       return answer({ error: "invalid-origin" }, 421);
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/auth/account/delete"
+    )
+      return answer({ error: "account-deletion-unavailable" }, 503);
     if (isRegionalAccountRoute(request.method, url.pathname))
       return this.accountOperation(request, url);
     if (request.method === "GET") {
