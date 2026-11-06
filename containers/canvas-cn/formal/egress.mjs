@@ -16,6 +16,8 @@ export default {
         `POST ${identity}`,
         `POST ${new URL("/api/auth/regional/exchange", identity)}`,
         `POST ${new URL("/api/auth/regional/renew", identity)}`,
+        `POST ${new URL("/api/auth/regional/account", identity)}`,
+        `POST ${new URL("/api/auth/regional/owner-token", identity)}`,
       ]);
       if (
         peer.protocol !== "https:" ||

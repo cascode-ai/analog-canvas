@@ -7,6 +7,35 @@ const env = {
 };
 afterEach(() => vi.unstubAllGlobals());
 
+it.each(["account", "owner-token"])(
+  "forwards the configured %s service RPC with its credential and body",
+  async (operation) => {
+    const url = `https://canvas-origin.test/api/auth/regional/${operation}`;
+    const body = JSON.stringify({ opaque: "isolated-rpc-payload" });
+    vi.stubGlobal("fetch", async (request) => {
+      expect(request.url).toBe(url);
+      expect(request.method).toBe("POST");
+      expect(request.redirect).toBe("manual");
+      expect(request.headers.get("authorization")).toBe("Bearer isolated");
+      expect(await request.text()).toBe(body);
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    });
+    const result = await egress.fetch(
+      new Request(url, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer isolated",
+          "Content-Type": "application/json",
+        },
+        body,
+      }),
+      env,
+    );
+    expect(result.status).toBe(401);
+    expect(await result.json()).toEqual({ error: "unauthorized" });
+  },
+);
+
 it("returns the fixed authority's browser redirect without following it or losing cookies", async () => {
   const url =
     "https://canvas-origin.test/api/auth/google/callback?code=opaque&state=bound";
@@ -59,6 +88,8 @@ it("keeps service redirects closed even when they contain an apparent identity",
     ["POST", env.IDENTITY_URL],
     ["POST", "https://canvas-origin.test/api/auth/regional/exchange"],
     ["POST", "https://canvas-origin.test/api/auth/regional/renew"],
+    ["POST", "https://canvas-origin.test/api/auth/regional/account"],
+    ["POST", "https://canvas-origin.test/api/auth/regional/owner-token"],
   ]) {
     const result = await egress.fetch(new Request(url, { method }), env);
     expect(result.status, url).toBe(502);
@@ -75,7 +106,10 @@ it.each([
   ["GET", "https://canvas-origin.test/api/auth/me"],
   ["POST", "https://canvas-origin.test/api/auth/logout"],
   ["POST", "https://canvas-origin.test/api/auth/profile"],
-  ["POST", "https://canvas-origin.test/api/auth/regional/account"],
+  ["GET", "https://canvas-origin.test/api/auth/regional/account"],
+  ["GET", "https://canvas-origin.test/api/auth/regional/owner-token"],
+  ["POST", "https://unconfigured.test/api/auth/regional/account"],
+  ["POST", "https://canvas-origin.test/api/auth/regional/account?override=1"],
   ["GET", "https://canvas-origin.test/api/auth/regional/callback?code=x"],
   ["GET", "https://canvas-origin.test/api/auth/regional/start"],
   ["POST", env.IDENTITY_URL + "?redirect=https://unconfigured.test"],
