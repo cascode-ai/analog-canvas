@@ -3,6 +3,8 @@ import {
   answer,
   cookie,
   digest,
+  isRegionalAccountRoute,
+  isRegionalSecurityRoute,
   nonce,
   readBody,
   redirect,
@@ -10,6 +12,7 @@ import {
   REGIONAL_LEASE_MS,
   REGIONAL_PREFIX,
   REGIONAL_REFRESH_MS,
+  REGIONAL_SESSION_COOKIE,
   sessionIdentity,
   setCookie,
   validNonce,
@@ -31,6 +34,9 @@ type SessionRow = {
   lease_until: number;
   expires_at: number;
   refresh_at: number;
+  generation: number;
+  actor_id: string | null;
+  restriction_revision: number;
 };
 const SESSION_SECONDS = 30 * 86400;
 const LOGIN_SECONDS = 600;
@@ -39,6 +45,7 @@ const LOGIN_SECONDS = 600;
 export class RegionalSessionDO {
   private readonly config: RegionalConfig | null;
   private readonly sql: RegionalSql;
+  private readonly accountOperations = new Map<string, Promise<void>>();
   fetchLike: typeof fetch = (input, init) => fetch(input, init);
   now: () => number = () => Date.now();
 
@@ -51,10 +58,47 @@ export class RegionalSessionDO {
     if (!this.config) return;
     this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_pending (
       state_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_pending)")
+        .toArray()
+        .some((column) => column.name === "return_path")
+    )
+      this.sql.exec(
+        "ALTER TABLE regional_pending ADD COLUMN return_path TEXT NOT NULL DEFAULT '/'",
+      );
     this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_sessions (
       token_hash TEXT PRIMARY KEY, user_json TEXT NOT NULL, grant TEXT NOT NULL,
       lease_until INTEGER NOT NULL, expires_at INTEGER NOT NULL, refresh_at INTEGER NOT NULL,
       login_state_hash TEXT NOT NULL UNIQUE) WITHOUT ROWID`);
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_sessions)")
+        .toArray()
+        .some((column) => column.name === "generation")
+    )
+      this.sql.exec(
+        "ALTER TABLE regional_sessions ADD COLUMN generation INTEGER NOT NULL DEFAULT 0",
+      );
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_sessions)")
+        .toArray()
+        .some((column) => column.name === "actor_id")
+    )
+      this.sql.exec("ALTER TABLE regional_sessions ADD COLUMN actor_id TEXT");
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_sessions)")
+        .toArray()
+        .some((column) => column.name === "restriction_revision")
+    )
+      this.sql.exec(
+        "ALTER TABLE regional_sessions ADD COLUMN restriction_revision INTEGER NOT NULL DEFAULT 0",
+      );
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS regional_restrictions (user_id TEXT PRIMARY KEY, revision INTEGER NOT NULL, blocked INTEGER NOT NULL) WITHOUT ROWID",
+    );
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -62,31 +106,73 @@ export class RegionalSessionDO {
     const url = new URL(request.url);
     if (
       url.origin === "https://auth" &&
+      isRegionalSecurityRoute(request.method, url.pathname)
+    ) {
+      const body = request.body ? await readBody(request) : {};
+      if (!body) return answer({ error: "invalid-request" }, 400);
+      const result = await this.authority("security", {
+        path: url.pathname,
+        body,
+      });
+      const operation = operationResult(result.body);
+      if (!operation) return answer({ error: "authority-unavailable" }, 503);
+      if (
+        operation.status < 300 &&
+        url.pathname === "/internal/block-account" &&
+        !this.applyRestrictions(result.body?.restrictions)
+      )
+        return answer({ error: "authority-unavailable" }, 503);
+      return answer(operation.body, operation.status);
+    }
+    if (
+      url.origin === "https://auth" &&
       url.pathname === "/internal/session-user" &&
       request.method === "GET"
     )
       return answer({ user: (await this.localUser(request)).user });
+    if (
+      url.origin === "https://auth" &&
+      url.pathname === "/internal/owner-token-user" &&
+      request.method === "GET"
+    ) {
+      const token = /^Bearer (acot_[A-Za-z0-9_-]{1,128})$/u.exec(
+        request.headers.get("authorization") ?? "",
+      )?.[1];
+      if (!token) return answer({ user: null }, 401);
+      const result = await this.authority("owner-token", { token });
+      const user = sessionIdentity(result.body?.user);
+      return answer({ user }, user ? 200 : result.status === 401 ? 401 : 503);
+    }
     if (url.origin !== this.config.clientOrigin)
       return answer({ error: "invalid-origin" }, 421);
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/auth/account/delete"
+    )
+      return answer({ error: "account-deletion-unavailable" }, 503);
+    if (isRegionalAccountRoute(request.method, url.pathname))
+      return this.accountOperation(request, url);
     if (request.method === "GET") {
-      if (url.pathname === REGIONAL_PREFIX + "start") return this.start();
+      if (url.pathname === REGIONAL_PREFIX + "start") return this.start(url);
       if (url.pathname === REGIONAL_PREFIX + "callback")
         return this.complete(request, url);
-      if (url.pathname === "/api/auth/providers")
+      if (url.pathname === "/api/auth/providers") {
+        const result = await this.authority("providers", {});
         return answer({
-          github: false,
-          google: false,
-          email: false,
+          github: result.body?.github === true,
+          google: result.body?.google === true,
+          email: result.body?.email === true,
           central: true,
           loginUrl: REGIONAL_PREFIX + "start",
         });
+      }
       if (url.pathname === "/api/auth/me")
         return answer(await this.localUser(request));
     }
     if (request.method === "POST" && url.pathname === "/api/auth/logout") {
       if (request.headers.get("origin") !== this.config.clientOrigin)
         return answer({ error: "forbidden" }, 403);
-      const token = cookie(request, "icm_session");
+      const token = cookie(request, REGIONAL_SESSION_COOKIE);
       if (token)
         this.sql.exec(
           "DELETE FROM regional_sessions WHERE token_hash = ?",
@@ -107,7 +193,7 @@ export class RegionalSessionDO {
       const response = answer({ ok: true });
       response.headers.append(
         "set-cookie",
-        setCookie("icm_session", "", this.config.clientOrigin, 0),
+        setCookie(REGIONAL_SESSION_COOKIE, "", this.config.clientOrigin, 0),
       );
       response.headers.append(
         "set-cookie",
@@ -122,7 +208,7 @@ export class RegionalSessionDO {
     user: SessionUser | null;
     authorization: "active" | "expired" | "anonymous";
   }> {
-    const token = cookie(request, "icm_session");
+    const token = cookie(request, REGIONAL_SESSION_COOKIE);
     if (!validNonce(token)) return { user: null, authorization: "anonymous" };
     const row = this.sql
       .exec<SessionRow>(
@@ -134,12 +220,15 @@ export class RegionalSessionDO {
     if (row.expires_at <= this.now() || row.lease_until <= this.now())
       return { user: null, authorization: "expired" };
     return {
-      user: sessionIdentity(JSON.parse(row.user_json)),
+      user: this.projectedUser(row),
       authorization: "active",
     };
   }
 
-  private async start(): Promise<Response> {
+  private async start(url: URL): Promise<Response> {
+    const provider = url.searchParams.get("provider");
+    if (provider !== null && !["github", "google", "email"].includes(provider))
+      return answer({ error: "invalid-provider" }, 400);
     const config = this.config!;
     const state = nonce(),
       verifier = nonce();
@@ -152,16 +241,20 @@ export class RegionalSessionDO {
       .one().count;
     if (count >= 1000) return answer({ error: "login-busy" }, 429);
     this.sql.exec(
-      "INSERT INTO regional_pending VALUES (?, ?, ?)",
+      "INSERT INTO regional_pending (state_hash, verifier, expires_at, return_path) VALUES (?, ?, ?, ?)",
       await digest(state),
       verifier,
       this.now() + LOGIN_SECONDS * 1000,
+      returnPath(url.searchParams.get("return"), config.clientOrigin),
     );
     const target = new URL(REGIONAL_PREFIX + "authorize", config.origin);
     target.search = new URLSearchParams({
       state,
       challenge: await digest(verifier),
     }).toString();
+    if (provider) target.searchParams.set("provider", provider);
+    if (url.searchParams.get("select") === "true")
+      target.searchParams.set("select", "true");
     const response = redirect(target.toString());
     response.headers.append(
       "set-cookie",
@@ -187,8 +280,8 @@ export class RegionalSessionDO {
       return answer({ error: "invalid-callback" }, 400);
     const stateHash = await digest(state);
     const row = this.sql
-      .exec<{ verifier: string }>(
-        "SELECT verifier FROM regional_pending WHERE state_hash = ? AND expires_at > ?",
+      .exec<{ verifier: string; return_path: string }>(
+        "SELECT verifier, return_path FROM regional_pending WHERE state_hash = ? AND expires_at > ?",
         stateHash,
         this.now(),
       )
@@ -215,7 +308,7 @@ export class RegionalSessionDO {
         .toArray()[0];
       if (!pending) return false;
       this.sql.exec(
-        "INSERT INTO regional_sessions VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash, actor_id, restriction_revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         tokenHash,
         JSON.stringify(lease.user),
         grant,
@@ -223,6 +316,8 @@ export class RegionalSessionDO {
         this.now() + SESSION_SECONDS * 1000,
         this.now() + REGIONAL_REFRESH_MS,
         stateHash,
+        lease.user.switchedFrom?.id ?? lease.user.id,
+        lease.restrictionRevision,
       );
       return true;
     });
@@ -239,10 +334,17 @@ export class RegionalSessionDO {
         .toArray()[0]
     )
       return answer({ error: "cancelled-callback" }, 400);
-    const response = redirect(config.clientOrigin + "/");
+    const response = redirect(
+      config.clientOrigin + returnPath(row.return_path, config.clientOrigin),
+    );
     response.headers.append(
       "set-cookie",
-      setCookie("icm_session", token, config.clientOrigin, SESSION_SECONDS),
+      setCookie(
+        REGIONAL_SESSION_COOKIE,
+        token,
+        config.clientOrigin,
+        SESSION_SECONDS,
+      ),
     );
     response.headers.append(
       "set-cookie",
@@ -251,9 +353,11 @@ export class RegionalSessionDO {
     return response;
   }
 
-  private lease(
-    body: Record<string, unknown> | null,
-  ): { user: SessionUser; expiresAt: number } | null {
+  private lease(body: Record<string, unknown> | null): {
+    user: SessionUser;
+    expiresAt: number;
+    restrictionRevision: number;
+  } | null {
     const user = sessionIdentity(body?.user),
       expiresAt = body?.expiresAt;
     if (
@@ -266,34 +370,233 @@ export class RegionalSessionDO {
     return {
       user,
       expiresAt: Math.min(expiresAt, this.now() + REGIONAL_LEASE_MS),
+      restrictionRevision:
+        typeof body?.restrictionRevision === "number" &&
+        Number.isSafeInteger(body.restrictionRevision) &&
+        body.restrictionRevision >= 0
+          ? body.restrictionRevision
+          : 0,
     };
   }
 
   private async authority(
-    action: "exchange" | "renew",
+    action:
+      | "exchange"
+      | "renew"
+      | "account"
+      | "owner-token"
+      | "security"
+      | "providers",
     body: unknown,
   ): Promise<{ status: number; body: Record<string, unknown> | null }> {
+    const config = this.config;
+    if (!config) return { status: 0, body: null };
     try {
       const response = await this.fetchLike(
-        this.config!.origin + REGIONAL_PREFIX + action,
+        (config.transportOrigin ?? config.origin) + REGIONAL_PREFIX + action,
         {
           method: "POST",
           redirect: "manual",
           signal: AbortSignal.timeout(5000),
           headers: {
-            authorization: "Bearer " + this.config!.secret,
+            authorization: "Bearer " + config.secret,
             "content-type": "application/json",
           },
           body: JSON.stringify(body),
         },
       );
+      const payload: unknown = response.ok
+        ? action === "account" || action === "security"
+          ? await response.json()
+          : await readBody(response)
+        : null;
       return {
         status: response.status,
-        body: response.ok ? await readBody(response) : null,
+        body:
+          payload && typeof payload === "object" && !Array.isArray(payload)
+            ? (payload as Record<string, unknown>)
+            : null,
       };
     } catch {
       return { status: 0, body: null };
     }
+  }
+
+  private async accountOperation(
+    request: Request,
+    url: URL,
+  ): Promise<Response> {
+    if (
+      ((request.method !== "GET" || request.headers.has("origin")) &&
+        request.headers.get("origin") !== this.config?.clientOrigin) ||
+      request.headers.get("sec-fetch-site") === "cross-site"
+    )
+      return answer({ error: "forbidden" }, 403);
+    const token = cookie(request, REGIONAL_SESSION_COOKIE);
+    if (!validNonce(token)) return answer({ error: "unauthorized" }, 401);
+    const tokenHash = await digest(token);
+    const body =
+      request.method === "GET" ||
+      (!request.body &&
+        (request.method === "DELETE" ||
+          url.pathname === "/api/auth/ai-accounts/return"))
+        ? {}
+        : await readBody(request);
+    if (!body) return answer({ error: "invalid-request" }, 400);
+    return this.orderedAccountOperation(tokenHash, () =>
+      this.runAccountOperation(request.method, url.pathname, body, tokenHash),
+    );
+  }
+
+  /** Order each session's account effects; local reads and logout stay independent. */
+  private async orderedAccountOperation(
+    tokenHash: string,
+    operation: () => Promise<Response>,
+  ): Promise<Response> {
+    const previous = this.accountOperations.get(tokenHash);
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.accountOperations.set(tokenHash, pending);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.accountOperations.get(tokenHash) === pending)
+        this.accountOperations.delete(tokenHash);
+    }
+  }
+
+  private async runAccountOperation(
+    method: string,
+    path: string,
+    body: Record<string, unknown>,
+    tokenHash: string,
+  ): Promise<Response> {
+    const row = this.sql
+      .exec<SessionRow>(
+        "SELECT * FROM regional_sessions WHERE token_hash = ?",
+        tokenHash,
+      )
+      .toArray()[0];
+    if (!row || row.expires_at <= this.now() || row.lease_until <= this.now())
+      return answer({ error: "unauthorized" }, 401);
+    const changingIdentity = [
+      "/api/auth/ai-accounts/switch",
+      "/api/auth/ai-accounts/return",
+    ].includes(path);
+    const fenced = this.sql
+      .exec<SessionRow>(
+        "UPDATE regional_sessions SET generation = generation + 1, refresh_at = ?, lease_until = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING *",
+        this.now() + REGIONAL_REFRESH_MS,
+        changingIdentity ? 0 : row.lease_until,
+        tokenHash,
+        row.grant,
+        row.generation,
+      )
+      .toArray()[0];
+    if (!fenced) return answer({ error: "unauthorized" }, 401);
+    await this.schedule();
+    const result = await this.authority("account", {
+      grant: row.grant,
+      method,
+      path,
+      body,
+    });
+    if (result.status === 401) {
+      this.sql.exec(
+        "DELETE FROM regional_sessions WHERE token_hash = ? AND grant = ? AND generation = ?",
+        tokenHash,
+        row.grant,
+        fenced.generation,
+      );
+      return answer({ error: "unauthorized" }, 401);
+    }
+    const lease = this.lease(result.body);
+    const operation = operationResult(result.body);
+    if (
+      !lease ||
+      (lease.user.switchedFrom?.id ?? lease.user.id) !==
+        (row.actor_id ?? (JSON.parse(row.user_json) as SessionUser).id) ||
+      !operation
+    )
+      return answer({ error: "account-unavailable" }, 503);
+    const updated = this.sql
+      .exec<{ token_hash: string }>(
+        "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ?, restriction_revision = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING token_hash",
+        JSON.stringify(lease.user),
+        lease.expiresAt,
+        lease.user.switchedFrom?.id ?? lease.user.id,
+        lease.restrictionRevision,
+        tokenHash,
+        row.grant,
+        fenced.generation,
+      )
+      .toArray()[0];
+    if (!updated) return answer({ error: "unauthorized" }, 401);
+    if (
+      operation.status < 300 &&
+      path === "/api/auth/blocked/unblock" &&
+      !this.applyRestrictions(result.body?.restrictions)
+    )
+      return answer({ error: "account-unavailable" }, 503);
+    return answer(operation.body, operation.status);
+  }
+
+  /** Restrictions are separate from the lease, so late responses cannot lift a newer block. */
+  private applyRestrictions(value: unknown): boolean {
+    if (!value || typeof value !== "object") return false;
+    const snapshot = value as { revision?: unknown; users?: unknown };
+    if (
+      typeof snapshot.revision !== "number" ||
+      !Number.isSafeInteger(snapshot.revision) ||
+      snapshot.revision < 1 ||
+      !Array.isArray(snapshot.users)
+    )
+      return false;
+    const revision = snapshot.revision;
+    const users: { id: string; blocked: boolean }[] = [];
+    for (const user of snapshot.users) {
+      if (
+        !user ||
+        typeof user !== "object" ||
+        typeof user.id !== "string" ||
+        user.id.length < 1 ||
+        user.id.length > 256 ||
+        typeof user.blocked !== "boolean"
+      )
+        return false;
+      users.push(user);
+    }
+    this.state.storage.transactionSync(() => {
+      for (const user of users)
+        this.sql.exec(
+          "INSERT INTO regional_restrictions (user_id, revision, blocked) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET revision = excluded.revision, blocked = excluded.blocked WHERE excluded.revision > regional_restrictions.revision",
+          user.id,
+          revision,
+          user.blocked ? 1 : 0,
+        );
+    });
+    return true;
+  }
+
+  private projectedUser(row: SessionRow): SessionUser | null {
+    const user = sessionIdentity(JSON.parse(row.user_json));
+    if (!user) return null;
+    const restriction = this.sql
+      .exec<{ revision: number; blocked: number }>(
+        "SELECT revision, blocked FROM regional_restrictions WHERE user_id = ?",
+        user.id,
+      )
+      .toArray()[0];
+    if (!restriction || restriction.revision <= row.restriction_revision)
+      return user;
+    const projected = { ...user };
+    if (restriction.blocked) projected.blocked = true;
+    else delete projected.blocked;
+    return projected;
   }
 
   private async schedule(): Promise<void> {
@@ -303,7 +606,9 @@ export class RegionalSessionDO {
       )
       .one();
     if (row.next !== null)
-      await this.state.storage.setAlarm(Math.max(this.now() + 1000, row.next));
+      // Drain overdue batches without spending another second of every lease.
+      // The bounded batch and awaited network calls still limit concurrency.
+      await this.state.storage.setAlarm(Math.max(this.now() + 100, row.next));
   }
 
   async alarm(): Promise<void> {
@@ -314,7 +619,7 @@ export class RegionalSessionDO {
     );
     const due = this.sql
       .exec<SessionRow>(
-        "SELECT * FROM regional_sessions WHERE refresh_at <= ? ORDER BY refresh_at LIMIT 20",
+        "SELECT * FROM regional_sessions WHERE refresh_at <= ? ORDER BY refresh_at LIMIT 100",
         this.now(),
       )
       .toArray();
@@ -331,26 +636,67 @@ export class RegionalSessionDO {
         const result = await this.authority("renew", { grant: row.grant });
         if (result.status === 401) {
           this.sql.exec(
-            "DELETE FROM regional_sessions WHERE token_hash = ?",
+            "DELETE FROM regional_sessions WHERE token_hash = ? AND grant = ? AND generation = ?",
             row.token_hash,
+            row.grant,
+            row.generation,
           );
           return;
         }
         const lease = this.lease(result.body);
         if (
           !lease ||
-          lease.user.id !== (JSON.parse(row.user_json) as SessionUser).id
+          (lease.user.switchedFrom?.id ?? lease.user.id) !==
+            (row.actor_id ?? (JSON.parse(row.user_json) as SessionUser).id)
         )
           return;
         this.sql.exec(
-          "UPDATE regional_sessions SET user_json = ?, lease_until = ? WHERE token_hash = ? AND grant = ?",
+          "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ?, restriction_revision = ? WHERE token_hash = ? AND grant = ? AND generation = ?",
           JSON.stringify(lease.user),
           lease.expiresAt,
+          lease.user.switchedFrom?.id ?? lease.user.id,
+          lease.restrictionRevision,
           row.token_hash,
           row.grant,
+          row.generation,
         );
       }),
     );
     await this.schedule();
+  }
+}
+
+function operationResult(
+  body: Record<string, unknown> | null,
+): { status: number; body: unknown } | null {
+  const result = body?.result as
+    { status?: unknown; body?: unknown } | undefined;
+  return result &&
+    typeof result.status === "number" &&
+    Number.isInteger(result.status) &&
+    result.status >= 200 &&
+    result.status <= 599 &&
+    !(result.status >= 300 && result.status < 400) &&
+    result.body
+    ? { status: result.status, body: result.body }
+    : null;
+}
+
+/** Only a local page can be resumed; authority/API URLs are never continuations. */
+function returnPath(value: string | null, origin: string): string {
+  if (
+    !value ||
+    value.length > 2048 ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  )
+    return "/";
+  try {
+    const target = new URL(value, origin);
+    if (target.origin !== origin || target.pathname.startsWith("/api/"))
+      return "/";
+    return target.pathname + target.search + target.hash;
+  } catch {
+    return "/";
   }
 }

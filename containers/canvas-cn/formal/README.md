@@ -9,9 +9,11 @@ return 404. The built editor assets need a reverse proxy on the same origin.
 ## Preparation
 
 - Build `bundle.jsonc` using the repository-pinned Wrangler with `deploy --dry-run
-  --outdir <absolute-private-release>/worker`. It bundles `worker/regional-entry.ts`;
+--outdir <absolute-private-release>/worker`. It bundles `worker/regional-entry.ts`;
   rename the generated `regional-entry.js` to `index.js`. Never invoke a real
-  deploy for this profile. Place config and egress beside the worker directory.
+  deploy for this profile. Separately dry-run `egress-bundle.jsonc`, then place
+  its bundled `egress.js` as `egress.mjs` beside `config.capnp`. The raw egress
+  source imports the shared Auth route contract and cannot be copied unbundled.
 - Use the pinned workerd binary from the [standalone runtime](../README.md).
   Namespace keys and state paths in `config.capnp` are persistent identities.
   One process owns each directory. Never copy trial accounts into formal state.
@@ -26,13 +28,21 @@ return 404. The built editor assets need a reverse proxy on the same origin.
   The unmodified overseas configuration remains disabled.
 - Authority and peer origins must reach overseas unambiguously. Geographic DNS
   on a shared public domain is not sufficient for background traffic or login
-  handoff. Configure fixed regional service origins before enabling replication.
+  handoff. For a shared browser origin, pin `transportOrigin` to a separate
+  overseas endpoint and use that origin in `identity-url`. Only the
+  [Auth contract's browser routes](../../../worker/regional-auth-contract.ts)
+  are proxied there, preserving Origin, cookies and query parameters. Browser
+  redirects return to the browser without being followed; server-side RPC and
+  synchronization redirects are rejected. Local session and account routes are
+  never included in this browser proxy.
 
 ## Activation gates
 
 1. Qualify both candidates on isolated data, including process restart, actual
-   workerd alarms, session lease renewal and browser login. The provider-only
-   editor login UI still needs the account worker's central-login integration.
+   workerd alarms, session lease renewal and the editor's central-login flow.
+   Before activating a shared browser domain, qualify its TLS, provider callbacks
+   and fixed-origin routing in a restricted real-domain rehearsal. The localhost
+   SSH trial does not require that rehearsal or a new domain alias.
 2. Install the formal service under its dedicated Unix user and prepare its
    state directory. Keep `PROJECT_WRITES_ENABLED=false`; the loopback entry is
    accessible through SSH. The entry normalizes trusted proxy requests to the

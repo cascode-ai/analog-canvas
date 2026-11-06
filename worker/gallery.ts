@@ -6,6 +6,7 @@
 // is `GalleryDO` (gallery-do.ts); its operations live in gallery-store*.ts.
 
 import type { RejectionAuthor } from "./gallery-rejection-notice";
+import { boundedBlockEvidence } from "./account-blocks";
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { validGalleryAttention } from "./gallery-curation";
 import { createDesignNetlistExport } from "@icm/netlist";
@@ -192,11 +193,13 @@ async function blockForTrap(
       body: JSON.stringify({
         userId: reader.id,
         kind,
-        entryId,
-        path: new URL(request.url).pathname,
-        ip: headers.get("cf-connecting-ip"),
-        country: headers.get("cf-ipcountry"),
-        userAgent: headers.get("user-agent"),
+        ...boundedBlockEvidence({
+          entryId,
+          path: new URL(request.url).pathname,
+          ip: headers.get("cf-connecting-ip"),
+          country: headers.get("cf-ipcountry"),
+          userAgent: headers.get("user-agent"),
+        }),
       }),
     })
     .catch(() => null);
@@ -507,6 +510,10 @@ export async function routeGalleryRequest(
   // The preview gate's one-minute cache must not supply list permissions.
   let session: Promise<SessionUser | null> | undefined;
   const readSession = () => (session ??= sessionUserOf(request, env));
+  // A cross-request cache could outlive a regional lease or local logout.
+  const readReader = env.AUTH_REGIONAL_CLIENT
+    ? readSession
+    : () => galleryReaderOf(request, readSession);
   // Reuse only this request's membership and publication check on an edge hit.
   let signedOutPreviewAccess:
     { status?: string; previewRevision?: string } | undefined;
@@ -520,7 +527,7 @@ export async function routeGalleryRequest(
     (request.method === "GET" || request.method === "HEAD") &&
     !hasGalleryReadToken(request, env) &&
     !(isAutomatedBackup(segments) && hasStoreBackupToken(request, env)) &&
-    !(await galleryReaderOf(request, readSession))
+    !(await readReader())
   ) {
     // The wall's order and shuffle (#1615) change nothing here: a
     // signed-out visitor sees the newest twelve whichever order is asked.
@@ -569,7 +576,7 @@ export async function routeGalleryRequest(
 
   // An account blocked for collecting the Gallery in bulk reads and writes
   // none of it.
-  if ((await galleryReaderOf(request, readSession))?.blocked)
+  if ((await readReader())?.blocked)
     return Response.json(
       { error: "account-blocked", usage: SITE_USAGE_NOTE },
       { status: 403, headers: { "cache-control": "no-store" } },

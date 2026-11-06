@@ -48,6 +48,7 @@ export interface HierarchyMenuCommands {
 export interface EditorAppChromeProps {
   communityEnabled?: boolean;
   identityEnabled?: boolean;
+  signInReturnTo?: string | undefined;
   externalLinksEnabled?: boolean;
   userComponentsEnabled?: boolean;
   hostActions?: ReactNode;
@@ -95,6 +96,7 @@ export interface EditorAppChromeProps {
 export function EditorAppChrome({
   communityEnabled = true,
   identityEnabled = true,
+  signInReturnTo,
   externalLinksEnabled = true,
   userComponentsEnabled = communityEnabled,
   hostActions,
@@ -478,7 +480,7 @@ export function EditorAppChrome({
           ) : null}
           {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
           {!import.meta.env?.ICM_DESKTOP && identityEnabled ? (
-            <EditorAccountMenu />
+            <EditorAccountMenu signInReturnTo={signInReturnTo} />
           ) : null}
           {hostActions}
           {externalLinksEnabled ? (
@@ -566,7 +568,18 @@ export function EditorAppChrome({
 }
 
 /** Keep the online context read inside the Web-only account branch. */
-function EditorAccountMenu() {
+function EditorAccountMenu({
+  signInReturnTo,
+}: {
+  signInReturnTo?: string | undefined;
+}) {
   const preload = useContext(AccountStatePreload);
-  return <AccountMenu inEditor alwaysVisible preload={preload} />;
+  return (
+    <AccountMenu
+      inEditor
+      alwaysVisible
+      preload={preload}
+      signInReturnTo={signInReturnTo}
+    />
+  );
 }
