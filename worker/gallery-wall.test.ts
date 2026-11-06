@@ -234,6 +234,7 @@ describe("the Owner's Data tab (#1446)", () => {
       parts: 10,
       transistors: 0,
       netlistable: true,
+      simulatable: false,
       aiGenerated: true,
       likes: 1,
       opens: 0,

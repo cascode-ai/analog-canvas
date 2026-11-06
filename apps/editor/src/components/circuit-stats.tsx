@@ -12,7 +12,18 @@ export interface CircuitStatsRow {
   createdAt: string;
   components: number | null;
   transistors: number | null;
+  aiGenerated?: boolean;
+  netlistable?: boolean;
+  /** It carries a testbench, so it can be simulated. */
+  simulatable?: boolean;
 }
+
+/** A circuit's marks in its row: made by AI, exports a netlist, simulates. */
+const circuitBadges = (circuit: CircuitStatsRow): string[] => [
+  ...(circuit.aiGenerated ? ["AI"] : []),
+  ...(circuit.netlistable ? ["Netlist"] : []),
+  ...(circuit.simulatable ? ["Sim"] : []),
+];
 
 /** A further number column, as the Owner's Data tab adds likes and opens. */
 export interface CircuitStatsColumn<Row> {
@@ -74,7 +85,7 @@ function Measure({
 export function CircuitStatsTable<Row extends CircuitStatsRow>({
   circuits,
   columns = [],
-  badges,
+  badges = circuitBadges,
   onRefresh,
   refreshing = false,
 }: {

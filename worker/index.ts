@@ -16,6 +16,8 @@ import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
 import { serveAsset } from "./static-assets";
 import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
 import { pumpProjectSync } from "./project-sync";
+import { withGalleryStore } from "./gallery-datasets";
+import { GALLERY_SOURCES } from "./gallery-sources";
 export { RegionalProjectDO } from "./regional-projects";
 import { routeBoardsRequest } from "./boards";
 import {
@@ -125,6 +127,13 @@ export default {
     try {
       await refreshNetlistMarks(env, SCHEDULED_NETLIST_MARK_BATCH);
       await refreshTransistorCounts(env, SCHEDULED_TRANSISTOR_BATCH);
+      // The reference datasets' stores count theirs too, for the Gallery's
+      // statistics; once counted they stay, as nobody edits them.
+      for (const source of GALLERY_SOURCES)
+        await refreshTransistorCounts(
+          withGalleryStore(env, source),
+          SCHEDULED_TRANSISTOR_BATCH,
+        );
       // Once the Owner recorded a backup, testbenches leave the shared
       // Project Code a batch a tick (#1545); then the pass reads one row.
       await moveTestbenches(env, { apply: true, scheduled: true });

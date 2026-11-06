@@ -12,6 +12,7 @@ import {
   CURRENT_TRANSISTORS,
 } from "./gallery-store-stats";
 import { GALLERY_ISSUE_KINDS } from "./gallery-curation";
+import { HAS_TESTBENCH } from "./gallery-testbench";
 import taxonomy from "../config/gallery-taxonomy.json";
 import {
   galleryEntryMatchesQuery,
@@ -887,14 +888,16 @@ export function ownerData(
         transistors: number | null;
         netlistable: number;
         ai_generated: number;
+        simulatable: number;
         likes: number;
         opens: number;
         recent: number;
       }>(
         `SELECT e.id, e.name, e.created_at, ${parts} AS parts,
-                t.transistors, e.netlistable, e.ai_generated, ${likes} AS likes,
+                t.transistors, e.netlistable, e.ai_generated,
+                ${HAS_TESTBENCH} AS simulatable, ${likes} AS likes,
                 ${opens} AS opens, ${recent} AS recent
-         FROM gallery_entries e INDEXED BY idx_gallery_entries_card
+         FROM gallery_entries e
          ${CURRENT_TRANSISTORS}
          WHERE e.status = 'public' AND ${
            legacy === null
@@ -914,6 +917,7 @@ export function ownerData(
         parts: row.parts,
         transistors: row.transistors === null ? null : Number(row.transistors),
         netlistable: row.netlistable === 1,
+        simulatable: Number(row.simulatable) === 1,
         aiGenerated: row.ai_generated === 1,
         likes: Number(row.likes),
         opens: Number(row.opens),

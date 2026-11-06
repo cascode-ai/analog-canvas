@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   CircuitStatsTable,
@@ -26,6 +26,8 @@ import {
  */
 export interface GalleryStatsSummary {
   circuits: number;
+  /** Of them, the reference datasets' (absent from an author's own). */
+  datasets?: number;
   authors: number;
   components: number;
   transistors: number;
@@ -40,7 +42,7 @@ export interface GalleryStatsSummary {
   devices: { kind: string; count: number }[];
   sizes: { key: string; circuits: number }[];
   transistorBins: { key: string; circuits: number }[];
-  weeks: { week: string; human: number; ai: number }[];
+  weeks: { week: string; human: number; ai: number; dataset?: number }[];
 }
 
 export interface AuthorRank {
@@ -51,7 +53,12 @@ export interface AuthorRank {
 export interface GalleryStatsPayload {
   summary: GalleryStatsSummary;
   topAuthors: { author: string; circuits: number }[];
+  /** How many circuits each store gave: the community's, each dataset's. */
+  sources?: { key: string; name: string; circuits: number }[];
 }
+
+/** The stores the Gallery's figures count: all, the community's, the datasets'. */
+export type GalleryStatsSource = "all" | "community" | "datasets";
 
 export interface AuthorStatsPayload<Row> {
   circuits: Row[];
@@ -195,15 +202,17 @@ const deviceTable = (summary: GalleryStatsSummary) => {
   };
 };
 
-const weekTable = (summary: GalleryStatsSummary) => ({
-  columns: ["Week of", "People", "AI", "Total"],
-  rows: summary.weeks.map((item) => [
-    weekLabel(item.week),
-    item.human,
-    item.ai,
-    item.human + item.ai,
-  ]),
-});
+const weekTable = (summary: GalleryStatsSummary) => {
+  const makers = makersOf(summary);
+  return {
+    columns: ["Week of", ...makers.map((maker) => maker.label), "Total"],
+    rows: summary.weeks.map((item) => [
+      weekLabel(item.week),
+      ...makers.map((maker) => item[maker.key] ?? 0),
+      makers.reduce((sum, maker) => sum + (item[maker.key] ?? 0), 0),
+    ]),
+  };
+};
 
 /** The transistor tile's note: the average, or how many are still to count. */
 function transistorNote(summary: GalleryStatsSummary, library?: string) {
@@ -212,13 +221,37 @@ function transistorNote(summary: GalleryStatsSummary, library?: string) {
   return `${average(summary.transistors, summary.counted)} per circuit${library ?? ""}`;
 }
 
+/** Who published a week's circuits; each keeps its hue in every view. */
+const MAKERS = [
+  { key: "human", label: "People", phrase: "people", color: SERIES[0] },
+  { key: "ai", label: "AI", phrase: "AI", color: SERIES[1] },
+  { key: "dataset", label: "Datasets", phrase: "datasets", color: SERIES[2] },
+] as const;
+
+/** Words in a sentence: `a and b`, `a, b and c`. */
+const listed = (words: readonly string[]) =>
+  words.length > 1
+    ? `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`
+    : (words[0] ?? "");
+
+/** The makers a summary's weeks hold any circuit of. */
+const makersOf = (summary: GalleryStatsSummary) =>
+  MAKERS.filter((maker) =>
+    summary.weeks.some((item) => (item[maker.key] ?? 0) > 0),
+  );
+
 function PublishedChart({ summary }: { summary: GalleryStatsSummary }) {
-  const withAi = summary.weeks.some((item) => item.ai > 0);
+  const makers = makersOf(summary);
+  const shown = makers.length > 0 ? makers : [MAKERS[0]];
   return (
     <ChartCard
       wide
       title="Published per week"
-      subtitle={`The last ${summary.weeks.length} weeks${withAi ? ", by people and by AI" : ""}`}
+      subtitle={`The last ${summary.weeks.length} weeks${
+        shown.length > 1
+          ? `, by ${listed(shown.map((maker) => maker.phrase))}`
+          : ""
+      }`}
       table={weekTable(summary)}
       testId="stats-weeks"
     >
@@ -227,23 +260,39 @@ function PublishedChart({ summary }: { summary: GalleryStatsSummary }) {
         stacked
         caps="extremes"
         axisEvery={2}
-        series={[
-          { key: "human", label: "People", color: SERIES[0] },
-          ...(withAi ? [{ key: "ai", label: "AI", color: SERIES[1] }] : []),
-        ]}
+        series={shown}
         columns={summary.weeks.map((item) => ({
           key: item.week,
           label: weekLabel(item.week),
-          values: withAi ? [item.human, item.ai] : [item.human],
+          values: shown.map((maker) => item[maker.key] ?? 0),
         }))}
       />
     </ChartCard>
   );
 }
 
-/** The whole community Gallery: how big it is and how its circuits spread. */
-export function GalleryStatsView({ stats }: { stats: GalleryStatsPayload }) {
+const SOURCE_NOTES: Record<GalleryStatsSource, string> = {
+  all: "Public circuits of the community and of the reference datasets; withdrawn circuits are not counted.",
+  community:
+    "Public circuits of the community Gallery; withdrawn circuits and the reference datasets are not counted.",
+  datasets:
+    "The reference datasets' circuits, redrawn as Analog Canvas schematics.",
+};
+
+/** The Gallery, from the stores chosen: how big it is and how its circuits spread. */
+export function GalleryStatsView({
+  stats,
+  source = "community",
+}: {
+  stats: GalleryStatsPayload;
+  source?: GalleryStatsSource;
+}) {
   const { summary, topAuthors } = stats;
+  const datasets = summary.datasets ?? 0;
+  const community = summary.circuits - datasets;
+  const datasetNames = (stats.sources ?? [])
+    .filter((item) => item.key !== "community" && item.circuits > 0)
+    .map((item) => item.name);
   if (summary.circuits === 0)
     return (
       <div className="stats-view">
@@ -260,13 +309,27 @@ export function GalleryStatsView({ stats }: { stats: GalleryStatsPayload }) {
           label="Circuits"
           value={formatted(summary.circuits)}
           testId="gallery-stats-circuits"
-          note={`${share(summary.netlist, summary.circuits)} with a netlist · ${share(summary.ai, summary.circuits)} by AI`}
+          note={
+            source === "all"
+              ? `${formatted(community)} community · ${formatted(datasets)} from datasets`
+              : source === "datasets"
+                ? `${share(summary.netlist, summary.circuits)} with a netlist`
+                : `${share(summary.netlist, summary.circuits)} with a netlist · ${share(summary.ai, summary.circuits)} by AI`
+          }
         />
-        <StatTile
-          label="Authors"
-          value={formatted(summary.authors)}
-          note={`${average(summary.circuits, summary.authors)} circuits each`}
-        />
+        {source === "datasets" ? (
+          <StatTile
+            label="Datasets"
+            value={formatted(datasetNames.length)}
+            note={datasetNames.join(" · ")}
+          />
+        ) : (
+          <StatTile
+            label="Authors"
+            value={formatted(summary.authors)}
+            note={`${average(summary.circuits, summary.authors)} circuits each`}
+          />
+        )}
         <StatTile
           label="Components"
           value={formatted(summary.components)}
@@ -342,7 +405,11 @@ export function GalleryStatsView({ stats }: { stats: GalleryStatsPayload }) {
         </ChartCard>
         <ChartCard
           title="Most circuits"
-          subtitle="Authors with the most public circuits"
+          subtitle={
+            source === "datasets"
+              ? "Circuits of each dataset"
+              : "Authors with the most public circuits"
+          }
           testId="stats-authors"
         >
           <BarList
@@ -354,10 +421,7 @@ export function GalleryStatsView({ stats }: { stats: GalleryStatsPayload }) {
           />
         </ChartCard>
       </div>
-      <p className="stats-footnote">
-        Public circuits of the community Gallery; withdrawn circuits and the
-        reference datasets are not counted.
-      </p>
+      <p className="stats-footnote">{SOURCE_NOTES[source]}</p>
     </div>
   );
 }
@@ -591,9 +655,9 @@ async function readJson<T>(url: string): Promise<T | null> {
   }
 }
 
-/** The whole Gallery's statistics, read once per caller and on each refresh. */
-export const readGalleryStats = () =>
-  readJson<GalleryStatsPayload>("/api/gallery/stats");
+/** The Gallery's statistics from the stores chosen, all by default. */
+export const readGalleryStats = (source: GalleryStatsSource = "all") =>
+  readJson<GalleryStatsPayload>(`/api/gallery/stats?source=${source}`);
 
 type StatsView = "gallery" | "mine";
 
@@ -602,68 +666,101 @@ const VIEW_LABELS: Record<StatsView, string> = {
   mine: "My circuits",
 };
 
-const VIEW_NOTES: Record<StatsView, string> = {
-  gallery: "Every public circuit in the community Gallery",
-  mine: "Your public circuits, beside the whole Gallery",
+const SOURCE_LABELS: Record<GalleryStatsSource, string> = {
+  all: "All",
+  community: "Community",
+  datasets: "Datasets",
+};
+
+const SCOPE_NOTES: Record<GalleryStatsSource | "mine", string> = {
+  all: "The community's public circuits and the reference datasets'",
+  community: "Every public circuit in the community Gallery",
+  datasets: "The reference datasets' redrawn circuits",
+  mine: "Your public circuits, beside the community Gallery",
 };
 
 /** The view a link names (`?view=mine`), or the whole Gallery. */
 export const statsViewFromSearch = (search: string): StatsView =>
   new URLSearchParams(search).get("view") === "mine" ? "mine" : "gallery";
 
+/** The stores a link names (`?source=community` or `datasets`), or all. */
+export const statsSourceFromSearch = (search: string): GalleryStatsSource => {
+  const source = new URLSearchParams(search).get("source");
+  return source === "community" || source === "datasets" ? source : "all";
+};
+
+/** The address with one search parameter set, or removed at its default. */
+function remember(name: string, value: string | null) {
+  // A reload or a link returns to the same view.
+  try {
+    const url = new URL(window.location.href);
+    if (value === null) url.searchParams.delete(name);
+    else url.searchParams.set(name, value);
+    window.history.replaceState(window.history.state, "", url);
+  } catch {
+    // A sandboxed frame may refuse; the view is open either way.
+  }
+}
+
+const kept =
+  <T,>(read: T | null) =>
+  (current: Load<T> | undefined): Load<T> =>
+    read
+      ? { status: "ready", data: read }
+      : current?.status === "ready"
+        ? current
+        : { status: "failed" };
+
 /**
- * The account page's Statistics tab: the whole Gallery's statistics and the
- * account's own, one view at a time, both read together and refreshed
- * together; a failed refresh keeps the numbers already shown.
+ * The account page's Statistics tab: the Gallery's statistics, from all its
+ * stores, the community's or the datasets', and the account's own beside the
+ * community's. Each is read when first shown and again on Refresh; a failed
+ * refresh keeps the numbers already shown.
  */
 export function StatisticsContent() {
   const [view, setView] = useState<StatsView>(() =>
     statsViewFromSearch(window.location.search),
   );
+  const [source, setSource] = useState<GalleryStatsSource>(() =>
+    statsSourceFromSearch(window.location.search),
+  );
   const [reads, setReads] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [gallery, setGallery] = useState<Load<GalleryStatsPayload>>({
-    status: "loading",
-  });
+  const [galleries, setGalleries] = useState<
+    Partial<Record<GalleryStatsSource, Load<GalleryStatsPayload>>>
+  >({});
   const [mine, setMine] = useState<Load<AuthorStatsPayload<CircuitStatsRow>>>({
     status: "loading",
   });
+  // The account's own sit beside the community's, whatever the Gallery view shows.
+  const needed: GalleryStatsSource = view === "gallery" ? source : "community";
+  const requested = useRef(new Set<string>());
+  useEffect(() => {
+    const round = `${needed}:${reads}`;
+    if (requested.current.has(round)) return;
+    requested.current.add(round);
+    void readGalleryStats(needed).then((read) => {
+      setGalleries((known) => ({
+        ...known,
+        [needed]: kept(read)(known[needed]),
+      }));
+      setRefreshing(false);
+    });
+  }, [needed, reads]);
   useEffect(() => {
     let cancelled = false;
-    const keep =
-      <T,>(read: T | null) =>
-      (current: Load<T>): Load<T> =>
-        read
-          ? { status: "ready", data: read }
-          : current.status === "ready"
-            ? current
-            : { status: "failed" };
-    void Promise.all([
-      readGalleryStats(),
-      readJson<AuthorStatsPayload<CircuitStatsRow>>("/api/gallery/mine/stats"),
-    ]).then(([library, own]) => {
-      if (cancelled) return;
-      setGallery(keep(library));
-      setMine(keep(own));
-      setRefreshing(false);
+    void readJson<AuthorStatsPayload<CircuitStatsRow>>(
+      "/api/gallery/mine/stats",
+    ).then((read) => {
+      if (!cancelled) setMine(kept(read));
     });
     return () => {
       cancelled = true;
     };
   }, [reads]);
-  const choose = (next: StatsView) => {
-    setView(next);
-    // The address names the view, so a reload or a link returns to it.
-    try {
-      const url = new URL(window.location.href);
-      if (next === "mine") url.searchParams.set("view", "mine");
-      else url.searchParams.delete("view");
-      window.history.replaceState(window.history.state, "", url);
-    } catch {
-      // A sandboxed frame may refuse; the view is open either way.
-    }
-  };
-  const shown = view === "gallery" ? gallery : mine;
+  const library = galleries[needed] ?? { status: "loading" };
+  const shown = view === "gallery" ? library : mine;
+  const community = galleries.community;
   return (
     <div className="stats-page" data-testid="statistics">
       <div className="stats-toolbar">
@@ -675,13 +772,40 @@ export function StatisticsContent() {
               role="tab"
               aria-selected={view === item}
               data-testid={`statistics-view-${item}`}
-              onClick={() => choose(item)}
+              onClick={() => {
+                setView(item);
+                remember("view", item === "mine" ? "mine" : null);
+              }}
             >
               {VIEW_LABELS[item]}
             </button>
           ))}
         </div>
-        <span className="stats-scope">{VIEW_NOTES[view]}</span>
+        {view === "gallery" ? (
+          <div
+            className="stats-switch stats-switch-small"
+            role="group"
+            aria-label="Circuits counted"
+          >
+            {(["all", "community", "datasets"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                aria-pressed={source === item}
+                data-testid={`statistics-source-${item}`}
+                onClick={() => {
+                  setSource(item);
+                  remember("source", item === "all" ? null : item);
+                }}
+              >
+                {SOURCE_LABELS[item]}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <span className="stats-scope">
+          {SCOPE_NOTES[view === "gallery" ? source : "mine"]}
+        </span>
         <button
           type="button"
           className="stats-refresh"
@@ -702,12 +826,15 @@ export function StatisticsContent() {
           Could not load the statistics — try again later.
         </p>
       ) : view === "gallery" ? (
-        <GalleryStatsView stats={shown.data as GalleryStatsPayload} />
+        <GalleryStatsView
+          stats={shown.data as GalleryStatsPayload}
+          source={source}
+        />
       ) : (
         <AuthorStatsView
           stats={shown.data as AuthorStatsPayload<CircuitStatsRow>}
           library={
-            gallery.status === "ready" ? gallery.data.summary : undefined
+            community?.status === "ready" ? community.data.summary : undefined
           }
         />
       )}

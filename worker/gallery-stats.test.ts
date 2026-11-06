@@ -19,6 +19,7 @@ import {
   route,
   signIn,
   submitOne,
+  testbenchProjectText,
 } from "./gallery.test-support";
 
 const at = (index: number) => ({
@@ -251,6 +252,124 @@ describe("the Gallery's statistics", () => {
     expect(mine.summary).toMatchObject({ circuits: 1, transistors: 2 });
     expect(mine.rank).toEqual({ position: 2, authors: 2 });
   });
+
+  it("marks the circuits that carry a testbench, for their Sim badge", async () => {
+    const env = environment();
+    const maker = await makerOf(env);
+    const owner = await ownerAccountOf(env);
+    const simulated = await submitOne(env, "Simulated", {
+      cookie: maker,
+      text: testbenchProjectText("Simulated"),
+    });
+    const plain = await submitOne(env, "Plain", {
+      cookie: maker,
+      text: circuitText("Plain", ["nmos"]),
+      ip: "203.0.113.61",
+    });
+    const marks = (circuits: any[]) =>
+      Object.fromEntries(
+        circuits.map((circuit) => [circuit.id, circuit.simulatable]),
+      );
+    const mine = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/mine/stats`, {
+          headers: cookieHeaders(maker),
+        }),
+      )
+    ).json()) as any;
+    expect(marks(mine.circuits)).toEqual({ [simulated]: true, [plain]: false });
+    const { authors } = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/owner-data`, {
+          headers: cookieHeaders(owner),
+        }),
+      )
+    ).json()) as any;
+    const listed = (await (
+      await route(
+        env,
+        new Request(
+          `${ORIGIN}/api/gallery/owner-data?author=${encodeURIComponent(authors[0].key)}`,
+          { headers: cookieHeaders(owner) },
+        ),
+      )
+    ).json()) as any;
+    expect(marks(listed.circuits)).toEqual({
+      [simulated]: true,
+      [plain]: false,
+    });
+  });
+});
+
+describe("the Gallery's statistics by source", () => {
+  it("counts the community, the reference datasets, or all of them", async () => {
+    const env = environment();
+    const owner = await ownerAccountOf(env);
+    const maker = await makerOf(env);
+    await submitOne(env, "Amplifier", {
+      cookie: maker,
+      text: circuitText("Amplifier", ["nmos", "pmos"]),
+    });
+    const imported = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/sources/amsnet/entries`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: owner,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          entries: ["amsnet-1", "amsnet-2"].map((id) => ({
+            id,
+            name: id,
+            tags: ["cmos"],
+            projectText: circuitText(id, ["npn", "resistor"]),
+          })),
+        }),
+      }),
+    );
+    expect(imported.status).toBe(200);
+    const read = async (source?: string) =>
+      (await (
+        await route(
+          env,
+          new Request(
+            `${ORIGIN}/api/gallery/stats${source ? `?source=${source}` : ""}`,
+            { headers: cookieHeaders(maker) },
+          ),
+        )
+      ).json()) as any;
+    const all = await read();
+    expect(all.summary).toMatchObject({
+      circuits: 3,
+      datasets: 2,
+      transistors: 4,
+      tags: [{ tag: "cmos", circuits: 2 }],
+    });
+    // A dataset's circuits are neither people's nor AI's.
+    expect(all.summary.weeks.at(-1)).toEqual(
+      expect.objectContaining({ human: 1, ai: 0, dataset: 2 }),
+    );
+    expect(all.sources).toEqual(
+      expect.arrayContaining([
+        { key: "community", name: "Community", circuits: 1 },
+        { key: "amsnet", name: "AMS-Net", circuits: 2 },
+      ]),
+    );
+    expect((await read("community")).summary).toMatchObject({
+      circuits: 1,
+      datasets: 0,
+      transistors: 2,
+    });
+    const datasets = await read("datasets");
+    expect(datasets.summary).toMatchObject({ circuits: 2, datasets: 2 });
+    expect(datasets.topAuthors).toEqual([
+      { author: "AMS-Net (redrawn)", circuits: 2 },
+    ]);
+  });
 });
 
 describe("an account's circuit statistics", () => {
@@ -291,6 +410,9 @@ describe("an account's circuit statistics", () => {
         createdAt: expect.any(String),
         components: 2,
         transistors: 0,
+        aiGenerated: false,
+        netlistable: expect.any(Boolean),
+        simulatable: false,
       },
       {
         id: amplifier,
@@ -298,6 +420,9 @@ describe("an account's circuit statistics", () => {
         createdAt: expect.any(String),
         components: 4,
         transistors: 3,
+        aiGenerated: false,
+        netlistable: expect.any(Boolean),
+        simulatable: false,
       },
     ]);
 
