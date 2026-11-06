@@ -10,7 +10,7 @@ using System.Windows.Forms;
 using System.Xml;
 using Office = Microsoft.Office.Core;
 using Extensibility;
-[assembly: ComVisible(false)] [assembly: System.Reflection.AssemblyVersion("2.1.1.0")] namespace CircuitCanvas  {
+[assembly: ComVisible(false)] [assembly: System.Reflection.AssemblyVersion("2.1.2.0")] namespace CircuitCanvas  {
     [ComVisible(true), Guid("48CA2B08-BB3C-45AB-A982-5B19168732B9"), InterfaceType(ComInterfaceType.InterfaceIsIDispatch)] public interface ICallbacks  {
         [DispId(10)] void OnNew(Office.IRibbonControl c);
         [DispId(11)] void OnEdit(Office.IRibbonControl c);
@@ -186,8 +186,8 @@ using Extensibility;
 <button id='editCircuit' label='Edit circuit' size='large' getImage='GetButtonImage' onAction='OnEdit' screentip='Edit the selected circuit'/>
 </group>
 <group id='canvasData' label='Selected circuit'>
-<button id='exportCircuit' label='Export selected circuit project' getImage='GetButtonImage' onAction='OnExport' screentip='Export the selected circuit as an editable project' supertip='Save the selected circuit’s embedded project as an .icproj.json file.'/>
-<button id='historyCircuit' label='Open version history' getImage='GetButtonImage' onAction='OnHistory' screentip='Open an earlier version of the selected circuit' supertip='Choose one of the three previous saves to open in the editor. The slide changes only when you save back to PowerPoint.'/>
+<button id='exportCircuit' label='Export selected circuit' getImage='GetButtonImage' onAction='OnExport' screentip='Export the selected circuit as an editable project' supertip='Save the selected circuit’s embedded project as an .icproj.json file.'/>
+<button id='historyCircuit' label='Open history version' getImage='GetButtonImage' onAction='OnHistory' screentip='Open an earlier version of the selected circuit' supertip='Choose one of the three previous saves to open in the editor. The slide changes only when you save back to PowerPoint.'/>
 </group>
 <group id='canvasHelp' label='Help'>
 <button id='helpCircuit' label='Help' size='large' getImage='GetButtonImage' onAction='OnHelp'/>
@@ -231,7 +231,7 @@ using Extensibility;
         public void OnExport(Office.IRibbonControl c) {
             Guard(()=> {
                 Drawing d=Read(Selected());using(var dialog=new SaveFileDialog {
-                    Title="Export selected circuit project",Filter="Analog Canvas project|*.icproj.json",FileName="circuit.icproj.json"
+                    Title="Export selected circuit",Filter="Analog Canvas project|*.icproj.json",FileName="circuit.icproj.json"
                 }
                 )if(dialog.ShowDialog()==DialogResult.OK)File.WriteAllText(dialog.FileName,d.current.project,new UTF8Encoding(false));
             }

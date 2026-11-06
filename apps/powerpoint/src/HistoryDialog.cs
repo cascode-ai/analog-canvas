@@ -20,7 +20,7 @@ namespace CircuitCanvas {
 
         public HistoryDialog(Drawing drawing) {
             snapshots = drawing.history ?? new List<Snapshot>();
-            Text = "Open version history";
+            Text = "Open history version";
             Font = new Font("Segoe UI", 10);
             BackColor = Color.White;
             ForeColor = Color.FromArgb(32, 43, 52);
@@ -40,7 +40,7 @@ namespace CircuitCanvas {
             Controls.Add(layout);
             var header = new Panel {Dock=DockStyle.Fill, Margin=Padding.Empty};
             header.Controls.Add(new Label {Text="Selected circuit · Previous saves", AutoSize=false, Dock=DockStyle.Bottom, Height=26, ForeColor=Color.FromArgb(94, 107, 116)});
-            header.Controls.Add(new Label {Text="Open version history", AutoSize=false, Dock=DockStyle.Top, Height=34, Font=new Font("Segoe UI", 16, FontStyle.Bold)});
+            header.Controls.Add(new Label {Text="Open history version", AutoSize=false, Dock=DockStyle.Top, Height=34, Font=new Font("Segoe UI", 16, FontStyle.Bold)});
             layout.Controls.Add(header, 0, 0);
 
             versions = new ListBox {

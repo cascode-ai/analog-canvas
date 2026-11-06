@@ -15,7 +15,7 @@ Keep host entry-point changes limited to launch/save/close integration.
 ## Rules
 
 - The English ribbon has five illustrated actions: New circuit, Edit circuit,
-  Export selected circuit project, Open version history and Help. Updates are
+  Export selected circuit, Open history version and Help. Updates are
   received automatically. History lists the selected circuit's previous saves
   with readable timestamps and opens a version without immediately changing
   the slide.
