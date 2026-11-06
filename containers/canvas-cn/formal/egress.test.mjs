@@ -7,7 +7,7 @@ const env = {
 };
 afterEach(() => vi.unstubAllGlobals());
 
-it.each(["account", "owner-token"])(
+it.each(["account", "owner-token", "security"])(
   "forwards the configured %s service RPC with its credential and body",
   async (operation) => {
     const url = `https://canvas-origin.test/api/auth/regional/${operation}`;
@@ -90,6 +90,7 @@ it("keeps service redirects closed even when they contain an apparent identity",
     ["POST", "https://canvas-origin.test/api/auth/regional/renew"],
     ["POST", "https://canvas-origin.test/api/auth/regional/account"],
     ["POST", "https://canvas-origin.test/api/auth/regional/owner-token"],
+    ["POST", "https://canvas-origin.test/api/auth/regional/security"],
   ]) {
     const result = await egress.fetch(new Request(url, { method }), env);
     expect(result.status, url).toBe(502);
@@ -108,6 +109,9 @@ it.each([
   ["POST", "https://canvas-origin.test/api/auth/profile"],
   ["GET", "https://canvas-origin.test/api/auth/regional/account"],
   ["GET", "https://canvas-origin.test/api/auth/regional/owner-token"],
+  ["GET", "https://canvas-origin.test/api/auth/regional/security"],
+  ["POST", "https://unconfigured.test/api/auth/regional/security"],
+  ["POST", "https://canvas-origin.test/api/auth/regional/security?override=1"],
   ["POST", "https://unconfigured.test/api/auth/regional/account"],
   ["POST", "https://canvas-origin.test/api/auth/regional/account?override=1"],
   ["GET", "https://canvas-origin.test/api/auth/regional/callback?code=x"],
