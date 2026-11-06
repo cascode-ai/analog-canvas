@@ -70,4 +70,26 @@ describe("an account's circuit table", () => {
       /<button[^>]*data-testid="circuit-stats-refresh"[^>]*disabled=""[^>]*>Refreshing…<\/button>/u,
     );
   });
+
+  it("badges each circuit AI, Netlist and Sim, in that order", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CircuitStatsTable, {
+        circuits: [
+          {
+            ...row("1", 3, 2),
+            aiGenerated: true,
+            netlistable: true,
+            simulatable: true,
+          },
+          { ...row("2", 3, 2), netlistable: true },
+        ],
+      }),
+    );
+    expect(markup.match(/circuit-stats-badge">(\w+)</gu)).toEqual([
+      'circuit-stats-badge">Netlist<',
+      'circuit-stats-badge">AI<',
+      'circuit-stats-badge">Netlist<',
+      'circuit-stats-badge">Sim<',
+    ]);
+  });
 });

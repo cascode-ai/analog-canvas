@@ -34,6 +34,8 @@ export interface OwnerDataCircuit {
   parts: number | null;
   transistors: number | null;
   netlistable: boolean;
+  /** It carries a testbench: the Sim badge. */
+  simulatable: boolean;
   aiGenerated: boolean;
   likes: number;
   opens: number;
@@ -389,10 +391,6 @@ export function OwnerDataContent() {
                                 who={row.author}
                                 refreshing={refreshing === row.key}
                                 onRefresh={() => refreshAuthor(row.key)}
-                                badges={(circuit) => [
-                                  ...(circuit.aiGenerated ? ["AI"] : []),
-                                  ...(circuit.netlistable ? ["Netlist"] : []),
-                                ]}
                                 columns={[
                                   {
                                     key: "likes",

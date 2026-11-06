@@ -14,6 +14,7 @@ import {
 } from "./gallery-components";
 import { type SqlStorage, unwrapTags } from "./gallery-store";
 import { tagType } from "./gallery-store-boards";
+import { HAS_TESTBENCH } from "./gallery-testbench";
 
 export function installTransistorCounts(sql: SqlStorage): void {
   // A row here marks an entry counted at its rule version. A count of null:
@@ -155,12 +156,16 @@ export function circuitStats(
       created_at: string;
       components: number | null;
       transistors: number | null;
+      ai_generated: number;
+      netlistable: number;
+      simulatable: number;
     }>(
       `SELECT e.id, e.name, e.created_at,
               CASE WHEN e.component_count_version > 0
                 THEN e.component_count END AS components,
-              t.transistors
-       FROM gallery_entries e INDEXED BY idx_gallery_entries_card
+              t.transistors, e.ai_generated, e.netlistable,
+              ${HAS_TESTBENCH} AS simulatable
+       FROM gallery_entries e
        ${CURRENT_TRANSISTORS}
        WHERE e.status = 'public' AND ${author.sql}
        ORDER BY e.created_at DESC, e.id DESC`,
@@ -174,6 +179,9 @@ export function circuitStats(
       createdAt: row.created_at,
       components: row.components === null ? null : Number(row.components),
       transistors: row.transistors === null ? null : Number(row.transistors),
+      aiGenerated: Number(row.ai_generated) === 1,
+      netlistable: Number(row.netlistable) === 1,
+      simulatable: Number(row.simulatable) === 1,
     })),
     ...authorStats(sql, key),
   });
@@ -202,6 +210,8 @@ const COUNTED_PER_GALLERY_READ = 200;
  */
 export interface GalleryStatsSummary {
   circuits: number;
+  /** Of them, a reference dataset's (worker/gallery-stats-sources.ts). */
+  datasets: number;
   authors: number;
   /** Parts, and transistors of the circuits counted so far (`counted`). */
   components: number;
@@ -218,8 +228,8 @@ export interface GalleryStatsSummary {
   devices: { kind: GalleryDeviceKind; count: number }[];
   sizes: { key: string; circuits: number }[];
   transistorBins: { key: string; circuits: number }[];
-  /** Circuits published each week (Monday, UTC), by people and by AI. */
-  weeks: { week: string; human: number; ai: number }[];
+  /** Circuits published each week (Monday, UTC): by people, by AI, from a dataset. */
+  weeks: { week: string; human: number; ai: number; dataset: number }[];
 }
 
 /** The Monday (UTC) of the week `iso` falls in. */
@@ -245,6 +255,7 @@ function summarize(
   sql: SqlStorage,
   author: { sql: string; binding: string } | null,
   now: Date,
+  allTags = false,
 ): GalleryStatsSummary {
   const where = author ? `AND ${author.sql}` : "";
   const bindings = author ? [author.binding] : [];
@@ -295,12 +306,19 @@ function summarize(
   const tags = new Map<string, number>();
   const sizes = new Map<string, number>();
   const transistorBins = new Map<string, number>();
-  const weeks = new Map<string, { human: number; ai: number }>();
+  const weeks = new Map<
+    string,
+    { human: number; ai: number; dataset: number }
+  >();
   const thisWeek = weekOf(now.toISOString());
   for (let index = STATS_WEEKS - 1; index >= 0; index -= 1) {
     const week = new Date(`${thisWeek}T00:00:00.000Z`);
     week.setUTCDate(week.getUTCDate() - 7 * index);
-    weeks.set(week.toISOString().slice(0, 10), { human: 0, ai: 0 });
+    weeks.set(week.toISOString().slice(0, 10), {
+      human: 0,
+      ai: 0,
+      dataset: 0,
+    });
   }
   const summary = {
     components: 0,
@@ -344,11 +362,12 @@ function summarize(
     );
   return {
     circuits: rows.length,
+    datasets: 0,
     authors: authors.size,
     ...summary,
     types: byCount(types).map(([type, circuits]) => ({ type, circuits })),
     tags: byCount(tags)
-      .slice(0, TOP_TAGS)
+      .slice(0, allTags ? undefined : TOP_TAGS)
       .map(([tag, circuits]) => ({ tag, circuits })),
     devices: GALLERY_DEVICE_KINDS.map((kind) => ({
       kind,
@@ -414,8 +433,9 @@ export function authorStats(
 }
 
 /**
- * The whole community Gallery's distributions, and its most prolific
- * authors. A read counts some circuits still uncounted first.
+ * One store's distributions, and its most prolific authors; `allTags` keeps
+ * every tag, for a merge of stores to rank. A read counts some circuits
+ * still uncounted first.
  */
 export function galleryStats(
   sql: SqlStorage,
@@ -427,7 +447,7 @@ export function galleryStats(
       ? new Date(body.now)
       : new Date();
   return Response.json({
-    summary: summarize(sql, null, now),
+    summary: summarize(sql, null, now, body.allTags === true),
     topAuthors: authorCounts(sql)
       .slice(0, TOP_AUTHORS)
       .map(({ author, circuits }) => ({ author, circuits })),

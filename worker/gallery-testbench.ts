@@ -24,6 +24,9 @@ export const INLINE_TESTBENCH = `(${TESTBENCH_KEYS.map(
  */
 export const LEGACY_TESTBENCH = `instr(project_text, char(10) || '  "simulation": {') > 0`;
 
+/** Rows whose circuit has a testbench, kept apart or still in its Project Code. */
+export const HAS_TESTBENCH = `(testbench_text IS NOT NULL OR ${INLINE_TESTBENCH} OR ${LEGACY_TESTBENCH})`;
+
 /**
  * Where the testbench's value stands in indented Project Code, or null when
  * the text has no such key: a raw newline never occurs inside a JSON string,

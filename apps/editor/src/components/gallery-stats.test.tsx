@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   AuthorStatsView,
   GalleryStatsView,
+  statsSourceFromSearch,
   statsViewFromSearch,
   type GalleryStatsSummary,
 } from "./gallery-stats";
@@ -103,9 +104,41 @@ describe("the Gallery's statistics", () => {
     expect(markup).toContain('data-testid="gallery-stats-empty"');
   });
 
-  it("opens the view a link names", () => {
+  it("opens the view and the stores a link names", () => {
     expect(statsViewFromSearch("?tab=statistics&view=mine")).toBe("mine");
     expect(statsViewFromSearch("?tab=statistics")).toBe("gallery");
+    expect(statsSourceFromSearch("?source=datasets")).toBe("datasets");
+    expect(statsSourceFromSearch("?source=community")).toBe("community");
+    expect(statsSourceFromSearch("?source=other")).toBe("all");
+  });
+
+  it("says where the circuits come from, and draws datasets apart", () => {
+    const sources = [
+      { key: "community", name: "Community", circuits: 30 },
+      { key: "circuitthink", name: "CircuitThink", circuits: 4 },
+      { key: "amsnet", name: "AMS-Net", circuits: 6 },
+    ];
+    const withDatasets = summary({
+      datasets: 10,
+      weeks: [{ week: "2026-11-02", human: 5, ai: 2, dataset: 10 }],
+    });
+    const all = renderToStaticMarkup(
+      createElement(GalleryStatsView, {
+        stats: { summary: withDatasets, topAuthors: [], sources },
+        source: "all",
+      }),
+    );
+    expect(all).toContain("30 community · 10 from datasets");
+    expect(all).toContain(">Datasets<");
+    expect(all).toContain("by people, AI and datasets");
+    const datasets = renderToStaticMarkup(
+      createElement(GalleryStatsView, {
+        stats: { summary: withDatasets, topAuthors: [], sources },
+        source: "datasets",
+      }),
+    );
+    expect(datasets).toContain("CircuitThink · AMS-Net");
+    expect(datasets).toContain("Circuits of each dataset");
   });
 });
 

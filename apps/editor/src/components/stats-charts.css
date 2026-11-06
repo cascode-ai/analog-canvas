@@ -638,7 +638,14 @@
   color: var(--icm-text);
 }
 
-.stats-page .stats-switch button[aria-selected="true"] {
+.stats-page .stats-switch-small button,
+.stats-page .stats-switch-small button:hover:not(:disabled) {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+.stats-page .stats-switch button[aria-selected="true"],
+.stats-page .stats-switch button[aria-pressed="true"] {
   color: var(--icm-text);
   background: var(--icm-surface);
   box-shadow:
