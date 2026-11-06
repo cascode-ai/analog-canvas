@@ -245,6 +245,18 @@ export function ShapesPanel({
   useEffect(() => {
     if (focusRequest && open) search.current?.focus();
   }, [focusRequest, open]);
+  // The fold sits below the long official list: opening it, from its header
+  // or Edit's command, brings its header to the panel's top.
+  const componentFold = useRef<HTMLDetailsElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const foldOpen = Boolean(userComponents?.open);
+  useEffect(() => {
+    const fold = componentFold.current;
+    const scroller = body.current;
+    if (!foldOpen || !open || !fold || !scroller) return;
+    scroller.scrollTop +=
+      fold.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  }, [foldOpen, open, focusRequest]);
 
   function placeSymbol(symbolId: string): void {
     const request = quickPlaceRequest(styleProfileId, symbolId);
@@ -314,7 +326,7 @@ export function ShapesPanel({
           onFocus={userComponents?.prepare}
         />
       </div>
-      <div className="shapes-panel-body">
+      <div className="shapes-panel-body" ref={body}>
         <details
           className="shapes-fold"
           open={officialOpen || searching}
@@ -409,9 +421,10 @@ export function ShapesPanel({
         {userComponents ? (
           // Below the official list, which a drawing reaches for first.
           <details
-            className="shapes-fold"
+            className="shapes-fold shapes-fold-components"
             open={componentsShown}
             data-testid="shapes-fold-user-components"
+            ref={componentFold}
             onToggle={(event) => {
               if (!searching)
                 userComponents.onOpenChange(event.currentTarget.open);

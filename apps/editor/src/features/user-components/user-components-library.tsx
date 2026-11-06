@@ -41,12 +41,13 @@ const remembered: {
   catalog: ComponentCatalogQuery;
   mine: boolean;
   removed: boolean;
-  scrollTop: number;
+  /** The panel's scroll once the list has rows; none before the first. */
+  scrollTop: number | null;
 } = {
   catalog: { version: 1, type: "all", order: "circuit-first" },
   mine: false,
   removed: false,
-  scrollTop: 0,
+  scrollTop: null,
 };
 
 /**
@@ -201,7 +202,7 @@ export default function UserComponentsLibrary({
   useEffect(() => {
     const body = surface.root.current?.closest(".shapes-panel-body");
     if (!body || !hasRows) return;
-    body.scrollTop = remembered.scrollTop;
+    if (remembered.scrollTop !== null) body.scrollTop = remembered.scrollTop;
     const keep = () => {
       remembered.scrollTop = body.scrollTop;
     };
