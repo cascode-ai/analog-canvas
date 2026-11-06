@@ -223,8 +223,9 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="cell-navigation"');
     // At Top the path stays hidden even though the Project has a child.
     expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
-    expect(markup).toContain("Enter Cell (E)");
-    expect(markup).toContain("Cell properties…");
+    // Circuit keeps entry points only; the tree carries the Cell actions.
+    expect(markup).toContain(">Place Cell…</button>");
+    expect(markup).not.toContain("Up to caller");
   });
 
   it("links GitHub and the change log directly without a Help surface", () => {

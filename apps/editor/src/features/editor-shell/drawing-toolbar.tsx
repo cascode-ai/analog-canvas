@@ -35,6 +35,7 @@ export interface DrawingToolbarProps {
   resetLabels?: ToolbarCommand;
 }
 
+/** A toolbar button whose tooltip shows at once; icon-only tools rely on it. */
 function ImmediatePanelButton({
   testId,
   label,
@@ -43,6 +44,7 @@ function ImmediatePanelButton({
   pressed,
   controls,
   disabled,
+  iconOnly = false,
   onClick,
   children,
 }: {
@@ -50,9 +52,11 @@ function ImmediatePanelButton({
   label: string;
   tooltip: string;
   shortcut?: string;
-  pressed: boolean;
+  /** Toggles report their state; plain commands such as Undo leave it out. */
+  pressed?: boolean;
   controls?: string;
   disabled?: boolean;
+  iconOnly?: boolean;
   onClick(): void;
   children: ReactNode;
 }) {
@@ -94,11 +98,11 @@ function ImmediatePanelButton({
     <>
       <button
         type="button"
-        className="draw-tool"
+        className={iconOnly ? "draw-tool draw-tool-icon" : "draw-tool"}
         aria-label={label}
         aria-describedby={position ? tooltipId : undefined}
         aria-pressed={pressed}
-        aria-expanded={pressed}
+        aria-expanded={controls ? pressed : undefined}
         aria-controls={controls}
         aria-keyshortcuts={shortcut}
         data-testid={testId}
@@ -244,67 +248,67 @@ export function DrawingToolbar({
         </ImmediatePanelButton>
       </div>
       <span className="draw-toolbar-divider" aria-hidden="true" />
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-undo"
-        title="Undo (Ctrl+Z)"
-        onClick={undo.execute}
+      {/* Familiar tools are icons; their names and keys show on hover. */}
+      <ImmediatePanelButton
+        testId="draw-tool-undo"
+        label="Undo"
+        tooltip="Undo"
+        shortcut="Ctrl+Z"
+        iconOnly
         disabled={!undo.enabled}
+        onClick={undo.execute}
       >
         <ToolIcon name="undo" />
-        <span>Undo</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-redo"
-        title="Redo (Ctrl+Shift+Z)"
-        onClick={redo.execute}
+      </ImmediatePanelButton>
+      <ImmediatePanelButton
+        testId="draw-tool-redo"
+        label="Redo"
+        tooltip="Redo"
+        shortcut="Ctrl+Shift+Z"
+        iconOnly
         disabled={!redo.enabled}
+        onClick={redo.execute}
       >
         <ToolIcon name="redo" />
-        <span>Redo</span>
-      </button>
+      </ImmediatePanelButton>
       <span className="draw-toolbar-divider" aria-hidden="true" />
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-wire"
-        aria-pressed={tool === "wire"}
-        title="Wire (W)"
+      <ImmediatePanelButton
+        testId="draw-tool-wire"
+        label="Wire"
+        tooltip="Wire"
+        shortcut="W"
+        iconOnly
+        pressed={tool === "wire"}
         onClick={() => onActivateTool("wire")}
       >
         <ToolIcon name="wire" />
-        <span>Wire</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-no-connect"
-        aria-pressed={tool === "no-connect"}
-        title="No Connect: mark intentionally unused pins"
+      </ImmediatePanelButton>
+      <ImmediatePanelButton
+        testId="draw-tool-no-connect"
+        label="No Connect"
+        tooltip="No Connect: mark intentionally unused pins"
+        iconOnly
+        pressed={tool === "no-connect"}
         onClick={() => onActivateTool("no-connect")}
       >
         <ToolIcon name="no-connect" />
-        <span>NoConn</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-text"
-        aria-label="Text"
-        title="Text (T)"
+      </ImmediatePanelButton>
+      <ImmediatePanelButton
+        testId="draw-tool-text"
+        label="Text"
+        tooltip="Text"
+        shortcut="T"
+        iconOnly
         onClick={onAddText}
       >
         <ToolIcon name="text" />
-        <span>Text</span>
-      </button>
+      </ImmediatePanelButton>
       <AnnotationMenu
         styleProfileId={styleProfileId}
         onStartInsert={onStartInsert}
       />
       <span className="toolbar-divider" aria-hidden="true" />
+      {/* These icons say too little alone, so their names stay beside them. */}
       <button
         type="button"
         className="draw-tool"

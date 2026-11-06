@@ -929,6 +929,8 @@ function WorkspaceEditor({
     { kind: "cell"; id: string } | { kind: "external" } | null
   >(null);
   const [hierarchyExpanded, setHierarchyExpanded] = useState<string[]>([]);
+  // The tree row whose uses are listed inline; the breadcrumb can open it.
+  const [hierarchyUsesKey, setHierarchyUsesKey] = useState<string | null>(null);
   const [newChildOpen, setNewChildOpen] = useState(false);
   const [newChildOccurrence, setNewChildOccurrence] = useState<{
     id: string;
@@ -1531,6 +1533,7 @@ function WorkspaceEditor({
     renameCellTerminal,
     editProjectInfo,
     deleteCell,
+    setTopCell,
     updateCellPortDirection,
     moveCellPort,
     editCellParameter,
@@ -3902,6 +3905,65 @@ function WorkspaceEditor({
     cancelAllTransientInteraction();
     setNewChildOpen(true);
   };
+  /** Start placing a Cell from the tree, as the Insert dialog would. */
+  const placeCellFromTree = (id: string): boolean => {
+    const issue = cellPlacementIssue(project, document.id, id);
+    const candidate = cellInsertCandidates.find(
+      (item) => item.childDocumentId === id,
+    );
+    if (issue || !candidate) {
+      setStatus(issue ?? "This Cell cannot be placed here");
+      return false;
+    }
+    startInsertFromHook({
+      kind: "quick",
+      request: {
+        kind: "cell",
+        symbolId: candidate.symbol.id,
+        symbolName: candidate.cellName,
+        childDocumentId: id,
+        cellName: candidate.cellName,
+        parameters: {},
+        initialRotation: 0,
+        showReference: false,
+        referenceText: null,
+        showValue: true,
+      },
+    });
+    return true;
+  };
+  /**
+   * A drag from the tree is one gesture: it places once where it ends on the
+   * canvas and leaves placement mode, or cancels when released elsewhere.
+   */
+  const dropCellFromTree = (clientX: number, clientY: number) => {
+    const svg = window.document.querySelector<SVGSVGElement>(
+      '[data-testid="schematic-canvas"]',
+    );
+    const box = svg?.getBoundingClientRect();
+    const placed = pendingComponentPlacement;
+    if (
+      !svg ||
+      !box ||
+      clientX < box.left ||
+      clientX > box.right ||
+      clientY < box.top ||
+      clientY > box.bottom
+    ) {
+      cancelComponentInsertFromHook();
+      return;
+    }
+    commitPendingPlacementAtFromHook(
+      resolvePendingPlacementPoint(
+        pointFromClient(clientX, clientY, svg, false),
+        svg,
+      ).point,
+    );
+    cancelAllTransientInteraction();
+    setStatus(
+      `Placed ${placed && "cellName" in placed ? placed.cellName : "the Cell"} · Undo removes it`,
+    );
+  };
   const { endpointSignalInspection, routeSignalInspection } =
     useSignalMemberInspection({
       model: {
@@ -5274,9 +5336,7 @@ function WorkspaceEditor({
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorMenuBar
         hierarchyActions={{
-          onUp: returnToParentDocument,
           onNewChild: beginNewChild,
-          onCellProperties: () => openCellProperties(document.id),
           onExternalCircuits: () => {
             setCellManagerTarget({ kind: "external" });
             setCellManagerOpen(true);
@@ -5303,7 +5363,6 @@ function WorkspaceEditor({
         recoverySessions={recoverySessions}
         project={project}
         document={document}
-        documentStack={documentStack}
         visualSelection={visualSelection}
         selectionFilterOpen={selectionFilterOpen}
         netlistPreflightOpen={netlistPreflightOpen}
@@ -5348,7 +5407,6 @@ function WorkspaceEditor({
         selectedEndpoint={selectedEndpoint}
         projectInputRef={projectInputRef}
         tabProjectInputRef={tabProjectInputRef}
-        hasHierarchyEnterSelection={hasHierarchyEnterSelection}
         flightlines={flightlines}
         displayedFlightlines={displayedFlightlines}
         crossings={crossings}
@@ -5358,8 +5416,6 @@ function WorkspaceEditor({
         alignmentParticipantCount={alignmentParticipantCount}
         internalSelection={internalSelection}
         projectInstanceCount={projectInstanceCount}
-        enterSelectedHierarchy={enterSelectedHierarchy}
-        returnToTopDocument={returnToTopDocument}
         toggleProjectPanel={toggleProjectPanel}
         toggleExamplesPanel={toggleExamplesPanel}
         cancelAllTransientInteraction={cancelAllTransientInteraction}
@@ -5646,35 +5702,28 @@ function WorkspaceEditor({
             path={documentStack}
             expandedKeys={hierarchyExpanded}
             onExpandedKeysChange={setHierarchyExpanded}
+            selectedInstanceIds={selectedIds}
+            usesKey={hierarchyUsesKey}
+            onUsesKeyChange={setHierarchyUsesKey}
             open={visibleLibraryPanelOpen}
-            onOpen={openCellOccurrence}
-            onDefinition={(id) => openCellOccurrence(id, [])}
-            onProperties={openCellProperties}
-            onNewChild={beginNewChild}
-            onExternal={() => {
-              setCellManagerTarget({ kind: "external" });
-              setCellManagerOpen(true);
-            }}
-            onPlace={(id) => {
-              const candidate = cellInsertCandidates.find(
-                (item) => item.childDocumentId === id,
-              );
-              if (!candidate) return;
-              startInsertFromHook({
-                kind: "quick",
-                request: {
-                  kind: "cell",
-                  symbolId: candidate.symbol.id,
-                  symbolName: candidate.cellName,
-                  childDocumentId: id,
-                  cellName: candidate.cellName,
-                  parameters: {},
-                  initialRotation: 0,
-                  showReference: false,
-                  referenceText: null,
-                  showValue: true,
-                },
-              });
+            actions={{
+              open: openCellOccurrence,
+              openDefinition: (id) => openCellOccurrence(id, []),
+              properties: openCellProperties,
+              rename: renameCell,
+              newChild: (id, path) => {
+                openCellOccurrence(id, path);
+                beginNewChild();
+              },
+              place: placeCellFromTree,
+              drop: dropCellFromTree,
+              setTop: (id) => void setTopCell(id),
+              remove: (id) => void deleteCell(id),
+              external: () => {
+                setCellManagerTarget({ kind: "external" });
+                setCellManagerOpen(true);
+              },
+              notice: setStatus,
             }}
           />
         ) : !capabilities.community || leftPanelMode === "library" ? (
@@ -7784,6 +7833,15 @@ function WorkspaceEditor({
               onUp={returnToParentDocument}
               onTop={returnToTopDocument}
               onShowTree={() => showLeftPanel("hierarchy")}
+              onShowUses={() => {
+                showLeftPanel("hierarchy");
+                setHierarchyUsesKey(
+                  hierarchyPathKey(
+                    documentStack[0]?.parentDocumentId ?? document.id,
+                    documentStack,
+                  ),
+                );
+              }}
             />
           }
           notice={
@@ -7807,17 +7865,6 @@ function WorkspaceEditor({
             openSelectedComponentDefinition={openSelectedComponentDefinition}
             hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
-            hierarchyCell={
-              selectedHierarchyCell
-                ? {
-                    onOpenDefinition: () =>
-                      openCellOccurrence(selectedHierarchyCell.id, []),
-                    onProperties: () =>
-                      openCellProperties(selectedHierarchyCell.id),
-                  }
-                : null
-            }
-            onUpToCaller={documentStack.length ? returnToParentDocument : null}
             coupleInductors={(() => {
               const edit = planCoupleInductors(document, selectedIds);
               if (!edit || edit.kind !== "set_inductor_coupling") return null;

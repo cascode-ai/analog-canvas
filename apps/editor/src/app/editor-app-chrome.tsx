@@ -39,16 +39,12 @@ interface AlignmentAction extends CommandAction {
   label: string;
 }
 
-/** Every hierarchy command has its one permanent home in Circuit. */
+/** Entry points only; the hierarchy tree is where Cells are worked on. */
 export interface HierarchyMenuCommands {
   treeOpen: boolean;
   onToggleTree: () => void;
-  enter: CommandAction;
-  up: CommandAction;
-  top: CommandAction;
   onNewChild: () => void;
   placeCell: CommandAction;
-  onCellProperties: () => void;
   onExternalCircuits: () => void;
 }
 
@@ -367,27 +363,6 @@ export function EditorAppChrome({
                     ? "Hide hierarchy tree"
                     : "Show hierarchy tree"}
                 </button>
-                <button
-                  type="button"
-                  disabled={!hierarchy.enter.enabled}
-                  onClick={hierarchy.enter.execute}
-                >
-                  Enter Cell (E)
-                </button>
-                <button
-                  type="button"
-                  disabled={!hierarchy.up.enabled}
-                  onClick={hierarchy.up.execute}
-                >
-                  Up to caller (Shift+E)
-                </button>
-                <button
-                  type="button"
-                  disabled={!hierarchy.top.enabled}
-                  onClick={hierarchy.top.execute}
-                >
-                  Go to Top
-                </button>
                 <button type="button" onClick={hierarchy.onNewChild}>
                   New child Cell…
                 </button>
@@ -397,9 +372,6 @@ export function EditorAppChrome({
                   onClick={hierarchy.placeCell.execute}
                 >
                   Place Cell…
-                </button>
-                <button type="button" onClick={hierarchy.onCellProperties}>
-                  Cell properties…
                 </button>
                 <button type="button" onClick={hierarchy.onExternalCircuits}>
                   External Circuits…

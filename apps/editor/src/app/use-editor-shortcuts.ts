@@ -335,7 +335,13 @@ function createEditorShortcutHandler({
             event.key,
           )) ||
         (event.target.closest(".project-tabs") &&
-          ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)))
+          ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) ||
+        // The hierarchy tree owns plain keys (arrows, F2, Delete, type to
+        // filter); modified shortcuts such as Undo still reach the editor.
+        (event.target.closest(".hierarchy-panel") &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey))
     )
       return;
     if (componentEditor) return;

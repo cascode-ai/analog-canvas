@@ -62,6 +62,13 @@
   white-space: nowrap;
 }
 
+/* Familiar tools show only their icon; the instant tooltip names them. */
+.draw-tool-icon {
+  justify-content: center;
+  width: var(--icm-control-h);
+  padding: 0;
+}
+
 .draw-tool:hover {
   border-color: var(--icm-border);
   background: var(--icm-surface-muted);

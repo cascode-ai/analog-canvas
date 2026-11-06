@@ -799,142 +799,278 @@
   }
 }
 
-/* One hierarchy surface: occurrence navigation and definition actions. */
+/* The hierarchy tree is where Cells are worked on: one row per occurrence,
+   actions only where the pointer or focus is, nothing resident. */
 .hierarchy-panel {
-  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 6px;
   overflow: auto;
-  gap: 12px;
+  font-size: 12px;
 }
-.hierarchy-panel header {
+.hierarchy-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
 }
-.hierarchy-panel h2,
-.hierarchy-panel h3 {
-  font-size: 12px;
-  margin: 0;
+.hierarchy-filter {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  font: inherit;
 }
-.hierarchy-panel h3 {
-  color: var(--icm-text-muted);
-  padding: 12px 4px 8px;
+.hierarchy-filter:focus {
+  border-color: var(--icm-accent);
+  outline: none;
 }
-.hierarchy-tree,
-.hierarchy-tree ul {
-  list-style: none;
-  margin: 0;
+.hierarchy-icon-button,
+.hierarchy-row-actions button {
+  display: inline-grid;
+  place-items: center;
   padding: 0;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  color: var(--icm-text-muted);
 }
-.hierarchy-tree ul {
-  padding-left: 14px;
-  border-left: 1px solid var(--icm-border);
-  margin-left: 10px;
+.hierarchy-icon-button {
+  width: 28px;
+  height: 28px;
+}
+.hierarchy-row-actions button {
+  width: 22px;
+  height: 22px;
+}
+.hierarchy-icon-button:hover,
+.hierarchy-row-actions button:hover {
+  background: var(--icm-surface-hover);
+  color: var(--icm-text);
+}
+.hierarchy-tree {
+  display: grid;
 }
 .hierarchy-node {
   display: flex;
   align-items: center;
-  min-height: 30px;
-  border-radius: 4px;
+  gap: 2px;
+  height: 28px;
+  padding-right: 2px;
+  border-radius: var(--icm-radius-sm);
+  user-select: none;
+}
+.hierarchy-node:hover {
+  background: var(--icm-surface-muted);
 }
 .hierarchy-node[data-active] {
   background: var(--icm-accent-soft);
 }
-.hierarchy-expand {
-  flex: 0 0 22px;
-  text-align: center;
+.hierarchy-node[data-selected] {
+  box-shadow: inset 2px 0 0 var(--icm-accent);
 }
-.hierarchy-node button {
+.hierarchy-expand {
+  flex: 0 0 16px;
+  padding: 0;
   border: 0;
   background: transparent;
-  font-size: 12px;
+  color: var(--icm-text-muted);
+  font-size: 10px;
+  text-align: center;
 }
 .hierarchy-node-label {
+  display: flex;
   flex: 1;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
-  text-align: left;
+  padding: 0 2px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  border: 0;
+  background: transparent;
+  color: var(--icm-text);
+  font: inherit;
+  text-align: left;
   white-space: nowrap;
+  cursor: default;
 }
-.hierarchy-node-menu {
-  flex: 0 0 24px;
+.hierarchy-node-label:focus-visible {
+  border-radius: var(--icm-radius-sm);
+  outline: 2px solid var(--icm-accent);
+  outline-offset: 1px;
 }
-.hierarchy-node-menu summary {
-  cursor: pointer;
-  list-style: none;
-  text-align: center;
+.hierarchy-node-label:disabled {
+  color: var(--icm-text-disabled);
+}
+.hierarchy-ref {
+  font-weight: 500;
+}
+.hierarchy-cell {
+  overflow: hidden;
   color: var(--icm-text-muted);
+  text-overflow: ellipsis;
 }
-.hierarchy-node-menu summary::-webkit-details-marker {
-  display: none;
-}
-/* Row actions appear where the user is looking: hover, focus, current row. */
-.hierarchy-node:not(:hover, :focus-within, [data-active])
-  .hierarchy-node-menu:not([open])
-  summary {
-  visibility: hidden;
+.hierarchy-top {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--icm-surface-muted);
+  color: var(--icm-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .hierarchy-uses {
   flex: 0 0 auto;
-  padding: 0 4px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
   color: var(--icm-text-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-.hierarchy-node-menu[open] {
-  position: relative;
-  z-index: 5;
+.hierarchy-uses:hover,
+.hierarchy-uses[aria-expanded="true"] {
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
 }
-.hierarchy-node-menu > div {
-  position: absolute;
-  right: 0;
-  width: 190px;
-  padding: 6px;
+.hierarchy-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+}
+/* Actions show only on the row pointed at, focused or open. */
+.hierarchy-node:not(:hover, :focus-within, [data-active])
+  .hierarchy-row-actions {
+  display: none;
+}
+.hierarchy-rename {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--icm-accent);
+  border-radius: 3px;
+  font: inherit;
+}
+.hierarchy-inline-uses {
   display: grid;
-  border: 1px solid var(--icm-border);
-  border-radius: 6px;
-  background: var(--icm-surface);
-  box-shadow: 0 4px 16px #0002;
+  padding-block: 2px 6px;
 }
-.hierarchy-node-menu button {
+.hierarchy-use,
+.hierarchy-match {
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  font: inherit;
   text-align: left;
-  padding: 8px;
 }
-.hierarchy-node-menu button:hover {
+.hierarchy-use {
+  padding: 3px 6px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.hierarchy-use:hover,
+.hierarchy-match:hover,
+.hierarchy-match:focus-visible {
+  background: var(--icm-surface-hover);
+  color: var(--icm-text);
+  outline: none;
+}
+.hierarchy-use[aria-current="true"],
+.hierarchy-match[aria-current="true"] {
+  color: var(--icm-accent);
+}
+.hierarchy-matches {
+  display: grid;
+  gap: 1px;
+}
+.hierarchy-match {
+  display: grid;
+  gap: 1px;
+  padding: 5px 8px;
+}
+.hierarchy-match-path {
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hierarchy-group {
+  margin-top: 8px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--icm-text-muted);
+  font: inherit;
+  text-align: left;
+}
+.hierarchy-hint {
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.hierarchy-footer {
+  margin-top: auto;
+  padding: 6px 2px 0;
+  border-top: 1px solid var(--icm-border);
+}
+.hierarchy-footer button {
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--icm-text-muted);
+  font: inherit;
+}
+.hierarchy-footer button:hover {
+  color: var(--icm-text);
+}
+.hierarchy-context-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  min-width: 200px;
+  padding: 4px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+}
+.hierarchy-context-menu button {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+.hierarchy-context-menu button:hover:not(:disabled) {
   background: var(--icm-surface-hover);
 }
-.hierarchy-other-roots > summary {
-  padding: 12px 4px 8px;
+.hierarchy-context-menu button:disabled {
+  color: var(--icm-text-disabled);
+}
+.hierarchy-context-menu kbd {
   color: var(--icm-text-muted);
-  font-size: 12px;
-  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
 }
-.hierarchy-uses-list {
-  border-top: 1px solid var(--icm-border);
-  padding: 8px 4px;
-  font-size: 12px;
+.hierarchy-context-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--icm-border);
 }
-.hierarchy-uses-list header button {
-  border: 0;
-  background: transparent;
-}
-.hierarchy-uses-list ul {
-  margin: 8px 0 0;
-  padding-left: 16px;
-}
-.hierarchy-uses-list li {
-  margin-block: 6px;
-}
-.hierarchy-uses-list li button {
-  border: 0;
-  background: transparent;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-.hierarchy-panel footer {
-  margin-top: auto;
-  padding: 8px 4px;
+/* While a row is dragged toward the canvas, the pointer reads as a drop. */
+body.hierarchy-dragging,
+body.hierarchy-dragging * {
+  cursor: copy !important;
 }
 
 /* The instance path floats at the canvas top edge only inside a child Cell.
@@ -1001,43 +1137,5 @@
   align-self: stretch;
   width: 1px;
   margin: 4px 2px;
-  background: var(--icm-border);
-}
-.hierarchy-breadcrumb-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  display: grid;
-  min-width: 200px;
-  max-width: 360px;
-  max-height: 320px;
-  padding: 4px;
-  overflow: auto;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-md);
-  pointer-events: auto;
-}
-.hierarchy-breadcrumb-menu button {
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--icm-radius-sm);
-  background: transparent;
-  font-size: 12px;
-  text-align: left;
-}
-.hierarchy-breadcrumb-menu button:hover:not(:disabled) {
-  background: var(--icm-surface-hover);
-}
-.hierarchy-breadcrumb-menu [aria-current="true"] {
-  font-weight: 600;
-}
-.hierarchy-breadcrumb-menu small {
-  padding: 6px 8px;
-  color: var(--icm-text-muted);
-}
-.hierarchy-breadcrumb-menu-divider {
-  height: 1px;
-  margin: 4px 0;
   background: var(--icm-border);
 }

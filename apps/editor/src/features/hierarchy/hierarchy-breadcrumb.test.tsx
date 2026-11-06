@@ -10,6 +10,7 @@ const callbacks = {
   onUp: vi.fn(),
   onTop: vi.fn(),
   onShowTree: vi.fn(),
+  onShowUses: vi.fn(),
 };
 
 describe("HierarchyBreadcrumb", () => {
