@@ -3,6 +3,7 @@ import {
   answer,
   cookie,
   digest,
+  isRegionalAccountRoute,
   nonce,
   readBody,
   redirect,
@@ -32,6 +33,7 @@ type SessionRow = {
   lease_until: number;
   expires_at: number;
   refresh_at: number;
+  generation: number;
 };
 const SESSION_SECONDS = 30 * 86400;
 const LOGIN_SECONDS = 600;
@@ -40,6 +42,7 @@ const LOGIN_SECONDS = 600;
 export class RegionalSessionDO {
   private readonly config: RegionalConfig | null;
   private readonly sql: RegionalSql;
+  private readonly accountOperations = new Map<string, Promise<void>>();
   fetchLike: typeof fetch = (input, init) => fetch(input, init);
   now: () => number = () => Date.now();
 
@@ -65,6 +68,15 @@ export class RegionalSessionDO {
       token_hash TEXT PRIMARY KEY, user_json TEXT NOT NULL, grant TEXT NOT NULL,
       lease_until INTEGER NOT NULL, expires_at INTEGER NOT NULL, refresh_at INTEGER NOT NULL,
       login_state_hash TEXT NOT NULL UNIQUE) WITHOUT ROWID`);
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_sessions)")
+        .toArray()
+        .some((column) => column.name === "generation")
+    )
+      this.sql.exec(
+        "ALTER TABLE regional_sessions ADD COLUMN generation INTEGER NOT NULL DEFAULT 0",
+      );
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -76,8 +88,23 @@ export class RegionalSessionDO {
       request.method === "GET"
     )
       return answer({ user: (await this.localUser(request)).user });
+    if (
+      url.origin === "https://auth" &&
+      url.pathname === "/internal/owner-token-user" &&
+      request.method === "GET"
+    ) {
+      const token = /^Bearer (acot_[A-Za-z0-9_-]{1,128})$/u.exec(
+        request.headers.get("authorization") ?? "",
+      )?.[1];
+      if (!token) return answer({ user: null }, 401);
+      const result = await this.authority("owner-token", { token });
+      const user = sessionIdentity(result.body?.user);
+      return answer({ user }, user ? 200 : result.status === 401 ? 401 : 503);
+    }
     if (url.origin !== this.config.clientOrigin)
       return answer({ error: "invalid-origin" }, 421);
+    if (isRegionalAccountRoute(request.method, url.pathname))
+      return this.accountOperation(request, url);
     if (request.method === "GET") {
       if (url.pathname === REGIONAL_PREFIX + "start") return this.start(url);
       if (url.pathname === REGIONAL_PREFIX + "callback")
@@ -226,7 +253,7 @@ export class RegionalSessionDO {
         .toArray()[0];
       if (!pending) return false;
       this.sql.exec(
-        "INSERT INTO regional_sessions VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
         tokenHash,
         JSON.stringify(lease.user),
         grant,
@@ -288,7 +315,7 @@ export class RegionalSessionDO {
   }
 
   private async authority(
-    action: "exchange" | "renew",
+    action: "exchange" | "renew" | "account" | "owner-token",
     body: unknown,
   ): Promise<{ status: number; body: Record<string, unknown> | null }> {
     const config = this.config;
@@ -307,13 +334,134 @@ export class RegionalSessionDO {
           body: JSON.stringify(body),
         },
       );
+      const payload: unknown = response.ok
+        ? action === "account"
+          ? await response.json()
+          : await readBody(response)
+        : null;
       return {
         status: response.status,
-        body: response.ok ? await readBody(response) : null,
+        body:
+          payload && typeof payload === "object" && !Array.isArray(payload)
+            ? (payload as Record<string, unknown>)
+            : null,
       };
     } catch {
       return { status: 0, body: null };
     }
+  }
+
+  private async accountOperation(
+    request: Request,
+    url: URL,
+  ): Promise<Response> {
+    if (
+      ((request.method !== "GET" || request.headers.has("origin")) &&
+        request.headers.get("origin") !== this.config?.clientOrigin) ||
+      request.headers.get("sec-fetch-site") === "cross-site"
+    )
+      return answer({ error: "forbidden" }, 403);
+    const token = cookie(request, REGIONAL_SESSION_COOKIE);
+    if (!validNonce(token)) return answer({ error: "unauthorized" }, 401);
+    const tokenHash = await digest(token);
+    const body =
+      request.method === "GET" || (request.method === "DELETE" && !request.body)
+        ? {}
+        : await readBody(request);
+    if (!body) return answer({ error: "invalid-request" }, 400);
+    return this.orderedAccountOperation(tokenHash, () =>
+      this.runAccountOperation(request.method, url.pathname, body, tokenHash),
+    );
+  }
+
+  /** Order each session's account effects; local reads and logout stay independent. */
+  private async orderedAccountOperation(
+    tokenHash: string,
+    operation: () => Promise<Response>,
+  ): Promise<Response> {
+    const previous = this.accountOperations.get(tokenHash);
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.accountOperations.set(tokenHash, pending);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.accountOperations.get(tokenHash) === pending)
+        this.accountOperations.delete(tokenHash);
+    }
+  }
+
+  private async runAccountOperation(
+    method: string,
+    path: string,
+    body: Record<string, unknown>,
+    tokenHash: string,
+  ): Promise<Response> {
+    const row = this.sql
+      .exec<SessionRow>(
+        "SELECT * FROM regional_sessions WHERE token_hash = ?",
+        tokenHash,
+      )
+      .toArray()[0];
+    if (!row || row.expires_at <= this.now() || row.lease_until <= this.now())
+      return answer({ error: "unauthorized" }, 401);
+    const fenced = this.sql
+      .exec<SessionRow>(
+        "UPDATE regional_sessions SET generation = generation + 1, refresh_at = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING *",
+        this.now() + REGIONAL_REFRESH_MS,
+        tokenHash,
+        row.grant,
+        row.generation,
+      )
+      .toArray()[0];
+    if (!fenced) return answer({ error: "unauthorized" }, 401);
+    await this.schedule();
+    const result = await this.authority("account", {
+      grant: row.grant,
+      method,
+      path,
+      body,
+    });
+    if (result.status === 401) {
+      this.sql.exec(
+        "DELETE FROM regional_sessions WHERE token_hash = ? AND grant = ? AND generation = ?",
+        tokenHash,
+        row.grant,
+        fenced.generation,
+      );
+      return answer({ error: "unauthorized" }, 401);
+    }
+    const lease = this.lease(result.body);
+    const operation = result.body?.result as
+      { status?: unknown; body?: unknown } | undefined;
+    if (
+      !lease ||
+      lease.user.id !== (JSON.parse(row.user_json) as SessionUser).id ||
+      !operation ||
+      !Number.isInteger(operation.status) ||
+      typeof operation.status !== "number" ||
+      operation.status < 200 ||
+      (operation.status >= 300 && operation.status < 400) ||
+      operation.status > 599 ||
+      !operation.body
+    )
+      return answer({ error: "account-unavailable" }, 503);
+    const updated = this.sql
+      .exec<{ token_hash: string }>(
+        "UPDATE regional_sessions SET user_json = ?, lease_until = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING token_hash",
+        JSON.stringify(lease.user),
+        lease.expiresAt,
+        tokenHash,
+        row.grant,
+        fenced.generation,
+      )
+      .toArray()[0];
+    if (!updated) return answer({ error: "unauthorized" }, 401);
+    return answer(operation.body, operation.status);
   }
 
   private async schedule(): Promise<void> {
@@ -351,8 +499,10 @@ export class RegionalSessionDO {
         const result = await this.authority("renew", { grant: row.grant });
         if (result.status === 401) {
           this.sql.exec(
-            "DELETE FROM regional_sessions WHERE token_hash = ?",
+            "DELETE FROM regional_sessions WHERE token_hash = ? AND grant = ? AND generation = ?",
             row.token_hash,
+            row.grant,
+            row.generation,
           );
           return;
         }
@@ -363,11 +513,12 @@ export class RegionalSessionDO {
         )
           return;
         this.sql.exec(
-          "UPDATE regional_sessions SET user_json = ?, lease_until = ? WHERE token_hash = ? AND grant = ?",
+          "UPDATE regional_sessions SET user_json = ?, lease_until = ? WHERE token_hash = ? AND grant = ? AND generation = ?",
           JSON.stringify(lease.user),
           lease.expiresAt,
           row.token_hash,
           row.grant,
+          row.generation,
         );
       }),
     );

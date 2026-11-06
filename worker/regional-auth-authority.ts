@@ -5,6 +5,7 @@ import {
   authenticated,
   cookie,
   digest,
+  isRegionalAccountRoute,
   nonce,
   readBody,
   redirect,
@@ -28,6 +29,11 @@ export class RegionalAuthority {
       email: boolean;
     },
     private readonly identity: (id: string) => SessionUser | null,
+    private readonly account: (
+      request: Request,
+      user: SessionUser,
+    ) => Promise<Response>,
+    private readonly ownerToken: (token: string) => Promise<SessionUser | null>,
   ) {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_codes (
       code_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL,
@@ -49,6 +55,18 @@ export class RegionalAuthority {
       if (url.pathname === REGIONAL_PREFIX + "exchange")
         return this.exchange(body);
       if (url.pathname === REGIONAL_PREFIX + "renew") return this.renew(body);
+      if (url.pathname === REGIONAL_PREFIX + "account")
+        return this.accountOperation(body);
+      if (url.pathname === REGIONAL_PREFIX + "owner-token") {
+        const token = body.token;
+        if (
+          typeof token !== "string" ||
+          !/^acot_[A-Za-z0-9_-]{1,128}$/u.test(token)
+        )
+          return answer({ user: null }, 401);
+        const user = await this.ownerToken(token);
+        return answer({ user }, user ? 200 : 401);
+      }
       if (url.pathname === REGIONAL_PREFIX + "identities") {
         if (
           !Array.isArray(body.userIds) ||
@@ -159,5 +177,52 @@ export class RegionalAuthority {
       return answer({ error: "invalid-grant" }, 401);
     }
     return answer({ user, expiresAt: this.now() + REGIONAL_LEASE_MS });
+  }
+
+  private async accountOperation(
+    body: Record<string, unknown>,
+  ): Promise<Response> {
+    if (!validNonce(body.grant)) return answer({ error: "invalid-grant" }, 401);
+    if (
+      typeof body.method !== "string" ||
+      typeof body.path !== "string" ||
+      !isRegionalAccountRoute(body.method, body.path)
+    )
+      return answer({ error: "not-found" }, 404);
+    const row = this.sql
+      .exec<{ session_hash: string }>(
+        "SELECT session_hash FROM regional_grants WHERE grant_hash = ? AND audience = ? AND expires_at > ?",
+        await digest(body.grant),
+        this.config.clientOrigin,
+        this.now(),
+      )
+      .toArray()[0];
+    const user = row ? await this.session(row.session_hash) : null;
+    if (!row || !user) return answer({ error: "invalid-grant" }, 401);
+    const response = await this.account(
+      new Request(this.config.origin + body.path, {
+        method: body.method,
+        headers: {
+          origin: this.config.origin,
+          "content-type": "application/json",
+        },
+        ...(body.method === "GET"
+          ? {}
+          : { body: JSON.stringify(body.body ?? {}) }),
+      }),
+      user,
+    );
+    const current = await this.session(row.session_hash);
+    if (!current) return answer({ error: "invalid-grant" }, 401);
+    return answer({
+      // Existing account lists have no count cap. Keep their response contract;
+      // the bounded reader above applies to untrusted incoming RPC bodies.
+      result: {
+        status: response.status,
+        body: await response.json().catch(() => null),
+      },
+      user: current,
+      expiresAt: this.now() + REGIONAL_LEASE_MS,
+    });
   }
 }

@@ -70,6 +70,25 @@ test("central sign-in returns to the editor with its unsaved circuit and real re
       page.getByRole("tab", { name: /Unsaved regional circuit/ }),
     ).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("hit-R2")).toBeVisible();
+    await page.getByTestId("account-name").click();
+    await page.getByTestId("account-tab-settings").click();
+    await page.getByTestId("account-rename").click();
+    await page
+      .getByLabel("Display name", { exact: true })
+      .fill("Domestic browser");
+    await page
+      .getByTestId("account-panel-settings")
+      .getByRole("button", { name: "Save", exact: true })
+      .click();
+    await expect(page.getByTestId("account-menu-name")).toHaveText(
+      "Domestic browser",
+    );
+    await page.getByTestId("gallery-editor-switch").click();
+    await awaitEditorReady(page);
+    await expect(
+      page.getByRole("tab", { name: /Unsaved regional circuit/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("hit-R2")).toBeVisible();
     const saved = await page.request.post(accounts.origin + "/api/projects", {
       headers: { origin: accounts.origin },
       data: {
@@ -107,7 +126,7 @@ test("central sign-in returns to the editor with its unsaved circuit and real re
     await page.getByTestId("signin-central").click();
     await expect(page).toHaveURL(accounts.origin + "/editor?resume=1");
     await expect(page.getByTestId("account-name")).toContainText(
-      "regional-browser",
+      "Domestic browser",
     );
     await expect(
       page.getByRole("tab", { name: /Unsaved regional circuit/ }),
