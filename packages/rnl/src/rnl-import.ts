@@ -932,7 +932,8 @@ function applyLevel(
   diagnostics: RnlImportDiagnostic[],
   hiddenLabels: RnlHiddenLabels[],
   parameterTexts: RnlParameterText[],
-  /** The Cell Pins the drawing does not place, gathered across levels. */
+  /** The Cell Pins the drawing does not place, gathered across levels, each
+   * keyed by its Document (`pinKey`): an instance ID is the Document's own. */
   undrawnPins: Set<string>,
   powerLabelPorts: RnlPowerLabelPort[],
   /** The Cells' own names (Canvas 0.4), given once every level is read. */
@@ -2350,7 +2351,7 @@ function applyLevel(
   });
   for (const terminal of document.netlist?.terminals ?? [])
     for (const id of terminal.interfaceInstanceIds)
-      if (!movedPins.has(id)) undrawnPins.add(id);
+      if (!movedPins.has(id)) undrawnPins.add(pinKey(document.id, id));
   // A port the drawing shows only as a power label that names it, no Pin
   // drawn (#1783): the label is the port, as the editor keeps a local power
   // label (withPowerLabelPorts, once the drawing is known to keep the
@@ -4095,7 +4096,7 @@ function unpinUndrawnPorts(
         !pinId ||
         more.length ||
         labelled.has(terminal.id) ||
-        !undrawnPins.has(pinId)
+        !undrawnPins.has(pinKey(document.id, pinId))
       )
         continue;
       // A pin alone on its net but for unwired bodies and rails is one the
@@ -4103,7 +4104,7 @@ function unpinUndrawnPorts(
       const net = document.nets.find((item) => item.id === terminal.netId);
       if (
         net?.terminals.every(
-          (item) => item.instanceId === pinId || unwiredSupply(project, item),
+          (item) => item.instanceId === pinId || unwiredSupply(document, item),
         )
       )
         continue;
@@ -4149,9 +4150,10 @@ function removeEachAddedPin(
         if (
           !net ||
           !pins.size ||
-          [...pins].some((id) => !undrawnPins.has(id)) ||
+          [...pins].some((id) => !undrawnPins.has(pinKey(document.id, id))) ||
           !net.terminals.every(
-            (item) => pins.has(item.instanceId) || unwiredSupply(project, item),
+            (item) =>
+              pins.has(item.instanceId) || unwiredSupply(document, item),
           ) ||
           document.annotations.some(
             (item) => "netId" in item && item.netId === net.id,
@@ -4195,14 +4197,15 @@ function removeEachAddedPin(
  * a MOS body left unwired, as the netlist import binds it, or the rail of
  * a Library gate or flip-flop, which its symbol draws no pin for, drawn on
  * a Cell of the Project (#1450) or on the body the netlist writes itself.
+ * The pin is one of the net's Document, whose own instance it names (#1955).
  */
 function unwiredSupply(
-  project: CircuitProject,
+  document: SchematicDocument,
   item: { instanceId: string; pinName: string },
 ) {
-  const instance = project.documents
-    .flatMap((document) => document.instances)
-    .find((candidate) => candidate.id === item.instanceId);
+  const instance = document.instances.find(
+    (candidate) => candidate.id === item.instanceId,
+  );
   if (!instance) return false;
   if (item.pinName === "B")
     return !!mosBulkKind(instance) && !instance.mosBulkBinding;
