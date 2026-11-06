@@ -568,6 +568,7 @@ export async function routeGalleryMaintenance(
       scope,
       table: url.searchParams.get("table"),
       after: url.searchParams.get("after"),
+      key: url.searchParams.get("key"),
     });
     return Response.json(payload, {
       status,
@@ -643,6 +644,7 @@ export async function routeGalleryMaintenance(
       scope: "store",
       table: url.searchParams.get("table"),
       after: url.searchParams.get("after"),
+      key: url.searchParams.get("key"),
     });
     return Response.json(payload, {
       status,

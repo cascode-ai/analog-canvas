@@ -25,9 +25,36 @@ Each capture holds every Gallery row (all statuses, versions, likes, project
 text, previews, moderation, private
 [testbenches](specs/community-gallery.md#testbench-privacy) and
 [simulation checks](specs/community-gallery.md#simulation-checks)) plus the
-SQLite definitions. It retries when the scope revision changes mid-capture and
-is rebuilt and read back in SQLite before publishing. Accounts, analytics, the
+SQLite definitions. Changed-key reconciliation follows the protocol below;
+the archive is rebuilt and read back in SQLite before publishing. Accounts, analytics, the
 component catalog and private Cloud Projects are outside it.
+
+## Consistent capture protocol
+
+The read-only backup endpoint retains one-row pages and existing credentials.
+`table=inventory` also returns `changeCursor: {epoch, revision}`. Normal writes
+maintain a scope-specific index of changed keys, including deleted keys; it
+contains no Project contents and does not alter business rows.
+
+After paging the full scope, read a new inventory. When revisions differ,
+request `table=changes&after=JSON({epoch,since,until})` using the first and new
+cursor revisions. Follow opaque `nextCursor` values until null; each page holds
+at most 256 `{table,key}` entries. Re-read each with `table=…&key=JSON(key)`:
+one row replaces that key locally; zero rows removes it. Keys changed again
+while paging may move to a later revision and are reconciled in the next round.
+
+Publish only after the final inventory matches the reconciled target's epoch,
+revision, legacy `snapshotRevision`, schema and counts, and table counts,
+identity uniqueness, references and offline restore pass. Reconcile again if
+the fence moves. A restart or cursor older than 100,000 retained mutation
+revisions returns 409 and requires full recapture; malformed cursors return 400.
+Across each reconciliation interval, the numeric suffix of `snapshotRevision`
+and the index revision must advance by the same mutation count; their initial
+values may differ. A mismatch requires recapture. Preserve normal writes
+throughout capture.
+
+Collectors without this capability retain the original before/after revision
+check. The private backup repository owns bounded retries and reconciliation.
 
 ## Local snapshots
 
