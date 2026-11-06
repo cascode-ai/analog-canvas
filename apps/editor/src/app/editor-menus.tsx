@@ -2,10 +2,7 @@
 // File, Edit and Circuit menus and toolbars, and the canvas context menu.
 import { cloudShelfOpened } from "../components/arena-gate-request";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import {
-  deriveRoutingAffectedClosure,
-  type HierarchyFrame,
-} from "@icm/derived";
+import { deriveRoutingAffectedClosure } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { NetlistNamingProfile } from "@icm/netlist";
@@ -19,6 +16,10 @@ import type { createEditorFileCommands } from "../features/editor-shell/editor-f
 import { ProjectTabs } from "../features/editor-shell/project-tabs";
 import type { useEditorPanels } from "../features/editor-shell/use-editor-panels";
 import type { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
+import {
+  HIERARCHY_REFACTOR_ITEMS,
+  type HierarchyRefactorActions,
+} from "../features/hierarchy/hierarchy-refactor-commands";
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import {
   hasResettableLabels,
@@ -35,7 +36,10 @@ import {
   useEditorServices,
   type EditorServices,
 } from "../services/editor-services";
-import { EditorAppChrome } from "./editor-app-chrome";
+import {
+  EditorAppChrome,
+  type HierarchyMenuCommands,
+} from "./editor-app-chrome";
 import type { EditorProjectPanelMode } from "./editor-project-dock";
 import type { createEditorTransactionCommands } from "./editor-transaction-commands";
 import type { useProjectCheck } from "./use-project-check";
@@ -70,6 +74,7 @@ type NativeProjectTabs = ReturnType<typeof useNativeProjectTabs>;
 
 /** The header: project tabs, menus and toolbars, bound to the editor. */
 export function EditorMenuBar({
+  hierarchyActions,
   identity,
   projectStore,
   nativeProjectStore,
@@ -86,15 +91,13 @@ export function EditorMenuBar({
   setSelectionOpen,
   searchOpen,
   toggleLibraryPanel,
+  toggleHierarchyPanel,
   visibleLibraryPanelOpen,
   recoverySessions,
   project,
   document,
-  documentStack,
   visualSelection,
   selectionFilterOpen,
-  cellManagerOpen,
-  setCellManagerOpen,
   netlistPreflightOpen,
   setNetlistPreflightOpen,
   projectPanel,
@@ -137,7 +140,6 @@ export function EditorMenuBar({
   selectedEndpoint,
   projectInputRef,
   tabProjectInputRef,
-  hasHierarchyEnterSelection,
   flightlines,
   displayedFlightlines,
   crossings,
@@ -147,9 +149,6 @@ export function EditorMenuBar({
   alignmentParticipantCount,
   internalSelection,
   projectInstanceCount,
-  selectDocumentFromHierarchy,
-  enterSelectedHierarchy,
-  returnToTopDocument,
   toggleProjectPanel,
   toggleExamplesPanel,
   cancelAllTransientInteraction,
@@ -175,6 +174,11 @@ export function EditorMenuBar({
   leaveForGallery,
   leaveForArena,
 }: {
+  /** Circuit › Hierarchy, but for the tree toggle and placement. */
+  hierarchyActions: Omit<
+    HierarchyMenuCommands,
+    "treeOpen" | "onToggleTree" | "placeCell"
+  >;
   identity: EditorServices["identity"];
   projectStore: EditorServices["projectStore"];
   nativeProjectStore: EditorServices["nativeProjectStore"];
@@ -191,15 +195,13 @@ export function EditorMenuBar({
   setSelectionOpen: EditorPanels["setSelectionOpen"];
   searchOpen: EditorPanels["searchOpen"];
   toggleLibraryPanel: EditorPanels["toggleLibraryPanel"];
+  toggleHierarchyPanel: EditorPanels["toggleHierarchyPanel"];
   visibleLibraryPanelOpen: boolean;
   recoverySessions: UseRecoveryCoordinatorResult["sessions"];
   project: CircuitProject;
   document: SchematicDocument;
-  documentStack: HierarchyFrame[];
   visualSelection: SelectionController["selection"];
   selectionFilterOpen: boolean;
-  cellManagerOpen: boolean;
-  setCellManagerOpen: Dispatch<SetStateAction<boolean>>;
   netlistPreflightOpen: boolean;
   setNetlistPreflightOpen: Dispatch<SetStateAction<boolean>>;
   projectPanel: EditorProjectPanelMode | null;
@@ -242,7 +244,6 @@ export function EditorMenuBar({
   selectedEndpoint: WireSource | null;
   projectInputRef: RefObject<HTMLInputElement | null>;
   tabProjectInputRef: RefObject<HTMLInputElement | null>;
-  hasHierarchyEnterSelection: boolean;
   flightlines: EditorDerivedModel["flightlines"];
   displayedFlightlines: EditorDerivedModel["displayedFlightlines"];
   crossings: EditorDerivedModel["crossings"];
@@ -252,9 +253,6 @@ export function EditorMenuBar({
   alignmentParticipantCount: number;
   internalSelection: ReturnType<typeof deriveRoutingAffectedClosure>;
   projectInstanceCount: number;
-  selectDocumentFromHierarchy: NavigationController["selectDocumentFromHierarchy"];
-  enterSelectedHierarchy: NavigationController["enterSelectedHierarchy"];
-  returnToTopDocument: NavigationController["returnToTopDocument"];
   toggleProjectPanel: (mode: EditorProjectPanelMode) => void;
   toggleExamplesPanel: () => void;
   cancelAllTransientInteraction: () => void;
@@ -459,8 +457,6 @@ export function EditorMenuBar({
       }}
       searchOpen={searchOpen}
       selectionFilterOpen={selectionFilterOpen}
-      cellManagerOpen={cellManagerOpen}
-      onManageCells={() => setCellManagerOpen(true)}
       userComponentsOpen={userComponentsOpen}
       onOpenUserComponents={() => {
         cancelAllTransientInteraction();
@@ -593,6 +589,7 @@ export function EditorMenuBar({
         },
         onToggleExamples: toggleExamplesPanel,
         onToggleLibrary: toggleLibraryPanel,
+        onToggleHierarchy: toggleHierarchyPanel,
         onToggleNetlist: () => toggleProjectPanel("netlist"),
         onToggleProjectCode: () => toggleProjectPanel("project-code"),
         onActivateTool: (nextTool) =>
@@ -621,17 +618,14 @@ export function EditorMenuBar({
           },
         },
       }}
-      hierarchyToolbar={{
-        documents: project.documents,
-        activeDocumentId: document.id,
-        topDocumentId: project.topDocumentId,
-        navigationDepth: documentStack.length,
-        canEnter: hasHierarchyEnterSelection,
-        onTop: returnToTopDocument,
-        onSelectDocument: selectDocumentFromHierarchy,
-        onEnter: enterSelectedHierarchy,
-        onManageCells: () => setCellManagerOpen(true),
-        onPlaceCell: placeCellInstance,
+      hierarchy={{
+        ...hierarchyActions,
+        treeOpen: leftPanelMode === "hierarchy" && visibleLibraryPanelOpen,
+        onToggleTree: toggleHierarchyPanel,
+        placeCell: {
+          enabled: cellInsertCandidates.length > 0,
+          execute: placeCellInstance,
+        },
       }}
       telemetry={{
         snapshot: {
@@ -672,6 +666,7 @@ export function EditorCanvasContextMenu({
   hasDefinitionSelection,
   editorCommands,
   coupleInductors,
+  hierarchyRefactor,
 }: {
   canvasContextMenu: { x: number; y: number };
   setCanvasContextMenu: Dispatch<
@@ -686,6 +681,8 @@ export function EditorCanvasContextMenu({
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   /** Offered only while two uncoupled inductors are the selection. */
   coupleInductors?: (() => void) | null;
+  /** Reshaping the hierarchy around the selection or a selected Cell instance. */
+  hierarchyRefactor?: HierarchyRefactorActions;
 }) {
   return (
     <CanvasContextMenu
@@ -709,6 +706,19 @@ export function EditorCanvasContextMenu({
               },
             ]
           : []),
+        // Only the refactors that apply to this selection.
+        ...HIERARCHY_REFACTOR_ITEMS.flatMap(([key, label]) => {
+          const action = hierarchyRefactor?.[key];
+          return action?.enabled
+            ? [
+                {
+                  label: action.note ? `${label} · ${action.note}` : label,
+                  enabled: true,
+                  execute: action.execute,
+                },
+              ]
+            : [];
+        }),
         ...(coupleInductors
           ? [
               {

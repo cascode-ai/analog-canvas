@@ -1,8 +1,9 @@
 import type { CircuitProject } from "@icm/model";
 import {
-  compareElectricalGraphs,
   createDesignNetlistExport,
   projectElectricalGraph,
+  sameElectricalCircuit,
+  type ElectricalGraphResult,
 } from "@icm/netlist";
 import { serializeProject } from "@icm/project-protocol";
 import {
@@ -124,14 +125,15 @@ export async function drawnProject(
   writesFileNetlist: (project: CircuitProject) => Promise<boolean>,
 ): Promise<{ project: CircuitProject } | OmittedDrawing> {
   try {
-    if (
-      !sameCircuits(imported, drawn.project) &&
-      !(await writesFileNetlist(drawn.project))
-    )
+    const changed = changedCircuit(imported, drawn.project);
+    if (changed && !(await writesFileNetlist(drawn.project)))
       return {
         code: "RNL_IMPORT_CHANGES_NETLIST",
+        // A circuit the comparison cannot check comes in undrawn too (#1932).
         message:
-          "The RNL drawing would change the netlist, so the circuit comes in undrawn",
+          changed.status === "ready"
+            ? "The RNL drawing would change the netlist, so the circuit comes in undrawn"
+            : `The RNL drawing may change a netlist that cannot be compared (${changed.reason}), so the circuit comes in undrawn`,
       };
     // A port the drawing shows only as its power label is that label again
     // (#1783): the circuit is the same, only who owns the port changes.
@@ -155,8 +157,8 @@ export async function drawnProject(
 /**
  * Whether the drawn circuit writes the file's own netlist: its netlist,
  * written as the RNL export writes it and read back as the file was, is the
- * same circuit to the comparison as the file's, "equal" and nothing less,
- * the top's and each uncalled Cell's (`sameCircuits`).
+ * same circuit as the file's (`sameElectricalCircuit`), and nothing less,
+ * the top's and each uncalled Cell's (`changedCircuit`).
  * The file's netlist read alone does not always write what it read: a
  * ground pin the export named VSS reads as a port, and writes a GND pin
  * beside it, where the drawing, which shows that pin as ground, writes the
@@ -195,7 +197,7 @@ export async function writesFileNetlist(
     },
   );
   if (!again.project || !again.successful) return false;
-  return sameCircuits(fileImported, again.project, true);
+  return !changedCircuit(fileImported, again.project, true);
 }
 
 /**
@@ -225,17 +227,18 @@ function circuitRoots(project: CircuitProject): string[] {
 }
 
 /**
- * Whether a Project keeps the reference's circuits: rooted at each of the
- * reference's roots, its graph is "equal" to the reference's wherever the
- * reference's is ready. The two Cells of a root are the same Document, or,
- * across an import (`byName`), the two tops or the Cells of one name.
+ * The first of the reference's circuits a Project does not keep, as the
+ * reference's graph of it: rooted at each of the reference's roots, the two
+ * are the same circuit (`sameElectricalCircuit`). The two Cells of a root are
+ * the same Document, or, across an import (`byName`), the two tops or the
+ * Cells of one name.
  */
-function sameCircuits(
+function changedCircuit(
   reference: CircuitProject,
   project: CircuitProject,
   byName = false,
-): boolean {
-  return circuitRoots(reference).every((root) => {
+): ElectricalGraphResult | undefined {
+  for (const root of circuitRoots(reference)) {
     const name = reference.documents.find((item) => item.id === root)?.netlist
       ?.name;
     const twin = !byName
@@ -247,14 +250,16 @@ function sameCircuits(
       ...reference,
       topDocumentId: root,
     });
-    if (before.status !== "ready") return !byName;
-    if (!twin) return false;
-    const after = projectElectricalGraph({ ...project, topDocumentId: twin });
-    return (
-      after.status === "ready" &&
-      compareElectricalGraphs(before.graph, after.graph) === "equal"
-    );
-  });
+    if (
+      !twin ||
+      !sameElectricalCircuit(
+        before,
+        projectElectricalGraph({ ...project, topDocumentId: twin }),
+      )
+    )
+      return before;
+  }
+  return undefined;
 }
 
 /** An error as one line: a schema error's issue messages, not its JSON. */

@@ -39,7 +39,16 @@ export interface ElectricalGraph {
 
 export type ElectricalGraphResult =
   | { status: "ready"; graph: ElectricalGraph }
-  | { status: "uncheckable"; reason: string };
+  | {
+      status: "uncheckable";
+      reason: string;
+      /** A circuit past the size limit, or with no devices, still prints
+       * its cards (#1932). */
+      cards?: string;
+    };
+
+const TOO_LARGE = "Circuit exceeds the comparison size limit";
+const NO_DEVICES = "No netlist devices to compare";
 
 function numericValue(raw: string): string | null {
   const parsed = parseSpiceNumber(raw);
@@ -204,7 +213,7 @@ function printedCards(ir: DesignNetlistIR): string {
   });
 }
 
-/** Layout-free graph of the emitted devices, with paramless hierarchy expanded. */
+/** Layout-free graph of the emitted devices, with hierarchy expanded. */
 export function electricalGraphFromIR(
   ir: DesignNetlistIR,
   sourceSymbols: ReadonlyMap<DesignNetlistInstance, string> = new Map(),
@@ -216,8 +225,7 @@ export function electricalGraphFromIR(
     const adjacency: Set<number>[] = [];
     const parent: number[] = [];
     const vertex = (label: string, topology = topologyLabel(label)) => {
-      if (labels.length >= 3000)
-        throw new Error("Circuit exceeds the comparison size limit");
+      if (labels.length >= 3000) throw new Error(TOO_LARGE);
       const id = labels.length;
       labels.push(label);
       topologyLabels.push(topology);
@@ -247,11 +255,32 @@ export function electricalGraphFromIR(
       ancestors: Set<string>,
       instancePath: string[] = [],
       referencePath: string[] = [],
+      context: readonly string[] = [],
     ) => {
       if (ancestors.has(cell.id) || ancestors.size > 32)
         throw new Error("Recursive hierarchy needs manual comparison");
-      if (cell.formalParameters?.length)
-        throw new Error("Parameterized hierarchy needs manual comparison");
+      // Parameters compare as their text, never evaluated (#1932): each
+      // device carries the defaults and passed values of the Cells it sits
+      // in, so the same text everywhere is the same circuit.
+      const scope = cell.formalParameters?.length
+        ? [
+            ...context,
+            JSON.stringify([
+              "formals",
+              cell.formalParameters.map((parameter) => [
+                parameter.name,
+                parameter.defaultValue === undefined
+                  ? null
+                  : parameters([
+                      {
+                        name: parameter.name,
+                        rawValue: parameter.defaultValue,
+                      },
+                    ]),
+              ]),
+            ]),
+          ]
+        : context;
       const path = new Set([...ancestors, cell.id]);
       const local = new Map<string, number>();
       const globalNames = new Set(
@@ -289,8 +318,6 @@ export function electricalGraphFromIR(
             ? cells.get(instance.target)
             : undefined;
         if (child) {
-          if (instance.parameters.length)
-            throw new Error("Parameterized hierarchy needs manual comparison");
           expand(
             child,
             child.ports.map((port) => {
@@ -303,6 +330,12 @@ export function electricalGraphFromIR(
             path,
             [...instancePath, instance.id],
             [...referencePath, instance.reference],
+            instance.parameters.length
+              ? [
+                  ...scope,
+                  JSON.stringify(["call", parameters(instance.parameters)]),
+                ]
+              : scope,
           );
           continue;
         }
@@ -347,6 +380,7 @@ export function electricalGraphFromIR(
                   ])
                   .sort() ?? [])
               : [],
+            ...(scope.length ? [scope] : []),
           ]),
           topologyLabel(
             JSON.stringify([
@@ -391,7 +425,7 @@ export function electricalGraphFromIR(
     if (!top) throw new Error("Missing top-level circuit");
     expand(top, null, new Set());
     if (!labels.some((label) => label.startsWith('["device"')))
-      throw new Error("No netlist devices to compare");
+      throw new Error(NO_DEVICES);
     const roots = labels.flatMap((_, id) => (root(id) === id ? [id] : []));
     const indices = new Map(roots.map((id, index) => [id, index]));
     const edges = roots.map(() => new Set<number>());
@@ -419,14 +453,41 @@ export function electricalGraphFromIR(
       },
     };
   } catch (error) {
+    const reason =
+      error instanceof Error
+        ? error.message
+        : "Cannot extract electrical structure";
     return {
       status: "uncheckable",
-      reason:
-        error instanceof Error
-          ? error.message
-          : "Cannot extract electrical structure",
+      reason,
+      ...(reason === TOO_LARGE || reason === NO_DEVICES ? cardsOf(ir) : {}),
     };
   }
+}
+
+/** An IR's printed cards, or none where a card cannot be read as text. */
+function cardsOf(ir: DesignNetlistIR): { cards?: string } {
+  try {
+    return { cards: printedCards(ir) };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Whether two results are the same circuit: "equal" to the comparison, or,
+ * past its size limit or with no devices, the same printed cards, which
+ * only ever prove it.
+ */
+export function sameElectricalCircuit(
+  a: ElectricalGraphResult,
+  b: ElectricalGraphResult,
+): boolean {
+  if (a.status === "ready" && b.status === "ready")
+    return compareElectricalGraphs(a.graph, b.graph) === "equal";
+  const cards = (result: ElectricalGraphResult) =>
+    result.status === "ready" ? result.graph.cards : result.cards;
+  return cards(a) !== undefined && cards(a) === cards(b);
 }
 
 export function projectElectricalGraph(

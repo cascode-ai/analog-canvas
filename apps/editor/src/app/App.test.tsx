@@ -86,13 +86,15 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Cell netlist interface");
     expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
-    // Hierarchy stays discoverable for a flat Project; the operational row is
-    // still omitted until there is hierarchy to navigate or enter.
+    // A flat Project gives no space to hierarchy: no row and no path; the
+    // commands live in Circuit and the tree behind the Panels toggle.
     expect(markup).not.toContain('data-testid="cell-navigation"');
+    expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
     expect(markup).toContain('data-testid="hierarchy-entry"');
+    expect(markup).toContain('data-testid="hierarchy-toggle"');
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
-    expect(markup).not.toContain('data-testid="cell-command-menu"');
-    expect(markup).toContain(">Cell Manager…</button>");
+    expect(markup).toContain(">Show hierarchy tree</button>");
+    expect(markup).toContain(">New child Cell…</button>");
     expect(markup).toContain("Edit Device Data…");
     // Three header menus: File (the file commands), Edit, and Circuit
     // (Hierarchy and Netlist); the command row keeps actions.
@@ -218,9 +220,12 @@ describe("editor shell", () => {
       <App services={services} project={project} />,
     );
     expect(markup).toContain('data-testid="hierarchy-entry"');
-    expect(markup).toContain('data-testid="cell-navigation"');
-    expect(markup).toContain("Enter Cell");
-    expect(markup).toContain("Manage Cells…");
+    expect(markup).not.toContain('data-testid="cell-navigation"');
+    // At Top the path stays hidden even though the Project has a child.
+    expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
+    // Circuit keeps entry points only; the tree carries the Cell actions.
+    expect(markup).toContain(">Place Cell…</button>");
+    expect(markup).not.toContain("Up to caller");
   });
 
   it("links GitHub and the change log directly without a Help surface", () => {
@@ -257,12 +262,12 @@ describe("editor shell", () => {
     expect(markup).toContain("Presented by");
     expect(markup).toContain('href="https://tokenzhang.com"');
     expect(markup).toContain('src="/tokenzhang-favicon.png"');
-    const navigationEnd = markup.indexOf("</nav>");
+    const header = markup.slice(0, markup.indexOf("</header>"));
+    expect(header).toContain('data-testid="editor-repository-link"');
     const repositoryLink = markup.indexOf(
       'data-testid="editor-repository-link"',
     );
     const ownerLink = markup.indexOf('href="https://tokenzhang.com"');
-    expect(repositoryLink).toBeGreaterThan(navigationEnd);
     expect(ownerLink).toBeGreaterThan(repositoryLink);
     expect(markup).not.toContain('role="dialog"');
     // Agent connects directly from the command row; no one-item menu or

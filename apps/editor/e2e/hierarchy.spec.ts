@@ -31,8 +31,12 @@ import {
   exportedProject,
   downloadBytes,
   expectStatus,
-  openCellManager,
-  openCellManagerTab,
+  createRootCell,
+  openCellProperties,
+  openExternalCircuits,
+  openHierarchyDefinition,
+  openHierarchyTree,
+  revealHierarchyRow,
   openMenu,
   openProject,
   openProjectFile,
@@ -289,7 +293,7 @@ test("process shortcuts change only visible model text and clipboard failure sta
     }),
   );
   await page.goto("/editor");
-  const manager = await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   const editor = modelNetlist(manager);
   await editor.fill(
     ".subckt pair D G S B\nX1 D G S B sky130_fd_pr__nfet_01v8 w=2 l=0.15 nf=2 m=8\n.ends pair\n",
@@ -352,7 +356,7 @@ test("converts the external draft with the reused format selector and keeps fail
   page,
 }) => {
   await page.goto("/editor");
-  const manager = await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   const editor = modelNetlist(manager);
   await editor.fill(
     ".subckt rc A B params: RVAL=1k\nR1 A B {RVAL}\n.ends rc\n",
@@ -394,7 +398,7 @@ test("starts an external model with English comments and copies only its applied
     });
   });
   await page.goto("/editor");
-  const manager = await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   const editor = modelNetlist(manager);
   const starter = await editor.innerText();
   expect(starter.trim().split("\n")).toHaveLength(2);
@@ -449,7 +453,7 @@ for (const viewport of [
   }) => {
     await page.setViewportSize(viewport);
     await page.goto("/editor");
-    const manager = await openCellManagerTab(page, "External Circuits");
+    const manager = await openExternalCircuits(page);
     await modelNetlist(manager).fill(
       ".subckt layout A B\nR1 A B 1k\n.ends layout\n",
     );
@@ -500,7 +504,7 @@ test("searches definitions without discarding the selected model", async ({
   page,
 }) => {
   await page.goto("/editor");
-  const manager = await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   await modelNetlist(manager).fill(
     ".subckt searchable A B\nR1 A B 1k\n.ends searchable\n",
   );
@@ -523,23 +527,20 @@ test("applies and places an external model in a compact narrow Manager", async (
 }) => {
   await page.setViewportSize({ width: 430, height: 800 });
   await page.goto("/editor");
-  const manager = await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   await expect(manager.getByRole("group", { name: "Model files" })).toHaveCount(
     0,
   );
   await modelNetlist(manager).fill(
     ".subckt compact A B\nR1 A B 1k\n.ends compact\n",
   );
-  // Closing or switching tabs asks before an unsaved model is dropped.
+  // Closing asks before an unsaved model is dropped.
   const guard = page.getByRole("dialog", { name: "Unsaved model" });
-  for (const leave of [
-    manager.getByRole("button", { name: "Close Cell Manager" }),
-    manager.getByRole("tab", { name: "Cells", exact: true }),
-  ]) {
-    await leave.click();
-    await guard.getByRole("button", { name: "Keep editing" }).click();
-    await expect(modelNetlist(manager)).toContainText("R1 A B 1k");
-  }
+  await manager
+    .getByRole("button", { name: "Close External Circuits" })
+    .click();
+  await guard.getByRole("button", { name: "Keep editing" }).click();
+  await expect(modelNetlist(manager)).toContainText("R1 A B 1k");
   const applyPlace = manager.getByRole("button", {
     name: "Apply & Place",
     exact: true,
@@ -551,12 +552,12 @@ test("applies and places an external model in a compact narrow Manager", async (
   await expect(manager).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
-  await openCellManagerTab(page, "External Circuits");
+  await openExternalCircuits(page);
   await manager.getByRole("button", { name: /compact/ }).click();
   await manager.getByRole("button", { name: "Place", exact: true }).click();
   await page.getByRole("button", { name: "Netlist", exact: true }).click();
   await placeFirstAt(page, { x: 200, y: 250 });
-  await openCellManagerTab(page, "External Circuits");
+  await openExternalCircuits(page);
   await manager.getByRole("button", { name: /compact/ }).click();
   await modelNetlist(manager).fill(
     ".subckt compact A B\nR1 A B 2k\n.ends compact\n",
@@ -615,14 +616,14 @@ test("refuses copying a legacy interface-only model until its native implementat
     "Legacy declaration legacy_gain has no Project-owned implementation",
   );
   await expect(netlist.getByTestId("copy-netlist-panel")).toBeDisabled();
-  const manager = await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   await manager.getByRole("button", { name: /legacy_gain/ }).click();
   await manager
     .getByRole("button", { name: "Define implementation…", exact: true })
     .click();
   await modelNetlist(manager).fill(body);
   await applyModel(manager);
-  await manager.getByLabel("Close Cell Manager").click();
+  await manager.getByLabel("Close External Circuits").click();
   const copied = await copyNetlistText(page, "spice");
   expect(copied).toContain(body);
   expect(copied.match(/^\.subckt legacy_gain\b/gm)).toHaveLength(1);
@@ -646,7 +647,7 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
     return route.abort();
   });
   await page.goto("/editor?new=1");
-  let manager = await openCellManagerTab(page, "External Circuits");
+  let manager = await openExternalCircuits(page);
   const text =
     ".subckt first A B\nR1 A B 1k\n.ends first\n.subckt second A B\nR1 A B 2k\n.ends second\n";
   await modelNetlist(manager).fill(text);
@@ -677,11 +678,11 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
     .getByLabel("External model entry", { exact: true })
     .selectOption("fork_first");
   await applyModel(manager);
-  await manager.getByLabel("Close Cell Manager").click();
+  await manager.getByLabel("Close External Circuits").click();
   await page.keyboard.press("Control+z");
-  manager = await openCellManagerTab(page, "External Circuits");
+  manager = await openExternalCircuits(page);
   await expect(manager.locator(".cell-manager-list-item")).toHaveCount(2);
-  await manager.getByLabel("Close Cell Manager").click();
+  await manager.getByLabel("Close External Circuits").click();
   await page.keyboard.press("Control+Shift+z");
   const saved: CircuitProject = await exportedProject(page);
   expect(saved.modelSources).toHaveLength(2);
@@ -692,7 +693,7 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
       .map((d) => d.implementation!.sourceId),
   ).toEqual([saved.modelSources![0]!.id, saved.modelSources![0]!.id]);
   await openProjectFile(page, serializeProject(saved), "owned.icproj.json");
-  manager = await openCellManagerTab(page, "External Circuits");
+  manager = await openExternalCircuits(page);
   await listItem(manager, "fork_first").click();
   await expect(modelNetlist(manager)).toContainText(".subckt fork_first A B");
   expect(executions).toBe(0);
@@ -777,12 +778,12 @@ test("imports a long-named Cloud Cell with a child and owned model into the orig
   );
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto("/editor?new=1");
-  const manager = await openCellManager(page);
-  await manager
-    .getByRole("button", { name: "Import Cell", exact: true })
-    .click();
+  const active = page.getByTestId("active-document-id").first();
+  const parentId = (await active.textContent()) ?? "";
+  const tree = await openHierarchyTree(page);
+  await tree.getByRole("button", { name: "Import Cell…", exact: true }).click();
   const dialog = page.getByRole("dialog", {
-    name: "Import Cloud Cell",
+    name: "Import Cell",
     exact: true,
   });
   await dialog.getByLabel("Source Project").selectOption("cloud-source");
@@ -799,11 +800,26 @@ test("imports a long-named Cloud Cell with a child and owned model into the orig
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(600);
   await dialog.getByRole("button", { name: "Import", exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(
-    manager.getByRole("button", { name: "Place", exact: true }),
-  ).toBeEnabled();
-  await manager.getByRole("button", { name: "Place", exact: true }).click();
-  await placeFirstAt(page, { x: 280, y: 200 });
+  // The imported Cell opens as a root of its own; its parent places it.
+  await expect(active).not.toHaveText(parentId);
+  const importedId = await active.innerText();
+  await openHierarchyDefinition(page, /^Top · /u);
+  await expect(active).toHaveText(parentId);
+  const importedName: string = (await exportedProject(page)).documents.find(
+    (cell: { id: string }) => cell.id === importedId,
+  ).name;
+  const named = new RegExp(
+    `^${importedName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}$`,
+    "u",
+  );
+  await revealHierarchyRow(tree, named);
+  const row = tree
+    .getByRole("treeitem")
+    .filter({ has: page.getByRole("button", { name: named }) });
+  await row.hover();
+  await row.getByRole("button", { name: /^Place /u }).click();
+  // At this width the open tree and Properties leave a narrow canvas.
+  await placeFirstAt(page, { x: 120, y: 200 });
   const saved: CircuitProject = await exportedProject(page);
   expect(
     saved.documents.find((d) => d.id === saved.topDocumentId)!.instances,
@@ -811,27 +827,30 @@ test("imports a long-named Cloud Cell with a child and owned model into the orig
   expect(saved.documents).toHaveLength(3);
   expect(saved.modelSources![0]!.files[0]!.text).toContain("R1 A B 7k");
   await openProjectFile(page, serializeProject(saved), "imported.icproj.json");
-  await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   await listItem(manager, "imported_model").click();
   await expect(page.getByLabel("External model netlist")).toContainText(
     "R1 A B 7k",
   );
 });
 
-test("places a selected local Cell directly from Manager and explains self placement", async ({
+test("places a local Cell from its tree row and explains self placement", async ({
   page,
 }) => {
-  const project = createEmptyProject("manager-placement", "Manager placement");
+  const project = createEmptyProject("tree-placement", "Tree placement");
   project.documents.push(createEmptyDocument("child", "Child"));
   await openProject(page, project, "cells.icproj.json");
-  const manager = await openCellManager(page);
-  await expect(
-    manager.getByRole("button", { name: "Place", exact: true }),
-  ).toBeDisabled();
-  await expect(manager).toContainText("A Cell cannot contain itself");
-  await listItem(manager, "Child").click();
-  await manager.getByRole("button", { name: "Place", exact: true }).click();
-  await expect(manager).toHaveCount(0);
+  const tree = await openHierarchyTree(page);
+  // The open Cell cannot hold itself: its row's menu says why.
+  await (await revealHierarchyRow(tree, /^Top · /u)).click({ button: "right" });
+  const self = tree.getByRole("menuitem", { name: /^Place in / });
+  await expect(self).toBeDisabled();
+  await expect(self).toHaveAttribute("title", /cannot contain itself/u);
+  await page.keyboard.press("Escape");
+  await expect(self).toHaveCount(0);
+  const child = await revealHierarchyRow(tree, "Child");
+  await child.hover();
+  await tree.getByRole("button", { name: "Place Child", exact: true }).click();
   await placeFirstAt(page, { x: 350, y: 220 });
 });
 
@@ -937,7 +956,7 @@ test("a runtime diagnostic opens the exact applied helper file while retaining i
       exact: true,
     })
     .click();
-  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  const manager = page.locator(".cell-manager-dialog");
   const editor = modelNetlist(manager);
   await expect(editor).toContainText("B1 A 0 V={unknown_function(0)}");
   await expect(editor).toHaveAttribute("aria-readonly", "true");
@@ -947,7 +966,7 @@ test("a runtime diagnostic opens the exact applied helper file while retaining i
     .click();
   await expect(editor).toContainText(".subckt unfinished A");
   await expect(editor).toHaveAttribute("aria-readonly", "false");
-  await manager.getByLabel("Close Cell Manager").click();
+  await manager.getByLabel("Close External Circuits").click();
   const saved: CircuitProject = await exportedProject(page);
   expect(saved.modelSources![0]!.files[1]!.text).toBe(helper);
   expect(saved.modelSources![0]!.draft!.files[0]!.text).toBe(
@@ -984,25 +1003,16 @@ async function applyCanvasText(page: Page, text: string): Promise<void> {
   await page.getByRole("button", { name: "Apply text changes" }).click();
 }
 
+/** A new unplaced Cell, open for drawing. */
 async function createCell(page: Page, name: string): Promise<void> {
-  const manager = await openCellManager(page);
-  await manager.getByRole("button", { name: "New Cell" }).click();
-  const editor = page.getByRole("dialog", { name: "New Cell" });
-  await expect(editor).toHaveAttribute("autocomplete", "off");
-  await expect(editor.getByLabel("Cell name")).toHaveAttribute(
-    "autocomplete",
-    "off",
-  );
-  await editor.getByLabel("Cell name").fill(name);
-  await editor.getByRole("button", { name: "Create" }).click();
+  await createRootCell(page, name);
 }
 
 async function openCellDefinition(
   page: Page,
   name: string | RegExp,
 ): Promise<void> {
-  const manager = await openCellManager(page);
-  await listItem(manager, name).first().dblclick();
+  await openHierarchyDefinition(page, name);
 }
 
 async function openTopCell(page: Page): Promise<void> {
@@ -1021,6 +1031,14 @@ async function placeCellPin(
     '[data-testid^="annotation-hit-instance-label-"]',
   );
   const existingLabelCount = await labels.count();
+  if (
+    (await page
+      .getByRole("button", { name: "Component library", exact: true })
+      .getAttribute("aria-expanded")) !== "true"
+  )
+    await page
+      .getByRole("button", { name: "Component library", exact: true })
+      .click();
   await page.getByTestId("shapes-chip-port").click();
   await page
     .getByTestId("schematic-canvas")
@@ -1032,14 +1050,16 @@ async function placeCellPin(
     page.getByRole("dialog", { name: "Change Cell signal members?" }),
   ).toHaveCount(0);
   if (options.direction) {
-    const manager = await openCellManager(page);
-    await manager
+    const properties = await openCellProperties(page);
+    // The newest Pin is the last row; its first choice is the direction.
+    await properties
       .getByRole("table", { name: "Formal port order" })
       .getByRole("row")
       .last()
       .getByRole("combobox")
+      .first()
       .selectOption(options.direction);
-    await manager.getByLabel("Close Cell Manager").click();
+    await properties.getByLabel("Close Cell properties").click();
   }
 }
 
@@ -1059,56 +1079,18 @@ async function setCellTerminalDirection(
   name: string,
   direction: "input" | "output" | "inout" | "passive",
 ): Promise<void> {
-  const manager = await openCellManager(page);
-  await manager
+  const properties = await openCellProperties(page);
+  await properties
     .getByLabel(`Formal port ${name} direction`)
     .selectOption(direction);
-  await manager.getByLabel("Close Cell Manager").click();
+  await properties.getByLabel("Close Cell properties").click();
 }
-
-test("saves ordinary Cell order without changing Top and restores it with Undo", async ({
-  page,
-}) => {
-  const project = hierarchyParameterFixture();
-  project.documents.push(createEmptyDocument("extra", "Extra"));
-  await openProject(page, project, "order.icproj.json");
-  const snapshot = () => exportedProject(page);
-  const normalized = await snapshot();
-  const manager = await openCellManager(page);
-  await listItem(manager, "Extra").dragTo(listItem(manager, "Resistors"));
-  await expect(manager.locator(".cell-manager-list-item strong")).toHaveText([
-    "dut",
-    "Extra",
-    "Resistors",
-  ]);
-  await manager.getByLabel("Close Cell Manager").click();
-  const reordered = await snapshot();
-  expect(reordered.topDocumentId).toBe(project.topDocumentId);
-  expect(reordered.documents.map((cell: { id: string }) => cell.id)).toEqual([
-    project.topDocumentId,
-    "extra",
-    "resistors",
-  ]);
-  await page.keyboard.press("Control+z");
-  // Undo/Redo intentionally advance revisions; compare all persisted contents
-  // and list order without expecting historical revision counters to rewind.
-  const contents = (documents: CircuitProject["documents"]) =>
-    documents.map(({ revision: _revision, ...document }) => document);
-  expect(contents((await snapshot()).documents)).toEqual(
-    contents(normalized.documents),
-  );
-  await page.keyboard.press("Control+Shift+z");
-  expect(contents((await snapshot()).documents)).toEqual(
-    contents(reordered.documents),
-  );
-});
 
 test("manages external declarations independently of local Cell interfaces", async ({
   page,
 }) => {
   await page.goto("/editor");
-  const manager = page.getByRole("dialog", { name: "Cell Manager" });
-  const types = manager.getByRole("tablist", { name: "Definition type" });
+  const manager = page.locator(".cell-manager-dialog");
   const externalList = manager.getByRole("complementary", {
     name: "External Circuits",
   });
@@ -1116,20 +1098,21 @@ test("manages external declarations independently of local Cell interfaces", asy
     "External subcircuit formal parameters",
   );
   const openAmplifier = async () => {
-    await openCellManagerTab(page, "External Circuits");
+    await openExternalCircuits(page);
     await externalList.getByRole("button", { name: /amplifier/ }).click();
   };
-  await openCellManager(page);
+  // A local Cell's interface lives in its properties, apart from External
+  // Circuits, and neither shows the other's fields.
+  const properties = await openCellProperties(page);
   await expect(
-    manager.getByLabel("Cell interface", { exact: true }),
+    properties.getByLabel("Cell name", { exact: true }),
   ).toBeVisible();
-  await expect(manager.getByLabel("External subcircuit target")).toHaveCount(0);
-  await types
-    .getByRole("tab", { name: "External Circuits", exact: true })
-    .click();
-  await expect(
-    manager.getByLabel("Cell interface", { exact: true }),
-  ).toHaveCount(0);
+  await expect(properties.getByLabel("External subcircuit target")).toHaveCount(
+    0,
+  );
+  await properties.getByLabel("Close Cell properties").click();
+  await openExternalCircuits(page);
+  await expect(manager.getByLabel("Cell name", { exact: true })).toHaveCount(0);
   await manager.getByText("More", { exact: true }).click();
   await manager
     .getByRole("button", { name: "Create placeholder…", exact: true })
@@ -1145,7 +1128,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   await externalList.getByRole("button", { name: /amplifier/ }).click();
   await parameters.fill("gain=20");
   await manager.getByRole("button", { name: "Save definition" }).click();
-  await manager.getByLabel("Close Cell Manager").click();
+  await manager.getByLabel("Close External Circuits").click();
   await page.keyboard.press("Control+z");
   await openAmplifier();
   await expect(parameters).toHaveValue("gain=10");
@@ -1166,42 +1149,54 @@ test("manages external declarations independently of local Cell interfaces", asy
   await expect(
     externalList.getByRole("button", { name: /amplifier/ }),
   ).toHaveCount(0);
-  await manager.getByLabel("Close Cell Manager").click();
+  await manager.getByLabel("Close External Circuits").click();
   await page.keyboard.press("Control+z");
   await openAmplifier();
   await expect(parameters).toHaveValue("gain=10");
 });
 
-test("keeps Hierarchy discoverable and restores the operation row on demand", async ({
+test("keeps Hierarchy discoverable without a resident row", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 420, height: 700 });
   await page.goto("/editor");
 
-  // Even this narrow, the header's Circuit menu is in view and holds the
-  // Cell Manager under Hierarchy.
+  // Even this narrow, the header's Circuit menu is in view and shows the
+  // tree on demand; no row of hierarchy controls takes canvas height.
   const toggle = page.getByTestId("circuit-menu").locator(":scope > summary");
-  const toolbar = page.locator('.toolbar-row[aria-label="Document hierarchy"]');
   await expect(toggle).toBeInViewport({ timeout: 15_000 });
+  await expect(page.getByTestId("hierarchy-breadcrumb")).toHaveCount(0);
   const entry = (await openMenu(page, "Hierarchy")).getByTestId(
     "hierarchy-entry",
   );
-  await expect(entry).toBeVisible();
-  await expect(entry).toHaveText("Cell Manager…");
-  await expect(entry).toHaveAttribute("aria-expanded", "false");
-  await page.keyboard.press("Escape");
-  await expect(toolbar).toHaveCount(0);
+  await expect(entry).toHaveText("Show hierarchy tree");
+  await expect(entry).toHaveAttribute("aria-pressed", "false");
+  await entry.click();
+  await expect(
+    page.getByRole("complementary", { name: "Circuit hierarchy" }),
+  ).toBeVisible();
+  // This narrow, one side shows at a time: the tree closes the Netlist.
+  await expect(
+    page.getByRole("region", { name: "Live netlist", exact: true }),
+  ).toBeHidden();
 
   await createCell(page, "FirstStage");
-  await expect(toolbar).toBeVisible();
+  // At a root, open or not, no path shows; the open Cell's commands are
+  // in the menu, Set as Top among them.
+  await expect(page.getByTestId("hierarchy-breadcrumb")).toHaveCount(0);
+  const hierarchy = await openMenu(page, "Hierarchy");
   await expect(
-    toolbar.getByRole("button", { name: "Manage Cells…" }),
-  ).toBeVisible();
-  await expect(
-    toolbar.getByRole("button", { name: "Place Cell" }),
+    hierarchy.getByRole("button", { name: "Set as Top", exact: true }),
   ).toBeEnabled();
-  await expect(toggle).toBeVisible();
-  await toolbar.getByRole("button", { name: "Place Cell" }).click();
+  await expect(
+    hierarchy.getByRole("button", { name: "Cell properties…", exact: true }),
+  ).toBeEnabled();
+  const place = hierarchy.getByRole("button", {
+    name: "Place Cell…",
+    exact: true,
+  });
+  await expect(place).toBeEnabled();
+  await place.click();
   await expect(
     page.getByRole("dialog", { name: "Place Hierarchical Cell" }),
   ).toBeVisible();
@@ -1610,10 +1605,17 @@ test("places an existing Cell and blocks deleting its shared definition", async 
   await expect(canvas.locator('[data-kind="instance-label"]')).toHaveCount(0);
   await page.keyboard.press("Escape");
 
-  const manager = await openCellManager(page);
+  // A placed definition cannot be deleted; its row's menu says so.
+  const tree = await openHierarchyTree(page);
+  await (
+    await revealHierarchyRow(tree, "X1: ReusableStage")
+  ).click({
+    button: "right",
+  });
   await expect(
-    manager.getByRole("button", { name: "Delete", exact: true }),
+    tree.getByRole("menuitem", { name: /^Delete Cell/u }),
   ).toBeDisabled();
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("document-count")).toHaveText("2");
 });
 
@@ -1623,10 +1625,26 @@ test("allows distinct Cell Pins to expose one internal contact", async ({
   await page.goto("/editor");
   const canvas = page.getByTestId("schematic-canvas");
 
+  if (
+    (await page
+      .getByRole("button", { name: "Component library", exact: true })
+      .getAttribute("aria-expanded")) !== "true"
+  )
+    await page
+      .getByRole("button", { name: "Component library", exact: true })
+      .click();
   await page.getByTestId("shapes-chip-port").click();
   await canvas.click({ position: { x: 240, y: 200 } });
   await page.keyboard.press("Escape");
 
+  if (
+    (await page
+      .getByRole("button", { name: "Component library", exact: true })
+      .getAttribute("aria-expanded")) !== "true"
+  )
+    await page
+      .getByRole("button", { name: "Component library", exact: true })
+      .click();
   await page.getByTestId("shapes-chip-port").click();
   await canvas.click({ position: { x: 240, y: 200 } });
   // The existing Port is the visible current Net name, so a second Cell Pin
@@ -1680,13 +1698,18 @@ test("same-name Cell Pins stay independent while the final interface groups them
       .locator('[data-object-id="instance-label-P2"]')
       .locator('[data-text-run="subscript"]'),
   ).toHaveCount(0);
-  const manager = await openCellManager(page);
+  const properties = await openCellProperties(page);
   await expect(
-    manager.getByRole("table", { name: "Formal port order" }).getByRole("row"),
+    properties
+      .getByRole("table", { name: "Formal port order" })
+      .getByRole("row")
+      .filter({ has: page.getByRole("cell") }),
   ).toHaveCount(1);
-  await expect(manager).toContainText("2 markers");
-  await expect(manager).toContainText("Direction conflict");
-  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
+  await expect(properties).toContainText("2 markers");
+  await expect(properties).toContainText("Direction conflict");
+  await properties
+    .getByRole("button", { name: "Close Cell properties" })
+    .click();
   const saved: CircuitProject = await exportedProject(page);
   const terminals = saved.documents[0]!.netlist!.terminals;
   expect(terminals.map((terminal) => terminal.name)).toEqual(["VIN", "vin"]);

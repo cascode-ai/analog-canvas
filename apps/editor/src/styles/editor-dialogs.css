@@ -260,32 +260,6 @@
   min-width: 0;
 }
 
-/* Same tab affordance as the Simulation workspace, so switching definition
-   scope reads as a tab and not as a pressed toggle. */
-.cell-manager-resource-tabs {
-  display: flex;
-  gap: var(--icm-space-1);
-  margin-left: auto;
-}
-
-.cell-manager-resource-tabs [role="tab"] {
-  min-height: 26px;
-  padding: 0 var(--icm-space-2);
-  border-color: transparent;
-  color: var(--icm-text-muted);
-  background: transparent;
-  box-shadow: none;
-  font-size: var(--icm-font-sm);
-  white-space: nowrap;
-}
-
-.cell-manager-resource-tabs [role="tab"][aria-selected="true"] {
-  border-color: var(--icm-border);
-  color: var(--icm-accent);
-  background: var(--icm-surface);
-  font-weight: 650;
-}
-
 .cell-manager-dismiss {
   flex: 0 0 auto;
   width: var(--icm-control-h);
@@ -724,8 +698,7 @@
   position: relative;
   margin-left: auto;
 }
-.external-model-more summary,
-.cell-hierarchy-tree summary {
+.external-model-more summary {
   cursor: pointer;
   padding: var(--icm-space-2);
   font-size: var(--icm-font-sm);
@@ -748,9 +721,6 @@
 }
 .cell-manager-back {
   display: none;
-}
-.cell-manager-actions {
-  flex-wrap: wrap;
 }
 
 @media (max-width: 680px) {
@@ -779,9 +749,7 @@
   flex-wrap: wrap;
 }
 
-.cell-manager-title-row,
-.cell-manager-actions,
-.cell-interface-order-actions {
+.cell-manager-title-row {
   display: flex;
   align-items: center;
   gap: var(--icm-space-1);
@@ -799,7 +767,6 @@
   white-space: nowrap;
 }
 
-.cell-manager-actions button,
 .cell-interface-section button,
 .cell-manager-callers button {
   min-height: var(--icm-control-h);
@@ -810,22 +777,6 @@
 .cell-manager-confirm {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-sm);
-}
-
-.cell-interface-editor {
-  display: grid;
-  flex: 0 0 auto;
-  gap: var(--icm-space-3);
-}
-
-.cell-interface-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(16rem, 0.85fr);
-  gap: var(--icm-space-3);
-}
-
-.cell-interface-grid:not(:has(.cell-parameter-list)) {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .cell-interface-section,
@@ -855,53 +806,13 @@
   font-size: var(--icm-font-md);
 }
 
-.cell-interface-section header p,
-.cell-interface-empty {
+.cell-interface-section header p {
   margin-top: 2px;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   line-height: var(--icm-line);
 }
 
-.cell-interface-table,
-.cell-parameter-list {
-  display: grid;
-  gap: 4px;
-}
-
-.cell-interface-row {
-  display: grid;
-  grid-template-columns: 1.6rem minmax(5.5rem, 1fr) 6.2rem auto;
-  align-items: center;
-  gap: 4px;
-}
-
-.cell-interface-port-name {
-  display: grid;
-  min-width: 0;
-  line-height: var(--icm-line);
-}
-
-.cell-interface-port-name strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cell-interface-port-name small {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-
-.cell-interface-order {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  text-align: center;
-}
-
-.cell-interface-row input,
-.cell-interface-row select,
-.cell-parameter-row input,
 .cell-external-grid input,
 .cell-external-grid select {
   min-width: 0;
@@ -914,160 +825,6 @@
   background: var(--icm-surface);
   font: inherit;
   font-size: var(--icm-font-sm);
-}
-
-.cell-interface-order-actions {
-  gap: 2px;
-}
-
-.cell-interface-order-actions button,
-.cell-parameter-row button {
-  width: 28px;
-  min-width: 28px;
-  padding: 0;
-}
-
-/* A second bounded navigator docked under the definition list: expanding an
-   occurrence scrolls inside the tree instead of pushing the list away. */
-.cell-hierarchy-tree {
-  display: flex;
-  flex-direction: column;
-  flex: 0 0 auto;
-  min-height: 0;
-  max-height: 45%;
-  border-top: 1px solid var(--icm-border);
-}
-
-.cell-hierarchy-tree[open] {
-  flex: 1 1 auto;
-}
-
-.cell-hierarchy-tree summary {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  min-height: 32px;
-  padding: 0 var(--icm-space-3);
-  cursor: pointer;
-  list-style: none;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.cell-hierarchy-tree summary::-webkit-details-marker {
-  display: none;
-}
-
-.cell-hierarchy-tree ul {
-  list-style: none;
-  padding-left: 12px;
-  margin: 4px 0;
-}
-
-.cell-hierarchy-tree > ul {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin: 0;
-  padding: 0 var(--icm-space-2) var(--icm-space-2);
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.cell-hierarchy-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-/* Tree rows carry the same quiet weight as the Cell list rows beside them. */
-.cell-hierarchy-row button {
-  min-height: 24px;
-  padding: 0 var(--icm-space-1);
-  overflow: hidden;
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-  font-size: var(--icm-font-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cell-hierarchy-row button:hover:not(:disabled) {
-  border-color: var(--icm-border);
-  background: var(--icm-surface);
-}
-
-.cell-hierarchy-row > button:first-child,
-.cell-hierarchy-row > span[aria-hidden] {
-  width: 18px;
-  min-width: 18px;
-  padding: 0;
-  color: var(--icm-text-muted);
-  text-align: center;
-}
-
-.cell-parameter-row {
-  display: grid;
-  grid-template-columns: minmax(4rem, 1fr) minmax(4rem, 1fr) 28px;
-  align-items: center;
-  gap: 4px;
-}
-
-/* A dashed rest state keeps the heading editable-looking; the old transparent
-   border gave rename no affordance at all. */
-.cell-manager-name {
-  width: 100%;
-  min-width: 0;
-  height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  border: 1px dashed var(--icm-border-strong);
-  border-radius: var(--icm-radius-sm);
-  background: transparent;
-  font: inherit;
-  font-size: var(--icm-font-lg);
-  font-weight: 650;
-}
-
-.cell-manager-name:hover {
-  background: var(--icm-surface-muted);
-}
-
-.cell-manager-name:focus {
-  border-style: solid;
-  border-color: var(--icm-accent);
-  background: var(--icm-surface);
-}
-.cell-manager-entry {
-  position: relative;
-  display: flex;
-  align-items: center;
-  border-top: 2px solid transparent;
-}
-.cell-manager-entry .cell-manager-list-item {
-  flex: 1;
-  min-width: 0;
-}
-.cell-manager-entry[data-drop="active"] {
-  border-color: var(--icm-accent);
-  background: var(--icm-accent-soft);
-}
-.cell-drop-hint {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
-  background: var(--icm-surface);
-  color: var(--icm-accent);
-}
-.cell-manager-drop-end {
-  min-height: 1.6rem;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  text-align: center;
 }
 
 .cell-manager-callers summary {
@@ -1294,12 +1051,6 @@
   background: var(--icm-accent);
 }
 
-.editor-action-dialog-actions .danger {
-  border-color: var(--icm-danger, #b42318);
-  color: #fff;
-  background: var(--icm-danger, #b42318);
-}
-
 .netlist-preview {
   min-height: 10rem;
   margin: 0;
@@ -1351,13 +1102,6 @@
     height: calc(100dvh - 1rem);
   }
 
-  /* Narrow headers cannot fit title and tabs on one line; the tabs drop to
-     their own row instead of squeezing the title to nothing. */
-  .cell-manager-resource-tabs {
-    flex-basis: 100%;
-    margin-left: 0;
-  }
-
   .cell-manager-body {
     grid-template-columns: 11.5rem minmax(0, 1fr);
   }
@@ -1378,7 +1122,6 @@
     width: 100%;
   }
 
-  .cell-interface-grid,
   .cell-external-grid {
     grid-template-columns: minmax(0, 1fr);
   }

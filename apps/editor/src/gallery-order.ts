@@ -1,13 +1,21 @@
 /**
  * The Gallery wall's order (#1615): a shuffle by default, so older and
  * less-liked circuits are seen too; by time, newest or oldest first; by
- * part count, most or fewest first; or by name, A to Z or Z to A. A
+ * part count, most or fewest first; by likes, most first; or by name, A
+ * to Z or Z to A. A
  * reader's own choice is remembered in
  * this browser; random is never stored, so the wall reshuffles on each visit.
  * No imports: the build reads this module too (gallery-early-fetch.ts).
  */
 export type GalleryOrder =
-  "random" | "newest" | "oldest" | "parts" | "fewest" | "name" | "name-desc";
+  | "random"
+  | "newest"
+  | "oldest"
+  | "parts"
+  | "fewest"
+  | "likes"
+  | "name"
+  | "name-desc";
 
 /** The orders a reader may keep; random is the default and is not stored. */
 export const STORED_GALLERY_ORDERS = [
@@ -15,6 +23,7 @@ export const STORED_GALLERY_ORDERS = [
   "oldest",
   "parts",
   "fewest",
+  "likes",
   "name",
   "name-desc",
 ] as const;

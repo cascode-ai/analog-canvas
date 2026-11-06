@@ -291,7 +291,7 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   one that converts is converted.
 - Printed body spans map to owner, applied revision, file and offset; body and
   default edits Apply to that owner; interface and cross-owner edits need the
-  Cell Manager editor. Drafts never replace applied bytes; interface-only
+  External Circuits editor. Drafts never replace applied bytes; interface-only
   placeholders block Copy and export.
 
 ## Printer contracts

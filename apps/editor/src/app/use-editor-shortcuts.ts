@@ -335,7 +335,14 @@ function createEditorShortcutHandler({
             event.key,
           )) ||
         (event.target.closest(".project-tabs") &&
-          ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)))
+          ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) ||
+        // A surface marked data-plain-keys (the hierarchy tree and its Cell
+        // dialogs) owns plain keys: arrows, F2, Delete, Escape, typing.
+        // Modified shortcuts such as Undo still reach the editor.
+        (event.target.closest("[data-plain-keys]") &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey))
     )
       return;
     if (componentEditor) return;
