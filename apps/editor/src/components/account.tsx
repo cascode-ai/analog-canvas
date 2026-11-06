@@ -58,6 +58,8 @@ export function hasSignIn(providers: AuthProviders): boolean {
 export interface AccountState {
   providers: AuthProviders;
   user: SessionUser | null;
+  /** The session remains authoritative when sign-in discovery is unavailable. */
+  providerDiscoveryFailed?: true;
 }
 
 /** The page's initial read, consumed by the persistent editor chrome. */
@@ -122,25 +124,43 @@ export async function readSessionUser(
   return request;
 }
 
-/** Providers plus session; a dark or unreachable worker reads as no-auth. */
+async function readAuthProviders(
+  fetchLike: typeof fetch,
+): Promise<AuthProviders | null> {
+  try {
+    const response = await fetchLike("/api/auth/providers", {
+      credentials: "same-origin",
+    });
+    if (!response.ok) return null;
+    const providers = (await response.json()) as Partial<AuthProviders> | null;
+    if (
+      !providers ||
+      typeof providers !== "object" ||
+      typeof providers.github !== "boolean" ||
+      typeof providers.google !== "boolean" ||
+      typeof providers.email !== "boolean" ||
+      (providers.central !== undefined &&
+        typeof providers.central !== "boolean") ||
+      (providers.central === true &&
+        !centralLoginUrl(providers as AuthProviders))
+    )
+      return null;
+    return providers as AuthProviders;
+  } catch {
+    return null;
+  }
+}
+
+/** Sign-in discovery cannot invalidate a separately confirmed session. */
 export async function loadAccountState(
   fetchLike: typeof fetch = fetch,
 ): Promise<AccountState> {
-  try {
-    const providersRequest = fetchLike("/api/auth/providers", {
-      credentials: "same-origin",
-    });
-    const userRequest = fetchSessionUser(fetchLike);
-    const response = await providersRequest;
-    if (!response.ok) return { providers: NO_PROVIDERS, user: null };
-    const providers = (await response.json()) as AuthProviders;
-    return {
-      providers,
-      user: hasSignIn(providers) ? await userRequest : null,
-    };
-  } catch {
-    return { providers: NO_PROVIDERS, user: null };
-  }
+  const providersRequest = readAuthProviders(fetchLike);
+  const userRequest = fetchSessionUser(fetchLike);
+  const [providers, user] = await Promise.all([providersRequest, userRequest]);
+  return providers
+    ? { providers, user }
+    : { providers: NO_PROVIDERS, user, providerDiscoveryFailed: true };
 }
 
 /** What asking for, or typing, an emailed sign-in code came to. */
