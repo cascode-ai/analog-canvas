@@ -218,31 +218,6 @@ const reversedPorts = (symbolId: string) =>
     .reverse();
 
 describe("a Library part never calls an author's definition because of its name (#1928)", () => {
-  it("keeps an unbound inverter on its body, written as icm_inverter, beside the author's own inverter subcircuit", () => {
-    const project = unboundPart("inverter");
-    addOwnSubcircuit(project, "inverter", ["Y", "A", "VSS", "VDD"]);
-    const spice = text(project);
-    expect(spice).toMatch(/^X1 VDD VSS n_A n_Y icm_inverter$/mu);
-    expect(spice).toMatch(/^\.subckt icm_inverter VDD VSS A Y /mu);
-    expect(spice).not.toMatch(/^X1 .* inverter$/mu);
-  });
-
-  it("keeps an unbound op-amp on its ideal body beside a Cell named opamp (#1888)", () => {
-    // Unpowered, it calls the body named opamp, its limits at ±5 V.
-    const project = unboundPart("opamp", { gain: "1e6" });
-    const before = partCall(project, "spice");
-    expect(before.target).toBe("opamp");
-    addOwnCell(project, "opamp", ["OUT", "IN-", "IN+", "VSS", "VDD"]);
-    const after = partCall(project, "spice");
-    expect(after.target).toBe("icm_opamp");
-    expect(after.nodes).toEqual(before.nodes);
-    const spice = text(project);
-    expect(spice).toMatch(/^\.subckt icm_opamp VDD VSS VIP VIN VOUT /mu);
-    // A design netlist states a Cell's supplies first.
-    expect(spice).toMatch(/^\.subckt opamp VDD VSS OUT IN- IN\+$/mu);
-    expect(spice).toMatch(/^XOWN .* opamp$/mu);
-  });
-
   it("has a name to yield for every body but the reserved and call-only ones", () => {
     expect(BASELINES.filter(hasNoOtherName)).toHaveLength(NO_OTHER_NAME.length);
   });

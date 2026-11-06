@@ -28,25 +28,13 @@ ngspice runtime is added. RC and RLC copies are checked against one report sourc
 
 `vacask-sky130-candidate` is a candidate Profile request requiring native
 resistor/capacitor/inductor modules, voltage sources and declared Python3.
-It is not a qualified hosted environment; among the committed Worker
-configurations, only Preview routes it to the isolated VACASK executor.
+It is not a qualified hosted environment; a Worker configuration that sets
+`VACASK_PROFILE_ID` routes it to the separate VACASK gateway.
 Python uses only its standard library plus the copied reporting helpers. See
 the [native runtime instructions](../../containers/vacask/README.md).
 
 ## Acceptance
 
 `containers/vacask/starter-journey.test.mjs` checks all three source
-folders. The opt-in runs against a real VACASK binary were removed in #1646;
-nothing set their environment, so they never ran in CI. They used these references.
-
-The frequency reference is `1/(1 - omega^2*L*C + j*omega*R*C)`. The transient
-reference integrates the analytical RLC step response over the finite 100 ns
-source ramp, covering under-, critically- and over-damped poles. The saved
-critical resistance is rounded; its continuous critical limit avoids unstable
-subtraction of nearly equal roots (about 5e-11 relative parameter difference).
-
-Their bounds: complex AC component error below 1e-7,
-transient voltage error below 10 uV and inductor-current error below 100 nA
-at every native sample. Reported peak/final measurements must agree with their
-returned arrays. These ideal-passive checks do not qualify foundry MOS models,
-corners, hostile-code isolation or cloud deployment.
+folders. Ideal passives qualify no foundry MOS model, corner, hostile-code
+isolation or cloud deployment.

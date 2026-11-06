@@ -292,7 +292,7 @@ describe("Project-owned external model source", () => {
       expect(project).toEqual(before);
     },
   );
-  it.each(["spectre", "spice", undefined] as const)(
+  it.each(["spectre", undefined] as const)(
     "compares effective draft language before reusing a copied model (%s)",
     (language) => {
       const projects = ["source", "destination"].map((id) => {

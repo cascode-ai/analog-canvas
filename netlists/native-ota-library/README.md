@@ -13,16 +13,16 @@ is also the test oracle for this explicitly reviewed conversion. The older
 `netlists/native-ota/source.icproj.json` is a different historical circuit export
 and cannot replace this twelve-experiment fixture.
 
-| Folder suffix | Original analysis coverage retained |
-| --- | --- |
-| `op-ac` | OP; DC 0.88–0.92 V / 5 mV; AC 1 Hz–1 GHz / 10 per decade; TRAN 4 us / 20 ns |
-| `full-tt` | OP; DC 0.86–0.94 V / 1 mV; AC and Noise 1 Hz–1 GHz / 40 per decade; TRAN 6 us / 10 ns |
-| `bias-tt` | OP including M1/M3 native device parameters and supply-current measurement |
-| `dc-transfer-tt` | DC 0.86–0.94 V / 1 mV, minimum/maximum/peak-to-peak/value at balance |
-| `ac-{tt,ff,ss,fs,sf}` | Five distinct model artifacts; 1 Hz–1 GHz / 40 per decade |
-| `tran-tt` | Canvas PULSE, 6 us / 10 ns; measurement window 1–6 us |
-| `noise-tt` | 1 Hz–1 GHz / 40 per decade; input/output density at 1 kHz |
-| `tran-sin-tt` | Canvas SIN, 5 us / 5 ns; measurement window 1–5 us |
+| Folder suffix         | Original analysis coverage retained                                                   |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `op-ac`               | OP; DC 0.88–0.92 V / 5 mV; AC 1 Hz–1 GHz / 10 per decade; TRAN 4 us / 20 ns           |
+| `full-tt`             | OP; DC 0.86–0.94 V / 1 mV; AC and Noise 1 Hz–1 GHz / 40 per decade; TRAN 6 us / 10 ns |
+| `bias-tt`             | OP including M1/M3 native device parameters and supply-current measurement            |
+| `dc-transfer-tt`      | DC 0.86–0.94 V / 1 mV, minimum/maximum/peak-to-peak/value at balance                  |
+| `ac-{tt,ff,ss,fs,sf}` | Five distinct model artifacts; 1 Hz–1 GHz / 40 per decade                             |
+| `tran-tt`             | Canvas PULSE, 6 us / 10 ns; measurement window 1–6 us                                 |
+| `noise-tt`            | 1 Hz–1 GHz / 40 per decade; input/output density at 1 kHz                             |
+| `tran-sin-tt`         | Canvas SIN, 5 us / 5 ns; measurement window 1–5 us                                    |
 
 Native TRAN uses the old step as the maximum adaptive step as well as the initial
 step; it does not promise the same sample grid as ngspice. Combined programs
@@ -56,21 +56,10 @@ Noise density takes the square root of native PSD; the native integral is labell
 ## Validation boundary
 
 `containers/vacask/starter-journey.test.mjs` checks exact circuit preservation,
-source/report identity and wrapper-selected device parameters. Its opt-in
-runs against a real VACASK binary were removed in #1646: nothing in CI set
-their environment. They covered all twelve public Prepare/Run/Read flows,
-measurements recomputed from returned arrays, analysis ranges, original
-waveforms and CSVs.
-
-Before that removal, a local run with VACASK 0.3.4, corrected BSIM4 4.8.3 and
-Python 3.12 passed all sixteen source/runtime tests of that time, exercising
-31 folders (19 starters plus these 12), with the eight TT Library folders
-completing in one session under unchanged caps. That run verified
-source/result fidelity; it is not the cross-simulator numerical
-qualification below. No test in the repository repeats it now.
+source/report identity and wrapper-selected device parameters.
 
 This is a BSIM4 **4.8.3 candidate upgrade**, not equality to historical 4.5/4.62
 results or a declaration that the model environment is qualified. The separate
 fixed-reference model qualification, isolated cloud acceptance and full GUI/MCP
-journey remain required by the migration roadmap. No shared Preview or Production
-runtime is changed by importing this Library Project.
+journey remain required by the migration roadmap. Importing this Library Project
+changes no hosted runtime.

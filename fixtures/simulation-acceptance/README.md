@@ -15,8 +15,8 @@ node scripts/build-native-simulation-examples.mjs
 The output directory is `output/native-simulation-examples`. Import one of its
 five `.icproj.json` files with File → Import, open Code,
 and select an experiment folder. Execution requires its declared native candidate
-Profile, which Preview routes to its separate VACASK gateway; Production
-configures no VACASK engine. Each includes its Canvas circuits and
+Profile, which a Worker configuration that sets `VACASK_PROFILE_ID` routes to the
+separate VACASK gateway. Each includes its Canvas circuits and
 source files; no file from the author's Downloads directory is needed.
 
 | Project                 | Experiments | Electrical intent                                                                  |
@@ -51,8 +51,7 @@ specification is tested.
 
 `run-native-simulation-examples.mjs` requires an explicit candidate origin,
 a digest-checked packaged MCP entry and independently expected native environment
-metadata for every selected Profile. It refuses the known Production/shared
-Preview origins. This does **not** prove resource isolation: establish M1's
+metadata for every selected Profile. This does **not** prove resource isolation: establish M1's
 executor/storage/auth boundary separately before running against a cloud origin.
 The runner opens fresh temporary browser contexts, imports through
 the GUI, obtains a fresh full-authority claim for each temporary Project, and
@@ -92,10 +91,8 @@ passing Project receipt; other available evidence is still collected. An active
 batch is cancelled on interrupted acceptance before disconnecting its MCP.
 Runner receipts cover this GUI/MCP batch only, not full M6 or model qualification.
 
-The opt-in local runs of the starters against a real VACASK binary in
-`containers/vacask/starter-journey.test.mjs` were removed in #1646; nothing set
-their environment, so they never ran in CI. The migration does not require numerical
-equivalence to an ngspice reference; see the
+The migration does not require numerical equivalence to an ngspice reference;
+see the
 [native acceptance decision](../../docs/roadmap/vacask-migration.md#environment-and-electrical-acceptance).
 
 `scripts/lib/native-example-acceptance.mjs` supplies the acceptance checks to the

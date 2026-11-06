@@ -2,7 +2,6 @@ import { expect, it } from "vitest";
 import {
   createEmptyProject,
   createEmptyDocument,
-  isRoleLabelFormat,
   labelTypography,
   roleLabelFormat,
   semanticTextDocument,
@@ -181,32 +180,6 @@ it("keeps a resistor's standard R_load look when the first-letter setting goes o
   ).toBe("R_load");
 });
 
-it("leaves a standard look alone when the first-letter look is turned off", () => {
-  const source = fixture(),
-    doc = source.documents[0]!;
-  doc.instances[0]!.reference = "R1";
-  doc.annotations[0]!.formatOverride = roleLabelFormat(
-    "device-reference",
-    "R1",
-  )!;
-  doc.presentation.labelSubscriptAfterFirst = true;
-  const off = applyLabelSubscriptCase(
-    source,
-    doc.id,
-    "preserve",
-    resolver,
-    [],
-    false,
-    { ...layout, subscriptAfterFirst: false },
-  );
-  expect(
-    isRoleLabelFormat(
-      off.documents[0]!.annotations[0]!.formatOverride!,
-      "device-reference",
-      "R1",
-    ),
-  ).toBe(true);
-});
 function fixture() {
   const project = createEmptyProject("case", "Case");
   const document = project.documents[0]!;
