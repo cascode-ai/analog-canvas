@@ -18,6 +18,7 @@ export function galleryStatsSourceOf(value: string | null): GalleryStatsSource {
 interface StoreStats {
   summary: GalleryStatsSummary;
   topAuthors: { author: string; circuits: number }[];
+  computedAt?: string;
 }
 
 const TOP_TAGS = 12;
@@ -150,10 +151,11 @@ export async function galleryStatsOf(
   const answered = stores.flatMap((store, index) => {
     const read = reads[index];
     if (read?.status !== 200 || !read.payload?.summary) return [];
-    const { summary, topAuthors } = read.payload;
+    const { summary, topAuthors, computedAt } = read.payload;
     return [
       {
         store,
+        computedAt,
         stats: store.dataset
           ? {
               topAuthors,
@@ -180,6 +182,12 @@ export async function galleryStatsOf(
         .flatMap((item) => item.stats.topAuthors)
         .sort((left, right) => right.circuits - left.circuits)
         .slice(0, TOP_AUTHORS),
+      // The figures are as old as the oldest store's.
+      computedAt:
+        answered
+          .map((item) => item.computedAt)
+          .filter((at): at is string => typeof at === "string")
+          .sort()[0] ?? null,
       sources: answered.map((item) => ({
         key: item.store.dataset?.key ?? "community",
         name: item.store.dataset?.name ?? "Community",

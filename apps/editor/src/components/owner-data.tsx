@@ -98,15 +98,24 @@ type Recount =
   | { status: "done"; counted: number }
   | { status: "failed" };
 
+/** One Recount batch, the community's then each dataset's; null `next` ends it. */
+interface RecountBatch {
+  counted: number;
+  remaining: number;
+  store: string | null;
+  next: string | null;
+}
+
 async function recountBatch(
+  store: string,
   after: string,
-): Promise<{ counted: number; remaining: number; next: string | null } | null> {
+): Promise<RecountBatch | null> {
   try {
     const response = await fetch("/api/gallery/owner-data/recount", {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ after }),
+      body: JSON.stringify({ store, after }),
     });
     return response.ok ? await response.json() : null;
   } catch {
@@ -136,7 +145,7 @@ export function OwnerDataContent() {
     void readOwnerData<OwnerData>().then((read) => {
       if (!cancelled) setData(read ?? "failed");
     });
-    void readGalleryStats().then((read) => {
+    void readGalleryStats("community").then((read) => {
       if (!cancelled && read) setLibrary(read.summary);
     });
     return () => {
@@ -188,10 +197,11 @@ export function OwnerDataContent() {
   };
   const runRecount = async () => {
     setRecount({ status: "running", counted: 0, total: null });
+    let store = "community";
     let after = "";
     let counted = 0;
     for (;;) {
-      const batch = await recountBatch(after);
+      const batch = await recountBatch(store, after);
       if (!batch) {
         setRecount({ status: "failed" });
         return;
@@ -202,12 +212,18 @@ export function OwnerDataContent() {
         counted,
         total: counted + batch.remaining,
       });
-      if (batch.next === null) break;
+      if (batch.next === null || batch.store === null) break;
+      store = batch.store;
       after = batch.next;
     }
-    // The authors again, and each author's circuits read afresh when opened.
-    const read = await readOwnerData<OwnerData>();
+    // The authors and the Gallery again, and each author's circuits read
+    // afresh when opened.
+    const [read, gallery] = await Promise.all([
+      readOwnerData<OwnerData>(),
+      readGalleryStats("community"),
+    ]);
     if (read) setData(read);
+    if (gallery) setLibrary(gallery.summary);
     setCircuits({});
     setRecount({ status: "done", counted });
   };
@@ -293,7 +309,7 @@ export function OwnerDataContent() {
             data-testid="owner-data-recount"
             disabled={recount.status === "running"}
             onClick={() => void runRecount()}
-            title="Count every public circuit's devices again"
+            title="Count every public circuit's devices again, the datasets' too"
           >
             {recount.status === "running" ? "Recounting…" : "Recount"}
           </button>

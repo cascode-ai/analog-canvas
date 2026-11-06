@@ -55,6 +55,20 @@ export interface GalleryStatsPayload {
   topAuthors: { author: string; circuits: number }[];
   /** How many circuits each store gave: the community's, each dataset's. */
   sources?: { key: string; name: string; circuits: number }[];
+  /** When the figures were counted; the server counts them ahead, hourly. */
+  computedAt?: string | null;
+}
+
+/** How long ago the figures were counted, in words. */
+export function countedAgo(computedAt: string, now = Date.now()): string {
+  const minutes = Math.max(
+    0,
+    Math.round((now - Date.parse(computedAt)) / 60_000),
+  );
+  if (minutes < 1) return "Counted just now";
+  if (minutes < 60) return `Counted ${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return `Counted ${hours} ${hours === 1 ? "hour" : "hours"} ago`;
 }
 
 /** The stores the Gallery's figures count: all, the community's, the datasets'. */
@@ -421,7 +435,12 @@ export function GalleryStatsView({
           />
         </ChartCard>
       </div>
-      <p className="stats-footnote">{SOURCE_NOTES[source]}</p>
+      <p className="stats-footnote">
+        {SOURCE_NOTES[source]}
+        {stats.computedAt
+          ? ` ${countedAgo(stats.computedAt)}; counted again hourly, and when a circuit is published.`
+          : null}
+      </p>
     </div>
   );
 }
@@ -820,7 +839,7 @@ export function StatisticsContent() {
         </button>
       </div>
       {shown.status === "loading" ? (
-        <p className="gallery-status">Counting circuits…</p>
+        <p className="gallery-status">Loading the statistics…</p>
       ) : shown.status === "failed" ? (
         <p className="gallery-status" data-testid="statistics-failed">
           Could not load the statistics — try again later.

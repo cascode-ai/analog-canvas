@@ -35,6 +35,15 @@ export function installTransistorCounts(sql: SqlStorage): void {
       PRIMARY KEY (entry_id, kind)
     ) WITHOUT ROWID
   `);
+  // The store's Gallery figures as a read answers them, counted ahead by
+  // the scheduled pass (galleryStats); not backed up.
+  sql.exec(`
+    CREATE TABLE IF NOT EXISTS gallery_stats_snapshot (
+      key TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      computed_at TEXT NOT NULL
+    ) WITHOUT ROWID
+  `);
 }
 
 /** A changed or reused entry's counts are read again. Callers own the transaction. */
@@ -200,8 +209,8 @@ const TRANSISTOR_BINS = [
 const STATS_WEEKS = 16;
 const TOP_TAGS = 12;
 const TOP_AUTHORS = 10;
-/** How many uncounted circuits a Gallery read counts before it answers. */
-const COUNTED_PER_GALLERY_READ = 200;
+/** How old the Gallery's figures grow before the scheduled pass counts them again. */
+const SNAPSHOT_MAX_AGE_MS = 60 * 60_000;
 
 /**
  * The distributions the Statistics tab draws, for the whole community
@@ -441,17 +450,65 @@ export function galleryStats(
   sql: SqlStorage,
   body: Record<string, unknown>,
 ): Response {
-  countTransistors(sql, pendingIds(sql, COUNTED_PER_GALLERY_READ));
-  const now =
-    typeof body.now === "string" && !Number.isNaN(Date.parse(body.now))
-      ? new Date(body.now)
-      : new Date();
-  return Response.json({
-    summary: summarize(sql, null, now, body.allTags === true),
+  const snapshot = readSnapshot(sql) ?? countSnapshot(sql);
+  return Response.json(
+    body.allTags === true
+      ? snapshot
+      : {
+          ...snapshot,
+          summary: {
+            ...snapshot.summary,
+            tags: snapshot.summary.tags.slice(0, TOP_TAGS),
+          },
+        },
+  );
+}
+
+interface GallerySnapshot {
+  summary: GalleryStatsSummary;
+  topAuthors: { author: string; circuits: number }[];
+  /** When the figures were counted. */
+  computedAt: string;
+}
+
+function readSnapshot(sql: SqlStorage): GallerySnapshot | null {
+  const row = sql
+    .exec<{
+      payload: string;
+    }>("SELECT payload FROM gallery_stats_snapshot WHERE key = 'gallery'")
+    .toArray()[0];
+  return row ? (JSON.parse(row.payload) as GallerySnapshot) : null;
+}
+
+/** The store's figures counted now, every tag kept, and kept for reads. */
+function countSnapshot(sql: SqlStorage): GallerySnapshot {
+  const now = new Date();
+  const snapshot = {
+    summary: summarize(sql, null, now, true),
     topAuthors: authorCounts(sql)
       .slice(0, TOP_AUTHORS)
       .map(({ author, circuits }) => ({ author, circuits })),
-  });
+    computedAt: now.toISOString(),
+  };
+  sql.exec(
+    `INSERT INTO gallery_stats_snapshot(key, payload, computed_at)
+     VALUES ('gallery', ?, ?)
+     ON CONFLICT(key) DO UPDATE SET
+       payload = excluded.payload, computed_at = excluded.computed_at`,
+    JSON.stringify(snapshot),
+    snapshot.computedAt,
+  );
+  return snapshot;
+}
+
+/** Whether the kept figures are missing or an hour old. */
+function snapshotStale(sql: SqlStorage, now = Date.now()): boolean {
+  const row = sql
+    .exec<{
+      computed_at: string;
+    }>("SELECT computed_at FROM gallery_stats_snapshot WHERE key = 'gallery'")
+    .toArray()[0];
+  return !row || now - Date.parse(row.computed_at) >= SNAPSHOT_MAX_AGE_MS;
 }
 
 /** Public entries with no current count, in ID order. */
@@ -471,7 +528,9 @@ function pendingIds(sql: SqlStorage, limit: number): string[] {
 /**
  * One batch of the scheduled pass: the public entries with no current
  * device count are counted, and counts whose entry is gone are dropped.
- * When everything is counted the pass reads one index and stops.
+ * The Gallery's figures are counted again when an hour old, or as soon as
+ * the last circuit waiting (a new or edited one) is counted. When nothing
+ * waits the pass reads one index and stops.
  */
 export function refreshTransistorCounts(
   sql: SqlStorage,
@@ -495,13 +554,16 @@ export function refreshTransistorCounts(
       )
       .toArray()[0]?.count ?? 0,
   );
-  return Response.json({ counted: ids.length, remaining });
+  const recounted = snapshotStale(sql) || (ids.length > 0 && remaining === 0);
+  if (recounted) countSnapshot(sql);
+  return Response.json({ counted: ids.length, remaining, recounted });
 }
 
 /**
  * One batch of the Owner's Recount: every public entry after `after`, in ID
  * order, counted again whatever its count, so a full recount leaves no gap
- * in the totals. `next` resumes it; null when the last batch is done.
+ * in the totals. `next` resumes it; null when the last batch is done, which
+ * counts the Gallery's figures again.
  */
 export function recountTransistors(
   sql: SqlStorage,
@@ -531,6 +593,7 @@ export function recountTransistors(
           .toArray()[0]?.count ?? 0,
       )
     : 0;
+  if (remaining === 0) countSnapshot(sql);
   return Response.json({
     counted: ids.length,
     remaining,
