@@ -103,7 +103,7 @@ export async function reserveRegionalProject(
     const origin = peerOrigin(env.PROJECT_SYNC_PEER_URL);
     const reserved = await fetch(new URL("/api/project-sync/quota", origin), {
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(10000),
       headers: {
         Authorization: `Bearer ${env.PROJECT_SYNC_PEER_TOKEN}`,
