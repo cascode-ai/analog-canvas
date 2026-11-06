@@ -463,9 +463,15 @@ describe("component property code", () => {
     });
   });
 
-  it.each([null, [420], [420, "280"], [420, Number.POSITIVE_INFINITY]])(
-    "refuses the coordinate %j instead of moving the device",
-    (coordinate) => {
+  it.each([
+    { scenario: "null", coordinate: null },
+    { scenario: "scalar", coordinate: 420 },
+    { scenario: "missing y", coordinate: [420] },
+    { scenario: "string y", coordinate: [420, "280"] },
+    { scenario: "non-finite y", coordinate: [420, Number.POSITIVE_INFINITY] },
+  ])(
+    "refuses the coordinate $scenario instead of moving the device",
+    ({ coordinate }) => {
       const decoded = JSON.parse(formatComponentPropertyCode(context));
       decoded.placement.coordinate = coordinate;
       expect(
@@ -489,15 +495,17 @@ describe("component property code", () => {
     expect(parseComponentPropertyCode(formatted, context)).toEqual(parsed);
   });
 
-  it.each([
-    [256, 0, 0],
-    [-1, 0, 0],
-    [0.5, 0, 0],
-    ["0", 0, 0],
-    [0, 0],
-    [0, 0, 0, 0],
-    [null, 0, 0],
-  ])("rejects invalid RGB channels %j", (...channels) => {
+  it.each(
+    [
+      [256, 0, 0],
+      [-1, 0, 0],
+      [0.5, 0, 0],
+      ["0", 0, 0],
+      [0, 0],
+      [0, 0, 0, 0],
+      [null, 0, 0],
+    ].map((channels) => ({ channels, scenario: JSON.stringify(channels) })),
+  )("rejects invalid RGB channels $scenario", ({ channels }) => {
     const decoded = JSON.parse(formatComponentPropertyCode(context));
     decoded.appearance.color = channels;
     expect(

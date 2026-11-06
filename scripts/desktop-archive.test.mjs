@@ -76,7 +76,7 @@ it.each([
   ["ACCEPTANCE.json", { status: "passed", packaged: false, source: commit }],
   ["SECURITY.json", { status: "passed", source: "f".repeat(40) }],
 ])(
-  "refuses an unaccepted or mismatched %s before creating a ZIP",
+  "refuses an unaccepted or mismatched %s before creating a ZIP: %j",
   async (name, record) => {
     await withPackage(async ({ output, archive, manifest }) => {
       await writeFile(join(output, name), JSON.stringify(record));

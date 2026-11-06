@@ -700,9 +700,12 @@ it("deliberately converts a legacy scalar contact to one chosen member without f
   expect(serializeProject(legacy)).toBe(oldText);
 });
 
-it.each([planRenameCellTerminal, planSetCellTerminalSignal])(
-  "honors explicit same-expression Cell permutations and validates maps",
-  (plan) => {
+it.each([
+  ["rename terminal", planRenameCellTerminal],
+  ["set terminal signal", planSetCellTerminalSignal],
+] as const)(
+  "honors explicit same-expression Cell permutations and validates maps: %s",
+  (_scenario, plan) => {
     const { project, before } = connectedBus();
     const expression = "IN<3:0>";
     expect(() =>

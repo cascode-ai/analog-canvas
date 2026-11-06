@@ -239,12 +239,12 @@ describe("public component library responses", () => {
     },
   );
   it.each([
-    () => new Response("<!doctype html><html></html>"),
-    () => Response.json({}),
-    () => Response.json({ entries: [null], nextCursor: null }),
-  ])(
-    "rejects an unavailable or malformed service without passing broken state to the library",
-    async (response) => {
+    ["HTML response", () => new Response("<!doctype html><html></html>")],
+    ["missing entries", () => Response.json({})],
+    ["null entry", () => Response.json({ entries: [null], nextCursor: null })],
+  ] as const)(
+    "rejects %s without passing broken state to the library",
+    async (_scenario, response) => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async () => response()),

@@ -343,7 +343,7 @@ describe("netlist-crawler structural conversion", () => {
     [".subckt cell Out in\nR1 out in 1k\n.ends cell", "spice"],
     ["global VDD\nR1 (vdd 0) resistor r=1k", "spectre"],
   ] as const)(
-    "refuses node case aliases before changing dialect",
+    "refuses node case aliases before changing dialect: %j",
     (text, source) => {
       expect(
         convertNetlist({

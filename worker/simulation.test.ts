@@ -231,7 +231,7 @@ describe("native simulation route", () => {
       "dependencies",
       [{ id: "models", sha256: "a".repeat(64), mountPath: "models" }],
     ],
-  ])("rejects incompatible %s before Run", async (field, value) => {
+  ])("rejects incompatible %s=%j before Run", async (field, value) => {
     const run = vi.fn();
     const response = await routeSimulationRequest(
       post({ ...nativeInput(), [field as string]: value }),
