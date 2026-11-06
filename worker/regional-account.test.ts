@@ -8,6 +8,7 @@ import {
   ORIGIN,
   projectText,
   route,
+  seatOf,
   sqliteState,
 } from "./gallery.test-support";
 
@@ -312,6 +313,320 @@ it("cancels queued account work when logout occurs during another account reques
   release.resolve();
   expect((await changing).status).toBe(401);
   expect((await listing).status).toBe(401);
+});
+
+it("switches only the regional grant to an AI account and preserves its original actor and overseas session", async () => {
+  const h = accounts();
+  const sourceCookie = await adminOf(h.source);
+  const cookie = await h.connect(sourceCookie);
+  const actor = (await (await h.call("/api/auth/me", cookie)).json()).user;
+  const listed = await h.call("/api/auth/ai-accounts", cookie);
+  expect(listed.status).toBe(200);
+  const { accounts: seats } = await listed.json();
+  const seat = seats[0];
+  const switched = await h.call(
+    "/api/auth/ai-accounts/switch",
+    cookie,
+    "POST",
+    { userId: seat.id },
+  );
+  expect(switched.status).toBe(200);
+  expect(switched.headers.getSetCookie()).toEqual([]);
+  expect(
+    (await (await h.call("/api/auth/me", cookie)).json()).user,
+  ).toMatchObject({
+    id: seat.id,
+    isAdmin: false,
+    switchedFrom: { id: actor.id, displayName: actor.displayName },
+  });
+  const overseas = () =>
+    h.source.authDurable.fetch(
+      new Request(ORIGIN + "/api/auth/me", {
+        headers: { cookie: sourceCookie },
+      }),
+    );
+  expect((await (await overseas()).json()).user).toEqual(actor);
+  expect(
+    (
+      await h.call("/api/auth/users/role", cookie, "POST", {
+        email: "maker@example.com",
+        role: "moderator",
+      })
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await h.call("/api/auth/owner-tokens", cookie, "POST", {
+        label: "escalation",
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await h.call("/api/auth/profile", cookie, "POST", {
+        displayName: "escalation",
+      })
+    ).status,
+  ).toBe(409);
+  h.advance(30_000);
+  await h.region.alarm();
+  expect(
+    (await (await h.call("/api/auth/me", cookie)).json()).user.switchedFrom.id,
+  ).toBe(actor.id);
+  expect(
+    (await h.call("/api/auth/ai-accounts/return", cookie, "POST", {})).status,
+  ).toBe(200);
+  expect((await (await h.call("/api/auth/me", cookie)).json()).user).toEqual(
+    actor,
+  );
+  expect((await (await overseas()).json()).user).toEqual(actor);
+});
+
+it("retains the original actor when an overseas AI session starts a regional handoff", async () => {
+  const h = accounts();
+  const admin = await adminOf(h.source);
+  const sourceCall = (
+    path: string,
+    cookie: string,
+    method = "GET",
+    body?: unknown,
+  ) =>
+    h.source.authDurable.fetch(
+      new Request(ORIGIN + path, {
+        method,
+        headers: { cookie, origin: ORIGIN },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+    );
+  const actor = (await (await sourceCall("/api/auth/me", admin)).json()).user;
+  const { accounts: seats } = await (
+    await sourceCall("/api/auth/ai-accounts", admin)
+  ).json();
+  const switched = await sourceCall(
+    "/api/auth/ai-accounts/switch",
+    admin,
+    "POST",
+    { userId: seats[0].id },
+  );
+  const sourceCookie = switched.headers
+    .getSetCookie()
+    .map((value) => value.split(";")[0])
+    .join("; ");
+  const cookie = await h.connect(sourceCookie);
+  expect(
+    (await (await h.call("/api/auth/me", cookie)).json()).user,
+  ).toMatchObject({
+    id: seats[0].id,
+    switchedFrom: { id: actor.id, displayName: actor.displayName },
+  });
+  expect(
+    (await h.call("/api/auth/ai-accounts/return", cookie, "POST", {})).status,
+  ).toBe(200);
+  expect((await (await h.call("/api/auth/me", cookie)).json()).user).toEqual(
+    actor,
+  );
+  expect(
+    (await (await sourceCall("/api/auth/me", sourceCookie)).json()).user.id,
+  ).toBe(seats[0].id);
+});
+
+it("refuses an overseas AI handoff without a live original actor", async () => {
+  const h = accounts();
+  const sourceCookie = await seatOf(h.source);
+  const start = await h.call("/api/auth/regional/start", "");
+  const url = new URL(start.headers.get("location")!);
+  const response = await h.source.authDurable.fetch(
+    new Request(transportOrigin + url.pathname + url.search, {
+      headers: { cookie: sourceCookie },
+    }),
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: "original-actor-required" });
+  expect(response.headers.getSetCookie()).toEqual([]);
+  expect(
+    (
+      await (
+        await h.source.authDurable.fetch(
+          new Request(ORIGIN + "/api/auth/me", {
+            headers: { cookie: sourceCookie },
+          }),
+        )
+      ).json()
+    ).user.seat,
+  ).toBeTruthy();
+});
+
+it("upgrades an existing human session before its first AI switch and bodyless return", async () => {
+  const h = accounts();
+  const cookie = await h.connect(await adminOf(h.source));
+  const actor = (await (await h.call("/api/auth/me", cookie)).json()).user;
+  const { accounts: seats } = await (
+    await h.call("/api/auth/ai-accounts", cookie)
+  ).json();
+  // Arrange the previous persisted schema, then exercise only public routes.
+  h.state.storage.sql.exec(
+    "ALTER TABLE regional_sessions DROP COLUMN actor_id",
+  );
+  const migrated = new RegionalSessionDO(h.state, {
+    AUTH_REGIONAL_CLIENT: config,
+  });
+  migrated.now = h.region.now;
+  migrated.fetchLike = h.region.fetchLike;
+  const call = (path: string, method = "GET", body?: unknown) =>
+    migrated.fetch(
+      new Request(ORIGIN + path, {
+        method,
+        headers: { cookie, origin: ORIGIN },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+    );
+  expect(
+    (
+      await call("/api/auth/ai-accounts/switch", "POST", {
+        userId: seats[0].id,
+      })
+    ).status,
+  ).toBe(200);
+  h.advance(30_000);
+  await migrated.alarm();
+  expect((await call("/api/auth/ai-accounts/return", "POST")).status).toBe(200);
+  expect((await (await call("/api/auth/me")).json()).user).toEqual(actor);
+});
+
+it.each([false, true])(
+  "fences an older renewal across an AI switch (rejected renewal: %s)",
+  async (rejected) => {
+    const h = accounts();
+    const cookie = await h.connect(await adminOf(h.source));
+    const { accounts: seats } = await (
+      await h.call("/api/auth/ai-accounts", cookie)
+    ).json();
+    const ready = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    h.region.fetchLike = (async (input, init) => {
+      const renewing = String(input).endsWith("/renew");
+      const response = await h.source.authDurable.fetch(
+        new Request(
+          input,
+          renewing && rejected
+            ? { ...init, body: JSON.stringify({ grant: "x".repeat(43) }) }
+            : init,
+        ),
+      );
+      if (renewing) {
+        ready.resolve();
+        await release.promise;
+      }
+      return response;
+    }) as typeof fetch;
+    h.advance(30_000);
+    const renewal = h.region.alarm();
+    await ready.promise;
+    expect(
+      (
+        await h.call("/api/auth/ai-accounts/switch", cookie, "POST", {
+          userId: seats[0].id,
+        })
+      ).status,
+    ).toBe(200);
+    release.resolve();
+    await renewal;
+    expect((await (await h.call("/api/auth/me", cookie)).json()).user.id).toBe(
+      seats[0].id,
+    );
+  },
+);
+
+it.each([false, true])(
+  "fails closed during an upgraded session's switch and recovers a lost reply after restart (logout: %s)",
+  async (logout) => {
+    const h = accounts();
+    const cookie = await h.connect(await adminOf(h.source));
+    const { accounts: seats } = await (
+      await h.call("/api/auth/ai-accounts", cookie)
+    ).json();
+    // A migrated pre-AI row has no actor binding until its first successful refresh.
+    h.state.storage.sql.exec("UPDATE regional_sessions SET actor_id = NULL");
+    const ready = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    h.region.fetchLike = (async (input, init) => {
+      await h.source.authDurable.fetch(new Request(input, init));
+      ready.resolve();
+      await release.promise;
+      throw new Error("Lost authority response");
+    }) as typeof fetch;
+    const switching = h.call("/api/auth/ai-accounts/switch", cookie, "POST", {
+      userId: seats[0].id,
+    });
+    await ready.promise;
+    expect(
+      (await (await h.call("/api/auth/me", cookie)).json()).authorization,
+    ).toBe("expired");
+    if (logout)
+      expect((await h.call("/api/auth/logout", cookie, "POST")).status).toBe(
+        200,
+      );
+    release.resolve();
+    expect((await switching).status).toBe(503);
+    h.advance(30_000);
+    const restarted = new RegionalSessionDO(h.state, {
+      AUTH_REGIONAL_CLIENT: config,
+    });
+    restarted.now = h.region.now;
+    restarted.fetchLike = (async (input, init) =>
+      h.source.authDurable.fetch(new Request(input, init))) as typeof fetch;
+    await restarted.alarm();
+    const result = await (
+      await restarted.fetch(
+        new Request(ORIGIN + "/api/auth/me", { headers: { cookie } }),
+      )
+    ).json();
+    if (logout) expect(result.user).toBeNull();
+    else {
+      expect(result.user).toMatchObject({
+        id: seats[0].id,
+        switchedFrom: { id: expect.any(String) },
+      });
+      expect(
+        (
+          await restarted.fetch(
+            new Request(ORIGIN + "/api/auth/ai-accounts/return", {
+              method: "POST",
+              headers: { cookie, origin: ORIGIN },
+            }),
+          )
+        ).status,
+      ).toBe(200);
+    }
+  },
+);
+
+it("rejects return and renewal after the AI actor's authority session is revoked", async () => {
+  const h = accounts();
+  const sourceCookie = await adminOf(h.source);
+  const cookie = await h.connect(sourceCookie);
+  const { accounts: seats } = await (
+    await h.call("/api/auth/ai-accounts", cookie)
+  ).json();
+  expect(
+    (
+      await h.call("/api/auth/ai-accounts/switch", cookie, "POST", {
+        userId: seats[0].id,
+      })
+    ).status,
+  ).toBe(200);
+  await h.source.authDurable.fetch(
+    new Request(ORIGIN + "/api/auth/logout", {
+      method: "POST",
+      headers: { cookie: sourceCookie, origin: ORIGIN },
+    }),
+  );
+  expect(
+    (await h.call("/api/auth/ai-accounts/return", cookie, "POST", {})).status,
+  ).toBe(401);
+  h.advance(30_000);
+  await h.region.alarm();
+  expect((await (await h.call("/api/auth/me", cookie)).json()).user).toBeNull();
 });
 
 it("rejects cross-site changes, forged identities and unscoped account calls", async () => {

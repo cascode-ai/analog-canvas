@@ -78,6 +78,9 @@ export function isRegionalAccountRoute(method: string, path: string): boolean {
     "GET /api/auth/admin/stats",
     "GET /api/auth/owner-tokens",
     "POST /api/auth/owner-tokens",
+    "GET /api/auth/ai-accounts",
+    "POST /api/auth/ai-accounts/switch",
+    "POST /api/auth/ai-accounts/return",
   ].includes(method + " " + path);
 }
 
@@ -152,6 +155,18 @@ export function sessionIdentity(value: unknown): SessionUser | null {
     !(
       user.seat === undefined ||
       (typeof user.seat === "string" && user.seat.length <= 100)
+    ) ||
+    !(
+      user.switchedFrom === undefined ||
+      (user.seat &&
+        typeof user.switchedFrom === "object" &&
+        user.switchedFrom !== null &&
+        typeof user.switchedFrom.displayName === "string" &&
+        user.switchedFrom.displayName.length <= 256 &&
+        typeof user.switchedFrom.id === "string" &&
+        user.switchedFrom.id.length > 0 &&
+        user.switchedFrom.id.length <= 256 &&
+        user.switchedFrom.id !== user.id)
     )
   )
     return null;
@@ -165,6 +180,14 @@ export function sessionIdentity(value: unknown): SessionUser | null {
     ...(user.isOwner ? { isOwner: true } : {}),
     ...(user.blocked ? { blocked: true } : {}),
     ...(user.seat ? { seat: user.seat } : {}),
+    ...(user.switchedFrom?.id
+      ? {
+          switchedFrom: {
+            id: user.switchedFrom.id,
+            displayName: user.switchedFrom.displayName,
+          },
+        }
+      : {}),
   };
 }
 

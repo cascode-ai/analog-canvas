@@ -7,7 +7,10 @@ import { build } from "vite";
 import { fileURLToPath } from "node:url";
 
 /** Two real Auth HTTP stores; only delivery to the external mail provider is replaced. */
-export async function regionalAccounts(editorOrigin: string) {
+export async function regionalAccounts(
+  editorOrigin: string,
+  adminEmail?: string,
+) {
   // The deployed Gallery imports JSON through the Worker bundler. Preserve that
   // loading boundary instead of substituting its authorization responses.
   const bundled = await build({
@@ -111,6 +114,7 @@ export async function regionalAccounts(editorOrigin: string) {
     AUTH: undefined as never,
     AUTH_REGIONAL_AUTHORITY: config,
     RESEND_API_KEY: "isolated-mail",
+    ...(adminEmail ? { ADMIN_EMAILS: adminEmail } : {}),
   });
   const region = new RegionalSessionDO(state(), {
     AUTH_REGIONAL_CLIENT: config,

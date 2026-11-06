@@ -21,6 +21,48 @@ import { regionalAccounts } from "./regional-auth-fixture";
 
 const ALL_PROVIDERS = { github: true, google: true, email: true };
 
+test("regional AI switching preserves the administrator's source session and returns through the real account UI", async ({
+  page,
+  baseURL,
+}) => {
+  const email = "regional-admin@example.test";
+  const accounts = await regionalAccounts(baseURL!, email);
+  try {
+    await page.goto(accounts.origin + "/account");
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-central").first().click();
+    await page.getByLabel("邮箱", { exact: true }).fill(email);
+    await page.getByRole("button", { name: "发送验证码" }).click();
+    await expect.poll(accounts.emailCode).toMatch(/^\d{6}$/);
+    await page.getByLabel("验证码", { exact: true }).fill(accounts.emailCode());
+    await page.getByRole("button", { name: "验证并继续" }).click();
+    await expect(page).toHaveURL(accounts.origin + "/account");
+    await page.getByTestId("account-tab-ai").click();
+    const sourceCookies = (await page.context().cookies()).filter(
+      (cookie) => cookie.name === "icm_session",
+    );
+    expect(sourceCookies).toHaveLength(1);
+    await page.getByTestId("ai-account-switch-ai-designer-1").click();
+    await expect(page.getByTestId("account-switch-back")).toContainText(
+      "regional-admin",
+    );
+    await expect(page.getByTestId("account-tab-ai")).toHaveCount(0);
+    await page.getByTestId("account-switch-back").click();
+    await expect(page.getByTestId("account-menu-name")).toHaveText(
+      "regional-admin",
+    );
+    await expect(page.getByTestId("account-switch-back")).toHaveCount(0);
+    expect(
+      (await page.context().cookies()).filter(
+        (cookie) => cookie.name === "icm_session",
+      ),
+    ).toEqual(sourceCookies);
+    await expect(page.getByTestId("account-tab-ai")).toBeVisible();
+  } finally {
+    await accounts.close();
+  }
+});
+
 test("central sign-in returns to the editor with its unsaved circuit and real regional identity", async ({
   page,
   baseURL,
