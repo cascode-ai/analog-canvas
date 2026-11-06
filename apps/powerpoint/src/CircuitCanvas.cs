@@ -10,7 +10,7 @@ using System.Windows.Forms;
 using System.Xml;
 using Office = Microsoft.Office.Core;
 using Extensibility;
-[assembly: ComVisible(false)] [assembly: System.Reflection.AssemblyVersion("2.1.2.0")] namespace CircuitCanvas  {
+[assembly: ComVisible(false)] [assembly: System.Reflection.AssemblyVersion("2.1.3.0")] namespace CircuitCanvas  {
     [ComVisible(true), Guid("48CA2B08-BB3C-45AB-A982-5B19168732B9"), InterfaceType(ComInterfaceType.InterfaceIsIDispatch)] public interface ICallbacks  {
         [DispId(10)] void OnNew(Office.IRibbonControl c);
         [DispId(11)] void OnEdit(Office.IRibbonControl c);
@@ -19,6 +19,7 @@ using Extensibility;
         [DispId(14)] void OnHistory(Office.IRibbonControl c);
         [DispId(15)] void OnHelp(Office.IRibbonControl c);
         [DispId(16)] [return: MarshalAs(UnmanagedType.IDispatch)] object GetButtonImage(Office.IRibbonControl c);
+        [DispId(17)] void OnImport(Office.IRibbonControl c);
     }
     public class Snapshot  {
         public string project  {
@@ -185,7 +186,8 @@ using Extensibility;
 <button id='newCircuit' label='New circuit' size='large' getImage='GetButtonImage' onAction='OnNew' screentip='Create a circuit on this slide'/>
 <button id='editCircuit' label='Edit circuit' size='large' getImage='GetButtonImage' onAction='OnEdit' screentip='Edit the selected circuit'/>
 </group>
-<group id='canvasData' label='Selected circuit'>
+<group id='canvasData' label='Project'>
+<button id='importCircuit' label='Import selected circuit' getImage='GetButtonImage' onAction='OnImport' screentip='Import a circuit project from a file' supertip='Choose an .icproj.json file to open in the editor. Save to PowerPoint inserts a new circuit on this slide.'/>
 <button id='exportCircuit' label='Export selected circuit' getImage='GetButtonImage' onAction='OnExport' screentip='Export the selected circuit as an editable project' supertip='Save the selected circuit’s embedded project as an .icproj.json file.'/>
 <button id='historyCircuit' label='Open history version' getImage='GetButtonImage' onAction='OnHistory' screentip='Open an earlier version of the selected circuit' supertip='Choose one of the three previous saves to open in the editor. The slide changes only when you save back to PowerPoint.'/>
 </group>
@@ -227,6 +229,30 @@ using Extensibility;
         }
         public void OnReceive(Office.IRibbonControl c) {
             Receive(true);
+        }
+        public void OnImport(Office.IRibbonControl c) {
+            Guard(()=> {
+                dynamic slide=Slide();
+                using(var dialog=new OpenFileDialog {
+                    Title="Import selected circuit",Filter="Analog Canvas project|*.icproj.json;*.icproj",CheckFileExists=true,Multiselect=false
+                }) {
+                    if(dialog.ShowDialog(PowerPointWindow.Current())!=DialogResult.OK)return;
+                    if(new FileInfo(dialog.FileName).Length>32*1024*1024)
+                        throw new Exception("The project file is too large (maximum 32 MiB).");
+                    string project=File.ReadAllText(dialog.FileName);
+                    // The desktop editor owns full schema validation and migrations.
+                    Dictionary<string,object> data;
+                    try { data=Json().Deserialize<Dictionary<string,object>>(project); }
+                    catch(ArgumentException) { throw new Exception("The file is not a valid Analog Canvas JSON project."); }
+                    catch(InvalidOperationException) { throw new Exception("The file is not a valid Analog Canvas JSON project."); }
+                    object id,documents;
+                    if(data==null||!data.TryGetValue("id",out id)||!(id is string)||String.IsNullOrWhiteSpace((string)id)
+                        ||!data.TryGetValue("documents",out documents)||!(documents is System.Collections.IList)
+                        ||((System.Collections.IList)documents).Count==0)
+                        throw new Exception("Choose an Analog Canvas project exported as .icproj.json.");
+                    Start(slide,null,project);
+                }
+            });
         }
         public void OnExport(Office.IRibbonControl c) {
             Guard(()=> {

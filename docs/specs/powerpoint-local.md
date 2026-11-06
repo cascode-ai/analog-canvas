@@ -14,15 +14,20 @@ Keep host entry-point changes limited to launch/save/close integration.
 
 ## Rules
 
-- The English ribbon has five illustrated actions: New circuit, Edit circuit,
-  Export selected circuit, Open history version and Help. Updates are
+- The English ribbon has six illustrated actions: New circuit, Edit circuit,
+  Import selected circuit, Export selected circuit, Open history version and Help. Updates are
   received automatically. History lists the selected circuit's previous saves
   with readable timestamps and opens a version without immediately changing
   the slide.
 - Installation is explicit, per user and reversible. Building or unpacking
   never registers the add-in. The complete package includes English UI,
   installation instructions, licenses and corresponding source.
-- New/edit captures the destination slide and picture. Switching slides or
+- Import opens a selected canonical `.icproj.json` (or `.icproj`) file in the
+  existing editor, which owns schema validation and migrations. Saving inserts
+  a new editable picture on the captured slide; it never replaces a selected
+  picture or writes the source file. Cancel or a rejected import leaves the
+  slide unchanged. Files larger than 32 MiB are rejected before loading.
+- New/edit/import captures the destination slide and picture. Switching slides or
   presentations does not redirect the saved drawing.
 - Saving exports the displayed Cell as transparent SVG and embeds the complete
   canonical Project, displayed Cell and three earlier snapshots in the picture's

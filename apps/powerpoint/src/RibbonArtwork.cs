@@ -47,6 +47,12 @@ namespace CircuitCanvas {
                         g.DrawPolygon(accent, new[] {new Point(13, 17), new Point(25, 5), new Point(29, 9), new Point(17, 21), new Point(11, 23)});
                         g.DrawLine(accent, 22, 8, 26, 12);
                         break;
+                    case "importCircuit":
+                        g.DrawLines(pen, new[] {new Point(22, 10), new Point(22, 4), new Point(5, 4), new Point(5, 28), new Point(22, 28), new Point(22, 24)});
+                        g.DrawLine(pen, 9, 9, 16, 9);
+                        g.DrawLine(accent, 12, 17, 29, 17);
+                        g.DrawLines(accent, new[] {new Point(17, 12), new Point(12, 17), new Point(17, 22)});
+                        break;
                     case "exportCircuit":
                         g.DrawLines(pen, new[] {new Point(22, 10), new Point(22, 4), new Point(5, 4), new Point(5, 28), new Point(22, 28), new Point(22, 24)});
                         g.DrawLine(pen, 9, 9, 16, 9);
