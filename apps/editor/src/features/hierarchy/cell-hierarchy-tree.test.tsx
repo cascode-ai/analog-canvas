@@ -19,6 +19,7 @@ const actions: HierarchyTreeActions = {
   setTop: vi.fn(),
   remove: vi.fn(),
   external: vi.fn(),
+  newCell: vi.fn(),
   notice: vi.fn(),
 };
 
@@ -64,6 +65,14 @@ describe("CellHierarchyTree", () => {
     expect(markup).not.toContain("⋯");
     expect(markup).not.toContain(
       "Editing this definition changes all its uses",
+    );
+  });
+
+  it("starts a new or imported Cell from the tree itself", () => {
+    expect(render()).toContain('aria-label="New Cell"');
+    expect(render()).not.toContain("Import Cell…");
+    expect(render({ actions: { ...actions, importCell: vi.fn() } })).toContain(
+      ">Import Cell…</button>",
     );
   });
 

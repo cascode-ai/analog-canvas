@@ -26,6 +26,10 @@ export interface HierarchyTreeActions {
   setTop(documentId: string): void;
   remove(documentId: string): void;
   external(): void;
+  /** Create an unplaced Cell and open it. */
+  newCell(): void;
+  /** Copy a Cell from another Cloud Project; absent where Cloud is not. */
+  importCell?(): void;
   notice(message: string): void;
 }
 
@@ -60,7 +64,7 @@ interface Match {
   path: readonly HierarchyFrame[];
 }
 
-type IconName = "child" | "place" | "properties" | "collapse";
+type IconName = "add" | "child" | "place" | "properties" | "collapse";
 
 const DRAG_THRESHOLD = 5;
 const INDENT = 14;
@@ -124,6 +128,7 @@ function Icon({ name }: { name: IconName }) {
           />
         </>
       ) : null}
+      {name === "add" ? <path d="M8 3v10M3 8h10" {...stroke} /> : null}
       {name === "collapse" ? (
         <>
           <rect x="5" y="5" width="8.5" height="8.5" rx="1.5" {...stroke} />
@@ -679,6 +684,15 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
         <button
           type="button"
           className="hierarchy-icon-button"
+          aria-label="New Cell"
+          title="New Cell: create an unplaced Cell and open it"
+          onClick={actions.newCell}
+        >
+          <Icon name="add" />
+        </button>
+        <button
+          type="button"
+          className="hierarchy-icon-button"
           aria-label="Collapse all"
           title="Collapse all but the open path"
           onClick={collapseAll}
@@ -748,6 +762,11 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
         </div>
       )}
       <footer className="hierarchy-footer">
+        {actions.importCell ? (
+          <button type="button" onClick={actions.importCell}>
+            Import Cell…
+          </button>
+        ) : null}
         <button type="button" onClick={actions.external}>
           External Circuits…
         </button>

@@ -1015,6 +1015,10 @@
   font-size: 11px;
 }
 .hierarchy-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--icm-space-2);
   margin-top: auto;
   padding: 6px 2px 0;
   border-top: 1px solid var(--icm-border);

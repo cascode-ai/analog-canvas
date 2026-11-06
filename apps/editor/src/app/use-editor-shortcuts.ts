@@ -336,9 +336,12 @@ function createEditorShortcutHandler({
           )) ||
         (event.target.closest(".project-tabs") &&
           ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) ||
-        // The hierarchy tree owns plain keys (arrows, F2, Delete, type to
-        // filter); modified shortcuts such as Undo still reach the editor.
-        (event.target.closest(".hierarchy-panel") &&
+        // The hierarchy tree and its Cell dialogs own plain keys (arrows, F2,
+        // Delete, Escape, typing); modified shortcuts such as Undo still
+        // reach the editor.
+        (event.target.closest(
+          ".hierarchy-panel, .cell-props-dialog, .new-cell-dialog, .import-cell-dialog",
+        ) &&
           !event.ctrlKey &&
           !event.metaKey &&
           !event.altKey))

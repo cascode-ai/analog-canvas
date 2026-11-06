@@ -1,8 +1,42 @@
 import { expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
 import { EditorDocumentController } from "../../document/document-controller";
-import { createChildCellDraft, planChildCellPlacement } from "./new-child-cell";
+import {
+  addChildPortNames,
+  createChildCellDraft,
+  inferPinDirection,
+  planChildCellPlacement,
+} from "./new-child-cell";
 import { createHierarchyInstance } from "@icm/edit-engine";
+
+it("guesses a new Pin's direction from its name as the importer does", () => {
+  for (const name of ["in", "inp", "VIN", "clk", "vref", "ibias", "en"])
+    expect(inferPinDirection(name), name).toBe("input");
+  for (const name of ["out", "OUTP", "vout", "vo", "q", "QB", "y"])
+    expect(inferPinDirection(name), name).toBe("output");
+  for (const name of ["vdd", "AVDD", "vcc", "vss", "gnd", "VEE", "0"])
+    expect(inferPinDirection(name), name).toBe("passive");
+});
+
+it("adds typed or pasted Pin names once each, in order", () => {
+  const first = addChildPortNames([], "in1, in2;out  vdd");
+  expect(first.ports).toEqual([
+    { name: "in1", direction: "input" },
+    { name: "in2", direction: "input" },
+    { name: "out", direction: "output" },
+    { name: "vdd", direction: "passive" },
+  ]);
+  expect(first.skipped).toEqual([]);
+  const second = addChildPortNames(first.ports, "OUT vss");
+  expect(second.ports.map((port) => port.name)).toEqual([
+    "in1",
+    "in2",
+    "out",
+    "vdd",
+    "vss",
+  ]);
+  expect(second.skipped).toEqual(["OUT"]);
+});
 
 it("keeps a draft out of the Project and creates its interface and caller in one undo step", () => {
   const controller = new EditorDocumentController(

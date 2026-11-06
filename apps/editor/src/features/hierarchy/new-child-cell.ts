@@ -19,6 +19,37 @@ export interface ChildPortDraft {
   direction: "input" | "output" | "inout" | "passive";
 }
 
+// The SPICE importer reads Pin names the same way when it places imported
+// Cell Pins: supplies and grounds, outputs, and everything else as inputs.
+const SUPPLY_NAME = /^(?:[ad]?vdd|vcc|vpwr|vpos|vplus|pwr)/iu;
+const GROUND_NAME = /^(?:[ad]?vss|[ad]?gnd|vee|vgnd|vneg|ground)|^0$/iu;
+const OUTPUT_NAME = /^(?:v?o(?:ut)?[pn+-]?|q|qb|qn|y|z)$|^v?out/iu;
+
+/** A first guess from a new Pin's name; the author can change it at once. */
+export function inferPinDirection(name: string): ChildPortDraft["direction"] {
+  if (SUPPLY_NAME.test(name) || GROUND_NAME.test(name)) return "passive";
+  if (OUTPUT_NAME.test(name)) return "output";
+  return "input";
+}
+
+/**
+ * Add the Pin names typed or pasted as one string (separated by spaces,
+ * commas or semicolons). A name already present, in any case, is skipped.
+ */
+export function addChildPortNames(
+  ports: readonly ChildPortDraft[],
+  text: string,
+): { ports: ChildPortDraft[]; skipped: string[] } {
+  const next = [...ports];
+  const skipped: string[] = [];
+  for (const name of text.split(/[\s,;]+/u).filter(Boolean)) {
+    if (next.some((port) => port.name.toLowerCase() === name.toLowerCase()))
+      skipped.push(name);
+    else next.push({ name, direction: inferPinDirection(name) });
+  }
+  return { ports: next, skipped };
+}
+
 /** Build an isolated draft with the same Pin planner used by canvas placement. */
 export function createChildCellDraft(
   project: CircuitProject,

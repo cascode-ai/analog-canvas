@@ -45,6 +45,7 @@ import {
   planSetVddConnectionMode,
   planRenameCellTerminal,
   planAngledWireRepairs,
+  planCreateCell,
   type ProjectStructureEdit,
   type SchematicEdit,
   type WireSource,
@@ -67,7 +68,6 @@ import {
   resolveMosBulkConnection,
   supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
-  summarizeProjectCells,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
 import {
@@ -925,13 +925,15 @@ function WorkspaceEditor({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
-  const [cellManagerTarget, setCellManagerTarget] = useState<
-    { kind: "cell"; id: string } | { kind: "external" } | null
-  >(null);
+  // The Cell definition open in Cell properties; External Circuits keep the
+  // Cell Manager dialog above.
+  const [cellPropertiesId, setCellPropertiesId] = useState<string | null>(null);
+  const [importCellOpen, setImportCellOpen] = useState(false);
   const [hierarchyExpanded, setHierarchyExpanded] = useState<string[]>([]);
   // The tree row whose uses are listed inline; the breadcrumb can open it.
   const [hierarchyUsesKey, setHierarchyUsesKey] = useState<string | null>(null);
-  const [newChildOpen, setNewChildOpen] = useState(false);
+  // A new Cell is a child placed in the open Cell, or an unplaced root.
+  const [newCellMode, setNewCellMode] = useState<"child" | "root" | null>(null);
   const [newChildOccurrence, setNewChildOccurrence] = useState<{
     id: string;
     path: HierarchyFrame[];
@@ -1285,7 +1287,9 @@ function WorkspaceEditor({
       documentViewBoxes.current = new Map();
       setDocumentStack([]);
       setHierarchyExpanded([]);
-      setNewChildOpen(false);
+      setNewCellMode(null);
+      setCellPropertiesId(null);
+      setImportCellOpen(false);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
       // Each newly opened circuit starts with its netlist. Ordinary edits and
@@ -1528,7 +1532,6 @@ function WorkspaceEditor({
       setStatus,
     });
   const {
-    createCell,
     renameCell,
     renameCellTerminal,
     editProjectInfo,
@@ -3896,15 +3899,16 @@ function WorkspaceEditor({
         : [...new Set([...keys, ...ancestors])],
     );
   }, [documentStack, document.id]);
-  const openCellProperties = (id: string) => {
-    setCellManagerTarget({ kind: "cell", id });
+  const openCellProperties = (id: string) => setCellPropertiesId(id);
+  const openExternalCircuits = () => {
     setModelEditorDefinitionId(null);
     setCellManagerOpen(true);
   };
-  const beginNewChild = () => {
+  const beginNewCell = (mode: "child" | "root") => {
     cancelAllTransientInteraction();
-    setNewChildOpen(true);
+    setNewCellMode(mode);
   };
+  const beginNewChild = () => beginNewCell("child");
   /** Start placing a Cell from the tree, as the Insert dialog would. */
   const placeCellFromTree = (id: string): boolean => {
     const issue = cellPlacementIssue(project, document.id, id);
@@ -4189,11 +4193,6 @@ function WorkspaceEditor({
       resetSelection();
     }
   }
-
-  const cellManagerEntries = useMemo(
-    () => summarizeProjectCells(project),
-    [project],
-  );
 
   function placeCellInstance(): void {
     if (cellInsertCandidates.length === 0) {
@@ -5337,10 +5336,7 @@ function WorkspaceEditor({
       <EditorMenuBar
         hierarchyActions={{
           onNewChild: beginNewChild,
-          onExternalCircuits: () => {
-            setCellManagerTarget({ kind: "external" });
-            setCellManagerOpen(true);
-          },
+          onExternalCircuits: openExternalCircuits,
         }}
         toggleHierarchyPanel={toggleHierarchyPanel}
         identity={identity}
@@ -5441,10 +5437,12 @@ function WorkspaceEditor({
         leaveForGallery={leaveForGallery}
         leaveForArena={leaveForArena}
       />
-      {newChildOpen ? (
+      {newCellMode ? (
         <NewChildDialog
-          parentName={document.name}
-          onCancel={() => setNewChildOpen(false)}
+          project={project}
+          parentId={document.id}
+          {...(newCellMode === "child" ? { parentName: document.name } : {})}
+          onCancel={() => setNewCellMode(null)}
           onCreate={(name, ports) => {
             try {
               const draftCell = createChildCellDraft(
@@ -5454,23 +5452,31 @@ function WorkspaceEditor({
                 name,
                 ports,
               );
-              startInsertFromHook({
-                kind: "quick",
-                request: {
-                  kind: "cell",
-                  draftCell,
-                  symbolId: hierarchicalSymbolId(name),
-                  symbolName: name,
-                  childDocumentId: draftCell.id,
-                  cellName: name,
-                  parameters: {},
-                  initialRotation: 0,
-                  showReference: false,
-                  referenceText: null,
-                  showValue: true,
-                },
-              });
-              setNewChildOpen(false);
+              if (newCellMode === "root") {
+                // An unplaced Cell is created at once and opened for drawing;
+                // it waits under Other roots until something places it.
+                if (!commitStructure("create-cell", planCreateCell(draftCell)))
+                  return "The Cell could not be created; see the status bar";
+                setNewChildOccurrence({ id: draftCell.id, path: [] });
+              } else {
+                startInsertFromHook({
+                  kind: "quick",
+                  request: {
+                    kind: "cell",
+                    draftCell,
+                    symbolId: hierarchicalSymbolId(name),
+                    symbolName: name,
+                    childDocumentId: draftCell.id,
+                    cellName: name,
+                    parameters: {},
+                    initialRotation: 0,
+                    showReference: false,
+                    referenceText: null,
+                    showValue: true,
+                  },
+                });
+              }
+              setNewCellMode(null);
               return undefined;
             } catch (error) {
               return error instanceof Error ? error.message : String(error);
@@ -5479,8 +5485,10 @@ function WorkspaceEditor({
         />
       ) : null}
       <EditorDialogs
-        cellManagerTarget={cellManagerTarget}
-        setCellManagerTarget={setCellManagerTarget}
+        cellPropertiesId={cellPropertiesId}
+        setCellPropertiesId={setCellPropertiesId}
+        importCellOpen={importCellOpen}
+        setImportCellOpen={setImportCellOpen}
         renameCellTerminal={renameCellTerminal}
         setCellSymbolBodySize={setCellSymbolBodySize}
         setCellSymbolPortPlacement={setCellSymbolPortPlacement}
@@ -5558,10 +5566,8 @@ function WorkspaceEditor({
         approveAgentFileCandidate={approveAgentFileCandidate}
         rejectAgentFileCandidate={rejectAgentFileCandidate}
         commitStructure={commitStructure}
-        createCell={createCell}
         renameCell={renameCell}
         editProjectInfo={editProjectInfo}
-        deleteCell={deleteCell}
         updateCellPortDirection={updateCellPortDirection}
         moveCellPort={moveCellPort}
         editCellParameter={editCellParameter}
@@ -5581,11 +5587,10 @@ function WorkspaceEditor({
         insertScope={insertScope}
         recentSymbolIds={recentSymbolIds}
         jumpToCaller={jumpToCaller}
-        openCellOccurrence={openCellOccurrence}
+        openCreatedCell={(id) => setNewChildOccurrence({ id, path: [] })}
         navigateToNetlistDiagnostic={navigateToNetlistDiagnostic}
         selectSearchResult={selectSearchResult}
         jumpToProjectDiagnostic={jumpToProjectDiagnostic}
-        cellManagerEntries={cellManagerEntries}
         editorCommands={editorCommands}
         exportDesignNetlist={exportDesignNetlist}
         workspaceReopen={workspaceReopen}
@@ -5715,14 +5720,16 @@ function WorkspaceEditor({
                 openCellOccurrence(id, path);
                 beginNewChild();
               },
+              newCell: () => beginNewCell("root"),
               place: placeCellFromTree,
               drop: dropCellFromTree,
               setTop: (id) => void setTopCell(id),
               remove: (id) => void deleteCell(id),
-              external: () => {
-                setCellManagerTarget({ kind: "external" });
-                setCellManagerOpen(true);
-              },
+              external: openExternalCircuits,
+              // Cloud import needs the Web build's Project store.
+              ...(!import.meta.env?.ICM_DESKTOP
+                ? { importCell: () => setImportCellOpen(true) }
+                : {}),
               notice: setStatus,
             }}
           />
