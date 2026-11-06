@@ -22,7 +22,7 @@ import {
   openProject,
   openProjectFile,
   readRecoveryRecords,
-  openCellManager,
+  createRootCell,
   openMenu,
   renameProject,
 } from "./editor-fixtures.js";
@@ -593,11 +593,7 @@ test("Simulation defaults a new experiment to an ordinary authored Cell", async 
   page,
 }) => {
   await page.goto("/editor");
-  const manager = await openCellManager(page);
-  await manager.getByRole("button", { name: "New Cell" }).click();
-  const newCell = page.getByRole("dialog", { name: "New Cell" });
-  await newCell.getByLabel("Cell name").fill("Testbench");
-  await newCell.getByRole("button", { name: "Create" }).click();
+  await createRootCell(page, "Testbench");
   await (
     await openMenu(page, "Edit")
   )

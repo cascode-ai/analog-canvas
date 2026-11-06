@@ -2,6 +2,7 @@ import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   cellParameterUsage,
+  planAddCellParameter,
   planBindCellParameter,
   planRenameCellParameter,
   planSetCellParameterDefault,
@@ -227,4 +228,22 @@ describe("Cell parameter authoring", () => {
       planRenameCellParameter(project, "child", "Rbase", "New"),
     ).toThrow("conflicting");
   });
+});
+
+it("declares a parameter without a device binding and rejects duplicate names or cyclic defaults", () => {
+  const project = fixture();
+  const added = apply(
+    project,
+    planAddCellParameter(project, "child", "gain", "10"),
+  );
+  expect(added.documents[1]!.netlist!.formalParameters).toEqual([
+    { name: "gain", defaultValue: "10" },
+  ]);
+  expect(added.documents[0]!.instances[0]!.netlist!.parameters).toEqual({});
+  expect(() => planAddCellParameter(added, "child", "GAIN", "20")).toThrow(
+    "already",
+  );
+  expect(() =>
+    planAddCellParameter(added, "child", "loop", "{loop + 1}"),
+  ).toThrow("Cyclic");
 });

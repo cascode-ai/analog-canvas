@@ -1,3 +1,24 @@
+import { CellHierarchyTree } from "../features/hierarchy/cell-hierarchy-tree";
+import { HierarchyBreadcrumb } from "../features/hierarchy/hierarchy-breadcrumb";
+import {
+  hierarchyPathKey,
+  stableRootOrder,
+} from "../features/hierarchy/project-hierarchy";
+import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
+import { NewCellDialog } from "../features/hierarchy/new-cell-dialog";
+import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
+import type {
+  CellUse,
+  SelectionCellPin,
+} from "../features/hierarchy/hierarchy-refactor";
+import {
+  createHierarchyRefactorCommands,
+  sharedEditNote,
+  type HierarchyRefactorActions,
+  type OccurrenceToOpen,
+} from "../features/hierarchy/hierarchy-refactor-commands";
+import { createChildCellDraft } from "../features/hierarchy/new-cell";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { useSignalMemberInspection } from "../features/selection/use-signal-member-inspection";
 import { editorSnapshotDerived } from "./editor-snapshot-derived-cache";
 import {
@@ -26,6 +47,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -60,7 +82,6 @@ import {
   resolveMosBulkConnection,
   supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
-  summarizeProjectCells,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
 import {
@@ -699,6 +720,7 @@ function WorkspaceEditor({
     compactLibraryPanelOpen,
     setCompactLibraryPanelOpen,
     leftPanelMode,
+    showLeftPanel,
     selectionOpen,
     setSelectionOpen,
     searchOpen,
@@ -714,6 +736,7 @@ function WorkspaceEditor({
     closeSearch,
     toggleExamplesPanel: toggleExamplesPanelFromShell,
     toggleLibraryPanel,
+    toggleHierarchyPanel,
   } = useEditorPanels({
     initialCompact: compactLayoutMatches(COMPACT_LAYOUT_MEDIA_QUERY),
     compactMediaQuery: COMPACT_LAYOUT_MEDIA_QUERY,
@@ -722,6 +745,8 @@ function WorkspaceEditor({
       new URLSearchParams(window.location.search).get("new") === "1",
     libraryStorageKey: LIBRARY_PANEL_STORAGE_KEY,
     libraryWidthStorageKey: LIBRARY_WIDTH_STORAGE_KEY,
+    // As the project panel closes the left one when it opens.
+    onCompactLeftPanelOpen: () => setProjectPanel(null),
   });
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
@@ -916,6 +941,29 @@ function WorkspaceEditor({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
+  // The Cell definition open in Cell properties; External Circuits keep the
+  // Cell Manager dialog above.
+  const [cellPropertiesId, setCellPropertiesId] = useState<string | null>(null);
+  const [importCellOpen, setImportCellOpen] = useState(false);
+  const [hierarchyExpanded, setHierarchyExpanded] = useState<string[]>([]);
+  // The tree row whose uses are listed inline; the breadcrumb can open it.
+  const [hierarchyUsesKey, setHierarchyUsesKey] = useState<string | null>(null);
+  // A new Cell is a child placed in the open Cell, or an unplaced root.
+  const [newCellMode, setNewCellMode] = useState<
+    "child" | "root" | "selection" | null
+  >(null);
+  // Parts a new Cell is made from, and the Pins their leaving Nets need.
+  const [selectionCell, setSelectionCell] = useState<{
+    instanceIds: string[];
+    pins: SelectionCellPin[];
+  } | null>(null);
+  // The instance whose Cell the Replace dialog switches.
+  const [replaceUse, setReplaceUse] = useState<CellUse | null>(null);
+  // A Cell occurrence to open once a commit has rendered, so its fit includes
+  // what the commit drew.
+  const [openAfterCommit, setOpenAfterCommit] =
+    useState<OccurrenceToOpen | null>(null);
+
   const [modelEditorDefinitionId, setModelEditorDefinitionId] = useState<
     string | null
   >(null);
@@ -1263,6 +1311,12 @@ function WorkspaceEditor({
       if (options.agentEdited) editorDocumentController.noteAgentEdit();
       documentViewBoxes.current = new Map();
       setDocumentStack([]);
+      setHierarchyExpanded([]);
+      setNewCellMode(null);
+      setSelectionCell(null);
+      setReplaceUse(null);
+      setCellPropertiesId(null);
+      setImportCellOpen(false);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
       // Each newly opened circuit starts with its netlist. Ordinary edits and
@@ -1505,10 +1559,11 @@ function WorkspaceEditor({
       setStatus,
     });
   const {
-    createCell,
     renameCell,
+    renameCellTerminal,
     editProjectInfo,
     deleteCell,
+    setTopCell,
     updateCellPortDirection,
     moveCellPort,
     editCellParameter,
@@ -1521,6 +1576,7 @@ function WorkspaceEditor({
     convertCellTerminalSignal,
     removeCellTerminalSelection,
     renameProject,
+    createCell,
   } = createProjectStructureCommands({
     requestConfirmation: (request) =>
       setInterfaceConfirmation({ request, snapshot: project }),
@@ -1529,7 +1585,6 @@ function WorkspaceEditor({
     resolver,
     commitStructure,
     setStatus,
-    onCellCreated: () => setDocumentStack([]),
     nextSequence: () => {
       uniqueSuffixCounter.current += 1;
       return uniqueSuffixCounter.current;
@@ -2887,8 +2942,24 @@ function WorkspaceEditor({
       netlistPreferences.preferences,
     ],
   );
+  const placementResolver = useMemo(
+    () =>
+      pendingComponentPlacement?.draftCell
+        ? createProjectSymbolResolver(
+            {
+              ...project,
+              documents: [
+                ...project.documents,
+                pendingComponentPlacement.draftCell,
+              ],
+            },
+            builtInSymbols,
+          )
+        : resolver,
+    [project, resolver, pendingComponentPlacement?.draftCell],
+  );
   const pendingPlacementSymbol = pendingSymbolId
-    ? (resolver.resolve(pendingSymbolId)?.definition ??
+    ? (placementResolver.resolve(pendingSymbolId)?.definition ??
       findPaletteSymbol(document.presentation.styleProfileId, pendingSymbolId))
     : undefined;
   const {
@@ -2904,6 +2975,14 @@ function WorkspaceEditor({
     mirrorPendingComponent: mirrorPendingComponentFromHook,
     startInsert: startInsertFromHook,
   } = useComponentPlacement({
+    onChildCreated: (instanceId, childDocumentId) =>
+      setOpenAfterCommit({
+        id: childDocumentId,
+        path: [
+          ...documentStack,
+          { parentDocumentId: document.id, instanceId, childDocumentId },
+        ],
+      }),
     recentStorageKey: RECENT_COMPONENTS_STORAGE_KEY,
     document,
     project,
@@ -3753,8 +3832,9 @@ function WorkspaceEditor({
     };
   }
 
+  /** The Cell the last navigation fit framed, to fit again below. */
+  const fittedDocument = useRef<string | null>(null);
   const {
-    switchDocument,
     selectDocumentFromHierarchy,
     jumpToCaller,
     navigateToLocator,
@@ -3782,6 +3862,9 @@ function WorkspaceEditor({
     defaultViewBox: DEFAULT_VIEWBOX,
     setViewBox,
     measureCanvasView,
+    onFit: (documentId) => {
+      fittedDocument.current = documentId;
+    },
     openDocument,
     resetInteractionState,
     selectOnly,
@@ -3797,6 +3880,225 @@ function WorkspaceEditor({
     selectedInstance,
     setStatus,
   });
+  // A navigation fits before its instance path appears over the canvas or
+  // goes. Once the path is drawn, before it is painted, fit the Cell again
+  // with the path's inset, so entering, leaving and F land on one view.
+  useLayoutEffect(() => {
+    const fitted = fittedDocument.current;
+    fittedDocument.current = null;
+    if (fitted !== document.id) return;
+    fitDocument(fitted);
+    // That fit reported itself too; it needs no second pass.
+    fittedDocument.current = null;
+  }, [document.id, documentStack]);
+  useEffect(() => {
+    const resolved = reconcileHierarchyPath(
+      project,
+      document.id,
+      documentStack,
+    );
+    if (resolved.path.length !== documentStack.length) {
+      openCellOccurrence(resolved.documentId, resolved.path);
+      setStatus(
+        "The hierarchy changed; returned to the nearest surviving parent",
+      );
+    } else if (documentStack.length && resolved.documentId !== document.id) {
+      setDocumentStack([]);
+    }
+  }, [project]);
+  useEffect(() => {
+    if (!openAfterCommit) return;
+    // The breadcrumb shows where the Cell is; the Library stays open for
+    // drawing inside it.
+    openCellOccurrence(openAfterCommit.id, openAfterCommit.path);
+    if (openAfterCommit.select?.length)
+      selectOnly("instance", openAfterCommit.select);
+    if (openAfterCommit.status) setStatus(openAfterCommit.status);
+    setOpenAfterCommit(null);
+  }, [project, openAfterCommit]);
+  // The first edit of a shared definition says once, in the status bar, that
+  // it changes every use; the breadcrumb keeps the count in view afterwards.
+  const sharedEditNotices = useRef(new Set<string>());
+  const lastEditedDocument = useRef(document);
+  useEffect(() => {
+    const previous = lastEditedDocument.current;
+    lastEditedDocument.current = document;
+    if (previous.id !== document.id || previous.revision === document.revision)
+      return;
+    const key = `${projectSessionId}/${document.id}`;
+    if (sharedEditNotices.current.has(key)) return;
+    const uses = buildProjectHierarchy(project).usage(document.id, 0).total;
+    if (uses < 2) return;
+    sharedEditNotices.current.add(key);
+    setStatus(
+      `${document.name} has ${uses} uses; this edit changes all of them`,
+    );
+  }, [document]);
+  useEffect(() => {
+    const root = documentStack[0]?.parentDocumentId ?? document.id;
+    // The root you work in stays open, with the path down to where you are.
+    const ancestors = [
+      hierarchyPathKey(root, []),
+      ...documentStack.map((_, index) =>
+        hierarchyPathKey(root, documentStack.slice(0, index)),
+      ),
+    ];
+    setHierarchyExpanded((keys) =>
+      ancestors.every((key) => keys.includes(key))
+        ? keys
+        : [...new Set([...keys, ...ancestors])],
+    );
+  }, [documentStack, document.id]);
+  const openCellProperties = (id: string) => setCellPropertiesId(id);
+  const openExternalCircuits = () => {
+    setModelEditorDefinitionId(null);
+    setCellManagerOpen(true);
+  };
+  const beginNewCell = (mode: "child" | "root" | "selection") => {
+    cancelAllTransientInteraction();
+    setNewCellMode(mode);
+  };
+  const beginNewChild = () => beginNewCell("child");
+  const nextRefactorSequence = () => {
+    uniqueSuffixCounter.current += 1;
+    return uniqueSuffixCounter.current;
+  };
+  const hierarchyRefactor = createHierarchyRefactorCommands({
+    project,
+    document,
+    createDocumentId: () => createId("document"),
+    nextSequence: nextRefactorSequence,
+    commitStructure: (transactionId, edits) =>
+      commitStructure(transactionId, edits),
+    setStatus,
+    spendSharedEditNotice: (documentId) =>
+      sharedEditNotices.current.add(`${projectSessionId}/${documentId}`),
+    openOccurrence: setOpenAfterCommit,
+    selectInstances: (ids) => selectOnly("instance", ids),
+  });
+  /** Open New Cell on the selected parts, with the Pins their Nets need. */
+  const beginCellFromSelection = () => {
+    const pins = hierarchyRefactor.selectionPins(selectedIds);
+    if (!pins) return;
+    setSelectionCell({ instanceIds: [...selectedIds], pins });
+    beginNewCell("selection");
+  };
+  const selectedUse: CellUse | null =
+    selectedHierarchyCell && selectedInstance
+      ? { documentId: document.id, instanceId: selectedInstance.id }
+      : null;
+  // Every refactor on the selection edits the open Cell; with several uses
+  // it says so before it runs.
+  const openCellNote = useMemo(
+    () => sharedEditNote(project, document.id),
+    [project, document.id],
+  );
+  // One set of commands for the canvas menu and Circuit > Hierarchy.
+  const refactorActions: HierarchyRefactorActions = {
+    fromSelection: {
+      enabled: selectedIds.length > 0,
+      execute: beginCellFromSelection,
+      note: openCellNote,
+    },
+    makeUnique: {
+      enabled: Boolean(selectedUse),
+      execute: () => {
+        if (selectedUse) hierarchyRefactor.makeUnique(selectedUse);
+      },
+      note: openCellNote,
+    },
+    replace: {
+      enabled: Boolean(selectedUse),
+      execute: () => {
+        if (selectedUse) setReplaceUse(selectedUse);
+      },
+      note: openCellNote,
+    },
+    flatten: {
+      enabled: Boolean(selectedUse),
+      execute: () => {
+        if (selectedUse) hierarchyRefactor.flatten(selectedUse, documentStack);
+      },
+      note: openCellNote,
+    },
+  };
+  // The tree's root order belongs to the tab, not the tree, so it outlasts
+  // the panel; see stableRootOrder.
+  const rootOrders = useRef(new Map<string, readonly string[]>());
+  const projectRoots = useMemo(
+    () => buildProjectHierarchy(project).roots,
+    [project],
+  );
+  const hierarchyRoots = useMemo(
+    () =>
+      stableRootOrder(
+        rootOrders.current.get(projectSessionId) ?? [],
+        projectRoots,
+      ),
+    [projectRoots, projectSessionId],
+  );
+  useEffect(() => {
+    rootOrders.current.set(projectSessionId, hierarchyRoots);
+  }, [projectSessionId, hierarchyRoots]);
+  /** Start placing a Cell from the tree, as the Insert dialog would. */
+  const placeCellFromTree = (id: string): boolean => {
+    const issue = cellPlacementIssue(project, document.id, id);
+    const candidate = cellInsertCandidates.find(
+      (item) => item.childDocumentId === id,
+    );
+    if (issue || !candidate) {
+      setStatus(issue ?? "This Cell cannot be placed here");
+      return false;
+    }
+    startInsertFromHook({
+      kind: "quick",
+      request: {
+        kind: "cell",
+        symbolId: candidate.symbol.id,
+        symbolName: candidate.cellName,
+        childDocumentId: id,
+        cellName: candidate.cellName,
+        parameters: {},
+        initialRotation: 0,
+        showReference: false,
+        referenceText: null,
+        showValue: true,
+      },
+    });
+    return true;
+  };
+  /**
+   * A drag from the tree is one gesture: it places once where it ends on the
+   * canvas and leaves placement mode, or cancels when released elsewhere.
+   */
+  const dropCellFromTree = (clientX: number, clientY: number) => {
+    const svg = window.document.querySelector<SVGSVGElement>(
+      '[data-testid="schematic-canvas"]',
+    );
+    const box = svg?.getBoundingClientRect();
+    const placed = pendingComponentPlacement;
+    if (
+      !svg ||
+      !box ||
+      clientX < box.left ||
+      clientX > box.right ||
+      clientY < box.top ||
+      clientY > box.bottom
+    ) {
+      cancelComponentInsertFromHook();
+      return;
+    }
+    commitPendingPlacementAtFromHook(
+      resolvePendingPlacementPoint(
+        pointFromClient(clientX, clientY, svg, false),
+        svg,
+      ).point,
+    );
+    cancelAllTransientInteraction();
+    setStatus(
+      `Placed ${placed && "cellName" in placed ? placed.cellName : "the Cell"} · Undo removes it`,
+    );
+  };
   const { endpointSignalInspection, routeSignalInspection } =
     useSignalMemberInspection({
       model: {
@@ -4022,11 +4324,6 @@ function WorkspaceEditor({
       resetSelection();
     }
   }
-
-  const cellManagerEntries = useMemo(
-    () => summarizeProjectCells(project),
-    [project],
-  );
 
   function placeCellInstance(): void {
     if (cellInsertCandidates.length === 0) {
@@ -4906,6 +5203,8 @@ function WorkspaceEditor({
     renameShelfProject,
     deleteShelfProject,
   } = useProjectTabSessions({
+    hierarchyExpanded,
+    setHierarchyExpanded,
     projectStore,
     onCloudProjectSaved: noteCloudProjectSaved,
     onCloudProjectsDeleted: noteCloudProjectsDeleted,
@@ -5166,6 +5465,25 @@ function WorkspaceEditor({
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorMenuBar
+        hierarchyActions={{
+          onNewCell: () => beginNewCell("root"),
+          onNewChild: beginNewChild,
+          cellProperties: {
+            enabled: true,
+            execute: () => openCellProperties(document.id),
+          },
+          setTop: {
+            enabled: document.id !== project.topDocumentId,
+            execute: () => void setTopCell(document.id),
+          },
+          refactor: refactorActions,
+          // Cloud import needs the Web build's Project store.
+          ...(!import.meta.env?.ICM_DESKTOP
+            ? { onImportCell: () => setImportCellOpen(true) }
+            : {}),
+          onExternalCircuits: openExternalCircuits,
+        }}
+        toggleHierarchyPanel={toggleHierarchyPanel}
         identity={identity}
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
@@ -5186,11 +5504,8 @@ function WorkspaceEditor({
         recoverySessions={recoverySessions}
         project={project}
         document={document}
-        documentStack={documentStack}
         visualSelection={visualSelection}
         selectionFilterOpen={selectionFilterOpen}
-        cellManagerOpen={cellManagerOpen}
-        setCellManagerOpen={setCellManagerOpen}
         netlistPreflightOpen={netlistPreflightOpen}
         setNetlistPreflightOpen={setNetlistPreflightOpen}
         projectPanel={projectPanel}
@@ -5233,7 +5548,6 @@ function WorkspaceEditor({
         selectedEndpoint={selectedEndpoint}
         projectInputRef={projectInputRef}
         tabProjectInputRef={tabProjectInputRef}
-        hasHierarchyEnterSelection={hasHierarchyEnterSelection}
         flightlines={flightlines}
         displayedFlightlines={displayedFlightlines}
         crossings={crossings}
@@ -5243,9 +5557,6 @@ function WorkspaceEditor({
         alignmentParticipantCount={alignmentParticipantCount}
         internalSelection={internalSelection}
         projectInstanceCount={projectInstanceCount}
-        selectDocumentFromHierarchy={selectDocumentFromHierarchy}
-        enterSelectedHierarchy={enterSelectedHierarchy}
-        returnToTopDocument={returnToTopDocument}
         toggleProjectPanel={toggleProjectPanel}
         toggleExamplesPanel={toggleExamplesPanel}
         cancelAllTransientInteraction={cancelAllTransientInteraction}
@@ -5271,7 +5582,100 @@ function WorkspaceEditor({
         leaveForGallery={leaveForGallery}
         leaveForArena={leaveForArena}
       />
+      {newCellMode ? (
+        <NewCellDialog
+          project={project}
+          parentId={document.id}
+          {...(newCellMode !== "root" ? { parentName: document.name } : {})}
+          {...(newCellMode === "selection" && selectionCell
+            ? {
+                fromSelection: {
+                  parts: selectionCell.instanceIds.length,
+                  pins: selectionCell.pins,
+                  ...(openCellNote ? { note: openCellNote } : {}),
+                },
+              }
+            : {})}
+          onCancel={() => {
+            setNewCellMode(null);
+            setSelectionCell(null);
+          }}
+          onCreate={(name, ports) => {
+            try {
+              if (newCellMode === "selection") {
+                if (!selectionCell) return "Select the parts again";
+                const refusal = hierarchyRefactor.fromSelection(
+                  selectionCell.instanceIds,
+                  name,
+                  selectionCell.pins.map((pin, index) => ({
+                    ...pin,
+                    direction: ports[index]?.direction ?? pin.direction,
+                  })),
+                );
+                if (refusal) return refusal;
+                setNewCellMode(null);
+                setSelectionCell(null);
+                return undefined;
+              }
+              const draftCell = createChildCellDraft(
+                project,
+                document.id,
+                createId("document"),
+                name,
+                ports,
+              );
+              if (newCellMode === "root") {
+                // An unplaced Cell is created at once and opened for drawing;
+                // it is a root of its own until something places it.
+                if (!createCell(draftCell))
+                  return "The Cell could not be created; see the status bar";
+                setOpenAfterCommit({ id: draftCell.id, path: [] });
+              } else {
+                startInsertFromHook({
+                  kind: "quick",
+                  request: {
+                    kind: "cell",
+                    draftCell,
+                    symbolId: hierarchicalSymbolId(name),
+                    symbolName: name,
+                    childDocumentId: draftCell.id,
+                    cellName: name,
+                    parameters: {},
+                    initialRotation: 0,
+                    showReference: false,
+                    referenceText: null,
+                    showValue: true,
+                  },
+                });
+              }
+              setNewCellMode(null);
+              return undefined;
+            } catch (error) {
+              return error instanceof Error ? error.message : String(error);
+            }
+          }}
+        />
+      ) : null}
+      {replaceUse ? (
+        <ReplaceCellDialog
+          project={project}
+          use={replaceUse}
+          onCancel={() => setReplaceUse(null)}
+          onReplace={(uses, replacementId) => {
+            if (hierarchyRefactor.replace(uses, replacementId))
+              setReplaceUse(null);
+          }}
+        />
+      ) : null}
       <EditorDialogs
+        cellPropertiesId={cellPropertiesId}
+        setCellPropertiesId={setCellPropertiesId}
+        importCellOpen={importCellOpen}
+        setImportCellOpen={setImportCellOpen}
+        renameCellTerminal={renameCellTerminal}
+        setCellSymbolBodySize={setCellSymbolBodySize}
+        setCellSymbolPortPlacement={setCellSymbolPortPlacement}
+        setTopCell={setTopCell}
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
         exportDelivery={exportDelivery}
@@ -5297,8 +5701,6 @@ function WorkspaceEditor({
         editorDocumentController={editorDocumentController}
         projectSessionId={projectSessionId}
         galleryTopologyProject={galleryTopologyProject}
-        projectConnectivityIndex={projectConnectivityIndex}
-        setDocumentStack={setDocumentStack}
         cellManagerOpen={cellManagerOpen}
         setCellManagerOpen={setCellManagerOpen}
         modelEditorDefinitionId={modelEditorDefinitionId}
@@ -5348,10 +5750,8 @@ function WorkspaceEditor({
         approveAgentFileCandidate={approveAgentFileCandidate}
         rejectAgentFileCandidate={rejectAgentFileCandidate}
         commitStructure={commitStructure}
-        createCell={createCell}
         renameCell={renameCell}
         editProjectInfo={editProjectInfo}
-        deleteCell={deleteCell}
         updateCellPortDirection={updateCellPortDirection}
         moveCellPort={moveCellPort}
         editCellParameter={editCellParameter}
@@ -5370,13 +5770,11 @@ function WorkspaceEditor({
         insertInitialSelectionId={insertInitialSelectionId}
         insertScope={insertScope}
         recentSymbolIds={recentSymbolIds}
-        switchDocument={switchDocument}
         jumpToCaller={jumpToCaller}
-        openCellOccurrence={openCellOccurrence}
+        openCreatedCell={(id) => setOpenAfterCommit({ id, path: [] })}
         navigateToNetlistDiagnostic={navigateToNetlistDiagnostic}
         selectSearchResult={selectSearchResult}
         jumpToProjectDiagnostic={jumpToProjectDiagnostic}
-        cellManagerEntries={cellManagerEntries}
         editorCommands={editorCommands}
         exportDesignNetlist={exportDesignNetlist}
         workspaceReopen={workspaceReopen}
@@ -5485,7 +5883,45 @@ function WorkspaceEditor({
             }}
           />
         ) : null}
-        {!capabilities.community || leftPanelMode === "library" ? (
+        {leftPanelMode === "hierarchy" ? (
+          <CellHierarchyTree
+            key={projectSessionId}
+            project={project}
+            roots={hierarchyRoots}
+            activeDocumentId={document.id}
+            path={documentStack}
+            expandedKeys={hierarchyExpanded}
+            onExpandedKeysChange={setHierarchyExpanded}
+            selectedInstanceIds={selectedIds}
+            usesKey={hierarchyUsesKey}
+            onUsesKeyChange={setHierarchyUsesKey}
+            open={visibleLibraryPanelOpen}
+            actions={{
+              open: openCellOccurrence,
+              openDefinition: (id) => openCellOccurrence(id, []),
+              properties: openCellProperties,
+              rename: renameCell,
+              newChild: (id, path) => {
+                openCellOccurrence(id, path);
+                beginNewChild();
+              },
+              newCell: () => beginNewCell("root"),
+              place: placeCellFromTree,
+              drop: dropCellFromTree,
+              setTop: (id) => void setTopCell(id),
+              remove: (id) => void deleteCell(id),
+              makeUnique: hierarchyRefactor.makeUnique,
+              replace: setReplaceUse,
+              flatten: hierarchyRefactor.flatten,
+              external: openExternalCircuits,
+              // Cloud import needs the Web build's Project store.
+              ...(!import.meta.env?.ICM_DESKTOP
+                ? { importCell: () => setImportCellOpen(true) }
+                : {}),
+              notice: setStatus,
+            }}
+          />
+        ) : !capabilities.community || leftPanelMode === "library" ? (
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
@@ -6437,6 +6873,26 @@ function WorkspaceEditor({
                             setCellManagerOpen(true);
                           }
                         : undefined,
+                      hierarchyParameters: selectedHierarchyCell
+                        ? {
+                            project,
+                            parent: document,
+                            cell: selectedHierarchyCell,
+                            instance: selectedInstance,
+                            onDefinition: () =>
+                              openCellProperties(selectedHierarchyCell.id),
+                            onChange: (name, value) =>
+                              transact([
+                                {
+                                  kind: "patch_instance_netlist_parameters",
+                                  instanceId: selectedInstance.id,
+                                  ...(value === null
+                                    ? { unset: [name] }
+                                    : { set: { [name]: value } }),
+                                },
+                              ]).ok,
+                          }
+                        : null,
                       cellSymbolLayout: selectedBlockLayout
                         ? {
                             target: selectedBlockLayout,
@@ -7560,6 +8016,29 @@ function WorkspaceEditor({
               setStatus("Text cancelled");
             },
           }}
+          navigation={
+            <HierarchyBreadcrumb
+              project={project}
+              activeDocumentId={document.id}
+              path={documentStack}
+              onOpen={(id, path, fromInstanceId) => {
+                openCellOccurrence(id, path);
+                if (fromInstanceId) selectOnly("instance", [fromInstanceId]);
+              }}
+              onUp={returnToParentDocument}
+              onTop={returnToTopDocument}
+              onShowTree={() => showLeftPanel("hierarchy")}
+              onShowUses={() => {
+                showLeftPanel("hierarchy");
+                setHierarchyUsesKey(
+                  hierarchyPathKey(
+                    documentStack[0]?.parentDocumentId ?? document.id,
+                    documentStack,
+                  ),
+                );
+              }}
+            />
+          }
           notice={
             !import.meta.env?.ICM_DESKTOP && galleryDailyLimit ? (
               <GalleryDailyLimitCard
@@ -7581,6 +8060,15 @@ function WorkspaceEditor({
             openSelectedComponentDefinition={openSelectedComponentDefinition}
             hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
+            // A lone device keeps its menu to direct actions; a Cell from one
+            // part is under Circuit › Hierarchy.
+            hierarchyRefactor={{
+              ...refactorActions,
+              fromSelection: {
+                ...refactorActions.fromSelection,
+                enabled: selectedIds.length > 1,
+              },
+            }}
             coupleInductors={(() => {
               const edit = planCoupleInductors(document, selectedIds);
               if (!edit || edit.kind !== "set_inductor_coupling") return null;

@@ -8,6 +8,18 @@ export const LazyCellManagerDialog = lazyChunk("dialog", () =>
   })),
 );
 
+export const LazyCellPropertiesDialog = lazyChunk("dialog", () =>
+  import("../features/hierarchy/cell-properties-dialog").then((module) => ({
+    default: module.CellPropertiesDialog,
+  })),
+);
+
+export const LazyImportCellDialog = lazyChunk("dialog", () =>
+  import("../features/hierarchy/import-cell-dialog").then((module) => ({
+    default: module.ImportCellDialog,
+  })),
+);
+
 export const LazyCellInterfaceConfirmationDialog = lazyChunk("dialog", () =>
   import("../features/hierarchy/cell-interface-confirmation").then(
     (module) => ({

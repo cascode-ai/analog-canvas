@@ -727,6 +727,19 @@ const SUPPLY_NAME = /^(?:[ad]?vdd|vcc|vpwr|vpos|vplus|pwr)/iu;
 const GROUND_NAME = /^(?:[ad]?vss|[ad]?gnd|vee|vgnd|vneg|ground)|^0$/iu;
 const OUTPUT_NAME = /^(?:v?o(?:ut)?[pn+-]?|q|qb|qn|y|z)$|^v?out/iu;
 
+/**
+ * What a Cell Pin's name alone says it is, as imported Pins are read: a
+ * supply, a ground or an output; undefined when the name says nothing.
+ */
+export function cellPinNameRole(
+  name: string,
+): "supply" | "ground" | "output" | undefined {
+  if (SUPPLY_NAME.test(name)) return "supply";
+  if (GROUND_NAME.test(name)) return "ground";
+  if (OUTPUT_NAME.test(name)) return "output";
+  return undefined;
+}
+
 /** Supplies above, grounds below, outputs right and everything else left. A
  * name says it first; otherwise a Net only drains and collectors drive is an
  * output. */
@@ -736,9 +749,10 @@ function cellPinSide(
   nets: readonly Net[],
   instances: readonly Instance[],
 ): CellPinSide {
-  if (SUPPLY_NAME.test(name)) return "top";
-  if (GROUND_NAME.test(name)) return "bottom";
-  if (OUTPUT_NAME.test(name)) return "right";
+  const role = cellPinNameRole(name);
+  if (role === "supply") return "top";
+  if (role === "ground") return "bottom";
+  if (role === "output") return "right";
   let drives = 0;
   let senses = 0;
   for (const terminal of nets.find((net) => net.id === netId)?.terminals ??

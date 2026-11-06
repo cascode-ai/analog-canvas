@@ -13,7 +13,8 @@ import {
   revealPropertiesShelf,
   awaitEditorReady,
   setComponentParameter,
-  openCellManager,
+  createRootCell,
+  openHierarchyDefinition,
   openEditor,
   readAgentClaim,
 } from "./editor-fixtures.js";
@@ -815,21 +816,13 @@ test("keeps one paired working copy through Cell switches, a render crash, refre
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
 
   // Switching Cells keeps the one Project session.
-  let manager = await openCellManager(page);
-  await manager.getByRole("button", { name: "New Cell" }).click();
-  const cellEditor = page.getByRole("dialog", { name: "New Cell" });
-  await cellEditor.getByLabel("Cell name").fill("AgentLifecycleCell");
-  await cellEditor.getByRole("button", { name: "Create" }).click();
+  await createRootCell(page, "AgentLifecycleCell");
   const childDocumentId = await page
     .getByTestId("active-document-id")
     .innerText();
   expect(childDocumentId).not.toBe(documentId);
   const openCell = async (name: string | RegExp) => {
-    manager = await openCellManager(page);
-    await manager
-      .locator(".cell-manager-list-item")
-      .filter({ hasText: name })
-      .dblclick();
+    await openHierarchyDefinition(page, name);
   };
   await openCell(/Top/u);
   await openCell("AgentLifecycleCell");

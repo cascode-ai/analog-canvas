@@ -4,7 +4,7 @@ import {
   parseSavedProject,
   copyNetlistText,
   downloadBytes,
-  openCellManagerTab,
+  openExternalCircuits,
   openProjectFile as openFile,
   openEditor,
   readAgentClaim,
@@ -258,7 +258,7 @@ async function editFromMenu(page: Page, reference: string) {
   return componentEditor(page);
 }
 async function openExternalCircuit(page: Page, name: string) {
-  const manager = await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   await manager
     .locator(".cell-manager-list-item")
     .filter({ hasText: name })
@@ -3116,14 +3116,14 @@ test("native Save draft keeps an existing placeholder owner's name and terminals
   });
   await openProjectFile(page, project);
   await awaitEditorReady(page);
-  // Cell Manager saves the interface-only owner's first draft.
+  // External Circuits saves the interface-only owner's first draft.
   let manager = await openExternalCircuit(page, "legacy_gain");
   await button(manager, "Define implementation…").click();
   await netlist(manager).fill(".subckt legacy_gain A B\n");
   await text(manager, "More").click();
   await button(manager, "Save draft").click();
   await expect(manager.getByRole("status")).toContainText("Saved draft");
-  await manager.getByLabel("Close Cell Manager").click();
+  await manager.getByLabel("Close External Circuits").click();
   const linked = await readProject(page);
   const source = linked.modelSources![0]!;
   const owner = linked.externalSubcircuitDefinitions[0]!;
@@ -3138,7 +3138,7 @@ test("native Save draft keeps an existing placeholder owner's name and terminals
   await text(editor, "More").click();
   await button(editor, "Save draft").click();
   await expect(editor.getByRole("status")).toContainText("Saved draft");
-  await editor.getByLabel("Close Cell Manager").click();
+  await editor.getByLabel("Close External Circuits").click();
   const saved = await readProject(page);
   expect(saved.externalSubcircuitDefinitions).toEqual([owner]);
   expect(saved.modelSources![0]!.draft!.files[0]!.text).toBe(
@@ -3559,7 +3559,7 @@ test("native port removal captures repaired custom artwork and detaches removed 
     .getByLabel("Migrate finite_gain.OUT")
     .selectOption("__disconnect");
   await applyModel(manager);
-  await button(manager, "Close Cell Manager").click();
+  await button(manager, "Close External Circuits").click();
   const after = await readProject(page);
   expect(
     after.externalSubcircuitDefinitions[0]!.terminals.map(

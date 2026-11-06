@@ -27,7 +27,7 @@ rendering and recovery.
   starts `passive`. Duplicate names are valid; placement and rename change only
   the selected Pin (never attach, merge or sync).
 - **Enter Cell** opens only a hierarchical Instance. A Pin shows only its
-  terminal-name annotation; direction lives in Cell Manager. Caller
+  terminal-name annotation; direction lives in Cell properties. Caller
   reconciliation compares the name projection before/after, does nothing while
   the old-name group survives, and never merges caller Nets.
 - Delete reuses the instance/route deletion proposal. A run that only tapped the
@@ -137,6 +137,15 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 - Reference labels keep four units between their ink and the symbol ink, at
   whole-unit coordinates; eight 45° turns restore them.
 
+### Drawing toolbar
+
+- Undo, Redo, Wire, No Connect, Text and the annotation tools are named icons;
+  hover or focus shows the name and shortcut at once. **Properties** and
+  **Reset labels** keep their text.
+- **Hierarchy**, beside Insert and Library, shows or hides the hierarchy tree.
+  In the compact layout one side shows at a time: a left panel and the
+  Netlist or Project Code panel close each other.
+
 ### Cell symbol layout
 
 - The canonical session pins a definition and invoking occurrence by identity,
@@ -175,9 +184,10 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 
 ### No Connect
 
-- Compact tool labels show **NoConn**; explanatory tooltips retain **No Connect**.
-  The toolbar, Library tile and `I` search (`NC`, `noconn`,
-  `No Connect`) activate the same marking tool, never create an Instance.
+- The toolbar icon is named **No Connect** and explained in its tooltip; the
+  status bar, preview and Insert list use **NoConn**. The toolbar, Library
+  tile and `I` search (`NC`, `noconn`, `No Connect`) activate the same marking
+  tool, never create an Instance.
 - Hover and click choose the nearest visible device terminal within 12 screen
   pixels. Ambiguous overlapping terminals are not guessed. The preview names
   the target and distinguishes connected and already-marked pins.

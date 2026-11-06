@@ -53,6 +53,12 @@ export interface EditorNavigationControllerDependencies {
    * Absent when the canvas is not mounted, which leaves fit to the element.
    */
   measureCanvasView?: () => CanvasView | null;
+  /**
+   * Told which Cell each fit framed. A fit measures the overlays present when
+   * it runs, before a navigation's instance path appears or goes, so the
+   * editor fits that Cell again once they have (#1686).
+   */
+  onFit?: (documentId: string) => void;
   openDocument: (documentId: string) => SchematicDocument | null | undefined;
   resetInteractionState: () => void;
   selectOnly: (kind: SelectionKind, ids: readonly string[]) => void;
@@ -89,6 +95,7 @@ export function createEditorNavigationController({
   defaultViewBox,
   setViewBox,
   measureCanvasView,
+  onFit,
   openDocument,
   resetInteractionState,
   selectOnly,
@@ -335,6 +342,7 @@ export function createEditorNavigationController({
       fitViewCamera(bounds, grid, measureCanvasView?.() ?? null),
       grid,
     );
+    onFit?.(target.id);
   };
 
   // The Cell Manager tree descends into one concrete block occurrence.

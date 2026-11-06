@@ -43,7 +43,10 @@ import {
   ModelSourceApplyError,
   modelSourceMigrationResolver,
 } from "./model-source-planner.js";
-import { reviewedExternalDefinitionEditIssue } from "./hierarchy-planner.js";
+import {
+  cellDeletionRefusal,
+  reviewedExternalDefinitionEditIssue,
+} from "./hierarchy-planner.js";
 
 import {
   MAX_SCHEMATIC_EDITS_PER_TRANSACTION,
@@ -877,27 +880,19 @@ function applyProjectTransaction(
           `Document does not exist: ${edit.documentId}`,
         );
       }
-      if (edit.documentId === candidate.topDocumentId) {
+      const refusal = cellDeletionRefusal(candidate, edit.documentId);
+      if (refusal?.reason === "top") {
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",
           "The top Cell cannot be deleted",
         );
       }
-      const caller = candidate.documents.flatMap((document) =>
-        document.instances.flatMap((instance) => {
-          const binding = instance.netlist?.binding;
-          return binding?.kind === "subcircuit" &&
-            binding.childDocumentId === edit.documentId
-            ? [{ documentId: document.id, instanceId: instance.id }]
-            : [];
-        }),
-      )[0];
-      if (caller) {
+      if (refusal) {
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",
-          `Cell ${edit.documentId} is still referenced by ${caller.documentId}.${caller.instanceId}`,
+          `Cell ${edit.documentId} is still referenced by ${refusal.documentId}.${refusal.instanceId}`,
         );
       }
       candidate.documents.splice(index, 1);
