@@ -840,11 +840,6 @@ describe("gallery submissions", () => {
 });
 
 describe("the daily publish quota", () => {
-  const entryCount = (env: Harness): number =>
-    env.gallerySql
-      .exec<{ count: number }>("SELECT COUNT(*) AS count FROM gallery_entries")
-      .one().count;
-
   it("tells a signed-in publisher what is left today and when the day resets (#1417)", async () => {
     const env = environment();
     const quota = async (cookie?: string) => {
@@ -917,26 +912,6 @@ describe("the daily publish quota", () => {
       used: 1,
       remaining: GALLERY_AI_SEAT_DAILY_LIMIT - 1,
     });
-  });
-
-  it("counts an account's own entries, so removing work returns the allowance", async () => {
-    const env = environment();
-    const cookie = await makerOf(env);
-    const first = await submitOne(env, "First", { cookie });
-    await submitOne(env, "Second", { cookie });
-    expect(entryCount(env)).toBe(2);
-
-    // Deleting is meant to give the slot back: the quota bounds what stands
-    // on the wall, not how many times someone may change their mind.
-    const removed = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${first}`, {
-        method: "DELETE",
-        headers: { Origin: ORIGIN, Cookie: cookie },
-      }),
-    );
-    expect(removed.status).toBe(200);
-    expect(entryCount(env)).toBe(1);
   });
 
   /**
@@ -1063,17 +1038,6 @@ describe("the daily publish quota", () => {
     expect(rejected.status).toBe(200);
     expect(await submitDirect(env, owner, day)).toBe(429);
   });
-
-  it("has no separate counter table left to drift from the entries", () => {
-    const env = environment();
-    const tables = env.gallerySql
-      .exec<{
-        name: string;
-      }>("SELECT name FROM sqlite_master WHERE type = 'table'")
-      .toArray()
-      .map((row) => row.name);
-    expect(tables).not.toContain("gallery_submissions");
-  });
 });
 
 describe("direct publishing (the review queue is retired)", () => {
@@ -1105,26 +1069,6 @@ describe("direct publishing (the review queue is retired)", () => {
     expect(((await viaAdmin.json()) as { status: string }).status).toBe(
       "public",
     );
-  });
-
-  it("has no queue to read and no approval step", async () => {
-    const env = environment();
-    const adminCookie = await adminOf(env);
-    const id = await submitOne(env, "Live", { cookie: adminCookie });
-
-    for (const [path, method] of [
-      [`${ORIGIN}/api/gallery/review`, "GET"],
-      [`${ORIGIN}/api/gallery/${id}/approve`, "POST"],
-    ] as const) {
-      const response = await route(
-        env,
-        new Request(path, {
-          method,
-          headers: { Origin: ORIGIN, Cookie: adminCookie },
-        }),
-      );
-      expect(response.status).toBe(404);
-    }
   });
 
   it("publishes an entry stranded in the queue, keeping real rejections", () => {

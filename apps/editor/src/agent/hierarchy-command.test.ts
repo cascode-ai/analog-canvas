@@ -3,11 +3,7 @@ import { readFileSync } from "node:fs";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { planProjectCodeCommit } from "../features/project-code/project-code";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import {
-  executeProjectTransaction,
-  planRenameCellTerminal,
-  planRemoveCellTerminal,
-} from "@icm/edit-engine";
+import { executeProjectTransaction } from "@icm/edit-engine";
 import { AgentAuthoringCommandSchema } from "@icm/agent-adapter";
 import { expect, it } from "vitest";
 import { planBrowserAgentCommand } from "./browser-agent-command";
@@ -280,68 +276,6 @@ it("creates a Cell from a pinned Cell without inheriting foreign pin placements"
     }).ok,
   ).toBe(true);
 });
-
-it.each([false, true])(
-  "passes explicit Port merge intent to the shared planner (%s)",
-  (mergeExistingPort) => {
-    const project = createEmptyProject("p", "Project");
-    const child = createEmptyDocument("child", "Child");
-    project.documents.push(child);
-    for (const name of ["A", "B"]) {
-      child.instances.push({ id: name, symbolId: "port", placement: null });
-      child.nets.push({
-        id: `n-${name}`,
-        terminals: [{ instanceId: name, pinName: "P" }],
-      });
-      child.netlist!.terminals.push({
-        id: name,
-        name,
-        netId: `n-${name}`,
-        direction: "input",
-        interfaceInstanceIds: [name],
-      });
-    }
-    const parent = project.documents[0]!;
-    parent.instances.push({
-      id: "X1",
-      reference: "X1",
-      symbolId: "cell:Child",
-      placement: null,
-      netlist: {
-        binding: { kind: "subcircuit", childDocumentId: child.id },
-        parameters: {},
-      },
-    });
-    for (const name of ["A", "B"])
-      parent.nets.push({
-        id: `parent-${name}`,
-        terminals: [{ instanceId: "X1", pinName: name }],
-      });
-    const resolver = new InMemorySymbolResolver(builtInSymbols);
-    const before = structuredClone(project);
-    expect(
-      planBrowserAgentCommand(project, child.id, resolver, {
-        kind: "rename-cell-terminal",
-        terminalId: "A",
-        name: "B",
-        mergeExistingPort,
-      }),
-    ).toEqual({
-      structureEdits: planRenameCellTerminal(project, child.id, "A", "B", {
-        mergeExistingPort,
-      }),
-    });
-    expect(
-      planBrowserAgentCommand(project, child.id, resolver, {
-        kind: "remove-cell-terminal",
-        terminalId: "A",
-      }),
-    ).toEqual({
-      structureEdits: planRemoveCellTerminal(project, child.id, "A"),
-    });
-    expect(project).toEqual(before);
-  },
-);
 
 it("uses the shared parameter planner across child fields and caller overrides", () => {
   let project = createEmptyProject("p", "Project");

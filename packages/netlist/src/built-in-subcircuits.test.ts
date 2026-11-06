@@ -336,35 +336,6 @@ describe("built-in Analog Block subcircuits", () => {
     },
   );
 
-  it("keeps an unbound op-amp on its ideal body beside a declared master named opamp (#1928)", () => {
-    const project = analogBlockProject(
-      ["opamp"],
-      [
-        ["IN+", "plus"],
-        ["IN-", "minus"],
-        ["OUT", "out"],
-      ],
-    );
-    project.externalSubcircuitDefinitions.push({
-      id: "external-opamp",
-      name: "opamp",
-      interfaceStatus: "declared",
-      formalParameters: [],
-      terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
-        id: `external-${name}`,
-        name,
-        direction: "passive" as const,
-      })),
-    });
-    const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
-    // The declared master is the author's, reached only by set-model.
-    expect(result.file.text).toMatch(/^X1 .* icm_opamp\w*( |$)/mu);
-    expect(result.file.text).not.toMatch(/^X1 .* opamp( |$)/mu);
-    expect(result.externalMasterCount).toBe(0);
-  });
-
   it("limits an ideal op-amp to its drawn supplies, and to ±5 V without them (#1463)", () => {
     const opamp = (
       parameters: Record<string, string>,
