@@ -587,7 +587,9 @@ export class RegionalSessionDO {
       )
       .one();
     if (row.next !== null)
-      await this.state.storage.setAlarm(Math.max(this.now() + 1000, row.next));
+      // Drain overdue batches without spending another second of every lease.
+      // The bounded batch and awaited network calls still limit concurrency.
+      await this.state.storage.setAlarm(Math.max(this.now() + 100, row.next));
   }
 
   async alarm(): Promise<void> {
