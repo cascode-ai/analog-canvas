@@ -65,6 +65,22 @@ export function isRegionalAuthorityBrowserRoute(
   ].includes(method + " " + path);
 }
 
+/** Account operations delegated by a regional session, never by a browser proxy. */
+export function isRegionalAccountRoute(method: string, path: string): boolean {
+  if (
+    method === "DELETE" &&
+    /^\/api\/auth\/owner-tokens\/[a-zA-Z0-9-]{1,64}$/u.test(path)
+  )
+    return true;
+  return [
+    "POST /api/auth/profile",
+    "POST /api/auth/users/role",
+    "GET /api/auth/admin/stats",
+    "GET /api/auth/owner-tokens",
+    "POST /api/auth/owner-tokens",
+  ].includes(method + " " + path);
+}
+
 export function nonce(): string {
   return base64url(crypto.getRandomValues(new Uint8Array(32)));
 }

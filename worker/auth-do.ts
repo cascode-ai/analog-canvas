@@ -66,7 +66,7 @@ function canonicalAuthorityRequest(
     return request;
   const rpc =
     request.method === "POST" &&
-    ["exchange", "renew", "identities"].some(
+    ["exchange", "renew", "identities", "account", "owner-token"].some(
       (action) => url.pathname === REGIONAL_PREFIX + action,
     );
   if (!rpc && !isRegionalAuthorityBrowserRoute(request.method, url.pathname))
@@ -466,6 +466,10 @@ function noStoreJson(payload: unknown, status = 200): Response {
 export class AuthDO {
   private readonly sql: SqlStorage;
   private regionalAuthority?: RegionalAuthority;
+  private readonly regionalAccountRequests = new WeakMap<
+    Request,
+    SessionUser
+  >();
   /**
    * Provider/network seam; tests replace it. The arrow wrapper is
    * load-bearing: assigning the global `fetch` itself and invoking it as
@@ -627,6 +631,20 @@ export class AuthDO {
             .toArray()[0];
           return row ? this.userWithRestrictions(row) : null;
         },
+        async (request, user) => {
+          this.regionalAccountRequests.set(request, user);
+          try {
+            return await this.fetch(request);
+          } finally {
+            this.regionalAccountRequests.delete(request);
+          }
+        },
+        (token) =>
+          this.ownerTokenUser(
+            new Request("https://auth/internal/owner-token-user", {
+              headers: { authorization: "Bearer " + token },
+            }),
+          ),
       );
       return this.regionalAuthority.fetch(request);
     }
@@ -935,6 +953,8 @@ export class AuthDO {
   // --- sessions ---------------------------------------------------------
 
   private async sessionUser(request: Request): Promise<SessionUser | null> {
+    const regional = this.regionalAccountRequests.get(request);
+    if (regional) return regional;
     return this.tokenUser(
       parseCookies(request.headers.get("Cookie"))[AUTH_SESSION_COOKIE],
     );

@@ -33,6 +33,22 @@ serves local authorization. Resource replication is owned by
 - Ordinary `sessionUserOf()` calls read local state without network I/O. Its
   `SessionUser | null` shape remains unchanged. Local authority-originated flags
   are never inferred from email or granted by a resource store.
+- Account operations use the explicit `isRegionalAccountRoute` allowlist on
+  both peers. The regional entry checks the browser origin and active local
+  session; the authority revalidates its grant and runs existing account
+  permission checks. Browser-supplied identities, headers and source cookies
+  never establish the delegated actor. Responses refresh the local identity;
+  a session generation fences stale renewal responses. Account operations for
+  one regional session run in order and revalidate the current lease when they
+  begin. Local reads and logout do not wait for that queue; logout rejects
+  pending responses and queued operations. Account
+  operations require authority connectivity. RPC requests are size-bounded;
+  successful account results retain the existing account API's listing range.
+- Owner token management retains its existing Owner-only session checks.
+  Import-token lookup uses only the internal AUTH binding and an authenticated
+  authority RPC; it creates no session or lease and caches no authorization.
+  Invalid/revoked tokens yield no user; resource owners still enforce `isOwner`
+  and the import-only scope.
 - The authorization lease and alarm interval are defined in the
   [protocol module](../../worker/regional-auth-contract.ts). Background alarms
   renew before expiry; a failed renewal never extends a lease. Expired leases
@@ -66,15 +82,17 @@ on `RegionalSessionDO`. Invalid or absent configuration keeps the new surface
 closed. HTTPS is required except explicit loopback acceptance origins. No
 production bindings, migrations or credentials are activated by this change.
 
-| Endpoint                                       | Caller and result                                                                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Regional `GET /api/auth/regional/start`        | Browser; starts a bound handoff to the authority.                                                                               |
-| Authority `GET /api/auth/regional/authorize`   | Browser; reuses existing login, then returns a code and state to the configured regional callback.                              |
-| Regional `GET /api/auth/regional/callback`     | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                  |
-| Authority `POST /api/auth/regional/exchange`   | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt}`.                                                          |
-| Authority `POST /api/auth/regional/renew`      | Authenticated region; `{grant}` → `{user, expiresAt}`.                                                                          |
-| Authority `POST /api/auth/regional/identities` | Authenticated importer; `{userIds}` (up to 100 IDs) → `{identities: [{id, status: "found", user} \| {id, status: "missing"}]}`. |
-| Regional `GET /api/auth/me`                    | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                         |
+| Endpoint                                        | Caller and result                                                                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Regional `GET /api/auth/regional/start`         | Browser; starts a bound handoff to the authority.                                                                                  |
+| Authority `GET /api/auth/regional/authorize`    | Browser; reuses existing login, then returns a code and state to the configured regional callback.                                 |
+| Regional `GET /api/auth/regional/callback`      | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                     |
+| Authority `POST /api/auth/regional/exchange`    | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt}`.                                                             |
+| Authority `POST /api/auth/regional/renew`       | Authenticated region; `{grant}` → `{user, expiresAt}`.                                                                             |
+| Authority `POST /api/auth/regional/identities`  | Authenticated importer; `{userIds}` (up to 100 IDs) → `{identities: [{id, status: "found", user} \| {id, status: "missing"}]}`.    |
+| Authority `POST /api/auth/regional/account`     | Authenticated region; `{grant, method, path, body}` → `{result: {status, body}, user, expiresAt}` for the exact account allowlist. |
+| Authority `POST /api/auth/regional/owner-token` | Authenticated region; `{token}` → `{user}` or 401. Only internal import authorization consumes this result.                        |
+| Regional `GET /api/auth/me`                     | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                            |
 
 Authority POSTs require `Authorization: Bearer <client secret>` over the pinned
 HTTPS endpoint; no CORS grant is issued. They accept bounded JSON bodies.
