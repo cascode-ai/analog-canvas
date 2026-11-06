@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><title>Circuit Canvas for PowerPoint</title>
+  <style>
+    body {
+      font:
+        17px/1.7 system-ui,
+        sans-serif;
+      max-width: 850px;
+      margin: 40px auto;
+      padding: 0 24px;
+      color: #203630;
+    }
+    h1,
+    h2 {
+      color: #176d55;
+    }
+    code {
+      background: #eef4f0;
+      padding: 3px 6px;
+    }
+  </style>
+  <h1>Circuit Canvas for PowerPoint</h1>
+  <p>
+    An optional local integration for Windows x64 desktop PowerPoint. The slide
+    displays a transparent SVG; the complete editable Project, displayed Cell
+    and three previous saved snapshots travel with the picture.
+  </p>
+  <h2>Install</h2>
+  <p>
+    Save and close PowerPoint and any circuit editor windows. Extract the entire
+    ZIP to a permanent folder, then double-click <b>install.cmd</b> in Windows
+    File Explorer. This registers the add-in for your Windows user without
+    administrator privileges. Restart PowerPoint and open the
+    <b>Circuit Canvas</b> tab. Keep the extracted folder in place.
+  </p>
+  <h2>Draw and edit</h2>
+  <ol>
+    <li>Select the destination slide and choose <b>New circuit</b>.</li>
+    <li>
+      Draw in the local editor. Press <b>I</b> to insert a component,
+      <b>R</b> to rotate, <b>W</b> to wire and <b>Esc</b> to end an operation.
+      Text fields retain normal typing.
+    </li>
+    <li>
+      Choose <b>Save to PowerPoint</b> and wait for the acknowledgement. The
+      drawing returns to the slide where you opened the editor, even if you
+      switched slides.
+    </li>
+    <li>
+      Save the presentation in PowerPoint with <b>Ctrl+S</b>. The editor's
+      Ctrl+S saves its local Project; it does not save the presentation.
+    </li>
+  </ol>
+  <p>
+    To continue later, select the circuit picture and choose
+    <b>Edit circuit</b>. Position, size, rotation and stacking order are
+    preserved on update. Keep one editor window open at a time. Select
+    <b>Open history version</b> to choose an earlier save, or
+    <b>Export selected circuit</b> for a portable <code>.icproj.json</code> copy
+    of the selected circuit's editable data.
+  </p>
+  <p>
+    Choose <b>Import selected circuit</b> and select an exported
+    <code>.icproj.json</code> file to open it in the local editor. Choose the
+    Cell to display, then <b>Save to PowerPoint</b> to insert a new editable
+    circuit on the captured slide. Import does not replace an existing picture
+    or change the source file. Cancel leaves the presentation unchanged.
+  </p>
+  <h2>Close and recovery</h2>
+  <p>
+    <b>Save to PowerPoint and close</b> waits for PowerPoint to accept the
+    snapshot. A failure or edits made during saving keep the editor open. Other
+    Project tabs save locally. Closing without updating leaves the slide's
+    previous drawing intact. If PowerPoint is busy with a dialog, dismiss it;
+    the pending update is received automatically. Save the presentation
+    afterwards.
+  </p>
+  <p>
+    Explicit saves also keep local recovery copies in
+    <code>%LOCALAPPDATA%\CircuitCanvas\Sessions</code>. Shared library
+    components live in
+    <code>%LOCALAPPDATA%\CircuitCanvas\components.json</code>; placed components
+    travel in the Project, but unused library components require copying that
+    file to another computer.
+  </p>
+  <h2>Update and uninstall</h2>
+  <p>
+    Save and close both applications before installing from a new permanent
+    folder. Run <b>uninstall.cmd</b> to remove this add-in's registration.
+    Presentations and recovery files remain. Use
+    <b>Export selected circuit</b> before converting pictures to shapes or
+    removing document metadata.
+  </p>
+  <h2>Compatibility</h2>
+  <p>
+    Tested with Microsoft 365 PowerPoint on Windows x64. macOS, web PowerPoint,
+    Windows ARM and 32-bit Office are not supported by this package. The offline
+    editor provides drawing and export; hosted accounts, Gallery publishing and
+    cloud simulation are not supplied. Other computers can display the SVG
+    without the add-in; editing requires installing it. Replacing the SVG does
+    not preserve picture-specific animations, cropping, hyperlinks or effects.
+  </p>
+  <h2>License and source</h2>
+  <p>
+    Based on
+    <a href="https://github.com/cascode-ai/analog-canvas">Analog Canvas</a>,
+    licensed under AGPL-3.0-only. The package includes the corresponding source
+    archive <code>source.zip</code> and <code>BUILD.md</code> instructions, and
+    retains the desktop runtime's license notices.
+  </p>
+</html>

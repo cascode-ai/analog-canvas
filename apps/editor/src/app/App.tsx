@@ -18,6 +18,7 @@ import {
 } from "../features/hierarchy/hierarchy-refactor-commands";
 import { createChildCellDraft } from "../features/hierarchy/new-cell";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import { PowerPointSave } from "./powerpoint-save";
 import { useSignalMemberInspection } from "../features/selection/use-signal-member-inspection";
 import { editorSnapshotDerived } from "./editor-snapshot-derived-cache";
 import {
@@ -5500,6 +5501,28 @@ function WorkspaceEditor({
   };
   return (
     <main className="app-shell">
+      {import.meta.env.ICM_DESKTOP && (
+        <PowerPointSave
+          project={project}
+          document={document}
+          blocker={currentEditBlocker}
+          capture={captureAuthoredProject}
+          openDocument={selectDocumentFromHierarchy}
+          readProject={(id) => {
+            const matches = projectTabs
+              .entries()
+              .filter(({ session }) => session.controller.project.id === id);
+            const entry = matches.length === 1 ? matches[0] : null;
+            return entry
+              ? {
+                  tabId: entry.id,
+                  project: entry.session.controller.project,
+                  documentId: entry.session.controller.document.id,
+                }
+              : null;
+          }}
+        />
+      )}
       {publishedNotice ? (
         <Suspense fallback={null}>
           <GalleryPublishedNotice

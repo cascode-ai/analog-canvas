@@ -1,5 +1,9 @@
 # Analog Canvas internal desktop preview
 
+The [optional PowerPoint integration](../powerpoint/README.md) adds an English
+Office ribbon and a local save destination to sessions launched by its add-in.
+Standalone launches keep the normal desktop file and close behavior.
+
 Windows x64, unsigned unpacked application. Extract the ZIP and run
 `Analog-Canvas-Windows-x64/Analog Canvas Preview.exe`. Keep that entire folder together.
 
