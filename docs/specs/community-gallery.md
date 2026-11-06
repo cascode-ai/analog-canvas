@@ -117,7 +117,8 @@ entries, keyset cursor, limit ≤60.
   datasets' circuits), `liked=1` (signed out selects none), `parts=0-5,…` (ANY
   taxonomy size; unknown narrows nothing), `q`, authorized `attention`/`reason`.
 - `order`: `newest` (default), `oldest`, `parts`/`fewest` (unknown counts
-  last), `name`/`name-desc` (case-insensitive, then id), or `random` with
+  last), `likes` (most first, then newest), `name`/`name-desc`
+  (case-insensitive, then id), or `random` with
   `seed=[a-z0-9]{1,16}`; the cursor is opaque. A page's ids are sorted off
   the covering metadata index and its tiles read off the card index, never
   the rows behind their Projects and previews.

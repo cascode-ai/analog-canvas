@@ -44,6 +44,7 @@ describe("the landing page's early Gallery requests (#1592)", () => {
       "oldest",
       "parts",
       "fewest",
+      "likes",
     ] as GalleryOrder[]) {
       const asked: string[] = [];
       const fetchLike = vi.fn(async (input: RequestInfo | URL) => {
@@ -102,7 +103,7 @@ describe("the landing page's early Gallery requests (#1592)", () => {
     expect(Object.keys(landing.window.__icmGalleryEarly as object)).toEqual(
       urls,
     );
-    for (const order of ["newest", "oldest", "parts", "fewest"]) {
+    for (const order of ["newest", "oldest", "parts", "fewest", "likes"]) {
       const kept = run("/", "", null, order);
       expect(kept.window.__icmGallerySeed).toBeUndefined();
       expect(
