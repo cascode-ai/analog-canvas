@@ -91,7 +91,7 @@ export function mountWebEditor() {
       return undefined;
     let storedFilters: string | null = null;
     try {
-      storedFilters = localStorage.getItem(GALLERY_FILTERS_KEY);
+      storedFilters = sessionStorage.getItem(GALLERY_FILTERS_KEY);
     } catch {
       // An explicit URL filter still works when browser storage is disabled.
     }

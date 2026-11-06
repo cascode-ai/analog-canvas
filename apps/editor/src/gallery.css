@@ -1275,6 +1275,12 @@
   background: #e3ecf8;
 }
 
+/* Where the circuit came from (Virtuoso), not what it is. */
+.gallery-tile-origin {
+  color: #7a4f00;
+  background: #f6ecd8;
+}
+
 .gallery-tile-like {
   display: inline-flex;
   align-items: center;

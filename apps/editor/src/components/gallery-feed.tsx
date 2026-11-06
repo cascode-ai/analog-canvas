@@ -67,6 +67,7 @@ import {
   GallerySearchProgress,
 } from "./gallery-feed-count-panel";
 import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
+import { galleryOriginTagMark } from "../gallery-origin-tags";
 import { GalleryWallTile } from "./gallery-feed-tile";
 import { GalleryWallEmpty } from "./gallery-feed-empty";
 import { GalleryBlockedNotice } from "./gallery-blocked-notice";
@@ -666,6 +667,33 @@ export function GalleryFeed({
                 netlistableOnly={netlistableOnly}
                 withoutNetlistOnly={withoutNetlistOnly}
                 likedOnly={likedOnly}
+                origins={[
+                  ...new Set([
+                    ...tagOptions
+                      .filter(({ count }) => count > 0)
+                      .map(({ tag }) => tag),
+                    ...selectedTags,
+                  ]),
+                ].flatMap((tag) => {
+                  const mark = galleryOriginTagMark(tag);
+                  return mark
+                    ? [
+                        {
+                          tag,
+                          mark,
+                          count:
+                            tagCountsScope !== tagScope
+                              ? "…"
+                              : (
+                                  tagOptions.find(
+                                    (option) => option.tag === tag,
+                                  )?.count ?? 0
+                                ).toLocaleString(),
+                        },
+                      ]
+                    : [];
+                })}
+                selectedTags={selectedTags}
                 updateFilters={updateFilters}
                 quickCount={quickCount}
               />

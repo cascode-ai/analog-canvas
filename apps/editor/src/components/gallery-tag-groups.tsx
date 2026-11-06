@@ -6,6 +6,7 @@ import {
   compareGalleryTagLabels,
   galleryTagLabel,
 } from "../gallery-tag-label";
+import { galleryOriginTagMark } from "../gallery-origin-tags";
 import "./gallery-tag-groups.css";
 
 const TAG_GROUPS = Object.entries(taxonomy.tagsByGroup);
@@ -55,6 +56,7 @@ export function GalleryTagGroups({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // A restored link can select a tag that has since disappeared from the
   // catalogue. Keep it visible and removable instead of hiding that filter.
+  // Origin tags (Virtuoso) are quick filters, not circuit tags.
   const options = [
     ...tags,
     ...[
@@ -62,7 +64,7 @@ export function GalleryTagGroups({
     ]
       .filter((tag) => !tags.some((option) => option.tag === tag))
       .map((tag) => ({ tag, count: 0 })),
-  ];
+  ].filter(({ tag }) => !galleryOriginTagMark(tag));
   const groups = [...TAG_GROUPS.map(([name]) => name), "Custom & legacy"].sort(
     compareGalleryLabels,
   );

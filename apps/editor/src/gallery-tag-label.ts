@@ -1,3 +1,5 @@
+import { galleryOriginTagMark } from "./gallery-origin-tags";
+
 const WHOLE_TAG_LABELS: Record<string, string> = {
   amplifier: "General Amplifier",
   // A logic gate's name on its own. Inside a longer tag, "and" and "or" are
@@ -140,6 +142,8 @@ function tagPartLabel(part: string, leading: boolean): string {
 
 /** Stored tags stay normalized lowercase; this is presentation only. */
 export function galleryTagLabel(tag: string): string {
+  const origin = galleryOriginTagMark(tag);
+  if (origin) return `From ${origin}`;
   const normalized = tag.trim().toLowerCase();
   return (
     WHOLE_TAG_LABELS[normalized] ??

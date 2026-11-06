@@ -643,6 +643,17 @@ describe("The Sim mark", () => {
     expect(tile(entry)).not.toContain("gallery-sim-");
   });
 
+  it("marks where a circuit came from beside Netlist, never among its tags", () => {
+    const shown = tile({ ...entry, tags: ["virtuoso-exported", "ota"] });
+    expect(shown).toContain('data-testid="gallery-origin-divider01"');
+    expect(shown).toContain(">Virtuoso</span>");
+    expect(shown.indexOf("gallery-ai-")).toBeLessThan(
+      shown.indexOf("gallery-origin-"),
+    );
+    expect(shown).toContain("gallery-tile-tag-divider01-ota");
+    expect(shown).not.toContain("gallery-tile-tag-divider01-virtuoso");
+  });
+
   it("is verified from the tile's menu by the Owner's accounts alone", () => {
     const menu = (onVerifySimulation?: () => void) =>
       renderToStaticMarkup(
@@ -674,6 +685,8 @@ describe("GalleryQuickFilters", () => {
     netlistableOnly: false,
     withoutNetlistOnly: false,
     likedOnly: false,
+    origins: [],
+    selectedTags: [],
     updateFilters: () => {},
     quickCount: () => null,
     ...overrides,
@@ -740,6 +753,33 @@ describe("GalleryQuickFilters", () => {
     expect(pressed("gallery-filter-attention")).toEqual([
       { attention: false, attentionKind: null },
     ]);
+  });
+
+  it("filters by origin as a quick filter that keeps the other tags", () => {
+    const origins = [{ tag: "virtuoso-exported", mark: "Virtuoso", count: 3 }];
+    const patches: unknown[] = [];
+    const pressOrigin = (selectedTags: string[]) =>
+      press(
+        GalleryQuickFilters(
+          props({
+            origins,
+            selectedTags,
+            updateFilters: (patch) => patches.push(patch),
+          }),
+        ),
+        "gallery-filter-origin-virtuoso-exported",
+      );
+    expect(pressOrigin(["ota"])).toBe(true);
+    expect(pressOrigin(["ota", "virtuoso-exported"])).toBe(true);
+    expect(patches).toEqual([
+      { tags: ["ota", "virtuoso-exported"] },
+      { tags: ["ota"] },
+    ]);
+    expect(
+      renderToStaticMarkup(
+        createElement(GalleryQuickFilters, props({ origins })),
+      ),
+    ).toContain("From Virtuoso");
   });
 });
 

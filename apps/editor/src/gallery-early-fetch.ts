@@ -80,7 +80,7 @@ export function galleryEarlyFetchScript(): string {
   const shuffledUrl = galleryEarlyUrls("random", "")[0];
   return (
     `if(/^\\/?$/.test(location.pathname)&&(${JSON.stringify(EXAMPLE_HOSTS)}.indexOf(location.hostname)<0||window.${LOCAL_GALLERY_REPLICA}===true)){var raw=null;` +
-    `try{raw=localStorage.getItem(${JSON.stringify(GALLERY_EARLY_FILTERS_KEY)})}catch(e){}` +
+    `try{raw=sessionStorage.getItem(${JSON.stringify(GALLERY_EARLY_FILTERS_KEY)})}catch(e){}` +
     `if((${OPENS_UNFILTERED})((${OPENING_SEARCH})(),raw)){` +
     `var early=window.${GALLERY_EARLY_GLOBAL}={};` +
     // The order the wall opens with (#1615): the reader's kept choice, or a

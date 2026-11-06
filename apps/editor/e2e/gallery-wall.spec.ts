@@ -971,7 +971,7 @@ test("a remembered narrowing loads the wall with its one early request", async (
     return { entries: [ENTRY], nextCursor: null, total: 1 };
   });
   await page.addInitScript(() =>
-    localStorage.setItem(
+    sessionStorage.setItem(
       "icm.gallery-filters.v1",
       JSON.stringify({
         parts: ["6-10"],
@@ -1106,7 +1106,7 @@ test("a reload clears the search and keeps every other filter; a shared search s
   // The search is never remembered, so a later visit opens unsearched.
   const stored = () =>
     page.evaluate(() =>
-      JSON.parse(localStorage.getItem("icm.gallery-filters.v1") ?? "{}"),
+      JSON.parse(sessionStorage.getItem("icm.gallery-filters.v1") ?? "{}"),
     );
   expect(await stored()).toMatchObject({ netlistable: true });
   expect(await stored()).not.toHaveProperty("search");

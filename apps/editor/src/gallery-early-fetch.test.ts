@@ -72,13 +72,12 @@ describe("the landing page's early Gallery requests (#1592)", () => {
     runInNewContext(galleryEarlyFetchScript(), {
       window,
       location: { pathname, search, hostname },
+      // The filters live for the tab, the order for the browser.
+      sessionStorage: {
+        getItem: (key: string) => (key === GALLERY_FILTERS_KEY ? stored : null),
+      },
       localStorage: {
-        getItem: (key: string) =>
-          key === GALLERY_FILTERS_KEY
-            ? stored
-            : key === GALLERY_ORDER_KEY
-              ? order
-              : null,
+        getItem: (key: string) => (key === GALLERY_ORDER_KEY ? order : null),
       },
       fetch,
       performance: timing,

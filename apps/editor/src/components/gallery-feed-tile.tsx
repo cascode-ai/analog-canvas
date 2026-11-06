@@ -7,6 +7,7 @@ import { TilePreview } from "./tile-preview";
 import { galleryPreviewUrl, type GalleryFeedEntry } from "../gallery-client";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 import { galleryTagLabel } from "../gallery-tag-label";
+import { galleryOriginTagMark } from "../gallery-origin-tags";
 import { gallerySourceOfEntryId, type GallerySource } from "../gallery-sources";
 
 const GalleryTileMenu = lazy(() =>
@@ -101,6 +102,13 @@ export function GalleryWallTile({
   // A reference dataset's circuit is read-only, on its own wall or the
   // community's (#1697): no likes, no owner tools.
   const dataset = datasetWall ?? gallerySourceOfEntryId(entry.id);
+  // Where a circuit came from is a mark beside the others; only what it is
+  // stays among its tags.
+  const tags = entry.tags ?? [];
+  const circuitTags = tags.filter((tag) => !galleryOriginTagMark(tag));
+  const origins = [
+    ...new Set(tags.map(galleryOriginTagMark).filter((mark) => mark !== null)),
+  ];
   return (
     <div
       className={
@@ -165,6 +173,16 @@ export function GalleryWallTile({
                 Sim
               </span>
             ) : null}
+            {origins.map((origin) => (
+              <span
+                key={origin}
+                className="gallery-tile-mark gallery-tile-origin"
+                data-testid={`gallery-origin-${entry.id}`}
+                title={`Exported from ${origin}`}
+              >
+                {origin}
+              </span>
+            ))}
           </span>
           <span className="gallery-tile-meta">
             {entry.author ? (
@@ -220,9 +238,9 @@ export function GalleryWallTile({
               {entry.description}
             </span>
           ) : null}
-          {entry.tags && entry.tags.length > 0 ? (
+          {circuitTags.length > 0 ? (
             <span className="gallery-tile-tags">
-              {entry.tags.map((tag) => (
+              {circuitTags.map((tag) => (
                 <button
                   key={tag}
                   type="button"
