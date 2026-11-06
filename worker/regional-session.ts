@@ -156,14 +156,16 @@ export class RegionalSessionDO {
       if (url.pathname === REGIONAL_PREFIX + "start") return this.start(url);
       if (url.pathname === REGIONAL_PREFIX + "callback")
         return this.complete(request, url);
-      if (url.pathname === "/api/auth/providers")
+      if (url.pathname === "/api/auth/providers") {
+        const result = await this.authority("providers", {});
         return answer({
-          github: false,
-          google: false,
-          email: false,
+          github: result.body?.github === true,
+          google: result.body?.google === true,
+          email: result.body?.email === true,
           central: true,
           loginUrl: REGIONAL_PREFIX + "start",
         });
+      }
       if (url.pathname === "/api/auth/me")
         return answer(await this.localUser(request));
     }
@@ -224,6 +226,9 @@ export class RegionalSessionDO {
   }
 
   private async start(url: URL): Promise<Response> {
+    const provider = url.searchParams.get("provider");
+    if (provider !== null && !["github", "google", "email"].includes(provider))
+      return answer({ error: "invalid-provider" }, 400);
     const config = this.config!;
     const state = nonce(),
       verifier = nonce();
@@ -247,6 +252,9 @@ export class RegionalSessionDO {
       state,
       challenge: await digest(verifier),
     }).toString();
+    if (provider) target.searchParams.set("provider", provider);
+    if (url.searchParams.get("select") === "true")
+      target.searchParams.set("select", "true");
     const response = redirect(target.toString());
     response.headers.append(
       "set-cookie",
@@ -372,7 +380,13 @@ export class RegionalSessionDO {
   }
 
   private async authority(
-    action: "exchange" | "renew" | "account" | "owner-token" | "security",
+    action:
+      | "exchange"
+      | "renew"
+      | "account"
+      | "owner-token"
+      | "security"
+      | "providers",
     body: unknown,
   ): Promise<{ status: number; body: Record<string, unknown> | null }> {
     const config = this.config;

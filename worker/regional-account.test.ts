@@ -17,6 +17,169 @@ import {
   transportOrigin,
 } from "./regional-auth.test-support";
 
+it.each(["github", "google", "email"])(
+  "selects %s instead of silently reusing the overseas session",
+  async (provider) => {
+    const h = accounts({
+      GH_OAUTH_CLIENT_ID: "github-test",
+      GH_OAUTH_CLIENT_SECRET: "secret",
+      GOOGLE_CLIENT_ID: "google-test",
+      GOOGLE_CLIENT_SECRET: "secret",
+    });
+    const original = await makerOf(h.source);
+    const local = await h.connect(original);
+    const start = await h.call(
+      "/api/auth/regional/start?provider=" + provider + "&return=%2Feditor",
+      local,
+    );
+    const target = new URL(start.headers.get("location")!);
+    expect(target.searchParams.get("provider")).toBe(provider);
+    const selected = await h.source.authDurable.fetch(
+      new Request(transportOrigin + target.pathname + target.search, {
+        headers: { cookie: original },
+      }),
+    );
+    if (provider === "email") {
+      expect(selected.status).toBe(200);
+      expect(await selected.text()).toContain('id="email-form"');
+    } else {
+      const oauth = new URL(selected.headers.get("location")!);
+      expect(oauth.pathname).toBe(`/api/auth/${provider}/start`);
+      expect(oauth.searchParams.get("return")).not.toContain("provider=");
+      const external = await h.source.authDurable.fetch(
+        new Request(transportOrigin + oauth.pathname + oauth.search),
+      );
+      expect(
+        new URL(external.headers.get("location")!).searchParams.get("prompt"),
+      ).toBe("select_account");
+      const authorization = new URL(external.headers.get("location")!);
+      h.source.authDurable.fetchLike = async (input) => {
+        const endpoint = String(input);
+        if (
+          endpoint === "https://github.com/login/oauth/access_token" ||
+          endpoint === "https://oauth2.googleapis.com/token"
+        )
+          return Response.json({ access_token: "provider-token" });
+        if (endpoint === "https://api.github.com/user")
+          return Response.json({
+            id: 456,
+            login: "chosen",
+            name: "Chosen account",
+          });
+        if (endpoint === "https://api.github.com/user/emails")
+          return Response.json([
+            { email: "chosen@example.test", primary: true, verified: true },
+          ]);
+        if (endpoint === "https://openidconnect.googleapis.com/v1/userinfo")
+          return Response.json({
+            sub: "chosen-google",
+            email: "chosen@example.test",
+            email_verified: true,
+            name: "Chosen account",
+          });
+        throw new Error("Unexpected external provider call");
+      };
+      const callback = new URL(
+        `/api/auth/${provider}/callback`,
+        transportOrigin,
+      );
+      callback.search = new URLSearchParams({
+        code: "provider-code",
+        state: authorization.searchParams.get("state")!,
+      }).toString();
+      const signedIn = await h.source.authDurable.fetch(
+        new Request(callback, {
+          headers: {
+            cookie: external.headers.getSetCookie()[0]!.split(";")[0]!,
+          },
+        }),
+      );
+      const sourceCookie = signedIn.headers
+        .getSetCookie()
+        .find((value) => value.startsWith("icm_session="))!
+        .split(";")[0]!;
+      const continuation = new URL(signedIn.headers.get("location")!, ORIGIN);
+      const handedOff = await h.source.authDurable.fetch(
+        new Request(
+          transportOrigin + continuation.pathname + continuation.search,
+          { headers: { cookie: sourceCookie } },
+        ),
+      );
+      const completed = await h.region.fetch(
+        new Request(handedOff.headers.get("location")!, {
+          headers: { cookie: start.headers.getSetCookie()[0]!.split(";")[0]! },
+        }),
+      );
+      expect(completed.headers.get("location")).toBe(ORIGIN + "/editor");
+      const domesticCookie = completed.headers
+        .getSetCookie()
+        .find((value) => value.startsWith("icm_regional_session="))!
+        .split(";")[0]!;
+      expect(
+        (await (await h.call("/api/auth/me", domesticCookie)).json()).user,
+      ).toMatchObject({ provider, displayName: "Chosen account" });
+      // Ordinary overseas sign-in retains its original GitHub prompt behavior.
+      if (provider === "github") {
+        const legacy = await h.source.authDurable.fetch(
+          new Request(ORIGIN + "/api/auth/github/start"),
+        );
+        expect(
+          new URL(legacy.headers.get("location")!).searchParams.has("prompt"),
+        ).toBe(false);
+      }
+    }
+    expect(
+      (await (await h.call("/api/auth/me", local)).json()).user,
+    ).not.toBeNull();
+    expect(
+      (
+        await (
+          await h.source.authDurable.fetch(
+            new Request(ORIGIN + "/api/auth/me", {
+              headers: { cookie: original },
+            }),
+          )
+        ).json()
+      ).user,
+    ).not.toBeNull();
+  },
+);
+
+it("discovers only enabled authority providers through its fixed transport", async () => {
+  const h = accounts({
+    GOOGLE_CLIENT_ID: "google",
+    GOOGLE_CLIENT_SECRET: "secret",
+  });
+  expect(await (await h.call("/api/auth/providers", "")).json()).toMatchObject({
+    github: false,
+    google: true,
+    email: true,
+    central: true,
+  });
+  expect(
+    (
+      await h.source.authDurable.fetch(
+        new Request(transportOrigin + "/api/auth/regional/providers", {
+          method: "POST",
+          body: "{}",
+        }),
+      )
+    ).status,
+  ).toBe(401);
+  expect(
+    (await h.call("/api/auth/regional/start?provider=unknown", "")).status,
+  ).toBe(400);
+  const start = await h.call("/api/auth/regional/start?provider=github", "");
+  const target = new URL(start.headers.get("location")!);
+  expect(
+    (
+      await h.source.authDurable.fetch(
+        new Request(transportOrigin + target.pathname + target.search),
+      )
+    ).status,
+  ).toBe(404);
+});
+
 it("refuses domestic trial account deletion without forwarding it or changing the overseas account", async () => {
   const h = accounts();
   const sourceCookie = await makerOf(h.source);

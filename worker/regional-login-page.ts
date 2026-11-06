@@ -2,6 +2,7 @@
 export function regionalLoginPage(
   returnPath: string,
   providers: { github: boolean; google: boolean; email: boolean },
+  currentAccount = false,
 ): Response {
   const choices = (["github", "google"] as const)
     .filter((provider) => providers[provider])
@@ -16,7 +17,7 @@ export function regionalLoginPage(
     : "";
   return new Response(
     `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Canvas 登录</title>
-    <main><h1>登录 Canvas</h1><p>登录后返回发起登录的 Canvas 站点。</p>${choices}${mail}<p id="status" role="status"></p></main>
+    <main><h1>登录 Canvas</h1><p>登录后返回发起登录的 Canvas 站点。</p>${currentAccount ? `<p><a href="${returnPath.replace(/&/gu, "&amp;")}">Continue with current account</a></p>` : ""}${choices}${mail}<p id="status" role="status"></p></main>
     <script>
       const status = document.getElementById('status');
       async function post(path, body) {
@@ -32,7 +33,7 @@ export function regionalLoginPage(
         };
         document.getElementById('code-form').onsubmit = async (event) => {
           event.preventDefault();
-          try {await post('/api/auth/email/verify', {email:document.getElementById('email').value, code:document.getElementById('code').value}); location.reload();}
+          try {await post('/api/auth/email/verify', {email:document.getElementById('email').value, code:document.getElementById('code').value}); location.assign(${JSON.stringify(returnPath).replace(/</gu, "\\u003c")});}
           catch (error) {status.textContent = error.message;}
         };
       }

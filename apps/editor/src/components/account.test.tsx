@@ -375,9 +375,9 @@ describe("AccountMenuView", () => {
 describe("loadAccountState", () => {
   it("renders a regional account and its central sign-in entry", () => {
     const providers = {
-      github: false,
-      google: false,
-      email: false,
+      github: true,
+      google: true,
+      email: true,
       central: true,
       loginUrl: "/api/auth/regional/start",
     };
@@ -391,10 +391,17 @@ describe("loadAccountState", () => {
     };
     const account = { providers, user };
     expect(markupFor(account)).toContain(">Ada</a>");
+    expect(markupFor(account)).toContain(
+      'href="/api/auth/regional/start?select=true"',
+    );
     const signedOut = markupFor({ ...account, user: null });
     expect(signedOut).toContain('href="/api/auth/regional/start"');
-    expect(signedOut).toContain("Continue to sign in");
+    expect(signedOut).toContain("Continue with current account");
     expect(signedOut).not.toContain("signin-email-input");
+    for (const provider of ["github", "google", "email"])
+      expect(signedOut).toContain(
+        `href="/api/auth/regional/start?provider=${provider}"`,
+      );
   });
 
   it("starts the session read without waiting for the providers response", async () => {

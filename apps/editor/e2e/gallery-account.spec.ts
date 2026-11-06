@@ -21,6 +21,46 @@ import { regionalAccounts } from "./regional-auth-fixture";
 
 const ALL_PROVIDERS = { github: true, google: true, email: true };
 
+test("regional sign-in offers email and can switch an existing account without silently reusing it", async ({
+  page,
+  baseURL,
+}) => {
+  const accounts = await regionalAccounts(baseURL!);
+  const enterCode = async (email: string) => {
+    await page.getByLabel("邮箱", { exact: true }).fill(email);
+    await page.getByRole("button", { name: "发送验证码" }).click();
+    await expect(page.getByRole("status")).toHaveText("验证码已发送。");
+    await page.getByLabel("验证码", { exact: true }).fill(accounts.emailCode());
+    await page.getByRole("button", { name: "验证并继续" }).click();
+    await expect(page).toHaveURL(accounts.origin + "/account");
+  };
+  try {
+    await page.goto(accounts.origin + "/account");
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-email").click();
+    await enterCode("first-choice@example.test");
+    await expect(page.getByTestId("account-name")).toHaveText("first-choice");
+    await page.getByTestId("account-switch-login").click();
+    await expect(
+      page.getByRole("link", { name: "Continue with current account" }),
+    ).toBeVisible();
+    // Cancelling selection preserves the already-established domestic session.
+    await page.goto(accounts.origin + "/account");
+    await expect(page.getByTestId("account-name")).toHaveText("first-choice");
+    await page.getByTestId("account-switch-login").click();
+    await enterCode("second-choice@example.test");
+    await expect(page.getByTestId("account-name")).toHaveText("second-choice");
+    await page.getByTestId("account-tab-settings").click();
+    await page.getByTestId("account-signout").click();
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-email").click();
+    await expect(page.getByLabel("邮箱", { exact: true })).toBeVisible();
+    await expect(page).not.toHaveURL(accounts.origin + "/account");
+  } finally {
+    await accounts.close();
+  }
+});
+
 test("an existing account survives failed provider discovery and keeps deletion disabled", async ({
   page,
 }) => {
