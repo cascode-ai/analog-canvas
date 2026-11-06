@@ -315,52 +315,6 @@ export function ShapesPanel({
         />
       </div>
       <div className="shapes-panel-body">
-        {userComponents ? (
-          // Above the long official list, shut, so it costs one line and is
-          // still the first thing the panel names.
-          <details
-            className="shapes-fold"
-            open={componentsShown}
-            data-testid="shapes-fold-user-components"
-            onToggle={(event) => {
-              if (!searching)
-                userComponents.onOpenChange(event.currentTarget.open);
-            }}
-          >
-            <summary
-              className="shapes-fold-summary"
-              onPointerEnter={userComponents.prepare}
-              onFocus={userComponents.prepare}
-            >
-              <span className="shapes-fold-label">{userComponents.label}</span>
-              <span className="shapes-fold-tools" ref={setComponentTools} />
-              <button
-                type="button"
-                className="shapes-fold-tool"
-                aria-label="Create component"
-                title="Create component"
-                onClick={(event) => {
-                  event.preventDefault();
-                  userComponents.onCreate();
-                }}
-              >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 3v10M3 8h10" />
-                </svg>
-              </button>
-            </summary>
-            <div className="shapes-fold-body">
-              {componentsLoaded.current
-                ? userComponents.render({
-                    open: componentsShown,
-                    query,
-                    toolsSlot: componentTools,
-                    focusSearch,
-                  })
-                : null}
-            </div>
-          </details>
-        ) : null}
         <details
           className="shapes-fold"
           open={officialOpen || searching}
@@ -452,6 +406,51 @@ export function ShapesPanel({
             </div>
           </div>
         </details>
+        {userComponents ? (
+          // Below the official list, which a drawing reaches for first.
+          <details
+            className="shapes-fold"
+            open={componentsShown}
+            data-testid="shapes-fold-user-components"
+            onToggle={(event) => {
+              if (!searching)
+                userComponents.onOpenChange(event.currentTarget.open);
+            }}
+          >
+            <summary
+              className="shapes-fold-summary"
+              onPointerEnter={userComponents.prepare}
+              onFocus={userComponents.prepare}
+            >
+              <span className="shapes-fold-label">{userComponents.label}</span>
+              <span className="shapes-fold-tools" ref={setComponentTools} />
+              <button
+                type="button"
+                className="shapes-fold-tool"
+                aria-label="Create component"
+                title="Create component"
+                onClick={(event) => {
+                  event.preventDefault();
+                  userComponents.onCreate();
+                }}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M8 3v10M3 8h10" />
+                </svg>
+              </button>
+            </summary>
+            <div className="shapes-fold-body">
+              {componentsLoaded.current
+                ? userComponents.render({
+                    open: componentsShown,
+                    query,
+                    toolsSlot: componentTools,
+                    focusSearch,
+                  })
+                : null}
+            </div>
+          </details>
+        ) : null}
       </div>
     </aside>
   );
