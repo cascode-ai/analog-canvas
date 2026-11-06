@@ -874,3 +874,211 @@
     width: 100%;
   }
 }
+
+/* The Community fold: rows on the Library's working surface, as in the tree. */
+.community-library {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+}
+.component-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 40px;
+  border-radius: var(--icm-radius-sm);
+  user-select: none;
+}
+.component-row[data-variant] {
+  margin-left: 14px;
+  min-height: 34px;
+}
+.component-row:hover,
+.component-row:focus-within {
+  background: var(--icm-surface-muted);
+}
+.component-row-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  box-shadow: none;
+  background: transparent;
+  color: var(--icm-text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.component-row-main:hover {
+  background: transparent;
+}
+.component-row-main:focus-visible {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: -2px;
+}
+.component-row-main[aria-disabled="true"] {
+  opacity: 0.65;
+}
+.component-row .user-component-preview {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  padding: 1px;
+}
+.component-row[data-variant] .user-component-preview {
+  flex-basis: 28px;
+  width: 28px;
+  height: 28px;
+}
+.component-row .user-component-preview .component-definition-note {
+  font-size: 10px;
+}
+.component-row-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.component-row-name,
+.component-row-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.component-row-text small {
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.component-row-mark {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+  font-size: 10px;
+  line-height: 16px;
+}
+.component-row-actions {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--icm-text-muted);
+}
+.component-row-actions:hover {
+  background: var(--icm-surface-hover);
+}
+.component-row:not(:hover, :focus-within) .component-row-actions {
+  display: none;
+}
+.community-message {
+  margin: 0;
+  padding: 6px 4px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.community-message button {
+  margin-left: 6px;
+}
+.community-nested {
+  min-width: 0;
+}
+.community-nested > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 4px;
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.community-nested > summary:hover {
+  background: var(--icm-surface-muted);
+}
+.community-nested > summary small {
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-weight: 500;
+}
+.community-nested[open] {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--icm-border);
+}
+.community-nested .community-nested[open] {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.community-nested > .component-project-drafts {
+  padding: 2px 4px;
+  font-size: var(--icm-font-xs);
+}
+.community-library .component-library-feedback {
+  position: static;
+  max-width: none;
+  margin-bottom: 4px;
+  font-size: var(--icm-font-xs);
+}
+.component-preview-card {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: 4px;
+  width: 300px;
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+  font-size: var(--icm-font-xs);
+}
+.component-preview-card .user-component-preview {
+  flex: none;
+  height: 170px;
+  padding: 4px;
+}
+.component-preview-card strong {
+  font-size: var(--icm-font-sm);
+  overflow-wrap: anywhere;
+}
+.component-preview-card p {
+  margin: 0;
+  color: var(--icm-text-muted);
+  overflow-wrap: anywhere;
+}
+.component-preview-card p button {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
+.component-preview-card pre {
+  max-height: 220px;
+  margin: 4px 0 0;
+  overflow: auto;
+  font-size: 11px;
+}
+
+/* Rows use the fold's full width: the name is what they exist to show. */
+.shapes-fold-body:has(> .community-library) {
+  padding: 2px;
+}

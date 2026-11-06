@@ -1,5 +1,4 @@
 import {
-  useRef,
   useEffect,
   useState,
   Suspense,
@@ -54,6 +53,7 @@ export type EditorComponentEditorProps = {
   selectOnly: ReturnType<typeof useSelectionController>["selectOnly"];
   cancelAllTransientInteraction: () => void;
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
+  returnToLibrary: RefObject<boolean>;
 };
 
 const ComponentSession = lazyChunk(
@@ -65,7 +65,30 @@ const ComponentLibrary = lazyChunk(
   () => import("./editor-component-library"),
 );
 
-/** Keep navigation and Library state while session code loads on demand. */
+/** The Library panel's Community fold, loaded once that fold first opens. */
+export function EditorCommunityComponents(
+  props: EditorComponentEditorProps & {
+    open: boolean;
+    query: string;
+    toolsSlot: HTMLElement | null;
+    onDropPlacement(clientX: number, clientY: number): void;
+  },
+) {
+  useEffect(() => preloadComponentDefinitionEditor(), []);
+  return (
+    <Suspense
+      fallback={
+        <p className="community-message" role="status">
+          Loading components…
+        </p>
+      }
+    >
+      <ComponentLibrary {...props} onClose={() => {}} />
+    </Suspense>
+  );
+}
+
+/** Keep navigation and desktop dialog state while code loads on demand. */
 export function EditorComponentEditor(props: EditorComponentEditorProps) {
   const {
     capabilities,
@@ -73,15 +96,16 @@ export function EditorComponentEditor(props: EditorComponentEditorProps) {
     setComponentEditor,
     userComponentsOpen,
     setUserComponentsOpen,
+    returnToLibrary,
   } = props;
-  const returnToLibrary = useRef(false);
+  const nativeLibrary = Boolean(import.meta.env?.ICM_DESKTOP);
   const [libraryOpened, setLibraryOpened] = useState(false);
   useEffect(() => {
-    if (userComponentsOpen) {
+    if (nativeLibrary && userComponentsOpen) {
       setLibraryOpened(true);
       preloadComponentDefinitionEditor();
     }
-  }, [userComponentsOpen]);
+  }, [nativeLibrary, userComponentsOpen]);
   if (!capabilities.community && !capabilities.localComponents) return null;
   const cancelSession = () => {
     setComponentEditor(null);
@@ -97,17 +121,15 @@ export function EditorComponentEditor(props: EditorComponentEditorProps) {
             key={componentEditor.key}
             {...props}
             componentEditor={componentEditor}
-            returnToLibrary={returnToLibrary}
             onClose={cancelSession}
           />
         </Suspense>
       ) : null}
-      {userComponentsOpen || libraryOpened ? (
+      {nativeLibrary && (userComponentsOpen || libraryOpened) ? (
         <Suspense fallback={null}>
           <div hidden={!userComponentsOpen}>
             <ComponentLibrary
               {...props}
-              returnToLibrary={returnToLibrary}
               onClose={() => setUserComponentsOpen(false)}
             />
           </div>

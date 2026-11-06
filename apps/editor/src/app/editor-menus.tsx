@@ -83,7 +83,7 @@ export function EditorMenuBar({
   publicSimulationUiEnabled,
   setStatus,
   userComponentsOpen,
-  setUserComponentsOpen,
+  openCommunity,
   leftPanelMode,
   setSelectionOpen,
   searchOpen,
@@ -148,7 +148,6 @@ export function EditorMenuBar({
   projectInstanceCount,
   toggleProjectPanel,
   toggleExamplesPanel,
-  cancelAllTransientInteraction,
   placeCellInstance,
   editorCommands,
   importSpiceFiles,
@@ -182,7 +181,7 @@ export function EditorMenuBar({
   publicSimulationUiEnabled: boolean;
   setStatus: Dispatch<SetStateAction<string>>;
   userComponentsOpen: boolean;
-  setUserComponentsOpen: Dispatch<SetStateAction<boolean>>;
+  openCommunity(): void;
   leftPanelMode: EditorPanels["leftPanelMode"];
   setSelectionOpen: EditorPanels["setSelectionOpen"];
   searchOpen: EditorPanels["searchOpen"];
@@ -247,7 +246,6 @@ export function EditorMenuBar({
   projectInstanceCount: number;
   toggleProjectPanel: (mode: EditorProjectPanelMode) => void;
   toggleExamplesPanel: () => void;
-  cancelAllTransientInteraction: () => void;
   placeCellInstance: () => void;
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   importSpiceFiles: FileCommands["importSpiceFiles"];
@@ -472,10 +470,7 @@ export function EditorMenuBar({
       searchOpen={searchOpen}
       selectionFilterOpen={selectionFilterOpen}
       userComponentsOpen={userComponentsOpen}
-      onOpenUserComponents={() => {
-        cancelAllTransientInteraction();
-        setUserComponentsOpen(true);
-      }}
+      onOpenUserComponents={openCommunity}
       onInsertComponent={() =>
         editorCommands.execute({
           id: "insert.start",

@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UserComponentsLibrary from "./user-components-library";
+import { clearComponentCatalogPages } from "./use-component-catalog";
 import type { ComponentLibrarySummaryPage } from "./component-library-contract";
 
 function page(
@@ -79,6 +80,7 @@ beforeEach(() => {
       return detail();
     }),
   );
+  clearComponentCatalogPages();
   reads = [];
   summaries = async () => Response.json(page(["old"]));
   detail = async () => Response.json({ error: "changed" }, { status: 409 });
@@ -94,10 +96,15 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-async function render(open = true, refresh = 0) {
+async function render(open = true, query = "") {
   await act(async () =>
     root.render(
-      <UserComponentsLibrary {...props} open={open} refresh={refresh} />,
+      <UserComponentsLibrary
+        {...props}
+        open={open}
+        query={query}
+        refresh={0}
+      />,
     ),
   );
   await tick();
@@ -108,7 +115,7 @@ async function tick() {
   });
 }
 function tiles() {
-  return container.querySelectorAll(".user-component-tile");
+  return container.querySelectorAll(".component-row");
 }
 function button(name: string) {
   const found = [...container.querySelectorAll("button")].find(
@@ -121,19 +128,6 @@ function button(name: string) {
 }
 async function click(name: string) {
   await act(async () => button(name).click());
-  await tick();
-}
-async function search(value: string) {
-  const input = container.querySelector<HTMLInputElement>(
-    'input[aria-label="Search User Defined components"]',
-  )!;
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value",
-    )!.set!.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
   await tick();
 }
 
@@ -155,7 +149,7 @@ describe("User Components catalog wiring", () => {
         await render();
       } else {
         await click("Actions for old");
-        await click("Details for old");
+        await click("Details");
       }
       expect(tiles()).toHaveLength(1);
       expect(button("Place old")).toBeDefined();
@@ -209,10 +203,12 @@ describe("User Components catalog wiring", () => {
     await render();
     expect(tiles()).toHaveLength(1);
     expect(container.textContent).toContain("Couldn’t refresh components.");
-    await search("unmatched");
+    await render(true, "unmatched");
     expect(tiles()).toHaveLength(0);
-    expect(container.textContent).toContain("Couldn’t load user components.");
-    await search("");
+    expect(container.textContent).toContain(
+      "Couldn’t load community components.",
+    );
+    await render(true, "");
     expect(tiles()).toHaveLength(1);
     expect(container.textContent).toContain("Couldn’t refresh components.");
   });

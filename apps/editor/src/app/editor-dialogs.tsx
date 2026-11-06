@@ -19,6 +19,7 @@ import type { useProjectFileLifecycle } from "../document/use-project-file-lifec
 import type {
   CellInsertCandidate,
   ExternalSubcircuitInsertCandidate,
+  ProjectComponentInsertCandidate,
 } from "../features/component-insert/insert-component-dialog";
 import type { useComponentPlacement } from "../features/component-insert/use-component-placement";
 import type { createEditorFileCommands } from "../features/editor-shell/editor-file-commands";
@@ -172,6 +173,7 @@ export function EditorDialogs({
   cellInsertCandidates,
   externalSubcircuitInsertCandidates,
   insertDialogExternalCandidates,
+  insertDialogProjectComponents,
   cancelComponentInsertFromHook,
   insertDialogOpen,
   insertInitialSelectionId,
@@ -288,6 +290,7 @@ export function EditorDialogs({
   cellInsertCandidates: readonly CellInsertCandidate[];
   externalSubcircuitInsertCandidates: readonly ExternalSubcircuitInsertCandidate[];
   insertDialogExternalCandidates: readonly ExternalSubcircuitInsertCandidate[];
+  insertDialogProjectComponents: readonly ProjectComponentInsertCandidate[];
   cancelComponentInsertFromHook: ComponentPlacement["cancelComponentInsert"];
   insertDialogOpen: ComponentPlacement["insertDialogOpen"];
   insertInitialSelectionId: ComponentPlacement["insertInitialSelectionId"];
@@ -413,6 +416,7 @@ export function EditorDialogs({
               recentSymbolIds,
               cells: cellInsertCandidates,
               externalDefinitions: insertDialogExternalCandidates,
+              projectComponents: insertDialogProjectComponents,
               scope: insertScope,
               initialSelectionId: insertInitialSelectionId,
               onApply: (request) =>

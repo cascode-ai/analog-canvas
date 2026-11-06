@@ -294,7 +294,11 @@ import {
 } from "./use-simulation-surface";
 import { EditorSimulationSurface } from "./editor-simulation-surface";
 import { EditorDialogs } from "./editor-dialogs";
-import { EditorComponentEditor } from "./editor-component-editor";
+import {
+  EditorCommunityComponents,
+  EditorComponentEditor,
+  type EditorComponentEditorProps,
+} from "./editor-component-editor";
 import { useEditorCommandRouter } from "./use-editor-command-router";
 import { useEditorShortcuts } from "./use-editor-shortcuts";
 import { EditorCanvasContextMenu, EditorMenuBar } from "./editor-menus";
@@ -651,6 +655,11 @@ function WorkspaceEditor({
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
   const [userComponentsOpen, setUserComponentsOpen] = useState(false);
+  const [communityFocusRequest, setCommunityFocusRequest] = useState(0);
+  const returnToLibrary = useRef(false);
+  /** Only the desktop host's library is a dialog; the Web's is a Library fold. */
+  const componentDialogOpen =
+    Boolean(import.meta.env?.ICM_DESKTOP) && userComponentsOpen;
   const libraryResizeOriginRef = useRef<{
     pointerX: number;
     width: number;
@@ -2912,11 +2921,30 @@ function WorkspaceEditor({
                 definitionId: definition.id,
                 masterName: definition.name,
                 symbol,
+                // A captured component keeps the name it was published with.
+                ...(definition.symbolId?.startsWith("user-")
+                  ? { displayName: symbol.name }
+                  : {}),
               },
             ]
           : [];
       }),
     [project.externalSubcircuitDefinitions, resolver],
+  );
+  const insertDialogProjectComponents = useMemo(
+    () =>
+      (project.componentDefinitions ?? [])
+        .filter(
+          (definition) =>
+            !project.externalSubcircuitDefinitions.some(
+              (external) => external.symbolId === definition.symbol.id,
+            ),
+        )
+        .map((definition) => ({
+          symbol: definition.symbol,
+          definition,
+        })),
+    [project.componentDefinitions, project.externalSubcircuitDefinitions],
   );
   // The device the library's own tile already places in this Process
   // (SKY130's default transistors and BJTs, which arrive bound) gets no
@@ -4034,15 +4062,20 @@ function WorkspaceEditor({
     return true;
   };
   /**
-   * A drag from the tree is one gesture: it places once where it ends on the
-   * canvas and leaves placement mode, or cancels when released elsewhere.
+   * A drag from a panel is one gesture: it places once where it ends on the
+   * canvas and leaves placement mode, or cancels when released elsewhere. A
+   * Library component may still be on its way; its drop waits for it.
    */
-  const dropCellFromTree = (clientX: number, clientY: number) => {
+  const dropPlacement = (clientX: number, clientY: number) => {
+    const placed = pendingComponentPlacement;
+    if (!placed) {
+      awaitedDrop.current = { clientX, clientY };
+      return;
+    }
     const svg = window.document.querySelector<SVGSVGElement>(
       '[data-testid="schematic-canvas"]',
     );
     const box = svg?.getBoundingClientRect();
-    const placed = pendingComponentPlacement;
     if (
       !svg ||
       !box ||
@@ -4054,17 +4087,36 @@ function WorkspaceEditor({
       cancelComponentInsertFromHook();
       return;
     }
-    commitPendingPlacementAtFromHook(
+    const name =
+      placed.cellName ??
+      resolver.resolve(placed.symbolId)?.definition.name ??
+      "the component";
+    const finish = (landed?: boolean) => {
+      cancelAllTransientInteraction();
+      if (landed !== false) setStatus(`Placed ${name} · Undo removes it`);
+    };
+    // A captured component is checked first, and placement must outlast that.
+    const settled = commitPendingPlacementAtFromHook(
       resolvePendingPlacementPoint(
         pointFromClient(clientX, clientY, svg, false),
         svg,
       ).point,
     );
-    cancelAllTransientInteraction();
-    setStatus(
-      `Placed ${placed && "cellName" in placed ? placed.cellName : "the Cell"} · Undo removes it`,
-    );
+    if (settled) void settled.then(finish);
+    else finish();
   };
+  const awaitedDrop = useRef<{ clientX: number; clientY: number } | null>(null);
+  // A drag outlives the render that started it.
+  const latestDrop = useRef(dropPlacement);
+  latestDrop.current = dropPlacement;
+  const dropOnCanvas = (clientX: number, clientY: number) =>
+    latestDrop.current(clientX, clientY);
+  useEffect(() => {
+    const awaited = awaitedDrop.current;
+    if (!awaited || !pendingComponentPlacement) return;
+    awaitedDrop.current = null;
+    latestDrop.current(awaited.clientX, awaited.clientY);
+  }, [pendingComponentPlacement]);
   const { endpointSignalInspection, routeSignalInspection } =
     useSignalMemberInspection({
       model: {
@@ -4148,7 +4200,7 @@ function WorkspaceEditor({
     selection: visualSelection,
     enabled:
       !componentEditor &&
-      !userComponentsOpen &&
+      !componentDialogOpen &&
       !interfaceConfirmation &&
       !versionHistoryOpen,
     setStatus,
@@ -4884,7 +4936,7 @@ function WorkspaceEditor({
       nativeProjectStore,
       setStatus,
       componentEditor,
-      userComponentsOpen,
+      userComponentsOpen: componentDialogOpen,
       setUserComponentsOpen,
       selectionOpen,
       setSelectionOpen,
@@ -5380,6 +5432,55 @@ function WorkspaceEditor({
       allowNextBrowserUnload,
     });
 
+  const componentEditorProps: EditorComponentEditorProps = {
+    project,
+    projectSessionId,
+    resolver,
+    dispatchProjectTransaction,
+    externalSubcircuitInsertCandidates,
+    setExternalSubcircuitDefinition,
+    removeExternalSubcircuitDefinition,
+    copyText: (text) => exportDelivery.copyText(text),
+    onBeforePlace: () => {
+      setCellManagerOpen(false);
+      setModelEditorDefinitionId(null);
+    },
+    capabilities,
+    setStatus,
+    componentEditor,
+    setComponentEditor,
+    componentLibraryRefresh,
+    setComponentLibraryRefresh,
+    userComponentsOpen,
+    setUserComponentsOpen,
+    editorDocumentController,
+    synchronizeExternalCommit,
+    definitionProjectRef,
+    selectOnly,
+    cancelAllTransientInteraction,
+    editorCommands,
+    returnToLibrary,
+  };
+  const openCommunity = () => {
+    cancelAllTransientInteraction();
+    setUserComponentsOpen(true);
+    if (import.meta.env?.ICM_DESKTOP) return;
+    showLeftPanel("library");
+    setCommunityFocusRequest((value) => value + 1);
+  };
+  const openCreateComponent = () => {
+    returnToLibrary.current = true;
+    cancelAllTransientInteraction();
+    void import("../features/user-components/component-definition-edit").then(
+      ({ newComponentDefinition }) =>
+        setComponentEditor({
+          key: crypto.randomUUID(),
+          projectSessionId,
+          mode: "new",
+          definition: newComponentDefinition(),
+        }),
+    );
+  };
   return (
     <main className="app-shell">
       {publishedNotice ? (
@@ -5443,7 +5544,7 @@ function WorkspaceEditor({
         publicSimulationUiEnabled={publicSimulationUiEnabled}
         setStatus={setStatus}
         userComponentsOpen={userComponentsOpen}
-        setUserComponentsOpen={setUserComponentsOpen}
+        openCommunity={openCommunity}
         leftPanelMode={leftPanelMode}
         setSelectionOpen={setSelectionOpen}
         searchOpen={searchOpen}
@@ -5507,7 +5608,6 @@ function WorkspaceEditor({
         projectInstanceCount={projectInstanceCount}
         toggleProjectPanel={toggleProjectPanel}
         toggleExamplesPanel={toggleExamplesPanel}
-        cancelAllTransientInteraction={cancelAllTransientInteraction}
         placeCellInstance={placeCellInstance}
         editorCommands={editorCommands}
         importSpiceFiles={importSpiceFiles}
@@ -5713,6 +5813,7 @@ function WorkspaceEditor({
         cellInsertCandidates={cellInsertCandidates}
         externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
         insertDialogExternalCandidates={insertDialogExternalCandidates}
+        insertDialogProjectComponents={insertDialogProjectComponents}
         cancelComponentInsertFromHook={cancelComponentInsertFromHook}
         insertDialogOpen={insertDialogOpen}
         insertInitialSelectionId={insertInitialSelectionId}
@@ -5855,7 +5956,7 @@ function WorkspaceEditor({
               },
               newCell: () => beginNewCell("root"),
               place: placeCellFromTree,
-              drop: dropCellFromTree,
+              drop: dropOnCanvas,
               setTop: (id) => void setTopCell(id),
               remove: (id) => void deleteCell(id),
               newChildFromSelection: beginCellFromSelection,
@@ -5877,6 +5978,26 @@ function WorkspaceEditor({
             onStartInsert={(launch) =>
               editorCommands.execute({ id: "insert.start", launch })
             }
+            onDropPlacement={dropOnCanvas}
+            {...(capabilities.community && !import.meta.env?.ICM_DESKTOP
+              ? {
+                  community: {
+                    open: userComponentsOpen,
+                    onOpenChange: setUserComponentsOpen,
+                    focusRequest: communityFocusRequest,
+                    onCreate: openCreateComponent,
+                    render: (query, toolsSlot, open) => (
+                      <EditorCommunityComponents
+                        {...componentEditorProps}
+                        open={open}
+                        query={query}
+                        toolsSlot={toolsSlot}
+                        onDropPlacement={dropOnCanvas}
+                      />
+                    ),
+                  },
+                }
+              : {})}
           />
         ) : (
           <Suspense
@@ -8022,34 +8143,7 @@ function WorkspaceEditor({
           />
         ) : null}
       </div>
-      <EditorComponentEditor
-        project={project}
-        projectSessionId={projectSessionId}
-        resolver={resolver}
-        dispatchProjectTransaction={dispatchProjectTransaction}
-        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
-        setExternalSubcircuitDefinition={setExternalSubcircuitDefinition}
-        removeExternalSubcircuitDefinition={removeExternalSubcircuitDefinition}
-        copyText={(text) => exportDelivery.copyText(text)}
-        onBeforePlace={() => {
-          setCellManagerOpen(false);
-          setModelEditorDefinitionId(null);
-        }}
-        capabilities={capabilities}
-        setStatus={setStatus}
-        componentEditor={componentEditor}
-        setComponentEditor={setComponentEditor}
-        componentLibraryRefresh={componentLibraryRefresh}
-        setComponentLibraryRefresh={setComponentLibraryRefresh}
-        userComponentsOpen={userComponentsOpen}
-        setUserComponentsOpen={setUserComponentsOpen}
-        editorDocumentController={editorDocumentController}
-        synchronizeExternalCommit={synchronizeExternalCommit}
-        definitionProjectRef={definitionProjectRef}
-        selectOnly={selectOnly}
-        cancelAllTransientInteraction={cancelAllTransientInteraction}
-        editorCommands={editorCommands}
-      />
+      <EditorComponentEditor {...componentEditorProps} />
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}

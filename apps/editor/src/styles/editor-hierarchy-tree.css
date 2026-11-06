@@ -311,8 +311,8 @@
   background: var(--icm-border);
 }
 /* While a row is dragged toward the canvas, the pointer reads as a drop. */
-body.hierarchy-dragging,
-body.hierarchy-dragging * {
+body.canvas-dragging,
+body.canvas-dragging * {
   cursor: copy !important;
 }
 

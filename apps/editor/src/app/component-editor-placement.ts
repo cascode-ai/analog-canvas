@@ -19,18 +19,18 @@ export function componentEditorPlacement({
   onBeforePlace,
   externalSubcircuitInsertCandidates,
 }: EditorComponentEditorProps & { returnToLibrary: RefObject<boolean> }) {
-  async function insertSharedComponent(entry: SharedComponent): Promise<void> {
+  async function insertSharedComponent(
+    entry: SharedComponent,
+  ): Promise<boolean> {
     returnToLibrary.current = false;
     try {
       const captured = await componentLibraryCapture(entry);
-      if (entry.circuit) {
-        insertCircuitComponent(
+      if (entry.circuit)
+        return insertCircuitComponent(
           captured,
           `component-${entry.id}-r${entry.revision}`,
           entry,
         );
-        return;
-      }
       const current = editorDocumentController.project;
       const prepared = prepareComponentCapture(
         current,
@@ -67,8 +67,10 @@ export function componentEditorPlacement({
           },
         },
       });
+      return true;
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
+      return false;
     }
   }
 
@@ -76,7 +78,7 @@ export function componentEditorPlacement({
     packaged: SharedDefinitionPayload,
     identity: string,
     library?: SharedComponent,
-  ) {
+  ): boolean {
     try {
       const current = definitionProjectRef.current.project;
       const prepared = prepareComponentCapture(current, packaged, identity);
@@ -125,8 +127,10 @@ export function componentEditorPlacement({
           },
         },
       });
+      return true;
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
+      return false;
     }
   }
 

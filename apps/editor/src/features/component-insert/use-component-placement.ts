@@ -426,9 +426,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   const placeNewCapturedComponent = async (
     position: Point,
     placementRequest: PendingComponentPlacement,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const capture = placementRequest.capture;
-    if (!capture || captureBusy.current) return;
+    if (!capture || captureBusy.current) return false;
     captureBusy.current = true;
     const structureRevision = capture.structureRevision;
     const documentRevision = capture.documentRevision;
@@ -448,7 +448,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         }
       }
       const current = latest.current;
-      if (current.pendingComponentPlacement?.capture !== capture) return;
+      if (current.pendingComponentPlacement?.capture !== capture) return false;
       if (
         capture.projectId !== current.project.id ||
         capture.documentId !== current.document.id ||
@@ -478,7 +478,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           plan.documentEdits,
           effect ? { expectedElectricalEffect: effect } : {},
         );
-        if (!gated) return;
+        if (!gated) return false;
         const filled = current.processFill(gated);
         edits = [
           ...plan.edits.filter((edit) => edit.kind !== "transact_document"),
@@ -492,7 +492,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           ]),
         ];
       }
-      if (!current.transactProject("place-public-component", edits)) return;
+      if (!current.transactProject("place-public-component", edits))
+        return false;
       capture.structureRevision = structureRevision + 1;
       capture.documentRevision = documentRevision + 1;
       current.selectOnly("instance", [plan.instance.id]);
@@ -519,10 +520,12 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       current.setStatus(
         `Placed ${capture.payload.definition.symbol.name}${connectionStatus} · click to place another · Esc exits`,
       );
+      return true;
     } catch (error) {
       latest.current.setStatus(
         error instanceof Error ? error.message : String(error),
       );
+      return false;
     } finally {
       captureBusy.current = false;
     }
@@ -1011,7 +1014,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     );
   };
 
-  const commitPendingPlacementAt = (point: Point): void => {
+  /** Settles once a captured component, checked first, has landed or not. */
+  const commitPendingPlacementAt = (point: Point): void | Promise<boolean> => {
     if (options.vddRailMode) {
       if (!options.vddRailStart) {
         options.setVddRailStart(point);
@@ -1036,8 +1040,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     if (!options.pendingSymbolId || !options.pendingComponentPlacement) return;
     if (options.pendingComponentPlacement.capture) {
-      void placeNewCapturedComponent(point, options.pendingComponentPlacement);
-      return;
+      return placeNewCapturedComponent(
+        point,
+        options.pendingComponentPlacement,
+      );
     }
     if (options.pendingComponentPlacement.kind === "drafting-text") {
       placeDraftingTextAnnotation(point, options.pendingComponentPlacement);

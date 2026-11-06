@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { deferFocus } from "../../interaction/deferred-focus";
 
+import type { ComponentDefinition } from "@icm/model";
 import type { SymbolDefinition } from "@icm/symbols";
 
 import { initialComponentParameterValues } from "./component-parameters";
@@ -22,6 +23,8 @@ export interface InsertComponentDialogProps {
   recentSymbolIds: readonly string[];
   cells: readonly CellInsertCandidate[];
   externalDefinitions?: readonly ExternalSubcircuitInsertCandidate[];
+  /** Components this Project holds, found again here under their own names. */
+  projectComponents?: readonly ProjectComponentInsertCandidate[];
   scope?: InsertScope;
   initialSelectionId?: string | null;
   onApply(request: ComponentInsertRequest): void;
@@ -37,12 +40,20 @@ export interface ExternalSubcircuitInsertCandidate {
   readonly definitionId: string;
   readonly masterName: string;
   readonly symbol: SymbolDefinition;
+  /** A captured component's own name, read before its SPICE master name. */
+  readonly displayName?: string;
+}
+export interface ProjectComponentInsertCandidate {
+  readonly symbol: SymbolDefinition;
+  readonly definition: ComponentDefinition;
 }
 
 interface InsertChoice {
   readonly key: string;
-  readonly kind: "symbol" | "cell" | "external-subcircuit";
+  readonly kind: "symbol" | "cell" | "external-subcircuit" | "component";
   readonly symbol: SymbolDefinition;
+  readonly definition?: ComponentDefinition;
+  readonly displayName?: string;
   readonly category: string;
   readonly childDocumentId?: string;
   readonly cellName?: string;
@@ -52,6 +63,7 @@ interface InsertChoice {
 
 const CELLS_CATEGORY = "Cells";
 const EXTERNAL_CATEGORY = "External masters";
+const PROJECT_CATEGORY = "In this Project";
 
 function categorySlug(category: string): string {
   return category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -69,6 +81,7 @@ export function InsertComponentDialog({
   styleProfileId,
   cells,
   externalDefinitions = [],
+  projectComponents = [],
   scope = "all",
   initialSelectionId = null,
   onApply,
@@ -98,11 +111,23 @@ export function InsertComponentDialog({
         (category, index) => categories.indexOf(category) === index,
       ),
       ...(cells.length > 0 ? [CELLS_CATEGORY] : []),
-      ...(!cellsOnly && externalDefinitions.length > 0
+      ...(!cellsOnly &&
+      (projectComponents.length > 0 ||
+        externalDefinitions.some((definition) => definition.displayName))
+        ? [PROJECT_CATEGORY]
+        : []),
+      ...(!cellsOnly &&
+      externalDefinitions.some((definition) => !definition.displayName)
         ? [EXTERNAL_CATEGORY]
         : []),
     ];
-  }, [cells.length, cellsOnly, externalDefinitions.length, styleProfileId]);
+  }, [
+    cells.length,
+    cellsOnly,
+    externalDefinitions,
+    projectComponents.length,
+    styleProfileId,
+  ]);
 
   const choices = useMemo<InsertChoice[]>(() => {
     const normalized = query.trim().toLowerCase();
@@ -126,7 +151,7 @@ export function InsertComponentDialog({
       .filter(
         (definition) =>
           normalized.length === 0 ||
-          `${definition.masterName} ${definition.symbol.id}`
+          `${definition.displayName ?? ""} ${definition.masterName} ${definition.symbol.id}`
             .toLowerCase()
             .includes(normalized),
       )
@@ -134,9 +159,28 @@ export function InsertComponentDialog({
         key: `external:${definition.definitionId}`,
         kind: "external-subcircuit",
         symbol: definition.symbol,
-        category: EXTERNAL_CATEGORY,
+        category: definition.displayName ? PROJECT_CATEGORY : EXTERNAL_CATEGORY,
         definitionId: definition.definitionId,
         masterName: definition.masterName,
+        ...(definition.displayName
+          ? { displayName: definition.displayName }
+          : {}),
+      }));
+    const componentChoices = (cellsOnly ? [] : projectComponents)
+      .filter(
+        (component) =>
+          normalized.length === 0 ||
+          `${component.symbol.name} ${component.symbol.id}`
+            .toLowerCase()
+            .includes(normalized),
+      )
+      .map<InsertChoice>((component) => ({
+        key: `component:${component.symbol.id}`,
+        kind: "component",
+        symbol: component.symbol,
+        definition: component.definition,
+        category: PROJECT_CATEGORY,
+        displayName: component.symbol.name,
       }));
     // Library order, not recency: the grid reads exactly like the sidebar —
     // transistors first, categories together — so positions stay learnable.
@@ -150,13 +194,17 @@ export function InsertComponentDialog({
             category: group.category,
           })),
         );
-    return [...symbolChoices, ...cellChoices, ...externalChoices].filter(
-      (choice) => !hiddenCategories.has(choice.category),
-    );
+    return [
+      ...symbolChoices,
+      ...cellChoices,
+      ...componentChoices,
+      ...externalChoices,
+    ].filter((choice) => !hiddenCategories.has(choice.category));
   }, [
     cellsOnly,
     cells,
     externalDefinitions,
+    projectComponents,
     hiddenCategories,
     query,
     styleProfileId,
@@ -237,6 +285,20 @@ export function InsertComponentDialog({
   const applyChoice = (choice: InsertChoice | null): void => {
     if (!choice) return;
     const symbolId = choice.symbol.id;
+    if (choice.kind === "component") {
+      onApply({
+        kind: "symbol",
+        symbolId,
+        symbolName: choice.symbol.name,
+        componentDefinition: choice.definition!,
+        parameters: {},
+        initialRotation: 0,
+        showReference: true,
+        referenceText: null,
+        showValue: false,
+      });
+      return;
+    }
     if (choice.kind === "symbol" && symbolId === "no-connect") {
       onApply({ kind: "no-connect", symbolId, symbolName: "No Connect" });
       return;
@@ -459,6 +521,7 @@ export function InsertComponentDialog({
           {choices.map((choice) => {
             const label =
               choice.cellName ??
+              choice.displayName ??
               choice.masterName ??
               libraryDisplayName(choice.symbol.id, choice.symbol.name);
             return (

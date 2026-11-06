@@ -29,6 +29,17 @@ export interface SelectionInspectionModelInput {
   selectedEndpoint: WireSource | null;
 }
 
+/** A published symbol's ID ends in the revision this Project captured. */
+function userComponentLabel(
+  symbolId: string,
+  resolver: SymbolResolver,
+): string | undefined {
+  if (!/^(user|component)-/.test(symbolId)) return undefined;
+  const name = resolver.resolve(symbolId)?.definition.name;
+  const revision = /^user-.+-r(\d+)$/.exec(symbolId)?.[1];
+  return name && (revision ? `${name} · r${revision}` : name);
+}
+
 /**
  * Resolves the read-only selection projection consumed by the editor shell and
  * Properties panel. It deliberately owns no React state and emits no edits.
@@ -177,8 +188,11 @@ export function deriveSelectionInspectionModel({
         terminal.interfaceInstanceIds.includes(selectedInstance.id),
       )
     : undefined;
+  const selectedComponentLabel = selectedInstance
+    ? userComponentLabel(selectedInstance.symbolId, resolver)
+    : undefined;
   const selectionShelfSummary = selectedInstance
-    ? `${selectedFormalTerminal?.name ?? selectedInstance.id} · ${selectedInstance.symbolId}`
+    ? `${selectedFormalTerminal?.name ?? selectedInstance.id} · ${selectedComponentLabel ?? selectedInstance.symbolId}`
     : selectedIds.length > 1
       ? `${selectedIds.length} components`
       : selectedRoute

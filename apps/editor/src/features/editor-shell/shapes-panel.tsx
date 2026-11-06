@@ -1,8 +1,15 @@
-import { useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import type { ComponentInsertRequest } from "../component-insert/component-insert-request";
 import type { InsertLaunch } from "../component-insert/insert-launch";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
+import { startCanvasDrag } from "./canvas-drag";
 import { initialComponentParameterValues } from "../component-insert/component-parameters";
 import {
   annotationDrawingTool,
@@ -177,14 +184,33 @@ export interface ShapesPanelProps {
   styleProfileId: string;
   open: boolean;
   onStartInsert(launch: InsertLaunch): void;
+  /** A dragged tile places once where the pointer is released. */
+  onDropPlacement?(clientX: number, clientY: number): void;
+  /** The public catalog, loaded only once its fold opens or a search runs. */
+  community?: {
+    open: boolean;
+    onOpenChange(open: boolean): void;
+    /** Each new value brings focus to the search. */
+    focusRequest: number;
+    onCreate(): void;
+    render(
+      query: string,
+      toolsSlot: HTMLElement | null,
+      open: boolean,
+    ): ReactNode;
+  };
 }
 
 export function ShapesPanel({
   styleProfileId,
   open,
   onStartInsert,
+  onDropPlacement,
+  community,
 }: ShapesPanelProps) {
-  const libraryGroups = componentCatalog(styleProfileId, "");
+  const [query, setQuery] = useState("");
+  const searching = query.trim().length > 0;
+  const libraryGroups = componentCatalog(styleProfileId, query);
   const librarySymbolCount = libraryGroups.reduce(
     (count, group) => count + group.symbols.length,
     0,
@@ -192,10 +218,54 @@ export function ShapesPanel({
   const [openCategories, setOpenCategories] = useState<ReadonlySet<string>>(
     () => new Set(libraryGroups.map((group) => group.category)),
   );
+  const [officialOpen, setOfficialOpen] = useState(true);
+  const [communityTools, setCommunityTools] = useState<HTMLElement | null>(
+    null,
+  );
+  const panel = useRef<HTMLElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const suppressClick = useRef(false);
+  const communityShown = Boolean(community?.open || searching);
+  // Once loaded it keeps its list while the fold is shut.
+  const communityLoaded = useRef(false);
+  communityLoaded.current ||= communityShown;
+  const focusRequest = community?.focusRequest ?? 0;
+  useEffect(() => {
+    if (focusRequest && open) search.current?.focus();
+  }, [focusRequest, open]);
 
   function placeSymbol(symbolId: string): void {
     const request = quickPlaceRequest(styleProfileId, symbolId);
     if (request) onStartInsert({ kind: "quick", request });
+  }
+
+  /** Drawing tools and rails have no single point to land on. */
+  function beginTileDrag(symbolId: string): boolean {
+    const request = quickPlaceRequest(styleProfileId, symbolId);
+    if (request?.kind !== "symbol") return false;
+    onStartInsert({ kind: "quick", request });
+    return true;
+  }
+
+  function onSearchKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    const results = () =>
+      panel.current?.querySelector<HTMLElement>(
+        ".shapes-chip, .component-row-main:not([aria-disabled='true'])",
+      );
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (query) setQuery("");
+      else event.currentTarget.blur();
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      results()?.focus();
+    } else if (event.key === "Enter" && searching) {
+      event.preventDefault();
+      // An official device wins over a community record of the same name.
+      (
+        panel.current?.querySelector<HTMLElement>(".shapes-chip") ?? results()
+      )?.click();
+    }
   }
 
   function setCategoryOpen(category: string, open: boolean): void {
@@ -217,13 +287,71 @@ export function ShapesPanel({
       inert={!open ? true : undefined}
       data-testid="shapes-library-panel"
       data-open={open ? "true" : "false"}
+      ref={panel}
     >
+      <div className="shapes-panel-search">
+        <input
+          ref={search}
+          type="search"
+          autoComplete="off"
+          placeholder="Search components"
+          aria-label="Search components"
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          onKeyDown={onSearchKeyDown}
+        />
+      </div>
       <div className="shapes-panel-body">
-        <details className="shapes-fold" open data-testid="shapes-fold-library">
+        {community ? (
+          // Above the long official list, shut, so it costs one line and is
+          // still the first thing the panel names.
+          <details
+            className="shapes-fold"
+            open={communityShown}
+            data-testid="shapes-fold-community"
+            onToggle={(event) => {
+              if (!searching) community.onOpenChange(event.currentTarget.open);
+            }}
+          >
+            <summary className="shapes-fold-summary">
+              <span className="shapes-fold-label">Community</span>
+              <span className="shapes-fold-tools" ref={setCommunityTools} />
+              <button
+                type="button"
+                className="shapes-fold-tool"
+                aria-label="Create component"
+                title="Create component"
+                onClick={(event) => {
+                  event.preventDefault();
+                  community.onCreate();
+                }}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M8 3v10M3 8h10" />
+                </svg>
+              </button>
+            </summary>
+            <div className="shapes-fold-body">
+              {communityLoaded.current
+                ? community.render(query, communityTools, communityShown)
+                : null}
+            </div>
+          </details>
+        ) : null}
+        <details
+          className="shapes-fold"
+          open={officialOpen || searching}
+          data-testid="shapes-fold-library"
+          onToggle={(event) => {
+            if (!searching) setOfficialOpen(event.currentTarget.open);
+          }}
+        >
           <summary className="shapes-fold-summary">
             <span className="shapes-fold-label">
-              <span className="shapes-fold-label-full">All devices</span>
-              <span className="shapes-fold-label-compact">All</span>
+              <span className="shapes-fold-label-full">
+                Official components
+              </span>
+              <span className="shapes-fold-label-compact">Official</span>
             </span>
             <span className="shapes-fold-count">{librarySymbolCount}</span>
           </summary>
@@ -233,11 +361,12 @@ export function ShapesPanel({
                 <details
                   key={group.category}
                   className="shapes-category"
-                  open={openCategories.has(group.category)}
+                  open={searching || openCategories.has(group.category)}
                   data-testid={`shapes-category-${categorySlug(group.category)}`}
-                  onToggle={(event) =>
-                    setCategoryOpen(group.category, event.currentTarget.open)
-                  }
+                  onToggle={(event) => {
+                    if (!searching)
+                      setCategoryOpen(group.category, event.currentTarget.open);
+                  }}
                 >
                   <summary className="shapes-category-header">
                     <span className="shapes-category-label">
@@ -263,7 +392,22 @@ export function ShapesPanel({
                           libraryDescription(symbol.id) ??
                           `Place ${libraryDisplayName(symbol.id, symbol.name)}`
                         }
-                        onClick={() => placeSymbol(symbol.id)}
+                        onPointerDown={(event) =>
+                          startCanvasDrag(event, {
+                            begin: () => beginTileDrag(symbol.id),
+                            drop: (x, y) => onDropPlacement?.(x, y),
+                            dragged: () => {
+                              suppressClick.current = true;
+                              window.setTimeout(() => {
+                                suppressClick.current = false;
+                              }, 0);
+                            },
+                          })
+                        }
+                        onClick={(event) => {
+                          event.currentTarget.blur();
+                          if (!suppressClick.current) placeSymbol(symbol.id);
+                        }}
                       >
                         <SymbolArtwork
                           symbol={symbol}
@@ -282,6 +426,11 @@ export function ShapesPanel({
                   </div>
                 </details>
               ))}
+              {searching && !libraryGroups.length ? (
+                <p className="community-message">
+                  No official component matches “{query.trim()}”.
+                </p>
+              ) : null}
             </div>
           </div>
         </details>

@@ -11,6 +11,7 @@ import type { CircuitProject, HierarchyFrame } from "@icm/model";
 import { buildProjectHierarchy, type ProjectHierarchy } from "@icm/derived";
 import { cellDeletionRefusal } from "@icm/edit-engine";
 import { ContextMenu } from "../../components/context-menu";
+import { startCanvasDrag } from "../editor-shell/canvas-drag";
 import {
   frameReference,
   hierarchyPathKey,
@@ -85,7 +86,6 @@ interface Match {
 
 type IconName = "add" | "child" | "place" | "properties" | "collapse";
 
-const DRAG_THRESHOLD = 5;
 const INDENT = 14;
 
 /** Occurrence rows in display order; collapsed rows hide their subtree. */
@@ -340,39 +340,18 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
       ),
     );
 
-  // Dragging a row past a few pixels starts placing its Cell; the canvas shows
-  // the preview under the pointer and releasing there places it.
   const startDrag = (row: Row, event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0 || row.cycle) return;
-    const origin = { x: event.clientX, y: event.clientY };
-    let dragging = false;
-    function stop() {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up, true);
-      window.document.body.classList.remove("hierarchy-dragging");
-    }
-    function move(moveEvent: PointerEvent) {
-      if (
-        dragging ||
-        Math.hypot(moveEvent.clientX - origin.x, moveEvent.clientY - origin.y) <
-          DRAG_THRESHOLD
-      )
-        return;
-      dragging = place(row);
-      if (dragging) window.document.body.classList.add("hierarchy-dragging");
-      else stop();
-    }
-    function up(upEvent: PointerEvent) {
-      stop();
-      if (!dragging) return;
-      suppressClick.current = true;
-      window.setTimeout(() => {
-        suppressClick.current = false;
-      }, 0);
-      actionsRef.current.drop(upEvent.clientX, upEvent.clientY);
-    }
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up, true);
+    if (row.cycle) return;
+    startCanvasDrag(event, {
+      begin: () => place(row),
+      drop: (x, y) => actionsRef.current.drop(x, y),
+      dragged: () => {
+        suppressClick.current = true;
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+      },
+    });
   };
 
   const onTreeKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
