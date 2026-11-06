@@ -58,6 +58,11 @@ test("regional AI switching preserves the administrator's source session and ret
       ),
     ).toEqual(sourceCookies);
     await expect(page.getByTestId("account-tab-ai")).toBeVisible();
+    await page.getByTestId("account-tab-settings").click();
+    await expect(page.getByTestId("account-delete")).toBeDisabled();
+    await expect(
+      page.getByText("Account deletion is unavailable in the domestic trial."),
+    ).toBeVisible();
   } finally {
     await accounts.close();
   }

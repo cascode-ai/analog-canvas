@@ -17,6 +17,32 @@ import {
   transportOrigin,
 } from "./regional-auth.test-support";
 
+it("refuses domestic trial account deletion without forwarding it or changing the overseas account", async () => {
+  const h = accounts();
+  const sourceCookie = await makerOf(h.source);
+  const localCookie = await h.connect(sourceCookie);
+  h.region.fetchLike = async () => {
+    throw new Error("Deletion must remain local");
+  };
+  const response = await h.call(
+    "/api/auth/account/delete",
+    localCookie,
+    "POST",
+    { confirm: "delete-account" },
+  );
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({
+    error: "account-deletion-unavailable",
+  });
+  expect(
+    (await (await h.call("/api/auth/me", localCookie)).json()).user,
+  ).not.toBeNull();
+  const source = await h.source.authDurable.fetch(
+    new Request(ORIGIN + "/api/auth/me", { headers: { cookie: sourceCookie } }),
+  );
+  expect((await source.json()).user).not.toBeNull();
+});
+
 it("retains administrator role controls through the grant and refreshes affected sessions by alarm", async () => {
   const h = accounts();
   const admin = await h.connect(await adminOf(h.source));

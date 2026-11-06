@@ -86,6 +86,9 @@ serves local authorization. Resource replication is owned by
 - Identity disappearance cannot distinguish deletion from an unknown ID. It
   never instructs a resource store to erase data. Versioned account-deletion
   events and resource-cleanup receipts require a separate delivery.
+- The domestic trial disables account deletion visibly in Settings and refuses
+  its API locally before contacting the authority. Existing overseas deletion
+  is unchanged; cross-region cleanup is a deferred trial limitation.
 - Session cookies, pending verifiers and authority grants stay in regional
   private storage; they are excluded from resource replication. Store credentials
   outside source and logs. Recovery from a stale session-store backup must
