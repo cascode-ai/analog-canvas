@@ -1,4 +1,4 @@
-import type { SessionUser } from "./auth-do";
+import { AUTH_OWNER_COOKIE, type SessionUser } from "./auth-do";
 import { regionalLoginPage } from "./regional-login-page";
 import {
   answer,
@@ -16,6 +16,24 @@ import {
   type RegionalConfig,
   type RegionalSql,
 } from "./regional-auth-contract";
+
+type GrantRow = {
+  grant_hash: string;
+  session_hash: string;
+  subject_id: string | null;
+  actor_session_hash: string | null;
+};
+
+/** AuthDO's own session table uses hex SHA-256, not the regional code digest. */
+async function sourceSessionHash(token: string): Promise<string> {
+  const bytes = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(token),
+  );
+  return [...new Uint8Array(bytes)]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 export class RegionalAuthority {
   constructor(
@@ -41,6 +59,14 @@ export class RegionalAuthority {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_grants (
       grant_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL,
       audience TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
+    for (const table of ["regional_codes", "regional_grants"]) {
+      const columns = sql
+        .exec<{ name: string }>(`PRAGMA table_info(${table})`)
+        .toArray();
+      for (const column of ["actor_session_hash", "subject_id"])
+        if (!columns.some(({ name }) => name === column))
+          sql.exec(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -96,28 +122,32 @@ export class RegionalAuthority {
     if (!validNonce(state) || !validNonce(challenge))
       return answer({ error: "invalid-request" }, 400);
     const token = cookie(request, "icm_session");
-    // AuthDO uses hex SHA-256 for its own session table.
-    const bytes = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(token ?? ""),
-    );
-    const sessionHash = [...new Uint8Array(bytes)]
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    if (!token || !(await this.session(sessionHash)))
+    const sessionHash = await sourceSessionHash(token ?? "");
+    const user = token ? await this.session(sessionHash) : null;
+    if (!user)
       return regionalLoginPage(url.pathname + url.search, this.providers);
+    let actorHash: string | null = null;
+    if (user.seat) {
+      const owner = cookie(request, AUTH_OWNER_COOKIE);
+      actorHash = owner ? await sourceSessionHash(owner) : null;
+      const actor = actorHash ? await this.session(actorHash) : null;
+      if (!actor?.isAdmin || actor.seat)
+        return answer({ error: "original-actor-required" }, 409);
+    }
     const code = nonce();
     this.sql.exec(
       "DELETE FROM regional_codes WHERE expires_at <= ?",
       this.now(),
     );
     this.sql.exec(
-      "INSERT INTO regional_codes VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO regional_codes (code_hash, session_hash, challenge, audience, expires_at, actor_session_hash, subject_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
       await digest(code),
       sessionHash,
       challenge,
       this.config.clientOrigin,
       this.now() + REGIONAL_HANDOFF_MS,
+      actorHash,
+      user.id,
     );
     const target = new URL(
       REGIONAL_PREFIX + "callback",
@@ -134,8 +164,10 @@ export class RegionalAuthority {
     const challenge = await digest(body.verifier);
     // Delete and return in one statement: concurrent exchanges cannot both win.
     const row = this.sql
-      .exec<{ session_hash: string }>(
-        "DELETE FROM regional_codes WHERE code_hash = ? AND challenge = ? AND audience = ? AND expires_at > ? RETURNING session_hash",
+      .exec<
+        Pick<GrantRow, "session_hash" | "actor_session_hash" | "subject_id">
+      >(
+        "DELETE FROM regional_codes WHERE code_hash = ? AND challenge = ? AND audience = ? AND expires_at > ? RETURNING session_hash, actor_session_hash, subject_id",
         codeHash,
         challenge,
         this.config.clientOrigin,
@@ -150,33 +182,74 @@ export class RegionalAuthority {
       this.now(),
     );
     this.sql.exec(
-      "INSERT INTO regional_grants VALUES (?, ?, ?, ?)",
+      "INSERT INTO regional_grants (grant_hash, session_hash, audience, expires_at, actor_session_hash, subject_id) VALUES (?, ?, ?, ?, ?, ?)",
       await digest(grant),
       row.session_hash,
       this.config.clientOrigin,
       this.now() + 30 * 86400_000,
+      row.actor_session_hash,
+      row.subject_id,
     );
-    return answer({ user, grant, expiresAt: this.now() + REGIONAL_LEASE_MS });
+    const current = await this.currentGrant(grant);
+    if (!current) {
+      this.sql.exec(
+        "DELETE FROM regional_grants WHERE grant_hash = ?",
+        await digest(grant),
+      );
+      return answer({ error: "invalid-grant" }, 401);
+    }
+    return answer({
+      user: current.user,
+      grant,
+      expiresAt: this.now() + REGIONAL_LEASE_MS,
+    });
   }
 
   private async renew(body: Record<string, unknown>): Promise<Response> {
     if (!validNonce(body.grant))
       return answer({ error: "invalid-request" }, 400);
-    const hash = await digest(body.grant);
+    const grant = await this.currentGrant(body.grant);
+    if (!grant) {
+      this.sql.exec(
+        "DELETE FROM regional_grants WHERE grant_hash = ?",
+        await digest(body.grant),
+      );
+      return answer({ error: "invalid-grant" }, 401);
+    }
+    return answer({
+      user: grant.user,
+      expiresAt: this.now() + REGIONAL_LEASE_MS,
+    });
+  }
+
+  private async currentGrant(value: string) {
     const row = this.sql
-      .exec<{ session_hash: string }>(
-        "SELECT session_hash FROM regional_grants WHERE grant_hash = ? AND audience = ? AND expires_at > ?",
-        hash,
+      .exec<GrantRow>(
+        "SELECT * FROM regional_grants WHERE grant_hash = ? AND audience = ? AND expires_at > ?",
+        await digest(value),
         this.config.clientOrigin,
         this.now(),
       )
       .toArray()[0];
-    const user = row ? await this.session(row.session_hash) : null;
-    if (!user) {
-      this.sql.exec("DELETE FROM regional_grants WHERE grant_hash = ?", hash);
-      return answer({ error: "invalid-grant" }, 401);
-    }
-    return answer({ user, expiresAt: this.now() + REGIONAL_LEASE_MS });
+    const anchor = row ? await this.session(row.session_hash) : null;
+    if (!row || !anchor || (anchor.seat && !row.actor_session_hash))
+      return null;
+    const actor = row.actor_session_hash
+      ? await this.session(row.actor_session_hash)
+      : anchor;
+    if (!actor) return null;
+    const subject = row.subject_id ? this.identity(row.subject_id) : anchor;
+    if (!subject) return null;
+    if (subject.id === actor.id) return { row, actor, user: actor };
+    if (!actor.isAdmin || !subject.seat) return null;
+    return {
+      row,
+      actor,
+      user: {
+        ...subject,
+        switchedFrom: { id: actor.id, displayName: actor.displayName },
+      },
+    };
   }
 
   private async accountOperation(
@@ -189,30 +262,55 @@ export class RegionalAuthority {
       !isRegionalAccountRoute(body.method, body.path)
     )
       return answer({ error: "not-found" }, 404);
-    const row = this.sql
-      .exec<{ session_hash: string }>(
-        "SELECT session_hash FROM regional_grants WHERE grant_hash = ? AND audience = ? AND expires_at > ?",
-        await digest(body.grant),
-        this.config.clientOrigin,
-        this.now(),
-      )
-      .toArray()[0];
-    const user = row ? await this.session(row.session_hash) : null;
-    if (!row || !user) return answer({ error: "invalid-grant" }, 401);
-    const response = await this.account(
-      new Request(this.config.origin + body.path, {
-        method: body.method,
-        headers: {
-          origin: this.config.origin,
-          "content-type": "application/json",
-        },
-        ...(body.method === "GET"
-          ? {}
-          : { body: JSON.stringify(body.body ?? {}) }),
-      }),
-      user,
-    );
-    const current = await this.session(row.session_hash);
+    const grant = await this.currentGrant(body.grant);
+    if (!grant) return answer({ error: "invalid-grant" }, 401);
+    let response: Response;
+    if (body.path === "/api/auth/ai-accounts/switch") {
+      const target =
+        body.body &&
+        typeof body.body === "object" &&
+        "userId" in body.body &&
+        typeof body.body.userId === "string"
+          ? this.identity(body.body.userId)
+          : null;
+      if (!grant.user.isAdmin)
+        response = answer({ error: "unauthorized" }, 401);
+      else if (!target?.seat)
+        response = answer({ error: "no-such-ai-account" }, 404);
+      else {
+        this.sql.exec(
+          "UPDATE regional_grants SET subject_id = ? WHERE grant_hash = ?",
+          target.id,
+          grant.row.grant_hash,
+        );
+        response = answer({ switched: true });
+      }
+    } else if (body.path === "/api/auth/ai-accounts/return") {
+      if (!grant.user.seat && !grant.user.isAdmin)
+        response = answer({ error: "not-switched" }, 409);
+      else {
+        this.sql.exec(
+          "UPDATE regional_grants SET subject_id = ? WHERE grant_hash = ?",
+          grant.actor.id,
+          grant.row.grant_hash,
+        );
+        response = answer({ returned: true });
+      }
+    } else
+      response = await this.account(
+        new Request(this.config.origin + body.path, {
+          method: body.method,
+          headers: {
+            origin: this.config.origin,
+            "content-type": "application/json",
+          },
+          ...(body.method === "GET"
+            ? {}
+            : { body: JSON.stringify(body.body ?? {}) }),
+        }),
+        grant.user,
+      );
+    const current = await this.currentGrant(body.grant);
     if (!current) return answer({ error: "invalid-grant" }, 401);
     return answer({
       // Existing account lists have no count cap. Keep their response contract;
@@ -221,7 +319,7 @@ export class RegionalAuthority {
         status: response.status,
         body: await response.json().catch(() => null),
       },
-      user: current,
+      user: current.user,
       expiresAt: this.now() + REGIONAL_LEASE_MS,
     });
   }

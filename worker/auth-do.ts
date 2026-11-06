@@ -220,9 +220,9 @@ export interface SessionUser {
   blocked?: true;
   /**
    * The super-admin who switched this browser to the AI account it is
-   * signed in as, and can switch it back (`/api/auth/me` only).
+   * signed in as, and can switch it back. Regional projections retain its ID.
    */
-  switchedFrom?: { displayName: string };
+  switchedFrom?: { id?: string; displayName: string };
 }
 
 interface UserRow {

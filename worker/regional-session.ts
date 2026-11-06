@@ -34,6 +34,7 @@ type SessionRow = {
   expires_at: number;
   refresh_at: number;
   generation: number;
+  actor_id: string | null;
 };
 const SESSION_SECONDS = 30 * 86400;
 const LOGIN_SECONDS = 600;
@@ -77,6 +78,13 @@ export class RegionalSessionDO {
       this.sql.exec(
         "ALTER TABLE regional_sessions ADD COLUMN generation INTEGER NOT NULL DEFAULT 0",
       );
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_sessions)")
+        .toArray()
+        .some((column) => column.name === "actor_id")
+    )
+      this.sql.exec("ALTER TABLE regional_sessions ADD COLUMN actor_id TEXT");
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -253,7 +261,7 @@ export class RegionalSessionDO {
         .toArray()[0];
       if (!pending) return false;
       this.sql.exec(
-        "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         tokenHash,
         JSON.stringify(lease.user),
         grant,
@@ -261,6 +269,7 @@ export class RegionalSessionDO {
         this.now() + SESSION_SECONDS * 1000,
         this.now() + REGIONAL_REFRESH_MS,
         stateHash,
+        lease.user.switchedFrom?.id ?? lease.user.id,
       );
       return true;
     });
@@ -365,7 +374,10 @@ export class RegionalSessionDO {
     if (!validNonce(token)) return answer({ error: "unauthorized" }, 401);
     const tokenHash = await digest(token);
     const body =
-      request.method === "GET" || (request.method === "DELETE" && !request.body)
+      request.method === "GET" ||
+      (!request.body &&
+        (request.method === "DELETE" ||
+          url.pathname === "/api/auth/ai-accounts/return"))
         ? {}
         : await readBody(request);
     if (!body) return answer({ error: "invalid-request" }, 400);
@@ -409,10 +421,15 @@ export class RegionalSessionDO {
       .toArray()[0];
     if (!row || row.expires_at <= this.now() || row.lease_until <= this.now())
       return answer({ error: "unauthorized" }, 401);
+    const changingIdentity = [
+      "/api/auth/ai-accounts/switch",
+      "/api/auth/ai-accounts/return",
+    ].includes(path);
     const fenced = this.sql
       .exec<SessionRow>(
-        "UPDATE regional_sessions SET generation = generation + 1, refresh_at = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING *",
+        "UPDATE regional_sessions SET generation = generation + 1, refresh_at = ?, lease_until = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING *",
         this.now() + REGIONAL_REFRESH_MS,
+        changingIdentity ? 0 : row.lease_until,
         tokenHash,
         row.grant,
         row.generation,
@@ -440,7 +457,8 @@ export class RegionalSessionDO {
       { status?: unknown; body?: unknown } | undefined;
     if (
       !lease ||
-      lease.user.id !== (JSON.parse(row.user_json) as SessionUser).id ||
+      (lease.user.switchedFrom?.id ?? lease.user.id) !==
+        (row.actor_id ?? (JSON.parse(row.user_json) as SessionUser).id) ||
       !operation ||
       !Number.isInteger(operation.status) ||
       typeof operation.status !== "number" ||
@@ -452,9 +470,10 @@ export class RegionalSessionDO {
       return answer({ error: "account-unavailable" }, 503);
     const updated = this.sql
       .exec<{ token_hash: string }>(
-        "UPDATE regional_sessions SET user_json = ?, lease_until = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING token_hash",
+        "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING token_hash",
         JSON.stringify(lease.user),
         lease.expiresAt,
+        lease.user.switchedFrom?.id ?? lease.user.id,
         tokenHash,
         row.grant,
         fenced.generation,
@@ -509,13 +528,15 @@ export class RegionalSessionDO {
         const lease = this.lease(result.body);
         if (
           !lease ||
-          lease.user.id !== (JSON.parse(row.user_json) as SessionUser).id
+          (lease.user.switchedFrom?.id ?? lease.user.id) !==
+            (row.actor_id ?? (JSON.parse(row.user_json) as SessionUser).id)
         )
           return;
         this.sql.exec(
-          "UPDATE regional_sessions SET user_json = ?, lease_until = ? WHERE token_hash = ? AND grant = ? AND generation = ?",
+          "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ? WHERE token_hash = ? AND grant = ? AND generation = ?",
           JSON.stringify(lease.user),
           lease.expiresAt,
+          lease.user.switchedFrom?.id ?? lease.user.id,
           row.token_hash,
           row.grant,
           row.generation,

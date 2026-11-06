@@ -49,6 +49,16 @@ serves local authorization. Resource replication is owned by
   authority RPC; it creates no session or lease and caches no authorization.
   Invalid/revoked tokens yield no user; resource owners still enforce `isOwner`
   and the import-only scope.
+- Regional AI switching changes only the authority grant's effective subject;
+  it never replaces or ends the overseas browser session. A live administrator
+  session remains the original actor; an overseas AI handoff also requires its
+  live original-actor cookie. Regional projections retain that actor's ID and
+  display name in `switchedFrom`. Resource permissions, ownership and quotas
+  use the effective user, never the actor's administrative privileges. Switching
+  and returning recheck authority permissions; local authorization pauses until
+  the transition is confirmed. Renewal recovers a lost transition reply after
+  restart but cannot revive a logged-out session. Unbound legacy AI grants fail
+  closed and require a new handoff.
 - The authorization lease and alarm interval are defined in the
   [protocol module](../../worker/regional-auth-contract.ts). Background alarms
   renew before expiry; a failed renewal never extends a lease. Expired leases
