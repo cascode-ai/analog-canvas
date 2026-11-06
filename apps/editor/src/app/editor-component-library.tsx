@@ -1,8 +1,8 @@
 import type { EditorComponentEditorProps } from "./editor-component-editor";
-import type { RefObject } from "react";
 import { componentEditorPlacement } from "./component-editor-placement";
 import { Suspense, useMemo } from "react";
 import { lazyChunk } from "../components/chunk-load-fallback";
+import type { LibraryFold } from "../features/editor-shell/shapes-panel";
 import {
   componentDraftCatalog,
   planComponentDraftDeletion,
@@ -19,16 +19,16 @@ import {
   isLibraryAuthoringDraft,
 } from "../features/user-components/library-circuit-authoring";
 const UserComponentsLibrary = import.meta.env?.ICM_DESKTOP
-  ? lazyChunk("dialog", () => import("../hosts/native-components-library"))
+  ? lazyChunk("inline", () => import("../hosts/native-components-library"))
   : lazyChunk(
-      "dialog",
+      "inline",
       () => import("../features/user-components/user-components-library"),
     );
 
 export default function EditorComponentLibrary(
   props: EditorComponentEditorProps & {
-    returnToLibrary: RefObject<boolean>;
-    onClose(): void;
+    fold: LibraryFold;
+    onDropPlacement(clientX: number, clientY: number): void;
   },
 ) {
   const {
@@ -38,26 +38,23 @@ export default function EditorComponentLibrary(
     setStatus,
     setComponentEditor,
     componentLibraryRefresh,
-    userComponentsOpen,
-    setUserComponentsOpen,
     definitionProjectRef,
     cancelAllTransientInteraction,
     returnToLibrary,
   } = props;
   const { insertSharedComponent } = componentEditorPlacement(props);
+  const { fold, onDropPlacement } = props;
+  const { open } = fold;
   const draftCatalog = useMemo(
-    () => (userComponentsOpen ? componentDraftCatalog(project) : undefined),
-    [
-      userComponentsOpen,
-      project.componentAuthoringDrafts,
-      project.modelSources,
-    ],
+    () => (open ? componentDraftCatalog(project) : undefined),
+    [open, project.componentAuthoringDrafts, project.modelSources],
   );
   return (
     <Suspense fallback={null}>
       <UserComponentsLibrary
-        open={userComponentsOpen}
+        fold={fold}
         refresh={componentLibraryRefresh}
+        onDropPlacement={onDropPlacement}
         {...(draftCatalog ? { drafts: draftCatalog } : {})}
         previewDraftDeletion={(targets) =>
           planComponentDraftDeletion(
@@ -243,17 +240,6 @@ export default function EditorComponentLibrary(
                   },
                 }
               : {}),
-          });
-        }}
-        onClose={() => setUserComponentsOpen(false)}
-        onCreate={() => {
-          returnToLibrary.current = true;
-          cancelAllTransientInteraction();
-          setComponentEditor({
-            key: crypto.randomUUID(),
-            projectSessionId,
-            mode: "new",
-            definition: newComponentDefinition(),
           });
         }}
         onEdit={async (entry, publicationIntent) => {

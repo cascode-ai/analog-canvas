@@ -353,7 +353,7 @@ describe("editor shell", () => {
     expect(markup.indexOf('href="/analytics"')).toBeGreaterThan(statusbar);
   });
 
-  it("opens Netlist beside shapes quick-place without a searchable catalog", () => {
+  it("opens Netlist beside shapes quick-place with one search over the Library", () => {
     const project = createEmptyProject("selection-shelf", "Selection Shelf");
     const markup = renderToStaticMarkup(
       <App services={services} project={project} />,
@@ -392,11 +392,11 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="selection-filter-button"');
     expect(markup).toContain("Choose Selectable Objects… (Ctrl+Shift+F)");
     expect(markup).toContain("Find in Circuit… (Ctrl+F)");
-    expect(markup).toContain("User Components…");
+    expect(markup).toContain("Community Components…");
     expect(markup).not.toContain("&gt;Undo&lt;");
     expect(markup).not.toContain("&gt;Redo&lt;");
     expect(markup).not.toContain("Symbols &amp; Tools");
-    expect(markup).not.toContain("Search components");
+    expect(markup).toContain("Search components");
     expect(markup).not.toContain("Browse all");
   });
 

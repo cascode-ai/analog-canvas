@@ -32,7 +32,7 @@ describe("desktop preview composition", () => {
     expect(html).toContain("Desktop preview");
     expect(html).toContain('href="https://tokenzhang.com"');
     expect(html).toContain('data-testid="editor-repository-link"');
-    expect(html).toContain("User Components…");
+    expect(html).toContain("My Components…");
     expect(html.indexOf(">About</button>")).toBeGreaterThan(
       html.indexOf('class="app-chrome-actions"'),
     );

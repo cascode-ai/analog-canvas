@@ -4,18 +4,44 @@ import { join } from "node:path";
 import { expect } from "@playwright/test";
 import { builtInSymbols } from "@icm/symbols";
 
+/** Opens the Library's My components fold as Edit's command does. */
 async function openLibrary(page) {
   await page.getByTestId("edit-menu").locator("summary").click();
   await page
-    .getByRole("button", { name: "User Components…", exact: true })
+    .getByRole("button", { name: "My Components…", exact: true })
     .click();
-  const library = page.getByRole("dialog", {
-    name: "User Components",
-    exact: true,
-  });
-  await expect(library).toBeVisible();
+  const library = page.getByTestId("shapes-fold-user-components");
+  await expect(library).toHaveAttribute("open", "");
   return library;
 }
+
+async function closeLibrary(library) {
+  await library.locator(":scope > summary").click({ position: { x: 8, y: 8 } });
+  await expect(library).not.toHaveAttribute("open");
+}
+
+/** A row's place command, which also names the row. */
+const placeButton = (scope, name) =>
+  scope.getByRole("button", { name: `Place ${name}`, exact: true }).first();
+
+/** Opens a row's menu from the ⋯ that shows while the row is pointed at. */
+async function rowMenu(scope, name) {
+  await placeButton(scope, name).hover();
+  await scope
+    .getByRole("button", { name: `Actions for ${name}`, exact: true })
+    .first()
+    .click();
+  const menu = scope.page().getByTestId("component-context-menu");
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
+/** One author's records of one name share a row and its count. */
+const recordCount = (scope, count, name) =>
+  scope.getByRole("button", {
+    name: `${count} records of ${name}`,
+    exact: true,
+  });
 
 /** Author, persist, edit and capture through the actual desktop UI, without auth. */
 export async function acceptLocalComponents({
@@ -27,7 +53,7 @@ export async function acceptLocalComponents({
 }) {
   const library = await openLibrary(page);
   await library
-    .getByRole("button", { name: "Create Component…", exact: true })
+    .getByRole("button", { name: "Create component", exact: true })
     .click();
   const editor = page.getByRole("dialog", {
     name: "Edit Component Definition",
@@ -51,9 +77,9 @@ export async function acceptLocalComponents({
   await editor
     .getByRole("button", { name: "Back to library", exact: true })
     .click();
-  const entry = library.getByRole("listitem").filter({ hasText: "local_gain" });
-  await expect(entry).toHaveCount(1);
-  await entry.getByRole("button", { name: "Place", exact: true }).click();
+  const entry = placeButton(library, "local_gain");
+  await expect(entry).toBeVisible();
+  await entry.click();
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.click({ position: { x: 340, y: 250 } });
   // Placement includes a host revision check; wait for its visible result
@@ -72,8 +98,10 @@ export async function acceptLocalComponents({
   );
 
   await openLibrary(page);
-  await entry
-    .getByRole("button", { name: "Edit definition…", exact: true })
+  await (
+    await rowMenu(library, "local_gain")
+  )
+    .getByRole("menuitem", { name: "Edit definition…", exact: true })
     .click();
   const changed = source.replace("gain=2", "gain=4");
   await editor
@@ -91,11 +119,12 @@ export async function acceptLocalComponents({
   await editor
     .getByRole("button", { name: "Back to library", exact: true })
     .click();
-  await entry.locator("summary").click();
   const definitionPath = join(output, "local_gain.component.json");
   await chooseExport(definitionPath);
-  await entry
-    .getByRole("button", { name: "Export definition…", exact: true })
+  await (
+    await rowMenu(library, "local_gain")
+  )
+    .getByRole("menuitem", { name: "Export definition…", exact: true })
     .click();
   await expect
     .poll(async () =>
@@ -106,24 +135,33 @@ export async function acceptLocalComponents({
     .toBe(2);
   const saved = JSON.parse(await readFile(definitionPath, "utf8"));
   assert(saved.circuit.source.files.some((file) => file.text === changed));
-  await entry
+  const menu = await rowMenu(library, "local_gain");
+  await menu
     .getByRole("button", { name: "Remove component", exact: true })
     .click();
-  await entry
+  await menu
     .getByRole("button", { name: "Really delete", exact: true })
     .click();
   await expect(entry).toHaveCount(0);
-  await library.getByLabel("Component list filter").selectOption("deleted");
-  await expect(entry).toHaveCount(1);
-  await entry.getByRole("button", { name: "Restore", exact: true }).click();
-  await library.getByLabel("Component list filter").selectOption("active");
-  await expect(entry).toHaveCount(1);
+  const removed = library
+    .locator("details.user-components-nested")
+    .filter({ hasText: "Removed" });
+  await removed.locator(":scope > summary").click();
+  await expect(placeButton(removed, "local_gain")).toBeVisible();
+  await (
+    await rowMenu(removed, "local_gain")
+  )
+    .getByRole("menuitem", { name: "Restore", exact: true })
+    .click();
+  await expect(entry).toBeVisible();
   await library
     .getByLabel("Import local component")
     .setInputFiles(definitionPath);
-  await expect(entry).toHaveCount(2);
+  // The imported copy shares its name and this computer's authorship, so
+  // both records read as one row with their count.
+  await expect(recordCount(library, 2, "local_gain")).toBeVisible();
   await page.screenshot({ path: join(output, "local-components.png") });
-  await library.getByRole("button", { name: "Close", exact: true }).click();
+  await closeLibrary(library);
   const unchanged = await exportProject(
     page,
     join(output, "local-component-after-library-edit.icproj.json"),
@@ -142,7 +180,7 @@ export async function acceptLocalComponents({
 
   await openLibrary(page);
   await library
-    .getByRole("button", { name: "Create Component…", exact: true })
+    .getByRole("button", { name: "Create component", exact: true })
     .click();
   await editor.getByLabel("Definition type").selectOption("json");
   await editor.getByLabel("Component definition code", { exact: true }).fill(
@@ -164,11 +202,7 @@ export async function acceptLocalComponents({
   await editor
     .getByRole("button", { name: "Back to library", exact: true })
     .click();
-  await library
-    .getByRole("listitem")
-    .filter({ hasText: "Local artwork" })
-    .getByRole("button", { name: "Place", exact: true })
-    .click();
+  await placeButton(library, "Local artwork").click();
   await canvas.click({ position: { x: 500, y: 250 } });
   await expect(page.getByTestId("instance-count")).toHaveText("2");
   await page.keyboard.press("Escape");
@@ -214,12 +248,8 @@ export async function acceptLocalComponents({
 
 export async function acceptLocalComponentRestart(page) {
   const library = await openLibrary(page);
-  await expect(
-    library.getByRole("listitem").filter({ hasText: "local_gain" }),
-  ).toHaveCount(2);
-  await expect(
-    library.getByRole("listitem").filter({ hasText: "Local artwork" }),
-  ).toHaveCount(1);
-  await library.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(recordCount(library, 2, "local_gain")).toBeVisible();
+  await expect(placeButton(library, "Local artwork")).toBeVisible();
+  await closeLibrary(library);
   await expect(page.getByTestId("instance-count")).toHaveText("2");
 }

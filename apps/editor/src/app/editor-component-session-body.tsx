@@ -1,5 +1,4 @@
 import type { EditorComponentEditorProps } from "./editor-component-editor";
-import type { RefObject } from "react";
 import { componentEditorPlacement } from "./component-editor-placement";
 import {
   prepareComponentVariant,
@@ -20,7 +19,6 @@ import ComponentDefinitionEditor from "../features/user-components/component-def
 export default function EditorComponentSessionBody(
   props: Omit<EditorComponentEditorProps, "componentEditor"> & {
     componentEditor: ComponentEditorSession;
-    returnToLibrary: RefObject<boolean>;
     onClose(): void;
   },
 ) {

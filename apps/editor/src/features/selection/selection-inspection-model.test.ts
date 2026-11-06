@@ -91,6 +91,47 @@ describe("selection inspection model", () => {
     expect(model.selectionShelfSummary).toBe("Voc · port");
   });
 
+  it("names a captured component and its revision, not its record key", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    const symbol = {
+      ...builtInSymbols.find((candidate) => candidate.id === "resistor")!,
+      id: "user-decoder-record-r3",
+      name: "4-to-16 Decoder",
+    };
+    project.componentDefinitions = [
+      {
+        symbol,
+        libraryOrigin: {
+          componentId: "decoder-record",
+          revision: 3,
+          authorId: "alice",
+          contentVersion: 1,
+          digest: "a".repeat(64),
+        },
+      },
+    ];
+    document.instances.push({
+      id: "X1",
+      symbolId: symbol.id,
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+
+    const model = deriveSelectionInspectionModel({
+      project,
+      document,
+      resolver: new InMemorySymbolResolver([...builtInSymbols, symbol]),
+      selection: { instanceIds: ["X1"], ...emptySupplementalSelection },
+      selectedEndpoint: null,
+    });
+
+    expect(model.selectionShelfSummary).toBe("X1 · 4-to-16 Decoder · r3");
+  });
+
   it("does not treat drafting rectangles as hierarchy entry targets", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

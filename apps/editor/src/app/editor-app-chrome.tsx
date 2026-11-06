@@ -257,7 +257,9 @@ export function EditorAppChrome({
                     aria-expanded={userComponentsOpen}
                     onClick={onOpenUserComponents}
                   >
-                    User Components…
+                    {communityEnabled
+                      ? "Community Components…"
+                      : "My Components…"}
                   </button>
                 ) : null}
                 {placeProjectCell.enabled ? (

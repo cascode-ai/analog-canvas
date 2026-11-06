@@ -228,6 +228,11 @@ import {
   useEditorDerivedModel,
 } from "./use-editor-derived-model";
 import type { RoutingGuidanceView } from "../interaction/interaction-state";
+import { newComponentDefinition } from "../features/user-components/component-definition-edit";
+import {
+  componentCapability,
+  SYMBOL_ONLY_NOTE,
+} from "../features/user-components/component-library-contract";
 import { ShapesPanel } from "../features/editor-shell/shapes-panel";
 import {
   type GalleryEntryContext,
@@ -294,7 +299,11 @@ import {
 } from "./use-simulation-surface";
 import { EditorSimulationSurface } from "./editor-simulation-surface";
 import { EditorDialogs } from "./editor-dialogs";
-import { EditorComponentEditor } from "./editor-component-editor";
+import {
+  EditorComponentEditor,
+  EditorLibraryComponents,
+  type EditorComponentEditorProps,
+} from "./editor-component-editor";
 import { useEditorCommandRouter } from "./use-editor-command-router";
 import { useEditorShortcuts } from "./use-editor-shortcuts";
 import { EditorCanvasContextMenu, EditorMenuBar } from "./editor-menus";
@@ -445,6 +454,8 @@ const PROPERTIES_WIDTH_STORAGE_KEY = "icm.properties-panel-width.v1";
 const SIMULATION_WIDTH_STORAGE_KEY = "icm.simulation-panel-width.v2";
 // The drag floor only keeps the panel from disappearing behind its own
 // collapsed rail; how narrow the inspector is useful is the reader's call.
+/** A drop waits only for the render that shows the placement its drag began. */
+const DROP_WAIT_MS = 1000;
 const PROPERTIES_WIDTH_MIN = 160;
 const PROPERTIES_WIDTH_MAX = 760;
 /** Only the untouched default opens this wide; a drag may go narrower. */
@@ -651,6 +662,8 @@ function WorkspaceEditor({
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
   const [userComponentsOpen, setUserComponentsOpen] = useState(false);
+  const [componentSearchRequest, setComponentSearchRequest] = useState(0);
+  const returnToLibrary = useRef(false);
   const libraryResizeOriginRef = useRef<{
     pointerX: number;
     width: number;
@@ -2912,11 +2925,36 @@ function WorkspaceEditor({
                 definitionId: definition.id,
                 masterName: definition.name,
                 symbol,
+                // A component keeps the name it was made or published with.
+                ...(project.componentDefinitions?.some(
+                  (component) => component.symbol.id === definition.symbolId,
+                )
+                  ? { displayName: symbol.name }
+                  : {}),
               },
             ]
           : [];
       }),
-    [project.externalSubcircuitDefinitions, resolver],
+    [
+      project.externalSubcircuitDefinitions,
+      project.componentDefinitions,
+      resolver,
+    ],
+  );
+  const insertDialogProjectComponents = useMemo(
+    () =>
+      (project.componentDefinitions ?? [])
+        .filter(
+          (definition) =>
+            !project.externalSubcircuitDefinitions.some(
+              (external) => external.symbolId === definition.symbol.id,
+            ),
+        )
+        .map((definition) => ({
+          symbol: definition.symbol,
+          definition,
+        })),
+    [project.componentDefinitions, project.externalSubcircuitDefinitions],
   );
   // The device the library's own tile already places in this Process
   // (SKY130's default transistors and BJTs, which arrive bound) gets no
@@ -2983,6 +3021,7 @@ function WorkspaceEditor({
         ],
       }),
     recentStorageKey: RECENT_COMPONENTS_STORAGE_KEY,
+    onLibraryChanged: () => setComponentLibraryRefresh((value) => value + 1),
     document,
     project,
     resolver,
@@ -4034,15 +4073,20 @@ function WorkspaceEditor({
     return true;
   };
   /**
-   * A drag from the tree is one gesture: it places once where it ends on the
-   * canvas and leaves placement mode, or cancels when released elsewhere.
+   * A drag from a panel is one gesture: it places once where it ends on the
+   * canvas and leaves placement mode, or cancels when released elsewhere. A
+   * Library component may still be on its way; its drop waits for it.
    */
-  const dropCellFromTree = (clientX: number, clientY: number) => {
+  const dropPlacement = (clientX: number, clientY: number) => {
+    const placed = pendingComponentPlacement;
+    if (!placed) {
+      awaitedDrop.current = { clientX, clientY, at: performance.now() };
+      return;
+    }
     const svg = window.document.querySelector<SVGSVGElement>(
       '[data-testid="schematic-canvas"]',
     );
     const box = svg?.getBoundingClientRect();
-    const placed = pendingComponentPlacement;
     if (
       !svg ||
       !box ||
@@ -4054,17 +4098,48 @@ function WorkspaceEditor({
       cancelComponentInsertFromHook();
       return;
     }
-    commitPendingPlacementAtFromHook(
+    const name =
+      placed.cellName ??
+      resolver.resolve(placed.symbolId)?.definition.name ??
+      "the component";
+    const note =
+      placed.capture &&
+      componentCapability(placed.capture.payload) === "symbol-only"
+        ? ` · ${SYMBOL_ONLY_NOTE}`
+        : "";
+    const finish = (landed?: boolean) => {
+      cancelAllTransientInteraction();
+      if (landed !== false)
+        setStatus(`Placed ${name}${note} · Undo removes it`);
+    };
+    // A captured component is checked first, and placement must outlast that.
+    const settled = commitPendingPlacementAtFromHook(
       resolvePendingPlacementPoint(
         pointFromClient(clientX, clientY, svg, false),
         svg,
       ).point,
     );
-    cancelAllTransientInteraction();
-    setStatus(
-      `Placed ${placed && "cellName" in placed ? placed.cellName : "the Cell"} · Undo removes it`,
-    );
+    if (settled) void settled.then(finish);
+    else finish();
   };
+  const awaitedDrop = useRef<{
+    clientX: number;
+    clientY: number;
+    at: number;
+  } | null>(null);
+  // A drag outlives the render that started it.
+  const latestDrop = useRef(dropPlacement);
+  latestDrop.current = dropPlacement;
+  const dropOnCanvas = (clientX: number, clientY: number) =>
+    latestDrop.current(clientX, clientY);
+  useEffect(() => {
+    const awaited = awaitedDrop.current;
+    if (!awaited || !pendingComponentPlacement) return;
+    awaitedDrop.current = null;
+    // Only the placement that drag began, not one started long after it failed.
+    if (performance.now() - awaited.at < DROP_WAIT_MS)
+      latestDrop.current(awaited.clientX, awaited.clientY);
+  }, [pendingComponentPlacement]);
   const { endpointSignalInspection, routeSignalInspection } =
     useSignalMemberInspection({
       model: {
@@ -4146,11 +4221,7 @@ function WorkspaceEditor({
     project,
     document,
     selection: visualSelection,
-    enabled:
-      !componentEditor &&
-      !userComponentsOpen &&
-      !interfaceConfirmation &&
-      !versionHistoryOpen,
+    enabled: !componentEditor && !interfaceConfirmation && !versionHistoryOpen,
     setStatus,
     beginPaste: (clipboard) => beginClipboardPlacement(clipboard),
   });
@@ -4884,8 +4955,6 @@ function WorkspaceEditor({
       nativeProjectStore,
       setStatus,
       componentEditor,
-      userComponentsOpen,
-      setUserComponentsOpen,
       selectionOpen,
       setSelectionOpen,
       searchOpen,
@@ -5075,7 +5144,9 @@ function WorkspaceEditor({
           placement.netLabelTarget,
         );
       },
-      commitPendingPlacement: commitPendingPlacementAtFromHook,
+      commitPendingPlacement: (point) => {
+        void commitPendingPlacementAtFromHook(point);
+      },
       clearComponentPreview: () => setComponentPreviewPoint(null),
       clearVddRailPreview: () => setVddRailPreviewPoint(null),
       clearCopyPreview: () => {
@@ -5380,6 +5451,53 @@ function WorkspaceEditor({
       allowNextBrowserUnload,
     });
 
+  const componentEditorProps: EditorComponentEditorProps = {
+    project,
+    projectSessionId,
+    resolver,
+    dispatchProjectTransaction,
+    externalSubcircuitInsertCandidates,
+    setExternalSubcircuitDefinition,
+    removeExternalSubcircuitDefinition,
+    copyText: (text) => exportDelivery.copyText(text),
+    onBeforePlace: () => {
+      setCellManagerOpen(false);
+      setModelEditorDefinitionId(null);
+    },
+    capabilities,
+    setStatus,
+    componentEditor,
+    setComponentEditor,
+    componentLibraryRefresh,
+    setComponentLibraryRefresh,
+    userComponentsOpen,
+    setUserComponentsOpen,
+    editorDocumentController,
+    synchronizeExternalCommit,
+    definitionProjectRef,
+    selectOnly,
+    cancelAllTransientInteraction,
+    editorCommands,
+    returnToLibrary,
+  };
+  /** Opening the list again also checks it against the library. */
+  const openUserComponents = () => {
+    cancelAllTransientInteraction();
+    setUserComponentsOpen(true);
+    setComponentLibraryRefresh((value) => value + 1);
+    showLeftPanel("library");
+    setComponentSearchRequest((value) => value + 1);
+  };
+  const openCreateComponent = () => {
+    returnToLibrary.current = true;
+    cancelAllTransientInteraction();
+    setComponentEditor({
+      key: crypto.randomUUID(),
+      projectSessionId,
+      mode: "new",
+      definition: newComponentDefinition(),
+    });
+  };
   return (
     <main className="app-shell">
       {publishedNotice ? (
@@ -5443,7 +5561,7 @@ function WorkspaceEditor({
         publicSimulationUiEnabled={publicSimulationUiEnabled}
         setStatus={setStatus}
         userComponentsOpen={userComponentsOpen}
-        setUserComponentsOpen={setUserComponentsOpen}
+        openUserComponents={openUserComponents}
         leftPanelMode={leftPanelMode}
         setSelectionOpen={setSelectionOpen}
         searchOpen={searchOpen}
@@ -5507,7 +5625,6 @@ function WorkspaceEditor({
         projectInstanceCount={projectInstanceCount}
         toggleProjectPanel={toggleProjectPanel}
         toggleExamplesPanel={toggleExamplesPanel}
-        cancelAllTransientInteraction={cancelAllTransientInteraction}
         placeCellInstance={placeCellInstance}
         editorCommands={editorCommands}
         importSpiceFiles={importSpiceFiles}
@@ -5713,6 +5830,7 @@ function WorkspaceEditor({
         cellInsertCandidates={cellInsertCandidates}
         externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
         insertDialogExternalCandidates={insertDialogExternalCandidates}
+        insertDialogProjectComponents={insertDialogProjectComponents}
         cancelComponentInsertFromHook={cancelComponentInsertFromHook}
         insertDialogOpen={insertDialogOpen}
         insertInitialSelectionId={insertInitialSelectionId}
@@ -5855,7 +5973,7 @@ function WorkspaceEditor({
               },
               newCell: () => beginNewCell("root"),
               place: placeCellFromTree,
-              drop: dropCellFromTree,
+              drop: dropOnCanvas,
               setTop: (id) => void setTopCell(id),
               remove: (id) => void deleteCell(id),
               newChildFromSelection: beginCellFromSelection,
@@ -5877,6 +5995,27 @@ function WorkspaceEditor({
             onStartInsert={(launch) =>
               editorCommands.execute({ id: "insert.start", launch })
             }
+            onDropPlacement={dropOnCanvas}
+            {...(capabilities.community || capabilities.localComponents
+              ? {
+                  userComponents: {
+                    label: capabilities.community
+                      ? "Community"
+                      : "My components",
+                    open: userComponentsOpen,
+                    onOpenChange: setUserComponentsOpen,
+                    focusRequest: componentSearchRequest,
+                    onCreate: openCreateComponent,
+                    render: (fold) => (
+                      <EditorLibraryComponents
+                        {...componentEditorProps}
+                        fold={fold}
+                        onDropPlacement={dropOnCanvas}
+                      />
+                    ),
+                  },
+                }
+              : {})}
           />
         ) : (
           <Suspense
@@ -8022,34 +8161,7 @@ function WorkspaceEditor({
           />
         ) : null}
       </div>
-      <EditorComponentEditor
-        project={project}
-        projectSessionId={projectSessionId}
-        resolver={resolver}
-        dispatchProjectTransaction={dispatchProjectTransaction}
-        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
-        setExternalSubcircuitDefinition={setExternalSubcircuitDefinition}
-        removeExternalSubcircuitDefinition={removeExternalSubcircuitDefinition}
-        copyText={(text) => exportDelivery.copyText(text)}
-        onBeforePlace={() => {
-          setCellManagerOpen(false);
-          setModelEditorDefinitionId(null);
-        }}
-        capabilities={capabilities}
-        setStatus={setStatus}
-        componentEditor={componentEditor}
-        setComponentEditor={setComponentEditor}
-        componentLibraryRefresh={componentLibraryRefresh}
-        setComponentLibraryRefresh={setComponentLibraryRefresh}
-        userComponentsOpen={userComponentsOpen}
-        setUserComponentsOpen={setUserComponentsOpen}
-        editorDocumentController={editorDocumentController}
-        synchronizeExternalCommit={synchronizeExternalCommit}
-        definitionProjectRef={definitionProjectRef}
-        selectOnly={selectOnly}
-        cancelAllTransientInteraction={cancelAllTransientInteraction}
-        editorCommands={editorCommands}
-      />
+      <EditorComponentEditor {...componentEditorProps} />
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}

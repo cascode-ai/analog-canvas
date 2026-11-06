@@ -10,6 +10,7 @@ import type { WireSource } from "@icm/edit-engine";
 import {
   routeEndpoints,
   type CircuitProject,
+  type Instance,
   type SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -27,6 +28,33 @@ export interface SelectionInspectionModelInput {
   resolver: SymbolResolver;
   selection: VisualSelection;
   selectedEndpoint: WireSource | null;
+}
+
+/** A component the Project holds reads by its own name and captured revision. */
+function componentLabel(
+  project: CircuitProject,
+  instance: Instance,
+  resolver: SymbolResolver,
+): string | undefined {
+  const definition = project.componentDefinitions?.find(
+    (item) => item.symbol.id === instance.symbolId,
+  );
+  const binding = instance.netlist?.binding;
+  // Automatic artwork has no captured class; its origin is on its owner.
+  const owner =
+    binding?.kind === "external-subcircuit"
+      ? project.externalSubcircuitDefinitions.find(
+          (item) => item.id === binding.definitionId,
+        )
+      : undefined;
+  const origin = definition?.libraryOrigin ?? owner?.libraryOrigin;
+  if (!definition && !origin) return undefined;
+  const name =
+    definition?.symbol.name ??
+    resolver.resolve(instance.symbolId)?.definition.name ??
+    owner?.name ??
+    instance.symbolId;
+  return origin ? `${name} · r${origin.revision}` : name;
 }
 
 /**
@@ -177,8 +205,11 @@ export function deriveSelectionInspectionModel({
         terminal.interfaceInstanceIds.includes(selectedInstance.id),
       )
     : undefined;
+  const selectedComponentLabel = selectedInstance
+    ? componentLabel(project, selectedInstance, resolver)
+    : undefined;
   const selectionShelfSummary = selectedInstance
-    ? `${selectedFormalTerminal?.name ?? selectedInstance.id} · ${selectedInstance.symbolId}`
+    ? `${selectedFormalTerminal?.name ?? selectedInstance.id} · ${selectedComponentLabel ?? selectedInstance.symbolId}`
     : selectedIds.length > 1
       ? `${selectedIds.length} components`
       : selectedRoute

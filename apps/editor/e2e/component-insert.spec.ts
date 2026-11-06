@@ -1105,7 +1105,7 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
 
   await page.getByTestId("library-toggle").click();
   await expect(panel).toHaveAttribute("data-open", "true");
-  await expect(panel.getByText("All", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Official", { exact: true })).toBeVisible();
   // The panel cannot take more than its share of the narrow window.
   const panelWidth = (await panel.boundingBox())?.width ?? 0;
   expect(panelWidth).toBeLessThanOrEqual(720 * 0.6);

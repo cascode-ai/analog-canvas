@@ -68,6 +68,11 @@ import { sharedComponentNetlist } from "../user-components/component-definition-
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
 import type { PendingComponentPlacement } from "../../interaction/interaction-state";
 import type { DrawingTool } from "../../interaction/interaction-state";
+import { ComponentLibraryError } from "../user-components/component-library-error";
+import {
+  componentCapability,
+  SYMBOL_ONLY_NOTE,
+} from "../user-components/component-library-contract";
 import { uprightOrUp } from "../drafting/drafting-manipulation";
 
 type TransactionResult = { ok: boolean; revision: number };
@@ -142,6 +147,8 @@ export interface UseComponentPlacementOptions {
   completeVddRailPlacement: () => void;
   setComponentPreviewPoint: (point: Point) => void;
   setStatus: (status: string) => void;
+  /** A captured component's library record changed before it landed. */
+  onLibraryChanged?: () => void;
   vddRailMode: boolean;
   vddRailNetName: string | null;
   vddRailStart: Point | null;
@@ -426,9 +433,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   const placeNewCapturedComponent = async (
     position: Point,
     placementRequest: PendingComponentPlacement,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const capture = placementRequest.capture;
-    if (!capture || captureBusy.current) return;
+    if (!capture || captureBusy.current) return false;
     captureBusy.current = true;
     const structureRevision = capture.structureRevision;
     const documentRevision = capture.documentRevision;
@@ -448,7 +455,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         }
       }
       const current = latest.current;
-      if (current.pendingComponentPlacement?.capture !== capture) return;
+      if (current.pendingComponentPlacement?.capture !== capture) return false;
       if (
         capture.projectId !== current.project.id ||
         capture.documentId !== current.document.id ||
@@ -478,7 +485,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           plan.documentEdits,
           effect ? { expectedElectricalEffect: effect } : {},
         );
-        if (!gated) return;
+        if (!gated) return false;
         const filled = current.processFill(gated);
         edits = [
           ...plan.edits.filter((edit) => edit.kind !== "transact_document"),
@@ -492,7 +499,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           ]),
         ];
       }
-      if (!current.transactProject("place-public-component", edits)) return;
+      if (!current.transactProject("place-public-component", edits))
+        return false;
       capture.structureRevision = structureRevision + 1;
       capture.documentRevision = documentRevision + 1;
       current.selectOnly("instance", [plan.instance.id]);
@@ -517,12 +525,16 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             ? ` · ${nearMiss}`
             : "";
       current.setStatus(
-        `Placed ${capture.payload.definition.symbol.name}${connectionStatus} · click to place another · Esc exits`,
+        `Placed ${capture.payload.definition.symbol.name}${connectionStatus}${componentCapability(capture.payload) === "symbol-only" ? ` · ${SYMBOL_ONLY_NOTE}` : ""} · click to place another · Esc exits`,
       );
+      return true;
     } catch (error) {
       latest.current.setStatus(
         error instanceof Error ? error.message : String(error),
       );
+      if (error instanceof ComponentLibraryError && error.status === 409)
+        latest.current.onLibraryChanged?.();
+      return false;
     } finally {
       captureBusy.current = false;
     }
@@ -1011,7 +1023,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     );
   };
 
-  const commitPendingPlacementAt = (point: Point): void => {
+  /** Settles once a captured component, checked first, has landed or not. */
+  const commitPendingPlacementAt = (point: Point): void | Promise<boolean> => {
     if (options.vddRailMode) {
       if (!options.vddRailStart) {
         options.setVddRailStart(point);
@@ -1036,8 +1049,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     if (!options.pendingSymbolId || !options.pendingComponentPlacement) return;
     if (options.pendingComponentPlacement.capture) {
-      void placeNewCapturedComponent(point, options.pendingComponentPlacement);
-      return;
+      return placeNewCapturedComponent(
+        point,
+        options.pendingComponentPlacement,
+      );
     }
     if (options.pendingComponentPlacement.kind === "drafting-text") {
       placeDraftingTextAnnotation(point, options.pendingComponentPlacement);

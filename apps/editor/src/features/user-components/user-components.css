@@ -29,68 +29,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.user-components-dialog {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  width: min(64rem, calc(100% - 2.5rem));
-  height: min(40rem, calc(100% - 2.5rem));
-  padding: 1rem;
-  overflow: hidden;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-lg);
-  color: var(--icm-text);
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-lg);
-}
-.user-components-header,
-.user-components-actions,
-.user-components-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--icm-space-2);
-}
-.user-components-header p,
-.user-components-header h2 {
-  margin: 0;
-}
-.user-components-header p {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.user-components-header h2 {
-  margin-top: 0.15rem;
-  font-size: var(--icm-font-lg);
-}
-.user-components-search {
-  min-height: 2.35rem;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  color: var(--icm-text);
-  background: var(--icm-surface);
-  font: inherit;
-  font-size: var(--icm-font-lg);
-}
-.user-components-search:focus {
-  border-color: var(--icm-accent);
-  box-shadow: 0 0 0 3px var(--icm-accent-soft);
-  outline: 0;
-}
 .component-catalog-controls {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--icm-space-2);
-}
-.component-catalog-controls > input {
-  flex: 1 1 14rem;
-  min-width: 8rem;
 }
 .component-catalog-controls > select,
 .component-catalog-authors > summary {
@@ -145,78 +88,6 @@
   color: var(--icm-accent);
   background: var(--icm-accent-soft);
 }
-.user-component-author {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--icm-text-muted);
-  font: inherit;
-  font-size: var(--icm-font-xs);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  text-align: left;
-}
-.user-component-author:hover {
-  color: var(--icm-accent);
-}
-.user-components-message {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--icm-space-2);
-  padding: var(--icm-space-2) var(--icm-space-3);
-  border: 1px solid #f0d2d2;
-  border-radius: var(--icm-radius-md);
-  color: #8c2c2c;
-  background: #fff7f7;
-  font-size: var(--icm-font-sm);
-}
-.user-components-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  grid-auto-rows: max-content;
-  align-content: start;
-  gap: 0.35rem;
-  min-height: 0;
-  padding: 0.35rem;
-  overflow-y: auto;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface-muted);
-}
-.user-component-tile {
-  position: relative;
-  padding-top: 1.6rem;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  overflow: hidden;
-}
-.user-component-place {
-  width: 100%;
-  flex: 1 0 auto;
-  display: flex;
-  align-items: stretch;
-  flex-direction: column;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--icm-text);
-  text-align: left;
-}
-.user-component-place:hover {
-  color: var(--icm-accent);
-  background: var(--icm-accent-soft);
-}
 .user-component-preview {
   flex: 0 0 6.5rem;
   height: 6.5rem;
@@ -234,55 +105,6 @@
   overflow: hidden;
   color: var(--icm-text);
 }
-.user-component-caption {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-  padding: 0.35rem 0.55rem;
-}
-.user-component-caption strong {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-height: 1.25;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-.user-component-caption small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-.user-component-detail {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--icm-space-2);
-}
-.user-component-detail h3 {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.user-component-detail pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: var(--icm-font-sm);
-}
-.user-component-detail-preview {
-  height: 15rem;
-  flex-shrink: 0;
-  padding: 0.5rem;
-  background: var(--icm-surface-muted);
-  border-radius: var(--icm-radius-md);
-}
 .component-definition-native .component-geometry-row {
   max-width: 22rem;
 }
@@ -291,29 +113,6 @@
   > .component-definition-note {
   flex-basis: 100%;
 }
-.user-component-edit {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--icm-surface);
-  box-shadow: none;
-  color: var(--icm-accent);
-  font-size: var(--icm-font-xs);
-  padding: 0.25rem 0.35rem;
-  cursor: pointer;
-}
-.user-components-empty {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: 2rem;
-  color: var(--icm-text-muted);
-  text-align: center;
-}
-.user-components-footer {
-  min-height: 2rem;
-}
-.user-components-actions button,
 .component-definition-dialog button {
   min-height: var(--icm-control-h);
   padding-inline: var(--icm-space-2);
@@ -735,44 +534,6 @@
 .component-popover > button {
   text-align: left;
 }
-.component-card-tools {
-  position: absolute;
-  top: 0.15rem;
-  right: 0.2rem;
-  display: flex;
-  gap: 0.1rem;
-}
-.component-card-tools button {
-  width: 1.65rem;
-  height: 1.65rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--icm-text-muted);
-  font-size: 1.1rem;
-}
-.component-card-title {
-  display: flex;
-  align-items: baseline;
-  gap: 0.3rem;
-}
-.component-card-title strong {
-  flex: 1;
-  min-width: 0;
-}
-.component-card-title small {
-  flex: none;
-  padding: 0.05rem 0.25rem;
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface-muted);
-  font-size: 0.65rem;
-}
-.component-card-invalid {
-  height: 6.5rem;
-  display: grid;
-  place-items: center;
-  color: var(--icm-text-muted);
-}
 .component-project-drafts {
   min-width: 0;
   width: 100%;
@@ -810,31 +571,6 @@
 .component-draft-row > button:last-child {
   flex: none;
 }
-
-.component-library-tabs {
-  display: flex;
-  flex: 0 0 auto;
-  gap: var(--icm-space-2);
-}
-.component-library-tabs button {
-  border: 0;
-  box-shadow: none;
-  background: transparent;
-  padding: 0.3rem 0.65rem;
-  color: var(--icm-text-muted);
-}
-.component-library-tabs button[aria-selected="true"] {
-  background: var(--icm-accent-soft);
-  color: var(--icm-accent);
-}
-.component-shelf-tabs {
-  font-size: var(--icm-font-sm);
-}
-.component-shelf-drafts {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
 .component-project-drafts h3 {
   margin: 0 0 0.4rem;
   font-size: var(--icm-font-sm);
@@ -865,12 +601,218 @@
   place-items: center;
   flex: 1;
 }
-@media (max-width: 700px) {
-  .user-components-header {
-    flex-wrap: wrap;
-  }
-  .user-components-header > .component-library-tabs {
-    order: 1;
-    width: 100%;
-  }
+
+/* The Library's component fold: rows on its working surface, as in the tree. */
+.user-components-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+}
+.component-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 40px;
+  border-radius: var(--icm-radius-sm);
+  user-select: none;
+}
+.component-row[data-variant] {
+  margin-left: 14px;
+  min-height: 34px;
+}
+.component-row:hover,
+.component-row:focus-within {
+  background: var(--icm-surface-muted);
+}
+.component-row-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  box-shadow: none;
+  background: transparent;
+  color: var(--icm-text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.component-row-main:hover {
+  background: transparent;
+}
+.component-row-main:focus-visible {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: -2px;
+}
+.component-row-main[aria-disabled="true"] {
+  opacity: 0.65;
+}
+.component-row .user-component-preview {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  padding: 1px;
+}
+.component-row[data-variant] .user-component-preview {
+  flex-basis: 28px;
+  width: 28px;
+  height: 28px;
+}
+.component-row .user-component-preview .component-definition-note {
+  font-size: 10px;
+}
+.component-row-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.component-row-name,
+.component-row-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.component-row-text small {
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.component-row-mark {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+  font-size: 10px;
+  line-height: 16px;
+}
+.component-row-actions {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--icm-text-muted);
+}
+.component-row-actions:hover {
+  background: var(--icm-surface-hover);
+}
+.component-row:not(:hover, :focus-within) .component-row-actions {
+  display: none;
+}
+.user-components-message {
+  margin: 0;
+  padding: 6px 4px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.user-components-message button {
+  margin-left: 6px;
+}
+.user-components-nested {
+  min-width: 0;
+}
+.user-components-nested > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 4px;
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.user-components-nested > summary:hover {
+  background: var(--icm-surface-muted);
+}
+.user-components-nested > summary small {
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-weight: 500;
+}
+.user-components-nested[open] {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--icm-border);
+}
+.user-components-nested .user-components-nested[open] {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.user-components-nested > .component-project-drafts {
+  padding: 2px 4px;
+  font-size: var(--icm-font-xs);
+}
+.user-components-panel .component-library-feedback {
+  position: static;
+  max-width: none;
+  margin-bottom: 4px;
+  font-size: var(--icm-font-xs);
+}
+.component-preview-card {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: 4px;
+  width: 300px;
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+  font-size: var(--icm-font-xs);
+}
+.component-preview-card .user-component-preview {
+  flex: none;
+  height: 170px;
+  padding: 4px;
+}
+.component-preview-card strong {
+  font-size: var(--icm-font-sm);
+  overflow-wrap: anywhere;
+}
+.component-preview-card p {
+  margin: 0;
+  color: var(--icm-text-muted);
+  overflow-wrap: anywhere;
+}
+.component-preview-card pre {
+  max-height: 220px;
+  margin: 4px 0 0;
+  overflow: auto;
+  font-size: 11px;
+}
+
+/* Rows use the fold's full width: the name is what they exist to show. */
+.shapes-fold-body:has(> .user-components-panel) {
+  padding: 2px;
+}
+
+/* The filter's controls stack, and its author list stays inside the popover. */
+.component-popover .component-catalog-controls {
+  flex-direction: column;
+  align-items: stretch;
+  width: 13rem;
+}
+.component-popover .component-catalog-controls > select,
+.component-popover .component-catalog-authors > summary {
+  max-width: none;
+}
+.component-popover .component-catalog-author-options {
+  position: static;
+  width: auto;
+  max-height: 12rem;
 }

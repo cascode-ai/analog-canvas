@@ -21,7 +21,7 @@ describe("shapes quick-place", () => {
     );
 
     expect(symbols).toHaveLength(79);
-    expect(markup).toContain("All devices");
+    expect(markup).toContain("Official components");
     expect(markup).toContain('aria-label="Place NoConn"');
     expect(markup).toContain(">NoConn</span>");
     expect(markup).toContain("No Connect: mark intentionally unused pins");

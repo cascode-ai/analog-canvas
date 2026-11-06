@@ -44,6 +44,10 @@ export interface ComponentLibrarySummaryPage {
 }
 
 /** Derived capabilities do not imply qualification for a simulation engine. */
+/** Said wherever a symbol-only component is placed: it has nothing to netlist. */
+export const SYMBOL_ONLY_NOTE =
+  "symbol only: add its circuit before exporting a netlist";
+
 export function componentCapability(
   payload: SharedDefinitionPayload,
 ): ComponentLibrarySummary["capability"] {
