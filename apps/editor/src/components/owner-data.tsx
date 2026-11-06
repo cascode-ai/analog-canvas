@@ -1,6 +1,11 @@
 import { Fragment, useEffect, useState } from "react";
 
-import { CircuitStatsPanel } from "./circuit-stats";
+import {
+  AuthorStatsView,
+  type AuthorStatsPayload,
+  type GalleryStatsSummary,
+  readGalleryStats,
+} from "./gallery-stats";
 
 /** One author's public circuits, counted (`GET /api/gallery/owner-data`). */
 export interface OwnerDataAuthor {
@@ -63,8 +68,24 @@ async function readOwnerData<T>(query = ""): Promise<T | null> {
 
 const day = (iso: string) => iso.slice(0, 10);
 
+/** An author's circuits as the circuit table counts them: parts as components. */
+const withComponents = (
+  read: AuthorStatsPayload<OwnerDataCircuit>,
+): OwnerAuthorStats => ({
+  ...read,
+  circuits: read.circuits.map((circuit) => ({
+    ...circuit,
+    components: circuit.parts,
+  })),
+});
+
+/** One author's circuits, with the circuit table's own field names. */
+type OwnerAuthorStats = AuthorStatsPayload<
+  OwnerDataCircuit & { components: number | null }
+>;
+
 const readAuthor = (key: string) =>
-  readOwnerData<{ circuits: OwnerDataCircuit[] }>(
+  readOwnerData<AuthorStatsPayload<OwnerDataCircuit>>(
     `?author=${encodeURIComponent(key)}`,
   );
 
@@ -102,14 +123,19 @@ export function OwnerDataContent() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [circuits, setCircuits] = useState<
-    Record<string, OwnerDataCircuit[] | "failed">
+    Record<string, OwnerAuthorStats | "failed">
   >({});
+  // The whole Gallery's statistics, which each author's sit beside.
+  const [library, setLibrary] = useState<GalleryStatsSummary>();
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [recount, setRecount] = useState<Recount>({ status: "idle" });
   useEffect(() => {
     let cancelled = false;
     void readOwnerData<OwnerData>().then((read) => {
       if (!cancelled) setData(read ?? "failed");
+    });
+    void readGalleryStats().then((read) => {
+      if (!cancelled && read) setLibrary(read.summary);
     });
     return () => {
       cancelled = true;
@@ -124,7 +150,7 @@ export function OwnerDataContent() {
       if (!cancelled)
         setCircuits((known) => ({
           ...known,
-          [open]: read?.circuits ?? "failed",
+          [open]: read ? withComponents(read) : "failed",
         }));
     });
     return () => {
@@ -154,7 +180,8 @@ export function OwnerDataContent() {
     void readAuthor(key).then((read) => {
       setRefreshing(null);
       // A failed refresh keeps the numbers already shown.
-      if (read) setCircuits((known) => ({ ...known, [key]: read.circuits }));
+      if (read)
+        setCircuits((known) => ({ ...known, [key]: withComponents(read) }));
     });
   };
   const runRecount = async () => {
@@ -264,7 +291,7 @@ export function OwnerDataContent() {
             data-testid="owner-data-recount"
             disabled={recount.status === "running"}
             onClick={() => void runRecount()}
-            title="Count every public circuit's transistors again"
+            title="Count every public circuit's devices again"
           >
             {recount.status === "running" ? "Recounting…" : "Recount"}
           </button>
@@ -356,11 +383,10 @@ export function OwnerDataContent() {
                             </p>
                           ) : (
                             <div data-testid="owner-data-circuits">
-                              <CircuitStatsPanel
-                                circuits={listed.map((circuit) => ({
-                                  ...circuit,
-                                  components: circuit.parts,
-                                }))}
+                              <AuthorStatsView
+                                stats={listed}
+                                library={library}
+                                who={row.author}
                                 refreshing={refreshing === row.key}
                                 onRefresh={() => refreshAuthor(row.key)}
                                 badges={(circuit) => [

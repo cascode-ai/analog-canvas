@@ -14,9 +14,9 @@ import { type SqlStorage, unwrapTags } from "./gallery-store";
  * of circuit function. Design Attributes describe how a circuit is drawn, not
  * what it is, so they name no type.
  */
-const BOARD_TYPES: readonly string[] = Object.keys(
-  taxonomy.tagsByGroup,
-).filter((group) => group !== "Design Attributes");
+const BOARD_TYPES: readonly string[] = Object.keys(taxonomy.tagsByGroup).filter(
+  (group) => group !== "Design Attributes",
+);
 const TYPE_OF_TAG = new Map(
   Object.entries(taxonomy.tagsByGroup as Record<string, string[]>)
     .filter(([group]) => BOARD_TYPES.includes(group))
@@ -178,7 +178,7 @@ function entryFacts(
 }
 
 /** The type an entry's own Gallery tags name: its first tag of a circuit-function group. */
-function tagType(tags: string | null): string | null {
+export function tagType(tags: string | null): string | null {
   for (const tag of unwrapTags(tags)) {
     const type = TYPE_OF_TAG.get(tag);
     if (type) return type;

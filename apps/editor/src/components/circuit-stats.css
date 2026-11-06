@@ -1,63 +1,12 @@
-/* An account's circuit statistics: three summary tiles over one card holding
-   a sortable table with a total row. The Owner's Data tab nests the same
-   panel inside its authors table, so the selectors here outrank that
-   table's own (`.owner-data-table td` and the like). */
+/* An account's circuits: one card holding a sortable table with a total
+   row. The Owner's Data tab nests the same table inside its authors table,
+   so the selectors here outrank that table's own (`.owner-data-table td`
+   and the like). */
 
 .circuit-stats {
   display: grid;
   gap: 16px;
   min-width: 0;
-}
-
-.circuit-stats-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.circuit-stats-tile {
-  display: grid;
-  gap: 4px;
-  padding: 16px 18px;
-  border: 1px solid var(--icm-border);
-  border-radius: 12px;
-  background: var(--icm-surface);
-  box-shadow: 0 1px 2px rgb(15 15 15 / 4%);
-}
-
-.circuit-stats-tile-primary {
-  border-color: rgb(var(--icm-accent-rgb) / 22%);
-  background: linear-gradient(
-    135deg,
-    var(--icm-accent-tint) 0%,
-    var(--icm-surface) 75%
-  );
-}
-
-.circuit-stats-tile-label {
-  color: var(--icm-text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.circuit-stats-tile-value {
-  color: var(--icm-text);
-  font-size: 30px;
-  font-weight: 650;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-
-.circuit-stats-tile-primary .circuit-stats-tile-value {
-  color: var(--icm-accent);
-}
-
-.circuit-stats-tile-note,
-.circuit-stats-muted {
-  color: var(--icm-text-muted);
-  font-size: 12px;
 }
 
 .circuit-stats-card {
@@ -315,33 +264,7 @@
   font-size: 12px;
 }
 
-.circuit-stats-empty {
-  display: grid;
-  gap: 4px;
-  padding: 32px 16px;
-  border: 1px dashed var(--icm-border-strong);
-  border-radius: 12px;
-  text-align: center;
-}
-
-.circuit-stats-empty p {
-  margin: 0;
-}
-
 @media (max-width: 720px) {
-  .circuit-stats-tiles {
-    gap: 8px;
-  }
-
-  .circuit-stats-tile {
-    padding: 12px;
-  }
-
-  .circuit-stats-tile-value {
-    font-size: 22px;
-  }
-
-  .circuit-stats-tile-note,
   .circuit-stats-bar {
     display: none;
   }

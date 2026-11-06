@@ -262,13 +262,25 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
 - `GET /api/gallery/mine`: own entries with `status`, `rejectReason`,
   `recycledAt`, `likes`, `withdrawnByCurator`; `scope=ai-seats` for AI seats
   (others 403 `ai-accounts-only`; unknown 400 `invalid-scope`).
-- `GET /api/gallery/mine/stats` (401 signed out): the account's public circuits,
-  newest first, as `{circuits:[{id,name,createdAt,components,transistors}]}`,
-  for its account page's Statistics tab. `transistors` counts the top Cell's
-  drawn MOS and BJT parts and those of each called Cell, once per call (a
-  behavioral block holds none); kept beside its rule version, not backed up,
-  counted on read, by the scheduled pass and again after an edit; null while
-  unreadable.
+- Statistics tab (account page; `view=mine` opens the account's own):
+  - `GET /api/gallery/stats` (401 signed out): the community Gallery's
+    `summary` and its 10 `topAuthors`; reference datasets are not counted.
+  - `GET /api/gallery/mine/stats` (401 signed out): the account's public
+    circuits, newest first (`{id,name,createdAt,components,transistors}`), its
+    `summary`, and `rank` `{position, authors}` by public circuits (null with
+    none).
+  - `summary` counts public circuits: totals, `counted`, `ai`, `netlist`,
+    likes received; `types` (each circuit's first tag of a circuit-function
+    group, the boards' rule; null untagged), the 12 most used `tags`,
+    `devices` by kind, `sizes` (the component ranges), `transistorBins`
+    (0, 1–5, 6–10, 11–20, 21–50, 51+) and `weeks` (the last 16, Monday UTC,
+    people and AI).
+  - Devices are the drawn parts of the top Cell and of each called Cell, once
+    per call: NMOS, PMOS, BJT, resistor, capacitor, inductor, diode, source,
+    switch, block (a behavioral body), other; Ports, markers and undrawn parts
+    are not counted. Transistors are its MOS and BJT parts. Kept beside their
+    rule version, not backed up, counted on read, by the scheduled pass and
+    again after an edit; null while unreadable.
 - Moderators: `users.role` (`user`/`moderator`), set by the super-admin via
   `POST /api/auth/users/role` `{email, role}` for every account with that
   verified email. Bin and maintenance stay admin-only. No bulk model fill.
@@ -507,9 +519,10 @@ ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
   count), AI and netlist marks, likes and newest time, and `mostOpened` (the 50
   circuits opened most, datasets' included, with `opens` and `opensLastWeek`);
   `author=<key>` counts that author's circuits, each with its `parts`,
-  `transistors` and the same opens.
+  `transistors` and the same opens, with their `summary` and `rank` as
+  `mine/stats` gives them.
 - `POST /api/gallery/owner-data/recount` (same-origin, Owner accounts):
-  counts the transistors of up to 200 public circuits after `{after}`, in ID
+  counts the devices of up to 200 public circuits after `{after}`, in ID
   order, whatever their stored count; `{counted, remaining, next}`, resumed
   from `next` until it is null. The Data tab's Recount runs it to the end.
 

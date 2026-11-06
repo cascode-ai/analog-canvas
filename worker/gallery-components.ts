@@ -31,39 +31,95 @@ export function galleryComponentCount(project: CircuitProject): number {
 }
 
 /**
- * How many transistors a Gallery circuit holds: the MOS and BJT parts its top
- * Cell draws, and those of each Cell it calls, counted once per call, so a
- * Cell called twice counts twice. A block with a behavioral body (an op-amp,
- * a gate not bound to a Cell) holds none, and parts the sheet does not draw
- * are not counted, as for the part count.
+ * The devices a Gallery circuit holds, by kind: the parts its top Cell draws
+ * and those of each Cell it calls, counted once per call, so a Cell called
+ * twice counts twice. A part bound to a Cell is that Cell's parts, not a
+ * block; a block with a behavioral body (an op-amp, a gate not bound to a
+ * Cell) counts as one block. Ports, supply and ground markers and parts the
+ * sheet does not draw are not counted, as for the part count. Its
+ * transistors are its MOS and BJT parts.
  *
  * Kept per entry beside this rule's version (gallery-store-stats.ts), so a
  * changed rule leaves exactly the stale counts for the scheduled pass.
  */
-export const TRANSISTOR_COUNT_RULE_VERSION = 1;
+export const DEVICE_COUNT_RULE_VERSION = 2;
 
-const TRANSISTOR_CLASSES = new Set(["mos", "bjt"]);
+export const GALLERY_DEVICE_KINDS = [
+  "nmos",
+  "pmos",
+  "bjt",
+  "resistor",
+  "capacitor",
+  "inductor",
+  "diode",
+  "source",
+  "switch",
+  "block",
+  "other",
+] as const;
+export type GalleryDeviceKind = (typeof GALLERY_DEVICE_KINDS)[number];
 
-export function galleryTransistorCount(project: CircuitProject): number {
-  const counted = new Map<string, number>();
-  const count = (documentId: string): number => {
+const SOURCE_CLASSES = new Set([
+  "voltage-source",
+  "current-source",
+  "vcvs",
+  "vccs",
+  "cccs",
+  "ccvs",
+]);
+const DIRECT_CLASSES = new Set([
+  "bjt",
+  "resistor",
+  "capacitor",
+  "inductor",
+  "diode",
+  "switch",
+]);
+const BLOCK_CATEGORIES = new Set(["analog-block", "logic", "signal-flow"]);
+
+export type GalleryDeviceCounts = Partial<Record<GalleryDeviceKind, number>>;
+
+export function galleryDeviceCounts(
+  project: CircuitProject,
+): GalleryDeviceCounts {
+  const counted = new Map<string, GalleryDeviceCounts>();
+  const kindOf = (
+    instance: CircuitProject["documents"][number]["instances"][number],
+  ): GalleryDeviceKind | null => {
+    const category = getRazaviCatalogEntry(instance.symbolId)?.category ?? "";
+    if (NOT_PARTS.has(category)) return null;
+    const descriptor = deviceDescriptor(instance.symbolId, project);
+    const deviceClass = descriptor?.deviceClass ?? "";
+    if (deviceClass === "net-marker") return null;
+    if (deviceClass === "mos")
+      return descriptor?.mosBulkClass === "pmos" ? "pmos" : "nmos";
+    if (DIRECT_CLASSES.has(deviceClass))
+      return deviceClass as GalleryDeviceKind;
+    if (SOURCE_CLASSES.has(deviceClass)) return "source";
+    return BLOCK_CATEGORIES.has(category) ? "block" : "other";
+  };
+  const count = (documentId: string): GalleryDeviceCounts => {
     const known = counted.get(documentId);
     if (known !== undefined) return known;
     // A Cell that calls itself, however far down, adds nothing more.
-    counted.set(documentId, 0);
+    counted.set(documentId, {});
     const document = project.documents.find((item) => item.id === documentId);
-    let total = 0;
+    const total: GalleryDeviceCounts = {};
+    const add = (kind: GalleryDeviceKind, amount: number) => {
+      if (amount > 0) total[kind] = (total[kind] ?? 0) + amount;
+    };
     for (const instance of document?.instances ?? []) {
       if (instance.placement === null) continue;
       const binding = instance.netlist?.binding;
-      if (binding?.kind === "subcircuit")
-        total += count(binding.childDocumentId);
-      else if (
-        TRANSISTOR_CLASSES.has(
-          deviceDescriptor(instance.symbolId, project)?.deviceClass ?? "",
-        )
-      )
-        total += 1;
+      if (binding?.kind === "subcircuit") {
+        for (const [kind, amount] of Object.entries(
+          count(binding.childDocumentId),
+        ))
+          add(kind as GalleryDeviceKind, amount);
+        continue;
+      }
+      const kind = kindOf(instance);
+      if (kind) add(kind, 1);
     }
     counted.set(documentId, total);
     return total;
@@ -72,7 +128,7 @@ export function galleryTransistorCount(project: CircuitProject): number {
     project.documents.find(
       (document) => document.id === project.topDocumentId,
     ) ?? project.documents[0];
-  return top ? count(top.id) : 0;
+  return top ? count(top.id) : {};
 }
 
 /** One size a reader may filter the wall by, in parts; open above when no max. */

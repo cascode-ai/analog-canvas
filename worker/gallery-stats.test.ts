@@ -8,7 +8,7 @@ import {
   type CircuitProject,
 } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
-import { galleryTransistorCount } from "./gallery-components";
+import { galleryDeviceCounts } from "./gallery-components";
 import { refreshTransistorCounts } from "./gallery-maintenance";
 import {
   ORIGIN,
@@ -46,6 +46,12 @@ function circuitText(name: string, symbols: readonly string[]): string {
     drawn(createEmptyProject("gallery-stats", name), symbols),
   );
 }
+
+/** A circuit's transistors: its MOS and BJT parts. */
+const galleryTransistorCount = (project: CircuitProject) => {
+  const devices = galleryDeviceCounts(project);
+  return (devices.nmos ?? 0) + (devices.pmos ?? 0) + (devices.bjt ?? 0);
+};
 
 describe("a Gallery circuit's transistor count", () => {
   it("counts the MOS and BJT parts drawn, not other parts or tray parts", () => {
@@ -103,6 +109,147 @@ describe("a Gallery circuit's transistor count", () => {
       placement: at(6),
     });
     expect(galleryTransistorCount(project)).toBe(1 + 2 * 2);
+  });
+});
+
+describe("a Gallery circuit's devices", () => {
+  it("sorts the parts drawn by kind, a block once and markers not at all", () => {
+    const project = drawn(createEmptyProject("kinds", "Kinds"), [
+      "nmos",
+      "nmos",
+      "pmos",
+      "pnp",
+      "resistor",
+      "capacitor",
+      "voltage-source",
+      "opamp",
+      "port",
+    ]);
+    expect(galleryDeviceCounts(project)).toEqual({
+      nmos: 2,
+      pmos: 1,
+      bjt: 1,
+      resistor: 1,
+      capacitor: 1,
+      source: 1,
+      block: 1,
+    });
+  });
+
+  it("counts a bound Cell's devices, not the block that calls it", () => {
+    const project = drawn(createEmptyProject("bound", "Bound"), ["resistor"]);
+    const inverter = createEmptyDocument("inv", "inv");
+    drawn({ ...project, documents: [inverter] } as CircuitProject, [
+      "nmos",
+      "pmos",
+    ]);
+    project.documents.push(inverter);
+    project.documents[0]!.instances.push({
+      id: "XA",
+      symbolId: "inverter",
+      reference: "XA",
+      placement: at(5),
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "inv" },
+        parameters: {},
+      },
+    });
+    expect(galleryDeviceCounts(project)).toEqual({
+      resistor: 1,
+      nmos: 1,
+      pmos: 1,
+    });
+  });
+});
+
+describe("the Gallery's statistics", () => {
+  it("gives every signed-in account the whole Gallery's distributions", async () => {
+    const env = environment();
+    const maker = await makerOf(env);
+    const other = await signIn(env.authDurable, "other@example.com");
+    const amplifier = await submitOne(env, "Amplifier", {
+      cookie: maker,
+      text: circuitText("Amplifier", ["nmos", "nmos", "pmos", "resistor"]),
+    });
+    const divider = await submitOne(env, "Divider", {
+      cookie: maker,
+      text: circuitText("Divider", ["resistor", "resistor"]),
+      ip: "203.0.113.51",
+    });
+    await submitOne(env, "Mirror", {
+      cookie: other,
+      text: circuitText("Mirror", ["npn", "npn"]),
+      ip: "203.0.113.52",
+    });
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET tags = ',ota,amplifier,cmos,', ai_generated = 1 WHERE id = ?",
+      amplifier,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET tags = ',cmos,' WHERE id = ?",
+      divider,
+    );
+    const read = (path: string, cookie?: string) =>
+      route(
+        env,
+        new Request(
+          `${ORIGIN}/api/gallery/${path}`,
+          cookie ? { headers: cookieHeaders(cookie) } : {},
+        ),
+      );
+    expect((await read("stats")).status).toBe(401);
+    const response = await read("stats", other);
+    expect(response.status).toBe(200);
+    const { summary, topAuthors } = (await response.json()) as any;
+    expect(summary).toMatchObject({
+      circuits: 3,
+      authors: 2,
+      components: 8,
+      transistors: 5,
+      counted: 3,
+      ai: 1,
+      likes: 0,
+      types: [
+        { type: null, circuits: 2 },
+        { type: "Amplifiers", circuits: 1 },
+      ],
+      tags: [
+        { tag: "cmos", circuits: 2 },
+        { tag: "amplifier", circuits: 1 },
+        { tag: "ota", circuits: 1 },
+      ],
+      sizes: [
+        { key: "0-5", circuits: 3 },
+        { key: "6-10", circuits: 0 },
+        { key: "11-15", circuits: 0 },
+        { key: "16-25", circuits: 0 },
+        { key: "26-", circuits: 0 },
+      ],
+      transistorBins: [
+        { key: "0", circuits: 1 },
+        { key: "1-5", circuits: 2 },
+        { key: "6-10", circuits: 0 },
+        { key: "11-20", circuits: 0 },
+        { key: "21-50", circuits: 0 },
+        { key: "51-", circuits: 0 },
+      ],
+    });
+    expect(
+      Object.fromEntries(
+        summary.devices
+          .filter((device: any) => device.count > 0)
+          .map((device: any) => [device.kind, device.count]),
+      ),
+    ).toEqual({ nmos: 2, pmos: 1, bjt: 2, resistor: 3 });
+    // Sixteen weeks, this one last, by people and by AI.
+    expect(summary.weeks).toHaveLength(16);
+    expect(summary.weeks.at(-1)).toMatchObject({ human: 2, ai: 1 });
+    expect(topAuthors.map((author: any) => author.circuits)).toEqual([2, 1]);
+
+    // An author's own statistics carry their distributions and place.
+    const mine = (await (await read("mine/stats", other)).json()) as any;
+    expect(mine.summary).toMatchObject({ circuits: 1, transistors: 2 });
+    expect(mine.rank).toEqual({ position: 2, authors: 2 });
   });
 });
 

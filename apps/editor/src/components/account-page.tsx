@@ -15,7 +15,7 @@ import {
   type SessionUser,
 } from "./account";
 import { AiAccountsContent } from "./ai-accounts";
-import { MyCircuitStatsContent } from "./circuit-stats";
+import { StatisticsContent } from "./gallery-stats";
 import { GalleryChrome } from "./gallery-chrome";
 import { ModerationContent } from "./moderation";
 import { OwnerDataContent } from "./owner-data";
@@ -484,7 +484,7 @@ export function AccountDashboard({
             {id === "circuits" ? (
               <MySubmissionsContent />
             ) : id === "statistics" ? (
-              <MyCircuitStatsContent />
+              <StatisticsContent />
             ) : id === "projects" ? (
               <Suspense
                 fallback={
