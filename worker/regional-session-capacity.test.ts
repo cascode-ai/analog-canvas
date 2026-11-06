@@ -1,8 +1,9 @@
 import { expect, it } from "vitest";
-import { makerOf } from "./gallery.test-support";
-import { accounts } from "./regional-auth.test-support";
+import { makerOf, ORIGIN } from "./gallery.test-support";
+import { accounts, config } from "./regional-auth.test-support";
+import { RegionalSessionDO } from "./regional-session";
 
-it("renews a burst of 1000 sessions through scheduled alarms with a two-second transport delay", async () => {
+it("renews 1000 sessions across restart with two-second transport and processing overhead", async () => {
   const h = accounts();
   const source = await makerOf(h.source);
   let nextAlarm = 0;
@@ -17,27 +18,59 @@ it("renews a burst of 1000 sessions through scheduled alarms with a two-second t
       )),
     );
   const began = h.region.now();
+  let region = h.region;
+  let restarted = false;
+  const sourceTransport = h.region.fetchLike;
+  let transportReleased = Promise.resolve();
+  const transport: typeof fetch = async (input, init) => {
+    const released = transportReleased;
+    const response = await sourceTransport(input, init);
+    if (String(input).endsWith("/renew")) await released;
+    return response;
+  };
+  region.fetchLike = transport;
   const states = async () =>
     Promise.all(
       cookies.map(
         async (cookie) =>
-          (await (await h.call("/api/auth/me", cookie)).json()).authorization,
+          (
+            await (
+              await region.fetch(
+                new Request(ORIGIN + "/api/auth/me", { headers: { cookie } }),
+              )
+            ).json()
+          ).authorization,
       ),
     );
   // The runtime invokes its next persisted alarm only after this alarm ends.
-  // Advancing while its I/O is pending models transport, not authority bypass.
+  // Model two seconds of transport plus 200ms of processing. A batch ends
+  // before the runtime can deliver its next persisted alarm.
   while (h.region.now() - began < 120_000) {
     h.advance(Math.max(0, nextAlarm - h.region.now()));
     expect(new Set(await states())).toEqual(new Set(["active"]));
-    const pending = h.region.alarm();
-    h.advance(2000);
+    const release = Promise.withResolvers<void>();
+    transportReleased = release.promise;
+    const pending = region.alarm();
+    h.advance(2200);
+    // Check while replies are still in flight: checking only after renewal
+    // can miss a transient expiry that a real browser observes mid-batch.
+    const duringRenewal = new Set(await states());
+    release.resolve();
     await pending;
+    expect(duringRenewal).toEqual(new Set(["active"]));
     expect(new Set(await states())).toEqual(new Set(["active"]));
+    if (!restarted && h.region.now() - began >= 90_000) {
+      region = new RegionalSessionDO(h.state, { AUTH_REGIONAL_CLIENT: config });
+      region.now = h.region.now;
+      region.fetchLike = transport;
+      restarted = true;
+    }
   }
-  h.region.fetchLike = async () => {
+  expect(restarted).toBe(true);
+  region.fetchLike = async () => {
     throw new Error("isolated outage");
   };
   h.advance(60_001);
-  await h.region.alarm();
+  await region.alarm();
   expect(new Set(await states())).toEqual(new Set(["expired"]));
-}, 30_000);
+}, 60_000);
