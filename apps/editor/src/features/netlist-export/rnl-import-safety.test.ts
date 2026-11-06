@@ -298,3 +298,83 @@ it("keeps a drawing of a parameterized circuit, or one past the comparison's siz
     expect(kept.card).toBe("S1 a b clk VSS ideal_switch");
   }
 }, 60_000);
+
+/**
+ * #1954's probe: a top main, and a Cell dut no Cell calls, whose switch is
+ * labelled `name` by the drawing; `dutIsTop` leaves main out.
+ */
+function uncalledProbe(name: string, dutIsTop = false) {
+  return [
+    "* uncalled safety probe",
+    '* @RNL(type="header") {',
+    '*   @VERSION("0.3");',
+    '*   @USE-PACKAGE(name="rnl-std-full", version="0.3");',
+    '*   @USE-PACKAGE(name="analog-canvas-extensions", version="0.5")',
+    "* }",
+    ...(dutIsTop
+      ? []
+      : [
+          ".subckt main a b",
+          "R2 a b 2k",
+          '* @RNL(author="analog-canvas") {',
+          '*   #R2 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0");',
+          "*   $CANVAS_TOP @ATTACH #(level)",
+          "* }",
+          ".ends main",
+        ]),
+    ".subckt dut a b clk wrong VSS",
+    "S1 a b clk VSS ideal_switch",
+    ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+    '* @RNL(author="analog-canvas") {',
+    '*   #S1 @SET-SYMBOL $SWITCH => @PLACE(0, 0) => @ORIENT("R0");',
+    `*   #S1 @TEXT("${name}", key="name", dx=0, dy=2, halign="middle", size=0.5)`,
+    "* }",
+    ".ends dut",
+    "",
+  ].join("\n");
+}
+
+/** The import's error findings and dut's switch as the export prints it. */
+async function importUncalled(text: string) {
+  const path = "probe.sp";
+  const plan = await planRnlImport({
+    inputs: [{ path, bytes: new TextEncoder().encode(text) }],
+    entryPath: path,
+    runtime,
+  });
+  if (plan.status !== "ready") throw new Error(plan.message);
+  const written = createDesignNetlistExport(plan.project, {
+    format: "spice",
+    uncalledCells: true,
+  });
+  if (written.status !== "ready") throw new Error("export failed");
+  return {
+    errors: plan.diagnostics.filter((item) => item.severity === "error"),
+    card: written.file.text
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => /^S1 /iu.test(line)),
+    instances: plan.project.documents.flatMap((document) => document.instances),
+  };
+}
+
+it("leaves out a drawing that changes a Cell the top does not call (#1954)", async () => {
+  for (const dutIsTop of [false, true]) {
+    const refused = await importUncalled(uncalledProbe("wrong", dutIsTop));
+    expect(refused.errors).toEqual([
+      expect.objectContaining({ code: "RNL_IMPORT_CHANGES_NETLIST" }),
+    ]);
+    expect(refused.card).toBe("S1 a b clk VSS ideal_switch");
+  }
+});
+
+it("keeps a drawing of a Cell the top does not call that keeps its netlist (#1954)", async () => {
+  const kept = await importUncalled(uncalledProbe("clk"));
+  expect(kept.errors).toEqual([]);
+  expect(kept.card).toBe("S1 a b clk VSS ideal_switch");
+  // Drawn: the switch stands where the file places it.
+  expect(
+    kept.instances.find((instance) => instance.reference === "S1")?.placement
+      ?.position,
+  ).toEqual({ x: 0, y: 0 });
+});
