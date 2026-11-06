@@ -209,6 +209,7 @@ it.each([
   ["POST", "/api/auth/regional/renew"],
   ["POST", "/api/auth/regional/identities"],
   ["POST", "/api/auth/regional/account"],
+  ["POST", "/api/auth/regional/security"],
 ])(
   "does not turn another Auth route into an authority proxy: %s %s",
   async (method, path) => {
