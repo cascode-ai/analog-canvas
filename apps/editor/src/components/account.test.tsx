@@ -352,6 +352,30 @@ describe("AccountMenuView", () => {
 });
 
 describe("loadAccountState", () => {
+  it("renders a regional account and its central sign-in entry", () => {
+    const providers = {
+      github: false,
+      google: false,
+      email: false,
+      central: true,
+      loginUrl: "/api/auth/regional/start",
+    };
+    const user = {
+      id: "u1",
+      displayName: "Ada",
+      email: null,
+      provider: "google",
+      role: "user",
+      isAdmin: false,
+    };
+    const account = { providers, user };
+    expect(markupFor(account)).toContain(">Ada</a>");
+    const signedOut = markupFor({ ...account, user: null });
+    expect(signedOut).toContain('href="/api/auth/regional/start"');
+    expect(signedOut).toContain("Continue to sign in");
+    expect(signedOut).not.toContain("signin-email-input");
+  });
+
   it("starts the session read without waiting for the providers response", async () => {
     const providers = { github: true, google: false, email: true };
     const pendingProviders = Promise.withResolvers<Response>();

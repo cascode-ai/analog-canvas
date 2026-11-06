@@ -10,6 +10,7 @@ import {
   REGIONAL_LEASE_MS,
   REGIONAL_PREFIX,
   REGIONAL_REFRESH_MS,
+  REGIONAL_SESSION_COOKIE,
   sessionIdentity,
   setCookie,
   validNonce,
@@ -51,6 +52,15 @@ export class RegionalSessionDO {
     if (!this.config) return;
     this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_pending (
       state_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_pending)")
+        .toArray()
+        .some((column) => column.name === "return_path")
+    )
+      this.sql.exec(
+        "ALTER TABLE regional_pending ADD COLUMN return_path TEXT NOT NULL DEFAULT '/'",
+      );
     this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_sessions (
       token_hash TEXT PRIMARY KEY, user_json TEXT NOT NULL, grant TEXT NOT NULL,
       lease_until INTEGER NOT NULL, expires_at INTEGER NOT NULL, refresh_at INTEGER NOT NULL,
@@ -69,7 +79,7 @@ export class RegionalSessionDO {
     if (url.origin !== this.config.clientOrigin)
       return answer({ error: "invalid-origin" }, 421);
     if (request.method === "GET") {
-      if (url.pathname === REGIONAL_PREFIX + "start") return this.start();
+      if (url.pathname === REGIONAL_PREFIX + "start") return this.start(url);
       if (url.pathname === REGIONAL_PREFIX + "callback")
         return this.complete(request, url);
       if (url.pathname === "/api/auth/providers")
@@ -86,7 +96,7 @@ export class RegionalSessionDO {
     if (request.method === "POST" && url.pathname === "/api/auth/logout") {
       if (request.headers.get("origin") !== this.config.clientOrigin)
         return answer({ error: "forbidden" }, 403);
-      const token = cookie(request, "icm_session");
+      const token = cookie(request, REGIONAL_SESSION_COOKIE);
       if (token)
         this.sql.exec(
           "DELETE FROM regional_sessions WHERE token_hash = ?",
@@ -107,7 +117,7 @@ export class RegionalSessionDO {
       const response = answer({ ok: true });
       response.headers.append(
         "set-cookie",
-        setCookie("icm_session", "", this.config.clientOrigin, 0),
+        setCookie(REGIONAL_SESSION_COOKIE, "", this.config.clientOrigin, 0),
       );
       response.headers.append(
         "set-cookie",
@@ -122,7 +132,7 @@ export class RegionalSessionDO {
     user: SessionUser | null;
     authorization: "active" | "expired" | "anonymous";
   }> {
-    const token = cookie(request, "icm_session");
+    const token = cookie(request, REGIONAL_SESSION_COOKIE);
     if (!validNonce(token)) return { user: null, authorization: "anonymous" };
     const row = this.sql
       .exec<SessionRow>(
@@ -139,7 +149,7 @@ export class RegionalSessionDO {
     };
   }
 
-  private async start(): Promise<Response> {
+  private async start(url: URL): Promise<Response> {
     const config = this.config!;
     const state = nonce(),
       verifier = nonce();
@@ -152,10 +162,11 @@ export class RegionalSessionDO {
       .one().count;
     if (count >= 1000) return answer({ error: "login-busy" }, 429);
     this.sql.exec(
-      "INSERT INTO regional_pending VALUES (?, ?, ?)",
+      "INSERT INTO regional_pending (state_hash, verifier, expires_at, return_path) VALUES (?, ?, ?, ?)",
       await digest(state),
       verifier,
       this.now() + LOGIN_SECONDS * 1000,
+      returnPath(url.searchParams.get("return"), config.clientOrigin),
     );
     const target = new URL(REGIONAL_PREFIX + "authorize", config.origin);
     target.search = new URLSearchParams({
@@ -187,8 +198,8 @@ export class RegionalSessionDO {
       return answer({ error: "invalid-callback" }, 400);
     const stateHash = await digest(state);
     const row = this.sql
-      .exec<{ verifier: string }>(
-        "SELECT verifier FROM regional_pending WHERE state_hash = ? AND expires_at > ?",
+      .exec<{ verifier: string; return_path: string }>(
+        "SELECT verifier, return_path FROM regional_pending WHERE state_hash = ? AND expires_at > ?",
         stateHash,
         this.now(),
       )
@@ -239,10 +250,17 @@ export class RegionalSessionDO {
         .toArray()[0]
     )
       return answer({ error: "cancelled-callback" }, 400);
-    const response = redirect(config.clientOrigin + "/");
+    const response = redirect(
+      config.clientOrigin + returnPath(row.return_path, config.clientOrigin),
+    );
     response.headers.append(
       "set-cookie",
-      setCookie("icm_session", token, config.clientOrigin, SESSION_SECONDS),
+      setCookie(
+        REGIONAL_SESSION_COOKIE,
+        token,
+        config.clientOrigin,
+        SESSION_SECONDS,
+      ),
     );
     response.headers.append(
       "set-cookie",
@@ -352,5 +370,24 @@ export class RegionalSessionDO {
       }),
     );
     await this.schedule();
+  }
+}
+
+/** Only a local page can be resumed; authority/API URLs are never continuations. */
+function returnPath(value: string | null, origin: string): string {
+  if (
+    !value ||
+    value.length > 2048 ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  )
+    return "/";
+  try {
+    const target = new URL(value, origin);
+    if (target.origin !== origin || target.pathname.startsWith("/api/"))
+      return "/";
+    return target.pathname + target.search + target.hash;
+  } catch {
+    return "/";
   }
 }

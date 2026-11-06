@@ -1,6 +1,7 @@
 import { createContext, lazy, Suspense, useEffect, useState } from "react";
 
 import { isDailyAllowanceRefusal } from "../daily-allowance";
+import { OPEN_SIGN_IN_EVENT } from "./sign-in-request";
 
 const AccountMenuView = /* @__PURE__ */ lazy(
   () => import("./account-menu-view"),
@@ -33,6 +34,25 @@ export interface AuthProviders {
   github: boolean;
   google: boolean;
   email: boolean;
+  central?: boolean;
+  loginUrl?: string;
+}
+
+/** The server can enable only the local, browser-bound regional handoff. */
+export function centralLoginUrl(providers: AuthProviders): string | null {
+  return providers.central === true &&
+    providers.loginUrl === "/api/auth/regional/start"
+    ? providers.loginUrl
+    : null;
+}
+
+export function hasSignIn(providers: AuthProviders): boolean {
+  return Boolean(
+    centralLoginUrl(providers) ||
+    providers.github ||
+    providers.google ||
+    providers.email,
+  );
 }
 
 export interface AccountState {
@@ -114,10 +134,9 @@ export async function loadAccountState(
     const response = await providersRequest;
     if (!response.ok) return { providers: NO_PROVIDERS, user: null };
     const providers = (await response.json()) as AuthProviders;
-    const anyProvider = providers.github || providers.google || providers.email;
     return {
       providers,
-      user: anyProvider ? await userRequest : null,
+      user: hasSignIn(providers) ? await userRequest : null,
     };
   } catch {
     return { providers: NO_PROVIDERS, user: null };
@@ -298,6 +317,8 @@ export interface AccountMenuViewProps {
   notice: string | null;
   /** Where a drawing is open, the account opens in a new tab beside it. */
   inEditor?: boolean;
+  /** The editor can resume an already-open workspace instead of replaying its entry link. */
+  signInReturnTo?: string | undefined;
   /** Emails a sign-in code. */
   onEmailStart: (email: string) => Promise<EmailCodeResult>;
   /** Signs in with the emailed code. */
@@ -309,11 +330,13 @@ export interface AccountMenuViewProps {
 /** Self-loading account area shared by Gallery and Editor chrome. */
 export function AccountMenu({
   inEditor = false,
+  signInReturnTo,
   alwaysVisible = false,
   preload = null,
 }: {
   /** Where a drawing is open, the account opens in a new tab beside it. */
   inEditor?: boolean;
+  signInReturnTo?: string | undefined;
   /** Keep the account affordance mounted while identity data is loading. */
   alwaysVisible?: boolean;
   /** Reuse the page's initial request only in its persistent account menu. */
@@ -333,22 +356,25 @@ export function AccountMenu({
         if (!cancelled) setState(next);
       });
     const load = () => show(loadAccountState());
+    const revalidate = () =>
+      void readSessionUser(fetch, true).then((session) => {
+        if (!cancelled && session.available)
+          setState((previous) =>
+            previous ? { ...previous, user: session.user } : previous,
+          );
+      });
     show(preload ?? loadAccountState());
     window.addEventListener(ACCOUNT_CHANGED_EVENT, load);
+    window.addEventListener(OPEN_SIGN_IN_EVENT, revalidate);
     return () => {
       cancelled = true;
       window.removeEventListener(ACCOUNT_CHANGED_EVENT, load);
+      window.removeEventListener(OPEN_SIGN_IN_EVENT, revalidate);
     };
   }, [preload]);
 
   if (!state) return alwaysVisible ? <AccountMenuFallback /> : null;
-  if (
-    alwaysVisible &&
-    !state.user &&
-    !state.providers.github &&
-    !state.providers.google &&
-    !state.providers.email
-  ) {
+  if (alwaysVisible && !state.user && !hasSignIn(state.providers)) {
     return <AccountMenuFallback />;
   }
   return (
@@ -357,6 +383,7 @@ export function AccountMenu({
         state={state}
         notice={notice}
         inEditor={inEditor}
+        signInReturnTo={signInReturnTo}
         onEmailStart={(email) => requestEmailCode(email)}
         onEmailVerify={async (email, code) => {
           const result = await verifyEmailCode(email, code);

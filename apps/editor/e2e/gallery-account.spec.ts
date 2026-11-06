@@ -17,8 +17,118 @@ import {
   signIn,
 } from "./gallery-fixtures.js";
 import { serializeProject } from "@icm/project-protocol";
+import { regionalAccounts } from "./regional-auth-fixture";
 
 const ALL_PROVIDERS = { github: true, google: true, email: true };
+
+test("central sign-in returns to the editor with its unsaved circuit and real regional identity", async ({
+  page,
+  baseURL,
+}) => {
+  const accounts = await regionalAccounts(baseURL!);
+  try {
+    await openEditor(page, accounts.origin + "/editor");
+    await page.getByTestId("tab-project-file").setInputFiles({
+      name: "draft.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        serializeProject({
+          ...galleryResistorProject("13k"),
+          id: "regional-draft",
+          name: "Regional draft",
+        }),
+      ),
+    });
+    const draft = page.getByRole("tab", { name: /Regional draft/ });
+    await expect(draft).toHaveAttribute("aria-selected", "true");
+    await draft.dblclick();
+    await page
+      .getByRole("textbox", { name: "Project name", exact: true })
+      .fill("Unsaved regional circuit");
+    await page
+      .getByRole("textbox", { name: "Project name", exact: true })
+      .press("Enter");
+    await expect(
+      page.getByLabel("Unsaved", { exact: true }).first(),
+    ).toBeVisible();
+    page.on("dialog", (dialog) => void dialog.accept());
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-central").click();
+    await page
+      .getByLabel("邮箱", { exact: true })
+      .fill("regional-browser@example.test");
+    await page.getByRole("button", { name: "发送验证码" }).click();
+    await expect.poll(accounts.emailCode).toMatch(/^\d{6}$/);
+    await page.getByLabel("验证码", { exact: true }).fill(accounts.emailCode());
+    await page.getByRole("button", { name: "验证并继续" }).click();
+    await expect(page).toHaveURL(accounts.origin + "/editor");
+    await awaitEditorReady(page);
+    await expect(page.getByTestId("account-name")).toContainText(
+      "regional-browser",
+    );
+    await expect(
+      page.getByRole("tab", { name: /Unsaved regional circuit/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("hit-R2")).toBeVisible();
+    const saved = await page.request.post(accounts.origin + "/api/projects", {
+      headers: { origin: accounts.origin },
+      data: {
+        name: "Original deep link",
+        projectText: serializeProject({
+          ...galleryResistorProject("7k"),
+          name: "Original deep link",
+        }),
+      },
+    });
+    expect(saved.ok()).toBe(true);
+    const { project: linkedProject } = await saved.json();
+    await page.goto(accounts.origin + "/editor?project=" + linkedProject.id);
+    await awaitEditorReady(page);
+    await expect(
+      page.getByRole("tab", { name: /Original deep link/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("tab", { name: /Unsaved regional circuit/ }).click();
+    await page
+      .getByRole("button", {
+        name: "Close tab Original deep link",
+        exact: true,
+      })
+      .click();
+    await expect(
+      page.getByRole("tab", { name: /Original deep link/ }),
+    ).toHaveCount(0);
+    accounts.expireLease();
+    await page.getByTestId("examples-toggle").click();
+    await page.getByTestId("examples-panel-sign-in-button").click();
+    await expect(page.getByTestId("signin-central")).toBeVisible();
+    await page.getByTestId("signin-central").click();
+    await expect(page).toHaveURL(accounts.origin + "/editor?resume=1");
+    await expect(page.getByTestId("account-name")).toContainText(
+      "regional-browser",
+    );
+    await expect(
+      page.getByRole("tab", { name: /Unsaved regional circuit/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("hit-R2")).toBeVisible();
+    const logout = await page.request.post(
+      accounts.origin + "/api/auth/logout",
+      { headers: { origin: accounts.origin } },
+    );
+    expect(logout.ok()).toBe(true);
+    await page.goto(accounts.origin + "/editor?project=" + linkedProject.id);
+    await awaitEditorReady(page);
+    await expect(
+      page.getByRole("tab", { name: /Original deep link/ }),
+    ).toHaveCount(0);
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-central").click();
+    await expect(
+      page.getByRole("tab", { name: /Original deep link/ }),
+    ).toHaveAttribute("aria-selected", "true");
+  } finally {
+    await accounts.close();
+  }
+});
 
 for (const signedIn of [true, false]) {
   test(`the editor preloads a ${signedIn ? "signed-in" : "signed-out"} account and reuses it in the menu`, async ({

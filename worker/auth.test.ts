@@ -1454,6 +1454,60 @@ describe("regional identity handoff", () => {
     ).toBe(404);
   });
 
+  it.each([
+    ["/editor?project=draft#cell", "/editor?project=draft#cell"],
+    ["https://attacker.test/", "/"],
+    ["//attacker.test/", "/"],
+    ["/\\attacker.test/", "/"],
+    ["/api/auth/logout", "/"],
+    ["/" + "x".repeat(2048), "/"],
+  ])(
+    "binds the regional continuation %s across a restart",
+    async (requested, expected) => {
+      const { RegionalSessionDO } = await import("./regional-session");
+      const auth = harness({
+        RESEND_API_KEY: "test",
+        AUTH_REGIONAL_AUTHORITY: authorityConfig,
+      });
+      const source = await emailSignIn(auth, "continuation@example.test");
+      const state = sqliteState();
+      const restart = () => {
+        const region = new RegionalSessionDO(
+          { storage: { ...state.storage, setAlarm: async () => {} } },
+          { AUTH_REGIONAL_CLIENT: authorityConfig },
+        );
+        region.fetchLike = (input, init) =>
+          auth.durable.fetch(new Request(input, init));
+        return region;
+      };
+      const start = await restart().fetch(
+        new Request(
+          REGIONAL_ORIGIN +
+            REGIONAL_PREFIX_FOR_TEST +
+            "start?" +
+            new URLSearchParams({ return: requested! }),
+        ),
+      );
+      const authorized = await auth.durable.fetch(
+        new Request(start.headers.get("location")!, {
+          headers: { cookie: source },
+        }),
+      );
+      const callbackUrl = new URL(authorized.headers.get("location")!);
+      callbackUrl.searchParams.set("return", "https://attacker.test/override");
+      const callback = await restart().fetch(
+        new Request(callbackUrl, {
+          headers: {
+            cookie:
+              "icm_regional_login=" + cookieValue(start, "icm_regional_login"),
+          },
+        }),
+      );
+      expect(callback.status).toBe(302);
+      expect(callback.headers.get("location")).toBe(REGIONAL_ORIGIN + expected);
+    },
+  );
+
   it("refreshes authority roles by alarm, bounds offline access and invalidates revoked sessions", async () => {
     const { RegionalSessionDO } = await import("./regional-session");
     let time = Date.now();
@@ -1486,7 +1540,11 @@ describe("regional identity handoff", () => {
       return auth.durable.fetch(new Request(input, init));
     }) as typeof fetch;
     const begin = await regional.fetch(
-      new Request(REGIONAL_ORIGIN + REGIONAL_PREFIX_FOR_TEST + "start"),
+      new Request(
+        REGIONAL_ORIGIN +
+          REGIONAL_PREFIX_FOR_TEST +
+          "start?return=%2Feditor%3Fproject%3Ddraft%23cell",
+      ),
     );
     const authorized = await auth.durable.fetch(
       new Request(begin.headers.get("location")!, {
@@ -1501,7 +1559,11 @@ describe("regional identity handoff", () => {
     const callback = await regional.fetch(
       new Request(callbackUrl, { headers: { cookie: pendingCookie } }),
     );
-    const localCookie = "icm_session=" + cookieValue(callback, "icm_session");
+    expect(callback.headers.get("location")).toBe(
+      REGIONAL_ORIGIN + "/editor?project=draft#cell",
+    );
+    const localCookie =
+      "icm_regional_session=" + cookieValue(callback, "icm_regional_session");
     expect(
       (
         await regional.fetch(
@@ -1642,7 +1704,13 @@ describe("regional identity handoff", () => {
         }),
       );
       expect(callback.status).toBe(302);
-      const localCookie = "icm_session=" + cookieValue(callback, "icm_session");
+      expect(
+        callback.headers
+          .getSetCookie()
+          .some((value) => value.startsWith("icm_session=")),
+      ).toBe(false);
+      const localCookie =
+        "icm_regional_session=" + cookieValue(callback, "icm_regional_session");
       const env = {
         AUTH: {
           getByName: () => ({
@@ -1652,6 +1720,21 @@ describe("regional identity handoff", () => {
         },
       };
       network = false;
+      const { loadAccountState } =
+        await import("../apps/editor/src/components/account");
+      const account = await loadAccountState((input, init) =>
+        regional.fetch(
+          new Request(new URL(String(input), REGIONAL_ORIGIN), {
+            ...init,
+            headers: { cookie: localCookie + "; " + authorityCookie },
+          }),
+        ),
+      );
+      expect(account.user).toEqual(authorityUser);
+      expect(account.providers).toMatchObject({
+        central: true,
+        loginUrl: "/api/auth/regional/start",
+      });
       expect(
         await sessionUserOf(
           new Request(REGIONAL_ORIGIN, { headers: { cookie: localCookie } }),
@@ -1703,6 +1786,11 @@ describe("regional identity handoff", () => {
         }),
       );
       expect(logout.status).toBe(200);
+      expect(
+        logout.headers
+          .getSetCookie()
+          .some((value) => value.startsWith("icm_session=")),
+      ).toBe(false);
       releaseExchange();
       expect((await inFlight).status).toBe(400);
       expect(
