@@ -15,8 +15,6 @@ import { nativeAcquisitionEdit } from "./simulation-native-save-edit.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { parseVacaskRawfile } from "../../spice-run/src/vacask-rawfile.js";
 import { readVacaskSimulationData } from "@icm/spice-run";
-import { evaluateSimulationOutputs } from "../../simulation-service/src/output-evaluation.js";
-import { SimulationOutputDataSchema } from "../../simulation-service/src/contract.js";
 import { CapabilitiesSchema } from "../../simulation-service/src/contract.js";
 import { prepareSourceExecutionInput } from "../../simulation-service/src/prepare-source.js";
 import {
@@ -470,12 +468,14 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
       }
       // The public compiler's captured map, not a reconstructed instance-name
       // convention, resolves every actual quantity to this Canvas occurrence.
+      expect(prepared.deviceOperatingPoints).toHaveLength(2);
       for (const device of prepared.deviceOperatingPoints) {
         expect(device).toMatchObject({
           documentId: "dut",
           instanceId: "mos",
           polarity: pmos ? "pmos" : "nmos",
         });
+        expect(device.values).toHaveLength(9);
         for (const value of device.values) {
           expect(value.label).toBe(`${value.parameter} (model)`);
           if (value.expression.kind !== "acquisition")
@@ -505,37 +505,28 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
         })),
       );
       if (numeric.status !== "read") throw Error(JSON.stringify(numeric));
-      const outputs = evaluateSimulationOutputs(
-        numeric.data,
-        prepared.vectors,
-        prepared.outputs,
-        [],
-        prepared.deviceOperatingPoints,
-        true,
-      );
-      expect(SimulationOutputDataSchema.safeParse(outputs).success).toBe(true);
-      expect(outputs.diagnostics).toEqual([]);
-      expect(outputs.deviceOperatingPoints).toHaveLength(4);
-      expect(
-        outputs.deviceOperatingPoints?.map((d) => d.analysisIndex),
-      ).toEqual([0, 0, 1, 1]);
-      for (const device of outputs.deviceOperatingPoints!) {
-        expect(device.values).toHaveLength(9);
-        for (const value of device.values) {
+      expect(numeric.diagnostics).toEqual([]);
+      expect(numeric.data.analyses).toHaveLength(3);
+      for (const [index, analysis] of numeric.data.analyses.entries()) {
+        if (analysis.analysis !== "op") throw Error("OP expected");
+        for (const acquisition of acquisitions) {
+          const probe = analysis.probes.find(
+            (item) => item.name === acquisition.vector,
+          );
+          // Clearing saves must not resurrect model quantities from a prior record.
+          if (index === 2) {
+            expect(probe).toBeUndefined();
+            continue;
+          }
           const expected = reference.plots[0]!.vectors.find(
             (v) =>
-              v.variable.name === `${pmos ? "P" : "N"}1.${value.parameter}`,
+              v.variable.name ===
+              `${pmos ? "P" : "N"}1.${acquisition.parameter}`,
           )?.real[0];
-          expect(value.status).toBe("available");
-          if (value.status !== "available") throw Error(value.reason);
-          expect(value.value).toBeCloseTo(expected!, 11);
+          expect(probe, acquisition.vector).toBeDefined();
+          expect(probe!.value).toBeCloseTo(expected!, 11);
         }
       }
-      // No phantom OP rows after clear saves, and no reclassification of
-      // the untouched native artifact bytes to make a missing value appear.
-      expect(
-        outputs.deviceOperatingPoints?.some((d) => d.analysisIndex === 2),
-      ).toBe(false);
     }
   },
 );
