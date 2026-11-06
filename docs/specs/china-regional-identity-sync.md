@@ -2,7 +2,7 @@
 
 Status: `proposed`
 
-Implementation contract for the China deployment branch; not enabled in Production.
+Regional rollout contract; not enabled in Production.
 
 Primary owner: Auth, Gallery, Component Library and regional replication.
 

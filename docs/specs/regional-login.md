@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Primary owner: Auth. Implemented for branch acceptance; disabled in Production.
+Primary owner: Auth. Opt-in implementation; disabled in Production.
 
 The overseas account authority authenticates users; a regional session store
 serves local authorization. Resource replication is owned by

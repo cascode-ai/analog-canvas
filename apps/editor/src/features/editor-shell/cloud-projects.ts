@@ -58,20 +58,33 @@ export type CloudProjectListOutcome =
   | { status: "unreachable"; message: string };
 
 const ENDPOINT = "/api/projects";
-const pendingCreates = new WeakMap<typeof fetch, Map<string, string>>();
+interface PendingCreate {
+  key: string;
+  body: string;
+  state: "pending" | "rejected" | "ambiguous";
+  binding?: CloudProjectBinding;
+}
+const pendingCreates = new WeakMap<typeof fetch, Map<string, PendingCreate>>();
 
-function createKey(fetchLike: typeof fetch, projectId: string): string {
+function pendingCreate(
+  fetchLike: typeof fetch,
+  projectId: string,
+  body: string,
+): PendingCreate {
   let pending = pendingCreates.get(fetchLike);
   if (!pending) {
     pending = new Map();
     pendingCreates.set(fetchLike, pending);
   }
-  let key = pending.get(projectId);
-  if (!key) {
-    key = crypto.randomUUID();
-    pending.set(projectId, key);
+  let creation = pending.get(projectId);
+  if (!creation) {
+    creation = { key: crypto.randomUUID(), body, state: "pending" };
+    pending.set(projectId, creation);
+  } else if (creation.state === "rejected") {
+    creation.body = body;
+    creation.state = "pending";
   }
-  return key;
+  return creation;
 }
 
 /**
@@ -122,7 +135,16 @@ export async function saveCloudProject(
 ): Promise<CloudProjectSaveOutcome> {
   cloudLists.delete(fetchLike);
   let response: Response;
+  let creation: PendingCreate | undefined;
+  let body: string;
   try {
+    binding ??= pendingCreates.get(fetchLike)?.get(project.id)?.binding ?? null;
+    body = JSON.stringify({
+      name: project.name,
+      projectText: serialize(project),
+      ...(!binding && galleryEntryId ? { galleryEntryId } : {}),
+    });
+    creation = binding ? undefined : pendingCreate(fetchLike, project.id, body);
     response = await fetchLike(
       binding ? `${ENDPOINT}/${encodeURIComponent(binding.id)}` : ENDPOINT,
       {
@@ -130,23 +152,18 @@ export async function saveCloudProject(
         credentials: "same-origin",
         headers: {
           "content-type": "application/json",
-          ...(!binding
-            ? { "idempotency-key": createKey(fetchLike, project.id) }
-            : {}),
+          ...(creation ? { "idempotency-key": creation.key } : {}),
           ...(binding
             ? {
                 "if-match": binding.saveToken ?? `revision-${binding.revision}`,
               }
             : {}),
         },
-        body: JSON.stringify({
-          name: project.name,
-          projectText: serialize(project),
-          ...(!binding && galleryEntryId ? { galleryEntryId } : {}),
-        }),
+        body: creation?.body ?? body,
       },
     );
   } catch (error) {
+    if (creation) creation.state = "ambiguous";
     return {
       status: "unreachable",
       message: error instanceof Error ? error.message : "Network error",
@@ -160,8 +177,29 @@ export async function saveCloudProject(
   } | null;
   const returnedProject = summaryOf(payload?.project);
   if (response.ok && returnedProject) {
+    if (creation && creation.body !== body) {
+      // An ambiguous create keeps its exact payload. Recover that binding
+      // before acknowledging newer edits, even if their follow-up save fails.
+      creation.binding = returnedProject;
+      return saveCloudProject(
+        project,
+        returnedProject,
+        fetchLike,
+        undefined,
+        serialize,
+      );
+    }
     pendingCreates.get(fetchLike)?.delete(project.id);
     return { status: "saved", project: returnedProject };
+  }
+  if (creation && creation.state !== "ambiguous") {
+    // Only a definite refusal can release the payload for correction. A later
+    // refusal cannot disprove that an earlier ambiguous request committed.
+    creation.state =
+      [400, 401, 403, 404, 413, 429].includes(response.status) ||
+      (response.status === 409 && payload?.error === "project-limit")
+        ? "rejected"
+        : "ambiguous";
   }
   if (response.status === 401) return { status: "signed-out" };
   if (response.status === 413) return { status: "too-large" };
@@ -178,8 +216,9 @@ export async function saveCloudProject(
       ? { status: "conflict", project: returnedProject }
       : {
           status: "rejected",
-          message:
-            "This Project changed in another region. Keep your local draft and review the versions in My shelf.",
+          message: binding?.saveToken
+            ? "This Project changed in another region. Keep your local draft and review the versions in My shelf."
+            : "Cloud revision conflict",
         };
   }
   if (response.status === 409 && payload?.error === "project-limit") {

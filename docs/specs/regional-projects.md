@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Primary owner: private Project storage and replication. Branch implementation;
+Primary owner: private Project storage and replication. Opt-in implementation;
 disabled in Production. [Regional login](regional-login.md) supplies sessions
 and identity lookup. Gallery, User Components, Arena and simulation are separate
 deliveries under the [regional roadmap](china-regional-identity-sync.md).
@@ -28,8 +28,10 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   grant's contiguous event before using it. An unavailable authority or pending
   catch-up refuses creation; existing Project reads and saves remain local,
   subject to the account authorization lease.
-- Retry a creation with the same `Idempotency-Key` and content. The editor keeps
-  that key across failed attempts in the current page. Reloading an abandoned
+- Retry an ambiguous creation with the same `Idempotency-Key` and content. The
+  editor retains both in the current page, recovers the created binding, then
+  conditionally saves newer edits before acknowledging them. A definite initial
+  refusal permits corrected content under the same key. Reloading an abandoned
   attempt can leave a reserved slot: reservations never expire automatically,
   because an accepted remote save may still be in transit. Reclaim only after
   reconciling both regions; this delivery provides no automatic reclamation.
@@ -63,14 +65,14 @@ The [event decoder](../../worker/project-sync-protocol.ts) owns the wire schema;
 [journal](../../worker/project-sync-journal.ts) owns durable cursor semantics.
 The [HTTP transport](../../worker/project-sync.ts) owns endpoint authorization.
 
-| Endpoint | Credential | Behavior |
-| --- | --- | --- |
-| `GET /api/project-sync/status` | Direction-specific peer token | Cursor, capacity and delivery state; no contents |
-| `GET /api/project-sync/events?after=N` | Peer token | At most one bounded event after N |
-| `POST /api/project-sync/events` | Peer token | Validate and durably apply `{event}` |
-| `POST /api/project-sync/quota` | Peer token | Authority reserves `{id, ownerUserId}` and returns a durable grant |
-| `POST /api/project-sync/seed` | Separate admin token | Capture one untracked source Project |
-| `POST /api/project-sync/run` | Admin token | Reconcile and deliver one event; inspect returned status |
+| Endpoint                               | Credential                    | Behavior                                                           |
+| -------------------------------------- | ----------------------------- | ------------------------------------------------------------------ |
+| `GET /api/project-sync/status`         | Direction-specific peer token | Cursor, capacity and delivery state; no contents                   |
+| `GET /api/project-sync/events?after=N` | Peer token                    | At most one bounded event after N                                  |
+| `POST /api/project-sync/events`        | Peer token                    | Validate and durably apply `{event}`                               |
+| `POST /api/project-sync/quota`         | Peer token                    | Authority reserves `{id, ownerUserId}` and returns a durable grant |
+| `POST /api/project-sync/seed`          | Separate admin token          | Capture one untracked source Project                               |
+| `POST /api/project-sync/run`           | Admin token                   | Reconcile and deliver one event; inspect returned status           |
 
 All responses are no-store. Browser cookies confer no synchronization authority.
 Peer destinations are fixed HTTPS origins; redirects are refused. Identity token
@@ -90,4 +92,5 @@ Credentials stay outside Git and release bundles. HTTP 409 blocks reconciliation
   and regional session stores to read and save a replicated Project locally.
 - [Standalone candidate](../../containers/canvas-cn/formal/README.md) activation,
   real data reconciliation, off-host recovery, delivered monitoring alerts and
-  browser login are deployment gates. This branch does not activate either region.
+  browser login are deployment gates. Default Production configuration leaves
+  regional features disabled.

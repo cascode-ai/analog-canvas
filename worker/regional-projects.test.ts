@@ -16,6 +16,130 @@ import {
 
 describe("regional private Projects over HTTP", () => {
   afterEach(() => vi.unstubAllGlobals());
+  it.each([false, true])(
+    "accepts a corrected create after a definite rejection (regional: %s)",
+    async (enabled) => {
+      const env = environment(),
+        cookie = await makerOf(env);
+      const store = new RegionalProjectDO(sqliteState(), {
+        PROJECT_REGION: "overseas",
+      });
+      const target = enabled
+        ? {
+            ...env,
+            PROJECTS: {
+              getByName: () => ({
+                fetch: (url: string, init?: RequestInit) =>
+                  store.fetch(new Request(url, init)),
+              }),
+            },
+          }
+        : env;
+      const transport: typeof fetch = (input, init) => {
+        const request = new Request(new URL(String(input), ORIGIN), init);
+        request.headers.set("Cookie", cookie);
+        request.headers.set("Origin", ORIGIN);
+        return route(target, request);
+      };
+      const original = parseProject(projectText("First draft"));
+      expect(
+        (
+          await saveCloudProject(
+            { ...original, name: "x".repeat(1000) },
+            null,
+            transport,
+          )
+        ).status,
+      ).toBe("rejected");
+      const result = await saveCloudProject(
+        { ...original, name: "Corrected name" },
+        null,
+        transport,
+      );
+      expect(result.status).toBe("saved");
+      if (result.status !== "saved") throw new Error("save failed");
+      expect(result.project.name).toBe("Corrected name");
+      expect(result.project.revision).toBe(1);
+    },
+  );
+  it.each(["none", "before-update", "after-update", "refused-retry"])(
+    "recovers a lost create reply before saving newer edits (%s)",
+    async (fault) => {
+      const env = environment(),
+        cookie = await makerOf(env);
+      const store = new RegionalProjectDO(sqliteState(), {
+        PROJECT_REGION: "overseas",
+      });
+      const regional = {
+        ...env,
+        PROJECTS: {
+          getByName: () => ({
+            fetch: (url: string, init?: RequestInit) =>
+              store.fetch(new Request(url, init)),
+          }),
+        },
+      };
+      let loseReply = true;
+      let remainingFault = fault;
+      const transport: typeof fetch = async (input, init) => {
+        const request = new Request(new URL(String(input), ORIGIN), init);
+        request.headers.set("Cookie", cookie);
+        request.headers.set("Origin", ORIGIN);
+        if (!loseReply && remainingFault === "refused-retry") {
+          remainingFault = "none";
+          return new Response(null, { status: 403 });
+        }
+        if (request.method === "PUT" && remainingFault === "before-update") {
+          remainingFault = "none";
+          throw new TypeError("Update did not reach server");
+        }
+        const response = await route(regional, request);
+        if (loseReply) {
+          loseReply = false;
+          expect(response.status).toBe(201);
+          throw new TypeError("Create reply lost after commit");
+        }
+        if (request.method === "PUT" && remainingFault === "after-update") {
+          remainingFault = "none";
+          expect(response.ok).toBe(true);
+          throw new TypeError("Update reply lost after commit");
+        }
+        return response;
+      };
+      const original = parseProject(projectText("First draft"));
+      expect((await saveCloudProject(original, null, transport)).status).toBe(
+        "unreachable",
+      );
+      const edited = { ...original, name: "Newer edits" };
+      let recovered = await saveCloudProject(edited, null, transport);
+      if (fault !== "none") {
+        expect(recovered.status).toBe(
+          fault === "refused-retry" ? "rejected" : "unreachable",
+        );
+        recovered = await saveCloudProject(edited, null, transport);
+      }
+      expect(recovered.status).toBe("saved");
+      const listed = await (
+        await route(
+          regional,
+          new Request(`${ORIGIN}/api/projects`, {
+            headers: { Cookie: cookie },
+          }),
+        )
+      ).json();
+      expect(listed.projects).toHaveLength(1);
+      expect(listed.projects[0].name).toBe("Newer edits");
+      const opened = await (
+        await route(
+          regional,
+          new Request(`${ORIGIN}/api/projects/${listed.projects[0].id}`, {
+            headers: { Cookie: cookie },
+          }),
+        )
+      ).json();
+      expect(parseProject(opened.project.projectText).name).toBe("Newer edits");
+    },
+  );
   it("retries a lost create response with the same key without consuming another project", async () => {
     const env = environment(),
       cookie = await makerOf(env);
