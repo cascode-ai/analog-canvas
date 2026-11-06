@@ -1,8 +1,14 @@
+import { isRegionalAuthorityBrowserRoute } from "../../../worker/regional-auth-contract.ts";
+
 export default {
   async fetch(request, env) {
     try {
       const peer = new URL(env.PEER_ORIGIN);
       const identity = new URL(env.IDENTITY_URL);
+      const destination = new URL(request.url);
+      const browserAuth =
+        destination.origin === identity.origin &&
+        isRegionalAuthorityBrowserRoute(request.method, destination.pathname);
       const allowed = new Set([
         `GET ${new URL("/api/project-sync/status", peer)}`,
         `POST ${new URL("/api/project-sync/events", peer)}`,
@@ -14,7 +20,7 @@ export default {
       if (
         peer.protocol !== "https:" ||
         identity.protocol !== "https:" ||
-        !allowed.has(`${request.method} ${request.url}`)
+        (!browserAuth && !allowed.has(`${request.method} ${request.url}`))
       )
         return new Response("Regional destination refused", { status: 403 });
       const response = await fetch(
@@ -23,7 +29,7 @@ export default {
           signal: AbortSignal.timeout(15000),
         }),
       );
-      return response.status >= 300 && response.status < 400
+      return !browserAuth && response.status >= 300 && response.status < 400
         ? new Response("Regional redirect refused", { status: 502 })
         : response;
     } catch {

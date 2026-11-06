@@ -1,7 +1,10 @@
 import { routeAuthRequest, type AuthEnv } from "./auth";
 import { routeCloudProjects } from "./gallery-cloud-projects";
 import { routeProjectSync } from "./project-sync";
-import { regionalConfig } from "./regional-auth-contract";
+import {
+  isRegionalAuthorityBrowserRoute,
+  regionalConfig,
+} from "./regional-auth-contract";
 import type { GalleryEnv } from "./gallery-store";
 export { RegionalSessionDO } from "./regional-session";
 export { RegionalProjectDO } from "./regional-projects";
@@ -27,6 +30,28 @@ export default {
       new URL(local.pathname + local.search, origin),
       incoming,
     );
+    if (
+      config.origin === config.clientOrigin &&
+      isRegionalAuthorityBrowserRoute(request.method, local.pathname)
+    ) {
+      const upstream = new Request(
+        new URL(local.pathname + local.search, config.transportOrigin),
+        request,
+      );
+      // The destination owns Host; browser Origin and cookies stay unchanged.
+      upstream.headers.delete("host");
+      try {
+        return await fetch(upstream, {
+          redirect: "manual",
+          signal: AbortSignal.timeout(15_000),
+        });
+      } catch {
+        return Response.json(
+          { error: "authority-unavailable" },
+          { status: 502, headers: { "cache-control": "no-store" } },
+        );
+      }
+    }
     const auth = await routeAuthRequest(request, env);
     if (auth) return auth;
     const sync = await routeProjectSync(request, env);
