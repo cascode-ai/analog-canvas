@@ -14,37 +14,23 @@ forwarded-account contract; voting replication is a separate delivery.
 
 ## Identity and authorization
 
-- Preserve every existing `users.id`. The unique identity is the verified
-  `(provider, provider_id)` pair, never a display name or an unverified email.
-  Snapshot/import preserves resource owner IDs and refuses missing identities.
-- The existing overseas Auth authority initially owns identity allocation,
-  provider linking, roles, account blocking and deletion. Regional profile
-  replicas cannot grant roles or create an independent identity for an already
-  registered provider. No provider account is merged solely by email.
-- Existing mapped identities can log in regionally after provider verification.
-  A first-seen identity or a provider-link operation reserves its mapping at
-  the authority before completing. If the authority is unreachable, refuse
-  that operation with a retryable error; do not create a second account.
-  This infrequent coordination is an explicit exception to local-only writes.
-- OAuth state, callback validation, email codes and sessions belong to the
-  issuing region. Callback routing must return to that region. Copying a domain
-  or OAuth client secret does not share sessions. An unrecognized regional
-  session requires sign-in; it never becomes an anonymous write or a new user.
-- Replicate account identity and authorization state, not bearer sessions,
-  OAuth secrets, login codes, Agent claims, connector tokens or live sockets.
-  Region changes may require signing in again to the same account.
-- Authorization is an authority-issued, renewable regional lease with an
-  account/security revision. Proposed maximum lifetime: 60 seconds. Sensitive
-  reads and writes require a current lease; loss of authority connectivity
-  fails closed when it expires. Normal requests use the local lease, not a
-  synchronous overseas request. Revocation is bounded, not instantaneous.
-- Account deletion first denies new access at the authority, then sends
-  idempotent deletion work to each resource owner. Report regional completion
-  separately from backup expiry; never report global erasure after only a local
-  delete. Deletion and blocking override profile/resource updates.
-- Existing account quotas remain global. Reserve regional creation capacity
-  through the authority; exhausted or unavailable allocations refuse creation.
-  Saving an existing resource does not allocate another slot.
+- [Regional login](regional-login.md) owns unified overseas authentication,
+  browser-bound identity handoff, regional sessions, local authorization leases,
+  trusted identity lookup and revocation semantics. Preserve existing `users.id`.
+- Snapshot/import preserves resource owner IDs and resolves them through the
+  authority independently of a user's first regional login. Unknown identities
+  wait for reconciliation; resource stores never allocate replacement accounts.
+- Replicate identity/profile and resource records as needed, excluding live
+  sessions, provider secrets, login codes, grants, Agent claims and connector
+  tokens. Profile replication grants no authorization.
+- Account deletion must first deny new access at the authority, then send
+  idempotent, versioned deletion work to each resource owner. Report regional
+  cleanup separately from backup expiry. This cross-owner protocol is still
+  proposed; a missing identity lookup is not a deletion instruction.
+- Existing account quotas remain global. The resource owner reserves regional
+  creation capacity and rejects exhausted or unavailable allocations. Saving an
+  existing resource does not allocate another slot; Auth supplies identity and
+  authority-originated attributes, not a second quota counter.
 
 ## Replicated and regional data
 
