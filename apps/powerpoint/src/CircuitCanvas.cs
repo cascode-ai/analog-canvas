@@ -245,7 +245,9 @@ using Extensibility;
                 dynamic shape=Selected();Drawing drawing=Read(shape);
                 dynamic slide=Slide();
                 using(var form=new HistoryDialog(drawing)) {
-                    if(form.ShowDialog(new PowerPointWindow((int)app.HWND))==DialogResult.OK&&form.SelectedSnapshot!=null)
+                    var owner=PowerPointWindow.Current();
+                    if(owner==null)form.StartPosition=FormStartPosition.CenterScreen;
+                    if(form.ShowDialog(owner)==DialogResult.OK&&form.SelectedSnapshot!=null)
                         Start(slide,shape,form.SelectedSnapshot.project,form.SelectedSnapshot.documentId);
                 }
             }

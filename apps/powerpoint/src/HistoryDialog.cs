@@ -2,12 +2,28 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace CircuitCanvas {
     internal sealed class PowerPointWindow : IWin32Window {
+        [DllImport("user32.dll")] static extern IntPtr GetActiveWindow();
+        [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window, uint flags);
+        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
         public IntPtr Handle { get; private set; }
-        public PowerPointWindow(int handle) { Handle=new IntPtr(handle); }
+        PowerPointWindow(IntPtr handle) { Handle=handle; }
+        public static IWin32Window Current() {
+            // Ribbon callbacks run on the host UI thread. PowerPoint does not
+            // consistently expose HWND through its late-bound Office object.
+            IntPtr active=GetActiveWindow();
+            if(active==IntPtr.Zero)return null;
+            IntPtr root=GetAncestor(active, 2);
+            if(root==IntPtr.Zero)return null;
+            uint processId;
+            GetWindowThreadProcessId(root, out processId);
+            return processId==(uint)Process.GetCurrentProcess().Id ? new PowerPointWindow(root) : null;
+        }
     }
     public sealed class HistoryDialog : Form {
         readonly List<Snapshot> snapshots;
