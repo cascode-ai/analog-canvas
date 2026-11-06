@@ -17,7 +17,7 @@ export function accounts(authConfig: Partial<AuthEnv> = {}) {
     AUTH_REGIONAL_AUTHORITY: config,
   });
   const state = {
-    storage: { ...sqliteState().storage, setAlarm: async () => {} },
+    storage: { ...sqliteState().storage, setAlarm: async (_at: number) => {} },
   };
   const region = new RegionalSessionDO(state, { AUTH_REGIONAL_CLIENT: config });
   let time = Date.now();
