@@ -179,7 +179,7 @@ export function PowerPointSave({
         }
       }
       throw new Error(
-        "PowerPoint has not acknowledged the update. A project backup is retained. Return to PowerPoint and choose Receive update.",
+        "PowerPoint has not acknowledged the update. A project backup is retained. Close any PowerPoint dialog to allow the update to finish automatically.",
       );
     } catch (error) {
       setMessage(String(error));

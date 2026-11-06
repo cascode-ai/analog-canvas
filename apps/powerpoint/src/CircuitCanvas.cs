@@ -10,7 +10,7 @@ using System.Windows.Forms;
 using System.Xml;
 using Office = Microsoft.Office.Core;
 using Extensibility;
-[assembly: ComVisible(false)] [assembly: System.Reflection.AssemblyVersion("2.1.0.0")] namespace CircuitCanvas  {
+[assembly: ComVisible(false)] [assembly: System.Reflection.AssemblyVersion("2.1.1.0")] namespace CircuitCanvas  {
     [ComVisible(true), Guid("48CA2B08-BB3C-45AB-A982-5B19168732B9"), InterfaceType(ComInterfaceType.InterfaceIsIDispatch)] public interface ICallbacks  {
         [DispId(10)] void OnNew(Office.IRibbonControl c);
         [DispId(11)] void OnEdit(Office.IRibbonControl c);
@@ -18,6 +18,7 @@ using Extensibility;
         [DispId(13)] void OnExport(Office.IRibbonControl c);
         [DispId(14)] void OnHistory(Office.IRibbonControl c);
         [DispId(15)] void OnHelp(Office.IRibbonControl c);
+        [DispId(16)] [return: MarshalAs(UnmanagedType.IDispatch)] object GetButtonImage(Office.IRibbonControl c);
     }
     public class Snapshot  {
         public string project  {
@@ -178,8 +179,22 @@ using Extensibility;
             if(timer!=null)timer.Stop();
         }
         public string GetCustomUI(string id) {
-            return "<customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui'><ribbon><tabs><tab id='CircuitCanvasTab' label='Circuit Canvas'><group id='canvasEdit' label='Local circuit editor'><button id='newCircuit' label='New circuit' size='large' imageMso='ShapesInsertGallery' onAction='OnNew'/><button id='editCircuit' label='Edit circuit' size='large' imageMso='ObjectEdit' onAction='OnEdit'/><button id='receiveCircuit' label='Receive update' onAction='OnReceive'/></group><group id='canvasData' label='Project and history'><button id='exportCircuit' label='Export project' imageMso='FileSaveAs' onAction='OnExport'/><button id='historyCircuit' label='Version history' onAction='OnHistory'/><button id='helpCircuit' label='Help' imageMso='Help' onAction='OnHelp'/></group></tab></tabs></ribbon></customUI>";
+            return @"<customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui'>
+<ribbon><tabs><tab id='CircuitCanvasTab' label='Circuit Canvas'>
+<group id='canvasEdit' label='Circuit'>
+<button id='newCircuit' label='New circuit' size='large' getImage='GetButtonImage' onAction='OnNew' screentip='Create a circuit on this slide'/>
+<button id='editCircuit' label='Edit circuit' size='large' getImage='GetButtonImage' onAction='OnEdit' screentip='Edit the selected circuit'/>
+</group>
+<group id='canvasData' label='Selected circuit'>
+<button id='exportCircuit' label='Export selected circuit project' getImage='GetButtonImage' onAction='OnExport' screentip='Export the selected circuit as an editable project' supertip='Save the selected circuit’s embedded project as an .icproj.json file.'/>
+<button id='historyCircuit' label='Open version history' getImage='GetButtonImage' onAction='OnHistory' screentip='Open an earlier version of the selected circuit' supertip='Choose one of the three previous saves to open in the editor. The slide changes only when you save back to PowerPoint.'/>
+</group>
+<group id='canvasHelp' label='Help'>
+<button id='helpCircuit' label='Help' size='large' getImage='GetButtonImage' onAction='OnHelp'/>
+</group>
+</tab></tabs></ribbon></customUI>";
         }
+        public object GetButtonImage(Office.IRibbonControl c) { return RibbonArtwork.Picture(c.Id); }
         void Guard(Action action) {
             try {
                 action();
@@ -216,7 +231,7 @@ using Extensibility;
         public void OnExport(Office.IRibbonControl c) {
             Guard(()=> {
                 Drawing d=Read(Selected());using(var dialog=new SaveFileDialog {
-                    Filter="Analog Canvas project|*.icproj.json",FileName="circuit.icproj.json"
+                    Title="Export selected circuit project",Filter="Analog Canvas project|*.icproj.json",FileName="circuit.icproj.json"
                 }
                 )if(dialog.ShowDialog()==DialogResult.OK)File.WriteAllText(dialog.FileName,d.current.project,new UTF8Encoding(false));
             }
@@ -227,20 +242,11 @@ using Extensibility;
         }
         public void OnHistory(Office.IRibbonControl c) {
             Guard(()=> {
-                dynamic shape=Selected();Drawing drawing=Read(shape); if(drawing.history==null||drawing.history.Count==0)throw new Exception("This drawing has no earlier saved versions."); using(var form=new Form {
-                    Text="Version history: choose a snapshot to edit",Width=520,Height=250,StartPosition=FormStartPosition.CenterScreen
-                }
-                ) {
-                    var list=new ListBox {
-                        Dock=DockStyle.Fill
-                    }
-                    ;foreach(var h in drawing.history)list.Items.Add(h.time);list.SelectedIndex=0; var button=new Button {
-                        Text="Open selected version",Dock=DockStyle.Bottom,Height=40
-                    }
-                    ;button.Click+=(s,e)=> {
-                        form.DialogResult=DialogResult.OK;form.Close();
-                    }
-                    ;form.Controls.Add(list);form.Controls.Add(button); if(form.ShowDialog()==DialogResult.OK)Start(Slide(),shape,drawing.history[list.SelectedIndex].project,drawing.history[list.SelectedIndex].documentId);
+                dynamic shape=Selected();Drawing drawing=Read(shape);
+                dynamic slide=Slide();
+                using(var form=new HistoryDialog(drawing)) {
+                    if(form.ShowDialog(new PowerPointWindow((int)app.HWND))==DialogResult.OK&&form.SelectedSnapshot!=null)
+                        Start(slide,shape,form.SelectedSnapshot.project,form.SelectedSnapshot.documentId);
                 }
             }
             );
