@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect } from "@playwright/test";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { acceptGraphics } from "./accept-graphics.mjs";
+import { openHierarchyDefinition } from "../../editor/e2e/editor-fixtures.ts";
 
 /** Reviewed native-ota starter, edited through the shipped editor UI. No simulation. */
 export async function acceptAmplifier({
@@ -32,7 +33,7 @@ export async function acceptAmplifier({
       exact: true,
     });
     await picker.getByLabel("Component search").fill("resistor");
-    await picker.getByTestId("insert-component-resistor").click();
+    await picker.locator("#insert-component-option-resistor").click();
     await canvas.click({
       position: { x: box.width * 0.15, y: box.height * y },
     });
@@ -92,12 +93,10 @@ export async function acceptAmplifier({
   await code.fill(JSON.stringify(properties, null, 2));
   await page.keyboard.press("Tab");
   await page.keyboard.press("Escape");
-  await page.getByTestId("document-selector").selectOption("document-ota-5t");
+  await openHierarchyDefinition(page, /ota_5t$/);
   await expect(page.getByTestId("hit-M1")).toBeVisible();
   await expect(page.getByTestId("instance-count")).toHaveText("23");
-  await page
-    .getByTestId("document-selector")
-    .selectOption(original.topDocumentId);
+  await openHierarchyDefinition(page, /^Top · Testbench$/);
   await page.keyboard.press("Control+s");
   await expect(page.getByText(/^Saved:/)).toBeVisible();
   const location = await page
