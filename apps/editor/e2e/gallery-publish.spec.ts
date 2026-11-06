@@ -605,6 +605,88 @@ for (const scenario of [
   });
 }
 
+test("Shelf reviews regional conflicts and requires an explicit choice of the observed heads", async ({
+  page,
+}) => {
+  const projectText = serializeProject(
+    exampleProject("five-transistor-ota-sky130.icproj.json"),
+  );
+  const saved = {
+    id: "regional",
+    name: "Regional circuit",
+    revision: 2,
+    updatedAt: "2026-11-06T08:00:00Z",
+    schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+    saveToken: "head-cn",
+    conflicted: true,
+  };
+  const conflicts = [
+    {
+      head: "head-cn",
+      origin: "cn",
+      name: "Domestic edit",
+      updatedAt: saved.updatedAt,
+      projectText,
+    },
+    {
+      head: "head-overseas",
+      origin: "overseas",
+      name: "Overseas edit",
+      updatedAt: saved.updatedAt,
+      projectText,
+    },
+  ];
+  let writes = 0;
+  await signIn(page, sessionUser({ id: "owner", displayName: "Author" }));
+  await page.route("**/api/gallery**", (route) =>
+    route.fulfill({
+      json: { entries: [], tags: [], nextCursor: null, total: 0 },
+    }),
+  );
+  await page.route("**/api/projects**", (route) => {
+    const request = route.request(),
+      url = new URL(request.url());
+    if (url.pathname.endsWith("/preview.svg")) return fulfillPreview(route);
+    if (request.method() === "PUT") {
+      expect(request.headers()["if-match"]).toBe("head-cn");
+      expect(request.postDataJSON().resolveHeads).toEqual([
+        "head-cn",
+        "head-overseas",
+      ]);
+      writes++;
+      saved.conflicted = false;
+      return route.fulfill({ json: { project: saved } });
+    }
+    return url.pathname === "/api/projects"
+      ? route.fulfill({ json: { projects: [saved] } })
+      : route.fulfill({
+          status: 409,
+          json: { error: "revision-conflict", conflicts },
+        });
+  });
+  await page.goto("/?view=shelf");
+  await page
+    .getByRole("button", { name: "Review conflicting versions" })
+    .click();
+  await expect(page.getByLabel("Conflicting Project versions")).toContainText(
+    "Overseas edit",
+  );
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download version 2" }).click();
+  expect((await download).suggestedFilename()).toBe("conflict-2.icproj.json");
+  await page
+    .getByRole("button", { name: "Choose version 1", exact: true })
+    .click();
+  expect(writes).toBe(0);
+  await page
+    .getByRole("button", { name: "Use version 1 as current", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Review conflicting versions" }),
+  ).toHaveCount(0);
+  expect(writes).toBe(1);
+});
+
 test("Shelf cards leave native gestures alone, open their menu from the keyboard and export the saved text", async ({
   page,
 }) => {

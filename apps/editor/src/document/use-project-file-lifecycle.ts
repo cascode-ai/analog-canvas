@@ -367,6 +367,9 @@ export function useProjectFileLifecycle({
       const nextBinding = {
         id: outcome.project.id,
         revision: outcome.project.revision,
+        ...(outcome.project.saveToken
+          ? { saveToken: outcome.project.saveToken }
+          : {}),
         galleryEntryId: outcome.project.galleryEntryId ?? null,
       };
       setCloudBinding(nextBinding);
@@ -1013,6 +1016,7 @@ export function useProjectFileLifecycle({
         cloudBinding: {
           id: cloud.id,
           revision: cloud.revision,
+          ...(cloud.saveToken ? { saveToken: cloud.saveToken } : {}),
           galleryEntryId: cloud.galleryEntryId ?? null,
         },
         savedBaseline: baseline,

@@ -47,6 +47,8 @@ export default {
       entry: [
         "scripts/*.mjs!",
         "worker/index.ts!",
+        "worker/regional-entry.ts!",
+        "containers/canvas-cn/formal/egress.mjs!",
         "containers/*/entrypoint.mjs!",
         "containers/ngspice/gateway.mjs!",
         "containers/simulation/*.mjs!",

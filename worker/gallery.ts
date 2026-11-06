@@ -67,6 +67,7 @@ import {
   routeGalleryPublishing,
 } from "./gallery-publishing";
 import { routeCloudProjects } from "./gallery-cloud-projects";
+import { routeProjectSync } from "./project-sync";
 import { routeGalleryMaintenance } from "./gallery-maintenance";
 import {
   gateSimulationMarks,
@@ -429,6 +430,8 @@ export async function routeGalleryRequest(
   env: GalleryEnv,
   runtime: GalleryRouteRuntime = {},
 ): Promise<Response | null> {
+  const sync = await routeProjectSync(request, env);
+  if (sync) return sync;
   const url = new URL(request.url);
   const directResource = await directGalleryResource(request, env, runtime);
   if (directResource) return directResource;

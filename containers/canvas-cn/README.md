@@ -3,7 +3,8 @@
 Private, single-host acceptance profile. This directory owns the standalone
 process and its backup boundary; it is not an overseas release or a public
 production login configuration. The [regional identity and synchronization
-contract](../../docs/specs/china-regional-identity-sync.md) is not implemented.
+contract](../../docs/specs/china-regional-identity-sync.md) has a separate,
+disabled [formal Project candidate](formal/README.md); this trial does not use it.
 
 - Build the unchanged Canvas Worker with an isolated Wrangler configuration
   and `deploy --dry-run`. Place its module at `worker/index.js` beside

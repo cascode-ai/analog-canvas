@@ -56,8 +56,9 @@ Preserve pre-existing resource IDs. New resources require IDs unique across
 both producers. An ID collision between unrelated resource origins or owners
 is a reconciliation error, never an upsert that combines their contents.
 
-The following is the proposed wire contract, not an existing API. A versioned
-schema replaces this definition when implementation begins.
+Private Cloud Projects use the implemented [regional Project protocol](regional-projects.md).
+The following proposal applies to the remaining resource owners; it is not a
+second Project wire format.
 
 ```text
 event:

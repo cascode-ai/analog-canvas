@@ -11,6 +11,7 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { type CircuitProject } from "@icm/model";
 import { sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
+import { reserveRegionalProject } from "./project-quota";
 import {
   GALLERY_MAX_NAME_LENGTH,
   GALLERY_MAX_PROJECT_BYTES,
@@ -79,6 +80,7 @@ async function handleCloudProjects(
     name?: unknown;
     projectText?: unknown;
     galleryEntryId?: unknown;
+    resolveHeads?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   if (!body || !name || typeof body.projectText !== "string") {
@@ -107,19 +109,36 @@ async function handleCloudProjects(
   const expectedRevisionMatch = request.headers
     .get("if-match")
     ?.match(/^revision-(\d+)$/u);
-  if (request.method === "PUT" && !expectedRevisionMatch) {
+  const saveToken = env.PROJECTS ? request.headers.get("if-match") : null;
+  if (
+    request.method === "PUT" &&
+    !(env.PROJECTS ? saveToken?.startsWith("head-") : expectedRevisionMatch)
+  ) {
     return Response.json(
       { error: "expected-revision-required" },
       { status: 428 },
     );
   }
   const projectText = serializeProject(project);
+  const createKey =
+    env.PROJECTS && request.method === "POST"
+      ? request.headers.get("idempotency-key")
+      : null;
+  if (createKey && !/^[a-zA-Z0-9_-]{1,160}$/.test(createKey))
+    return Response.json({ error: "invalid-idempotency-key" }, { status: 400 });
   const fields = {
     userId: user.id,
-    id: projectId ?? shortId(),
+    id:
+      projectId ??
+      createKey ??
+      (env.PROJECTS ? crypto.randomUUID() : shortId()),
     name,
     schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     projectText,
+    ...(saveToken ? { saveToken } : {}),
+    ...(env.PROJECTS && body.resolveHeads !== undefined
+      ? { resolveHeads: body.resolveHeads }
+      : {}),
     ...(expectedRevisionMatch
       ? { expectedRevision: Number(expectedRevisionMatch[1]) }
       : {}),
@@ -147,8 +166,14 @@ async function handleCloudProjects(
   } catch {
     previewSvg = "";
   }
+  const reserved =
+    env.PROJECTS && request.method === "POST"
+      ? await reserveRegionalProject(env, fields.id, user.id)
+      : null;
+  if (reserved instanceof Response) return reserved;
   const { status, payload } = await callGallery(env, operation, {
     ...fields,
+    ...(reserved ?? {}),
     mayEditGallery: user.isAdmin === true || user.role === "moderator",
     ...(body.galleryEntryId === undefined
       ? {}
@@ -266,7 +291,7 @@ async function handleCloudProjectPreview(
           if (typeof openedRevision === "number") {
             payload.revision = openedRevision;
           }
-          if (needsBackfill) {
+          if (needsBackfill && !env.PROJECTS) {
             await callGallery(env, "cloud-project-preview-store", {
               userId: user.id,
               id: projectId,
@@ -291,6 +316,7 @@ async function handleCloudProjectPreview(
   // saved since costs nothing to redraw.
   const requestedRevision = new URL(request.url).searchParams.get("v");
   const immutable =
+    !env.PROJECTS &&
     typeof payload.revision === "number" &&
     requestedRevision === String(payload.revision);
   return new Response(payload.previewSvg, {
@@ -298,7 +324,9 @@ async function handleCloudProjectPreview(
       "content-type": "image/svg+xml; charset=utf-8",
       "cache-control": immutable
         ? "private, max-age=31536000, immutable"
-        : "private, no-cache",
+        : env.PROJECTS
+          ? "private, no-store"
+          : "private, no-cache",
     },
   });
 }

@@ -15,6 +15,8 @@ import {
 export const CLOUD_PROJECT_LIMIT = 20;
 
 export interface CloudProjectSummary {
+  conflicted?: boolean;
+  saveToken?: string;
   id: string;
   name: string;
   updatedAt: string;
@@ -25,6 +27,7 @@ export interface CloudProjectSummary {
 }
 
 export interface CloudProjectBinding {
+  saveToken?: string;
   id: string;
   revision: number;
   galleryEntryId?: string | null;
@@ -55,6 +58,21 @@ export type CloudProjectListOutcome =
   | { status: "unreachable"; message: string };
 
 const ENDPOINT = "/api/projects";
+const pendingCreates = new WeakMap<typeof fetch, Map<string, string>>();
+
+function createKey(fetchLike: typeof fetch, projectId: string): string {
+  let pending = pendingCreates.get(fetchLike);
+  if (!pending) {
+    pending = new Map();
+    pendingCreates.set(fetchLike, pending);
+  }
+  let key = pending.get(projectId);
+  if (!key) {
+    key = crypto.randomUUID();
+    pending.set(projectId, key);
+  }
+  return key;
+}
 
 /**
  * The shelf thumbnail for one Cloud Project. The revision names the bytes, so
@@ -81,7 +99,11 @@ function summaryOf(value: unknown): CloudProjectSummary | null {
         name: record.name,
         updatedAt: record.updatedAt,
         revision: record.revision,
+        ...(typeof record.saveToken === "string"
+          ? { saveToken: record.saveToken }
+          : {}),
         schemaVersion: record.schemaVersion,
+        ...(record.conflicted === true ? { conflicted: true } : {}),
         favorite: record.favorite === true,
         galleryEntryId:
           typeof record.galleryEntryId === "string"
@@ -108,7 +130,14 @@ export async function saveCloudProject(
         credentials: "same-origin",
         headers: {
           "content-type": "application/json",
-          ...(binding ? { "if-match": `revision-${binding.revision}` } : {}),
+          ...(!binding
+            ? { "idempotency-key": createKey(fetchLike, project.id) }
+            : {}),
+          ...(binding
+            ? {
+                "if-match": binding.saveToken ?? `revision-${binding.revision}`,
+              }
+            : {}),
         },
         body: JSON.stringify({
           name: project.name,
@@ -131,6 +160,7 @@ export async function saveCloudProject(
   } | null;
   const returnedProject = summaryOf(payload?.project);
   if (response.ok && returnedProject) {
+    pendingCreates.get(fetchLike)?.delete(project.id);
     return { status: "saved", project: returnedProject };
   }
   if (response.status === 401) return { status: "signed-out" };
@@ -146,7 +176,11 @@ export async function saveCloudProject(
   if (response.status === 409 && payload?.error === "revision-conflict") {
     return returnedProject
       ? { status: "conflict", project: returnedProject }
-      : { status: "rejected", message: "Cloud revision conflict" };
+      : {
+          status: "rejected",
+          message:
+            "This Project changed in another region. Keep your local draft and review the versions in My shelf.",
+        };
   }
   if (response.status === 409 && payload?.error === "project-limit") {
     return {
@@ -168,9 +202,10 @@ const cloudLists = new WeakMap<
   Promise<CloudProjectListOutcome>
 >();
 if (!import.meta.env?.ICM_DESKTOP && typeof window !== "undefined")
-  window.addEventListener(ACCOUNT_CHANGED_EVENT, () =>
-    cloudLists.delete(fetch),
-  );
+  window.addEventListener(ACCOUNT_CHANGED_EVENT, () => {
+    cloudLists.delete(fetch);
+    pendingCreates.delete(fetch);
+  });
 export function listCloudProjects(
   fetchLike: typeof fetch = fetch,
 ): Promise<CloudProjectListOutcome> {
