@@ -124,12 +124,8 @@ export async function drawnProject(
   writesFileNetlist: (project: CircuitProject) => Promise<boolean>,
 ): Promise<{ project: CircuitProject } | OmittedDrawing> {
   try {
-    const before = projectElectricalGraph(imported);
-    const after = projectElectricalGraph(drawn.project);
     if (
-      before.status === "ready" &&
-      (after.status !== "ready" ||
-        compareElectricalGraphs(before.graph, after.graph) !== "equal") &&
+      !sameCircuits(imported, drawn.project) &&
       !(await writesFileNetlist(drawn.project))
     )
       return {
@@ -159,7 +155,8 @@ export async function drawnProject(
 /**
  * Whether the drawn circuit writes the file's own netlist: its netlist,
  * written as the RNL export writes it and read back as the file was, is the
- * same circuit to the comparison as the file's, "equal" and nothing less.
+ * same circuit to the comparison as the file's, "equal" and nothing less,
+ * the top's and each uncalled Cell's (`sameCircuits`).
  * The file's netlist read alone does not always write what it read: a
  * ground pin the export named VSS reads as a port, and writes a GND pin
  * beside it, where the drawing, which shows that pin as ground, writes the
@@ -177,6 +174,7 @@ export async function writesFileNetlist(
   const written = createDesignNetlistExport(project, {
     format: isSpectreSource(entry) ? "spectre" : "spice",
     bodyPortOrder: rnlBodyPortOrder(project),
+    uncalledCells: true,
   });
   if (written.status !== "ready") return false;
   const rewritten = inputs.map((input) =>
@@ -197,13 +195,66 @@ export async function writesFileNetlist(
     },
   );
   if (!again.project || !again.successful) return false;
-  const file = projectElectricalGraph(fileImported);
-  const read = projectElectricalGraph(again.project);
-  return (
-    file.status === "ready" &&
-    read.status === "ready" &&
-    compareElectricalGraphs(file.graph, read.graph) === "equal"
+  return sameCircuits(fileImported, again.project, true);
+}
+
+/**
+ * Each circuit a Project holds, as its root Cell's id: the top's, then each
+ * Cell no Cell calls, which the import keeps as well (#1954).
+ */
+function circuitRoots(project: CircuitProject): string[] {
+  const called = new Set(
+    project.documents.flatMap((document) =>
+      document.instances.flatMap((instance) =>
+        instance.netlist?.binding?.kind === "subcircuit"
+          ? [instance.netlist.binding.childDocumentId]
+          : [],
+      ),
+    ),
   );
+  return [
+    project.topDocumentId,
+    ...project.documents.flatMap((document) =>
+      document.netlist &&
+      document.id !== project.topDocumentId &&
+      !called.has(document.id)
+        ? [document.id]
+        : [],
+    ),
+  ];
+}
+
+/**
+ * Whether a Project keeps the reference's circuits: rooted at each of the
+ * reference's roots, its graph is "equal" to the reference's wherever the
+ * reference's is ready. The two Cells of a root are the same Document, or,
+ * across an import (`byName`), the two tops or the Cells of one name.
+ */
+function sameCircuits(
+  reference: CircuitProject,
+  project: CircuitProject,
+  byName = false,
+): boolean {
+  return circuitRoots(reference).every((root) => {
+    const name = reference.documents.find((item) => item.id === root)?.netlist
+      ?.name;
+    const twin = !byName
+      ? root
+      : root === reference.topDocumentId
+        ? project.topDocumentId
+        : project.documents.find((item) => item.netlist?.name === name)?.id;
+    const before = projectElectricalGraph({
+      ...reference,
+      topDocumentId: root,
+    });
+    if (before.status !== "ready") return !byName;
+    if (!twin) return false;
+    const after = projectElectricalGraph({ ...project, topDocumentId: twin });
+    return (
+      after.status === "ready" &&
+      compareElectricalGraphs(before.graph, after.graph) === "equal"
+    );
+  });
 }
 
 /** An error as one line: a schema error's issue messages, not its JSON. */
