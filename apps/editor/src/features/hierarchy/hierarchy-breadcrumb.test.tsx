@@ -82,7 +82,8 @@ describe("HierarchyBreadcrumb", () => {
       />,
     );
     expect(markup).toContain("Pair (definition)");
-    expect(markup).toContain('title="Open the default Top"');
+    expect(markup).toContain(">Top</button>");
+    expect(markup).not.toContain("Open the default Top");
     expect(markup).toContain(">3 uses</button>");
   });
 });

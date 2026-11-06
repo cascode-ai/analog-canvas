@@ -272,7 +272,6 @@ export function NewCellDialog({
                       type="button"
                       className="pin-token-main"
                       aria-label={`${port.name}: ${DIRECTION_LABEL[port.direction]}. Change direction`}
-                      title={`${DIRECTION_LABEL[port.direction]} · click to change`}
                       onClick={() => cycleDirection(index)}
                       onKeyDown={(event) => {
                         if (

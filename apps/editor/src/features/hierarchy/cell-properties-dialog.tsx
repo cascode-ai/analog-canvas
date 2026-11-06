@@ -151,7 +151,6 @@ function ParameterRow({
       <span role="cell">
         <CommitField
           aria-label={`Parameter ${parameter.name} name`}
-          title={`${uses} internal uses; ${overrides} instance overrides`}
           value={parameter.name}
           onCommit={(next) =>
             onEdit(parameter.name, { kind: "rename", value: next })
@@ -303,7 +302,6 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                 <button
                   type="button"
                   className="cell-props-set-top"
-                  title={`Make ${cell.name} the Top (default entry); Undo restores the current Top`}
                   onClick={() => props.onSetTop(cell.id)}
                 >
                   Set as Top
@@ -420,11 +418,6 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                               <CommitField
                                 key={`${id}/${terminal.name}`}
                                 aria-label={`Port ${terminal.name} name`}
-                                title={
-                                  port.terminalIds.length > 1
-                                    ? `Marker ${terminal.interfaceInstanceIds.join(", ")}. Equal names form one Port.`
-                                    : "Equal names form one Port."
-                                }
                                 value={terminal.name}
                                 onCommit={(next) =>
                                   props.onRenamePin(cell.id, id, next)

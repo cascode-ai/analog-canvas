@@ -91,11 +91,7 @@ export function HierarchyBreadcrumb(props: HierarchyBreadcrumbProps) {
         </button>
         {rootId !== topId ? (
           <>
-            <button
-              type="button"
-              title="Open the default Top"
-              onClick={props.onTop}
-            >
+            <button type="button" onClick={props.onTop}>
               Top
             </button>
             <span className="hierarchy-breadcrumb-divider" aria-hidden="true" />
@@ -153,7 +149,6 @@ export function HierarchyBreadcrumb(props: HierarchyBreadcrumbProps) {
           <button
             type="button"
             className="hierarchy-breadcrumb-uses"
-            title={`Editing ${name(activeDocumentId)} changes all ${usage.total} uses; show them in the hierarchy tree`}
             onClick={props.onShowUses}
           >
             {usage.total}

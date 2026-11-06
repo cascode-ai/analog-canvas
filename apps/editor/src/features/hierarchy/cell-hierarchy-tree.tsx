@@ -10,13 +10,14 @@ import {
 import type { CircuitProject, HierarchyFrame } from "@icm/model";
 import { buildProjectHierarchy, type ProjectHierarchy } from "@icm/derived";
 import { cellDeletionRefusal } from "@icm/edit-engine";
+import { ContextMenu } from "../../components/context-menu";
 import {
   frameReference,
   hierarchyPathKey,
   occurrenceLabel,
 } from "./project-hierarchy";
 import { cellPlacementIssue } from "./project-structure-commands";
-import type { CellUse } from "./hierarchy-refactor";
+import { cellFromSelectionRefusal, type CellUse } from "./hierarchy-refactor";
 import { sharedEditNote } from "./hierarchy-refactor-commands";
 
 /** What the tree asks of the editor; the editor owns every edit and refusal. */
@@ -26,6 +27,8 @@ export interface HierarchyTreeActions {
   properties(documentId: string): void;
   rename(documentId: string, name: string): void;
   newChild(documentId: string, path: readonly HierarchyFrame[]): void;
+  /** Make a child Cell of the open Cell from the parts selected in it. */
+  newChildFromSelection(): void;
   /** Start placing a Cell in the open Cell; false when it is refused. */
   place(documentId: string): boolean;
   /** End a drag from the tree: place under the pointer, or cancel off canvas. */
@@ -183,9 +186,12 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
   const [filter, setFilter] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ row: Row; x: number; y: number } | null>(
-    null,
-  );
+  const [menu, setMenu] = useState<{
+    row: Row;
+    x: number;
+    y: number;
+    fromKeyboard?: boolean;
+  } | null>(null);
   const treeRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const suppressClick = useRef(false);
@@ -219,26 +225,6 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
       ?.querySelector(`[data-key="${CSS.escape(activeKey)}"]`)
       ?.scrollIntoView({ block: "nearest" });
   }, [activeKey, props.open]);
-
-  useEffect(() => {
-    if (!menu) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (
-        !(event.target instanceof Element) ||
-        !event.target.closest(".hierarchy-context-menu")
-      )
-        setMenu(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenu(null);
-    };
-    window.addEventListener("pointerdown", onPointerDown, true);
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown, true);
-      window.removeEventListener("keydown", onKeyDown, true);
-    };
-  }, [menu]);
 
   const name = (id: string) => hierarchy.document(id)?.name ?? id;
   const reference = (frame: HierarchyFrame) => frameReference(project, frame);
@@ -289,15 +275,13 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
     return found.slice(0, 100);
   }, [query, hierarchy, project]);
 
+  const rowButton = (key: string) =>
+    treeRef.current?.querySelector<HTMLElement>(
+      `[data-key="${CSS.escape(key)}"] .hierarchy-node-label`,
+    );
   const focusRow = (key: string) => {
     setFocusKey(key);
-    requestAnimationFrame(() =>
-      treeRef.current
-        ?.querySelector<HTMLElement>(
-          `[data-key="${CSS.escape(key)}"] .hierarchy-node-label`,
-        )
-        ?.focus(),
-    );
+    requestAnimationFrame(() => rowButton(key)?.focus());
   };
   const setRowExpanded = (row: Row, open: boolean) =>
     props.onExpandedKeysChange(
@@ -401,6 +385,16 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
     const goTo = (next: Row | undefined) => {
       if (next) focusRow(next.key);
     };
+    // Every row command is in the menu, so the keyboard needs a way to it.
+    if (
+      event.key === "ContextMenu" ||
+      (event.key === "F10" && event.shiftKey)
+    ) {
+      const box = target.getBoundingClientRect();
+      setMenu({ row, x: box.left + 24, y: box.bottom, fromKeyboard: true });
+      event.preventDefault();
+      return;
+    }
     switch (event.key) {
       case "ArrowDown":
         goTo(rows[index + 1]);
@@ -432,11 +426,6 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
       case "Backspace":
         remove(row);
         break;
-      case "ContextMenu": {
-        const box = target.getBoundingClientRect();
-        setMenu({ row, x: box.left + 24, y: box.bottom });
-        break;
-      }
       default:
         // Typing on a row starts filtering, as in a file explorer.
         if (
@@ -535,11 +524,6 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
               className="hierarchy-rename"
               aria-label={`Rename ${cellName}`}
               defaultValue={cellName}
-              title={
-                uses > 1
-                  ? `Renames the definition for all ${uses} uses`
-                  : undefined
-              }
               autoFocus
               onFocus={(event) => event.currentTarget.select()}
               onKeyDown={(event) => {
@@ -561,7 +545,6 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
               className="hierarchy-node-label"
               aria-label={label}
               tabIndex={row.key === tabKey ? 0 : -1}
-              title={`${occurrenceLabel(project, row.rootId, row.path)}\nDouble-click to rename · drag onto the canvas to place`}
               aria-current={active ? "page" : undefined}
               disabled={row.cycle}
               onFocus={() => setFocusKey(row.key)}
@@ -591,18 +574,12 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
               tabIndex={-1}
               className="hierarchy-top hierarchy-set-top"
               aria-label={`Set ${cellName} as Top`}
-              title={`Make ${cellName} the Top (default entry); Undo restores ${name(topId)}`}
               onClick={() => actions.setTop(row.documentId)}
             >
               Top
             </button>
           ) : (
-            <span
-              className="hierarchy-top"
-              title="Top: the Project's default entry. Click TOP on another Cell to move it."
-            >
-              Top
-            </span>
+            <span className="hierarchy-top">Top</span>
           )}
           {uses > 1 ? (
             <button
@@ -611,7 +588,6 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
               className="hierarchy-uses"
               aria-expanded={Boolean(usage)}
               aria-label={`${uses} uses of ${cellName}`}
-              title={`${cellName} has ${uses} uses; editing it changes all of them`}
               onClick={() => props.onUsesKeyChange(usage ? null : row.key)}
             >
               ×{uses}
@@ -688,16 +664,20 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
       type="button"
       role="menuitem"
       disabled={Boolean(refusal)}
-      title={refusal}
       onClick={() => {
+        // The keyboard stays on the row, unless the command opens a dialog.
+        if (menu?.fromKeyboard) rowButton(menu.row.key)?.focus();
         setMenu(null);
         run();
       }}
     >
       <span>
         {label}
-        {/* Read and heard before the command runs, not only on hover. */}
-        {note ? <small className="hierarchy-menu-note">{note}</small> : null}
+        {/* Why it is refused, or what else it changes, is read and heard
+            before the command runs, not only on hover. */}
+        {(refusal ?? note) ? (
+          <small className="hierarchy-menu-note">{refusal ?? note}</small>
+        ) : null}
       </span>
       {shortcut ? <kbd>{shortcut}</kbd> : null}
     </button>
@@ -799,11 +779,13 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
         </button>
       </footer>
       {menu ? (
-        <div
+        <ContextMenu
+          position={menu}
+          label={`Actions for ${rowLabel(menu.row)}`}
+          testId="hierarchy-context-menu"
           className="hierarchy-context-menu"
-          role="menu"
-          aria-label={`Actions for ${rowLabel(menu.row)}`}
-          style={{ left: menu.x, top: menu.y }}
+          takeFocus={menu.fromKeyboard ?? false}
+          onClose={() => setMenu(null)}
         >
           {menuItem("Open definition", () =>
             actions.openDefinition(menu.row.documentId),
@@ -812,6 +794,22 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
           {menuItem("New child Cell…", () =>
             actions.newChild(menu.row.documentId, menu.row.path),
           )}
+          {/* Parts selected on the canvas belong to the open Cell, on any of
+              its rows: a definition opened directly has no row of its own. */}
+          {menu.row.documentId === props.activeDocumentId &&
+          props.selectedInstanceIds.length
+            ? menuItem(
+                "New child Cell from selection…",
+                actions.newChildFromSelection,
+                undefined,
+                cellFromSelectionRefusal(
+                  project,
+                  props.activeDocumentId,
+                  props.selectedInstanceIds,
+                ),
+                sharedEditNote(project, menu.row.documentId),
+              )
+            : null}
           {menuItem(
             `Place in ${name(props.activeDocumentId)}`,
             () => place(menu.row),
@@ -866,7 +864,7 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
             "Del",
             deleteRefusal(menu.row),
           )}
-        </div>
+        </ContextMenu>
       ) : null}
     </aside>
   );

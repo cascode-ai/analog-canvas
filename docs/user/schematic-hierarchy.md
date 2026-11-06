@@ -14,10 +14,8 @@ reference and its Cell name; **×N** counts a shared Cell's uses and lists them
 under the row. Type in the filter to find Cells and instances. Roots keep
 their order while you work: Top first when the Project opens, and Cells that
 become roots later at the end. The root you work in stays expanded down to
-where you are. **Circuit → Hierarchy** also holds the commands for the open
-Cell and the selection: New Cell, New child Cell, Place Cell, Cell
-properties, Set as Top, the commands in [Reshaping the
-hierarchy](#reshaping-the-hierarchy), Import Cell and External Circuits.
+where you are. Every Cell command is in the tree. **Edit → Place Cell from this
+Project…** also lists the Cells you can place.
 
 - Click a row, double-click a canvas instance, or press **E** to enter it.
   Inside a Cell the canvas shows the exact instance path: **↑** / **Shift+E**
@@ -26,12 +24,12 @@ hierarchy](#reshaping-the-hierarchy), Import Cell and External Circuits.
   fits the drawing as **F** does and does not edit the circuit.
 - Hovering a row shows its icons, described below. Drag a row onto the canvas
   to place its Cell once. Double-click a row or press **F2** to rename its Cell.
-- Right-click a row for **Open definition** (no parent path; choose a concrete
-  use to resume occurrence navigation), **Show uses**, **Set as Top**, **Delete
-  Cell** and, on a use, the commands in [Reshaping the
-  hierarchy](#reshaping-the-hierarchy). Delete removes only an unused, non-top
-  definition; deleting an instance never deletes its Cell. A refused command
-  says why.
+- Right-click a row, or press the Menu key or **Shift+F10** on it, for **Open
+  definition** (no parent path; choose a concrete use to resume occurrence
+  navigation), **Show uses**, **Set as Top**, **Delete Cell** and, on a use, the
+  commands in [Reshaping the hierarchy](#reshaping-the-hierarchy). Delete removes
+  only an unused, non-top definition; deleting an instance never deletes its
+  Cell. A refused command says why under it.
 - **TOP** marks the Top Cell wherever it shows. Hover another row and click its
   dashed **TOP**, or use **Set as Top**, to make that Cell the saved default
   entry. It is undoable, moves no row and does not change the editing path,
@@ -41,9 +39,9 @@ hierarchy](#reshaping-the-hierarchy), Import Cell and External Circuits.
   names and changed with a click, then previews the block in that Cell.
   Clicking creates the definition, interface and caller in one undo step and
   enters the child. **Esc** before placement leaves no Cell.
-- **Place** on a row, or **Place Cell…**, reuses an existing definition with
-  normal placement controls (`R`, mirror, `Esc`). Self-instantiation and cycles
-  are refused with a reason.
+- **Place** on a row reuses an existing definition with normal placement
+  controls (`R`, mirror, `Esc`). Self-instantiation and cycles are refused
+  with a reason.
 - **Cell properties** on a row opens the Cell's one sheet: see [Cell
   Pins](#cell-pins) and [Cell parameters](#cell-parameters).
 - **Import Cell…**, in the tree footer, copies a Cell from another Cloud Project
@@ -57,9 +55,9 @@ the nearest surviving parent. Renaming a Cell does not change the path.
 
 ### Reshaping the hierarchy
 
-These commands are on a use's menu in the tree and, for the selected Cell
-instance or parts, under **Circuit → Hierarchy** and on the canvas menu (a
-Cell from a selection there needs two or more parts). Each is one undo step.
+These commands are on a use's row menu in the tree; **New child Cell from
+selection…** is on the menu of any row of the open Cell while parts are selected
+on its canvas. Each is one undo step.
 One that edits a Cell with several uses says so under the command and in its
 dialog before it runs, and in the status line after.
 
@@ -68,7 +66,7 @@ dialog before it runs, and in the status line after.
 - **Replace Cell…** switches this use, or every use of the Cell, to another Cell
   with the same Pin names. Other Cells are listed with the Pins they lack or
   add; cycles are refused.
-- **Create Cell from selection…** moves the selected parts into a new Cell.
+- **New child Cell from selection…** moves the selected parts into a new Cell.
   Each Net that leaves them becomes a Pin, parent parameters they use pass
   through, and a block takes their place. A selection may not split an
   inductor coupling.

@@ -16,10 +16,6 @@ import type { createEditorFileCommands } from "../features/editor-shell/editor-f
 import { ProjectTabs } from "../features/editor-shell/project-tabs";
 import type { useEditorPanels } from "../features/editor-shell/use-editor-panels";
 import type { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
-import {
-  HIERARCHY_REFACTOR_ITEMS,
-  type HierarchyRefactorActions,
-} from "../features/hierarchy/hierarchy-refactor-commands";
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import {
   hasResettableLabels,
@@ -36,10 +32,7 @@ import {
   useEditorServices,
   type EditorServices,
 } from "../services/editor-services";
-import {
-  EditorAppChrome,
-  type HierarchyMenuCommands,
-} from "./editor-app-chrome";
+import { EditorAppChrome } from "./editor-app-chrome";
 import type { EditorProjectPanelMode } from "./editor-project-dock";
 import type { createEditorTransactionCommands } from "./editor-transaction-commands";
 import type { useProjectCheck } from "./use-project-check";
@@ -74,7 +67,6 @@ type NativeProjectTabs = ReturnType<typeof useNativeProjectTabs>;
 
 /** The header: project tabs, menus and toolbars, bound to the editor. */
 export function EditorMenuBar({
-  hierarchyActions,
   identity,
   projectStore,
   nativeProjectStore,
@@ -174,11 +166,6 @@ export function EditorMenuBar({
   leaveForGallery,
   leaveForArena,
 }: {
-  /** Circuit › Hierarchy, but for the tree toggle and placement. */
-  hierarchyActions: Omit<
-    HierarchyMenuCommands,
-    "treeOpen" | "onToggleTree" | "placeCell"
-  >;
   identity: EditorServices["identity"];
   projectStore: EditorServices["projectStore"];
   nativeProjectStore: EditorServices["nativeProjectStore"];
@@ -619,13 +606,8 @@ export function EditorMenuBar({
         },
       }}
       hierarchy={{
-        ...hierarchyActions,
         treeOpen: leftPanelMode === "hierarchy" && visibleLibraryPanelOpen,
         onToggleTree: toggleHierarchyPanel,
-        placeCell: {
-          enabled: cellInsertCandidates.length > 0,
-          execute: placeCellInstance,
-        },
       }}
       telemetry={{
         snapshot: {
@@ -666,7 +648,6 @@ export function EditorCanvasContextMenu({
   hasDefinitionSelection,
   editorCommands,
   coupleInductors,
-  hierarchyRefactor,
 }: {
   canvasContextMenu: { x: number; y: number };
   setCanvasContextMenu: Dispatch<
@@ -681,8 +662,6 @@ export function EditorCanvasContextMenu({
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   /** Offered only while two uncoupled inductors are the selection. */
   coupleInductors?: (() => void) | null;
-  /** Reshaping the hierarchy around the selection or a selected Cell instance. */
-  hierarchyRefactor?: HierarchyRefactorActions;
 }) {
   return (
     <CanvasContextMenu
@@ -706,19 +685,6 @@ export function EditorCanvasContextMenu({
               },
             ]
           : []),
-        // Only the refactors that apply to this selection.
-        ...HIERARCHY_REFACTOR_ITEMS.flatMap(([key, label]) => {
-          const action = hierarchyRefactor?.[key];
-          return action?.enabled
-            ? [
-                {
-                  label: action.note ? `${label} · ${action.note}` : label,
-                  enabled: true,
-                  execute: action.execute,
-                },
-              ]
-            : [];
-        }),
         ...(coupleInductors
           ? [
               {

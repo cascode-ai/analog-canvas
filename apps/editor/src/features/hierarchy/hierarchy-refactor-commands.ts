@@ -20,13 +20,6 @@ import {
 } from "./hierarchy-refactor";
 import { frameReference } from "./project-hierarchy";
 
-export interface CommandAction {
-  enabled: boolean;
-  execute(): void;
-  /** Said with the command before it runs, as a shared scope it edits. */
-  note?: string | undefined;
-}
-
 /**
  * What a command that edits this Cell says before it runs, when the Cell has
  * several uses; undefined when it has one.
@@ -42,25 +35,6 @@ export function sharedEditNote(
     documentId;
   return `Edits ${name}, so all ${uses} of its uses change`;
 }
-
-/** The refactors as commands on the canvas selection, for the menus. */
-export interface HierarchyRefactorActions {
-  fromSelection: CommandAction;
-  makeUnique: CommandAction;
-  replace: CommandAction;
-  flatten: CommandAction;
-}
-
-/** The refactor commands in menu order, with their labels. */
-export const HIERARCHY_REFACTOR_ITEMS: readonly (readonly [
-  keyof HierarchyRefactorActions,
-  string,
-])[] = [
-  ["makeUnique", "Make unique copy"],
-  ["replace", "Replace Cell…"],
-  ["flatten", "Flatten into this Cell"],
-  ["fromSelection", "Create Cell from selection…"],
-];
 
 /** A Cell occurrence to open once a commit has rendered. */
 export interface OccurrenceToOpen {

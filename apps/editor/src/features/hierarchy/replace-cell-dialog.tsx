@@ -139,7 +139,6 @@ export function ReplaceCellDialog({
                 role="option"
                 aria-selected={cell.id === choice}
                 disabled={Boolean(issue)}
-                title={issue}
                 onClick={() => setChoice(cell.id)}
                 onDoubleClick={() => {
                   if (!issue) onReplace(uses, cell.id);

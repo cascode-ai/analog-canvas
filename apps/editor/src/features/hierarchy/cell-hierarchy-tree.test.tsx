@@ -15,6 +15,7 @@ const actions: HierarchyTreeActions = {
   properties: vi.fn(),
   rename: vi.fn(),
   newChild: vi.fn(),
+  newChildFromSelection: vi.fn(),
   place: vi.fn(() => true),
   drop: vi.fn(),
   setTop: vi.fn(),
@@ -74,6 +75,22 @@ describe("CellHierarchyTree", () => {
     expect(markup).not.toContain(
       "Editing this definition changes all its uses",
     );
+  });
+
+  it("explains only its icons on hover; names, badges and counts say it", () => {
+    const markup = render();
+    const titled = [...markup.matchAll(/<[a-z]+ [^>]*title="([^"]*)"/gu)].map(
+      ([, title]) => title,
+    );
+    expect(titled).toContain("New child Cell in Channel");
+    expect(titled).toContain("Collapse all but the open path");
+    for (const tag of [
+      /<button[^>]*class="hierarchy-node-label"[^>]*>/gu,
+      /<[a-z]+[^>]*class="hierarchy-top[^"]*"[^>]*>/gu,
+      /<button[^>]*class="hierarchy-uses"[^>]*>/gu,
+    ])
+      for (const [element] of markup.matchAll(tag))
+        expect(element).not.toContain("title=");
   });
 
   it("starts a new or imported Cell from the tree itself", () => {

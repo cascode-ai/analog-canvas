@@ -13,10 +13,19 @@ The editor projects the Project's Cell calls as one navigation tree.
 - Hierarchy keeps no resident row or column: the tree opens on demand, and the
   instance path floats over the canvas only away from a root (inside a child
   occurrence, or in a directly opened definition something calls).
-- Creating and placing Cells, Cell properties, Set as Top, the refactors and
-  External Circuits have a fixed entry under Circuit › Hierarchy, acting on
-  the open Cell or the canvas selection; a tree row offers the Cell commands
-  for any Cell.
+- The tree is the one place for Cell commands: creating, placing, Cell
+  properties, Set as Top, the refactors, Import Cell and External Circuits.
+  Circuit › Hierarchy only shows or hides it; the canvas menu keeps Enter
+  Cell, and Edit keeps
+  [Place Cell](editor-interaction.md#components-and-interface-markers). A child
+  Cell made from canvas parts starts from a row of the open Cell.
+- Every row command is in the row's menu, which stays inside the window and
+  opens from the keyboard too (Menu key or Shift+F10; arrow keys move in it).
+- Only icon buttons explain themselves on hover. Names, badges and counts
+  carry no hover text, and a refused tree command says why in its menu.
+- The tree, its uses and its matches are exactly as wide as the panel: a row or
+  match too long for it truncates its name, a use wraps, and none widens the
+  others.
 - Every Cell that no Cell calls is a root, with its nested calls. Roots keep
   the order they were first listed in for the session, Top first; later roots
   append. Top is a mark on its Cell, so changing Top moves no row. There is no
@@ -34,14 +43,15 @@ The editor projects the Project's Cell calls as one navigation tree.
 - A new child stays transient until its placement. Definition, optional Pins
   and caller commit atomically; cancelling leaves no orphan. Reuse, interface
   migrations and deletion retain the Edit Engine's validation and confirmations.
-- Make unique copy, Replace Cell, Create Cell from selection and Flatten are
-  each one Project transaction. One that edits a Cell with several uses says
+- Make unique copy, Replace Cell, New child Cell from selection and Flatten
+  are each one Project transaction. One that edits a Cell with several uses says
   so in text with the command before it runs, and in its result.
 - Make unique copy names the copy after the source's next free number.
 - Replace accepts only Cells with the same Pin names, ignoring case, that form
   no cycle; the plan refuses any other.
-- Create Cell from selection makes one Pin per Net leaving the parts, passes
-  the parent parameters they use, and refuses to split an inductor coupling.
+- New child Cell from selection makes one Pin per Net leaving the parts,
+  passes the parent parameters they use, and refuses to split an inductor
+  coupling.
 - Flatten substitutes the instance's parameter values, brings the child's
   inductor couplings, keeps other uses of the child and keeps imported inner
   Net names, prefixed with the reference on a clash.
@@ -55,8 +65,12 @@ The editor projects the Project's Cell calls as one navigation tree.
 
 - [Browser workflows](../../apps/editor/e2e/unified-hierarchy.spec.ts) exercise
   four levels, repeated parents, disconnected Cells, restored paths, scoped
-  overrides, draft cancellation, atomic creation/undo, moving Top and the four
-  refactors with one Undo each.
+  overrides, draft cancellation, atomic creation/undo, moving Top, the four
+  refactors with one Undo each and deep rows staying inside the panel.
+- [The menus](../../apps/editor/src/app/App.test.tsx) leave Circuit › Hierarchy
+  only the tree toggle, and
+  [the tree](../../apps/editor/src/features/hierarchy/cell-hierarchy-tree.test.tsx)
+  keeps hover text on its icons.
 - [Creation transactions](../../apps/editor/src/features/hierarchy/new-cell.test.ts),
   [refactor plans](../../apps/editor/src/features/hierarchy/hierarchy-refactor.test.ts)
   and [parameter authoring](../../packages/edit-engine/src/cell-parameter-planner.test.ts)

@@ -29,11 +29,6 @@ function ParameterOverrideField({
         value={draft}
         onChange={(event) => setDraft(event.currentTarget.value)}
         placeholder={defaultValue ?? "Required"}
-        title={
-          overridden
-            ? `Overrides the default ${defaultValue ?? "(none)"}`
-            : `Inherits the default ${defaultValue ?? "(required)"}`
-        }
         onBlur={() => {
           const value = draft.trim();
           if (value !== (override ?? "") && !onChange(value || null))

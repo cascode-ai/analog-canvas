@@ -12,11 +12,6 @@ import { AccountMenu, AccountStatePreload } from "../components/account";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
-import {
-  HIERARCHY_REFACTOR_ITEMS,
-  type CommandAction,
-  type HierarchyRefactorActions,
-} from "../features/hierarchy/hierarchy-refactor-commands";
 import { SITE_REPOSITORY_URL } from "../components/site-resource-links";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
@@ -30,6 +25,11 @@ function closeMenuAfterCommand(event: MouseEvent<HTMLDivElement>): void {
     dismissOpenCommandMenus();
 }
 
+interface CommandAction {
+  enabled: boolean;
+  execute: () => void;
+}
+
 interface LabeledCommandAction extends CommandAction {
   label: string;
 }
@@ -39,26 +39,10 @@ interface AlignmentAction extends CommandAction {
   label: string;
 }
 
-/**
- * Entry points; the hierarchy tree is where Cells are worked on. Each command
- * on the open Cell or the canvas selection has its fixed place here, besides
- * the tree and the canvas.
- */
+/** Every Cell command is in the hierarchy tree; the menu only opens it. */
 export interface HierarchyMenuCommands {
   treeOpen: boolean;
   onToggleTree: () => void;
-  onNewCell: () => void;
-  onNewChild: () => void;
-  placeCell: CommandAction;
-  /** The open Cell's properties. */
-  cellProperties: CommandAction;
-  /** Make the open Cell Top. */
-  setTop: CommandAction;
-  /** The refactors, on the canvas selection. */
-  refactor: HierarchyRefactorActions;
-  /** Absent where Cloud is not. */
-  onImportCell?: () => void;
-  onExternalCircuits: () => void;
 }
 
 export interface EditorAppChromeProps {
@@ -375,57 +359,6 @@ export function EditorAppChrome({
                   {hierarchy.treeOpen
                     ? "Hide hierarchy tree"
                     : "Show hierarchy tree"}
-                </button>
-                <button type="button" onClick={hierarchy.onNewCell}>
-                  New Cell…
-                </button>
-                <button type="button" onClick={hierarchy.onNewChild}>
-                  New child Cell…
-                </button>
-                <button
-                  type="button"
-                  disabled={!hierarchy.placeCell.enabled}
-                  onClick={hierarchy.placeCell.execute}
-                >
-                  Place Cell…
-                </button>
-                <button
-                  type="button"
-                  disabled={!hierarchy.cellProperties.enabled}
-                  onClick={hierarchy.cellProperties.execute}
-                >
-                  Cell properties…
-                </button>
-                <button
-                  type="button"
-                  disabled={!hierarchy.setTop.enabled}
-                  onClick={hierarchy.setTop.execute}
-                >
-                  Set as Top
-                </button>
-                {HIERARCHY_REFACTOR_ITEMS.map(([key, label]) => {
-                  const action = hierarchy.refactor[key];
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      disabled={!action.enabled}
-                      onClick={action.execute}
-                    >
-                      {label}
-                      {action.enabled && action.note ? (
-                        <small className="command-note">{action.note}</small>
-                      ) : null}
-                    </button>
-                  );
-                })}
-                {hierarchy.onImportCell ? (
-                  <button type="button" onClick={hierarchy.onImportCell}>
-                    Import Cell…
-                  </button>
-                ) : null}
-                <button type="button" onClick={hierarchy.onExternalCircuits}>
-                  External Circuits…
                 </button>
               </div>
               <div

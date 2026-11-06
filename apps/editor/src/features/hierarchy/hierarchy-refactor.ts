@@ -453,6 +453,26 @@ function referencedNames(values: readonly unknown[]): Set<string> {
   return names;
 }
 
+/** Why these parts cannot move into a Cell of their own, if they cannot. */
+export function cellFromSelectionRefusal(
+  project: CircuitProject,
+  parentId: string,
+  instanceIds: readonly string[],
+): string | undefined {
+  const parent = project.documents.find((cell) => cell.id === parentId);
+  const parts = parent ? selectableParts(parent, instanceIds) : new Set();
+  if (!parts.size) return "Select the parts to move into the new Cell";
+  // A coupling is a K in one Cell; it cannot reach across the new boundary.
+  const split = parent?.inductorCouplings?.find(
+    (coupling) =>
+      coupling.members.filter((member) => parts.has(member.instanceId))
+        .length === 1,
+  );
+  return split
+    ? `Select both inductors of ${split.name}, or neither, to keep the coupling`
+    : undefined;
+}
+
 /**
  * Move the selected parts into a new Cell and put an instance of it in their
  * place. Inner Nets and wires move with the parts; each Net that also leaves
@@ -474,20 +494,10 @@ export function planCellFromSelection(
   edits: ProjectStructureEdit[];
 } {
   assertNewCellName(project, name);
+  const refusal = cellFromSelectionRefusal(project, parentId, instanceIds);
+  if (refusal) throw new Error(refusal);
   const parent = requireCell(project, parentId);
   const parts = selectableParts(parent, instanceIds);
-  if (!parts.size)
-    throw new Error("Select the parts to move into the new Cell");
-  // A coupling is a K in one Cell; it cannot reach across the new boundary.
-  const split = (parent.inductorCouplings ?? []).find(
-    (coupling) =>
-      coupling.members.filter((member) => parts.has(member.instanceId))
-        .length === 1,
-  );
-  if (split)
-    throw new Error(
-      `Select both inductors of ${split.name}, or neither, to keep the coupling`,
-    );
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const clipboard = copySelection(parent, [...parts], [], undefined, resolver);
   if (!clipboard) throw new Error("Nothing to move into the new Cell");

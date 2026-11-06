@@ -14,7 +14,6 @@ import type {
 import {
   createHierarchyRefactorCommands,
   sharedEditNote,
-  type HierarchyRefactorActions,
   type OccurrenceToOpen,
 } from "../features/hierarchy/hierarchy-refactor-commands";
 import { createChildCellDraft } from "../features/hierarchy/new-cell";
@@ -3983,45 +3982,12 @@ function WorkspaceEditor({
     setSelectionCell({ instanceIds: [...selectedIds], pins });
     beginNewCell("selection");
   };
-  const selectedUse: CellUse | null =
-    selectedHierarchyCell && selectedInstance
-      ? { documentId: document.id, instanceId: selectedInstance.id }
-      : null;
-  // Every refactor on the selection edits the open Cell; with several uses
-  // it says so before it runs.
+  // A Cell made from the selection edits the open Cell; with several uses
+  // the dialog says so before it runs.
   const openCellNote = useMemo(
     () => sharedEditNote(project, document.id),
     [project, document.id],
   );
-  // One set of commands for the canvas menu and Circuit > Hierarchy.
-  const refactorActions: HierarchyRefactorActions = {
-    fromSelection: {
-      enabled: selectedIds.length > 0,
-      execute: beginCellFromSelection,
-      note: openCellNote,
-    },
-    makeUnique: {
-      enabled: Boolean(selectedUse),
-      execute: () => {
-        if (selectedUse) hierarchyRefactor.makeUnique(selectedUse);
-      },
-      note: openCellNote,
-    },
-    replace: {
-      enabled: Boolean(selectedUse),
-      execute: () => {
-        if (selectedUse) setReplaceUse(selectedUse);
-      },
-      note: openCellNote,
-    },
-    flatten: {
-      enabled: Boolean(selectedUse),
-      execute: () => {
-        if (selectedUse) hierarchyRefactor.flatten(selectedUse, documentStack);
-      },
-      note: openCellNote,
-    },
-  };
   // The tree's root order belongs to the tab, not the tree, so it outlasts
   // the panel; see stableRootOrder.
   const rootOrders = useRef(new Map<string, readonly string[]>());
@@ -5465,24 +5431,6 @@ function WorkspaceEditor({
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorMenuBar
-        hierarchyActions={{
-          onNewCell: () => beginNewCell("root"),
-          onNewChild: beginNewChild,
-          cellProperties: {
-            enabled: true,
-            execute: () => openCellProperties(document.id),
-          },
-          setTop: {
-            enabled: document.id !== project.topDocumentId,
-            execute: () => void setTopCell(document.id),
-          },
-          refactor: refactorActions,
-          // Cloud import needs the Web build's Project store.
-          ...(!import.meta.env?.ICM_DESKTOP
-            ? { onImportCell: () => setImportCellOpen(true) }
-            : {}),
-          onExternalCircuits: openExternalCircuits,
-        }}
         toggleHierarchyPanel={toggleHierarchyPanel}
         identity={identity}
         projectStore={projectStore}
@@ -5910,6 +5858,7 @@ function WorkspaceEditor({
               drop: dropCellFromTree,
               setTop: (id) => void setTopCell(id),
               remove: (id) => void deleteCell(id),
+              newChildFromSelection: beginCellFromSelection,
               makeUnique: hierarchyRefactor.makeUnique,
               replace: setReplaceUse,
               flatten: hierarchyRefactor.flatten,
@@ -8060,15 +8009,6 @@ function WorkspaceEditor({
             openSelectedComponentDefinition={openSelectedComponentDefinition}
             hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
-            // A lone device keeps its menu to direct actions; a Cell from one
-            // part is under Circuit › Hierarchy.
-            hierarchyRefactor={{
-              ...refactorActions,
-              fromSelection: {
-                ...refactorActions.fromSelection,
-                enabled: selectedIds.length > 1,
-              },
-            }}
             coupleInductors={(() => {
               const edit = planCoupleInductors(document, selectedIds);
               if (!edit || edit.kind !== "set_inductor_coupling") return null;

@@ -167,10 +167,10 @@ export async function openCellProperties(
   return sheet;
 }
 
-/** Open External Circuits, where external models are authored. */
+/** Open External Circuits, from the hierarchy tree's footer. */
 export async function openExternalCircuits(page: Page): Promise<Locator> {
   await (
-    await openMenu(page, "Hierarchy")
+    await openHierarchyTree(page)
   )
     .getByRole("button", { name: "External Circuits…", exact: true })
     .click();

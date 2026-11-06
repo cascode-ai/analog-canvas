@@ -555,7 +555,9 @@ test("applies and places an external model in a compact narrow Manager", async (
   await openExternalCircuits(page);
   await manager.getByRole("button", { name: /compact/ }).click();
   await manager.getByRole("button", { name: "Place", exact: true }).click();
-  await page.getByRole("button", { name: "Netlist", exact: true }).click();
+  // In a narrow window the tree, where External Circuits opens, covers the
+  // canvas until it is closed.
+  await page.getByTestId("hierarchy-toggle").click();
   await placeFirstAt(page, { x: 200, y: 250 });
   await openExternalCircuits(page);
   await manager.getByRole("button", { name: /compact/ }).click();
@@ -845,7 +847,7 @@ test("places a local Cell from its tree row and explains self placement", async 
   await (await revealHierarchyRow(tree, /^Top · /u)).click({ button: "right" });
   const self = tree.getByRole("menuitem", { name: /^Place in / });
   await expect(self).toBeDisabled();
-  await expect(self).toHaveAttribute("title", /cannot contain itself/u);
+  await expect(self).toContainText(/cannot contain itself/u);
   await page.keyboard.press("Escape");
   await expect(self).toHaveCount(0);
   const child = await revealHierarchyRow(tree, "Child");
@@ -1181,25 +1183,13 @@ test("keeps Hierarchy discoverable without a resident row", async ({
   ).toBeHidden();
 
   await createCell(page, "FirstStage");
-  // At a root, open or not, no path shows; the open Cell's commands are
-  // in the menu, Set as Top among them.
+  // At a root, open or not, no path shows. The Cell's commands are on its row
+  // in the tree.
   await expect(page.getByTestId("hierarchy-breadcrumb")).toHaveCount(0);
-  const hierarchy = await openMenu(page, "Hierarchy");
-  await expect(
-    hierarchy.getByRole("button", { name: "Set as Top", exact: true }),
-  ).toBeEnabled();
-  await expect(
-    hierarchy.getByRole("button", { name: "Cell properties…", exact: true }),
-  ).toBeEnabled();
-  const place = hierarchy.getByRole("button", {
-    name: "Place Cell…",
-    exact: true,
-  });
-  await expect(place).toBeEnabled();
-  await place.click();
-  await expect(
-    page.getByRole("dialog", { name: "Place Hierarchical Cell" }),
-  ).toBeVisible();
+  const tree = await openHierarchyTree(page);
+  await (await revealHierarchyRow(tree, "FirstStage")).hover();
+  for (const name of ["Place FirstStage", "FirstStage properties"])
+    await expect(tree.getByRole("button", { name, exact: true })).toBeVisible();
 });
 
 test("a Cell Pin shows a display alias, here and on its block, and keeps its name", async ({
