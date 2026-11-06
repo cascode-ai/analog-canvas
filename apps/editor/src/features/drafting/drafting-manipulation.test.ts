@@ -412,6 +412,71 @@ describe("drafting manipulation", () => {
     ).toBeNull();
   });
 
+  it("slides a straight leg of a bent arrow across itself and turns the whole arrow in 15° steps", () => {
+    // A bracket: up from (0,100), across to (200,0), down to (200,100).
+    const bracket: Extract<DraftingObject, { kind: "arrow" }> = {
+      ...arrow(),
+      from: { kind: "free", position: { x: 0, y: 100 } },
+      to: { kind: "free", position: { x: 200, y: 100 } },
+      waypoints: [
+        { x: 0, y: 0 },
+        { x: 200, y: 0 },
+      ],
+      curveControls: [null, null, null],
+    };
+    const geometry = resolveDraftingObjectGeometry(document, resolver, bracket);
+    expect(
+      applyDraftingHandle(
+        bracket,
+        { kind: "leg", index: 1 },
+        { x: 130, y: -38 },
+        geometry,
+        10,
+      ),
+    ).toMatchObject({
+      from: bracket.from,
+      to: bracket.to,
+      waypoints: [
+        { x: 0, y: -40 },
+        { x: 200, y: -40 },
+      ],
+    });
+    // A curved leg keeps its own handle; it does not slide.
+    const curved = {
+      ...bracket,
+      curveControls: [null, { x: 100, y: -50 }, null],
+    };
+    expect(
+      applyDraftingHandle(
+        curved,
+        { kind: "leg", index: 1 },
+        { x: 130, y: -38 },
+        resolveDraftingObjectGeometry(document, resolver, curved),
+        10,
+      ),
+    ).toMatchObject({ waypoints: bracket.waypoints });
+    // Pulled from above the middle of its bounds (about (100,50), the head
+    // included) to 50° clockwise: one 45° step, every leg keeping its length.
+    const turned = applyDraftingHandle(
+      bracket,
+      { kind: "rotate" },
+      {
+        x: 100 + 100 * Math.sin((50 * Math.PI) / 180),
+        y: 50 - 100 * Math.cos((50 * Math.PI) / 180),
+      },
+      geometry,
+      1,
+    );
+    expect(turned).toMatchObject({
+      from: { position: { x: -5, y: 13 } },
+      to: { position: { x: 136, y: 155 } },
+      waypoints: [
+        { x: 65, y: -57 },
+        { x: 207, y: 84 },
+      ],
+    });
+  });
+
   it("rotates and sets bearing without detaching an attached arrow", () => {
     const object = arrow();
     const geometry = resolveDraftingObjectGeometry(document, resolver, object);
