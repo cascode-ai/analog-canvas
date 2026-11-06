@@ -38,6 +38,8 @@ import { unlinkArenaVoter, type ArenaService } from "./arena-account";
 import { exemptFromTraps } from "./trap-exempt";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
+import { RegionalAuthority } from "./regional-auth-authority";
+import { regionalConfig, REGIONAL_PREFIX } from "./regional-auth-contract";
 import {
   rejectionNotice,
   type RejectionAuthor,
@@ -129,7 +131,7 @@ type SqlResult<T> = {
   one(): T;
 };
 
-type SqlStorage = {
+export type SqlStorage = {
   exec<T>(query: string, ...bindings: unknown[]): SqlResult<T>;
 };
 
@@ -172,6 +174,8 @@ export type AuthEnv = {
   AUTH_EMAIL_FROM?: string;
   ADMIN_EMAILS?: string;
   ADMIN_EMAILS_EXTRA?: string;
+  /** Opt-in authority/client origins and a scoped exchange secret. */
+  AUTH_REGIONAL_AUTHORITY?: string;
 };
 
 export interface SessionUser {
@@ -342,7 +346,11 @@ function redirect(location: string): Response {
  * (/arena or below it, on this origin) when it asked for one, and `/` for
  * anything else, as before (docs/specs/analog-arena.md#sign-in-return).
  */
-function signInReturnPath(requested: string | null, origin: string): string {
+function signInReturnPath(
+  requested: string | null,
+  origin: string,
+  regional = false,
+): string {
   // A sign-in started on AnalogArena's host asks to be handed back there.
   if (requested?.startsWith(`${ARENA_ORIGIN}/`))
     return arenaPageAddress(requested) ?? "/";
@@ -354,7 +362,9 @@ function signInReturnPath(requested: string | null, origin: string): string {
     return "/";
   }
   return url.origin === origin &&
-    (isArenaPagePath(url.pathname) || isBoardPagePath(url.pathname))
+    (isArenaPagePath(url.pathname) ||
+      isBoardPagePath(url.pathname) ||
+      (regional && url.pathname === REGIONAL_PREFIX + "authorize"))
     ? url.pathname + url.search
     : "/";
 }
@@ -429,6 +439,7 @@ function noStoreJson(payload: unknown, status = 200): Response {
  */
 export class AuthDO {
   private readonly sql: SqlStorage;
+  private regionalAuthority?: RegionalAuthority;
   /**
    * Provider/network seam; tests replace it. The arrow wrapper is
    * load-bearing: assigning the global `fetch` itself and invoking it as
@@ -569,6 +580,24 @@ export class AuthDO {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname.startsWith(REGIONAL_PREFIX)) {
+      const config = regionalConfig(this.env.AUTH_REGIONAL_AUTHORITY);
+      if (!config) return noStoreJson({ error: "not-found" }, 404);
+      this.regionalAuthority ??= new RegionalAuthority(
+        this.sql,
+        config,
+        (hash) => this.sessionUserByHash(hash),
+        () => this.now().getTime(),
+        enabledProviders(this.env),
+        (id) => {
+          const row = this.sql
+            .exec<UserRow>("SELECT * FROM users WHERE id = ?", id)
+            .toArray()[0];
+          return row ? this.userWithRestrictions(row) : null;
+        },
+      );
+      return this.regionalAuthority.fetch(request);
+    }
     if (url.pathname === "/internal/session-user") {
       return noStoreJson({ user: await this.sessionUser(request) });
     }
@@ -894,6 +923,12 @@ export class AuthDO {
   ): Promise<SessionUser | null> {
     if (!token) return null;
     const tokenHash = await sha256(token);
+    return this.sessionUserByHash(tokenHash);
+  }
+
+  private async sessionUserByHash(
+    tokenHash: string,
+  ): Promise<SessionUser | null> {
     const row = this.sql
       .exec<UserRow & { expires_at: string }>(
         `SELECT users.*, sessions.expires_at FROM sessions
@@ -907,6 +942,10 @@ export class AuthDO {
       this.sql.exec("DELETE FROM sessions WHERE token_hash = ?", tokenHash);
       return null;
     }
+    return this.userWithRestrictions(row);
+  }
+
+  private userWithRestrictions(row: UserRow): SessionUser {
     const user = this.publicUser(row);
     // A block by email never reaches the Owner, an admin, a moderator or an
     // AI seat: they cannot be blocked, whatever another account did.
@@ -1143,6 +1182,7 @@ export class AuthDO {
     const returnPath = signInReturnPath(
       url.searchParams.get("return"),
       url.origin,
+      regionalConfig(this.env.AUTH_REGIONAL_AUTHORITY)?.origin === url.origin,
     );
     const state =
       randomToken() +
@@ -1191,7 +1231,14 @@ export class AuthDO {
     } catch {
       // A malformed path returns to `/`, as one never asked for.
     }
-    return { code, returnPath: signInReturnPath(requested, url.origin) };
+    return {
+      code,
+      returnPath: signInReturnPath(
+        requested,
+        url.origin,
+        regionalConfig(this.env.AUTH_REGIONAL_AUTHORITY)?.origin === url.origin,
+      ),
+    };
   }
 
   private async githubCallback(request: Request, url: URL): Promise<Response> {

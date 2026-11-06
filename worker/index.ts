@@ -66,6 +66,7 @@ export const ComponentLibraryDO = withPointInTimeRecovery(
 export const AnalyticsDO = withPointInTimeRecovery(AnalyticsStore);
 export const GalleryDO = withPointInTimeRecovery(GalleryStore);
 export const AuthDO = withPointInTimeRecovery(AuthStore);
+export { RegionalSessionDO } from "./regional-session";
 export { AgentSessionDO } from "./agent-session";
 export { SimulationControlDO } from "./simulation-control-do";
 

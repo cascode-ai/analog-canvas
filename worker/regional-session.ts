@@ -1,0 +1,356 @@
+import type { SessionUser } from "./auth-do";
+import {
+  answer,
+  cookie,
+  digest,
+  nonce,
+  readBody,
+  redirect,
+  regionalConfig,
+  REGIONAL_LEASE_MS,
+  REGIONAL_PREFIX,
+  REGIONAL_REFRESH_MS,
+  sessionIdentity,
+  setCookie,
+  validNonce,
+  type RegionalConfig,
+  type RegionalSql,
+} from "./regional-auth-contract";
+
+type State = {
+  storage: {
+    sql: RegionalSql;
+    setAlarm(time: number): Promise<void>;
+    transactionSync<T>(callback: () => T): T;
+  };
+};
+type SessionRow = {
+  token_hash: string;
+  user_json: string;
+  grant: string;
+  lease_until: number;
+  expires_at: number;
+  refresh_at: number;
+};
+const SESSION_SECONDS = 30 * 86400;
+const LOGIN_SECONDS = 600;
+
+/** Bind this store as AUTH in an isolated region; it never allocates users. */
+export class RegionalSessionDO {
+  private readonly config: RegionalConfig | null;
+  private readonly sql: RegionalSql;
+  fetchLike: typeof fetch = (input, init) => fetch(input, init);
+  now: () => number = () => Date.now();
+
+  constructor(
+    private readonly state: State,
+    env: { AUTH_REGIONAL_CLIENT?: string },
+  ) {
+    this.config = regionalConfig(env.AUTH_REGIONAL_CLIENT);
+    this.sql = state.storage.sql;
+    if (!this.config) return;
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_pending (
+      state_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_sessions (
+      token_hash TEXT PRIMARY KEY, user_json TEXT NOT NULL, grant TEXT NOT NULL,
+      lease_until INTEGER NOT NULL, expires_at INTEGER NOT NULL, refresh_at INTEGER NOT NULL,
+      login_state_hash TEXT NOT NULL UNIQUE) WITHOUT ROWID`);
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    if (!this.config) return answer({ error: "not-found" }, 404);
+    const url = new URL(request.url);
+    if (
+      url.origin === "https://auth" &&
+      url.pathname === "/internal/session-user" &&
+      request.method === "GET"
+    )
+      return answer({ user: (await this.localUser(request)).user });
+    if (url.origin !== this.config.clientOrigin)
+      return answer({ error: "invalid-origin" }, 421);
+    if (request.method === "GET") {
+      if (url.pathname === REGIONAL_PREFIX + "start") return this.start();
+      if (url.pathname === REGIONAL_PREFIX + "callback")
+        return this.complete(request, url);
+      if (url.pathname === "/api/auth/providers")
+        return answer({
+          github: false,
+          google: false,
+          email: false,
+          central: true,
+          loginUrl: REGIONAL_PREFIX + "start",
+        });
+      if (url.pathname === "/api/auth/me")
+        return answer(await this.localUser(request));
+    }
+    if (request.method === "POST" && url.pathname === "/api/auth/logout") {
+      if (request.headers.get("origin") !== this.config.clientOrigin)
+        return answer({ error: "forbidden" }, 403);
+      const token = cookie(request, "icm_session");
+      if (token)
+        this.sql.exec(
+          "DELETE FROM regional_sessions WHERE token_hash = ?",
+          await digest(token),
+        );
+      const pending = cookie(request, "icm_regional_login");
+      if (validNonce(pending)) {
+        const hash = await digest(pending);
+        this.sql.exec(
+          "DELETE FROM regional_pending WHERE state_hash = ?",
+          hash,
+        );
+        this.sql.exec(
+          "DELETE FROM regional_sessions WHERE login_state_hash = ?",
+          hash,
+        );
+      }
+      const response = answer({ ok: true });
+      response.headers.append(
+        "set-cookie",
+        setCookie("icm_session", "", this.config.clientOrigin, 0),
+      );
+      response.headers.append(
+        "set-cookie",
+        setCookie("icm_regional_login", "", this.config.clientOrigin, 0),
+      );
+      return response;
+    }
+    return answer({ error: "not-found" }, 404);
+  }
+
+  private async localUser(request: Request): Promise<{
+    user: SessionUser | null;
+    authorization: "active" | "expired" | "anonymous";
+  }> {
+    const token = cookie(request, "icm_session");
+    if (!validNonce(token)) return { user: null, authorization: "anonymous" };
+    const row = this.sql
+      .exec<SessionRow>(
+        "SELECT * FROM regional_sessions WHERE token_hash = ?",
+        await digest(token),
+      )
+      .toArray()[0];
+    if (!row) return { user: null, authorization: "anonymous" };
+    if (row.expires_at <= this.now() || row.lease_until <= this.now())
+      return { user: null, authorization: "expired" };
+    return {
+      user: sessionIdentity(JSON.parse(row.user_json)),
+      authorization: "active",
+    };
+  }
+
+  private async start(): Promise<Response> {
+    const config = this.config!;
+    const state = nonce(),
+      verifier = nonce();
+    this.sql.exec(
+      "DELETE FROM regional_pending WHERE expires_at <= ?",
+      this.now(),
+    );
+    const count = this.sql
+      .exec<{ count: number }>("SELECT COUNT(*) AS count FROM regional_pending")
+      .one().count;
+    if (count >= 1000) return answer({ error: "login-busy" }, 429);
+    this.sql.exec(
+      "INSERT INTO regional_pending VALUES (?, ?, ?)",
+      await digest(state),
+      verifier,
+      this.now() + LOGIN_SECONDS * 1000,
+    );
+    const target = new URL(REGIONAL_PREFIX + "authorize", config.origin);
+    target.search = new URLSearchParams({
+      state,
+      challenge: await digest(verifier),
+    }).toString();
+    const response = redirect(target.toString());
+    response.headers.append(
+      "set-cookie",
+      setCookie(
+        "icm_regional_login",
+        state,
+        config.clientOrigin,
+        LOGIN_SECONDS,
+      ),
+    );
+    return response;
+  }
+
+  private async complete(request: Request, url: URL): Promise<Response> {
+    const config = this.config!;
+    const state = url.searchParams.get("state"),
+      code = url.searchParams.get("code");
+    if (
+      !validNonce(state) ||
+      !validNonce(code) ||
+      cookie(request, "icm_regional_login") !== state
+    )
+      return answer({ error: "invalid-callback" }, 400);
+    const stateHash = await digest(state);
+    const row = this.sql
+      .exec<{ verifier: string }>(
+        "SELECT verifier FROM regional_pending WHERE state_hash = ? AND expires_at > ?",
+        stateHash,
+        this.now(),
+      )
+      .toArray()[0];
+    if (!row) return answer({ error: "expired-callback" }, 400);
+    const result = await this.authority("exchange", {
+      code,
+      verifier: row.verifier,
+    });
+    const lease = this.lease(result.body);
+    if (!lease || !validNonce(result.body?.grant))
+      return answer({ error: "login-unavailable" }, 503);
+    const token = nonce();
+    const tokenHash = await digest(token);
+    const grant = result.body.grant;
+    const installed = this.state.storage.transactionSync(() => {
+      // Logout can cancel this handoff while the authority exchange is in flight.
+      const pending = this.sql
+        .exec<{ verifier: string }>(
+          "DELETE FROM regional_pending WHERE state_hash = ? AND expires_at > ? RETURNING verifier",
+          stateHash,
+          this.now(),
+        )
+        .toArray()[0];
+      if (!pending) return false;
+      this.sql.exec(
+        "INSERT INTO regional_sessions VALUES (?, ?, ?, ?, ?, ?, ?)",
+        tokenHash,
+        JSON.stringify(lease.user),
+        grant,
+        lease.expiresAt,
+        this.now() + SESSION_SECONDS * 1000,
+        this.now() + REGIONAL_REFRESH_MS,
+        stateHash,
+      );
+      return true;
+    });
+    if (!installed) return answer({ error: "cancelled-callback" }, 400);
+    await this.schedule();
+    // A logout carrying the pending cookie also cancels an installed response
+    // whose cookie has not reached the browser yet.
+    if (
+      !this.sql
+        .exec(
+          "SELECT token_hash FROM regional_sessions WHERE token_hash = ?",
+          tokenHash,
+        )
+        .toArray()[0]
+    )
+      return answer({ error: "cancelled-callback" }, 400);
+    const response = redirect(config.clientOrigin + "/");
+    response.headers.append(
+      "set-cookie",
+      setCookie("icm_session", token, config.clientOrigin, SESSION_SECONDS),
+    );
+    response.headers.append(
+      "set-cookie",
+      setCookie("icm_regional_login", "", config.clientOrigin, 0),
+    );
+    return response;
+  }
+
+  private lease(
+    body: Record<string, unknown> | null,
+  ): { user: SessionUser; expiresAt: number } | null {
+    const user = sessionIdentity(body?.user),
+      expiresAt = body?.expiresAt;
+    if (
+      !user ||
+      typeof expiresAt !== "number" ||
+      !Number.isFinite(expiresAt) ||
+      expiresAt <= this.now()
+    )
+      return null;
+    return {
+      user,
+      expiresAt: Math.min(expiresAt, this.now() + REGIONAL_LEASE_MS),
+    };
+  }
+
+  private async authority(
+    action: "exchange" | "renew",
+    body: unknown,
+  ): Promise<{ status: number; body: Record<string, unknown> | null }> {
+    try {
+      const response = await this.fetchLike(
+        this.config!.origin + REGIONAL_PREFIX + action,
+        {
+          method: "POST",
+          redirect: "manual",
+          signal: AbortSignal.timeout(5000),
+          headers: {
+            authorization: "Bearer " + this.config!.secret,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        },
+      );
+      return {
+        status: response.status,
+        body: response.ok ? await readBody(response) : null,
+      };
+    } catch {
+      return { status: 0, body: null };
+    }
+  }
+
+  private async schedule(): Promise<void> {
+    const row = this.sql
+      .exec<{ next: number | null }>(
+        "SELECT MIN(refresh_at) AS next FROM regional_sessions",
+      )
+      .one();
+    if (row.next !== null)
+      await this.state.storage.setAlarm(Math.max(this.now() + 1000, row.next));
+  }
+
+  async alarm(): Promise<void> {
+    if (!this.config) return;
+    this.sql.exec(
+      "DELETE FROM regional_sessions WHERE expires_at <= ?",
+      this.now(),
+    );
+    const due = this.sql
+      .exec<SessionRow>(
+        "SELECT * FROM regional_sessions WHERE refresh_at <= ? ORDER BY refresh_at LIMIT 20",
+        this.now(),
+      )
+      .toArray();
+    for (const row of due)
+      this.sql.exec(
+        "UPDATE regional_sessions SET refresh_at = ? WHERE token_hash = ?",
+        this.now() + REGIONAL_REFRESH_MS,
+        row.token_hash,
+      );
+    // Persist another alarm before network I/O, including retries after a crash.
+    await this.schedule();
+    await Promise.all(
+      due.map(async (row) => {
+        const result = await this.authority("renew", { grant: row.grant });
+        if (result.status === 401) {
+          this.sql.exec(
+            "DELETE FROM regional_sessions WHERE token_hash = ?",
+            row.token_hash,
+          );
+          return;
+        }
+        const lease = this.lease(result.body);
+        if (
+          !lease ||
+          lease.user.id !== (JSON.parse(row.user_json) as SessionUser).id
+        )
+          return;
+        this.sql.exec(
+          "UPDATE regional_sessions SET user_json = ?, lease_until = ? WHERE token_hash = ? AND grant = ?",
+          JSON.stringify(lease.user),
+          lease.expiresAt,
+          row.token_hash,
+          row.grant,
+        );
+      }),
+    );
+    await this.schedule();
+  }
+}
