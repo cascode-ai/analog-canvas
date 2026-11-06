@@ -81,6 +81,7 @@ export async function regionalAccounts(editorOrigin: string) {
       url.pathname.startsWith("/api/projects")
     ) {
       const response = await routeGalleryRequest(request, {
+        AUTH_REGIONAL_CLIENT: config,
         AUTH: {
           getByName: () => ({
             fetch: (input, init) => region.fetch(new Request(input, init)),
