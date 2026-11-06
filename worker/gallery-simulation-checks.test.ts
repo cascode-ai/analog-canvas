@@ -537,6 +537,19 @@ describe("simulation checks", () => {
       wall: [passing],
       detail: [passing],
     });
+    // The Owner's progress counts each verdict apart.
+    const progress = await call(
+      env,
+      new Request(`${ORIGIN}/api/gallery/simulation-checks`, {
+        headers: { Cookie: owner },
+      }),
+    );
+    expect(((await progress.json()) as { counts: unknown }).counts).toEqual({
+      pass: 1,
+      fail: 1,
+      error: 0,
+      noTestbench: 0,
+    });
     // One managed run each, under the checks' own account.
     expect((await runs()).map((run) => run.state)).toEqual([
       "succeeded",

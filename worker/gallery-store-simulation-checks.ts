@@ -366,16 +366,18 @@ export function simulationCheckProgress(sql: SqlStorage): Response {
        ORDER BY q.rowid LIMIT 1`,
     )
     .toArray()[0];
+  // Grouped by the verdict's own status: a bare `status` would name the
+  // entry's publication status, putting every verdict in one group.
   const counts = Object.fromEntries(
     sql
-      .exec<{ status: string; count: number }>(
-        `SELECT json_extract(simulation_check_json, '$.status') AS status,
+      .exec<{ verdict: string; count: number }>(
+        `SELECT json_extract(simulation_check_json, '$.status') AS verdict,
            COUNT(*) AS count
          FROM gallery_entries WHERE simulation_check_json IS NOT NULL
-         GROUP BY status`,
+         GROUP BY verdict`,
       )
       .toArray()
-      .map((row) => [row.status, row.count]),
+      .map((row) => [row.verdict, Number(row.count)]),
   );
   const results = sql
     .exec<{
