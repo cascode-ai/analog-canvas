@@ -1165,9 +1165,7 @@ test("keeps Hierarchy discoverable without a resident row", async ({
   // tree on demand; no row of hierarchy controls takes canvas height.
   const toggle = page.getByTestId("circuit-menu").locator(":scope > summary");
   await expect(toggle).toBeInViewport({ timeout: 15_000 });
-  await expect(page.getByLabel("Cell navigation", { exact: true })).toHaveCount(
-    0,
-  );
+  await expect(page.getByTestId("hierarchy-breadcrumb")).toHaveCount(0);
   const entry = (await openMenu(page, "Hierarchy")).getByTestId(
     "hierarchy-entry",
   );
@@ -1183,10 +1181,17 @@ test("keeps Hierarchy discoverable without a resident row", async ({
   ).toBeHidden();
 
   await createCell(page, "FirstStage");
-  await expect(page.getByLabel("Cell navigation", { exact: true })).toHaveCount(
-    0,
-  );
-  const place = (await openMenu(page, "Hierarchy")).getByRole("button", {
+  // At a root, open or not, no path shows; the open Cell's commands are
+  // in the menu, Set as Top among them.
+  await expect(page.getByTestId("hierarchy-breadcrumb")).toHaveCount(0);
+  const hierarchy = await openMenu(page, "Hierarchy");
+  await expect(
+    hierarchy.getByRole("button", { name: "Set as Top", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    hierarchy.getByRole("button", { name: "Cell properties…", exact: true }),
+  ).toBeEnabled();
+  const place = hierarchy.getByRole("button", {
     name: "Place Cell…",
     exact: true,
   });

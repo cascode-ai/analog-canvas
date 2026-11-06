@@ -12,7 +12,7 @@ import {
   cellNameIssue,
   createChildCellDraft,
   type ChildPortDraft,
-} from "./new-child-cell";
+} from "./new-cell";
 
 type Direction = ChildPortDraft["direction"];
 
@@ -82,7 +82,12 @@ export function NewCellDialog({
    * Make the Cell from selected parts: its Pins are the Nets that leave them,
    * fixed except for their direction.
    */
-  fromSelection?: { parts: number; pins: readonly ChildPortDraft[] };
+  fromSelection?: {
+    parts: number;
+    pins: readonly ChildPortDraft[];
+    /** Said before creating, when the open Cell has several uses. */
+    note?: string;
+  };
   onCancel(): void;
   onCreate(name: string, ports: ChildPortDraft[]): string | undefined;
 }) {
@@ -361,7 +366,12 @@ export function NewCellDialog({
         </div>
 
         <footer className="new-cell-footer">
-          <small>{wording.hint}</small>
+          <small>
+            {wording.hint}
+            {fromSelection?.note ? (
+              <span className="new-cell-note">{fromSelection.note}</span>
+            ) : null}
+          </small>
           <button type="button" onClick={onCancel}>
             Cancel
           </button>

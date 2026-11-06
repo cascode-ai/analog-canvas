@@ -628,6 +628,12 @@
   font-size: var(--icm-font-xs);
 }
 
+/* A shared parent is said on its own line, before Create. */
+.new-cell-note {
+  display: block;
+  color: var(--icm-text);
+}
+
 .new-cell-footer button {
   min-width: 5.5rem;
   min-height: var(--icm-control-h-lg);

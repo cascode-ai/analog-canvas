@@ -48,7 +48,7 @@ import {
   cellNameIssue,
   inferPinDirection,
   type ChildPortDraft,
-} from "./new-child-cell";
+} from "./new-cell";
 import { cellPlacementIssue } from "./project-structure-commands";
 
 type Terminal = { instanceId: string; pinName: string };

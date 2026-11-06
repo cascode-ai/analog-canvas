@@ -1,4 +1,4 @@
-import { planChildCellPlacement } from "../hierarchy/new-child-cell";
+import { planChildCellPlacement } from "../hierarchy/new-cell";
 import { useRef, useState } from "react";
 import { planComponentPlacement } from "../user-components/component-placement";
 import { checkNativeComponentRevision } from "../../hosts/native-component-library";

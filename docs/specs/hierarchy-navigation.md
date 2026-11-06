@@ -13,8 +13,10 @@ The editor projects the Project's Cell calls as one navigation tree.
 - Hierarchy keeps no resident row or column: the tree opens on demand, and the
   instance path floats over the canvas only away from a root (inside a child
   occurrence, or in a directly opened definition something calls).
-- Every hierarchy command has a fixed entry under Circuit › Hierarchy, besides
-  its places on the tree and the canvas.
+- Creating and placing Cells, Cell properties, Set as Top, the refactors and
+  External Circuits have a fixed entry under Circuit › Hierarchy, acting on
+  the open Cell or the canvas selection; a tree row offers the Cell commands
+  for any Cell.
 - Every Cell that no Cell calls is a root, with its nested calls. Roots keep
   the order they were first listed in for the session, Top first; later roots
   append. Top is a mark on its Cell, so changing Top moves no row. There is no
@@ -34,7 +36,7 @@ The editor projects the Project's Cell calls as one navigation tree.
   migrations and deletion retain the Edit Engine's validation and confirmations.
 - Make unique copy, Replace Cell, Create Cell from selection and Flatten are
   each one Project transaction. One that edits a Cell with several uses says
-  so before it runs and in its result.
+  so in text with the command before it runs, and in its result.
 - Make unique copy names the copy after the source's next free number.
 - Replace accepts only Cells with the same Pin names, ignoring case, that form
   no cycle; the plan refuses any other.
@@ -55,7 +57,7 @@ The editor projects the Project's Cell calls as one navigation tree.
   four levels, repeated parents, disconnected Cells, restored paths, scoped
   overrides, draft cancellation, atomic creation/undo, moving Top and the four
   refactors with one Undo each.
-- [Creation transactions](../../apps/editor/src/features/hierarchy/new-child-cell.test.ts),
+- [Creation transactions](../../apps/editor/src/features/hierarchy/new-cell.test.ts),
   [refactor plans](../../apps/editor/src/features/hierarchy/hierarchy-refactor.test.ts)
   and [parameter authoring](../../packages/edit-engine/src/cell-parameter-planner.test.ts)
   validate the circuit changes independently of the UI;

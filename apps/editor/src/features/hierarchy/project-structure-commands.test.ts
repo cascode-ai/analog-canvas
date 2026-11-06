@@ -14,7 +14,7 @@ import {
 } from "./project-structure-commands";
 import type { CellInterfaceConfirmation } from "./project-structure-commands";
 import { localBlockSymbolTarget } from "./block-symbol-layout-target";
-import { createChildCellDraft } from "./new-child-cell";
+import { createChildCellDraft } from "./new-cell";
 
 function dependencies() {
   const project = createEmptyProject("project", "Project");

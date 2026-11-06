@@ -36,7 +36,10 @@ import {
   useEditorServices,
   type EditorServices,
 } from "../services/editor-services";
-import { EditorAppChrome } from "./editor-app-chrome";
+import {
+  EditorAppChrome,
+  type HierarchyMenuCommands,
+} from "./editor-app-chrome";
 import type { EditorProjectPanelMode } from "./editor-project-dock";
 import type { createEditorTransactionCommands } from "./editor-transaction-commands";
 import type { useProjectCheck } from "./use-project-check";
@@ -171,11 +174,11 @@ export function EditorMenuBar({
   leaveForGallery,
   leaveForArena,
 }: {
-  hierarchyActions: {
-    onNewChild: () => void;
-    onExternalCircuits: () => void;
-    refactor: HierarchyRefactorActions;
-  };
+  /** Circuit › Hierarchy, but for the tree toggle and placement. */
+  hierarchyActions: Omit<
+    HierarchyMenuCommands,
+    "treeOpen" | "onToggleTree" | "placeCell"
+  >;
   identity: EditorServices["identity"];
   projectStore: EditorServices["projectStore"];
   nativeProjectStore: EditorServices["nativeProjectStore"];
@@ -616,15 +619,13 @@ export function EditorMenuBar({
         },
       }}
       hierarchy={{
+        ...hierarchyActions,
         treeOpen: leftPanelMode === "hierarchy" && visibleLibraryPanelOpen,
         onToggleTree: toggleHierarchyPanel,
-        onNewChild: hierarchyActions.onNewChild,
         placeCell: {
           enabled: cellInsertCandidates.length > 0,
           execute: placeCellInstance,
         },
-        onExternalCircuits: hierarchyActions.onExternalCircuits,
-        refactor: hierarchyActions.refactor,
       }}
       telemetry={{
         snapshot: {
@@ -709,7 +710,13 @@ export function EditorCanvasContextMenu({
         ...HIERARCHY_REFACTOR_ITEMS.flatMap(([key, label]) => {
           const action = hierarchyRefactor?.[key];
           return action?.enabled
-            ? [{ label, enabled: true, execute: action.execute }]
+            ? [
+                {
+                  label: action.note ? `${label} · ${action.note}` : label,
+                  enabled: true,
+                  execute: action.execute,
+                },
+              ]
             : [];
         }),
         ...(coupleInductors

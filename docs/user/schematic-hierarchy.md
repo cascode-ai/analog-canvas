@@ -14,7 +14,10 @@ reference and its Cell name; **×N** counts a shared Cell's uses and lists them
 under the row. Type in the filter to find Cells and instances. Roots keep
 their order while you work: Top first when the Project opens, and Cells that
 become roots later at the end. The root you work in stays expanded down to
-where you are.
+where you are. **Circuit → Hierarchy** also holds the commands for the open
+Cell and the selection: New Cell, New child Cell, Place Cell, Cell
+properties, Set as Top, the commands in [Reshaping the
+hierarchy](#reshaping-the-hierarchy), Import Cell and External Circuits.
 
 - Click a row, double-click a canvas instance, or press **E** to enter it.
   Inside a Cell the canvas shows the exact instance path: **↑** / **Shift+E**
@@ -55,9 +58,10 @@ the nearest surviving parent. Renaming a Cell does not change the path.
 ### Reshaping the hierarchy
 
 These commands are on a use's menu in the tree and, for the selected Cell
-instance or parts, on the canvas menu and under **Circuit → Hierarchy**. Each
-is one undo step. One that edits a Cell with several uses says so before (on
-the tree menu entry and in the Replace dialog) and after (in the status line).
+instance or parts, under **Circuit → Hierarchy** and on the canvas menu (a
+Cell from a selection there needs two or more parts). Each is one undo step.
+One that edits a Cell with several uses says so under the command and in its
+dialog before it runs, and in the status line after.
 
 - **Make unique copy** gives one instance its own copy of its Cell (`Amp_2`),
   with the same Pins and the same Cells below.

@@ -17,6 +17,7 @@ import {
 } from "./project-hierarchy";
 import { cellPlacementIssue } from "./project-structure-commands";
 import type { CellUse } from "./hierarchy-refactor";
+import { sharedEditNote } from "./hierarchy-refactor-commands";
 
 /** What the tree asks of the editor; the editor owns every edit and refusal. */
 export interface HierarchyTreeActions {
@@ -324,10 +325,7 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
   /** Said before a refactor that edits a parent with several uses. */
   const sharedParentNote = (row: Row) => {
     const parentId = row.path.at(-1)?.parentDocumentId;
-    const uses = parentId ? usesOf(parentId) : 0;
-    return parentId && uses > 1
-      ? `Edits ${name(parentId)}, so all ${uses} of its uses change`
-      : undefined;
+    return parentId ? sharedEditNote(project, parentId) : undefined;
   };
   const remove = (row: Row) => {
     const refusal = deleteRefusal(row);
@@ -690,13 +688,17 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
       type="button"
       role="menuitem"
       disabled={Boolean(refusal)}
-      title={refusal ?? note}
+      title={refusal}
       onClick={() => {
         setMenu(null);
         run();
       }}
     >
-      <span>{label}</span>
+      <span>
+        {label}
+        {/* Read and heard before the command runs, not only on hover. */}
+        {note ? <small className="hierarchy-menu-note">{note}</small> : null}
+      </span>
       {shortcut ? <kbd>{shortcut}</kbd> : null}
     </button>
   );

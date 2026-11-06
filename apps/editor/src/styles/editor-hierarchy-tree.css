@@ -284,6 +284,13 @@
   font: inherit;
   font-size: 11px;
 }
+/* A shared scope is said under the command it belongs to. */
+.hierarchy-menu-note {
+  display: block;
+  max-width: 220px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
 .hierarchy-context-divider {
   height: 1px;
   margin: 4px 0;

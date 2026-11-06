@@ -6,7 +6,7 @@ import {
   createChildCellDraft,
   inferPinDirection,
   planChildCellPlacement,
-} from "./new-child-cell";
+} from "./new-cell";
 import { createHierarchyInstance } from "@icm/edit-engine";
 
 it("guesses a new Pin's direction from its name as the importer does", () => {

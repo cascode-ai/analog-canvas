@@ -6,6 +6,7 @@ import {
   hierarchyRowCommand,
   openCellProperties,
   openHierarchyTree,
+  openMenu,
   openProject,
   revealHierarchyRow,
   revealPropertiesShelf,
@@ -351,8 +352,20 @@ test("Top moves as a badge, and the tree reshapes the hierarchy one Undo at a ti
   // Channel, no longer used, becomes a root after the others.
   await expect(roots).toHaveText(["dut", "Unused", "Channel"]);
 
-  // Flattening puts the Amplifier's parts into Channel_2, selected.
-  await hierarchyRowCommand(page, "XA: Amplifier", "Flatten into Channel_2");
+  // Flattening puts the Amplifier's parts into Channel_2, selected. Its menu
+  // entry says first that Channel_2's two uses both change.
+  await (
+    await revealHierarchyRow(tree, "XA: Amplifier")
+  ).click({
+    button: "right",
+  });
+  const flatten = tree.getByRole("menuitem", {
+    name: /^Flatten into Channel_2/u,
+  });
+  await expect(flatten).toContainText(
+    "Edits Channel_2, so all 2 of its uses change",
+  );
+  await flatten.click();
   await expect(status).toContainText(
     "Flattened Amplifier into Channel_2, in all 2 uses of Channel_2",
   );
@@ -362,9 +375,16 @@ test("Top moves as a badge, and the tree reshapes the hierarchy one Undo at a ti
     tree.getByRole("button", { name: "XA: Amplifier", exact: true }),
   ).toHaveCount(0);
 
-  // The selected parts become a new Cell whose Pins join the Nets they left.
-  await selected.click({ button: "right" });
-  await page.getByText("Create Cell from selection…", { exact: true }).click();
+  // The selected part becomes a new Cell whose Pins join the Nets it left;
+  // with one part selected, the command is under Circuit › Hierarchy.
+  const fromSelection = (await openMenu(page, "Hierarchy")).getByRole(
+    "button",
+    { name: /^Create Cell from selection…/u },
+  );
+  await expect(fromSelection).toContainText(
+    "Edits Channel_2, so all 2 of its uses change",
+  );
+  await fromSelection.click();
   const create = page.getByRole("dialog", {
     name: "New Cell from 1 selected part",
   });

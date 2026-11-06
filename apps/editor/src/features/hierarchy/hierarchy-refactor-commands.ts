@@ -23,6 +23,24 @@ import { frameReference } from "./project-hierarchy";
 export interface CommandAction {
   enabled: boolean;
   execute(): void;
+  /** Said with the command before it runs, as a shared scope it edits. */
+  note?: string | undefined;
+}
+
+/**
+ * What a command that edits this Cell says before it runs, when the Cell has
+ * several uses; undefined when it has one.
+ */
+export function sharedEditNote(
+  project: CircuitProject,
+  documentId: string,
+): string | undefined {
+  const uses = buildProjectHierarchy(project).usage(documentId, 0).total;
+  if (uses < 2) return undefined;
+  const name =
+    project.documents.find((cell) => cell.id === documentId)?.name ??
+    documentId;
+  return `Edits ${name}, so all ${uses} of its uses change`;
 }
 
 /** The refactors as commands on the canvas selection, for the menus. */

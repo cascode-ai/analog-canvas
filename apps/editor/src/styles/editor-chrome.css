@@ -783,6 +783,21 @@
   white-space: nowrap;
 }
 
+/* A command that edits a shared Cell says so under its label. */
+.command-popover button:has(.command-note) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding-block: 4px;
+  white-space: normal;
+}
+
+.command-popover .command-note {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 400;
+}
+
 .annotation-menu {
   flex: 0 0 auto;
 }
