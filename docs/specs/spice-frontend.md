@@ -81,8 +81,9 @@ revision; it never silently changes `ngspice-46-core`.
   Ports and terminals are contiguous and zero-based.
 - Known X masters bind to cells; unknown ones stay opaque with positional
   pins. Families keep terminal order per the matrix.
-- Nets are cell-scoped; `0` and `.global` names are global. Roots are cells
-  no bound subcircuit calls.
+- Nets are cell-scoped; `0` and `.global` names are global. A `.global` name a
+  subcircuit also takes as a port is the supply that port states, one node.
+  Roots are cells no bound subcircuit calls.
 - A `K` card of two inductors of its cell imports as a Document coupling named
   as the card (text as k, each inductor dotted at its first node's pin).
   Other counts, missing/repeated inductors or an already-coupled pair are
