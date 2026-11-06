@@ -4,6 +4,7 @@ import {
   cookie,
   digest,
   isRegionalAccountRoute,
+  isRegionalSecurityRoute,
   nonce,
   readBody,
   redirect,
@@ -35,6 +36,7 @@ type SessionRow = {
   refresh_at: number;
   generation: number;
   actor_id: string | null;
+  restriction_revision: number;
 };
 const SESSION_SECONDS = 30 * 86400;
 const LOGIN_SECONDS = 600;
@@ -85,11 +87,43 @@ export class RegionalSessionDO {
         .some((column) => column.name === "actor_id")
     )
       this.sql.exec("ALTER TABLE regional_sessions ADD COLUMN actor_id TEXT");
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_sessions)")
+        .toArray()
+        .some((column) => column.name === "restriction_revision")
+    )
+      this.sql.exec(
+        "ALTER TABLE regional_sessions ADD COLUMN restriction_revision INTEGER NOT NULL DEFAULT 0",
+      );
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS regional_restrictions (user_id TEXT PRIMARY KEY, revision INTEGER NOT NULL, blocked INTEGER NOT NULL) WITHOUT ROWID",
+    );
   }
 
   async fetch(request: Request): Promise<Response> {
     if (!this.config) return answer({ error: "not-found" }, 404);
     const url = new URL(request.url);
+    if (
+      url.origin === "https://auth" &&
+      isRegionalSecurityRoute(request.method, url.pathname)
+    ) {
+      const body = request.body ? await readBody(request) : {};
+      if (!body) return answer({ error: "invalid-request" }, 400);
+      const result = await this.authority("security", {
+        path: url.pathname,
+        body,
+      });
+      const operation = operationResult(result.body);
+      if (!operation) return answer({ error: "authority-unavailable" }, 503);
+      if (
+        operation.status < 300 &&
+        url.pathname === "/internal/block-account" &&
+        !this.applyRestrictions(result.body?.restrictions)
+      )
+        return answer({ error: "authority-unavailable" }, 503);
+      return answer(operation.body, operation.status);
+    }
     if (
       url.origin === "https://auth" &&
       url.pathname === "/internal/session-user" &&
@@ -179,7 +213,7 @@ export class RegionalSessionDO {
     if (row.expires_at <= this.now() || row.lease_until <= this.now())
       return { user: null, authorization: "expired" };
     return {
-      user: sessionIdentity(JSON.parse(row.user_json)),
+      user: this.projectedUser(row),
       authorization: "active",
     };
   }
@@ -261,7 +295,7 @@ export class RegionalSessionDO {
         .toArray()[0];
       if (!pending) return false;
       this.sql.exec(
-        "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash, actor_id, restriction_revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         tokenHash,
         JSON.stringify(lease.user),
         grant,
@@ -270,6 +304,7 @@ export class RegionalSessionDO {
         this.now() + REGIONAL_REFRESH_MS,
         stateHash,
         lease.user.switchedFrom?.id ?? lease.user.id,
+        lease.restrictionRevision,
       );
       return true;
     });
@@ -305,9 +340,11 @@ export class RegionalSessionDO {
     return response;
   }
 
-  private lease(
-    body: Record<string, unknown> | null,
-  ): { user: SessionUser; expiresAt: number } | null {
+  private lease(body: Record<string, unknown> | null): {
+    user: SessionUser;
+    expiresAt: number;
+    restrictionRevision: number;
+  } | null {
     const user = sessionIdentity(body?.user),
       expiresAt = body?.expiresAt;
     if (
@@ -320,11 +357,17 @@ export class RegionalSessionDO {
     return {
       user,
       expiresAt: Math.min(expiresAt, this.now() + REGIONAL_LEASE_MS),
+      restrictionRevision:
+        typeof body?.restrictionRevision === "number" &&
+        Number.isSafeInteger(body.restrictionRevision) &&
+        body.restrictionRevision >= 0
+          ? body.restrictionRevision
+          : 0,
     };
   }
 
   private async authority(
-    action: "exchange" | "renew" | "account" | "owner-token",
+    action: "exchange" | "renew" | "account" | "owner-token" | "security",
     body: unknown,
   ): Promise<{ status: number; body: Record<string, unknown> | null }> {
     const config = this.config;
@@ -344,7 +387,7 @@ export class RegionalSessionDO {
         },
       );
       const payload: unknown = response.ok
-        ? action === "account"
+        ? action === "account" || action === "security"
           ? await response.json()
           : await readBody(response)
         : null;
@@ -453,34 +496,88 @@ export class RegionalSessionDO {
       return answer({ error: "unauthorized" }, 401);
     }
     const lease = this.lease(result.body);
-    const operation = result.body?.result as
-      { status?: unknown; body?: unknown } | undefined;
+    const operation = operationResult(result.body);
     if (
       !lease ||
       (lease.user.switchedFrom?.id ?? lease.user.id) !==
         (row.actor_id ?? (JSON.parse(row.user_json) as SessionUser).id) ||
-      !operation ||
-      !Number.isInteger(operation.status) ||
-      typeof operation.status !== "number" ||
-      operation.status < 200 ||
-      (operation.status >= 300 && operation.status < 400) ||
-      operation.status > 599 ||
-      !operation.body
+      !operation
     )
       return answer({ error: "account-unavailable" }, 503);
     const updated = this.sql
       .exec<{ token_hash: string }>(
-        "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING token_hash",
+        "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ?, restriction_revision = ? WHERE token_hash = ? AND grant = ? AND generation = ? RETURNING token_hash",
         JSON.stringify(lease.user),
         lease.expiresAt,
         lease.user.switchedFrom?.id ?? lease.user.id,
+        lease.restrictionRevision,
         tokenHash,
         row.grant,
         fenced.generation,
       )
       .toArray()[0];
     if (!updated) return answer({ error: "unauthorized" }, 401);
+    if (
+      operation.status < 300 &&
+      path === "/api/auth/blocked/unblock" &&
+      !this.applyRestrictions(result.body?.restrictions)
+    )
+      return answer({ error: "account-unavailable" }, 503);
     return answer(operation.body, operation.status);
+  }
+
+  /** Restrictions are separate from the lease, so late responses cannot lift a newer block. */
+  private applyRestrictions(value: unknown): boolean {
+    if (!value || typeof value !== "object") return false;
+    const snapshot = value as { revision?: unknown; users?: unknown };
+    if (
+      typeof snapshot.revision !== "number" ||
+      !Number.isSafeInteger(snapshot.revision) ||
+      snapshot.revision < 1 ||
+      !Array.isArray(snapshot.users)
+    )
+      return false;
+    const revision = snapshot.revision;
+    const users: { id: string; blocked: boolean }[] = [];
+    for (const user of snapshot.users) {
+      if (
+        !user ||
+        typeof user !== "object" ||
+        typeof user.id !== "string" ||
+        user.id.length < 1 ||
+        user.id.length > 256 ||
+        typeof user.blocked !== "boolean"
+      )
+        return false;
+      users.push(user);
+    }
+    this.state.storage.transactionSync(() => {
+      for (const user of users)
+        this.sql.exec(
+          "INSERT INTO regional_restrictions (user_id, revision, blocked) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET revision = excluded.revision, blocked = excluded.blocked WHERE excluded.revision > regional_restrictions.revision",
+          user.id,
+          revision,
+          user.blocked ? 1 : 0,
+        );
+    });
+    return true;
+  }
+
+  private projectedUser(row: SessionRow): SessionUser | null {
+    const user = sessionIdentity(JSON.parse(row.user_json));
+    if (!user) return null;
+    const restriction = this.sql
+      .exec<{ revision: number; blocked: number }>(
+        "SELECT revision, blocked FROM regional_restrictions WHERE user_id = ?",
+        user.id,
+      )
+      .toArray()[0];
+    if (!restriction || restriction.revision <= row.restriction_revision)
+      return user;
+    const projected = { ...user };
+    if (restriction.blocked) projected.blocked = true;
+    else delete projected.blocked;
+    return projected;
   }
 
   private async schedule(): Promise<void> {
@@ -533,10 +630,11 @@ export class RegionalSessionDO {
         )
           return;
         this.sql.exec(
-          "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ? WHERE token_hash = ? AND grant = ? AND generation = ?",
+          "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ?, restriction_revision = ? WHERE token_hash = ? AND grant = ? AND generation = ?",
           JSON.stringify(lease.user),
           lease.expiresAt,
           lease.user.switchedFrom?.id ?? lease.user.id,
+          lease.restrictionRevision,
           row.token_hash,
           row.grant,
           row.generation,
@@ -545,6 +643,22 @@ export class RegionalSessionDO {
     );
     await this.schedule();
   }
+}
+
+function operationResult(
+  body: Record<string, unknown> | null,
+): { status: number; body: unknown } | null {
+  const result = body?.result as
+    { status?: unknown; body?: unknown } | undefined;
+  return result &&
+    typeof result.status === "number" &&
+    Number.isInteger(result.status) &&
+    result.status >= 200 &&
+    result.status <= 599 &&
+    !(result.status >= 300 && result.status < 400) &&
+    result.body
+    ? { status: result.status, body: result.body }
+    : null;
 }
 
 /** Only a local page can be resumed; authority/API URLs are never continuations. */

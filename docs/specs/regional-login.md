@@ -59,6 +59,17 @@ serves local authorization. Resource replication is owned by
   the transition is confirmed. Renewal recovers a lost transition reply after
   restart but cannot revive a logged-out session. Unbound legacy AI grants fail
   closed and require a new handoff.
+- Gallery blocking, block-notice maintenance and requested rejection emails
+  use the internal AUTH binding and the exact `isRegionalSecurityRoute`
+  allowlist. The authenticated authority RPC retains the existing restriction,
+  exemption and notification rules; the browser cannot invoke this service
+  capability. Owner block review/unblock/notify/apology uses the account grant
+  and existing Owner checks. Successful blocking and unblocking apply an ordered
+  authority restriction snapshot immediately, including related provider IDs
+  and authority exemptions. A late lease or operation cannot replace a newer
+  restriction. Evidence is bounded before serialization using the existing
+  block-record limits. A transport failure reports unavailability, never
+  successful delivery; unsent block notices remain retryable at the authority.
 - The authorization lease and alarm interval are defined in the
   [protocol module](../../worker/regional-auth-contract.ts). Background alarms
   renew before expiry; a failed renewal never extends a lease. Expired leases
@@ -92,20 +103,25 @@ on `RegionalSessionDO`. Invalid or absent configuration keeps the new surface
 closed. HTTPS is required except explicit loopback acceptance origins. No
 production bindings, migrations or credentials are activated by this change.
 
-| Endpoint                                        | Caller and result                                                                                                                  |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Regional `GET /api/auth/regional/start`         | Browser; starts a bound handoff to the authority.                                                                                  |
-| Authority `GET /api/auth/regional/authorize`    | Browser; reuses existing login, then returns a code and state to the configured regional callback.                                 |
-| Regional `GET /api/auth/regional/callback`      | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                     |
-| Authority `POST /api/auth/regional/exchange`    | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt}`.                                                             |
-| Authority `POST /api/auth/regional/renew`       | Authenticated region; `{grant}` → `{user, expiresAt}`.                                                                             |
-| Authority `POST /api/auth/regional/identities`  | Authenticated importer; `{userIds}` (up to 100 IDs) → `{identities: [{id, status: "found", user} \| {id, status: "missing"}]}`.    |
-| Authority `POST /api/auth/regional/account`     | Authenticated region; `{grant, method, path, body}` → `{result: {status, body}, user, expiresAt}` for the exact account allowlist. |
-| Authority `POST /api/auth/regional/owner-token` | Authenticated region; `{token}` → `{user}` or 401. Only internal import authorization consumes this result.                        |
-| Regional `GET /api/auth/me`                     | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                            |
+| Endpoint                                        | Caller and result                                                                                                                                                      |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Regional `GET /api/auth/regional/start`         | Browser; starts a bound handoff to the authority.                                                                                                                      |
+| Authority `GET /api/auth/regional/authorize`    | Browser; reuses existing login, then returns a code and state to the configured regional callback.                                                                     |
+| Regional `GET /api/auth/regional/callback`      | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                                                         |
+| Authority `POST /api/auth/regional/exchange`    | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt, restrictionRevision}`.                                                                            |
+| Authority `POST /api/auth/regional/renew`       | Authenticated region; `{grant}` → `{user, expiresAt, restrictionRevision}`.                                                                                            |
+| Authority `POST /api/auth/regional/identities`  | Authenticated importer; `{userIds}` (up to 100 IDs) → `{identities: [{id, status: "found", user} \| {id, status: "missing"}]}`.                                        |
+| Authority `POST /api/auth/regional/account`     | Authenticated region; `{grant, method, path, body}` → `{result: {status, body}, user, expiresAt, restrictionRevision, restrictions?}` for the exact account allowlist. |
+| Authority `POST /api/auth/regional/owner-token` | Authenticated region; `{token}` → `{user}` or 401. Only internal import authorization consumes this result.                                                            |
+| Authority `POST /api/auth/regional/security`    | Authenticated region; `{path, body}` for the three exact internal security/notification operations → `{result: {status, body}, restrictions?}`.                        |
+| Regional `GET /api/auth/me`                     | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                                                                |
 
 Authority POSTs require `Authorization: Bearer <client secret>` over the pinned
 HTTPS endpoint; no CORS grant is issued. They accept bounded JSON bodies.
+Security RPCs preserve executed handlers' status and body inside `result`;
+transport success does not imply operation success. Successful block/unblock
+responses require `restrictions: {revision, users: [{id, blocked}]}`. The source
+orders these snapshots; leases identify the restriction revision they observed.
 Unauthorized/invalid grants return 401, malformed requests 400, disabled routes
 404 and wrong origins 421. Resource callers consume the trusted internal AUTH
 binding rather than accepting browser-supplied user IDs or service credentials.

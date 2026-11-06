@@ -81,7 +81,23 @@ export function isRegionalAccountRoute(method: string, path: string): boolean {
     "GET /api/auth/ai-accounts",
     "POST /api/auth/ai-accounts/switch",
     "POST /api/auth/ai-accounts/return",
+    "GET /api/auth/blocked",
+    "POST /api/auth/blocked/unblock",
+    "POST /api/auth/blocked/apology",
+    "POST /api/auth/blocked/notify",
   ].includes(method + " " + path);
+}
+
+/** Resource/maintenance calls on the trusted AUTH binding, never browser routes. */
+export function isRegionalSecurityRoute(method: string, path: string): boolean {
+  return (
+    method === "POST" &&
+    [
+      "/internal/block-account",
+      "/internal/block-notices",
+      "/internal/gallery-rejection",
+    ].includes(path)
+  );
 }
 
 export function nonce(): string {

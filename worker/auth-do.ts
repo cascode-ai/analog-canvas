@@ -66,9 +66,14 @@ function canonicalAuthorityRequest(
     return request;
   const rpc =
     request.method === "POST" &&
-    ["exchange", "renew", "identities", "account", "owner-token"].some(
-      (action) => url.pathname === REGIONAL_PREFIX + action,
-    );
+    [
+      "exchange",
+      "renew",
+      "identities",
+      "account",
+      "owner-token",
+      "security",
+    ].some((action) => url.pathname === REGIONAL_PREFIX + action);
   if (!rpc && !isRegionalAuthorityBrowserRoute(request.method, url.pathname))
     return null;
   return new Request(
@@ -645,6 +650,23 @@ export class AuthDO {
               headers: { authorization: "Bearer " + token },
             }),
           ),
+        (request) => this.fetch(request),
+        (id) =>
+          this.sql
+            .exec<UserRow>(
+              `SELECT * FROM users WHERE id = ? OR LOWER(email) IN (
+                SELECT LOWER(email) FROM users WHERE id = ?
+                UNION SELECT LOWER(email) FROM account_blocks WHERE user_id = ?
+              )`,
+              id,
+              id,
+              id,
+            )
+            .toArray()
+            .map((row) => ({
+              id: row.id,
+              blocked: this.userWithRestrictions(row).blocked === true,
+            })),
       );
       return this.regionalAuthority.fetch(request);
     }
