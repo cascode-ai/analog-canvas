@@ -60,11 +60,19 @@ it.each([false, true])(
     );
     expect(created.status).toBe(201);
     const id = (await created.json()).project.id;
+    let redirectPeer = true;
     vi.stubGlobal(
       "fetch",
       async (input: RequestInfo | URL, init?: RequestInit) => {
+        // Match workerd: unsupported redirect modes fail before any request.
+        if (init?.redirect === "error")
+          throw new TypeError("Unsupported edge redirect mode");
         const request = new Request(input, init);
         expect(new URL(request.url).origin).toBe(ORIGIN);
+        if (redirectPeer) {
+          expect(request.redirect).toBe("manual");
+          return Response.redirect("https://untrusted.test/collect", 302);
+        }
         if (new URL(request.url).pathname === "/api/auth/regional/identities")
           return auth.authDurable.fetch(request);
         const response = await route(source.env, request);
@@ -100,6 +108,8 @@ it.each([false, true])(
       expect(response.status).toBe(200);
       return (await response.json()).project;
     };
+    expect(await tick()).toBe("blocked");
+    redirectPeer = false;
     if (losePullReply) expect(await tick()).toBe("retry");
     expect(await tick()).toBe("sent");
     const current = await open(domestic.env);

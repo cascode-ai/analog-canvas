@@ -401,6 +401,8 @@ describe("regional private Projects over HTTP", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input, init) => {
+        if (init?.redirect === "error")
+          throw new TypeError("Unsupported edge redirect mode");
         const req = new Request(input, init);
         if (new URL(req.url).hostname === "identity.test") {
           const { userIds } = await req.json();

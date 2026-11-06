@@ -165,7 +165,7 @@ async function pullProjectSync(
       new URL("/api/project-sync/pull", peerOrigin(env.PROJECT_SYNC_PEER_URL)),
       {
         method: "POST",
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(15_000),
         headers: {
           Authorization: `Bearer ${env.PROJECT_SYNC_PEER_TOKEN}`,
@@ -223,7 +223,7 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
     };
     const response = await fetch(new URL("/api/project-sync/status", peer), {
       headers,
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok)
@@ -261,7 +261,7 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
     const sent = await fetch(new URL("/api/project-sync/events", peer), {
       method: "POST",
       headers,
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(15000),
       body: JSON.stringify({ event }),
     });
@@ -302,7 +302,7 @@ async function requireProjectOwner(
       throw new Error("Invalid identity endpoint");
     const identity = await fetch(identityUrl, {
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(10000),
       headers: {
         Authorization: `Bearer ${env.PROJECT_IDENTITY_TOKEN}`,
