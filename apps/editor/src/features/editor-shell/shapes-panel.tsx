@@ -186,8 +186,10 @@ export interface ShapesPanelProps {
   onStartInsert(launch: InsertLaunch): void;
   /** A dragged tile places once where the pointer is released. */
   onDropPlacement?(clientX: number, clientY: number): void;
-  /** The public catalog, loaded only once its fold opens or a search runs. */
-  community?: {
+  /** Components beyond the official set, loaded once their fold opens or a
+   * search runs: the public catalog, or the desktop's private library. */
+  userComponents?: {
+    label: string;
     open: boolean;
     onOpenChange(open: boolean): void;
     /** Each new value brings focus to the search. */
@@ -206,7 +208,7 @@ export function ShapesPanel({
   open,
   onStartInsert,
   onDropPlacement,
-  community,
+  userComponents,
 }: ShapesPanelProps) {
   const [query, setQuery] = useState("");
   const searching = query.trim().length > 0;
@@ -219,17 +221,17 @@ export function ShapesPanel({
     () => new Set(libraryGroups.map((group) => group.category)),
   );
   const [officialOpen, setOfficialOpen] = useState(true);
-  const [communityTools, setCommunityTools] = useState<HTMLElement | null>(
+  const [componentTools, setComponentTools] = useState<HTMLElement | null>(
     null,
   );
   const panel = useRef<HTMLElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const suppressClick = useRef(false);
-  const communityShown = Boolean(community?.open || searching);
+  const componentsShown = Boolean(userComponents?.open || searching);
   // Once loaded it keeps its list while the fold is shut.
-  const communityLoaded = useRef(false);
-  communityLoaded.current ||= communityShown;
-  const focusRequest = community?.focusRequest ?? 0;
+  const componentsLoaded = useRef(false);
+  componentsLoaded.current ||= componentsShown;
+  const focusRequest = userComponents?.focusRequest ?? 0;
   useEffect(() => {
     if (focusRequest && open) search.current?.focus();
   }, [focusRequest, open]);
@@ -302,20 +304,21 @@ export function ShapesPanel({
         />
       </div>
       <div className="shapes-panel-body">
-        {community ? (
+        {userComponents ? (
           // Above the long official list, shut, so it costs one line and is
           // still the first thing the panel names.
           <details
             className="shapes-fold"
-            open={communityShown}
-            data-testid="shapes-fold-community"
+            open={componentsShown}
+            data-testid="shapes-fold-user-components"
             onToggle={(event) => {
-              if (!searching) community.onOpenChange(event.currentTarget.open);
+              if (!searching)
+                userComponents.onOpenChange(event.currentTarget.open);
             }}
           >
             <summary className="shapes-fold-summary">
-              <span className="shapes-fold-label">Community</span>
-              <span className="shapes-fold-tools" ref={setCommunityTools} />
+              <span className="shapes-fold-label">{userComponents.label}</span>
+              <span className="shapes-fold-tools" ref={setComponentTools} />
               <button
                 type="button"
                 className="shapes-fold-tool"
@@ -323,7 +326,7 @@ export function ShapesPanel({
                 title="Create component"
                 onClick={(event) => {
                   event.preventDefault();
-                  community.onCreate();
+                  userComponents.onCreate();
                 }}
               >
                 <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -332,8 +335,8 @@ export function ShapesPanel({
               </button>
             </summary>
             <div className="shapes-fold-body">
-              {communityLoaded.current
-                ? community.render(query, communityTools, communityShown)
+              {componentsLoaded.current
+                ? userComponents.render(query, componentTools, componentsShown)
                 : null}
             </div>
           </details>
@@ -427,7 +430,7 @@ export function ShapesPanel({
                 </details>
               ))}
               {searching && !libraryGroups.length ? (
-                <p className="community-message">
+                <p className="user-components-message">
                   No official component matches “{query.trim()}”.
                 </p>
               ) : null}

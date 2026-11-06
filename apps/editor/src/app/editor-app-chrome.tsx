@@ -259,7 +259,7 @@ export function EditorAppChrome({
                   >
                     {communityEnabled
                       ? "Community Components…"
-                      : "User Components…"}
+                      : "My Components…"}
                   </button>
                 ) : null}
                 {placeProjectCell.enabled ? (

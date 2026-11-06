@@ -228,6 +228,7 @@ import {
   useEditorDerivedModel,
 } from "./use-editor-derived-model";
 import type { RoutingGuidanceView } from "../interaction/interaction-state";
+import { newComponentDefinition } from "../features/user-components/component-definition-edit";
 import { ShapesPanel } from "../features/editor-shell/shapes-panel";
 import {
   type GalleryEntryContext,
@@ -295,8 +296,8 @@ import {
 import { EditorSimulationSurface } from "./editor-simulation-surface";
 import { EditorDialogs } from "./editor-dialogs";
 import {
-  EditorCommunityComponents,
   EditorComponentEditor,
+  EditorLibraryComponents,
   type EditorComponentEditorProps,
 } from "./editor-component-editor";
 import { useEditorCommandRouter } from "./use-editor-command-router";
@@ -655,11 +656,8 @@ function WorkspaceEditor({
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
   const [userComponentsOpen, setUserComponentsOpen] = useState(false);
-  const [communityFocusRequest, setCommunityFocusRequest] = useState(0);
+  const [componentSearchRequest, setComponentSearchRequest] = useState(0);
   const returnToLibrary = useRef(false);
-  /** Only the desktop host's library is a dialog; the Web's is a Library fold. */
-  const componentDialogOpen =
-    Boolean(import.meta.env?.ICM_DESKTOP) && userComponentsOpen;
   const libraryResizeOriginRef = useRef<{
     pointerX: number;
     width: number;
@@ -2921,15 +2919,21 @@ function WorkspaceEditor({
                 definitionId: definition.id,
                 masterName: definition.name,
                 symbol,
-                // A captured component keeps the name it was published with.
-                ...(definition.symbolId?.startsWith("user-")
+                // A component keeps the name it was made or published with.
+                ...(project.componentDefinitions?.some(
+                  (component) => component.symbol.id === definition.symbolId,
+                )
                   ? { displayName: symbol.name }
                   : {}),
               },
             ]
           : [];
       }),
-    [project.externalSubcircuitDefinitions, resolver],
+    [
+      project.externalSubcircuitDefinitions,
+      project.componentDefinitions,
+      resolver,
+    ],
   );
   const insertDialogProjectComponents = useMemo(
     () =>
@@ -3011,6 +3015,7 @@ function WorkspaceEditor({
         ],
       }),
     recentStorageKey: RECENT_COMPONENTS_STORAGE_KEY,
+    onLibraryChanged: () => setComponentLibraryRefresh((value) => value + 1),
     document,
     project,
     resolver,
@@ -4069,7 +4074,7 @@ function WorkspaceEditor({
   const dropPlacement = (clientX: number, clientY: number) => {
     const placed = pendingComponentPlacement;
     if (!placed) {
-      awaitedDrop.current = { clientX, clientY };
+      awaitedDrop.current = { clientX, clientY, at: performance.now() };
       return;
     }
     const svg = window.document.querySelector<SVGSVGElement>(
@@ -4105,7 +4110,11 @@ function WorkspaceEditor({
     if (settled) void settled.then(finish);
     else finish();
   };
-  const awaitedDrop = useRef<{ clientX: number; clientY: number } | null>(null);
+  const awaitedDrop = useRef<{
+    clientX: number;
+    clientY: number;
+    at: number;
+  } | null>(null);
   // A drag outlives the render that started it.
   const latestDrop = useRef(dropPlacement);
   latestDrop.current = dropPlacement;
@@ -4115,7 +4124,9 @@ function WorkspaceEditor({
     const awaited = awaitedDrop.current;
     if (!awaited || !pendingComponentPlacement) return;
     awaitedDrop.current = null;
-    latestDrop.current(awaited.clientX, awaited.clientY);
+    // Only the placement that drag began, not one started long after it failed.
+    if (performance.now() - awaited.at < 1000)
+      latestDrop.current(awaited.clientX, awaited.clientY);
   }, [pendingComponentPlacement]);
   const { endpointSignalInspection, routeSignalInspection } =
     useSignalMemberInspection({
@@ -4198,11 +4209,7 @@ function WorkspaceEditor({
     project,
     document,
     selection: visualSelection,
-    enabled:
-      !componentEditor &&
-      !componentDialogOpen &&
-      !interfaceConfirmation &&
-      !versionHistoryOpen,
+    enabled: !componentEditor && !interfaceConfirmation && !versionHistoryOpen,
     setStatus,
     beginPaste: (clipboard) => beginClipboardPlacement(clipboard),
   });
@@ -4936,8 +4943,6 @@ function WorkspaceEditor({
       nativeProjectStore,
       setStatus,
       componentEditor,
-      userComponentsOpen: componentDialogOpen,
-      setUserComponentsOpen,
       selectionOpen,
       setSelectionOpen,
       searchOpen,
@@ -5461,25 +5466,23 @@ function WorkspaceEditor({
     editorCommands,
     returnToLibrary,
   };
-  const openCommunity = () => {
+  /** Opening the list again also checks it against the library. */
+  const openUserComponents = () => {
     cancelAllTransientInteraction();
     setUserComponentsOpen(true);
-    if (import.meta.env?.ICM_DESKTOP) return;
+    setComponentLibraryRefresh((value) => value + 1);
     showLeftPanel("library");
-    setCommunityFocusRequest((value) => value + 1);
+    setComponentSearchRequest((value) => value + 1);
   };
   const openCreateComponent = () => {
     returnToLibrary.current = true;
     cancelAllTransientInteraction();
-    void import("../features/user-components/component-definition-edit").then(
-      ({ newComponentDefinition }) =>
-        setComponentEditor({
-          key: crypto.randomUUID(),
-          projectSessionId,
-          mode: "new",
-          definition: newComponentDefinition(),
-        }),
-    );
+    setComponentEditor({
+      key: crypto.randomUUID(),
+      projectSessionId,
+      mode: "new",
+      definition: newComponentDefinition(),
+    });
   };
   return (
     <main className="app-shell">
@@ -5544,7 +5547,7 @@ function WorkspaceEditor({
         publicSimulationUiEnabled={publicSimulationUiEnabled}
         setStatus={setStatus}
         userComponentsOpen={userComponentsOpen}
-        openCommunity={openCommunity}
+        openUserComponents={openUserComponents}
         leftPanelMode={leftPanelMode}
         setSelectionOpen={setSelectionOpen}
         searchOpen={searchOpen}
@@ -5979,15 +5982,18 @@ function WorkspaceEditor({
               editorCommands.execute({ id: "insert.start", launch })
             }
             onDropPlacement={dropOnCanvas}
-            {...(capabilities.community && !import.meta.env?.ICM_DESKTOP
+            {...(capabilities.community || capabilities.localComponents
               ? {
-                  community: {
+                  userComponents: {
+                    label: capabilities.community
+                      ? "Community"
+                      : "My components",
                     open: userComponentsOpen,
                     onOpenChange: setUserComponentsOpen,
-                    focusRequest: communityFocusRequest,
+                    focusRequest: componentSearchRequest,
                     onCreate: openCreateComponent,
                     render: (query, toolsSlot, open) => (
-                      <EditorCommunityComponents
+                      <EditorLibraryComponents
                         {...componentEditorProps}
                         open={open}
                         query={query}

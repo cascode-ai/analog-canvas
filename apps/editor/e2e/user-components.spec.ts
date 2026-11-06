@@ -183,8 +183,17 @@ const entry = (scope: Locator) =>
 const instanceCount = (page: Page) => page.getByTestId("active-instance-count");
 const componentEditor = (page: Page) =>
   page.getByRole("dialog", { name: "Edit Component Definition", exact: true });
-const libraryDialog = (page: Page) =>
-  page.getByRole("dialog", { name: "User Components", exact: true });
+/** The Library panel's component fold; its header keeps Create and Filter. */
+const componentFold = (page: Page) =>
+  page.getByTestId("shapes-fold-user-components");
+/** The fold's own records, not those of the folds nested inside it. */
+const communityRows = (page: Page) =>
+  componentFold(page).locator(".user-components-panel > .component-row");
+/** A record's large preview beside the panel. */
+const previewCard = (page: Page, name: string) =>
+  page.getByRole("group", { name: `${name} preview`, exact: true });
+const componentSearch = (page: Page) =>
+  page.getByRole("searchbox", { name: "Search components", exact: true });
 const libraryEntries = (page: Page) =>
   page.evaluate(
     async () => (await (await fetch("/api/components")).json()).entries,
@@ -266,22 +275,39 @@ async function openExternalCircuit(page: Page, name: string) {
     .click();
   return manager;
 }
+/** Shows the Library with its component fold open, as Edit's command does. */
 async function openUserComponents(page: Page) {
-  const dialog = libraryDialog(page);
-  await clickCommand(page, "Edit", "User Components…");
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("tab", { name: "Library", exact: true }).click();
-  return dialog;
+  await clickCommand(page, "Edit", "Community Components…");
+  await expect(componentFold(page)).toHaveAttribute("open", "");
+  return componentFold(page);
 }
+async function closeUserComponents(page: Page) {
+  await setFoldOpen(componentFold(page), false);
+}
+/** Opens or shuts a fold from its summary, as a pointer does. */
+async function setFoldOpen(fold: Locator, open: boolean) {
+  if (((await fold.getAttribute("open")) !== null) !== open)
+    await fold.locator(":scope > summary").click({ position: { x: 8, y: 8 } });
+  if (open) await expect(fold).toHaveAttribute("open", "");
+  else await expect(fold).not.toHaveAttribute("open");
+}
+/** Opens My components and one of the folds nested in it. */
 async function openShelf(
   page: Page,
   section: "Project drafts" | "Deleted" | "Deleted (all)",
 ) {
-  const dialog = libraryDialog(page);
-  await dialog.getByRole("tab", { name: "My shelf", exact: true }).click();
-  await dialog.getByRole("tab", { name: section, exact: true }).click();
+  const mine = componentFold(page).getByTestId("community-mine");
+  await setFoldOpen(mine, true);
+  const nested =
+    section === "Project drafts"
+      ? mine.locator("details.component-project-drafts")
+      : mine.locator("details.user-components-nested", {
+          has: page.getByText(section, { exact: true }),
+        });
+  await setFoldOpen(nested, true);
+  return nested;
 }
-/** Places the named library component from a newly opened User Components. */
+/** Places the named library component from the Library's component fold. */
 async function placeFromLibrary(
   page: Page,
   name: string,
@@ -294,7 +320,12 @@ async function placeFromLibrary(
 }
 /** Reopens the Project's one draft from User Components. */
 async function openProjectDraft(page: Page, name: string | RegExp) {
-  if (!(await libraryDialog(page).isVisible())) await openUserComponents(page);
+  if (
+    !(await page
+      .locator('[data-testid="shapes-fold-user-components"][open]')
+      .count())
+  )
+    await openUserComponents(page);
   await openShelf(page, "Project drafts");
   await page.locator(".component-draft-name").filter({ hasText: name }).click();
 }
@@ -395,61 +426,58 @@ async function authoringView(
   }
 }
 
-test("account changes clear cached details and deleted cards while offline focus retains the catalog", async ({
+test("account changes clear pinned details and deleted rows while offline focus retains the catalog", async ({
   page,
   context,
   service,
 }) => {
   service.seedPublished("retained-detail", "Retained detail");
   await service.openEditorAs(page, "admin");
-  const dialog = await openUserComponents(page);
-  await clickLibraryAction(dialog, "Details for Retained detail");
-  await expect(
-    dialog.getByRole("heading", { name: "Retained detail", exact: true }),
-  ).toBeVisible();
-  await button(dialog, "Close").click();
+  const fold = await openUserComponents(page);
+  const detail = previewCard(page, "Retained detail");
+  await clickLibraryAction(fold, "Details for Retained detail");
+  await expect(detail.getByText("Definition", { exact: true })).toBeVisible();
+  await closeUserComponents(page);
+  await expect(detail).toHaveCount(0);
   expect(await deleteComponent(page, "retained-detail")).toBe(200);
   // Changing accounts clears retained private detail before any new selection.
   await context.unroute("**/api/auth/me");
   await context.unroute("**/api/components**");
   await service.connect(context, null);
   await openUserComponents(page);
-  await expect(
-    dialog.getByRole("heading", { name: "Retained detail", exact: true }),
-  ).toHaveCount(0);
-  await expect(button(dialog, "Place Retained detail")).toHaveCount(0);
-  await expect(dialog.locator(".user-component-detail")).toHaveCount(0);
+  await expect(detail).toHaveCount(0);
+  await expect(button(fold, "Place Retained detail")).toHaveCount(0);
 
   await context.unroute("**/api/auth/me");
   await context.unroute("**/api/components**");
   await service.connect(context, "admin");
   service.seedPublished("offline-public", "Offline public");
-  await button(dialog, "Close").click();
+  await closeUserComponents(page);
   await openUserComponents(page);
-  await expect(button(dialog, "Place Offline public")).toBeVisible();
+  await expect(button(fold, "Place Offline public")).toBeVisible();
   const offline = (route: import("@playwright/test").Route) =>
     route.abort("failed");
   await context.route("**/api/auth/me", offline);
   await context.route("**/api/components?**", offline);
   await page.clock.setFixedTime(new Date(Date.now() + 31_000));
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await expect(button(dialog, "Try Again")).toBeVisible();
-  await expect(button(dialog, "Place Offline public")).toBeVisible();
+  await expect(button(fold, "Try Again")).toBeVisible();
+  await expect(button(fold, "Place Offline public")).toBeVisible();
   await context.unroute("**/api/auth/me");
   await context.unroute("**/api/components?**", offline);
   await context.unroute("**/api/components**");
   await service.connect(context, "admin");
-  await openShelf(page, "Deleted (all)");
-  await expect(button(dialog, "Place Retained detail")).toBeVisible();
+  const deleted = await openShelf(page, "Deleted (all)");
+  await expect(button(deleted, "Place Retained detail")).toBeVisible();
   await context.unroute("**/api/auth/me");
   await context.unroute("**/api/components**");
   await service.connect(context, null);
-  await button(dialog, "Close").click();
+  await closeUserComponents(page);
   await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(1);
-  await expect(button(dialog, "Place Offline public")).toBeVisible();
-  await expect(button(dialog, "Place Retained detail")).toHaveCount(0);
-  await expect(button(dialog, "Show available components")).toHaveCount(0);
+  await expect(communityRows(page)).toHaveCount(1);
+  await expect(button(fold, "Place Offline public")).toBeVisible();
+  await expect(button(fold, "Place Retained detail")).toHaveCount(0);
+  await expect(button(fold, "Show available components")).toHaveCount(0);
 });
 
 test("public symbol placement connects contacts atomically and keeps the clicked orientation during a revision check", async ({
@@ -520,17 +548,17 @@ test("library selection refuses a revision changed during preview and editing re
 }) => {
   const definition = service.seedPublished("revision-guard", "Revision guard");
   await service.openEditorAs(page, "alice");
-  const dialog = await openUserComponents(page);
-  await clickLibraryAction(dialog, "Details for Revision guard");
-  await expect(
-    dialog.getByRole("heading", { name: "Revision guard", exact: true }),
-  ).toBeVisible();
-  await button(dialog, "Back to components").click();
-  await clickLibraryAction(dialog, "Edit Revision guard definition");
+  const fold = await openUserComponents(page);
+  await clickLibraryAction(fold, "Details for Revision guard");
+  await expect(previewCard(page, "Revision guard")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(previewCard(page, "Revision guard")).toHaveCount(0);
+  await clickLibraryAction(fold, "Edit Revision guard definition");
   await button(page, "Back to library").click();
-  await expect(dialog).toBeVisible();
-  await button(dialog, "Place Revision guard").click();
-  await expect(dialog).toHaveCount(0);
+  await expect(componentEditor(page)).toHaveCount(0);
+  await expect(fold).toHaveAttribute("open", "");
+  await button(fold, "Place Revision guard").click();
+  await expect(page.getByTestId("component-input-plane")).toBeVisible();
   expect(
     await putComponent(page, "revision-guard", {
       revision: 1,
@@ -546,10 +574,8 @@ test("library selection refuses a revision changed during preview and editing re
   await expect(page.getByTestId("status")).toContainText("changed");
   await expect(instanceCount(page)).toHaveText("0");
   await page.keyboard.press("Escape");
-  await openUserComponents(page);
-  await expect(
-    button(dialog, "Actions for Revision guard changed"),
-  ).toBeVisible();
+  // The refused placement reads again the list it was chosen from.
+  await expect(button(fold, "Place Revision guard changed")).toBeVisible();
   expect(
     await putComponent(page, "revision-guard", {
       revision: 2,
@@ -559,9 +585,12 @@ test("library selection refuses a revision changed during preview and editing re
       },
     }),
   ).toBe(200);
-  await clickLibraryAction(dialog, "Details for Revision guard changed");
+  await clickLibraryAction(fold, "Details for Revision guard changed");
   await expect(
-    text(dialog, "This component changed. Refresh before selecting it."),
+    text(fold, "This component changed. Refresh before selecting it."),
+  ).toBeVisible();
+  await expect(
+    button(fold, "Place Revision guard changed again"),
   ).toBeVisible();
 });
 
@@ -583,21 +612,42 @@ async function editDefinition(page: Page, name: string) {
   });
   await code.fill(JSON.stringify(value, null, 2));
 }
+/** Row commands, by the names the library's cards once gave them. */
+const ROW_COMMANDS = [
+  ["Details for ", "Details"],
+  ["Copy raw record for ", "Copy raw record"],
+  ["Create from ", "Create from…"],
+  ["Manage ", "Manage"],
+  ["Edit ", "Edit"],
+] as const;
 async function clickLibraryAction(scope: Page | Locator, name: string) {
-  const componentName = name
-    .replace(
-      /^(Details for |Copy raw record for |Create from |Manage |Review |Edit )/,
-      "",
-    )
-    .replace(/ definition$/, "");
-  await scope
-    .getByRole("button", { name: "Actions for " + componentName, exact: true })
-    .click();
-  await scope.getByRole("button", { name, exact: true }).click();
+  const [prefix, command] = ROW_COMMANDS.find(([prefix]) =>
+    name.startsWith(prefix),
+  )!;
+  const menu = await openRowMenu(
+    scope,
+    name.slice(prefix.length).replace(/ definition$/, ""),
+  );
+  await menu.getByRole("menuitem", { name: command, exact: true }).click();
+}
+/** Opens a row's menu from its ⋯, which shows once the row is pointed at. */
+async function openRowMenu(scope: Page | Locator, name: string) {
+  const actions = scope
+    .getByRole("button", {
+      name: `Actions for ${name}`,
+      exact: true,
+      includeHidden: true,
+    })
+    .first();
+  await actions.locator("..").hover();
+  await actions.click();
+  const page = "goto" in scope ? scope : scope.page();
+  const menu = page.getByTestId("component-context-menu");
+  await expect(menu).toBeVisible();
+  return menu;
 }
 
 async function place(page: Page, x = 350, y = 300) {
-  await expect(libraryDialog(page)).toBeHidden();
   // Circuit placement prepares its provenance before closing the authoring dialog.
   await expect(componentEditor(page)).toBeHidden();
   const count = Number(await instanceCount(page).textContent());
@@ -618,7 +668,7 @@ const finiteGainSource = [
   "",
 ].join("\n");
 
-test("historical invalid pin mappings remain inspectable without blocking valid library cards", async ({
+test("historical invalid pin mappings remain inspectable without blocking valid library rows", async ({
   page,
   service,
 }) => {
@@ -632,16 +682,18 @@ test("historical invalid pin mappings remain inspectable without blocking valid 
   await publishComponent(page, "healthy-device", healthy);
   const legacy = legacyDefinition("legacy-interface", "Legacy device");
   service.seedHistoricalDefinition("legacy-device", legacy);
-  const dialog = await openUserComponents(page);
-  await expect(button(dialog, "Place Healthy device")).toBeVisible();
-  const rejected = dialog.getByTestId("rejected-user-component");
+  const fold = await openUserComponents(page);
+  await expect(button(fold, "Place Healthy device")).toBeVisible();
+  const rejected = fold.getByTestId("rejected-user-component");
   await expect(rejected).toContainText("Legacy device");
-  await expect(rejected).toContainText("Alice");
-  await expect(rejected).toContainText("missing OUT");
-  await expect(button(dialog, "Place Legacy device")).toHaveCount(0);
-  await clickLibraryAction(dialog, "Copy raw record for Legacy device");
+  await expect(rejected).toContainText("Needs repair · Alice");
+  await expect(button(fold, "Place Legacy device")).toHaveCount(0);
+  // Why it needs repair is read where it is pointed at, not in a banner.
+  await rejected.hover();
+  await expect(previewCard(page, "Legacy device")).toContainText("missing OUT");
+  await clickLibraryAction(fold, "Copy raw record for Legacy device");
   await expect(
-    dialog.getByText(
+    fold.getByText(
       "Copied raw record. Repair the source before creating a component.",
       { exact: true },
     ),
@@ -652,18 +704,14 @@ test("historical invalid pin mappings remain inspectable without blocking valid 
     revision: 1,
     definition: legacy,
   });
-  await dialog
-    .getByRole("textbox", { name: "Search User Defined components" })
-    .fill("Legacy");
-  await expect(button(dialog, "Place Healthy device")).toHaveCount(0);
+  await componentSearch(page).fill("Legacy");
+  await expect(button(fold, "Place Healthy device")).toHaveCount(0);
   await expect(rejected).toBeVisible();
-  await expect(
-    text(dialog, "No user components match this search."),
-  ).toHaveCount(0);
-  await expect(button(dialog, "Try Again")).toHaveCount(0);
+  await expect(fold.getByText(/^Nothing in Community matches/)).toHaveCount(0);
+  await expect(button(fold, "Try Again")).toHaveCount(0);
 });
 
-test("automatically loads all components and retries an interrupted page without losing cards", async ({
+test("automatically loads all components and retries an interrupted page without losing rows", async ({
   page,
   context,
   service,
@@ -704,26 +752,30 @@ test("automatically loads all components and retries an interrupted page without
       });
     else await route.fallback();
   });
-  const dialog = await openUserComponents(page);
+  const fold = await openUserComponents(page);
+  const rows = communityRows(page);
+  const placeable = fold.locator(
+    '.user-components-panel > .component-row:not([data-testid="rejected-user-component"])',
+  );
   const refreshFailed = text(
-    dialog,
+    fold,
     "Couldn’t refresh components. Loaded components are still available.",
   );
-  await expect(text(dialog, "Couldn’t load user components.")).toBeVisible();
+  await expect(text(fold, "Couldn’t load community components.")).toBeVisible();
   failFirstPage = false;
-  await button(dialog, "Try Again").click();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(20);
-  await expect(button(dialog, "Load More")).toHaveCount(0);
+  await button(fold, "Try Again").click();
+  await expect(rows).toHaveCount(20);
+  await expect(button(fold, "Load More")).toHaveCount(0);
   await expect(refreshFailed).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(20);
+  await expect(rows).toHaveCount(20);
   failNextPage = false;
-  await button(dialog, "Try Again").click();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(44);
-  await expect(dialog.locator(".user-component-place")).toHaveCount(43);
-  const rejected = dialog.getByTestId("rejected-user-component");
+  await button(fold, "Try Again").click();
+  await expect(rows).toHaveCount(44);
+  await expect(placeable).toHaveCount(43);
+  const rejected = fold.getByTestId("rejected-user-component");
   await expect(rejected).toContainText("Legacy paged device");
-  await expect(rejected).toContainText("OUT");
-  await expect(button(dialog, "Try Again")).toHaveCount(0);
+  await expect(rejected).toContainText("Needs repair");
+  await expect(button(fold, "Try Again")).toHaveCount(0);
   expect(cursors).toEqual([
     null,
     null,
@@ -732,17 +784,17 @@ test("automatically loads all components and retries an interrupted page without
     expect.any(String),
   ]);
   expect(cursors[2]).toBe(cursors[3]);
-  await button(dialog, "Close").click();
+  await closeUserComponents(page);
   await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(44);
-  await expect(rejected).toContainText("OUT");
+  await expect(rows).toHaveCount(44);
+  await expect(rejected).toContainText("Needs repair");
   await expect.poll(() => cursors.length).toBe(6);
   failFirstPage = true;
-  await button(dialog, "Close").click();
+  await closeUserComponents(page);
   await openUserComponents(page);
   await expect(refreshFailed).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(44);
-  await expect(rejected).toContainText("OUT");
+  await expect(rows).toHaveCount(44);
+  await expect(rejected).toContainText("Needs repair");
   expect(cursors).toHaveLength(7);
   expect(cursors.at(-1)).toBeNull();
 });
@@ -795,7 +847,7 @@ test("library preview fits actual off-viewBox artwork without changing the store
   expect(source.symbol.primitives).toEqual(definition.symbol.primitives);
 });
 
-test("library cards separate artwork, long titles and authors at narrow and zoomed sizes", async ({
+test("library rows keep artwork, long names and authors apart at narrow and zoomed sizes", async ({
   page,
   context,
   service,
@@ -817,28 +869,6 @@ test("library cards separate artwork, long titles and authors at narrow and zoom
   wide.symbol.primitives[0] = boxOutline(-160, -20, 160, 20);
   for (const definition of [tall, wide])
     await publishComponent(page, definition.symbol.id, definition);
-  const dialog = await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(2);
-  for (const card of await dialog.locator(".user-component-tile").all()) {
-    await card.scrollIntoViewIfNeeded();
-    const captions = card.locator(".user-component-caption");
-    const action = card.locator(".component-card-tools");
-    for (const caption of await captions.all()) {
-      await expect(caption).toBeInViewport();
-      const captionBounds = (await caption.boundingBox())!;
-      const bounds = (await card.boundingBox())!;
-      expect(captionBounds.y + captionBounds.height).toBeLessThanOrEqual(
-        bounds.y + bounds.height,
-      );
-    }
-    await expect(action).toBeInViewport();
-    const bounds = (await card.boundingBox())!;
-    const actionBounds = (await action.boundingBox())!;
-    expect(actionBounds.y + actionBounds.height).toBeLessThanOrEqual(
-      bounds.y + bounds.height,
-    );
-  }
-  await expect(button(dialog, `Place ${name}`)).toBeVisible();
   for (const [width, zoom] of [
     [1280, 1],
     [640, 1],
@@ -848,42 +878,46 @@ test("library cards separate artwork, long titles and authors at narrow and zoom
     await page.evaluate((zoom) => {
       document.documentElement.style.zoom = String(zoom);
     }, zoom);
-    const placeButton = button(dialog, `Place ${name}`);
-    await placeButton.scrollIntoViewIfNeeded();
-    const title = placeButton.locator("..").locator("strong");
-    const authorLabel = placeButton
-      .locator("..")
-      .getByRole("button", { name: `Filter by author ${author}`, exact: true });
-    const artBounds = (await placeButton.locator("svg").boundingBox())!;
-    const titleBounds = (await title.boundingBox())!;
-    const authorBounds = (await authorLabel.boundingBox())!;
-    const menuToggle = dialog.getByLabel(`Actions for ${name}`, {
-      exact: true,
+    const fold = await openUserComponents(page);
+    await expect(communityRows(page)).toHaveCount(2);
+    for (const row of await communityRows(page).all()) {
+      await row.scrollIntoViewIfNeeded();
+      const bounds = (await row.boundingBox())!;
+      const art = (await row.locator(".user-component-preview").boundingBox())!;
+      const title = (await row.locator(".component-row-name").boundingBox())!;
+      const byline = (await row
+        .locator(".component-row-text small")
+        .boundingBox())!;
+      expect(art.x + art.width).toBeLessThanOrEqual(title.x + 0.5);
+      expect(title.y + title.height).toBeLessThanOrEqual(byline.y + 0.5);
+      expect(title.x + title.width).toBeLessThanOrEqual(
+        bounds.x + bounds.width + 0.5,
+      );
+      expect(byline.y + byline.height).toBeLessThanOrEqual(
+        bounds.y + bounds.height + 0.5,
+      );
+    }
+    const row = communityRows(page).filter({
+      has: button(page, `Place ${name}`),
     });
-    await menuToggle.click();
-    const editBounds = (await button(
-      dialog,
-      `Edit ${name} definition`,
-    ).boundingBox())!;
-    expect(artBounds.y + artBounds.height).toBeLessThanOrEqual(titleBounds.y);
-    expect(titleBounds.y + titleBounds.height).toBeLessThanOrEqual(
-      authorBounds.y,
-    );
-    expect(editBounds.x).toBeGreaterThanOrEqual(0);
-    await expect(button(dialog, `Edit ${name} definition`)).toBeInViewport();
+    await expect(row.locator(".component-row-text small")).toHaveText(author);
+    // A row truncates; the card beside the panel reads the whole name.
+    await row.hover();
+    const card = previewCard(page, name);
+    await expect(card).toContainText(name);
+    await expect(card).toContainText(author);
+    await expect(card).toBeInViewport();
+    const menu = await openRowMenu(fold, name);
+    await expect(
+      menu.getByRole("menuitem", { name: "Edit", exact: true }),
+    ).toBeInViewport();
     await page.keyboard.press("Escape");
-    // Read enough of a long title to distinguish entries; its full name stays accessible.
-    expect(titleBounds.height).toBeGreaterThan(
-      (await title.evaluate((node) =>
-        parseFloat(getComputedStyle(node).lineHeight),
-      )) * 1.5,
-    );
-    await expect(title).toHaveAttribute("title", name);
-    await expect(authorLabel).toHaveAttribute("title", author);
-    await expect(button(dialog, "Create Component…")).toBeInViewport();
-    await expect(button(dialog, "Close")).toBeInViewport();
+    await expect(menu).toHaveCount(0);
+    await expect(button(fold, "Create component")).toBeInViewport();
     expect(
-      await dialog.evaluate((node) => node.scrollWidth - node.clientWidth),
+      await page
+        .locator(".shapes-panel-body")
+        .evaluate((node) => node.scrollWidth - node.clientWidth),
     ).toBeLessThanOrEqual(1);
   }
 });
@@ -1190,7 +1224,7 @@ test("public circuit authoring drafts survive closing and portable reopening wit
   await expect(netlist(editor)).toContainText("gain=17");
 });
 
-test("filters and reopens the catalog, retaining cards and scroll through a failed management refresh", async ({
+test("filters and reopens the catalog, retaining rows and scroll through a failed management refresh", async ({
   page,
   service,
   context,
@@ -1204,51 +1238,52 @@ test("filters and reopens the catalog, retaining cards and scroll through a fail
     electrical: deviceDescriptor("resistor"),
   });
   await service.openEditorAs(page, "admin");
-  const dialog = await openUserComponents(page);
-  await expect(dialog.getByLabel("Component order")).toHaveValue(
+  const fold = await openUserComponents(page);
+  const filter = button(fold, "Filter components");
+  const filters = fold.getByRole("group", {
+    name: "Filter components",
+    exact: true,
+  });
+  await filter.click();
+  await expect(filters.getByLabel("Component order")).toHaveValue(
     "circuit-first",
   );
-  await expect(dialog.locator(".user-component-tile").first()).toContainText(
+  await expect(communityRows(page).first()).toContainText(
     "Electrical resistor",
   );
-  await dialog.getByLabel("Component type").selectOption("with-circuit");
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(1);
-  await button(dialog, "Filter by author Alice").click();
-  await expect(
-    dialog.getByRole("button", {
-      name: "Place Electrical resistor",
-      exact: true,
-    }),
-  ).toBeVisible();
+  await filters.getByLabel("Component type").selectOption("with-circuit");
+  await expect(communityRows(page)).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(filters).toBeHidden();
+  const menu = await openRowMenu(fold, "Electrical resistor");
+  await menu.getByRole("menuitem", { name: "Only Alice", exact: true }).click();
+  await expect(button(fold, "Place Electrical resistor")).toBeVisible();
+  await expect(filter).toHaveAttribute("data-active", "true");
   await expect(instanceCount(page)).toHaveText("0");
-  await dialog.getByLabel("Component type").selectOption("all");
-  await dialog.getByLabel("Component order").selectOption("oldest");
-  await expect(dialog.locator(".user-component-tile").first()).toContainText(
-    "Artwork only",
-  );
-  await button(dialog, "Close").click();
+  await filter.click();
+  await filters.getByLabel("Component type").selectOption("all");
+  await filters.getByLabel("Component order").selectOption("oldest");
+  await expect(communityRows(page).first()).toContainText("Artwork only");
+  await page.keyboard.press("Escape");
+  await closeUserComponents(page);
   service.seedPublished("new-arrival", "Automatic arrival");
   await openUserComponents(page);
-  await expect(dialog.getByLabel("Component order")).toHaveValue("oldest");
-  await expect(button(dialog, "Place Automatic arrival")).toBeVisible();
-  await expect(button(dialog, "Refresh")).toHaveCount(0);
-  await expect(button(dialog, "Load More")).toHaveCount(0);
+  await filter.click();
+  await expect(filters.getByLabel("Component order")).toHaveValue("oldest");
+  await page.keyboard.press("Escape");
+  await expect(button(fold, "Place Automatic arrival")).toBeVisible();
+  await expect(button(fold, "Refresh")).toHaveCount(0);
+  await expect(button(fold, "Load More")).toHaveCount(0);
   service.limitCatalogPages(20);
   for (let index = 0; index < 35; index++)
     service.seedHistoricalDefinition(
       `managed-${String(index).padStart(2, "0")}`,
       symbolDefinition(`Managed ${index}`),
     );
-  await button(dialog, "Close").click();
+  await closeUserComponents(page);
   await openUserComponents(page);
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(38);
-  await clickLibraryAction(dialog, "Manage Managed 20");
-  await button(page, "Promote to official").click();
-  await expect(text(page, "Promoted to an official component.")).toBeVisible();
-  service.seedHistoricalDefinition(
-    "aaa-managed-new",
-    symbolDefinition("Managed arrival"),
-  );
+  await expect(communityRows(page)).toHaveCount(38);
+  // Promotion refreshes the list beneath the editor; its later page fails.
   let fail = true;
   await context.route("**/api/components?**", async (route) => {
     if (new URL(route.request().url()).searchParams.has("cursor") && fail)
@@ -1258,19 +1293,24 @@ test("filters and reopens the catalog, retaining cards and scroll through a fail
       });
     else await route.fallback();
   });
+  await clickLibraryAction(fold, "Manage Managed 20");
+  await button(page, "Promote to official").click();
+  await expect(text(page, "Promoted to an official component.")).toBeVisible();
+  service.seedHistoricalDefinition(
+    "aaa-managed-new",
+    symbolDefinition("Managed arrival"),
+  );
   await button(page, "Back to library").click();
-  await expect(button(dialog, "Try Again")).toBeVisible();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(38);
-  await expect(button(dialog, "Place Managed arrival")).toHaveCount(0);
+  await expect(button(fold, "Try Again")).toBeVisible();
+  await expect(communityRows(page)).toHaveCount(38);
+  await expect(button(fold, "Place Managed arrival")).toHaveCount(0);
   expect(
-    await dialog
-      .locator(".user-components-grid")
-      .evaluate((grid) => grid.scrollTop),
+    await page.locator(".shapes-panel-body").evaluate((body) => body.scrollTop),
   ).toBeGreaterThan(0);
   fail = false;
-  await button(dialog, "Try Again").click();
-  await expect(dialog.locator(".user-component-tile")).toHaveCount(39);
-  await expect(button(dialog, "Place Managed arrival")).toBeAttached();
+  await button(fold, "Try Again").click();
+  await expect(communityRows(page)).toHaveCount(39);
+  await expect(button(fold, "Place Managed arrival")).toBeAttached();
 });
 
 test("Agent and GUI share the open candidate while applied netlists advance only on Apply", async ({
@@ -1280,7 +1320,7 @@ test("Agent and GUI share the open candidate while applied netlists advance only
 }) => {
   await service.openEditorAs(page, null);
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   const editor = componentEditor(page);
   await editor.getByText("Use Agent", { exact: true }).click();
   await expect(button(editor, "Copy task")).toHaveCount(0);
@@ -1613,7 +1653,7 @@ test("a changed saved checkpoint refuses Agent Save and Save draft & leave witho
   await service.openEditorAs(page, null);
   const client = await pairAgent(page, baseURL!);
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   const editor = componentEditor(page);
   await netlist(editor).fill(
     ".subckt checkpoint IN OUT\nR1 IN OUT 1k\n.ends checkpoint\n",
@@ -1706,7 +1746,7 @@ test("returning to the library confirms beside the trigger and preserves an unfi
 }) => {
   await service.openEditorAs(page, null);
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   const editor = componentEditor(page);
   await expect(button(editor, "Discard changes")).toHaveCount(0);
   const unfinished = ".subckt unfinished IN OUT\nR1 IN OUT {";
@@ -1728,12 +1768,12 @@ test("returning to the library confirms beside the trigger and preserves an unfi
   await expect(confirmation).toHaveCount(0);
   await button(editor, "Back to library").click();
   await button(confirmation, "Save draft & leave").click();
-  await expect(libraryDialog(page)).toBeVisible();
+  await expect(componentFold(page)).toHaveAttribute("open", "");
   await openProjectDraft(page, /unfinished/);
   expect(await copyText(page, netlist(editor))).toBe(unfinished);
   await button(editor, "Back to library").click();
   await expect(editor).toHaveCount(0);
-  await expect(libraryDialog(page)).toBeVisible();
+  await expect(componentFold(page)).toHaveAttribute("open", "");
 });
 
 test("new circuit authoring starts with native source and places a complete six-terminal component without public saving", async ({
@@ -1742,7 +1782,7 @@ test("new circuit authoring starts with native source and places a complete six-
 }) => {
   await service.openEditorAs(page, null);
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   const editor = componentEditor(page);
   await expect(editor.getByLabel("Definition type")).toHaveValue("circuit");
   await expect(editor.getByLabel("Circuit template")).toHaveCount(0);
@@ -2232,7 +2272,7 @@ async function openFiniteGain(page: Page, symbolMode?: "custom") {
 }
 async function openNativeComponent(page: Page) {
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   const editor = componentEditor(page);
   await editor.getByLabel("Definition type").selectOption("circuit");
   return editor;
@@ -2820,11 +2860,13 @@ test("explicitly upgrades a symbol-only public entry without rewriting captured 
   };
   await publishComponent(page, "legacy-upgrade", definition);
   await openUserComponents(page);
-  const tile = page
-    .locator(".user-component-tile")
-    .filter({ hasText: "Legacy public repair" });
-  await expect(text(tile, "Symbol only")).toBeVisible();
-  await button(tile, "Place Legacy public repair").click();
+  const row = communityRows(page).filter({ hasText: "Legacy public repair" });
+  // A symbol-only record says so where it is chosen, before any netlist.
+  await row.hover();
+  await expect(previewCard(page, "Legacy public repair")).toContainText(
+    "No circuit model yet",
+  );
+  await button(row, "Place Legacy public repair").click();
   await place(page);
   await expect(instanceCount(page)).toHaveText("1");
   const captured = await readProject(page);
@@ -2870,7 +2912,7 @@ test("live preview and the administrator lifecycle keep captured Projects", asyn
   page.on("pageerror", (error) => errors.push(error.message));
   await service.openEditorAs(page, "admin");
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   await editDefinition(page, "Previewed amplifier");
   await expect(
     page.getByLabel("Component preview").locator("circle"),
@@ -2893,9 +2935,9 @@ test("live preview and the administrator lifecycle keep captured Projects", asyn
   expect((await readProject(page)).componentDefinitions).toEqual(captured);
   await openUserComponents(page);
   await expect(button(page, "Place Shared amplifier")).toHaveCount(0);
-  await openShelf(page, "Deleted (all)");
-  await button(page, "Actions for Shared amplifier").click();
-  await button(page, "Restore").click();
+  const deleted = await openShelf(page, "Deleted (all)");
+  const restore = await openRowMenu(deleted, "Shared amplifier");
+  await restore.getByRole("menuitem", { name: "Restore", exact: true }).click();
   await expect(page.getByText("Restored to library.")).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -2912,7 +2954,7 @@ test("a later component editor offers sign-in after the page's initial account s
   await page.clock.fastForward(31_000);
 
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   const editor = componentEditor(page);
   await expect(editor.getByTestId("account-signin")).toBeVisible();
   await expect(editor.getByTestId("account-name")).toHaveCount(0);
@@ -2926,7 +2968,7 @@ test("anonymous creation keeps public publication disabled and invalid code leav
 }) => {
   await service.openEditorAs(page, null);
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   await choose(page, "Definition type", "json");
   await expect(button(page, PUBLISH)).toBeDisabled();
   await expect(button(page, "Apply")).toBeEnabled();
@@ -3669,7 +3711,7 @@ test("switching definition type resolves the current unsaved candidate before hi
 }, testInfo) => {
   await service.openEditorAs(page, null);
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   const editor = componentEditor(page);
   const mode = editor.getByLabel("Definition type", { exact: true });
   const initial = await copyText(page, netlist(editor));
@@ -3701,7 +3743,7 @@ test("switching definition type resolves the current unsaved candidate before hi
   await mode.selectOption("json");
   expect(await copyText(page, code)).toBe(initialJson);
   await button(editor, "Back to library").click();
-  await expect(libraryDialog(page)).toBeVisible();
+  await expect(componentFold(page)).toHaveAttribute("open", "");
   await expect(button(page, "Discard changes")).toHaveCount(0);
 });
 
@@ -3712,7 +3754,7 @@ test("publication checkpoints the published JSON without marking later input as 
 }) => {
   await service.openEditorAs(page, "alice");
   await openUserComponents(page);
-  await button(page, "Create Component…").click();
+  await button(page, "Create component").click();
   await editDefinition(page, "Publication race");
   const editor = componentEditor(page);
   await button(editor, "Apply").click();
@@ -3758,7 +3800,7 @@ test("publication checkpoints the published JSON without marking later input as 
   ).toBe("{");
 });
 
-test("owners manage library records in compact menus without changing placed copies", async ({
+test("owners manage library records from the row menu without changing placed copies", async ({
   page,
   service,
 }) => {
@@ -3766,31 +3808,43 @@ test("owners manage library records in compact menus without changing placed cop
   await service.openEditorAs(page, "alice");
   await placeFromLibrary(page, "Managed reusable module");
   const before = await readProject(page);
-  const dialog = await openUserComponents(page);
-  const card = dialog
-    .locator(".user-component-tile")
-    .filter({ hasText: "Managed reusable module" });
-  const bounds = await card.boundingBox();
-  await button(dialog, "Delete Managed reusable module").click();
-  await expect(
-    dialog.getByRole("group", { name: "Delete from library", exact: true }),
-  ).toBeVisible();
-  expect(await card.boundingBox()).toEqual(bounds);
+  const fold = await openUserComponents(page);
+  const menu = await openRowMenu(fold, "Managed reusable module");
+  const remove = button(menu, "Delete Managed reusable module from library");
+  await remove.click();
+  const decision = menu.getByRole("group", {
+    name: "Delete Managed reusable module from library",
+    exact: true,
+  });
+  await expect(decision).toBeVisible();
+  await expect(button(decision, "Keep it")).toBeFocused();
+  // Escape steps back from the decision, not out of the menu.
   await page.keyboard.press("Escape");
-  await expect(dialog).toBeVisible();
-  await expect(button(dialog, "Delete Managed reusable module")).toBeFocused();
-  await button(dialog, "Delete Managed reusable module").click();
-  await button(dialog, "Delete").click();
-  await expect(button(dialog, "Place Managed reusable module")).toHaveCount(0);
-  await button(dialog, "Restore").click();
-  await expect(button(dialog, "Place Managed reusable module")).toBeVisible();
-  await button(dialog, "Close").click();
+  await expect(menu).toBeVisible();
+  await expect(remove).toBeFocused();
+  await remove.click();
+  await button(menu, "Really delete").click();
+  await expect(menu).toHaveCount(0);
+  await expect(button(fold, "Place Managed reusable module")).toHaveCount(0);
+  await button(fold, "Restore").click();
+  await expect(button(fold, "Place Managed reusable module")).toBeVisible();
+  await closeUserComponents(page);
   const after = await readProject(page);
   expect(after.documents).toEqual(before.documents);
   expect(after.componentDefinitions).toEqual(before.componentDefinitions);
   await service.connect(page.context(), "bob");
+  const auth = page.waitForResponse((response) =>
+    response.url().endsWith("/api/auth/me"),
+  );
   await openUserComponents(page);
-  await expect(button(dialog, "Delete Managed reusable module")).toHaveCount(0);
+  await auth;
+  const others = await openRowMenu(fold, "Managed reusable module");
+  await expect(
+    others.getByRole("menuitem", { name: "Create from…", exact: true }),
+  ).toBeVisible();
+  await expect(
+    button(others, "Delete Managed reusable module from library"),
+  ).toHaveCount(0);
 });
 
 test("project drafts can be deleted, undone, redone and saved without touching applied facts", async ({
@@ -3804,30 +3858,31 @@ test("project drafts can be deleted, undone, redone and saved without touching a
     { id: "draft-b", text: "{ second" },
   ];
   await openProjectFile(page, project);
-  const dialog = await openUserComponents(page);
-  await openShelf(page, "Project drafts");
+  const fold = await openUserComponents(page);
+  const drafts = await openShelf(page, "Project drafts");
   const auth = page.waitForResponse((response) =>
     response.url().endsWith("/api/auth/me"),
   );
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await auth;
-  await expect(
-    dialog.getByRole("tab", { name: "Project drafts", exact: true }),
-  ).toHaveAttribute("aria-selected", "true");
-  await button(dialog, "Select").click();
-  await dialog
+  // A signed-out account refresh leaves the drafts open where they were.
+  await expect(drafts).toHaveAttribute("open", "");
+  await button(drafts, "Select").click();
+  await drafts
     .getByLabel("Select Artwork draft draft-a", { exact: true })
     .check();
-  await dialog
+  await drafts
     .getByLabel("Select Artwork draft draft-b", { exact: true })
     .check();
-  await button(dialog, "Delete selected (2)").click();
+  await button(drafts, "Delete selected (2)").click();
   await expect(
-    dialog.getByRole("group", { name: "Delete selected drafts" }),
+    fold.getByRole("group", { name: "Delete selected drafts" }),
   ).toContainText("free");
-  await button(dialog, "Delete").click();
-  await expect(text(dialog, "Project drafts (0)")).toBeVisible();
-  await button(dialog, "Close").click();
+  await button(fold, "Delete").click();
+  // The last draft gone, its fold and Undo hint stay where they were.
+  await expect(text(fold, "Project drafts (0)")).toBeVisible();
+  await expect(text(fold, "Draft deleted. Undo restores it.")).toBeVisible();
+  await closeUserComponents(page);
   expect((await readProject(page)).componentAuthoringDrafts).toEqual([]);
   await page.keyboard.press("ControlOrMeta+z");
   expect((await readProject(page)).componentAuthoringDrafts).toEqual(
@@ -3904,13 +3959,13 @@ test("opens a retained source draft without an external owner and keeps its raw 
   await expect(netlist(editor)).toBeVisible();
   expect(await copyText(page, netlist(editor))).toBe(raw);
   await button(editor, "Back to library").click();
-  await button(library, "Close").click();
+  await closeUserComponents(page);
   const after = await readProject(page);
   expect(after.modelSources).toEqual(project.modelSources);
   expect(after.externalSubcircuitDefinitions).toEqual([]);
 });
 
-test("Library keeps management in My shelf without persistent repair banners", async ({
+test("Community keeps its owner's records, drafts and withdrawals in My components without repair banners", async ({
   page,
   service,
 }) => {
@@ -3926,40 +3981,41 @@ test("Library keeps management in My shelf without persistent repair banners", a
     { id: "shelf-draft", text: "{ unfinished" },
   ];
   await openProjectFile(page, project);
-  const dialog = await openUserComponents(page);
-  await expect(button(dialog, "Place Community module")).toBeVisible();
-  await expect(dialog.locator(".component-project-drafts")).toHaveCount(0);
-  await expect(button(dialog, "Review deleted components")).toHaveCount(0);
-  await dialog.getByRole("tab", { name: "My shelf", exact: true }).click();
-  await expect(button(dialog, "Place My shelf module")).toBeVisible();
-  await expect(button(dialog, "Place Community module")).toHaveCount(0);
-  await dialog
-    .getByRole("tab", { name: "Project drafts", exact: true })
-    .click();
+  const fold = await openUserComponents(page);
+  const mine = fold.getByTestId("community-mine");
+  const communityRow = (name: string) =>
+    communityRows(page).filter({ has: button(page, `Place ${name}`) });
+  await expect(communityRow("Community module")).toHaveCount(1);
+  await expect(communityRow("My shelf module")).toHaveCount(1);
+  await expect(mine).not.toHaveAttribute("open");
+  await expect(fold.locator(".component-project-drafts")).toBeHidden();
+  await expect(button(fold, "Review deleted components")).toHaveCount(0);
+  await setFoldOpen(mine, true);
+  await expect(button(mine, "Place My shelf module")).toBeVisible();
+  await expect(button(mine, "Place Community module")).toHaveCount(0);
+  await openShelf(page, "Project drafts");
   await expect(
-    dialog.getByRole("button", { name: /^Artwork draft shelf/ }),
+    mine.getByRole("button", { name: /^Artwork draft shelf/ }),
   ).toBeVisible();
-  await dialog.getByRole("tab", { name: "Published", exact: true }).click();
   await page.clock.install();
-  await button(dialog, "Delete My shelf module").click();
-  await button(dialog, "Delete").click();
-  await expect(dialog.locator(".component-library-feedback")).toContainText(
+  const menu = await openRowMenu(mine, "My shelf module");
+  await button(menu, "Delete My shelf module from library").click();
+  await button(menu, "Really delete").click();
+  await expect(fold.locator(".component-library-feedback")).toContainText(
     "Removed from library.",
   );
+  await expect(communityRow("My shelf module")).toHaveCount(0);
   await page.clock.fastForward(6100);
-  await expect(dialog.locator(".component-library-feedback")).toHaveCount(0);
-  await dialog.getByRole("tab", { name: "Deleted", exact: true }).click();
-  await button(dialog, "Actions for My shelf module").click();
-  await dialog
-    .getByRole("group", { name: "Component actions" })
-    .getByRole("button", { name: "Restore", exact: true })
-    .click();
-  await dialog.getByRole("tab", { name: "Library", exact: true }).click();
-  await expect(button(dialog, "Place My shelf module")).toBeVisible();
-  await expect(button(dialog, "Place Community module")).toBeVisible();
+  await expect(fold.locator(".component-library-feedback")).toHaveCount(0);
+  const deleted = await openShelf(page, "Deleted");
+  const restore = await openRowMenu(deleted, "My shelf module");
+  await restore.getByRole("menuitem", { name: "Restore", exact: true }).click();
+  await expect(communityRow("My shelf module")).toHaveCount(1);
+  await expect(communityRow("Community module")).toHaveCount(1);
+  await expect(button(deleted, "Place My shelf module")).toHaveCount(0);
 });
 
-test("cold editor leaves User Components unloaded until its Library opens", async ({
+test("cold editor leaves Community unloaded until its fold opens", async ({
   page,
   service,
 }) => {
@@ -3974,15 +4030,18 @@ test("cold editor leaves User Components unloaded until its Library opens", asyn
   });
   await service.openEditorAs(page, null);
   await page.waitForLoadState("networkidle");
+  // The Library names Community from the start, shut and costing nothing.
+  await expect(componentFold(page)).toBeVisible();
+  await expect(componentFold(page)).not.toHaveAttribute("open");
   expect(downloads).toEqual([]);
   const library = await openUserComponents(page);
-  await expect(button(library, "Create Component…")).toBeVisible();
+  await expect(button(library, "Create component")).toBeVisible();
   await expect
     .poll(() =>
       downloads.some((url) => url.includes("user-components-library-")),
     )
     .toBe(true);
-  await button(library, "Create Component…").click();
+  await button(library, "Create component").click();
   await expect(netlist(componentEditor(page))).toBeVisible();
 });
 
@@ -3990,25 +4049,30 @@ for (const chunkName of [
   "editor-component-library",
   "user-components-library",
 ]) {
-  test(`a failed ${chunkName} chunk can be dismissed and recovered by refreshing`, async ({
+  test(`a failed ${chunkName} chunk stays a notice in the Library and recovers by refreshing`, async ({
     page,
     service,
   }) => {
     const chunk = `**/${chunkName}-*.js`;
     await page.route(chunk, (route) => route.abort());
     await service.openEditorAs(page, null);
-    await clickCommand(page, "Edit", "User Components…");
-    const failure = page.getByRole("alertdialog");
-    await expect(failure).toContainText("This dialog could not be loaded");
-    await button(failure, "Close").click();
+    const library = await openUserComponents(page);
+    const failure = library.getByTestId("section-chunk-load-fallback");
+    await expect(failure).toContainText("This panel could not be loaded");
+    // The failure stays in its fold: the official components still place.
+    await expect(page.getByTestId("shapes-chip-resistor")).toBeVisible();
+    await closeUserComponents(page);
     await expect(failure).toBeHidden();
-    await clickCommand(page, "Edit", "User Components…");
+    await openUserComponents(page);
     await expect(failure).toBeVisible();
     await page.unroute(chunk);
     await button(failure, "Refresh app").click();
     await awaitEditorReady(page);
-    const library = await openUserComponents(page);
-    await button(library, "Create Component…").click();
+    const reloaded = await openUserComponents(page);
+    await expect(
+      reloaded.getByTestId("section-chunk-load-fallback"),
+    ).toHaveCount(0);
+    await button(reloaded, "Create component").click();
     await expect(netlist(componentEditor(page))).toBeVisible();
   });
 }
@@ -4037,7 +4101,7 @@ for (const chunkName of [
       if (chunkName === "component-definition-editor")
         await expect.poll(() => requested).toBe(true);
       else expect(requested).toBe(false);
-      await button(library, "Create Component…").click();
+      await button(library, "Create component").click();
       await expect.poll(() => requested).toBe(true);
       const loading = page.getByRole("dialog", {
         name: "Loading component editor",
@@ -4045,8 +4109,9 @@ for (const chunkName of [
       });
       await expect(loading).toBeVisible();
       await button(loading, "Cancel").click();
-      await expect(library).toBeVisible();
-      await button(library, "Create Component…").click();
+      await expect(loading).toHaveCount(0);
+      await expect(library).toHaveAttribute("open", "");
+      await button(library, "Create component").click();
       await expect(loading).toBeVisible();
       await page.keyboard.press("Tab");
       await page.keyboard.press("Tab");
@@ -4059,25 +4124,25 @@ for (const chunkName of [
         ),
       ).toBe(true);
       await page.keyboard.press("Escape");
-      await expect(library).toBeVisible();
+      await expect(loading).toHaveCount(0);
+      await expect(library).toHaveAttribute("open", "");
       const response = page.waitForResponse(new RegExp(`${chunkName}-.*\\.js`));
       release();
       await response;
       await expect(componentEditor(page)).toHaveCount(0);
-      await expect(library).toBeVisible();
-      await button(library, "Create Component…").click();
+      await button(library, "Create component").click();
       const editor = componentEditor(page);
       await expect(netlist(editor)).toBeVisible();
       await button(editor, "Back to library").click();
-      await expect(library).toBeVisible();
       await expect(editor).toHaveCount(0);
+      await expect(library).toHaveAttribute("open", "");
     } finally {
       release();
     }
   });
 }
 
-test("Library and My shelf stay compact at narrow widths without global repair notices", async ({
+test("Community stays compact at narrow widths without global repair notices", async ({
   page,
   service,
 }, testInfo) => {
@@ -4089,46 +4154,46 @@ test("Library and My shelf stay compact at narrow widths without global repair n
     symbol: { name: "Legacy definition", id: "broken" },
   });
   await service.openEditorAs(page, "alice");
-  const dialog = await openUserComponents(page);
-  await expect(dialog.getByTestId("rejected-user-component")).toBeVisible();
+  const fold = await openUserComponents(page);
+  await expect(fold.getByTestId("rejected-user-component")).toBeVisible();
   await expect(
-    dialog.getByRole("status").filter({ hasText: /need.*repair/i }),
+    fold.getByRole("status").filter({ hasText: /need.*repair/i }),
   ).toHaveCount(0);
+  const overflows = () =>
+    page
+      .locator(".shapes-panel-body")
+      .evaluate((body) => body.scrollWidth > body.clientWidth + 1);
   for (const [width, zoom] of [
     [1440, 1],
     [900, 1.25],
     [640, 1.5],
-  ]) {
-    await page.setViewportSize({ width: width!, height: 1000 });
+  ] as const) {
+    await page.setViewportSize({ width, height: 1000 });
     await page.evaluate((z) => {
       document.body.style.zoom = String(z);
     }, zoom);
-    await expect(
-      dialog.getByRole("tab", { name: "My shelf", exact: true }),
-    ).toBeInViewport();
-    await expect(button(dialog, "Create Component…")).toBeInViewport();
-    expect(
-      await dialog.evaluate((e) => e.scrollWidth > e.clientWidth + 1),
-    ).toBe(false);
+    await openUserComponents(page);
+    await expect(componentSearch(page)).toBeInViewport();
+    await expect(button(fold, "Create component")).toBeInViewport();
+    expect(await overflows()).toBe(false);
     await page.screenshot({
       path: testInfo.outputPath(`library-${width}.png`),
     });
-    await openShelf(page, "Project drafts");
-    await expect(
-      dialog.getByRole("heading", { name: "Project drafts (0)", exact: true }),
-    ).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath(`shelf-${width}.png`) });
-    await dialog.getByRole("tab", { name: "Library", exact: true }).click();
+    const deleted = await openShelf(page, "Deleted");
+    await expect(deleted).toBeInViewport();
+    expect(await overflows()).toBe(false);
+    await page.screenshot({ path: testInfo.outputPath(`mine-${width}.png`) });
+    await setFoldOpen(fold.getByTestId("community-mine"), false);
   }
 });
 
-test("reselecting a Library tab cancels pending detail reads without leaving cards busy", async ({
+test("closing Community cancels a pending detail read without leaving rows busy", async ({
   page,
   service,
 }) => {
   service.seedPublished("slow-detail", "Slow detail");
   await service.openEditorAs(page, null);
-  const dialog = await openUserComponents(page);
+  const fold = await openUserComponents(page);
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -4138,11 +4203,11 @@ test("reselecting a Library tab cancels pending detail reads without leaving car
     await route.fallback();
   });
   try {
-    await button(dialog, "Actions for Slow detail").click();
-    await button(dialog, "Details for Slow detail").click();
-    await expect(button(dialog, "Place Slow detail")).toBeDisabled();
-    await dialog.getByRole("tab", { name: "Library", exact: true }).click();
-    await expect(button(dialog, "Place Slow detail")).toBeEnabled();
+    await clickLibraryAction(fold, "Details for Slow detail");
+    await expect(button(fold, "Place Slow detail")).toBeDisabled();
+    await closeUserComponents(page);
+    await openUserComponents(page);
+    await expect(button(fold, "Place Slow detail")).toBeEnabled();
   } finally {
     release();
   }

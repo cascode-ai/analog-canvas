@@ -1,19 +1,14 @@
 import { parseSharedComponentEntry } from "./component-library-entry";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { ComponentLibrarySummary } from "@icm/agent-adapter";
 import { readSessionUser, type SessionUser } from "../../components/account";
 import { ContextMenu } from "../../components/context-menu";
 import { InlineConfirm } from "../../components/inline-confirm";
-import { startCanvasDrag } from "../editor-shell/canvas-drag";
-import type { ComponentCatalogQuery } from "./component-library-contract";
-import type { SharedComponent } from "./component-library-contract";
+import type {
+  ComponentCatalogQuery,
+  SharedComponent,
+} from "./component-library-contract";
 import {
   readSharedComponentRecord,
   ComponentLibraryError,
@@ -21,7 +16,12 @@ import {
   changeComponentLifecycle,
 } from "./component-library-client";
 import { LibraryCache } from "./library-cache";
-import { ComponentLibraryRow } from "./component-library-row";
+import { LibraryPreview } from "./library-preview";
+import {
+  ComponentMenuItem,
+  ComponentRows,
+  useComponentRowSurface,
+} from "./component-row-surface";
 import { ComponentPreviewCard } from "./component-preview-card";
 import { ComponentDraftList } from "./component-draft-list";
 import { ComponentPopover } from "./component-popover";
@@ -30,29 +30,28 @@ import type {
   ComponentDraftTarget,
 } from "@icm/edit-engine";
 import { ComponentCatalogControls } from "./component-catalog-controls";
-import { groupCatalogEntries } from "./component-catalog-groups";
 import { useComponentCatalog } from "./use-component-catalog";
 
 type CatalogList = ReturnType<typeof useComponentCatalog>;
 type RecordAction = "details" | "place" | "new" | "update" | "raw";
-const PREVIEW_DELAY_MS = 300;
-const PREVIEW_SWITCH_MS = 60;
-const PREVIEW_LINGER_MS = 150;
 
 /** Filters and folds outlive the panel when the left slot changes mode. */
 const remembered: {
   catalog: ComponentCatalogQuery;
   mine: boolean;
   removed: boolean;
+  scrollTop: number;
 } = {
   catalog: { version: 1, type: "all", order: "circuit-first" },
   mine: false,
   removed: false,
+  scrollTop: 0,
 };
 
 /**
  * The Library's Community fold: every public record on one list of rows, with
  * the signed-in member's own records, drafts and withdrawals folded inside it.
+ * The desktop host has its own `native-components-library`.
  */
 export default function UserComponentsLibrary({
   open,
@@ -72,9 +71,6 @@ export default function UserComponentsLibrary({
   query?: string;
   /** Where the fold's header keeps this list's count and filter. */
   toolsSlot?: HTMLElement | null;
-  /** Closes the desktop host's dialog; the panel stays where it is. */
-  onClose(): void;
-  onCreate(): void;
   onEdit(
     entry: SharedComponent,
     intent: "new" | "update",
@@ -142,40 +138,30 @@ export default function UserComponentsLibrary({
     }, 6000);
     return () => clearTimeout(timer);
   }, [notice, restorable]);
-  const [card, setCard] = useState<{
-    summary: ComponentLibrarySummary;
-    row: HTMLElement;
-    entry?: SharedComponent;
-  } | null>(null);
-  const [menu, setMenu] = useState<{
-    entry: ComponentLibrarySummary;
-    list: CatalogList;
-    x: number;
-    y: number;
-    fromKeyboard?: boolean;
-  } | null>(null);
+  const surface = useComponentRowSurface();
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
-  const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const details = useRef(
     new LibraryCache<SharedComponent>(30, 2 * 1024 * 1024),
   );
   const selection = useRef<AbortController | null>(null);
-  const root = useRef<HTMLDivElement>(null);
-  const previewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
-  const suppressClick = useRef(false);
+  const abandonSelection = () => {
+    selection.current?.abort();
+    setBusy(false);
+  };
+  /** A deleted last draft keeps its fold and Undo hint where they were. */
+  const [keepMine, setKeepMine] = useState(false);
   useEffect(() => {
     details.current.clear();
-    setCard(null);
+    surface.closeCard();
   }, [refresh]);
   useEffect(() => {
     details.current.clear();
-    selection.current?.abort();
-    setCard(null);
-    setMenu(null);
+    abandonSelection();
+    surface.closeCard();
+    surface.setMenu(null);
     setRestorable(null);
+    setKeepMine(false);
     showNotice(null);
   }, [user?.id]);
   useEffect(() => {
@@ -207,16 +193,27 @@ export default function UserComponentsLibrary({
     });
     return () => {
       active = false;
-      selection.current?.abort();
+      abandonSelection();
     };
   }, [open, refresh]);
-  useEffect(() => () => clearTimeout(previewTimer.current), []);
+  // The panel remounts when the left slot changes mode; the list comes back
+  // from cache after that first render, and only then can it be scrolled.
+  const hasRows = community.page.entries.length > 0;
+  useEffect(() => {
+    const body = surface.root.current?.closest(".shapes-panel-body");
+    if (!body || !hasRows) return;
+    body.scrollTop = remembered.scrollTop;
+    const keep = () => {
+      remembered.scrollTop = body.scrollTop;
+    };
+    body.addEventListener("scroll", keep);
+    return () => body.removeEventListener("scroll", keep);
+  }, [hasRows]);
 
   /** Resolves true once placement or editing has started. */
   async function choose(
     summary: ComponentLibrarySummary,
     action: RecordAction,
-    list: CatalogList,
   ): Promise<boolean> {
     selection.current?.abort();
     const controller = new AbortController();
@@ -225,12 +222,6 @@ export default function UserComponentsLibrary({
     showNotice(null);
     setRestorable(null);
     const deleted = summary.status === "deleted";
-    const pin = (entry: SharedComponent) => {
-      const row = root.current?.querySelector<HTMLElement>(
-        `[data-component-id="${CSS.escape(summary.id)}"]`,
-      );
-      if (row) setCard({ summary, row, entry });
-    };
     try {
       const detailKey = `${summary.id}:${summary.revision}`;
       const cached =
@@ -239,7 +230,7 @@ export default function UserComponentsLibrary({
           : undefined;
       if (cached) {
         await checkSharedComponentRevision(summary, controller.signal);
-        if (!controller.signal.aborted) pin(cached);
+        if (!controller.signal.aborted) surface.pin(summary, cached);
         return false;
       }
       const record = await readSharedComponentRecord(
@@ -257,7 +248,7 @@ export default function UserComponentsLibrary({
       const entry = parseSharedComponentEntry(record);
       if (!deleted) details.current.set(detailKey, entry);
       if (action === "details") {
-        pin(entry);
+        surface.pin(summary, entry);
         return false;
       }
       if (action === "place") return (await onInsert(entry)) !== false;
@@ -266,11 +257,15 @@ export default function UserComponentsLibrary({
     } catch (error) {
       if (!controller.signal.aborted) {
         showNotice(error instanceof Error ? error.message : String(error));
-        setCard(null);
+        surface.closeCard();
         if (error instanceof ComponentLibraryError && error.status === 409) {
           details.current.clear();
           // Refresh only this immutable selection; never silently place a newer revision.
-          await list.reload(controller.signal);
+          await lists.current
+            .find((list) =>
+              list.page.entries.some((entry) => entry.id === summary.id),
+            )
+            ?.reload(controller.signal);
         }
       }
       return false;
@@ -293,103 +288,20 @@ export default function UserComponentsLibrary({
     );
     setRestorable(action === "delete" ? result.entry : null);
   }
-  const previewRow =
-    (summary: ComponentLibrarySummary) => (row: HTMLElement) => {
-      clearTimeout(previewTimer.current);
-      previewTimer.current = setTimeout(
-        () =>
-          setCard((current) => (current?.entry ? current : { summary, row })),
-        card ? PREVIEW_SWITCH_MS : PREVIEW_DELAY_MS,
-      );
-    };
-  const endPreview = () => {
-    clearTimeout(previewTimer.current);
-    previewTimer.current = setTimeout(
-      () => setCard((current) => (current?.entry ? current : null)),
-      PREVIEW_LINGER_MS,
-    );
-  };
-  const closeCard = () => {
-    clearTimeout(previewTimer.current);
-    setCard(null);
-  };
   const filterAuthor = (authorId: string) => {
-    closeCard();
+    surface.closeCard();
     setCatalog({ ...catalog, authorId });
   };
-
-  const renderRows = (list: CatalogList, scope: string) => {
-    const rows: ReactNode[] = [];
-    const row = (
-      entry: ComponentLibrarySummary,
-      extra: {
-        variant?: boolean;
-        count?: number;
-        expanded?: boolean;
-        onToggleGroup?(): void;
-      },
-    ) => (
-      <ComponentLibraryRow
-        key={`${entry.id}:${entry.revision}`}
-        entry={entry}
-        busy={busy}
-        tabbable={rows.length === 0}
-        own={scope === "mine"}
-        {...extra}
-        onToggleGroup={extra.onToggleGroup ?? (() => {})}
-        onPlace={() => {
-          closeCard();
-          if (!suppressClick.current) void choose(entry, "place", list);
-        }}
-        onDragStart={(event) => {
-          closeCard();
-          startCanvasDrag(event, {
-            begin: () => choose(entry, "place", list),
-            drop: (x, y) => onDropPlacement?.(x, y),
-            dragged: () => {
-              suppressClick.current = true;
-              window.setTimeout(() => {
-                suppressClick.current = false;
-              }, 0);
-            },
-          });
-        }}
-        onMenu={(anchor) => {
-          closeCard();
-          setMenu({ entry, list, ...anchor });
-        }}
-        onPreview={previewRow(entry)}
-        onPreviewEnd={endPreview}
-      />
-    );
-    for (const group of groupCatalogEntries(list.page.entries)) {
-      const groupKey = `${scope}:${group.key}`;
-      const expanded = openGroups.has(groupKey);
-      rows.push(
-        row(group.head, {
-          count: group.others.length,
-          expanded,
-          onToggleGroup: () =>
-            setOpenGroups((current) => {
-              const next = new Set(current);
-              if (!next.delete(groupKey)) next.add(groupKey);
-              return next;
-            }),
-        }),
-      );
-      if (expanded)
-        for (const other of group.others)
-          rows.push(row(other, { variant: true }));
-    }
-    return rows;
-  };
+  const artwork = (entry: ComponentLibrarySummary) => (
+    <LibraryPreview entry={entry} />
+  );
   const listState = (
     list: CatalogList,
     empty: string,
     failure: string,
   ): ReactNode =>
     list.error ? (
-      <p className="community-message" role="status">
+      <p className="user-components-message" role="status">
         <span>
           {list.page.entries.length
             ? "Couldn’t refresh components. Loaded components are still available."
@@ -400,83 +312,20 @@ export default function UserComponentsLibrary({
         </button>
       </p>
     ) : list.loading ? (
-      <p className="community-message" role="status">
+      <p className="user-components-message" role="status">
         Loading components…
       </p>
     ) : !list.page.entries.length ? (
-      <p className="community-message">{empty}</p>
+      <p className="user-components-message">{empty}</p>
     ) : null;
 
-  const onRowKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (!target.classList.contains("component-row-main")) return;
-    const rows = [
-      ...event.currentTarget.querySelectorAll<HTMLElement>(
-        ".component-row-main",
-      ),
-    ];
-    const at = rows.indexOf(target);
-    const id = target.closest<HTMLElement>("[data-component-id]")?.dataset
-      .componentId;
-    if (
-      event.key === "ContextMenu" ||
-      (event.key === "F10" && event.shiftKey)
-    ) {
-      const list = lists.current.find((candidate) =>
-        candidate.page.entries.some((entry) => entry.id === id),
-      );
-      const entry = list?.page.entries.find((item) => item.id === id);
-      if (list && entry) {
-        const box = target.getBoundingClientRect();
-        closeCard();
-        setMenu({
-          entry,
-          list,
-          x: box.left + 24,
-          y: box.bottom,
-          fromKeyboard: true,
-        });
-      }
-    } else if (event.key === "ArrowDown") rows[at + 1]?.focus();
-    else if (event.key === "ArrowUp") rows[at - 1]?.focus();
-    else if (event.key === "Home") rows[0]?.focus();
-    else if (event.key === "End") rows.at(-1)?.focus();
-    else {
-      // Typing on a row continues the panel's search, as in a file explorer.
-      if (
-        event.key.length === 1 &&
-        event.key !== " " &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.altKey
-      )
-        event.currentTarget
-          .closest(".shapes-panel")
-          ?.querySelector<HTMLElement>('input[type="search"]')
-          ?.focus();
-      return;
-    }
-    event.preventDefault();
-  };
-
-  const menuItem = (label: string, run: () => void, note?: string) => (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={() => {
-        setMenu(null);
-        run();
-      }}
-    >
-      <span>
-        {label}
-        {note ? <small className="hierarchy-menu-note">{note}</small> : null}
-      </span>
-    </button>
+  const closeMenu = () => surface.setMenu(null);
+  const menuItem = (label: string, run: () => void) => (
+    <ComponentMenuItem label={label} onClose={closeMenu} onSelect={run} />
   );
   const renderMenu = () => {
-    if (!menu) return null;
-    const { entry, list } = menu;
+    if (!surface.menu) return null;
+    const { entry } = surface.menu;
     const invalid = entry.capability === "needs-repair";
     const deleted = entry.status === "deleted";
     const canManage = !!user && (user.isAdmin || user.id === entry.authorId);
@@ -489,23 +338,23 @@ export default function UserComponentsLibrary({
         user?.isAdmin);
     return (
       <ContextMenu
-        position={menu}
+        position={surface.menu}
         label={`Actions for ${entry.name}`}
         testId="component-context-menu"
         className="hierarchy-context-menu"
-        takeFocus={menu.fromKeyboard ?? false}
-        onClose={() => setMenu(null)}
+        takeFocus={surface.menu.fromKeyboard ?? false}
+        onClose={closeMenu}
       >
         {invalid
-          ? menuItem("Copy raw record", () => void choose(entry, "raw", list))
-          : menuItem("Details", () => void choose(entry, "details", list))}
+          ? menuItem("Copy raw record", () => void choose(entry, "raw"))
+          : menuItem("Details", () => void choose(entry, "details"))}
         {!invalid && !deleted
-          ? menuItem("Create from…", () => void choose(entry, "new", list))
+          ? menuItem("Create from…", () => void choose(entry, "new"))
           : null}
         {canEdit
           ? menuItem(
               user?.isAdmin ? "Manage" : "Edit",
-              () => void choose(entry, "update", list),
+              () => void choose(entry, "update"),
             )
           : null}
         {catalog.authorId !== entry.authorId && entry.authorId !== accountId
@@ -523,7 +372,7 @@ export default function UserComponentsLibrary({
               aria-label={`Delete ${entry.name} from library`}
               onConfirm={async () => {
                 await manage(entry, "delete");
-                setMenu(null);
+                closeMenu();
               }}
             >
               Delete from library
@@ -538,13 +387,18 @@ export default function UserComponentsLibrary({
   const mineCount = community.page.authors?.find(
     (author) => author.authorId === accountId,
   )?.count;
-  const showMine = !!user || !!drafts?.entries.length;
+  const showMine = !!user || !!drafts?.entries.length || keepMine;
   return (
     <div
-      ref={root}
-      className="community-library"
+      ref={surface.root}
+      className="user-components-panel"
       data-plain-keys="local"
-      onKeyDown={onRowKeyDown}
+      onKeyDown={(event) =>
+        surface.onKeyDown(
+          event,
+          lists.current.flatMap((list) => list.page.entries),
+        )
+      }
     >
       {toolsSlot
         ? createPortal(
@@ -580,11 +434,13 @@ export default function UserComponentsLibrary({
           label="Filter components"
           onClose={() => setFilterAnchor(null)}
         >
-          <ComponentCatalogControls
-            value={catalog}
-            authors={community.page.authors}
-            onChange={setCatalog}
-          />
+          <div className="component-catalog-controls">
+            <ComponentCatalogControls
+              value={catalog}
+              authors={community.page.authors}
+              onChange={setCatalog}
+            />
+          </div>
           {filtered ? (
             <button
               type="button"
@@ -632,7 +488,7 @@ export default function UserComponentsLibrary({
       ) : null}
       {showMine ? (
         <details
-          className="community-nested"
+          className="user-components-nested"
           data-testid="community-mine"
           open={mineOpen}
           onToggle={(event) => {
@@ -646,7 +502,16 @@ export default function UserComponentsLibrary({
           </summary>
           {user && mineOpen ? (
             <>
-              {renderRows(mine, "mine")}
+              <ComponentRows
+                surface={surface}
+                entries={mine.page.entries}
+                scope="mine"
+                busy={busy}
+                own
+                artwork={artwork}
+                onPlace={(entry) => choose(entry, "place")}
+                onDropPlacement={onDropPlacement}
+              />
               {listState(
                 mine,
                 query ? "Nothing of yours matches." : "Nothing published yet.",
@@ -658,13 +523,20 @@ export default function UserComponentsLibrary({
             <ComponentDraftList
               catalog={drafts}
               onOpen={(target) => onOpenDraft?.(target)}
-              onDelete={onDeleteDrafts}
+              onDelete={
+                onDeleteDrafts &&
+                ((targets) => {
+                  const error = onDeleteDrafts(targets);
+                  if (!error) setKeepMine(true);
+                  return error;
+                })
+              }
               previewDeletion={previewDraftDeletion}
             />
           ) : null}
           {user ? (
             <details
-              className="community-nested"
+              className="user-components-nested"
               open={removedOpen}
               onToggle={(event) => {
                 remembered.removed = event.currentTarget.open;
@@ -676,7 +548,16 @@ export default function UserComponentsLibrary({
               </summary>
               {removedOpen ? (
                 <>
-                  {renderRows(removed, "removed")}
+                  <ComponentRows
+                    surface={surface}
+                    entries={removed.page.entries}
+                    scope="removed"
+                    busy={busy}
+                    own
+                    artwork={artwork}
+                    onPlace={async () => false}
+                    onDropPlacement={onDropPlacement}
+                  />
                   {listState(
                     removed,
                     "No deleted components.",
@@ -688,7 +569,15 @@ export default function UserComponentsLibrary({
           ) : null}
         </details>
       ) : null}
-      {renderRows(community, "community")}
+      <ComponentRows
+        surface={surface}
+        entries={community.page.entries}
+        scope="community"
+        busy={busy}
+        artwork={artwork}
+        onPlace={(entry) => choose(entry, "place")}
+        onDropPlacement={onDropPlacement}
+      />
       {listState(
         community,
         query
@@ -699,15 +588,16 @@ export default function UserComponentsLibrary({
         "Couldn’t load community components.",
       )}
       {renderMenu()}
-      {card ? (
+      {surface.card ? (
         <ComponentPreviewCard
-          summary={card.summary}
-          row={card.row}
-          entry={card.entry}
-          onHold={() => clearTimeout(previewTimer.current)}
-          onRelease={endPreview}
-          onClose={closeCard}
-          onFilterAuthor={() => filterAuthor(card.summary.authorId)}
+          summary={surface.card.summary}
+          row={surface.card.row}
+          artwork={artwork(surface.card.summary)}
+          entry={surface.card.entry}
+          onHold={surface.holdPreview}
+          onRelease={surface.endPreview}
+          onClose={surface.closeCard}
+          onFilterAuthor={() => filterAuthor(surface.card!.summary.authorId)}
         />
       ) : null}
     </div>

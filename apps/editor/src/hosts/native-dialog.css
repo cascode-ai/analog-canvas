@@ -72,8 +72,7 @@
 .native-save-dialog p {
   flex-basis: 100%;
 }
-.native-library-dialog,
-.native-components-dialog {
+.native-library-dialog {
   width: min(56rem, 90vw);
 }
 .native-library-toolbar {
@@ -87,15 +86,13 @@
   flex: 1;
   min-width: 12rem;
 }
-.native-project-list,
-.native-component-list {
+.native-project-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 .native-project-list > li,
-.native-project-list > article,
-.native-component-list > li {
+.native-project-list > article {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
@@ -179,24 +176,6 @@
   padding: 0.75rem;
   border: 1px solid var(--icm-border);
   border-radius: 8px;
-}
-.native-components-dialog header p {
-  margin: 0.3rem 0 0;
-  font-size: 0.85rem;
-}
-.native-component-list > li {
-  grid-template-columns: 4rem minmax(0, 1fr) auto auto auto;
-}
-.native-component-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 4rem;
-  height: 4rem;
-}
-.native-component-preview svg {
-  max-width: 100%;
-  max-height: 100%;
 }
 @media (max-width: 1000px) {
   .native-component-list > li {

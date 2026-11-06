@@ -32,8 +32,9 @@ to keep your edits in another file, or explicitly close the old tab and reopen
 the file. Writes replace the destination atomically after checking its bytes;
 this is optimistic conflict detection, not an operating-system-wide write lock.
 
-**Edit → User Components…** creates and edits reusable definitions with the same
-SPICE/Spectre and artwork editors as the Web version. Apply the definition, then
+The Library's **My components** fold (or **Edit → My Components…**) creates
+and edits reusable definitions with the same SPICE/Spectre and artwork editors
+as the Web version. Apply the definition, then
 **Save to local library**. Definitions persist in
 `%APPDATA%\Analog Canvas\components.json`, independently of the current Project
 and extracted ZIP. The library supports search, independent copies, definition

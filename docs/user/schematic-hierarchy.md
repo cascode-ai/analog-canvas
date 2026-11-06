@@ -150,8 +150,8 @@ preview. The starter text is commented examples:
 Uncomment, add the body and end with `.ends my_cell` (or `ends my_cell`).
 **Apply model** commits; **Apply & Place** then places it in the parent
 (`Esc` keeps the applied model). With several subcircuits, choose the public
-entry; helpers stay with the source. The same editor opens from **Edit → User
-Components… → Create Component…**.
+entry; helpers stay with the source. The same editor opens from **+** on the
+Library's **Community** fold.
 
 - **Format / Process / Copy** converts this model's draft between SPICE and
   SCS and between processes, as the Netlist sidebar does. Only reviewed core

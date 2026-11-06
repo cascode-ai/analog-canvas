@@ -1,6 +1,6 @@
 import {
   useEffect,
-  useState,
+  useRef,
   Suspense,
   type Dispatch,
   type RefObject,
@@ -61,12 +61,12 @@ const ComponentSession = lazyChunk(
   () => import("./editor-component-session-body"),
 );
 const ComponentLibrary = lazyChunk(
-  "dialog",
+  "inline",
   () => import("./editor-component-library"),
 );
 
-/** The Library panel's Community fold, loaded once that fold first opens. */
-export function EditorCommunityComponents(
+/** The Library panel's component fold, loaded once that fold first opens. */
+export function EditorLibraryComponents(
   props: EditorComponentEditorProps & {
     open: boolean;
     query: string;
@@ -74,67 +74,54 @@ export function EditorCommunityComponents(
     onDropPlacement(clientX: number, clientY: number): void;
   },
 ) {
-  useEffect(() => preloadComponentDefinitionEditor(), []);
+  useEffect(() => {
+    preloadComponentDefinitionEditor();
+  }, []);
   return (
     <Suspense
       fallback={
-        <p className="community-message" role="status">
+        <p className="user-components-message" role="status">
           Loading components…
         </p>
       }
     >
-      <ComponentLibrary {...props} onClose={() => {}} />
+      <ComponentLibrary {...props} />
     </Suspense>
   );
 }
 
-/** Keep navigation and desktop dialog state while code loads on demand. */
+/** Keep navigation while the definition editor's code loads on demand. */
 export function EditorComponentEditor(props: EditorComponentEditorProps) {
   const {
     capabilities,
     componentEditor,
     setComponentEditor,
-    userComponentsOpen,
+    setComponentLibraryRefresh,
     setUserComponentsOpen,
     returnToLibrary,
   } = props;
-  const nativeLibrary = Boolean(import.meta.env?.ICM_DESKTOP);
-  const [libraryOpened, setLibraryOpened] = useState(false);
+  // The Library panel stays open under an editing session, which may publish,
+  // so the list is checked again when the session ends.
+  const editing = componentEditor !== null;
+  const wasEditing = useRef(editing);
   useEffect(() => {
-    if (nativeLibrary && userComponentsOpen) {
-      setLibraryOpened(true);
-      preloadComponentDefinitionEditor();
-    }
-  }, [nativeLibrary, userComponentsOpen]);
+    if (wasEditing.current && !editing)
+      setComponentLibraryRefresh((value) => value + 1);
+    wasEditing.current = editing;
+  }, [editing]);
   if (!capabilities.community && !capabilities.localComponents) return null;
   const cancelSession = () => {
     setComponentEditor(null);
     if (returnToLibrary.current) setUserComponentsOpen(true);
   };
-  return (
-    <>
-      {componentEditor ? (
-        <Suspense
-          fallback={<ComponentEditorLoading onCancel={cancelSession} />}
-        >
-          <ComponentSession
-            key={componentEditor.key}
-            {...props}
-            componentEditor={componentEditor}
-            onClose={cancelSession}
-          />
-        </Suspense>
-      ) : null}
-      {nativeLibrary && (userComponentsOpen || libraryOpened) ? (
-        <Suspense fallback={null}>
-          <div hidden={!userComponentsOpen}>
-            <ComponentLibrary
-              {...props}
-              onClose={() => setUserComponentsOpen(false)}
-            />
-          </div>
-        </Suspense>
-      ) : null}
-    </>
-  );
+  return componentEditor ? (
+    <Suspense fallback={<ComponentEditorLoading onCancel={cancelSession} />}>
+      <ComponentSession
+        key={componentEditor.key}
+        {...props}
+        componentEditor={componentEditor}
+        onClose={cancelSession}
+      />
+    </Suspense>
+  ) : null;
 }

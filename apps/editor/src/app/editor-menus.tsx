@@ -83,7 +83,7 @@ export function EditorMenuBar({
   publicSimulationUiEnabled,
   setStatus,
   userComponentsOpen,
-  openCommunity,
+  openUserComponents,
   leftPanelMode,
   setSelectionOpen,
   searchOpen,
@@ -181,7 +181,7 @@ export function EditorMenuBar({
   publicSimulationUiEnabled: boolean;
   setStatus: Dispatch<SetStateAction<string>>;
   userComponentsOpen: boolean;
-  openCommunity(): void;
+  openUserComponents(): void;
   leftPanelMode: EditorPanels["leftPanelMode"];
   setSelectionOpen: EditorPanels["setSelectionOpen"];
   searchOpen: EditorPanels["searchOpen"];
@@ -470,7 +470,7 @@ export function EditorMenuBar({
       searchOpen={searchOpen}
       selectionFilterOpen={selectionFilterOpen}
       userComponentsOpen={userComponentsOpen}
-      onOpenUserComponents={openCommunity}
+      onOpenUserComponents={openUserComponents}
       onInsertComponent={() =>
         editorCommands.execute({
           id: "insert.start",

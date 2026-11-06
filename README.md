@@ -111,8 +111,8 @@ describe how the local registration works.
    external changes are checked before writing. Closing offers to save all changed
    tabs, commits the latest workspace before exit, and stays open if saving or
    workspace persistence fails.
-6. **User Components** supports local circuit and artwork definitions through
-   the shared authoring editor. Create, edit, import/export, remove and restore
+6. **My components**, in the Library panel, holds local circuit and artwork
+   definitions made in the shared authoring editor. Create, edit, import/export, remove and restore
    definitions without an account. The library persists separately in
    `%APPDATA%\Analog Canvas\components.json`; placed project instances retain
    their captured version when the library changes.

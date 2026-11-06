@@ -1,6 +1,9 @@
-import { useRef, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import type { ComponentLibrarySummary } from "@icm/agent-adapter";
-import { LibraryPreview } from "./library-preview";
 
 /**
  * One record on the Library's working surface. Click or Enter places it and
@@ -9,6 +12,7 @@ import { LibraryPreview } from "./library-preview";
  */
 export function ComponentLibraryRow({
   entry,
+  artwork,
   busy,
   tabbable,
   variant = false,
@@ -23,6 +27,7 @@ export function ComponentLibraryRow({
   onPreviewEnd,
 }: {
   entry: ComponentLibrarySummary;
+  artwork: ReactNode;
   busy: boolean;
   tabbable: boolean;
   /** A record listed under its group's row, told apart by date and Pins. */
@@ -79,16 +84,16 @@ export function ComponentLibraryRow({
           if (!unavailable && !busy) onPlace();
         }}
       >
-        <LibraryPreview entry={entry} />
+        {artwork}
         <span className="component-row-text">
           <span className="component-row-name">{entry.name}</span>
           <small>
             {invalid
-              ? "Needs repair"
+              ? `Needs repair · ${entry.author.trim() || "Unknown author"}`
               : variant
                 ? `${published} · ${entry.pinCount} pins`
                 : own
-                  ? published
+                  ? `${published} · r${entry.revision}`
                   : entry.author.trim() || "Unknown author"}
           </small>
         </span>

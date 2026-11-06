@@ -75,8 +75,6 @@ interface EditorShortcutDependencies {
   nativeProjectStore: EditorServices["nativeProjectStore"];
   setStatus: Dispatch<SetStateAction<string>>;
   componentEditor: ComponentEditorSession | null;
-  userComponentsOpen: boolean;
-  setUserComponentsOpen: Dispatch<SetStateAction<boolean>>;
   selectionOpen: EditorPanels["selectionOpen"];
   setSelectionOpen: EditorPanels["setSelectionOpen"];
   searchOpen: EditorPanels["searchOpen"];
@@ -239,8 +237,6 @@ function createEditorShortcutHandler({
   nativeProjectStore,
   setStatus,
   componentEditor,
-  userComponentsOpen,
-  setUserComponentsOpen,
   selectionOpen,
   setSelectionOpen,
   searchOpen,
@@ -346,12 +342,6 @@ function createEditorShortcutHandler({
     )
       return;
     if (componentEditor) return;
-    if (userComponentsOpen) {
-      if (globalThis.document.querySelector(".component-popover:popover-open"))
-        return;
-      if (event.key === "Escape") setUserComponentsOpen(false);
-      return;
-    }
     // The source workbench owns its keyboard scope, including portalled menus.
     if (
       event.target instanceof Element &&

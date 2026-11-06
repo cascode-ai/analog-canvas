@@ -68,6 +68,7 @@ import { sharedComponentNetlist } from "../user-components/component-definition-
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
 import type { PendingComponentPlacement } from "../../interaction/interaction-state";
 import type { DrawingTool } from "../../interaction/interaction-state";
+import { ComponentLibraryError } from "../user-components/component-library-error";
 import { uprightOrUp } from "../drafting/drafting-manipulation";
 
 type TransactionResult = { ok: boolean; revision: number };
@@ -142,6 +143,8 @@ export interface UseComponentPlacementOptions {
   completeVddRailPlacement: () => void;
   setComponentPreviewPoint: (point: Point) => void;
   setStatus: (status: string) => void;
+  /** A captured component's library record changed before it landed. */
+  onLibraryChanged?: () => void;
   vddRailMode: boolean;
   vddRailNetName: string | null;
   vddRailStart: Point | null;
@@ -525,6 +528,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       latest.current.setStatus(
         error instanceof Error ? error.message : String(error),
       );
+      if (error instanceof ComponentLibraryError && error.status === 409)
+        latest.current.onLibraryChanged?.();
       return false;
     } finally {
       captureBusy.current = false;

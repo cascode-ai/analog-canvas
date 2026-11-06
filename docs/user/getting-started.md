@@ -213,22 +213,32 @@ drawing and its component definitions. Apply is undoable; invalid code changes
 nothing. Selecting parts highlights their JSON.
 
 To edit a component's definition, select it and press `E` (`Q` still edits the
-instance). **Edit → User Components… → Create Component…** opens the
-**Circuit** and **Symbol** tabs: enter SPICE or Spectre (or choose a Project
+instance). **+** on the Library's **Community** fold creates a component in
+the **Circuit** and **Symbol** tabs: enter SPICE or Spectre (or choose a Project
 source), use Automatic or Custom JSON artwork, and map each native terminal to
 a pin or to VDD/VSS. **Apply model** changes the Project in one undoable step;
 **Place** applies first; **More → Save draft** keeps unfinished work (even
 invalid text) in the Project. See [schematic hierarchy](schematic-hierarchy.md)
 for external models.
 
+The Library's search covers **Official components** and **Community**, which
+starts shut above them; **Edit → Community Components…** also opens it. Click a
+row to place it, or drag it onto the canvas. Pointing at a row shows its large
+preview; **⋯** or right-click holds **Details**, **Create from…**, **Edit** and
+deletion. One author's records of one name share a row, and its count lists
+them. **My components**, inside Community, holds your publications, Project
+drafts and deleted records. Press `I` to find a component already in this
+Project, under its own name.
+
 **Publish** shares an applied definition publicly (sign-in required) with its
 source, owned helper files and artwork, not drafts or testbenches. Authors and
 administrators update their records; others use **Publish as new component**.
 Placing a public component captures it in your Project, so later library
-changes or deletion never alter your circuit. **Needs repair** cards show why
-an old definition no longer validates; **Copy raw record** and repair it in
-**Create Component**. **Refresh** reloads the public list. Administrators can
-mark entries **Official**, delete them or restore them from **Deleted**.
+changes or deletion never alter your circuit. Point at a row that **Needs
+repair** to see why its definition no longer validates; **Copy raw record** and
+repair it in a new component. The list reads the library again when you return
+from editing or reopen it. Administrators can mark entries **Official**, delete
+them or restore them from **Deleted (all)**.
 
 Custom artwork can also be edited in Project Code under
 `componentDefinitions` (`symbol` shapes and pins; `electrical` and

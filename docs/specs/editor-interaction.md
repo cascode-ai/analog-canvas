@@ -14,6 +14,19 @@ rendering and recovery.
   controller (`all` picker, `cells` picker, or a chosen Symbol) delegating to the
   component, Cell, Cell-Pin, external-master or VDD-rail planner, or activating
   an editor tool. It adds no Project type, Edit Engine operation or Agent endpoint.
+- The Library panel searches **Official components** (the built-in catalog) and
+  one component fold: **Community** on the Web, with **My components** (own
+  records, Project drafts, deleted records) inside it, or **My components** on
+  the desktop. The fold starts shut and loads only once opened or searched;
+  Edit's command opens it and focuses the search.
+- A component row places on click or Enter, or once where a drag onto the
+  canvas ends. Its commands open from **⋯**, right-click or the Menu key;
+  pointing at or focusing it shows its preview beside the panel. One author's
+  records of one name share a row whose count lists them. The fold reads its
+  catalog again when an editing session ends, when Edit's command reopens it
+  and when a placement finds its record changed.
+- `I` lists the components a Project holds under **In this Project**, by their
+  own names.
 - A Cell placement shares cursor preview, snap, rotation, mirror and cancel with
   Symbols and creates one typed subcircuit Instance through a Project structural
   transaction. `Xn` is its sole Netlist Reference; an internal Cell shows its

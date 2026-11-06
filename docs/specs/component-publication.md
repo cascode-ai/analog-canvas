@@ -77,9 +77,9 @@ consume.
   Deleted discovery, previews and records are visible only to their author and
   administrators. Public discovery and new insertion exclude deleted records.
   Catalog revisions, author totals and duplicate lookup reflect each transition.
-- GUI card actions and Agent `delete`/`restore` share this authority; cards offer
-  deletion only to authorized users. Deleted view is opt-in; restore feedback and
-  management menus do not change Project Undo history.
+- GUI row menus and Agent `delete`/`restore` share this authority; menus offer
+  deletion only to authorized users. The Deleted fold is opt-in; restore feedback
+  and management menus do not change Project Undo history.
 
 - An identical update returns `unchanged` (no revision or time change).
   Duplicate new publications: HTTP 409 `COMPONENT_ALREADY_PUBLISHED` with

@@ -18,20 +18,18 @@ import {
   isLibraryAuthoringDraft,
 } from "../features/user-components/library-circuit-authoring";
 const UserComponentsLibrary = import.meta.env?.ICM_DESKTOP
-  ? lazyChunk("dialog", () => import("../hosts/native-components-library"))
+  ? lazyChunk("inline", () => import("../hosts/native-components-library"))
   : lazyChunk(
-      "dialog",
+      "inline",
       () => import("../features/user-components/user-components-library"),
     );
 
 export default function EditorComponentLibrary(
   props: EditorComponentEditorProps & {
-    onClose(): void;
-    /** Present in the Library panel, where this list is a fold. */
-    open?: boolean;
-    query?: string;
-    toolsSlot?: HTMLElement | null;
-    onDropPlacement?(clientX: number, clientY: number): void;
+    open: boolean;
+    query: string;
+    toolsSlot: HTMLElement | null;
+    onDropPlacement(clientX: number, clientY: number): void;
   },
 ) {
   const {
@@ -41,14 +39,12 @@ export default function EditorComponentLibrary(
     setStatus,
     setComponentEditor,
     componentLibraryRefresh,
-    userComponentsOpen,
-    setUserComponentsOpen,
     definitionProjectRef,
     cancelAllTransientInteraction,
     returnToLibrary,
   } = props;
   const { insertSharedComponent } = componentEditorPlacement(props);
-  const open = props.open ?? userComponentsOpen;
+  const { open, query, toolsSlot, onDropPlacement } = props;
   const draftCatalog = useMemo(
     () => (open ? componentDraftCatalog(project) : undefined),
     [open, project.componentAuthoringDrafts, project.modelSources],
@@ -58,13 +54,9 @@ export default function EditorComponentLibrary(
       <UserComponentsLibrary
         open={open}
         refresh={componentLibraryRefresh}
-        {...(props.query !== undefined ? { query: props.query } : {})}
-        {...(props.toolsSlot !== undefined
-          ? { toolsSlot: props.toolsSlot }
-          : {})}
-        {...(props.onDropPlacement
-          ? { onDropPlacement: props.onDropPlacement }
-          : {})}
+        query={query}
+        toolsSlot={toolsSlot}
+        onDropPlacement={onDropPlacement}
         {...(draftCatalog ? { drafts: draftCatalog } : {})}
         previewDraftDeletion={(targets) =>
           planComponentDraftDeletion(
@@ -250,17 +242,6 @@ export default function EditorComponentLibrary(
                   },
                 }
               : {}),
-          });
-        }}
-        onClose={() => setUserComponentsOpen(false)}
-        onCreate={() => {
-          returnToLibrary.current = true;
-          cancelAllTransientInteraction();
-          setComponentEditor({
-            key: crypto.randomUUID(),
-            projectSessionId,
-            mode: "new",
-            definition: newComponentDefinition(),
           });
         }}
         onEdit={async (entry, publicationIntent) => {

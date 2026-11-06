@@ -1,8 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import type { ComponentLibrarySummary } from "@icm/agent-adapter";
 import type { SharedComponent } from "./component-library-contract";
-import { LibraryPreview } from "./library-preview";
 
 const capabilityLabel = (entry: ComponentLibrarySummary) =>
   entry.capability === "symbol-only"
@@ -19,6 +24,7 @@ const capabilityLabel = (entry: ComponentLibrarySummary) =>
 export function ComponentPreviewCard({
   summary,
   row,
+  artwork,
   entry,
   onHold,
   onRelease,
@@ -27,12 +33,14 @@ export function ComponentPreviewCard({
 }: {
   summary: ComponentLibrarySummary;
   row: HTMLElement;
+  artwork: ReactNode;
   /** Present once pinned by Details. */
   entry?: SharedComponent | undefined;
   onHold(): void;
   onRelease(): void;
   onClose(): void;
-  onFilterAuthor(): void;
+  /** Absent where every record is the member's own. */
+  onFilterAuthor?(): void;
 }) {
   const card = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 });
@@ -41,14 +49,18 @@ export function ComponentPreviewCard({
     const place = () => {
       const box = row.getBoundingClientRect();
       const panel = row.closest(".shapes-panel")?.getBoundingClientRect();
-      const height = node.offsetHeight;
-      const width = node.offsetWidth;
+      const own = node.getBoundingClientRect();
+      // Measured boxes include page zoom; the card's own offsets do not.
+      const scale = node.offsetWidth ? own.width / node.offsetWidth : 1;
       setPosition({
-        left: Math.min(
-          (panel?.right ?? box.right) + 8,
-          window.innerWidth - width - 8,
-        ),
-        top: Math.max(8, Math.min(box.top, window.innerHeight - height - 8)),
+        left:
+          Math.min(
+            (panel?.right ?? box.right) + 8,
+            window.innerWidth - own.width - 8,
+          ) / scale,
+        top:
+          Math.max(8, Math.min(box.top, window.innerHeight - own.height - 8)) /
+          scale,
       });
     };
     place();
@@ -91,13 +103,18 @@ export function ComponentPreviewCard({
       onPointerEnter={onHold}
       onPointerLeave={onRelease}
     >
-      <LibraryPreview entry={summary} />
+      {artwork}
       <strong>{summary.name}</strong>
       <p>
-        <button type="button" onClick={onFilterAuthor}>
-          {summary.author.trim() || "Unknown author"}
-        </button>
-        {` · ${capabilityLabel(summary)} · ${summary.pinCount} pins · ${summary.parameterCount} parameters`}
+        {onFilterAuthor ? (
+          <>
+            <button type="button" onClick={onFilterAuthor}>
+              {summary.author.trim() || "Unknown author"}
+            </button>
+            {" · "}
+          </>
+        ) : null}
+        {`${capabilityLabel(summary)} · ${summary.pinCount} pins · ${summary.parameterCount} parameters · Revision ${summary.revision}`}
       </p>
       {summary.capability === "symbol-only" ? (
         <p>No circuit model yet: add one before exporting a netlist.</p>
