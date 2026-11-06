@@ -502,7 +502,9 @@ export class GalleryDO {
       if (
         (participating && operation.startsWith("cloud-project-")) ||
         operation === "cloud-project-region" ||
-        operation.startsWith("sync-")
+        operation.startsWith("sync-") ||
+        operation === "submit" ||
+        operation === "replace-entry"
       )
         return this.regionalProjects.handle(operation, body);
       if (
@@ -514,31 +516,6 @@ export class GalleryDO {
           { status: 409 },
         );
     }
-    const affectsParticipatingOwner =
-      this.regionalProjects &&
-      operation === "replace-entry" &&
-      typeof body.ownerUserId === "string"
-        ? this.sql
-            .exec<{ user_id: string }>(
-              "SELECT DISTINCT user_id FROM cloud_projects WHERE gallery_entry_id=? AND user_id<>?",
-              String(body.id),
-              body.ownerUserId,
-            )
-            .toArray()
-            .some((row) =>
-              includesProjectOwner(this.env?.PROJECT_REGION_USERS, row.user_id),
-            )
-        : false;
-    if (
-      affectsParticipatingOwner ||
-      (participating &&
-        (body.cloudProjectId !== undefined ||
-          (operation === "replace-entry" && body.ownerUserId !== undefined)))
-    )
-      return Response.json(
-        { error: "regional-publication-unavailable" },
-        { status: 409 },
-      );
     switch (operation) {
       case "submit":
         return submit(this.state, body);

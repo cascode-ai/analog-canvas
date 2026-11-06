@@ -38,10 +38,10 @@ or an operator connection; the restricted trial's acceptance remains Issue #1974
   region uses the corresponding inbound token for its outbound delivery.
 - `project-region-users.json` contains the private, confirmed original account
   IDs. Use the same cohort at the source, following the Project contract.
-- Bind source `PROJECTS` to its existing `GalleryDO` namespace and select
-  `PROJECTS_STORE_NAME=gallery`; set `PROJECT_REGION=overseas` only on a reviewed
-  source candidate. A new source namespace would hide existing Projects.
-  The unmodified overseas configuration remains disabled.
+- Set `PROJECT_REGION=overseas` only on a reviewed source candidate; the
+  [Project contract](../../../docs/specs/regional-projects.md) reuses its existing
+  singleton. Leave `PROJECTS` unbound at the source. The unmodified overseas
+  configuration remains disabled.
 - Authority and peer origins must reach overseas unambiguously. Geographic DNS
   on a shared public domain is not sufficient for background traffic or login
   handoff. For a shared browser origin, pin `transportOrigin` to a separate

@@ -31,6 +31,7 @@ export interface ProjectVersionRow {
   preview_svg: string;
 }
 export interface ProjectChange {
+  creationIntent?: string;
   origin: "cn" | "overseas";
   kind?: "quota";
   reservation?: string;
@@ -107,12 +108,19 @@ export async function decodeProjectEvent(
   const row = change.project;
   if (change.kind !== undefined && change.kind !== "quota") return null;
   if (
+    change.creationIntent !== undefined &&
+    (typeof change.creationIntent !== "string" ||
+      !/^[a-f0-9]{64}$/.test(change.creationIntent))
+  )
+    return null;
+  if (
     change.kind === "quota" &&
     (value.origin !== "overseas" ||
       !identifier(change.reservation) ||
       row !== null ||
       change.versions.length ||
-      change.parents.length)
+      change.parents.length ||
+      change.creationIntent !== undefined)
   )
     return null;
   if (

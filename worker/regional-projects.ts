@@ -1,4 +1,5 @@
 import type { DurableObjectStateLike, SqlStorage } from "./gallery-store";
+import { sha256Hex } from "@icm/derived";
 import {
   ProjectSyncJournal,
   ProjectSyncCapacityError,
@@ -7,6 +8,7 @@ import {
 import { decodeProjectEvent } from "./project-sync-protocol";
 import { ProjectQuota } from "./project-quota";
 import { projectRegionUsers } from "./project-region-scope";
+import { submit, replaceEntry } from "./gallery-store-entries";
 import {
   cloudProjectCreate,
   cloudProjectDelete,
@@ -24,6 +26,12 @@ export interface ProjectRegionConfig {
   PROJECT_REGION: "cn" | "overseas";
   PROJECT_REGION_USERS?: string;
   PROJECT_SYNC_MAX_BYTES?: number | string;
+}
+
+class ProjectCreationRefused extends Error {
+  constructor(readonly response: Response) {
+    super("Project creation was definitely refused");
+  }
 }
 
 /** Separate formal storage; shares existing save/history semantics, not trial state. */
@@ -108,6 +116,7 @@ export class RegionalProjectDO {
     try {
       return await this.dispatch(operation, body);
     } catch (error) {
+      if (error instanceof ProjectCreationRefused) return error.response;
       if (error instanceof ProjectSyncCapacityError)
         return Response.json(
           { error: "replication-capacity" },
@@ -134,6 +143,8 @@ export class RegionalProjectDO {
     } catch {
       return Response.json({ error: "region-not-configured" }, { status: 503 });
     }
+    if (operation === "submit" || operation === "replace-entry")
+      return this.publish(operation, body, users);
     if (operation === "cloud-project-region")
       return Response.json({ region: this.env.PROJECT_REGION });
     if (operation === "sync-seed")
@@ -293,6 +304,62 @@ export class RegionalProjectDO {
     return Response.json(payload, { status: response.status });
   }
 
+  /** Gallery and its affected private bindings commit with their journal entries. */
+  private publish(
+    operation: "submit" | "replace-entry",
+    body: Record<string, unknown>,
+    users: string[] | null,
+  ): Response {
+    return this.state.storage.transactionSync(() => {
+      const affected = this.sql
+        .exec<{ id: string; user_id: string }>(
+          `SELECT id, user_id FROM cloud_projects WHERE
+            (id = ? AND user_id = ?) OR
+            (gallery_entry_id = ? AND
+              ((? IS NOT NULL AND user_id = ?) OR
+               (? IS NOT NULL AND user_id <> ?)))`,
+          typeof body.cloudProjectId === "string" ? body.cloudProjectId : null,
+          String(body.userId),
+          operation === "replace-entry" ? String(body.id) : null,
+          typeof body.cloudProjectId === "string" ? body.cloudProjectId : null,
+          String(body.userId),
+          typeof body.ownerUserId === "string" ? body.ownerUserId : null,
+          typeof body.ownerUserId === "string" ? body.ownerUserId : null,
+        )
+        .toArray()
+        .filter((row) => users === null || users.includes(row.user_id));
+      if (affected.some((row) => this.journal.conflicted(row.id)))
+        return Response.json({ error: "revision-conflict" }, { status: 409 });
+      const before = new Map<string, string>();
+      for (const row of affected) {
+        this.captureExisting(row.id, row.user_id);
+        before.set(row.id, this.journal.snapshot(row.id));
+      }
+      const result =
+        operation === "submit"
+          ? submit(this.state, body)
+          : replaceEntry(this.state, body);
+      if (result.ok) {
+        for (const row of affected) {
+          const after = this.journal.snapshot(row.id);
+          if (after === before.get(row.id)) continue;
+          const head = this.journal.record(
+            row.id,
+            row.user_id,
+            this.head(row.id),
+            after,
+          );
+          this.sql.exec(
+            "INSERT OR REPLACE INTO regional_project_heads (id, head) VALUES (?, ?)",
+            row.id,
+            head,
+          );
+        }
+      }
+      return result;
+    });
+  }
+
   private execute(
     operation: string,
     body: Record<string, unknown>,
@@ -369,21 +436,29 @@ export class RegionalProjectDO {
         return Response.json({ status: "update-needed" }, { status: 202 });
     }
     switch (operation) {
-      case "cloud-project-create":
+      case "cloud-project-create": {
+        const intent = sha256Hex(
+          JSON.stringify([
+            body.name,
+            body.projectText,
+            body.galleryEntryId ?? null,
+          ]),
+        );
         if (heads.length) {
           const existing = heads[0]!.project!;
-          return existing.name === body.name &&
-            existing.project_text === body.projectText
+          const originalIntent = this.journal.creationIntent(id);
+          const identical =
+            originalIntent === undefined
+              ? existing.name === body.name &&
+                existing.project_text === body.projectText &&
+                existing.gallery_entry_id === (body.galleryEntryId ?? null)
+              : originalIntent === intent;
+          return identical
             ? Response.json({
                 project: cloudProjectSavedSummary(this.sql, userId, id),
               })
             : Response.json({ error: "create-key-reused" }, { status: 409 });
         }
-        if (body.galleryEntryId !== undefined)
-          return Response.json(
-            { error: "regional-publication-unavailable" },
-            { status: 503 },
-          );
         if (this.env.PROJECT_REGION === "overseas") {
           const reserved = this.quota.reserve(id, userId);
           if (!reserved.ok) return reserved;
@@ -392,7 +467,13 @@ export class RegionalProjectDO {
             { error: "quota-reservation-required" },
             { status: 503 },
           );
-        return cloudProjectCreate(this.sql, body);
+        {
+          const created = cloudProjectCreate(this.sql, body);
+          if (!created.ok) throw new ProjectCreationRefused(created);
+          this.journal.rememberCreation(id, intent);
+          return created;
+        }
+      }
       case "cloud-project-update":
         return cloudProjectUpdate(this.state, body);
       case "cloud-project-check-update":

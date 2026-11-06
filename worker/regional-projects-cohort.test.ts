@@ -50,8 +50,6 @@ it("keeps an overseas account outside the trial on its existing save protocol", 
     ...source,
     ...config,
     GALLERY: binding,
-    PROJECTS: binding,
-    PROJECTS_STORE_NAME: "gallery" as const,
     PROJECT_SYNC_TOKEN: "cohort-peer-secret",
   };
   const save = await route(
@@ -93,7 +91,7 @@ it("keeps an overseas account outside the trial on its existing save protocol", 
 });
 
 it.each([true, false])(
-  "protects a publication's affected Project owner during an outside AI takeover (admitted: %s)",
+  "journals an admitted owner's cleared binding during an outside AI takeover (admitted: %s)",
   async (admitted) => {
     const source = environment();
     const original = await seatOf(source, 0),
@@ -145,6 +143,7 @@ it.each([true, false])(
       GALLERY: binding,
       PROJECTS: binding,
       PROJECTS_STORE_NAME: "gallery" as const,
+      PROJECT_SYNC_TOKEN: "takeover-peer",
     };
     const open = async () =>
       (
@@ -166,11 +165,27 @@ it.each([true, false])(
         body: JSON.stringify({ ...content, takeOver: true }),
       }),
     );
-    expect(takeover.status, await takeover.clone().text()).toBe(
-      admitted ? 409 : 200,
-    );
-    if (admitted) expect(await open()).toEqual(before);
-    else expect((await open()).galleryEntryId).toBeNull();
+    expect(takeover.status, await takeover.clone().text()).toBe(200);
+    const after = await open();
+    expect(after.galleryEntryId).toBeNull();
+    expect(after.projectText).toBe(before.projectText);
+    if (admitted) {
+      expect(after.saveToken).not.toBe(before.saveToken);
+      const exported = await route(
+        target,
+        new Request(`${ORIGIN}/api/project-sync/events?after=1`, {
+          headers: { Authorization: "Bearer takeover-peer" },
+        }),
+      );
+      expect(exported.status).toBe(200);
+      expect(
+        JSON.parse((await exported.json()).events[0].payload),
+      ).toMatchObject({
+        id: saved.id,
+        ownerUserId: AI_SEATS[0]!.userId,
+        project: { gallery_entry_id: null },
+      });
+    }
   },
 );
 

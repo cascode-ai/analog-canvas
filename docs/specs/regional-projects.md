@@ -36,6 +36,10 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   catch-up refuses creation; existing Project reads and saves remain local,
   subject to the account authorization lease.
 - Retry an ambiguous creation with the same `Idempotency-Key` and content. The
+  creation fingerprint includes the requested Gallery binding and travels with
+  the Project; a changed request is refused in either region. A definite source
+  rejection rolls back its local quota reservation with the failed creation.
+  The
   editor retains both in the current page, recovers the created binding, then
   conditionally saves newer edits before acknowledging them. A definite initial
   refusal permits corrected content under the same key. Reloading an abandoned
@@ -61,10 +65,18 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   call. Live writes capture their predecessor first in the same transaction.
   Preserve the existing source singleton and compare both replicas before
   opening domestic writes. A Gallery-only export is not this migration format.
-- Regional mode refuses legacy destructive restore/schema conversion, account
-  deletion and publication-binding changes that bypass replication. The default
-  overseas configuration retains its behavior. Global account-deletion work and
-  Gallery coordination remain rollout dependencies.
+  With `PROJECT_REGION=overseas` and no explicit `PROJECTS` binding, the HTTP
+  entry uses the existing `GALLERY` singleton named `gallery` for Projects and
+  synchronization. This needs no new namespace or scheduled push to China.
+- The colocated Gallery store commits publication-binding changes and their
+  Project events in the same transaction, including changing the source draft
+  and clearing a former owner's binding during takeover. Journal exhaustion or
+  an unresolved affected Project conflict refuses the publication; it cannot
+  acknowledge an unjournaled binding. The Project stream carries private binding
+  metadata, not public Gallery entries; Gallery replication remains separate.
+- Regional mode refuses legacy destructive restore/schema conversion and account
+  deletion. The default overseas configuration retains its behavior. Coordinated
+  account deletion remains a rollout dependency.
 - A private region may initiate both directions with `PROJECT_SYNC_PULL=true`.
   Each tick pulls at most one event, then delivers at most one local event.
   Pull reconciles peer status and verifies its receipt before acknowledging
