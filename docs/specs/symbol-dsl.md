@@ -148,8 +148,9 @@ owns visual authority.
   deleted records; administrators can review all removals. Management results
   use one dismissible message in the fold; successful deletion/restoration
   messages expire and recovery remains in **Deleted**. A row needing repair keeps
-  its diagnostic in its preview, without a global repair banner. One filter
-  applies to every list in the fold.
+  its diagnostic in its preview, without a global repair banner. Type and
+  order apply to every list in the fold; author applies to Community and
+  Deleted. Placing a symbol-only record says it has no circuit to netlist.
 - Opening the fold warms the split authoring editor without adding it to initial
   shell loading. Cold Create loading remains modal and cancelable; a late chunk
   never reopens a canceled candidate.

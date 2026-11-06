@@ -33,7 +33,11 @@ export function ComponentPreviewCard({
 }: {
   summary: ComponentLibrarySummary;
   row: HTMLElement;
-  artwork: ReactNode;
+  /** The record's artwork, reporting geometry far from its declared box. */
+  artwork(
+    entry: ComponentLibrarySummary,
+    onPreviewWarning: (warning: string | null) => void,
+  ): ReactNode;
   /** Present once pinned by Details. */
   entry?: SharedComponent | undefined;
   onHold(): void;
@@ -44,6 +48,7 @@ export function ComponentPreviewCard({
 }) {
   const card = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 });
+  const [warning, setWarning] = useState<string | null>(null);
   useLayoutEffect(() => {
     const node = card.current!;
     const place = () => {
@@ -103,7 +108,8 @@ export function ComponentPreviewCard({
       onPointerEnter={onHold}
       onPointerLeave={onRelease}
     >
-      {artwork}
+      {artwork(summary, setWarning)}
+      {warning ? <p role="status">{warning}</p> : null}
       <strong>{summary.name}</strong>
       <p>
         {authorImplied ? "" : `${summary.author.trim() || "Unknown author"} · `}

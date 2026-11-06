@@ -519,7 +519,7 @@ test("dragging a row places it where it is released, even before its record arri
   release();
   await expect(instanceCount(page)).toHaveText("1");
   await expect(page.getByTestId("status")).toContainText(
-    "Placed Drag target · Undo removes it",
+    "Placed Drag target · symbol only: add its circuit before exporting a netlist · Undo removes it",
   );
   await expect(plane).toBeHidden();
   const placed = (await canvas
@@ -537,6 +537,25 @@ test("dragging a row places it where it is released, even before its record arri
   await page.mouse.up();
   await expect(plane).toBeHidden();
   await expect(instanceCount(page)).toHaveText("1");
+  // Now in the Project, it is found again through I under its own name.
+  await clickCommand(page, "Edit", "Insert component… (I)");
+  const insert = page.getByRole("dialog", {
+    name: "Insert Component",
+    exact: true,
+  });
+  await expect(
+    insert.getByTestId("insert-category-in-this-project"),
+  ).toBeVisible();
+  await insert
+    .getByRole("combobox", { name: "Component search", exact: true })
+    .fill("Drag target");
+  await insert.getByRole("option", { name: /Drag target/ }).click();
+  await expect(plane).toBeVisible();
+  await canvas.click({
+    position: { x: area.width * 0.25, y: area.height * 0.7 },
+  });
+  await expect(instanceCount(page)).toHaveText("2");
+  await page.keyboard.press("Escape");
 });
 
 test("public symbol placement connects contacts atomically and keeps the clicked orientation during a revision check", async ({

@@ -229,6 +229,10 @@ import {
 } from "./use-editor-derived-model";
 import type { RoutingGuidanceView } from "../interaction/interaction-state";
 import { newComponentDefinition } from "../features/user-components/component-definition-edit";
+import {
+  componentCapability,
+  SYMBOL_ONLY_NOTE,
+} from "../features/user-components/component-library-contract";
 import { ShapesPanel } from "../features/editor-shell/shapes-panel";
 import {
   type GalleryEntryContext,
@@ -4098,9 +4102,15 @@ function WorkspaceEditor({
       placed.cellName ??
       resolver.resolve(placed.symbolId)?.definition.name ??
       "the component";
+    const note =
+      placed.capture &&
+      componentCapability(placed.capture.payload) === "symbol-only"
+        ? ` · ${SYMBOL_ONLY_NOTE}`
+        : "";
     const finish = (landed?: boolean) => {
       cancelAllTransientInteraction();
-      if (landed !== false) setStatus(`Placed ${name} · Undo removes it`);
+      if (landed !== false)
+        setStatus(`Placed ${name}${note} · Undo removes it`);
     };
     // A captured component is checked first, and placement must outlast that.
     const settled = commitPendingPlacementAtFromHook(
@@ -5134,7 +5144,9 @@ function WorkspaceEditor({
           placement.netLabelTarget,
         );
       },
-      commitPendingPlacement: commitPendingPlacementAtFromHook,
+      commitPendingPlacement: (point) => {
+        void commitPendingPlacementAtFromHook(point);
+      },
       clearComponentPreview: () => setComponentPreviewPoint(null),
       clearVddRailPreview: () => setVddRailPreviewPoint(null),
       clearCopyPreview: () => {

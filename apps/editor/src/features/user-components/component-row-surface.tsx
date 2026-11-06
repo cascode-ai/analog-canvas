@@ -133,6 +133,7 @@ export function ComponentRows({
   entries,
   scope,
   busy,
+  readingId = null,
   authorImplied = false,
   artwork,
   onPlace,
@@ -143,6 +144,8 @@ export function ComponentRows({
   /** Keeps two lists' expanded groups apart. */
   scope: string;
   busy: boolean;
+  /** The record being read for placement or details, if any. */
+  readingId?: string | null;
   authorImplied?: boolean;
   artwork(entry: ComponentLibrarySummary): ReactNode;
   /** Resolves true once placement has started; absent where nothing places. */
@@ -163,6 +166,7 @@ export function ComponentRows({
       key={`${entry.id}:${entry.revision}`}
       entry={entry}
       busy={busy}
+      reading={entry.id === readingId}
       tabbable={rows.length === 0}
       authorImplied={authorImplied}
       artwork={artwork(entry)}

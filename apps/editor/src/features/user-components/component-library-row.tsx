@@ -14,6 +14,7 @@ export function ComponentLibraryRow({
   entry,
   artwork,
   busy,
+  reading = false,
   tabbable,
   variant = false,
   authorImplied = false,
@@ -29,6 +30,7 @@ export function ComponentLibraryRow({
   entry: ComponentLibrarySummary;
   artwork: ReactNode;
   busy: boolean;
+  reading?: boolean;
   tabbable: boolean;
   /** A record listed under its group's row, told apart by date and Pins. */
   variant?: boolean;
@@ -72,7 +74,15 @@ export function ComponentLibraryRow({
             ? `${entry.name} needs repair`
             : `Place ${entry.name}${variant ? ` from ${published}` : ""}`
         }
+        aria-expanded={count > 0 ? expanded : undefined}
         tabIndex={tabbable ? 0 : -1}
+        onKeyDown={(event) => {
+          // Arrows open and close a name's other records, as in a tree.
+          if (count && event.key === (expanded ? "ArrowLeft" : "ArrowRight")) {
+            event.preventDefault();
+            onToggleGroup?.();
+          }
+        }}
         onFocus={() => onPreview(row.current!)}
         onBlur={onPreviewEnd}
         onPointerDown={(event) => {
@@ -88,13 +98,15 @@ export function ComponentLibraryRow({
         <span className="component-row-text">
           <span className="component-row-name">{entry.name}</span>
           <small>
-            {invalid
-              ? `Needs repair · ${entry.author.trim() || "Unknown author"}`
-              : variant
-                ? `${published} · ${entry.pinCount} pins`
-                : authorImplied
-                  ? `${published} · r${entry.revision}`
-                  : entry.author.trim() || "Unknown author"}
+            {reading
+              ? "Reading component…"
+              : invalid
+                ? `Needs repair · ${entry.author.trim() || "Unknown author"}`
+                : variant
+                  ? `${published} · ${entry.pinCount} pins`
+                  : authorImplied
+                    ? `${published} · r${entry.revision}`
+                    : entry.author.trim() || "Unknown author"}
           </small>
         </span>
       </button>

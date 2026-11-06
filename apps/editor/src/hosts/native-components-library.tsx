@@ -110,12 +110,16 @@ export default function NativeComponentsLibrary({
   );
   const active = matching.filter((summary) => summary.status !== "deleted");
   const removed = matching.filter((summary) => summary.status === "deleted");
-  const artwork = (summary: ComponentLibrarySummary) => (
+  const artwork = (
+    summary: ComponentLibrarySummary,
+    onPreviewWarning?: (warning: string | null) => void,
+  ) => (
     <span className="user-component-preview">
       <SymbolArtwork
         symbol={record(summary).definition.symbol}
         fitContent
         className="user-component-art"
+        {...(onPreviewWarning ? { onPreviewWarning } : {})}
       />
     </span>
   );
@@ -303,7 +307,7 @@ export default function NativeComponentsLibrary({
         <ComponentPreviewCard
           summary={surface.card.summary}
           row={surface.card.row}
-          artwork={artwork(surface.card.summary)}
+          artwork={artwork}
           entry={surface.card.entry}
           onHold={surface.holdPreview}
           onRelease={surface.endPreview}

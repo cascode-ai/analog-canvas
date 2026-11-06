@@ -8,7 +8,13 @@ import { LibraryCache } from "./library-cache";
 const previews = new LibraryCache<SymbolDefinition>(100, 2 * 1024 * 1024);
 const DWELL_MS = 120;
 
-export function LibraryPreview({ entry }: { entry: ComponentLibrarySummary }) {
+export function LibraryPreview({
+  entry,
+  onPreviewWarning,
+}: {
+  entry: ComponentLibrarySummary;
+  onPreviewWarning?: ((warning: string | null) => void) | undefined;
+}) {
   const container = useRef<HTMLSpanElement>(null);
   const key = `${entry.id}:${entry.revision}`;
   const [symbol, setSymbol] = useState(() =>
@@ -53,6 +59,7 @@ export function LibraryPreview({ entry }: { entry: ComponentLibrarySummary }) {
           symbol={symbol}
           fitContent
           className="user-component-art"
+          {...(onPreviewWarning ? { onPreviewWarning } : {})}
         />
       ) : (
         <small className="component-definition-note">

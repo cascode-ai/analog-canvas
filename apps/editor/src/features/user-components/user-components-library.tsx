@@ -136,14 +136,15 @@ export default function UserComponentsLibrary({
   }, [notice, restorable]);
   const surface = useComponentRowSurface(fold.focusSearch);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
+  const busy = reading !== null;
   const details = useRef(
     new LibraryCache<SharedComponent>(30, 2 * 1024 * 1024),
   );
   const selection = useRef<AbortController | null>(null);
   const abandonSelection = () => {
     selection.current?.abort();
-    setBusy(false);
+    setReading(null);
   };
   /** A deleted last draft keeps its fold and Undo hint where they were. */
   const [keepMine, setKeepMine] = useState(false);
@@ -214,7 +215,7 @@ export default function UserComponentsLibrary({
     selection.current?.abort();
     const controller = new AbortController();
     selection.current = controller;
-    setBusy(true);
+    setReading(summary.id);
     showNotice(null);
     setRestorable(null);
     const deleted = summary.status === "deleted";
@@ -257,16 +258,18 @@ export default function UserComponentsLibrary({
         if (error instanceof ComponentLibraryError && error.status === 409) {
           details.current.clear();
           // Refresh only this immutable selection; never silently place a newer revision.
-          await lists.current
-            .find((list) =>
-              list.page.entries.some((entry) => entry.id === summary.id),
-            )
-            ?.reload(controller.signal);
+          await Promise.all(
+            lists.current
+              .filter((list) =>
+                list.page.entries.some((entry) => entry.id === summary.id),
+              )
+              .map((list) => list.reload(controller.signal)),
+          );
         }
       }
       return false;
     } finally {
-      if (!controller.signal.aborted) setBusy(false);
+      if (!controller.signal.aborted) setReading(null);
     }
   }
   async function manage(
@@ -284,9 +287,10 @@ export default function UserComponentsLibrary({
     );
     setRestorable(action === "delete" ? result.entry : null);
   }
-  const artwork = (entry: ComponentLibrarySummary) => (
-    <LibraryPreview entry={entry} />
-  );
+  const artwork = (
+    entry: ComponentLibrarySummary,
+    onPreviewWarning?: (warning: string | null) => void,
+  ) => <LibraryPreview entry={entry} onPreviewWarning={onPreviewWarning} />;
   const listState = (
     list: CatalogList,
     empty: string,
@@ -350,7 +354,15 @@ export default function UserComponentsLibrary({
             )
           : null}
         {deleted && canRestore
-          ? menuItem("Restore", () => void manage(entry, "restore"))
+          ? menuItem(
+              "Restore",
+              () =>
+                void manage(entry, "restore").catch((error: unknown) =>
+                  showNotice(
+                    error instanceof Error ? error.message : String(error),
+                  ),
+                ),
+            )
           : null}
         {canManage && !deleted ? (
           <>
@@ -424,7 +436,15 @@ export default function UserComponentsLibrary({
           <div className="component-catalog-controls">
             <ComponentCatalogControls
               value={catalog}
-              authors={community.page.authors}
+              authors={[
+                ...(community.page.authors ?? []),
+                ...(removed.page.authors ?? []).filter(
+                  (author) =>
+                    !community.page.authors?.some(
+                      (known) => known.authorId === author.authorId,
+                    ),
+                ),
+              ]}
               onChange={setCatalog}
             />
           </div>
@@ -493,6 +513,7 @@ export default function UserComponentsLibrary({
                 entries={mine.page.entries}
                 scope="mine"
                 busy={busy}
+                readingId={reading}
                 authorImplied
                 artwork={artwork}
                 onPlace={(entry) => choose(entry, "place")}
@@ -539,6 +560,7 @@ export default function UserComponentsLibrary({
                     entries={removed.page.entries}
                     scope="removed"
                     busy={busy}
+                    readingId={reading}
                     authorImplied={!user.isAdmin}
                     artwork={artwork}
                   />
@@ -558,6 +580,7 @@ export default function UserComponentsLibrary({
         entries={community.page.entries}
         scope="community"
         busy={busy}
+        readingId={reading}
         artwork={artwork}
         onPlace={(entry) => choose(entry, "place")}
         onDropPlacement={onDropPlacement}
@@ -576,7 +599,7 @@ export default function UserComponentsLibrary({
         <ComponentPreviewCard
           summary={surface.card.summary}
           row={surface.card.row}
-          artwork={artwork(surface.card.summary)}
+          artwork={artwork}
           entry={surface.card.entry}
           onHold={surface.holdPreview}
           onRelease={surface.endPreview}

@@ -69,6 +69,10 @@ import type { ScreenFlip } from "../../interaction/shortcut-orientation";
 import type { PendingComponentPlacement } from "../../interaction/interaction-state";
 import type { DrawingTool } from "../../interaction/interaction-state";
 import { ComponentLibraryError } from "../user-components/component-library-error";
+import {
+  componentCapability,
+  SYMBOL_ONLY_NOTE,
+} from "../user-components/component-library-contract";
 import { uprightOrUp } from "../drafting/drafting-manipulation";
 
 type TransactionResult = { ok: boolean; revision: number };
@@ -521,7 +525,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             ? ` · ${nearMiss}`
             : "";
       current.setStatus(
-        `Placed ${capture.payload.definition.symbol.name}${connectionStatus} · click to place another · Esc exits`,
+        `Placed ${capture.payload.definition.symbol.name}${connectionStatus}${componentCapability(capture.payload) === "symbol-only" ? ` · ${SYMBOL_ONLY_NOTE}` : ""} · click to place another · Esc exits`,
       );
       return true;
     } catch (error) {

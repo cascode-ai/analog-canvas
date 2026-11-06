@@ -82,12 +82,12 @@ export function useComponentCatalog({
     pages.set(key, next);
   }
   useEffect(() => {
-    if (pagesAccount === accountId) return;
+    if (!active || pagesAccount === accountId) return;
     if (pagesAccount !== undefined) pages.clear();
     pagesAccount = accountId;
     retained.current = null;
     buffered.current = null;
-  }, [accountId]);
+  }, [accountId, active]);
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
