@@ -82,6 +82,7 @@ describe("downloaded Gallery snapshots", () => {
     symlinkSync(
       join(directory, capture("2026-09-20T16-33-11")),
       join(directory, capture("2026-10-06T00-00-00")),
+      process.platform === "win32" ? "junction" : "dir",
     );
     snapshot(capture("2026-10-07T10-04-29"));
     expect(

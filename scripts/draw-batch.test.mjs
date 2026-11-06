@@ -319,7 +319,10 @@ describe("batch drawing runner around its Agents (#1498)", () => {
       logPath: join(work, "agent.log"),
       timeoutMs: 300,
     });
-    expect(run).toMatchObject({ timedOut: true, signal: "SIGTERM" });
+    expect(run).toMatchObject({
+      timedOut: true,
+      signal: process.platform === "win32" ? null : "SIGTERM",
+    });
     expect(readFileSync(join(work, "agent.log"), "utf8")).toContain(
       "timed out after 0.3 s",
     );
