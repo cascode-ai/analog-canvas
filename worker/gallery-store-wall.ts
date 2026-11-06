@@ -6,6 +6,10 @@ import {
   componentRangeSql,
   requestedComponentRanges,
 } from "./gallery-components";
+import {
+  countAuthorTransistors,
+  CURRENT_TRANSISTORS,
+} from "./gallery-store-stats";
 import { GALLERY_ISSUE_KINDS } from "./gallery-curation";
 import taxonomy from "../config/gallery-taxonomy.json";
 import {
@@ -872,12 +876,14 @@ export function ownerData(
     const legacy = body.author.startsWith("legacy:")
       ? body.author.slice("legacy:".length)
       : null;
+    countAuthorTransistors(sql, body.author);
     const rows = sql
       .exec<{
         id: string;
         name: string;
         created_at: string;
         parts: number | null;
+        transistors: number | null;
         netlistable: number;
         ai_generated: number;
         likes: number;
@@ -885,9 +891,10 @@ export function ownerData(
         recent: number;
       }>(
         `SELECT e.id, e.name, e.created_at, ${parts} AS parts,
-                e.netlistable, e.ai_generated, ${likes} AS likes,
+                t.transistors, e.netlistable, e.ai_generated, ${likes} AS likes,
                 ${opens} AS opens, ${recent} AS recent
          FROM gallery_entries e INDEXED BY idx_gallery_entries_card
+         ${CURRENT_TRANSISTORS}
          WHERE e.status = 'public' AND ${
            legacy === null
              ? "e.owner_user_id = ?"
@@ -904,6 +911,7 @@ export function ownerData(
         name: row.name,
         createdAt: row.created_at,
         parts: row.parts,
+        transistors: row.transistors === null ? null : Number(row.transistors),
         netlistable: row.netlistable === 1,
         aiGenerated: row.ai_generated === 1,
         likes: Number(row.likes),
@@ -917,7 +925,9 @@ export function ownerData(
       author: string;
       key: string;
       circuits: number;
-      parts: number | null;
+      components: number | null;
+      transistors: number | null;
+      counted: number;
       ai: number;
       netlist: number;
       likes: number;
@@ -927,11 +937,14 @@ export function ownerData(
       `SELECT MAX(e.author) AS author,
               COALESCE(NULLIF(e.owner_user_id, ''), 'legacy:' || e.author)
                 AS key,
-              COUNT(*) AS circuits, AVG(${parts}) AS parts,
+              COUNT(*) AS circuits,
+              SUM(${parts}) AS components, SUM(t.transistors) AS transistors,
+              COUNT(t.entry_id) AS counted,
               SUM(e.ai_generated = 1) AS ai, SUM(e.netlistable = 1) AS netlist,
               SUM(${likes}) AS likes, SUM(${opens}) AS opens,
               MAX(e.created_at) AS latest
        FROM gallery_entries e INDEXED BY idx_gallery_entries_feed_stats_wall
+       ${CURRENT_TRANSISTORS}
        WHERE e.status = 'public' AND TRIM(e.author) <> ''
        GROUP BY key
        ORDER BY circuits DESC, author COLLATE NOCASE ASC, author ASC`,
@@ -942,8 +955,10 @@ export function ownerData(
       author: row.author,
       key: row.key,
       circuits: Number(row.circuits),
-      averageParts:
-        row.parts === null ? null : Math.round(Number(row.parts) * 10) / 10,
+      components: row.components === null ? null : Number(row.components),
+      // Counted so far: the scheduled pass counts the rest (pending).
+      transistors: Number(row.transistors ?? 0),
+      transistorsPending: Number(row.circuits) - Number(row.counted),
       ai: Number(row.ai),
       withNetlist: Number(row.netlist),
       likes: Number(row.likes),

@@ -387,6 +387,23 @@ export async function routeGalleryPublishing(
       { headers: { "cache-control": "no-store" } },
     );
   }
+  // The account's own statistics: its public circuits, each with its part
+  // and transistor counts. The Owner reads anyone's on the Data tab.
+  if (
+    segments.length === 2 &&
+    segments[0] === "mine" &&
+    segments[1] === "stats" &&
+    request.method === "GET"
+  ) {
+    const user = await sessionUserOf(request, env);
+    if (!user) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const { payload } = await callGallery(env, "circuit-stats", {
+      author: user.id,
+    });
+    return Response.json(payload, { headers: { "cache-control": "no-store" } });
+  }
   if (
     segments.length === 1 &&
     segments[0] === "mine" &&

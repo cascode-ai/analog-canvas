@@ -68,7 +68,10 @@ import {
 } from "./gallery-publishing";
 import { routeCloudProjects } from "./gallery-cloud-projects";
 import { routeProjectSync } from "./project-sync";
-import { routeGalleryMaintenance } from "./gallery-maintenance";
+import {
+  recountTransistors,
+  routeGalleryMaintenance,
+} from "./gallery-maintenance";
 import {
   gateSimulationMarks,
   routeSimulationChecks,
@@ -710,6 +713,32 @@ export async function routeGalleryRequest(
     if (!user.isOwner)
       return Response.json({ error: "owner-only" }, { status: 403 });
     return Response.json(await ownerData(env, url.searchParams.get("author")), {
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  if (
+    segments.length === 2 &&
+    segments[0] === "owner-data" &&
+    segments[1] === "recount" &&
+    request.method === "POST"
+  ) {
+    // The Data tab's Recount: one batch of transistor counts per request,
+    // resumed from `after` until `next` is null.
+    if (!sameOrigin(request))
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    const user = await sessionUserOf(request, env);
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    if (!user.isOwner)
+      return Response.json({ error: "owner-only" }, { status: 403 });
+    const body = (await request.json().catch(() => null)) as {
+      after?: unknown;
+    } | null;
+    const { status, payload } = await recountTransistors(
+      env,
+      typeof body?.after === "string" ? body.after : "",
+    );
+    return Response.json(payload, {
+      status,
       headers: { "cache-control": "no-store" },
     });
   }

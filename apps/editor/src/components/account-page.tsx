@@ -15,6 +15,7 @@ import {
   type SessionUser,
 } from "./account";
 import { AiAccountsContent } from "./ai-accounts";
+import { MyCircuitStatsContent } from "./circuit-stats";
 import { GalleryChrome } from "./gallery-chrome";
 import { ModerationContent } from "./moderation";
 import { OwnerDataContent } from "./owner-data";
@@ -182,10 +183,17 @@ export function AccountDeleteDialog({
 }
 
 export type AccountTab =
-  "circuits" | "projects" | "moderation" | "data" | "ai" | "settings";
+  | "circuits"
+  | "statistics"
+  | "projects"
+  | "moderation"
+  | "data"
+  | "ai"
+  | "settings";
 
 const TAB_LABELS: Record<AccountTab, string> = {
   circuits: "Circuits",
+  statistics: "Statistics",
   projects: "Cloud Projects",
   moderation: "Moderation",
   data: "Data",
@@ -194,8 +202,8 @@ const TAB_LABELS: Record<AccountTab, string> = {
 };
 
 /**
- * The tabs this account has: its published circuits, then its private Cloud
- * Projects, which the editor's File menu no longer lists. Moderation and
+ * The tabs this account has: its published circuits and their statistics,
+ * then its private Cloud Projects, which the editor's File menu no longer lists. Moderation and
  * the AI accounts are the Owner's: a moderator's tools are on each circuit's
  * own page, so there is nothing for them to open here. Data is the Owner's
  * own accounts' alone, not every administrator's (#1446).
@@ -203,6 +211,7 @@ const TAB_LABELS: Record<AccountTab, string> = {
 export function accountTabs(user: SessionUser): AccountTab[] {
   return [
     "circuits",
+    "statistics",
     "projects",
     ...(user.isAdmin ? (["moderation"] as const) : []),
     ...(user.isOwner ? (["data"] as const) : []),
@@ -214,7 +223,8 @@ export function accountTabs(user: SessionUser): AccountTab[] {
 /** The tab a link names (`?tab=…`), or the circuits. */
 export function accountTabFromSearch(search: string): AccountTab {
   const tab = new URLSearchParams(search).get("tab");
-  return tab === "projects" ||
+  return tab === "statistics" ||
+    tab === "projects" ||
     tab === "moderation" ||
     tab === "data" ||
     tab === "ai" ||
@@ -470,6 +480,8 @@ export function AccountDashboard({
             <h2>{TAB_LABELS[id]}</h2>
             {id === "circuits" ? (
               <MySubmissionsContent />
+            ) : id === "statistics" ? (
+              <MyCircuitStatsContent />
             ) : id === "projects" ? (
               <Suspense
                 fallback={

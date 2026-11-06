@@ -25,6 +25,7 @@ import {
   withdrawnByCurator,
 } from "./gallery-store";
 import { snapshotEntry } from "./gallery-store-versions";
+import { forgetTransistorCount } from "./gallery-store-stats";
 import {
   readSimulationCheck,
   simulationCheckWaiting,
@@ -150,6 +151,8 @@ export function submit(
       }
     }
     entry.id = freeEntryId(sql);
+    // A count kept for a deleted entry of the same id is not this one's.
+    forgetTransistorCount(sql, entry.id);
     sql.exec(
       `INSERT INTO gallery_entries(
         id, name, author, description, created_at, schema_version,
@@ -375,6 +378,7 @@ export function importEntry(
     previewDimensions?.height ?? null,
   ];
   state.storage.transactionSync(() => {
+    forgetTransistorCount(sql, id);
     if (row) {
       snapshotEntry(sql, row, at);
       sql.exec(
@@ -429,6 +433,7 @@ export function replaceEntry(
   state.storage.transactionSync(() => {
     bindPublication(sql, body, row.id);
     snapshotEntry(sql, row, String(body.at ?? row.created_at));
+    forgetTransistorCount(sql, row.id);
     // A take-over (#1499): the entry becomes the new AI account's, and a
     // Shelf draft of the former one no longer publishes as it.
     if (typeof body.ownerUserId === "string") {
@@ -602,5 +607,6 @@ export function updateEntry(
     advanceCurationRevision(row, String(body.at ?? row.created_at)),
     String(body.id),
   );
+  forgetTransistorCount(sql, row.id);
   return Response.json({ id: row.id, previewRevision });
 }

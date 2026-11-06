@@ -2,6 +2,7 @@
 // and reading and restoring a version.
 
 import { galleryComponentCount } from "./gallery-components";
+import { forgetTransistorCount } from "./gallery-store-stats";
 import { readGalleryCuration, type GalleryCuration } from "./gallery-curation";
 import { sha256Hex } from "@icm/derived";
 import { designExtractsNetlist, NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
@@ -222,6 +223,7 @@ export function restoreVersion(
   };
   state.storage.transactionSync(() => {
     snapshotEntry(sql, entry, String(body.at));
+    forgetTransistorCount(sql, entry.id);
     sql.exec(
       `UPDATE gallery_entries
        SET name = ?, author = ?, description = ?, project_text = ?,
