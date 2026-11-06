@@ -760,7 +760,7 @@
   margin-bottom: 4px;
   font-size: var(--icm-font-xs);
 }
-.component-preview-card {
+.component-details-card {
   position: fixed;
   z-index: 30;
   display: grid;
@@ -775,21 +775,21 @@
   box-shadow: var(--icm-shadow-md);
   font-size: var(--icm-font-xs);
 }
-.component-preview-card .user-component-preview {
+.component-details-card .user-component-preview {
   flex: none;
   height: 170px;
   padding: 4px;
 }
-.component-preview-card strong {
+.component-details-card strong {
   font-size: var(--icm-font-sm);
   overflow-wrap: anywhere;
 }
-.component-preview-card p {
+.component-details-card p {
   margin: 0;
   color: var(--icm-text-muted);
   overflow-wrap: anywhere;
 }
-.component-preview-card pre {
+.component-details-card pre {
   max-height: 220px;
   margin: 4px 0 0;
   overflow: auto;

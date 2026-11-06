@@ -106,6 +106,8 @@ export interface RejectedSharedComponent {
 
 export const COMPONENT_DEFINITION_MAX_BYTES = 128 * 1024;
 export const COMPONENT_LIBRARY_ID = /^[a-zA-Z0-9_-]{8,80}$/u;
+/** Preview symbols one catalog read returns; more records take more reads. */
+export const COMPONENT_PREVIEW_BATCH_LIMIT = 48;
 
 /** The public library stores the same data as Project Code, never executable SVG. */
 export interface SharedDefinitionPayload {

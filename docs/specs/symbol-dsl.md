@@ -148,7 +148,7 @@ owns visual authority.
   deleted records; administrators can review all removals. Management results
   use one dismissible message in the fold; successful deletion/restoration
   messages expire and recovery remains in **Deleted**. A row needing repair keeps
-  its diagnostic in its preview, without a global repair banner. Type and
+  its diagnostic in its **Details**, without a global repair banner. Type and
   order apply to every list in the fold; author applies to Community and
   Deleted. Placing a symbol-only record says it has no circuit to netlist.
 - Opening the fold warms the split authoring editor without adding it to initial
@@ -163,10 +163,9 @@ owns visual authority.
   Removing an open candidate's saved checkpoint keeps its raw input, invalidates
   old Agent revisions and marks it unsaved. Overlapping publication refuses deletion.
 - Discovery derives capability from the validated definition (**Circuit**,
-  **Symbol only**, **Invalid**; none certifies an engine). Cards place these compact
-  tags beside the title and retain the author below; artwork occupies its own fitted
-  preview. Details and other actions use a top-right anchored menu; authorized
-  removal uses a separate × and a compact confirmation.
+  **Symbol only**, **Invalid**; none certifies an engine). A row shows a fitted
+  thumbnail, the name and the author, with a compact tag for a circuit. Details
+  and other actions open from the row's menu; authorized removal confirms in it.
   Invalid historical records stay visible but unplaceable and never block
   valid ones; summaries carry no executable source; selection
   re-reads the full record and checks its revision.

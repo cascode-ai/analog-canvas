@@ -206,6 +206,8 @@ export interface ShapesPanelProps {
     /** Each new value brings focus to the search. */
     focusRequest: number;
     onCreate(): void;
+    /** The fold or search is about to be wanted: start loading its code. */
+    prepare(): void;
     render(fold: LibraryFold): ReactNode;
   };
 }
@@ -309,6 +311,7 @@ export function ShapesPanel({
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
           onKeyDown={onSearchKeyDown}
+          onFocus={userComponents?.prepare}
         />
       </div>
       <div className="shapes-panel-body">
@@ -324,7 +327,11 @@ export function ShapesPanel({
                 userComponents.onOpenChange(event.currentTarget.open);
             }}
           >
-            <summary className="shapes-fold-summary">
+            <summary
+              className="shapes-fold-summary"
+              onPointerEnter={userComponents.prepare}
+              onFocus={userComponents.prepare}
+            >
               <span className="shapes-fold-label">{userComponents.label}</span>
               <span className="shapes-fold-tools" ref={setComponentTools} />
               <button

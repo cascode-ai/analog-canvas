@@ -5,7 +5,7 @@ import { ComponentDraftList } from "../features/user-components/component-draft-
 import { ContextMenu } from "../components/context-menu";
 import { SymbolArtwork } from "../features/component-insert/symbol-artwork";
 import { InlineConfirm } from "../components/inline-confirm";
-import { ComponentPreviewCard } from "../features/user-components/component-preview-card";
+import { ComponentDetailsCard } from "../features/user-components/component-details-card";
 import {
   ComponentMenuItem,
   ComponentRows,
@@ -304,13 +304,12 @@ export default function NativeComponentsLibrary({
       ) : null}
       {renderMenu()}
       {surface.card ? (
-        <ComponentPreviewCard
+        <ComponentDetailsCard
+          key={`${surface.card.summary.id}:${surface.card.summary.revision}`}
           summary={surface.card.summary}
           row={surface.card.row}
           artwork={artwork}
           entry={surface.card.entry}
-          onHold={surface.holdPreview}
-          onRelease={surface.endPreview}
           onClose={surface.closeCard}
           authorImplied
         />

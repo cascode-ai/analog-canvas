@@ -17,17 +17,15 @@ const capabilityLabel = (entry: ComponentLibrarySummary) =>
       : "With circuit";
 
 /**
- * A row is too small to read a 20-pin symbol, so the record's large preview
- * stands beside the panel while the row is pointed at or focused. Details pins
- * the same card and adds what only the full record holds.
+ * A row is too small to read a 20-pin symbol, so Details stands the record's
+ * large preview beside the panel with what only the full record holds. It
+ * closes on Escape, a press elsewhere or a scroll of the list it came from.
  */
-export function ComponentPreviewCard({
+export function ComponentDetailsCard({
   summary,
   row,
   artwork,
   entry,
-  onHold,
-  onRelease,
   onClose,
   authorImplied = false,
 }: {
@@ -38,10 +36,8 @@ export function ComponentPreviewCard({
     entry: ComponentLibrarySummary,
     onPreviewWarning: (warning: string | null) => void,
   ): ReactNode;
-  /** Present once pinned by Details. */
+  /** The full record; absent for one that needs repair. */
   entry?: SharedComponent | undefined;
-  onHold(): void;
-  onRelease(): void;
   onClose(): void;
   /** Every record in the list is this author's, as on the desktop. */
   authorImplied?: boolean;
@@ -73,17 +69,17 @@ export function ComponentPreviewCard({
     resize.observe(node);
     return () => resize.disconnect();
   }, [row]);
-  const pinned = Boolean(entry);
   useEffect(() => {
+    const outside = (event: Event) =>
+      !card.current?.contains(event.target as Node);
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
-    // The row moved out from under an unpinned card.
     const scroll = (event: Event) => {
-      if (!pinned && !card.current?.contains(event.target as Node)) onClose();
+      if (outside(event)) onClose();
     };
     const pointer = (event: PointerEvent) => {
-      if (pinned && !card.current?.contains(event.target as Node)) onClose();
+      if (outside(event)) onClose();
     };
     window.addEventListener("keydown", key);
     window.addEventListener("scroll", scroll, true);
@@ -93,7 +89,7 @@ export function ComponentPreviewCard({
       window.removeEventListener("scroll", scroll, true);
       window.removeEventListener("pointerdown", pointer, true);
     };
-  }, [pinned, onClose]);
+  }, [onClose]);
   const pins = entry
     ? (entry.circuit?.externalDefinition.terminals ??
       entry.definition.symbol.pins)
@@ -101,12 +97,10 @@ export function ComponentPreviewCard({
   return createPortal(
     <div
       ref={card}
-      className="component-preview-card"
+      className="component-details-card"
       role="group"
-      aria-label={`${summary.name} preview`}
+      aria-label={`${summary.name} details`}
       style={position}
-      onPointerEnter={onHold}
-      onPointerLeave={onRelease}
     >
       {artwork(summary, setWarning)}
       {warning ? <p role="status">{warning}</p> : null}

@@ -303,6 +303,7 @@ import { EditorDialogs } from "./editor-dialogs";
 import {
   EditorComponentEditor,
   EditorLibraryComponents,
+  preloadLibraryComponents,
   type EditorComponentEditorProps,
 } from "./editor-component-editor";
 import { useEditorCommandRouter } from "./use-editor-command-router";
@@ -6029,6 +6030,7 @@ function WorkspaceEditor({
                     onOpenChange: setUserComponentsOpen,
                     focusRequest: componentSearchRequest,
                     onCreate: openCreateComponent,
+                    prepare: preloadLibraryComponents,
                     render: (fold) => (
                       <EditorLibraryComponents
                         {...componentEditorProps}

@@ -79,6 +79,48 @@ export class ComponentLibraryDO {
     const deletion = this.management.deletion(row);
     return { ...entry(row), ...(deletion ? { deletion } : {}) };
   }
+  /** Deleted records are visible only to their author and administrators. */
+  private visible(row: Row, reader: Record<string, unknown>): boolean {
+    return (
+      row.status !== "deleted" ||
+      reader.admin === true ||
+      row.author_id === reader.userId
+    );
+  }
+  /** One revision-bound preview symbol, or why it cannot be shown. */
+  private preview(
+    id: string,
+    revision: number,
+    reader: Record<string, unknown>,
+  ) {
+    const row = this.sql
+      .exec<Row>("SELECT * FROM components WHERE id = ?", id)
+      .toArray()[0];
+    if (!row || !this.visible(row, reader))
+      return { id, revision, error: "Component not found", status: 404 };
+    if (row.revision !== revision)
+      return {
+        id,
+        revision,
+        error: "This component changed. Refresh before selecting it.",
+        status: 409,
+      };
+    try {
+      const { definition, circuit } = this.entry(row);
+      const parsed = parseSharedComponentPayload({
+        definition,
+        ...(circuit ? { circuit } : {}),
+      });
+      return { id, revision, symbol: parsed.definition.symbol };
+    } catch {
+      return {
+        id,
+        revision,
+        error: "This component needs repair.",
+        status: 422,
+      };
+    }
+  }
   async fetch(request: Request): Promise<Response> {
     const operation = new URL(request.url).pathname.slice(1);
     const body = (await request.json()) as Record<string, unknown>;
@@ -151,51 +193,36 @@ export class ComponentLibraryDO {
         return Response.json({ deleted: ids.length });
       });
     }
+    if (operation === "previews")
+      return Response.json({
+        previews: (body.items as { id: string; revision: number }[]).map(
+          ({ id, revision }) => this.preview(id, revision, body),
+        ),
+      });
     const id = String(body.id);
     if (operation === "get") {
+      if (body.preview) {
+        const preview = this.preview(id, Number(body.revision), body);
+        return "symbol" in preview
+          ? Response.json(preview)
+          : Response.json({ error: preview.error }, { status: preview.status });
+      }
       const row = this.sql
         .exec<Row>("SELECT * FROM components WHERE id = ?", id)
         .toArray()[0];
-      if (
-        row &&
-        (row.status !== "deleted" ||
-          body.admin ||
-          row.author_id === body.userId) &&
-        (body.preview || body.identity)
-      ) {
+      if (row && this.visible(row, body) && body.identity) {
         if (row.revision !== body.revision)
           return Response.json(
             { error: "This component changed. Refresh before selecting it." },
             { status: 409 },
           );
-        if (body.identity)
-          return Response.json({
-            id: row.id,
-            revision: row.revision,
-            status: row.status,
-          });
-        try {
-          const { definition, circuit } = this.entry(row);
-          const parsed = parseSharedComponentPayload({
-            definition,
-            ...(circuit ? { circuit } : {}),
-          });
-          return Response.json({
-            id: row.id,
-            revision: row.revision,
-            symbol: parsed.definition.symbol,
-          });
-        } catch {
-          return Response.json(
-            { error: "This component needs repair." },
-            { status: 422 },
-          );
-        }
+        return Response.json({
+          id: row.id,
+          revision: row.revision,
+          status: row.status,
+        });
       }
-      return row &&
-        (row.status !== "deleted" ||
-          body.admin ||
-          row.author_id === body.userId)
+      return row && this.visible(row, body)
         ? Response.json({ entry: this.entry(row) })
         : Response.json({ error: "Component not found" }, { status: 404 });
     }

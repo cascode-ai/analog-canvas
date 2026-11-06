@@ -61,10 +61,20 @@ const ComponentSession = lazyChunk(
   "dialog",
   () => import("./editor-component-session-body"),
 );
-const ComponentLibrary = lazyChunk(
-  "inline",
-  () => import("./editor-component-library"),
-);
+const loadLibrary = () => import("./editor-component-library");
+const loadLibraryList = import.meta.env?.ICM_DESKTOP
+  ? () => import("../hosts/native-components-library")
+  : () => import("../features/user-components/user-components-library");
+const ComponentLibrary = lazyChunk("inline", loadLibrary);
+
+/**
+ * The fold's code is two chunks, one loaded by the other. Asking for both at
+ * once, as soon as the fold is pointed at or opened, saves a round trip.
+ */
+export function preloadLibraryComponents(): void {
+  void loadLibrary().catch(() => undefined);
+  void loadLibraryList().catch(() => undefined);
+}
 
 /** The Library panel's component fold, loaded once that fold first opens. */
 export function EditorLibraryComponents(
@@ -73,8 +83,17 @@ export function EditorLibraryComponents(
     onDropPlacement(clientX: number, clientY: number): void;
   },
 ) {
+  preloadLibraryComponents();
   useEffect(() => {
-    preloadComponentDefinitionEditor();
+    // The authoring editor is large; the list and its previews load first.
+    if (!window.requestIdleCallback) {
+      const timer = setTimeout(preloadComponentDefinitionEditor, 1000);
+      return () => clearTimeout(timer);
+    }
+    const idle = window.requestIdleCallback(preloadComponentDefinitionEditor, {
+      timeout: 2000,
+    });
+    return () => window.cancelIdleCallback(idle);
   }, []);
   return (
     <Suspense

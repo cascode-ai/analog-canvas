@@ -82,7 +82,8 @@ export function useComponentCatalog({
     pages.set(key, next);
   }
   useEffect(() => {
-    if (!active || pagesAccount === accountId) return;
+    // Only an account's own lists set whose lists the cache holds.
+    if (!active || accountId === null || pagesAccount === accountId) return;
     if (pagesAccount !== undefined) pages.clear();
     pagesAccount = accountId;
     retained.current = null;
