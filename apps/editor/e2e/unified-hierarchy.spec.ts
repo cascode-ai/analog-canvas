@@ -6,7 +6,6 @@ import {
   hierarchyRowCommand,
   openCellProperties,
   openHierarchyTree,
-  openMenu,
   openProject,
   revealHierarchyRow,
   revealPropertiesShelf,
@@ -59,33 +58,41 @@ test("unified tree follows four levels, shared uses and detached definitions, an
     exact: true,
   });
   const reset = parameters.getByLabel("Reset gain to default");
-  const overridden = "Overrides the default 10";
-  const inherited = "Inherits the default 10";
+  // The field shows gain's default of 10, and the row is marked while an
+  // override replaces it.
+  await expect(gain).toHaveAttribute("placeholder", "10");
+  const gainRow = parameters.locator(".cell-instance-parameter").filter({
+    has: page.getByLabel("Instance parameter gain", { exact: true }),
+  });
+  const overridden = () =>
+    expect(gainRow).toHaveAttribute("data-overridden", "true");
+  const inherited = () =>
+    expect(gainRow).not.toHaveAttribute("data-overridden");
   // Both uses of Channel share the overrides of its parts.
   await expect(parameters).toContainText("Shared by all 2 uses of Channel.");
   await gain.fill("25");
   await gain.press("Enter");
-  await expect(gain).toHaveAttribute("title", overridden);
+  await overridden();
   // A pointer Reset also discards the draft.
   await gain.fill("30");
   await reset.click();
-  await expect(gain).toHaveAttribute("title", inherited);
+  await inherited();
   await expect(gain).toHaveValue("");
   // A literal "inherit" is an override like any other value.
   await gain.fill("inherit");
   await gain.press("Enter");
-  await expect(gain).toHaveAttribute("title", overridden);
+  await overridden();
   await reset.click();
   await expect(gain).toHaveValue("");
   // Tab commits the draft and reaches Reset, which keeps it until clicked.
   await gain.fill("40");
   await gain.press("Tab");
   await expect(reset).toBeFocused();
-  await expect(gain).toHaveAttribute("title", overridden);
+  await overridden();
   await reset.press("Tab");
-  await expect(gain).toHaveAttribute("title", overridden);
+  await overridden();
   await reset.click();
-  await expect(gain).toHaveAttribute("title", inherited);
+  await inherited();
 
   await tree.getByRole("button", { name: "XP: Pair", exact: true }).click();
   await page
@@ -299,6 +306,106 @@ test("deleting an unused definition keeps the open occurrence; cancelling a Pin 
   ).toEqual(["IN", "OUT"]);
 });
 
+test("deep rows with long names and their actions stay within the tree's panel", async ({
+  page,
+}) => {
+  const project = fixture();
+  // Long names make every deep row wider than the panel can show whole.
+  for (const cell of project.documents)
+    if (cell.id !== project.topDocumentId)
+      cell.name = `${cell.name}StageWithANameTooLongForAnyRowOfThePanelToShow`;
+  await openProject(page, project);
+  const tree = await openHierarchyTree(page);
+  // Nothing scrolls sideways, and no use count or row icon is cut off.
+  const contained = () =>
+    tree.evaluate((panel) => {
+      const edge = panel.getBoundingClientRect().right;
+      return {
+        overflow: panel.scrollWidth - panel.clientWidth,
+        cut: [
+          ...panel.querySelectorAll(
+            ".hierarchy-uses, .hierarchy-row-actions button, .hierarchy-match",
+          ),
+        ].filter((node) => {
+          const box = node.getBoundingClientRect();
+          return box.width > 0 && box.right > edge + 0.5;
+        }).length,
+      };
+    });
+  await tree.getByRole("button", { name: /^Expand X2: /u }).click();
+  await tree.getByRole("button", { name: /^Expand XA: /u }).click();
+  // An open third-level row shows its actions and keeps focus; a hovered row
+  // also shows its dashed TOP.
+  await tree.getByRole("button", { name: /^XP: /u }).click();
+  await expect(path(page)).toBeVisible();
+  expect(await contained()).toEqual({ overflow: 0, cut: 0 });
+  await tree.getByRole("button", { name: /^XA: /u }).hover();
+  expect(await contained()).toEqual({ overflow: 0, cut: 0 });
+  // Uses wrap long paths in the same width.
+  await tree.getByRole("button", { name: /^3 uses of Pair/u }).click();
+  await expect(
+    tree.getByRole("group", { name: /^Uses of Pair/u }),
+  ).toBeVisible();
+  expect(await contained()).toEqual({ overflow: 0, cut: 0 });
+  // Matches truncate them.
+  await tree.getByLabel("Filter the hierarchy").fill("TooLong");
+  await expect(tree.locator(".hierarchy-match").first()).toBeVisible();
+  expect(await contained()).toEqual({ overflow: 0, cut: 0 });
+});
+
+test("a row's menu stays inside a short window and works from the keyboard", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 560 });
+  await openProject(page, fixture());
+  const tree = await openHierarchyTree(page);
+  // The tree is the one place for these commands, so the last one must show.
+  await (await revealHierarchyRow(tree, "XP: Pair")).click({ button: "right" });
+  await expect(
+    tree.getByRole("menuitem", { name: /^Delete Cell/u }),
+  ).toBeInViewport({ ratio: 1 });
+  await page.keyboard.press("Escape");
+
+  const row = tree.getByRole("button", { name: "X1: Channel", exact: true });
+  const commands = tree.getByRole("menuitem");
+  await row.focus();
+  await page.keyboard.press("Shift+F10");
+  await expect(commands.first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(tree.getByRole("menuitem", { name: /^Rename/u })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(commands).toHaveCount(0);
+  await expect(row).toBeFocused();
+  // Up from the first command wraps to the last one that can run.
+  await page.keyboard.press("Shift+F10");
+  await page.keyboard.press("ArrowUp");
+  await expect(
+    tree.getByRole("menuitem", { name: "Set as Top", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(row).toBeFocused();
+  expect((await exportedProject(page)).topDocumentId).toBe("channel");
+});
+
+test("a directly opened definition offers its selected parts on any row of its Cell", async ({
+  page,
+}) => {
+  await openProject(page, fixture());
+  const tree = await openHierarchyTree(page);
+  await hierarchyRowCommand(page, "X1: Channel", "Open definition");
+  await expect(activeDocument(page)).toHaveText("channel");
+  await page.getByTestId("hit-XA").click();
+  await tree
+    .getByRole("button", { name: "X2: Channel", exact: true })
+    .click({ button: "right" });
+  await tree
+    .getByRole("menuitem", { name: /^New child Cell from selection…/u })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "New Cell from 1 selected part" }),
+  ).toBeVisible();
+});
+
 test("Top moves as a badge, and the tree reshapes the hierarchy one Undo at a time", async ({
   page,
 }) => {
@@ -375,12 +482,15 @@ test("Top moves as a badge, and the tree reshapes the hierarchy one Undo at a ti
     tree.getByRole("button", { name: "XA: Amplifier", exact: true }),
   ).toHaveCount(0);
 
-  // The selected part becomes a new Cell whose Pins join the Nets it left;
-  // with one part selected, the command is under Circuit › Hierarchy.
-  const fromSelection = (await openMenu(page, "Hierarchy")).getByRole(
-    "button",
-    { name: /^Create Cell from selection…/u },
-  );
+  // The selected part becomes a new Cell whose Pins join the Nets it left.
+  // The command is on the open Cell's row, the one place for Cell commands,
+  // and says first what it edits; the canvas and Circuit menus have none.
+  await tree
+    .locator('.hierarchy-node-label[aria-current="page"]')
+    .click({ button: "right" });
+  const fromSelection = tree.getByRole("menuitem", {
+    name: /^New child Cell from selection…/u,
+  });
   await expect(fromSelection).toContainText(
     "Edits Channel_2, so all 2 of its uses change",
   );

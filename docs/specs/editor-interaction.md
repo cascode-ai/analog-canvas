@@ -139,9 +139,11 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 
 ### Drawing toolbar
 
-- Undo, Redo, Wire, No Connect, Text and the annotation tools are named icons;
-  hover or focus shows the name and shortcut at once. **Properties** and
-  **Reset labels** keep their text.
+- Undo, Redo, Wire, No Connect, Text and the annotation menu are icons with
+  accessible names. Only Wire and No Connect, whose icons do not say what they
+  do, show a tooltip, at once on hover or focus. Labelled buttons, including
+  **Properties** and **Reset labels**, show none until a narrow window hides
+  their labels; the tooltip then shows the label.
 - **Hierarchy**, beside Insert and Library, shows or hides the hierarchy tree.
   In the compact layout one side shows at a time: a left panel and the
   Netlist or Project Code panel close each other.
@@ -208,9 +210,11 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   selection. It never affects drawing, probing, visibility, connectivity,
   movement closure, Search or diagnostic navigation.
 - Click replaces; `Shift`/`Ctrl`-click toggles; right-clicking a selected object
-  keeps the mixed selection. The canvas menu holds only Duplicate, Rotate,
-  Mirror, Delete and Align. Rotate (R) turns a free drawing text between
-  reading across and reading up the page; a half turn leaves it.
+  keeps the mixed selection. The canvas menu holds the selection's commands:
+  Properties, Copy, Rotate, Mirror, Delete and Align, plus Edit Component
+  Definition, Enter Cell or Couple inductors where they apply. Rotate (R) turns a
+  free drawing text between reading across and reading up the page; a half turn
+  leaves it.
 - The six align commands share one planner. Participants: placed Instances,
   selected annotations and DraftText (an anchored label with its host follows
   once); not Routes or Junctions. One undo. The GUI never calls `align_instances`.

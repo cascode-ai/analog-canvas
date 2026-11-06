@@ -10,6 +10,7 @@ import {
 import { hierarchyNavigationFixture } from "../../../../../netlists/hierarchy-navigation/fixture";
 import { EditorDocumentController } from "../../document/document-controller";
 import {
+  cellFromSelectionRefusal,
   cellUses,
   planCellFromSelection,
   planFlattenInstance,
@@ -415,6 +416,17 @@ describe("hierarchy refactoring", () => {
           1,
         ),
       ).toThrow(/both inductors of K1/u);
+    });
+
+    it("says before planning why parts cannot become a Cell", () => {
+      const project = coupledFixture();
+      expect(cellFromSelectionRefusal(project, "pair", ["L1"])).toMatch(
+        /both inductors of K1/u,
+      );
+      expect(cellFromSelectionRefusal(project, "pair", ["P_IN"])).toBe(
+        "Select the parts to move into the new Cell",
+      );
+      expect(cellFromSelectionRefusal(project, "pair", ["R1"])).toBeUndefined();
     });
   });
 });

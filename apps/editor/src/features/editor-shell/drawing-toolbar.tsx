@@ -1,4 +1,4 @@
-import { useCallback, useId, useState, type ReactNode } from "react";
+import { useCallback, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
@@ -35,11 +35,17 @@ export interface DrawingToolbarProps {
   resetLabels?: ToolbarCommand;
 }
 
-/** A toolbar button whose tooltip shows at once; icon-only tools rely on it. */
+/**
+ * A toolbar button. `text` is the name shown beside its icon; a narrow window
+ * hides it, and it then shows as the tooltip. A button without text has a
+ * tooltip only if its icon does not say what it does. A tooltip shows at once
+ * on hover or focus.
+ */
 function ToolbarButton({
   testId,
   label,
-  tooltip,
+  text,
+  tooltip = text,
   shortcut,
   pressed,
   controls,
@@ -50,7 +56,8 @@ function ToolbarButton({
 }: {
   testId: string;
   label: string;
-  tooltip: string;
+  text?: string;
+  tooltip?: string;
   shortcut?: string;
   /** Toggles report their state; plain commands such as Undo leave it out. */
   pressed?: boolean;
@@ -61,6 +68,7 @@ function ToolbarButton({
   children: ReactNode;
 }) {
   const tooltipId = useId();
+  const textRef = useRef<HTMLSpanElement>(null);
   const [position, setPosition] = useState<{
     left: number;
     top: number;
@@ -88,6 +96,8 @@ function ToolbarButton({
     [],
   );
   const show = (target: HTMLElement): void => {
+    // A name shown on the button already says it.
+    if (!tooltip || textRef.current?.offsetWidth) return;
     const bounds = target.getBoundingClientRect();
     setPosition({
       left: bounds.left + bounds.width / 2,
@@ -114,6 +124,7 @@ function ToolbarButton({
         onBlur={() => setPosition(null)}
       >
         {children}
+        {text ? <span ref={textRef}>{text}</span> : null}
       </button>
       {position && typeof document !== "undefined"
         ? createPortal(
@@ -171,88 +182,67 @@ export function DrawingToolbar({
           <ToolbarButton
             testId="examples-toggle"
             label="Insert from Gallery"
+            text="Insert"
             shortcut="G"
-            tooltip={
-              examplesOpen
-                ? "Hide Insert from Gallery"
-                : "Insert a circuit from the Gallery"
-            }
             pressed={examplesOpen}
             controls="examples-panel"
             disabled={leftPanelsDisabled}
             onClick={onToggleExamples}
           >
             <ToolIcon name="examples" />
-            <span>Insert</span>
           </ToolbarButton>
         ) : null}
         <ToolbarButton
           testId="library-toggle"
           label="Component library"
+          text="Library"
           shortcut="B"
-          tooltip={
-            libraryPanelOpen
-              ? "Hide component library"
-              : "Show component library"
-          }
           pressed={libraryOpen}
           controls="shapes-library-panel"
           disabled={leftPanelsDisabled}
           onClick={onToggleLibrary}
         >
           <ToolIcon name="library" />
-          <span>Library</span>
         </ToolbarButton>
         {onToggleHierarchy ? (
           <ToolbarButton
             testId="hierarchy-toggle"
             label="Hierarchy"
-            tooltip={
-              hierarchyOpen
-                ? "Hide the Cell hierarchy"
-                : "Show the Cell hierarchy"
-            }
+            text="Hierarchy"
             pressed={hierarchyOpen}
             controls="hierarchy-panel"
             disabled={leftPanelsDisabled}
             onClick={onToggleHierarchy}
           >
             <ToolIcon name="hierarchy" />
-            <span>Hierarchy</span>
           </ToolbarButton>
         ) : null}
         <ToolbarButton
           testId="netlist-panel-toggle"
           label="Netlist"
+          text="Netlist"
           shortcut="N"
-          tooltip={projectPanel === "netlist" ? "Hide Netlist" : "Show Netlist"}
           pressed={projectPanel === "netlist"}
           onClick={onToggleNetlist}
         >
           <ToolIcon name="netlist" />
-          <span>Netlist</span>
         </ToolbarButton>
         <ToolbarButton
           testId="project-code-toggle"
           label="Project Code"
-          tooltip={
-            projectPanel === "project-code"
-              ? "Hide Project Code"
-              : "Show Project Code"
-          }
+          text="Project Code"
           pressed={projectPanel === "project-code"}
           onClick={onToggleProjectCode}
         >
           <ToolIcon name="project-code" />
-          <span>Project Code</span>
         </ToolbarButton>
       </div>
       <span className="draw-toolbar-divider" aria-hidden="true" />
-      {/* Familiar tools are icons; their names and keys show on hover. */}
+      {/* Familiar tools are bare icons. Only Wire and No Connect, whose icons
+          do not say what they do, explain themselves on hover. */}
       <ToolbarButton
         testId="draw-tool-undo"
         label="Undo"
-        tooltip="Undo"
         shortcut="Ctrl+Z"
         iconOnly
         disabled={!undo.enabled}
@@ -263,7 +253,6 @@ export function DrawingToolbar({
       <ToolbarButton
         testId="draw-tool-redo"
         label="Redo"
-        tooltip="Redo"
         shortcut="Ctrl+Shift+Z"
         iconOnly
         disabled={!redo.enabled}
@@ -296,7 +285,6 @@ export function DrawingToolbar({
       <ToolbarButton
         testId="draw-tool-text"
         label="Text"
-        tooltip="Text"
         shortcut="T"
         iconOnly
         onClick={onAddText}
@@ -309,29 +297,25 @@ export function DrawingToolbar({
       />
       <span className="toolbar-divider" aria-hidden="true" />
       {/* These icons say too little alone, so their names stay beside them. */}
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-document-style"
-        aria-pressed={documentSettingsOpen}
-        title="Properties: Ports, canvas, and selected objects"
+      <ToolbarButton
+        testId="draw-tool-document-style"
+        label="Properties"
+        text="Properties"
+        pressed={documentSettingsOpen}
         onClick={onOpenDocumentSettings}
       >
         <ToolIcon name="style" />
-        <span>Properties</span>
-      </button>
+      </ToolbarButton>
       {resetLabels ? (
-        <button
-          type="button"
-          className="draw-tool"
-          data-testid="draw-tool-reset-labels"
-          title="Reset labels: every label to the default size and look (italic first letter, upright subscript)"
+        <ToolbarButton
+          testId="draw-tool-reset-labels"
+          label="Reset labels"
+          text="Reset labels"
           disabled={!resetLabels.enabled}
           onClick={resetLabels.execute}
         >
           <ToolIcon name="reset-labels" />
-          <span>Reset labels</span>
-        </button>
+        </ToolbarButton>
       ) : null}
     </div>
   );

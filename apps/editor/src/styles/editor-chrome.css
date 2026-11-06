@@ -62,7 +62,7 @@
   white-space: nowrap;
 }
 
-/* Familiar tools show only their icon; the instant tooltip names them. */
+/* Familiar tools show only their icon. */
 .draw-tool-icon {
   justify-content: center;
   width: var(--icm-control-h);
@@ -783,21 +783,6 @@
   white-space: nowrap;
 }
 
-/* A command that edits a shared Cell says so under its label. */
-.command-popover button:has(.command-note) {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0;
-  padding-block: 4px;
-  white-space: normal;
-}
-
-.command-popover .command-note {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-weight: 400;
-}
-
 .annotation-menu {
   flex: 0 0 auto;
 }
@@ -1427,7 +1412,7 @@
   }
 
   /* Half-width windows: the drawing toolbar collapses to icons so Style
-     never runs off the edge; every button keeps its tooltip. */
+     never runs off the edge; a hidden name shows as the button's tooltip. */
   .draw-tool > span:not(.tool-icon):not([class]) {
     display: none;
   }

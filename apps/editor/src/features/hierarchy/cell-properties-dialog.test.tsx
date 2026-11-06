@@ -119,7 +119,14 @@ describe("CellPropertiesDialog", () => {
     const markup = render(project, cell.id);
     expect(markup).toContain('aria-label="Parameter Imported name"');
     expect(markup).toContain('placeholder="No default"');
-    expect(markup).toContain('title="0 internal uses; 0 instance overrides"');
+    // Unused, it can be removed; only its × icon explains itself on hover.
+    const remove =
+      /<button[^>]*aria-label="Remove parameter Imported"[^>]*>/u.exec(
+        markup,
+      )?.[0];
+    expect(remove).toContain('title="Remove this unused parameter"');
+    expect(remove).not.toContain("disabled");
+    expect(markup).not.toContain("internal uses");
     expect(markup).toContain('aria-label="Add parameter"');
   });
 });

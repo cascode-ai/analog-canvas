@@ -28,11 +28,7 @@ export function AnnotationMenu({
       name="editor-command-menu"
       data-testid="annotation-menu"
     >
-      <summary
-        className="draw-tool draw-tool-icon"
-        aria-label="Annotation"
-        title="Annotation"
-      >
+      <summary className="draw-tool draw-tool-icon" aria-label="Annotation">
         <ToolIcon name="rectangle" />
       </summary>
       <div

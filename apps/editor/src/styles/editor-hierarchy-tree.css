@@ -56,6 +56,15 @@
   background: var(--icm-surface-hover);
   color: var(--icm-text);
 }
+/* One column as wide as the panel: an `auto` column would grow to the widest
+   row, so one deep row showing its actions widened every row past the panel
+   and cut off their use counts. A row too long for it truncates its name. */
+.hierarchy-tree,
+.hierarchy-inline-uses,
+.hierarchy-matches,
+.hierarchy-match {
+  grid-template-columns: minmax(0, 1fr);
+}
 .hierarchy-tree {
   display: grid;
 }
@@ -65,6 +74,8 @@
   gap: 2px;
   height: 28px;
   padding-right: 2px;
+  /* At a depth no width fits, the row's end is cut; the panel never scrolls. */
+  overflow: hidden;
   border-radius: var(--icm-radius-sm);
   user-select: none;
 }
@@ -146,7 +157,9 @@
   background: var(--icm-accent-soft);
   color: var(--icm-accent);
 }
-.hierarchy-node:not(:hover, :focus-within) .hierarchy-set-top {
+/* Only on hover: the open or focused row keeps its room for its name, and
+   keyboard users set Top from the row's menu. */
+.hierarchy-node:not(:hover) .hierarchy-set-top {
   display: none;
 }
 .hierarchy-uses {
@@ -194,8 +207,10 @@
   font: inherit;
   text-align: left;
 }
+/* A path wraps, even inside a long name: its end tells two uses apart. */
 .hierarchy-use {
   padding: 3px 6px;
+  overflow-wrap: anywhere;
   color: var(--icm-text-muted);
   font-size: 11px;
 }
@@ -219,12 +234,15 @@
   gap: 1px;
   padding: 5px 8px;
 }
+.hierarchy-match-name,
 .hierarchy-match-path {
   overflow: hidden;
-  color: var(--icm-text-muted);
-  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.hierarchy-match-path {
+  color: var(--icm-text-muted);
+  font-size: 11px;
 }
 .hierarchy-hint {
   margin: 4px 0 0;
@@ -251,16 +269,10 @@
 .hierarchy-footer button:hover {
   color: var(--icm-text);
 }
-.hierarchy-context-menu {
-  position: fixed;
-  z-index: 40;
-  display: grid;
+.context-menu.hierarchy-context-menu {
+  gap: 0;
   min-width: 200px;
   padding: 4px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-md);
 }
 .hierarchy-context-menu button {
   display: flex;
@@ -273,7 +285,9 @@
   font: inherit;
   text-align: left;
 }
-.hierarchy-context-menu button:hover:not(:disabled) {
+.hierarchy-context-menu button:hover:not(:disabled),
+.hierarchy-context-menu button:focus-visible {
+  outline: none;
   background: var(--icm-surface-hover);
 }
 .hierarchy-context-menu button:disabled {

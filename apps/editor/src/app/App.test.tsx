@@ -86,15 +86,16 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Cell netlist interface");
     expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
-    // A flat Project gives no space to hierarchy: no row and no path; the
-    // commands live in Circuit and the tree behind the Panels toggle.
+    // A flat Project gives no space to hierarchy: no row and no path. Every
+    // Cell command lives in the tree; Circuit and the Panels toggle open it.
     expect(markup).not.toContain('data-testid="cell-navigation"');
     expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
     expect(markup).toContain('data-testid="hierarchy-entry"');
     expect(markup).toContain('data-testid="hierarchy-toggle"');
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
     expect(markup).toContain(">Show hierarchy tree</button>");
-    expect(markup).toContain(">New child Cell…</button>");
+    expect(markup).not.toContain(">New child Cell…</button>");
+    expect(markup).not.toContain(">External Circuits…</button>");
     expect(markup).toContain("Edit Device Data…");
     // Three header menus: File (the file commands), Edit, and Circuit
     // (Hierarchy and Netlist); the command row keeps actions.
@@ -223,8 +224,9 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="cell-navigation"');
     // At Top the path stays hidden even though the Project has a child.
     expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
-    // Circuit keeps entry points only; the tree carries the Cell actions.
-    expect(markup).toContain(">Place Cell…</button>");
+    // Circuit only opens the tree, which carries every Cell action.
+    expect(markup).toContain(">Show hierarchy tree</button>");
+    expect(markup).not.toContain(">Place Cell…</button>");
     expect(markup).not.toContain("Up to caller");
   });
 
@@ -364,7 +366,9 @@ describe("editor shell", () => {
     // The toolbar button that opens a panel is the one that closes it.
     expect(markup).not.toContain('aria-label="Close project tools"');
     expect(markup).not.toContain('data-testid="selection-shelf"');
-    expect(markup).not.toContain('aria-label="Properties"');
+    expect(markup).not.toContain(
+      'aria-label="Properties" role="complementary"',
+    );
     // The panel toggles live in the horizontal toolbar; there is no rail.
     expect(markup).not.toContain('aria-label="Tool rail"');
     expect(markup).toContain('aria-label="Shapes"');

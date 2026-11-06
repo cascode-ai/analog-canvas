@@ -374,19 +374,16 @@ test("authors components, connectivity and No Connect manually from an empty can
   page,
 }) => {
   await openEditor(page);
-  // A flat Project shows no hierarchy chrome, yet its first child is one
-  // command away.
+  // A flat Project shows no hierarchy chrome; Circuit only opens the tree,
+  // where its first child Cell is made.
   await expect(page.getByTestId("hierarchy-breadcrumb")).toHaveCount(0);
   await expect(page.getByTestId("hierarchy-toggle")).toHaveAttribute(
     "aria-pressed",
     "false",
   );
   await expect(
-    (await openMenu(page, "Hierarchy")).getByRole("button", {
-      name: "New child Cell…",
-      exact: true,
-    }),
-  ).toBeEnabled();
+    (await openMenu(page, "Hierarchy")).getByRole("button"),
+  ).toHaveText(["Show hierarchy tree"]);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("0");
 
