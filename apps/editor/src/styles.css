@@ -377,7 +377,8 @@ body {
   place-items: center;
   border: 1px solid currentcolor;
   border-radius: 999px;
-  color: var(--icm-error);
+  /* The link's own grey: a red ring in the header read as an error alert. */
+  color: inherit;
   font-size: 0.7rem;
   font-weight: 750;
   line-height: 1;

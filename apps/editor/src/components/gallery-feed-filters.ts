@@ -1,5 +1,5 @@
 /**
- * The wall's filters as React state, remembered in browser storage and in the
+ * The wall's filters as React state, remembered for the tab and in the
  * URL, and the search words the server is asked once typing pauses.
  */
 import { useEffect, useRef, useState } from "react";
@@ -16,8 +16,9 @@ import {
 export function useGalleryFilters() {
   // Which wall, whose circuits, which tags, which words, which marks: one
   // state, because a reader changes them for one reason. It rides in the URL
-  // so a link and the Back button carry the same slice, and in browser
-  // storage so opening a circuit and coming back does not widen the wall.
+  // so a link and the Back button carry the same slice, and in the tab's
+  // session storage so opening a circuit and coming back does not widen the
+  // wall. A new visit opens the whole wall, never last week's slice.
   // The words are the exception: storage never keeps them, and a reload
   // opens without them (#1675); the address effect below then drops `q`.
   const [filters, setFilters] = useState<GalleryFilterState>(() => {
@@ -26,7 +27,7 @@ export function useGalleryFilters() {
     try {
       return resolveGalleryFilters(
         window.location.search,
-        window.localStorage.getItem(GALLERY_FILTERS_KEY),
+        window.sessionStorage.getItem(GALLERY_FILTERS_KEY),
         opening,
       );
     } catch {
@@ -52,7 +53,7 @@ export function useGalleryFilters() {
   // circuit must come back to the same slice, so this write cannot wait.
   useEffect(() => {
     try {
-      window.localStorage.setItem(
+      window.sessionStorage.setItem(
         GALLERY_FILTERS_KEY,
         storedGalleryFilters(filters),
       );
