@@ -254,9 +254,7 @@ describe("editor shell", () => {
       /<a[^>]*data-testid="editor-repository-link"[^>]*>/u.exec(markup)?.[0],
     ).toContain('target="_blank"');
     expect(markup).toContain('data-testid="statusbar-change-log"');
-    expect(markup).toContain(
-      'href="https://github.com/cascode-ai/analog-canvas/commits/main"',
-    );
+    expect(markup).toContain('href="/changelog"');
     expect(markup).toContain('data-testid="statusbar-shortcut-hints"');
     expect(markup).toContain("Hints</button>");
     expect(markup).not.toContain('data-testid="canvas-shortcut-hints"');
