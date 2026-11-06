@@ -13,6 +13,13 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   access uses the local AUTH session; peer import verifies the owner through
   the authority's identities endpoint. Missing owners block import, never
   delete data or allocate replacement accounts.
+- A restricted trial sets the same `PROJECT_REGION_USERS` JSON account list
+  on the HTTP entry and both stores (at most 50 IDs). Source capture, quota
+  grants and imports are confined to that list. Overseas accounts outside it
+  retain legacy saves, publication and account deletion; domestic Project
+  access outside it is refused. An omitted list retains the existing all-account
+  opt-in mode. Keep the admitted set fixed while replication is active; removing
+  accounts or rolling back requires freezing writes and reconciling both stores.
 - Save commits the current Project, retained three earlier saves and outbound
   event in one local transaction. HTTP success acknowledges local durability,
   not arrival in the other region. Failed journal capacity rolls back the save.
@@ -29,6 +36,10 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   catch-up refuses creation; existing Project reads and saves remain local,
   subject to the account authorization lease.
 - Retry an ambiguous creation with the same `Idempotency-Key` and content. The
+  creation fingerprint includes the requested Gallery binding and travels with
+  the Project; a changed request is refused in either region. A definite source
+  rejection rolls back its local quota reservation with the failed creation.
+  The
   editor retains both in the current page, recovers the created binding, then
   conditionally saves newer edits before acknowledging them. A definite initial
   refusal permits corrected content under the same key. Reloading an abandoned
@@ -54,10 +65,23 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   call. Live writes capture their predecessor first in the same transaction.
   Preserve the existing source singleton and compare both replicas before
   opening domestic writes. A Gallery-only export is not this migration format.
-- Regional mode refuses legacy destructive restore/schema conversion, account
-  deletion and publication-binding changes that bypass replication. The default
-  overseas configuration retains its behavior. Global account-deletion work and
-  Gallery coordination remain rollout dependencies.
+  With `PROJECT_REGION=overseas` and no explicit `PROJECTS` binding, the HTTP
+  entry uses the existing `GALLERY` singleton named `gallery` for Projects and
+  synchronization. This needs no new namespace or scheduled push to China.
+- The colocated Gallery store commits publication-binding changes and their
+  Project events in the same transaction, including changing the source draft
+  and clearing a former owner's binding during takeover. Journal exhaustion or
+  an unresolved affected Project conflict refuses the publication; it cannot
+  acknowledge an unjournaled binding. The Project stream carries private binding
+  metadata, not public Gallery entries; Gallery replication remains separate.
+- Regional mode refuses legacy destructive restore/schema conversion and account
+  deletion. The default overseas configuration retains its behavior. Coordinated
+  account deletion remains a rollout dependency.
+- A private region may initiate both directions with `PROJECT_SYNC_PULL=true`.
+  Each tick pulls at most one event, then delivers at most one local event.
+  Pull reconciles peer status and verifies its receipt before acknowledging
+  delivery. A lost pull response is retried from durable receipts; it never
+  permits lowering a recovery fence or exposing an inbound domestic listener.
 
 ## Contract
 
@@ -65,14 +89,15 @@ The [event decoder](../../worker/project-sync-protocol.ts) owns the wire schema;
 [journal](../../worker/project-sync-journal.ts) owns durable cursor semantics.
 The [HTTP transport](../../worker/project-sync.ts) owns endpoint authorization.
 
-| Endpoint                               | Credential                    | Behavior                                                           |
-| -------------------------------------- | ----------------------------- | ------------------------------------------------------------------ |
-| `GET /api/project-sync/status`         | Direction-specific peer token | Cursor, capacity and delivery state; no contents                   |
-| `GET /api/project-sync/events?after=N` | Peer token                    | At most one bounded event after N                                  |
-| `POST /api/project-sync/events`        | Peer token                    | Validate and durably apply `{event}`                               |
-| `POST /api/project-sync/quota`         | Peer token                    | Authority reserves `{id, ownerUserId}` and returns a durable grant |
-| `POST /api/project-sync/seed`          | Separate admin token          | Capture one untracked source Project                               |
-| `POST /api/project-sync/run`           | Admin token                   | Reconcile and deliver one event; inspect returned status           |
+| Endpoint                               | Credential                    | Behavior                                                                           |
+| -------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------- |
+| `GET /api/project-sync/status`         | Direction-specific peer token | Cursor, capacity and delivery state; no contents                                   |
+| `GET /api/project-sync/events?after=N` | Peer token                    | At most one bounded event after N                                                  |
+| `POST /api/project-sync/events`        | Peer token                    | Validate and durably apply `{event}`                                               |
+| `POST /api/project-sync/quota`         | Peer token                    | Authority reserves `{id, ownerUserId}` and returns a durable grant                 |
+| `POST /api/project-sync/pull`          | Peer token                    | Reconcile `{status}`, acknowledge its verified receipt and return `{peer, events}` |
+| `POST /api/project-sync/seed`          | Separate admin token          | Capture one untracked source Project                                               |
+| `POST /api/project-sync/run`           | Admin token                   | Reconcile and deliver one event; inspect returned status                           |
 
 All responses are no-store. Browser cookies confer no synchronization authority.
 Peer destinations are fixed HTTPS origins; redirects are refused. Identity token
@@ -88,6 +113,10 @@ Credentials stay outside Git and release bundles. HTTP 409 blocks reconciliation
 - [Fault tests](../../worker/regional-projects-faults.test.ts) cover bounded
   requests, invalid/gapped/colliding events, retained history and late updates
   after deletion.
+- [Cohort tests](../../worker/regional-projects-cohort.test.ts) preserve
+  nonparticipating overseas behavior and restrict domestic access and replication.
+  [Pull tests](../../worker/project-sync-pull.test.ts) verify both directions,
+  lost responses and restart when only the domestic region can initiate connections.
 - [Runtime entry test](../../worker/regional-entry.test.ts) uses actual authority
   and regional session stores to read and save a replicated Project locally.
 - [Standalone candidate](../../containers/canvas-cn/formal/README.md) activation,

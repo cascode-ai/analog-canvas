@@ -56,6 +56,8 @@ async function handleProjectSync(
   }
   if (!bearerMatches(request, env.PROJECT_SYNC_TOKEN))
     return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (url.pathname === "/api/project-sync/pull" && request.method === "POST")
+    return projectStore(env, "sync-pull", await readSyncJson(request, 4096));
   if (url.pathname === "/api/project-sync/quota" && request.method === "POST") {
     const body = (await readSyncJson(request, 4096)) as {
       id?: unknown;
@@ -134,9 +136,74 @@ function projectStore(
 export async function pumpProjectSync(env: GalleryEnv): Promise<{
   status: "disabled" | "caught-up" | "sent" | "retry" | "blocked";
 }> {
-  const result = await deliverProjectSync(env);
+  const pulled =
+    env.PROJECT_SYNC_PULL === "true" ? await pullProjectSync(env) : null;
+  let result =
+    pulled?.status === "retry" || pulled?.status === "blocked"
+      ? pulled
+      : await deliverProjectSync(env);
+  if (result.status === "caught-up" && pulled?.status === "sent")
+    result = pulled;
   if (env.PROJECTS) await projectStore(env, "sync-delivery", result);
   return result;
+}
+
+/** Fetch one ordered peer event without exposing an inbound domestic endpoint. */
+async function pullProjectSync(
+  env: GalleryEnv,
+): Promise<{ status: "sent" | "caught-up" | "retry" | "blocked" }> {
+  if (
+    !env.PROJECTS ||
+    !env.PROJECT_SYNC_PEER_URL ||
+    !env.PROJECT_SYNC_PEER_TOKEN
+  )
+    return { status: "blocked" };
+  try {
+    const localResponse = await projectStore(env, "sync-status", {});
+    if (!localResponse.ok) return { status: "blocked" };
+    const response = await fetch(
+      new URL("/api/project-sync/pull", peerOrigin(env.PROJECT_SYNC_PEER_URL)),
+      {
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(15_000),
+        headers: {
+          Authorization: `Bearer ${env.PROJECT_SYNC_PEER_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: await localResponse.json() }),
+      },
+    );
+    if (!response.ok)
+      return { status: response.status >= 500 ? "retry" : "blocked" };
+    const result = (await readSyncJson(
+      response,
+      MAX_SYNC_BYTES * 2 + 4096,
+    )) as { peer?: ProjectSyncStatus; events?: unknown[] } | null;
+    if (!result || !Array.isArray(result.events) || result.events.length > 1)
+      return { status: "blocked" };
+    const reconciled = await projectStore(env, "sync-reconcile", {
+      peer: result.peer,
+    });
+    if (!reconciled.ok) return { status: "blocked" };
+    if (!result.events.length) return { status: "caught-up" };
+    const decoded = await decodeProjectEvent(result.events[0]);
+    if (!decoded) return { status: "blocked" };
+    const denied = await requireProjectOwner(env, decoded.change.ownerUserId);
+    if (denied) return { status: denied.status >= 500 ? "retry" : "blocked" };
+    const received = await projectStore(env, "sync-receive", {
+      event: decoded.event,
+    });
+    return {
+      status: received.ok
+        ? "sent"
+        : received.status >= 500
+          ? "retry"
+          : "blocked",
+    };
+  } catch {
+    return { status: "retry" };
+  }
 }
 
 async function deliverProjectSync(env: GalleryEnv): Promise<{

@@ -436,6 +436,8 @@ export async function routeGalleryRequest(
   env: GalleryEnv,
   runtime: GalleryRouteRuntime = {},
 ): Promise<Response | null> {
+  if (env.PROJECT_REGION === "overseas" && !env.PROJECTS)
+    env = { ...env, PROJECTS: env.GALLERY, PROJECTS_STORE_NAME: "gallery" };
   const sync = await routeProjectSync(request, env);
   if (sync) return sync;
   const url = new URL(request.url);
