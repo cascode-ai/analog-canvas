@@ -34,30 +34,33 @@ it.each([
   { operation: "read-gallery-entry", galleryEntryId: "g1" },
   { operation: "read-gallery-entry", galleryEntryId: "g1", render: "svg" },
   { operation: "read-gallery-entries", galleryEntryIds: ["g1"] as string[] },
-] as const)("preserves blocked recovery for $operation", async (request) => {
-  const editor = liveAgentEditor({
-    projectHost: {
-      fetch: async () =>
-        Response.json({ error: "account-blocked" }, { status: 403 }),
-    },
-  });
-  await editor.client.connect("session-1.code");
-  const before = editor.controller.project;
-  const result = await editor.client.projectResource({
-    apiVersion: "3.0",
-    requestId: "blocked",
-    ...request,
-  });
-  expect(result).toMatchObject({
-    ok: false,
-    error: {
-      code: "GALLERY_ACCOUNT_BLOCKED",
-      recovery: "fix-input",
-      message: expect.stringContaining("Owner"),
-    },
-  });
-  expect(editor.controller.project).toBe(before);
-});
+] as const)(
+  "preserves blocked recovery for $operation (render=$render)",
+  async (request) => {
+    const editor = liveAgentEditor({
+      projectHost: {
+        fetch: async () =>
+          Response.json({ error: "account-blocked" }, { status: 403 }),
+      },
+    });
+    await editor.client.connect("session-1.code");
+    const before = editor.controller.project;
+    const result = await editor.client.projectResource({
+      apiVersion: "3.0",
+      requestId: "blocked",
+      ...request,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "GALLERY_ACCOUNT_BLOCKED",
+        recovery: "fix-input",
+        message: expect.stringContaining("Owner"),
+      },
+    });
+    expect(editor.controller.project).toBe(before);
+  },
+);
 
 it("refuses blocked insertion before any project edit", async () => {
   const editor = liveAgentEditor({

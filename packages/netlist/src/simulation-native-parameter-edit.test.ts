@@ -9,19 +9,22 @@ describe("native parameter declaration edit", () => {
     ["Title\r\ncontrol\nendc", true, "Title\r\nparameters \r\ncontrol\nendc"],
     ["", false, "parameters \n"],
     ["// library\n", false, "parameters \n// library\n"],
-  ] as const)("preserves existing bytes and title: %j", (text, entry, next) => {
-    const edit = nativeParameterDeclarationEdit(text, entry);
-    expect(edit.text).toBe(next);
-    const change = edit.changes[0]!;
-    expect(
-      text.slice(0, change.from) + change.insert + text.slice(change.to),
-    ).toBe(next);
-    expect(next.slice(edit.anchor - 11, edit.anchor)).toBe("parameters ");
-    expect(
-      next.slice(0, change.from) +
-        next.slice(change.from + change.insert.length),
-    ).toBe(text);
-  });
+  ] as const)(
+    "preserves existing bytes and title: %j (entry=%s)",
+    (text, entry, next) => {
+      const edit = nativeParameterDeclarationEdit(text, entry);
+      expect(edit.text).toBe(next);
+      const change = edit.changes[0]!;
+      expect(
+        text.slice(0, change.from) + change.insert + text.slice(change.to),
+      ).toBe(next);
+      expect(next.slice(edit.anchor - 11, edit.anchor)).toBe("parameters ");
+      expect(
+        next.slice(0, change.from) +
+          next.slice(change.from + change.insert.length),
+      ).toBe(text);
+    },
+  );
   it("precedes includes, conditional/local scope and control without inspecting a broken draft", () => {
     const text =
       'Title\n/* control\nendc */\ninclude "local.sim"\n@if flag\nsubckt Cell (p n)\nparameters Width=1\n';

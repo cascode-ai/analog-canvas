@@ -62,12 +62,12 @@ describe("native postprocessor plot declarations", () => {
     ]);
   });
   it.each([
-    { ...record, analysis: "noise" },
-    { ...record, plotOrdinal: -1 },
-    { ...record, extra: "ignored?" },
-    { ...record, axis: null },
-    { ...record, probes: [{ name: "x", unit: "V" }] },
-  ])("rejects malformed/unsupported mappings", (value) => {
+    ["unsupported analysis", { ...record, analysis: "noise" }],
+    ["negative plot ordinal", { ...record, plotOrdinal: -1 }],
+    ["unknown property", { ...record, extra: "ignored?" }],
+    ["missing axis", { ...record, axis: null }],
+    ["incomplete probe", { ...record, probes: [{ name: "x", unit: "V" }] }],
+  ])("rejects malformed/unsupported mappings: %s", (_scenario, value) => {
     expect(vacaskPostprocessPlots(frame(value), []).diagnostics).toHaveLength(
       1,
     );

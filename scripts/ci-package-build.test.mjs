@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  cpSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -10,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { afterEach, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
 const compiler = join(
@@ -29,9 +30,12 @@ function put(root, path, value) {
 function git(root, ...args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 }
-function fixture() {
+function temporaryRoot() {
   const root = mkdtempSync(join(tmpdir(), "ci-package-build-"));
   roots.push(root);
+  return root;
+}
+function fixture(root = temporaryRoot()) {
   put(root, "package.json", { private: true, packageManager: "pnpm@11.16.0" });
   put(root, "pnpm-workspace.yaml", "packages:\n  - packages/*\n");
   put(root, "pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
@@ -79,15 +83,30 @@ function run(root, mode) {
     timeout: 60000,
   });
 }
+let builtRoot;
+beforeAll(() => {
+  builtRoot = mkdtempSync(join(tmpdir(), "ci-package-build-seed-"));
+  fixture(builtRoot);
+  const built = run(builtRoot, "build");
+  expect(built.status, built.stdout + built.stderr).toBe(0);
+}, 60000);
+afterAll(() => {
+  if (builtRoot) rmSync(builtRoot, { recursive: true, force: true });
+});
+function builtFixture() {
+  const root = temporaryRoot();
+  // Preserve the candidate commit and receipt, but isolate every mutation.
+  cpSync(builtRoot, root, { recursive: true });
+  expect(run(root, "verify").status).toBe(0);
+  return root;
+}
 afterEach(() => {
   for (const root of roots.splice(0))
     rmSync(root, { recursive: true, force: true });
 });
 
 it("builds consumable standalone dependencies and accepts the matching artifact", () => {
-  const root = fixture();
-  const built = run(root, "build");
-  expect(built.status, built.stdout + built.stderr).toBe(0);
+  const root = builtFixture();
   const consumer = spawnSync(
     process.execPath,
     [
@@ -102,8 +121,7 @@ it("builds consumable standalone dependencies and accepts the matching artifact"
 }, 60000);
 
 it("rejects artifacts from a different candidate, platform or toolchain", () => {
-  const root = fixture();
-  expect(run(root, "build").status).toBe(0);
+  const root = builtFixture();
   const receipt = JSON.parse(
     readFileSync(join(root, "output/ci-packages.json"), "utf8"),
   );
@@ -121,8 +139,7 @@ it("rejects artifacts from a different candidate, platform or toolchain", () => 
 }, 60000);
 
 it("rejects missing output, changed bytes and source changed since the build", () => {
-  const root = fixture();
-  expect(run(root, "build").status).toBe(0);
+  const root = builtFixture();
   const path = "packages/agent-adapter/dist/index.js";
   const original = readFileSync(join(root, path));
   rmSync(join(root, path));
@@ -144,9 +161,12 @@ it("rejects missing output, changed bytes and source changed since the build", (
 }, 60000);
 
 it("requires a receipt and builds the remaining workspace after verification", () => {
-  const root = fixture();
+  const root = builtFixture();
+  const receiptPath = join(root, "output/ci-packages.json");
+  const receipt = readFileSync(receiptPath);
+  rmSync(receiptPath);
   expect(run(root, "verify").status).toBe(1);
-  expect(run(root, "build").status).toBe(0);
+  writeFileSync(receiptPath, receipt);
   const result = run(root, "remaining");
   expect(result.status, result.stdout + result.stderr).toBe(0);
   expect(
