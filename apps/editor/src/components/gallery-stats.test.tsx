@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   AuthorStatsView,
   GalleryStatsView,
+  countedAgo,
   statsSourceFromSearch,
   statsViewFromSearch,
   type GalleryStatsSummary,
@@ -102,6 +103,19 @@ describe("the Gallery's statistics", () => {
       }),
     );
     expect(markup).toContain('data-testid="gallery-stats-empty"');
+  });
+
+  it("says how long ago the figures were counted", () => {
+    const now = Date.parse("2026-11-06T12:00:00.000Z");
+    expect(countedAgo("2026-11-06T11:59:50.000Z", now)).toBe(
+      "Counted just now",
+    );
+    expect(countedAgo("2026-11-06T11:48:00.000Z", now)).toBe(
+      "Counted 12 min ago",
+    );
+    expect(countedAgo("2026-11-06T10:50:00.000Z", now)).toBe(
+      "Counted 1 hour ago",
+    );
   });
 
   it("opens the view and the stores a link names", () => {

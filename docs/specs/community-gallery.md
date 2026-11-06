@@ -268,8 +268,10 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
     the chosen stores' merged `summary`, their 10 `topAuthors` and `sources`
     (`{key, name, circuits}` per store; a dataset that fails adds nothing).
     A dataset's circuits count in `datasets` and its weeks as `dataset`,
-    neither people's nor AI's. Each store counts its own devices on read and
-    on the scheduled pass.
+    neither people's nor AI's. A read never counts: each store answers the
+    figures it keeps (`computedAt`, the oldest store's), which the scheduled
+    pass counts again when an hour old or once a new or edited circuit is
+    counted, and a store's Recount when it ends.
   - `GET /api/gallery/mine/stats` (401 signed out): the account's public
     circuits, newest first (`{id,name,createdAt,components,transistors,
 aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
@@ -286,8 +288,9 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
     per call: NMOS, PMOS, BJT, resistor, capacitor, inductor, diode, source,
     switch, block (a behavioral body), other; Ports, markers and undrawn parts
     are not counted. Transistors are its MOS and BJT parts. Kept beside their
-    rule version, not backed up, counted on read, by the scheduled pass and
-    again after an edit; null while unreadable.
+    rule version, not backed up, counted by the scheduled pass (100 per
+    store a tick), again after an edit, and on an account's own read of its
+    still uncounted circuits; null while unreadable.
 - Moderators: `users.role` (`user`/`moderator`), set by the super-admin via
   `POST /api/auth/users/role` `{email, role}` for every account with that
   verified email. Bin and maintenance stay admin-only. No bulk model fill.
@@ -529,9 +532,12 @@ ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
   `transistors`, `simulatable` and the same opens, with their `summary` and
   `rank` as `mine/stats` gives them.
 - `POST /api/gallery/owner-data/recount` (same-origin, Owner accounts):
-  counts the devices of up to 200 public circuits after `{after}`, in ID
-  order, whatever their stored count; `{counted, remaining, next}`, resumed
-  from `next` until it is null. The Data tab's Recount runs it to the end.
+  counts the devices of up to 200 public circuits of `store` (`community`,
+  the default, or a dataset's key) after `after`, in ID order, whatever their
+  stored count; the community's first, then each dataset holding any circuit.
+  `{counted, remaining, store, next}`: `remaining` over every store still to
+  come, resumed from `store` and `next` until `next` is null; an unknown
+  store is 400. The Data tab's Recount runs it to the end.
 
 `label-looks` fields (body, then each of the reply's `results`):
 

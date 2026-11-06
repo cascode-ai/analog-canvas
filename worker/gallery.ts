@@ -731,8 +731,9 @@ export async function routeGalleryRequest(
     segments[1] === "recount" &&
     request.method === "POST"
   ) {
-    // The Data tab's Recount: one batch of transistor counts per request,
-    // resumed from `after` until `next` is null.
+    // The Data tab's Recount: one batch of device counts per request, the
+    // community's then each dataset's, resumed from `store` and `after`
+    // until `next` is null.
     if (!sameOrigin(request))
       return Response.json({ error: "forbidden" }, { status: 403 });
     const user = await sessionUserOf(request, env);
@@ -740,10 +741,12 @@ export async function routeGalleryRequest(
     if (!user.isOwner)
       return Response.json({ error: "owner-only" }, { status: 403 });
     const body = (await request.json().catch(() => null)) as {
+      store?: unknown;
       after?: unknown;
     } | null;
     const { status, payload } = await recountTransistors(
       env,
+      typeof body?.store === "string" ? body.store : "community",
       typeof body?.after === "string" ? body.after : "",
     );
     return Response.json(payload, {

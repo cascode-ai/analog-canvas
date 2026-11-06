@@ -9,7 +9,10 @@ import {
 } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { galleryDeviceCounts } from "./gallery-components";
-import { refreshTransistorCounts } from "./gallery-maintenance";
+import {
+  refreshGalleryStatistics,
+  refreshTransistorCounts,
+} from "./gallery-maintenance";
 import {
   ORIGIN,
   cookieHeaders,
@@ -199,6 +202,8 @@ describe("the Gallery's statistics", () => {
         ),
       );
     expect((await read("stats")).status).toBe(401);
+    // The scheduled pass counts the circuits and the figures ahead.
+    await refreshGalleryStatistics(env, 100);
     const response = await read("stats", other);
     expect(response.status).toBe(200);
     const { summary, topAuthors } = (await response.json()) as any;
@@ -246,6 +251,19 @@ describe("the Gallery's statistics", () => {
     expect(summary.weeks).toHaveLength(16);
     expect(summary.weeks.at(-1)).toMatchObject({ human: 2, ai: 1 });
     expect(topAuthors.map((author: any) => author.circuits)).toEqual([2, 1]);
+
+    // A read answers the kept figures; a new circuit joins them once the
+    // next pass has counted it.
+    await submitOne(env, "Later", {
+      cookie: maker,
+      text: circuitText("Later", ["nmos"]),
+      ip: "203.0.113.53",
+    });
+    const circuits = async () =>
+      ((await (await read("stats", other)).json()) as any).summary.circuits;
+    expect(await circuits()).toBe(3);
+    await refreshGalleryStatistics(env, 100);
+    expect(await circuits()).toBe(4);
 
     // An author's own statistics carry their distributions and place.
     const mine = (await (await read("mine/stats", other)).json()) as any;
@@ -332,6 +350,7 @@ describe("the Gallery's statistics by source", () => {
       }),
     );
     expect(imported.status).toBe(200);
+    await refreshGalleryStatistics(env, 100);
     const read = async (source?: string) =>
       (await (
         await route(
@@ -369,6 +388,39 @@ describe("the Gallery's statistics by source", () => {
     expect(datasets.topAuthors).toEqual([
       { author: "AMS-Net (redrawn)", circuits: 2 },
     ]);
+
+    // The Owner's Recount counts the community's, then each dataset's that
+    // holds any circuit, a stale count too, and their figures again.
+    const amsnet = env.galleryStoreStates.get("source:amsnet")!.storage.sql;
+    amsnet.exec("UPDATE gallery_entry_transistors SET transistors = 99");
+    amsnet.exec("DELETE FROM gallery_stats_snapshot");
+    expect((await read("datasets")).summary).toMatchObject({
+      transistors: 198,
+    });
+    const recount = async (body: object) =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/owner-data/recount`, {
+          method: "POST",
+          headers: {
+            Origin: ORIGIN,
+            Cookie: owner,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+    expect(await (await recount({})).json()).toEqual({
+      counted: 1,
+      remaining: 2,
+      store: "amsnet",
+      next: "",
+    });
+    expect(
+      await (await recount({ store: "amsnet", after: "" })).json(),
+    ).toEqual({ counted: 2, remaining: 0, store: null, next: null });
+    expect((await read("datasets")).summary).toMatchObject({ transistors: 2 });
+    expect((await recount({ store: "elsewhere" })).status).toBe(400);
   });
 });
 
@@ -488,7 +540,7 @@ describe("an account's circuit statistics", () => {
       transistorsPending: 2,
     });
     const pass = await refreshTransistorCounts(env);
-    expect(pass.payload).toEqual({ counted: 2, remaining: 0 });
+    expect(pass.payload).toEqual({ counted: 2, remaining: 0, recounted: true });
     const [author] = (await read()).authors;
     expect(author).toMatchObject({
       circuits: 2,
@@ -530,6 +582,7 @@ describe("an account's circuit statistics", () => {
     expect(await recounted.json()).toEqual({
       counted: 2,
       remaining: 0,
+      store: null,
       next: null,
     });
     expect((await read()).authors[0]).toMatchObject({ transistors: 3 });

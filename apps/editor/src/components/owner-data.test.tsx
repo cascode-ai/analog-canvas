@@ -29,8 +29,9 @@ beforeEach(() => {
   root = createRoot(container);
   recounts = [];
   const batches = [
-    { counted: 2, remaining: 1, next: "b" },
-    { counted: 1, remaining: 0, next: null },
+    { counted: 2, remaining: 3, store: "community", next: "b" },
+    { counted: 1, remaining: 2, store: "amsnet", next: "" },
+    { counted: 2, remaining: 0, store: null, next: null },
   ];
   let reads = 0;
   vi.stubGlobal(
@@ -40,7 +41,7 @@ beforeEach(() => {
         recounts.push(JSON.parse(String(init?.body)));
         return Response.json(batches.shift());
       }
-      if (url === "/api/gallery/stats")
+      if (url.startsWith("/api/gallery/stats"))
         return new Response(null, { status: 404 });
       reads += 1;
       return Response.json({ authors: [author(reads === 1 ? 5 : 12)] });
@@ -57,7 +58,7 @@ afterEach(() => {
 const settle = () => act(async () => {});
 
 describe("the Owner's Data tab", () => {
-  it("recounts every circuit in batches and shows the new totals", async () => {
+  it("recounts every circuit, the datasets' too, and shows the new totals", async () => {
     act(() => root.render(<OwnerDataContent />));
     await settle();
     const totals = () =>
@@ -69,12 +70,17 @@ describe("the Owner's Data tab", () => {
     act(() => button.click());
     await settle();
     await settle();
-    // Each batch resumes where the last one stopped.
-    expect(recounts).toEqual([{ after: "" }, { after: "b" }]);
+    // Each batch resumes where the last one stopped, the datasets after the
+    // community.
+    expect(recounts).toEqual([
+      { store: "community", after: "" },
+      { store: "community", after: "b" },
+      { store: "amsnet", after: "" },
+    ]);
     expect(
       container.querySelector('[data-testid="owner-data-recount-status"]')!
         .textContent,
-    ).toBe("3 circuits recounted");
+    ).toBe("5 circuits recounted");
     expect(totals()).toContain("12 transistors");
     expect(button.disabled).toBe(false);
   });
