@@ -5,12 +5,15 @@ import {
   type AuthEnv,
   type SessionUser,
 } from "./auth-do";
+import { REGIONAL_SESSION_COOKIE } from "./regional-auth-contract";
 
 function hasSessionCookie(request: Request): boolean {
-  const prefix = `${AUTH_SESSION_COOKIE}=`;
   return (request.headers.get("Cookie") ?? "").split(";").some((part) => {
     const cookie = part.trim();
-    return cookie.startsWith(prefix) && cookie.length > prefix.length;
+    return [AUTH_SESSION_COOKIE, REGIONAL_SESSION_COOKIE].some(
+      (name) =>
+        cookie.startsWith(name + "=") && cookie.length > name.length + 1,
+    );
   });
 }
 

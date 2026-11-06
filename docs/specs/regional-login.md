@@ -16,13 +16,17 @@ serves local authorization. Resource replication is owned by
 - Provider secrets and provider callbacks stay at the authority. The configured
   authority origin must always route there; the regional callback must route to
   the region that started login. Same-domain geographic DNS alone is insufficient.
-- A region uses its own AUTH binding, storage and HttpOnly host-only session.
-  Its provider visibility advertises `central` and `loginUrl`; the consuming
-  login UI must use that URL. Legacy provider-only UI needs that integration
-  before enabling this binding. Existing overseas provider responses stay intact.
+- A region uses its own AUTH binding, storage and HttpOnly host-only
+  `icm_regional_session`; overseas retains `icm_session`. Regional logout clears
+  only the regional session and pending handoff. The editor recognizes `central`
+  with the local `loginUrl` `/api/auth/regional/start`; overseas provider choices
+  stay intact.
 - Handoff codes are short-lived, single-use, browser-bound and redeemable only
   by the configured client with its verifier and service credential. A lost
-  redemption response requires restarting login. Redirects have fixed destinations.
+  redemption response requires restarting login. The starting region binds a
+  same-origin page continuation to the pending handoff; callbacks cannot change
+  it. External and API continuations fall back to `/`. Returning to the editor
+  preserves its browser-local workspace under the existing recovery contract.
 - Ordinary `sessionUserOf()` calls read local state without network I/O. Its
   `SessionUser | null` shape remains unchanged. Local authority-originated flags
   are never inferred from email or granted by a resource store.
@@ -33,8 +37,7 @@ serves local authorization. Resource replication is owned by
   operations even while regional data is available. Production must qualify
   alarm capacity and clock synchronization before enabling this profile.
 - Authority logout, session expiry or account disappearance stops renewal;
-  prior leases expire within their bound. Regional logout removes only the
-  regional session. `blocked` retains its Gallery-only meaning; it is not a
+  prior leases expire within their bound. `blocked` retains its Gallery-only meaning; it is not a
   global account-disable flag. This protocol adds no global-disable feature.
 - Identity lookup establishes an owner exists; it does not authorize a browser
   to read that owner's resources or allocate another quota. Unknown identities

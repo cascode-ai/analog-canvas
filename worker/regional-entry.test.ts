@@ -85,7 +85,7 @@ it("authorizes the formal Project HTTP entry using a real regional handoff and r
   );
   expect(callback.status, await callback.clone().text()).toBe(302);
   const localCookie = callback.headers.get("set-cookie")!.split(";")[0]!;
-  expect(localCookie).toMatch(/^icm_session=/);
+  expect(localCookie).toMatch(/^icm_regional_session=/);
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input, init) =>

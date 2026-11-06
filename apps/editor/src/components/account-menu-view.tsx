@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { accountInitial, type AccountMenuViewProps } from "./account";
+import {
+  accountInitial,
+  centralLoginUrl,
+  hasSignIn,
+  type AccountMenuViewProps,
+} from "./account";
 import { GitHubMark, GoogleMark } from "./provider-marks";
 import { OPEN_SIGN_IN_EVENT, takeSignInRequest } from "./sign-in-request";
 import { SITE_PRIVACY_PATH } from "./site-resource-links";
@@ -9,6 +14,7 @@ export default function AccountMenuView({
   state,
   notice,
   inEditor = false,
+  signInReturnTo,
   onEmailStart,
   onEmailVerify,
   onReturnToOwner,
@@ -40,7 +46,7 @@ export default function AccountMenuView({
     window.addEventListener(OPEN_SIGN_IN_EVENT, open);
     open();
     return () => window.removeEventListener(OPEN_SIGN_IN_EVENT, open);
-  }, []);
+  }, [user]);
 
   const sendCode = async (address: string) => {
     setBusy(true);
@@ -101,12 +107,24 @@ export default function AccountMenuView({
     );
   }
 
-  if (!providers.github && !providers.google && !providers.email) {
+  if (!hasSignIn(providers)) {
     // Dark ship: with no provider configured, sign-in does not exist.
     return null;
   }
 
   const notes = message ?? notice;
+  const loginUrl = centralLoginUrl(providers);
+  const resume =
+    signInReturnTo ??
+    (typeof window === "undefined"
+      ? null
+      : window.location.pathname +
+        window.location.search +
+        window.location.hash);
+  const loginHref =
+    loginUrl && resume
+      ? loginUrl + "?" + new URLSearchParams({ return: resume })
+      : loginUrl;
   return (
     <details
       ref={signIn}
@@ -115,6 +133,15 @@ export default function AccountMenuView({
     >
       <summary>Sign in</summary>
       <div className="account-signin-panel">
+        {loginHref ? (
+          <a
+            className="account-provider"
+            href={loginHref}
+            data-testid="signin-central"
+          >
+            Continue to sign in
+          </a>
+        ) : null}
         {providers.github ? (
           <a
             className="account-provider"
