@@ -13,9 +13,12 @@ serves local authorization. Resource replication is owned by
 - Preserve the authority's user ID and provider separation. Only the authority
   registers users, links identities and changes roles. Email equality never
   merges accounts. Domestic acceptance probe IDs are disposable.
-- Provider secrets and provider callbacks stay at the authority. The configured
-  authority origin must always route there; the regional callback must route to
-  the region that started login. Same-domain geographic DNS alone is insufficient.
+- Provider secrets and provider callbacks stay at the authority. A shared browser
+  domain requires a distinct fixed `transportOrigin` for authority traffic. The
+  domestic entry proxies only the method/path pairs in
+  `isRegionalAuthorityBrowserRoute`; regional start, callback and local sessions
+  stay domestic. The authority recognizes only its configured transport alias
+  and preserves the browser Origin check. Forwarded headers grant no trust.
 - A region uses its own AUTH binding, storage and HttpOnly host-only
   `icm_regional_session`; overseas retains `icm_session`. Regional logout clears
   only the regional session and pending handoff. The editor recognizes `central`
@@ -54,7 +57,10 @@ serves local authorization. Resource replication is owned by
 ## Contract
 
 The same [configuration shape](../../worker/regional-auth-contract.ts) pins
-authority origin, client origin and a separate shared client secret. Set
+browser authority origin, client origin and a separate shared client secret.
+Optional `transportOrigin` pins the backend independently of browser routing;
+without it, the two browser origins must differ. Server exchanges never follow
+transport redirects. Set
 `AUTH_REGIONAL_AUTHORITY` only on the authority and `AUTH_REGIONAL_CLIENT` only
 on `RegionalSessionDO`. Invalid or absent configuration keeps the new surface
 closed. HTTPS is required except explicit loopback acceptance origins. No
