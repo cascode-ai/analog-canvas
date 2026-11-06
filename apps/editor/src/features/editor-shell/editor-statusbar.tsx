@@ -2,7 +2,7 @@ import type { WireCornerOrder, WireRoutingMode } from "@icm/edit-engine";
 
 import type { EditorTool } from "../../interaction/interaction-state";
 import {
-  SITE_CHANGE_LOG_URL,
+  SITE_CHANGE_LOG_PATH,
   SITE_PRIVACY_PATH,
 } from "../../components/site-resource-links";
 import { ToolIcon } from "./tool-icon";
@@ -305,7 +305,7 @@ export function EditorStatusbar({
             <a
               className="statusbar-change-log"
               data-testid="statusbar-change-log"
-              href={SITE_CHANGE_LOG_URL}
+              href={SITE_CHANGE_LOG_PATH}
               target="_blank"
               rel="noreferrer"
             >
