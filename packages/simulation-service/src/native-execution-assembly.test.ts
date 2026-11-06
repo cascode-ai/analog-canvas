@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
 import { VACASK_PLOT_PREFIX } from "@icm/netlist";
-import { evaluateSimulationOutputs } from "./output-evaluation.js";
-import { SimulationOutputDataSchema } from "./contract.js";
 import {
   assembleNativeExecutionOutput,
   type NativeJobObservation,
@@ -108,7 +106,7 @@ describe("native result assembly", () => {
     );
     expect(output.result.data).toBeUndefined();
   });
-  it("maps explicitly reported curves into canonical outputs without losing raw or failed-record evidence", async () => {
+  it("maps explicitly reported curves into numeric results without losing raw or failed-record evidence", async () => {
     const { input, job } = fixture();
     job.rawfiles.push({
       path: "derived.raw",
@@ -139,25 +137,12 @@ describe("native result assembly", () => {
     expect(
       result.result.data?.analyses[1]?.postprocessor?.logLine,
     ).toBeGreaterThan(0);
-    const output = evaluateSimulationOutputs(
-      result.result.data!,
-      [],
-      [],
-      [],
-      [],
-      true,
-    );
-    expect(SimulationOutputDataSchema.safeParse(output).success).toBe(true);
-    expect(output.analyses[1]).toMatchObject({
-      postprocessor: result.result.data!.analyses[1]!.postprocessor,
-      outputs: expect.arrayContaining([
-        expect.objectContaining({
-          label: "output",
-          unit: "1",
-          semantics: expect.objectContaining({ valueKind: "complex" }),
-        }),
-      ]),
-    });
+    const curve = result.result.data!.analyses[1]!;
+    if (curve.analysis !== "ac") throw Error("AC expected");
+    const probe = curve.probes.find((item) => item.name === "output")!;
+    expect(probe).toMatchObject({ quantity: "transfer", unit: "1" });
+    expect(probe.real[0]).toBeCloseTo(0.9960676824071726, 12);
+    expect(probe.imag[0]).toBeCloseTo(-0.0625847782705717, 12);
     job.truncated = true;
     expect(
       (await assembleNativeExecutionOutput(input, job, await environment()))
