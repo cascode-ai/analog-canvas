@@ -8,6 +8,8 @@ export type RegionalSql = SqlStorage;
 export type RegionalConfig = {
   origin: string;
   clientOrigin: string;
+  /** Fixed authority backend; independent of browser geographic routing. */
+  transportOrigin?: string;
   secret: string;
 };
 
@@ -23,7 +25,11 @@ export function regionalConfig(
       config.secret.length > 256
     )
       return null;
-    for (const origin of [config.origin, config.clientOrigin]) {
+    for (const origin of [
+      config.origin,
+      config.clientOrigin,
+      ...(config.transportOrigin === undefined ? [] : [config.transportOrigin]),
+    ]) {
       const url = new URL(origin);
       if (url.origin !== origin || url.username || url.password) return null;
       if (
@@ -35,10 +41,62 @@ export function regionalConfig(
       )
         return null;
     }
-    return config.origin !== config.clientOrigin ? config : null;
+    const transport = config.transportOrigin ?? config.origin;
+    return transport !== config.clientOrigin ? config : null;
   } catch {
     return null;
   }
+}
+
+/** Exact browser routes the domestic entry may proxy to the fixed authority. */
+export function isRegionalAuthorityBrowserRoute(
+  method: string,
+  path: string,
+): boolean {
+  return [
+    "GET /api/auth/regional/authorize",
+    "GET /api/auth/github/start",
+    "GET /api/auth/github/callback",
+    "GET /api/auth/google/start",
+    "GET /api/auth/google/callback",
+    "POST /api/auth/email/start",
+    "POST /api/auth/email/verify",
+  ].includes(method + " " + path);
+}
+
+/** Account operations delegated by a regional session, never by a browser proxy. */
+export function isRegionalAccountRoute(method: string, path: string): boolean {
+  if (
+    method === "DELETE" &&
+    /^\/api\/auth\/owner-tokens\/[a-zA-Z0-9-]{1,64}$/u.test(path)
+  )
+    return true;
+  return [
+    "POST /api/auth/profile",
+    "POST /api/auth/users/role",
+    "GET /api/auth/admin/stats",
+    "GET /api/auth/owner-tokens",
+    "POST /api/auth/owner-tokens",
+    "GET /api/auth/ai-accounts",
+    "POST /api/auth/ai-accounts/switch",
+    "POST /api/auth/ai-accounts/return",
+    "GET /api/auth/blocked",
+    "POST /api/auth/blocked/unblock",
+    "POST /api/auth/blocked/apology",
+    "POST /api/auth/blocked/notify",
+  ].includes(method + " " + path);
+}
+
+/** Resource/maintenance calls on the trusted AUTH binding, never browser routes. */
+export function isRegionalSecurityRoute(method: string, path: string): boolean {
+  return (
+    method === "POST" &&
+    [
+      "/internal/block-account",
+      "/internal/block-notices",
+      "/internal/gallery-rejection",
+    ].includes(path)
+  );
 }
 
 export function nonce(): string {
@@ -112,6 +170,18 @@ export function sessionIdentity(value: unknown): SessionUser | null {
     !(
       user.seat === undefined ||
       (typeof user.seat === "string" && user.seat.length <= 100)
+    ) ||
+    !(
+      user.switchedFrom === undefined ||
+      (user.seat &&
+        typeof user.switchedFrom === "object" &&
+        user.switchedFrom !== null &&
+        typeof user.switchedFrom.displayName === "string" &&
+        user.switchedFrom.displayName.length <= 256 &&
+        typeof user.switchedFrom.id === "string" &&
+        user.switchedFrom.id.length > 0 &&
+        user.switchedFrom.id.length <= 256 &&
+        user.switchedFrom.id !== user.id)
     )
   )
     return null;
@@ -125,6 +195,14 @@ export function sessionIdentity(value: unknown): SessionUser | null {
     ...(user.isOwner ? { isOwner: true } : {}),
     ...(user.blocked ? { blocked: true } : {}),
     ...(user.seat ? { seat: user.seat } : {}),
+    ...(user.switchedFrom?.id
+      ? {
+          switchedFrom: {
+            id: user.switchedFrom.id,
+            displayName: user.switchedFrom.displayName,
+          },
+        }
+      : {}),
   };
 }
 

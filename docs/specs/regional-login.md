@@ -13,9 +13,11 @@ serves local authorization. Resource replication is owned by
 - Preserve the authority's user ID and provider separation. Only the authority
   registers users, links identities and changes roles. Email equality never
   merges accounts. Domestic acceptance probe IDs are disposable.
-- Provider secrets and provider callbacks stay at the authority. The configured
-  authority origin must always route there; the regional callback must route to
-  the region that started login. Same-domain geographic DNS alone is insufficient.
+- Provider secrets and provider callbacks stay at the authority. An optional
+  pinned `transportOrigin` serves authority RPCs and the exact browser-login
+  routes allowed by the protocol. It never admits account or internal paths
+  directly. Browser origins may coincide only with a distinct authority
+  transport. Same-domain geographic DNS alone is insufficient.
 - A region uses its own AUTH binding, storage and HttpOnly host-only session.
   Its provider visibility advertises `central` and `loginUrl`; the consuming
   login UI must use that URL. Legacy provider-only UI needs that integration
@@ -43,6 +45,20 @@ serves local authorization. Resource replication is owned by
 - Identity disappearance cannot distinguish deletion from an unknown ID. It
   never instructs a resource store to erase data. Versioned account-deletion
   events and resource-cleanup receipts require a separate delivery.
+- Account RPCs bind the live authority grant to the existing account permission
+  checks; browser-supplied identities cannot replace that subject. AI switching
+  changes the grant's effective subject, retaining its verified administrator
+  actor and leaving overseas browser sessions unchanged. Switched source
+  sessions require the original administrator session during handoff.
+- Owner import-token validation is an authenticated authority operation, checked
+  against current revocation state. It issues no browser session and grants no
+  account-management rights by itself. Regional account deletion is excluded
+  from the account RPC allowlist; legacy overseas deletion stays unchanged.
+- Gallery security RPCs accept only the protocol's internal allowlist. Successful
+  block/unblock responses include an increasing restriction revision and affected
+  identities, including retained email restrictions without merging accounts.
+  Exchange, renewal and account responses carry the current revision so clients
+  can reject stale restrictions. Gallery blocks do not disable all account use.
 - Session cookies, pending verifiers and authority grants stay in regional
   private storage; they are excluded from resource replication. Store credentials
   outside source and logs. Recovery from a stale session-store backup must
@@ -57,15 +73,18 @@ on `RegionalSessionDO`. Invalid or absent configuration keeps the new surface
 closed. HTTPS is required except explicit loopback acceptance origins. No
 production bindings, migrations or credentials are activated by this change.
 
-| Endpoint                                       | Caller and result                                                                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Regional `GET /api/auth/regional/start`        | Browser; starts a bound handoff to the authority.                                                                               |
-| Authority `GET /api/auth/regional/authorize`   | Browser; reuses existing login, then returns a code and state to the configured regional callback.                              |
-| Regional `GET /api/auth/regional/callback`     | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                  |
-| Authority `POST /api/auth/regional/exchange`   | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt}`.                                                          |
-| Authority `POST /api/auth/regional/renew`      | Authenticated region; `{grant}` → `{user, expiresAt}`.                                                                          |
-| Authority `POST /api/auth/regional/identities` | Authenticated importer; `{userIds}` (up to 100 IDs) → `{identities: [{id, status: "found", user} \| {id, status: "missing"}]}`. |
-| Regional `GET /api/auth/me`                    | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                         |
+| Endpoint                                        | Caller and result                                                                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Regional `GET /api/auth/regional/start`         | Browser; starts a bound handoff to the authority.                                                                               |
+| Authority `GET /api/auth/regional/authorize`    | Browser; reuses existing login, then returns a code and state to the configured regional callback.                              |
+| Regional `GET /api/auth/regional/callback`      | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                  |
+| Authority `POST /api/auth/regional/exchange`    | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt}`.                                                          |
+| Authority `POST /api/auth/regional/renew`       | Authenticated region; `{grant}` → `{user, expiresAt}`.                                                                          |
+| Authority `POST /api/auth/regional/identities`  | Authenticated importer; `{userIds}` (up to 100 IDs) → `{identities: [{id, status: "found", user} \| {id, status: "missing"}]}`. |
+| Authority `POST /api/auth/regional/account`     | Authenticated region; `{grant, method, path, body?}` → existing route `result: {status, body}`, current user and lease.         |
+| Authority `POST /api/auth/regional/owner-token` | Authenticated importer; `{token}` → `{user}` or 401.                                                                            |
+| Authority `POST /api/auth/regional/security`    | Authenticated resource service; `{path, body}` → internal route result and applicable restriction snapshot.                     |
+| Regional `GET /api/auth/me`                     | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                         |
 
 Authority POSTs require `Authorization: Bearer <client secret>` over the pinned
 HTTPS endpoint; no CORS grant is issued. They accept bounded JSON bodies.
@@ -83,5 +102,8 @@ Cloudflare management token. This implementation admits one configured client.
   outage expiry and authority-session revocation.
 - Existing overseas provider, session and Arena handoff tests remain valid with
   the new authority configuration absent.
+- [Source account HTTP tests](../../worker/regional-source-account.test.ts)
+  protect grant-bound operations, role checks, immediate token revocation,
+  original AI actors, Gallery restrictions and the optional transport boundary.
 - Real provider/browser routing, runtime alarm load and resource integration are
   deployment acceptance gates; synthetic HTTP tests do not certify them.

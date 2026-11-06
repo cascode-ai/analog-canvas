@@ -39,7 +39,12 @@ import { exemptFromTraps } from "./trap-exempt";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import { RegionalAuthority } from "./regional-auth-authority";
-import { regionalConfig, REGIONAL_PREFIX } from "./regional-auth-contract";
+import {
+  isRegionalAuthorityBrowserRoute,
+  regionalConfig,
+  REGIONAL_PREFIX,
+  type RegionalConfig,
+} from "./regional-auth-contract";
 import {
   rejectionNotice,
   type RejectionAuthor,
@@ -50,6 +55,32 @@ import {
   SCHEMATIC_ARENA_PATH,
   isArenaPagePath,
 } from "./arena-paths";
+
+/** Only configured transport aliases may be interpreted as the browser origin. */
+function canonicalAuthorityRequest(
+  request: Request,
+  config: RegionalConfig,
+): Request | null {
+  const url = new URL(request.url);
+  if (url.origin !== config.transportOrigin || url.origin === config.origin)
+    return request;
+  const rpc =
+    request.method === "POST" &&
+    [
+      "exchange",
+      "renew",
+      "identities",
+      "account",
+      "owner-token",
+      "security",
+    ].some((action) => url.pathname === REGIONAL_PREFIX + action);
+  if (!rpc && !isRegionalAuthorityBrowserRoute(request.method, url.pathname))
+    return null;
+  return new Request(
+    new URL(url.pathname + url.search, config.origin),
+    request,
+  );
+}
 
 export const AUTH_SESSION_COOKIE = "icm_session";
 export const AUTH_STATE_COOKIE = "icm_oauth_state";
@@ -194,9 +225,9 @@ export interface SessionUser {
   blocked?: true;
   /**
    * The super-admin who switched this browser to the AI account it is
-   * signed in as, and can switch it back (`/api/auth/me` only).
+   * signed in as, and can switch it back. Regional projections retain its ID.
    */
-  switchedFrom?: { displayName: string };
+  switchedFrom?: { id?: string; displayName: string };
 }
 
 interface UserRow {
@@ -440,6 +471,10 @@ function noStoreJson(payload: unknown, status = 200): Response {
 export class AuthDO {
   private readonly sql: SqlStorage;
   private regionalAuthority?: RegionalAuthority;
+  private readonly regionalAccountRequests = new WeakMap<
+    Request,
+    SessionUser
+  >();
   /**
    * Provider/network seam; tests replace it. The arrow wrapper is
    * load-bearing: assigning the global `fetch` itself and invoking it as
@@ -579,9 +614,15 @@ export class AuthDO {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const regional = regionalConfig(this.env.AUTH_REGIONAL_AUTHORITY);
+    if (regional) {
+      const canonical = canonicalAuthorityRequest(request, regional);
+      if (!canonical) return noStoreJson({ error: "not-found" }, 404);
+      request = canonical;
+    }
     const url = new URL(request.url);
     if (url.pathname.startsWith(REGIONAL_PREFIX)) {
-      const config = regionalConfig(this.env.AUTH_REGIONAL_AUTHORITY);
+      const config = regional;
       if (!config) return noStoreJson({ error: "not-found" }, 404);
       this.regionalAuthority ??= new RegionalAuthority(
         this.sql,
@@ -595,6 +636,37 @@ export class AuthDO {
             .toArray()[0];
           return row ? this.userWithRestrictions(row) : null;
         },
+        async (request, user) => {
+          this.regionalAccountRequests.set(request, user);
+          try {
+            return await this.fetch(request);
+          } finally {
+            this.regionalAccountRequests.delete(request);
+          }
+        },
+        (token) =>
+          this.ownerTokenUser(
+            new Request("https://auth/internal/owner-token-user", {
+              headers: { authorization: "Bearer " + token },
+            }),
+          ),
+        (request) => this.fetch(request),
+        (id) =>
+          this.sql
+            .exec<UserRow>(
+              `SELECT * FROM users WHERE id = ? OR LOWER(email) IN (
+                SELECT LOWER(email) FROM users WHERE id = ?
+                UNION SELECT LOWER(email) FROM account_blocks WHERE user_id = ?
+              )`,
+              id,
+              id,
+              id,
+            )
+            .toArray()
+            .map((row) => ({
+              id: row.id,
+              blocked: this.userWithRestrictions(row).blocked === true,
+            })),
       );
       return this.regionalAuthority.fetch(request);
     }
@@ -903,6 +975,8 @@ export class AuthDO {
   // --- sessions ---------------------------------------------------------
 
   private async sessionUser(request: Request): Promise<SessionUser | null> {
+    const regional = this.regionalAccountRequests.get(request);
+    if (regional) return regional;
     return this.tokenUser(
       parseCookies(request.headers.get("Cookie"))[AUTH_SESSION_COOKIE],
     );
