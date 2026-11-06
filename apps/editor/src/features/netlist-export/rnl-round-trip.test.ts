@@ -6064,3 +6064,82 @@ it.each(["spice", "spectre"] as const)(
     );
   },
 );
+
+/**
+ * delayCellFixture with a second Cell b that draws a Library inverter X1,
+ * its rails unwired: the call in dut is X1 too, or named apart.
+ */
+function sameIdInAnotherCell(sameId: boolean): CircuitProject {
+  const project = delayCellFixture(true);
+  const top = project.documents[0]!;
+  const call = top.instances[0]!;
+  call.symbolId = hierarchicalSymbolId("delay_cmos");
+  if (!sameId) {
+    call.id = "Xother";
+    call.reference = "Xother";
+    for (const net of top.nets)
+      for (const terminal of net.terminals)
+        if (terminal.instanceId === "X1") terminal.instanceId = "Xother";
+  }
+  const b = createEmptyDocument("b", "b");
+  b.netlist!.name = "b";
+  b.instances.push({
+    id: "X1",
+    reference: "X1",
+    symbolId: "inverter",
+    placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: {
+        kind: "unresolved-subcircuit",
+        name: subcircuitDescriptor("inverter")!.target,
+      },
+      parameters: {},
+    },
+  });
+  for (const [pin, name] of [
+    ["A", "input"],
+    ["Y", "output"],
+  ] as const) {
+    b.nets.push({ id: name, terminals: [{ instanceId: "X1", pinName: pin }] });
+    b.connectivityEvidence.push({
+      id: `name-${name}`,
+      kind: "net-name-hint",
+      netId: name,
+      sourceName: name,
+      origin: "spice-import",
+    });
+  }
+  project.documents.push(b);
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "reads each Cell's pins by its own instances, whatever another Cell names alike, through %s+RNL (#1955)",
+  async (format) => {
+    const cellB = async (sameId: boolean) => {
+      const plan = await roundTrip(sameIdInAnotherCell(sameId), format);
+      const b = plan.project.documents.find(
+        (document) => document.netlist?.name === "b",
+      )!;
+      return {
+        instances: b.instances.map(({ id, symbolId, placement }) => ({
+          id,
+          symbolId,
+          placement,
+        })),
+        interfaces: b.netlist!.terminals.map((terminal) => ({
+          name: terminal.name,
+          instanceIds: terminal.interfaceInstanceIds,
+          annotationId: terminal.interfaceAnnotationId,
+        })),
+      };
+    };
+    const apart = await cellB(false);
+    // b's Library inverter is no call of a Cell: its rails stay Cell Pins,
+    // and dut's call X1, a Cell's, does not make them unwired supplies.
+    expect(apart.interfaces.map((item) => item.instanceIds.length)).toEqual([
+      1, 1,
+    ]);
+    expect(await cellB(true)).toEqual(apart);
+  },
+);
