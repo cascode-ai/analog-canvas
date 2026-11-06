@@ -53,6 +53,8 @@ export interface CellPropertiesDialogProps {
   project: CircuitProject;
   cellId: string;
   onClose(): void;
+  /** Make this Cell the Project's Top (default entry). */
+  onSetTop(cellId: string): void;
   onRename(cellId: string, name: string): void;
   onRenamePin(cellId: string, terminalId: string, name: string): void;
   onSetPinDirection(cellId: string, portId: string, direction: Direction): void;
@@ -295,6 +297,16 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
             <p className="cell-props-scope">
               {isTop ? <span className="cell-props-badge">Top</span> : null}
               <span>{scope}</span>
+              {isTop ? null : (
+                <button
+                  type="button"
+                  className="cell-props-set-top"
+                  title={`Make ${cell.name} the Top (default entry); Undo restores the current Top`}
+                  onClick={() => props.onSetTop(cell.id)}
+                >
+                  Set as Top
+                </button>
+              )}
             </p>
           </div>
           <button

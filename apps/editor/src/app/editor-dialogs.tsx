@@ -157,6 +157,7 @@ export function EditorDialogs({
   rejectAgentFileCandidate,
   commitStructure,
   renameCell,
+  setTopCell,
   editProjectInfo,
   updateCellPortDirection,
   moveCellPort,
@@ -272,6 +273,7 @@ export function EditorDialogs({
   rejectAgentFileCandidate: AgentConnection["rejectAgentFileCandidate"];
   commitStructure: TransactionCommands["commitStructure"];
   renameCell: ProjectStructureCommands["renameCell"];
+  setTopCell: ProjectStructureCommands["setTopCell"];
   editProjectInfo: ProjectStructureCommands["editProjectInfo"];
   updateCellPortDirection: ProjectStructureCommands["updateCellPortDirection"];
   moveCellPort: ProjectStructureCommands["moveCellPort"];
@@ -522,6 +524,7 @@ export function EditorDialogs({
                 editCellParameter(name, change, cellId),
               onSymbolSizeChange: setCellSymbolBodySize,
               onPinSideChange: setCellSymbolPortPlacement,
+              onSetTop: (cellId) => void setTopCell(cellId),
             }
           : null
       }

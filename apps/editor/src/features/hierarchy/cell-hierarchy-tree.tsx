@@ -11,6 +11,7 @@ import type { CircuitProject, HierarchyFrame } from "@icm/model";
 import { buildProjectHierarchy, type ProjectHierarchy } from "@icm/derived";
 import { hierarchyPathKey, occurrenceLabel } from "./project-hierarchy";
 import { cellPlacementIssue } from "./project-structure-commands";
+import type { CellUse } from "./hierarchy-refactor";
 
 /** What the tree asks of the editor; the editor owns every edit and refusal. */
 export interface HierarchyTreeActions {
@@ -30,6 +31,13 @@ export interface HierarchyTreeActions {
   newCell(): void;
   /** Copy a Cell from another Cloud Project; absent where Cloud is not. */
   importCell?(): void;
+  /** Give an occurrence's instance its own copy of its Cell. */
+  makeUnique(use: CellUse): void;
+  /** Switch an occurrence's instance to another Cell with the same Pins. */
+  replace(use: CellUse): void;
+  /** Put an occurrence's parts into its parent instead of the instance; the
+   * parent then opens at `parentPath`. */
+  flatten(use: CellUse, parentPath: readonly HierarchyFrame[]): void;
   notice(message: string): void;
 }
 
@@ -179,14 +187,30 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
   actionsRef.current = actions;
 
   const topId = project.topDocumentId;
-  const otherRoots = hierarchy.roots.slice(1);
+  // Every Cell nothing calls is a root. Top is only a badge on its Cell, and
+  // roots keep the order they were first listed in, Top first: a Cell that
+  // becomes a root later, as one a refactor leaves unused, joins at the end.
+  // So switching Top or reshaping the hierarchy moves none of your rows.
+  const rootOrder = useRef<string[]>([]);
+  const roots = useMemo(() => {
+    const called = new Set(
+      project.documents.flatMap((cell) =>
+        hierarchy.children(cell.id).map((frame) => frame.childDocumentId),
+      ),
+    );
+    const listed = project.documents
+      .map((cell) => cell.id)
+      .filter((id) => hierarchy.roots.includes(id) && !called.has(id));
+    if (!listed.length) return [topId];
+    const kept = rootOrder.current.filter((id) => listed.includes(id));
+    const added = listed.filter((id) => !kept.includes(id));
+    if (!kept.length)
+      added.sort((a, b) => Number(b === topId) - Number(a === topId));
+    rootOrder.current = [...kept, ...added];
+    return rootOrder.current;
+  }, [hierarchy, project, topId]);
   const activeRoot = props.path[0]?.parentDocumentId ?? props.activeDocumentId;
   const activeKey = hierarchyPathKey(activeRoot, props.path);
-  const activeInOtherRoots = otherRoots.includes(activeRoot);
-  const [otherRootsOpen, setOtherRootsOpen] = useState(activeInOtherRoots);
-  useEffect(() => {
-    if (activeInOtherRoots) setOtherRootsOpen(true);
-  }, [activeInOtherRoots]);
 
   // A Cell instance selected on the canvas lights its row under the open one.
   const selectedFrames = hierarchy
@@ -243,11 +267,7 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
       : name(row.documentId);
   };
 
-  const topRows = visibleRows(hierarchy, topId, expanded);
-  const otherRows = otherRootsOpen
-    ? otherRoots.flatMap((id) => visibleRows(hierarchy, id, expanded))
-    : [];
-  const rows = [...topRows, ...otherRows];
+  const rows = roots.flatMap((id) => visibleRows(hierarchy, id, expanded));
   const tabKey = rows.some((row) => row.key === focusKey)
     ? focusKey
     : rows.some((row) => row.key === activeKey)
@@ -301,6 +321,10 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
         ? [...new Set([...props.expandedKeys, row.key])]
         : props.expandedKeys.filter((key) => key !== row.key),
     );
+  const cellUseOf = (row: Row): CellUse => {
+    const frame = row.path.at(-1)!;
+    return { documentId: frame.parentDocumentId, instanceId: frame.instanceId };
+  };
   const deleteRefusal = (row: Row) => {
     if (row.documentId === topId)
       return "Top cannot be deleted; set another Cell as Top first";
@@ -560,14 +584,31 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
                   <span className="hierarchy-cell">{cellName}</span>
                 </>
               ) : (
-                <>
-                  <span className="hierarchy-ref">{cellName}</span>
-                  {row.documentId === topId ? (
-                    <span className="hierarchy-top">Top</span>
-                  ) : null}
-                </>
+                <span className="hierarchy-ref">{cellName}</span>
               )}
             </button>
+          )}
+          {/* Top is a state shown on its Cell: the badge marks the root the
+              tree starts from, and every other Cell's row offers the same
+              badge to move it there. */}
+          {row.documentId !== topId ? (
+            <button
+              type="button"
+              tabIndex={-1}
+              className="hierarchy-top hierarchy-set-top"
+              aria-label={`Set ${cellName} as Top`}
+              title={`Make ${cellName} the Top (default entry); Undo restores ${name(topId)}`}
+              onClick={() => actions.setTop(row.documentId)}
+            >
+              Top
+            </button>
+          ) : (
+            <span
+              className="hierarchy-top"
+              title="Top: the Project's default entry. Click TOP on another Cell to move it."
+            >
+              Top
+            </span>
           )}
           {uses > 1 ? (
             <button
@@ -739,25 +780,11 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
           className="hierarchy-tree"
           onKeyDown={onTreeKeyDown}
         >
-          {topRows.map(renderRow)}
-          {!hierarchy.children(topId).length ? (
+          {rows.map(renderRow)}
+          {!roots.some((id) => hierarchy.children(id).length) ? (
             <p className="hierarchy-hint">
               Hover a row and use + to add a child Cell.
             </p>
-          ) : null}
-          {otherRoots.length ? (
-            <>
-              <button
-                type="button"
-                className="hierarchy-group"
-                aria-expanded={otherRootsOpen}
-                title="Cells Top does not use, such as test benches or drafts"
-                onClick={() => setOtherRootsOpen(!otherRootsOpen)}
-              >
-                {otherRootsOpen ? "▾" : "▸"} Other roots ({otherRoots.length})
-              </button>
-              {otherRows.map(renderRow)}
-            </>
           ) : null}
         </div>
       )}
@@ -799,6 +826,25 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
                 props.onUsesKeyChange(menu.row.key),
               )
             : null}
+          {menu.row.path.length ? (
+            <>
+              <div className="hierarchy-context-divider" role="separator" />
+              {menuItem("Make unique copy", () =>
+                actions.makeUnique(cellUseOf(menu.row)),
+              )}
+              {menuItem("Replace Cell…", () =>
+                actions.replace(cellUseOf(menu.row)),
+              )}
+              {menuItem(
+                `Flatten into ${name(menu.row.path.at(-1)!.parentDocumentId)}`,
+                () =>
+                  actions.flatten(
+                    cellUseOf(menu.row),
+                    menu.row.path.slice(0, -1),
+                  ),
+              )}
+            </>
+          ) : null}
           <div className="hierarchy-context-divider" role="separator" />
           {menu.row.documentId !== topId
             ? menuItem("Set as Top", () => actions.setTop(menu.row.documentId))

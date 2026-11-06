@@ -20,6 +20,9 @@ const actions: HierarchyTreeActions = {
   remove: vi.fn(),
   external: vi.fn(),
   newCell: vi.fn(),
+  makeUnique: vi.fn(),
+  replace: vi.fn(),
+  flatten: vi.fn(),
   notice: vi.fn(),
 };
 
@@ -52,9 +55,9 @@ describe("CellHierarchyTree", () => {
     expect(markup).toContain('aria-label="X2: Channel"');
     expect(markup).toContain(">×2</button>");
     expect(markup).toContain(">Top</span>");
-    // Detached roots stay in the tree, folded under one quiet header.
-    expect(markup).toContain("Other roots (1)");
-    expect(markup).not.toContain('aria-label="Unused"');
+    // Every Cell nothing calls is a root of its own, listed as a peer.
+    expect(markup).not.toContain("Other roots");
+    expect(markup).toContain('aria-label="Unused"');
   });
 
   it("keeps actions on the rows and drops resident menus and notes", () => {
@@ -62,6 +65,9 @@ describe("CellHierarchyTree", () => {
     expect(markup).toContain('aria-label="New child Cell in Channel"');
     expect(markup).toContain('aria-label="Place Channel"');
     expect(markup).toContain('aria-label="Channel properties"');
+    // Every row but Top's offers the same TOP badge, to move Top there.
+    expect(markup.match(/aria-label="Set [^"]+ as Top"/gu)).toHaveLength(3);
+    expect(markup).toContain('aria-label="Set Channel as Top"');
     expect(markup).not.toContain("⋯");
     expect(markup).not.toContain(
       "Editing this definition changes all its uses",
@@ -74,6 +80,23 @@ describe("CellHierarchyTree", () => {
     expect(render({ actions: { ...actions, importCell: vi.fn() } })).toContain(
       ">Import Cell…</button>",
     );
+  });
+
+  it("keeps the roots in place and marks Top where its Cell is used", () => {
+    const project = hierarchyNavigationFixture();
+    const formerTop = project.topDocumentId;
+    project.topDocumentId = "channel";
+    const markup = render({
+      project,
+      activeDocumentId: formerTop,
+      expandedKeys: [hierarchyPathKey(formerTop, [])],
+    });
+    // The tree does not re-root: the former Top keeps its rows, and Channel,
+    // now Top but used there, carries the badge on both of its uses.
+    expect(markup).toContain('aria-label="X1: Channel"');
+    expect(markup).not.toContain('aria-label="Top · Channel"');
+    expect(markup.match(/>Top<\/span>/gu)).toHaveLength(2);
+    expect(markup).not.toContain('aria-label="Set Channel as Top"');
   });
 
   it("lists a row's uses under it when asked", () => {

@@ -38,7 +38,8 @@ export function HierarchyBreadcrumb(props: HierarchyBreadcrumbProps) {
   const { project, activeDocumentId, path } = props;
   const hierarchy = useMemo(() => buildProjectHierarchy(project), [project]);
   const topId = project.topDocumentId;
-  if (!path.length && activeDocumentId === topId) return null;
+  // At a root, Top or any Cell nothing calls, there is no path to show.
+  if (!path.length && hierarchy.roots.includes(activeDocumentId)) return null;
 
   const name = (id: string) => hierarchy.document(id)?.name ?? id;
   const rootId = path[0]?.parentDocumentId ?? activeDocumentId;

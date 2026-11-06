@@ -52,6 +52,7 @@ export function NewChildDialog({
   project,
   parentId,
   parentName,
+  fromSelection,
   onCancel,
   onCreate,
 }: {
@@ -60,11 +61,22 @@ export function NewChildDialog({
   parentId: string;
   /** Present to place the new Cell in the open Cell; absent to only create it. */
   parentName?: string;
+  /**
+   * Make the Cell from selected parts: its Pins are the Nets that leave them,
+   * fixed except for their direction.
+   */
+  fromSelection?: { parts: number; pins: readonly ChildPortDraft[] };
   onCancel(): void;
   onCreate(name: string, ports: ChildPortDraft[]): string | undefined;
 }) {
+  const locked = Boolean(fromSelection);
   const [name, setName] = useState("");
-  const [ports, setPorts] = useState<ChildPortDraft[]>([]);
+  const [ports, setPorts] = useState<ChildPortDraft[]>(() =>
+    (fromSelection?.pins ?? []).map(({ name: pin, direction }) => ({
+      name: pin,
+      direction,
+    })),
+  );
   const [pinDraft, setPinDraft] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -153,7 +165,12 @@ export function NewChildDialog({
       >
         <header className="new-cell-header">
           <h2 id="new-cell-title">
-            {parentName ? (
+            {fromSelection ? (
+              <>
+                New Cell{" "}
+                <span>{`from ${fromSelection.parts} selected part${fromSelection.parts === 1 ? "" : "s"}`}</span>
+              </>
+            ) : parentName ? (
               <>
                 New child Cell <span>{`in ${parentName}`}</span>
               </>
@@ -210,7 +227,10 @@ export function NewChildDialog({
 
             <div className="new-cell-field">
               <span id="new-cell-pins-label">
-                Pins <small>optional</small>
+                Pins{" "}
+                <small>
+                  {locked ? "the Nets that leave the parts" : "optional"}
+                </small>
               </span>
               <div
                 className="pin-token-field"
@@ -237,8 +257,8 @@ export function NewChildDialog({
                       onClick={() => cycleDirection(index)}
                       onKeyDown={(event) => {
                         if (
-                          event.key === "Backspace" ||
-                          event.key === "Delete"
+                          !locked &&
+                          (event.key === "Backspace" || event.key === "Delete")
                         ) {
                           event.preventDefault();
                           removePin(index);
@@ -248,17 +268,20 @@ export function NewChildDialog({
                       <i aria-hidden="true" />
                       {port.name}
                     </button>
-                    <button
-                      type="button"
-                      className="pin-token-remove"
-                      aria-label={`Remove ${port.name}`}
-                      onClick={() => removePin(index)}
-                    >
-                      ×
-                    </button>
+                    {locked ? null : (
+                      <button
+                        type="button"
+                        className="pin-token-remove"
+                        aria-label={`Remove ${port.name}`}
+                        onClick={() => removePin(index)}
+                      >
+                        ×
+                      </button>
+                    )}
                   </span>
                 ))}
                 <input
+                  hidden={locked}
                   ref={pinInputRef}
                   className="pin-token-input"
                   aria-label="Add Pins"
@@ -325,9 +348,11 @@ export function NewChildDialog({
 
         <footer className="new-cell-footer">
           <small>
-            {parentName
-              ? `Then click in ${parentName} to place it · Esc cancels`
-              : "Opens it to draw; place it later from the tree"}
+            {fromSelection
+              ? `The new block replaces the parts in ${parentName ?? "this Cell"}; its Pins stay connected, unrouted`
+              : parentName
+                ? `Then click in ${parentName} to place it · Esc cancels`
+                : "Opens it to draw; place it later from the tree"}
           </small>
           <button type="button" onClick={onCancel}>
             Cancel
@@ -337,7 +362,11 @@ export function NewChildDialog({
             className="primary"
             disabled={!trimmed || Boolean(invalidName)}
           >
-            {parentName ? "Create and place" : "Create Cell"}
+            {fromSelection
+              ? "Create from selection"
+              : parentName
+                ? "Create and place"
+                : "Create Cell"}
           </button>
         </footer>
       </form>

@@ -914,13 +914,35 @@
   text-overflow: ellipsis;
 }
 .hierarchy-top {
+  flex: 0 0 auto;
   padding: 0 4px;
+  border: 1px solid transparent;
   border-radius: 3px;
-  background: var(--icm-surface-muted);
-  color: var(--icm-text-muted);
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
   font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+/* Another row's TOP appears on hover, dashed, and moves Top to that Cell. */
+.hierarchy-node .hierarchy-set-top {
+  height: auto;
+  border-style: dashed;
+  border-color: var(--icm-border-strong);
+  background: transparent;
+  color: var(--icm-text-muted);
+  font-family: inherit;
+}
+.hierarchy-node .hierarchy-set-top:hover {
+  border-style: solid;
+  border-color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+}
+.hierarchy-node:not(:hover, :focus-within) .hierarchy-set-top {
+  display: none;
 }
 .hierarchy-uses {
   flex: 0 0 auto;

@@ -11,6 +11,7 @@ const render = (project: CircuitProject, cellId: string) =>
       project={project}
       cellId={cellId}
       onClose={vi.fn()}
+      onSetTop={vi.fn()}
       onRename={vi.fn()}
       onRenamePin={vi.fn()}
       onSetPinDirection={vi.fn()}
@@ -32,8 +33,9 @@ describe("CellPropertiesDialog", () => {
     expect(markup).toContain('aria-label="Formal port IN direction"');
     expect(markup).toContain('aria-label="Cell symbol IN pin side"');
     expect(markup).toContain('aria-label="Parameter gain default"');
+    // Top is a state of the definition, so the sheet can switch it.
+    expect(markup).toContain(">Set as Top</button>");
     for (const moved of [
-      "Set as Top",
       "Move earlier",
       "New definition",
       "Import Cell",
@@ -78,6 +80,7 @@ describe("CellPropertiesDialog", () => {
     expect(markup).toContain('aria-label="Formal port Vout direction"');
     expect(markup).toContain("2 markers");
     expect(markup).toContain("Default entry");
+    expect(markup).not.toContain("Set as Top");
   });
 
   it("surfaces a direction conflict once on the projected Port", () => {

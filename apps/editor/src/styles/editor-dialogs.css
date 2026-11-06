@@ -1413,10 +1413,77 @@
   outline: none;
 }
 
-.import-cell-dialog .primary:disabled {
+.import-cell-dialog .primary:disabled,
+.replace-cell-dialog .primary:disabled {
   border-color: var(--icm-border);
   color: var(--icm-text-disabled);
   background: var(--icm-surface);
+}
+
+.replace-cell-dialog {
+  width: min(30rem, calc(100vw - 2.5rem));
+  outline: none;
+}
+
+.replace-cell-dialog .replace-cell-pins {
+  margin-top: 2px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.replace-cell-scope {
+  display: grid;
+  gap: var(--icm-space-1);
+  font-size: var(--icm-font-sm);
+}
+
+.replace-cell-scope label {
+  display: flex;
+  align-items: center;
+  gap: var(--icm-space-2);
+}
+
+.replace-cell-filter {
+  height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  font: inherit;
+}
+
+.replace-cell-list {
+  display: grid;
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+}
+
+.replace-cell-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--icm-space-3);
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.replace-cell-list button[aria-selected="true"] {
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+}
+
+.replace-cell-list small {
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell-props-dialog input,
@@ -1491,6 +1558,25 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* The same Top state, offered as a switch on any other Cell. */
+.cell-props-dialog .cell-props-set-top {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px dashed var(--icm-border-strong);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: transparent;
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+}
+
+.cell-props-dialog .cell-props-set-top:hover {
+  border-style: solid;
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
 }
 
 .cell-props-close {

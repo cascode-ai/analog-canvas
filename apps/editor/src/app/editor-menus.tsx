@@ -659,6 +659,7 @@ export function EditorCanvasContextMenu({
   hasDefinitionSelection,
   editorCommands,
   coupleInductors,
+  hierarchyRefactor,
 }: {
   canvasContextMenu: { x: number; y: number };
   setCanvasContextMenu: Dispatch<
@@ -673,6 +674,11 @@ export function EditorCanvasContextMenu({
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   /** Offered only while two uncoupled inductors are the selection. */
   coupleInductors?: (() => void) | null;
+  /** Reshaping the hierarchy around the selection or a selected Cell instance. */
+  hierarchyRefactor?: {
+    fromSelection: (() => void) | null;
+    cell?: { makeUnique(): void; replace(): void; flatten(): void };
+  };
 }) {
   return (
     <CanvasContextMenu
@@ -693,6 +699,34 @@ export function EditorCanvasContextMenu({
                 label: "Enter Cell (E)",
                 enabled: true,
                 execute: enterSelectedHierarchy,
+              },
+            ]
+          : []),
+        ...(hierarchyRefactor?.cell
+          ? [
+              {
+                label: "Make unique copy",
+                enabled: true,
+                execute: hierarchyRefactor.cell.makeUnique,
+              },
+              {
+                label: "Replace Cell…",
+                enabled: true,
+                execute: hierarchyRefactor.cell.replace,
+              },
+              {
+                label: "Flatten into this Cell",
+                enabled: true,
+                execute: hierarchyRefactor.cell.flatten,
+              },
+            ]
+          : []),
+        ...(hierarchyRefactor?.fromSelection
+          ? [
+              {
+                label: "Create Cell from selection…",
+                enabled: true,
+                execute: hierarchyRefactor.fromSelection,
               },
             ]
           : []),

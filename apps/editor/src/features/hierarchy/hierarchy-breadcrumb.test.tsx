@@ -28,6 +28,20 @@ describe("HierarchyBreadcrumb", () => {
     ).toBe("");
   });
 
+  it("renders nothing at any root, Top or not", () => {
+    const project = hierarchyNavigationFixture();
+    expect(
+      renderToStaticMarkup(
+        <HierarchyBreadcrumb
+          project={project}
+          activeDocumentId="unused"
+          path={[]}
+          {...callbacks}
+        />,
+      ),
+    ).toBe("");
+  });
+
   it("shows the exact instance path and the shared use count inside a child", () => {
     const project = hierarchyNavigationFixture();
     const top = project.topDocumentId;

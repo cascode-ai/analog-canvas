@@ -340,7 +340,7 @@ function createEditorShortcutHandler({
         // Delete, Escape, typing); modified shortcuts such as Undo still
         // reach the editor.
         (event.target.closest(
-          ".hierarchy-panel, .cell-props-dialog, .new-cell-dialog, .import-cell-dialog",
+          ".hierarchy-panel, .cell-props-dialog, .new-cell-dialog, .import-cell-dialog, .replace-cell-dialog",
         ) &&
           !event.ctrlKey &&
           !event.metaKey &&
