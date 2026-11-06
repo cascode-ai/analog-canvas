@@ -286,6 +286,25 @@ describe("AccountMenuView", () => {
     expect(plain).not.toContain("account-tab-moderation");
   });
 
+  it("offers the upload token on Settings to the Owner's own accounts only", () => {
+    const account = {
+      id: "u1",
+      displayName: "Token Zhang",
+      email: "owner@example.com",
+      provider: "google",
+      role: "user",
+      isAdmin: true,
+    } as const;
+    expect(pageFor({ ...account, isOwner: true }, "settings")).toContain(
+      'data-testid="owner-tokens"',
+    );
+    expect(pageFor(account, "settings")).not.toContain("owner-tokens");
+    // A browser the Owner switched to an AI account does not offer it.
+    expect(
+      pageFor({ ...account, isOwner: true, seat: "ai-designer-1" }, "settings"),
+    ).not.toContain("owner-tokens");
+  });
+
   it("keeps deleting the account last, in Settings", () => {
     const markup = pageFor(
       {
