@@ -19,13 +19,10 @@ no Global is synthesized. Missing simulator output fails acceptance.
 - Absolute tolerance: 1e-8 V (or V/V for AC).
 
 These are frequency-independent E/G-source **ideal models**, not transistor or
-vendor models. VDD/VSS preserve the interface but do not add clipping,
-quiescent current or common-mode control. Outputs remain referenced to node 0;
-FD outputs are symmetric about 0. There are no process/temperature corners.
-No Symbol geometry or pin ordering changes.
+vendor models. VDD/VSS preserve the interface and draw no quiescent current; the
+single-ended Op Amp limits its output to `vhigh`/`vlow` (VDD/VSS by default).
+Single-ended outputs are referenced to node 0; FD outputs are symmetric about
+`vocm` (0 by default). There are no process/temperature corners.
 
-Generated decks and data go to a reported temporary directory, not the repository.
-
-Validated with native ngspice 46 on Windows on 2026-09-29: all 56
-device/parameter/analysis combinations passed. This is local simulator evidence,
-not an assertion that CI installs ngspice or that vendor models were qualified.
+Generated decks and data go to a reported temporary directory, not the
+repository. CI does not run this command.

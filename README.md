@@ -70,6 +70,7 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 - **Try the Windows desktop preview:** [download and run the preview](#windows-desktop-preview).
 - **Learn the editor:** [Getting started](docs/user/getting-started.md),
   [schematic hierarchy](docs/user/schematic-hierarchy.md),
+  [analog simulation](docs/user/analog-simulation.md),
   [compatibility](docs/user/project-compatibility.md), and
   [troubleshooting](docs/user/troubleshooting.md).
 - **Understand the product:** [current architecture](docs/overall-product-plan.md)
