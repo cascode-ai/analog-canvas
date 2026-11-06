@@ -7,6 +7,11 @@ Primary owner: desktop PowerPoint integration
 Windows desktop PowerPoint can opt into the local editor through a per-user
 COM add-in. The hosted editor and standalone desktop remain independent.
 
+Scope: an optional installation and document-storage adapter for the existing
+desktop editor. Reuse upstream drawing behavior and canonical exports; do not
+introduce a second editor, alternate component model or independent updater.
+Keep host entry-point changes limited to launch/save/close integration.
+
 ## Rules
 
 - Installation is explicit, per user and reversible. Building or unpacking

@@ -4,6 +4,13 @@ This local Windows add-in launches the offline desktop editor from PowerPoint.
 It is opt-in: web deployments and standalone desktop launches do not register
 Office components or show a PowerPoint save button.
 
+This is an installation option for the existing Analog Canvas desktop editor,
+not a separate drawing application. It reuses the upstream components, wiring,
+shortcuts, Project format and SVG exporter. The editor entry points only connect
+the optional save/close adapter; drawing behavior is unchanged. Building a new
+package from an updated upstream checkout includes that checkout's editor.
+There is no separate editor fork, external-runtime selector or automatic updater.
+
 The slide stores a transparent vector picture and the complete editable
 Project, displayed Cell and three earlier saved snapshots. Reopen a saved
 presentation, select the picture and choose **Circuit Canvas → Edit circuit**.
