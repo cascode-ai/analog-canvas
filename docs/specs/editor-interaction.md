@@ -15,9 +15,9 @@ rendering and recovery.
   component, Cell, Cell-Pin, external-master or VDD-rail planner, or activating
   an editor tool. It adds no Project type, Edit Engine operation or Agent endpoint.
 - The Library panel searches **Official components** (the built-in catalog) and
-  one component fold: **Community** on the Web, with **My components** (own
-  records, Project drafts, deleted records) inside it, or **My components** on
-  the desktop. The fold starts shut and loads only once opened or searched;
+  one component fold: **Community** on the Web, with
+  [**My components**](symbol-dsl.md) inside it, or **My components** on the
+  desktop. The fold starts shut and loads only once opened or searched;
   Edit's command opens it and focuses the search.
 - A component row places on click or Enter, or once where a drag onto the
   canvas ends. Its commands open from **⋯**, right-click or the Menu key;

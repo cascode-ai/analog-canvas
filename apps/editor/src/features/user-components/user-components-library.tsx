@@ -31,6 +31,7 @@ import type {
 } from "@icm/edit-engine";
 import { ComponentCatalogControls } from "./component-catalog-controls";
 import { useComponentCatalog } from "./use-component-catalog";
+import type { LibraryFold } from "../editor-shell/shapes-panel";
 
 type CatalogList = ReturnType<typeof useComponentCatalog>;
 type RecordAction = "details" | "place" | "new" | "update" | "raw";
@@ -54,9 +55,7 @@ const remembered: {
  * The desktop host has its own `native-components-library`.
  */
 export default function UserComponentsLibrary({
-  open,
-  query = "",
-  toolsSlot,
+  fold,
   onEdit,
   onInsert,
   onDropPlacement,
@@ -66,11 +65,7 @@ export default function UserComponentsLibrary({
   previewDraftDeletion,
   onOpenDraft,
 }: {
-  open: boolean;
-  /** The panel's search, which Official components share. */
-  query?: string;
-  /** Where the fold's header keeps this list's count and filter. */
-  toolsSlot?: HTMLElement | null;
+  fold: LibraryFold;
   onEdit(
     entry: SharedComponent,
     intent: "new" | "update",
@@ -84,6 +79,7 @@ export default function UserComponentsLibrary({
   onDeleteDrafts?(targets: ComponentDraftTarget[]): string | null;
   previewDraftDeletion?(targets: ComponentDraftTarget[]): number;
 }) {
+  const { open, query, toolsSlot } = fold;
   const [user, setUser] = useState<SessionUser | null>(null);
   const accountIdentity = useRef<string | null>(null);
   accountIdentity.current = user?.id ?? null;
@@ -138,7 +134,7 @@ export default function UserComponentsLibrary({
     }, 6000);
     return () => clearTimeout(timer);
   }, [notice, restorable]);
-  const surface = useComponentRowSurface();
+  const surface = useComponentRowSurface(fold.focusSearch);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
   const details = useRef(
@@ -288,10 +284,6 @@ export default function UserComponentsLibrary({
     );
     setRestorable(action === "delete" ? result.entry : null);
   }
-  const filterAuthor = (authorId: string) => {
-    surface.closeCard();
-    setCatalog({ ...catalog, authorId });
-  };
   const artwork = (entry: ComponentLibrarySummary) => (
     <LibraryPreview entry={entry} />
   );
@@ -355,11 +347,6 @@ export default function UserComponentsLibrary({
           ? menuItem(
               user?.isAdmin ? "Manage" : "Edit",
               () => void choose(entry, "update"),
-            )
-          : null}
-        {catalog.authorId !== entry.authorId && entry.authorId !== accountId
-          ? menuItem(`Only ${entry.author.trim() || "this author"}`, () =>
-              filterAuthor(entry.authorId),
             )
           : null}
         {deleted && canRestore
@@ -476,7 +463,6 @@ export default function UserComponentsLibrary({
           <button
             type="button"
             aria-label="Dismiss message"
-            title="Dismiss"
             onClick={() => {
               showNotice(null);
               setRestorable(null);
@@ -507,7 +493,7 @@ export default function UserComponentsLibrary({
                 entries={mine.page.entries}
                 scope="mine"
                 busy={busy}
-                own
+                authorImplied
                 artwork={artwork}
                 onPlace={(entry) => choose(entry, "place")}
                 onDropPlacement={onDropPlacement}
@@ -553,10 +539,8 @@ export default function UserComponentsLibrary({
                     entries={removed.page.entries}
                     scope="removed"
                     busy={busy}
-                    own
+                    authorImplied={!user.isAdmin}
                     artwork={artwork}
-                    onPlace={async () => false}
-                    onDropPlacement={onDropPlacement}
                   />
                   {listState(
                     removed,
@@ -597,7 +581,6 @@ export default function UserComponentsLibrary({
           onHold={surface.holdPreview}
           onRelease={surface.endPreview}
           onClose={surface.closeCard}
-          onFilterAuthor={() => filterAuthor(surface.card!.summary.authorId)}
         />
       ) : null}
     </div>

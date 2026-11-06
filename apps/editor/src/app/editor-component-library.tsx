@@ -2,6 +2,7 @@ import type { EditorComponentEditorProps } from "./editor-component-editor";
 import { componentEditorPlacement } from "./component-editor-placement";
 import { Suspense, useMemo } from "react";
 import { lazyChunk } from "../components/chunk-load-fallback";
+import type { LibraryFold } from "../features/editor-shell/shapes-panel";
 import {
   componentDraftCatalog,
   planComponentDraftDeletion,
@@ -26,9 +27,7 @@ const UserComponentsLibrary = import.meta.env?.ICM_DESKTOP
 
 export default function EditorComponentLibrary(
   props: EditorComponentEditorProps & {
-    open: boolean;
-    query: string;
-    toolsSlot: HTMLElement | null;
+    fold: LibraryFold;
     onDropPlacement(clientX: number, clientY: number): void;
   },
 ) {
@@ -44,7 +43,8 @@ export default function EditorComponentLibrary(
     returnToLibrary,
   } = props;
   const { insertSharedComponent } = componentEditorPlacement(props);
-  const { open, query, toolsSlot, onDropPlacement } = props;
+  const { fold, onDropPlacement } = props;
+  const { open } = fold;
   const draftCatalog = useMemo(
     () => (open ? componentDraftCatalog(project) : undefined),
     [open, project.componentAuthoringDrafts, project.modelSources],
@@ -52,10 +52,8 @@ export default function EditorComponentLibrary(
   return (
     <Suspense fallback={null}>
       <UserComponentsLibrary
-        open={open}
+        fold={fold}
         refresh={componentLibraryRefresh}
-        query={query}
-        toolsSlot={toolsSlot}
         onDropPlacement={onDropPlacement}
         {...(draftCatalog ? { drafts: draftCatalog } : {})}
         previewDraftDeletion={(targets) =>

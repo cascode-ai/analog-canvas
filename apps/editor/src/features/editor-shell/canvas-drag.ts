@@ -11,8 +11,8 @@ export function startCanvasDrag(
   gesture: {
     begin(): boolean | Promise<boolean>;
     drop(clientX: number, clientY: number): void;
-    /** The click that follows a finished drag must not also act on the row. */
-    dragged(): void;
+    /** Set while the click that ends a drag arrives, so it does not also act. */
+    suppressClick: { current: boolean };
   },
 ): void {
   if (event.button !== 0) return;
@@ -37,7 +37,10 @@ export function startCanvasDrag(
   function up(upEvent: PointerEvent) {
     stop();
     if (!started) return;
-    gesture.dragged();
+    gesture.suppressClick.current = true;
+    window.setTimeout(() => {
+      gesture.suppressClick.current = false;
+    }, 0);
     if (started === true) gesture.drop(upEvent.clientX, upEvent.clientY);
     else
       void started.then((ready) => {

@@ -213,7 +213,8 @@ drawing and its component definitions. Apply is undoable; invalid code changes
 nothing. Selecting parts highlights their JSON.
 
 To edit a component's definition, select it and press `E` (`Q` still edits the
-instance). **+** on the Library's **Community** fold creates a component in
+instance). **+** on the Library's **Community** fold (**My components** in the
+[desktop preview](../../apps/desktop/README.md)) creates a component in
 the **Circuit** and **Symbol** tabs: enter SPICE or Spectre (or choose a Project
 source), use Automatic or Custom JSON artwork, and map each native terminal to
 a pin or to VDD/VSS. **Apply model** changes the Project in one undoable step;
@@ -225,7 +226,7 @@ The Library's search covers **Official components** and **Community**, which
 starts shut above them; **Edit → Community Components…** also opens it. Click a
 row to place it, or drag it onto the canvas. Pointing at a row shows its large
 preview; **⋯** or right-click holds **Details**, **Create from…**, **Edit** and
-deletion. One author's records of one name share a row, and its count lists
+deletion, and the funnel filters by type and author. One author's records of one name share a row, and its count lists
 them. **My components**, inside Community, holds your publications, Project
 drafts and deleted records. Press `I` to find a component already in this
 Project, under its own name.

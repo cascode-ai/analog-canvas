@@ -16,7 +16,7 @@ export function ComponentLibraryRow({
   busy,
   tabbable,
   variant = false,
-  own = false,
+  authorImplied = false,
   count = 0,
   expanded = false,
   onPlace,
@@ -32,13 +32,13 @@ export function ComponentLibraryRow({
   tabbable: boolean;
   /** A record listed under its group's row, told apart by date and Pins. */
   variant?: boolean;
-  /** In the member's own list, where the author goes without saying. */
-  own?: boolean;
+  /** The list's author goes without saying, so rows say when they were published. */
+  authorImplied?: boolean;
   count?: number;
   expanded?: boolean;
   onPlace(): void;
   onDragStart(event: ReactPointerEvent<HTMLButtonElement>): void;
-  onToggleGroup(): void;
+  onToggleGroup?(): void;
   onMenu(anchor: { x: number; y: number }): void;
   onPreview(row: HTMLElement): void;
   onPreviewEnd(): void;
@@ -92,7 +92,7 @@ export function ComponentLibraryRow({
               ? `Needs repair · ${entry.author.trim() || "Unknown author"}`
               : variant
                 ? `${published} · ${entry.pinCount} pins`
-                : own
+                : authorImplied
                   ? `${published} · r${entry.revision}`
                   : entry.author.trim() || "Unknown author"}
           </small>
@@ -120,7 +120,6 @@ export function ComponentLibraryRow({
         tabIndex={-1}
         className="component-row-actions"
         aria-label={`Actions for ${entry.name}`}
-        title={`Actions for ${entry.name}`}
         onClick={(event) => {
           const box = event.currentTarget.getBoundingClientRect();
           onMenu({ x: box.left, y: box.bottom });

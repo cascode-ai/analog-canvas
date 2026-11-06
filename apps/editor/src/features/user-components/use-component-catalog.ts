@@ -7,6 +7,7 @@ import { loadComponentCatalog as loadCatalog } from "./component-catalog-loading
 import { LibraryCache } from "./library-cache";
 
 const EMPTY: ComponentLibrarySummaryPage = { entries: [], nextCursor: null };
+type KeyedPage = { key: string; page: ComponentLibrarySummaryPage };
 
 /** Outlives the panel: visiting the tree and returning reuses these lists. */
 const pages = new LibraryCache<ComponentLibrarySummaryPage>(
@@ -16,7 +17,7 @@ const pages = new LibraryCache<ComponentLibrarySummaryPage>(
 );
 let pagesAccount: string | null | undefined;
 
-/** Lists are read again from the service the next time they are shown. */
+/** @internal Tests start each case from an empty session cache. */
 export function clearComponentCatalogPages(): void {
   pages.clear();
   pagesAccount = undefined;
@@ -42,14 +43,8 @@ export function useComponentCatalog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const retained = useRef<{
-    key: string;
-    page: ComponentLibrarySummaryPage;
-  } | null>(null);
-  const buffered = useRef<{
-    key: string;
-    page: ComponentLibrarySummaryPage;
-  } | null>(null);
+  const retained = useRef<KeyedPage | null>(null);
+  const buffered = useRef<KeyedPage | null>(null);
   const request = useRef<AbortController | null>(null);
   const listIdentity = useRef("");
   const term = query.trim();
@@ -64,6 +59,21 @@ export function useComponentCatalog({
         else if (buffered.current?.key === key) buffered.current = null;
       },
     };
+  }
+  /** Reads every page, keeping what is shown until a new list agrees. */
+  function read(signal: AbortSignal, previous?: ComponentLibrarySummaryPage) {
+    return loadCatalog(
+      term,
+      deleted,
+      catalog,
+      signal,
+      show,
+      previous,
+      progress(signal),
+    ).catch((failure: unknown) => {
+      if (!signal.aborted)
+        setError(failure instanceof Error ? failure.message : String(failure));
+    });
   }
   function show(next: ComponentLibrarySummaryPage) {
     setPage(next);
@@ -93,25 +103,10 @@ export function useComponentCatalog({
     setLoading(!cached || !!cached.nextCursor);
     const timer = setTimeout(
       () => {
-        void loadCatalog(
-          term,
-          deleted,
-          catalog,
-          controller.signal,
-          show,
-          cached,
-          progress(controller.signal),
-        )
-          .catch((failure: unknown) => {
-            if (!controller.signal.aborted)
-              setError(
-                failure instanceof Error ? failure.message : String(failure),
-              );
-          })
-          .finally(() => {
-            if (!controller.signal.aborted) setLoading(false);
-            if (request.current === controller) request.current = null;
-          });
+        void read(controller.signal, cached).finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+          if (request.current === controller) request.current = null;
+        });
       },
       query ? 150 : 0,
     );
@@ -134,20 +129,7 @@ export function useComponentCatalog({
     reload(signal: AbortSignal) {
       request.current?.abort();
       setLoading(false);
-      return loadCatalog(
-        term,
-        deleted,
-        catalog,
-        signal,
-        show,
-        page,
-        progress(signal),
-      ).catch((failure: unknown) => {
-        if (!signal.aborted)
-          setError(
-            failure instanceof Error ? failure.message : String(failure),
-          );
-      });
+      return read(signal, page);
     },
     /** Drop a record its lifecycle moved elsewhere, then confirm the list. */
     forget(id: string) {

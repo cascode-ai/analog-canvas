@@ -10,6 +10,7 @@ import type { WireSource } from "@icm/edit-engine";
 import {
   routeEndpoints,
   type CircuitProject,
+  type Instance,
   type SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -29,15 +30,31 @@ export interface SelectionInspectionModelInput {
   selectedEndpoint: WireSource | null;
 }
 
-/** A published symbol's ID ends in the revision this Project captured. */
-function userComponentLabel(
-  symbolId: string,
+/** A component the Project holds reads by its own name and captured revision. */
+function componentLabel(
+  project: CircuitProject,
+  instance: Instance,
   resolver: SymbolResolver,
 ): string | undefined {
-  if (!/^(user|component)-/.test(symbolId)) return undefined;
-  const name = resolver.resolve(symbolId)?.definition.name;
-  const revision = /^user-.+-r(\d+)$/.exec(symbolId)?.[1];
-  return name && (revision ? `${name} · r${revision}` : name);
+  const definition = project.componentDefinitions?.find(
+    (item) => item.symbol.id === instance.symbolId,
+  );
+  const binding = instance.netlist?.binding;
+  // Automatic artwork has no captured class; its origin is on its owner.
+  const owner =
+    binding?.kind === "external-subcircuit"
+      ? project.externalSubcircuitDefinitions.find(
+          (item) => item.id === binding.definitionId,
+        )
+      : undefined;
+  const origin = definition?.libraryOrigin ?? owner?.libraryOrigin;
+  if (!definition && !origin) return undefined;
+  const name =
+    definition?.symbol.name ??
+    resolver.resolve(instance.symbolId)?.definition.name ??
+    owner?.name ??
+    instance.symbolId;
+  return origin ? `${name} · r${origin.revision}` : name;
 }
 
 /**
@@ -189,7 +206,7 @@ export function deriveSelectionInspectionModel({
       )
     : undefined;
   const selectedComponentLabel = selectedInstance
-    ? userComponentLabel(selectedInstance.symbolId, resolver)
+    ? componentLabel(project, selectedInstance, resolver)
     : undefined;
   const selectionShelfSummary = selectedInstance
     ? `${selectedFormalTerminal?.name ?? selectedInstance.id} · ${selectedComponentLabel ?? selectedInstance.symbolId}`

@@ -6,7 +6,6 @@ import type {
   SharedDefinitionPayload,
 } from "../features/user-components/component-library-contract";
 import type { EditorComponentEditorProps } from "./editor-component-editor";
-import type { RefObject } from "react";
 
 export function componentEditorPlacement({
   returnToLibrary,
@@ -18,7 +17,7 @@ export function componentEditorPlacement({
   resolver,
   onBeforePlace,
   externalSubcircuitInsertCandidates,
-}: EditorComponentEditorProps & { returnToLibrary: RefObject<boolean> }) {
+}: EditorComponentEditorProps) {
   async function insertSharedComponent(
     entry: SharedComponent,
   ): Promise<boolean> {

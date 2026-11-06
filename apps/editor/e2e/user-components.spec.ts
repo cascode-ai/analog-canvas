@@ -480,6 +480,65 @@ test("account changes clear pinned details and deleted rows while offline focus 
   await expect(button(fold, "Show available components")).toHaveCount(0);
 });
 
+test("dragging a row places it where it is released, even before its record arrives, and nowhere off the canvas", async ({
+  page,
+  service,
+}) => {
+  service.seedPublished("drag-target", "Drag target");
+  await service.openEditorAs(page, "alice");
+  const fold = await openUserComponents(page);
+  const row = button(fold, "Place Drag target");
+  const plane = page.getByTestId("component-input-plane");
+  const canvas = page.getByTestId("schematic-canvas");
+  const area = (await canvas.boundingBox())!;
+  const target = {
+    x: area.x + area.width * 0.5,
+    y: area.y + area.height * 0.45,
+  };
+  const press = async () => {
+    const bounds = (await row.boundingBox())!;
+    const y = bounds.y + bounds.height / 2;
+    await page.mouse.move(bounds.x + 20, y);
+    await page.mouse.down();
+    // Past the threshold, still over the panel.
+    await page.mouse.move(bounds.x + 60, y, { steps: 6 });
+  };
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/components/drag-target", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await press();
+  await page.mouse.move(target.x, target.y, { steps: 8 });
+  await page.mouse.up();
+  // The release came before the record; the drop waits for its placement.
+  await expect(instanceCount(page)).toHaveText("0");
+  release();
+  await expect(instanceCount(page)).toHaveText("1");
+  await expect(page.getByTestId("status")).toContainText(
+    "Placed Drag target · Undo removes it",
+  );
+  await expect(plane).toBeHidden();
+  const placed = (await canvas
+    .locator('[data-symbol-id^="user-"]')
+    .first()
+    .boundingBox())!;
+  expect(target.x).toBeGreaterThan(placed.x - 12);
+  expect(target.x).toBeLessThan(placed.x + placed.width + 12);
+  expect(target.y).toBeGreaterThan(placed.y - 12);
+  expect(target.y).toBeLessThan(placed.y + placed.height + 12);
+  await page.unroute("**/api/components/drag-target");
+  // Released back over the panel, the drag places nothing.
+  await press();
+  await expect(plane).toBeVisible();
+  await page.mouse.up();
+  await expect(plane).toBeHidden();
+  await expect(instanceCount(page)).toHaveText("1");
+});
+
 test("public symbol placement connects contacts atomically and keeps the clicked orientation during a revision check", async ({
   page,
   context,
@@ -1253,12 +1312,16 @@ test("filters and reopens the catalog, retaining rows and scroll through a faile
   );
   await filters.getByLabel("Component type").selectOption("with-circuit");
   await expect(communityRows(page)).toHaveCount(1);
-  await page.keyboard.press("Escape");
-  await expect(filters).toBeHidden();
-  const menu = await openRowMenu(fold, "Electrical resistor");
-  await menu.getByRole("menuitem", { name: "Only Alice", exact: true }).click();
+  // Filtering lives in one place: the author list beside type and order.
+  await filters.getByLabel("Component author", { exact: true }).click();
+  await filters
+    .getByRole("group", { name: "Authors", exact: true })
+    .getByRole("button", { name: /^Alice/ })
+    .click();
   await expect(button(fold, "Place Electrical resistor")).toBeVisible();
   await expect(filter).toHaveAttribute("data-active", "true");
+  await page.keyboard.press("Escape");
+  await expect(filters).toBeHidden();
   await expect(instanceCount(page)).toHaveText("0");
   await filter.click();
   await filters.getByLabel("Component type").selectOption("all");

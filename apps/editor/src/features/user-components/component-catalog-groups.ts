@@ -1,6 +1,6 @@
 import type { ComponentLibrarySummary } from "@icm/agent-adapter";
 
-export interface ComponentCatalogGroup {
+export interface ComponentRecordGroup {
   key: string;
   /** What the row places: the newest record that can be placed. */
   head: ComponentLibrarySummary;
@@ -14,7 +14,7 @@ export interface ComponentCatalogGroup {
  */
 export function groupCatalogEntries(
   entries: readonly ComponentLibrarySummary[],
-): ComponentCatalogGroup[] {
+): ComponentRecordGroup[] {
   const groups = new Map<string, ComponentLibrarySummary[]>();
   for (const entry of entries) {
     const key = `${entry.authorId}\n${entry.name.trim().toLowerCase()}`;

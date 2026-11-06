@@ -29,7 +29,7 @@ export function ComponentPreviewCard({
   onHold,
   onRelease,
   onClose,
-  onFilterAuthor,
+  authorImplied = false,
 }: {
   summary: ComponentLibrarySummary;
   row: HTMLElement;
@@ -39,8 +39,8 @@ export function ComponentPreviewCard({
   onHold(): void;
   onRelease(): void;
   onClose(): void;
-  /** Absent where every record is the member's own. */
-  onFilterAuthor?(): void;
+  /** Every record in the list is this author's, as on the desktop. */
+  authorImplied?: boolean;
 }) {
   const card = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 });
@@ -106,14 +106,7 @@ export function ComponentPreviewCard({
       {artwork}
       <strong>{summary.name}</strong>
       <p>
-        {onFilterAuthor ? (
-          <>
-            <button type="button" onClick={onFilterAuthor}>
-              {summary.author.trim() || "Unknown author"}
-            </button>
-            {" · "}
-          </>
-        ) : null}
+        {authorImplied ? "" : `${summary.author.trim() || "Unknown author"} · `}
         {`${capabilityLabel(summary)} · ${summary.pinCount} pins · ${summary.parameterCount} parameters · Revision ${summary.revision}`}
       </p>
       {summary.capability === "symbol-only" ? (

@@ -101,8 +101,7 @@ async function render(open = true, query = "") {
     root.render(
       <UserComponentsLibrary
         {...props}
-        open={open}
-        query={query}
+        fold={{ open, query, toolsSlot: null, focusSearch() {} }}
         refresh={0}
       />,
     ),
@@ -114,7 +113,7 @@ async function tick() {
     await vi.advanceTimersByTimeAsync(200);
   });
 }
-function tiles() {
+function rows() {
   return container.querySelectorAll(".component-row");
 }
 function button(name: string) {
@@ -151,13 +150,13 @@ describe("User Components catalog wiring", () => {
         await click("Actions for old");
         await click("Details");
       }
-      expect(tiles()).toHaveLength(1);
+      expect(rows()).toHaveLength(1);
       expect(button("Place old")).toBeDefined();
       expect(container.querySelector('[aria-label="Place new"]')).toBeNull();
       expect(container.textContent).toContain("Couldn’t refresh components.");
       fail = false;
       await click("Try Again");
-      expect(tiles()).toHaveLength(2);
+      expect(rows()).toHaveLength(2);
       expect(button("Place new")).toBeDefined();
       expect(button("Place last")).toBeDefined();
       expect(reads.map((url) => url.searchParams.get("cursor"))).toEqual([
@@ -182,10 +181,10 @@ describe("User Components catalog wiring", () => {
         : Response.json(page(["last"]));
     };
     await render();
-    expect(tiles()).toHaveLength(60);
+    expect(rows()).toHaveLength(60);
     fail = false;
     await click("Try Again");
-    expect(tiles()).toHaveLength(61);
+    expect(rows()).toHaveLength(61);
     expect(reads.map((url) => url.searchParams.get("cursor"))).toEqual([
       null,
       "tail",
@@ -194,22 +193,22 @@ describe("User Components catalog wiring", () => {
   });
   it("retains cached cards on failed reopening and distinguishes a new failed query", async () => {
     await render();
-    expect(tiles(), container.textContent ?? "").toHaveLength(1);
+    expect(rows(), container.textContent ?? "").toHaveLength(1);
     await render(false);
     vi.setSystemTime(Date.now() + 120_000);
     summaries = async () => {
       throw new Error("offline");
     };
     await render();
-    expect(tiles()).toHaveLength(1);
+    expect(rows()).toHaveLength(1);
     expect(container.textContent).toContain("Couldn’t refresh components.");
     await render(true, "unmatched");
-    expect(tiles()).toHaveLength(0);
+    expect(rows()).toHaveLength(0);
     expect(container.textContent).toContain(
       "Couldn’t load community components.",
     );
     await render(true, "");
-    expect(tiles()).toHaveLength(1);
+    expect(rows()).toHaveLength(1);
     expect(container.textContent).toContain("Couldn’t refresh components.");
   });
 });

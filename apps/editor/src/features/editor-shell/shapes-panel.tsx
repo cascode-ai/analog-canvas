@@ -180,6 +180,17 @@ export function quickPlaceRequest(
   };
 }
 
+/** What a component fold receives from the panel it sits in. */
+export interface LibraryFold {
+  open: boolean;
+  /** The panel's search, which Official components share. */
+  query: string;
+  /** Where the fold's header keeps its list's own tools. */
+  toolsSlot: HTMLElement | null;
+  /** Typing on a row continues the search, as in a file explorer. */
+  focusSearch(): void;
+}
+
 export interface ShapesPanelProps {
   styleProfileId: string;
   open: boolean;
@@ -195,11 +206,7 @@ export interface ShapesPanelProps {
     /** Each new value brings focus to the search. */
     focusRequest: number;
     onCreate(): void;
-    render(
-      query: string,
-      toolsSlot: HTMLElement | null,
-      open: boolean,
-    ): ReactNode;
+    render(fold: LibraryFold): ReactNode;
   };
 }
 
@@ -226,6 +233,7 @@ export function ShapesPanel({
   );
   const panel = useRef<HTMLElement>(null);
   const search = useRef<HTMLInputElement>(null);
+  const focusSearch = () => search.current?.focus();
   const suppressClick = useRef(false);
   const componentsShown = Boolean(userComponents?.open || searching);
   // Once loaded it keeps its list while the fold is shut.
@@ -336,7 +344,12 @@ export function ShapesPanel({
             </summary>
             <div className="shapes-fold-body">
               {componentsLoaded.current
-                ? userComponents.render(query, componentTools, componentsShown)
+                ? userComponents.render({
+                    open: componentsShown,
+                    query,
+                    toolsSlot: componentTools,
+                    focusSearch,
+                  })
                 : null}
             </div>
           </details>
@@ -399,12 +412,7 @@ export function ShapesPanel({
                           startCanvasDrag(event, {
                             begin: () => beginTileDrag(symbol.id),
                             drop: (x, y) => onDropPlacement?.(x, y),
-                            dragged: () => {
-                              suppressClick.current = true;
-                              window.setTimeout(() => {
-                                suppressClick.current = false;
-                              }, 0);
-                            },
+                            suppressClick,
                           })
                         }
                         onClick={(event) => {

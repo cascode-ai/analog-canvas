@@ -33,9 +33,7 @@ type Props = ComponentProps<
  * Project capture model over a private library that needs no account.
  */
 export default function NativeComponentsLibrary({
-  open,
-  query = "",
-  toolsSlot,
+  fold,
   onEdit,
   onInsert,
   onDropPlacement,
@@ -45,9 +43,10 @@ export default function NativeComponentsLibrary({
   previewDraftDeletion,
   onOpenDraft,
 }: Props) {
+  const { open, query, toolsSlot } = fold;
   const importFile = useRef<HTMLInputElement>(null);
   const { exportDelivery } = useEditorServices();
-  const surface = useComponentRowSurface();
+  const surface = useComponentRowSurface(fold.focusSearch);
   const [entries, setEntries] = useState<SharedComponent[]>([]);
   const [removedOpen, setRemovedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,7 +76,7 @@ export default function NativeComponentsLibrary({
       setBusy(false);
     }
   }
-  const full = (summary: ComponentLibrarySummary) =>
+  const record = (summary: ComponentLibrarySummary) =>
     entries.find((entry) => entry.id === summary.id)!;
   async function choose(
     summary: ComponentLibrarySummary,
@@ -114,7 +113,7 @@ export default function NativeComponentsLibrary({
   const artwork = (summary: ComponentLibrarySummary) => (
     <span className="user-component-preview">
       <SymbolArtwork
-        symbol={full(summary).definition.symbol}
+        symbol={record(summary).definition.symbol}
         fitContent
         className="user-component-art"
       />
@@ -137,7 +136,7 @@ export default function NativeComponentsLibrary({
         <ComponentMenuItem
           label="Details"
           onClose={closeMenu}
-          onSelect={() => surface.pin(entry, full(entry))}
+          onSelect={() => surface.pin(entry, record(entry))}
         />
         {deleted ? (
           <ComponentMenuItem
@@ -145,7 +144,7 @@ export default function NativeComponentsLibrary({
             onClose={closeMenu}
             onSelect={() =>
               void run(async () => {
-                await manageNativeComponent(full(entry), "shared");
+                await manageNativeComponent(record(entry), "shared");
               })
             }
           />
@@ -175,7 +174,7 @@ export default function NativeComponentsLibrary({
               disabled={busy}
               onConfirm={async () => {
                 await run(async () => {
-                  await manageNativeComponent(full(entry), "deleted");
+                  await manageNativeComponent(record(entry), "deleted");
                 });
                 closeMenu();
               }}
@@ -258,7 +257,7 @@ export default function NativeComponentsLibrary({
         entries={active}
         scope="local"
         busy={busy}
-        own
+        authorImplied
         artwork={artwork}
         onPlace={(entry) => choose(entry, "place")}
         onDropPlacement={onDropPlacement}
@@ -293,10 +292,8 @@ export default function NativeComponentsLibrary({
               entries={removed}
               scope="removed"
               busy={busy}
-              own
+              authorImplied
               artwork={artwork}
-              onPlace={async () => false}
-              onDropPlacement={onDropPlacement}
             />
           ) : null}
         </details>
@@ -311,6 +308,7 @@ export default function NativeComponentsLibrary({
           onHold={surface.holdPreview}
           onRelease={surface.endPreview}
           onClose={surface.closeCard}
+          authorImplied
         />
       ) : null}
     </div>

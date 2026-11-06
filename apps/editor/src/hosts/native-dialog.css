@@ -178,13 +178,6 @@
   border-radius: 8px;
 }
 @media (max-width: 1000px) {
-  .native-component-list > li {
-    grid-template-columns: 3rem minmax(0, 1fr) auto;
-  }
-  .native-component-preview {
-    width: 3rem;
-    height: 3rem;
-  }
   .native-project-list time {
     display: none;
   }

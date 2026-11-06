@@ -18,6 +18,7 @@ import type { useSelectionController } from "../features/selection/selection-con
 import type { EditorServices } from "../services/editor-services";
 import type { ComponentEditorSession } from "./component-editor-session";
 import { lazyChunk } from "../components/chunk-load-fallback";
+import type { LibraryFold } from "../features/editor-shell/shapes-panel";
 import { preloadComponentDefinitionEditor } from "./lazy-editor-dialogs";
 import { ComponentEditorLoading } from "../features/user-components/component-editor-loading";
 
@@ -68,9 +69,7 @@ const ComponentLibrary = lazyChunk(
 /** The Library panel's component fold, loaded once that fold first opens. */
 export function EditorLibraryComponents(
   props: EditorComponentEditorProps & {
-    open: boolean;
-    query: string;
-    toolsSlot: HTMLElement | null;
+    fold: LibraryFold;
     onDropPlacement(clientX: number, clientY: number): void;
   },
 ) {

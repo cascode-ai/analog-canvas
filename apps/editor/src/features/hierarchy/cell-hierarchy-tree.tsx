@@ -345,12 +345,7 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
     startCanvasDrag(event, {
       begin: () => place(row),
       drop: (x, y) => actionsRef.current.drop(x, y),
-      dragged: () => {
-        suppressClick.current = true;
-        window.setTimeout(() => {
-          suppressClick.current = false;
-        }, 0);
-      },
+      suppressClick,
     });
   };
 

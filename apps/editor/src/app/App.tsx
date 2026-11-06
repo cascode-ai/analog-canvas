@@ -450,6 +450,8 @@ const PROPERTIES_WIDTH_STORAGE_KEY = "icm.properties-panel-width.v1";
 const SIMULATION_WIDTH_STORAGE_KEY = "icm.simulation-panel-width.v2";
 // The drag floor only keeps the panel from disappearing behind its own
 // collapsed rail; how narrow the inspector is useful is the reader's call.
+/** A drop waits only for the render that shows the placement its drag began. */
+const DROP_WAIT_MS = 1000;
 const PROPERTIES_WIDTH_MIN = 160;
 const PROPERTIES_WIDTH_MAX = 760;
 /** Only the untouched default opens this wide; a drag may go narrower. */
@@ -4125,7 +4127,7 @@ function WorkspaceEditor({
     if (!awaited || !pendingComponentPlacement) return;
     awaitedDrop.current = null;
     // Only the placement that drag began, not one started long after it failed.
-    if (performance.now() - awaited.at < 1000)
+    if (performance.now() - awaited.at < DROP_WAIT_MS)
       latestDrop.current(awaited.clientX, awaited.clientY);
   }, [pendingComponentPlacement]);
   const { endpointSignalInspection, routeSignalInspection } =
@@ -5992,12 +5994,10 @@ function WorkspaceEditor({
                     onOpenChange: setUserComponentsOpen,
                     focusRequest: componentSearchRequest,
                     onCreate: openCreateComponent,
-                    render: (query, toolsSlot, open) => (
+                    render: (fold) => (
                       <EditorLibraryComponents
                         {...componentEditorProps}
-                        open={open}
-                        query={query}
-                        toolsSlot={toolsSlot}
+                        fold={fold}
                         onDropPlacement={dropOnCanvas}
                       />
                     ),

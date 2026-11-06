@@ -96,9 +96,21 @@ describe("selection inspection model", () => {
     const document = project.documents[0]!;
     const symbol = {
       ...builtInSymbols.find((candidate) => candidate.id === "resistor")!,
-      id: "user-abc-r3",
+      id: "user-decoder-record-r3",
       name: "4-to-16 Decoder",
     };
+    project.componentDefinitions = [
+      {
+        symbol,
+        libraryOrigin: {
+          componentId: "decoder-record",
+          revision: 3,
+          authorId: "alice",
+          contentVersion: 1,
+          digest: "a".repeat(64),
+        },
+      },
+    ];
     document.instances.push({
       id: "X1",
       symbolId: symbol.id,

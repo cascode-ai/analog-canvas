@@ -789,15 +789,6 @@
   color: var(--icm-text-muted);
   overflow-wrap: anywhere;
 }
-.component-preview-card p button {
-  padding: 0;
-  border: 0;
-  box-shadow: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-decoration: underline;
-}
 .component-preview-card pre {
   max-height: 220px;
   margin: 4px 0 0;

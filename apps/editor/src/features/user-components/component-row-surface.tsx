@@ -28,7 +28,7 @@ interface RowMenu {
  * brings its own records and commands, so this module stays free of the
  * network library the desktop build must not contain.
  */
-export function useComponentRowSurface() {
+export function useComponentRowSurface(focusSearch: () => void) {
   const [card, setCard] = useState<{
     summary: ComponentLibrarySummary;
     row: HTMLElement;
@@ -119,10 +119,7 @@ export function useComponentRowSurface() {
           !event.metaKey &&
           !event.altKey
         )
-          event.currentTarget
-            .closest(".shapes-panel")
-            ?.querySelector<HTMLElement>('input[type="search"]')
-            ?.focus();
+          focusSearch();
         return;
       }
       event.preventDefault();
@@ -136,7 +133,7 @@ export function ComponentRows({
   entries,
   scope,
   busy,
-  own = false,
+  authorImplied = false,
   artwork,
   onPlace,
   onDropPlacement,
@@ -146,10 +143,10 @@ export function ComponentRows({
   /** Keeps two lists' expanded groups apart. */
   scope: string;
   busy: boolean;
-  own?: boolean;
+  authorImplied?: boolean;
   artwork(entry: ComponentLibrarySummary): ReactNode;
-  /** Resolves true once placement has started. */
-  onPlace(entry: ComponentLibrarySummary): Promise<boolean>;
+  /** Resolves true once placement has started; absent where nothing places. */
+  onPlace?: ((entry: ComponentLibrarySummary) => Promise<boolean>) | undefined;
   onDropPlacement?: ((clientX: number, clientY: number) => void) | undefined;
 }) {
   const rows: ReactNode[] = [];
@@ -167,25 +164,20 @@ export function ComponentRows({
       entry={entry}
       busy={busy}
       tabbable={rows.length === 0}
-      own={own}
+      authorImplied={authorImplied}
       artwork={artwork(entry)}
       {...extra}
-      onToggleGroup={extra.onToggleGroup ?? (() => {})}
       onPlace={() => {
         surface.closeCard();
-        if (!surface.suppressClick.current) void onPlace(entry);
+        if (onPlace && !surface.suppressClick.current) void onPlace(entry);
       }}
       onDragStart={(event) => {
         surface.closeCard();
+        if (!onPlace) return;
         startCanvasDrag(event, {
           begin: () => onPlace(entry),
           drop: (x, y) => onDropPlacement?.(x, y),
-          dragged: () => {
-            surface.suppressClick.current = true;
-            window.setTimeout(() => {
-              surface.suppressClick.current = false;
-            }, 0);
-          },
+          suppressClick: surface.suppressClick,
         });
       }}
       onMenu={(anchor) => {
@@ -220,12 +212,10 @@ export function ComponentRows({
 
 export function ComponentMenuItem({
   label,
-  note,
   onSelect,
   onClose,
 }: {
   label: string;
-  note?: string;
   onSelect(): void;
   onClose(): void;
 }) {
@@ -238,10 +228,7 @@ export function ComponentMenuItem({
         onSelect();
       }}
     >
-      <span>
-        {label}
-        {note ? <small className="hierarchy-menu-note">{note}</small> : null}
-      </span>
+      <span>{label}</span>
     </button>
   );
 }
