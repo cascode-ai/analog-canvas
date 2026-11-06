@@ -97,7 +97,10 @@ test("central sign-in returns to the editor with its unsaved circuit and real re
     await expect(
       page.getByRole("tab", { name: /Original deep link/ }),
     ).toHaveCount(0);
+    const galleryUrl = accounts.origin + "/api/gallery?tag=amplifier";
+    expect((await page.request.get(galleryUrl)).status()).toBe(200);
     accounts.expireLease();
+    expect((await page.request.get(galleryUrl)).status()).toBe(401);
     await page.getByTestId("examples-toggle").click();
     await page.getByTestId("examples-panel-sign-in-button").click();
     await expect(page.getByTestId("signin-central")).toBeVisible();
