@@ -33,7 +33,11 @@ interface SavedTabFacts {
   publication?: unknown;
   projectText?: unknown;
   file?: {
-    cloudBinding?: { id?: unknown; revision?: unknown } | null;
+    cloudBinding?: {
+      id?: unknown;
+      revision?: unknown;
+      saveToken?: unknown;
+    } | null;
     nativeBinding?: unknown;
   } | null;
   recovery?: { workingCopyId?: unknown; source?: unknown } | null;
@@ -268,7 +272,13 @@ export async function keepDisplacedTabs(
             cloudBinding:
               typeof binding?.id === "string" &&
               typeof binding.revision === "number"
-                ? { id: binding.id, revision: binding.revision }
+                ? {
+                    id: binding.id,
+                    revision: binding.revision,
+                    ...(typeof binding.saveToken === "string"
+                      ? { saveToken: binding.saveToken }
+                      : {}),
+                  }
                 : null,
           },
           `${workingCopyId}-displaced`,

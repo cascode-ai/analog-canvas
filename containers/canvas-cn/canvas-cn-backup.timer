@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily local Canvas snapshot (brief private-service interruption)
+
+[Timer]
+OnCalendar=*-*-* 04:20:00
+Persistent=true
+Unit=canvas-cn-backup.service
+
+[Install]
+WantedBy=timers.target

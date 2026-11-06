@@ -6,7 +6,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -103,7 +103,7 @@ describe("dataset import batches from a draw:batch run (#1498)", () => {
       root,
     );
     expect(result.entries).toBe(12);
-    expect(result.files.map((file) => file.split("/").pop())).toEqual([
+    expect(result.files.map((file) => basename(file))).toEqual([
       "analogretriever-0001.json",
       "analogretriever-0002.json",
     ]);

@@ -146,6 +146,25 @@ describe("Cloud Project client", () => {
     });
   });
 
+  it.each([
+    [undefined, "Cloud revision conflict"],
+    [
+      "heads-regional-version",
+      "This Project changed in another region. Keep your local draft and review the versions in My shelf.",
+    ],
+  ])(
+    "only gives regional conflict advice for a regional save token (%s)",
+    async (saveToken, message) => {
+      expect(
+        await saveCloudProject(
+          project,
+          { id: summary.id, revision: 1, ...(saveToken ? { saveToken } : {}) },
+          respondWith(409, { error: "revision-conflict" }).fetchLike,
+        ),
+      ).toEqual({ status: "rejected", message });
+    },
+  );
+
   it("distinguishes a missing bound Project from an unavailable create endpoint", async () => {
     expect(
       await saveCloudProject(

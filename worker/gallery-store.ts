@@ -159,6 +159,15 @@ export type GalleryEnv = {
    */
   STORE_BACKUP_TOKEN?: string;
   GALLERY: GalleryNamespaceLike;
+  /** Opt-in formal regional Project store; never the disposable login dataset. */
+  PROJECTS?: GalleryNamespaceLike;
+  PROJECTS_STORE_NAME?: "projects" | "gallery";
+  PROJECT_SYNC_TOKEN?: string;
+  PROJECT_SYNC_PEER_URL?: string;
+  PROJECT_SYNC_PEER_TOKEN?: string;
+  PROJECT_SYNC_ADMIN_TOKEN?: string;
+  PROJECT_IDENTITY_URL?: string;
+  PROJECT_IDENTITY_TOKEN?: string;
   /** Sessions are the only identity: publishing requires one. */
   AUTH?: AuthNamespaceLike;
   ADMIN_EMAILS?: string;

@@ -380,12 +380,19 @@ export function runAgent({
       shell: true,
       cwd,
       env,
-      detached: true,
+      detached: process.platform !== "win32",
+      windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
     });
     const group = (signal) => {
       try {
-        process.kill(-child.pid, signal);
+        if (process.platform === "win32") {
+          // Windows has no POSIX process groups; include the shell's children.
+          execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+            stdio: "ignore",
+            windowsHide: true,
+          });
+        } else process.kill(-child.pid, signal);
       } catch {
         // The group has already gone.
       }

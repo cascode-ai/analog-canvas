@@ -3,6 +3,11 @@
 Specs hold the rules and contracts several modules, tests or other repos rely
 on. Each topic has one owner spec; others link to it.
 
+Proposed regional deployment contract:
+[China identity and synchronization](china-regional-identity-sync.md),
+[regional login](regional-login.md),
+[regional Cloud Projects](regional-projects.md).
+
 | Specification                                                      | Covers                                                                |
 | ------------------------------------------------------------------ | --------------------------------------------------------------------- |
 | [`project-file-format.md`](project-file-format.md)                 | Project JSON, compatibility floor, canonical save/load                |

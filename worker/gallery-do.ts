@@ -100,6 +100,10 @@ import {
 } from "./gallery-store-backup";
 import { GalleryWallStatisticsCache } from "./gallery-store-wall-cache";
 import {
+  RegionalProjectDO,
+  type ProjectRegionConfig,
+} from "./regional-projects";
+import {
   installSimulationChecks,
   nextSimulationCheck,
   queueSimulationChecks,
@@ -121,6 +125,7 @@ const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
  * `routeGalleryRequest` (gallery.ts) and the route modules it calls.
  */
 export class GalleryDO {
+  private readonly regionalProjects: RegionalProjectDO | undefined;
   private readonly sql: SqlStorage;
   private readonly wallStatisticsCache = new GalleryWallStatisticsCache();
   /**
@@ -129,7 +134,10 @@ export class GalleryDO {
    */
   private readonly backupEpoch = crypto.randomUUID();
 
-  constructor(private readonly state: DurableObjectStateLike) {
+  constructor(
+    private readonly state: DurableObjectStateLike,
+    env?: Partial<ProjectRegionConfig>,
+  ) {
     this.sql = state.storage.sql;
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS gallery_entries (
@@ -461,14 +469,45 @@ export class GalleryDO {
     this.sql.exec(
       "UPDATE gallery_entries SET status = 'public' WHERE status = 'pending'",
     );
+    this.regionalProjects = env?.PROJECT_REGION
+      ? new RegionalProjectDO(state, {
+          ...env,
+          PROJECT_REGION: env.PROJECT_REGION,
+        })
+      : undefined;
   }
 
   async fetch(request: Request): Promise<Response> {
     const operation = new URL(request.url).pathname.slice(1);
+    if (this.regionalProjects) {
+      if (
+        operation.startsWith("cloud-project-") ||
+        operation.startsWith("sync-")
+      )
+        return this.regionalProjects.fetch(request);
+      if (
+        ["schema-restore", "schema-converge", "delete-account"].includes(
+          operation,
+        )
+      )
+        return Response.json(
+          { error: "regional-coordination-required" },
+          { status: 409 },
+        );
+    }
     const body =
       request.method === "POST"
         ? ((await request.json()) as Record<string, unknown>)
         : {};
+    if (
+      this.regionalProjects &&
+      (body.cloudProjectId !== undefined ||
+        (operation === "replace-entry" && body.ownerUserId !== undefined))
+    )
+      return Response.json(
+        { error: "regional-publication-unavailable" },
+        { status: 409 },
+      );
     switch (operation) {
       case "submit":
         return submit(this.state, body);

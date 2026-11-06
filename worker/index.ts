@@ -15,6 +15,8 @@ import {
 import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
 import { serveAsset } from "./static-assets";
 import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
+import { pumpProjectSync } from "./project-sync";
+export { RegionalProjectDO } from "./regional-projects";
 import { routeBoardsRequest } from "./boards";
 import {
   galleryReadableDocument,
@@ -22,7 +24,7 @@ import {
 } from "./gallery-documents";
 import { moveTestbenches, refreshNetlistMarks } from "./gallery-maintenance";
 import { advanceSimulationChecks } from "./gallery-simulation-check-runs";
-import type { GalleryNamespaceLike } from "./gallery-store";
+import type { GalleryNamespaceLike, GalleryEnv } from "./gallery-store";
 import {
   routeSimulationRequest,
   refuseSignedOutSimulation,
@@ -66,10 +68,12 @@ export const ComponentLibraryDO = withPointInTimeRecovery(
 export const AnalyticsDO = withPointInTimeRecovery(AnalyticsStore);
 export const GalleryDO = withPointInTimeRecovery(GalleryStore);
 export const AuthDO = withPointInTimeRecovery(AuthStore);
+export { RegionalSessionDO } from "./regional-session";
 export { AgentSessionDO } from "./agent-session";
 export { SimulationControlDO } from "./simulation-control-do";
 
 type Env = TopologyTaskEnv &
+  GalleryEnv &
   ComponentLibraryEnv &
   SimulationEnv &
   SimulationOperationsEnv & {
@@ -109,6 +113,11 @@ export default {
   // anybody pressing anything; when none are stale the pass reads one count
   // and stops.
   async scheduled(_event: ScheduledEventLike, env: Env): Promise<void> {
+    if (env.PROJECTS) {
+      const result = await pumpProjectSync(env);
+      if (result.status === "blocked" || result.status === "retry")
+        console.warn("project-sync", result.status);
+    }
     try {
       await refreshNetlistMarks(env, SCHEDULED_NETLIST_MARK_BATCH);
       // Once the Owner recorded a backup, testbenches leave the shared

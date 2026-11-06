@@ -16,15 +16,21 @@ import {
 } from "./auth";
 
 const ORIGIN = "https://canvas.test";
+const REGIONAL_ORIGIN = "https://cn.canvas.test";
+const REGIONAL_SECRET = "acceptance-only-regional-client-secret";
 
 function sqliteState() {
   const db = new DatabaseSync(":memory:");
+  let transactionIndex = 0;
   return {
     storage: {
       sql: {
         exec<T>(query: string, ...bindings: unknown[]) {
           const statement = db.prepare(query);
-          if (/^\s*(select|with|pragma)/iu.test(query)) {
+          if (
+            /^\s*(select|with|pragma)/iu.test(query) ||
+            /\bRETURNING\b/iu.test(query)
+          ) {
             const rows = statement.all(
               ...(bindings as (string | number | null)[]),
             ) as T[];
@@ -46,7 +52,17 @@ function sqliteState() {
         },
       },
       transactionSync<T>(callback: () => T): T {
-        return callback();
+        const name = `test_tx_${++transactionIndex}`;
+        db.exec(`SAVEPOINT ${name}`);
+        try {
+          const result = callback();
+          db.exec(`RELEASE ${name}`);
+          return result;
+        } catch (error) {
+          db.exec(`ROLLBACK TO ${name}`);
+          db.exec(`RELEASE ${name}`);
+          throw error;
+        }
       },
     },
   };
@@ -1317,5 +1333,453 @@ describe("Owner tokens (#1769)", () => {
         .exec<{ count: number }>("SELECT COUNT(*) AS count FROM owner_tokens")
         .one().count,
     ).toBe(0);
+  });
+});
+
+describe("regional identity handoff", () => {
+  const authorityConfig = JSON.stringify({
+    origin: ORIGIN,
+    clientOrigin: REGIONAL_ORIGIN,
+    secret: REGIONAL_SECRET,
+  });
+  async function codeFor(
+    auth: ReturnType<typeof harness>,
+    cookie: string,
+    verifier: string,
+  ) {
+    const { digest } = await import("./regional-auth-contract");
+    const response = await auth.call(
+      REGIONAL_PREFIX_FOR_TEST +
+        "authorize?state=" +
+        "s".repeat(43) +
+        "&challenge=" +
+        (await digest(verifier)),
+      { cookie },
+    );
+    return new URL(response.headers.get("location")!).searchParams.get("code")!;
+  }
+  const REGIONAL_PREFIX_FOR_TEST = "/api/auth/regional/";
+  it("lets an authenticated importer resolve existing owners before any regional login", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "test",
+      AUTH_REGIONAL_AUTHORITY: authorityConfig,
+    });
+    const sourceCookie = await emailSignIn(auth, "import-owner@example.test");
+    const user = (await me(auth, sourceCookie))!;
+    const path = REGIONAL_PREFIX_FOR_TEST + "identities";
+    const body = JSON.stringify({ userIds: [user.id, "unknown-owner"] });
+    expect((await auth.call(path, { method: "POST", body })).status).toBe(401);
+    const found = await auth.call(path, {
+      method: "POST",
+      body,
+      headers: { authorization: "Bearer " + REGIONAL_SECRET },
+    });
+    expect(found.status).toBe(200);
+    expect(await found.json()).toEqual({
+      identities: [
+        { id: user.id, status: "found", user },
+        { id: "unknown-owner", status: "missing" },
+      ],
+    });
+    expect(
+      (
+        await auth.call(path, {
+          method: "POST",
+          headers: { authorization: "Bearer " + REGIONAL_SECRET },
+          body: JSON.stringify({ userIds: Array(101).fill(user.id) }),
+        })
+      ).status,
+    ).toBe(400);
+  });
+  it("refuses unauthenticated redemption, wrong proof, expired codes and untrusted destinations", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "test",
+      AUTH_REGIONAL_AUTHORITY: authorityConfig,
+    });
+    let time = Date.now();
+    auth.durable.now = () => new Date(time);
+    const source = await emailSignIn(auth, "boundary@example.test");
+    const verifier = "v".repeat(43);
+    const code = await codeFor(auth, source, verifier);
+    const exchange = (
+      proof: string,
+      authorization = "Bearer " + REGIONAL_SECRET,
+    ) =>
+      auth.call(REGIONAL_PREFIX_FOR_TEST + "exchange", {
+        method: "POST",
+        headers: { authorization },
+        body: JSON.stringify({ code, verifier: proof }),
+      });
+    expect((await exchange(verifier, "Bearer wrong-secret")).status).toBe(401);
+    expect((await exchange("x".repeat(43))).status).toBe(401);
+    expect((await exchange(verifier)).status).toBe(200);
+    const expired = await codeFor(auth, source, verifier);
+    time += 60_001;
+    expect(
+      (
+        await auth.call(REGIONAL_PREFIX_FOR_TEST + "exchange", {
+          method: "POST",
+          headers: { authorization: "Bearer " + REGIONAL_SECRET },
+          body: JSON.stringify({ code: expired, verifier }),
+        })
+      ).status,
+    ).toBe(401);
+    const hostile = await auth.durable.fetch(
+      new Request(
+        "https://attacker.test" +
+          REGIONAL_PREFIX_FOR_TEST +
+          "authorize?state=" +
+          "s".repeat(43) +
+          "&challenge=" +
+          "c".repeat(43),
+        { headers: { cookie: source } },
+      ),
+    );
+    expect(hostile.status).toBe(421);
+    const pinned = await auth.call(
+      REGIONAL_PREFIX_FOR_TEST +
+        "authorize?state=" +
+        "s".repeat(43) +
+        "&challenge=" +
+        "c".repeat(43) +
+        "&return=https://attacker.test",
+      { cookie: source },
+    );
+    expect(new URL(pinned.headers.get("location")!).origin).toBe(
+      REGIONAL_ORIGIN,
+    );
+    const plain = harness();
+    expect(
+      (await plain.call(REGIONAL_PREFIX_FOR_TEST + "authorize")).status,
+    ).toBe(404);
+  });
+
+  it("refreshes authority roles by alarm, bounds offline access and invalidates revoked sessions", async () => {
+    const { RegionalSessionDO } = await import("./regional-session");
+    let time = Date.now();
+    const auth = harness({
+      RESEND_API_KEY: "test",
+      AUTH_REGIONAL_AUTHORITY: authorityConfig,
+      ADMIN_EMAILS: "manager@example.test",
+    });
+    auth.durable.now = () => new Date(time);
+    const manager = await emailSignIn(auth, "manager@example.test");
+    const source = await emailSignIn(auth, "lease@example.test");
+    const user = (await me(auth, source))!;
+    const state = sqliteState();
+    let nextAlarm = 0;
+    const regional = new RegionalSessionDO(
+      {
+        storage: {
+          ...state.storage,
+          setAlarm: async (at: number) => {
+            nextAlarm = at;
+          },
+        },
+      },
+      { AUTH_REGIONAL_CLIENT: authorityConfig },
+    );
+    regional.now = () => time;
+    let network = true;
+    regional.fetchLike = (async (input, init) => {
+      if (!network) throw new Error("offline");
+      return auth.durable.fetch(new Request(input, init));
+    }) as typeof fetch;
+    const begin = await regional.fetch(
+      new Request(REGIONAL_ORIGIN + REGIONAL_PREFIX_FOR_TEST + "start"),
+    );
+    const authorized = await auth.durable.fetch(
+      new Request(begin.headers.get("location")!, {
+        headers: { cookie: source },
+      }),
+    );
+    const callbackUrl = authorized.headers.get("location")!;
+    // A foreign browser cannot consume the pending login or the authority code.
+    expect((await regional.fetch(new Request(callbackUrl))).status).toBe(400);
+    const pendingCookie =
+      "icm_regional_login=" + cookieValue(begin, "icm_regional_login");
+    const callback = await regional.fetch(
+      new Request(callbackUrl, { headers: { cookie: pendingCookie } }),
+    );
+    const localCookie = "icm_session=" + cookieValue(callback, "icm_session");
+    expect(
+      (
+        await regional.fetch(
+          new Request(callbackUrl, { headers: { cookie: pendingCookie } }),
+        )
+      ).status,
+    ).toBe(400);
+    const localMe = async () =>
+      (
+        await regional.fetch(
+          new Request(REGIONAL_ORIGIN + "/api/auth/me", {
+            headers: { cookie: localCookie },
+          }),
+        )
+      ).json() as Promise<{ user: SessionUser | null; authorization: string }>;
+    expect((await localMe()).user?.id).toBe(user.id);
+    expect(nextAlarm).toBe(time + 30_000);
+    await auth.call("/api/auth/users/role", {
+      method: "POST",
+      cookie: manager,
+      body: JSON.stringify({ email: user.email, role: "moderator" }),
+    });
+    expect((await localMe()).user?.role).toBe("user");
+    time += 30_000;
+    await regional.alarm();
+    expect((await localMe()).user?.role).toBe("moderator");
+    network = false;
+    time += 30_000;
+    await regional.alarm();
+    expect((await localMe()).authorization).toBe("active");
+    time += 30_001;
+    expect(await localMe()).toEqual({ user: null, authorization: "expired" });
+    network = true;
+    await regional.alarm();
+    expect((await localMe()).user?.id).toBe(user.id);
+    await auth.call("/api/auth/logout", { method: "POST", cookie: source });
+    time += 30_000;
+    await regional.alarm();
+    expect((await localMe()).user).toBeNull();
+  });
+
+  it("offers existing provider login and preserves the regional continuation", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "test",
+      GOOGLE_CLIENT_ID: "google-test",
+      GOOGLE_CLIENT_SECRET: "secret",
+      AUTH_REGIONAL_AUTHORITY: authorityConfig,
+    });
+    const continuation =
+      REGIONAL_PREFIX_FOR_TEST +
+      "authorize?state=" +
+      "s".repeat(43) +
+      "&challenge=" +
+      "c".repeat(43);
+    const page = await auth.call(continuation);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("Google");
+    const begin = await auth.call(
+      "/api/auth/google/start?return=" + encodeURIComponent(continuation),
+    );
+    const state = new URL(begin.headers.get("location")!).searchParams.get(
+      "state",
+    )!;
+    expect(decodeURIComponent(state.slice(state.indexOf(".") + 1))).toBe(
+      continuation,
+    );
+    auth.durable.fetchLike = (async (input) =>
+      String(input).includes("/token")
+        ? Response.json({ access_token: "test-token" })
+        : Response.json({
+            sub: "google-user",
+            email: "google@example.test",
+            email_verified: true,
+          })) as typeof fetch;
+    const callback = await auth.call(
+      "/api/auth/google/callback?" +
+        new URLSearchParams({ code: "test-code", state }),
+      { cookie: "icm_oauth_state=" + state },
+    );
+    expect(callback.headers.get("location")).toBe(ORIGIN + continuation);
+    const plain = harness({
+      GOOGLE_CLIENT_ID: "google-test",
+      GOOGLE_CLIENT_SECRET: "secret",
+    });
+    const oldBegin = await plain.call(
+      "/api/auth/google/start?return=" + encodeURIComponent(continuation),
+    );
+    expect(
+      new URL(oldBegin.headers.get("location")!).searchParams.get("state"),
+    ).not.toContain(".");
+  });
+  it.each(["exchange", "alarm"])(
+    "keeps local identity and cancels a callback held at %s when logging out",
+    async (pauseAt) => {
+      const { RegionalSessionDO } = await import("./regional-session");
+      const auth = harness({
+        RESEND_API_KEY: "test",
+        AUTH_REGIONAL_AUTHORITY: authorityConfig,
+      });
+      const authorityCookie = await emailSignIn(
+        auth,
+        "regional-local@example.test",
+      );
+      const authorityUser = await me(auth, authorityCookie);
+      const state = sqliteState();
+      let alarmBarrier: (() => Promise<void>) | undefined;
+      const regional = new RegionalSessionDO(
+        {
+          storage: {
+            ...state.storage,
+            setAlarm: async () => {
+              await alarmBarrier?.();
+            },
+          },
+        },
+        { AUTH_REGIONAL_CLIENT: authorityConfig },
+      );
+      let network = true;
+      regional.fetchLike = (async (input, init) => {
+        if (!network) throw new Error("offline");
+        return auth.durable.fetch(new Request(input, init));
+      }) as typeof fetch;
+      const begin = await regional.fetch(
+        new Request(REGIONAL_ORIGIN + REGIONAL_PREFIX_FOR_TEST + "start"),
+      );
+      expect(begin.status).toBe(302);
+      const authorized = await auth.durable.fetch(
+        new Request(begin.headers.get("location")!, {
+          headers: { cookie: authorityCookie },
+        }),
+      );
+      const callback = await regional.fetch(
+        new Request(authorized.headers.get("location")!, {
+          headers: {
+            cookie:
+              "icm_regional_login=" + cookieValue(begin, "icm_regional_login"),
+          },
+        }),
+      );
+      expect(callback.status).toBe(302);
+      const localCookie = "icm_session=" + cookieValue(callback, "icm_session");
+      const env = {
+        AUTH: {
+          getByName: () => ({
+            fetch: (input: Request | string, init?: RequestInit) =>
+              regional.fetch(new Request(input, init)),
+          }),
+        },
+      };
+      network = false;
+      expect(
+        await sessionUserOf(
+          new Request(REGIONAL_ORIGIN, { headers: { cookie: localCookie } }),
+          env,
+        ),
+      ).toEqual(authorityUser);
+      network = true;
+      await regional.alarm();
+      const another = await regional.fetch(
+        new Request(REGIONAL_ORIGIN + REGIONAL_PREFIX_FOR_TEST + "start"),
+      );
+      const pending =
+        "icm_regional_login=" + cookieValue(another, "icm_regional_login");
+      const late = await auth.durable.fetch(
+        new Request(another.headers.get("location")!, {
+          headers: { cookie: authorityCookie },
+        }),
+      );
+      let releaseExchange!: () => void;
+      let exchangeStarted!: () => void;
+      const heldExchange = new Promise<void>((resolve) => {
+        releaseExchange = resolve;
+      });
+      const started = new Promise<void>((resolve) => {
+        exchangeStarted = resolve;
+      });
+      const pause = async () => {
+        exchangeStarted();
+        await heldExchange;
+      };
+      if (pauseAt === "alarm") alarmBarrier = pause;
+      regional.fetchLike = (async (input, init) => {
+        if (pauseAt === "exchange") await pause();
+        return auth.durable.fetch(new Request(input, init));
+      }) as typeof fetch;
+      const inFlight = regional.fetch(
+        new Request(late.headers.get("location")!, {
+          headers: { cookie: pending },
+        }),
+      );
+      await started;
+      const logout = await regional.fetch(
+        new Request(REGIONAL_ORIGIN + "/api/auth/logout", {
+          method: "POST",
+          headers: {
+            cookie: localCookie + "; " + pending,
+            origin: REGIONAL_ORIGIN,
+          },
+        }),
+      );
+      expect(logout.status).toBe(200);
+      releaseExchange();
+      expect((await inFlight).status).toBe(400);
+      expect(
+        (
+          await regional.fetch(
+            new Request(late.headers.get("location")!, {
+              headers: { cookie: pending },
+            }),
+          )
+        ).status,
+      ).toBe(400);
+      expect(
+        await sessionUserOf(
+          new Request(REGIONAL_ORIGIN, { headers: { cookie: localCookie } }),
+          env,
+        ),
+      ).toBeNull();
+      expect(await me(auth, authorityCookie)).toEqual(authorityUser);
+    },
+  );
+  it("redeems once for the same identity and renews only while the source session lives", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "test",
+      AUTH_REGIONAL_AUTHORITY: authorityConfig,
+    });
+    const cookie = await emailSignIn(auth, "existing@example.test");
+    const user = await me(auth, cookie);
+    const verifier = "v".repeat(43);
+    const code = await codeFor(auth, cookie, verifier);
+    const exchange = () =>
+      auth.call(REGIONAL_PREFIX_FOR_TEST + "exchange", {
+        method: "POST",
+        headers: { authorization: "Bearer " + REGIONAL_SECRET },
+        body: JSON.stringify({ code, verifier }),
+      });
+    const result = await exchange();
+    expect(result.status).toBe(200);
+    const grant = (await result.json()) as {
+      user: SessionUser;
+      grant: string;
+      expiresAt: number;
+    };
+    expect(grant.user).toEqual(user);
+    expect((await exchange()).status).toBe(401);
+    const renew = () =>
+      auth.call(REGIONAL_PREFIX_FOR_TEST + "renew", {
+        method: "POST",
+        headers: { authorization: "Bearer " + REGIONAL_SECRET },
+        body: JSON.stringify({ grant: grant.grant }),
+      });
+    expect((await renew()).status).toBe(200);
+    await auth.call("/api/auth/logout", { method: "POST", cookie });
+    expect((await renew()).status).toBe(401);
+  });
+  it("hands an existing authority login to the configured regional callback", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "test",
+      AUTH_REGIONAL_AUTHORITY: JSON.stringify({
+        origin: ORIGIN,
+        clientOrigin: REGIONAL_ORIGIN,
+        secret: REGIONAL_SECRET,
+      }),
+    });
+    const cookie = await emailSignIn(auth, "regional@example.test");
+    const result = await auth.call(
+      "/api/auth/regional/authorize?state=" +
+        "s".repeat(43) +
+        "&challenge=" +
+        "c".repeat(43),
+      { cookie },
+    );
+    expect(result.status).toBe(302);
+    const target = new URL(result.headers.get("location")!);
+    expect(target.origin + target.pathname).toBe(
+      REGIONAL_ORIGIN + "/api/auth/regional/callback",
+    );
+    expect(target.searchParams.get("state")).toBe("s".repeat(43));
+    expect(target.searchParams.get("code")).toMatch(/^[A-Za-z0-9_-]{43}$/u);
   });
 });

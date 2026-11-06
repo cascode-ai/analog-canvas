@@ -47,6 +47,11 @@ export default {
       entry: [
         "scripts/*.mjs!",
         "worker/index.ts!",
+        "worker/regional-entry.ts!",
+        "containers/canvas-cn/formal/egress.mjs!",
+        // Loaded by the standalone workerd login profile's config.capnp.
+        "containers/canvas-cn/login/entry.mjs!",
+        "containers/canvas-cn/login/egress.mjs!",
         "containers/*/entrypoint.mjs!",
         "containers/ngspice/gateway.mjs!",
         "containers/ngspice/sg13g2/verify-image.mjs!",

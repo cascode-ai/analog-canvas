@@ -1,0 +1,11 @@
+[Unit]
+Description=Advance regional Project replication while the service runs
+
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=5s
+AccuracySec=1s
+Unit=canvas-cn-project-sync.service
+
+[Install]
+WantedBy=timers.target

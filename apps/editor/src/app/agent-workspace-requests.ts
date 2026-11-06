@@ -189,6 +189,9 @@ export function createAgentWorkspaceHandler({
             liveTarget.session.file.cloudBinding = {
               id: outcome.project.id,
               revision: outcome.project.revision,
+              ...(outcome.project.saveToken
+                ? { saveToken: outcome.project.saveToken }
+                : {}),
               galleryEntryId: outcome.project.galleryEntryId ?? null,
             };
             liveTarget.session.file.savedBaseline = {

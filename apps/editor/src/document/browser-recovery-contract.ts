@@ -59,6 +59,7 @@ export interface BrowserRecoveryFormalFileHint {
 }
 
 export interface BrowserRecoveryCloudBinding {
+  saveToken?: string;
   id: string;
   revision: number;
 }
@@ -462,7 +463,9 @@ export function rotateBrowserRecoverySession(
     const sameCloudBinding =
       session.latest.cloudBinding?.id === candidate.cloudBinding?.id &&
       session.latest.cloudBinding?.revision ===
-        candidate.cloudBinding?.revision;
+        candidate.cloudBinding?.revision &&
+      session.latest.cloudBinding?.saveToken ===
+        candidate.cloudBinding?.saveToken;
     if (
       session.latest.unsavedAtSnapshot === candidate.unsavedAtSnapshot &&
       sameHint &&
