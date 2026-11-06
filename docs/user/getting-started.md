@@ -224,8 +224,8 @@ for external models.
 
 The Library's search covers **Official components** and **Community**, which
 starts shut above them; **Edit → Community Components…** also opens it. Click a
-row to place it, or drag it onto the canvas. Pointing at a row shows its large
-preview; **⋯** or right-click holds **Details**, **Create from…**, **Edit** and
+row to place it, or drag it onto the canvas. **⋯** or right-click holds
+**Details** (its large preview), **Create from…**, **Edit** and
 deletion, and the funnel filters by type and author. One author's records of one name share a row, and its count lists
 them. **My components**, inside Community, holds your publications, Project
 drafts and deleted records. Press `I` to find a component already in this
@@ -235,8 +235,8 @@ Project, under its own name.
 source, owned helper files and artwork, not drafts or testbenches. Authors and
 administrators update their records; others use **Publish as new component**.
 Placing a public component captures it in your Project, so later library
-changes or deletion never alter your circuit. Point at a row that **Needs
-repair** to see why its definition no longer validates; **Copy raw record** and
+changes or deletion never alter your circuit. **Details** on a row that
+**Needs repair** says why its definition no longer validates; **Copy raw record** and
 repair it in a new component. The list reads the library again when you return
 from editing or reopen it. Administrators can mark entries **Official**, delete
 them or restore them from **Deleted (all)**.

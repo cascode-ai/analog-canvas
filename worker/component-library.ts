@@ -2,6 +2,7 @@ import { sessionUserOf, type AuthNamespaceLike } from "./auth";
 import {
   COMPONENT_DEFINITION_MAX_BYTES,
   COMPONENT_LIBRARY_ID,
+  COMPONENT_PREVIEW_BATCH_LIMIT,
   parseSharedComponentPayload,
 } from "../apps/editor/src/features/user-components/component-library-contract";
 export { ComponentLibraryDO } from "./component-library-do";
@@ -51,6 +52,33 @@ export async function routeComponentLibraryRequest(
         { error: "Sign in to manage deleted components" },
         { status: 403 },
       );
+    if (isList && url.searchParams.get("view") === "previews") {
+      const items = (url.searchParams.get("ids") ?? "")
+        .split(",")
+        .filter(Boolean)
+        .map((item) => {
+          const at = item.lastIndexOf(":");
+          return {
+            id: item.slice(0, at),
+            revision: Number(item.slice(at + 1)),
+          };
+        });
+      if (
+        !items.length ||
+        items.length > COMPONENT_PREVIEW_BATCH_LIMIT ||
+        items.some(
+          ({ id, revision }) =>
+            !COMPONENT_LIBRARY_ID.test(id) ||
+            !Number.isSafeInteger(revision) ||
+            revision < 1,
+        )
+      )
+        return Response.json(
+          { error: "Invalid preview list" },
+          { status: 400 },
+        );
+      return call("previews", { items, admin, userId: user?.id });
+    }
     return isList
       ? call("list", {
           query: (url.searchParams.get("q") ?? "").slice(0, 100),

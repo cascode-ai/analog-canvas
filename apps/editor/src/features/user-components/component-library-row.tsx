@@ -1,14 +1,10 @@
-import {
-  useRef,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import type { ComponentLibrarySummary } from "@icm/agent-adapter";
 
 /**
  * One record on the Library's working surface. Click or Enter places it and
  * dragging it onto the canvas places it there; its actions appear only where
- * the pointer or focus is, and its large preview beside the panel.
+ * the pointer or focus is; Details shows its large preview.
  */
 export function ComponentLibraryRow({
   entry,
@@ -24,8 +20,6 @@ export function ComponentLibraryRow({
   onDragStart,
   onToggleGroup,
   onMenu,
-  onPreview,
-  onPreviewEnd,
 }: {
   entry: ComponentLibrarySummary;
   artwork: ReactNode;
@@ -42,10 +36,7 @@ export function ComponentLibraryRow({
   onDragStart(event: ReactPointerEvent<HTMLButtonElement>): void;
   onToggleGroup?(): void;
   onMenu(anchor: { x: number; y: number }): void;
-  onPreview(row: HTMLElement): void;
-  onPreviewEnd(): void;
 }) {
-  const row = useRef<HTMLDivElement>(null);
   const invalid = entry.capability === "needs-repair";
   const deleted = entry.status === "deleted";
   const unavailable = invalid || deleted;
@@ -53,13 +44,10 @@ export function ComponentLibraryRow({
   const published = entry.createdAt.slice(0, 16).replace("T", " ");
   return (
     <div
-      ref={row}
       className="component-row"
       data-testid={invalid ? "rejected-user-component" : undefined}
       data-component-id={entry.id}
       data-variant={variant || undefined}
-      onPointerEnter={() => onPreview(row.current!)}
-      onPointerLeave={onPreviewEnd}
       onContextMenu={(event) => {
         event.preventDefault();
         onMenu({ x: event.clientX, y: event.clientY });
@@ -83,8 +71,6 @@ export function ComponentLibraryRow({
             onToggleGroup?.();
           }
         }}
-        onFocus={() => onPreview(row.current!)}
-        onBlur={onPreviewEnd}
         onPointerDown={(event) => {
           if (!unavailable) onDragStart(event);
         }}

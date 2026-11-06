@@ -33,6 +33,11 @@ consume.
   Author aggregates are separate from this entry budget. Clients follow the
   returned cursor, not the requested page size, until complete; catalog
   changes still reject mixed-revision pages.
+- `GET /api/components?view=previews&ids=<id>:<revision>,…` returns up to 48
+  revision-bound preview symbols in request order. Each item applies its
+  record's visibility and carries its own changed, missing or repair error; a
+  longer or malformed list is refused. Clients read one batch per screenful
+  and fall back to `/<id>?view=preview` where a service predates it.
 
 ## Destination
 

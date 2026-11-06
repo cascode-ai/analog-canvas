@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -11,10 +10,6 @@ import { groupCatalogEntries } from "./component-catalog-groups";
 import type { SharedComponent } from "./component-library-contract";
 import { ComponentLibraryRow } from "./component-library-row";
 
-const PREVIEW_DELAY_MS = 300;
-const PREVIEW_SWITCH_MS = 60;
-const PREVIEW_LINGER_MS = 150;
-
 interface RowMenu {
   entry: ComponentLibrarySummary;
   x: number;
@@ -23,8 +18,8 @@ interface RowMenu {
 }
 
 /**
- * The working surface both hosts' component lists share: which row shows its
- * preview, which row's menu is open and which groups are expanded. Each host
+ * The working surface both hosts' component lists share: which record's
+ * Details card is open, which row's menu is open and which groups are expanded. Each host
  * brings its own records and commands, so this module stays free of the
  * network library the desktop build must not contain.
  */
@@ -37,20 +32,8 @@ export function useComponentRowSurface(focusSearch: () => void) {
   const [menu, setMenu] = useState<RowMenu | null>(null);
   const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
   const root = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const suppressClick = useRef(false);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const closeCard = () => {
-    clearTimeout(timer.current);
-    setCard(null);
-  };
-  const endPreview = () => {
-    clearTimeout(timer.current);
-    timer.current = setTimeout(
-      () => setCard((current) => (current?.entry ? current : null)),
-      PREVIEW_LINGER_MS,
-    );
-  };
+  const closeCard = () => setCard(null);
   return {
     root,
     card,
@@ -60,22 +43,12 @@ export function useComponentRowSurface(focusSearch: () => void) {
     setMenu,
     setOpenGroups,
     closeCard,
-    endPreview,
-    holdPreview: () => clearTimeout(timer.current),
-    preview(summary: ComponentLibrarySummary, row: HTMLElement) {
-      clearTimeout(timer.current);
-      timer.current = setTimeout(
-        () =>
-          setCard((current) => (current?.entry ? current : { summary, row })),
-        card ? PREVIEW_SWITCH_MS : PREVIEW_DELAY_MS,
-      );
-    },
-    /** Details keeps the card open and adds what the full record holds. */
-    pin(summary: ComponentLibrarySummary, entry: SharedComponent) {
+    /** Opens a record's Details beside its row, with its full record if read. */
+    pin(summary: ComponentLibrarySummary, entry?: SharedComponent) {
       const row = root.current?.querySelector<HTMLElement>(
         `[data-component-id="${CSS.escape(summary.id)}"]`,
       );
-      if (row) setCard({ summary, row, entry });
+      if (row) setCard({ summary, row, ...(entry ? { entry } : {}) });
     },
     onKeyDown(
       event: ReactKeyboardEvent<HTMLDivElement>,
@@ -188,8 +161,6 @@ export function ComponentRows({
         surface.closeCard();
         surface.setMenu({ entry, ...anchor });
       }}
-      onPreview={(element) => surface.preview(entry, element)}
-      onPreviewEnd={surface.endPreview}
     />
   );
   for (const group of groupCatalogEntries(entries)) {

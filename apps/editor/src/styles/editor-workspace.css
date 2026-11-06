@@ -818,10 +818,25 @@
   border-color: var(--icm-accent);
   outline: none;
 }
+/* A fold header stays against the panel top while its list scrolls, with
+   nothing showing above it: the sticky offset takes back the body padding.
+   A category, or My components, then stays just below its fold header. */
+.shapes-panel-body {
+  --shapes-sticky-top: calc(-1 * var(--icm-space-3));
+  --shapes-fold-header-height: 32px;
+}
 .shapes-fold-summary {
   position: sticky;
-  top: 0;
+  top: var(--shapes-sticky-top);
   z-index: 2;
+  min-height: var(--shapes-fold-header-height);
+}
+.shapes-category-header,
+.user-components-panel > .user-components-nested > summary {
+  position: sticky;
+  top: calc(var(--shapes-sticky-top) + var(--shapes-fold-header-height));
+  z-index: 1;
+  background: var(--icm-surface);
 }
 .shapes-fold-tools {
   display: flex;

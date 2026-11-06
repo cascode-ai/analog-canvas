@@ -22,7 +22,7 @@ import {
   ComponentRows,
   useComponentRowSurface,
 } from "./component-row-surface";
-import { ComponentPreviewCard } from "./component-preview-card";
+import { ComponentDetailsCard } from "./component-details-card";
 import { ComponentDraftList } from "./component-draft-list";
 import { ComponentPopover } from "./component-popover";
 import type {
@@ -92,9 +92,11 @@ export default function UserComponentsLibrary({
   };
   const [mineOpen, setMineOpen] = useState(remembered.mine);
   const [removedOpen, setRemovedOpen] = useState(remembered.removed);
+  // Public discovery is the same for every account, so it does not wait
+  // for the account read; the member's own lists do.
   const community = useComponentCatalog({
-    active: open && authReady,
-    accountId,
+    active: open,
+    accountId: null,
     query,
     catalog,
     refresh,
@@ -341,9 +343,12 @@ export default function UserComponentsLibrary({
         takeFocus={surface.menu.fromKeyboard ?? false}
         onClose={closeMenu}
       >
+        {menuItem("Details", () =>
+          invalid ? surface.pin(entry) : void choose(entry, "details"),
+        )}
         {invalid
           ? menuItem("Copy raw record", () => void choose(entry, "raw"))
-          : menuItem("Details", () => void choose(entry, "details"))}
+          : null}
         {!invalid && !deleted
           ? menuItem("Create from…", () => void choose(entry, "new"))
           : null}
@@ -596,13 +601,12 @@ export default function UserComponentsLibrary({
       )}
       {renderMenu()}
       {surface.card ? (
-        <ComponentPreviewCard
+        <ComponentDetailsCard
+          key={`${surface.card.summary.id}:${surface.card.summary.revision}`}
           summary={surface.card.summary}
           row={surface.card.row}
           artwork={artwork}
           entry={surface.card.entry}
-          onHold={surface.holdPreview}
-          onRelease={surface.endPreview}
           onClose={surface.closeCard}
         />
       ) : null}

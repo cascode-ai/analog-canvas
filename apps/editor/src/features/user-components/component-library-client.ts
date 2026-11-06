@@ -10,7 +10,7 @@ import {
   type ComponentCatalogQuery,
   type ComponentLibrarySummary,
 } from "@icm/agent-adapter/component-resource";
-import { SymbolDefinitionSchema } from "@icm/symbols";
+import { SymbolDefinitionSchema, type SymbolDefinition } from "@icm/symbols";
 import {
   type SharedDefinitionPayload,
   type ComponentLibraryPage,
@@ -189,6 +189,33 @@ export async function loadSharedComponentSummaries(
         }
       : {}),
   };
+}
+
+/**
+ * Revision-bound preview symbols of several records in one read, keyed by
+ * `id:revision`; a record the service cannot show is absent. Null when the
+ * service predates batched previews.
+ */
+export async function readSharedComponentPreviews(
+  entries: readonly Pick<ComponentLibrarySummary, "id" | "revision">[],
+  signal?: AbortSignal,
+): Promise<Map<string, SymbolDefinition> | null> {
+  const ids = entries.map((entry) => `${entry.id}:${entry.revision}`);
+  const payload = await libraryJson(
+    `/api/components?view=previews&ids=${encodeURIComponent(ids.join(","))}`,
+    {},
+    fetch,
+    signal,
+  );
+  if (!Array.isArray(payload.previews)) return null;
+  const symbols = new Map<string, SymbolDefinition>();
+  for (const item of payload.previews) {
+    if (!isRecord(item) || !("symbol" in item)) continue;
+    const symbol = SymbolDefinitionSchema.safeParse(item.symbol);
+    const key = `${String(item.id)}:${String(item.revision)}`;
+    if (symbol.success && ids.includes(key)) symbols.set(key, symbol.data);
+  }
+  return symbols;
 }
 
 export async function readSharedComponentPreview(

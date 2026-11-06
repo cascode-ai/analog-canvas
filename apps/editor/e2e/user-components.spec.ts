@@ -189,9 +189,9 @@ const componentFold = (page: Page) =>
 /** The fold's own records, not those of the folds nested inside it. */
 const communityRows = (page: Page) =>
   componentFold(page).locator(".user-components-panel > .component-row");
-/** A record's large preview beside the panel. */
-const previewCard = (page: Page, name: string) =>
-  page.getByRole("group", { name: `${name} preview`, exact: true });
+/** A record's Details: its large preview beside the panel. */
+const detailsCard = (page: Page, name: string) =>
+  page.getByRole("group", { name: `${name} details`, exact: true });
 const componentSearch = (page: Page) =>
   page.getByRole("searchbox", { name: "Search components", exact: true });
 const libraryEntries = (page: Page) =>
@@ -434,7 +434,7 @@ test("account changes clear pinned details and deleted rows while offline focus 
   service.seedPublished("retained-detail", "Retained detail");
   await service.openEditorAs(page, "admin");
   const fold = await openUserComponents(page);
-  const detail = previewCard(page, "Retained detail");
+  const detail = detailsCard(page, "Retained detail");
   await clickLibraryAction(fold, "Details for Retained detail");
   await expect(detail.getByText("Definition", { exact: true })).toBeVisible();
   await closeUserComponents(page);
@@ -478,6 +478,42 @@ test("account changes clear pinned details and deleted rows while offline focus 
   await expect(button(fold, "Place Offline public")).toBeVisible();
   await expect(button(fold, "Place Retained detail")).toHaveCount(0);
   await expect(button(fold, "Show available components")).toHaveCount(0);
+});
+
+test("Community lists before the account is known and reads a screenful of previews at once", async ({
+  page,
+  service,
+}) => {
+  for (let index = 0; index < 12; index++)
+    service.seedPublished(
+      `batched-${String(index).padStart(2, "0")}`,
+      `Batched ${index}`,
+    );
+  await service.openEditorAs(page, "alice");
+  const reads: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/components")) reads.push(request.url());
+  });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/auth/me", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  try {
+    const fold = await openUserComponents(page);
+    // The public catalog does not wait for the account read still held.
+    await expect(communityRows(page)).toHaveCount(12);
+    await expect(fold.locator(".component-row svg")).toHaveCount(12);
+  } finally {
+    release();
+  }
+  expect(reads.filter((url) => /[?&]view=preview(&|$)/.test(url))).toEqual([]);
+  expect(
+    reads.filter((url) => url.includes("view=previews")).length,
+  ).toBeLessThanOrEqual(2);
 });
 
 test("dragging a row places it where it is released, even before its record arrives, and nowhere off the canvas", async ({
@@ -628,9 +664,9 @@ test("library selection refuses a revision changed during preview and editing re
   await service.openEditorAs(page, "alice");
   const fold = await openUserComponents(page);
   await clickLibraryAction(fold, "Details for Revision guard");
-  await expect(previewCard(page, "Revision guard")).toBeVisible();
+  await expect(detailsCard(page, "Revision guard")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(previewCard(page, "Revision guard")).toHaveCount(0);
+  await expect(detailsCard(page, "Revision guard")).toHaveCount(0);
   await clickLibraryAction(fold, "Edit Revision guard definition");
   await button(page, "Back to library").click();
   await expect(componentEditor(page)).toHaveCount(0);
@@ -766,9 +802,10 @@ test("historical invalid pin mappings remain inspectable without blocking valid 
   await expect(rejected).toContainText("Legacy device");
   await expect(rejected).toContainText("Needs repair · Alice");
   await expect(button(fold, "Place Legacy device")).toHaveCount(0);
-  // Why it needs repair is read where it is pointed at, not in a banner.
-  await rejected.hover();
-  await expect(previewCard(page, "Legacy device")).toContainText("missing OUT");
+  // Why it needs repair is read in its Details, not in a banner.
+  await clickLibraryAction(fold, "Details for Legacy device");
+  await expect(detailsCard(page, "Legacy device")).toContainText("missing OUT");
+  await page.keyboard.press("Escape");
   await clickLibraryAction(fold, "Copy raw record for Legacy device");
   await expect(
     fold.getByText(
@@ -821,7 +858,10 @@ test("automatically loads all components and retries an interrupted page without
   let failFirstPage = true;
   const cursors: (string | null)[] = [];
   await context.route("**/api/components?**", async (route) => {
-    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    const url = new URL(route.request().url());
+    // Only catalog pages; the rows' batched previews are not pages.
+    if (url.searchParams.get("view") !== "summary") return route.fallback();
+    const cursor = url.searchParams.get("cursor");
     cursors.push(cursor);
     if ((cursor && failNextPage) || (!cursor && failFirstPage))
       await route.fulfill({
@@ -979,12 +1019,16 @@ test("library rows keep artwork, long names and authors apart at narrow and zoom
       has: button(page, `Place ${name}`),
     });
     await expect(row.locator(".component-row-text small")).toHaveText(author);
-    // A row truncates; the card beside the panel reads the whole name.
+    // Pointing at a row adds nothing; its Details read the whole name.
     await row.hover();
-    const card = previewCard(page, name);
+    await expect(page.locator(".component-details-card")).toHaveCount(0);
+    await clickLibraryAction(fold, `Details for ${name}`);
+    const card = detailsCard(page, name);
     await expect(card).toContainText(name);
     await expect(card).toContainText(author);
     await expect(card).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
     const menu = await openRowMenu(fold, name);
     await expect(
       menu.getByRole("menuitem", { name: "Edit", exact: true }),
@@ -2943,11 +2987,12 @@ test("explicitly upgrades a symbol-only public entry without rewriting captured 
   await publishComponent(page, "legacy-upgrade", definition);
   await openUserComponents(page);
   const row = communityRows(page).filter({ hasText: "Legacy public repair" });
-  // A symbol-only record says so where it is chosen, before any netlist.
-  await row.hover();
-  await expect(previewCard(page, "Legacy public repair")).toContainText(
+  // A symbol-only record's Details say so before any netlist.
+  await clickLibraryAction(page, "Details for Legacy public repair");
+  await expect(detailsCard(page, "Legacy public repair")).toContainText(
     "No circuit model yet",
   );
+  await page.keyboard.press("Escape");
   await button(row, "Place Legacy public repair").click();
   await place(page);
   await expect(instanceCount(page)).toHaveText("1");

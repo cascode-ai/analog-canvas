@@ -18,10 +18,13 @@ rendering and recovery.
   one component fold: **Community** on the Web, with
   [**My components**](symbol-dsl.md) inside it, or **My components** on the
   desktop. The fold starts shut and loads only once opened or searched;
-  Edit's command opens it and focuses the search.
+  pointing at its header starts loading its code, and the public catalog does
+  not wait for the account. Edit's command opens it and focuses the search.
+  Fold headers stay against the panel's top edge while their lists scroll,
+  with a category or **My components** header just below.
 - A component row places on click or Enter, or once where a drag onto the
   canvas ends. Its commands open from **⋯**, right-click or the Menu key;
-  pointing at or focusing it shows its preview beside the panel. One author's
+  **Details** shows its large preview beside the panel. One author's
   records of one name share a row whose count lists them. The fold reads its
   catalog again when an editing session ends, when Edit's command reopens it
   and when a placement finds its record changed.
