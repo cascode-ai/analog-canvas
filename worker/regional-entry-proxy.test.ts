@@ -101,6 +101,22 @@ it("hands off through the fixed authority while keeping the shared browser origi
   expect((await me.json()).user.id).toBe(
     (await (await sourceMe()).json()).user.id,
   );
+  const profile = await entry.fetch(
+    new Request(`${ORIGIN}/api/auth/profile`, {
+      method: "POST",
+      headers: {
+        Cookie: cookies,
+        Origin: ORIGIN,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ displayName: "Regional maker" }),
+    }),
+    target,
+  );
+  expect(profile.status).toBe(200);
+  expect((await (await sourceMe()).json()).user.displayName).toBe(
+    "Regional maker",
+  );
   expect(
     (
       await entry.fetch(
@@ -116,6 +132,7 @@ it("hands off through the fixed authority while keeping the shared browser origi
   expect(requests.map((request) => request.url)).toEqual([
     transport + authorizeUrl.pathname + authorizeUrl.search,
     transport + "/api/auth/regional/exchange",
+    transport + "/api/auth/regional/account",
   ]);
 });
 
@@ -192,7 +209,6 @@ it.each([
   ["POST", "/api/auth/regional/renew"],
   ["POST", "/api/auth/regional/identities"],
   ["POST", "/api/auth/regional/account"],
-  ["POST", "/api/auth/profile"],
 ])(
   "does not turn another Auth route into an authority proxy: %s %s",
   async (method, path) => {
@@ -211,6 +227,20 @@ it.each([
     expect(requests).toHaveLength(0);
   },
 );
+
+it("requires a local session before forwarding an account operation", async () => {
+  const { target, requests } = proxyEnvironment();
+  const response = await entry.fetch(
+    new Request(ORIGIN + "/api/auth/profile", {
+      method: "POST",
+      headers: { Origin: ORIGIN, "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: "Unauthorized" }),
+    }),
+    target,
+  );
+  expect(response.status).toBe(401);
+  expect(requests).toHaveLength(0);
+});
 
 it("refuses an untrusted incoming host and reports authority network failure without reflecting it", async () => {
   const { target, requests } = proxyEnvironment();
