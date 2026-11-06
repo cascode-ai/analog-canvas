@@ -23,8 +23,6 @@ import {
 } from "@icm/edit-engine";
 import type { ProjectStructureEdit, SchematicEdit } from "@icm/edit-engine";
 import {
-  createCellDocument,
-  createId,
   CircuitProjectSchema,
   CellSymbolPresentationSchema,
   semanticTextDocument,
@@ -34,6 +32,7 @@ import {
 } from "@icm/model";
 import type {
   Annotation,
+  CellPortDirection,
   CellSymbolPresentation,
   CircuitProject,
   ExternalSubcircuitDefinition,
@@ -45,7 +44,7 @@ import type { BlockSymbolLayoutTarget } from "./block-symbol-layout-target";
 import type { CellInterfaceConfirmation } from "./cell-interface-confirmation-types";
 export type { CellInterfaceConfirmation } from "./cell-interface-confirmation-types";
 
-type CellDirection = "input" | "output" | "inout" | "passive";
+type CellDirection = CellPortDirection;
 type CellPinSide = "north" | "east" | "south" | "west" | "auto";
 export type CellParameterChange =
   | { kind: "add"; value: string }
@@ -73,9 +72,7 @@ export interface ProjectStructureCommandDependencies {
     activeDocumentId?: string,
   ) => boolean;
   setStatus: (status: string) => void;
-  onCellCreated: () => void;
   nextSequence: () => number;
-  createDocumentId?: () => string;
 }
 
 /** Confirmation authorizes precisely the immutable Project the user reviewed. */
@@ -105,9 +102,7 @@ export function createProjectStructureCommands({
   resolver,
   commitStructure,
   setStatus,
-  onCellCreated,
   nextSequence,
-  createDocumentId = () => createId("document"),
   requestConfirmation,
 }: ProjectStructureCommandDependencies) {
   const confirm = (request: CellInterfaceConfirmation): boolean => {
@@ -251,18 +246,12 @@ export function createProjectStructureCommands({
         })
       : apply();
   };
-  const createCell = (inputName: string): void => {
-    const name = inputName.trim();
-    if (!name) return;
-    const child = createCellDocument(
-      createDocumentId(),
-      name,
-      activeDocument.presentation,
-    );
-    if (commitStructure("create-cell", planCreateCell(child), child.id)) {
-      onCellCreated();
-      setStatus(`Created Cell ${name}`);
-    }
+  /** Add a prepared, unplaced Cell and make it the open one. */
+  const createCell = (cell: SchematicDocument): boolean => {
+    if (!commitStructure("create-cell", planCreateCell(cell), cell.id))
+      return false;
+    setStatus(`Created Cell ${cell.name}`);
+    return true;
   };
 
   const setTopCell = (documentId: string): boolean => {

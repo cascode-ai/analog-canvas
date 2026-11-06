@@ -110,7 +110,7 @@ owns visual authority.
   the selected instance on Apply; cancel and draft save leave instances alone.
   Apply is one Undo; variants start with new publication intent. Mutating a
   source also used by other owners requires explicit shared-source editing in
-  Cell Manager or an isolated variant. Unsafe namespace rewrites refuse with a
+  External Circuits or an isolated variant. Unsafe namespace rewrites refuse with a
   location; ordinary source editing retains the full supported language.
 - GUI and Agent share these planners through `apply-component-definition`,
   `apply-component-artwork` and `create-component-variant`. Existing explicit

@@ -19,6 +19,12 @@ export interface UseEditorPanelsOptions {
   forceInitialLibraryOpen?: boolean;
   libraryStorageKey: string;
   libraryWidthStorageKey: string;
+  /**
+   * The compact layout shows one side at a time: a left panel opening there
+   * closes the right-hand ones. Properties closes here; the editor closes
+   * its project panel in this callback.
+   */
+  onCompactLeftPanelOpen?: () => void;
 }
 
 /** Flat owner of responsive shell-panel state and Library persistence. */
@@ -98,6 +104,7 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
     if (compactLayout) {
       setCompactLibraryPanelOpen(true);
       setSelectionOpen(false);
+      options.onCompactLeftPanelOpen?.();
       return;
     }
     setLibraryPanelOpen(true);
@@ -113,11 +120,13 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
       return;
     }
     if (compactLayout) {
-      setCompactLibraryPanelOpen((current) => {
-        const next = !current;
-        if (next) setSelectionOpen(false);
-        return next;
-      });
+      if (compactLibraryPanelOpen) {
+        setCompactLibraryPanelOpen(false);
+        return;
+      }
+      setCompactLibraryPanelOpen(true);
+      setSelectionOpen(false);
+      options.onCompactLeftPanelOpen?.();
       return;
     }
     setLibraryPanelOpen((current) => {

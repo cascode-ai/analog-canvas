@@ -16,6 +16,10 @@ import type { createEditorFileCommands } from "../features/editor-shell/editor-f
 import { ProjectTabs } from "../features/editor-shell/project-tabs";
 import type { useEditorPanels } from "../features/editor-shell/use-editor-panels";
 import type { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
+import {
+  HIERARCHY_REFACTOR_ITEMS,
+  type HierarchyRefactorActions,
+} from "../features/hierarchy/hierarchy-refactor-commands";
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import {
   hasResettableLabels,
@@ -170,6 +174,7 @@ export function EditorMenuBar({
   hierarchyActions: {
     onNewChild: () => void;
     onExternalCircuits: () => void;
+    refactor: HierarchyRefactorActions;
   };
   identity: EditorServices["identity"];
   projectStore: EditorServices["projectStore"];
@@ -619,6 +624,7 @@ export function EditorMenuBar({
           execute: placeCellInstance,
         },
         onExternalCircuits: hierarchyActions.onExternalCircuits,
+        refactor: hierarchyActions.refactor,
       }}
       telemetry={{
         snapshot: {
@@ -675,10 +681,7 @@ export function EditorCanvasContextMenu({
   /** Offered only while two uncoupled inductors are the selection. */
   coupleInductors?: (() => void) | null;
   /** Reshaping the hierarchy around the selection or a selected Cell instance. */
-  hierarchyRefactor?: {
-    fromSelection: (() => void) | null;
-    cell?: { makeUnique(): void; replace(): void; flatten(): void };
-  };
+  hierarchyRefactor?: HierarchyRefactorActions;
 }) {
   return (
     <CanvasContextMenu
@@ -702,34 +705,13 @@ export function EditorCanvasContextMenu({
               },
             ]
           : []),
-        ...(hierarchyRefactor?.cell
-          ? [
-              {
-                label: "Make unique copy",
-                enabled: true,
-                execute: hierarchyRefactor.cell.makeUnique,
-              },
-              {
-                label: "Replace Cell…",
-                enabled: true,
-                execute: hierarchyRefactor.cell.replace,
-              },
-              {
-                label: "Flatten into this Cell",
-                enabled: true,
-                execute: hierarchyRefactor.cell.flatten,
-              },
-            ]
-          : []),
-        ...(hierarchyRefactor?.fromSelection
-          ? [
-              {
-                label: "Create Cell from selection…",
-                enabled: true,
-                execute: hierarchyRefactor.fromSelection,
-              },
-            ]
-          : []),
+        // Only the refactors that apply to this selection.
+        ...HIERARCHY_REFACTOR_ITEMS.flatMap(([key, label]) => {
+          const action = hierarchyRefactor?.[key];
+          return action?.enabled
+            ? [{ label, enabled: true, execute: action.execute }]
+            : [];
+        }),
         ...(coupleInductors
           ? [
               {

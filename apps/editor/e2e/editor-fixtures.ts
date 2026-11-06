@@ -96,51 +96,102 @@ export async function openMenu(page: Page, name: string): Promise<Locator> {
   return menu.getByRole("group", { name, exact: true });
 }
 
-/** Open the focused definition editor without changing the current occurrence. */
-export async function openCellManager(page: Page): Promise<Locator> {
-  await page
-    .getByLabel("Cell navigation", { exact: true })
-    .getByRole("button", { name: "Cell properties", exact: true })
-    .click();
-  return page.locator(".cell-manager-dialog");
+/** Show the hierarchy tree if it is hidden, and return its panel. */
+export async function openHierarchyTree(page: Page): Promise<Locator> {
+  const toggle = page.getByTestId("hierarchy-toggle");
+  if ((await toggle.getAttribute("aria-pressed")) !== "true")
+    await toggle.click();
+  const tree = page.getByRole("complementary", { name: "Circuit hierarchy" });
+  await expect(tree).toBeVisible();
+  return tree;
 }
 
-/** External models retain their dedicated authoring surface. */
-export async function openCellManagerTab(
-  page: Page,
-  tab: string,
+/**
+ * The first tree row whose label is named `name` ("X1: Channel" for a use,
+ * "Top · dut" or "Unused" for a root), expanding rows until it shows.
+ */
+export async function revealHierarchyRow(
+  tree: Locator,
+  name: string | RegExp,
 ): Promise<Locator> {
-  const manager = await openCellManager(page);
-  if (tab === "External Circuits")
-    await manager.getByRole("button", { name: tab, exact: true }).click();
-  return manager;
+  const label = tree
+    .locator(".hierarchy-node-label")
+    .and(tree.getByRole("button", { name }))
+    .first();
+  for (let i = 0; !(await label.count()) && i < 100; i++) {
+    const expand = tree.getByRole("button", { name: /^Expand / }).first();
+    if (!(await expand.count())) break;
+    await expand.click();
+  }
+  await expect(label).toBeVisible();
+  return label;
 }
 
-/** Find a definition through the unified tree; opening it invents no parent. */
+/** Run a command from a tree row's context menu. */
+export async function hierarchyRowCommand(
+  page: Page,
+  name: string | RegExp,
+  command: string | RegExp,
+): Promise<void> {
+  const tree = await openHierarchyTree(page);
+  await (await revealHierarchyRow(tree, name)).click({ button: "right" });
+  await tree.getByRole("menuitem", { name: command }).click();
+}
+
+/** Find a definition through the tree; opening it invents no parent. */
 export async function openHierarchyDefinition(
   page: Page,
   name: string | RegExp,
 ): Promise<void> {
-  await page
-    .getByLabel("Cell navigation", { exact: true })
-    .getByRole("button", { name: "Hierarchy", exact: true })
+  await hierarchyRowCommand(page, name, "Open definition");
+}
+
+/**
+ * Open a Cell's properties sheet: the open occurrence's from its row, or the
+ * Cell of the row named `name`.
+ */
+export async function openCellProperties(
+  page: Page,
+  name?: string | RegExp,
+): Promise<Locator> {
+  const tree = await openHierarchyTree(page);
+  if (name === undefined)
+    await tree
+      .locator(
+        '[role="treeitem"][data-active] .hierarchy-row-actions button[aria-label$=" properties"]',
+      )
+      .click();
+  else await hierarchyRowCommand(page, name, "Cell properties…");
+  const sheet = page.locator(".cell-props-dialog");
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+/** Open External Circuits, where external models are authored. */
+export async function openExternalCircuits(page: Page): Promise<Locator> {
+  await (
+    await openMenu(page, "Hierarchy")
+  )
+    .getByRole("button", { name: "External Circuits…", exact: true })
     .click();
-  const tree = page.getByRole("complementary", { name: "Circuit hierarchy" });
-  const node = tree
-    .locator(".hierarchy-node-label")
-    .filter({ hasText: name })
-    .first();
-  for (let i = 0; !(await node.count()) && i < 100; i++) {
-    const expandable = tree.locator('button[aria-expanded="false"]').first();
-    if (!(await expandable.count())) break;
-    await expandable.click();
-  }
-  await expect(node).toBeVisible();
-  const row = node.locator("..");
-  await row.locator("summary").click();
-  await row
-    .getByRole("button", { name: "Open definition", exact: true })
+  return page.locator(".cell-manager-dialog");
+}
+
+/** Create an unplaced Cell from the tree, and wait until it is open. */
+export async function createRootCell(page: Page, name: string): Promise<void> {
+  const active = page.getByTestId("active-document-id").first();
+  const before = (await active.textContent()) ?? "";
+  const tree = await openHierarchyTree(page);
+  await tree.getByRole("button", { name: "New Cell", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "New Cell", exact: true });
+  // Browser autofill must not offer earlier Cell names.
+  await expect(dialog).toHaveAttribute("autocomplete", "off");
+  await dialog.getByLabel("Cell name", { exact: true }).fill(name);
+  await dialog
+    .getByRole("button", { name: "Create Cell", exact: true })
     .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(active).not.toHaveText(before);
 }
 
 /** Assert that the status line reports this text. */

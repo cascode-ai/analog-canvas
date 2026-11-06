@@ -51,6 +51,27 @@ it("finds distinct four-level uses and preserves the hierarchy outside Top", () 
   expect(hierarchy.usage("channel").total).toBe(2);
 });
 
+it("roots only Cells nothing calls, so a Top used elsewhere counts its callers' uses only", () => {
+  const project = projectFixture();
+  // Channel becomes Top while Top still places it twice.
+  project.topDocumentId = "channel";
+  const hierarchy = buildProjectHierarchy(project);
+  expect(hierarchy.roots).toEqual(["top", "unused"]);
+  expect(hierarchy.usage("channel").total).toBe(2);
+  expect(hierarchy.usage("pair").total).toBe(3);
+  expect(
+    hierarchy
+      .usage("channel")
+      .occurrences.map(({ rootDocumentId, path }) => [
+        rootDocumentId,
+        path.map((f) => f.instanceId),
+      ]),
+  ).toEqual([
+    ["top", ["X1"]],
+    ["top", ["X2"]],
+  ]);
+});
+
 it("returns to the nearest surviving occurrence after deleting a call, without choosing another use of the same Cell", () => {
   const project = projectFixture();
   const path =

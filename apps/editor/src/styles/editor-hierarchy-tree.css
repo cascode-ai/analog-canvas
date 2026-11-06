@@ -1,0 +1,363 @@
+/*
+ * The hierarchy tree in the left panel and the instance path over the
+ * canvas. Imported right after editor-workspace.css, whose cascade place
+ * these rules had.
+ */
+
+/* The hierarchy tree is where Cells are worked on: one row per occurrence,
+   actions only where the pointer or focus is, nothing resident. */
+.hierarchy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 6px;
+  overflow: auto;
+  font-size: 12px;
+}
+.hierarchy-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.hierarchy-filter {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  font: inherit;
+}
+.hierarchy-filter:focus {
+  border-color: var(--icm-accent);
+  outline: none;
+}
+.hierarchy-icon-button,
+.hierarchy-row-actions button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  color: var(--icm-text-muted);
+}
+.hierarchy-icon-button {
+  width: 28px;
+  height: 28px;
+}
+.hierarchy-row-actions button {
+  width: 22px;
+  height: 22px;
+}
+.hierarchy-icon-button:hover,
+.hierarchy-row-actions button:hover {
+  background: var(--icm-surface-hover);
+  color: var(--icm-text);
+}
+.hierarchy-tree {
+  display: grid;
+}
+.hierarchy-node {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding-right: 2px;
+  border-radius: var(--icm-radius-sm);
+  user-select: none;
+}
+.hierarchy-node:hover {
+  background: var(--icm-surface-muted);
+}
+.hierarchy-node[data-active] {
+  background: var(--icm-accent-soft);
+}
+.hierarchy-node[data-selected] {
+  box-shadow: inset 2px 0 0 var(--icm-accent);
+}
+.hierarchy-expand {
+  flex: 0 0 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--icm-text-muted);
+  font-size: 10px;
+  text-align: center;
+}
+.hierarchy-node-label {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 2px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--icm-text);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: default;
+}
+.hierarchy-node-label:focus-visible {
+  border-radius: var(--icm-radius-sm);
+  outline: 2px solid var(--icm-accent);
+  outline-offset: 1px;
+}
+.hierarchy-node-label:disabled {
+  color: var(--icm-text-disabled);
+}
+.hierarchy-ref {
+  font-weight: 500;
+}
+.hierarchy-cell {
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  text-overflow: ellipsis;
+}
+.hierarchy-top {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* Another row's TOP appears on hover, dashed, and moves Top to that Cell. */
+.hierarchy-node .hierarchy-set-top {
+  height: auto;
+  border-style: dashed;
+  border-color: var(--icm-border-strong);
+  background: transparent;
+  color: var(--icm-text-muted);
+  font-family: inherit;
+}
+.hierarchy-node .hierarchy-set-top:hover {
+  border-style: solid;
+  border-color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+}
+.hierarchy-node:not(:hover, :focus-within) .hierarchy-set-top {
+  display: none;
+}
+.hierarchy-uses {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.hierarchy-uses:hover,
+.hierarchy-uses[aria-expanded="true"] {
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+}
+.hierarchy-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+}
+/* Actions show only on the row pointed at, focused or open. */
+.hierarchy-node:not(:hover, :focus-within, [data-active])
+  .hierarchy-row-actions {
+  display: none;
+}
+.hierarchy-rename {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--icm-accent);
+  border-radius: 3px;
+  font: inherit;
+}
+.hierarchy-inline-uses {
+  display: grid;
+  padding-block: 2px 6px;
+}
+.hierarchy-use,
+.hierarchy-match {
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+.hierarchy-use {
+  padding: 3px 6px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.hierarchy-use:hover,
+.hierarchy-match:hover,
+.hierarchy-match:focus-visible {
+  background: var(--icm-surface-hover);
+  color: var(--icm-text);
+  outline: none;
+}
+.hierarchy-use[aria-current="true"],
+.hierarchy-match[aria-current="true"] {
+  color: var(--icm-accent);
+}
+.hierarchy-matches {
+  display: grid;
+  gap: 1px;
+}
+.hierarchy-match {
+  display: grid;
+  gap: 1px;
+  padding: 5px 8px;
+}
+.hierarchy-match-path {
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hierarchy-hint {
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.hierarchy-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--icm-space-2);
+  margin-top: auto;
+  padding: 6px 2px 0;
+  border-top: 1px solid var(--icm-border);
+}
+.hierarchy-footer button {
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--icm-text-muted);
+  font: inherit;
+}
+.hierarchy-footer button:hover {
+  color: var(--icm-text);
+}
+.hierarchy-context-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  min-width: 200px;
+  padding: 4px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+}
+.hierarchy-context-menu button {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+.hierarchy-context-menu button:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+.hierarchy-context-menu button:disabled {
+  color: var(--icm-text-disabled);
+}
+.hierarchy-context-menu kbd {
+  color: var(--icm-text-muted);
+  font: inherit;
+  font-size: 11px;
+}
+.hierarchy-context-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--icm-border);
+}
+/* While a row is dragged toward the canvas, the pointer reads as a drop. */
+body.hierarchy-dragging,
+body.hierarchy-dragging * {
+  cursor: copy !important;
+}
+
+/* The instance path floats at the canvas top edge only inside a child Cell.
+   It touches the top edge alone, so Fit insets the drawing below it. */
+.hierarchy-breadcrumb-overlay {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: var(--icm-space-3);
+  max-width: calc(100% - var(--icm-space-6));
+  padding-top: var(--icm-space-2);
+  pointer-events: none;
+}
+.hierarchy-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--icm-shadow-sm);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+}
+.hierarchy-breadcrumb-step {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.hierarchy-breadcrumb button,
+.hierarchy-breadcrumb-current {
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: transparent;
+  font: inherit;
+}
+.hierarchy-breadcrumb button:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+.hierarchy-breadcrumb button:disabled {
+  color: var(--icm-text-disabled);
+}
+.hierarchy-breadcrumb .hierarchy-breadcrumb-separator {
+  padding-inline: 3px;
+  color: var(--icm-text-muted);
+}
+.hierarchy-breadcrumb-current {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.hierarchy-breadcrumb .hierarchy-breadcrumb-uses {
+  margin-left: 4px;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+}
+.hierarchy-breadcrumb-divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 4px 2px;
+  background: var(--icm-border);
+}

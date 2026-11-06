@@ -9,7 +9,12 @@ import {
 } from "react";
 import type { CircuitProject, HierarchyFrame } from "@icm/model";
 import { buildProjectHierarchy, type ProjectHierarchy } from "@icm/derived";
-import { hierarchyPathKey, occurrenceLabel } from "./project-hierarchy";
+import { cellDeletionRefusal } from "@icm/edit-engine";
+import {
+  frameReference,
+  hierarchyPathKey,
+  occurrenceLabel,
+} from "./project-hierarchy";
 import { cellPlacementIssue } from "./project-structure-commands";
 import type { CellUse } from "./hierarchy-refactor";
 
@@ -43,6 +48,8 @@ export interface HierarchyTreeActions {
 
 export interface CellHierarchyTreeProps {
   project: CircuitProject;
+  /** Root Cells in display order (`stableRootOrder`); the editor keeps it. */
+  roots: readonly string[];
   activeDocumentId: string;
   path: readonly HierarchyFrame[];
   expandedKeys: readonly string[];
@@ -186,29 +193,9 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
 
+  // Top is only a badge on its Cell; the roots are every Cell nothing calls.
   const topId = project.topDocumentId;
-  // Every Cell nothing calls is a root. Top is only a badge on its Cell, and
-  // roots keep the order they were first listed in, Top first: a Cell that
-  // becomes a root later, as one a refactor leaves unused, joins at the end.
-  // So switching Top or reshaping the hierarchy moves none of your rows.
-  const rootOrder = useRef<string[]>([]);
-  const roots = useMemo(() => {
-    const called = new Set(
-      project.documents.flatMap((cell) =>
-        hierarchy.children(cell.id).map((frame) => frame.childDocumentId),
-      ),
-    );
-    const listed = project.documents
-      .map((cell) => cell.id)
-      .filter((id) => hierarchy.roots.includes(id) && !called.has(id));
-    if (!listed.length) return [topId];
-    const kept = rootOrder.current.filter((id) => listed.includes(id));
-    const added = listed.filter((id) => !kept.includes(id));
-    if (!kept.length)
-      added.sort((a, b) => Number(b === topId) - Number(a === topId));
-    rootOrder.current = [...kept, ...added];
-    return rootOrder.current;
-  }, [hierarchy, project, topId]);
+  const { roots } = props;
   const activeRoot = props.path[0]?.parentDocumentId ?? props.activeDocumentId;
   const activeKey = hierarchyPathKey(activeRoot, props.path);
 
@@ -253,11 +240,7 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
   }, [menu]);
 
   const name = (id: string) => hierarchy.document(id)?.name ?? id;
-  const reference = (frame: HierarchyFrame) =>
-    hierarchy
-      .document(frame.parentDocumentId)
-      ?.instances.find((item) => item.id === frame.instanceId)?.reference ??
-    frame.instanceId;
+  const reference = (frame: HierarchyFrame) => frameReference(project, frame);
   const usesOf = (documentId: string) => useCounts.get(documentId) ?? 0;
   const rowLabel = (row: Row) => {
     const frame = row.path.at(-1);
@@ -325,12 +308,25 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
     const frame = row.path.at(-1)!;
     return { documentId: frame.parentDocumentId, instanceId: frame.instanceId };
   };
+  // The edit engine's own rule, said in the tree's words.
   const deleteRefusal = (row: Row) => {
-    if (row.documentId === topId)
+    const refusal = cellDeletionRefusal(project, row.documentId);
+    if (!refusal) return undefined;
+    if (refusal.reason === "top")
       return "Top cannot be deleted; set another Cell as Top first";
-    const uses = usesOf(row.documentId);
-    return uses > 0
-      ? `${name(row.documentId)} has ${uses} use${uses === 1 ? "" : "s"}; delete those instances first`
+    const caller = {
+      parentDocumentId: refusal.documentId,
+      instanceId: refusal.instanceId,
+      childDocumentId: row.documentId,
+    };
+    return `${name(row.documentId)} is placed in ${name(refusal.documentId)} as ${frameReference(project, caller)}; delete that instance first`;
+  };
+  /** Said before a refactor that edits a parent with several uses. */
+  const sharedParentNote = (row: Row) => {
+    const parentId = row.path.at(-1)?.parentDocumentId;
+    const uses = parentId ? usesOf(parentId) : 0;
+    return parentId && uses > 1
+      ? `Edits ${name(parentId)}, so all ${uses} of its uses change`
       : undefined;
   };
   const remove = (row: Row) => {
@@ -688,12 +684,13 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
     run: () => void,
     shortcut?: string,
     refusal?: string,
+    note?: string,
   ) => (
     <button
       type="button"
       role="menuitem"
       disabled={Boolean(refusal)}
-      title={refusal}
+      title={refusal ?? note}
       onClick={() => {
         setMenu(null);
         run();
@@ -709,6 +706,7 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
       id="hierarchy-panel"
       className={`shapes-panel hierarchy-panel${props.open ? "" : " collapsed"}`}
       aria-label="Circuit hierarchy"
+      data-plain-keys="local"
       hidden={!props.open}
     >
       <div className="hierarchy-header">
@@ -829,11 +827,19 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
           {menu.row.path.length ? (
             <>
               <div className="hierarchy-context-divider" role="separator" />
-              {menuItem("Make unique copy", () =>
-                actions.makeUnique(cellUseOf(menu.row)),
+              {menuItem(
+                "Make unique copy",
+                () => actions.makeUnique(cellUseOf(menu.row)),
+                undefined,
+                undefined,
+                sharedParentNote(menu.row),
               )}
-              {menuItem("Replace Cell…", () =>
-                actions.replace(cellUseOf(menu.row)),
+              {menuItem(
+                "Replace Cell…",
+                () => actions.replace(cellUseOf(menu.row)),
+                undefined,
+                undefined,
+                sharedParentNote(menu.row),
               )}
               {menuItem(
                 `Flatten into ${name(menu.row.path.at(-1)!.parentDocumentId)}`,
@@ -842,6 +848,9 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
                     cellUseOf(menu.row),
                     menu.row.path.slice(0, -1),
                   ),
+                undefined,
+                undefined,
+                sharedParentNote(menu.row),
               )}
             </>
           ) : null}

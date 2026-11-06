@@ -19,6 +19,8 @@ import {
   selectionCellPins,
 } from "./hierarchy-refactor";
 
+const XP_IN_AMPLIFIER = { documentId: "amplifier", instanceId: "XP" };
+
 function commit(
   controller: EditorDocumentController,
   edits: ProjectStructureEdit[],
@@ -64,8 +66,7 @@ describe("hierarchy refactoring", () => {
     );
     const plan = planMakeUniqueCell(
       controller.project,
-      "channel",
-      "XA",
+      { documentId: "channel", instanceId: "XA" },
       "amplifier-copy",
     );
     expect(plan.name).toBe("Amplifier_2");
@@ -90,6 +91,38 @@ describe("hierarchy refactoring", () => {
       kind: "subcircuit",
       childDocumentId: "amplifier",
     });
+  });
+
+  it("numbers a copy after its source and never reuses the bare stem", () => {
+    const project = hierarchyNavigationFixture();
+    const amplifier = project.documents.find(
+      (item) => item.id === "amplifier",
+    )!;
+    amplifier.name = amplifier.netlist!.name = "stage_1";
+    expect(
+      planMakeUniqueCell(
+        project,
+        { documentId: "channel", instanceId: "XA" },
+        "copy",
+      ).name,
+    ).toBe("stage_2");
+  });
+
+  it("refuses, in the plan itself, a replacement whose Pins differ", () => {
+    const project = hierarchyNavigationFixture();
+    const unused = project.documents.find((item) => item.id === "unused")!;
+    unused.netlist!.terminals = unused.netlist!.terminals.filter(
+      (pin) => pin.name !== "OUT",
+    );
+    const use = { documentId: project.topDocumentId, instanceId: "X1" };
+    expect(
+      replacementCandidates(project, [use], "channel").find(
+        (item) => item.cell.id === "unused",
+      )?.issue,
+    ).toBe("Pins differ: no OUT");
+    expect(() => planReplaceCell(project, [use], "unused")).toThrow(
+      /Pins differ: no OUT/u,
+    );
   });
 
   it("switches one or every use to a Cell with the same Pins, refusing cycles", () => {
@@ -189,7 +222,7 @@ describe("hierarchy refactoring", () => {
     const controller = new EditorDocumentController(
       hierarchyNavigationFixture(),
     );
-    const plan = planFlattenInstance(controller.project, "amplifier", "XP", 1);
+    const plan = planFlattenInstance(controller.project, XP_IN_AMPLIFIER, 1);
     expect(plan.childName).toBe("Pair");
     commit(controller, plan.edits);
     const amplifier = cell(controller, "amplifier");
@@ -255,7 +288,7 @@ describe("hierarchy refactoring", () => {
     const controller = new EditorDocumentController(project);
     commit(
       controller,
-      planFlattenInstance(controller.project, "amplifier", "XP", 1).edits,
+      planFlattenInstance(controller.project, XP_IN_AMPLIFIER, 1).edits,
     );
     const amplifier = cell(controller, "amplifier");
     const named = amplifier.connectivityEvidence.find(
@@ -285,7 +318,7 @@ describe("hierarchy refactoring", () => {
         netlist: { parameters: { value: "1k" } },
       });
     const controller = new EditorDocumentController(project);
-    const plan = planFlattenInstance(controller.project, "amplifier", "XP", 1);
+    const plan = planFlattenInstance(controller.project, XP_IN_AMPLIFIER, 1);
     commit(controller, plan.edits);
     const [part] = cell(controller, "amplifier").instances.filter((item) =>
       plan.instanceIds.includes(item.id),
@@ -297,5 +330,91 @@ describe("hierarchy refactoring", () => {
     );
     const box = (id: string) => boxes.find((item) => item.id === id)!.bounds;
     expect(box(part!.id).x).toBeGreaterThan(box("R9").x + box("R9").width);
+  });
+
+  it("binds a quoted expression to the instance's value when flattening", () => {
+    const project = hierarchyNavigationFixture();
+    const pair = project.documents.find((item) => item.id === "pair")!;
+    pair.instances.find((item) => item.id === "R1")!.netlist!.parameters = {
+      value: "'2*gain'",
+    };
+    project.documents
+      .find((item) => item.id === "amplifier")!
+      .instances.find((item) => item.id === "XP")!.netlist!.parameters = {
+      gain: "5",
+    };
+    const controller = new EditorDocumentController(project);
+    commit(
+      controller,
+      planFlattenInstance(controller.project, XP_IN_AMPLIFIER, 1).edits,
+    );
+    expect(
+      cell(controller, "amplifier").instances.find(
+        (item) => item.symbolId === "resistor",
+      )?.netlist?.parameters,
+    ).toEqual({ value: "'2*(5)'" });
+  });
+
+  describe("with coupled inductors in the child", () => {
+    const coupledFixture = () => {
+      const project = hierarchyNavigationFixture();
+      const pair = project.documents.find((item) => item.id === "pair")!;
+      for (const [id, x] of [
+        ["L1", 300],
+        ["L2", 400],
+      ] as const)
+        pair.instances.push({
+          id,
+          reference: id,
+          symbolId: "inductor",
+          placement: { position: { x, y: 300 }, rotation: 0, mirror: "none" },
+          netlist: { parameters: { value: "1u" } },
+        });
+      pair.inductorCouplings = [
+        {
+          id: "k1",
+          name: "K1",
+          members: [
+            { instanceId: "L1", dotPin: "1" },
+            { instanceId: "L2", dotPin: "1" },
+          ],
+          k: "{gain}",
+        },
+      ];
+      return project;
+    };
+
+    it("flattening brings the coupling, with the instance's values", () => {
+      const controller = new EditorDocumentController(coupledFixture());
+      commit(
+        controller,
+        planFlattenInstance(controller.project, XP_IN_AMPLIFIER, 1).edits,
+      );
+      const amplifier = cell(controller, "amplifier");
+      const [coupling] = amplifier.inductorCouplings ?? [];
+      // XP passes {gain} on, so the coupling still reads the parent's gain.
+      expect(coupling?.k).toBe("{gain}");
+      expect(
+        coupling!.members.map(
+          (member) =>
+            amplifier.instances.find((item) => item.id === member.instanceId)
+              ?.symbolId,
+        ),
+      ).toEqual(["inductor", "inductor"]);
+    });
+
+    it("a new Cell from a selection refuses to split the coupling", () => {
+      expect(() =>
+        planCellFromSelection(
+          coupledFixture(),
+          "pair",
+          ["L1"],
+          "half",
+          "half",
+          [],
+          1,
+        ),
+      ).toThrow(/both inductors of K1/u);
+    });
   });
 });

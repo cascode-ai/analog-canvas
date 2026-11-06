@@ -45,27 +45,17 @@ export function buildProjectHierarchy(project: CircuitProject) {
     above.push(frame);
     parents.set(frame.childDocumentId, above);
   }
-  const reachable = new Set<string>();
-  const pending = [project.topDocumentId];
-  while (pending.length) {
-    const id = pending.pop()!;
-    if (reachable.has(id)) continue;
-    reachable.add(id);
-    for (const frame of children.get(id) ?? [])
-      pending.push(frame.childDocumentId);
-  }
-  const detached = project.documents.filter((cell) => !reachable.has(cell.id));
-  const roots = [
-    project.topDocumentId,
-    ...detached
-      .filter(
-        (cell) =>
-          !(parents.get(cell.id) ?? []).some(
-            (frame) => !reachable.has(frame.parentDocumentId),
-          ),
-      )
-      .map((cell) => cell.id),
-  ];
+  // Every Cell nothing calls is a root, Top first. Top marks its Cell: a Top
+  // another Cell calls is reached through that caller, not listed twice.
+  const uncalled = project.documents
+    .filter((cell) => !parents.has(cell.id))
+    .map((cell) => cell.id);
+  const roots = uncalled.length
+    ? [
+        ...uncalled.filter((id) => id === project.topDocumentId),
+        ...uncalled.filter((id) => id !== project.topDocumentId),
+      ]
+    : [project.topDocumentId];
   const rootIds = new Set(roots);
   const counts = new Map<string, number>();
   function count(id: string, visiting = new Set<string>()): number {

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { buildProjectHierarchy } from "@icm/derived";
 import { projectCellInterface, type CircuitProject } from "@icm/model";
 
 import {
   cellUses,
   replacementCandidates,
+  resolveCellUse,
   type CellUse,
 } from "./hierarchy-refactor";
 
@@ -28,14 +30,17 @@ export function ReplaceCellDialog({
   const [choice, setChoice] = useState<string | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => dialogRef.current?.focus(), []);
-  const parent = project.documents.find((cell) => cell.id === use.documentId);
-  const instance = parent?.instances.find((item) => item.id === use.instanceId);
-  const binding = instance?.netlist?.binding;
-  const source =
-    binding?.kind === "subcircuit"
-      ? project.documents.find((cell) => cell.id === binding.childDocumentId)
-      : undefined;
-  if (!parent || !instance || !source?.netlist) return null;
+  let resolved: ReturnType<typeof resolveCellUse>;
+  try {
+    resolved = resolveCellUse(project, use);
+  } catch {
+    // The instance went while the dialog was open.
+    return null;
+  }
+  const { parent, instance, cell: source } = resolved;
+  // An instance belongs to its parent's definition: with a shared parent,
+  // "this one" is this one in every use of the parent.
+  const parentUses = buildProjectHierarchy(project).usage(parent.id, 0).total;
 
   const everywhere = cellUses(project, source.id);
   const uses = scope === "all" ? everywhere : [use];
@@ -73,6 +78,7 @@ export function ReplaceCellDialog({
         tabIndex={-1}
         className="editor-action-dialog replace-cell-dialog"
         role="dialog"
+        data-plain-keys="local"
         aria-modal="true"
         aria-labelledby="replace-cell-title"
       >
@@ -97,6 +103,7 @@ export function ReplaceCellDialog({
                 }}
               />
               Only {reference} in {parent.name}
+              {parentUses > 1 ? `, in all ${parentUses} uses of it` : ""}
             </label>
             <label>
               <input

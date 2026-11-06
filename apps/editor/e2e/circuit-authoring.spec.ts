@@ -13,6 +13,7 @@ import {
   placeComponentAt,
   setComponentCodeField,
   openEditor,
+  openMenu,
   downloadBytes,
   openProjectFile,
   parseSavedProject,
@@ -30,9 +31,11 @@ test("No Connect tool snaps near pins, places repeatedly and exits without chang
 }) => {
   await openEditor(page);
   await placeComponentAt(page, "resistor", { x: 340, y: 220 });
-  await expect(page.getByTestId("draw-tool-no-connect")).toHaveText("NoConn");
-  await expect(page.getByTestId("draw-tool-no-connect")).toHaveAttribute(
-    "title",
+  // An icon-only tool: its name is announced, its purpose shows on hover.
+  const tool = page.getByTestId("draw-tool-no-connect");
+  await expect(tool).toHaveAccessibleName("No Connect");
+  await tool.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(
     "No Connect: mark intentionally unused pins",
   );
   await clickDrawTool(page, "no-connect");
@@ -371,11 +374,18 @@ test("authors components, connectivity and No Connect manually from an empty can
   page,
 }) => {
   await openEditor(page);
-  // The first child can be created directly from an otherwise flat Project.
-  await expect(page.getByTestId("cell-navigation")).toBeVisible();
+  // A flat Project shows no hierarchy chrome, yet its first child is one
+  // command away.
+  await expect(page.getByLabel("Cell navigation", { exact: true })).toHaveCount(
+    0,
+  );
   await expect(
-    page.getByRole("button", { name: "New child", exact: true }),
+    (await openMenu(page, "Hierarchy")).getByRole("button", {
+      name: "New child Cell…",
+      exact: true,
+    }),
   ).toBeEnabled();
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("0");
 
   await placeComponent(page, "resistor", { x: 340, y: 220 });

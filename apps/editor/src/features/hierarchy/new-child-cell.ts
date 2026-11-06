@@ -7,29 +7,47 @@ import {
 import {
   createCellDocument,
   type Annotation,
+  type CellPortDirection,
   type CircuitProject,
   type Instance,
   type SchematicDocument,
 } from "@icm/model";
+import { cellPinNameRole } from "@icm/spice";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { planPlacedCellPin } from "../component-insert/cell-pin-placement";
 
 export interface ChildPortDraft {
   name: string;
-  direction: "input" | "output" | "inout" | "passive";
+  direction: CellPortDirection;
 }
 
-// The SPICE importer reads Pin names the same way when it places imported
-// Cell Pins: supplies and grounds, outputs, and everything else as inputs.
-const SUPPLY_NAME = /^(?:[ad]?vdd|vcc|vpwr|vpos|vplus|pwr)/iu;
-const GROUND_NAME = /^(?:[ad]?vss|[ad]?gnd|vee|vgnd|vneg|ground)|^0$/iu;
-const OUTPUT_NAME = /^(?:v?o(?:ut)?[pn+-]?|q|qb|qn|y|z)$|^v?out/iu;
-
-/** A first guess from a new Pin's name; the author can change it at once. */
+/**
+ * A first guess from a new Pin's name, read as the SPICE importer reads
+ * imported Pins: supplies and grounds are passive, outputs are outputs and
+ * everything else is an input. The author can change it at once.
+ */
 export function inferPinDirection(name: string): ChildPortDraft["direction"] {
-  if (SUPPLY_NAME.test(name) || GROUND_NAME.test(name)) return "passive";
-  if (OUTPUT_NAME.test(name)) return "output";
-  return "input";
+  const role = cellPinNameRole(name);
+  if (role === "supply" || role === "ground") return "passive";
+  return role === "output" ? "output" : "input";
+}
+
+/** A Cell's name is its SPICE subcircuit name. */
+export const CELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+
+/** Why `name` cannot name a new Cell of this Project; undefined when it can. */
+export function cellNameIssue(
+  project: CircuitProject,
+  name: string,
+): string | undefined {
+  if (!CELL_NAME.test(name))
+    return "Use letters, digits and _, starting with a letter or _";
+  return project.documents.some(
+    (cell) =>
+      (cell.netlist?.name ?? cell.name).toLowerCase() === name.toLowerCase(),
+  )
+    ? `A Cell named ${name} already exists`
+    : undefined;
 }
 
 /**
@@ -60,16 +78,8 @@ export function createChildCellDraft(
 ): SchematicDocument {
   const parent = project.documents.find((cell) => cell.id === parentId);
   if (!parent) throw new Error("Parent Cell no longer exists");
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name))
-    throw new Error(
-      "Cell name must start with a letter or underscore and contain letters, digits or underscores",
-    );
-  if (
-    project.documents.some(
-      (cell) => cell.netlist?.name.toLowerCase() === name.toLowerCase(),
-    )
-  )
-    throw new Error("A Cell with this name already exists");
+  const issue = cellNameIssue(project, name);
+  if (issue) throw new Error(issue);
   if (ports.length > 64)
     throw new Error("Create up to 64 initial Ports; add more in the Cell");
   if (

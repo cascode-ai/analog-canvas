@@ -57,8 +57,8 @@ Edit an entry's existing control block rather than pasting a second one.
 ## Testbench from a drawing
 
 1. Draw the DUT Cell with its Cell Pins.
-2. In **Cell properties**, **New definition** for the testbench, then **Place Cell**
-   to place the DUT in it.
+2. In the hierarchy tree, **+** in its header creates the testbench Cell; drag
+   the DUT's row onto its canvas, or use **Place Cell**, to place the DUT.
 3. Draw sources and loads and create an experiment for the testbench.
 
 Independent V/I sources keep DC, AC and transient settings on the instance.

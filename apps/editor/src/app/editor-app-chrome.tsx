@@ -12,6 +12,10 @@ import { AccountMenu, AccountStatePreload } from "../components/account";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
+import {
+  HIERARCHY_REFACTOR_ITEMS,
+  type HierarchyRefactorActions,
+} from "../features/hierarchy/hierarchy-refactor-commands";
 import { SITE_REPOSITORY_URL } from "../components/site-resource-links";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
@@ -39,13 +43,18 @@ interface AlignmentAction extends CommandAction {
   label: string;
 }
 
-/** Entry points only; the hierarchy tree is where Cells are worked on. */
+/**
+ * Entry points; the hierarchy tree is where Cells are worked on. Every
+ * hierarchy command has its fixed place here, besides the tree and canvas.
+ */
 export interface HierarchyMenuCommands {
   treeOpen: boolean;
   onToggleTree: () => void;
   onNewChild: () => void;
   placeCell: CommandAction;
   onExternalCircuits: () => void;
+  /** The refactors, on the canvas selection. */
+  refactor: HierarchyRefactorActions;
 }
 
 export interface EditorAppChromeProps {
@@ -373,6 +382,16 @@ export function EditorAppChrome({
                 >
                   Place Cell…
                 </button>
+                {HIERARCHY_REFACTOR_ITEMS.map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={!hierarchy.refactor[key].enabled}
+                    onClick={hierarchy.refactor[key].execute}
+                  >
+                    {label}
+                  </button>
+                ))}
                 <button type="button" onClick={hierarchy.onExternalCircuits}>
                   External Circuits…
                 </button>

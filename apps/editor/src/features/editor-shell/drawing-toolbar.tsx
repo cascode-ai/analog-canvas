@@ -36,7 +36,7 @@ export interface DrawingToolbarProps {
 }
 
 /** A toolbar button whose tooltip shows at once; icon-only tools rely on it. */
-function ImmediatePanelButton({
+function ToolbarButton({
   testId,
   label,
   tooltip,
@@ -168,7 +168,7 @@ export function DrawingToolbar({
     >
       <div className="draw-toolbar-panels" role="group" aria-label="Panels">
         {communityEnabled ? (
-          <ImmediatePanelButton
+          <ToolbarButton
             testId="examples-toggle"
             label="Insert from Gallery"
             shortcut="G"
@@ -184,9 +184,9 @@ export function DrawingToolbar({
           >
             <ToolIcon name="examples" />
             <span>Insert</span>
-          </ImmediatePanelButton>
+          </ToolbarButton>
         ) : null}
-        <ImmediatePanelButton
+        <ToolbarButton
           testId="library-toggle"
           label="Component library"
           shortcut="B"
@@ -202,9 +202,9 @@ export function DrawingToolbar({
         >
           <ToolIcon name="library" />
           <span>Library</span>
-        </ImmediatePanelButton>
+        </ToolbarButton>
         {onToggleHierarchy ? (
-          <ImmediatePanelButton
+          <ToolbarButton
             testId="hierarchy-toggle"
             label="Hierarchy"
             tooltip={
@@ -219,9 +219,9 @@ export function DrawingToolbar({
           >
             <ToolIcon name="hierarchy" />
             <span>Hierarchy</span>
-          </ImmediatePanelButton>
+          </ToolbarButton>
         ) : null}
-        <ImmediatePanelButton
+        <ToolbarButton
           testId="netlist-panel-toggle"
           label="Netlist"
           shortcut="N"
@@ -231,8 +231,8 @@ export function DrawingToolbar({
         >
           <ToolIcon name="netlist" />
           <span>Netlist</span>
-        </ImmediatePanelButton>
-        <ImmediatePanelButton
+        </ToolbarButton>
+        <ToolbarButton
           testId="project-code-toggle"
           label="Project Code"
           tooltip={
@@ -245,11 +245,11 @@ export function DrawingToolbar({
         >
           <ToolIcon name="project-code" />
           <span>Project Code</span>
-        </ImmediatePanelButton>
+        </ToolbarButton>
       </div>
       <span className="draw-toolbar-divider" aria-hidden="true" />
       {/* Familiar tools are icons; their names and keys show on hover. */}
-      <ImmediatePanelButton
+      <ToolbarButton
         testId="draw-tool-undo"
         label="Undo"
         tooltip="Undo"
@@ -259,8 +259,8 @@ export function DrawingToolbar({
         onClick={undo.execute}
       >
         <ToolIcon name="undo" />
-      </ImmediatePanelButton>
-      <ImmediatePanelButton
+      </ToolbarButton>
+      <ToolbarButton
         testId="draw-tool-redo"
         label="Redo"
         tooltip="Redo"
@@ -270,9 +270,9 @@ export function DrawingToolbar({
         onClick={redo.execute}
       >
         <ToolIcon name="redo" />
-      </ImmediatePanelButton>
+      </ToolbarButton>
       <span className="draw-toolbar-divider" aria-hidden="true" />
-      <ImmediatePanelButton
+      <ToolbarButton
         testId="draw-tool-wire"
         label="Wire"
         tooltip="Wire"
@@ -282,8 +282,8 @@ export function DrawingToolbar({
         onClick={() => onActivateTool("wire")}
       >
         <ToolIcon name="wire" />
-      </ImmediatePanelButton>
-      <ImmediatePanelButton
+      </ToolbarButton>
+      <ToolbarButton
         testId="draw-tool-no-connect"
         label="No Connect"
         tooltip="No Connect: mark intentionally unused pins"
@@ -292,8 +292,8 @@ export function DrawingToolbar({
         onClick={() => onActivateTool("no-connect")}
       >
         <ToolIcon name="no-connect" />
-      </ImmediatePanelButton>
-      <ImmediatePanelButton
+      </ToolbarButton>
+      <ToolbarButton
         testId="draw-tool-text"
         label="Text"
         tooltip="Text"
@@ -302,7 +302,7 @@ export function DrawingToolbar({
         onClick={onAddText}
       >
         <ToolIcon name="text" />
-      </ImmediatePanelButton>
+      </ToolbarButton>
       <AnnotationMenu
         styleProfileId={styleProfileId}
         onStartInsert={onStartInsert}

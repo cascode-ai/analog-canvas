@@ -14,6 +14,7 @@ import {
 } from "./project-structure-commands";
 import type { CellInterfaceConfirmation } from "./project-structure-commands";
 import { localBlockSymbolTarget } from "./block-symbol-layout-target";
+import { createChildCellDraft } from "./new-child-cell";
 
 function dependencies() {
   const project = createEmptyProject("project", "Project");
@@ -30,9 +31,7 @@ function dependencies() {
     resolver: createProjectSymbolResolver(project, builtInSymbols),
     commitStructure,
     setStatus: vi.fn(),
-    onCellCreated: vi.fn(),
     nextSequence: vi.fn(() => 1),
-    createDocumentId: vi.fn(() => "document-child"),
   };
 }
 
@@ -291,7 +290,15 @@ describe("Project structure commands", () => {
     };
     const commands = createProjectStructureCommands(input);
 
-    commands.createCell("  Child  ");
+    commands.createCell(
+      createChildCellDraft(
+        input.project,
+        input.activeDocument.id,
+        "document-child",
+        "Child",
+        [],
+      ),
+    );
 
     const [transactionId, edits, activeDocumentId] =
       input.commitStructure.mock.calls[0]!;
@@ -308,7 +315,6 @@ describe("Project structure commands", () => {
         },
       },
     ]);
-    expect(input.onCellCreated).toHaveBeenCalledOnce();
     expect(input.setStatus).toHaveBeenCalledWith("Created Cell Child");
     expect(edits[0]).toMatchObject({ kind: "add_document" });
     if (edits[0]?.kind !== "add_document") return;

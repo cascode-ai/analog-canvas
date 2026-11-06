@@ -9,6 +9,7 @@ import {
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import {
   addChildPortNames,
+  cellNameIssue,
   createChildCellDraft,
   type ChildPortDraft,
 } from "./new-child-cell";
@@ -27,28 +28,44 @@ const DIRECTION_LABEL: Record<Direction, string> = {
   inout: "Inout",
   passive: "Passive",
 };
-const CELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 // The preview draft never enters the Project, so its name only has to be one
 // no Cell uses; the symbol does not draw it.
 const PREVIEW_NAME = "new_cell_preview";
 
-function nameIssue(project: CircuitProject, name: string): string {
-  if (!name) return "";
-  if (!CELL_NAME.test(name))
-    return "Use letters, digits and _, starting with a letter or _";
-  return project.documents.some(
-    (cell) => cell.netlist?.name.toLowerCase() === name.toLowerCase(),
-  )
-    ? `A Cell named ${name} already exists`
-    : "";
+/** What the dialog says for each of the three ways it makes a Cell. */
+function dialogWording(
+  parentName: string | undefined,
+  fromSelection: { parts: number } | undefined,
+) {
+  if (fromSelection)
+    return {
+      title: "New Cell",
+      detail: `from ${fromSelection.parts} selected part${fromSelection.parts === 1 ? "" : "s"}`,
+      hint: `The new block replaces the parts in ${parentName ?? "this Cell"}; its Pins stay connected, unrouted`,
+      submit: "Create from selection",
+    };
+  if (parentName)
+    return {
+      title: "New child Cell",
+      detail: `in ${parentName}`,
+      hint: `Then click in ${parentName} to place it · Esc cancels`,
+      submit: "Create and place",
+    };
+  return {
+    title: "New Cell",
+    detail: "",
+    hint: "Opens it to draw; place it later from the tree",
+    submit: "Create Cell",
+  };
 }
 
 /**
  * Name a new Cell and type its Pins; the block it will be drawn as follows
  * every keystroke. With a parent the block is then placed in it, as one undo
- * step; without one the Cell is created unplaced.
+ * step; without one the Cell is created unplaced; from a selection it takes
+ * the selected parts' place.
  */
-export function NewChildDialog({
+export function NewCellDialog({
   project,
   parentId,
   parentName,
@@ -106,7 +123,8 @@ export function NewChildDialog({
     }
   }, [project, parentId, previewPorts]);
   const trimmed = name.trim();
-  const invalidName = nameIssue(project, trimmed);
+  const invalidName = trimmed ? (cellNameIssue(project, trimmed) ?? "") : "";
+  const wording = dialogWording(parentName, fromSelection);
 
   const addPins = (text: string) => {
     const added = addChildPortNames(ports, text);
@@ -150,6 +168,7 @@ export function NewChildDialog({
       <form
         className="new-cell-dialog"
         role="dialog"
+        data-plain-keys="local"
         aria-modal="true"
         aria-labelledby="new-cell-title"
         autoComplete="off"
@@ -165,18 +184,13 @@ export function NewChildDialog({
       >
         <header className="new-cell-header">
           <h2 id="new-cell-title">
-            {fromSelection ? (
+            {wording.title}
+            {wording.detail ? (
               <>
-                New Cell{" "}
-                <span>{`from ${fromSelection.parts} selected part${fromSelection.parts === 1 ? "" : "s"}`}</span>
+                {" "}
+                <span>{wording.detail}</span>
               </>
-            ) : parentName ? (
-              <>
-                New child Cell <span>{`in ${parentName}`}</span>
-              </>
-            ) : (
-              "New Cell"
-            )}
+            ) : null}
           </h2>
           <button
             type="button"
@@ -210,7 +224,7 @@ export function NewChildDialog({
               <span>Name</span>
               <input
                 autoFocus
-                aria-label="Child Cell name"
+                aria-label="Cell name"
                 aria-invalid={invalidName ? true : undefined}
                 placeholder="e.g. bias_gen"
                 spellCheck={false}
@@ -347,13 +361,7 @@ export function NewChildDialog({
         </div>
 
         <footer className="new-cell-footer">
-          <small>
-            {fromSelection
-              ? `The new block replaces the parts in ${parentName ?? "this Cell"}; its Pins stay connected, unrouted`
-              : parentName
-                ? `Then click in ${parentName} to place it · Esc cancels`
-                : "Opens it to draw; place it later from the tree"}
-          </small>
+          <small>{wording.hint}</small>
           <button type="button" onClick={onCancel}>
             Cancel
           </button>
@@ -362,11 +370,7 @@ export function NewChildDialog({
             className="primary"
             disabled={!trimmed || Boolean(invalidName)}
           >
-            {fromSelection
-              ? "Create from selection"
-              : parentName
-                ? "Create and place"
-                : "Create Cell"}
+            {wording.submit}
           </button>
         </footer>
       </form>

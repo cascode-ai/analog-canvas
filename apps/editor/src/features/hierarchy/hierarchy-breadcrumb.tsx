@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import type { CircuitProject, HierarchyFrame } from "@icm/model";
 import { buildProjectHierarchy } from "@icm/derived";
 
+import { frameReference } from "./project-hierarchy";
+
 export interface HierarchyBreadcrumbProps {
   project: CircuitProject;
   activeDocumentId: string;
@@ -57,12 +59,7 @@ export function HierarchyBreadcrumb(props: HierarchyBreadcrumbProps) {
     ...path.map((frame, index) => ({
       documentId: frame.childDocumentId,
       path: path.slice(0, index + 1),
-      label: `${
-        hierarchy
-          .document(frame.parentDocumentId)
-          ?.instances.find((item) => item.id === frame.instanceId)?.reference ??
-        frame.instanceId
-      }: ${name(frame.childDocumentId)}`,
+      label: `${frameReference(project, frame)}: ${name(frame.childDocumentId)}`,
     })),
   ];
   const last = crumbs.length - 1;

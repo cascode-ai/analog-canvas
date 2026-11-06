@@ -9,6 +9,7 @@ import { cellParameterCallers, cellParameterUsage } from "@icm/edit-engine";
 import { buildProjectHierarchy } from "@icm/derived";
 import {
   projectCellInterface,
+  type CellPortDirection,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
@@ -29,7 +30,7 @@ import type {
   ExternalDefinitionResult,
 } from "./project-structure-commands";
 
-type Direction = "input" | "output" | "inout" | "passive";
+type Direction = CellPortDirection;
 type PinSide = "north" | "east" | "south" | "west" | "auto";
 type Parameter = NonNullable<
   SchematicDocument["netlist"]
@@ -275,6 +276,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
         ref={dialogRef}
         className="cell-props-dialog"
         role="dialog"
+        data-plain-keys="local"
         aria-modal="true"
         aria-label={`${cell.name} Cell properties`}
         tabIndex={-1}

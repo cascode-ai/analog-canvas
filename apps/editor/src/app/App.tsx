@@ -1,18 +1,20 @@
 import { CellHierarchyTree } from "../features/hierarchy/cell-hierarchy-tree";
 import { HierarchyBreadcrumb } from "../features/hierarchy/hierarchy-breadcrumb";
-import { hierarchyPathKey } from "../features/hierarchy/project-hierarchy";
-import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
-import { NewChildDialog } from "../features/hierarchy/new-child-dialog";
-import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
 import {
-  planCellFromSelection,
-  planFlattenInstance,
-  planMakeUniqueCell,
-  planReplaceCell,
-  selectionCellPins,
-  type CellUse,
-  type SelectionCellPin,
+  hierarchyPathKey,
+  stableRootOrder,
+} from "../features/hierarchy/project-hierarchy";
+import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
+import { NewCellDialog } from "../features/hierarchy/new-cell-dialog";
+import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
+import type {
+  CellUse,
+  SelectionCellPin,
 } from "../features/hierarchy/hierarchy-refactor";
+import {
+  createHierarchyRefactorCommands,
+  type HierarchyRefactorActions,
+} from "../features/hierarchy/hierarchy-refactor-commands";
 import { createChildCellDraft } from "../features/hierarchy/new-child-cell";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { useSignalMemberInspection } from "../features/selection/use-signal-member-inspection";
@@ -43,6 +45,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -55,7 +58,6 @@ import {
   planSetVddConnectionMode,
   planRenameCellTerminal,
   planAngledWireRepairs,
-  planCreateCell,
   type ProjectStructureEdit,
   type SchematicEdit,
   type WireSource,
@@ -741,6 +743,8 @@ function WorkspaceEditor({
       new URLSearchParams(window.location.search).get("new") === "1",
     libraryStorageKey: LIBRARY_PANEL_STORAGE_KEY,
     libraryWidthStorageKey: LIBRARY_WIDTH_STORAGE_KEY,
+    // As the project panel closes the left one when it opens.
+    onCompactLeftPanelOpen: () => setProjectPanel(null),
   });
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
@@ -1574,6 +1578,7 @@ function WorkspaceEditor({
     convertCellTerminalSignal,
     removeCellTerminalSelection,
     renameProject,
+    createCell,
   } = createProjectStructureCommands({
     requestConfirmation: (request) =>
       setInterfaceConfirmation({ request, snapshot: project }),
@@ -1582,7 +1587,6 @@ function WorkspaceEditor({
     resolver,
     commitStructure,
     setStatus,
-    onCellCreated: () => setDocumentStack([]),
     nextSequence: () => {
       uniqueSuffixCounter.current += 1;
       return uniqueSuffixCounter.current;
@@ -3830,6 +3834,8 @@ function WorkspaceEditor({
     };
   }
 
+  /** The Cell the last navigation fit framed, to fit again below. */
+  const fittedDocument = useRef<string | null>(null);
   const {
     selectDocumentFromHierarchy,
     jumpToCaller,
@@ -3858,6 +3864,9 @@ function WorkspaceEditor({
     defaultViewBox: DEFAULT_VIEWBOX,
     setViewBox,
     measureCanvasView,
+    onFit: (documentId) => {
+      fittedDocument.current = documentId;
+    },
     openDocument,
     resetInteractionState,
     selectOnly,
@@ -3873,6 +3882,16 @@ function WorkspaceEditor({
     selectedInstance,
     setStatus,
   });
+  // A navigation fits before its instance path appears over the canvas or
+  // goes. Once the path is drawn, before it is painted, fit the Cell again
+  // with the path's inset, so entering, leaving and F land on one view.
+  useLayoutEffect(() => {
+    const fitted = fittedDocument.current;
+    fittedDocument.current = null;
+    if (fitted !== document.id) return;
+    fitDocument(fitted);
+    fittedDocument.current = null;
+  }, [document.id, documentStack]);
   useEffect(() => {
     const resolved = reconcileHierarchyPath(
       project,
@@ -3945,101 +3964,73 @@ function WorkspaceEditor({
     uniqueSuffixCounter.current += 1;
     return uniqueSuffixCounter.current;
   };
-  const describeUse = (use: CellUse) => {
-    const parent = project.documents.find((cell) => cell.id === use.documentId);
-    return {
-      parentName: parent?.name ?? use.documentId,
-      reference:
-        parent?.instances.find((item) => item.id === use.instanceId)
-          ?.reference ?? use.instanceId,
-    };
-  };
-  /** ", in all N uses of X" when a refactor edits a shared Cell. The status
-   * then says it, so the one-time shared-edit notice does not replace it. */
-  const sharedScope = (documentId: string) => {
-    const uses = buildProjectHierarchy(project).usage(documentId, 0).total;
-    if (uses < 2) return "";
-    sharedEditNotices.current.add(`${projectSessionId}/${documentId}`);
-    const name =
-      project.documents.find((cell) => cell.id === documentId)?.name ??
-      documentId;
-    return `, in all ${uses} uses of ${name}`;
-  };
-  const refactorFailed = (error: unknown) =>
-    setStatus(error instanceof Error ? error.message : String(error));
+  const hierarchyRefactor = createHierarchyRefactorCommands({
+    project,
+    document,
+    createDocumentId: () => createId("document"),
+    nextSequence: nextRefactorSequence,
+    commitStructure: (transactionId, edits) =>
+      commitStructure(transactionId, edits),
+    setStatus,
+    spendSharedEditNotice: (documentId) =>
+      sharedEditNotices.current.add(`${projectSessionId}/${documentId}`),
+    openOccurrence: setOpenAfterCommit,
+    selectInstances: (ids) => selectOnly("instance", ids),
+  });
   /** Open New Cell on the selected parts, with the Pins their Nets need. */
   const beginCellFromSelection = () => {
-    try {
-      setSelectionCell({
-        instanceIds: [...selectedIds],
-        pins: selectionCellPins(project, document.id, selectedIds),
-      });
-      beginNewCell("selection");
-    } catch (error) {
-      refactorFailed(error);
-    }
+    const pins = hierarchyRefactor.selectionPins(selectedIds);
+    if (!pins) return;
+    setSelectionCell({ instanceIds: [...selectedIds], pins });
+    beginNewCell("selection");
   };
-  const makeUniqueCell = (use: CellUse) => {
-    try {
-      const plan = planMakeUniqueCell(
-        project,
-        use.documentId,
-        use.instanceId,
-        createId("document"),
-      );
-      if (!commitStructure("make-unique-cell", plan.edits)) return;
-      setStatus(
-        `${describeUse(use).reference} now uses ${plan.name}, a copy of ${plan.sourceName}${sharedScope(use.documentId)} · F2 in the tree renames it`,
-      );
-    } catch (error) {
-      refactorFailed(error);
-    }
+  const selectedUse: CellUse | null =
+    selectedHierarchyCell && selectedInstance
+      ? { documentId: document.id, instanceId: selectedInstance.id }
+      : null;
+  // One set of commands for the canvas menu and Circuit > Hierarchy.
+  const refactorActions: HierarchyRefactorActions = {
+    fromSelection: {
+      enabled: selectedIds.length > 0,
+      execute: beginCellFromSelection,
+    },
+    makeUnique: {
+      enabled: Boolean(selectedUse),
+      execute: () => {
+        if (selectedUse) hierarchyRefactor.makeUnique(selectedUse);
+      },
+    },
+    replace: {
+      enabled: Boolean(selectedUse),
+      execute: () => {
+        if (selectedUse) setReplaceUse(selectedUse);
+      },
+    },
+    flatten: {
+      enabled: Boolean(selectedUse),
+      execute: () => {
+        if (selectedUse) hierarchyRefactor.flatten(selectedUse, documentStack);
+      },
+    },
   };
-  const replaceCellUses = (uses: CellUse[], replacementId: string) => {
-    try {
-      if (
-        !commitStructure(
-          "replace-cell",
-          planReplaceCell(project, uses, replacementId),
-        )
-      )
-        return;
-      setReplaceUse(null);
-      const name =
-        project.documents.find((cell) => cell.id === replacementId)?.name ??
-        replacementId;
-      setStatus(
-        uses.length === 1
-          ? `${describeUse(uses[0]!).reference} now uses ${name}${sharedScope(uses[0]!.documentId)}`
-          : `${uses.length} instances now use ${name}`,
-      );
-    } catch (error) {
-      refactorFailed(error);
-    }
-  };
-  const flattenCellUse = (
-    use: CellUse,
-    parentPath: readonly HierarchyFrame[],
-  ) => {
-    try {
-      const plan = planFlattenInstance(
-        project,
-        use.documentId,
-        use.instanceId,
-        nextRefactorSequence(),
-      );
-      if (!commitStructure("flatten-cell-instance", plan.edits)) return;
-      // The parent opens with the parts selected, to be dragged into place.
-      setOpenAfterCommit({
-        id: use.documentId,
-        path: [...parentPath],
-        select: plan.instanceIds,
-        status: `Flattened ${plan.childName} into ${describeUse(use).parentName}${sharedScope(use.documentId)}; its parts are selected, connected but unrouted`,
-      });
-    } catch (error) {
-      refactorFailed(error);
-    }
-  };
+  // The tree's root order belongs to the tab, not the tree, so it outlasts
+  // the panel; see stableRootOrder.
+  const rootOrders = useRef(new Map<string, readonly string[]>());
+  const projectRoots = useMemo(
+    () => buildProjectHierarchy(project).roots,
+    [project],
+  );
+  const hierarchyRoots = useMemo(
+    () =>
+      stableRootOrder(
+        rootOrders.current.get(projectSessionId) ?? [],
+        projectRoots,
+      ),
+    [projectRoots, projectSessionId],
+  );
+  useEffect(() => {
+    rootOrders.current.set(projectSessionId, hierarchyRoots);
+  }, [projectSessionId, hierarchyRoots]);
   /** Start placing a Cell from the tree, as the Insert dialog would. */
   const placeCellFromTree = (id: string): boolean => {
     const issue = cellPlacementIssue(project, document.id, id);
@@ -5468,6 +5459,7 @@ function WorkspaceEditor({
         hierarchyActions={{
           onNewChild: beginNewChild,
           onExternalCircuits: openExternalCircuits,
+          refactor: refactorActions,
         }}
         toggleHierarchyPanel={toggleHierarchyPanel}
         identity={identity}
@@ -5569,7 +5561,7 @@ function WorkspaceEditor({
         leaveForArena={leaveForArena}
       />
       {newCellMode ? (
-        <NewChildDialog
+        <NewCellDialog
           project={project}
           parentId={document.id}
           {...(newCellMode !== "root" ? { parentName: document.name } : {})}
@@ -5589,24 +5581,15 @@ function WorkspaceEditor({
             try {
               if (newCellMode === "selection") {
                 if (!selectionCell) return "Select the parts again";
-                const plan = planCellFromSelection(
-                  project,
-                  document.id,
+                const refusal = hierarchyRefactor.fromSelection(
                   selectionCell.instanceIds,
-                  createId("document"),
                   name,
                   selectionCell.pins.map((pin, index) => ({
                     ...pin,
                     direction: ports[index]?.direction ?? pin.direction,
                   })),
-                  nextRefactorSequence(),
                 );
-                if (!commitStructure("cell-from-selection", plan.edits))
-                  return "The Cell could not be created; see the status bar";
-                selectOnly("instance", [plan.instanceId]);
-                setStatus(
-                  `Moved ${selectionCell.instanceIds.length} parts into ${name}${sharedScope(document.id)}; its Pins are connected but unrouted`,
-                );
+                if (refusal) return refusal;
                 setNewCellMode(null);
                 setSelectionCell(null);
                 return undefined;
@@ -5621,7 +5604,7 @@ function WorkspaceEditor({
               if (newCellMode === "root") {
                 // An unplaced Cell is created at once and opened for drawing;
                 // it is a root of its own until something places it.
-                if (!commitStructure("create-cell", planCreateCell(draftCell)))
+                if (!createCell(draftCell))
                   return "The Cell could not be created; see the status bar";
                 setOpenAfterCommit({ id: draftCell.id, path: [] });
               } else {
@@ -5655,7 +5638,10 @@ function WorkspaceEditor({
           project={project}
           use={replaceUse}
           onCancel={() => setReplaceUse(null)}
-          onReplace={replaceCellUses}
+          onReplace={(uses, replacementId) => {
+            if (hierarchyRefactor.replace(uses, replacementId))
+              setReplaceUse(null);
+          }}
         />
       ) : null}
       <EditorDialogs
@@ -5878,6 +5864,7 @@ function WorkspaceEditor({
           <CellHierarchyTree
             key={projectSessionId}
             project={project}
+            roots={hierarchyRoots}
             activeDocumentId={document.id}
             path={documentStack}
             expandedKeys={hierarchyExpanded}
@@ -5900,9 +5887,9 @@ function WorkspaceEditor({
               drop: dropCellFromTree,
               setTop: (id) => void setTopCell(id),
               remove: (id) => void deleteCell(id),
-              makeUnique: makeUniqueCell,
+              makeUnique: hierarchyRefactor.makeUnique,
               replace: setReplaceUse,
-              flatten: flattenCellUse,
+              flatten: hierarchyRefactor.flatten,
               external: openExternalCircuits,
               // Cloud import needs the Web build's Project store.
               ...(!import.meta.env?.ICM_DESKTOP
@@ -8050,33 +8037,7 @@ function WorkspaceEditor({
             openSelectedComponentDefinition={openSelectedComponentDefinition}
             hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
-            hierarchyRefactor={{
-              fromSelection: selectedIds.length ? beginCellFromSelection : null,
-              ...(selectedHierarchyCell && selectedInstance
-                ? {
-                    cell: {
-                      makeUnique: () =>
-                        makeUniqueCell({
-                          documentId: document.id,
-                          instanceId: selectedInstance.id,
-                        }),
-                      replace: () =>
-                        setReplaceUse({
-                          documentId: document.id,
-                          instanceId: selectedInstance.id,
-                        }),
-                      flatten: () =>
-                        flattenCellUse(
-                          {
-                            documentId: document.id,
-                            instanceId: selectedInstance.id,
-                          },
-                          documentStack,
-                        ),
-                    },
-                  }
-                : {}),
-            }}
+            hierarchyRefactor={refactorActions}
             coupleInductors={(() => {
               const edit = planCoupleInductors(document, selectedIds);
               if (!edit || edit.kind !== "set_inductor_coupling") return null;

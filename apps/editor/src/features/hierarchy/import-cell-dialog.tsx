@@ -84,6 +84,7 @@ export function ImportCellDialog({
         tabIndex={-1}
         className="editor-action-dialog import-cell-dialog"
         role="dialog"
+        data-plain-keys="local"
         aria-modal="true"
         aria-labelledby="import-cell-dialog-title"
       >

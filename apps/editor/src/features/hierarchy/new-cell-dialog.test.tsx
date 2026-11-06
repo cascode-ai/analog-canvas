@@ -2,12 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { hierarchyNavigationFixture } from "../../../../../netlists/hierarchy-navigation/fixture";
-import { NewChildDialog } from "./new-child-dialog";
+import { NewCellDialog } from "./new-cell-dialog";
 
-describe("NewChildDialog", () => {
+describe("NewCellDialog", () => {
   it("names the Cell it places a child in and previews the block", () => {
     const markup = renderToStaticMarkup(
-      <NewChildDialog
+      <NewCellDialog
         project={hierarchyNavigationFixture()}
         parentId="amplifier"
         parentName="Amplifier"
@@ -26,7 +26,7 @@ describe("NewChildDialog", () => {
 
   it("creates an unplaced Cell when no parent is given", () => {
     const markup = renderToStaticMarkup(
-      <NewChildDialog
+      <NewCellDialog
         project={hierarchyNavigationFixture()}
         parentId="amplifier"
         onCancel={vi.fn()}

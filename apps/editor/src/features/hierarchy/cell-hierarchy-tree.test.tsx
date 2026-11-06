@@ -1,3 +1,4 @@
+import { buildProjectHierarchy } from "@icm/derived";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -29,10 +30,11 @@ const actions: HierarchyTreeActions = {
 const render = (
   overrides: Partial<Parameters<typeof CellHierarchyTree>[0]> = {},
 ) => {
-  const project = hierarchyNavigationFixture();
+  const project = overrides.project ?? hierarchyNavigationFixture();
   return renderToStaticMarkup(
     <CellHierarchyTree
       project={project}
+      roots={buildProjectHierarchy(project).roots}
       activeDocumentId={project.topDocumentId}
       path={[]}
       expandedKeys={[hierarchyPathKey(project.topDocumentId, [])]}

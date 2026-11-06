@@ -13,6 +13,7 @@ import {
   deriveProjectNetNameProjection,
   visibleInstanceBounds,
 } from "@icm/derived";
+import { parameterExpressionBody, parameterReferences } from "@icm/devices";
 import {
   createCellDocument,
   projectCellInterface,
@@ -42,11 +43,13 @@ import {
 import { proposePaste } from "../clipboard/paste-proposal";
 import { planPlacedCellPin } from "../component-insert/cell-pin-placement";
 import type { PlacementOrientationOperation } from "../../interaction/shortcut-orientation";
-import { inferPinDirection, type ChildPortDraft } from "./new-child-cell";
+import {
+  CELL_NAME,
+  cellNameIssue,
+  inferPinDirection,
+  type ChildPortDraft,
+} from "./new-child-cell";
 import { cellPlacementIssue } from "./project-structure-commands";
-
-const CELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
-const LITERAL = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?[a-z]*$/iu;
 
 type Terminal = { instanceId: string; pinName: string };
 
@@ -67,12 +70,18 @@ function requireCell(project: CircuitProject, id: string): SchematicDocument {
   return cell;
 }
 
-function cellInstance(parent: SchematicDocument, instanceId: string) {
-  const instance = parent.instances.find((item) => item.id === instanceId);
+/** A use's parent, its instance and the Cell it places. */
+export function resolveCellUse(project: CircuitProject, use: CellUse) {
+  const parent = requireCell(project, use.documentId);
+  const instance = parent.instances.find((item) => item.id === use.instanceId);
   const binding = instance?.netlist?.binding;
   if (!instance || binding?.kind !== "subcircuit")
     throw new Error("Choose an instance of a Cell");
-  return { instance, childId: binding.childDocumentId };
+  return {
+    parent,
+    instance,
+    cell: requireCell(project, binding.childDocumentId),
+  };
 }
 
 function transactOn(
@@ -114,11 +123,21 @@ function snap(value: number, grid: number): number {
   return Math.round(value / grid) * grid;
 }
 
+/** The first free one of `base`, `base_2`, `base_3`…; `from` skips ahead. */
+function freeName(
+  base: string,
+  taken: (name: string) => boolean,
+  from = 1,
+): string {
+  for (let index = from; ; index += 1) {
+    const name = index === 1 ? base : `${base}_${index}`;
+    if (!taken(name)) return name;
+  }
+}
+
 function freeInstanceId(document: SchematicDocument, base: string): string {
   const taken = new Set(document.instances.map((item) => item.id));
-  if (!taken.has(base)) return base;
-  for (let index = 2; ; index += 1)
-    if (!taken.has(`${base}_${index}`)) return `${base}_${index}`;
+  return freeName(base, (id) => taken.has(id));
 }
 
 function nextCellReference(document: SchematicDocument): string {
@@ -131,34 +150,24 @@ function nextCellReference(document: SchematicDocument): string {
     if (!taken.has(`x${index}`)) return `X${index}`;
 }
 
-/** A Cell name no Cell uses yet: the name itself, else name_2, name_3, … */
-export function freeCellName(project: CircuitProject, base: string): string {
-  const taken = new Set(
-    project.documents.map((cell) =>
-      (cell.netlist?.name ?? cell.name).toLowerCase(),
-    ),
-  );
+/**
+ * A free name for a variant of the Cell named `base`: its numbered next,
+ * `amp_2` for `amp` and `amp_3` for `amp_2`, never the bare stem.
+ */
+function variantCellName(project: CircuitProject, base: string): string {
   const cleaned = base.replace(/[^A-Za-z0-9_]/gu, "_");
-  const stem = (CELL_NAME.test(cleaned) ? cleaned : `cell_${cleaned}`).replace(
-    /_\d+$/u,
-    "",
+  const valid = CELL_NAME.test(cleaned) ? cleaned : `cell_${cleaned}`;
+  const [, stem, number] = /^(.*?)(?:_(\d+))?$/u.exec(valid)!;
+  return freeName(
+    stem || valid,
+    (name) => cellNameIssue(project, name) !== undefined,
+    number ? Number(number) + 1 : 2,
   );
-  if (!taken.has(stem.toLowerCase())) return stem;
-  for (let index = 2; ; index += 1)
-    if (!taken.has(`${stem}_${index}`.toLowerCase())) return `${stem}_${index}`;
 }
 
 function assertNewCellName(project: CircuitProject, name: string): void {
-  if (!CELL_NAME.test(name))
-    throw new Error(
-      "Cell name must start with a letter or underscore and contain letters, digits or underscores",
-    );
-  if (
-    project.documents.some(
-      (cell) => cell.netlist?.name.toLowerCase() === name.toLowerCase(),
-    )
-  )
-    throw new Error(`A Cell named ${name} already exists`);
+  const issue = cellNameIssue(project, name);
+  if (issue) throw new Error(issue);
 }
 
 /** Every instance of a Cell, in every definition that places it. */
@@ -230,15 +239,12 @@ function rebindEdits(
  */
 export function planMakeUniqueCell(
   project: CircuitProject,
-  parentId: string,
-  instanceId: string,
+  use: CellUse,
   copyId: string,
   copyName?: string,
 ): { name: string; sourceName: string; edits: ProjectStructureEdit[] } {
-  const parent = requireCell(project, parentId);
-  const { instance, childId } = cellInstance(parent, instanceId);
-  const source = requireCell(project, childId);
-  const name = copyName ?? freeCellName(project, source.netlist!.name);
+  const { parent, instance, cell: source } = resolveCellUse(project, use);
+  const name = copyName ?? variantCellName(project, source.netlist!.name);
   assertNewCellName(project, name);
   const copy = structuredClone(source);
   copy.id = copyId;
@@ -257,6 +263,39 @@ export function planMakeUniqueCell(
   };
 }
 
+/**
+ * Why the uses of `source` cannot switch to `cell`: it would contain itself,
+ * or its Pin names differ (ignoring case). Undefined when they can.
+ */
+function replacementIssue(
+  project: CircuitProject,
+  uses: readonly CellUse[],
+  source: SchematicDocument,
+  cell: SchematicDocument,
+): string | undefined {
+  const cycle = [...new Set(uses.map((use) => use.documentId))]
+    .map((id) => cellPlacementIssue(project, id, cell.id))
+    .find(Boolean);
+  if (cycle) return cycle;
+  const wanted = new Map(
+    pinNames(source).map((name) => [name.toLowerCase(), name]),
+  );
+  const offered = new Map(
+    pinNames(cell).map((name) => [name.toLowerCase(), name]),
+  );
+  const differences = [
+    ...[...wanted].flatMap(([key, name]) =>
+      offered.has(key) ? [] : [`no ${name}`],
+    ),
+    ...[...offered].flatMap(([key, name]) =>
+      wanted.has(key) ? [] : [`extra ${name}`],
+    ),
+  ];
+  return differences.length
+    ? `Pins differ: ${differences.join(", ")}`
+    : undefined;
+}
+
 /** Each Cell an instance could switch to, with the reason it cannot, if any. */
 export function replacementCandidates(
   project: CircuitProject,
@@ -264,29 +303,10 @@ export function replacementCandidates(
   sourceId: string,
 ): { cell: SchematicDocument; issue?: string }[] {
   const source = requireCell(project, sourceId);
-  const wanted = new Map(
-    pinNames(source).map((name) => [name.toLowerCase(), name]),
-  );
-  const parents = [...new Set(uses.map((use) => use.documentId))];
   return project.documents
     .filter((cell) => cell.id !== sourceId && cell.netlist)
     .map((cell) => {
-      const offered = new Map(
-        pinNames(cell).map((name) => [name.toLowerCase(), name]),
-      );
-      const missing = [...wanted].filter(([key]) => !offered.has(key));
-      const extra = [...offered].filter(([key]) => !wanted.has(key));
-      const cycle = parents
-        .map((id) => cellPlacementIssue(project, id, cell.id))
-        .find(Boolean);
-      const issue =
-        cycle ??
-        (missing.length || extra.length
-          ? `Pins differ: ${[
-              ...missing.map(([, name]) => `no ${name}`),
-              ...extra.map(([, name]) => `extra ${name}`),
-            ].join(", ")}`
-          : undefined);
+      const issue = replacementIssue(project, uses, source, cell);
       return issue ? { cell, issue } : { cell };
     });
 }
@@ -300,13 +320,13 @@ export function planReplaceCell(
   const to = requireCell(project, replacementId);
   const byDocument = new Map<string, SchematicEdit[]>();
   for (const use of uses) {
-    const parent = requireCell(project, use.documentId);
-    const { instance, childId } = cellInstance(parent, use.instanceId);
-    if (childId === replacementId) continue;
-    const issue = cellPlacementIssue(project, parent.id, replacementId);
-    if (issue) throw new Error(issue);
+    const { parent, instance, cell } = resolveCellUse(project, use);
+    if (cell.id === replacementId) continue;
+    const issue = replacementIssue(project, [use], cell, to);
+    if (issue)
+      throw new Error(`${to.name} cannot replace ${cell.name}: ${issue}`);
     const edits = byDocument.get(parent.id) ?? [];
-    edits.push(...rebindEdits(instance, requireCell(project, childId), to));
+    edits.push(...rebindEdits(instance, cell, to));
     byDocument.set(parent.id, edits);
   }
   return [...byDocument].map(([id, edits]) =>
@@ -351,9 +371,7 @@ export function selectionCellPins(
       "_",
     );
     const base = /^[A-Za-z_]/u.test(spelled) ? spelled : `n${index + 1}`;
-    let name = base;
-    for (let count = 2; used.has(name.toLowerCase()); count += 1)
-      name = `${base}_${count}`;
+    const name = freeName(base, (text) => used.has(text.toLowerCase()));
     used.add(name.toLowerCase());
     return [{ name, direction: inferPinDirection(name), netId: net.id }];
   });
@@ -423,14 +441,14 @@ function clearOffset(
   };
 }
 
-/** Parameter names an expression value refers to, as `{2*gain}` does. */
+/** Parameter names a value's expression refers to, as `{2*gain}` does. */
 function referencedNames(values: readonly unknown[]): Set<string> {
   const names = new Set<string>();
   for (const value of values) {
-    if (typeof value !== "string") continue;
-    for (const [, expression] of value.matchAll(/\{([^{}]*)\}/gu))
-      for (const [word] of expression!.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/gu))
-        names.add(word.toLowerCase());
+    const body =
+      typeof value === "string" ? parameterExpressionBody(value) : undefined;
+    for (const reference of body === undefined ? [] : parameterReferences(body))
+      names.add(reference.name.toLowerCase());
   }
   return names;
 }
@@ -449,12 +467,27 @@ export function planCellFromSelection(
   name: string,
   pins: readonly SelectionCellPin[],
   sequence: number,
-): { instanceId: string; edits: ProjectStructureEdit[] } {
+): {
+  instanceId: string;
+  /** How many parts moved; the Cell's own Pins stay where they are. */
+  moved: number;
+  edits: ProjectStructureEdit[];
+} {
   assertNewCellName(project, name);
   const parent = requireCell(project, parentId);
   const parts = selectableParts(parent, instanceIds);
   if (!parts.size)
     throw new Error("Select the parts to move into the new Cell");
+  // A coupling is a K in one Cell; it cannot reach across the new boundary.
+  const split = (parent.inductorCouplings ?? []).find(
+    (coupling) =>
+      coupling.members.filter((member) => parts.has(member.instanceId))
+        .length === 1,
+  );
+  if (split)
+    throw new Error(
+      `Select both inductors of ${split.name}, or neither, to keep the coupling`,
+    );
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const clipboard = copySelection(parent, [...parts], [], undefined, resolver);
   if (!clipboard) throw new Error("Nothing to move into the new Cell");
@@ -627,6 +660,7 @@ export function planCellFromSelection(
   });
   return {
     instanceId: instance.id,
+    moved: parts.size,
     edits: [
       { kind: "add_document", document: child },
       transactOn(parent, [
@@ -638,51 +672,69 @@ export function planCellFromSelection(
   };
 }
 
-/** The value each child parameter takes at this instance, without braces. */
+/** A child parameter's value at one instance: a literal or an expression. */
+interface BoundValue {
+  /** The literal, or the expression without its delimiters. */
+  text: string;
+  expression: boolean;
+}
+
+/** The value each child parameter takes at this instance, by lower name. */
 function instanceParameterValues(
   child: SchematicDocument,
   instance: Instance,
-): Map<string, string> {
+): Map<string, BoundValue> {
   const overrides = instance.netlist?.parameters ?? {};
-  const values = new Map<string, string>();
+  const values = new Map<string, BoundValue>();
   for (const parameter of child.netlist!.formalParameters) {
     const key = Object.keys(overrides).find(
       (name) => name.toLowerCase() === parameter.name.toLowerCase(),
     );
     const value = (key ? overrides[key] : undefined) ?? parameter.defaultValue;
-    if (value !== undefined)
-      values.set(
-        parameter.name.toLowerCase(),
-        String(value)
-          .trim()
-          .replace(/^\{([\s\S]*)\}$/u, "$1"),
-      );
+    if (value === undefined) continue;
+    const text = String(value).trim();
+    const body = parameterExpressionBody(text);
+    values.set(
+      parameter.name.toLowerCase(),
+      body === undefined
+        ? { text, expression: false }
+        : { text: body, expression: true },
+    );
   }
   return values;
 }
 
-/** Write a child's parameter references in the parent's terms. */
+/**
+ * Write a child's parameter references in the parent's terms, keeping the
+ * expression's own delimiters: a bare reference takes the value as it is,
+ * and a reference inside a larger expression takes it in parentheses.
+ */
 function substituteParameters(
   value: string,
-  values: ReadonlyMap<string, string>,
+  values: ReadonlyMap<string, BoundValue>,
 ): string {
-  return value.replace(/\{([^{}]*)\}/gu, (whole, expression: string) => {
-    const exact = values.get(expression.trim().toLowerCase());
-    if (exact !== undefined) return LITERAL.test(exact) ? exact : `{${exact}}`;
-    const replaced = expression.replace(
-      /\b[A-Za-z_][A-Za-z0-9_]*\b/gu,
-      (word) => {
-        const bound = values.get(word.toLowerCase());
-        return bound === undefined ? word : `(${bound})`;
-      },
-    );
-    return replaced === expression ? whole : `{${replaced}}`;
-  });
+  const text = value.trim();
+  const body = parameterExpressionBody(text);
+  if (body === undefined) return value;
+  const references = parameterReferences(body).filter((reference) =>
+    values.has(reference.name.toLowerCase()),
+  );
+  if (!references.length) return value;
+  const [open, close] = [text[0], text.at(-1)];
+  const only = references[0]!;
+  if (references.length === 1 && body === only.name) {
+    const bound = values.get(only.name.toLowerCase())!;
+    return bound.expression ? `${open}${bound.text}${close}` : bound.text;
+  }
+  let next = body;
+  for (const reference of [...references].reverse())
+    next = `${next.slice(0, reference.from)}(${values.get(reference.name.toLowerCase())!.text})${next.slice(reference.to)}`;
+  return `${open}${next}${close}`;
 }
 
 function withParameterValues(
   instance: Instance,
-  values: ReadonlyMap<string, string>,
+  values: ReadonlyMap<string, BoundValue>,
 ): Instance {
   const parameters = instance.netlist?.parameters;
   if (!parameters || !values.size) return instance;
@@ -728,8 +780,7 @@ function orientationOperations(
  */
 export function planFlattenInstance(
   project: CircuitProject,
-  parentId: string,
-  instanceId: string,
+  use: CellUse,
   sequence: number,
 ): {
   childName: string;
@@ -737,9 +788,8 @@ export function planFlattenInstance(
   instanceIds: string[];
   edits: ProjectStructureEdit[];
 } {
-  const parent = requireCell(project, parentId);
-  const { instance, childId } = cellInstance(parent, instanceId);
-  const child = requireCell(project, childId);
+  const { parent, instance, cell: child } = resolveCellUse(project, use);
+  const instanceId = instance.id;
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const deletion = planCellSelectionDeletion(
     parent,
@@ -799,15 +849,23 @@ export function planFlattenInstance(
     const base = taken.has(evidence.sourceName.toLowerCase())
       ? `${prefix}_${evidence.sourceName}`
       : evidence.sourceName;
-    let name = base;
-    for (let count = 2; taken.has(name.toLowerCase()); count += 1)
-      name = `${base}_${count}`;
+    const name = freeName(base, (text) => taken.has(text.toLowerCase()));
     taken.add(name.toLowerCase());
     return [{ ...evidence, sourceName: name }];
   });
+  // Couplings between the child's inductors come too, with its values.
+  const couplings = (composed.inductorCouplings ?? [])
+    .filter((coupling) =>
+      coupling.members.every((member) => kept.has(member.instanceId)),
+    )
+    .map((coupling) => ({
+      ...coupling,
+      k: substituteParameters(coupling.k, values),
+    }));
   const { inductorCouplings: _couplings, ...rest } = composed;
   const clipboard: SchematicClipboard = {
     ...rest,
+    ...(couplings.length ? { inductorCouplings: couplings } : {}),
     instances: parts.map((item) => withParameterValues(item, values)),
     cellTerminals: [],
     formalParameters: [],
