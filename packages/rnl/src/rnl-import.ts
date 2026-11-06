@@ -499,6 +499,10 @@ export function applyRnlSnapshot(
     const [major = 0, minor = 0] = version.split(".").map(Number);
     return name === "analog-canvas-extensions" && (major > 0 || minor >= 4);
   });
+  // Analog Canvas wrote the file (any version): its labels' looks are its own.
+  const canvasLooks = snapshot.packages.some(
+    ({ name }) => name === "analog-canvas-extensions",
+  );
   const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
     diagnostics.push({
@@ -562,6 +566,7 @@ export function applyRnlSnapshot(
       keptParameters,
       canvas04,
       tiedToGround,
+      canvasLooks,
     );
   }
   for (const { documentId, name } of cellNames)
@@ -946,6 +951,8 @@ function applyLevel(
   wiresNamed: boolean,
   /** Each Cell's pins its calls all tie to ground (`groundTiedPins`). */
   tiedToGround: Set<string>,
+  /** Analog Canvas wrote the file, so its labels keep their looks. */
+  canvasLooks: boolean,
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -2341,6 +2348,7 @@ function applyLevel(
     legNear,
     format,
     wiresNamed,
+    canvasLooks,
     called: project.documents.some((item) =>
       item.instances.some(
         (instance) =>
@@ -2511,6 +2519,7 @@ function importTexts(
     legNear,
     format,
     wiresNamed,
+    canvasLooks,
     called,
   }: {
     consumed: ReadonlySet<string>;
@@ -2535,11 +2544,12 @@ function importTexts(
     format: "spice" | "spectre";
     /** The file says which wire each net label is on (Canvas 0.4). */
     wiresNamed: boolean;
+    /** Analog Canvas wrote the file, so its labels keep their looks. */
+    canvasLooks: boolean;
     called: boolean;
   },
 ): void {
   const profile = resolveDocumentStyleProfile(document.presentation);
-  const scaled = sizeScale;
   const labelled = new Set(
     document.annotations.flatMap((item) =>
       item.anchor.kind === "object" ? [item.anchor.objectId] : [],
@@ -2553,6 +2563,11 @@ function importTexts(
     (object) =>
       object.kind === "usage" && object.definition === "$CANVAS_TYPESETTING",
   );
+  // A label's size, styles and colour come back only from Analog Canvas's own
+  // export. Another tool's texts carry that tool's typography (Virtuoso's
+  // upright 10-point names), so its labels take the house look: the text
+  // and where it stands, nothing of how it was set.
+  const scaled = canvasLooks ? sizeScale : () => ({});
   const statedOf = new Map(
     model.objects.flatMap((object) =>
       object.kind === "usage" &&
@@ -2605,7 +2620,7 @@ function importTexts(
     annotation: Parameters<typeof boundText>[0],
     content: NonNullable<Annotation["content"]>,
   ) =>
-    sameStyledText(boundText(annotation), content)
+    !canvasLooks || sameStyledText(boundText(annotation), content)
       ? {}
       : { formatOverride: content };
 
@@ -2664,7 +2679,8 @@ function importTexts(
       ...(shown === name
         ? {
             binding: { kind: "net-name" as const, netId: port.netId },
-            ...(sameStyledText(
+            ...(!canvasLooks ||
+            sameStyledText(
               labelTextDocument(name, document.presentation),
               content,
             )
@@ -2716,6 +2732,7 @@ function importTexts(
       (object) => object.id === text.attach,
     )?.style?.["textcolor"];
     const color =
+      canvasLooks &&
       typeof textcolor === "string" &&
       !(
         typeof ownerColour === "string" &&
@@ -2856,7 +2873,9 @@ function importTexts(
         look: {
           alignment,
           rotation,
-          ...(typeof colour === "string" ? { textColor: colour } : {}),
+          ...(canvasLooks && typeof colour === "string"
+            ? { textColor: colour }
+            : {}),
           ...scaled(text.size, profile.typography.netFontSize),
         },
       });
@@ -3041,7 +3060,8 @@ function importTexts(
           : {
               binding: { kind: "net-name" as const, netId },
               // The name its claim gives the net, set as the Cell sets names.
-              ...(shown === name &&
+              ...(canvasLooks &&
+              shown === name &&
               !sameStyledText(
                 labelTextDocument(name, document.presentation),
                 content,

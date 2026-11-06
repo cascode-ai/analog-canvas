@@ -5721,6 +5721,55 @@ describe.each(["circle", "diamond"] as const)(
   },
 );
 
+describe("another tool's label looks", () => {
+  it.each(["spice", "spectre"] as const)(
+    "give way to the house look; only Analog Canvas's own file keeps them (%s)",
+    async (format) => {
+      // Names set the way Virtuoso sets them: 10-point and coloured.
+      const project = withImportedInstanceDisplays(
+        controlledSources(["vcvs", "vccs"]),
+      );
+      for (const annotation of project.documents[0]!.annotations)
+        if (annotation.kind === "instance-label") {
+          annotation.sizeScale = 0.6616;
+          annotation.textColor = "#aa3300";
+        }
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      const labels = async (write: typeof exported.request) => {
+        const written = await runtime.write({ write, svg: false });
+        const plan = await importRnl(written.text, format);
+        expect(failures(plan)).toEqual([]);
+        return plan.project.documents[0]!.annotations.filter(
+          (annotation) => annotation.kind === "instance-label",
+        );
+      };
+      const own = await labels(exported.request);
+      expect(own.length).toBeGreaterThan(0);
+      for (const label of own) {
+        expect(label.sizeScale).toBe(0.6616);
+        expect(label.textColor).toBe("#aa3300");
+      }
+      // The same file as another tool writes it.
+      const foreign = await labels({
+        ...withoutCanvasMeaning(exported.request),
+        ops: withoutCanvasMeaning(exported.request).ops.filter(
+          (op) =>
+            !(
+              op.op === "use-package" && op.name === "analog-canvas-extensions"
+            ),
+        ),
+      });
+      expect(foreign.length).toBe(own.length);
+      for (const label of foreign) {
+        expect(label.sizeScale).toBeUndefined();
+        expect(label.textColor).toBeUndefined();
+        expect(label.formatOverride).toBeUndefined();
+      }
+    },
+  );
+});
+
 describe("legacy controlled-source diamond symbols", () => {
   it.each([
     ["spice", CONTROLLED_SOURCE_KINDS],
