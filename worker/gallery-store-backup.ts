@@ -18,6 +18,14 @@ import {
   syncAiSeatBylines,
 } from "./gallery-store-bylines";
 import { testbenchesMayBeInline } from "./gallery-store-maintenance";
+import {
+  BACKUP_TABLES,
+  BACKUP_SCOPES,
+  type BackupScope,
+  installBackupIndex,
+  backupChangeCursor,
+  backupChangedKeys,
+} from "./gallery-backup-index";
 
 function tableRows(value: unknown): Record<string, unknown>[] | null {
   return Array.isArray(value) && value.every(isRecord) ? value : null;
@@ -41,41 +49,11 @@ function rowValues(
 }
 
 /**
- * The tables a backup page may name, by the name a request uses, with the key
- * its cursor follows. These names are an allowlist, never caller-supplied SQL
- * identifiers.
- */
-const BACKUP_TABLES = {
-  galleryEntries: { name: "gallery_entries", keys: ["id"] },
-  galleryEntryVersions: { name: "gallery_entry_versions", keys: ["id"] },
-  galleryLikes: { name: "gallery_likes", keys: ["entry_id", "user_id"] },
-  cloudProjects: { name: "cloud_projects", keys: ["id"] },
-  cloudProjectVersions: { name: "cloud_project_versions", keys: ["id"] },
-} as const;
-type BackupTable = keyof typeof BACKUP_TABLES;
-
-/**
- * The tables each backup scope reads. A paginated capture compares its scope's
- * revision at the start and the end, so a private Project save never restarts
- * a Gallery-only capture, while any change to the rows it reads does.
- */
-const BACKUP_SCOPES: Record<"gallery" | "store", readonly BackupTable[]> = {
-  gallery: ["galleryEntries", "galleryEntryVersions", "galleryLikes"],
-  store: [
-    "galleryEntries",
-    "galleryEntryVersions",
-    "galleryLikes",
-    "cloudProjects",
-    "cloudProjectVersions",
-  ],
-};
-export type BackupScope = keyof typeof BACKUP_SCOPES;
-
-/**
  * Triggers count every row change per scope. The count lives in the database,
  * so a change that rolls back takes its count with it.
  */
 export function installBackupRevisions(sql: SqlStorage): void {
+  installBackupIndex(sql);
   sql.exec(`
     CREATE TABLE IF NOT EXISTS backup_revisions (
       scope TEXT PRIMARY KEY,
@@ -117,11 +95,14 @@ export function schemaBackup(
   const tables = Object.fromEntries(
     BACKUP_SCOPES[scope].map((key) => [key, BACKUP_TABLES[key]]),
   );
+  if (body.table === "changes")
+    return backupChangedKeys(sql, backupEpoch, scope, body.after);
   if (body.table === "inventory") {
     return Response.json({
       format: "analog-canvas-gallery-backup-inventory-v1",
       scope,
       exportedAt: new Date().toISOString(),
+      changeCursor: backupChangeCursor(sql, backupEpoch, scope),
       tables: Object.fromEntries(
         Object.entries(tables).map(([key, table]) => [
           key,
@@ -159,13 +140,15 @@ export function schemaBackup(
     : undefined;
   if (!table) return Response.json({ error: "invalid-table" }, { status: 400 });
   let after: unknown = null;
+  const exact = body.key != null;
   try {
-    if (body.after) after = JSON.parse(String(body.after));
+    if (exact || body.after)
+      after = JSON.parse(String(exact ? body.key : body.after));
   } catch {
     return Response.json({ error: "invalid-cursor" }, { status: 400 });
   }
   if (
-    after !== null &&
+    (exact || after !== null) &&
     (!Array.isArray(after) ||
       after.length !== table.keys.length ||
       after.some((key) => typeof key !== "string"))
@@ -173,10 +156,11 @@ export function schemaBackup(
     return Response.json({ error: "invalid-cursor" }, { status: 400 });
   }
   const columns = table.keys.join(", ");
+  const comparison = exact ? "=" : ">";
   const condition =
     table.keys.length === 1
-      ? `${columns} > ?`
-      : `(${columns}) > (${table.keys.map(() => "?").join(", ")})`;
+      ? `${columns} ${comparison} ?`
+      : `(${columns}) ${comparison} (${table.keys.map(() => "?").join(", ")})`;
   const rows = sql
     .exec<Record<string, unknown>>(
       `SELECT * FROM ${table.name}${after ? ` WHERE ${condition}` : ""} ORDER BY ${columns} LIMIT 1`,
@@ -187,9 +171,10 @@ export function schemaBackup(
     format: "analog-canvas-gallery-backup-page-v1",
     table: body.table,
     rows,
-    nextCursor: rows.length
-      ? JSON.stringify(table.keys.map((key) => rows[0]![key]))
-      : null,
+    nextCursor:
+      rows.length && !exact
+        ? JSON.stringify(table.keys.map((key) => rows[0]![key]))
+        : null,
   });
 }
 
