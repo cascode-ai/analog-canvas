@@ -7,6 +7,7 @@ import {
   electricalGraphTopologySimilarity,
   electricalGraphFromIR,
   projectElectricalGraph,
+  sameElectricalCircuit,
   type ElectricalGraphResult,
 } from "./equivalence.js";
 
@@ -186,11 +187,64 @@ describe("electrical duplicate comparison", () => {
     child.name = "child";
     nested.cells.push(child);
     expect(compare(flat, nested)).toBe("equal");
-    child.formalParameters = [{ name: "r", defaultValue: "1k" }];
-    expect(electricalGraphFromIR(nested)).toMatchObject({
+  });
+
+  it("compares parameterized hierarchy by its parameters' text", () => {
+    const nested = (defaultValue: string, passed: string | null) => {
+      const ir = circuit(
+        [
+          {
+            id: "X1",
+            reference: "X1",
+            deviceClass: "hierarchical",
+            invocationKind: "subcircuit",
+            target: "child",
+            parameters:
+              passed === null ? [] : [{ name: "r", rawValue: passed }],
+            nodes: [
+              { pinName: "a", netName: "in" },
+              { pinName: "b", netName: "out" },
+            ],
+          },
+        ],
+        ["in", "out"],
+      );
+      const child = circuit([resistor("R1", "a", "b")], ["a", "b"]).cells[0]!;
+      child.id = "child";
+      child.name = "child";
+      child.instances[0]!.parameters = [{ name: "r", rawValue: "{r}" }];
+      child.formalParameters = [{ name: "r", defaultValue }];
+      ir.cells.push(child);
+      return ir;
+    };
+    expect(electricalGraphFromIR(nested("1k", null)).status).toBe("ready");
+    expect(compare(nested("1k", null), nested("1000", null))).toBe("equal");
+    expect(compare(nested("1k", "2k"), nested("1k", "2k"))).toBe("equal");
+    expect(compare(nested("1k", null), nested("2k", null))).toBe("different");
+    expect(compare(nested("1k", "2k"), nested("1k", "3k"))).toBe("different");
+  });
+
+  it("proves a circuit past the size limit the same only by its printed cards", () => {
+    const large = (value: string) =>
+      circuit(
+        Array.from({ length: 1200 }, (_, index) =>
+          resistor(`R${index}`, `n${index}`, "0", index ? "1k" : value),
+        ),
+      );
+    const a = electricalGraphFromIR(large("1k"));
+    expect(a).toMatchObject({
       status: "uncheckable",
-      reason: expect.stringContaining("Parameterized"),
+      reason: expect.stringContaining("size limit"),
+      cards: expect.any(String),
     });
+    expect(sameElectricalCircuit(a, electricalGraphFromIR(large("1k")))).toBe(
+      true,
+    );
+    expect(sameElectricalCircuit(a, electricalGraphFromIR(large("2k")))).toBe(
+      false,
+    );
+    const unread = { status: "uncheckable", reason: "unread" } as const;
+    expect(sameElectricalCircuit(unread, unread)).toBe(false);
   });
 
   it("respects black-box target and terminal position", () => {
