@@ -200,7 +200,8 @@ their IDs, never resolved to the first.
   ±5 V; several candidates warn `IDEAL_OPAMP_SUPPLY_AMBIGUOUS` (bind VDD or
   VSS). Set a figure's stated swing (`vhigh:"12"`, `vlow:"-12"`) so oscillators
   and Schmitt triggers saturate as drawn. The fully differential op-amp is
-  unlimited.
+  unlimited; its outputs sit about `vocm` (`"0"`, volts from ground), so set
+  it where they drive gates on a single supply.
 - Formula blocks (catalog `formula: true`: integrator, unit delay,
   discrete-time integrator, transconductance) take
   `signalFlow:{formula?, coefficient?, bodyWidth?, bodyHeight?}`;

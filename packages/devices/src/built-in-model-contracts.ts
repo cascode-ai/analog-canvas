@@ -90,14 +90,26 @@ function parameter(
   };
 }
 
-const analog = {
-  opamp_differential: parameter(
+// An ideal CMFB holds the outputs about vocm, from ground: a single supply
+// needs it where the outputs drive gates or a following stage.
+const differentialOpamp: readonly DeviceParameterDefinition[] = [
+  parameter(
     "gain",
     "Differential gain",
     "1e6",
     "V/V",
     "Ideal, frequency-independent differential voltage gain; outputs are not rail-limited.",
   ),
+  parameter(
+    "vocm",
+    "Output common mode",
+    "0",
+    "V",
+    "Output common-mode level from ground, held as an ideal CMFB holds it: OUT± = vocm ± gain·(IN+ − IN−)/2.",
+  ),
+];
+
+const analog = {
   voltage_amplifier: parameter(
     "gain",
     "Voltage gain",
@@ -337,9 +349,11 @@ function contract(target: string): BuiltInModelContract | undefined {
               ? crystal
               : target === ADDER_TARGET
                 ? ADDER_SIGN_PARAMETERS
-                : Object.hasOwn(analog, target)
-                  ? [analog[target as keyof typeof analog]]
-                  : [],
+                : target === "opamp_differential"
+                  ? differentialOpamp
+                  : Object.hasOwn(analog, target)
+                    ? [analog[target as keyof typeof analog]]
+                    : [],
     backends: {
       spice: "included",
       spectre:

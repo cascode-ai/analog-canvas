@@ -140,7 +140,8 @@ pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
   differential op-amp (unlimited) are frequency-independent E/G sources that
-  VDD/VSS neither power nor clamp.
+  VDD/VSS neither power nor clamp. The fully differential op-amp's outputs are
+  `vocm` ± `gain`·V(IN+, IN−)/2 from ground (`vocm` 0, an ideal CMFB's level).
 - Op-amp: `gain`·V(IN+, IN−) (default 1e6), exact between `vlow`/`vhigh` and
   bending onto each limit within 1e-4 of the span. Limits are volts or
   `VDD`/`VSS` (default). It is powered when its VDD is a Net (selected or the one
