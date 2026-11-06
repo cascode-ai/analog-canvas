@@ -1,15 +1,16 @@
 // Runs the packaged renderer/host; only the external PPT receipt is simulated.
 import { _electron as electron, expect } from "@playwright/test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
-const [executablePath, fixturePath] = process.argv.slice(2);
-if (!executablePath || !fixturePath)
+const [executablePath, fixturePath, receiverPath] = process.argv.slice(2);
+const development = process.argv.includes("--development");
+if (!executablePath || !fixturePath || !receiverPath)
   throw new Error(
-    "Usage: node accept-powerpoint-close.mjs <packaged-exe> <project.icproj.json>",
+    "Usage: node accept-powerpoint-close.mjs <packaged-exe> <project.icproj.json> <VerifyCancellation.exe>",
   );
 const fixture = JSON.parse(await readFile(fixturePath, "utf8"));
 const documentId = fixture.documents.at(-1).id;
@@ -22,12 +23,14 @@ for (const mode of [
   "rejected",
   "newer-edit",
   "duplicate",
+  "cancel-pending",
+  "cancel-in-flight",
 ]) {
   const directory = await mkdtemp(join(tmpdir(), "circuit-close-"));
   console.log(`Starting ${mode}: ${directory}`);
   await writeFile(
     join(directory, "session.json"),
-    JSON.stringify({ token: "test", documentId }),
+    JSON.stringify({ token: "test", documentId, cancellationProtocol: 1 }),
   );
   await writeFile(join(directory, "drawing.icproj"), JSON.stringify(fixture));
   const env = {
@@ -41,7 +44,11 @@ for (const mode of [
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({
     executablePath: resolve(executablePath),
-    args: ["--open-project", join(directory, "drawing.icproj")],
+    args: [
+      ...(development ? [resolve(import.meta.dirname, "..")] : []),
+      "--open-project",
+      join(directory, "drawing.icproj"),
+    ],
     env,
     timeout: 60000,
   });
@@ -122,7 +129,11 @@ for (const mode of [
     }
     if (mode === "background")
       await page.getByRole("tab", { name: "New Circuit", exact: true }).click();
-    if (mode === "button" || mode === "newer-edit") {
+    if (
+      mode === "button" ||
+      mode === "newer-edit" ||
+      mode.startsWith("cancel-")
+    ) {
       await page
         .getByRole("button", { name: "Save to PowerPoint", exact: true })
         .click();
@@ -151,6 +162,107 @@ for (const mode of [
     assert.equal(result.documentId, documentId);
     assert.ok(result.svg.includes("<svg"));
     assert.equal(page.isClosed(), false, "Must wait for a PPT receipt");
+    if (mode.startsWith("cancel-")) {
+      // Withhold the external Office receipt until the real renderer times out.
+      await expect(
+        page
+          .getByRole("status")
+          .filter({ hasText: "PowerPoint has not acknowledged" }),
+      ).toBeVisible({ timeout: 45000 });
+      await writeFile(join(directory, "applied.json"), "original drawing");
+      let consumer;
+      try {
+        if (mode === "cancel-in-flight") {
+          await writeFile(
+            join(directory, "block-apply"),
+            "hold after reading, before applying",
+          );
+          consumer = spawn(resolve(receiverPath), [directory], {
+            windowsHide: true,
+            stdio: "ignore",
+          });
+          await expect
+            .poll(async () =>
+              readFile(join(directory, "receiver-ready"), "utf8").catch(
+                () => "",
+              ),
+            )
+            .not.toBe("");
+        }
+        await app.evaluate(({ BrowserWindow, dialog }) => {
+          dialog.showMessageBox = async (_w, options) => {
+            globalThis.closeMessages.push(options);
+            return {
+              response: options.buttons.includes(
+                "Close without updating PowerPoint",
+              )
+                ? 1
+                : 0,
+            };
+          };
+          BrowserWindow.getAllWindows()[0].close();
+        });
+        if (consumer) {
+          await expect
+            .poll(() =>
+              app.evaluate(() =>
+                globalThis.closeMessages.some((m) =>
+                  m.detail?.includes("outcome is unknown"),
+                ),
+              ),
+            )
+            .toBe(true);
+          assert.equal(
+            page.isClosed(),
+            false,
+            "An in-flight apply cannot be reported as cancelled",
+          );
+          await assert.rejects(readFile(join(directory, "cancel.json")), {
+            code: "ENOENT",
+          });
+          await unlink(join(directory, "block-apply"));
+          await expect
+            .poll(async () =>
+              JSON.parse(
+                await readFile(join(directory, "ack.json"), "utf8").catch(
+                  () => "{}",
+                ),
+              ),
+            )
+            .toMatchObject({ sequence: 1, ok: true });
+          await app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0].close(),
+          );
+        }
+        await expect.poll(() => page.isClosed()).toBe(true);
+        assert.equal(
+          JSON.parse(await readFile(join(directory, "cancel.json"), "utf8"))
+            .throughSequence,
+          1,
+        );
+        const received = spawnSync(resolve(receiverPath), [directory], {
+          windowsHide: true,
+          encoding: "utf8",
+          timeout: 10000,
+        });
+        assert.equal(received.status, 0, received.stderr);
+        assert.equal(
+          await readFile(join(directory, "applied.json"), "utf8"),
+          consumer ? result.project : "original drawing",
+          "Releasing Office after cancellation must not apply the pending result",
+        );
+        assert.equal(
+          JSON.parse(await readFile(join(directory, "revision-1.json"), "utf8"))
+            .project,
+          result.project,
+        );
+        report.push({ mode, passed: true, directory });
+        console.log(`${mode}: passed`);
+        continue;
+      } finally {
+        if (consumer && consumer.exitCode === null) consumer.kill();
+      }
+    }
     if (mode === "newer-edit") await rename("Edited while PPT was saving");
     const closed =
       mode === "close" || mode === "background"

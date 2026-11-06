@@ -13,3 +13,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Native contract validation failed. A running W
 if ($LASTEXITCODE -ne 0) { throw 'History dialog test compilation failed' }
 & (Join-Path $destination 'VerifyHistoryDialog.exe')
 if ($LASTEXITCODE -ne 0) { throw 'History dialog validation failed' }
+& $compiler /nologo "/out:$destination\VerifyCancellation.exe" "/r:$destination\CircuitCanvas.dll" "$PSScriptRoot\tests\VerifyCancellation.cs"
+if ($LASTEXITCODE -ne 0) { throw 'Cancellation receiver test compilation failed' }
+& (Join-Path $destination 'VerifyCancellation.exe') --self-test $destination
+if ($LASTEXITCODE -ne 0) { throw 'Cancellation receiver contract validation failed' }
