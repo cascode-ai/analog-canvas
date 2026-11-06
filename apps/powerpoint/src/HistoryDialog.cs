@@ -6,6 +6,8 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("VerifyHistoryDialog")]
+
 namespace CircuitCanvas {
     internal sealed class PowerPointWindow : IWin32Window {
         [DllImport("user32.dll")] static extern IntPtr GetActiveWindow();

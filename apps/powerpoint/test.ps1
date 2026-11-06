@@ -9,3 +9,7 @@ $extensibility = Join-Path $env:WINDIR 'assembly\GAC\Extensibility\7.0.3300.0__b
 if ($LASTEXITCODE -ne 0) { throw 'Native contract test compilation failed' }
 & (Join-Path $destination 'VerifyTransparency.exe') $destination
 if ($LASTEXITCODE -ne 0) { throw 'Native contract validation failed. A running Windows desktop PowerPoint instance is required.' }
+& $compiler /nologo "/out:$destination\VerifyHistoryDialog.exe" "/r:$destination\CircuitCanvas.dll" /r:System.Windows.Forms.dll /r:System.Drawing.dll "$PSScriptRoot\tests\VerifyHistoryDialog.cs"
+if ($LASTEXITCODE -ne 0) { throw 'History dialog test compilation failed' }
+& (Join-Path $destination 'VerifyHistoryDialog.exe')
+if ($LASTEXITCODE -ne 0) { throw 'History dialog validation failed' }
