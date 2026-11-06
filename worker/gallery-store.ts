@@ -170,6 +170,8 @@ export type GalleryEnv = {
   PROJECT_IDENTITY_TOKEN?: string;
   /** Sessions are the only identity: publishing requires one. */
   AUTH?: AuthNamespaceLike;
+  /** Regional authorization leases must be checked locally on every request. */
+  AUTH_REGIONAL_CLIENT?: string;
   ADMIN_EMAILS?: string;
   ADMIN_EMAILS_EXTRA?: string;
 };
