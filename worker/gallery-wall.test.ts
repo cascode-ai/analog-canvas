@@ -555,6 +555,36 @@ describe("newest-first gallery feed", () => {
     expect((await walk(env, "parts")).at(-1)).toBe(wall[5]);
   });
 
+  it("orders by most likes, then newest, paging without repeats", async () => {
+    const env = environment();
+    const wall = await wallOf(env, 7);
+    const likes = [2, 0, 5, 2, 0, 1, 2];
+    wall.forEach((id, index) => {
+      for (let user = 0; user < likes[index]!; user += 1)
+        env.gallerySql.exec(
+          "INSERT INTO gallery_likes (entry_id, user_id, liked_at) VALUES (?, ?, ?)",
+          id,
+          `reader-${user}`,
+          "2026-11-06T00:00:00.000Z",
+        );
+    });
+    const seen = await walk(env, "likes");
+    expect(seen).toHaveLength(7);
+    const count = new Map(wall.map((id, index) => [id, likes[index]!]));
+    const counts = seen.map((id) => count.get(id)!);
+    expect(counts).toEqual([5, 2, 2, 2, 1, 0, 0]);
+    // Equal likes: the newer first.
+    expect(seen.filter((id) => count.get(id) === 2)).toEqual([
+      wall[6],
+      wall[3],
+      wall[0],
+    ]);
+    expect(seen.filter((id) => count.get(id) === 0)).toEqual([
+      wall[4],
+      wall[1],
+    ]);
+  });
+
   it("orders by name, A to Z or Z to A, letters' case aside, paging without repeats", async () => {
     const env = environment();
     const wall = await wallOf(env, 7);
@@ -595,7 +625,7 @@ describe("newest-first gallery feed", () => {
     const env = environment();
     await wallOf(env, 4);
     const before = env.galleryQueries.length;
-    for (const order of ["random", "parts", "name"])
+    for (const order of ["random", "parts", "name", "likes"])
       await orderedPage(env, order, "abc123");
     const queries = env.galleryQueries.slice(before);
     const plan = (query: string) =>
@@ -613,12 +643,12 @@ describe("newest-first gallery feed", () => {
     // Each order's ids come off the index alone, never the wide rows that
     // carry Project Code and previews (about a second a page, 2026-10-13).
     const sorts = queries.filter((q) => /^\s*SELECT e\.id FROM/u.test(q));
-    expect(sorts).toHaveLength(3);
+    expect(sorts).toHaveLength(4);
     for (const query of sorts) expect(plan(query)).toContain("COVERING INDEX");
     // The page's tiles are read by id off the card index, never the rows
     // behind their Projects and previews (about 0.8 s a page on Production).
     const reads = queries.filter((q) => q.includes("e.id IN ("));
-    expect(reads).toHaveLength(3);
+    expect(reads).toHaveLength(4);
     for (const query of reads)
       expect(plan(query)).toContain(
         "COVERING INDEX idx_gallery_entries_card (id=?)",

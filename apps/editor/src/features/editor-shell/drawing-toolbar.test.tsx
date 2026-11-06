@@ -40,8 +40,13 @@ describe("DrawingToolbar", () => {
     expect(markup).not.toContain('data-testid="draw-tool-line"');
     expect(markup).not.toContain('data-testid="draw-tool-rectangle"');
     expect(markup).not.toContain('data-testid="draw-tool-circle"');
+    // Properties keeps its name; familiar tools are named icons.
     expect(markup).toContain("Properties: Ports, canvas, and selected objects");
     expect(markup).toContain("Properties</span>");
+    expect(markup).toContain('aria-label="Undo"');
+    expect(markup).toContain('aria-keyshortcuts="W"');
+    expect(markup).not.toContain("Undo</span>");
+    expect(markup).not.toContain("Wire</span>");
     expect(markup).not.toContain('data-testid="digital-simulation-toggle"');
     expect(markup).not.toContain("Digital Simulation");
     expect(markup).toContain('aria-label="Panels"');

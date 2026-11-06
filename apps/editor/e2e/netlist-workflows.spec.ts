@@ -9,7 +9,7 @@ import {
   expectComponentCodeField,
   expectStatus,
   openMenu,
-  openCellManagerTab,
+  openExternalCircuits,
   openProjectFile,
   showNetlistPanel,
   openEditor,
@@ -175,7 +175,7 @@ X2 OUT IN EXT_MASTER l=1u nf=4
     "Legacy declaration EXT_MASTER has no Project-owned implementation",
   );
   await expect(page.getByTestId("copy-netlist-panel")).toBeDisabled();
-  const manager = await openCellManagerTab(page, "External Circuits");
+  const manager = await openExternalCircuits(page);
   await manager.getByRole("button", { name: /EXT_MASTER/ }).click();
   await manager
     .getByRole("button", { name: "Define implementation…", exact: true })
@@ -186,7 +186,7 @@ X2 OUT IN EXT_MASTER l=1u nf=4
   await manager
     .getByRole("button", { name: "Apply model", exact: true })
     .click();
-  await manager.getByLabel("Close Cell Manager").click();
+  await manager.getByLabel("Close External Circuits").click();
   const spice = await copyNetlistText(page);
   await expect(checkReport(page)).toHaveCount(0);
   expect(spice).toContain(".subckt leaf A B params: scale=1");

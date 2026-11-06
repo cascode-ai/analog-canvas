@@ -23,8 +23,7 @@ layout.
 The header has **File**, **Edit** and **Circuit** menus and the **Simulate**,
 **Agent** and **Publish** actions. **File** holds Project Info (circuit and
 Cell names) and the file commands; **New Project** replaces the current tab's
-circuit after asking about unsaved work. **Circuit** holds **Hierarchy** (Cell
-Manager) and **Netlist**.
+circuit after asking about unsaved work. **Circuit** holds **Hierarchy** (the circuit tree) and **Netlist**.
 
 Each project tab is an independent circuit with its own view, selection, undo
 history and Cloud binding. Use **+** for a new project, **Open file in new

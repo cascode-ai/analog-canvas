@@ -103,6 +103,8 @@ interface ProjectTabSessionsOptions {
   project: CircuitProject;
   activateDocumentSession: DocumentControllerState["activateSession"];
   editorDocumentController: EditorDocumentController;
+  hierarchyExpanded: string[];
+  setHierarchyExpanded: Dispatch<SetStateAction<string[]>>;
   documentStack: HierarchyFrame[];
   setDocumentStack: Dispatch<SetStateAction<HierarchyFrame[]>>;
   visualSelection: SelectionController["selection"];
@@ -203,6 +205,8 @@ export function useProjectTabSessions({
   project,
   activateDocumentSession,
   editorDocumentController,
+  hierarchyExpanded,
+  setHierarchyExpanded,
   documentStack,
   setDocumentStack,
   visualSelection,
@@ -267,6 +271,7 @@ export function useProjectTabSessions({
       view: cameraRuntime.current(),
       cellViews: new Map(documentViewBoxes.current),
       stack: documentStack,
+      hierarchyExpanded,
       selection: visualSelection,
       panel: projectPanel,
       properties: selectionOpen,
@@ -298,6 +303,7 @@ export function useProjectTabSessions({
     resumeRecoverySession(session.recovery);
     documentViewBoxes.current = new Map(session.cellViews);
     setDocumentStack(session.stack);
+    setHierarchyExpanded(session.hierarchyExpanded);
     setViewBox(session.view, session.controller.document.presentation.grid);
     autoFitProjectRef.current = session.controller.projectSessionId;
     pendingAutoFitRef.current = session.fit;
@@ -348,6 +354,7 @@ export function useProjectTabSessions({
       view: nextView,
       cellViews: new Map(),
       stack: [],
+      hierarchyExpanded: [],
       selection: {
         instanceIds: [],
         routeIds: [],
@@ -395,6 +402,11 @@ export function useProjectTabSessions({
       );
     const session: TabSession = {
       ...saved,
+      hierarchyExpanded: Array.isArray(saved.hierarchyExpanded)
+        ? saved.hierarchyExpanded
+            .filter((key) => typeof key === "string")
+            .slice(0, 10000)
+        : [],
       // Cloud publication metadata may change while the page is closed.
       // Keep the local draft, but resolve its current link before publishing.
       publication: saved.file.cloudBinding ? null : saved.publication,

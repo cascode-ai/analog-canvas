@@ -198,6 +198,107 @@ it("keeps a drawing the imported circuit disagrees with only when it writes the 
   expect(refused).toMatchObject({ code: "RNL_IMPORT_CHANGES_NETLIST" });
 });
 
+/** #1932's probe: a switch whose name label is its clock phase. */
+function clockProbe(name: string, params = "") {
+  return [
+    "* clock safety probe",
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3")}',
+    `.subckt dut a b clk wrong VSS${params}`,
+    "S1 a b clk VSS ideal_switch",
+    ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+    '* @RNL(author="analog-canvas") {',
+    '*   #S1 @SET-SYMBOL $SWITCH => @PLACE(0, 0) => @ORIENT("R0");',
+    `*   #S1 @TEXT("${name}", key="name", dx=0, dy=2, halign="middle", size=0.5)`,
+    "* }",
+    ".ends dut",
+    "",
+  ].join("\n");
+}
+
+/** A flat circuit past the comparison's size limit, with the same switch. */
+function largeProbe(...drawing: string[]) {
+  return [
+    "* large clock probe",
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3")}',
+    ...Array.from(
+      { length: 1200 },
+      (_, index) => `R${index + 1} n${index} 0 1k`,
+    ),
+    "S1 a b clk VSS ideal_switch",
+    ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+    '* @RNL(author="analog-canvas") {',
+    ...drawing.map((line) => `*   ${line}`),
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+}
+
+async function importText(text: string) {
+  const path = "probe.sp";
+  const plan = await planRnlImport({
+    inputs: [{ path, bytes: new TextEncoder().encode(text) }],
+    entryPath: path,
+    runtime,
+  });
+  if (plan.status !== "ready") throw new Error(plan.message);
+  const written = createDesignNetlistExport(plan.project, { format: "spice" });
+  if (written.status !== "ready") throw new Error("export failed");
+  return {
+    errors: plan.diagnostics.filter((item) => item.severity === "error"),
+    card: written.file.text
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => /^S1 /i.test(line)),
+  };
+}
+
+it("leaves out a drawing that changes a parameterized circuit, or one past the comparison's size limit", async () => {
+  const parameterized = await importText(clockProbe("wrong", " params: p=1"));
+  expect(parameterized.errors).toEqual([
+    expect.objectContaining({
+      code: "RNL_IMPORT_CHANGES_NETLIST",
+      message:
+        "The RNL drawing would change the netlist, so the circuit comes in undrawn",
+    }),
+  ]);
+  expect(parameterized.card).toBe("S1 a b clk VSS ideal_switch");
+  const large = await importText(
+    largeProbe(
+      '#S1 @SET-SYMBOL $SWITCH => @PLACE(0, 0) => @ORIENT("R0");',
+      '#S1 @TEXT("wrong", key="name", dx=0, dy=2, halign="middle", size=0.5)',
+    ),
+  );
+  expect(large.errors).toEqual([
+    expect.objectContaining({
+      code: "RNL_IMPORT_CHANGES_NETLIST",
+      message: expect.stringContaining("size limit"),
+    }),
+  ]);
+  expect(large.card).toBe("S1 a b clk VSS ideal_switch");
+  // Without its parameter, the same drawing is refused as before.
+  const plain = await importText(clockProbe("wrong"));
+  expect(plain.errors).toEqual([
+    expect.objectContaining({
+      code: "RNL_IMPORT_CHANGES_NETLIST",
+      message:
+        "The RNL drawing would change the netlist, so the circuit comes in undrawn",
+    }),
+  ]);
+  expect(plain.card).toBe("S1 a b clk VSS ideal_switch");
+}, 60_000);
+
+it("keeps a drawing of a parameterized circuit, or one past the comparison's size limit, that keeps its netlist", async () => {
+  for (const text of [
+    clockProbe("clk", " params: p=1"),
+    largeProbe('#R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0");'),
+  ]) {
+    const kept = await importText(text);
+    expect(kept.errors).toEqual([]);
+    expect(kept.card).toBe("S1 a b clk VSS ideal_switch");
+  }
+}, 60_000);
+
 /**
  * #1954's probe: a top main, and a Cell dut no Cell calls, whose switch is
  * labelled `name` by the drawing; `dutIsTop` leaves main out.

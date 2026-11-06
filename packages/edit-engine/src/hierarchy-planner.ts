@@ -153,24 +153,42 @@ export function planRenameCell(
   return [{ kind: "rename_document", documentId, name }];
 }
 
+/** Why a Cell cannot be deleted: it is Top, or an instance still uses it. */
+export type CellDeletionRefusal =
+  | { reason: "top" }
+  | { reason: "used"; documentId: string; instanceId: string };
+
+/** The one rule deletion follows, for planners, transactions and the UI. */
+export function cellDeletionRefusal(
+  project: CircuitProject,
+  documentId: string,
+): CellDeletionRefusal | undefined {
+  if (documentId === project.topDocumentId) return { reason: "top" };
+  for (const document of project.documents)
+    for (const instance of document.instances) {
+      const binding = instance.netlist?.binding;
+      if (
+        binding?.kind === "subcircuit" &&
+        binding.childDocumentId === documentId
+      )
+        return {
+          reason: "used",
+          documentId: document.id,
+          instanceId: instance.id,
+        };
+    }
+  return undefined;
+}
+
 export function planDeleteCell(
   project: CircuitProject,
   documentId: string,
 ): ProjectStructureEdit[] {
   requireDocument(project, documentId);
-  const caller = project.documents
-    .flatMap((parent) =>
-      parent.instances.map((instance) => ({ parent, instance })),
-    )
-    .find(({ instance }) => {
-      const binding = instance.netlist?.binding;
-      return (
-        binding?.kind === "subcircuit" && binding.childDocumentId === documentId
-      );
-    });
-  if (caller) {
+  const refusal = cellDeletionRefusal(project, documentId);
+  if (refusal?.reason === "used") {
     throw new Error(
-      `Cell ${documentId} is still referenced by ${caller.parent.id}.${caller.instance.id}`,
+      `Cell ${documentId} is still referenced by ${refusal.documentId}.${refusal.instanceId}`,
     );
   }
   return [{ kind: "remove_document", documentId }];

@@ -288,14 +288,23 @@ const searchMatchesByRequest = new WeakMap<object, string>();
 /**
  * The wall's orders (#1615): a shuffle, the default, that a seed keeps steady
  * from page to page; by time, newest or oldest first; by part count, most
- * or fewest first, circuits whose part count is unknown last either way; or
- * by name, A to Z or Z to A (letters' case aside).
+ * or fewest first, circuits whose part count is unknown last either way; by
+ * likes, most first; or by name, A to Z or Z to A (letters' case aside).
  */
 export type WallOrder =
-  "random" | "newest" | "oldest" | "parts" | "fewest" | "name" | "name-desc";
+  | "random"
+  | "newest"
+  | "oldest"
+  | "parts"
+  | "fewest"
+  | "likes"
+  | "name"
+  | "name-desc";
 
 const KNOWN_PARTS =
   "CASE WHEN e.component_count_version > 0 THEN e.component_count END";
+/** A circuit's likes, counted off the likes' entry index. */
+const WALL_LIKES = "(SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id)";
 /** Part counts as each part order sorts them, unknown counts at the end. */
 const WALL_PARTS = {
   parts: `COALESCE(${KNOWN_PARTS}, -1)`,
@@ -315,6 +324,7 @@ export function wallOrder(body: Record<string, unknown>): {
     body.order === "oldest" ||
     body.order === "parts" ||
     body.order === "fewest" ||
+    body.order === "likes" ||
     body.order === "name" ||
     body.order === "name-desc"
   )
@@ -362,6 +372,7 @@ const DESCENDING: Record<WallOrder, readonly boolean[]> = {
   oldest: [false, false],
   parts: [true, true, true],
   fewest: [false, true, true],
+  likes: [true, true, true],
   random: [false, false],
   name: [false, false],
   "name-desc": [true, true],
@@ -510,7 +521,7 @@ export function list(
            e.component_count_version, e.ai_generated,
            ${order === "fewest" ? WALL_PARTS.fewest : WALL_PARTS.parts} AS parts,
            ${SIMULATION_CHECK_PASSES} AS simulation_passes,
-           (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
+           ${WALL_LIKES} AS likes,
            (SELECT COUNT(*) FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
          FROM gallery_entries e ${indexed}
@@ -532,6 +543,11 @@ export function list(
       return {
         key: [row.parts, row.created_at, row.id],
         cursor: `${order === "parts" ? "p" : "f"}${row.parts}|${row.created_at}|${row.id}`,
+      };
+    if (order === "likes")
+      return {
+        key: [row.likes, row.created_at, row.id],
+        cursor: `l${row.likes}|${row.created_at}|${row.id}`,
       };
     if (order === "name" || order === "name-desc")
       return {
@@ -596,6 +612,15 @@ export function list(
         );
         tailBindings.push(Number(parts), Number(parts), rest);
       }
+    } else if (order === "likes") {
+      const [likes, rest] =
+        /^l(\d+)\|(.+)$/u.exec(cursor ?? "")?.slice(1) ?? [];
+      if (likes !== undefined && rest !== undefined) {
+        where.push(
+          `(${WALL_LIKES} < ? OR (${WALL_LIKES} = ? AND (e.created_at || '|' || e.id) < ?))`,
+        );
+        tailBindings.push(Number(likes), Number(likes), rest);
+      }
     } else if (order === "name" || order === "name-desc") {
       const tag = order === "name" ? "a" : "z";
       const resume = cursor?.startsWith(tag)
@@ -624,7 +649,7 @@ export function list(
       if (
         cursor &&
         cursor.startsWith(tag) &&
-        (tag || !/^[ofpraz]/u.test(cursor))
+        (tag || !/^[ofplraz]/u.test(cursor))
       ) {
         where.push(`(e.created_at || '|' || e.id) ${after} ?`);
         tailBindings.push(cursor.slice(tag.length));
@@ -633,11 +658,13 @@ export function list(
     const sort =
       order === "parts" || order === "fewest"
         ? `${WALL_PARTS[order]} ${order === "parts" ? "DESC" : "ASC"}, e.created_at DESC, e.id DESC`
-        : order === "name"
-          ? "e.name COLLATE NOCASE ASC, e.id ASC"
-          : order === "name-desc"
-            ? "e.name COLLATE NOCASE DESC, e.id DESC"
-            : time;
+        : order === "likes"
+          ? `${WALL_LIKES} DESC, e.created_at DESC, e.id DESC`
+          : order === "name"
+            ? "e.name COLLATE NOCASE ASC, e.id ASC"
+            : order === "name-desc"
+              ? "e.name COLLATE NOCASE DESC, e.id DESC"
+              : time;
     // The page's ids first, sorted off the covering index; then their rows.
     const ids = sql
       .exec<{ id: string }>(

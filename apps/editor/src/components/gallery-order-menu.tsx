@@ -1,6 +1,7 @@
 /**
  * The wall's order (#1615), left of the contributor count: random by
- * default, or by time or part count in either direction. Choosing Random
+ * default, by time or part count in either direction, or most liked
+ * first. Choosing Random
  * again reshuffles. On a narrow screen only the icon shows.
  */
 import { useRef } from "react";
@@ -15,6 +16,7 @@ const LABELS: Record<GalleryOrder, string> = {
   oldest: "Oldest",
   parts: "Most parts",
   fewest: "Fewest parts",
+  likes: "Most liked",
   name: "Name A–Z",
   "name-desc": "Name Z–A",
 };
@@ -45,6 +47,13 @@ function OrderIcon({ order }: { order: GalleryOrder }) {
           <path d="M5 13.5v-11M2.5 5 5 2.5 7.5 5" />
         )}
         <path d="M9.5 7 11.25 2.5 13 7M10.1 5.5h2.3M9.5 9.5H13l-3.5 4H13" />
+      </svg>
+    );
+  if (order === "likes")
+    return (
+      <svg {...common}>
+        <path d="M5 2.5v11M2.5 11 5 13.5 7.5 11" />
+        <path d="M11 13s-3.5-2.2-3.5-4.6c0-1 .8-1.9 1.8-1.9.7 0 1.3.4 1.7 1 .4-.6 1-1 1.7-1 1 0 1.8.9 1.8 1.9 0 2.4-3.5 4.6-3.5 4.6Z" />
       </svg>
     );
   const down = order === "newest" || order === "parts";
@@ -108,6 +117,8 @@ export function GalleryOrderMenu({
         <span className="gallery-order-group">Parts</span>
         {item("parts", "Most first")}
         {item("fewest", "Fewest first")}
+        <span className="gallery-order-group">Likes</span>
+        {item("likes", "Most first")}
         <span className="gallery-order-group">Name</span>
         {item("name", "A to Z")}
         {item("name-desc", "Z to A")}

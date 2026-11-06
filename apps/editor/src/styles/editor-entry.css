@@ -6,11 +6,13 @@
 @import "../components/account.css";
 @import "../components/inline-confirm.css";
 @import "./editor-workspace.css";
+@import "./editor-hierarchy-tree.css";
 @import "./editor-inspection.css";
 @import "./editor-overlays.css";
 @import "./editor-canvas.css";
 @import "./editor-properties.css";
 @import "./editor-dialogs.css";
+@import "./editor-hierarchy-dialogs.css";
 @import "./editor-canvas-state.css";
 @import "./editor-agent.css";
 @import "./editor-simulation.css";

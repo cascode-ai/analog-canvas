@@ -1,8 +1,8 @@
 import type { CircuitProject } from "@icm/model";
 import {
-  compareElectricalGraphs,
   createDesignNetlistExport,
   projectElectricalGraph,
+  sameElectricalCircuit,
 } from "@icm/netlist";
 import { serializeProject } from "@icm/project-protocol";
 import {
@@ -124,14 +124,18 @@ export async function drawnProject(
   writesFileNetlist: (project: CircuitProject) => Promise<boolean>,
 ): Promise<{ project: CircuitProject } | OmittedDrawing> {
   try {
+    const before = projectElectricalGraph(imported);
     if (
       !sameCircuits(imported, drawn.project) &&
       !(await writesFileNetlist(drawn.project))
     )
       return {
         code: "RNL_IMPORT_CHANGES_NETLIST",
+        // A circuit the comparison cannot check comes in undrawn too (#1932).
         message:
-          "The RNL drawing would change the netlist, so the circuit comes in undrawn",
+          before.status === "ready"
+            ? "The RNL drawing would change the netlist, so the circuit comes in undrawn"
+            : `The RNL drawing may change a netlist that cannot be compared (${before.reason}), so the circuit comes in undrawn`,
       };
     // A port the drawing shows only as its power label is that label again
     // (#1783): the circuit is the same, only who owns the port changes.
@@ -155,7 +159,7 @@ export async function drawnProject(
 /**
  * Whether the drawn circuit writes the file's own netlist: its netlist,
  * written as the RNL export writes it and read back as the file was, is the
- * same circuit to the comparison as the file's, "equal" and nothing less,
+ * same circuit as the file's (`sameElectricalCircuit`), and nothing less,
  * the top's and each uncalled Cell's (`sameCircuits`).
  * The file's netlist read alone does not always write what it read: a
  * ground pin the export named VSS reads as a port, and writes a GND pin
@@ -226,9 +230,9 @@ function circuitRoots(project: CircuitProject): string[] {
 
 /**
  * Whether a Project keeps the reference's circuits: rooted at each of the
- * reference's roots, its graph is "equal" to the reference's wherever the
- * reference's is ready. The two Cells of a root are the same Document, or,
- * across an import (`byName`), the two tops or the Cells of one name.
+ * reference's roots, the same circuit as the reference's
+ * (`sameElectricalCircuit`). The two Cells of a root are the same Document,
+ * or, across an import (`byName`), the two tops or the Cells of one name.
  */
 function sameCircuits(
   reference: CircuitProject,
@@ -243,16 +247,10 @@ function sameCircuits(
       : root === reference.topDocumentId
         ? project.topDocumentId
         : project.documents.find((item) => item.netlist?.name === name)?.id;
-    const before = projectElectricalGraph({
-      ...reference,
-      topDocumentId: root,
-    });
-    if (before.status !== "ready") return !byName;
     if (!twin) return false;
-    const after = projectElectricalGraph({ ...project, topDocumentId: twin });
-    return (
-      after.status === "ready" &&
-      compareElectricalGraphs(before.graph, after.graph) === "equal"
+    return sameElectricalCircuit(
+      projectElectricalGraph({ ...reference, topDocumentId: root }),
+      projectElectricalGraph({ ...project, topDocumentId: twin }),
     );
   });
 }
