@@ -103,6 +103,7 @@ import {
   RegionalProjectDO,
   type ProjectRegionConfig,
 } from "./regional-projects";
+import { includesProjectOwner } from "./project-region-scope";
 import {
   installSimulationChecks,
   nextSimulationCheck,
@@ -136,7 +137,7 @@ export class GalleryDO {
 
   constructor(
     private readonly state: DurableObjectStateLike,
-    env?: Partial<ProjectRegionConfig>,
+    private readonly env?: Partial<ProjectRegionConfig>,
   ) {
     this.sql = state.storage.sql;
     this.sql.exec(`
@@ -479,30 +480,60 @@ export class GalleryDO {
 
   async fetch(request: Request): Promise<Response> {
     const operation = new URL(request.url).pathname.slice(1);
+    const body =
+      request.method === "POST"
+        ? ((await request.json()) as Record<string, unknown>)
+        : {};
+    let participating = false;
+    if (this.regionalProjects) {
+      try {
+        participating = includesProjectOwner(
+          this.env?.PROJECT_REGION_USERS,
+          String(body.userId ?? body.ownerUserId ?? ""),
+        );
+      } catch {
+        return Response.json(
+          { error: "region-not-configured" },
+          { status: 503 },
+        );
+      }
+    }
     if (this.regionalProjects) {
       if (
-        operation.startsWith("cloud-project-") ||
+        (participating && operation.startsWith("cloud-project-")) ||
+        operation === "cloud-project-region" ||
         operation.startsWith("sync-")
       )
-        return this.regionalProjects.fetch(request);
+        return this.regionalProjects.handle(operation, body);
       if (
-        ["schema-restore", "schema-converge", "delete-account"].includes(
-          operation,
-        )
+        ["schema-restore", "schema-converge"].includes(operation) ||
+        (operation === "delete-account" && participating)
       )
         return Response.json(
           { error: "regional-coordination-required" },
           { status: 409 },
         );
     }
-    const body =
-      request.method === "POST"
-        ? ((await request.json()) as Record<string, unknown>)
-        : {};
-    if (
+    const affectsParticipatingOwner =
       this.regionalProjects &&
-      (body.cloudProjectId !== undefined ||
-        (operation === "replace-entry" && body.ownerUserId !== undefined))
+      operation === "replace-entry" &&
+      typeof body.ownerUserId === "string"
+        ? this.sql
+            .exec<{ user_id: string }>(
+              "SELECT DISTINCT user_id FROM cloud_projects WHERE gallery_entry_id=? AND user_id<>?",
+              String(body.id),
+              body.ownerUserId,
+            )
+            .toArray()
+            .some((row) =>
+              includesProjectOwner(this.env?.PROJECT_REGION_USERS, row.user_id),
+            )
+        : false;
+    if (
+      affectsParticipatingOwner ||
+      (participating &&
+        (body.cloudProjectId !== undefined ||
+          (operation === "replace-entry" && body.ownerUserId !== undefined)))
     )
       return Response.json(
         { error: "regional-publication-unavailable" },

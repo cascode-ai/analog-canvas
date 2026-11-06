@@ -6,6 +6,7 @@ import {
 } from "./project-sync-journal";
 import { decodeProjectEvent } from "./project-sync-protocol";
 import { ProjectQuota } from "./project-quota";
+import { projectRegionUsers } from "./project-region-scope";
 import {
   cloudProjectCreate,
   cloudProjectDelete,
@@ -21,6 +22,7 @@ import {
 
 export interface ProjectRegionConfig {
   PROJECT_REGION: "cn" | "overseas";
+  PROJECT_REGION_USERS?: string;
   PROJECT_SYNC_MAX_BYTES?: number | string;
 }
 
@@ -92,8 +94,19 @@ export class RegionalProjectDO {
   }
 
   async fetch(request: Request): Promise<Response> {
+    return this.handle(
+      new URL(request.url).pathname.slice(1),
+      (await request.json()) as Record<string, unknown>,
+    );
+  }
+
+  /** The colocated Gallery store delegates already-decoded operations here. */
+  async handle(
+    operation: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> {
     try {
-      return await this.dispatch(request);
+      return await this.dispatch(operation, body);
     } catch (error) {
       if (error instanceof ProjectSyncCapacityError)
         return Response.json(
@@ -106,21 +119,33 @@ export class RegionalProjectDO {
     }
   }
 
-  private async dispatch(request: Request): Promise<Response> {
+  private async dispatch(
+    operation: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> {
     if (
       this.env.PROJECT_REGION !== "cn" &&
       this.env.PROJECT_REGION !== "overseas"
     )
       return Response.json({ error: "region-not-configured" }, { status: 503 });
-    const operation = new URL(request.url).pathname.slice(1);
-    const body = (await request.json()) as Record<string, unknown>;
+    let users: string[] | null;
+    try {
+      users = projectRegionUsers(this.env.PROJECT_REGION_USERS);
+    } catch {
+      return Response.json({ error: "region-not-configured" }, { status: 503 });
+    }
     if (operation === "cloud-project-region")
       return Response.json({ region: this.env.PROJECT_REGION });
     if (operation === "sync-seed")
       return this.state.storage.transactionSync(() => {
+        const scope =
+          users === null
+            ? ""
+            : ` AND user_id IN (${users.map(() => "?").join(",")})`;
         const rows = this.sql
           .exec<{ id: string }>(
-            "SELECT id FROM cloud_projects WHERE id NOT IN (SELECT id FROM regional_project_heads) ORDER BY id LIMIT 1",
+            `SELECT id FROM cloud_projects WHERE id NOT IN (SELECT id FROM regional_project_heads)${scope} ORDER BY id LIMIT 1`,
+            ...(users ?? []),
           )
           .toArray();
         for (const row of rows) this.captureExisting(row.id);
@@ -128,7 +153,8 @@ export class RegionalProjectDO {
           seeded: rows.length,
           remaining: this.sql
             .exec<{ count: number }>(
-              "SELECT COUNT(*) AS count FROM cloud_projects WHERE id NOT IN (SELECT id FROM regional_project_heads)",
+              `SELECT COUNT(*) AS count FROM cloud_projects WHERE id NOT IN (SELECT id FROM regional_project_heads)${scope}`,
+              ...(users ?? []),
             )
             .one().count,
         });
@@ -138,6 +164,8 @@ export class RegionalProjectDO {
         return Response.json({ error: "not-quota-authority" }, { status: 409 });
       const id = String(body.id),
         owner = String(body.ownerUserId);
+      if (users !== null && !users.includes(owner))
+        return Response.json({ error: "owner-not-admitted" }, { status: 403 });
       if (this.journal.deleted(id))
         return Response.json({ error: "resource-deleted" }, { status: 409 });
       const reserved = this.state.storage.transactionSync(() => {
@@ -159,6 +187,22 @@ export class RegionalProjectDO {
     }
     if (operation === "sync-events")
       return this.journal.events(Number(body.after));
+    if (operation === "sync-pull") {
+      const peer =
+        body.status as import("./project-sync-journal").ProjectSyncStatus;
+      const reconciled = await this.journal.reconcile(peer);
+      if (!reconciled.ok) return reconciled;
+      const after = peer.received?.sequence ?? 0;
+      const acknowledged = this.journal.acknowledge(
+        this.journal.status().epoch,
+        after,
+      );
+      if (!acknowledged.ok) return acknowledged;
+      const exported = await this.journal.events(after);
+      if (!exported.ok) return exported;
+      const { events } = (await exported.json()) as { events: unknown[] };
+      return Response.json({ peer: this.journal.status(), events });
+    }
     if (operation === "sync-status")
       return Response.json(this.journal.status());
     if (operation === "sync-delivery")
@@ -173,6 +217,8 @@ export class RegionalProjectDO {
       const decoded = await decodeProjectEvent(body.event);
       if (!decoded)
         return Response.json({ error: "invalid-event" }, { status: 400 });
+      if (users !== null && !users.includes(decoded.change.ownerUserId))
+        return Response.json({ error: "owner-not-admitted" }, { status: 403 });
       return this.state.storage.transactionSync(() => {
         const result = this.journal.receive(decoded.event, decoded.change);
         if (result.ok && this.journal.deleted(decoded.change.id))

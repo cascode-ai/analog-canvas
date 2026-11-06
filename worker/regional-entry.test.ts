@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import entry from "./regional-entry";
+import { regionalRuntimeBindings } from "./regional-entry.test-support";
 import { RegionalProjectDO } from "./regional-projects";
 import { RegionalSessionDO } from "./regional-session";
 import {
@@ -53,6 +54,7 @@ it("authorizes the formal Project HTTP entry using a real regional handoff and r
     env.authDurable.fetch(new Request(input, init))) as typeof fetch;
   const target = {
     ...env,
+    ...regionalRuntimeBindings(),
     AUTH: {
       getByName: () => ({
         fetch: (input: Request | string, init?: RequestInit) =>
@@ -151,9 +153,43 @@ it("authorizes the formal Project HTTP entry using a real regional handoff and r
       )
     ).status,
   ).toBe(401);
-  expect(
-    (await entry.fetch(new Request(`${origin}/api/simulation/run`), target))
-      .status,
-  ).toBe(404);
+  const unconfigured = await entry.fetch(
+    new Request(`${origin}/api/simulation/run`),
+    target,
+  );
+  expect(unconfigured.status).toBe(503);
+  expect(await unconfigured.json()).toMatchObject({
+    error: "simulation-operations-not-configured",
+  });
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it("serves the Canvas page, Gallery, User Components and Agent discovery from one regional entrance", async () => {
+  const origin = "http://localhost:18082";
+  const source = environment();
+  const target = {
+    ...source,
+    AUTH: source.AUTH!,
+    ...regionalRuntimeBindings(),
+    AUTH_REGIONAL_CLIENT: JSON.stringify({
+      origin: ORIGIN,
+      clientOrigin: origin,
+      secret: "isolated-unified-runtime-service-secret",
+    }),
+    PROJECT_WRITES_ENABLED: "false",
+  };
+  const shell = await entry.fetch(new Request(`${origin}/editor`), target);
+  expect(shell.status).toBe(200);
+  expect(await shell.text()).toContain("Canvas trial");
+  for (const path of [
+    "/api/gallery",
+    "/api/components",
+    "/api/agent/mcp-manifest.json",
+  ]) {
+    const response = await entry.fetch(new Request(origin + path), target);
+    expect(response.status, `${path}: ${await response.clone().text()}`).toBe(
+      200,
+    );
+    expect(response.headers.get("content-type")).toContain("application/json");
+  }
 });

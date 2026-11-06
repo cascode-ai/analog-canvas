@@ -12,6 +12,7 @@ import { type CircuitProject } from "@icm/model";
 import { sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
 import { reserveRegionalProject } from "./project-quota";
+import { includesProjectOwner } from "./project-region-scope";
 import {
   GALLERY_MAX_NAME_LENGTH,
   GALLERY_MAX_PROJECT_BYTES,
@@ -337,6 +338,27 @@ export async function routeCloudProjects(
   env: GalleryEnv,
   url: URL,
 ): Promise<Response | null> {
+  if (
+    env.PROJECTS &&
+    env.PROJECT_REGION_USERS !== undefined &&
+    (url.pathname === "/api/projects" ||
+      url.pathname.startsWith("/api/projects/"))
+  ) {
+    const user = await sessionUserOf(request, env);
+    try {
+      if (user && !includesProjectOwner(env.PROJECT_REGION_USERS, user.id)) {
+        if (env.PROJECT_REGION !== "overseas")
+          return Response.json(
+            { error: "owner-not-admitted" },
+            { status: 403 },
+          );
+        env = { ...env };
+        delete env.PROJECTS;
+      }
+    } catch {
+      return Response.json({ error: "region-not-configured" }, { status: 503 });
+    }
+  }
   if (url.pathname === "/api/projects") {
     if (request.method === "GET" || request.method === "POST") {
       return handleCloudProjects(request, env, null);

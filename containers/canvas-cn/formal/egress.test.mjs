@@ -7,6 +7,25 @@ const env = {
 };
 afterEach(() => vi.unstubAllGlobals());
 
+it.each([undefined, "Canvas-acceptance-client/1"])(
+  "identifies service requests without replacing an existing User-Agent (%s)",
+  async (userAgent) => {
+    vi.stubGlobal("fetch", async (request) => {
+      expect(request.headers.get("user-agent")).toBe(
+        userAgent ??
+          "Analog-Canvas-Regional/1 (+https://analog-canvas.tokenzhang.com)",
+      );
+      return new Response("ok");
+    });
+    const headers = userAgent ? { "user-agent": userAgent } : {};
+    const response = await egress.fetch(
+      new Request(env.IDENTITY_URL, { method: "POST", headers }),
+      env,
+    );
+    expect(response.status).toBe(200);
+  },
+);
+
 it.each(["account", "owner-token", "security"])(
   "forwards the configured %s service RPC with its credential and body",
   async (operation) => {

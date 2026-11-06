@@ -13,6 +13,7 @@ export default {
         `GET ${new URL("/api/project-sync/status", peer)}`,
         `POST ${new URL("/api/project-sync/events", peer)}`,
         `POST ${new URL("/api/project-sync/quota", peer)}`,
+        `POST ${new URL("/api/project-sync/pull", peer)}`,
         `POST ${identity}`,
         `POST ${new URL("/api/auth/regional/exchange", identity)}`,
         `POST ${new URL("/api/auth/regional/renew", identity)}`,
@@ -26,8 +27,15 @@ export default {
         (!browserAuth && !allowed.has(`${request.method} ${request.url}`))
       )
         return new Response("Regional destination refused", { status: 403 });
+      const headers = new Headers(request.headers);
+      if (!headers.has("user-agent"))
+        headers.set(
+          "user-agent",
+          "Analog-Canvas-Regional/1 (+https://analog-canvas.tokenzhang.com)",
+        );
       const response = await fetch(
         new Request(request, {
+          headers,
           redirect: "manual",
           signal: AbortSignal.timeout(15000),
         }),

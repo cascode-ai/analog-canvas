@@ -162,10 +162,15 @@ export type GalleryEnv = {
   /** Opt-in formal regional Project store; never the disposable login dataset. */
   PROJECTS?: GalleryNamespaceLike;
   PROJECTS_STORE_NAME?: "projects" | "gallery";
+  PROJECT_REGION?: "cn" | "overseas";
+  /** Optional JSON list of accounts admitted to the regional Project trial. */
+  PROJECT_REGION_USERS?: string;
   PROJECT_SYNC_TOKEN?: string;
   PROJECT_SYNC_PEER_URL?: string;
   PROJECT_SYNC_PEER_TOKEN?: string;
   PROJECT_SYNC_ADMIN_TOKEN?: string;
+  /** The private region initiates both directions when its peer cannot dial in. */
+  PROJECT_SYNC_PULL?: string;
   PROJECT_IDENTITY_URL?: string;
   PROJECT_IDENTITY_TOKEN?: string;
   /** Sessions are the only identity: publishing requires one. */
