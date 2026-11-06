@@ -41,6 +41,10 @@ Proposed regional deployment contract:
 
 ## Writing a spec
 
+The optional desktop integration is specified by
+[PowerPoint local deployment](powerpoint-local.md) and
+[PowerPoint editor close](powerpoint-close.md).
+
 All specs are `accepted`. Add one only for a stable cross-module contract, from
 [`spec.template.md`](spec.template.md): `pnpm docs:check` checks status
 (`accepted`/`proposed`), owner and that `Version:` appears only for an

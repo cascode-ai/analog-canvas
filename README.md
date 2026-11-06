@@ -89,6 +89,11 @@ describe how the local registration works.
 
 ## Windows desktop preview
 
+Windows desktop PowerPoint users can optionally install the
+[local PowerPoint integration](apps/powerpoint/README.md) to create circuit
+drawings and reopen their embedded Projects from slides. It is built and
+installed separately; hosted and standalone desktop use remain unchanged.
+
 [**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-9174bd37ff7f-8/analog-canvas-desktop-windows-x64-9174bd37ff7f.zip)
 · [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-9174bd37ff7f-8)
 
