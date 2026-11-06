@@ -37,6 +37,7 @@ import {
 } from "./gallery-store-maintenance";
 import {
   circuitStats,
+  galleryStats,
   installTransistorCounts,
   recountTransistors,
   refreshTransistorCounts,
@@ -625,6 +626,8 @@ export class GalleryDO {
         return recountTransistors(this.sql, body);
       case "circuit-stats":
         return circuitStats(this.sql, body);
+      case "gallery-stats":
+        return galleryStats(this.sql, body);
       case "testbench-privacy":
         return moveStoredTestbenches(this.sql, body);
       case "simulation-checks-queue":

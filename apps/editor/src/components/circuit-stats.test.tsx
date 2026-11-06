@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { CircuitStatsPanel, type CircuitStatsRow } from "./circuit-stats";
+import { CircuitStatsTable, type CircuitStatsRow } from "./circuit-stats";
 
 const row = (
   id: string,
@@ -16,19 +16,13 @@ const row = (
   transistors,
 });
 
-const text = (markup: string, testId: string) =>
-  new RegExp(`data-testid="${testId}"[^>]*>([^<]*)<`, "u").exec(markup)?.[1];
-
-describe("an account's circuit statistics panel", () => {
-  it("counts the circuits and totals their components and transistors", () => {
+describe("an account's circuit table", () => {
+  it("lists the circuits and totals their components and transistors", () => {
     const markup = renderToStaticMarkup(
-      createElement(CircuitStatsPanel, {
+      createElement(CircuitStatsTable, {
         circuits: [row("1", 9, 8), row("2", 14, 1200), row("3", 2, null)],
       }),
     );
-    expect(text(markup, "circuit-stats-count")).toBe("3");
-    expect(text(markup, "circuit-stats-components")).toBe("25");
-    expect(text(markup, "circuit-stats-transistors")).toBe("1,208");
     // One row per circuit, newest first, and a total row.
     expect(markup.match(/data-testid="circuit-stats-row"/gu)).toHaveLength(3);
     expect(markup.indexOf("Circuit 3")).toBeLessThan(
@@ -44,7 +38,7 @@ describe("an account's circuit statistics panel", () => {
 
   it("adds the Owner's further columns, totalled too", () => {
     const markup = renderToStaticMarkup(
-      createElement(CircuitStatsPanel<CircuitStatsRow & { likes: number }>, {
+      createElement(CircuitStatsTable<CircuitStatsRow & { likes: number }>, {
         circuits: [
           { ...row("1", 1, 2), likes: 3 },
           { ...row("2", 1, 2), likes: 4 },
@@ -60,22 +54,13 @@ describe("an account's circuit statistics panel", () => {
     expect(markup).toContain('class="circuit-stats-badge">AI<');
   });
 
-  it("says so when the account has published nothing", () => {
-    const markup = renderToStaticMarkup(
-      createElement(CircuitStatsPanel, { circuits: [] }),
-    );
-    expect(text(markup, "circuit-stats-count")).toBe("0");
-    expect(markup).toContain('data-testid="circuit-stats-empty"');
-    expect(markup).not.toContain("<table");
-  });
-
   it("offers a Refresh only where the numbers can be read again", () => {
     const circuits = [row("1", 9, 8)];
     expect(
-      renderToStaticMarkup(createElement(CircuitStatsPanel, { circuits })),
+      renderToStaticMarkup(createElement(CircuitStatsTable, { circuits })),
     ).not.toContain("circuit-stats-refresh");
     const refreshing = renderToStaticMarkup(
-      createElement(CircuitStatsPanel, {
+      createElement(CircuitStatsTable, {
         circuits,
         onRefresh: () => {},
         refreshing: true,

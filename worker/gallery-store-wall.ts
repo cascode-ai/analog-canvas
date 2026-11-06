@@ -7,6 +7,7 @@ import {
   requestedComponentRanges,
 } from "./gallery-components";
 import {
+  authorStats,
   countAuthorTransistors,
   CURRENT_TRANSISTORS,
 } from "./gallery-store-stats";
@@ -918,6 +919,7 @@ export function ownerData(
         opens: Number(row.opens),
         opensLastWeek: Number(row.recent),
       })),
+      ...authorStats(sql, body.author),
     });
   }
   const authors = sql

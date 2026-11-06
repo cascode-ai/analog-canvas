@@ -40,6 +40,8 @@ beforeEach(() => {
         recounts.push(JSON.parse(String(init?.body)));
         return Response.json(batches.shift());
       }
+      if (url === "/api/gallery/stats")
+        return new Response(null, { status: 404 });
       reads += 1;
       return Response.json({ authors: [author(reads === 1 ? 5 : 12)] });
     }),

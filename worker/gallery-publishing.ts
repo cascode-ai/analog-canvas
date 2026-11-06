@@ -387,8 +387,22 @@ export async function routeGalleryPublishing(
       { headers: { "cache-control": "no-store" } },
     );
   }
+  // The whole community Gallery's statistics, for any signed-in account.
+  if (
+    segments.length === 1 &&
+    segments[0] === "stats" &&
+    request.method === "GET"
+  ) {
+    const user = await sessionUserOf(request, env);
+    if (!user) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const { payload } = await callGallery(env, "gallery-stats", {});
+    return Response.json(payload, { headers: { "cache-control": "no-store" } });
+  }
   // The account's own statistics: its public circuits, each with its part
-  // and transistor counts. The Owner reads anyone's on the Data tab.
+  // and transistor counts, its distributions and its place among authors.
+  // The Owner reads anyone's on the Data tab.
   if (
     segments.length === 2 &&
     segments[0] === "mine" &&

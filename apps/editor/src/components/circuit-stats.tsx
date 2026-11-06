@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import "./circuit-stats.css";
 
 /**
@@ -29,10 +29,6 @@ const day = (iso: string) => iso.slice(0, 10);
 
 function sum(values: readonly (number | null)[]): number {
   return values.reduce<number>((total, value) => total + (value ?? 0), 0);
-}
-
-function average(total: number, count: number): string {
-  return count ? (Math.round((total / count) * 10) / 10).toString() : "0";
 }
 
 /** A number and a bar of its share of the column's largest. */
@@ -71,11 +67,11 @@ function Measure({
 }
 
 /**
- * An account's statistics (each account on its own Statistics tab, every
- * author on the Owner's Data tab): how many circuits it published, and each
- * circuit's components and transistors with their totals.
+ * An account's public circuits, one sortable row each with its components
+ * and transistors and a Total row (each account on its own Statistics tab,
+ * every author on the Owner's Data tab).
  */
-export function CircuitStatsPanel<Row extends CircuitStatsRow>({
+export function CircuitStatsTable<Row extends CircuitStatsRow>({
   circuits,
   columns = [],
   badges,
@@ -83,11 +79,11 @@ export function CircuitStatsPanel<Row extends CircuitStatsRow>({
   refreshing = false,
 }: {
   circuits: readonly Row[];
-  columns?: readonly CircuitStatsColumn<Row>[];
-  badges?: (row: Row) => readonly string[];
-  /** Read the numbers again; the panel keeps showing the old ones meanwhile. */
-  onRefresh?: () => void;
-  refreshing?: boolean;
+  columns?: readonly CircuitStatsColumn<Row>[] | undefined;
+  badges?: ((row: Row) => readonly string[]) | undefined;
+  /** Read the numbers again; the table keeps showing the old ones meanwhile. */
+  onRefresh?: (() => void) | undefined;
+  refreshing?: boolean | undefined;
 }) {
   const [sort, setSort] = useState<{ key: SortKey; descending: boolean }>({
     key: "date",
@@ -160,51 +156,7 @@ export function CircuitStatsPanel<Row extends CircuitStatsRow>({
   };
   return (
     <div className="circuit-stats" data-testid="circuit-stats">
-      <div className="circuit-stats-tiles">
-        <div className="circuit-stats-tile circuit-stats-tile-primary">
-          <span className="circuit-stats-tile-label">Circuits uploaded</span>
-          <span
-            className="circuit-stats-tile-value"
-            data-testid="circuit-stats-count"
-          >
-            {formatted(circuits.length)}
-          </span>
-          <span className="circuit-stats-tile-note">Public in the Gallery</span>
-        </div>
-        <div className="circuit-stats-tile">
-          <span className="circuit-stats-tile-label">Components</span>
-          <span
-            className="circuit-stats-tile-value"
-            data-testid="circuit-stats-components"
-          >
-            {formatted(components)}
-          </span>
-          <span className="circuit-stats-tile-note">
-            {average(components, circuits.length)} per circuit
-          </span>
-        </div>
-        <div className="circuit-stats-tile">
-          <span className="circuit-stats-tile-label">Transistors</span>
-          <span
-            className="circuit-stats-tile-value"
-            data-testid="circuit-stats-transistors"
-          >
-            {formatted(transistors)}
-          </span>
-          <span className="circuit-stats-tile-note">
-            {average(transistors, circuits.length)} per circuit
-          </span>
-        </div>
-      </div>
-
-      {circuits.length === 0 ? (
-        <div className="circuit-stats-empty" data-testid="circuit-stats-empty">
-          <p>No public circuits yet.</p>
-          <p className="circuit-stats-muted">
-            Circuits published to the Gallery are counted here.
-          </p>
-        </div>
-      ) : (
+      {circuits.length === 0 ? null : (
         <div className="circuit-stats-card">
           <div className="circuit-stats-toolbar">
             <span className="circuit-stats-caption">
@@ -320,63 +272,5 @@ export function CircuitStatsPanel<Row extends CircuitStatsRow>({
         </div>
       )}
     </div>
-  );
-}
-
-type MyStatsState =
-  | { status: "loading" }
-  | { status: "failed" }
-  | { status: "ready"; circuits: CircuitStatsRow[] };
-
-/** The signed-in account's own Statistics tab (`GET /api/gallery/mine/stats`). */
-export function MyCircuitStatsContent() {
-  const [state, setState] = useState<MyStatsState>({ status: "loading" });
-  const [reads, setReads] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/gallery/mine/stats", {
-      credentials: "same-origin",
-      cache: "no-store",
-    })
-      .then(async (response) =>
-        response.ok
-          ? ((await response.json()) as { circuits?: CircuitStatsRow[] })
-          : null,
-      )
-      .catch(() => null)
-      .then((payload) => {
-        if (cancelled) return;
-        setRefreshing(false);
-        // A failed refresh keeps the numbers already shown.
-        setState((current) =>
-          payload
-            ? { status: "ready", circuits: payload.circuits ?? [] }
-            : current.status === "ready"
-              ? current
-              : { status: "failed" },
-        );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [reads]);
-  if (state.status === "loading")
-    return <p className="gallery-status">Counting your circuits…</p>;
-  if (state.status === "failed")
-    return (
-      <p className="gallery-status" data-testid="circuit-stats-failed">
-        Could not load your statistics — try again later.
-      </p>
-    );
-  return (
-    <CircuitStatsPanel
-      circuits={state.circuits}
-      refreshing={refreshing}
-      onRefresh={() => {
-        setRefreshing(true);
-        setReads((count) => count + 1);
-      }}
-    />
   );
 }
