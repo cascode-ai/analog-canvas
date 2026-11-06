@@ -1,6 +1,8 @@
 [Unit]
 Description=Analog Canvas restricted regional trial
 After=network-online.target
+Wants=canvas-cn-operator.service
+After=canvas-cn-operator.service
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
@@ -17,6 +19,8 @@ LoadCredential=sync-admin-token:/etc/analog-canvas-formal/sync-admin-token
 LoadCredential=peer-origin:/etc/analog-canvas-formal/peer-origin
 LoadCredential=identity-url:/etc/analog-canvas-formal/identity-url
 LoadCredential=identity-token:/etc/analog-canvas-formal/identity-token
+LoadCredential=operator-token:/etc/analog-canvas-formal/operator-token
+LoadCredential=simulation-smoke-token:/etc/analog-canvas-formal/simulation-smoke-token
 # An earlier narrow candidate used a separate Project namespace; never hide it.
 ExecStartPre=/usr/bin/test ! -e /var/lib/analog-canvas-formal/state/canvas-cn-formal-projects-v1
 ExecStart=/opt/analog-canvas/runtime/workerd-2026-09-11 serve --experimental --import-path=%d /opt/analog-canvas/current-formal/config.capnp

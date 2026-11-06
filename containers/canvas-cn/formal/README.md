@@ -52,6 +52,24 @@ or an operator connection; the restricted trial's acceptance remains Issue #1974
   synchronization redirects are rejected. Local session and account routes are
   never included in this browser proxy.
 
+## Dedicated operator transport
+
+Install `canvas-cn-operator.service` with its dedicated Unix user, SSH key and
+pinned host key. Its key must permit forwarding only to the dedicated gateways;
+preserve existing operator keys and containers. Use separate executor storage,
+credentials and resource limits from overseas work. The tunnel listens only on
+loopback; the runtime's fixed operator service bindings carry `/health`, `/run`
+and `/cancel` through it. Internal HTTPS origin names identify this encrypted
+transport and are not public DNS endpoints. Redirects and alternate destinations
+are rejected; uncertain executions are never retried through another operator.
+
+`operator-token` authenticates these gateways. `simulation-smoke-token` uses
+the existing deployment-check permission for `/api/simulate` only; it grants
+neither a user session nor Project access. Keep both in root-owned credentials,
+rotate the smoke token for each release, and verify real operator responses
+before accepting the release. Tunnel failure must leave editing and login
+available while computation fails closed.
+
 ## Activation gates
 
 1. Qualify both candidates on isolated data, including process restart, actual
@@ -80,7 +98,7 @@ or an operator connection; the restricted trial's acceptance remains Issue #1974
 6. Enable writes for a small verified cohort only after catch-up and recovery
    acceptance. ICP, HTTPS and public regional routing remain separate gates.
 
-The profile does not provide operator simulation, Gallery synchronization,
+The profile does not provide Gallery synchronization,
 automatic journal compaction, abandoned quota reclamation or account-deletion
 propagation. These limits are visible deployment dependencies, not implemented
 by pointing DNS at this service. Source activation also requires reviewing the

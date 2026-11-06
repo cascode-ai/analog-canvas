@@ -20,6 +20,13 @@ const config :Workerd.Config = (
         (name = "ANALYTICS", durableObjectNamespace = "AnalyticsDO"),
         (name = "SIMULATION_ARTIFACTS", r2Bucket = "artifact-entry"),
         (name = "SIMULATION_DISPATCH", text = "alarm"),
+        (name = "SIMULATION_SMOKE_TOKEN", text = embed "/simulation-smoke-token"),
+        (name = "SIMULATION_UPSTREAM_URL", text = "https://ngspice.canvas-operator.invalid"),
+        (name = "SIMULATION_UPSTREAM_TOKEN", text = embed "/operator-token"),
+        (name = "SIMULATION_DEFAULT_EXECUTOR", text = "operator-host"),
+        (name = "VACASK_PROFILE_ID", text = "vacask-sky130-candidate"),
+        (name = "VACASK_UPSTREAM_URL", text = "https://vacask.canvas-operator.invalid"),
+        (name = "VACASK_UPSTREAM_TOKEN", text = embed "/operator-token"),
         (name = "ASSETS", service = "assets"),
         (name = "PROJECT_REGION", text = "cn"),
         (name = "PROJECT_REGION_USERS", text = embed "/project-region-users.json"),
@@ -60,10 +67,14 @@ const config :Workerd.Config = (
       modules = [(name = "egress.mjs", esModule = embed "egress.mjs")],
       bindings = [
         (name = "PEER_ORIGIN", text = embed "/peer-origin"),
-        (name = "IDENTITY_URL", text = embed "/identity-url")
+        (name = "IDENTITY_URL", text = embed "/identity-url"),
+        (name = "NGSPICE_OPERATOR", service = "ngspice-operator"),
+        (name = "VACASK_OPERATOR", service = "vacask-operator")
       ],
       globalOutbound = "internet"
     )),
+    (name = "ngspice-operator", external = (address = "127.0.0.1:19094", http = ())),
+    (name = "vacask-operator", external = (address = "127.0.0.1:19095", http = ())),
     (name = "internet", network = (allow = ["public"], tlsOptions = (trustBrowserCas = true)))
   ],
   sockets = [(name = "http", address = "127.0.0.1:8792", http = (), service = "canvas")]
