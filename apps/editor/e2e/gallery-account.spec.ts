@@ -17,8 +17,265 @@ import {
   signIn,
 } from "./gallery-fixtures.js";
 import { serializeProject } from "@icm/project-protocol";
+import { regionalAccounts } from "./regional-auth-fixture";
 
 const ALL_PROVIDERS = { github: true, google: true, email: true };
+
+test("regional sign-in offers email and can switch an existing account without silently reusing it", async ({
+  page,
+  baseURL,
+}) => {
+  const accounts = await regionalAccounts(baseURL!);
+  const enterCode = async (email: string) => {
+    await page.getByLabel("邮箱", { exact: true }).fill(email);
+    await page.getByRole("button", { name: "发送验证码" }).click();
+    await expect(page.getByRole("status")).toHaveText("验证码已发送。");
+    await page.getByLabel("验证码", { exact: true }).fill(accounts.emailCode());
+    await page.getByRole("button", { name: "验证并继续" }).click();
+    await expect(page).toHaveURL(accounts.origin + "/account");
+  };
+  try {
+    await page.goto(accounts.origin + "/account");
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-email").click();
+    await enterCode("first-choice@example.test");
+    await expect(page.getByTestId("account-name")).toHaveText("first-choice");
+    await page.getByTestId("account-switch-login").click();
+    await expect(
+      page.getByRole("link", { name: "Continue with current account" }),
+    ).toBeVisible();
+    // Cancelling selection preserves the already-established domestic session.
+    await page.goto(accounts.origin + "/account");
+    await expect(page.getByTestId("account-name")).toHaveText("first-choice");
+    await page.getByTestId("account-switch-login").click();
+    await enterCode("second-choice@example.test");
+    await expect(page.getByTestId("account-name")).toHaveText("second-choice");
+    await page.getByTestId("account-tab-settings").click();
+    await page.getByTestId("account-signout").click();
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-email").click();
+    await expect(page.getByLabel("邮箱", { exact: true })).toBeVisible();
+    await expect(page).not.toHaveURL(accounts.origin + "/account");
+  } finally {
+    await accounts.close();
+  }
+});
+
+test("an existing account survives failed provider discovery and keeps deletion disabled", async ({
+  page,
+}) => {
+  await mockGallery(page, []);
+  await signIn(page, sessionUser({ displayName: "Existing member" }));
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<html>Sign-in settings unavailable</html>",
+    }),
+  );
+  await page.route("**/api/gallery/mine**", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ json: { projects: [] } }),
+  );
+  let deletions = 0;
+  await page.route("**/api/auth/account/delete", (route) => {
+    deletions++;
+    return route.fulfill({ status: 500 });
+  });
+  await page.goto("/account?tab=projects");
+  await expect(page.getByTestId("account-tab-projects")).toBeVisible();
+  await expect(page.getByTestId("account-name")).toHaveText("Existing member");
+  await expect(page.getByTestId("account-signed-out")).toHaveCount(0);
+  await page.getByTestId("account-tab-settings").click();
+  await expect(page.getByTestId("account-delete")).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Account deletion is temporarily unavailable. Reload to try again.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByTestId("account-delete-dialog")).toHaveCount(0);
+  expect(deletions).toBe(0);
+});
+
+test("regional AI switching preserves the administrator's source session and returns through the real account UI", async ({
+  page,
+  baseURL,
+}) => {
+  const email = "regional-admin@example.test";
+  const accounts = await regionalAccounts(baseURL!, email);
+  try {
+    await page.goto(accounts.origin + "/account");
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-central").first().click();
+    await page.getByLabel("邮箱", { exact: true }).fill(email);
+    await page.getByRole("button", { name: "发送验证码" }).click();
+    await expect.poll(accounts.emailCode).toMatch(/^\d{6}$/);
+    await page.getByLabel("验证码", { exact: true }).fill(accounts.emailCode());
+    await page.getByRole("button", { name: "验证并继续" }).click();
+    await expect(page).toHaveURL(accounts.origin + "/account");
+    await page.getByTestId("account-tab-ai").click();
+    const sourceCookies = (await page.context().cookies()).filter(
+      (cookie) => cookie.name === "icm_session",
+    );
+    expect(sourceCookies).toHaveLength(1);
+    await page.getByTestId("ai-account-switch-ai-designer-1").click();
+    await expect(page.getByTestId("account-switch-back")).toContainText(
+      "regional-admin",
+    );
+    await expect(page.getByTestId("account-tab-ai")).toHaveCount(0);
+    await page.getByTestId("account-switch-back").click();
+    await expect(page.getByTestId("account-menu-name")).toHaveText(
+      "regional-admin",
+    );
+    await expect(page.getByTestId("account-switch-back")).toHaveCount(0);
+    expect(
+      (await page.context().cookies()).filter(
+        (cookie) => cookie.name === "icm_session",
+      ),
+    ).toEqual(sourceCookies);
+    await expect(page.getByTestId("account-tab-ai")).toBeVisible();
+    await page.getByTestId("account-tab-settings").click();
+    await expect(page.getByTestId("account-delete")).toBeDisabled();
+    await expect(
+      page.getByText("Account deletion is unavailable in the domestic trial."),
+    ).toBeVisible();
+  } finally {
+    await accounts.close();
+  }
+});
+
+test("central sign-in returns to the editor with its unsaved circuit and real regional identity", async ({
+  page,
+  baseURL,
+}) => {
+  const accounts = await regionalAccounts(baseURL!);
+  try {
+    await openEditor(page, accounts.origin + "/editor");
+    await page.getByTestId("tab-project-file").setInputFiles({
+      name: "draft.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        serializeProject({
+          ...galleryResistorProject("13k"),
+          id: "regional-draft",
+          name: "Regional draft",
+        }),
+      ),
+    });
+    const draft = page.getByRole("tab", { name: /Regional draft/ });
+    await expect(draft).toHaveAttribute("aria-selected", "true");
+    await draft.dblclick();
+    await page
+      .getByRole("textbox", { name: "Project name", exact: true })
+      .fill("Unsaved regional circuit");
+    await page
+      .getByRole("textbox", { name: "Project name", exact: true })
+      .press("Enter");
+    await expect(
+      page.getByLabel("Unsaved", { exact: true }).first(),
+    ).toBeVisible();
+    page.on("dialog", (dialog) => void dialog.accept());
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-central").click();
+    await page
+      .getByLabel("邮箱", { exact: true })
+      .fill("regional-browser@example.test");
+    await page.getByRole("button", { name: "发送验证码" }).click();
+    await expect.poll(accounts.emailCode).toMatch(/^\d{6}$/);
+    await page.getByLabel("验证码", { exact: true }).fill(accounts.emailCode());
+    await page.getByRole("button", { name: "验证并继续" }).click();
+    await expect(page).toHaveURL(accounts.origin + "/editor");
+    await awaitEditorReady(page);
+    await expect(page.getByTestId("account-name")).toContainText(
+      "regional-browser",
+    );
+    await expect(
+      page.getByRole("tab", { name: /Unsaved regional circuit/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("hit-R2")).toBeVisible();
+    await page.getByTestId("account-name").click();
+    await page.getByTestId("account-tab-settings").click();
+    await page.getByTestId("account-rename").click();
+    await page
+      .getByLabel("Display name", { exact: true })
+      .fill("Domestic browser");
+    await page
+      .getByTestId("account-panel-settings")
+      .getByRole("button", { name: "Save", exact: true })
+      .click();
+    await expect(page.getByTestId("account-menu-name")).toHaveText(
+      "Domestic browser",
+    );
+    await page.getByTestId("gallery-editor-switch").click();
+    await awaitEditorReady(page);
+    await expect(
+      page.getByRole("tab", { name: /Unsaved regional circuit/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("hit-R2")).toBeVisible();
+    const saved = await page.request.post(accounts.origin + "/api/projects", {
+      headers: { origin: accounts.origin },
+      data: {
+        name: "Original deep link",
+        projectText: serializeProject({
+          ...galleryResistorProject("7k"),
+          name: "Original deep link",
+        }),
+      },
+    });
+    expect(saved.ok()).toBe(true);
+    const { project: linkedProject } = await saved.json();
+    await page.goto(accounts.origin + "/editor?project=" + linkedProject.id);
+    await awaitEditorReady(page);
+    await expect(
+      page.getByRole("tab", { name: /Original deep link/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("tab", { name: /Unsaved regional circuit/ }).click();
+    await page
+      .getByRole("button", {
+        name: "Close tab Original deep link",
+        exact: true,
+      })
+      .click();
+    await expect(
+      page.getByRole("tab", { name: /Original deep link/ }),
+    ).toHaveCount(0);
+    const galleryUrl = accounts.origin + "/api/gallery?tag=amplifier";
+    expect((await page.request.get(galleryUrl)).status()).toBe(200);
+    accounts.expireLease();
+    expect((await page.request.get(galleryUrl)).status()).toBe(401);
+    await page.getByTestId("examples-toggle").click();
+    await page.getByTestId("examples-panel-sign-in-button").click();
+    await expect(page.getByTestId("signin-central")).toBeVisible();
+    await page.getByTestId("signin-central").click();
+    await expect(page).toHaveURL(accounts.origin + "/editor?resume=1");
+    await expect(page.getByTestId("account-name")).toContainText(
+      "Domestic browser",
+    );
+    await expect(
+      page.getByRole("tab", { name: /Unsaved regional circuit/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("hit-R2")).toBeVisible();
+    const logout = await page.request.post(
+      accounts.origin + "/api/auth/logout",
+      { headers: { origin: accounts.origin } },
+    );
+    expect(logout.ok()).toBe(true);
+    await page.goto(accounts.origin + "/editor?project=" + linkedProject.id);
+    await awaitEditorReady(page);
+    await expect(
+      page.getByRole("tab", { name: /Original deep link/ }),
+    ).toHaveCount(0);
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-central").click();
+    await expect(
+      page.getByRole("tab", { name: /Original deep link/ }),
+    ).toHaveAttribute("aria-selected", "true");
+  } finally {
+    await accounts.close();
+  }
+});
 
 for (const signedIn of [true, false]) {
   test(`the editor preloads a ${signedIn ? "signed-in" : "signed-out"} account and reuses it in the menu`, async ({

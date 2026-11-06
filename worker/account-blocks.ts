@@ -171,6 +171,17 @@ export function isBlocked(
   );
 }
 
+/** Bound evidence before RPC serialization and when recording a block. */
+export function boundedBlockEvidence(evidence: BlockEvidence): BlockEvidence {
+  return {
+    entryId: evidence.entryId.slice(0, 64),
+    path: evidence.path.slice(0, 512),
+    ip: evidence.ip?.slice(0, 64) ?? null,
+    country: evidence.country?.slice(0, 8) ?? null,
+    userAgent: evidence.userAgent?.slice(0, 512) ?? null,
+  };
+}
+
 /** Records a block, unless one is already active for the account. */
 export function recordBlock(
   sql: SqlStorage,
@@ -180,6 +191,7 @@ export function recordBlock(
   at: string,
 ): boolean {
   if (isBlocked(sql, account.id, account.email)) return false;
+  const bounded = boundedBlockEvidence(evidence);
   sql.exec(
     `INSERT INTO account_blocks(user_id, email, display_name, provider,
        blocked_at, entry_id, path, ip, country, user_agent, reason,
@@ -190,11 +202,11 @@ export function recordBlock(
     account.displayName,
     account.provider,
     at,
-    evidence.entryId.slice(0, 64),
-    evidence.path.slice(0, 512),
-    evidence.ip?.slice(0, 64) ?? null,
-    evidence.country?.slice(0, 8) ?? null,
-    evidence.userAgent?.slice(0, 512) ?? null,
+    bounded.entryId,
+    bounded.path,
+    bounded.ip,
+    bounded.country,
+    bounded.userAgent,
     reason,
     account.email ? "due" : null,
   );

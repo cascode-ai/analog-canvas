@@ -39,11 +39,13 @@ function markupFor(
 function pageFor(
   user: NonNullable<AccountState["user"]>,
   initialTab?: AccountTab,
+  deletionUnavailableReason?: string,
 ): string {
   return renderToStaticMarkup(
     createElement(AccountDashboard, {
       user,
       ...(initialTab ? { initialTab } : {}),
+      ...(deletionUnavailableReason ? { deletionUnavailableReason } : {}),
       onRename: () => undefined,
       onSignOut: () => undefined,
       onDeleteAccount: async () => ({ ok: false, message: "unused" }) as const,
@@ -53,6 +55,25 @@ function pageFor(
 }
 
 describe("AccountMenuView", () => {
+  it("disables domestic trial deletion with a visible limitation while keeping overseas deletion available", () => {
+    const user = {
+      id: "trial-user",
+      displayName: "Trial",
+      email: null,
+      provider: "github",
+      role: "user",
+      isAdmin: false,
+    };
+    const reason = "Account deletion is unavailable in the domestic trial.";
+    const domestic = pageFor(user, "settings", reason);
+    expect(domestic).toContain(reason);
+    expect(domestic).toMatch(/data-testid="account-delete"[^>]*disabled=""/u);
+    const overseas = pageFor(user, "settings");
+    expect(overseas).not.toContain(reason);
+    expect(overseas).not.toMatch(
+      /data-testid="account-delete"[^>]*disabled=""/u,
+    );
+  });
   it("renders nothing while no provider is configured (dark ship)", () => {
     expect(
       markupFor({
@@ -355,6 +376,37 @@ describe("AccountMenuView", () => {
 });
 
 describe("loadAccountState", () => {
+  it("renders a regional account and its central sign-in entry", () => {
+    const providers = {
+      github: true,
+      google: true,
+      email: true,
+      central: true,
+      loginUrl: "/api/auth/regional/start",
+    };
+    const user = {
+      id: "u1",
+      displayName: "Ada",
+      email: null,
+      provider: "google",
+      role: "user",
+      isAdmin: false,
+    };
+    const account = { providers, user };
+    expect(markupFor(account)).toContain(">Ada</a>");
+    expect(markupFor(account)).toContain(
+      'href="/api/auth/regional/start?select=true"',
+    );
+    const signedOut = markupFor({ ...account, user: null });
+    expect(signedOut).toContain('href="/api/auth/regional/start"');
+    expect(signedOut).toContain("Continue with current account");
+    expect(signedOut).not.toContain("signin-email-input");
+    for (const provider of ["github", "google", "email"])
+      expect(signedOut).toContain(
+        `href="/api/auth/regional/start?provider=${provider}"`,
+      );
+  });
+
   it("starts the session read without waiting for the providers response", async () => {
     const providers = { github: true, google: false, email: true };
     const pendingProviders = Promise.withResolvers<Response>();
@@ -414,24 +466,28 @@ describe("loadAccountState", () => {
     ]);
   });
 
-  it.each(["disabled", "http-error", "invalid-json", "offline"])(
-    "keeps the account hidden when providers are %s",
-    async (failure) => {
-      const fetchLike: typeof fetch = async (input) => {
-        if (input !== "/api/auth/providers")
-          return Response.json({ user: { id: "u1" } });
-        if (failure === "offline") throw new TypeError("offline");
-        if (failure === "http-error")
-          return new Response(null, { status: 503 });
-        if (failure === "invalid-json") return new Response("invalid");
-        return Response.json({ github: false, google: false, email: false });
-      };
-      expect(await loadAccountState(fetchLike)).toEqual({
-        providers: { github: false, google: false, email: false },
-        user: null,
-      });
-    },
-  );
+  it.each([
+    "disabled",
+    "http-error",
+    "invalid-json",
+    "invalid-shape",
+    "offline",
+  ])("retains a confirmed session when providers are %s", async (failure) => {
+    const fetchLike: typeof fetch = async (input) => {
+      if (input !== "/api/auth/providers")
+        return Response.json({ user: { id: "u1" } });
+      if (failure === "offline") throw new TypeError("offline");
+      if (failure === "http-error") return new Response(null, { status: 503 });
+      if (failure === "invalid-json") return new Response("invalid");
+      if (failure === "invalid-shape") return Response.json({});
+      return Response.json({ github: false, google: false, email: false });
+    };
+    expect(await loadAccountState(fetchLike)).toEqual({
+      providers: { github: false, google: false, email: false },
+      user: { id: "u1" },
+      ...(failure === "disabled" ? {} : { providerDiscoveryFailed: true }),
+    });
+  });
 
   it.each(["signed-out", "http-error", "invalid-json", "offline"])(
     "keeps the enabled sign-in choices when the session is %s",

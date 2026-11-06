@@ -1,6 +1,7 @@
 import type { SessionUser, SqlStorage } from "./auth-do";
 
 export const REGIONAL_PREFIX = "/api/auth/regional/";
+export const REGIONAL_SESSION_COOKIE = "icm_regional_session";
 export const REGIONAL_LEASE_MS = 60_000;
 export const REGIONAL_HANDOFF_MS = 60_000;
 export const REGIONAL_REFRESH_MS = 30_000;

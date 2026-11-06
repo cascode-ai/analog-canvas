@@ -1,7 +1,12 @@
 // The editor's menus bound to its commands: the header with its project tabs,
 // File, Edit and Circuit menus and toolbars, and the canvas context menu.
 import { cloudShelfOpened } from "../components/arena-gate-request";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import {
+  useRef,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import { deriveRoutingAffectedClosure } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -266,8 +271,30 @@ export function EditorMenuBar({
   leaveForArena: () => void;
 }) {
   const { NativeHeaderActions, openExternalLink } = useEditorServices();
+  // Once its initial linked target has opened, this window resumes the active
+  // workspace after login even if that original tab was later closed. A link
+  // still waiting for authentication retains its original open intent.
+  const linkedTargetOpened = useRef(false);
+  const address = useRef(
+    typeof window === "undefined" ? null : new URL(window.location.href),
+  ).current;
+  const cloudId = address?.searchParams.get("project");
+  const galleryId = address?.pathname.match(
+    /^\/g\/([A-Za-z0-9-]{1,64})\/?$/u,
+  )?.[1];
+  if (
+    projectTabs.tabs.some(
+      (tab) =>
+        (cloudId && tab.cloudId === cloudId) ||
+        (galleryId && tab.galleryId === galleryId),
+    )
+  )
+    linkedTargetOpened.current = true;
   return (
     <EditorAppChrome
+      signInReturnTo={
+        linkedTargetOpened.current ? "/editor?resume=1" : undefined
+      }
       communityEnabled={capabilities.community}
       userComponentsEnabled={
         capabilities.community || capabilities.localComponents === true

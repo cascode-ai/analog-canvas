@@ -73,6 +73,7 @@ function canonicalAuthorityRequest(
       "account",
       "owner-token",
       "security",
+      "providers",
     ].some((action) => url.pathname === REGIONAL_PREFIX + action);
   if (!rpc && !isRegionalAuthorityBrowserRoute(request.method, url.pathname))
     return null;
@@ -1269,6 +1270,9 @@ export class AuthDO {
             client_id: this.env.GH_OAUTH_CLIENT_ID ?? "",
             redirect_uri: redirectUri,
             scope: "read:user user:email",
+            ...(returnPath.startsWith(REGIONAL_PREFIX + "authorize?")
+              ? { prompt: "select_account" }
+              : {}),
             state,
           }).toString()
         : "https://accounts.google.com/o/oauth2/v2/auth?" +

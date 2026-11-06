@@ -87,6 +87,8 @@ export class RegionalAuthority {
         return answer({ error: "unauthorized" }, 401);
       const body = await readBody(request);
       if (!body) return answer({ error: "invalid-request" }, 400);
+      if (url.pathname === REGIONAL_PREFIX + "providers")
+        return answer(this.providers);
       if (url.pathname === REGIONAL_PREFIX + "exchange")
         return this.exchange(body);
       if (url.pathname === REGIONAL_PREFIX + "renew") return this.renew(body);
@@ -164,8 +166,37 @@ export class RegionalAuthority {
     const token = cookie(request, "icm_session");
     const sessionHash = await sourceSessionHash(token ?? "");
     const user = token ? await this.session(sessionHash) : null;
-    if (!user)
-      return regionalLoginPage(url.pathname + url.search, this.providers);
+    const provider = url.searchParams.get("provider");
+    if (
+      provider !== null &&
+      provider !== "github" &&
+      provider !== "google" &&
+      provider !== "email"
+    )
+      return answer({ error: "invalid-provider" }, 400);
+    if (provider && !this.providers[provider])
+      return answer({ error: "provider-disabled" }, 404);
+    const returnPath =
+      REGIONAL_PREFIX +
+      "authorize?" +
+      new URLSearchParams({ state, challenge });
+    if (provider === "github" || provider === "google")
+      return redirect(
+        new URL(
+          `/api/auth/${provider}/start?` +
+            new URLSearchParams({ return: returnPath }),
+          this.config.origin,
+        ).toString(),
+      );
+    if (provider === "email" || url.searchParams.get("select") === "true")
+      return regionalLoginPage(
+        returnPath,
+        provider === "email"
+          ? { github: false, google: false, email: true }
+          : this.providers,
+        Boolean(user),
+      );
+    if (!user) return regionalLoginPage(returnPath, this.providers);
     let actorHash: string | null = null;
     if (user.seat) {
       const owner = cookie(request, AUTH_OWNER_COOKIE);
