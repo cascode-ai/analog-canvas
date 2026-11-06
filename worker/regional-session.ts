@@ -291,15 +291,17 @@ export class RegionalSessionDO {
     action: "exchange" | "renew",
     body: unknown,
   ): Promise<{ status: number; body: Record<string, unknown> | null }> {
+    const config = this.config;
+    if (!config) return { status: 0, body: null };
     try {
       const response = await this.fetchLike(
-        this.config!.origin + REGIONAL_PREFIX + action,
+        (config.transportOrigin ?? config.origin) + REGIONAL_PREFIX + action,
         {
           method: "POST",
           redirect: "manual",
           signal: AbortSignal.timeout(5000),
           headers: {
-            authorization: "Bearer " + this.config!.secret,
+            authorization: "Bearer " + config.secret,
             "content-type": "application/json",
           },
           body: JSON.stringify(body),

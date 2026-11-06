@@ -39,7 +39,12 @@ import { exemptFromTraps } from "./trap-exempt";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import { RegionalAuthority } from "./regional-auth-authority";
-import { regionalConfig, REGIONAL_PREFIX } from "./regional-auth-contract";
+import {
+  isRegionalAuthorityBrowserRoute,
+  regionalConfig,
+  REGIONAL_PREFIX,
+  type RegionalConfig,
+} from "./regional-auth-contract";
 import {
   rejectionNotice,
   type RejectionAuthor,
@@ -50,6 +55,27 @@ import {
   SCHEMATIC_ARENA_PATH,
   isArenaPagePath,
 } from "./arena-paths";
+
+/** Only configured transport aliases may be interpreted as the browser origin. */
+function canonicalAuthorityRequest(
+  request: Request,
+  config: RegionalConfig,
+): Request | null {
+  const url = new URL(request.url);
+  if (url.origin !== config.transportOrigin || url.origin === config.origin)
+    return request;
+  const rpc =
+    request.method === "POST" &&
+    ["exchange", "renew", "identities"].some(
+      (action) => url.pathname === REGIONAL_PREFIX + action,
+    );
+  if (!rpc && !isRegionalAuthorityBrowserRoute(request.method, url.pathname))
+    return null;
+  return new Request(
+    new URL(url.pathname + url.search, config.origin),
+    request,
+  );
+}
 
 export const AUTH_SESSION_COOKIE = "icm_session";
 export const AUTH_STATE_COOKIE = "icm_oauth_state";
@@ -579,9 +605,15 @@ export class AuthDO {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const regional = regionalConfig(this.env.AUTH_REGIONAL_AUTHORITY);
+    if (regional) {
+      const canonical = canonicalAuthorityRequest(request, regional);
+      if (!canonical) return noStoreJson({ error: "not-found" }, 404);
+      request = canonical;
+    }
     const url = new URL(request.url);
     if (url.pathname.startsWith(REGIONAL_PREFIX)) {
-      const config = regionalConfig(this.env.AUTH_REGIONAL_AUTHORITY);
+      const config = regional;
       if (!config) return noStoreJson({ error: "not-found" }, 404);
       this.regionalAuthority ??= new RegionalAuthority(
         this.sql,

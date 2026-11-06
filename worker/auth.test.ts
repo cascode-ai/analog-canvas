@@ -1337,6 +1337,204 @@ describe("Owner tokens (#1769)", () => {
 });
 
 describe("regional identity handoff", () => {
+  it("hands off on one browser origin while exchanging through a fixed authority transport", async () => {
+    const { RegionalSessionDO } = await import("./regional-session");
+    const transport = "https://canvas-origin.test";
+    const config = JSON.stringify({
+      origin: ORIGIN,
+      clientOrigin: ORIGIN,
+      transportOrigin: transport,
+      secret: REGIONAL_SECRET,
+    });
+    const auth = harness({
+      RESEND_API_KEY: "test",
+      AUTH_REGIONAL_AUTHORITY: config,
+      GOOGLE_CLIENT_ID: "google-test",
+      GOOGLE_CLIENT_SECRET: "secret",
+    });
+    const source = await emailSignIn(auth, "same-origin@example.test");
+    const state = sqliteState();
+    const region = new RegionalSessionDO(
+      { storage: { ...state.storage, setAlarm: async () => {} } },
+      { AUTH_REGIONAL_CLIENT: config },
+    );
+    const exchanges: string[] = [];
+    region.fetchLike = (input, init) => {
+      exchanges.push(String(input));
+      expect(init?.redirect).toBe("manual");
+      return auth.durable.fetch(new Request(input, init));
+    };
+    const start = await region.fetch(
+      new Request(ORIGIN + "/api/auth/regional/start"),
+    );
+    expect(start.status).toBe(302);
+    const authorizeUrl = new URL(start.headers.get("location")!);
+    expect(authorizeUrl.origin).toBe(ORIGIN);
+    const authorized = await auth.durable.fetch(
+      new Request(transport + authorizeUrl.pathname + authorizeUrl.search, {
+        headers: { cookie: source },
+      }),
+    );
+    const callback = await region.fetch(
+      new Request(authorized.headers.get("location")!, {
+        headers: {
+          cookie:
+            "icm_regional_login=" +
+            cookieValue(start, "icm_regional_login") +
+            "; " +
+            source,
+        },
+      }),
+    );
+    expect(callback.status).toBe(302);
+    expect(exchanges).toEqual([transport + "/api/auth/regional/exchange"]);
+    const localCookie =
+      "icm_regional_session=" + cookieValue(callback, "icm_regional_session");
+    const identity = await (
+      await region.fetch(
+        new Request(ORIGIN + "/api/auth/me", {
+          headers: { cookie: localCookie + "; " + source },
+        }),
+      )
+    ).json();
+    expect(identity.user).toEqual(await me(auth, source));
+    const google = await auth.durable.fetch(
+      new Request(transport + "/api/auth/google/start"),
+    );
+    expect(
+      new URL(google.headers.get("location")!).searchParams.get("redirect_uri"),
+    ).toBe(ORIGIN + "/api/auth/google/callback");
+    const rejectedOrigin = await auth.durable.fetch(
+      new Request(transport + "/api/auth/email/start", {
+        method: "POST",
+        headers: {
+          origin: "https://attacker.test",
+          "x-forwarded-host": new URL(ORIGIN).host,
+        },
+        body: JSON.stringify({ email: "victim@example.test" }),
+      }),
+    );
+    expect(rejectedOrigin.status).toBe(403);
+    for (const path of [
+      "/api/auth/me",
+      "/api/auth/logout",
+      "/api/auth/regional/start",
+      "/api/auth/regional/callback",
+      "/api/auth/google/start/",
+    ])
+      expect(
+        (await auth.durable.fetch(new Request(transport + path))).status,
+      ).toBe(404);
+    expect(
+      (
+        await auth.durable.fetch(
+          new Request(transport + "/api/auth/regional/authorize", {
+            method: "POST",
+          }),
+        )
+      ).status,
+    ).toBe(404);
+    const untrusted = new URL(authorizeUrl);
+    untrusted.hostname = "attacker.test";
+    expect(
+      (
+        await auth.durable.fetch(
+          new Request(untrusted, {
+            headers: {
+              cookie: source,
+              "x-forwarded-host": new URL(ORIGIN).host,
+            },
+          }),
+        )
+      ).status,
+    ).toBe(421);
+    expect(await me(auth, source)).toEqual(identity.user);
+  });
+
+  it.each([
+    undefined,
+    ORIGIN,
+    "https://canvas-origin.test/path",
+    "http://canvas-origin.test",
+  ])("refuses an unsafe same-origin transport %s", async (transportOrigin) => {
+    const { RegionalSessionDO } = await import("./regional-session");
+    const config = JSON.stringify({
+      origin: ORIGIN,
+      clientOrigin: ORIGIN,
+      secret: REGIONAL_SECRET,
+      transportOrigin,
+    });
+    const state = sqliteState();
+    const region = new RegionalSessionDO(
+      { storage: { ...state.storage, setAlarm: async () => {} } },
+      { AUTH_REGIONAL_CLIENT: config },
+    );
+    expect(
+      (await region.fetch(new Request(ORIGIN + "/api/auth/regional/start")))
+        .status,
+    ).toBe(404);
+  });
+
+  it("does not follow a fixed authority transport redirect or accept its identity payload", async () => {
+    const { RegionalSessionDO } = await import("./regional-session");
+    const config = JSON.stringify({
+      origin: ORIGIN,
+      clientOrigin: ORIGIN,
+      transportOrigin: "https://canvas-origin.test",
+      secret: REGIONAL_SECRET,
+    });
+    const state = sqliteState();
+    const region = new RegionalSessionDO(
+      { storage: { ...state.storage, setAlarm: async () => {} } },
+      { AUTH_REGIONAL_CLIENT: config },
+    );
+    const start = await region.fetch(
+      new Request(ORIGIN + "/api/auth/regional/start"),
+    );
+    const nonce = new URL(start.headers.get("location")!).searchParams.get(
+      "state",
+    )!;
+    region.fetchLike = async (_input, init) => {
+      expect(init?.redirect).toBe("manual");
+      return Response.json(
+        {
+          grant: "x".repeat(43),
+          expiresAt: Date.now() + 60_000,
+          user: {
+            id: "untrusted",
+            provider: "email",
+            email: null,
+            displayName: "Untrusted",
+            role: "user",
+            isAdmin: false,
+          },
+        },
+        {
+          status: 302,
+          headers: { location: "https://attacker.test/exchange" },
+        },
+      );
+    };
+    const callback = await region.fetch(
+      new Request(
+        ORIGIN +
+          "/api/auth/regional/callback?" +
+          new URLSearchParams({ state: nonce, code: "c".repeat(43) }),
+        {
+          headers: {
+            cookie:
+              "icm_regional_login=" + cookieValue(start, "icm_regional_login"),
+          },
+        },
+      ),
+    );
+    expect(callback.status).toBe(503);
+    expect(callback.headers.getSetCookie()).toEqual([]);
+    expect(
+      await (await region.fetch(new Request(ORIGIN + "/api/auth/me"))).json(),
+    ).toEqual({ user: null, authorization: "anonymous" });
+  });
+
   const authorityConfig = JSON.stringify({
     origin: ORIGIN,
     clientOrigin: REGIONAL_ORIGIN,

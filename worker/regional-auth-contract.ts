@@ -9,6 +9,8 @@ export type RegionalSql = SqlStorage;
 export type RegionalConfig = {
   origin: string;
   clientOrigin: string;
+  /** Fixed authority backend; independent of browser geographic routing. */
+  transportOrigin?: string;
   secret: string;
 };
 
@@ -24,7 +26,11 @@ export function regionalConfig(
       config.secret.length > 256
     )
       return null;
-    for (const origin of [config.origin, config.clientOrigin]) {
+    for (const origin of [
+      config.origin,
+      config.clientOrigin,
+      ...(config.transportOrigin === undefined ? [] : [config.transportOrigin]),
+    ]) {
       const url = new URL(origin);
       if (url.origin !== origin || url.username || url.password) return null;
       if (
@@ -36,10 +42,27 @@ export function regionalConfig(
       )
         return null;
     }
-    return config.origin !== config.clientOrigin ? config : null;
+    const transport = config.transportOrigin ?? config.origin;
+    return transport !== config.clientOrigin ? config : null;
   } catch {
     return null;
   }
+}
+
+/** Exact browser routes the domestic entry may proxy to the fixed authority. */
+export function isRegionalAuthorityBrowserRoute(
+  method: string,
+  path: string,
+): boolean {
+  return [
+    "GET /api/auth/regional/authorize",
+    "GET /api/auth/github/start",
+    "GET /api/auth/github/callback",
+    "GET /api/auth/google/start",
+    "GET /api/auth/google/callback",
+    "POST /api/auth/email/start",
+    "POST /api/auth/email/verify",
+  ].includes(method + " " + path);
 }
 
 export function nonce(): string {
