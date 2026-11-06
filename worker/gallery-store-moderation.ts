@@ -2,6 +2,7 @@
 // deleting an entry or a whole account's data.
 
 import type { RejectionAuthor } from "./gallery-rejection-notice";
+import { forgetTransistorCount } from "./gallery-store-stats";
 import {
   readGalleryCuration,
   type GalleryAttention,
@@ -338,6 +339,7 @@ function hardDeleteEntryRows(sql: SqlStorage, id: string): void {
   sql.exec("DELETE FROM gallery_entry_versions WHERE entry_id = ?", id);
   sql.exec("DELETE FROM gallery_likes WHERE entry_id = ?", id);
   sql.exec("DELETE FROM gallery_entries WHERE id = ?", id);
+  forgetTransistorCount(sql, id);
 }
 
 /**

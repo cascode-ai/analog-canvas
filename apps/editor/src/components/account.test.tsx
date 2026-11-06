@@ -302,6 +302,8 @@ describe("AccountMenuView", () => {
       "moderation",
     );
     expect(member).toContain("Signed in with Google");
+    // Every account has its own statistics.
+    expect(member).toContain('data-testid="account-tab-statistics"');
     expect(member).not.toContain("account-tab-moderation");
     expect(member).not.toContain("account-tab-ai");
     expect(member).not.toContain("account-owner");
@@ -343,6 +345,7 @@ describe("AccountMenuView", () => {
 
   it("reads the open tab from the address", () => {
     expect(accountTabFromSearch("")).toBe("circuits");
+    expect(accountTabFromSearch("?tab=statistics")).toBe("statistics");
     expect(accountTabFromSearch("?tab=projects")).toBe("projects");
     expect(accountTabFromSearch("?tab=moderation")).toBe("moderation");
     expect(accountTabFromSearch("?tab=ai")).toBe("ai");

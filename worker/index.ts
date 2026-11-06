@@ -22,7 +22,11 @@ import {
   galleryReadableDocument,
   type GalleryReadableDocument,
 } from "./gallery-documents";
-import { moveTestbenches, refreshNetlistMarks } from "./gallery-maintenance";
+import {
+  moveTestbenches,
+  refreshNetlistMarks,
+  refreshTransistorCounts,
+} from "./gallery-maintenance";
 import { advanceSimulationChecks } from "./gallery-simulation-check-runs";
 import type { GalleryNamespaceLike, GalleryEnv } from "./gallery-store";
 import {
@@ -120,6 +124,7 @@ export default {
     }
     try {
       await refreshNetlistMarks(env, SCHEDULED_NETLIST_MARK_BATCH);
+      await refreshTransistorCounts(env, SCHEDULED_TRANSISTOR_BATCH);
       // Once the Owner recorded a backup, testbenches leave the shared
       // Project Code a batch a tick (#1545); then the pass reads one row.
       await moveTestbenches(env, { apply: true, scheduled: true });
@@ -140,6 +145,8 @@ export default {
 
 /** Batch size per tick: large enough to converge quickly, small enough to stay well inside one invocation. */
 const SCHEDULED_NETLIST_MARK_BATCH = 50;
+/** Counting reads only the Project, so a batch can be larger. */
+const SCHEDULED_TRANSISTOR_BATCH = 100;
 
 type ScheduledEventLike = { scheduledTime: number; cron: string };
 

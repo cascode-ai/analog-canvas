@@ -262,6 +262,13 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
 - `GET /api/gallery/mine`: own entries with `status`, `rejectReason`,
   `recycledAt`, `likes`, `withdrawnByCurator`; `scope=ai-seats` for AI seats
   (others 403 `ai-accounts-only`; unknown 400 `invalid-scope`).
+- `GET /api/gallery/mine/stats` (401 signed out): the account's public circuits,
+  newest first, as `{circuits:[{id,name,createdAt,components,transistors}]}`,
+  for its account page's Statistics tab. `transistors` counts the top Cell's
+  drawn MOS and BJT parts and those of each called Cell, once per call (a
+  behavioral block holds none); kept beside its rule version, not backed up,
+  counted on read, by the scheduled pass and again after an edit; null while
+  unreadable.
 - Moderators: `users.role` (`user`/`moderator`), set by the super-admin via
   `POST /api/auth/users/role` `{email, role}` for every account with that
   verified email. Bin and maintenance stay admin-only. No bulk model fill.
@@ -495,10 +502,16 @@ ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
   Project-bearing tables from `{backup}` with 3-version retention, within one
   100 MB request; whole-store rollback is point-in-time recovery.
 - `GET /api/gallery/owner-data` (Owner accounts; 401 signed out or credential,
-  403 otherwise): public per-author counts, opens, average parts, AI and
-  netlist marks, likes and newest time, and `mostOpened` (the 50 circuits
-  opened most, datasets' included, with `opens` and `opensLastWeek`);
-  `author=<key>` lists that author's circuits with the same opens.
+  403 otherwise): public per-author counts, opens, total `components` and
+  `transistors` (`transistorsPending`: circuits the scheduled pass has yet to
+  count), AI and netlist marks, likes and newest time, and `mostOpened` (the 50
+  circuits opened most, datasets' included, with `opens` and `opensLastWeek`);
+  `author=<key>` counts that author's circuits, each with its `parts`,
+  `transistors` and the same opens.
+- `POST /api/gallery/owner-data/recount` (same-origin, Owner accounts):
+  counts the transistors of up to 200 public circuits after `{after}`, in ID
+  order, whatever their stored count; `{counted, remaining, next}`, resumed
+  from `next` until it is null. The Data tab's Recount runs it to the end.
 
 `label-looks` fields (body, then each of the reply's `results`):
 

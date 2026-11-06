@@ -1,3 +1,4 @@
+import { deviceDescriptor } from "@icm/devices";
 import type { CircuitProject } from "@icm/model";
 import { getRazaviCatalogEntry } from "@icm/symbols";
 import taxonomy from "../config/gallery-taxonomy.json";
@@ -27,6 +28,51 @@ export function galleryComponentCount(project: CircuitProject): number {
       instance.placement !== null &&
       !NOT_PARTS.has(getRazaviCatalogEntry(instance.symbolId)?.category ?? ""),
   ).length;
+}
+
+/**
+ * How many transistors a Gallery circuit holds: the MOS and BJT parts its top
+ * Cell draws, and those of each Cell it calls, counted once per call, so a
+ * Cell called twice counts twice. A block with a behavioral body (an op-amp,
+ * a gate not bound to a Cell) holds none, and parts the sheet does not draw
+ * are not counted, as for the part count.
+ *
+ * Kept per entry beside this rule's version (gallery-store-stats.ts), so a
+ * changed rule leaves exactly the stale counts for the scheduled pass.
+ */
+export const TRANSISTOR_COUNT_RULE_VERSION = 1;
+
+const TRANSISTOR_CLASSES = new Set(["mos", "bjt"]);
+
+export function galleryTransistorCount(project: CircuitProject): number {
+  const counted = new Map<string, number>();
+  const count = (documentId: string): number => {
+    const known = counted.get(documentId);
+    if (known !== undefined) return known;
+    // A Cell that calls itself, however far down, adds nothing more.
+    counted.set(documentId, 0);
+    const document = project.documents.find((item) => item.id === documentId);
+    let total = 0;
+    for (const instance of document?.instances ?? []) {
+      if (instance.placement === null) continue;
+      const binding = instance.netlist?.binding;
+      if (binding?.kind === "subcircuit")
+        total += count(binding.childDocumentId);
+      else if (
+        TRANSISTOR_CLASSES.has(
+          deviceDescriptor(instance.symbolId, project)?.deviceClass ?? "",
+        )
+      )
+        total += 1;
+    }
+    counted.set(documentId, total);
+    return total;
+  };
+  const top =
+    project.documents.find(
+      (document) => document.id === project.topDocumentId,
+    ) ?? project.documents[0];
+  return top ? count(top.id) : 0;
 }
 
 /** One size a reader may filter the wall by, in parts; open above when no max. */

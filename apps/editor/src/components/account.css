@@ -602,6 +602,40 @@
   gap: 16px;
 }
 
+.owner-data-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.owner-data-tools .owner-data-search {
+  flex: 1 1 14rem;
+}
+
+.owner-data-recount {
+  padding: 7px 14px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.owner-data-recount:hover:not(:disabled) {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-tint);
+}
+
+.owner-data-recount-status {
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .owner-data-search {
   max-width: 20rem;
   padding: 7px 10px;
@@ -686,8 +720,15 @@
 }
 
 .owner-data-detail > td {
-  padding: 4px 8px 12px 20px;
-  background: var(--icm-surface-hover);
+  padding: 14px 14px 18px;
+  background: var(--icm-chrome-bg);
+}
+
+/* Transistors the scheduled pass has still to count for this author. */
+.owner-data-pending {
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .owner-data-detail .owner-data-table td {

@@ -474,6 +474,28 @@ export async function refreshNetlistMarks(
 }
 
 /**
+ * One batch of transistor counts for the circuits that have none at this
+ * build's rule, so the account statistics and the Owner's Data tab need not
+ * count a whole Gallery on a read.
+ */
+export async function refreshTransistorCounts(
+  env: GalleryEnv,
+  limit?: number,
+): Promise<{ status: number; payload: unknown }> {
+  return callGallery(env, "transistor-refresh", {
+    ...(limit === undefined ? {} : { limit }),
+  });
+}
+
+/** One batch of the Owner's Recount of every public circuit's transistors. */
+export async function recountTransistors(
+  env: GalleryEnv,
+  after: string,
+): Promise<{ status: number; payload: unknown }> {
+  return callGallery(env, "transistor-recount", { after });
+}
+
+/**
  * A backup Release named for the testbench move (#1545): a Gallery or store
  * capture (`gallery-` or `store-<time>Z-<run>-<attempt>`, as
  * scripts/gallery-private-snapshot.mjs downloads it) from the last day.

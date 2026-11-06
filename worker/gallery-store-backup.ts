@@ -229,6 +229,7 @@ export function schemaRestore(
   }
   const retainedVersionCount = state.storage.transactionSync(() => {
     sql.exec("DELETE FROM gallery_entries");
+    sql.exec("DELETE FROM gallery_entry_transistors");
     sql.exec("DELETE FROM gallery_entry_versions");
     sql.exec("DELETE FROM cloud_projects");
     sql.exec("DELETE FROM cloud_project_versions");
