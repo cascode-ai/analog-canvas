@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { GalleryTagOption } from "../gallery-client";
 import { GalleryTagGroups } from "./gallery-tag-groups";
+import { galleryOriginTagMark } from "../gallery-origin-tags";
 
 const WIDTH_KEY = "icm.gallery.sidebarWidth";
 const MIN_WIDTH = 180;
@@ -52,6 +53,11 @@ export function GalleryTagSidebar({
   adminTools?: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  // An origin (From Virtuoso) is a quick filter: the Tags heading neither
+  // counts nor clears it.
+  const circuitTagsSelected = selected.filter(
+    (tag) => !galleryOriginTagMark(tag),
+  ).length;
   const slotRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     pointerId: number;
@@ -176,14 +182,14 @@ export function GalleryTagSidebar({
         ) : null}
         <div className="gallery-sidebar-heading">
           <h2>Tags</h2>
-          {selected.length ? (
+          {circuitTagsSelected ? (
             <button
               type="button"
               className="gallery-sidebar-clear"
               data-testid="gallery-tags-clear"
-              onClick={() => onChange([])}
+              onClick={() => onChange(selected.filter(galleryOriginTagMark))}
             >
-              Clear {selected.length} selected
+              Clear {circuitTagsSelected} selected
             </button>
           ) : null}
         </div>
