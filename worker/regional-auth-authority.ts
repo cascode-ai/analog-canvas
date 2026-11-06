@@ -6,6 +6,7 @@ import {
   cookie,
   digest,
   isRegionalAccountRoute,
+  isRegionalSecurityRoute,
   nonce,
   readBody,
   redirect,
@@ -52,6 +53,10 @@ export class RegionalAuthority {
       user: SessionUser,
     ) => Promise<Response>,
     private readonly ownerToken: (token: string) => Promise<SessionUser | null>,
+    private readonly security: (request: Request) => Promise<Response>,
+    private readonly relatedRestrictions: (
+      id: string,
+    ) => { id: string; blocked: boolean }[],
   ) {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_codes (
       code_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL,
@@ -59,6 +64,10 @@ export class RegionalAuthority {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_grants (
       grant_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL,
       audience TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS regional_security_clock (id INTEGER PRIMARY KEY CHECK(id = 1), revision INTEGER NOT NULL)",
+    );
+    sql.exec("INSERT OR IGNORE INTO regional_security_clock VALUES (1, 0)");
     for (const table of ["regional_codes", "regional_grants"]) {
       const columns = sql
         .exec<{ name: string }>(`PRAGMA table_info(${table})`)
@@ -83,6 +92,37 @@ export class RegionalAuthority {
       if (url.pathname === REGIONAL_PREFIX + "renew") return this.renew(body);
       if (url.pathname === REGIONAL_PREFIX + "account")
         return this.accountOperation(body);
+      if (url.pathname === REGIONAL_PREFIX + "security") {
+        if (
+          typeof body.path !== "string" ||
+          !isRegionalSecurityRoute("POST", body.path)
+        )
+          return answer({ error: "not-found" }, 404);
+        if (
+          !body.body ||
+          typeof body.body !== "object" ||
+          Array.isArray(body.body)
+        )
+          return answer({ error: "invalid-request" }, 400);
+        const response = await this.security(
+          new Request("https://auth" + body.path, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body.body),
+          }),
+        );
+        const result = { status: response.status, body: await response.json() };
+        return answer({
+          result,
+          ...(response.ok && body.path === "/internal/block-account"
+            ? {
+                restrictions: this.restrictions(
+                  (body.body as Record<string, unknown>).userId,
+                ),
+              }
+            : {}),
+        });
+      }
       if (url.pathname === REGIONAL_PREFIX + "owner-token") {
         const token = body.token;
         if (
@@ -200,6 +240,7 @@ export class RegionalAuthority {
     }
     return answer({
       user: current.user,
+      restrictionRevision: current.restrictionRevision,
       grant,
       expiresAt: this.now() + REGIONAL_LEASE_MS,
     });
@@ -218,6 +259,7 @@ export class RegionalAuthority {
     }
     return answer({
       user: grant.user,
+      restrictionRevision: grant.restrictionRevision,
       expiresAt: this.now() + REGIONAL_LEASE_MS,
     });
   }
@@ -240,16 +282,33 @@ export class RegionalAuthority {
     if (!actor) return null;
     const subject = row.subject_id ? this.identity(row.subject_id) : anchor;
     if (!subject) return null;
-    if (subject.id === actor.id) return { row, actor, user: actor };
+    const restrictionRevision = this.sql
+      .exec<{ revision: number }>(
+        "SELECT revision FROM regional_security_clock WHERE id = 1",
+      )
+      .one().revision;
+    if (subject.id === actor.id)
+      return { row, actor, user: subject, restrictionRevision };
     if (!actor.isAdmin || !subject.seat) return null;
     return {
       row,
       actor,
+      restrictionRevision,
       user: {
         ...subject,
         switchedFrom: { id: actor.id, displayName: actor.displayName },
       },
     };
+  }
+
+  private restrictions(id: unknown) {
+    const users = typeof id === "string" ? this.relatedRestrictions(id) : [];
+    const revision = this.sql
+      .exec<{ revision: number }>(
+        "UPDATE regional_security_clock SET revision = revision + 1 WHERE id = 1 RETURNING revision",
+      )
+      .one().revision;
+    return { revision, users };
   }
 
   private async accountOperation(
@@ -310,16 +369,25 @@ export class RegionalAuthority {
         }),
         grant.user,
       );
+    const result = {
+      status: response.status,
+      body: await response.json().catch(() => null),
+    };
+    const restrictions =
+      body.path === "/api/auth/blocked/unblock" && response.ok
+        ? this.restrictions(
+            (body.body as Record<string, unknown> | undefined)?.userId,
+          )
+        : undefined;
     const current = await this.currentGrant(body.grant);
     if (!current) return answer({ error: "invalid-grant" }, 401);
     return answer({
       // Existing account lists have no count cap. Keep their response contract;
       // the bounded reader above applies to untrusted incoming RPC bodies.
-      result: {
-        status: response.status,
-        body: await response.json().catch(() => null),
-      },
+      result,
       user: current.user,
+      restrictionRevision: current.restrictionRevision,
+      ...(restrictions ? { restrictions } : {}),
       expiresAt: this.now() + REGIONAL_LEASE_MS,
     });
   }

@@ -6,6 +6,7 @@
 // is `GalleryDO` (gallery-do.ts); its operations live in gallery-store*.ts.
 
 import type { RejectionAuthor } from "./gallery-rejection-notice";
+import { boundedBlockEvidence } from "./account-blocks";
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { validGalleryAttention } from "./gallery-curation";
 import { createDesignNetlistExport } from "@icm/netlist";
@@ -189,11 +190,13 @@ async function blockForTrap(
       body: JSON.stringify({
         userId: reader.id,
         kind,
-        entryId,
-        path: new URL(request.url).pathname,
-        ip: headers.get("cf-connecting-ip"),
-        country: headers.get("cf-ipcountry"),
-        userAgent: headers.get("user-agent"),
+        ...boundedBlockEvidence({
+          entryId,
+          path: new URL(request.url).pathname,
+          ip: headers.get("cf-connecting-ip"),
+          country: headers.get("cf-ipcountry"),
+          userAgent: headers.get("user-agent"),
+        }),
       }),
     })
     .catch(() => null);
