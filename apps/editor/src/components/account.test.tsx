@@ -456,24 +456,28 @@ describe("loadAccountState", () => {
     ]);
   });
 
-  it.each(["disabled", "http-error", "invalid-json", "offline"])(
-    "keeps the account hidden when providers are %s",
-    async (failure) => {
-      const fetchLike: typeof fetch = async (input) => {
-        if (input !== "/api/auth/providers")
-          return Response.json({ user: { id: "u1" } });
-        if (failure === "offline") throw new TypeError("offline");
-        if (failure === "http-error")
-          return new Response(null, { status: 503 });
-        if (failure === "invalid-json") return new Response("invalid");
-        return Response.json({ github: false, google: false, email: false });
-      };
-      expect(await loadAccountState(fetchLike)).toEqual({
-        providers: { github: false, google: false, email: false },
-        user: null,
-      });
-    },
-  );
+  it.each([
+    "disabled",
+    "http-error",
+    "invalid-json",
+    "invalid-shape",
+    "offline",
+  ])("retains a confirmed session when providers are %s", async (failure) => {
+    const fetchLike: typeof fetch = async (input) => {
+      if (input !== "/api/auth/providers")
+        return Response.json({ user: { id: "u1" } });
+      if (failure === "offline") throw new TypeError("offline");
+      if (failure === "http-error") return new Response(null, { status: 503 });
+      if (failure === "invalid-json") return new Response("invalid");
+      if (failure === "invalid-shape") return Response.json({});
+      return Response.json({ github: false, google: false, email: false });
+    };
+    expect(await loadAccountState(fetchLike)).toEqual({
+      providers: { github: false, google: false, email: false },
+      user: { id: "u1" },
+      ...(failure === "disabled" ? {} : { providerDiscoveryFailed: true }),
+    });
+  });
 
   it.each(["signed-out", "http-error", "invalid-json", "offline"])(
     "keeps the enabled sign-in choices when the session is %s",

@@ -501,7 +501,7 @@ export function AccountDashboard({
 type AccountPageState =
   | { status: "loading" }
   | { status: "signed-out" }
-  | { status: "ready"; user: SessionUser; domestic: boolean };
+  | { status: "ready"; user: SessionUser; deletionUnavailableReason?: string };
 
 /** `/account`: the signed-in account's own page. */
 export function AccountPage() {
@@ -509,14 +509,27 @@ export function AccountPage() {
   const [state, setState] = useState<AccountPageState>({ status: "loading" });
   useEffect(() => {
     let cancelled = false;
-    void loadAccountState().then(({ user, providers }) => {
-      if (!cancelled)
-        setState(
-          user
-            ? { status: "ready", user, domestic: providers.central === true }
-            : { status: "signed-out" },
-        );
-    });
+    void loadAccountState().then(
+      ({ user, providers, providerDiscoveryFailed }) => {
+        const deletionUnavailableReason = providerDiscoveryFailed
+          ? "Account deletion is temporarily unavailable. Reload to try again."
+          : providers.central === true
+            ? "Account deletion is unavailable in the domestic trial."
+            : undefined;
+        if (!cancelled)
+          setState(
+            user
+              ? {
+                  status: "ready",
+                  user,
+                  ...(deletionUnavailableReason
+                    ? { deletionUnavailableReason }
+                    : {}),
+                }
+              : { status: "signed-out" },
+          );
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -535,10 +548,9 @@ export function AccountPage() {
           <AccountDashboard
             key={state.user.id}
             user={state.user}
-            {...(state.domestic
+            {...(state.deletionUnavailableReason
               ? {
-                  deletionUnavailableReason:
-                    "Account deletion is unavailable in the domestic trial.",
+                  deletionUnavailableReason: state.deletionUnavailableReason,
                 }
               : {})}
             initialTab={accountTabFromSearch(window.location.search)}
@@ -546,7 +558,7 @@ export function AccountPage() {
               void renameAccount(displayName).then((user) => {
                 if (!user) return;
                 cacheSessionUser(fetch, user);
-                setState({ status: "ready", user, domestic: state.domestic });
+                setState({ ...state, user });
                 window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
               });
             }}

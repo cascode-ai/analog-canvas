@@ -89,6 +89,9 @@ serves local authorization. Resource replication is owned by
 - The domestic trial disables account deletion visibly in Settings and refuses
   its API locally before contacting the authority. Existing overseas deletion
   is unchanged; cross-region cleanup is a deferred trial limitation.
+- Failed sign-in discovery never discards a confirmed session. Until valid
+  provider settings are available, account deletion remains disabled; account
+  navigation and the confirmed identity remain visible.
 - Session cookies, pending verifiers and authority grants stay in regional
   private storage; they are excluded from resource replication. Store credentials
   outside source and logs. Recovery from a stale session-store backup must

@@ -21,6 +21,44 @@ import { regionalAccounts } from "./regional-auth-fixture";
 
 const ALL_PROVIDERS = { github: true, google: true, email: true };
 
+test("an existing account survives failed provider discovery and keeps deletion disabled", async ({
+  page,
+}) => {
+  await mockGallery(page, []);
+  await signIn(page, sessionUser({ displayName: "Existing member" }));
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<html>Sign-in settings unavailable</html>",
+    }),
+  );
+  await page.route("**/api/gallery/mine**", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ json: { projects: [] } }),
+  );
+  let deletions = 0;
+  await page.route("**/api/auth/account/delete", (route) => {
+    deletions++;
+    return route.fulfill({ status: 500 });
+  });
+  await page.goto("/account?tab=projects");
+  await expect(page.getByTestId("account-tab-projects")).toBeVisible();
+  await expect(page.getByTestId("account-name")).toHaveText("Existing member");
+  await expect(page.getByTestId("account-signed-out")).toHaveCount(0);
+  await page.getByTestId("account-tab-settings").click();
+  await expect(page.getByTestId("account-delete")).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Account deletion is temporarily unavailable. Reload to try again.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByTestId("account-delete-dialog")).toHaveCount(0);
+  expect(deletions).toBe(0);
+});
+
 test("regional AI switching preserves the administrator's source session and returns through the real account UI", async ({
   page,
   baseURL,
