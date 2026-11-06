@@ -850,7 +850,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     });
     expect(gate(bind(fda, "")).netlist).toEqual({
       binding: { kind: "unresolved-subcircuit", name: "opamp_differential" },
-      parameters: { gain: "1e6" },
+      parameters: { gain: "1e6", vocm: "0" },
     });
   });
 

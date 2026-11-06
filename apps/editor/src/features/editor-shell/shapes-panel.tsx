@@ -245,6 +245,18 @@ export function ShapesPanel({
   useEffect(() => {
     if (focusRequest && open) search.current?.focus();
   }, [focusRequest, open]);
+  // The fold sits below the long official list: opening it, from its header
+  // or Edit's command, brings its header to the panel's top.
+  const componentFold = useRef<HTMLDetailsElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const foldOpen = Boolean(userComponents?.open);
+  useEffect(() => {
+    const fold = componentFold.current;
+    const scroller = body.current;
+    if (!foldOpen || !open || !fold || !scroller) return;
+    scroller.scrollTop +=
+      fold.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  }, [foldOpen, open, focusRequest]);
 
   function placeSymbol(symbolId: string): void {
     const request = quickPlaceRequest(styleProfileId, symbolId);
@@ -314,53 +326,7 @@ export function ShapesPanel({
           onFocus={userComponents?.prepare}
         />
       </div>
-      <div className="shapes-panel-body">
-        {userComponents ? (
-          // Above the long official list, shut, so it costs one line and is
-          // still the first thing the panel names.
-          <details
-            className="shapes-fold"
-            open={componentsShown}
-            data-testid="shapes-fold-user-components"
-            onToggle={(event) => {
-              if (!searching)
-                userComponents.onOpenChange(event.currentTarget.open);
-            }}
-          >
-            <summary
-              className="shapes-fold-summary"
-              onPointerEnter={userComponents.prepare}
-              onFocus={userComponents.prepare}
-            >
-              <span className="shapes-fold-label">{userComponents.label}</span>
-              <span className="shapes-fold-tools" ref={setComponentTools} />
-              <button
-                type="button"
-                className="shapes-fold-tool"
-                aria-label="Create component"
-                title="Create component"
-                onClick={(event) => {
-                  event.preventDefault();
-                  userComponents.onCreate();
-                }}
-              >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 3v10M3 8h10" />
-                </svg>
-              </button>
-            </summary>
-            <div className="shapes-fold-body">
-              {componentsLoaded.current
-                ? userComponents.render({
-                    open: componentsShown,
-                    query,
-                    toolsSlot: componentTools,
-                    focusSearch,
-                  })
-                : null}
-            </div>
-          </details>
-        ) : null}
+      <div className="shapes-panel-body" ref={body}>
         <details
           className="shapes-fold"
           open={officialOpen || searching}
@@ -452,6 +418,52 @@ export function ShapesPanel({
             </div>
           </div>
         </details>
+        {userComponents ? (
+          // Below the official list, which a drawing reaches for first.
+          <details
+            className="shapes-fold shapes-fold-components"
+            open={componentsShown}
+            data-testid="shapes-fold-user-components"
+            ref={componentFold}
+            onToggle={(event) => {
+              if (!searching)
+                userComponents.onOpenChange(event.currentTarget.open);
+            }}
+          >
+            <summary
+              className="shapes-fold-summary"
+              onPointerEnter={userComponents.prepare}
+              onFocus={userComponents.prepare}
+            >
+              <span className="shapes-fold-label">{userComponents.label}</span>
+              <span className="shapes-fold-tools" ref={setComponentTools} />
+              <button
+                type="button"
+                className="shapes-fold-tool"
+                aria-label="Create component"
+                title="Create component"
+                onClick={(event) => {
+                  event.preventDefault();
+                  userComponents.onCreate();
+                }}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M8 3v10M3 8h10" />
+                </svg>
+              </button>
+            </summary>
+            <div className="shapes-fold-body">
+              {componentsLoaded.current
+                ? userComponents.render({
+                    open: componentsShown,
+                    query,
+                    toolsSlot: componentTools,
+                    focusSearch,
+                  })
+                : null}
+            </div>
+          </details>
+        ) : null}
       </div>
     </aside>
   );

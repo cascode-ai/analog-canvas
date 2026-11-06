@@ -15,7 +15,7 @@ rendering and recovery.
   component, Cell, Cell-Pin, external-master or VDD-rail planner, or activating
   an editor tool. It adds no Project type, Edit Engine operation or Agent endpoint.
 - The Library panel searches **Official components** (the built-in catalog) and
-  one component fold: **Community** on the Web, with
+  one component fold below it: **Community** on the Web, with
   [**My components**](symbol-dsl.md) inside it, or **My components** on the
   desktop. The fold starts shut and loads only once opened or searched;
   pointing at its header starts loading its code, and the public catalog does

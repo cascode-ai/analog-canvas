@@ -254,6 +254,12 @@
   overflow: clip;
 }
 
+/* Open, the component fold fills the panel, so its header can reach the top
+   above the official list before its rows arrive. */
+.shapes-fold-components[open] {
+  min-height: 100%;
+}
+
 .shapes-fold-summary {
   position: relative;
   display: grid;
