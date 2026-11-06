@@ -358,8 +358,12 @@ the RNL language and its runtime belong to rnl.
     hangs on the junction it stands beside, else on the Pin; a drawn name
     still binds only where it reads as the part's name; a level another tool
     wrote is read from its texts as above;
-  - a bound label keeps the drawn styles as its format only where they
-    differ from what the binding shows anyway;
+  - in a file Analog Canvas wrote (`analog-canvas-extensions`), a label
+    keeps its size and colour, and a bound label the drawn styles as its
+    format only where they differ from what the binding shows anyway;
+    another tool's labels (a part's name and values, net, power and Cell
+    Pin labels) take the house look: their text and place, never that
+    tool's size, styles or colour;
   - a part the author never named (`$CANVAS_UNNAMED`) unnamed again, with
     no netlist record, as the editor keeps one, where the netlist import
     gave its record no parameter; its name label, written with the
@@ -389,8 +393,9 @@ the RNL language and its runtime belong to rnl.
     its wire (before Canvas 0.4, or another tool's), on a wire of its net
     within three, else where it stands; a name the netlist had to spell
     otherwise is matched in the file's own dialect; a current or
-    voltage marker's label keeps its size and colour; a label in its part's
-    colour follows the part, one in another colour keeps it as its own;
+    voltage marker's label keeps its size and colour; in Analog Canvas's own
+    file a label in its part's colour follows the part, one in another
+    colour keeps it as its own;
     scripts stand outside bold (`bold`, `italic`, then the scripts), so a
     subscript and the superscript after it stay stacked; the export writes a
     script upright inside italic, as it is drawn, unless it has its own italic
