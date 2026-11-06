@@ -46,7 +46,10 @@ function verify(directory) {
   );
 }
 
-describe("private Gallery snapshot CLI", () => {
+// Windows cases start PowerShell and child Node processes to verify real ACLs.
+// Keep every security assertion while allowing cold CI process startup.
+const timeout = process.platform === "win32" ? 30_000 : 5_000;
+describe("private Gallery snapshot CLI", { timeout }, () => {
   it("refuses hard-linked snapshot files", () => {
     localSnapshot((directory) => {
       linkSync(
