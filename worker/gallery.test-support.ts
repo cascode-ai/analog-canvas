@@ -17,16 +17,30 @@ import {
   GalleryDO as DeployedGalleryDO,
 } from "./index";
 
-export function sqliteState(queries?: string[]) {
+export function sqliteState(queries?: string[], maxRowBytes = Infinity) {
   const db = new DatabaseSync(":memory:");
   let transactionId = 0;
   return {
     storage: {
       sql: {
         exec<T>(query: string, ...bindings: unknown[]) {
+          // Optional target-runtime ceiling for HTTP tests; Node SQLite otherwise
+          // admits rows that Cloudflare's SQLite service rejects.
+          if (
+            bindings.reduce<number>(
+              (size, value) =>
+                size +
+                (typeof value === "string" ? Buffer.byteLength(value) : 8),
+              0,
+            ) > maxRowBytes
+          )
+            throw new Error("SQLite runtime row limit exceeded");
           queries?.push(query);
           const statement = db.prepare(query);
-          if (/^\s*(select|with|pragma|explain)/iu.test(query)) {
+          if (
+            /^\s*(select|with|pragma|explain)/iu.test(query) ||
+            /\bRETURNING\b/iu.test(query)
+          ) {
             const rows = statement.all(
               ...(bindings as (string | number | null)[]),
             ) as T[];
@@ -85,7 +99,7 @@ export type Harness = GalleryEnv & {
  * One harness for every test: a gallery DO plus the auth DO that is now the
  * only way to publish anything, both as the Worker deploys them.
  */
-export function environment(): Harness {
+export function environment(authConfig: Partial<AuthEnv> = {}): Harness {
   const galleryQueries: string[] = [];
   const galleryCalls: string[] = [];
   const galleryState = sqliteState(galleryQueries);
@@ -111,6 +125,7 @@ export function environment(): Harness {
   };
   const authState = sqliteState();
   const authDurable = new DeployedAuthDO(authState, {
+    ...authConfig,
     RESEND_API_KEY: "rk",
     ADMIN_EMAILS: "owner@example.com",
   } as AuthEnv);

@@ -24,14 +24,15 @@ export async function callGallery<T>(
   operation: string,
   body: Record<string, unknown>,
 ): Promise<{ status: number; payload: T }> {
-  const response = await galleryStub(env).fetch(
-    `https://gallery/${operation}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    },
-  );
+  const store =
+    operation.startsWith("cloud-project-") && env.PROJECTS
+      ? env.PROJECTS.getByName(env.PROJECTS_STORE_NAME ?? "projects")
+      : galleryStub(env);
+  const response = await store.fetch(`https://gallery/${operation}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
   return { status: response.status, payload: (await response.json()) as T };
 }
 

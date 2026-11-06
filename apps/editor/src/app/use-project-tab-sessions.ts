@@ -904,6 +904,9 @@ export function useProjectTabSessions({
           cloudBinding: {
             id: saved.project.id,
             revision: saved.project.revision,
+            ...(saved.project.saveToken
+              ? { saveToken: saved.project.saveToken }
+              : {}),
             galleryEntryId: saved.project.galleryEntryId ?? null,
           },
           savedBaseline: {

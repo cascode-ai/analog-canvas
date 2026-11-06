@@ -410,7 +410,11 @@ export function cloudProjectDelete(
   });
 }
 
-function cloudProjectSavedSummary(sql: SqlStorage, userId: string, id: string) {
+export function cloudProjectSavedSummary(
+  sql: SqlStorage,
+  userId: string,
+  id: string,
+) {
   const row = sql
     .exec<CloudProjectRow>(
       "SELECT id, name, updated_at, revision, schema_version, gallery_entry_id, favorite FROM cloud_projects WHERE id = ? AND user_id = ?",

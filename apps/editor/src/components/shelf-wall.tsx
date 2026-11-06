@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 import { InlineConfirm } from "./inline-confirm";
+import { ProjectConflicts } from "./project-conflicts";
 
 import {
   CLOUD_PROJECT_LIMIT,
@@ -123,6 +124,7 @@ export function ShelfWall() {
     if (!history) return undefined;
     const endpoint = `/api/projects/${encodeURIComponent(history.id)}`;
     let revision = history.revision;
+    let saveToken = history.saveToken;
     return {
       currentLabel: "Current draft",
       async loadVersions() {
@@ -132,6 +134,7 @@ export function ShelfWall() {
         if (!response.ok) return null;
         const result = await response.json();
         revision = result.revision;
+        saveToken = result.saveToken;
         return result.versions;
       },
       async loadProject(versionId) {
@@ -155,7 +158,7 @@ export function ShelfWall() {
           {
             method: "POST",
             credentials: "same-origin",
-            headers: { "If-Match": `revision-${revision}` },
+            headers: { "If-Match": saveToken ?? `revision-${revision}` },
           },
         );
         if (!response.ok)
@@ -435,6 +438,12 @@ export function ShelfWall() {
                 >
                   Delete
                 </InlineConfirm>
+                {project.conflicted ? (
+                  <ProjectConflicts
+                    id={project.id}
+                    onResolved={() => void refresh()}
+                  />
+                ) : null}
               </div>
             ),
           }))}
