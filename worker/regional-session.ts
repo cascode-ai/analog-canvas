@@ -598,7 +598,7 @@ export class RegionalSessionDO {
     );
     const due = this.sql
       .exec<SessionRow>(
-        "SELECT * FROM regional_sessions WHERE refresh_at <= ? ORDER BY refresh_at LIMIT 20",
+        "SELECT * FROM regional_sessions WHERE refresh_at <= ? ORDER BY refresh_at LIMIT 100",
         this.now(),
       )
       .toArray();
