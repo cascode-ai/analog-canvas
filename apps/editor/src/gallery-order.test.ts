@@ -22,6 +22,7 @@ describe("the Gallery's order (#1615)", () => {
     expect(galleryOrderPreference(() => "fewest")).toBe("fewest");
     expect(galleryOrderPreference(() => "name")).toBe("name");
     expect(galleryOrderPreference(() => "name-desc")).toBe("name-desc");
+    expect(galleryOrderPreference(() => "likes")).toBe("likes");
     expect(galleryOrderPreference(() => "random")).toBe("random");
     expect(galleryOrderPreference(() => "sideways")).toBe("random");
     expect(
@@ -68,6 +69,14 @@ describe("the Gallery's order (#1615)", () => {
     expect(parts).toContain('aria-label="Order: Most parts"');
     expect(parts).toMatch(
       /aria-checked="true" data-testid="gallery-order-parts"/u,
+    );
+    // By likes, most first.
+    const liked = renderToStaticMarkup(
+      createElement(GalleryOrderMenu, { order: "likes", onChoose: () => {} }),
+    );
+    expect(liked).toContain('aria-label="Order: Most liked"');
+    expect(liked).toMatch(
+      /aria-checked="true" data-testid="gallery-order-likes"/u,
     );
     // By name, either way.
     const byName = renderToStaticMarkup(
