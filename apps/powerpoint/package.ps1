@@ -35,7 +35,7 @@ try {
     $nativeTest = Join-Path $repository ('output/powerpoint-acceptance-' + [Guid]::NewGuid().ToString('N'))
     & (Join-Path $PSScriptRoot 'test.ps1') -Output $nativeTest
     # Import the Project extracted from a saved/reopened PPT into the real editor.
-    & node apps/desktop/scripts/accept-powerpoint-close.mjs $manifest.executable (Join-Path $nativeTest 'reopened.icproj.json')
+    & node apps/desktop/scripts/accept-powerpoint-close.mjs $manifest.executable (Join-Path $nativeTest 'reopened.icproj.json') (Join-Path $nativeTest 'VerifyCancellation.exe')
     if ($LASTEXITCODE -ne 0) { throw 'PowerPoint editor acceptance failed' }
     Assert-CleanSource
     if ((& git rev-parse HEAD).Trim() -ne $commit) { throw 'Source changed during acceptance' }
@@ -51,7 +51,7 @@ try {
     Copy-Item -LiteralPath 'LICENSE.md' -Destination $destination
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $destination 'BUILD.md')
     [IO.File]::WriteAllText((Join-Path $destination 'BUILD.txt'),"Optional PowerPoint integration`nSource commit: $commit`n",[Text.UTF8Encoding]::new($false))
-    $acceptance = @{status='passed'; source=$commit; packaged=$true; checks=@('packaged-desktop','native-powerpoint-roundtrip','reopened-project-editor-import','powerpoint-save-close-six-cases'); limitations='Native callback registration requires manual validation; editor acceptance simulates the PowerPoint receipt.'} | ConvertTo-Json -Depth 4
+    $acceptance = @{status='passed'; source=$commit; packaged=$true; checks=@('packaged-desktop','native-powerpoint-roundtrip','reopened-project-editor-import','powerpoint-save-close-eight-cases','cross-process-cancellation'); limitations='Native callback registration requires manual validation; editor acceptance isolates Office at the receipt/apply boundary and exercises the production C# receiver for cancellation races.'} | ConvertTo-Json -Depth 4
     [IO.File]::WriteAllText((Join-Path $destination 'ACCEPTANCE.json'),$acceptance,[Text.UTF8Encoding]::new($false))
     # Inspect the final distribution, including native binaries and nested source.
     & node scripts/desktop-package-security.mjs $destination
