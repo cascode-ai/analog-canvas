@@ -124,7 +124,9 @@ function lockDownNetwork() {
   current.setSpellCheckerEnabled(false);
 }
 
-async function createWindow() {
+async function createWindow(
+  powerPointSession: ReturnType<typeof createPowerPointSession>,
+) {
   const window = new BrowserWindow({
     title: PRODUCT_NAME,
     icon: app.isPackaged
@@ -191,6 +193,24 @@ async function createWindow() {
           cancelId: 0,
           noLink: true,
         });
+        if (response === 1 && powerpointMode) {
+          window.setEnabled(false);
+          const cancelled = await powerPointSession.cancel();
+          if (cancelled.status !== "cancelled") {
+            await dialog.showMessageBox(window, {
+              type: cancelled.status === "failed" ? "warning" : "info",
+              message:
+                cancelled.status === "failed"
+                  ? "The window stayed open"
+                  : "PowerPoint already received the last saved drawing",
+              detail:
+                cancelled.message ??
+                "Closing keeps that update on the slide. No pending update will be applied after closing.",
+              buttons: ["OK"],
+            });
+          }
+          if (cancelled.status === "failed") return "cancel";
+        }
         return response === 2 ? "save" : response === 1 ? "discard" : "cancel";
       },
       save: async () => {
@@ -472,10 +492,10 @@ else {
       protocol.handle(APP_SCHEME, (request) => {
         audit(`${request.url}`);
         if (new URL(request.url).pathname === "/desktop/powerpoint")
-          return powerPointSession(request);
+          return powerPointSession.handle(request);
         return handler(request);
       });
-      await createWindow();
+      await createWindow(powerPointSession);
     })
     .catch((error) => {
       dialog.showErrorBox("Desktop preview could not start", String(error));

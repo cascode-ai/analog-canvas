@@ -62,7 +62,8 @@ new edits while saving and duplicate Project tabs, runs with:
 ```powershell
 node apps/desktop/scripts/accept-powerpoint-close.mjs `
   '<desktop-output>\Analog-Canvas-Windows-x64\Analog Canvas Preview.exe' `
-  apps/powerpoint/empty.icproj.json
+  apps/powerpoint/empty.icproj.json `
+  '<native-test-output>\VerifyCancellation.exe'
 ```
 
 ## Boundaries
