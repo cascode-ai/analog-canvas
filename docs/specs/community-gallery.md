@@ -480,13 +480,19 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 `/review` shows one drawing at a time beside its reference (a dataset's
 original figure, or a community circuit's reference image) for a verdict,
 each side's SPICE netlist under its picture (ours spends a daily open as
-opening the entry does), and the reader's like. It is the Gallery's Review tab, between Community
-gallery and My shelf; its pages keep that tab row. Review is the default
-mode; the top-right switch opens Statistics (`/datasets`, look only). Its
-sidebar, in the wall sidebar's markup, lists the community first, then each
-dataset with comparisons. Both sidebars fold to a strip at the left from a
-button at their top; each browser remembers it. The
-Owner's panel exports the open issues and disputes as JSON.
+opening the entry does), the reader's like and, under a dataset's netlist,
+what comparing the two netlists found (verdict, kind, one sentence). The page
+fits one 1280×800 screen. It is the Gallery's Review tab, between Community
+gallery and My shelf; its pages keep that tab row, which ends in the switch
+between Review (the default) and Statistics (`/datasets`, look only). Its
+sidebar, in the wall sidebar's markup, lists Random (every store's queue
+mixed, the default), the community, then each dataset with comparisons, and
+a filter to drawings with a reference figure; the address keeps them
+(`?scope=<random|community|key>&refs=1`; `&id=` opens one drawing). Both
+sidebars fold to a strip at the left from a button at their top; each
+browser remembers it. Statistics lists each person's reviews and fixes over
+every store and, for the Owner, the open issues and disputes (each a link
+into Review), exported as JSON.
 
 - Any signed-in account reviews any public entry except its own, a dataset's
   too (its store's only other write is the Owner's import). A review is

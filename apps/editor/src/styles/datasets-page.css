@@ -15,29 +15,15 @@
   max-width: 82rem;
 }
 
-.datasets-intro {
+/* The page opens on its dataset tabs; its mode switch is in the tab row. */
+.datasets-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 16px 24px;
-  padding: 14px 0 6px;
-}
-
-.datasets-intro h2 {
-  margin: 0 0 2px;
-  font-size: 22px;
-  letter-spacing: -0.01em;
-}
-
-.datasets-intro p {
-  margin: 0;
-  color: var(--icm-text-muted);
+  padding: 12px 0 4px;
 }
 
 .datasets-tabs {
   display: flex;
   gap: 6px;
-  margin-left: auto;
 }
 
 .datasets-tabs button {
@@ -445,19 +431,8 @@
   font: inherit;
 }
 
-/* Review's two modes, top right: review (the default), or statistics. */
-.review-intro-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.review-intro-side .datasets-tabs {
-  margin-left: 0;
-}
-
+/* Review's two modes, at the right end of the tab row: review (the
+   default), or statistics. */
 .review-mode-switch {
   display: inline-flex;
   overflow: hidden;

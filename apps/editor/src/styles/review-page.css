@@ -1,6 +1,16 @@
-/* /review: one drawing at a time beside its reference, then a verdict. */
+/* /review: one drawing at a time beside its reference, then a verdict; the
+   whole of it fits one screen, its pictures taking what the rest leaves. */
 .review-body {
   max-width: 82rem;
+  padding-top: 8px;
+  padding-bottom: 12px;
+}
+
+/* The row of Gallery tabs ends in Review's mode switch. */
+.review-tabs-side {
+  margin-left: auto;
+  align-self: center;
+  padding-bottom: 6px;
 }
 
 /* The sidebar is the Gallery's (gallery.css); only its top row differs. */
@@ -17,24 +27,32 @@
 .review-sidebar-list {
   display: grid;
   gap: 3px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--icm-border);
 }
 
-.review-export {
-  padding: 2px 10px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface);
-  font-size: 12px;
-  cursor: pointer;
+.review-sidebar-list:last-child {
+  border-bottom: 0;
+}
+
+/* Progress, then stepping, on one line. */
+.review-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
 }
 
 .review-progress {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 12px;
-  margin: 2px 0 12px;
+  min-width: 0;
   color: var(--icm-text-muted);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .review-progress .bar {
@@ -51,18 +69,51 @@
   font-variant-numeric: tabular-nums;
 }
 
+.review-steps {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.review-steps .position {
+  min-width: 5.5em;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.review-steps button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.review-steps button:last-child {
+  margin-left: 6px;
+}
+
 .review-item {
-  padding: 12px 14px;
+  padding: 8px 12px 10px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-lg);
   background: var(--icm-surface);
 }
 
+/* One line: the name gives way first. */
 .review-item .head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .review-item .id {
@@ -70,7 +121,9 @@
 }
 
 .review-item .name {
+  overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
 }
 
 .review-item .meta {
@@ -80,7 +133,7 @@
 
 .review-item .open {
   margin-left: auto;
-  padding: 3px 9px;
+  padding: 2px 9px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   color: var(--icm-text-muted);
@@ -88,21 +141,11 @@
   text-decoration: none;
 }
 
-.review-reason {
-  margin: 6px 0 0;
-  color: var(--icm-text-muted);
-  font-size: 12px;
-}
-
-.review-reason b {
-  color: var(--icm-text);
-}
-
 .review-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 /* A long netlist line scrolls in its box; it never widens the column. */
@@ -111,7 +154,7 @@
 }
 
 .review-cols h4 {
-  margin: 0 0 5px;
+  margin: 0 0 4px;
   color: var(--icm-text-muted);
   font-size: 11px;
   font-weight: 600;
@@ -125,28 +168,17 @@
   text-transform: none;
 }
 
+/* What is left of the screen after the chrome, the tabs, the netlists and
+   the verdict controls. */
 .review-pic {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: min(44vh, 440px);
+  height: clamp(180px, calc(100dvh - 430px), 640px);
   overflow: hidden;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: #fff;
-}
-
-.review-netlist {
-  box-sizing: border-box;
-  height: 150px;
-  margin: 6px 0 0;
-  padding: 6px 8px;
-  overflow: auto;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface-muted);
-  font: 11px/1.4 var(--icm-font-mono);
-  white-space: pre;
 }
 
 .review-pic img {
@@ -159,8 +191,52 @@
   font-size: 12px;
 }
 
+.review-netlist {
+  box-sizing: border-box;
+  height: 84px;
+  margin: 5px 0 0;
+  padding: 5px 8px;
+  overflow: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+  font: 11px/1.4 var(--icm-font-mono);
+  white-space: pre;
+}
+
+/* What comparing the dataset's netlist with ours found, under the former. */
+.review-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.review-verdict .datasets-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.review-verdict p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.review-verdict b {
+  color: var(--icm-text);
+}
+
+/* A long thread scrolls in place rather than pushing the controls down. */
 .review-others {
-  margin: 10px 0 0;
+  max-height: 3.4em;
+  overflow-y: auto;
+  margin: 6px 0 0;
   padding: 0;
   list-style: none;
   font-size: 12px;
@@ -171,7 +247,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 2px 0;
+  padding: 1px 0;
 }
 
 .review-others .note {
@@ -191,92 +267,79 @@
   cursor: pointer;
 }
 
-.review-people {
-  margin: -4px 0 12px;
-  font-size: 12px;
-}
-
-.review-people summary {
-  color: var(--icm-text-muted);
-  cursor: pointer;
-}
-
-.review-people table {
-  width: 100%;
-  margin-top: 6px;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
-
-.review-people th,
-.review-people td {
-  padding: 3px 8px;
-  border-bottom: 1px solid var(--icm-border);
-  text-align: right;
-}
-
-.review-people th:first-child,
-.review-people td:first-child {
-  text-align: left;
-}
-
-.review-people th {
-  color: var(--icm-text-muted);
-  font-weight: 600;
-}
-
-.review-owner {
-  margin: -4px 0 12px;
-  padding: 6px 10px;
-  border: 1px dashed var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  font-size: 12px;
-}
-
-.review-owner summary {
-  color: var(--icm-text-muted);
-  cursor: pointer;
-}
-
-.review-owner div {
+/* The flags in one row of small chips; below, the comment and the verdict. */
+.review-flags {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 4px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
-.review-owner button {
-  padding: 0 6px;
+.review-flags button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
   border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
+  border-radius: 999px;
   background: var(--icm-surface);
-  font: 11px var(--icm-font-mono);
+  color: var(--icm-text);
+  font-size: 12px;
   cursor: pointer;
+}
+
+.review-flags .review-flag.on {
+  border-color: #d03b3b;
+  background: #fdecec;
 }
 
 .review-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: stretch;
   gap: 6px;
-  margin-top: 12px;
+  margin-top: 6px;
+}
+
+.review-note {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 7px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  font: inherit;
+  font-size: 13px;
+  resize: none;
+}
+
+.review-note:focus {
+  height: 64px;
 }
 
 .review-actions button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  align-self: flex-start;
+  height: 34px;
+  padding: 0 12px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-md);
   background: var(--icm-surface);
   color: var(--icm-text);
   font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
+.review-flags kbd {
+  color: var(--icm-text-muted);
+  font: 11px var(--icm-font-mono);
+}
+
 .review-actions kbd,
-.review-nav kbd {
+.review-steps kbd {
   padding: 0 4px;
   border: 1px solid var(--icm-border);
   border-radius: 3px;
@@ -285,6 +348,8 @@
 }
 
 .review-actions .review-submit {
+  min-width: 132px;
+  justify-content: center;
   border-color: #0ca30c;
   background: #0ca30c;
   color: #fff;
@@ -315,45 +380,83 @@
   border-color: #e0245e;
 }
 
-.review-actions .review-flag.on {
-  border-color: #d03b3b;
-  background: #fdecec;
+.review-message {
+  margin: 6px 0 0;
+  color: var(--icm-text-muted);
+  font-size: 12px;
 }
 
-.review-note {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 56px;
-  margin-top: 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  font: inherit;
+/* Statistics: who reviewed and fixed how much; the Owner's open issues. */
+.review-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: 12px;
+  margin: 8px 0 4px;
 }
 
-.review-nav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 10px 0 40px;
-}
-
-.review-nav button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+.review-export {
+  margin-left: 8px;
+  padding: 2px 10px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface);
-  color: var(--icm-text-muted);
   font-size: 12px;
+  font-weight: 400;
   cursor: pointer;
 }
 
-.review-message {
+.review-people-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.review-people-table th,
+.review-people-table td {
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--icm-border);
+  text-align: right;
+}
+
+.review-people-table th:first-child,
+.review-people-table td:first-child {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.review-people-table th {
   color: var(--icm-text-muted);
+  font-weight: 600;
+}
+
+.review-issue-list {
+  max-height: 14rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  font-size: 12px;
+}
+
+.review-issue-list li {
+  padding: 2px 0;
+}
+
+.review-issue-list a,
+.review-disputed a {
+  font-family: var(--icm-font-mono);
+}
+
+.review-issue-list .meta {
+  color: var(--icm-text-muted);
+}
+
+.review-disputed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
   font-size: 12px;
 }
 
@@ -361,10 +464,4 @@
   .review-cols {
     grid-template-columns: 1fr;
   }
-}
-
-.review-owner .review-export {
-  padding: 2px 10px;
-  font: inherit;
-  font-size: 12px;
 }
