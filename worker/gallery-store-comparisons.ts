@@ -60,7 +60,7 @@ const FIGURE_MAGIC: Record<string, (bytes: Uint8Array) => boolean> = {
     String.fromCharCode(...b.subarray(8, 12)) === "WEBP",
 };
 
-function decodedFigure(value: unknown): { type: string; data: string } | null {
+export function decodedFigure(value: unknown): { type: string; data: string } | null {
   if (!isRecord(value)) return null;
   const type = String(value.type ?? "");
   const data = typeof value.data === "string" ? value.data : "";

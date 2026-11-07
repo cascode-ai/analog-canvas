@@ -124,6 +124,12 @@ import {
 } from "./gallery-store-reviews";
 import { installFixes } from "./gallery-store-fixes";
 import {
+  deleteReference,
+  installReferences,
+  readReference,
+  setReference,
+} from "./gallery-store-references";
+import {
   RegionalProjectDO,
   type ProjectRegionConfig,
 } from "./regional-projects";
@@ -343,6 +349,8 @@ export class GalleryDO {
     installReviews(this.sql);
     // Each change of an entry's drawing: who, how much, which issues.
     installFixes(this.sql);
+    // Each community entry's reference image, if its author gave one.
+    installReferences(this.sql);
     // A tile's whole card, by id: a page's tiles and the Owner's lists read
     // it here, never the row, whose card fields sit behind its Project and
     // preview (about 100 kB, some 25 pages each; 30 cold tiles took about
@@ -569,6 +577,12 @@ export class GalleryDO {
         return comparisonPart(this.sql, body, "netlist");
       case "comparison-figure":
         return comparisonPart(this.sql, body, "figure");
+      case "reference-set":
+        return setReference(this.sql, body);
+      case "reference-delete":
+        return deleteReference(this.sql, body);
+      case "reference-read":
+        return readReference(this.sql, body);
       case "review-submit":
         return submitReview(this.sql, body);
       case "review-entry":

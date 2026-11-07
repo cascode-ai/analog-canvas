@@ -57,6 +57,8 @@ export interface ReviewCard {
   components: number;
   reviews: number;
   mine: ShownReview | null;
+  /** A community circuit's reference image, if its author gave one. */
+  reference?: { revision: string };
   comparison?: {
     verdict: string;
     category: string;

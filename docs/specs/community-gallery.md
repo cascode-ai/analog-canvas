@@ -477,7 +477,7 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 ### Reviews
 
 `/review` shows one drawing at a time beside its reference (a dataset's
-original figure; a community circuit has none yet) for a verdict. `/datasets`
+original figure, or a community circuit's reference image) for a verdict. `/datasets`
 links to it.
 
 - Any signed-in account reviews any public entry except its own, a dataset's
@@ -518,6 +518,20 @@ note}` → `{review}`; 403 `own-entry`, 409 `stale`, 429. `PATCH
   `GET /api/gallery/review/<scope>/people` → `{people: [{person, reviews,
 passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   person reviewed and fixed in that store.
+
+### Reference images
+
+- A community entry's owner or the Owner puts a reference image (what the
+  drawing was drawn from, such as a textbook figure) from the tile's ⋯ menu,
+  confirming they may share it: `PUT /api/gallery/<id>/reference` `{image:
+{type, data}, rights: true}` (PNG, JPEG or WebP, ≤512 KB decoded; the page
+  redraws a larger file as WebP) → `{revision}`; `DELETE` removes it. Errors:
+  403 `forbidden`, 400 `rights-required` or `invalid-image`. Dataset entries
+  take none (404): their figures are comparisons.
+- Signed-in readers read it: `GET …/reference[?v=<revision>]` (immutable when
+  `v` names it). The community review queue names it (`reference:
+{revision}`), lists such entries first, and `/review` sets it beside the
+  drawing. Reference images are in no backup yet.
 
 ## Accounts and sessions
 
