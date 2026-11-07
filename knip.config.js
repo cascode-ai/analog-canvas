@@ -111,9 +111,6 @@ export default {
     "apps/mcp-server": {
       project: ["src/**/*.ts!", ...testSupport],
     },
-    "apps/local-host": {
-      project: ["src/**/*.ts!", ...testSupport],
-    },
     "apps/desktop": {
       entry: ["src/main.ts!", "scripts/*.mjs!"],
       project: ["src/**/*.ts!", "scripts/**/*.mjs!"],

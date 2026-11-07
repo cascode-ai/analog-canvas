@@ -1,7 +1,7 @@
 # Persistence and Compatibility
 
 Status: `accepted`
-Owners: `packages/project-protocol`, `apps/editor`, `apps/desktop`, `apps/local-host`, `worker`
+Owners: `packages/project-protocol`, `apps/editor`, `apps/desktop`, `worker`
 
 Cloud Save, portable files and local recovery are separate
 ([persistence and recovery](../specs/persistence-and-recovery.md)); runtime code

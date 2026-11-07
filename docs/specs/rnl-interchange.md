@@ -58,7 +58,7 @@ the RNL language and its runtime belong to rnl.
   a browser, the system browser in the desktop app, which opens only its fixed
   list of links (`rnl` among them). The link is left out where the build links
   nowhere outside itself. The editor has one language, so there is one page.
-- In the Web and local-host compositions, **Open RNL Viewer** follows About
+- In the Web composition, **Open RNL Viewer** follows About
   RNL. It is enabled only for the current completed RNL export. A synchronous
   click opens the full online Viewer, reusing its connected tab without
   navigating away from Viewer edits, and sends the `.sp` or `.scs` text with
@@ -67,9 +67,7 @@ the RNL language and its runtime belong to rnl.
   check origin, window identity, launch token and request ID. Netlist text
   stays out of URLs and upload services. Popup blocking, missing capabilities,
   import errors and timeouts are reported with retry available. The desktop
-  composition omits this action. Local-host uses `same-origin-allow-popups`
-  and allows capability discovery at the Viewer host; cross-origin isolation
-  is not required by this composition.
+  composition omits this action.
 - Bodies the netlist writes itself (ideal blocks, magnetics) print their ports
   in the terminal order of their RNL symbol: SPICE primitives in SPICE order,
   op-amps as their macromodels do (in+ in− V+ V− out), other blocks signals
@@ -491,9 +489,8 @@ the RNL language and its runtime belong to rnl.
   and label written, and name only `analog-canvas-extensions` beside
   `rnl-std` (each Cell's `$CANVAS_TYPESETTING`); an op-amp also names
   `rnl-std-functional` (`packages/rnl/src/export-ops.test.ts`).
-- Desktop and local hosts serve `.wasm` as `application/wasm` and allow
-  WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`,
-  `apps/local-host/src/local-host.test.ts`).
+- The desktop host serves `.wasm` as `application/wasm` and allows
+  WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`).
 - A file the export wrote imports with every part where it was drawn, its
   labels, block layout, marks and shapes, its pins left open on the top and
   inside Cells, and the same netlist; 4-input gates

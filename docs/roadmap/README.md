@@ -5,17 +5,16 @@ in [specifications](../specs/README.md); see AGENTS.md "Documentation" for what
 belongs here. An unresolved requirement is resolved, explicitly deferred, or kept
 here with its acceptance boundary.
 
-| Outcome                           | Remaining boundary                                                                                                                            | Acceptance owner                                                                      |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Simulation capabilities           | Advanced legacy conversion and repeated Noise provenance                                                                                      | [Simulation remaining work](simulation-remaining-work.md)                             |
-| VACASK qualification              | Evidence for engine/model scope expansions                                                                                                    | [VACASK qualification](vacask-migration.md)                                           |
-| Accessible manual editing         | Semantic canvas navigation and keyboard alternatives to pointer-only operations                                                               | Editor interaction; [current limits](../user/troubleshooting.md#accessibility-limits) |
-| Connectivity consumer closure     | All production consumers use the canonical read/geometry/location contracts; remove reachable duplicate paths only with parity evidence       | Derived/Edit Engine/editor owners                                                     |
-| Named-Net/export closure          | Lifecycle and dialect matrix verified together (list below)                                                                                   | Derived/netlist/import/editor owners                                                  |
-| Portable release human acceptance | Install the PWA from the packaged local host; import/place/wire/save/restart/restore/export an original circuit; record candidate and results | Release owner                                                                         |
-| Hosted Agent delivery             | Deployed grant → edit → undo → revoke journey, credential isolation and bounded resource access for the release candidate                     | Agent/Worker/release owners                                                           |
+| Outcome                       | Remaining boundary                                                                                                                      | Acceptance owner                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Simulation capabilities       | Advanced legacy conversion and repeated Noise provenance                                                                                | [Simulation remaining work](simulation-remaining-work.md)                             |
+| VACASK qualification          | Evidence for engine/model scope expansions                                                                                              | [VACASK qualification](vacask-migration.md)                                           |
+| Accessible manual editing     | Semantic canvas navigation and keyboard alternatives to pointer-only operations                                                         | Editor interaction; [current limits](../user/troubleshooting.md#accessibility-limits) |
+| Connectivity consumer closure | All production consumers use the canonical read/geometry/location contracts; remove reachable duplicate paths only with parity evidence | Derived/Edit Engine/editor owners                                                     |
+| Named-Net/export closure      | Lifecycle and dialect matrix verified together (list below)                                                                             | Derived/netlist/import/editor owners                                                  |
+| Hosted Agent delivery         | Deployed grant → edit → undo → revoke journey, credential isolation and bounded resource access for the release candidate               | Agent/Worker/release owners                                                           |
 
-The last four rows are recurring acceptance reviews, not missing features.
+The last three rows are recurring acceptance reviews, not missing features.
 
 ## Connectivity and naming acceptance
 

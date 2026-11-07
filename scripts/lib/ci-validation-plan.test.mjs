@@ -487,7 +487,6 @@ describe("CI validation planning", () => {
     expect(
       ciPlan([
         "apps/editor/src/app/App.test.tsx",
-        "apps/local-host/src/local-host.test.ts",
         "apps/editor/package.json",
         "package.json",
       ]),

@@ -64,7 +64,6 @@ function canAffectBrowser(path) {
   if (/\.test\.(?:mjs|ts|tsx)$/u.test(path)) return false;
   if (/(?:^|\/)package\.json$/u.test(path) || path === "pnpm-lock.yaml")
     return false;
-  if (path.startsWith("apps/local-host/")) return false;
   return (
     /^(?:apps\/editor|apps\/mcp-server|packages|worker)\//u.test(path) ||
     /^(?:vite\.config\.[^/]+|wrangler(?:\.[^/]+)?\.jsonc)$/u.test(path)

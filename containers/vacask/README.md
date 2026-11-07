@@ -14,7 +14,7 @@ pnpm dev
 ```
 
 Use the actual port reported by the harness. This server-side setting reuses
-the local-host adapter; it does not launch a simulator, discover binaries or
+a loopback adapter; it does not launch a simulator, discover binaries or
 contact a hosted fallback. Without it, capabilities report unconfigured and
 editing remains available. Restart Vite after changing the setting. The
 development endpoint accepts only loopback Host and same-origin JSON requests.
@@ -309,22 +309,7 @@ Do not point this migration at the current production/shared operator endpoint.
 No deployment configuration or qualified model registration is supplied by this
 harness. Use the isolated migration delivery described in the roadmap.
 
-To connect the built local Editor host to this separately running executor:
-
-```sh
-pnpm --filter @icm/local-host build
-node apps/local-host/dist/cli.js --root apps/editor/dist --simulation-url http://127.0.0.1:9000
-```
-
-Replace `9000` with the native service's actual port. Build the Editor with
-`VITE_ICM_SIMULATION_UI=enabled` and `VITE_ICM_SIMULATION_TRANSPORT=direct` for
-this local-host route, not the hosted managed queue transport. The CLI serves
-the Editor on port 4173 and forwards only the
-shared `/api/simulate` protocol. The executor URL must be a literal loopback HTTP
-origin; redirects and caller credentials are not forwarded. Omitting the option
-retains the unconfigured editing-only behavior. Stopping the Editor does not own
-or stop the separately launched executor; use that service's shutdown path.
-This is a local transport setup, not evidence of GUI/MCP or cloud acceptance.
+The native service's routes:
 
 - `GET /health`: startup/runtime readiness and current activity.
 - `POST /run`: the existing native `ExecutionInput`, plus optional timeout/token;

@@ -3,8 +3,8 @@
 Status: accepted
 
 Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
-`containers/ngspice`, `containers/vacask`, `apps/local-host`,
-`apps/editor/src/features/simulation`
+`containers/ngspice`, `containers/vacask`,
+`apps/editor/src/features/simulation`, `apps/editor/dev/local-simulation*`
 
 [Setup and compilation](simulation.md) owns authored inputs;
 [numeric results](simulation-results.md) owns their interpretation.
@@ -28,8 +28,8 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
   source runs when the Profile supplies it all. Native Spectre is converted
   ([simulation](simulation.md#shared-external-implementations)), never run as
   Spectre.
-- The local host has no default binary or models and probes nothing; without
-  its optional `simulationHandler` (`/api/simulate`) capabilities report
+- The development `/api/simulate` endpoint (`ICM_SIMULATION_URL`) has no
+  default binary or models and probes nothing; without that executor capabilities report
   `configured: false` and runs return `simulation-not-configured`, a deployment
   condition, not a circuit failure.
 - Reads return bounded receipts; full `result.json`/`specs.json` stay File
