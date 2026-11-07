@@ -478,16 +478,17 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 ### Reviews
 
 `/review` shows one drawing at a time beside its reference (a dataset's
-original figure, or a community circuit's reference image) for a verdict,
-each side's SPICE netlist under its picture (ours spends a daily open as
-opening the entry does), the reader's like and, under a dataset's netlist,
-what comparing the two netlists found (verdict, kind, one sentence). The page
-fits one 1280×800 screen. It is the Gallery's Review tab, between Community
-gallery and My shelf; its pages keep that tab row, which ends in the switch
-between Review (the default) and Statistics (`/datasets`, look only). Its
-sidebar, in the wall sidebar's markup, lists Random (every store's queue
-mixed, the default), the community, then each dataset with comparisons, and
-a filter to drawings with a reference figure; the address keeps them
+original figure, or a community circuit's reference image): its verdict
+controls and others' reviews above the two pictures; below them, what
+comparing a dataset's two netlists found (verdict, kind, one sentence); then
+each side's SPICE netlist at its full length (ours spends a daily open as
+opening the entry does). The page scrolls. It is the Gallery's Review tab,
+between Community gallery and My shelf; its pages keep that tab row, which
+ends in the switch between Review (the default) and Statistics (`/datasets`,
+look only). Its sidebar, in the wall sidebar's markup, is one list of
+filters, each with the count it would show: Random (every store mixed, the
+default; choosing it again shuffles anew), Community and each dataset with
+comparisons, then With a reference figure. The address keeps them
 (`?scope=<random|community|key>&refs=1`; `&id=` opens one drawing). Both
 sidebars fold to a strip at the left from a button at their top; each
 browser remembers it. Statistics lists each person's reviews and fixes over

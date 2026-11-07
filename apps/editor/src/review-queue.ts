@@ -109,7 +109,7 @@ export function withReview(card: ReviewCard, review: ShownReview): ReviewCard {
 }
 
 /** The stores /review reads, as its sidebar lists them: the community first. */
-const REVIEW_STORES = ["community", "analoggenie", "circuitthink"];
+export const REVIEW_STORES = ["community", "analoggenie", "circuitthink"];
 
 /** Random (the default) mixes every store; any other scope is one store. */
 export function scopeFromSearch(search: string): string {
@@ -122,21 +122,15 @@ export function referencesOnlyFromSearch(search: string): boolean {
   return new URLSearchParams(search).get("refs") === "1";
 }
 
-export function storesOf(scope: string): string[] {
-  return scope === "random" ? REVIEW_STORES : [scope];
-}
-
 /**
- * One store's queue keeps the server's order. Random mixes every store's in
- * a shuffled order, the reviewer's unreviewed drawings first.
+ * Random's order: every store's drawings shuffled, the reviewer's unreviewed
+ * ones first. Each store alone keeps the server's order.
  */
-export function arrangeQueue(
-  lists: readonly ReviewCard[][],
-  random: boolean,
+export function shuffledQueue(
+  cards: readonly ReviewCard[],
   draw: () => number = Math.random,
 ): ReviewCard[] {
-  if (!random) return lists.flat();
-  const shuffled = lists.flat();
+  const shuffled = [...cards];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const other = Math.floor(draw() * (index + 1));
     [shuffled[index], shuffled[other]] = [shuffled[other]!, shuffled[index]!];

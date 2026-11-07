@@ -1,5 +1,5 @@
-/* /review: one drawing at a time beside its reference, then a verdict; the
-   whole of it fits one screen, its pictures taking what the rest leaves. */
+/* /review: one drawing at a time, its verdict controls above the two
+   pictures, the netlists in full below; the page scrolls to them. */
 .review-body {
   max-width: 82rem;
   padding-top: 8px;
@@ -154,8 +154,8 @@
 .review-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 6px;
+  gap: 8px 12px;
+  margin-top: 10px;
 }
 
 /* A long netlist line scrolls in its box; it never widens the column. */
@@ -179,13 +179,13 @@
 }
 
 /* As wide as its column at 4:3, but never taller than what is left of the
-   screen after the chrome, the tabs, the netlists and the verdict controls. */
+   screen after the chrome, the tabs and the verdict controls. */
 .review-pic {
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 4 / 3;
-  max-height: clamp(180px, calc(100dvh - 430px), 640px);
+  max-height: clamp(220px, calc(100dvh - 330px), 720px);
   overflow: hidden;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
@@ -202,12 +202,13 @@
   font-size: 12px;
 }
 
+/* As tall as the netlist is long; a long line scrolls sideways. */
 .review-netlist {
   box-sizing: border-box;
-  height: 84px;
-  margin: 5px 0 0;
+  margin: 0;
   padding: 5px 8px;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);
@@ -215,14 +216,14 @@
   white-space: pre;
 }
 
-/* What comparing the dataset's netlist with ours found, under the former. */
+/* What comparing the two netlists found, across both columns. */
 .review-verdict {
   display: flex;
+  grid-column: 1 / -1;
   align-items: flex-start;
   gap: 7px;
-  margin-top: 5px;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .review-verdict .datasets-icon {
@@ -231,48 +232,17 @@
 }
 
 .review-verdict p {
-  display: -webkit-box;
   margin: 0;
-  overflow: hidden;
   color: var(--icm-text-muted);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .review-verdict b {
   color: var(--icm-text);
 }
 
-/* A cut sentence in full, over the netlist, while the pointer or focus is on
-   the note. */
-.review-verdict.cut {
-  position: relative;
-  cursor: help;
-}
-
-.review-verdict .review-verdict-full {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 5;
-  display: none;
-  padding: 8px 10px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
-  -webkit-line-clamp: unset;
-}
-
-.review-verdict.cut:hover .review-verdict-full,
-.review-verdict.cut:focus-within .review-verdict-full {
-  display: block;
-}
-
-/* A long thread scrolls in place rather than pushing the controls down. */
+/* A long thread scrolls in place rather than pushing the pictures down. */
 .review-others {
-  max-height: 3.4em;
+  max-height: 6em;
   overflow-y: auto;
   margin: 6px 0 0;
   padding: 0;
@@ -309,7 +279,7 @@
 .review-flags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
   margin-top: 8px;
 }
 
@@ -317,7 +287,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 3px 6px;
   border: 1px solid var(--icm-border);
   border-radius: 999px;
   background: var(--icm-surface);

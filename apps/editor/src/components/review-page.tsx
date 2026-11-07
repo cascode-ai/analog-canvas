@@ -1,10 +1,10 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 
 import "../styles/gallery-entry.css";
@@ -15,7 +15,6 @@ import { galleryPreviewUrl } from "../gallery-client";
 import { COMPARISON_SOURCES, gallerySourceByKey } from "../gallery-sources";
 import { verdictOf, type ComparisonVerdict } from "../dataset-comparisons";
 import {
-  arrangeQueue,
   flagLabel,
   flagsFor,
   hasReference,
@@ -23,8 +22,9 @@ import {
   referencesOnlyFromSearch,
   reviewProgress,
   reviewed,
+  REVIEW_STORES,
   scopeFromSearch,
-  storesOf,
+  shuffledQueue,
   withReview,
   type EntryFix,
   type ReviewCard,
@@ -40,7 +40,13 @@ type Load =
   | { status: "loading" }
   | { status: "signed-out" }
   | { status: "failed" }
-  | { status: "ready"; cards: ReviewCard[] };
+  | {
+      status: "ready";
+      /** Each store's queue, in the server's order. */
+      lists: Record<string, ReviewCard[]>;
+      /** Random's order: every store's drawings shuffled, by id. */
+      mixed: string[];
+    };
 
 const scopeName = (scope: string) =>
   scope === "community"
@@ -91,7 +97,7 @@ export function ReviewPage({
     let cancelled = false;
     setLoad({ status: "loading" });
     void Promise.all(
-      storesOf(scope).map(async (store) => {
+      REVIEW_STORES.map(async (store) => {
         const response = await fetchLike(`/api/gallery/review/${store}/queue`, {
           credentials: "same-origin",
         });
@@ -106,9 +112,13 @@ export function ReviewPage({
       .then((lists): Load => {
         if (lists.some((list) => list === null))
           return { status: "signed-out" };
+        const ready = lists as ReviewCard[][];
         return {
           status: "ready",
-          cards: arrangeQueue(lists as ReviewCard[][], scope === "random"),
+          lists: Object.fromEntries(
+            REVIEW_STORES.map((store, at) => [store, ready[at]!]),
+          ),
+          mixed: shuffledQueue(ready.flat()).map((each) => each.id),
         };
       })
       .catch((): Load => ({ status: "failed" }))
@@ -120,11 +130,29 @@ export function ReviewPage({
     return () => {
       cancelled = true;
     };
-  }, [scope, fetchLike]);
+  }, [fetchLike]);
 
-  const all = useMemo(
-    () => (load.status === "ready" ? load.cards : []),
-    [load],
+  // Every store's queue loads once; the sidebar's rows only filter them.
+  const byScope = useMemo((): Record<string, ReviewCard[]> => {
+    if (load.status !== "ready") return {};
+    const byId = new Map(
+      Object.values(load.lists)
+        .flat()
+        .map((each) => [each.id, each]),
+    );
+    return { random: load.mixed.map((id) => byId.get(id)!), ...load.lists };
+  }, [load]);
+  const all = useMemo(() => byScope[scope] ?? [], [byScope, scope]);
+  // Each row's count, under the reference filter when it is on.
+  const counts = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(byScope).map(([key, list]) => [
+          key,
+          (referencesOnly ? list.filter(hasReference) : list).length,
+        ]),
+      ),
+    [byScope, referencesOnly],
   );
   const cards = useMemo(
     () => (referencesOnly ? all.filter(hasReference) : all),
@@ -143,14 +171,37 @@ export function ReviewPage({
       setLoad((current) =>
         current.status === "ready"
           ? {
-              status: "ready",
-              cards: current.cards.map((each) =>
-                each.id === id ? change(each) : each,
+              ...current,
+              lists: Object.fromEntries(
+                Object.entries(current.lists).map(([store, list]) => [
+                  store,
+                  list.map((each) => (each.id === id ? change(each) : each)),
+                ]),
               ),
             }
           : current,
       ),
     [],
+  );
+
+  const choose = useCallback(
+    (next: string) => {
+      // Random again shuffles anew, as the Gallery's Random does.
+      if (next === "random" && scope === "random")
+        setLoad((current) =>
+          current.status === "ready"
+            ? {
+                ...current,
+                mixed: shuffledQueue(Object.values(current.lists).flat()).map(
+                  (each) => each.id,
+                ),
+              }
+            : current,
+        );
+      setScope(next);
+      setIndex(0);
+    },
+    [scope],
   );
 
   // A new card starts clean, or with the reviewer's own current review.
@@ -290,7 +341,8 @@ export function ReviewPage({
       <div className="gallery-browser">
         <ScopeSidebar
           scope={scope}
-          choose={setScope}
+          choose={choose}
+          counts={counts}
           referencesOnly={referencesOnly}
           references={
             load.status === "ready" ? all.filter(hasReference).length : null
@@ -357,63 +409,65 @@ export function ReviewPage({
                   card={card}
                   fetchLike={fetchLike}
                   owner={owner}
-                />
-                <div className="review-flags" role="group" aria-label="Flags">
-                  {flagsFor(card.scope).map((flag) => (
+                >
+                  <div className="review-flags" role="group" aria-label="Flags">
+                    {flagsFor(card.scope).map((flag) => (
+                      <button
+                        key={flag.key}
+                        type="button"
+                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
+                        aria-pressed={flags.includes(flag.key)}
+                        onClick={() => toggleFlag(flag.key)}
+                      >
+                        <kbd>{flag.hotkey}</kbd>
+                        {flag.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="review-actions">
+                    <textarea
+                      className="review-note"
+                      rows={1}
+                      placeholder={
+                        flags.length
+                          ? "What is wrong, and where (optional)"
+                          : "Comment (optional)"
+                      }
+                      title={
+                        flags.length
+                          ? "Such as: M3's drain on VOUT instead of X. ⌘/Ctrl+Enter submits."
+                          : "⌘/Ctrl+Enter submits."
+                      }
+                      value={note}
+                      maxLength={1000}
+                      onChange={(event) => setNote(event.target.value)}
+                    />
                     <button
-                      key={flag.key}
                       type="button"
-                      className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
-                      aria-pressed={flags.includes(flag.key)}
-                      onClick={() => toggleFlag(flag.key)}
+                      className={`review-like${card.likedByViewer ? " on" : ""}`}
+                      aria-pressed={card.likedByViewer}
+                      title={
+                        card.likedByViewer
+                          ? "Remove your like (L)"
+                          : "Like this circuit (L)"
+                      }
+                      onClick={() => void toggleLike()}
                     >
-                      <kbd>{flag.hotkey}</kbd>
-                      {flag.label}
+                      <HeartIcon filled={card.likedByViewer} />{" "}
+                      {num(card.likes)}
                     </button>
-                  ))}
-                </div>
-                <div className="review-actions">
-                  <textarea
-                    className="review-note"
-                    rows={1}
-                    placeholder={
-                      flags.length
-                        ? "What is wrong, and where (optional)"
-                        : "Comment (optional)"
-                    }
-                    title={
-                      flags.length
-                        ? "Such as: M3's drain on VOUT instead of X. ⌘/Ctrl+Enter submits."
-                        : "⌘/Ctrl+Enter submits."
-                    }
-                    value={note}
-                    maxLength={1000}
-                    onChange={(event) => setNote(event.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className={`review-like${card.likedByViewer ? " on" : ""}`}
-                    aria-pressed={card.likedByViewer}
-                    title={
-                      card.likedByViewer
-                        ? "Remove your like (L)"
-                        : "Like this circuit (L)"
-                    }
-                    onClick={() => void toggleLike()}
-                  >
-                    <HeartIcon filled={card.likedByViewer} /> {num(card.likes)}
-                  </button>
-                  <button
-                    type="button"
-                    className={`review-submit${flags.length ? " issue" : ""}`}
-                    disabled={busy}
-                    onClick={() => void submit()}
-                  >
-                    {flags.length ? "Submit issue" : "Pass"}
-                    <kbd>Enter</kbd>
-                  </button>
-                </div>
-                {message ? <p className="review-message">{message}</p> : null}
+                    <button
+                      type="button"
+                      className={`review-submit${flags.length ? " issue" : ""}`}
+                      disabled={busy}
+                      onClick={() => void submit()}
+                    >
+                      {flags.length ? "Submit issue" : "Pass"}
+                      <kbd>Enter</kbd>
+                    </button>
+                  </div>
+                  {message ? <p className="review-message">{message}</p> : null}
+                </ReviewItem>
               </>
             )}
           </div>
@@ -449,14 +503,20 @@ function Progress({
   );
 }
 
+/**
+ * One drawing: its name, the verdict controls and others' reviews, the two
+ * pictures, what comparing the netlists found, then both netlists in full.
+ */
 function ReviewItem({
   card,
   fetchLike,
   owner,
+  children,
 }: {
   card: ReviewCard;
   fetchLike: typeof fetch;
   owner: boolean;
+  children: ReactNode;
 }) {
   const comparison = card.comparison;
   const store = card.scope;
@@ -475,6 +535,8 @@ function ReviewItem({
           Open in editor
         </a>
       </div>
+      {children}
+      <OthersReviews card={card} fetchLike={fetchLike} owner={owner} />
       <div className="review-cols">
         <div>
           <h4>
@@ -503,18 +565,6 @@ function ReviewItem({
               <span className="none">No reference figure</span>
             )}
           </div>
-          {comparison ? (
-            <>
-              <NetlistPane
-                key={`theirs-${card.id}`}
-                url={`/api/gallery/sources/${store}/comparisons/${encodeURIComponent(card.id)}`}
-                read={(payload) => payload.sourceNetlist}
-                empty="The dataset gives no netlist."
-                fetchLike={fetchLike}
-              />
-              <VerdictNote comparison={comparison} />
-            </>
-          ) : null}
         </div>
         <div>
           <h4>
@@ -526,23 +576,34 @@ function ReviewItem({
               alt="The drawing under review"
             />
           </div>
+        </div>
+        {comparison ? <VerdictNote comparison={comparison} /> : null}
+        {comparison ? (
           <NetlistPane
-            key={`ours-${card.id}`}
-            url={`/api/gallery/${encodeURIComponent(card.id)}?netlist=spice`}
-            read={(payload) => payload.netlist?.text}
-            empty="This drawing exports no netlist."
+            key={`theirs-${card.id}`}
+            url={`/api/gallery/sources/${store}/comparisons/${encodeURIComponent(card.id)}`}
+            read={(payload) => payload.sourceNetlist}
+            empty="The dataset gives no netlist."
             fetchLike={fetchLike}
           />
-        </div>
+        ) : (
+          <div />
+        )}
+        <NetlistPane
+          key={`ours-${card.id}`}
+          url={`/api/gallery/${encodeURIComponent(card.id)}?netlist=spice`}
+          read={(payload) => payload.netlist?.text}
+          empty="This drawing exports no netlist."
+          fetchLike={fetchLike}
+        />
       </div>
-      <OthersReviews card={card} fetchLike={fetchLike} owner={owner} />
     </article>
   );
 }
 
 /**
- * Under the dataset's netlist, what comparing it with ours found: the
- * verdict and its kind, then in a sentence where the dataset differs.
+ * Between the pictures and the netlists, what comparing the two netlists
+ * found: the verdict and its kind, then where the dataset differs.
  */
 function VerdictNote({
   comparison,
@@ -558,40 +619,21 @@ function VerdictNote({
     comparison.verdict !== "match" && comparison.category
       ? ` · ${comparison.category}`
       : "";
-  const text = (
-    <>
-      <b>
-        {verdict.label}
-        {kind}
-      </b>
-      {sentence && sentence !== comparison.category ? ` — ${sentence}` : ""}
-    </>
-  );
-  // Two lines show; when that cuts the sentence, hovering shows all of it.
-  const shown = useRef<HTMLParagraphElement>(null);
-  const [cut, setCut] = useState(false);
-  useLayoutEffect(() => {
-    const element = shown.current;
-    if (element) setCut(element.scrollHeight > element.clientHeight + 1);
-  }, [sentence]);
   return (
-    <div
-      className={`review-verdict${cut ? " cut" : ""}`}
-      data-testid="review-verdict"
-      tabIndex={cut ? 0 : undefined}
-    >
+    <div className="review-verdict" data-testid="review-verdict">
       <span
         className={`datasets-icon v-${comparison.verdict}`}
         aria-hidden="true"
       >
         {verdict.icon}
       </span>
-      <p ref={shown}>{text}</p>
-      {cut ? (
-        <p className="review-verdict-full" role="tooltip">
-          {text}
-        </p>
-      ) : null}
+      <p>
+        <b>
+          {verdict.label}
+          {kind}
+        </b>
+        {sentence && sentence !== comparison.category ? ` — ${sentence}` : ""}
+      </p>
     </div>
   );
 }
@@ -724,14 +766,15 @@ function NetlistPane({
 }
 
 /**
- * The left column, in the Gallery sidebar's own markup and look: Random
- * (every store mixed), the community, then each dataset; below, the filter
- * to drawings that have a figure to compare with. It folds to a strip as
- * that one does.
+ * The left column, in the Gallery sidebar's own markup and look: one list
+ * of filters. Where the drawings come from (Random mixes them all; Random
+ * again shuffles anew), then only those with a reference figure; each row
+ * counts what it would show. It folds to a strip as that one does.
  */
 function ScopeSidebar({
   scope,
   choose,
+  counts,
   referencesOnly,
   references,
   onReferencesOnly,
@@ -740,6 +783,7 @@ function ScopeSidebar({
 }: {
   scope: string;
   choose: (scope: string) => void;
+  counts: Record<string, number>;
   referencesOnly: boolean;
   references: number | null;
   onReferencesOnly: () => void;
@@ -756,44 +800,39 @@ function ScopeSidebar({
         />
       </div>
     );
-  const item = (key: string, label: string, note: string) => (
+  const item = (key: string, label: string) => (
     <button
       key={key}
       type="button"
       className="gallery-sidebar-option"
       aria-pressed={scope === key}
       data-testid={`review-scope-${key}`}
+      title={
+        key === "random" && scope === "random" ? "Shuffle again" : undefined
+      }
       onClick={() => choose(key)}
     >
       <span>{label}</span>
-      <span className="gallery-sidebar-count">{note}</span>
+      <span className="gallery-sidebar-count">
+        {counts[key] === undefined ? "" : num(counts[key])}
+      </span>
     </button>
   );
   return (
     <div className="gallery-sidebar-slot">
       <div className="gallery-sidebar-search review-sidebar-top">
-        <h2>What to review</h2>
+        <h2>Filter</h2>
         <SidebarFoldButton
           collapsed={false}
           onToggle={onToggle}
           testId="review-sidebar-fold"
         />
       </div>
-      <aside className="gallery-tag-sidebar" aria-label="What to review">
-        <div className="gallery-sidebar-quick">
-          {item("random", "Random", "")}
-          {item("community", "Community", "")}
-        </div>
-        <div className="gallery-sidebar-heading">
-          <h2>Datasets</h2>
-        </div>
+      <aside className="gallery-tag-sidebar" aria-label="Filter">
         <div className="review-sidebar-list">
-          {COMPARISON_SOURCES.map((source) =>
-            item(source.key, source.name, source.license),
-          )}
-        </div>
-        <div className="gallery-sidebar-heading">
-          <h2>Filter</h2>
+          {item("random", "Random")}
+          {item("community", "Community")}
+          {COMPARISON_SOURCES.map((source) => item(source.key, source.name))}
         </div>
         <div className="review-sidebar-list">
           <button

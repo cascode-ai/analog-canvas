@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  arrangeQueue,
   flagsFor,
   hasReference,
   nextUnreviewed,
   reviewProgress,
   scopeFromSearch,
+  shuffledQueue,
   withReview,
   type ReviewCard,
   type ShownReview,
@@ -54,8 +54,8 @@ describe("review queue", () => {
       reviews: 1,
       mine: { verdict: "issue" },
     });
-    // Random mixes the stores, the unreviewed first; one store keeps its order.
-    const mixed = arrangeQueue([cards.slice(0, 2), cards.slice(2)], true);
+    // Random shuffles every store's drawings, the unreviewed first.
+    const mixed = shuffledQueue(cards);
     expect(
       mixed
         .slice(0, 2)
@@ -63,7 +63,6 @@ describe("review queue", () => {
         .sort(),
     ).toEqual(["c", "d"]);
     expect(mixed).toHaveLength(4);
-    expect(arrangeQueue([cards], false)).toEqual(cards);
     expect(
       [card("e"), { ...card("f"), reference: { revision: "r" } }]
         .filter(hasReference)
