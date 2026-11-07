@@ -504,7 +504,20 @@ note}` → `{review}`; 403 `own-entry`, 409 `stale`, 429. `PATCH
 …/reviews/<reviewId>` `{resolved: true}`: Owner only.
 - `GET /api/gallery/review/<scope>/issues` (Owner) → `{issues, disputed}`:
   open issues counting now, and entries whose counting reviews both pass and
-  hold an open issue. `…/people` → each reviewer's totals.
+  hold an open issue. `…/people`: see Fixes.
+
+### Fixes
+
+- Every change of an entry's preview (its author's or the Owner's update, a
+  dataset re-import) adds a fix: who made it (the importing Owner for a
+  dataset), the revisions before and after, how many devices (instances),
+  wires (routes and junctions) and labels (annotations and drafting text)
+  were added, removed or changed, and the open issues of the replaced
+  revision it answers. Fixes are only added and are in no backup yet.
+- `GET /api/gallery/<id>/reviews`, unblinded, adds `fixes` (newest first).
+  `GET /api/gallery/review/<scope>/people` → `{people: [{person, reviews,
+passes, issues, fixes, circuits, changes, addressed}]}`: everything each
+  person reviewed and fixed in that store.
 
 ## Accounts and sessions
 

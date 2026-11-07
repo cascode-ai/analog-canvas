@@ -82,7 +82,7 @@ async function importComparisons(
   source: GallerySource,
 ): Promise<Response> {
   const refusal = await ownerImportRefusal(request, env);
-  if (refusal) return refusal;
+  if (refusal instanceof Response) return refusal;
   const body = (await request.json().catch(() => null)) as {
     comparisons?: unknown;
   } | null;

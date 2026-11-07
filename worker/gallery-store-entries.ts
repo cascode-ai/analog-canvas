@@ -1,6 +1,7 @@
 // One entry: publishing, updating and importing it, reading it and its
 // preview, the daily publish quota and the daily allowance of opens.
 
+import { recordFix } from "./gallery-store-fixes";
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { sha256Hex } from "@icm/derived";
 import {
@@ -379,6 +380,17 @@ export function importEntry(
   ];
   state.storage.transactionSync(() => {
     forgetTransistorCount(sql, id);
+    if (row)
+      recordFix(sql, {
+        entryId: id,
+        fromRevision: row.preview_revision,
+        toRevision: previewRevision,
+        beforeText: row.project_text,
+        afterText: String(body.projectText),
+        editorId: body.editorId,
+        editorName: body.editorName,
+        at,
+      });
     if (row) {
       snapshotEntry(sql, row, at);
       sql.exec(
@@ -433,6 +445,16 @@ export function replaceEntry(
   state.storage.transactionSync(() => {
     bindPublication(sql, body, row.id);
     snapshotEntry(sql, row, String(body.at ?? row.created_at));
+    recordFix(sql, {
+      entryId: row.id,
+      fromRevision: row.preview_revision,
+      toRevision: previewRevision,
+      beforeText: row.project_text,
+      afterText: String(body.projectText),
+      editorId: body.userId,
+      editorName: body.editorName,
+      at: String(body.at ?? new Date().toISOString()),
+    });
     forgetTransistorCount(sql, row.id);
     // A take-over (#1499): the entry becomes the new AI account's, and a
     // Shelf draft of the former one no longer publishes as it.

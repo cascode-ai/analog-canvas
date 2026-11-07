@@ -316,6 +316,7 @@ export async function handleEntryUpdate(
   const { status, payload } = await callGallery(env, "replace-entry", {
     ...binding,
     userId: user.id,
+    editorName: user.displayName,
     id,
     at: new Date().toISOString(),
     name,

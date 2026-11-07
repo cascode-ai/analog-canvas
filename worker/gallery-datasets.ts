@@ -60,13 +60,13 @@ export async function gallerySourceCounts(env: GalleryEnv) {
 }
 
 /**
- * Why a dataset import is refused, or null for the Owner: the Owner's
+ * Why a dataset import is refused, or the Owner importing: the Owner's
  * same-origin session or an Owner token (#1769), which opens no other route.
  */
 export async function ownerImportRefusal(
   request: Request,
   env: GalleryEnv,
-): Promise<Response | null> {
+): Promise<Response | { id: string; displayName: string }> {
   // A browser never adds a bearer by itself, so a request carrying one
   // needs no same-origin check.
   const viaToken = hasBearer(request);
@@ -78,7 +78,7 @@ export async function ownerImportRefusal(
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
   if (!user.isOwner)
     return Response.json({ error: "owner-only" }, { status: 403 });
-  return null;
+  return user;
 }
 
 /** Circuits one import request may carry. */
@@ -96,8 +96,8 @@ export async function handleSourceImport(
   env: GalleryEnv,
   source: GallerySource,
 ): Promise<Response> {
-  const refusal = await ownerImportRefusal(request, env);
-  if (refusal) return refusal;
+  const owner = await ownerImportRefusal(request, env);
+  if (owner instanceof Response) return owner;
   const body = (await request.json().catch(() => null)) as {
     entries?: unknown;
   } | null;
@@ -158,6 +158,9 @@ export async function handleSourceImport(
         ...(createdAt ? { createdAt } : {}),
         name,
         author: source.byline,
+        // A replaced drawing records its change as the importing Owner's.
+        editorId: owner.id,
+        editorName: owner.displayName,
         description,
         projectText: stored.projectText,
         testbench: stored.testbench,

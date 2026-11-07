@@ -260,12 +260,11 @@ export function GalleryWallTile({
           ) : null}
         </span>
       </a>
-      {!dataset &&
-      (isOwner ||
-        verifySimulation ||
-        (!!viewerId && viewerId === entry.ownerUserId)) ? (
+      {/* Every signed-in reader's menu opens with Copy address; the author
+          and the Owner also manage the circuit there (a dataset's: never). */}
+      {viewerId || isOwner ? (
         <Suspense fallback={null}>
-          {isOwner ? (
+          {isOwner && !dataset ? (
             <GalleryOwnerRejectButton
               entry={entry}
               busy={ownerBusy === entry.id}
@@ -275,7 +274,13 @@ export function GalleryWallTile({
           <GalleryTileMenu
             entry={entry}
             busy={ownerBusy === entry.id}
-            administrator={isOwner}
+            administrator={isOwner && !dataset}
+            manage={
+              !dataset &&
+              (isOwner ||
+                !!verifySimulation ||
+                (!!viewerId && viewerId === entry.ownerUserId))
+            }
             onReview={() => setReviewing(entry)}
             onWithdraw={() => void withdrawEntry(entry)}
             {...(verifySimulation
