@@ -2,7 +2,7 @@ import type { GalleryEnv } from "./gallery-store";
 import { readSyncJson } from "./project-sync-http";
 import { regionalConfig, REGIONAL_PREFIX } from "./regional-auth-contract";
 
-type IdentityEnv = Pick<
+export type IdentityEnv = Pick<
   GalleryEnv,
   | "PROJECT_IDENTITY_URL"
   | "PROJECT_IDENTITY_TOKEN"
@@ -11,21 +11,26 @@ type IdentityEnv = Pick<
 >;
 /** The identities endpoint answers at most this many IDs per request. */
 const IDENTITY_BATCH = 100;
+const unavailable = () =>
+  Response.json({ error: "identity-unavailable" }, { status: 503 });
+const unknown = () =>
+  Response.json({ error: "unknown-owner" }, { status: 409 });
 
 /**
- * Peer imports keep existing account IDs: each must already exist at the
- * identity authority. Unknown accounts block (409); an unavailable
- * authority is retried (503). `ownsAuthority` is true in the overseas region,
+ * Look up existing account IDs at the identity authority: how many it
+ * reports missing, 409 for an answer that names another account, or 503
+ * while it is unavailable. `ownsAuthority` is true in the overseas region,
  * which serves the authority itself.
  */
-export async function requireKnownAccounts(
+export async function lookupAccounts(
   env: IdentityEnv,
   userIds: readonly string[],
   ownsAuthority: boolean,
-): Promise<Response | null> {
-  if (!userIds.length) return null;
+): Promise<{ missing: number } | Response> {
+  if (!userIds.length) return { missing: 0 };
   if (!env.PROJECT_IDENTITY_URL || !env.PROJECT_IDENTITY_TOKEN)
-    return Response.json({ error: "identity-unavailable" }, { status: 503 });
+    return unavailable();
+  let missing = 0;
   try {
     const identityUrl = new URL(env.PROJECT_IDENTITY_URL);
     if (
@@ -65,12 +70,24 @@ export async function requireKnownAccounts(
       };
       for (const id of batch) {
         const found = result.identities?.find((item) => item.id === id);
-        if (found?.status !== "found" || found.user?.id !== id)
-          return Response.json({ error: "unknown-owner" }, { status: 409 });
+        if (found?.status === "missing") missing++;
+        else if (found?.status !== "found" || found.user?.id !== id)
+          return unknown();
       }
     }
   } catch {
-    return Response.json({ error: "identity-unavailable" }, { status: 503 });
+    return unavailable();
   }
-  return null;
+  return { missing };
+}
+
+/** Private Project imports require every owner to exist (409 otherwise). */
+export async function requireKnownAccounts(
+  env: IdentityEnv,
+  userIds: readonly string[],
+  ownsAuthority: boolean,
+): Promise<Response | null> {
+  const result = await lookupAccounts(env, userIds, ownsAuthority);
+  if (result instanceof Response) return result;
+  return result.missing ? unknown() : null;
 }

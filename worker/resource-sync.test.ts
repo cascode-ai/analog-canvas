@@ -1111,33 +1111,83 @@ it("recreates replica triggers after a migration adds a column, so the column is
   expect((await deliver(cn, change)).status).toBe(200);
 });
 
-it("upgrades a store seeded by the previous release, moving likes to their own stream", async () => {
+it("keeps the previous release's replica SQL working after this release ran, and recovers when rolled forward again", async () => {
   const auth = environment(),
-    overseas = await region("overseas", auth);
-  const sql = overseas.sql();
-  // The previous release: no trigger signature; likes guarded with entries.
-  sql.exec("ALTER TABLE resource_replica_meta DROP COLUMN signature");
-  sql.exec(`CREATE TRIGGER replica_guard_gallery_likes_INSERT
-    BEFORE INSERT ON gallery_likes BEGIN
-      SELECT RAISE(ABORT,'RESOURCE_SOURCE_READ_ONLY');
-    END`);
-  overseas.restart();
-  const id = await publish(overseas, "Upgraded store", true);
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Rollback fixture", true);
+  await drain(overseas, cn, "gallery");
+  // The previous release's constructor and receipt statements, verbatim.
+  for (const sql of [overseas.sql(), cn.sql()]) {
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_meta (id INTEGER PRIMARY KEY, region TEXT NOT NULL, epoch TEXT NOT NULL, sequence INTEGER NOT NULL, importing INTEGER NOT NULL, writable INTEGER NOT NULL)",
+    );
+    sql.exec(
+      "INSERT OR IGNORE INTO resource_replica_meta VALUES (1,?,?,0,0,0)",
+      "overseas",
+      crypto.randomUUID(),
+    );
+    sql.exec(
+      "SELECT region,epoch,sequence FROM resource_replica_meta WHERE id=1",
+    );
+    sql.exec("UPDATE resource_replica_meta SET writable=? WHERE id=1", 1);
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_keys (id TEXT PRIMARY KEY, origin TEXT NOT NULL) WITHOUT ROWID",
+    );
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_changes (id TEXT PRIMARY KEY, sequence INTEGER NOT NULL UNIQUE) WITHOUT ROWID",
+    );
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_peer (id INTEGER PRIMARY KEY, epoch TEXT NOT NULL, sequence INTEGER NOT NULL)",
+    );
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_receipts (sequence INTEGER PRIMARY KEY, digest TEXT NOT NULL)",
+    );
+    // It still guards likes with their entry.
+    sql.exec(`CREATE TRIGGER IF NOT EXISTS replica_guard_gallery_likes_INSERT
+        BEFORE INSERT ON gallery_likes
+        WHEN (SELECT importing FROM resource_replica_meta WHERE id=1)=0
+        BEGIN
+          SELECT CASE WHEN (SELECT writable FROM resource_replica_meta WHERE id=1)=0
+            THEN RAISE(ABORT,'RESOURCE_WRITES_DISABLED') END;
+          SELECT CASE WHEN EXISTS(SELECT 1 FROM resource_replica_keys WHERE id=NEW.entry_id
+            AND origin<>(SELECT region FROM resource_replica_meta WHERE id=1))
+            THEN RAISE(ABORT,'RESOURCE_SOURCE_READ_ONLY') END;
+        END`);
+    sql.exec(
+      "INSERT OR IGNORE INTO resource_replica_keys VALUES (?,?)",
+      "rollback-key",
+      "cn",
+    );
+    sql.exec(
+      "INSERT INTO resource_replica_changes VALUES (?,?)",
+      "rollback-key",
+      900,
+    );
+    sql.exec(
+      "INSERT OR REPLACE INTO resource_replica_peer VALUES (1,?,?)",
+      "e",
+      1,
+    );
+    sql.exec(
+      "INSERT INTO resource_replica_receipts VALUES (?,?)",
+      900,
+      "digest",
+    );
+  }
+  // Rolled forward: this release replaces the old likes guard again.
+  cn.restart();
   expect(
-    (await overseas.call(`/api/gallery/${id}/like`, "POST", {})).status,
-  ).toBe(200);
-  expect(
-    sql
+    cn
+      .sql()
       .exec(
         "SELECT name FROM sqlite_master WHERE type='trigger' AND name GLOB 'replica_*_gallery_likes_*'",
       )
       .toArray(),
   ).toEqual([]);
-  const like = JSON.parse(
-    (await firstChange(overseas, "gallery-interactions")).payload,
+  expect((await cn.call(`/api/gallery/${id}/like`, "POST", {})).status).toBe(
+    200,
   );
-  expect(like.id).toMatch(new RegExp(`^${id}:`));
-  expect(like.rows[0]).toHaveLength(1);
 });
 
 it("keeps submitter email and provider in the publishing region; copies keep owner IDs and private testbenches", async () => {
@@ -1187,20 +1237,17 @@ it("keeps submitter email and provider in the publishing region; copies keep own
   expect(copy!.testbench_text).toBeTruthy();
 });
 
-it("imports only snapshots whose accounts exist at the identity authority; an unavailable authority is retried", async () => {
+it("looks up copied accounts: an unavailable authority is retried, a deleted account is counted, not blocking", async () => {
   const auth = environment(),
     overseas = await region("overseas", auth),
     cn = await region("cn", auth);
   await publish(overseas, "Verified owner");
   const envelope = await firstChange(overseas);
-  const event = JSON.parse(envelope.payload);
-  event.rows[0][0].owner_user_id = "unknown-account";
-  const unknown = await deliver(cn, resign(event));
-  expect(unknown.status).toBe(409);
-  expect(await unknown.json()).toEqual({ error: "unknown-owner" });
-  vi.stubGlobal("fetch", async () => {
-    throw new TypeError("Identity authority unreachable");
-  });
+  const offline = () =>
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("Identity authority unreachable");
+    });
+  offline();
   const unavailable = await deliver(cn, envelope);
   expect(unavailable.status).toBe(503);
   expect(await unavailable.json()).toEqual({ error: "identity-unavailable" });
@@ -1212,6 +1259,137 @@ it("imports only snapshots whose accounts exist at the identity authority; an un
     auth.authDurable.fetch(new Request(input, init)),
   );
   expect((await deliver(cn, envelope)).status).toBe(200);
+  // A redelivered receipt answers before any lookup.
+  offline();
+  expect(await (await deliver(cn, envelope)).json()).toMatchObject({
+    duplicate: true,
+  });
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+    auth.authDurable.fetch(new Request(input, init)),
+  );
+  // Publications and reviews of since-deleted accounts still copy.
+  await publish(overseas, "Deleted owner");
+  const next = JSON.parse(
+    (
+      await firstChange(
+        overseas,
+        "gallery",
+        JSON.parse(envelope.payload).sequence,
+      )
+    ).payload,
+  );
+  next.rows[0][0].owner_user_id = 424242;
+  expect((await deliver(cn, resign(next))).status).toBe(200);
+  const status = await (
+    await cn.call(
+      "/api/resource-sync/gallery/status",
+      "GET",
+      undefined,
+      "peer-secret",
+    )
+  ).json();
+  expect(status).toMatchObject({
+    received: { sequence: next.sequence },
+    missingAccounts: 1,
+  });
+});
+
+it("copies likes and reviews written before replication was enabled, without a release step", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth, false),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Liked before replication", true);
+  expect(
+    (await overseas.call(`/api/gallery/${id}/like`, "POST", {})).status,
+  ).toBe(200);
+  const revision = (await (await overseas.call(`/api/gallery/${id}`)).json())
+    .entry.previewRevision;
+  expect(
+    (
+      await overseas.call(`/api/gallery/${id}/reviews`, "POST", {
+        revision,
+        verdict: "issue",
+        flags: ["wiring"],
+        note: "Before replication",
+      })
+    ).status,
+  ).toBe(200);
+  overseas.enable();
+  expect(
+    await (
+      await overseas.call(
+        "/api/resource-sync/gallery/seed",
+        "POST",
+        {},
+        "admin-secret",
+      )
+    ).json(),
+  ).toMatchObject({ seeded: 1 });
+  await drain(overseas, cn, "gallery");
+  await drain(overseas, cn, "gallery-interactions");
+  const queue = await (
+    await cn.call("/api/gallery/review/community/queue")
+  ).json();
+  expect(
+    queue.entries.find((card: { id: string }) => card.id === id),
+  ).toMatchObject({
+    likes: 1,
+    likedByViewer: true,
+    mine: { verdict: "issue", note: "Before replication" },
+  });
+});
+
+it("lets the next region to like re-claim a like withdrawn elsewhere, both ways", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Liked again", true);
+  await drain(overseas, cn, "gallery");
+  const toggle = async (site: Site) =>
+    (await site.call(`/api/gallery/${id}/like`, "POST", {})).json();
+  const sync = async () => {
+    await drain(overseas, cn, "gallery-interactions");
+    await drain(cn, overseas, "gallery-interactions");
+  };
+  const likes = async (site: Site) =>
+    (
+      await (await site.call("/api/gallery/review/community/queue")).json()
+    ).entries.find((card: { id: string }) => card.id === id).likes;
+  for (const [writer, other] of [
+    [overseas, cn],
+    [cn, overseas],
+    [overseas, cn],
+  ] as const) {
+    expect(await toggle(writer)).toEqual({ likes: 1, likedByViewer: true });
+    await sync();
+    expect(await likes(other)).toBe(1);
+    expect(await toggle(writer)).toEqual({ likes: 0, likedByViewer: false });
+    await sync();
+    expect(await likes(other)).toBe(0);
+  }
+});
+
+it("removes only locally owned publications with a deleted account; copies wait for their origin", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const foreign = await publish(overseas, "Copied abroad");
+  await drain(overseas, cn, "gallery");
+  const local = await publish(cn, "Published at home");
+  const [{ owner_user_id: userId }] = cn
+    .sql()
+    .exec<{
+      owner_user_id: string;
+    }>("SELECT owner_user_id FROM gallery_entries WHERE id=?", local)
+    .toArray() as [{ owner_user_id: string }];
+  const deleted = await cn.env.GALLERY.getByName("gallery").fetch(
+    "https://gallery/delete-account",
+    { method: "POST", body: JSON.stringify({ userId }) },
+  );
+  expect(deleted.status).toBe(200);
+  expect(await deleted.json()).toMatchObject({ entries: 1 });
+  expect((await cn.call(`/api/gallery/${local}`)).status).toBe(404);
+  expect((await cn.call(`/api/gallery/${foreign}`)).status).toBe(200);
 });
 
 it("lets either region like and review any entry; each record stays with its writer and both regions converge", async () => {
@@ -1348,6 +1526,41 @@ it("converges when both regions write the same like before either copy arrives",
   });
   await drain(overseas, cn, "gallery-interactions");
   expect(await likes(cn)).toMatchObject({ likes: 0, likedByViewer: false });
+});
+
+it("keeps China's source tail reachable when it adopts the overseas copy of a like it had not sent yet", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Adopted like");
+  await drain(overseas, cn, "gallery");
+  for (const site of [overseas, cn])
+    expect(
+      (await site.call(`/api/gallery/${id}/like`, "POST", {})).status,
+    ).toBe(200);
+  // China's like is its newest change; it adopts the overseas record first.
+  await drain(overseas, cn, "gallery-interactions");
+  const tail = await (
+    await cn.call(
+      "/api/resource-sync/gallery-interactions/status",
+      "GET",
+      undefined,
+      "peer-secret",
+    )
+  ).json();
+  const noop = await firstChange(cn, "gallery-interactions");
+  expect(JSON.parse(noop.payload)).toMatchObject({
+    sequence: tail.sequence,
+    noop: true,
+    rows: [[], []],
+  });
+  await drain(cn, overseas, "gallery-interactions");
+  expect(await receivedBy(overseas, "gallery-interactions")).toMatchObject({
+    sequence: tail.sequence,
+  });
+  expect(
+    await firstChange(cn, "gallery-interactions", tail.sequence),
+  ).toMatchObject({ event: null, sequence: tail.sequence });
 });
 
 it("accepts gzip peer bodies and bounds their decompressed size", async () => {

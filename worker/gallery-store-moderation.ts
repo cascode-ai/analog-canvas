@@ -307,10 +307,14 @@ export function deleteAccount(
   if (!userId) return Response.json({ error: "missing-user" }, { status: 400 });
   return state.storage.transactionSync(() => {
     sql.exec("DELETE FROM gallery_daily_opens WHERE user_id = ?", userId);
+    // Copies of the other region's publications are removed by their origin.
     const entries = sql
       .exec<{
         id: string;
-      }>("SELECT id FROM gallery_entries WHERE owner_user_id = ?", userId)
+      }>(
+        `SELECT id FROM gallery_entries WHERE owner_user_id = ? AND ${locallyOwnedResources(sql)}`,
+        userId,
+      )
       .toArray();
     for (const { id } of entries) hardDeleteEntryRows(sql, id);
     const likes = sql

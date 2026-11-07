@@ -18,13 +18,19 @@ their likes and reviews use writer-owned replicas.
   drawing and audit records retained after its deletion; seeding covers these
   identities too.
 - Either region likes or reviews any entry it serves. Each like
-  (`entryId:userId`) and review (its ID) belongs to the region that wrote it and
-  travels in the store's `-interactions` stream; only that region unlikes it or
-  resolves the review. When both regions write the same like before either copy
-  arrives, both keep the overseas record. Blind-review visibility is unchanged.
-- Deleting an entry or account removes only locally written likes; the other
-  region's likes stay hidden with their missing entry until their writer
-  removes them.
+  (`entryId:userId`) and review (its ID) belongs to the region that last wrote
+  it and travels in the store's `-interactions` stream; only that region unlikes
+  it or resolves the review. A withdrawn like is re-claimed by whichever region
+  writes it next; each claim raises the identity's generation, and a higher
+  generation wins. Equal generations were written concurrently: both regions
+  keep the overseas record. Blind-review visibility is unchanged.
+- An interaction a region no longer owns keeps its place in that region's
+  sequence as a no-op, so the receiver's cursor reaches the source tail.
+- Likes and reviews that exist when interaction replication first starts are
+  indexed in the same transaction; no seeding step is required for them.
+- Deleting an entry or account removes only locally written likes and locally
+  owned publications; the other region removes its own, and its likes stay
+  hidden with their missing entry until then.
 - Aggregate byline maintenance, retention and automatic simulation checks operate
   only on locally published resources. A copied byline changes with its next
   publisher snapshot; a profile rename must not fail because foreign copies exist.
@@ -54,12 +60,16 @@ their likes and reviews use writer-owned replicas.
   with 409 `resource-schema-newer` without advancing its cursor; the same receipt
   applies after the receiver upgrades. Release overseas first, then China.
 - A column migration recreates the replica guard and change triggers, so new
-  columns are change-detected and read-only on copies.
-- Before import, every account ID in a snapshot's owner, component author, like
-  and review columns must exist at the identity authority
-  ([Project identity checks](regional-projects.md#rules)). An unknown account
-  blocks with 409 `unknown-owner`; an unavailable authority answers 503 and is
-  retried.
+  columns are change-detected and read-only on copies. The previous release's
+  replica statements keep working against this state, so a rollback can start;
+  rolling forward again restores this release's triggers.
+- Before import, each account ID in a snapshot's owner, component author, like
+  and review columns is looked up at the identity authority
+  ([Project identity checks](regional-projects.md#rules)) after the receipt is
+  known to be new. An account the authority reports missing (since deleted) is
+  imported and counted in stream status as `missingAccounts`; copied rows grant
+  no authorization. An unavailable authority answers 503 and is retried; an
+  answer naming another account blocks with 409 `unknown-owner`.
 - A resource snapshot is limited to 24 MiB and 10,000 child rows per table.
   Oversized resources block their stream with an error; they are never truncated.
   Peer bodies may be gzip-encoded; limits apply to the inflated bytes.

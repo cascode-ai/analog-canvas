@@ -1,32 +1,22 @@
 import { bearerMatches } from "./bearer";
-import type { GalleryEnv } from "./gallery-store";
 import { readSyncJson } from "./project-sync-http";
 import {
   INTERACTION_STREAM_SUFFIX,
   RESOURCE_MAX_BYTES,
-  snapshotAccounts,
   type ReplicaConfig,
 } from "./resource-replica";
 import { GALLERY_SOURCES, galleryStoreName } from "./gallery-sources";
-import { requireKnownAccounts } from "./sync-identity";
 type Namespace = {
   getByName(name: string): {
     fetch(url: string, init?: RequestInit): Promise<Response>;
   };
 };
-export type ResourceSyncEnv = ReplicaConfig &
-  Pick<
-    GalleryEnv,
-    | "PROJECT_IDENTITY_URL"
-    | "PROJECT_IDENTITY_TOKEN"
-    | "AUTH"
-    | "AUTH_REGIONAL_AUTHORITY"
-  > & {
-    RESOURCE_SYNC_TOKEN?: string;
-    RESOURCE_SYNC_ADMIN_TOKEN?: string;
-    GALLERY?: Namespace;
-    COMPONENT_LIBRARY?: Namespace;
-  };
+export type ResourceSyncEnv = ReplicaConfig & {
+  RESOURCE_SYNC_TOKEN?: string;
+  RESOURCE_SYNC_ADMIN_TOKEN?: string;
+  GALLERY?: Namespace;
+  COMPONENT_LIBRARY?: Namespace;
+};
 export async function routeResourceSync(
   request: Request,
   env: ResourceSyncEnv,
@@ -76,22 +66,12 @@ export async function routeResourceSync(
     return refuse("method-not-allowed", 405);
   try {
     const receiving = operation === "changes" && request.method === "POST";
-    const envelope = receiving
-      ? await readSyncJson(request, RESOURCE_MAX_BYTES * 2)
-      : undefined;
-    if (receiving) {
-      // Copies keep their account IDs; each must exist in the shared authority.
-      const denied = await requireKnownAccounts(
-        env,
-        snapshotAccounts(envelope),
-        env.RESOURCE_REGION === "overseas",
-      );
-      if (denied) return refuse((await denied.json()).error, denied.status);
-    }
     const body = {
       stream,
       after: Number(url.searchParams.get("after") ?? 0),
-      ...(receiving ? { envelope } : {}),
+      ...(receiving
+        ? { envelope: await readSyncJson(request, RESOURCE_MAX_BYTES * 2) }
+        : {}),
     };
     const result = await store.fetch(
       "https://resources/resource-sync/" + (receiving ? "receive" : operation),
