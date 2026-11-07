@@ -2,7 +2,13 @@
 // search, insert, Cell properties, External Circuits, Cell import, netlist
 // preflight, Gallery publishing and version history, and the Agent
 // connection and file approval.
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import {
+  lazy,
+  Suspense,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import { flushSync } from "react-dom";
 import { claimNow } from "../agent/claim-clock";
 import { planProjectCellImport } from "@icm/edit-engine";
@@ -38,7 +44,13 @@ import type { createProjectStructureCommands } from "../features/hierarchy/proje
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { primeGalleryPreview } from "../gallery-client";
 import { gallerySourceOfEntryId } from "../gallery-sources";
-import { ReferencePanel } from "../features/editor-shell/reference-panel";
+// Loaded only for a drawing opened from the Gallery: not in the editor's
+// first payload.
+const ReferencePanel = lazy(() =>
+  import("../features/editor-shell/reference-panel").then((module) => ({
+    default: module.ReferencePanel,
+  })),
+);
 import type { EditorServices } from "../services/editor-services";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import { EditorDialogLayer } from "./editor-dialog-layer";
@@ -318,10 +330,12 @@ export function EditorDialogs({
     <>
       {/* The figure the opened Gallery drawing was drawn from, beside it. */}
       {!import.meta.env?.ICM_DESKTOP && galleryEntryContext ? (
-        <ReferencePanel
-          key={galleryEntryContext.id}
-          entryId={galleryEntryContext.id}
-        />
+        <Suspense fallback={null}>
+          <ReferencePanel
+            key={galleryEntryContext.id}
+            entryId={galleryEntryContext.id}
+          />
+        </Suspense>
       ) : null}
       <EditorDialogLayer
         chunkLoadFailure={
