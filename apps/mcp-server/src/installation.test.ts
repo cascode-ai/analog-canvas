@@ -309,7 +309,14 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
         );
       }
       const installed = await installMcp(
-        ["--origin", launch.env.ANALOG_CANVAS_API_URL, "--host", "codex"],
+        [
+          "--origin",
+          launch.env.ANALOG_CANVAS_API_URL,
+          "--host",
+          "codex",
+          "--archive",
+          archive,
+        ],
         { home: directory, codex, execPath: node },
       );
       expect(installed.launch.command).toBe(
@@ -339,7 +346,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
       expect(configured).toContain(
         `command = ${JSON.stringify(installed.launch.command)}`,
       );
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
       // Installing a second Editor must preserve the first one's launch.
       const local = await installMcp(
         ["--origin", "http://localhost:18082", "--host", "codex"],
