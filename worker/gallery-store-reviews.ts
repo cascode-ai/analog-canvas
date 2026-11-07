@@ -268,6 +268,23 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
   const counts = new Map<string, number>();
   for (const row of currentReviews(sql))
     counts.set(row.entry_id, (counts.get(row.entry_id) ?? 0) + 1);
+  const likes = new Map(
+    sql
+      .exec<{ entry_id: string; count: number }>(
+        "SELECT entry_id, COUNT(*) AS count FROM gallery_likes GROUP BY entry_id",
+      )
+      .toArray()
+      .map((row) => [row.entry_id, row.count]),
+  );
+  const liked = new Set(
+    sql
+      .exec<{ entry_id: string }>(
+        "SELECT entry_id FROM gallery_likes WHERE user_id = ?",
+        reviewerId,
+      )
+      .toArray()
+      .map((row) => row.entry_id),
+  );
   const cards = entries.map((entry) => {
     const own = mine.get(entry.id);
     return {
@@ -277,6 +294,8 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       previewRevision: entry.preview_revision,
       components: entry.component_count,
       reviews: counts.get(entry.id) ?? 0,
+      likes: likes.get(entry.id) ?? 0,
+      likedByViewer: liked.has(entry.id),
       mine: own ? shown(own, entry.preview_revision) : null,
       ...(entry.reference_revision
         ? { reference: { revision: entry.reference_revision } }

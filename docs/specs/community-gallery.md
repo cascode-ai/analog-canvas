@@ -414,9 +414,10 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
   ignore their own selection. Dataset statistics are cached by normalized
   filters, access scope and data revision; imports and netlist-mark
   recomputation invalidate them.
-- Every write answers 403 `dataset-read-only`; entries have no owner or AI mark
-  (they count under `datasets`, not `human`) and show no like or owner tools;
-  an opened copy publishes as a new community entry.
+- Every write answers 403 `dataset-read-only` except a like, a review and the
+  Owner's imports; entries have no owner or AI mark (they count under
+  `datasets`, not `human`) and show no owner tools; an opened copy publishes
+  as a new community entry.
 - `GET /api/gallery/sources` → `{sources: [... , count]}`; readers see non-empty
   datasets, Owner accounts all.
 - `POST /api/gallery/sources/<key>/entries` (the Owner's same-origin session,
@@ -439,9 +440,9 @@ lastUsedAt}]}`, and revokes one with `DELETE /api/auth/owner-tokens/<id>`.
 
 ### Dataset comparisons
 
-`/datasets` sets each dataset circuit's original figure beside our redraw,
-with the verdict of comparing both netlists; the wall's Datasets filter and
-a dataset's wall link to it. The page is English and reads like every other
+`/datasets`, Review's Statistics mode, sets each dataset circuit's original
+figure beside our redraw, with the verdict of comparing both netlists; the
+wall's Datasets filter and a dataset's wall also link to it. The page is English and reads like every other
 Gallery read (signed in; signed out it asks to sign in).
 
 - Only datasets whose figures we may show take comparisons: `comparisons:
@@ -477,14 +478,19 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 ### Reviews
 
 `/review` shows one drawing at a time beside its reference (a dataset's
-original figure, or a community circuit's reference image) for a verdict. `/datasets`
-links to it.
+original figure, or a community circuit's reference image) for a verdict,
+each side's SPICE netlist under its picture (ours spends a daily open as
+opening the entry does), and the reader's like. It is the Gallery's Review tab, between Community
+gallery and My shelf; its pages keep that tab row. Review is the default
+mode; the top-right switch opens Statistics (`/datasets`, look only). Its
+sidebar lists the community first, then each dataset with comparisons. The
+Owner's panel exports the open issues and disputes as JSON.
 
 - Any signed-in account reviews any public entry except its own, a dataset's
   too (its store's only other write is the Owner's import). A review is
   `pass`, or `issue` with flags from `wrong`, `loose`, `ugly`, `overlap`,
-  `wiring`, `incomplete`, `simple`, `duplicate`, `other` and an optional note
-  (≤1000). At most 300 reviews per account per store each UTC day
+  `wiring`, `incomplete`, `simple`, `duplicate`, `other`; either may carry a
+  comment (`note`, ≤1000). At most 300 reviews per account per store each UTC day
   (`daily-review-limit`).
 - A review belongs to the entry's preview revision at that moment (`stale`
   when the reviewer's is older). Each reviewer's latest review of the current
@@ -495,7 +501,8 @@ links to it.
   its current revision is in; the Owner always.
 - `GET /api/gallery/review/<scope>/queue` (`scope`: a dataset with
   comparisons, or `community`) → `{entries: [{id, name, author,
-previewRevision, components, reviews, mine, comparison?}]}`: the entries
+previewRevision, components, reviews, likes, likedByViewer, mine,
+comparison?, reference?}]}`: the entries
   the reader may review, unreviewed by them first, then fewest counting
   reviews; `mine` is the reader's latest review, `reviews` how many count.
 - `GET /api/gallery/<id>/reviews` → `{blind: true, revision}` or `{blind:

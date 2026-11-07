@@ -29,6 +29,8 @@ const card = (id: string, mine: ShownReview | null = null): ReviewCard => ({
   previewRevision: "v",
   components: 3,
   reviews: mine?.current ? 1 : 0,
+  likes: 0,
+  likedByViewer: false,
   mine,
 });
 
@@ -67,6 +69,7 @@ describe("review queue", () => {
       "0",
     ]);
     expect(scopeFromSearch("?scope=community")).toBe("community");
-    expect(scopeFromSearch("?scope=amsnet")).toBe("analoggenie");
+    expect(scopeFromSearch("?scope=analoggenie")).toBe("analoggenie");
+    expect(scopeFromSearch("?scope=amsnet")).toBe("community");
   });
 });

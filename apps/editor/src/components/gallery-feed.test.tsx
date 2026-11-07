@@ -623,11 +623,10 @@ describe("The Sim mark", () => {
       }),
     );
 
-  it("leaves a reference dataset's circuit read-only on the community wall (#1697)", () => {
+  it("lets a reference dataset's circuit take a like on the community wall (#1697)", () => {
     expect(tile(entry)).toContain('data-testid="gallery-like-divider01"');
     const dataset = tile({ ...entry, id: "amsnet-12", ownerUserId: null });
-    expect(dataset).toContain('data-testid="gallery-tile-amsnet-12"');
-    expect(dataset).not.toContain("gallery-like-");
+    expect(dataset).toContain('data-testid="gallery-like-amsnet-12"');
   });
 
   it("follows Netlist and AI for a viewer the server sends it to, and is absent for anyone else", () => {

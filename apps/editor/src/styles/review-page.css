@@ -3,6 +3,74 @@
   max-width: 82rem;
 }
 
+/* The sidebar of what to review, and the review beside it. */
+.review-layout {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.review-sidebar {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.review-sidebar h5 {
+  margin: 12px 8px 4px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.review-sidebar button {
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: none;
+  color: var(--icm-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.review-sidebar button:hover {
+  background: var(--icm-surface-hover);
+}
+
+.review-sidebar button.on {
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+  font-weight: 600;
+}
+
+.review-export {
+  padding: 2px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .review-sidebar {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
 .review-progress {
   display: flex;
   align-items: center;
@@ -80,6 +148,11 @@
   margin-top: 10px;
 }
 
+/* A long netlist line scrolls in its box; it never widens the column. */
+.review-cols > div {
+  min-width: 0;
+}
+
 .review-cols h4 {
   margin: 0 0 5px;
   color: var(--icm-text-muted);
@@ -99,11 +172,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: min(56vh, 520px);
+  height: min(44vh, 440px);
   overflow: hidden;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: #fff;
+}
+
+.review-netlist {
+  box-sizing: border-box;
+  height: 150px;
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  overflow: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+  font: 11px/1.4 var(--icm-font-mono);
+  white-space: pre;
 }
 
 .review-pic img {
@@ -258,6 +344,20 @@
   color: #fff;
 }
 
+/* A red outlined heart; liked, a red filled one. */
+.review-actions .review-like {
+  color: #e0245e;
+}
+
+.review-actions .review-like svg {
+  width: 16px;
+  height: 16px;
+}
+
+.review-actions .review-like.on {
+  border-color: #e0245e;
+}
+
 .review-actions .review-flag.on {
   border-color: #d03b3b;
   background: #fdecec;
@@ -304,4 +404,10 @@
   .review-cols {
     grid-template-columns: 1fr;
   }
+}
+
+.review-owner .review-export {
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 12px;
 }

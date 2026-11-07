@@ -204,31 +204,29 @@ export function GalleryWallTile({
               </>
             ) : null}
             {savedAtLabel(entry.createdAt)}
-            {dataset ? null : " · "}
-            {dataset ? null : (
-              <button
-                type="button"
-                className="gallery-tile-like"
-                data-testid={`gallery-like-${entry.id}`}
-                aria-pressed={entry.likedByViewer === true}
-                title={
-                  entry.likedByViewer ? "Remove your like" : "Like this circuit"
-                }
-                aria-label={
-                  entry.likedByViewer
-                    ? `Remove your like from ${entry.name}`
-                    : `Like ${entry.name}`
-                }
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  void toggleLike(entry.id);
-                }}
-              >
-                <HeartIcon filled={entry.likedByViewer === true} />
-                {entry.likes ?? 0}
-              </button>
-            )}
+            {" · "}
+            <button
+              type="button"
+              className="gallery-tile-like"
+              data-testid={`gallery-like-${entry.id}`}
+              aria-pressed={entry.likedByViewer === true}
+              title={
+                entry.likedByViewer ? "Remove your like" : "Like this circuit"
+              }
+              aria-label={
+                entry.likedByViewer
+                  ? `Remove your like from ${entry.name}`
+                  : `Like ${entry.name}`
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                void toggleLike(entry.id);
+              }}
+            >
+              <HeartIcon filled={entry.likedByViewer === true} />
+              {entry.likes ?? 0}
+            </button>
           </span>
           {entry.description ? (
             <span

@@ -91,9 +91,14 @@ describe("reference datasets in stores of their own (#1510)", () => {
       ]),
     });
 
-    // Read-only: no like, update or withdraw reaches it.
+    // Read-only: no update or withdraw reaches it; a like does, being a
+    // reader's mark rather than a change of the circuit.
+    expect(
+      await (
+        await call("/api/gallery/ag-308/like", { method: "POST", body: "{}" })
+      ).json(),
+    ).toMatchObject({ likedByViewer: true, likes: 1 });
     for (const [path, method] of [
-      ["/api/gallery/ag-308/like", "POST"],
       ["/api/gallery/ag-308", "PUT"],
       ["/api/gallery/ag-308/recycle", "POST"],
     ] as const)
