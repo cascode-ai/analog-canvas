@@ -31,12 +31,15 @@ Gallery, User Components and Dataset publications use origin-owned replicas.
   changed epochs, invalid hashes and out-of-order deliveries are refused.
 - Resource snapshots contain only their allowlisted resource tables. Private
   Cloud Projects, sessions, credentials, live jobs and analytics are excluded.
+  Matching schemas require the same named columns, independent of the physical
+  column order left by migrations; missing or additional columns are incompatible.
   Existing resource permissions still govern access to copied private testbenches
   and hidden publications.
 - A resource snapshot is limited to 24 MiB and 10,000 child rows per table.
   Oversized resources block their stream with an error; they are never truncated.
-- Dataset records retain their source namespace. Source-owner import remains the
-  only Dataset mutation entrance; a copied Dataset record cannot be imported over.
+- Dataset records retain their source namespace and the
+  [Gallery's mutation permissions](community-gallery.md). Imports and drawing
+  fixes apply only at the publishing region; copied records remain read-only.
 - Publication daily admission remains enforced by each region's existing API;
   it is not a globally reserved quota. Imported rows count in local admission
   after catch-up. Private Project quota coordination is unchanged.
