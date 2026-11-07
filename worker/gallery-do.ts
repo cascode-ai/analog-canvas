@@ -122,6 +122,7 @@ import {
   reviewQueue,
   submitReview,
 } from "./gallery-store-reviews";
+import { installFixes } from "./gallery-store-fixes";
 import {
   RegionalProjectDO,
   type ProjectRegionConfig,
@@ -340,6 +341,8 @@ export class GalleryDO {
     installComparisons(this.sql);
     // Who passed or flagged which version of an entry.
     installReviews(this.sql);
+    // Each change of an entry's drawing: who, how much, which issues.
+    installFixes(this.sql);
     // A tile's whole card, by id: a page's tiles and the Owner's lists read
     // it here, never the row, whose card fields sit behind its Project and
     // preview (about 100 kB, some 25 pages each; 30 cold tiles took about

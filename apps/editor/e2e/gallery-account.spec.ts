@@ -781,6 +781,15 @@ test("a member withdraws their own entry from its tile, then restores or deletes
   await expect(
     page.getByTestId(`gallery-author-menu-${theirs.id}`),
   ).toHaveCount(0);
+  // Anyone else's tile still offers its address.
+  await page
+    .getByTestId(`gallery-reader-menu-${theirs.id}`)
+    .getByLabel(`More for ${theirs.name}`)
+    .click();
+  await expect(
+    page.getByTestId(`gallery-copy-address-${theirs.id}`),
+  ).toHaveAttribute("title", new RegExp(`/g/${theirs.id}$`));
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId(`gallery-owner-reject-${mine.id}`)).toHaveCount(
     0,
   );

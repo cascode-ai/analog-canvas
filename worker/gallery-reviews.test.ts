@@ -11,6 +11,7 @@ import {
   route,
   signIn,
   submitOne,
+  wiredProjectText,
 } from "./gallery.test-support";
 
 describe("reviews of Gallery drawings", () => {
@@ -149,33 +150,62 @@ describe("reviews of Gallery drawings", () => {
       await (await call("/api/gallery/review/community/issues", owner)).json(),
     ).toEqual({ issues: [], disputed: [] });
 
-    // A new version leaves the old reviews in the history, no longer current.
-    env.gallerySql.exec(
-      "UPDATE gallery_entries SET preview_revision = 'next' WHERE id = ?",
-      id,
-    );
+    // Its author fixes it: the new version is a fix of theirs, sized by
+    // what changed, and the old reviews stay in the history, no longer
+    // current.
+    expect(
+      (
+        await call(`/api/gallery/${id}`, maker, {
+          method: "PUT",
+          body: JSON.stringify({
+            name: "Two-stage OTA",
+            projectText: wiredProjectText("Two-stage OTA"),
+          }),
+        })
+      ).status,
+    ).toBe(200);
+    const next = await revisionOf(id);
+    expect(next).not.toBe(revision);
     expect(
       await (await call(`/api/gallery/${id}/reviews`, reader)).json(),
-    ).toEqual({
-      blind: true,
-      revision: "next",
-    });
-    expect(
-      await (await call(`/api/gallery/${id}/reviews`, owner)).json(),
-    ).toMatchObject({
+    ).toEqual({ blind: true, revision: next });
+    const after = (await (
+      await call(`/api/gallery/${id}/reviews`, owner)
+    ).json()) as { fixes: { devices: number; wires: number }[] };
+    expect(after).toMatchObject({
       current: [],
       history: expect.arrayContaining([
         expect.objectContaining({ current: false, resolved: true }),
         expect.objectContaining({ current: false, verdict: "pass" }),
       ]),
+      fixes: [{ fromRevision: revision, toRevision: next, addressed: 0 }],
     });
+    expect(after.fixes[0]!.devices + after.fixes[0]!.wires).toBeGreaterThan(0);
     expect(
       await (await call("/api/gallery/review/community/people", reader)).json(),
     ).toMatchObject({
       people: expect.arrayContaining([
-        expect.objectContaining({ reviews: 1, issues: 1 }),
+        expect.objectContaining({ reviews: 1, issues: 1, fixes: 0 }),
+        expect.objectContaining({ reviews: 0, fixes: 1, circuits: 1 }),
       ]),
     });
+
+    // A fix of a version with an open issue answers it.
+    await review(id, reader, {
+      revision: next,
+      verdict: "issue",
+      flags: ["wiring"],
+    });
+    await call(`/api/gallery/${id}`, maker, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: "Two-stage OTA",
+        projectText: wiredProjectText("Two-stage OTA", 260),
+      }),
+    });
+    expect(
+      await (await call(`/api/gallery/${id}/reviews`, owner)).json(),
+    ).toMatchObject({ fixes: [{ fromRevision: next, addressed: 1 }, {}] });
 
     // Signed out, every review route asks to sign in.
     expect(

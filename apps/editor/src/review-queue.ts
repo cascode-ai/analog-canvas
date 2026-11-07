@@ -37,6 +37,17 @@ export interface ShownReview {
   resolved: boolean;
 }
 
+/** One change of an entry's drawing, as GET /api/gallery/<id>/reviews lists it. */
+export interface EntryFix {
+  id: string;
+  editor: string;
+  devices: number;
+  wires: number;
+  labels: number;
+  addressed: number;
+  at: string;
+}
+
 /** One card of GET /api/gallery/review/<scope>/queue. */
 export interface ReviewCard {
   id: string;

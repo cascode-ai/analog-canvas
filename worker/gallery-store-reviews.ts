@@ -5,6 +5,7 @@
 // history, no longer current.
 
 import { type SqlStorage, isRecord } from "./gallery-store";
+import { entryFixes, fixTotals } from "./gallery-store-fixes";
 
 /** What a reviewer can flag; the page names them. */
 const REVIEW_FLAGS = [
@@ -83,8 +84,10 @@ function currentReviews(
 ): ReviewRow[] {
   return sql
     .exec<ReviewRow>(
+      // From the reviews (CROSS JOIN keeps that order), each entry by its
+      // card index: never the entries' rows, which hold their drawings.
       `SELECT r.* FROM entry_reviews r
-       JOIN gallery_entries e ON e.id = r.entry_id AND e.status = 'public'
+       CROSS JOIN gallery_entries e ON e.id = r.entry_id AND e.status = 'public'
          AND r.preview_revision = e.preview_revision
        WHERE r.created_at = (
          SELECT MAX(created_at) FROM entry_reviews l
@@ -203,6 +206,7 @@ export function entryReviews(sql: SqlStorage, body: unknown): Response {
     revision: current,
     current: counting.map((row) => shown(row, current)),
     history: history.map((row) => shown(row, current)),
+    fixes: entryFixes(sql, entryId),
   });
 }
 
@@ -239,7 +243,7 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
         : `SELECT e.id, e.name, e.author, e.preview_revision, e.component_count,
              NULL AS verdict, NULL AS category, NULL AS detail, NULL AS reason,
              NULL AS figure_revision
-           FROM gallery_entries e
+           FROM gallery_entries e INDEXED BY idx_gallery_entries_card
            WHERE e.status = 'public'
              AND (e.owner_user_id IS NULL OR e.owner_user_id != ?)`,
       reviewerId,
@@ -339,29 +343,68 @@ export function resolveReview(sql: SqlStorage, body: unknown): Response {
   return Response.json({ ok: true });
 }
 
-/** Each reviewer's totals in this store, every review counted once. */
+/**
+ * Each person's work in this store: reviews written (passes, issues) and
+ * fixes made (how many, of how many circuits, objects changed, issues
+ * answered). Every review and fix counts once, current or not.
+ */
 export function reviewPeople(sql: SqlStorage): Response {
-  const rows = sql
+  const people = new Map<
+    string,
+    {
+      name: string;
+      reviews: number;
+      passes: number;
+      issues: number;
+      fixes: number;
+      circuits: number;
+      changes: number;
+      addressed: number;
+    }
+  >();
+  const person = (id: string, name: string) => {
+    const found = people.get(id) ?? {
+      name,
+      reviews: 0,
+      passes: 0,
+      issues: 0,
+      fixes: 0,
+      circuits: 0,
+      changes: 0,
+      addressed: 0,
+    };
+    people.set(id, found);
+    return found;
+  };
+  for (const row of sql
     .exec<{
+      reviewer_id: string;
       reviewer_name: string;
       reviews: number;
       passes: number;
       issues: number;
-      last: string;
     }>(
-      `SELECT reviewer_name, COUNT(*) AS reviews,
-         SUM(verdict = 'pass') AS passes, SUM(verdict = 'issue') AS issues,
-         MAX(created_at) AS last
-       FROM entry_reviews GROUP BY reviewer_id ORDER BY reviews DESC`,
+      `SELECT reviewer_id, MAX(reviewer_name) AS reviewer_name,
+         COUNT(*) AS reviews, SUM(verdict = 'pass') AS passes,
+         SUM(verdict = 'issue') AS issues
+       FROM entry_reviews GROUP BY reviewer_id`,
     )
-    .toArray();
-  return Response.json({
-    people: rows.map((row) => ({
-      reviewer: row.reviewer_name,
+    .toArray())
+    Object.assign(person(row.reviewer_id, row.reviewer_name), {
       reviews: row.reviews,
       passes: row.passes,
       issues: row.issues,
-      last: row.last,
-    })),
+    });
+  for (const row of fixTotals(sql))
+    Object.assign(person(row.editor_id, row.editor_name), {
+      fixes: row.fixes,
+      circuits: row.circuits,
+      changes: row.devices + row.wires + row.labels,
+      addressed: row.addressed,
+    });
+  return Response.json({
+    people: [...people.values()]
+      .sort((a, b) => b.reviews + b.fixes - (a.reviews + a.fixes))
+      .map(({ name, ...work }) => ({ person: name, ...work })),
   });
 }

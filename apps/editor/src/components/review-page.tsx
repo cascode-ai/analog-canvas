@@ -15,6 +15,7 @@ import {
   reviewed,
   scopeFromSearch,
   withReview,
+  type EntryFix,
   type ReviewCard,
   type ShownReview,
 } from "../review-queue";
@@ -244,6 +245,7 @@ export function ReviewPage({
         ) : (
           <>
             <Progress {...progress} total={cards.length} />
+            <PeoplePanel scope={scope} fetchLike={fetchLike} />
             {owner ? (
               <OwnerPanel
                 lists={owner}
@@ -443,6 +445,7 @@ function OthersReviews({
   onResolved: () => void;
 }) {
   const [shown, setShown] = useState<ShownReview[] | null>(null);
+  const [fixes, setFixes] = useState<EntryFix[]>([]);
   const [round, setRound] = useState(0);
   const unblinded = reviewed(card) || owner;
   const key = `${card.mine?.id ?? ""}:${owner}:${round}`;
@@ -454,8 +457,11 @@ function OthersReviews({
       credentials: "same-origin",
     })
       .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { current?: ShownReview[] } | null) =>
-        setShown(payload?.current ?? []),
+      .then(
+        (payload: { current?: ShownReview[]; fixes?: EntryFix[] } | null) => {
+          setShown(payload?.current ?? []);
+          setFixes(payload?.fixes ?? []);
+        },
       )
       .catch(() => setShown([]));
   }, [card.id, unblinded, key, fetchLike]);
@@ -481,6 +487,17 @@ function OthersReviews({
     ) : null;
   return (
     <ul className="review-others">
+      {fixes.slice(0, 3).map((fix) => (
+        <li key={fix.id} className="fix">
+          <span className="datasets-icon v-notation" aria-hidden="true">
+            ✎
+          </span>
+          <b>{fix.editor}</b> fixed it: {fix.devices} devices, {fix.wires}{" "}
+          wires, {fix.labels} labels changed
+          {fix.addressed ? ` · answered ${fix.addressed} issue(s)` : ""}
+          <span className="meta"> · {fix.at.slice(0, 10)}</span>
+        </li>
+      ))}
       {(shown ?? []).map((review) => (
         <li key={review.id}>
           <span
@@ -539,6 +556,77 @@ function OwnerPanel({
       <div>
         <b>Disputed</b> {jump(lists.disputed)}
       </div>
+    </details>
+  );
+}
+
+interface PersonWork {
+  person: string;
+  reviews: number;
+  passes: number;
+  issues: number;
+  fixes: number;
+  circuits: number;
+  changes: number;
+  addressed: number;
+}
+
+/** Everyone's work here: reviews written and fixes made. */
+function PeoplePanel({
+  scope,
+  fetchLike,
+}: {
+  scope: string;
+  fetchLike: typeof fetch;
+}) {
+  const [people, setPeople] = useState<PersonWork[] | null>(null);
+  const load = () => {
+    if (people) return;
+    void fetchLike(`/api/gallery/review/${scope}/people`, {
+      credentials: "same-origin",
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { people?: PersonWork[] } | null) =>
+        setPeople(payload?.people ?? []),
+      )
+      .catch(() => setPeople([]));
+  };
+  useEffect(() => setPeople(null), [scope]);
+  return (
+    <details className="review-people" onToggle={load}>
+      <summary>People · reviews and fixes</summary>
+      {people === null ? null : people.length === 0 ? (
+        <p className="meta">No reviews or fixes here yet.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th>Reviews</th>
+              <th>Passed</th>
+              <th>Flagged</th>
+              <th>Fixes</th>
+              <th>Circuits fixed</th>
+              <th>Objects changed</th>
+              <th>Issues answered</th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((row) => (
+              <tr key={row.person}>
+                <td>{row.person}</td>
+                <td>{num(row.reviews)}</td>
+                <td>{num(row.passes)}</td>
+                <td>{num(row.issues)}</td>
+                <td>{num(row.fixes)}</td>
+                <td>{num(row.circuits)}</td>
+                <td>{num(row.changes)}</td>
+                <td>{num(row.addressed)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </details>
   );
 }
