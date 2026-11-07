@@ -2946,6 +2946,63 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     assetHash:
       "a4c4dee2f1b9c06490e8931bd8e1671e0dd8def4482e3c0393b9bd3968075d38",
   },
+  {
+    symbolId: "adc-differential",
+    name: "Differential Analog-to-Digital Converter",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The ADC's arrow with a differential input: IN+ and IN- enter the slanted faces a grid row either side of the point, marked as the differential op-amp and comparator are, so two signal lines need not meet at one pin.",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A converter block stands for a subsystem; SPICE has no primitive for one.",
+    assetPath: "adc-differential.json",
+    assetHash:
+      "c956adfaca2a46f9403957592cd74fa15773b65597b1c4a5d5fd455502b972ad",
+  },
+  {
+    symbolId: "adc-differential-inputs-swapped",
+    name: "Differential Analog-to-Digital Converter (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The ADC's arrow with a differential input: IN+ and IN- enter the slanted faces a grid row either side of the point, marked as the differential op-amp and comparator are, so two signal lines need not meet at one pin.",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A converter block stands for a subsystem; SPICE has no primitive for one.",
+    assetPath: "adc-differential-inputs-swapped.json",
+    assetHash:
+      "b36d6dd10e1f67591613b61db73dc6afe5ff312ca945ab0fa0ec2119b9f4ff8b",
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "adc-differential",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "dac-differential",
+    name: "Differential Digital-to-Analog Converter",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The DAC's arrow with a differential output: OUT+ and OUT- leave the slanted faces a grid row either side of the point, mirroring the differential ADC.",
+    pinOrder: ["IN", "OUT+", "OUT-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A converter block stands for a subsystem; SPICE has no primitive for one.",
+    assetPath: "dac-differential.json",
+    assetHash:
+      "ddf236dd558b3a21c9490cab2af271f74ab4276ee456109402866fdfddfb03fb",
+  },
 ];
 
 export const razaviSemanticPrimitives: readonly RazaviSemanticPrimitiveEntry[] =
@@ -21439,6 +21496,591 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           strokeRole: "normal",
           lineCap: "butt",
           lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "DAC",
+      supportsCoefficient: false,
+      center: {
+        x: 0.28,
+        y: 0,
+      },
+      fontSize: 12,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "adc-differential",
+    name: "Differential Analog-to-Digital Converter",
+    viewBox: {
+      x: -54,
+      y: -24,
+      width: 98,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 30,
+            y: -20,
+          },
+          {
+            x: -20,
+            y: -20,
+          },
+          {
+            x: -40,
+            y: 0,
+          },
+          {
+            x: -20,
+            y: 20,
+          },
+          {
+            x: 30,
+            y: 20,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 30,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -22,
+          y: 7,
+        },
+        to: {
+          x: -22,
+          y: 13,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -25,
+          y: 10,
+        },
+        to: {
+          x: -19,
+          y: 10,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -25,
+          y: -10,
+        },
+        to: {
+          x: -19,
+          y: -10,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "ADC",
+      supportsCoefficient: false,
+      center: {
+        x: -0.28,
+        y: 0,
+      },
+      fontSize: 12,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "adc-differential-inputs-swapped",
+    name: "Differential Analog-to-Digital Converter (swapped inputs)",
+    viewBox: {
+      x: -54,
+      y: -24,
+      width: 98,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 30,
+            y: -20,
+          },
+          {
+            x: -20,
+            y: -20,
+          },
+          {
+            x: -40,
+            y: 0,
+          },
+          {
+            x: -20,
+            y: 20,
+          },
+          {
+            x: 30,
+            y: 20,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 30,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -22,
+          y: -7,
+        },
+        to: {
+          x: -22,
+          y: -13,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -25,
+          y: -10,
+        },
+        to: {
+          x: -19,
+          y: -10,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -25,
+          y: 10,
+        },
+        to: {
+          x: -19,
+          y: 10,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "ADC",
+      supportsCoefficient: false,
+      center: {
+        x: -0.28,
+        y: 0,
+      },
+      fontSize: 12,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "dac-differential",
+    name: "Differential Digital-to-Analog Converter",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 98,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "IN",
+        role: "input",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 50,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 50,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -30,
+            y: -20,
+          },
+          {
+            x: 20,
+            y: -20,
+          },
+          {
+            x: 40,
+            y: 0,
+          },
+          {
+            x: 20,
+            y: 20,
+          },
+          {
+            x: -30,
+            y: 20,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 30,
+          y: 10,
+        },
+        to: {
+          x: 50,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 30,
+          y: -10,
+        },
+        to: {
+          x: 50,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 22,
+          y: 7,
+        },
+        to: {
+          x: 22,
+          y: 13,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 19,
+          y: 10,
+        },
+        to: {
+          x: 25,
+          y: 10,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 19,
+          y: -10,
+        },
+        to: {
+          x: 25,
+          y: -10,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
         },
       },
     ],

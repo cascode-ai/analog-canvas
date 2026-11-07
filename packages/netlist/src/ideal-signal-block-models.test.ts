@@ -100,6 +100,32 @@ describe("generated block bodies", () => {
       "BQ VOUT VSS V={max(V(VDD,VSS),1u)/pow(2,bits)*min(max(floor(V(VIN,VSS)*pow(2,bits)/max(V(VDD,VSS),1u)),0),pow(2,bits)-1)}",
       ".ends adc",
     ]);
+    const range = "max(V(VDD,VSS),1u)";
+    const level = (input: string) =>
+      `${range}/pow(2,bits)*min(max(floor(${input}*pow(2,bits)/${range}),0),pow(2,bits)-1)`;
+    expect(spiceIdealSignalSubcircuit("adc_differential")).toEqual([
+      "* Ideal differential ADC: V(VIP,VIN)+range/2 on 2^bits levels between VSS and VDD, no clock",
+      ".subckt adc_differential VDD VSS VIP VIN VOUT params: bits=8",
+      `BQ VOUT VSS V={${level(`(V(VIP,VIN)+${range}/2)`)}}`,
+      ".ends adc_differential",
+    ]);
+    const half = `(${level("V(VIN,VSS)")}-${range}/2)/2`;
+    expect(spiceIdealSignalSubcircuit("dac_differential")).toEqual([
+      "* Ideal differential DAC: 2^bits levels of V(VOP,VON) about mid-supply, no clock",
+      ".subckt dac_differential VDD VSS VIN VOP VON params: bits=8",
+      `BP VOP VSS V={${range}/2+${half}}`,
+      `BN VON VSS V={${range}/2-${half}}`,
+      ".ends dac_differential",
+    ]);
+  });
+
+  it.each([
+    ["adc-differential", "X1 VDD VSS VIP VIN VOUT adc_differential"],
+    ["dac-differential", "X1 VDD VSS VIN VOP VON dac_differential"],
+  ])("export the %s with each line of its pair on its own node", (id, call) => {
+    const spice = createDesignNetlistExport(blockCell(id));
+    if (spice.status !== "ready") throw new Error(`${id} blocked`);
+    expect(spice.file.text).toMatch(new RegExp(`^${call}$`, "mu"));
   });
 
   it("export the adder in SPICE and in Spectre from two unity sources", () => {
@@ -367,7 +393,7 @@ describe("generated block bodies", () => {
     );
   });
 
-  it.each(["multiplier", "adc", "dac"])(
+  it.each(["multiplier", "adc", "dac", "adc-differential", "dac-differential"])(
     "export the %s ready in SPICE, and to Spectre with a warning",
     (symbolId) => {
       const target = subcircuitDescriptor(symbolId)!.target;
@@ -409,11 +435,13 @@ describe.skipIf(!ngspiceOnPath())(
         ["multiplier", "product_cell"],
         ["adc", "adc_cell"],
         ["dac", "dac_cell"],
+        ["adc-differential", "adcd_cell"],
+        ["dac-differential", "dacd_cell"],
       ] as const;
       const exported = cells.map(([symbolId, cell]) => {
         const project = blockCell(symbolId, cell);
         // The DAC's resolution comes from Properties, as a call parameter.
-        if (symbolId === "dac")
+        if (symbolId.startsWith("dac"))
           project.documents[0]!.instances[0]!.netlist!.parameters.bits = "3";
         // A residue or loop error: input B subtracts.
         if (cell === "difference_cell")
@@ -434,6 +462,9 @@ describe.skipIf(!ngspiceOnPath())(
         "XM vdd 0 a b yprod product_cell",
         "XA vdd 0 ramp yadc adc_cell",
         "XD vdd 0 ramp ydac dac_cell",
+        // IN+ the ramp, IN− the 0.5 V source: two nodes, not one.
+        "XAD vdd 0 ramp b yadcd adcd_cell",
+        "XDD vdd 0 ramp ydacp ydacn dacd_cell",
         ".tran 10n 10u",
         ".control",
         "run",
@@ -448,6 +479,13 @@ describe.skipIf(!ngspiceOnPath())(
           ["adc_mid", "yadc", "5.5u"],
           ["adc_top", "yadc", "9.9u"],
           ["dac_mid", "ydac", "5.5u"],
+          ["adcd_below", "yadcd", "0.2u"],
+          ["adcd_mid", "yadcd", "5.52u"],
+          ["adcd_top", "yadcd", "9.9u"],
+          ["dacd_p_bottom", "ydacp", "0.2u"],
+          ["dacd_n_bottom", "ydacn", "0.2u"],
+          ["dacd_p_top", "ydacp", "9.9u"],
+          ["dacd_n_top", "ydacn", "9.9u"],
         ].map(
           ([name, node, at]) => `meas tran ${name} FIND v(${node}) AT=${at}`,
         ),
@@ -482,6 +520,18 @@ describe.skipIf(!ngspiceOnPath())(
         expect(measured.adc_top).toBeCloseTo(255 * lsb, 4);
         // Three bits: LSB = 0.225 V, and 1.0 V is four whole LSBs.
         expect(measured.dac_mid).toBeCloseTo(4 * 0.225, 4);
+        // IN+ − IN− + 0.9 V: −0.06 − 0.5 + 0.9 = 0.34 V is 48 whole LSBs; at
+        // 5.52 µs, mid-step, 1.004 − 0.5 + 0.9 = 1.404 V is 199; 1.88 − 0.5 +
+        // 0.9 is past the top.
+        expect(measured.adcd_below).toBeCloseTo(48 * lsb, 4);
+        expect(measured.adcd_mid).toBeCloseTo(199 * lsb, 4);
+        expect(measured.adcd_top).toBeCloseTo(255 * lsb, 4);
+        // Three bits about 0.9 V: code 0 drives OUT+ − OUT− to −0.9 V, code 7
+        // (1.575 V) to 1.575 − 0.9 = 0.675 V.
+        expect(measured.dacd_p_bottom).toBeCloseTo(0.45, 4);
+        expect(measured.dacd_n_bottom).toBeCloseTo(1.35, 4);
+        expect(measured.dacd_p_top).toBeCloseTo(0.9 + 0.675 / 2, 4);
+        expect(measured.dacd_n_top).toBeCloseTo(0.9 - 0.675 / 2, 4);
       } finally {
         rmSync(directory, { recursive: true, force: true });
       }

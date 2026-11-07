@@ -135,18 +135,19 @@ their IDs, never resolved to the first.
   body's `VIP`/`VIN`/`VOUT`, in any order and letter case, plus `VDD`/`VSS`
   unless its supplies are global:
 
-  | Parts                                                  | Pins                                                                                |
-  | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-  | 2/3/4-input gates, adder, multiplier                   | `A`, `B`(, `C`, `D`), `Y`                                                           |
-  | `inverter`, `buffer`, `delay-cell`, `transconductance` | `A`, `Y`                                                                            |
-  | `opamp`, `comparator`, `differential-transconductance` | `IN+`, `IN-`, `OUT`                                                                 |
-  | `opamp-differential`, `comparator-differential`        | `IN+`, `IN-`, `OUT+`, `OUT-`                                                        |
-  | `voltage-amplifier`, `adc`, `dac`                      | `IN`, `OUT`                                                                         |
-  | `d-flip-flop`, `-q`, `-reset`                          | `D`, `CK`, `Q`, `QBAR` where drawn, `RST` for reset                                 |
-  | `crystal`                                              | `1`, `2`                                                                            |
-  | `tcoil`, `center-tap-inductor`                         | `1`, `2`, `3`                                                                       |
-  | `xfmr`                                                 | `P+`, `P-`, `S+`, `S-`                                                              |
-  | `chopper`                                              | `INP`, `INN`, `OUTP`, `OUTN`, plus `CK` for the clock its label names unless global |
+  | Parts                                                                      | Pins                                                                                |
+  | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+  | 2/3/4-input gates, adder, multiplier                                       | `A`, `B`(, `C`, `D`), `Y`                                                           |
+  | `inverter`, `buffer`, `delay-cell`, `transconductance`                     | `A`, `Y`                                                                            |
+  | `opamp`, `comparator`, `differential-transconductance`, `adc-differential` | `IN+`, `IN-`, `OUT`                                                                 |
+  | `opamp-differential`, `comparator-differential`                            | `IN+`, `IN-`, `OUT+`, `OUT-`                                                        |
+  | `voltage-amplifier`, `adc`, `dac`                                          | `IN`, `OUT`                                                                         |
+  | `dac-differential`                                                         | `IN`, `OUT+`, `OUT-`                                                                |
+  | `d-flip-flop`, `-q`, `-reset`                                              | `D`, `CK`, `Q`, `QBAR` where drawn, `RST` for reset                                 |
+  | `crystal`                                                                  | `1`, `2`                                                                            |
+  | `tcoil`, `center-tap-inductor`                                             | `1`, `2`, `3`                                                                       |
+  | `xfmr`                                                                     | `P+`, `P-`, `S+`, `S-`                                                              |
+  | `chopper`                                                                  | `INP`, `INN`, `OUTP`, `OUTN`, plus `CK` for the clock its label names unless global |
 
   Others are refused by name, as is a subcircuit that names its ports only by
   position. The call goes to the definition by Pin name, its parameters win, a

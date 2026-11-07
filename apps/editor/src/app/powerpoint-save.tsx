@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { serializeProject } from "@icm/project-protocol";
@@ -10,8 +17,40 @@ import {
   type SaveOutcome,
 } from "./powerpoint-close";
 
-/** Saves one immutable editor snapshot and waits for PowerPoint's acknowledgement. */
-export function PowerPointSave({
+/** Where the linked slide stands against the drawing on screen. */
+export type PowerPointLinkState = "saved" | "unsaved" | "elsewhere";
+
+interface PowerPointNotice {
+  readonly id: number;
+  readonly text: string;
+  readonly failed: boolean;
+}
+
+/** Long enough to read a sentence; a failure says more, so it stays longer. */
+const SAVED_NOTICE_MS = 4_000;
+const FAILED_NOTICE_MS = 8_000;
+/** The fade at the end of a notice's time, as the stylesheet draws it. */
+const NOTICE_FADE_MS = 400;
+
+const RETURN_TO_LINKED_TAB = "Return to the linked PowerPoint project tab.";
+
+const LINK_TITLES: Record<PowerPointLinkState, string> = {
+  saved: "The linked slide shows this drawing. Click to save it again.",
+  unsaved: "Changes not yet on the linked slide. Click to save them.",
+  elsewhere: RETURN_TO_LINKED_TAB,
+};
+
+/**
+ * The PowerPoint link of a PowerPoint-launched session: saving one immutable
+ * editor snapshot to the slide and waiting for PowerPoint's acknowledgement,
+ * the close bridge, and whether the slide shows what is on screen.
+ *
+ * It lives with the editor, not the header, so the link and the close bridge
+ * survive whatever the header shows; `action` is the header's button and
+ * `notice` the brief outcome under it. A Web session never links: both are
+ * null.
+ */
+export function usePowerPointSave({
   project,
   document,
   blocker,
@@ -27,7 +66,7 @@ export function PowerPointSave({
   readProject: (
     id: string,
   ) => { tabId: string; project: CircuitProject; documentId: string } | null;
-}) {
+}): { action: ReactNode; notice: ReactNode } {
   const [token, setToken] = useState<string | null>(null);
   const [context, setContext] = useState<{
     projectId: string;
@@ -35,8 +74,19 @@ export function PowerPointSave({
   } | null>(null);
   const restored = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState<PowerPointNotice | null>(null);
+  /** The drawing the slide was last known to show, as the close bridge has it. */
+  const [receipt, setReceipt] = useState<{
+    project: CircuitProject;
+    text: string;
+    documentId: string;
+  } | null>(null);
   const pending = useRef(false);
+  const noticeId = useRef(0);
+  function report(text: string, failed: boolean) {
+    noticeId.current += 1;
+    setNotice({ id: noticeId.current, text, failed });
+  }
   function currentDrawing(): PowerPointDrawing | null {
     const entry = context && readProject(context.projectId);
     return entry
@@ -62,6 +112,18 @@ export function PowerPointSave({
       busy: () => pending.current,
       saveDrawing: () => latest.current.save(),
     });
+  /** The slide now shows this drawing: the close prompt and the dot agree. */
+  function acknowledge(
+    snapshot: CircuitProject,
+    drawing: PowerPointDrawing,
+  ): void {
+    closeBridge.current!.acknowledge(drawing);
+    setReceipt({
+      project: snapshot,
+      text: drawing.project,
+      documentId: drawing.documentId,
+    });
+  }
   useEffect(() => {
     if (!token || !context) return;
     const target = window as unknown as Record<string, unknown>;
@@ -92,16 +154,54 @@ export function PowerPointSave({
       .catch(() => {});
   }, []);
   useEffect(() => {
-    if (!restored.current && context?.projectId === project.id) {
-      restored.current = true;
-      if (
-        context.documentId &&
-        context.documentId !== document.id &&
-        project.documents.some((d) => d.id === context.documentId)
-      )
-        openDocument(context.documentId);
-    }
-  }, [context, project, document.id, openDocument]);
+    if (restored.current || context?.projectId !== project.id) return;
+    const entry = readProject(context.projectId);
+    if (!entry) return;
+    restored.current = true;
+    const shown =
+      context.documentId &&
+      project.documents.some((d) => d.id === context.documentId)
+        ? context.documentId
+        : document.id;
+    // The slide shows the drawing it opened: unedited, it needs no save.
+    acknowledge(entry.project, {
+      tabId: entry.tabId,
+      name: entry.project.name,
+      project: serializeProject(entry.project),
+      documentId: shown,
+    });
+    if (shown !== document.id) openDocument(shown);
+  }, [context, project, document.id, openDocument, readProject]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(
+      () => setNotice((current) => (current === notice ? null : current)),
+      notice.failed ? FAILED_NOTICE_MS : SAVED_NOTICE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const linkedHere = token !== null && context?.projectId === project.id;
+  // Identity answers at once; after an edit, the text says whether the
+  // drawing came back to what the slide shows (undo, say). Deferred, so a
+  // linked drawing never waits on serializing while it is being edited.
+  const deferredProject = useDeferredValue(project);
+  const deferredText = useMemo(
+    () =>
+      linkedHere && receipt && deferredProject !== receipt.project
+        ? serializeProject(deferredProject)
+        : null,
+    [linkedHere, receipt, deferredProject],
+  );
+  const state: PowerPointLinkState = !linkedHere
+    ? "elsewhere"
+    : receipt !== null &&
+        document.id === receipt.documentId &&
+        (project === receipt.project ||
+          (deferredProject === project && deferredText === receipt.text))
+      ? "saved"
+      : "unsaved";
+
   async function save(): Promise<SaveOutcome> {
     if (pending.current)
       return {
@@ -111,12 +211,11 @@ export function PowerPointSave({
     const reason = blocker();
     if (reason) {
       const message = `Finish the current operation first: ${reason}`;
-      setMessage(message);
+      report(message, true);
       return { status: "failed", message };
     }
     pending.current = true;
     setBusy(true);
-    setMessage("Updating PowerPoint…");
     try {
       const entry = context && readProject(context.projectId);
       if (!token || !entry)
@@ -166,14 +265,15 @@ export function PowerPointSave({
             throw new Error(
               status.ack.error ?? "PowerPoint could not update the drawing",
             );
-          closeBridge.current!.acknowledge({
+          acknowledge(snapshot, {
             tabId: entry.tabId,
             name: snapshot.name,
             project: projectText,
             documentId: sourceDocument.id,
           });
-          setMessage(
-            "Drawing updated. Save your presentation in PowerPoint. A local project backup is retained.",
+          report(
+            "Drawing updated. Save your presentation in PowerPoint.",
+            false,
           );
           return { status: "saved" };
         }
@@ -182,48 +282,119 @@ export function PowerPointSave({
         "PowerPoint has not acknowledged the update. A project backup is retained. Close any PowerPoint dialog to allow the update to finish automatically.",
       );
     } catch (error) {
-      setMessage(String(error));
+      report(String(error), true);
       return { status: "failed", message: String(error) };
     } finally {
       pending.current = false;
       setBusy(false);
     }
   }
-  if (!token) return null;
+
+  if (!token) return { action: null, notice: null };
+  return {
+    action: (
+      <PowerPointButton
+        state={state}
+        busy={busy}
+        onSave={() => {
+          if (state === "elsewhere") report(RETURN_TO_LINKED_TAB, true);
+          else void save();
+        }}
+      />
+    ),
+    notice: notice ? (
+      <PowerPointNoticeView
+        key={notice.id}
+        notice={notice}
+        onDismiss={() => setNotice(null)}
+      />
+    ) : null,
+  };
+}
+
+/** The header's PowerPoint control: one button and a dot for the slide's state. */
+function PowerPointButton({
+  state,
+  busy,
+  onSave,
+}: {
+  state: PowerPointLinkState;
+  busy: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="app-action powerpoint-save"
+      data-testid="powerpoint-save"
+      data-state={state}
+      aria-label="Save to PowerPoint"
+      // Another tab is not the slide's: the button greys and says where to
+      // go, rather than going silent the way a disabled button would.
+      aria-disabled={state === "elsewhere" || undefined}
+      disabled={busy}
+      aria-busy={busy || undefined}
+      title={LINK_TITLES[state]}
+      onClick={onSave}
+    >
+      <svg className="app-action-icon" viewBox="0 0 16 16" aria-hidden="true">
+        <rect
+          x="1.75"
+          y="2.25"
+          width="12.5"
+          height="8.5"
+          rx="1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <path
+          d="M8 10.75v2.5M5.5 13.75h5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+        />
+      </svg>
+      {/* Both words hold the width, so saving never moves the header. */}
+      <span className="app-action-label powerpoint-save-label">
+        <span aria-hidden={busy}>PowerPoint</span>
+        <span aria-hidden={!busy}>Saving…</span>
+      </span>
+      <span className="powerpoint-save-dot" aria-hidden="true" />
+    </button>
+  );
+}
+
+/** A save's outcome, briefly, below the header; it fades by itself. */
+function PowerPointNoticeView({
+  notice,
+  onDismiss,
+}: {
+  notice: PowerPointNotice;
+  onDismiss: () => void;
+}) {
   return (
     <aside
+      className="powerpoint-notice"
+      data-testid="powerpoint-notice"
+      data-failed={notice.failed || undefined}
+      aria-label="PowerPoint"
       style={{
-        position: "fixed",
-        right: 20,
-        bottom: 36,
-        zIndex: 10000,
-        maxWidth: 440,
-        background: "#ffffff",
-        color: "#16352d",
-        padding: 12,
-        border: "1px solid #728f85",
-        borderRadius: 8,
-        boxShadow: "0 3px 12px #0002",
+        animationDelay: `0ms, ${(notice.failed ? FAILED_NOTICE_MS : SAVED_NOTICE_MS) - NOTICE_FADE_MS}ms`,
       }}
     >
+      <span className="powerpoint-notice-mark" aria-hidden="true">
+        {notice.failed ? "!" : "✓"}
+      </span>
+      <span role="status">{notice.text}</span>
       <button
-        onClick={() => void save()}
-        disabled={busy || context?.projectId !== project.id}
-        style={{
-          background: "#176d55",
-          color: "white",
-          padding: "10px 20px",
-          borderRadius: 5,
-        }}
+        type="button"
+        aria-label="Dismiss PowerPoint notice"
+        onClick={onDismiss}
       >
-        {busy ? "Saving…" : "Save to PowerPoint"}
+        ×
       </button>
-      <div role="status" style={{ fontSize: 12, marginTop: 6 }}>
-        {context?.projectId !== project.id
-          ? "Return to the linked PowerPoint project tab."
-          : message ||
-            "Save this Cell and its editable project to the linked slide."}
-      </div>
     </aside>
   );
 }

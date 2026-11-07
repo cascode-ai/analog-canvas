@@ -180,7 +180,7 @@ describe("built-in device registry", () => {
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(66);
+    expect(builtInSubcircuitDescriptors).toHaveLength(69);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({

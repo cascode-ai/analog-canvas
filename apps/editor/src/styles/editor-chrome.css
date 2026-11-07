@@ -1747,3 +1747,115 @@
   font: inherit;
   white-space: nowrap;
 }
+
+/* A PowerPoint-launched session saves to its slide from the header. The dot
+   says where the slide stands: green, it shows this drawing; amber, it does
+   not yet; grey, this tab is not the slide's. */
+.powerpoint-save-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+}
+
+.powerpoint-save[data-state="unsaved"] .powerpoint-save-dot {
+  background: #d97706;
+}
+
+.powerpoint-save[data-state="elsewhere"] {
+  color: var(--icm-text-muted);
+}
+
+.powerpoint-save[data-state="elsewhere"] .powerpoint-save-dot {
+  background: var(--icm-border-hover);
+}
+
+.powerpoint-save:disabled {
+  cursor: progress;
+}
+
+.powerpoint-save-label {
+  display: inline-grid;
+}
+
+.powerpoint-save-label > span {
+  grid-area: 1 / 1;
+}
+
+.powerpoint-save-label > [aria-hidden="true"] {
+  visibility: hidden;
+}
+
+/* Icon-only on phone widths: the dot becomes the icon's badge. */
+@media (max-width: 760px) {
+  .powerpoint-save {
+    position: relative;
+  }
+
+  .powerpoint-save .powerpoint-save-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+  }
+}
+
+.powerpoint-notice {
+  position: fixed;
+  top: 96px;
+  left: 50%;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 12%);
+  font-size: 13px;
+  transform: translateX(-50%);
+  animation:
+    powerpoint-notice-in 150ms ease-out,
+    powerpoint-notice-out 400ms ease-in forwards;
+}
+
+.powerpoint-notice-mark {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.powerpoint-notice[data-failed] .powerpoint-notice-mark {
+  color: #b91c1c;
+}
+
+.powerpoint-notice button {
+  border: 0;
+  background: none;
+  color: var(--icm-text-muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+/* In quickly; out over its last 400 ms (the delay is set per notice). */
+@keyframes powerpoint-notice-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes powerpoint-notice-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .powerpoint-notice {
+    animation: none;
+  }
+}

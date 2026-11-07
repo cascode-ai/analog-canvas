@@ -4425,6 +4425,45 @@ function comparator(
   return project;
 }
 
+/** A converter in Cell `dut`, its pins and supplies each on a Cell Pin. */
+function converter(symbolId: string): CircuitProject {
+  const project = createEmptyProject("converter", "Converter", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const descriptor = subcircuitDescriptor(symbolId)!;
+  document.instances.push({
+    id: "block",
+    symbolId,
+    reference: "X1",
+    placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "unresolved-subcircuit", name: descriptor.target },
+      parameters: { bits: "6" },
+    },
+  });
+  for (const port of descriptor.ports) {
+    const id = `pin-${port.name}`;
+    document.instances.push({ id, symbolId: "port", placement: null });
+    document.nets.push({
+      id: port.name,
+      terminals: [
+        { instanceId: id, pinName: "P" },
+        ...(port.pinName
+          ? [{ instanceId: "block", pinName: port.pinName }]
+          : []),
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: `terminal-${port.name}`,
+      name: port.name,
+      netId: port.name,
+      direction: "inout",
+      interfaceInstanceIds: [id],
+    });
+  }
+  return project;
+}
+
 describe("RNL round trip of built-in blocks", () => {
   it("refuses a comparator retargeted to the Project's master whose ports are not its own pins (#1928)", () => {
     const project = comparator("comparator-differential", {}, true);
@@ -4592,6 +4631,35 @@ describe("RNL round trip of built-in blocks", () => {
         const plan = await roundTrip(project, format);
         // RNL's own errors, such as a pin on a terminal the call lacks,
         // come in as warnings.
+        expect(
+          plan.diagnostics.filter(
+            (item) =>
+              item.severity === "error" || item.code === "RNL_IMPORT_RNL_ERROR",
+          ),
+        ).toEqual([]);
+        const part = plan.project.documents
+          .flatMap((document) => document.instances)
+          .find((instance) => instance.reference === "X1")!;
+        expect(rnlPart(part)).toEqual(
+          rnlPart(project.documents[0]!.instances[0]!),
+        );
+        const again = createDesignNetlistExport(plan.project, { format });
+        expect(again.status === "ready" && again.file.text).toMatch(
+          new RegExp(`^X1 .* ${body}( |$)`, "mu"),
+        );
+      }
+    },
+  );
+  it.each([
+    ["adc-differential", "adc_differential"],
+    ["adc-differential-inputs-swapped", "adc_differential"],
+    ["dac-differential", "dac_differential"],
+  ] as const)(
+    "draws a %s as a stencil of its own and brings it back calling %s",
+    async (symbolId, body) => {
+      for (const format of ["spice", "spectre"] as const) {
+        const project = converter(symbolId);
+        const plan = await roundTrip(project, format);
         expect(
           plan.diagnostics.filter(
             (item) =>

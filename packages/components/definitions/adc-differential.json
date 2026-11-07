@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "adc-differential",
+    "name": "Differential Analog-to-Digital Converter",
+    "viewBox": {
+      "x": -54,
+      "y": -24,
+      "width": 98,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "IN+",
+        "role": "non-inverting-input",
+        "at": {
+          "x": -50,
+          "y": 10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 20
+        }
+      },
+      {
+        "name": "IN-",
+        "role": "inverting-input",
+        "at": {
+          "x": -50,
+          "y": -10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 20
+        }
+      },
+      {
+        "name": "OUT",
+        "role": "output",
+        "at": {
+          "x": 40,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -50,
+          "y": 10
+        },
+        "to": {
+          "x": -30,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -50,
+          "y": -10
+        },
+        "to": {
+          "x": -30,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 30,
+            "y": -20
+          },
+          {
+            "x": -20,
+            "y": -20
+          },
+          {
+            "x": -40,
+            "y": 0
+          },
+          {
+            "x": -20,
+            "y": 20
+          },
+          {
+            "x": 30,
+            "y": 20
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 30,
+          "y": 0
+        },
+        "to": {
+          "x": 40,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -22,
+          "y": 7
+        },
+        "to": {
+          "x": -22,
+          "y": 13
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -25,
+          "y": 10
+        },
+        "to": {
+          "x": -19,
+          "y": 10
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -25,
+          "y": -10
+        },
+        "to": {
+          "x": -19,
+          "y": -10
+        },
+        "part": "upright-input-polarity-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      }
+    ],
+    "variants": [],
+    "formulaPresentation": {
+      "defaultFormula": "ADC",
+      "supportsCoefficient": false,
+      "center": {
+        "x": -0.28,
+        "y": 0
+      },
+      "fontSize": 12
+    }
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "adc-differential",
+    "symbolId": "adc-differential",
+    "target": "adc_differential",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "OUT"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "adc-differential",
+    "name": "Differential Analog-to-Digital Converter",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "The ADC's arrow with a differential input: IN+ and IN- enter the slanted faces a grid row either side of the point, marked as the differential op-amp and comparator are, so two signal lines need not meet at one pin.",
+    "pinOrder": ["IN+", "IN-", "OUT"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A converter block stands for a subsystem; SPICE has no primitive for one.",
+    "assetPath": "adc-differential.json"
+  }
+}

@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(79);
+    expect(symbols).toHaveLength(81);
     expect(markup).toContain("Official components");
     expect(markup).toContain('aria-label="Place NoConn"');
     expect(markup).toContain(">NoConn</span>");
@@ -40,7 +40,7 @@ describe("shapes quick-place", () => {
       ["Power and Ports", 7],
       ["Sources", 6],
       ["Switches", 7],
-      ["Analog Blocks", 11],
+      ["Analog Blocks", 13],
       ["Logic Gates", 12],
       ["Signal Flow", 6],
       ["Annotations", 9],
