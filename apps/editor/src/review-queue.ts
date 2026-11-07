@@ -4,13 +4,14 @@
 /** What a reviewer can flag, with its key; the last two are community's. */
 const REVIEW_FLAGS = [
   { key: "wrong", label: "Wrong circuit", hotkey: "1" },
-  { key: "loose", label: "Too loose", hotkey: "2" },
-  { key: "ugly", label: "Too ugly", hotkey: "3" },
-  { key: "overlap", label: "Overlap / unreadable", hotkey: "4" },
-  { key: "wiring", label: "Wiring break", hotkey: "5" },
-  { key: "incomplete", label: "Incomplete", hotkey: "6" },
-  { key: "simple", label: "Too simple", hotkey: "7", community: true },
-  { key: "duplicate", label: "Duplicate", hotkey: "8", community: true },
+  { key: "netlist", label: "Netlist error", hotkey: "2" },
+  { key: "loose", label: "Too loose", hotkey: "3" },
+  { key: "ugly", label: "Too ugly", hotkey: "4" },
+  { key: "overlap", label: "Overlap / unreadable", hotkey: "5" },
+  { key: "wiring", label: "Wiring break", hotkey: "6" },
+  { key: "incomplete", label: "Incomplete", hotkey: "7" },
+  { key: "simple", label: "Too simple", hotkey: "8", community: true },
+  { key: "duplicate", label: "Duplicate", hotkey: "9", community: true },
   { key: "other", label: "Other", hotkey: "0" },
 ] as const;
 

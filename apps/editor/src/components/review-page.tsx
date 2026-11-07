@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "../styles/gallery-entry.css";
 import "../styles/datasets-page.css";
 import "../styles/review-page.css";
+import "./gallery-tag-groups.css";
 import { galleryPreviewUrl } from "../gallery-client";
 import { COMPARISON_SOURCES, gallerySourceByKey } from "../gallery-sources";
 import { verdictOf, type ComparisonVerdict } from "../dataset-comparisons";
@@ -20,6 +21,7 @@ import {
 } from "../review-queue";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
+import { SidebarFoldButton, useCollapsedSidebar } from "./gallery-tag-sidebar";
 import { HeartIcon } from "./gallery-feed-tile";
 
 type Load =
@@ -51,6 +53,9 @@ export function ReviewPage({
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sidebarCollapsed, toggleSidebar] = useCollapsedSidebar(
+    "icm.review.sidebarCollapsed",
+  );
   // The Owner's lists; null for anyone else (the route answers 403).
   const [owner, setOwner] = useState<{
     issues: ShownReview[];
@@ -228,125 +233,136 @@ export function ReviewPage({
   }, [scope, toggleFlag, toggleLike, submit, go, index, cards]);
 
   return (
-    <main className="review-shell datasets-shell" data-testid="review-page">
+    <main className="gallery-shell datasets-shell" data-testid="review-page">
       <GalleryChrome subtitle="Review" visitStats={visitStats} />
       <GalleryReviewTabs />
-      <div className="page-body review-body">
-        <section className="datasets-intro">
-          <div>
-            <h2>Review</h2>
-            <p>
-              Pass each drawing, or flag what is wrong with it. Others&apos;
-              verdicts show once yours is in.
-            </p>
-          </div>
-          <div className="review-intro-side">
-            <ReviewModeSwitch mode="review" scope={scope} />
-          </div>
-        </section>
-        <div className="review-layout">
-          <ScopeSidebar scope={scope} choose={setScope} />
-          <div className="review-main">
-            {load.status === "loading" ? (
-              <p className="gallery-status">Loading the drawings…</p>
-            ) : load.status === "signed-out" ? (
-              <p className="gallery-status" data-testid="review-signed-out">
-                Sign in (top right) to review.
-              </p>
-            ) : load.status === "failed" ? (
-              <p className="gallery-status">
-                The drawings could not be loaded. Reload to try again.
-              </p>
-            ) : !card ? (
-              <p className="gallery-status">Nothing to review here yet.</p>
-            ) : (
-              <>
-                <Progress {...progress} total={cards.length} />
-                <PeoplePanel scope={scope} fetchLike={fetchLike} />
-                {owner ? (
-                  <OwnerPanel
-                    scope={scope}
-                    lists={owner}
-                    cards={cards}
-                    open={(id) => go(cards.findIndex((each) => each.id === id))}
-                  />
-                ) : null}
-                <ReviewItem
-                  key={card.id}
-                  card={card}
-                  scope={scope}
-                  position={`${num(index + 1)} / ${num(cards.length)}`}
-                  fetchLike={fetchLike}
-                  owner={owner !== null}
-                  onResolved={() => setOwnerRound((round) => round + 1)}
-                />
-                <div className="review-actions">
-                  <button
-                    type="button"
-                    className={`review-submit${flags.length ? " issue" : ""}`}
-                    disabled={busy}
-                    onClick={() => void submit()}
-                  >
-                    {flags.length ? "Submit issue" : "Pass"}
-                    <kbd>Enter</kbd>
-                  </button>
-                  <button
-                    type="button"
-                    className={`review-like${card.likedByViewer ? " on" : ""}`}
-                    aria-pressed={card.likedByViewer}
-                    title={
-                      card.likedByViewer
-                        ? "Remove your like"
-                        : "Like this circuit"
-                    }
-                    onClick={() => void toggleLike()}
-                  >
-                    <HeartIcon filled={card.likedByViewer} /> {num(card.likes)}
-                    <kbd>L</kbd>
-                  </button>
-                  {flagsFor(scope).map((flag) => (
-                    <button
-                      key={flag.key}
-                      type="button"
-                      className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
-                      aria-pressed={flags.includes(flag.key)}
-                      onClick={() => toggleFlag(flag.key)}
-                    >
-                      <kbd>{flag.hotkey}</kbd>
-                      {flag.label}
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  className="review-note"
-                  placeholder={
-                    flags.length
-                      ? "What is wrong, and where (optional; ⌘/Ctrl+Enter submits)"
-                      : "Comment (optional; ⌘/Ctrl+Enter submits)"
-                  }
-                  value={note}
-                  maxLength={1000}
-                  onChange={(event) => setNote(event.target.value)}
-                />
-                <div className="review-nav">
-                  <button type="button" onClick={() => go(index - 1)}>
-                    ← Previous
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => go(nextUnreviewed(cards, index))}
-                  >
-                    Next unreviewed <kbd>N</kbd>
-                  </button>
-                  <button type="button" onClick={() => go(index + 1)}>
-                    Next →
-                  </button>
-                  {message ? (
-                    <span className="review-message">{message}</span>
+      {/* The Gallery's own frame: its sidebar at the left, the work beside. */}
+      <div className="gallery-browser">
+        <ScopeSidebar
+          scope={scope}
+          choose={setScope}
+          collapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
+        />
+        <div className="gallery-main">
+          <div className="page-body review-body">
+            <section className="datasets-intro">
+              <div>
+                <h2>Review</h2>
+                <p>
+                  Pass each drawing, or flag what is wrong with it. Others&apos;
+                  verdicts show once yours is in.
+                </p>
+              </div>
+              <div className="review-intro-side">
+                <ReviewModeSwitch mode="review" scope={scope} />
+              </div>
+            </section>
+            <div className="review-main">
+              {load.status === "loading" ? (
+                <p className="gallery-status">Loading the drawings…</p>
+              ) : load.status === "signed-out" ? (
+                <p className="gallery-status" data-testid="review-signed-out">
+                  Sign in (top right) to review.
+                </p>
+              ) : load.status === "failed" ? (
+                <p className="gallery-status">
+                  The drawings could not be loaded. Reload to try again.
+                </p>
+              ) : !card ? (
+                <p className="gallery-status">Nothing to review here yet.</p>
+              ) : (
+                <>
+                  <Progress {...progress} total={cards.length} />
+                  <PeoplePanel scope={scope} fetchLike={fetchLike} />
+                  {owner ? (
+                    <OwnerPanel
+                      scope={scope}
+                      lists={owner}
+                      cards={cards}
+                      open={(id) =>
+                        go(cards.findIndex((each) => each.id === id))
+                      }
+                    />
                   ) : null}
-                </div>
-              </>
-            )}
+                  <ReviewItem
+                    key={card.id}
+                    card={card}
+                    scope={scope}
+                    position={`${num(index + 1)} / ${num(cards.length)}`}
+                    fetchLike={fetchLike}
+                    owner={owner !== null}
+                    onResolved={() => setOwnerRound((round) => round + 1)}
+                  />
+                  <div className="review-actions">
+                    <button
+                      type="button"
+                      className={`review-submit${flags.length ? " issue" : ""}`}
+                      disabled={busy}
+                      onClick={() => void submit()}
+                    >
+                      {flags.length ? "Submit issue" : "Pass"}
+                      <kbd>Enter</kbd>
+                    </button>
+                    <button
+                      type="button"
+                      className={`review-like${card.likedByViewer ? " on" : ""}`}
+                      aria-pressed={card.likedByViewer}
+                      title={
+                        card.likedByViewer
+                          ? "Remove your like"
+                          : "Like this circuit"
+                      }
+                      onClick={() => void toggleLike()}
+                    >
+                      <HeartIcon filled={card.likedByViewer} />{" "}
+                      {num(card.likes)}
+                      <kbd>L</kbd>
+                    </button>
+                    {flagsFor(scope).map((flag) => (
+                      <button
+                        key={flag.key}
+                        type="button"
+                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
+                        aria-pressed={flags.includes(flag.key)}
+                        onClick={() => toggleFlag(flag.key)}
+                      >
+                        <kbd>{flag.hotkey}</kbd>
+                        {flag.label}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    className="review-note"
+                    placeholder={
+                      flags.length
+                        ? "What is wrong, and where: such as M3's drain on VOUT instead of X (optional; ⌘/Ctrl+Enter submits)"
+                        : "Comment (optional; ⌘/Ctrl+Enter submits)"
+                    }
+                    value={note}
+                    maxLength={1000}
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                  <div className="review-nav">
+                    <button type="button" onClick={() => go(index - 1)}>
+                      ← Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => go(nextUnreviewed(cards, index))}
+                    >
+                      Next unreviewed <kbd>N</kbd>
+                    </button>
+                    <button type="button" onClick={() => go(index + 1)}>
+                      Next →
+                    </button>
+                    {message ? (
+                      <span className="review-message">{message}</span>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -770,31 +786,67 @@ function NetlistPane({
   return <pre className="review-netlist">{text ?? "Loading the netlist…"}</pre>;
 }
 
-/** The left column: the community first, then each dataset. */
+/**
+ * The left column, in the Gallery sidebar's own markup and look: the
+ * community first, then each dataset. It folds to a strip as that one does.
+ */
 function ScopeSidebar({
   scope,
   choose,
+  collapsed,
+  onToggle,
 }: {
   scope: string;
   choose: (scope: string) => void;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
-  const item = (key: string, label: string) => (
+  if (collapsed)
+    return (
+      <div className="gallery-sidebar-slot" data-collapsed="true">
+        <SidebarFoldButton
+          collapsed
+          onToggle={onToggle}
+          testId="review-sidebar-fold"
+        />
+      </div>
+    );
+  const item = (key: string, label: string, note: string) => (
     <button
       key={key}
       type="button"
-      className={scope === key ? "on" : ""}
+      className="gallery-sidebar-option"
       aria-pressed={scope === key}
       data-testid={`review-scope-${key}`}
       onClick={() => choose(key)}
     >
-      {label}
+      <span>{label}</span>
+      <span className="gallery-sidebar-count">{note}</span>
     </button>
   );
   return (
-    <aside className="review-sidebar" aria-label="What to review">
-      {item("community", "Community")}
-      <h5>Datasets</h5>
-      {COMPARISON_SOURCES.map((source) => item(source.key, source.name))}
-    </aside>
+    <div className="gallery-sidebar-slot">
+      <div className="gallery-sidebar-search review-sidebar-top">
+        <h2>What to review</h2>
+        <SidebarFoldButton
+          collapsed={false}
+          onToggle={onToggle}
+          testId="review-sidebar-fold"
+        />
+      </div>
+      <aside className="gallery-tag-sidebar" aria-label="What to review">
+        <div className="gallery-sidebar-quick">
+          {item("community", "Community", "")}
+        </div>
+        <div className="gallery-sidebar-heading">
+          <h2>Datasets</h2>
+        </div>
+        <div className="review-sidebar-list">
+          {COMPARISON_SOURCES.map((source) =>
+            item(source.key, source.name, source.license),
+          )}
+        </div>
+      </aside>
+    </div>
   );
 }

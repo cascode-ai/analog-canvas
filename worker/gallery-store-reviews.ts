@@ -10,6 +10,7 @@ import { entryFixes, fixTotals } from "./gallery-store-fixes";
 /** What a reviewer can flag; the page names them. */
 const REVIEW_FLAGS = [
   "wrong",
+  "netlist",
   "loose",
   "ugly",
   "overlap",
