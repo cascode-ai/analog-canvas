@@ -25,7 +25,7 @@
       "prefix": "amsnet",
       "name": "AMS-Net",
       "byline": "AMS-Net (redrawn)",
-      "license": "GPL-3.0 website; data licence unconfirmed",
+      "license": "GPL-3.0",
       "comparisons": true,
       "homepage": "https://ams-net.github.io",
       "paper": "https://arxiv.org/abs/2405.09045"
