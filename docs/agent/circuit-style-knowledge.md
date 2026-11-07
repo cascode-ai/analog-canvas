@@ -63,7 +63,10 @@ A drawing that only matches its netlist is not done.
   supply rails. Move a label to a clear side or widen the local pitch in 10–20-unit steps
   until it fits. Do not shrink text or add a long label lead to meet a pitch target.
 - **Long wires:** feedback and long returns run 30–40 outside the outermost part, never
-  around an empty frame.
+  around an empty frame. Bring connected blocks together (stage to stage 100–140) instead
+  of bridging a gap with wire. A connection that would still run more than about four
+  pitches (~250) across empty sheet, or around another block, becomes a
+  [distant connection](#bias-and-control-labels).
 - **Unshown circuitry:** parts the source does not show (bias, a block's transistors) sit
   80–120 from the drawing, packed the same way.
 - **Self-check** (targets from human-drawn Gallery circuits): area per part ≤ 10,000 grid²
@@ -223,6 +226,11 @@ The editor typesets names itself: `M1` → M₁, `VB1` → V_B1, `vin` → v_in,
   Retain declared external Ports; place each at a clear end of that wire or on a short
   side entry, with room for its full label, rather than on a vertical stem from the wire's
   middle. Do not create extra Ports for internal bias names.
+- **Neighbouring entries:** when one signal or bias Net enters two or more pins on the same
+  side within about three pitches, such as `Vin+` on the gates of a complementary input
+  pair, draw one Port and a short wire joining those pins, as a hand-drawn figure does.
+  Repeat a same-named Port only where the entries sit on different sides or in different
+  blocks, or where the joining wire would cross other wiring.
 - **Distant connections:** use matching bound Net labels on short pin stubs at each
   disconnected drawing endpoint. Repetition is needed there, not along one continuous
   wire. Keep distinct Nets distinct and attach each label to its actual Net, not as free
@@ -247,7 +255,8 @@ reporting:
 - no overlapping parts, or wire through a symbol or an unrelated pin;
 - names typeset like the source;
 - the source's arrangement is recognisable at a glance;
-- nothing is parked far away.
+- nothing is parked far away, and no wire crosses empty sheet;
+- no two same-named Ports sit within a few pitches of each other on one side.
 
 Fix what you see and re-render, at most two rounds. If a collision or supply-connection
 ambiguity remains, report it as unresolved rather than calling the drawing finished.
