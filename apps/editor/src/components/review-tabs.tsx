@@ -5,7 +5,7 @@
  */
 export function GalleryReviewTabs() {
   const tabs = [
-    ["/", "Community gallery", false],
+    ["/?view=gallery", "Community gallery", false],
     ["/review", "Review", true],
     ["/?view=shelf", "My shelf", false],
   ] as const;

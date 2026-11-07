@@ -66,6 +66,7 @@ describe("review queue", () => {
       "6",
       "7",
       "8",
+      "9",
       "0",
     ]);
     expect(scopeFromSearch("?scope=community")).toBe("community");

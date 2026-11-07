@@ -3,51 +3,20 @@
   max-width: 82rem;
 }
 
-/* The sidebar of what to review, and the review beside it. */
-.review-layout {
-  display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-
-.review-sidebar {
-  position: sticky;
-  top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.review-sidebar h5 {
-  margin: 12px 8px 4px;
-  color: var(--icm-text-muted);
+/* The sidebar is the Gallery's (gallery.css); only its top row differs. */
+.review-sidebar-top h2 {
+  flex: 1;
+  margin: 0;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--icm-text-muted);
 }
 
-.review-sidebar button {
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--icm-radius-sm);
-  background: none;
-  color: var(--icm-text);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.review-sidebar button:hover {
-  background: var(--icm-surface-hover);
-}
-
-.review-sidebar button.on {
-  background: var(--icm-accent-soft);
-  color: var(--icm-accent);
-  font-weight: 600;
+.review-sidebar-list {
+  display: grid;
+  gap: 3px;
 }
 
 .review-export {
@@ -57,18 +26,6 @@
   background: var(--icm-surface);
   font-size: 12px;
   cursor: pointer;
-}
-
-@media (max-width: 720px) {
-  .review-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .review-sidebar {
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
 }
 
 .review-progress {

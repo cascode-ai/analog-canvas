@@ -483,12 +483,14 @@ each side's SPICE netlist under its picture (ours spends a daily open as
 opening the entry does), and the reader's like. It is the Gallery's Review tab, between Community
 gallery and My shelf; its pages keep that tab row. Review is the default
 mode; the top-right switch opens Statistics (`/datasets`, look only). Its
-sidebar lists the community first, then each dataset with comparisons. The
+sidebar, in the wall sidebar's markup, lists the community first, then each
+dataset with comparisons. Both sidebars fold to a strip at the left from a
+button at their top; each browser remembers it. The
 Owner's panel exports the open issues and disputes as JSON.
 
 - Any signed-in account reviews any public entry except its own, a dataset's
   too (its store's only other write is the Owner's import). A review is
-  `pass`, or `issue` with flags from `wrong`, `loose`, `ugly`, `overlap`,
+  `pass`, or `issue` with flags from `wrong`, `netlist`, `loose`, `ugly`, `overlap`,
   `wiring`, `incomplete`, `simple`, `duplicate`, `other`; either may carry a
   comment (`note`, ≤1000). At most 300 reviews per account per store each UTC day
   (`daily-review-limit`).
