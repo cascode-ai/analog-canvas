@@ -41,6 +41,8 @@ def condition(path, now):
 
 
 def run(args):
+    scope = getattr(args, 'scope', 'Project')
+    service = 'canvas-cn-resource-sync.service' if scope == 'Publication' else 'canvas-cn-project-sync.service'
     endpoint = urllib.parse.urlsplit(args.mail_endpoint)
     local_test = endpoint.scheme == 'http' and endpoint.hostname == '127.0.0.1' and endpoint.path == '/emails'
     if args.mail_endpoint != 'https://api.resend.com/emails' and not local_test:
@@ -69,11 +71,11 @@ def run(args):
         label = 'TEST' if target == 'test' else 'RECOVERED' if target == 'ok' else 'FAILURE'
         pending = {'key': 'canvas-cn-sync-' + str(uuid.uuid4()), 'condition': target, 'createdAt': now,
                    'body': {'from': config['from'], 'to': [config['to']],
-                            'subject': '[Canvas CN] Project sync ' + label,
-                            'text': 'Canvas domestic Project synchronization\n'
+                            'subject': '[Canvas CN] ' + scope + ' sync ' + label,
+                            'text': 'Canvas domestic ' + scope + ' synchronization\n'
                                     + 'Status: ' + target + '\n'
                                     + 'Time (UTC): ' + datetime.now(timezone.utc).isoformat() + '\n'
-                                    + 'Inspect canvas-cn-project-sync.service and its private monitor.json on the domestic ECS.\n'
+                                    + 'Inspect ' + service + ' and its private monitor.json on the domestic ECS.\n'
                                     + 'This message contains no Project content or credentials.'}}
         state['pending'] = pending
         write_state(state_path, state)
@@ -111,6 +113,7 @@ def main():
         parser.add_argument('--' + flag, required=True)
     parser.add_argument('--mail-endpoint', default='https://api.resend.com/emails')
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--scope', choices=['Project', 'Publication'], default='Project')
     args = parser.parse_args()
     try:
         print(json.dumps(run(args)))

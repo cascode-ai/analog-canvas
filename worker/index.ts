@@ -16,6 +16,8 @@ import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
 import { serveAsset } from "./static-assets";
 import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
 import { pumpProjectSync } from "./project-sync";
+import { routeResourceSync, type ResourceSyncEnv } from "./resource-sync";
+import { withResourceReplication } from "./resource-replica";
 export { RegionalProjectDO } from "./regional-projects";
 import { routeBoardsRequest } from "./boards";
 import {
@@ -67,16 +69,19 @@ import {
 // The stores that keep durable data also answer point-in-time recovery. The
 // export names are the deployed class names, so they must not change.
 export const ComponentLibraryDO = withPointInTimeRecovery(
-  ComponentLibraryStore,
+  withResourceReplication(ComponentLibraryStore, "components"),
 );
 export const AnalyticsDO = withPointInTimeRecovery(AnalyticsStore);
-export const GalleryDO = withPointInTimeRecovery(GalleryStore);
+export const GalleryDO = withPointInTimeRecovery(
+  withResourceReplication(GalleryStore, "gallery"),
+);
 export const AuthDO = withPointInTimeRecovery(AuthStore);
 export { RegionalSessionDO } from "./regional-session";
 export { AgentSessionDO } from "./agent-session";
 export { SimulationControlDO } from "./simulation-control-do";
 
 type Env = TopologyTaskEnv &
+  ResourceSyncEnv &
   GalleryEnv &
   ComponentLibraryEnv &
   SimulationEnv &
@@ -176,6 +181,8 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const recoveryResponse = await routePointInTimeRecovery(request, env);
   if (recoveryResponse) return recoveryResponse;
+  const resourceSyncResponse = await routeResourceSync(request, env);
+  if (resourceSyncResponse) return resourceSyncResponse;
 
   const topologyResponse = await routeTopologyTaskRequest(request, env);
   if (topologyResponse) return topologyResponse;

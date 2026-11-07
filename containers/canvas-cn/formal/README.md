@@ -117,8 +117,40 @@ available while computation fails closed.
 6. Enable writes for a small verified cohort only after catch-up and recovery
    acceptance. ICP, HTTPS and public regional routing remain separate gates.
 
-The profile does not provide Gallery synchronization,
-automatic journal compaction, abandoned quota reclamation or account-deletion
+## Publication replicas
+
+[Publication replicas](../../../docs/specs/regional-resources.md) are separately
+opt-in. The domestic template closes publication writes until initialization.
+On the source, the candidate must be reviewed and deployed before setting
+`RESOURCE_REGION=overseas`, the separate peer/admin tokens and
+`RESOURCE_WRITES_ENABLED=true`. A code push alone enables none of them.
+
+- Keep original resource tables intact. Call the admin-authenticated seed HTTP
+  entrance for Community, Components and every configured Dataset source until
+  each answers `more=false`. This creates change metadata, not republications.
+- Copy `resource-sync-tick.py` and `config/gallery-sources.json` into the immutable
+  release. The private `resource-sync.json` contains `localOrigin`, `peerOrigin`,
+  `localTokenFile` and `peerTokenFile`; token files are separate from Project
+  credentials. Only loopback may use HTTP. The runner refuses redirects and
+  validates the configured side's region, stream, cursor and payload hash.
+  The runner's configuration and token files are owned by `root:canvas-formal`
+  with mode `0640`, inside a directory readable only by that group and root.
+- Install the publication sync service/timer after both peers are configured.
+  Establish caught-up and compare resource IDs, owners, status and retained
+  content before enabling domestic publication writes. Imported resources stay
+  read-only; a failed stream cannot be skipped by advancing its cursor.
+- Monitor publication sync independently of Project sync. Use a separate state
+  file and the qualified alert watcher; a stale or blocked monitor must reach
+  the configured operator. Local route checks alone are not delivery evidence.
+- Stop both synchronization timers for a consistent backup. Retain publication
+  metadata, receipts and deletion markers in the stopped-state backup. Restore
+  into closed Project AND publication configurations and reconcile both peers
+  before writes. Binary rollback must retain all acknowledged data and the
+  replication guard; rolling back to a binary unaware of replica ownership is
+  not an admissible write-enabled rollback.
+
+The profile does not provide automatic journal compaction,
+abandoned quota reclamation or account-deletion
 propagation. These limits are visible deployment dependencies, not implemented
 by pointing DNS at this service. Source activation also requires reviewing the
 regional mode's disabled legacy operations in the Project contract.

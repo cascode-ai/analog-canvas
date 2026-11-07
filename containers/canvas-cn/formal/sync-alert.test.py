@@ -43,12 +43,14 @@ class AlertTest(unittest.TestCase):
     def health(self, health, age=0):
         (self.root / 'monitor.json').write_text(json.dumps({'health': health, 'reason': 'retry' if health == 'failed' else None, 'lastAttemptAt': time.time() - age}))
 
-    def tick(self, test=False):
+    def tick(self, test=False, scope=None):
         args = [sys.executable, str(pathlib.Path(__file__).with_name('sync-alert.py')),
                 '--config', str(self.root / 'config.json'), '--monitor', str(self.root / 'monitor.json'),
                 '--state', str(self.root / 'delivery.json'), '--mail-endpoint', f'http://127.0.0.1:{self.server.server_port}/emails']
         if test:
             args.append('--test')
+        if scope:
+            args.extend(['--scope', scope])
         result = subprocess.run(args, capture_output=True, text=True, timeout=10)
         self.assertNotIn('private-alert-key', result.stdout + result.stderr)
         return result
@@ -56,6 +58,12 @@ class AlertTest(unittest.TestCase):
     def test_healthy_service_sends_nothing(self):
         self.assertEqual(self.tick().returncode, 0)
         self.assertEqual(self.calls, [])
+
+    def test_publication_alert_identifies_the_independent_service(self):
+        self.health('failed')
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.assertEqual(self.calls[0][1]['subject'], '[Canvas CN] Publication sync FAILURE')
+        self.assertIn('canvas-cn-resource-sync.service', self.calls[0][1]['text'])
 
     def test_failure_is_deduplicated_and_recovery_is_announced(self):
         self.health('failed')
