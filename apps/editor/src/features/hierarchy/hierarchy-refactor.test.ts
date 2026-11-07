@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { visibleInstanceBounds } from "@icm/derived";
-import type { ProjectStructureEdit } from "@icm/edit-engine";
-import type { CircuitProject, SchematicDocument } from "@icm/model";
+import {
+  planSetDeviceModelTarget,
+  type ProjectStructureEdit,
+} from "@icm/edit-engine";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  flattenRichText,
+  plainNameDocument,
+  type CircuitProject,
+  type SchematicDocument,
+} from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import {
   builtInSymbols,
@@ -252,6 +262,115 @@ describe("hierarchy refactoring", () => {
     expect(binding(controller, "amplifier", "XP")).toEqual({
       kind: "subcircuit",
       childDocumentId: "pair",
+    });
+  });
+
+  describe("a rebound instance keeps its look", () => {
+    /** A nor-gate X1 in Top bound to Cell nor2; nor2b has the same Pins. */
+    const gateProject = () => {
+      const project = createEmptyProject("gates", "Gates", "top");
+      const top = project.documents[0]!;
+      top.instances.push({
+        id: "X1",
+        reference: "X1",
+        symbolId: "nor-gate",
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "unresolved-subcircuit", name: "nor_gate" },
+          parameters: {},
+        },
+      });
+      top.nets.push(
+        ...["A", "B", "Y", "VDD"].map((pin) => ({
+          id: `net-${pin}`,
+          terminals: [{ instanceId: "X1", pinName: pin }],
+        })),
+      );
+      for (const id of ["nor2", "nor2b"]) {
+        const cell = createEmptyDocument(id, id);
+        cell.netlist!.name = id;
+        for (const pin of ["a", "b", "y", "VDD", "VSS"]) {
+          cell.instances.push({
+            id: `${id}-${pin}`,
+            symbolId: "port",
+            placement: null,
+          });
+          cell.nets.push({
+            id: `${id}-net-${pin}`,
+            terminals: [{ instanceId: `${id}-${pin}`, pinName: "P" }],
+          });
+          cell.netlist!.terminals.push({
+            id: `${id}-t-${pin}`,
+            name: pin,
+            netId: `${id}-net-${pin}`,
+            direction: "inout",
+            interfaceInstanceIds: [`${id}-${pin}`],
+          });
+        }
+        project.documents.push(cell);
+      }
+      const controller = new EditorDocumentController(project);
+      commit(
+        controller,
+        planSetDeviceModelTarget(controller.project, "top", "X1", "nor2"),
+      );
+      return controller;
+    };
+    const gate = (controller: EditorDocumentController) =>
+      cell(controller, "top").instances.find((item) => item.id === "X1")!;
+
+    it("keeps a Library gate's symbol through Make unique copy and Replace", () => {
+      const controller = gateProject();
+      expect(gate(controller).symbolId).toBe("nor-gate");
+      const use = { documentId: "top", instanceId: "X1" };
+      commit(controller, planReplaceCell(controller.project, [use], "nor2b"));
+      expect(gate(controller)).toMatchObject({
+        symbolId: "nor-gate",
+        netlist: { binding: { childDocumentId: "nor2b" } },
+      });
+      commit(
+        controller,
+        planMakeUniqueCell(controller.project, use, "nor2b-copy").edits,
+      );
+      expect(gate(controller)).toMatchObject({
+        symbolId: "nor-gate",
+        netlist: { binding: { childDocumentId: "nor2b-copy" } },
+      });
+    });
+
+    it("shows the new Cell's name beside a block", () => {
+      const project = hierarchyNavigationFixture();
+      project.documents
+        .find((item) => item.id === "channel")!
+        .annotations.push({
+          id: "instance-master-XA",
+          kind: "instance-value",
+          content: plainNameDocument("Amplifier"),
+          anchor: {
+            kind: "object",
+            objectId: "XA",
+            localOffset: { x: 0, y: 40 },
+            fallbackPosition: { x: 200, y: 240 },
+          },
+          alignment: "middle",
+          rotation: 0,
+          locked: false,
+        });
+      const controller = new EditorDocumentController(project);
+      const plan = planMakeUniqueCell(
+        controller.project,
+        { documentId: "channel", instanceId: "XA" },
+        "amplifier-copy",
+      );
+      commit(controller, plan.edits);
+      const label = cell(controller, "channel").annotations.find(
+        (item) => item.id === "instance-master-XA",
+      );
+      expect(flattenRichText(label!.content!)).toBe("Amplifier_2");
     });
   });
 

@@ -14,9 +14,15 @@ import {
   resolveVisualAnchor,
   visibleInstanceBounds,
 } from "@icm/derived";
-import { parameterExpressionBody, parameterReferences } from "@icm/devices";
+import {
+  bindsProjectCell,
+  parameterExpressionBody,
+  parameterReferences,
+} from "@icm/devices";
 import {
   createCellDocument,
+  flattenRichText,
+  plainNameDocument,
   projectCellInterface,
   type CircuitProject,
   type Instance,
@@ -183,12 +189,30 @@ export function cellUses(project: CircuitProject, cellId: string): CellUse[] {
   );
 }
 
+/** Overrides an instance has of parameters `to` does not declare. */
+function undeclaredOverrides(
+  instance: Instance,
+  to: SchematicDocument,
+): string[] {
+  const declared = new Set(
+    to.netlist!.formalParameters.map((parameter) =>
+      parameter.name.toLowerCase(),
+    ),
+  );
+  return Object.keys(instance.netlist?.parameters ?? {}).filter(
+    (name) => !declared.has(name.toLowerCase()),
+  );
+}
+
 /**
- * Bind an instance to another Cell with the same Pins: its symbol and Cell
- * change together, Pin spellings follow the new Cell, and overrides of
- * parameters the new Cell does not declare are dropped.
+ * Bind an instance to another Cell with the same Pins, as a rename does: a
+ * block's symbol and Cell change together while a Library gate keeps its
+ * own, the Cell name shown beside it follows, Pin spellings follow the new
+ * Cell, and overrides of parameters the new Cell does not declare are
+ * dropped.
  */
 function rebindEdits(
+  parent: SchematicDocument,
   instance: Instance,
   from: SchematicDocument,
   to: SchematicDocument,
@@ -202,13 +226,13 @@ function rebindEdits(
       return next && next !== name ? [[name, next]] : [];
     }),
   );
-  const declared = new Set(
-    to.netlist!.formalParameters.map((parameter) =>
-      parameter.name.toLowerCase(),
-    ),
-  );
-  const stale = Object.keys(instance.netlist?.parameters ?? {}).filter(
-    (name) => !declared.has(name.toLowerCase()),
+  const stale = undeclaredOverrides(instance, to);
+  const master = parent.annotations.find(
+    (annotation) =>
+      annotation.id === `instance-master-${instance.id}` &&
+      annotation.kind === "instance-value" &&
+      annotation.content &&
+      flattenRichText(annotation.content) === from.name,
   );
   return [
     {
@@ -216,12 +240,25 @@ function rebindEdits(
       instanceId: instance.id,
       binding: { kind: "subcircuit", childDocumentId: to.id },
     },
-    {
-      kind: "set_instance_symbol",
-      instanceId: instance.id,
-      symbolId: hierarchicalSymbolId(to.netlist!.name),
-      ...(Object.keys(pinMap).length ? { pinMap } : {}),
-    },
+    // A gate or flip-flop meets the Cell through its own Pins (#1450).
+    ...(bindsProjectCell(instance.symbolId)
+      ? []
+      : [
+          {
+            kind: "set_instance_symbol" as const,
+            instanceId: instance.id,
+            symbolId: hierarchicalSymbolId(to.netlist!.name),
+            ...(Object.keys(pinMap).length ? { pinMap } : {}),
+          },
+        ]),
+    ...(master
+      ? [
+          {
+            kind: "upsert_schematic_annotation" as const,
+            annotation: { ...master, content: plainNameDocument(to.name) },
+          },
+        ]
+      : []),
     ...(stale.length
       ? [
           {
@@ -259,7 +296,7 @@ export function planMakeUniqueCell(
     sourceName: source.name,
     edits: [
       { kind: "add_document", document: copy },
-      transactOn(parent, rebindEdits(instance, source, copy)),
+      transactOn(parent, rebindEdits(parent, instance, source, copy)),
     ],
   };
 }
@@ -327,7 +364,7 @@ export function planReplaceCell(
     if (issue)
       throw new Error(`${to.name} cannot replace ${cell.name}: ${issue}`);
     const edits = byDocument.get(parent.id) ?? [];
-    edits.push(...rebindEdits(instance, cell, to));
+    edits.push(...rebindEdits(parent, instance, cell, to));
     byDocument.set(parent.id, edits);
   }
   return [...byDocument].map(([id, edits]) =>
