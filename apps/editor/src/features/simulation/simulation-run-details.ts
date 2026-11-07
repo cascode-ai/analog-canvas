@@ -16,6 +16,15 @@ export class SimulationRunDetails {
     run: Run,
   ): Promise<{ ok: true; run: Run } | { ok: false; error: Problem }> {
     if (!run.resultPreview) return { ok: true, run };
+    // A rejected execution has a receipt, but no result files to hydrate.
+    // Keep its original problem instead of replacing it with a file error.
+    if (
+      run.error &&
+      !run.artifacts.some((artifact) =>
+        ["result.json", "outputs.json", "specs.json"].includes(artifact.name),
+      )
+    )
+      return { ok: true, run };
     if (!run.catalog) {
       const catalog = await files.catalog(run.id);
       if (catalog) run = { ...run, catalog };
