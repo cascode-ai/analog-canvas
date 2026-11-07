@@ -77,7 +77,7 @@
     },
     {
       "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-      "sha256": "3d42ae311955c1922d711212a12d05e5414c9d1a5bb565035abc78be31b15bbc"
+      "sha256": "234bba9fe4c539cabbc719d59d56810b1dc55208af18f4414fb3b6190d2069a5"
     },
     {
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "221e60e77137a4d9a830eccef9a8b1c9102ef7e5a6aa06c55a195421ae31afc0"
+      "sha256": "f5f308af14a0407ea5d47e44e49699c0f638db2dfd6d7f13774a5b2765e80d96"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "9e161f94f2e2260ebbb80dd148f4e13c29a02edb0283bd7689f3135eddeb20ce"
+      "sha256": "a8c5303ce268821e4556c62d8605aac97650ad646b82ee0a5692f0aff6b62a72"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

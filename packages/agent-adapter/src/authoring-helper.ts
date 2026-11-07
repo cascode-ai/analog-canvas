@@ -790,6 +790,11 @@ export function compileActions(
       case "create-cell":
       case "rename-cell":
       case "delete-cell":
+      case "set-top-cell":
+      case "make-unique-cell":
+      case "replace-cell":
+      case "flatten-instance":
+      case "cell-from-selection":
       case "move-junction":
       case "remove-cell-terminal":
       case "rename-cell-terminal":

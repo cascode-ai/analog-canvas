@@ -13,9 +13,16 @@ classification from an older server means unknown). Calls exist without Ports
 or wires; external IDs refer to `externalSubcircuitDefinitions`. Never repair
 bindings by guessing from names.
 
-`reorder_documents` and `set_top_document` are `structureEdits`. Reordering
-does not choose the Top; changing Top does not rewrite a simulation folder's
-entry; explicit export/simulation roots stay separate.
+The editor's hierarchy tree commands are actions (`apply_actions`, or
+`transact.command`), each one Project transaction and one undo, addressed to
+the parent `documentId`: `create-cell`, `rename-cell`, `delete-cell`,
+`set-top-cell`, `make-unique-cell`, `replace-cell` (`allUses` for every use),
+`flatten-instance` and `cell-from-selection`. They refuse what the tree
+refuses: a cycle, a Replace without the same Pin names, a selection that
+splits an inductor coupling, deleting Top or a used Cell. Setting Top moves no
+Cell and does not rewrite a simulation folder's entry; explicit
+export/simulation roots stay separate. Undo each from the Cell it edited.
+`reorder_documents` (a `structureEdit`) orders the index only.
 
 `transact.command` (MCP `advanced_transact`) carries `bind-cell-parameter`,
 `rename-cell-parameter`, `set-cell-parameter-default`, `remove-cell-parameter`,
@@ -34,10 +41,12 @@ V_rfp). Removal keeps disconnected parent wire stubs as Junctions. Reviewed PDK
 interfaces keep their constraints: edit instance parameters instead.
 
 A reused child is one definition in several parents: inspect affected
-references before changing its interface or meaning, never clone it to
-simplify reasoning, and flatten only as a deliberate user-scoped change.
+references before changing its interface or meaning. Use `make-unique-cell`,
+not a hand-built copy, when one use must differ; flatten only as a deliberate
+user-scoped change.
 
-Source-defined external circuits are in Snapshot `modelSources` and
+External circuits (the editor's **External Circuits**) are in Snapshot
+`modelSources` and
 `externalSubcircuitDefinitions[].implementation`; read the owner revision,
 entry and files, then follow [external model sources](../shared/authoring.md#external-model-sources).
 Overrides and symbol metadata stay ordinary typed edits; mapped File Resource
