@@ -14,7 +14,11 @@ The editor projects the Project's Cell calls as one navigation tree.
   instance path floats over the canvas only away from a root (inside a child
   occurrence, or in a directly opened definition something calls).
 - The tree is the one place for Cell commands: creating, placing, Cell
-  properties, Set as Top, the refactors, Import Cell and External Circuits.
+  properties, Set as Top, the refactors and Import Cell. External circuits are
+  rows of the same panel, below the Cells and only while the Project has any:
+  each opens, places (icon or drag), lists its callers and deletes once unused
+  as a Cell row does; the footer starts a new one. Opening a model shows that
+  one model's sheet; the panel, not the sheet, lists them.
   Circuit › Hierarchy only shows or hides it; the canvas menu keeps Enter
   Cell, and Edit keeps
   [Place Cell](editor-interaction.md#components-and-interface-markers). A child

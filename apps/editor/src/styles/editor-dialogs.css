@@ -201,14 +201,13 @@
   font-size: var(--icm-font-sm);
 }
 
-/* Cell Manager is a compact master-detail workbench. Interface facts remain
-   definition-owned, while the left column stays purely navigational. */
+/* One external circuit's sheet; the hierarchy panel lists the models. */
 .cell-manager-dialog {
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(64rem, calc(100vw - 2.5rem));
-  height: min(42rem, calc(100dvh - 2.5rem));
+  width: min(92rem, calc(100vw - 2.5rem));
+  height: min(60rem, calc(100dvh - 2.5rem));
   overflow: hidden;
   border: 1px solid var(--icm-border-strong);
   border-radius: var(--icm-radius-lg);
@@ -217,8 +216,7 @@
   box-shadow: var(--icm-shadow-lg);
 }
 
-.cell-manager-header,
-.cell-manager-detail-header {
+.cell-manager-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -237,7 +235,6 @@
 
 .cell-manager-header p,
 .cell-manager-header h2,
-.cell-manager-detail-header h3,
 .cell-interface-section h3,
 .cell-interface-section p {
   margin: 0;
@@ -273,70 +270,11 @@
 
 .cell-manager-body {
   display: grid;
-  grid-template-columns: 13rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
 }
 
-.cell-manager-list {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-right: 1px solid var(--icm-border);
-  background: var(--icm-surface-muted);
-}
-
-.cell-manager-list > input[type="search"] {
-  min-width: 0;
-  margin: var(--icm-space-2);
-}
-
-.cell-manager-list-scroll {
-  flex: 1 1 0;
-  min-height: 0;
-  padding: var(--icm-space-2);
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.cell-manager-list-item {
-  display: grid;
-  gap: 3px;
-  width: 100%;
-  min-height: 52px;
-  padding: var(--icm-space-2);
-  border: 0;
-  border-radius: var(--icm-radius-sm);
-  background: transparent;
-  box-shadow: none;
-  text-align: left;
-}
-
-.cell-manager-list-item:hover,
-.cell-manager-list-item[aria-selected="true"] {
-  background: var(--icm-surface);
-}
-
-.cell-manager-list-item[aria-selected="true"] {
-  color: var(--icm-accent);
-  box-shadow: inset 3px 0 0 var(--icm-accent);
-}
-
-.cell-manager-list-item > span {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--icm-space-2);
-}
-
-.cell-manager-list-item strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cell-manager-list-item em,
-.cell-manager-title-row span,
 .cell-count-badge {
   padding: 2px 6px;
   border-radius: 999px;
@@ -345,31 +283,6 @@
   font-size: var(--icm-font-xs);
   font-style: normal;
   font-weight: 600;
-}
-
-.cell-manager-list-item small {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-
-.cell-manager-list-actions {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  flex: 0 0 auto;
-  gap: var(--icm-space-2);
-  padding: var(--icm-space-2);
-  border-top: 1px solid var(--icm-border);
-}
-
-.cell-manager-new {
-  min-height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  overflow: hidden;
-  box-shadow: none;
-  font-size: var(--icm-font-sm);
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .cell-manager-detail {
@@ -719,52 +632,49 @@
   background: var(--icm-surface);
   box-shadow: var(--icm-shadow-lg);
 }
-.cell-manager-back {
-  display: none;
-}
-
 @media (max-width: 680px) {
   .cell-manager-dialog {
     width: calc(100vw - 1rem);
     height: calc(100dvh - 1rem);
   }
-  .cell-manager-body[data-pane] {
+}
+
+/* A wide sheet puts the Pins and symbol beside the source, so both stay in
+   view while the source is edited; a narrow one stacks them. */
+@media (min-width: 960px) {
+  .external-model-workbench:has(> .external-model-layout-section) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, 26rem);
+    align-content: start;
+    column-gap: var(--icm-space-4);
+  }
+  /* The source view lends its children to this grid (display: contents). */
+  .external-model-workbench:has(> .external-model-layout-section) > *,
+  .external-model-workbench:has(> .external-model-layout-section)
+    > .external-model-source-view
+    > * {
+    grid-column: 1;
+  }
+  .external-model-workbench:has(> .external-model-layout-section)
+    > .external-model-layout-section {
+    grid-row: 1 / span 12;
+    grid-column: 2;
+    align-self: start;
+  }
+  .external-model-workbench:has(> .external-model-layout-section)
+    :is(.external-model-layout, .external-model-directions) {
     grid-template-columns: minmax(0, 1fr);
   }
-  .cell-manager-body[data-pane="detail"] > .cell-manager-list,
-  .cell-manager-body[data-pane="list"] > .cell-manager-detail {
-    display: none;
+  /* The source fills the left column's height beside the taller Pins card. */
+  .external-model-workbench:has(> .external-model-layout-section)
+    > .external-model-source-view
+    > .project-source-editor {
+    min-height: clamp(16rem, 52dvh, 34rem);
   }
-  .cell-manager-back {
-    display: inline-block;
-    margin-bottom: var(--icm-space-2);
+  .external-model-workbench:has(> .external-model-layout-section)
+    > .external-model-actionbar {
+    grid-column: 1 / -1;
   }
-  .cell-manager-list {
-    border-right: 0;
-  }
-}
-
-.cell-manager-detail-header {
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-}
-
-.cell-manager-title-row {
-  display: flex;
-  align-items: center;
-  gap: var(--icm-space-1);
-}
-
-.cell-manager-detail-header .cell-manager-title-row {
-  flex: 1 1 12rem;
-  min-width: 0;
-}
-
-.cell-manager-title-row h3 {
-  overflow: hidden;
-  font-size: var(--icm-font-lg);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .cell-interface-section button,
@@ -1102,24 +1012,8 @@
     height: calc(100dvh - 1rem);
   }
 
-  .cell-manager-body {
-    grid-template-columns: 11.5rem minmax(0, 1fr);
-  }
-
   .cell-manager-detail {
     --cell-manager-detail-pad: var(--icm-space-3);
-  }
-
-  .cell-manager-detail-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  /* Column direction would read the title row's flex-basis as a height, so the
-     stacked header keeps its intrinsic size and still clips a long name. */
-  .cell-manager-detail-header .cell-manager-title-row {
-    flex: 0 0 auto;
-    width: 100%;
   }
 
   .cell-external-grid {

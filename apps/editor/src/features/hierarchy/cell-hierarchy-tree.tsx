@@ -20,6 +20,11 @@ import {
 import { cellPlacementIssue } from "./project-structure-commands";
 import { cellFromSelectionRefusal, type CellUse } from "./hierarchy-refactor";
 import { sharedEditNote } from "./hierarchy-refactor-commands";
+import { HierarchyIcon as Icon } from "./hierarchy-icons";
+import {
+  ExternalCircuitRows,
+  type ExternalCircuitRowActions,
+} from "./external-circuit-rows";
 
 /** What the tree asks of the editor; the editor owns every edit and refusal. */
 export interface HierarchyTreeActions {
@@ -36,7 +41,10 @@ export interface HierarchyTreeActions {
   drop(clientX: number, clientY: number): void;
   setTop(documentId: string): void;
   remove(documentId: string): void;
-  external(): void;
+  /** Start a new external circuit from SPICE source. */
+  newExternal(): void;
+  /** The External circuits rows: open, place, delete and find callers. */
+  externals: Omit<ExternalCircuitRowActions, "drop" | "notice">;
   /** Create an unplaced Cell and open it. */
   newCell(): void;
   /** Copy a Cell from another Cloud Project; absent where Cloud is not. */
@@ -84,8 +92,6 @@ interface Match {
   path: readonly HierarchyFrame[];
 }
 
-type IconName = "add" | "child" | "place" | "properties" | "collapse";
-
 const INDENT = 14;
 
 /** Occurrence rows in display order; collapsed rows hide their subtree. */
@@ -113,52 +119,6 @@ function visibleRows(
   };
   visit(rootId, []);
   return rows;
-}
-
-function Icon({ name }: { name: IconName }) {
-  const stroke = {
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.5,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  };
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-      {name === "child" ? (
-        <>
-          <rect x="2.5" y="2.5" width="11" height="11" rx="2" {...stroke} />
-          <path d="M8 5.5v5M5.5 8h5" {...stroke} />
-        </>
-      ) : null}
-      {name === "place" ? (
-        <path d="M8 2.5v7M5 6.5l3 3 3-3M3 10.5v3h10v-3" {...stroke} />
-      ) : null}
-      {name === "properties" ? (
-        <>
-          <path d="M2.5 5h11M2.5 11h11" {...stroke} />
-          <circle cx="6" cy="5" r="1.7" {...stroke} fill="var(--icm-surface)" />
-          <circle
-            cx="10"
-            cy="11"
-            r="1.7"
-            {...stroke}
-            fill="var(--icm-surface)"
-          />
-        </>
-      ) : null}
-      {name === "add" ? <path d="M8 3v10M3 8h10" {...stroke} /> : null}
-      {name === "collapse" ? (
-        <>
-          <rect x="5" y="5" width="8.5" height="8.5" rx="1.5" {...stroke} />
-          <path
-            d="M2.5 10.5V4a1.5 1.5 0 0 1 1.5-1.5h6.5M7.2 9.25h4"
-            {...stroke}
-          />
-        </>
-      ) : null}
-    </svg>
-  );
 }
 
 /**
@@ -729,7 +689,10 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
               </button>
             );
           })}
-          {!matches.length ? (
+          {!matches.length &&
+          !project.externalSubcircuitDefinitions.some((definition) =>
+            definition.name.toLowerCase().includes(query),
+          ) ? (
             <p className="hierarchy-hint">Nothing matches “{filter.trim()}”.</p>
           ) : null}
           {matchesTruncated ? (
@@ -755,14 +718,25 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
           ) : null}
         </div>
       )}
+      {/* External circuits are worked on here too, below the Cells. */}
+      <ExternalCircuitRows
+        project={project}
+        activeName={name(props.activeDocumentId)}
+        query={query}
+        actions={{
+          ...actions.externals,
+          drop: actions.drop,
+          notice: actions.notice,
+        }}
+      />
       <footer className="hierarchy-footer">
         {actions.importCell ? (
           <button type="button" onClick={actions.importCell}>
             Import Cell…
           </button>
         ) : null}
-        <button type="button" onClick={actions.external}>
-          External Circuits…
+        <button type="button" onClick={actions.newExternal}>
+          New external circuit…
         </button>
       </footer>
       {menu ? (

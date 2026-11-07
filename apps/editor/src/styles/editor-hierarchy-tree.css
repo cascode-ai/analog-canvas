@@ -195,6 +195,22 @@
   border-radius: 3px;
   font: inherit;
 }
+/* External circuits follow the Cells as rows of the same kind, under one
+   quiet label; the group is absent while the Project has none. */
+.hierarchy-externals {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding-top: var(--icm-space-2);
+}
+.hierarchy-group-label {
+  margin: 0;
+  padding: 4px 6px;
+  color: var(--icm-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .hierarchy-inline-uses {
   display: grid;
   padding-block: 2px 6px;

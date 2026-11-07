@@ -33,6 +33,7 @@ import {
   expectStatus,
   createRootCell,
   openCellProperties,
+  openExternalCircuit,
   openExternalCircuits,
   openHierarchyDefinition,
   openHierarchyTree,
@@ -49,10 +50,6 @@ import { resolveDocumentLogicalNets } from "@icm/derived";
 
 function fitsWidth(locator: Locator): Promise<boolean> {
   return locator.evaluate((el) => el.scrollWidth <= el.clientWidth);
-}
-
-function listItem(manager: Locator, name: string | RegExp): Locator {
-  return manager.locator(".cell-manager-list-item").filter({ hasText: name });
 }
 
 function modelNetlist(manager: Locator): Locator {
@@ -341,13 +338,14 @@ test("process shortcuts change only visible model text and clipboard failure sta
   await expect(manager.getByLabel("Model process")).toHaveValue("abstract");
   await expect.poll(() => editor.innerText()).toBe(independent);
   await expect(manager.getByLabel("Model process")).toBeFocused();
-  await manager
-    .getByRole("button", { name: "New External Circuit", exact: true })
-    .click();
+  // The tree's footer opens a new model; its row reopens an applied one.
+  await manager.getByLabel("Close external circuit").click();
+  await openExternalCircuits(page);
   await expect(
-    manager.getByRole("heading", { name: "New External Circuit", exact: true }),
+    manager.getByRole("heading", { name: "New external circuit", exact: true }),
   ).toBeVisible();
-  await listItem(manager, "GM_STAGE").click();
+  await manager.getByLabel("Close external circuit").click();
+  await openExternalCircuit(page, "GM_STAGE");
   await expect.poll(() => modelNetlist(manager).innerText()).toBe(independent);
   await expect(page.getByRole("dialog")).toHaveCount(1);
 });
@@ -441,7 +439,7 @@ test("starts an external model with English comments and copies only its applied
   await expect(copy).toBeDisabled();
 });
 
-// 1440×900 sets the symbol beside its controls; 720×450 is the short
+// 1440×900 sets the Pins and symbol beside the source; 720×450 is the short
 // viewport in the 680–860 px band, where the controls stack after Apply. The
 // 430 px Apply & Place case below closes the Manager instead.
 for (const viewport of [
@@ -476,13 +474,14 @@ for (const viewport of [
     const controlBox = await controls.boundingBox();
     const previewBox = await preview.boundingBox();
     if (viewport.width >= 1024) {
-      expect(previewBox!.x).toBeGreaterThanOrEqual(
-        controlBox!.x + controlBox!.width,
-      );
-      const a = await manager.getByLabel("Model A direction").boundingBox();
-      const b = await manager.getByLabel("Model B direction").boundingBox();
-      expect(a!.y).toBe(b!.y);
-      expect(b!.x).toBeGreaterThan(a!.x);
+      // A wide sheet sets the Pins and symbol beside the source, the
+      // preview under its controls.
+      const source = await manager
+        .locator(".project-source-editor")
+        .first()
+        .boundingBox();
+      expect(controlBox!.x).toBeGreaterThanOrEqual(source!.x + source!.width);
+      expect(previewBox!.y).toBeGreaterThanOrEqual(controlBox!.y);
     }
     expect(await fitsWidth(controls)).toBe(true);
     expect(
@@ -500,7 +499,7 @@ for (const viewport of [
   });
 }
 
-test("searches definitions without discarding the selected model", async ({
+test("finds external circuits with the tree's filter and reopens the one found", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -509,17 +508,78 @@ test("searches definitions without discarding the selected model", async ({
     ".subckt searchable A B\nR1 A B 1k\n.ends searchable\n",
   );
   await applyModel(manager);
-  const list = manager.getByRole("complementary", {
-    name: "External Circuits",
+  await manager.getByLabel("Close external circuit").click();
+  const tree = await openHierarchyTree(page);
+  const row = tree.getByRole("button", {
+    name: "searchable, external circuit",
+    exact: true,
   });
-  await expect(list.getByRole("button", { name: /searchable/ })).toBeVisible();
-  await list.getByRole("searchbox").fill("missing");
-  await expect(list.getByRole("button", { name: /searchable/ })).toHaveCount(0);
-  await expect(list.getByRole("status")).toHaveText("No matches");
+  await expect(row).toBeVisible();
+  await tree.getByLabel("Filter the hierarchy").fill("missing");
+  await expect(row).toHaveCount(0);
+  await expect(tree.getByText("Nothing matches “missing”.")).toBeVisible();
+  await tree.getByLabel("Filter the hierarchy").fill("SEARCH");
+  await row.click();
   await expect(modelNetlist(manager)).toContainText("R1 A B 1k");
-  await list.getByRole("searchbox").fill("SEARCH");
-  await expect(list.getByRole("button", { name: /searchable/ })).toBeVisible();
-  await expect(manager.locator(".external-model-symbol")).toBeVisible();
+});
+
+test("works on an external circuit from its tree row: place, callers, delete once unused", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const manager = await openExternalCircuits(page);
+  await modelNetlist(manager).fill(
+    ".subckt opamp_ext inp inn out vdd vss\nR1 inp out 1k\n.ends opamp_ext\n",
+  );
+  await applyModel(manager);
+  // A new model's Pins start from their names, as a new Cell's do.
+  for (const [pin, direction] of [
+    ["inp", "input"],
+    ["out", "output"],
+    ["vdd", "passive"],
+  ] as const)
+    await expect(manager.getByLabel(`Model ${pin} direction`)).toHaveValue(
+      direction,
+    );
+  await manager.getByLabel("Close external circuit").click();
+
+  const tree = await openHierarchyTree(page);
+  const row = tree.getByRole("button", {
+    name: "opamp_ext, external circuit",
+    exact: true,
+  });
+  await row.hover();
+  await tree
+    .getByRole("button", { name: "Place opamp_ext", exact: true })
+    .click();
+  await placeFirstAt(page, { x: 520, y: 260 });
+  const uses = tree.getByRole("button", {
+    name: "1 use of opamp_ext",
+    exact: true,
+  });
+  await expect(uses).toBeVisible();
+
+  // A placed model is not deleted; its menu says where it is used.
+  await row.click({ button: "right" });
+  const remove = tree.getByRole("menuitem", { name: /^Delete model/u });
+  await expect(remove).toBeDisabled();
+  await expect(remove).toContainText("is placed in dut as");
+  await page.keyboard.press("Escape");
+
+  // Its uses open the Cell that places it, with the part selected.
+  await uses.click();
+  await tree
+    .getByRole("group", { name: "Uses of opamp_ext" })
+    .getByRole("button")
+    .click();
+  const selected = page.locator('[data-testid^="hit-"][class*="selected"]');
+  await expect(selected).toHaveCount(1);
+  await page.getByTestId("schematic-canvas").focus();
+  await page.keyboard.press("Delete");
+  await expect(uses).toHaveCount(0);
+  await row.click({ button: "right" });
+  await tree.getByRole("menuitem", { name: /^Delete model/u }).click();
+  await expect(row).toHaveCount(0);
 });
 
 test("applies and places an external model in a compact narrow Manager", async ({
@@ -536,9 +596,7 @@ test("applies and places an external model in a compact narrow Manager", async (
   );
   // Closing asks before an unsaved model is dropped.
   const guard = page.getByRole("dialog", { name: "Unsaved model" });
-  await manager
-    .getByRole("button", { name: "Close External Circuits" })
-    .click();
+  await manager.getByRole("button", { name: "Close external circuit" }).click();
   await guard.getByRole("button", { name: "Keep editing" }).click();
   await expect(modelNetlist(manager)).toContainText("R1 A B 1k");
   const applyPlace = manager.getByRole("button", {
@@ -552,15 +610,13 @@ test("applies and places an external model in a compact narrow Manager", async (
   await expect(manager).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
-  await openExternalCircuits(page);
-  await manager.getByRole("button", { name: /compact/ }).click();
+  await openExternalCircuit(page, "compact");
   await manager.getByRole("button", { name: "Place", exact: true }).click();
   // In a narrow window the tree, where External Circuits opens, covers the
   // canvas until it is closed.
   await page.getByTestId("hierarchy-toggle").click();
   await placeFirstAt(page, { x: 200, y: 250 });
-  await openExternalCircuits(page);
-  await manager.getByRole("button", { name: /compact/ }).click();
+  await openExternalCircuit(page, "compact");
   await modelNetlist(manager).fill(
     ".subckt compact A B\nR1 A B 2k\n.ends compact\n",
   );
@@ -618,14 +674,13 @@ test("refuses copying a legacy interface-only model until its native implementat
     "Legacy declaration legacy_gain has no Project-owned implementation",
   );
   await expect(netlist.getByTestId("copy-netlist-panel")).toBeDisabled();
-  const manager = await openExternalCircuits(page);
-  await manager.getByRole("button", { name: /legacy_gain/ }).click();
+  const manager = await openExternalCircuit(page, "legacy_gain");
   await manager
     .getByRole("button", { name: "Define implementation…", exact: true })
     .click();
   await modelNetlist(manager).fill(body);
   await applyModel(manager);
-  await manager.getByLabel("Close External Circuits").click();
+  await manager.getByLabel("Close external circuit").click();
   const copied = await copyNetlistText(page, "spice");
   expect(copied).toContain(body);
   expect(copied.match(/^\.subckt legacy_gain\b/gm)).toHaveLength(1);
@@ -657,9 +712,8 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
     .getByLabel("External model entry", { exact: true })
     .selectOption("first");
   await applyModel(manager);
-  await manager
-    .getByRole("button", { name: "New External Circuit", exact: true })
-    .click();
+  await manager.getByLabel("Close external circuit").click();
+  await openExternalCircuits(page);
   await manager
     .getByLabel("External model source owner", { exact: true })
     .selectOption({ label: "model.spice" });
@@ -680,11 +734,13 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
     .getByLabel("External model entry", { exact: true })
     .selectOption("fork_first");
   await applyModel(manager);
-  await manager.getByLabel("Close External Circuits").click();
+  await manager.getByLabel("Close external circuit").click();
   await page.keyboard.press("Control+z");
-  manager = await openExternalCircuits(page);
-  await expect(manager.locator(".cell-manager-list-item")).toHaveCount(2);
-  await manager.getByLabel("Close External Circuits").click();
+  await expect(
+    (await openHierarchyTree(page))
+      .getByRole("group", { name: "External circuits" })
+      .locator(".hierarchy-node-label"),
+  ).toHaveCount(2);
   await page.keyboard.press("Control+Shift+z");
   const saved: CircuitProject = await exportedProject(page);
   expect(saved.modelSources).toHaveLength(2);
@@ -695,8 +751,7 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
       .map((d) => d.implementation!.sourceId),
   ).toEqual([saved.modelSources![0]!.id, saved.modelSources![0]!.id]);
   await openProjectFile(page, serializeProject(saved), "owned.icproj.json");
-  manager = await openExternalCircuits(page);
-  await listItem(manager, "fork_first").click();
+  manager = await openExternalCircuit(page, "fork_first");
   await expect(modelNetlist(manager)).toContainText(".subckt fork_first A B");
   expect(executions).toBe(0);
 });
@@ -829,8 +884,7 @@ test("imports a long-named Cloud Cell with a child and owned model into the orig
   expect(saved.documents).toHaveLength(3);
   expect(saved.modelSources![0]!.files[0]!.text).toContain("R1 A B 7k");
   await openProjectFile(page, serializeProject(saved), "imported.icproj.json");
-  const manager = await openExternalCircuits(page);
-  await listItem(manager, "imported_model").click();
+  await openExternalCircuit(page, "imported_model");
   await expect(page.getByLabel("External model netlist")).toContainText(
     "R1 A B 7k",
   );
@@ -968,7 +1022,7 @@ test("a runtime diagnostic opens the exact applied helper file while retaining i
     .click();
   await expect(editor).toContainText(".subckt unfinished A");
   await expect(editor).toHaveAttribute("aria-readonly", "false");
-  await manager.getByLabel("Close External Circuits").click();
+  await manager.getByLabel("Close external circuit").click();
   const saved: CircuitProject = await exportedProject(page);
   expect(saved.modelSources![0]!.files[1]!.text).toBe(helper);
   expect(saved.modelSources![0]!.draft!.files[0]!.text).toBe(
@@ -1093,16 +1147,14 @@ test("manages external declarations independently of local Cell interfaces", asy
 }) => {
   await page.goto("/editor");
   const manager = page.locator(".cell-manager-dialog");
-  const externalList = manager.getByRole("complementary", {
-    name: "External Circuits",
+  const externalRow = page.getByRole("button", {
+    name: "amplifier, external circuit",
+    exact: true,
   });
   const parameters = manager.getByLabel(
     "External subcircuit formal parameters",
   );
-  const openAmplifier = async () => {
-    await openExternalCircuits(page);
-    await externalList.getByRole("button", { name: /amplifier/ }).click();
-  };
+  const openAmplifier = () => openExternalCircuit(page, "amplifier");
   // A local Cell's interface lives in its properties, apart from External
   // Circuits, and neither shows the other's fields.
   const properties = await openCellProperties(page);
@@ -1127,10 +1179,9 @@ test("manages external declarations independently of local Cell interfaces", asy
   await manager
     .getByRole("button", { name: "Create External Circuit Def", exact: true })
     .click();
-  await externalList.getByRole("button", { name: /amplifier/ }).click();
   await parameters.fill("gain=20");
   await manager.getByRole("button", { name: "Save definition" }).click();
-  await manager.getByLabel("Close External Circuits").click();
+  await manager.getByLabel("Close external circuit").click();
   await page.keyboard.press("Control+z");
   await openAmplifier();
   await expect(parameters).toHaveValue("gain=10");
@@ -1141,17 +1192,13 @@ test("manages external declarations independently of local Cell interfaces", asy
   });
   await remove.click();
   await manager.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(
-    externalList.getByRole("button", { name: /amplifier/ }),
-  ).toBeVisible();
+  await expect(parameters).toHaveValue("gain=10");
   await remove.click();
   await manager
     .getByRole("button", { name: "Confirm delete", exact: true })
     .click();
-  await expect(
-    externalList.getByRole("button", { name: /amplifier/ }),
-  ).toHaveCount(0);
-  await manager.getByLabel("Close External Circuits").click();
+  await manager.getByLabel("Close external circuit").click();
+  await expect(externalRow).toHaveCount(0);
   await page.keyboard.press("Control+z");
   await openAmplifier();
   await expect(parameters).toHaveValue("gain=10");
