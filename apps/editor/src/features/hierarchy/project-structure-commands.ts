@@ -292,15 +292,32 @@ export function createProjectStructureCommands({
       (candidate) => candidate.id === documentId,
     );
     if (!target) return false;
-    const committed = commitStructure(
-      "delete-cell",
-      planDeleteCell(project, documentId),
-      documentId === activeDocument.id
-        ? project.topDocumentId
-        : activeDocument.id,
+    const apply = () => {
+      const committed = commitStructure(
+        "delete-cell",
+        planDeleteCell(project, documentId),
+        documentId === activeDocument.id
+          ? project.topDocumentId
+          : activeDocument.id,
+      );
+      if (committed) setStatus(`Deleted Cell ${target.name}`);
+      return committed;
+    };
+    // An experiment keeps naming a deleted Cell, to be bound again before it
+    // runs, so a simulated Cell goes only once the author has seen which.
+    const experiments = project.simulationFolders.filter((folder) =>
+      folder.input.circuitBindings.some(
+        (binding) => binding.documentId === documentId,
+      ),
     );
-    if (committed) setStatus(`Deleted Cell ${target.name}`);
-    return committed;
+    if (!experiments.length) return apply();
+    const names = experiments.map((folder) => folder.name).join(", ");
+    return confirm({
+      title: "Delete a simulated Cell?",
+      confirmLabel: "Delete Cell",
+      message: `${target.name} is the circuit of ${experiments.length === 1 ? "simulation" : "simulations"} ${names}. ${experiments.length === 1 ? "It keeps" : "They keep"} naming the Cell and will not run until bound to another one.`,
+      apply,
+    });
   };
 
   const updateCellPinDirection = (

@@ -364,6 +364,50 @@ describe("Project structure commands", () => {
     expect(deps.commitStructure).toHaveBeenCalledTimes(1);
   });
 
+  it("asks before deleting a Cell a simulation runs", () => {
+    const input = dependencies();
+    const bench = createEmptyDocument("document-bench", "Bench");
+    input.project.documents.push(bench);
+    input.project.simulationFolders.push({
+      id: "ac",
+      name: "AC sweep",
+      version: 4,
+      input: {
+        kind: "source",
+        entry: "run.cir",
+        configPath: "experiment.json",
+        files: [
+          { path: "run.cir", text: ".control\nac dec 10 1 1e6\n.endc\n" },
+          { path: "experiment.json", text: "{}" },
+        ],
+        circuitBindings: [
+          {
+            id: "bench",
+            path: "circuit.spice",
+            documentId: bench.id,
+            emission: "top-level",
+          },
+        ],
+        dependencies: [],
+      },
+    });
+    const requestConfirmation =
+      vi.fn<(request: CellInterfaceConfirmation) => void>();
+    const commands = createProjectStructureCommands({
+      ...input,
+      requestConfirmation,
+    });
+
+    expect(commands.deleteCell(bench.id)).toBe(true);
+    expect(input.commitStructure).not.toHaveBeenCalled();
+    const [request] = requestConfirmation.mock.calls[0]!;
+    expect(request.message).toBe(
+      "Bench is the circuit of simulation AC sweep. It keeps naming the Cell and will not run until bound to another one.",
+    );
+    expect(request.apply()).toBe(true);
+    expect(input.commitStructure).toHaveBeenCalledTimes(1);
+  });
+
   it("renames a Cell under the rule New Cell follows, wherever it is renamed", () => {
     const input = dependencies();
     const child = createEmptyDocument("document-child", "Child");
