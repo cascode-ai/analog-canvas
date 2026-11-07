@@ -293,6 +293,26 @@
   white-space: pre;
 }
 
+/* How to box and zoom, at the end of the redraw's heading. */
+.review-cols h4 .pic-hint {
+  float: right;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The device lit in the netlists, where it sits in our drawing. */
+.review-lit {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #e8a400;
+  border-radius: 4px;
+  background: rgb(255 214 64 / 28%);
+  box-shadow: 0 0 0 3px rgb(255 214 64 / 35%);
+}
+
 /* Each line its own row; a device's line lights with its counterpart. */
 .review-netlist.matched {
   padding: 5px 0;
@@ -500,19 +520,6 @@
   line-height: 1;
 }
 
-.review-flags-hint {
-  align-self: center;
-  margin-left: 4px;
-  color: var(--icm-text-muted);
-  font-size: 12px;
-}
-
-.review-flags .review-flags-cancel {
-  margin-left: auto;
-  border-color: transparent;
-  color: var(--icm-text-muted);
-}
-
 .review-actions .review-pass kbd,
 .review-actions .review-issue.ready kbd {
   border-color: rgb(255 255 255 / 50%);
@@ -533,7 +540,7 @@
   border-color: #e0245e;
 }
 
-/* The reviewer's boxes, each a removable chip, and how to draw one. */
+/* The reviewer's boxes, each a removable chip. */
 .review-marks-row {
   display: flex;
   flex-wrap: wrap;
@@ -564,10 +571,6 @@
   color: #fff;
   font: 700 10px/16px var(--icm-font-mono);
   text-align: center;
-}
-
-.review-marks-row .hint {
-  color: var(--icm-text-muted);
 }
 
 .review-others li.with-marks {

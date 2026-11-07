@@ -7,6 +7,8 @@ export interface LoadedNetlist {
   text: string | null;
   /** False when `text` is a message rather than a netlist. */
   ok: boolean;
+  /** Each device's first line and its instance in our drawing (ours only). */
+  places?: { line: number; instanceId: string }[];
 }
 
 /** One side's SPICE netlist, read once per URL. */
@@ -14,7 +16,10 @@ export function useNetlistText(
   url: string | null,
   read: (payload: {
     sourceNetlist?: string;
-    netlist?: { text?: string } | null;
+    netlist?: {
+      text?: string;
+      instances?: { line: number; instanceId: string }[];
+    } | null;
   }) => string | undefined,
   empty: string,
   fetchLike: typeof fetch,
@@ -36,8 +41,19 @@ export function useNetlistText(
           };
         if (!response.ok)
           return { text: "The netlist could not be loaded.", ok: false };
-        const text = read(await response.json())?.trim();
-        return text ? { text, ok: true } : { text: empty, ok: false };
+        const payload = (await response.json()) as Parameters<typeof read>[0];
+        const raw = read(payload) ?? "";
+        const text = raw.trim();
+        if (!text) return { text: empty, ok: false };
+        // Places count lines of the untrimmed text.
+        const lead =
+          raw.slice(0, raw.length - raw.trimStart().length).split("\n").length -
+          1;
+        const places = payload.netlist?.instances?.map((place) => ({
+          instanceId: place.instanceId,
+          line: place.line - lead,
+        }));
+        return places ? { text, ok: true, places } : { text, ok: true };
       })
       .catch(() => ({ text: "The netlist could not be loaded.", ok: false }))
       .then((next) => !cancelled && setLoaded(next));
@@ -53,16 +69,20 @@ export function useNetlistText(
 type Side = 0 | 1;
 
 /**
- * The two netlists in full, side by side. With both in hand, choosing a
- * device's line lights its counterpart on the other side, matched by what
- * the devices connect to (their names differ).
+ * The two netlists in full, side by side. Choosing a device's line lights
+ * it, and with both netlists in hand its counterpart on the other side,
+ * matched by what the devices connect to (their names differ). `onLight`
+ * hears the instance of our drawing that is lit, found as the editor's
+ * Project Code finds it, to light it in the picture too.
  */
 export function NetlistPair({
   theirs,
   ours,
+  onLight,
 }: {
   theirs: LoadedNetlist | null;
   ours: LoadedNetlist;
+  onLight?: (instanceId: string | null) => void;
 }) {
   const sides = [theirs, ours] as const;
   const devices = useMemo(
@@ -87,6 +107,24 @@ export function NetlistPair({
   useEffect(() => setSelected(null), [theirs?.text, ours.text]);
   const counterpart =
     selected && pairs ? pairs[selected.side].get(selected.name) : undefined;
+  const oursLit = selected
+    ? selected.side === 1
+      ? selected.name
+      : (counterpart ?? null)
+    : null;
+  const instanceOfLine = useMemo(
+    () =>
+      new Map(
+        (ours.places ?? []).map((place) => [place.line, place.instanceId]),
+      ),
+    [ours.places],
+  );
+  const litLine = oursLit
+    ? devices[1]!.find((device) => device.name === oursLit)?.line
+    : undefined;
+  const litInstance =
+    litLine === undefined ? null : (instanceOfLine.get(litLine) ?? null);
+  useEffect(() => onLight?.(litInstance), [litInstance, onLight]);
   const lines = useRef(new Map<string, HTMLElement>());
   useEffect(() => {
     if (!selected || !counterpart) return;
@@ -100,7 +138,7 @@ export function NetlistPair({
     if (!loaded) return <div />;
     if (loaded.text === null)
       return <pre className="review-netlist">Loading the netlist…</pre>;
-    if (!loaded.ok || !pairs)
+    if (!loaded.ok || !devices[side]!.length)
       return <pre className="review-netlist">{loaded.text}</pre>;
     const byLine = new Map(
       devices[side]!.map((device) => [device.line, device]),
@@ -157,7 +195,7 @@ export function NetlistPair({
                   selected.side === 0 ? counterpart : selected.name
                 } in ours.`
               : `${selected.name} has no counterpart on the other side.`
-            : "Click a device's line to light its counterpart on the other side."}
+            : "Click a device's line to light it, its counterpart and its place in our drawing."}
         </p>
       ) : null}
     </>
