@@ -604,8 +604,10 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
 ### Reference images
 
 - A community entry's owner or the Owner puts a reference image (what the
-  drawing was drawn from, such as a textbook figure) from the tile's ⋯ menu,
-  confirming they may share it: `PUT /api/gallery/<id>/reference` `{image:
+  drawing was drawn from, such as a textbook figure) from the tile's ⋯ menu:
+  a dialog takes a pasted screenshot (⌘V / Ctrl+V or its Paste button), a
+  dropped image or a chosen file, shows it, and uploads once they confirm
+  they may share it: `PUT /api/gallery/<id>/reference` `{image:
 {type, data}, rights: true}` (PNG, JPEG or WebP, ≤512 KB decoded; the page
   redraws a larger file as WebP) → `{revision}`; `DELETE` removes it. Errors:
   403 `forbidden`, 400 `rights-required` or `invalid-image`. Dataset entries

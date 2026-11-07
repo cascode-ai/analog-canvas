@@ -1,0 +1,89 @@
+/* A drawing's reference image: pasted, dropped or chosen, seen, then sent. */
+.reference-dialog {
+  width: min(32rem, calc(100vw - 2.5rem));
+}
+
+.reference-drop {
+  display: grid;
+  min-height: 12rem;
+  padding: 1rem;
+  border: 2px dashed var(--icm-border);
+  border-radius: 10px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: center;
+  place-items: center;
+  cursor: pointer;
+}
+
+.reference-drop strong {
+  color: var(--icm-text);
+}
+
+.reference-drop:hover,
+.reference-drop:focus-visible,
+.reference-drop.is-over {
+  border-color: var(--icm-accent);
+  background: var(--icm-surface-hover);
+}
+
+.reference-drop.has-image {
+  padding: 0.5rem;
+  border-style: solid;
+}
+
+.reference-drop img {
+  max-width: 100%;
+  max-height: 22rem;
+  object-fit: contain;
+}
+
+.reference-rights {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  color: var(--icm-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.reference-rights input {
+  margin-top: 0.2rem;
+}
+
+.reference-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reference-actions [role="status"] {
+  flex: 1;
+  color: var(--icm-text-muted);
+  font-size: 0.85rem;
+}
+
+.reference-actions button {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.reference-actions button.is-primary {
+  border-color: var(--icm-accent);
+  color: #fff;
+  background: var(--icm-accent);
+}
+
+.reference-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
