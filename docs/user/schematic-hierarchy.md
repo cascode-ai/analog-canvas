@@ -28,8 +28,9 @@ Project…** also lists the Cells you can place.
   definition** (no parent path; choose a concrete use to resume occurrence
   navigation), **Show uses**, **Set as Top**, **Delete Cell** and, on a use, the
   commands in [Reshaping the hierarchy](#reshaping-the-hierarchy). Delete removes
-  only an unused, non-top definition; deleting an instance never deletes its
-  Cell. A refused command says why under it.
+  only an unused, non-top definition, and asks first when a simulation runs
+  it; deleting an instance never deletes its Cell. A refused command says why
+  under it.
 - **TOP** marks the Top Cell wherever it shows. Hover another row and click its
   dashed **TOP**, or use **Set as Top**, to make that Cell the saved default
   entry. It is undoable, moves no row and does not change the editing path,
@@ -44,10 +45,11 @@ Project…** also lists the Cells you can place.
   with a reason.
 - **Cell properties** on a row opens the Cell's one sheet: see [Cell
   Pins](#cell-pins) and [Cell parameters](#cell-parameters).
-- **Import Cell…**, in the tree footer, copies a Cell from another Cloud Project
-  with its children, compatible external models and presentation in one undo
-  step and opens it. The copy is independent; repeating the import opens it.
-  Symbol Library versions must match.
+- **Import Cell…**, in the tree footer of the Web editor, copies a Cell from
+  another Cloud Project with its children, compatible external models and
+  presentation in one undo step and opens it. The copy is independent;
+  repeating the import opens it. A name this Project already uses gets a
+  suffix, such as `amp_1a2b3c4d`. Symbol Library versions must match.
 
 Tree expansion and instance paths are remembered per Project tab and after a
 refresh. If an edit removes part of the current path, navigation returns to
@@ -65,15 +67,16 @@ dialog before it runs, and in the status line after.
   with the same Pins and the same Cells below.
 - **Replace Cell…** switches this use, or every use of the Cell, to another Cell
   with the same Pin names. Other Cells are listed with the Pins they lack or
-  add; cycles are refused.
+  add; cycles are refused. A Cell that lacks a parameter the instance overrides
+  says it drops that override. A Library gate keeps its symbol.
 - **New child Cell from selection…** moves the selected parts into a new Cell.
   Each Net that leaves them becomes a Pin, parent parameters they use pass
   through, and a block takes their place. A selection may not split an
   inductor coupling.
 - **Flatten into ⟨parent⟩** puts the child's parts back into the parent, turned
   as the instance was and with its parameter values, inductor couplings
-  included; other uses of the child keep calling it. The parent opens with the
-  parts selected.
+  included; Nets the child joined by a label stay joined. Other uses of the
+  child keep calling it. The parent opens with the parts selected.
 
 Parts and blocks go where they were when that is clear of other parts, else
 beside them. Their connections are made but not drawn: route the wires.
@@ -121,11 +124,12 @@ instance boundaries.
 Device values can be numbers (`180um`) or expressions (`{2*Rbase}`), kept as
 typed. **Cell properties → Parameters** adds a name and default. Edit a name
 or default and press `Enter`; renaming updates internal uses and caller
-override keys in one undo step. A parameter still in use cannot be deleted.
+override keys in one undo step. A parameter cannot be deleted while the Cell
+uses it or an instance overrides it.
 Cells need defaults for every parameter to export.
 
-Select a parent instance and open **Properties → Instance parameters** to
-enter overrides. **Reset** removes the override and inherits the default.
+Select an instance of a Cell and enter overrides under **Cell parameters** in
+the Properties panel. **↺** removes an override and inherits the default.
 The form shows stored expressions, without pretending to evaluate them.
 An override belongs to the instance in its parent definition: if that parent
 is reused, every occurrence of the parent shares the override. Editing the

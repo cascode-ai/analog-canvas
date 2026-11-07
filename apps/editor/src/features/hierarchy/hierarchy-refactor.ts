@@ -11,11 +11,18 @@ import {
 } from "@icm/edit-engine";
 import {
   deriveProjectNetNameProjection,
+  resolveVisualAnchor,
   visibleInstanceBounds,
 } from "@icm/derived";
-import { parameterExpressionBody, parameterReferences } from "@icm/devices";
+import {
+  bindsProjectCell,
+  parameterExpressionBody,
+  parameterReferences,
+} from "@icm/devices";
 import {
   createCellDocument,
+  flattenRichText,
+  plainNameDocument,
   projectCellInterface,
   type CircuitProject,
   type Instance,
@@ -182,12 +189,30 @@ export function cellUses(project: CircuitProject, cellId: string): CellUse[] {
   );
 }
 
+/** Overrides an instance has of parameters `to` does not declare. */
+function undeclaredOverrides(
+  instance: Instance,
+  to: SchematicDocument,
+): string[] {
+  const declared = new Set(
+    (to.netlist?.formalParameters ?? []).map((parameter) =>
+      parameter.name.toLowerCase(),
+    ),
+  );
+  return Object.keys(instance.netlist?.parameters ?? {}).filter(
+    (name) => !declared.has(name.toLowerCase()),
+  );
+}
+
 /**
- * Bind an instance to another Cell with the same Pins: its symbol and Cell
- * change together, Pin spellings follow the new Cell, and overrides of
- * parameters the new Cell does not declare are dropped.
+ * Bind an instance to another Cell with the same Pins, as a rename does: a
+ * block's symbol and Cell change together while a Library gate keeps its
+ * own, the Cell name shown beside it follows, Pin spellings follow the new
+ * Cell, and overrides of parameters the new Cell does not declare are
+ * dropped.
  */
 function rebindEdits(
+  parent: SchematicDocument,
   instance: Instance,
   from: SchematicDocument,
   to: SchematicDocument,
@@ -201,13 +226,13 @@ function rebindEdits(
       return next && next !== name ? [[name, next]] : [];
     }),
   );
-  const declared = new Set(
-    to.netlist!.formalParameters.map((parameter) =>
-      parameter.name.toLowerCase(),
-    ),
-  );
-  const stale = Object.keys(instance.netlist?.parameters ?? {}).filter(
-    (name) => !declared.has(name.toLowerCase()),
+  const stale = undeclaredOverrides(instance, to);
+  const master = parent.annotations.find(
+    (annotation) =>
+      annotation.id === `instance-master-${instance.id}` &&
+      annotation.kind === "instance-value" &&
+      annotation.content &&
+      flattenRichText(annotation.content) === from.name,
   );
   return [
     {
@@ -215,12 +240,25 @@ function rebindEdits(
       instanceId: instance.id,
       binding: { kind: "subcircuit", childDocumentId: to.id },
     },
-    {
-      kind: "set_instance_symbol",
-      instanceId: instance.id,
-      symbolId: hierarchicalSymbolId(to.netlist!.name),
-      ...(Object.keys(pinMap).length ? { pinMap } : {}),
-    },
+    // A gate or flip-flop meets the Cell through its own Pins (#1450).
+    ...(bindsProjectCell(instance.symbolId)
+      ? []
+      : [
+          {
+            kind: "set_instance_symbol" as const,
+            instanceId: instance.id,
+            symbolId: hierarchicalSymbolId(to.netlist?.name ?? to.name),
+            ...(Object.keys(pinMap).length ? { pinMap } : {}),
+          },
+        ]),
+    ...(master
+      ? [
+          {
+            kind: "upsert_schematic_annotation" as const,
+            annotation: { ...master, content: plainNameDocument(to.name) },
+          },
+        ]
+      : []),
     ...(stale.length
       ? [
           {
@@ -258,7 +296,7 @@ export function planMakeUniqueCell(
     sourceName: source.name,
     edits: [
       { kind: "add_document", document: copy },
-      transactOn(parent, rebindEdits(instance, source, copy)),
+      transactOn(parent, rebindEdits(parent, instance, source, copy)),
     ],
   };
 }
@@ -301,13 +339,21 @@ export function replacementCandidates(
   project: CircuitProject,
   uses: readonly CellUse[],
   sourceId: string,
-): { cell: SchematicDocument; issue?: string }[] {
+): { cell: SchematicDocument; issue?: string; drops?: string[] }[] {
   const source = requireCell(project, sourceId);
   return project.documents
     .filter((cell) => cell.id !== sourceId && cell.netlist)
     .map((cell) => {
       const issue = replacementIssue(project, uses, source, cell);
-      return issue ? { cell, issue } : { cell };
+      if (issue) return { cell, issue };
+      const drops = [
+        ...new Set(
+          uses.flatMap((use) =>
+            undeclaredOverrides(resolveCellUse(project, use).instance, cell),
+          ),
+        ),
+      ];
+      return drops.length ? { cell, drops } : { cell };
     });
 }
 
@@ -326,7 +372,7 @@ export function planReplaceCell(
     if (issue)
       throw new Error(`${to.name} cannot replace ${cell.name}: ${issue}`);
     const edits = byDocument.get(parent.id) ?? [];
-    edits.push(...rebindEdits(instance, cell, to));
+    edits.push(...rebindEdits(parent, instance, cell, to));
     byDocument.set(parent.id, edits);
   }
   return [...byDocument].map(([id, edits]) =>
@@ -824,16 +870,36 @@ export function planFlattenInstance(
     };
   const kept = new Set(parts.map((item) => item.id));
   const values = instanceParameterValues(child, instance);
+  const pinNets = new Set(
+    (child.netlist?.terminals ?? []).map((pin) => pin.netId),
+  );
+  // The child's labels join Nets its wires do not, and the wires stay
+  // behind: each set of Nets joined by a name becomes one Net, a Pin's Net
+  // where the set has one, so the parts keep every connection they had.
+  const joinedTo = new Map<string, string>();
+  for (const named of deriveProjectNetNameProjection(project)
+    .byDocumentId.get(child.id)
+    ?.values() ?? []) {
+    const representative =
+      named.baseNetIds.find((id) => pinNets.has(id)) ?? named.baseNetIds[0];
+    if (representative)
+      for (const id of named.baseNetIds) joinedTo.set(id, representative);
+  }
+  const netOf = (id: string) => joinedTo.get(id) ?? id;
   const nets = composed.nets
+    .filter((net) => netOf(net.id) === net.id)
     .map((net) => ({
       ...net,
-      terminals: net.terminals.filter((item) => kept.has(item.instanceId)),
+      terminals: composed.nets
+        .filter((other) => netOf(other.id) === net.id)
+        .flatMap((other) =>
+          other.terminals.filter((item) => kept.has(item.instanceId)),
+        ),
     }))
     .filter((net) => net.terminals.length > 0);
   // Inner Nets keep their source names, prefixed with the instance's
   // reference where the parent already has the name; Pin Nets join the
   // parent's own Nets and take their names.
-  const pinNets = new Set(child.netlist!.terminals.map((pin) => pin.netId));
   const keptNets = new Set(nets.map((net) => net.id));
   const taken = new Set(
     [
@@ -849,19 +915,89 @@ export function planFlattenInstance(
     ].flatMap((name) => (name ? [name.toLowerCase()] : [])),
   );
   const prefix = instance.reference ?? instance.id;
-  const names = child.connectivityEvidence.flatMap((evidence) => {
-    if (
-      evidence.kind !== "net-name-hint" ||
-      pinNets.has(evidence.netId) ||
-      !keptNets.has(evidence.netId)
-    )
-      return [];
-    const base = taken.has(evidence.sourceName.toLowerCase())
-      ? `${prefix}_${evidence.sourceName}`
-      : evidence.sourceName;
+  // One new spelling per child name, so every label of a Net keeps one name.
+  const renamed = new Map<string, string>();
+  const parentName = (sourceName: string) => {
+    const known = renamed.get(sourceName.toLowerCase());
+    if (known) return known;
+    const base = taken.has(sourceName.toLowerCase())
+      ? `${prefix}_${sourceName}`
+      : sourceName;
     const name = freeName(base, (text) => taken.has(text.toLowerCase()));
     taken.add(name.toLowerCase());
-    return [{ ...evidence, sourceName: name }];
+    renamed.set(sourceName.toLowerCase(), name);
+    return name;
+  };
+  // A Net that reaches a Pin takes the parent's name; any other keeps its
+  // label, renamed where the parent has the name. A global name, such as a
+  // supply's, means the same Net in the parent and keeps its spelling.
+  const carriesName = (netId: string, scope: "local" | "global") =>
+    keptNets.has(netOf(netId)) &&
+    (scope === "global" || !pinNets.has(netOf(netId)));
+  const claims = child.connectivityEvidence.flatMap((evidence) =>
+    evidence.kind === "name-claim" &&
+    carriesName(evidence.netId, evidence.scope)
+      ? [
+          {
+            ...evidence,
+            netId: netOf(evidence.netId),
+            name:
+              evidence.scope === "global"
+                ? evidence.name
+                : parentName(evidence.name),
+          },
+        ]
+      : [],
+  );
+  const hints = child.connectivityEvidence.flatMap((evidence) =>
+    evidence.kind === "net-name-hint" && carriesName(evidence.netId, "local")
+      ? [
+          {
+            ...evidence,
+            netId: netOf(evidence.netId),
+            sourceName: parentName(evidence.sourceName),
+          },
+        ]
+      : [],
+  );
+  // A label comes with its claim. Its wire stays behind, so one that hung on
+  // a wire or junction stays where it was drawn.
+  const labelIds = new Set(
+    claims.flatMap((claim) =>
+      claim.owner.kind === "net-label"
+        ? [claim.owner.annotationId]
+        : claim.owner.kind === "power-marker"
+          ? [claim.owner.objectId]
+          : [],
+    ),
+  );
+  const annotations = composed.annotations.flatMap((annotation) => {
+    if (
+      annotation.anchor.kind === "object" &&
+      kept.has(annotation.anchor.objectId)
+    )
+      return [annotation];
+    if (!labelIds.has(annotation.id)) return [];
+    const netId = annotation.netId && netOf(annotation.netId);
+    return [
+      {
+        ...annotation,
+        ...(netId ? { netId } : {}),
+        ...(annotation.binding?.kind === "net-name"
+          ? {
+              binding: {
+                ...annotation.binding,
+                netId: netOf(annotation.binding.netId),
+              },
+            }
+          : {}),
+        anchor: {
+          kind: "free" as const,
+          position: resolveVisualAnchor(child, resolver, annotation.anchor)
+            .position,
+        },
+      },
+    ];
   });
   // Couplings between the child's inductors come too, with its values.
   const couplings = (composed.inductorCouplings ?? [])
@@ -883,14 +1019,10 @@ export function planFlattenInstance(
     routes: [],
     junctions: [],
     noConnects: [],
-    connectivityEvidence: names,
+    connectivityEvidence: [...claims, ...hints],
     layoutGroups: [],
     constraints: [],
-    annotations: composed.annotations.filter(
-      (annotation) =>
-        annotation.anchor.kind === "object" &&
-        kept.has(annotation.anchor.objectId),
-    ),
+    annotations,
   };
   const oriented = orientClipboard(
     clipboard,
@@ -916,8 +1048,9 @@ export function planFlattenInstance(
   );
   if (paste.errors.length) throw new Error(paste.errors.join("; "));
   const joins: SchematicEdit[] = child.netlist!.terminals.flatMap((pin) => {
-    const inner: Terminal | undefined = nets.find((net) => net.id === pin.netId)
-      ?.terminals[0];
+    const inner: Terminal | undefined = nets.find(
+      (net) => net.id === netOf(pin.netId),
+    )?.terminals[0];
     const outer = parent.nets
       .find((net) =>
         net.terminals.some(

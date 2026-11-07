@@ -45,6 +45,7 @@ import {
 } from "./model-source-planner.js";
 import {
   cellDeletionRefusal,
+  externalCellNameClashes,
   reviewedExternalDefinitionEditIssue,
 } from "./hierarchy-planner.js";
 
@@ -1581,6 +1582,20 @@ function applyProjectTransaction(
         },
       },
     ]);
+  }
+  // A Cell and an external circuit of one name would shadow each other in
+  // the netlist. Only a clash this transaction makes is refused, so an older
+  // Project that has one still opens and edits.
+  const clashed = externalCellNameClashes(project);
+  const clash = [...externalCellNameClashes(candidate)].find(
+    ([folded]) => !clashed.has(folded),
+  );
+  if (clash) {
+    return rejectProjectTransaction(
+      project,
+      "EDIT_PRECONDITION",
+      `${clash[1]} names both a Cell and an external circuit; rename one of them`,
+    );
   }
   const validated = validateProjectResult(candidate);
   if (!validated.success) {

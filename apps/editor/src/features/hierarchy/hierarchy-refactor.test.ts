@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { visibleInstanceBounds } from "@icm/derived";
-import type { ProjectStructureEdit } from "@icm/edit-engine";
+import {
+  planSetDeviceModelTarget,
+  type ProjectStructureEdit,
+} from "@icm/edit-engine";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  flattenRichText,
+  plainNameDocument,
+  type CircuitProject,
+  type SchematicDocument,
+} from "@icm/model";
+import { createDesignNetlistExport } from "@icm/netlist";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -140,6 +152,21 @@ describe("hierarchy refactoring", () => {
       candidates.find((item) => item.cell.id === id)?.issue;
     expect(issue("unused")).toBeUndefined();
     expect(issue(top)).toMatch(/cannot contain itself/u);
+    // X1 overrides gain; a Cell that declares no gain says it drops it.
+    const bare = hierarchyNavigationFixture();
+    bare.documents
+      .find((item) => item.id === "amplifier")!
+      .netlist!.formalParameters.splice(0);
+    expect(
+      replacementCandidates(
+        bare,
+        [{ documentId: top, instanceId: "X1" }],
+        "channel",
+      ).find((item) => item.cell.id === "amplifier")?.drops,
+    ).toEqual(["gain"]);
+    expect(
+      candidates.find((item) => item.cell.id === "unused")?.drops,
+    ).toBeUndefined();
     commit(
       controller,
       planReplaceCell(
@@ -250,6 +277,243 @@ describe("hierarchy refactoring", () => {
     expect(binding(controller, "amplifier", "XP")).toEqual({
       kind: "subcircuit",
       childDocumentId: "pair",
+    });
+  });
+
+  describe("a rebound instance keeps its look", () => {
+    /** A nor-gate X1 in Top bound to Cell nor2; nor2b has the same Pins. */
+    const gateProject = () => {
+      const project = createEmptyProject("gates", "Gates", "top");
+      const top = project.documents[0]!;
+      top.instances.push({
+        id: "X1",
+        reference: "X1",
+        symbolId: "nor-gate",
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "unresolved-subcircuit", name: "nor_gate" },
+          parameters: {},
+        },
+      });
+      top.nets.push(
+        ...["A", "B", "Y", "VDD"].map((pin) => ({
+          id: `net-${pin}`,
+          terminals: [{ instanceId: "X1", pinName: pin }],
+        })),
+      );
+      for (const id of ["nor2", "nor2b"]) {
+        const cell = createEmptyDocument(id, id);
+        cell.netlist!.name = id;
+        for (const pin of ["a", "b", "y", "VDD", "VSS"]) {
+          cell.instances.push({
+            id: `${id}-${pin}`,
+            symbolId: "port",
+            placement: null,
+          });
+          cell.nets.push({
+            id: `${id}-net-${pin}`,
+            terminals: [{ instanceId: `${id}-${pin}`, pinName: "P" }],
+          });
+          cell.netlist!.terminals.push({
+            id: `${id}-t-${pin}`,
+            name: pin,
+            netId: `${id}-net-${pin}`,
+            direction: "inout",
+            interfaceInstanceIds: [`${id}-${pin}`],
+          });
+        }
+        project.documents.push(cell);
+      }
+      const controller = new EditorDocumentController(project);
+      commit(
+        controller,
+        planSetDeviceModelTarget(controller.project, "top", "X1", "nor2"),
+      );
+      return controller;
+    };
+    const gate = (controller: EditorDocumentController) =>
+      cell(controller, "top").instances.find((item) => item.id === "X1")!;
+
+    it("keeps a Library gate's symbol through Make unique copy and Replace", () => {
+      const controller = gateProject();
+      expect(gate(controller).symbolId).toBe("nor-gate");
+      const use = { documentId: "top", instanceId: "X1" };
+      commit(controller, planReplaceCell(controller.project, [use], "nor2b"));
+      expect(gate(controller)).toMatchObject({
+        symbolId: "nor-gate",
+        netlist: { binding: { childDocumentId: "nor2b" } },
+      });
+      commit(
+        controller,
+        planMakeUniqueCell(controller.project, use, "nor2b-copy").edits,
+      );
+      expect(gate(controller)).toMatchObject({
+        symbolId: "nor-gate",
+        netlist: { binding: { childDocumentId: "nor2b-copy" } },
+      });
+    });
+
+    it("shows the new Cell's name beside a block", () => {
+      const project = hierarchyNavigationFixture();
+      project.documents
+        .find((item) => item.id === "channel")!
+        .annotations.push({
+          id: "instance-master-XA",
+          kind: "instance-value",
+          content: plainNameDocument("Amplifier"),
+          anchor: {
+            kind: "object",
+            objectId: "XA",
+            localOffset: { x: 0, y: 40 },
+            fallbackPosition: { x: 200, y: 240 },
+          },
+          alignment: "middle",
+          rotation: 0,
+          locked: false,
+        });
+      const controller = new EditorDocumentController(project);
+      const plan = planMakeUniqueCell(
+        controller.project,
+        { documentId: "channel", instanceId: "XA" },
+        "amplifier-copy",
+      );
+      commit(controller, plan.edits);
+      const label = cell(controller, "channel").annotations.find(
+        (item) => item.id === "instance-master-XA",
+      );
+      expect(flattenRichText(label!.content!)).toBe("Amplifier_2");
+    });
+  });
+
+  describe("Nets the child joins by name", () => {
+    /** A resistor between two new Nets of `cell`, placed at `x`. */
+    const resistor = (
+      target: SchematicDocument,
+      id: string,
+      x: number,
+      nets: [string, string],
+    ) => {
+      target.instances.push({
+        id,
+        reference: id,
+        symbolId: "resistor",
+        placement: { position: { x, y: 400 }, rotation: 0, mirror: "none" },
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      });
+      nets.forEach((netId, index) => {
+        const net = target.nets.find((item) => item.id === netId);
+        const terminal = { instanceId: id, pinName: String(index + 1) };
+        if (net) net.terminals.push(terminal);
+        else target.nets.push({ id: netId, terminals: [terminal] });
+      });
+    };
+    /** A label naming `netId`, as the canvas draws one. */
+    const label = (
+      target: SchematicDocument,
+      netId: string,
+      name: string,
+      scope: "local" | "global" = "local",
+      powerDomain?: "vdd" | "ground",
+    ) => {
+      const annotationId = `label-${netId}-${target.annotations.length}`;
+      target.annotations.push({
+        id: annotationId,
+        kind: powerDomain ? "power-label" : "net-label",
+        netId,
+        binding: { kind: "net-name", netId },
+        anchor: { kind: "free", position: { x: 300, y: 340 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      target.connectivityEvidence.push({
+        id: `claim-${annotationId}`,
+        kind: "name-claim",
+        netId,
+        name,
+        owner: { kind: "net-label", annotationId },
+        scope,
+        ...(powerDomain ? { powerDomain } : {}),
+      });
+    };
+    /** The node each listed device's first pin is on, in `cellName`. */
+    const firstNodes = (project: CircuitProject, cellName: string) => {
+      const exported = createDesignNetlistExport(project);
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported));
+      const body = exported.file.text.split(`.subckt ${cellName} `)[1]!;
+      return Object.fromEntries(
+        body
+          .split(`.ends ${cellName}`)[0]!
+          .split("\n")
+          .slice(1)
+          .flatMap((line) => {
+            const [reference, node] = line.trim().split(/\s+/u);
+            return reference && node ? [[reference, node]] : [];
+          }),
+      );
+    };
+    const flatten = (project: CircuitProject) => {
+      const controller = new EditorDocumentController(project);
+      commit(
+        controller,
+        planFlattenInstance(controller.project, XP_IN_AMPLIFIER, 1).edits,
+      );
+      return controller.project;
+    };
+
+    it("stay one Net, renamed where the parent has the name", () => {
+      const project = hierarchyNavigationFixture();
+      const pair = project.documents.find((item) => item.id === "pair")!;
+      resistor(pair, "R2", 300, ["a", "IN"]);
+      resistor(pair, "R3", 400, ["b", "IN"]);
+      label(pair, "a", "MID");
+      label(pair, "b", "MID");
+      const amplifier = project.documents.find(
+        (item) => item.id === "amplifier",
+      )!;
+      resistor(amplifier, "R9", 600, ["m", "IN"]);
+      label(amplifier, "m", "MID");
+      expect(firstNodes(project, "Pair")).toMatchObject({
+        R2: "MID",
+        R3: "MID",
+      });
+
+      const nodes = firstNodes(flatten(project), "Amplifier");
+      // Both parts stay on one Net, which keeps the child's name apart from
+      // the parent's own MID.
+      expect(nodes["R9"]).toBe("MID");
+      expect(
+        Object.entries(nodes).filter(([, node]) => node === "XP_MID"),
+      ).toHaveLength(2);
+    });
+
+    it("join the parent's Net where the name is also a Pin's", () => {
+      const project = hierarchyNavigationFixture();
+      const pair = project.documents.find((item) => item.id === "pair")!;
+      resistor(pair, "R2", 300, ["a", "OUT"]);
+      label(pair, "a", "IN");
+      const nodes = firstNodes(flatten(project), "Amplifier");
+      expect(Object.values(nodes).filter((node) => node === "IN")).toHaveLength(
+        2,
+      );
+    });
+
+    it("keep a global supply name", () => {
+      const project = hierarchyNavigationFixture();
+      const pair = project.documents.find((item) => item.id === "pair")!;
+      resistor(pair, "R2", 300, ["v", "IN"]);
+      label(pair, "v", "VDD", "global", "vdd");
+      const before = firstNodes(project, "Pair")["R2"];
+      const nodes = firstNodes(flatten(project), "Amplifier");
+      expect(Object.values(nodes)).toContain(before);
     });
   });
 

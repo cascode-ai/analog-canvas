@@ -43,23 +43,31 @@ The editor projects the Project's Cell calls as one navigation tree.
 - A new child stays transient until its placement. Definition, optional Pins
   and caller commit atomically; cancelling leaves no orphan. Reuse, interface
   migrations and deletion retain the Edit Engine's validation and confirmations.
+  Deleting a Cell a simulation runs asks first; the experiment keeps naming
+  it for repair.
+- The editor names Cells, new or renamed, with letters, digits and `_`; no
+  edit may give a Cell and an external circuit one name.
 - Make unique copy, Replace Cell, New child Cell from selection and Flatten
   are each one Project transaction. One that edits a Cell with several uses says
   so in text with the command before it runs, and in its result.
 - Make unique copy names the copy after the source's next free number.
+- Make unique copy and Replace rebind as a Cell rename does: a Library part
+  bound to the Cell keeps its own symbol, and a shown Cell name follows.
 - Replace accepts only Cells with the same Pin names, ignoring case, that form
-  no cycle; the plan refuses any other.
+  no cycle; the plan refuses any other. It drops overrides of parameters the
+  new Cell does not declare, and its list names them before it runs.
 - New child Cell from selection makes one Pin per Net leaving the parts,
   passes the parent parameters they use, and refuses to split an inductor
   coupling.
 - Flatten substitutes the instance's parameter values, brings the child's
-  inductor couplings, keeps other uses of the child and keeps imported inner
-  Net names, prefixed with the reference on a clash.
+  inductor couplings and keeps other uses of the child. Child Nets joined by
+  a name stay one Net; a global name keeps its spelling, and an inner Net's
+  local or imported name is prefixed with the reference on a clash.
 - Moved parts and blocks are connected, not routed, and never placed over
   other parts.
 - Default Top, explicit export entry and each simulation's root are independent.
-- The usage list shows at most 50 occurrences and reports truncation; counts
-  saturate at 1,000,000. Tree expansion remains lazy and can reach other uses.
+- The usage list shows at most 50 occurrences and the filter at most 100
+  matches, each reporting truncation; counts saturate at 1,000,000. Tree expansion remains lazy and can reach other uses.
 
 ## Acceptance criteria
 

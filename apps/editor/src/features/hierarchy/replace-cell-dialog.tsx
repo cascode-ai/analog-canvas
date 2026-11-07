@@ -132,7 +132,7 @@ export function ReplaceCellDialog({
             role="listbox"
             aria-label="Replacement Cells"
           >
-            {candidates.map(({ cell, issue }) => (
+            {candidates.map(({ cell, issue, drops }) => (
               <button
                 key={cell.id}
                 type="button"
@@ -145,7 +145,14 @@ export function ReplaceCellDialog({
                 }}
               >
                 <span>{cell.name}</span>
-                <small>{issue ?? "Same Pins"}</small>
+                {/* Overrides the new Cell has no parameter for are dropped;
+                    say which before it runs. */}
+                <small>
+                  {issue ??
+                    (drops
+                      ? `Same Pins; drops ${drops.join(", ")}, which it does not declare`
+                      : "Same Pins")}
+                </small>
               </button>
             ))}
           </div>

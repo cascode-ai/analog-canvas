@@ -245,17 +245,21 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
       : rows[0]?.key;
 
   const query = filter.trim().toLowerCase();
-  const matches = useMemo(() => {
-    if (!query) return [];
+  // At most 50 uses of a Cell and 100 matches in all; a capped list says so.
+  const { matches, matchesTruncated } = useMemo(() => {
+    if (!query) return { matches: [], matchesTruncated: false };
     const found: Match[] = [];
     const seen = new Set<string>();
+    let truncated = false;
     for (const cell of project.documents) {
       const cellMatch = cell.name.toLowerCase().includes(query);
+      const usage = hierarchy.usage(cell.id, 50);
+      if (usage.truncated && cellMatch) truncated = true;
       const occurrences = [
         ...(hierarchy.roots.includes(cell.id)
           ? [{ rootDocumentId: cell.id, path: [] as readonly HierarchyFrame[] }]
           : []),
-        ...hierarchy.usage(cell.id, 50).occurrences,
+        ...usage.occurrences,
       ];
       for (const use of occurrences) {
         const key = hierarchyPathKey(use.rootDocumentId, use.path);
@@ -272,7 +276,10 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
         });
       }
     }
-    return found.slice(0, 100);
+    return {
+      matches: found.slice(0, 100),
+      matchesTruncated: truncated || found.length > 100,
+    };
   }, [query, hierarchy, project]);
 
   const rowButton = (key: string) =>
@@ -724,6 +731,12 @@ export function CellHierarchyTree(props: CellHierarchyTreeProps) {
           })}
           {!matches.length ? (
             <p className="hierarchy-hint">Nothing matches “{filter.trim()}”.</p>
+          ) : null}
+          {matchesTruncated ? (
+            <p className="hierarchy-hint" role="status">
+              Showing the first {matches.length} matches; type more to narrow
+              them.
+            </p>
           ) : null}
         </div>
       ) : (

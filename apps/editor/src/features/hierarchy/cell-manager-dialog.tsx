@@ -101,6 +101,8 @@ export function CellManagerDialog({
               documentId: document.id,
               documentName: document.name,
               instanceId: instance.id,
+              // The part's reference, as the canvas shows it.
+              reference: instance.reference ?? instance.id,
             },
           ]
         : [],
@@ -268,7 +270,7 @@ export function CellManagerDialog({
                   {callers.map((caller) => (
                     <li key={`${caller.documentId}:${caller.instanceId}`}>
                       <span>
-                        {caller.documentName}.{caller.instanceId}
+                        {caller.documentName} · {caller.reference}
                       </span>
                       <button
                         type="button"
