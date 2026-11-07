@@ -13,6 +13,7 @@ Group=canvas-formal
 WorkingDirectory=/opt/analog-canvas/current-formal
 LoadCredential=regional-client.json:/etc/analog-canvas-formal/regional-client.json
 LoadCredential=project-region-users.json:/etc/analog-canvas-formal/project-region-users.json
+LoadCredential=project-protected-ids.json:/etc/analog-canvas-formal/project-protected-ids.json
 LoadCredential=sync-inbound-token:/etc/analog-canvas-formal/sync-inbound-token
 LoadCredential=sync-outbound-token:/etc/analog-canvas-formal/sync-outbound-token
 LoadCredential=sync-admin-token:/etc/analog-canvas-formal/sync-admin-token

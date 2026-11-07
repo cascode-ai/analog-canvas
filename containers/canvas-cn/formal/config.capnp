@@ -30,6 +30,7 @@ const config :Workerd.Config = (
         (name = "ASSETS", service = "assets"),
         (name = "PROJECT_REGION", text = "cn"),
         (name = "PROJECT_REGION_USERS", text = embed "/project-region-users.json"),
+        (name = "PROJECT_PROTECTED_IDS", text = embed "/project-protected-ids.json"),
         (name = "PROJECT_WRITES_ENABLED", text = "false"),
         (name = "PROJECT_SYNC_PULL", text = "true"),
         (name = "PROJECT_SYNC_MAX_BYTES", text = "1073741824"),
