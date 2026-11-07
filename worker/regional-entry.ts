@@ -1,4 +1,5 @@
 import canvas from "./index";
+import { bearerMatches } from "./bearer";
 import {
   isRegionalAuthorityBrowserRoute,
   regionalConfig,
@@ -16,16 +17,87 @@ export {
 
 type Env = Parameters<typeof canvas.fetch>[1] & {
   PROJECT_WRITES_ENABLED?: string;
+  PROJECT_SYNC_ADMIN_TOKEN?: string;
+  /** Production's `ratelimits` as `{name: {limit, period}}` (regional-runtime.mjs). */
+  REGIONAL_RATE_LIMITS?: string;
 };
+
+/** The loopback timer's entrance to Production's scheduled work (wrangler.jsonc crons). */
+export const REGIONAL_SCHEDULED_PATH = "/__regional/scheduled";
+
+type Window = { start: number; count: number };
+const windows = new Map<string, Map<string, Window>>();
+
+/**
+ * Production's simple rate limits for one process. Cloudflare's limiter is
+ * per location and approximate; a fixed window per client address keeps the
+ * same allowance. The trusted local proxy supplies the address.
+ */
+export function regionalRateLimiters(
+  declaration: string | undefined,
+  now: () => number = Date.now,
+): Record<string, { limit(options: { key: string }): Promise<{ success: boolean }> }> {
+  const limits = JSON.parse(declaration ?? "{}") as Record<
+    string,
+    { limit: number; period: number }
+  >;
+  return Object.fromEntries(
+    Object.entries(limits).map(([name, { limit, period }]) => {
+      const table = windows.get(name) ?? new Map<string, Window>();
+      windows.set(name, table);
+      return [
+        name,
+        {
+          async limit({ key }: { key: string }) {
+            const at = now(),
+              span = period * 1000;
+            let entry = table.get(key);
+            if (!entry || at - entry.start >= span) {
+              if (table.size > 10_000)
+                for (const [k, w] of table)
+                  if (at - w.start >= span) table.delete(k);
+              entry = { start: at, count: 0 };
+              table.set(key, entry);
+            }
+            entry.count++;
+            return { success: entry.count <= limit };
+          },
+        },
+      ];
+    }),
+  );
+}
 
 /** The common Canvas runtime behind a trusted regional loopback proxy. */
 export default {
-  async fetch(incoming: Request, env: Env): Promise<Response> {
-    const config = regionalConfig(env.AUTH_REGIONAL_CLIENT);
+  async fetch(incoming: Request, base: Env): Promise<Response> {
+    const config = regionalConfig(base.AUTH_REGIONAL_CLIENT);
     if (!config)
       return Response.json({ error: "region-not-configured" }, { status: 503 });
     const local = new URL(incoming.url),
       origin = new URL(config.clientOrigin);
+    // The browser proxy names the client; nothing a client sends is trusted.
+    const proxied = incoming.headers.get("x-real-ip");
+    if (local.pathname === REGIONAL_SCHEDULED_PATH) {
+      if (
+        incoming.method !== "POST" ||
+        proxied !== null ||
+        !bearerMatches(incoming, base.PROJECT_SYNC_ADMIN_TOKEN)
+      )
+        return Response.json({ error: "not-found" }, { status: 404 });
+      // canvas-cn-project-sync.timer is the region's only Project sync driver.
+      await canvas.scheduled(
+        { scheduledTime: Date.now(), cron: "regional-timer" },
+        { ...base, PROJECTS: undefined } as unknown as Env,
+      );
+      return Response.json({ status: "ran" }, { headers: { "cache-control": "no-store" } });
+    }
+    const env: Env = {
+      ...base,
+      ...regionalRateLimiters(base.REGIONAL_RATE_LIMITS),
+      // Agents download the pinned MCP bundle from this site (nginx /downloads/mcp/).
+      AGENT_MCP_DOWNLOAD_ORIGIN: config.clientOrigin,
+    } as Env;
     if (
       local.host !== origin.host &&
       !["localhost", "127.0.0.1"].includes(local.hostname)
@@ -35,6 +107,9 @@ export default {
       new URL(local.pathname + local.search, origin),
       incoming,
     );
+    request.headers.delete("cf-connecting-ip");
+    request.headers.delete("x-real-ip");
+    if (proxied) request.headers.set("cf-connecting-ip", proxied);
     if (
       config.origin === config.clientOrigin &&
       isRegionalAuthorityBrowserRoute(request.method, local.pathname)
@@ -60,7 +135,7 @@ export default {
     if (
       local.pathname.startsWith("/api/projects") &&
       incoming.method !== "GET" &&
-      env.PROJECT_WRITES_ENABLED !== "true"
+      env.PROJECT_WRITES_ENABLED?.trim() !== "true"
     )
       return Response.json(
         { error: "regional-writes-disabled" },

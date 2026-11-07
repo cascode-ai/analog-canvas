@@ -22,7 +22,18 @@ describe("the operator simulator host", () => {
     expect(compose).toContain("read_only: true");
     expect(compose).toMatch(/cap_drop:\s*\n\s*- ALL/u);
     expect(compose).toContain("internal: true");
-    expect(compose).not.toMatch(/^\s*ports:/mu);
+    // Production publishes no host port. Only the China region's gateway
+    // listens, on loopback, for that region's operator SSH tunnel.
+    const regional = compose.slice(compose.indexOf("  regional-executor:"));
+    expect(
+      compose.slice(0, compose.indexOf("  regional-executor:")),
+    ).not.toMatch(/^\s*ports:/mu);
+    expect(regional.match(/^\s*- "[^"]*:\d+:8080"/gmu)).toEqual([
+      '      - "127.0.0.1:19094:8080"',
+    ]);
+    expect(
+      regional.slice(0, regional.indexOf("  regional-gateway:")),
+    ).not.toContain("ACCESS_TOKEN");
     const executor = compose.slice(
       compose.indexOf("  executor:"),
       compose.indexOf("  simulator:"),
@@ -36,6 +47,14 @@ describe("the operator simulator host", () => {
     expect(executor).toContain("mem_limit: 16g");
     expect(executor).not.toContain("SIMULATION_ACCESS_TOKEN");
     expect(gateway).toContain("SIMULATION_ACCESS_TOKEN");
+  });
+
+  it("starts the China region's profile only with its own credential file", () => {
+    expect(deploy).toMatch(/regional_enabled=false\n/u);
+    expect(deploy.indexOf("regional_enabled=false")).toBeLessThan(
+      deploy.indexOf('"$regional_enabled" = true'),
+    );
+    expect(deploy).toContain('--env-file "$regional_env" --profile regional');
   });
 
   it("never prunes the host's other Docker data", () => {

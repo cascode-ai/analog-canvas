@@ -2,7 +2,13 @@ import type { SessionUser, SqlStorage } from "./auth-do";
 
 export const REGIONAL_PREFIX = "/api/auth/regional/";
 export const REGIONAL_SESSION_COOKIE = "icm_regional_session";
-export const REGIONAL_LEASE_MS = 60_000;
+/**
+ * How long a region keeps authorizing an account without reaching the
+ * authority. Renewal still runs every REGIONAL_REFRESH_MS, so logout, expiry
+ * and restriction changes reach a connected region within one refresh; the
+ * lease only bounds a cross-border outage.
+ */
+export const REGIONAL_LEASE_MS = 30 * 60_000;
 export const REGIONAL_HANDOFF_MS = 60_000;
 export const REGIONAL_REFRESH_MS = 30_000;
 export type RegionalSql = SqlStorage;

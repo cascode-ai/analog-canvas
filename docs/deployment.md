@@ -183,6 +183,35 @@ accounts only); `/api/simulate` is the direct/local transport and never a
 fallback. Deploy smoke checks use a per-deploy `SIMULATION_SMOKE_TOKEN`.
 [Simulation execution](specs/simulation-execution.md) owns the run contracts.
 
+## China region
+
+The [China runtime](../containers/canvas-cn/formal/README.md) runs
+Production's release, never a separate build.
+
+- `wrangler.jsonc` declares bindings, variables, rate limits and scheduled
+  work for both regions. [`region.jsonc`](../containers/canvas-cn/formal/region.jsonc)
+  lists only the region's differences, each exclusion with its reason.
+  `node scripts/regional-runtime.mjs` generates `config.capnp`, the scheduled
+  timer and the runtime's credential list; `pnpm regional:check` (CI static)
+  fails on a stale file, an unclassified Production binding or a failing host
+  runner test. A change adding Production configuration adds its regional
+  mapping or exclusion in the same commit.
+- Every candidate carries `/regional-release/<sha>/` from
+  `scripts/regional-release.mjs`. Once Production has served a commit for 10
+  minutes, the host's `canvas-cn-release.timer` installs it: changed files
+  only, every SHA-256 and required credential checked, a stopped-state backup,
+  then smoke checks. A failed check switches back and alerts; that commit is
+  not retried. A Production rollback is followed the same way.
+- Secrets and the writes switches are root-owned credential files on the
+  host; every host runs identical release bytes.
+- Regional simulation uses the `regional` profile of the
+  [simulator host](../containers/ngspice/host/compose.yaml) and a second
+  VACASK instance, with Production's images, deployed by the Simulator host
+  workflow once that host has `secrets/regional.env`.
+- Production mails the first `ADMIN_EMAILS` address when the region has not
+  pulled Projects for 10 minutes, hourly until it recovers; the region's own
+  watchers mail its sync and release failures.
+
 ## When Production is broken
 
 While service is actually degraded, restoring it outranks the normal route: use

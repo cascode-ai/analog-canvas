@@ -6,6 +6,8 @@ source_root="$(CDPATH= cd -- "$script_dir/../../.." && pwd)"
 host_home="${SIMULATOR_HOST_HOME:-$HOME/analog-canvas-sim}"
 runtime_env="$host_home/secrets/runtime.env"
 tunnel_env="$host_home/secrets/tunnel.env"
+# The China region's credential; present only once that region is connected.
+regional_env="$host_home/secrets/regional.env"
 compose_file="$script_dir/compose.yaml"
 
 fail() {
@@ -40,18 +42,22 @@ if [ -f "$tunnel_env" ]; then
   tunnel_enabled=true
 fi
 
-if [ "$tunnel_enabled" = true ]; then
-  compose() {
-    docker compose --project-name analog-canvas-sim \
-      --env-file "$runtime_env" --env-file "$tunnel_env" \
-      --profile tunnel -f "$compose_file" "$@"
-  }
-else
-  compose() {
-    docker compose --project-name analog-canvas-sim \
-      --env-file "$runtime_env" -f "$compose_file" "$@"
-  }
+regional_enabled=false
+if [ -f "$regional_env" ]; then
+  grep -Eq '^REGIONAL_SIMULATION_ACCESS_TOKEN=.+$' "$regional_env"     || fail "$regional_env exists but does not contain REGIONAL_SIMULATION_ACCESS_TOKEN"
+  regional_enabled=true
 fi
+
+compose() {
+  set -- -f "$compose_file" "$@"
+  if [ "$regional_enabled" = true ]; then
+    set -- --env-file "$regional_env" --profile regional "$@"
+  fi
+  if [ "$tunnel_enabled" = true ]; then
+    set -- --env-file "$tunnel_env" --profile tunnel "$@"
+  fi
+  docker compose --project-name analog-canvas-sim --env-file "$runtime_env" "$@"
+}
 
 # The #587 host used the same deliberate container names but created them with
 # operator-owned docker commands. Compose cannot adopt such a container. The
@@ -78,6 +84,15 @@ if [ "$tunnel_enabled" = true ]; then
   compose up -d --remove-orphans
 else
   compose up -d --remove-orphans simulator
+fi
+if [ "$regional_enabled" = true ]; then
+  compose up -d regional-gateway
+  # The regional gateway answers its own loopback port with the same images.
+  for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    if curl -fsS --max-time 5 http://127.0.0.1:19094/health >/dev/null 2>&1; then break; fi
+    [ "$attempt" = 12 ] && fail "regional gateway did not become healthy"
+    sleep 5
+  done
 fi
 
 "$script_dir/health.sh" >/dev/null

@@ -1,0 +1,11 @@
+[Unit]
+Description=Follow Production's release in the regional runtime
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=60s
+AccuracySec=5s
+Unit=canvas-cn-release.service
+
+[Install]
+WantedBy=timers.target

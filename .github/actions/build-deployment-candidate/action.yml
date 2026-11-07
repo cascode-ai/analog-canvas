@@ -51,6 +51,13 @@ runs:
       env:
         LIVE_ORIGIN: ${{ inputs.retain-assets-from }}
       run: node scripts/retain-previous-assets.mjs apps/editor/dist "$LIVE_ORIGIN"
+    # The China runtime installs these same bytes from Production's origin
+    # after Production has served them (scripts/regional-release.mjs).
+    - name: Add the regional release
+      shell: bash
+      env:
+        RELEASE_SHA: ${{ inputs.release-sha }}
+      run: node scripts/regional-release.mjs apps/editor/dist "$RELEASE_SHA" "$RUNNER_TEMP/analog-canvas-regional"
     - name: Package the candidate
       shell: bash
       env:

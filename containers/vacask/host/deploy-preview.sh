@@ -67,5 +67,15 @@ jq -e --arg expected "$expected" '.environment.fingerprint==$expected' candidate
 jq -cn --arg text "$access_token" '{name:"VACASK_UPSTREAM_TOKEN",type:"secret_text",text:$text}' | \
   curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'content-type: application/json' \
   -X PUT "$base/accounts/$account/workers/scripts/interactive-circuit-maker/secrets" --data-binary @- | jq -e '.success' >/dev/null
+# The China region runs the same image and runtime configuration on its own
+# loopback port and credential, once its regional.env exists.
+if ssh sim "grep -Eq '^REGIONAL_VACASK_ACCESS_TOKEN=.+$' ~/analog-canvas-sim/secrets/regional.env 2>/dev/null"; then
+  ssh sim "umask 077; { printf 'VACASK_IMAGE=icm-vacask-preview:%s
+VACASK_RUNTIME_CONFIG=%s/runtime.json
+VACASK_GATEWAY_PORT=19095
+' '$GITHUB_SHA' '$absolute_release'; sed -n 's/^REGIONAL_VACASK_ACCESS_TOKEN=/SIMULATION_ACCESS_TOKEN=/p' ~/analog-canvas-sim/secrets/regional.env; } > ~/$release/regional.env"
+  ssh sim "docker compose -p icm-vacask-regional --env-file ~/$release/regional.env -f ~/$release/containers/vacask/host/compose.yaml up -d"
+  ssh sim 'for i in $(seq 1 18); do curl -fsS --max-time 5 http://127.0.0.1:19095/health >/dev/null && exit 0; sleep 5; done; exit 1'
+fi
 ssh sim "docker image inspect icm-vacask-preview:$GITHUB_SHA --format '{{.Id}}'"
 echo "Native executor candidate ready for Production at https://$host; shared ngspice untouched."

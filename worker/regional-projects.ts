@@ -38,6 +38,10 @@ class ProjectCreationRefused extends Error {
   }
 }
 
+/** The source alerts when the private region has not pulled for this long. */
+export const WATCHDOG_STALE_MS = 10 * 60_000;
+const WATCHDOG_REPEAT_MS = 60 * 60_000;
+
 /** Separate formal storage; shares existing save/history semantics, not trial state. */
 export class RegionalProjectDO {
   private readonly sql: SqlStorage;
@@ -68,6 +72,12 @@ export class RegionalProjectDO {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_project_heads (
       id TEXT PRIMARY KEY, head TEXT NOT NULL
     ) WITHOUT ROWID`);
+    // The source's view of the private region's pulls, for its own alerting.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS project_sync_watchdog (
+      singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+      last_pull_at INTEGER NOT NULL, stale INTEGER NOT NULL DEFAULT 0,
+      alerted_at INTEGER NOT NULL DEFAULT 0
+    )`);
     this.journal = new ProjectSyncJournal(
       this.sql,
       env.PROJECT_REGION,
@@ -103,6 +113,42 @@ export class RegionalProjectDO {
       this.journal.snapshot(id),
     );
     this.sql.exec("INSERT INTO regional_project_heads VALUES (?,?)", id, head);
+  }
+
+  /**
+   * Decide one watchdog step at the source: alert once the private region has
+   * not pulled for WATCHDOG_STALE_MS, repeat hourly, and report recovery once.
+   * A region that never pulled is not monitored. An unsent alert is retried.
+   */
+  watchdog(
+    now: number,
+    unsent?: "alert" | "recover",
+  ): { action: "alert" | "recover" | null; lastPullAt: number | null } {
+    const row = this.sql
+      .exec<{ last_pull_at: number; stale: number; alerted_at: number }>(
+        "SELECT last_pull_at, stale, alerted_at FROM project_sync_watchdog",
+      )
+      .toArray()[0];
+    if (!row) return { action: null, lastPullAt: null };
+    // An unsent mail is decided again on the next tick.
+    if (unsent) {
+      this.sql.exec(
+        unsent === "alert"
+          ? "UPDATE project_sync_watchdog SET alerted_at = 0"
+          : "UPDATE project_sync_watchdog SET stale = 1",
+      );
+      return { action: null, lastPullAt: row.last_pull_at };
+    }
+    const stale = now - row.last_pull_at > WATCHDOG_STALE_MS;
+    let action: "alert" | "recover" | null = null;
+    if (stale && now - row.alerted_at >= WATCHDOG_REPEAT_MS) action = "alert";
+    else if (!stale && row.stale) action = "recover";
+    this.sql.exec(
+      "UPDATE project_sync_watchdog SET stale = ?, alerted_at = ?",
+      stale ? 1 : 0,
+      action === "alert" ? now : stale ? row.alerted_at : 0,
+    );
+    return { action, lastPullAt: row.last_pull_at };
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -205,6 +251,10 @@ export class RegionalProjectDO {
     if (operation === "sync-events")
       return this.journal.events(Number(body.after));
     if (operation === "sync-pull") {
+      this.sql.exec(
+        "INSERT INTO project_sync_watchdog (singleton, last_pull_at) VALUES (1, ?) ON CONFLICT(singleton) DO UPDATE SET last_pull_at = excluded.last_pull_at",
+        Date.now(),
+      );
       const peer =
         body.status as import("./project-sync-journal").ProjectSyncStatus;
       const reconciled = await this.journal.reconcile(peer);
@@ -222,6 +272,15 @@ export class RegionalProjectDO {
     }
     if (operation === "sync-status")
       return Response.json(this.journal.status());
+    if (operation === "sync-watchdog")
+      return Response.json(
+        this.watchdog(
+          Number(body.now),
+          body.unsent === "alert" || body.unsent === "recover"
+            ? body.unsent
+            : undefined,
+        ),
+      );
     if (operation === "sync-delivery")
       return this.journal.delivery(body.status);
     if (operation === "sync-reconcile")
