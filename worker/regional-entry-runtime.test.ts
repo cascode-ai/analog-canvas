@@ -1,9 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import canvas from "./index";
-import entry, {
+import * as regionalModule from "./regional-entry";
+import entry from "./regional-entry";
+import {
   REGIONAL_SCHEDULED_PATH,
   regionalRateLimiters,
-} from "./regional-entry";
+} from "./regional-runtime";
 import { regionalRuntimeBindings } from "./regional-entry.test-support";
 import { environment, ORIGIN } from "./gallery.test-support";
 
@@ -24,6 +26,16 @@ function target(extra: Record<string, unknown> = {}) {
     ...extra,
   };
 }
+
+it("exports only entrypoints workerd accepts: the handler and classes", () => {
+  for (const [name, value] of Object.entries(regionalModule)) {
+    if (name === "default") continue;
+    expect(
+      typeof value === "function" && /^class\b/u.test(Function.prototype.toString.call(value)),
+      `${name} must be a Durable Object or entrypoint class`,
+    ).toBe(true);
+  }
+});
 
 it("keeps Production's simple limit per client address in one window", async () => {
   let now = 0;
