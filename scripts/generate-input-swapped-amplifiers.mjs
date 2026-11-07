@@ -44,6 +44,7 @@ const SOURCE_IDS = [
   "opamp-differential-lettered",
   "opamp-differential-crossed",
   "opamp-differential-crossed-lettered",
+  "adc-differential",
 ];
 const SWAPPED_SUFFIX = "-inputs-swapped";
 const INPUT_ROLES = new Set(["non-inverting-input", "inverting-input"]);

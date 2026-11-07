@@ -76,6 +76,8 @@ const PRODUCT_IDS = [
   "zener-diode",
   "adc",
   "dac",
+  "adc-differential",
+  "dac-differential",
 ] as const;
 
 describe("built-in Symbol libraries", () => {

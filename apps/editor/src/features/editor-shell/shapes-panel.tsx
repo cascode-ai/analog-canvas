@@ -48,6 +48,8 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   npn: "NPN",
   adc: "ADC",
   dac: "DAC",
+  "adc-differential": "Diff ADC",
+  "dac-differential": "Diff DAC",
   "opamp-lettered": "OpAmp A",
   "opamp-differential-lettered": "FD Amp A",
   "and-gate": "AND",

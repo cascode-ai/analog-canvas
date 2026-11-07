@@ -108,7 +108,10 @@
     "xor-gate-4",
     "zener-diode",
     "adc",
-    "dac"
+    "dac",
+    "adc-differential",
+    "adc-differential-inputs-swapped",
+    "dac-differential"
   ],
   "semanticPrimitives": [
     {

@@ -2679,4 +2679,40 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VOUT", direction: "output", pinName: "OUT" },
       ],
     },
+    {
+      id: "adc-differential",
+      symbolId: "adc-differential",
+      target: "adc_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOUT", direction: "output", pinName: "OUT" },
+      ],
+    },
+    {
+      id: "adc-differential-inputs-swapped",
+      symbolId: "adc-differential-inputs-swapped",
+      target: "adc_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOUT", direction: "output", pinName: "OUT" },
+      ],
+    },
+    {
+      id: "dac-differential",
+      symbolId: "dac-differential",
+      target: "dac_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIN", direction: "input", pinName: "IN" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
   ];

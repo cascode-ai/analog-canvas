@@ -5,7 +5,8 @@ import {
 } from "./lib/component-library.mjs";
 // Draws the data-converter blocks: an ADC and a DAC, each a five-sided arrow
 // whose point states which way the conversion runs — left into the digital
-// domain, right back out of it.
+// domain, right back out of it — and a differential sibling of each, whose
+// two analog pins enter the slanted faces either side of the point.
 //
 // House-drawn: the reference covers converter internals, never a block for
 // one on a sheet, so these claim no textbook authority.
@@ -22,6 +23,12 @@ import {
 //   does.
 // - Every body vertex, body contact, and pin anchor lands on the 10-unit
 //   connection grid. Leads extend exactly one cell beyond the body.
+// - A differential pair sits one row either side of the mid-line, where the
+//   slanted faces cross the grid, so the pair is 20 apart like the compact
+//   op-amp's and comparator's. Its pins stay one cell beyond the point, in
+//   the single pin's column, so wires arrive clear of the point; their leads
+//   run two cells from the face. Its + and − marks are the comparator's
+//   six-unit strokes, inside the face on the pin's own row.
 // - The text sits on the AREA centroid, not the bounding-box centre: the
 //   point pulls a pentagon's visual middle towards the blunt end, and text
 //   centred on the box would drift into the tip.
@@ -49,8 +56,20 @@ const BLUNT_EDGE_X = 30;
 const TIP_X = 40;
 const TIP_SHOULDER_X = 20;
 const BODY_HALF_HEIGHT = 20;
-const LEAD_LENGTH = 10;
+const GRID = 10;
+const LEAD_LENGTH = GRID;
 const FONT_SIZE = 12;
+/** A differential pair's rows, either side of the mid-line. */
+const DIFFERENTIAL_ROW = 10;
+/** A polarity mark's centre, inward of the face its pin meets. */
+const MARK_INSET = 8;
+const MARK_HALF_LENGTH = 3;
+const LEAD_STYLE = { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" };
+const MARK_STYLE = {
+  strokeRole: "normal",
+  lineCap: "round",
+  lineJoin: "round",
+};
 
 /**
  * Area centroid of a simple polygon. The shoelace form, so the point comes
@@ -89,12 +108,94 @@ function bodyPoints(pointsRight) {
   ];
 }
 
-function converterSymbol({ id, name, defaultText, pointsRight }) {
+/** Where a slanted face crosses the row `y`, on the side `sign` points to. */
+function faceX(sign, y) {
+  const x =
+    sign *
+    (TIP_X - ((TIP_X - TIP_SHOULDER_X) * Math.abs(y)) / BODY_HALF_HEIGHT);
+  if (x % GRID !== 0) fail(`face crosses row ${y} off the grid`);
+  return x;
+}
+
+/**
+ * The pins on one side, outermost first along the lead. A differential side
+ * puts + on the lower row and − on the upper, as the op-amp and comparator
+ * do; a single pin sits on the mid-line.
+ */
+function sidePins(side, bodyX, sign, differential) {
+  const name = side === "input" ? "IN" : "OUT";
+  const direction = sign < 0 ? "west" : "east";
+  const pinX = bodyX + sign * LEAD_LENGTH;
+  const pin = (pinName, role, contactX, y) => ({
+    contactX,
+    y,
+    pin: {
+      name: pinName,
+      role,
+      at: { x: pinX, y },
+      direction,
+      presentation: {
+        visibility: "visible",
+        leadLength: Math.abs(pinX - contactX),
+      },
+    },
+  });
+  if (!differential) return [pin(name, side, bodyX, 0)];
+  const plusRole = side === "input" ? "non-inverting-input" : "output";
+  const minusRole = side === "input" ? "inverting-input" : "output";
+  return [
+    pin(`${name}+`, plusRole, faceX(sign, DIFFERENTIAL_ROW), DIFFERENTIAL_ROW),
+    pin(
+      `${name}-`,
+      minusRole,
+      faceX(sign, -DIFFERENTIAL_ROW),
+      -DIFFERENTIAL_ROW,
+    ),
+  ];
+}
+
+/** A plus and a minus inside the faces, on the rows of the pins they name. */
+function polarityMarks(side, [plus, minus], sign) {
+  const x = plus.contactX - sign * MARK_INSET;
+  const line = (from, to, part) => ({
+    kind: "line",
+    from,
+    to,
+    part,
+    style: MARK_STYLE,
+  });
+  return [
+    line(
+      { x, y: plus.y - MARK_HALF_LENGTH },
+      { x, y: plus.y + MARK_HALF_LENGTH },
+      `${side}-polarity`,
+    ),
+    line(
+      { x: x - MARK_HALF_LENGTH, y: plus.y },
+      { x: x + MARK_HALF_LENGTH, y: plus.y },
+      `${side}-polarity`,
+    ),
+    line(
+      { x: x - MARK_HALF_LENGTH, y: minus.y },
+      { x: x + MARK_HALF_LENGTH, y: minus.y },
+      `upright-${side}-polarity-negative`,
+    ),
+  ];
+}
+
+function converterSymbol({ id, name, defaultText, pointsRight, differential }) {
+  // Only the point has faces to carry a pair; the blunt edge keeps one pin.
+  const tipSide = pointsRight ? "output" : "input";
+  if (differential && differential !== tipSide)
+    fail(`${id}: a differential ${differential} needs the point on that side`);
   const points = bodyPoints(pointsRight);
   const leftBodyX = pointsRight ? -BLUNT_EDGE_X : -TIP_X;
   const rightBodyX = pointsRight ? TIP_X : BLUNT_EDGE_X;
-  const leftPinX = leftBodyX - LEAD_LENGTH;
-  const rightPinX = rightBodyX + LEAD_LENGTH;
+  const inputs = sidePins("input", leftBodyX, -1, differential === "input");
+  const outputs = sidePins("output", rightBodyX, 1, differential === "output");
+  const pinXs = [...inputs, ...outputs].map(({ pin }) => pin.at.x);
+  const leftPinX = Math.min(...pinXs);
+  const rightPinX = Math.max(...pinXs);
   return {
     schemaVersion: 1,
     id,
@@ -105,29 +206,14 @@ function converterSymbol({ id, name, defaultText, pointsRight }) {
       width: rightPinX - leftPinX + 8,
       height: (BODY_HALF_HEIGHT + 4) * 2,
     },
-    pins: [
-      {
-        name: "IN",
-        role: "input",
-        at: { x: leftPinX, y: 0 },
-        direction: "west",
-        presentation: { visibility: "visible", leadLength: LEAD_LENGTH },
-      },
-      {
-        name: "OUT",
-        role: "output",
-        at: { x: rightPinX, y: 0 },
-        direction: "east",
-        presentation: { visibility: "visible", leadLength: LEAD_LENGTH },
-      },
-    ],
+    pins: [...inputs, ...outputs].map(({ pin }) => pin),
     primitives: [
-      {
+      ...inputs.map(({ pin, contactX, y }) => ({
         kind: "line",
-        from: { x: leftPinX, y: 0 },
-        to: { x: leftBodyX, y: 0 },
-        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
-      },
+        from: { x: pin.at.x, y },
+        to: { x: contactX, y },
+        style: LEAD_STYLE,
+      })),
       {
         kind: "polygon",
         points,
@@ -136,12 +222,14 @@ function converterSymbol({ id, name, defaultText, pointsRight }) {
         stroke: "foreground",
         style: { strokeRole: "emphasis", lineCap: "butt", lineJoin: "miter" },
       },
-      {
+      ...outputs.map(({ pin, contactX, y }) => ({
         kind: "line",
-        from: { x: rightBodyX, y: 0 },
-        to: { x: rightPinX, y: 0 },
-        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
-      },
+        from: { x: contactX, y },
+        to: { x: pin.at.x, y },
+        style: LEAD_STYLE,
+      })),
+      ...(differential === "input" ? polarityMarks("input", inputs, -1) : []),
+      ...(differential === "output" ? polarityMarks("output", outputs, 1) : []),
     ],
     variants: [],
     formulaPresentation: {
@@ -171,6 +259,24 @@ const CONVERTERS = [
     houseReason:
       "The reference draws converter internals, never a block standing for one on a sheet. Drawn here as the ADC's mirror so a signal chain reads in both directions.",
   },
+  {
+    id: "adc-differential",
+    name: "Differential Analog-to-Digital Converter",
+    defaultText: "ADC",
+    pointsRight: false,
+    differential: "input",
+    houseReason:
+      "The ADC's arrow with a differential input: IN+ and IN- enter the slanted faces a grid row either side of the point, marked as the differential op-amp and comparator are, so two signal lines need not meet at one pin.",
+  },
+  {
+    id: "dac-differential",
+    name: "Differential Digital-to-Analog Converter",
+    defaultText: "DAC",
+    pointsRight: true,
+    differential: "output",
+    houseReason:
+      "The DAC's arrow with a differential output: OUT+ and OUT- leave the slanted faces a grid row either side of the point, mirroring the differential ADC.",
+  },
 ];
 
 const catalog = JSON.parse(await readComponentProjection(catalogPath));
@@ -191,7 +297,7 @@ for (const converter of CONVERTERS) {
     reviewStatus: "reviewed",
     provenance: "house",
     houseReason: converter.houseReason,
-    pinOrder: ["IN", "OUT"],
+    pinOrder: symbol.pins.map((pin) => pin.name),
     palette: true,
     automaticMappings: [],
     manualOnlyReason:

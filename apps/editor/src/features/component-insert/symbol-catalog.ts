@@ -75,6 +75,8 @@ export function symbolCategory(symbolId: string): string {
     [
       "adc",
       "dac",
+      "adc-differential",
+      "dac-differential",
       "opamp",
       "opamp-wide",
       "opamp-lettered",
@@ -187,6 +189,10 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "No Connect: mark intentionally unused pins; activates a tool, not a device",
   "comparator-differential":
     "Fully differential comparator — complementary OUT+ / OUT−; input/output pin spacing: 20",
+  "adc-differential":
+    "ADC with a differential input — IN+ / IN−; pin spacing: 20",
+  "dac-differential":
+    "DAC with a differential output — OUT+ / OUT−; pin spacing: 20",
   tcoil:
     "Bridged T-coil: two coupled windings with a bridge capacitor across the ends",
   "center-tap-inductor":
@@ -325,6 +331,8 @@ const SYMBOL_ORDER: readonly string[] = [
   "comparator-differential",
   "adc",
   "dac",
+  "adc-differential",
+  "dac-differential",
   "annotation-arrow",
   "annotation-line",
   "annotation-polyline",

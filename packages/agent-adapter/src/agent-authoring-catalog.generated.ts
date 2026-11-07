@@ -3121,6 +3121,102 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "adc-differential",
+      name: "Differential Analog-to-Digital Converter",
+      category: "analog-block",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: true,
+      coefficient: false,
+      bounds: {
+        x: -50,
+        y: -20,
+        width: 90,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -50,
+            y: 10,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -50,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 40,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "dac-differential",
+      name: "Differential Digital-to-Analog Converter",
+      category: "analog-block",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: true,
+      coefficient: false,
+      bounds: {
+        x: -40,
+        y: -20,
+        width: 90,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "IN",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 0,
+          },
+        },
+        {
+          name: "OUT+",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 50,
+            y: 10,
+          },
+        },
+        {
+          name: "OUT-",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 50,
+            y: -10,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "and-gate-3",
       name: "AND Gate (3 inputs)",
       category: "logic",

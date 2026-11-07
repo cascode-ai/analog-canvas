@@ -52,7 +52,11 @@ export type BuiltInModelRecipe =
     }
   | {
       readonly family: "signal";
-      readonly implementation: "multiplier" | "quantizer";
+      readonly implementation:
+        | "multiplier"
+        | "quantizer"
+        | "differential-input-quantizer"
+        | "differential-output-quantizer";
     }
   | { readonly family: "comparator"; readonly implementation: "comparator" }
   | { readonly family: "passive"; readonly implementation: "crystal" }
@@ -151,6 +155,20 @@ const analog = {
     "8",
     "bits",
     "Ideal quantizer: the input code, as a voltage between VSS and VDD, maps onto 2^bits output levels.",
+  ),
+  adc_differential: parameter(
+    "bits",
+    "Resolution",
+    "8",
+    "bits",
+    "Ideal quantizer: IN+ − IN− from −(VDD−VSS)/2 to +(VDD−VSS)/2 maps onto 2^bits levels between VSS and VDD, without a clock.",
+  ),
+  dac_differential: parameter(
+    "bits",
+    "Resolution",
+    "8",
+    "bits",
+    "Ideal quantizer: the input code, as a voltage between VSS and VDD, maps onto 2^bits levels of OUT+ − OUT−, centred on (VDD+VSS)/2.",
   ),
 } as const;
 
@@ -287,6 +305,14 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   multiplier: { family: "signal", implementation: "multiplier" },
   adc: { family: "signal", implementation: "quantizer" },
   dac: { family: "signal", implementation: "quantizer" },
+  adc_differential: {
+    family: "signal",
+    implementation: "differential-input-quantizer",
+  },
+  dac_differential: {
+    family: "signal",
+    implementation: "differential-output-quantizer",
+  },
   inverter: { family: "logic", implementation: "inverter" },
   buffer: { family: "logic", implementation: "buffer" },
   delay_cell: { family: "logic", implementation: "delay" },

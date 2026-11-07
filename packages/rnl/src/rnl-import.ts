@@ -737,8 +737,8 @@ export function drawnModelTypes(snapshot: RnlSnapshot): Map<string, string> {
  * The library blocks the drawing's parts call where Analog Canvas writes
  * their calls without a body for `format` (`callOnlyBlock`), as the symbols
  * it draws them with say it: `$DAC` a DAC, a call symbol of the file a
- * flip-flop's artwork. A master whose parts are drawn as anything else is
- * none.
+ * flip-flop's artwork, the file's own stencil a differential ADC. A master
+ * whose parts are drawn as anything else is none.
  */
 export function drawnCalledBlocks(
   snapshot: RnlSnapshot,
@@ -764,9 +764,12 @@ export function drawnCalledBlocks(
         ...RNL_SYMBOLS.filter(
           (row) =>
             row.ac !== null &&
-            !row.inline &&
             row.symbol === symbol.name &&
-            family(row.package) === family(symbol.package),
+            (row.inline
+              ? symbol.package === null &&
+                symbol.level !== null &&
+                matchesInlineRnlSymbol(row, symbol.definition)
+              : family(row.package) === family(symbol.package)),
         ),
         ...[callSymbolFromDefinition(symbol) ?? []].flat(),
       ];

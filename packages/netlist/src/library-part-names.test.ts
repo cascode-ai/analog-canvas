@@ -207,6 +207,8 @@ const NO_OTHER_NAME = [
   ["spectre", "multiplier"],
   ["spectre", "adc"],
   ["spectre", "dac"],
+  ["spectre", "adc_differential"],
+  ["spectre", "dac_differential"],
 ] as const;
 const hasNoOtherName = ({ format, target }: (typeof BASELINES)[number]) =>
   NO_OTHER_NAME.some((entry) => entry[0] === format && entry[1] === target);

@@ -11,6 +11,7 @@ import {
   isIdealComparatorBody,
   idealComparatorModelTarget,
   isIdealOpampBody,
+  subcircuitDescriptor,
 } from "@icm/devices";
 import type { SpiceBuiltInBody } from "@icm/spice";
 
@@ -394,9 +395,10 @@ export function callOnlyBlock(
   const contract = builtInModelContract(
     format === "spice" ? name.toLowerCase() : name,
   );
+  // Any Library symbol drawing the body, an input-swapped sibling included.
   if (
     !contract ||
-    contract.symbolId !== symbolId ||
+    subcircuitDescriptor(symbolId)?.target !== contract.target ||
     contract.backends[format] !== "external"
   )
     return null;

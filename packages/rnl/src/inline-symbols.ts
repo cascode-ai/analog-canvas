@@ -10,20 +10,32 @@ import { rnlLength, symbolShapes } from "./shapes.js";
 import type { RnlSymbol } from "./symbol-map.js";
 import type { RnlSymbolDefinitionView } from "./rnl-import.js";
 
+/**
+ * The bodies no RNL package draws a symbol for. The first stencils list the
+ * supplies last, as files written with them already do; the others keep
+ * their body's own port order, which a call-only Spectre body cannot change.
+ */
+const SUPPLIES_LAST_TARGETS = new Set([
+  DIFFERENTIAL_COMPARATOR_TARGET,
+  "delay_cell",
+]);
+const INLINE_TARGETS = new Set([
+  ...SUPPLIES_LAST_TARGETS,
+  "adc_differential",
+  "dac_differential",
+]);
+
 /** Artwork with new electrical interfaces is defined in the file itself. */
 export const inlineRnlSymbols: readonly RnlSymbol[] = builtInSymbols.flatMap(
   (symbol): RnlSymbol[] => {
     const descriptor = subcircuitDescriptor(symbol.id);
-    if (
-      !descriptor ||
-      (descriptor.target !== DIFFERENTIAL_COMPARATOR_TARGET &&
-        descriptor.target !== "delay_cell")
-    )
-      return [];
-    const ports = [
-      ...descriptor.ports.filter((port) => !port.supply),
-      ...descriptor.ports.filter((port) => port.supply),
-    ];
+    if (!descriptor || !INLINE_TARGETS.has(descriptor.target)) return [];
+    const ports = SUPPLIES_LAST_TARGETS.has(descriptor.target)
+      ? [
+          ...descriptor.ports.filter((port) => !port.supply),
+          ...descriptor.ports.filter((port) => port.supply),
+        ]
+      : descriptor.ports;
     const terminalName = (port: (typeof ports)[number]) =>
       port.supply === "VDD"
         ? "vp"

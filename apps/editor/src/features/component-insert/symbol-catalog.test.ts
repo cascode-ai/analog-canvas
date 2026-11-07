@@ -371,6 +371,8 @@ describe("reach order inside a category", () => {
       "comparator-differential",
       "adc",
       "dac",
+      "adc-differential",
+      "dac-differential",
     ]);
     expect(blocks.slice(0, 4).map((id) => libraryDisplayName(id, id))).toEqual([
       "Op Amp",

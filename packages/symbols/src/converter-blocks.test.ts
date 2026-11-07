@@ -4,6 +4,41 @@ import { requireRazaviCatalogSymbol } from "./razavi-catalog.js";
 import { SYMBOL_STANDARD_GRID } from "@icm/model";
 
 const CONVERTERS = ["adc", "dac"] as const;
+const DIFFERENTIAL = [
+  { id: "adc-differential", base: "adc", pins: ["IN+", "IN-", "OUT"] },
+  { id: "dac-differential", base: "dac", pins: ["IN", "OUT+", "OUT-"] },
+] as const;
+
+type Point = { readonly x: number; readonly y: number };
+
+/** On one of the outline's edges, not merely inside its box. */
+function onOutline(point: Point, outline: readonly Point[]): boolean {
+  return outline.some((from, index) => {
+    const to = outline[(index + 1) % outline.length]!;
+    const cross =
+      (to.x - from.x) * (point.y - from.y) -
+      (to.y - from.y) * (point.x - from.x);
+    return (
+      Math.abs(cross) < 1e-9 &&
+      point.x >= Math.min(from.x, to.x) &&
+      point.x <= Math.max(from.x, to.x) &&
+      point.y >= Math.min(from.y, to.y) &&
+      point.y <= Math.max(from.y, to.y)
+    );
+  });
+}
+
+/** Strictly inside a convex outline. */
+function inside(point: Point, outline: readonly Point[]): boolean {
+  const sides = outline.map((from, index) => {
+    const to = outline[(index + 1) % outline.length]!;
+    return Math.sign(
+      (to.x - from.x) * (point.y - from.y) -
+        (to.y - from.y) * (point.x - from.x),
+    );
+  });
+  return sides.every((side) => side === sides[0] && side !== 0);
+}
 
 function bodyPolygon(symbolId: string) {
   const symbol = requireRazaviCatalogSymbol(symbolId);
@@ -108,6 +143,74 @@ describe("converter blocks", () => {
       expect(presentation!.defaultFormula).toBe(text);
       // Naming a block is not scaling it.
       expect(presentation!.supportsCoefficient).toBe(false);
+    }
+  });
+
+  it("draws each differential sibling as its converter's arrow and label", () => {
+    for (const { id, base } of DIFFERENTIAL) {
+      expect(bodyPolygon(id).points).toEqual(bodyPolygon(base).points);
+      expect(requireRazaviCatalogSymbol(id).formulaPresentation).toEqual(
+        requireRazaviCatalogSymbol(base).formulaPresentation,
+      );
+    }
+  });
+
+  it("brings a differential pair to the slanted faces, 20 apart, its pins in the single pin's column", () => {
+    for (const { id, base, pins } of DIFFERENTIAL) {
+      const symbol = requireRazaviCatalogSymbol(id);
+      expect(symbol.pins.map((pin) => pin.name)).toEqual(pins);
+      const pair = symbol.pins.filter((pin) => /[+-]$/u.test(pin.name));
+      expect(pair.map((pin) => pin.at.y)).toEqual([10, -10]);
+      // One cell beyond the point, where the single-ended converter's pin
+      // on that side is: wires arrive clear of the point.
+      const single = requireRazaviCatalogSymbol(base).pins.find(
+        (pin) => pin.direction === pair[0]!.direction,
+      )!;
+      for (const pin of pair) expect(pin.at.x).toBe(single.at.x);
+      const outline = bodyPolygon(id).points;
+      for (const pin of symbol.pins) {
+        const lead = symbol.primitives.find(
+          (primitive) =>
+            primitive.kind === "line" &&
+            [primitive.from, primitive.to].some(
+              (end) => end.x === pin.at.x && end.y === pin.at.y,
+            ),
+        );
+        if (!lead || lead.kind !== "line")
+          throw new Error(`${id} ${pin.name} has no lead`);
+        const contact =
+          lead.from.x === pin.at.x && lead.from.y === pin.at.y
+            ? lead.to
+            : lead.from;
+        expect(contact.y, `${id} ${pin.name} lead`).toBe(pin.at.y);
+        expect(pin.presentation.leadLength).toBe(
+          Math.abs(contact.x - pin.at.x),
+        );
+        expect(onOutline(contact, outline), `${id} ${pin.name} contact`).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it("marks + and − inside the body, on the rows of the pins they name", () => {
+    for (const { id } of DIFFERENTIAL) {
+      const symbol = requireRazaviCatalogSymbol(id);
+      const outline = bodyPolygon(id).points;
+      const marks = symbol.primitives.filter((primitive) =>
+        primitive.part?.includes("polarity"),
+      );
+      expect(marks).toHaveLength(3);
+      const row = (name: string) =>
+        symbol.pins.find((pin) => pin.name.endsWith(name))!.at.y;
+      for (const mark of marks) {
+        if (mark.kind !== "line") throw new Error(`${id} mark is not a line`);
+        const y = (mark.from.y + mark.to.y) / 2;
+        expect(y).toBe(row(mark.part!.endsWith("negative") ? "-" : "+"));
+        expect(inside(mark.from, outline) && inside(mark.to, outline)).toBe(
+          true,
+        );
+      }
     }
   });
 });

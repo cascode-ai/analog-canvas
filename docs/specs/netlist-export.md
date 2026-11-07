@@ -175,7 +175,12 @@ pins.
   single table; drawing: [Razavi contract](razavi-visual-contract.md#signal-flow-adder-signs).
 - Multiplier: `gain`·V(A)·V(B), `gain` default 1/V. ADC/DAC: 2^`bits` (default 8)
   levels between VSS and VDD, unclocked, output VSS + LSB·code clamped, so
-  ADC→DAC reproduces the quantized input.
+  ADC→DAC reproduces the quantized input. The differential ADC
+  (`adc_differential`, `VIP VIN VOUT`) codes V(VIP,VIN) + Vs/2, so ±Vs/2 spans
+  every code; the differential DAC (`dac_differential`, `VIN VOP VON`) decodes
+  as the DAC to a level q above VSS and drives OUT± = VSS + Vs/2 ± (q − Vs/2)/2,
+  so differential ADC→DAC reproduces the quantized differential input about
+  mid-supply. `Vs=V(VDD,VSS)`.
 - Comparator (`icm_ideal_comparator`, [contract](../../packages/devices/src/ideal-comparator.ts)):
   vlow + (high − vlow)·½(1 + tanh(V(VIP,VIN)/`vtransition`)). `vhigh` is `VDD`
   (default; resolved like a Block supply, `MISSING_BLOCK_SUPPLY` when two

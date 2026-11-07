@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "dac-differential",
+    "name": "Differential Digital-to-Analog Converter",
+    "viewBox": {
+      "x": -44,
+      "y": -24,
+      "width": 98,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "IN",
+        "role": "input",
+        "at": {
+          "x": -40,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT+",
+        "role": "output",
+        "at": {
+          "x": 50,
+          "y": 10
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 20
+        }
+      },
+      {
+        "name": "OUT-",
+        "role": "output",
+        "at": {
+          "x": 50,
+          "y": -10
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 20
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -40,
+          "y": 0
+        },
+        "to": {
+          "x": -30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -30,
+            "y": -20
+          },
+          {
+            "x": 20,
+            "y": -20
+          },
+          {
+            "x": 40,
+            "y": 0
+          },
+          {
+            "x": 20,
+            "y": 20
+          },
+          {
+            "x": -30,
+            "y": 20
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 30,
+          "y": 10
+        },
+        "to": {
+          "x": 50,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 30,
+          "y": -10
+        },
+        "to": {
+          "x": 50,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 22,
+          "y": 7
+        },
+        "to": {
+          "x": 22,
+          "y": 13
+        },
+        "part": "output-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 19,
+          "y": 10
+        },
+        "to": {
+          "x": 25,
+          "y": 10
+        },
+        "part": "output-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 19,
+          "y": -10
+        },
+        "to": {
+          "x": 25,
+          "y": -10
+        },
+        "part": "upright-output-polarity-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      }
+    ],
+    "variants": [],
+    "formulaPresentation": {
+      "defaultFormula": "DAC",
+      "supportsCoefficient": false,
+      "center": {
+        "x": 0.28,
+        "y": 0
+      },
+      "fontSize": 12
+    }
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "dac-differential",
+    "symbolId": "dac-differential",
+    "target": "dac_differential",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN"
+      },
+      {
+        "name": "VOP",
+        "direction": "output",
+        "pinName": "OUT+"
+      },
+      {
+        "name": "VON",
+        "direction": "output",
+        "pinName": "OUT-"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "dac-differential",
+    "name": "Differential Digital-to-Analog Converter",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "The DAC's arrow with a differential output: OUT+ and OUT- leave the slanted faces a grid row either side of the point, mirroring the differential ADC.",
+    "pinOrder": ["IN", "OUT+", "OUT-"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A converter block stands for a subsystem; SPICE has no primitive for one.",
+    "assetPath": "dac-differential.json"
+  }
+}
