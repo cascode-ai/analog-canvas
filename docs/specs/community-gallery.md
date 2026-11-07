@@ -139,8 +139,7 @@ entries, keyset cursor, limit ≤60.
   datasets' circuits), `liked=1` (signed out selects none), `parts=0-5,…` (ANY
   taxonomy size; unknown narrows nothing), `q`, authorized `attention`/`reason`.
 - `order`: `newest` (default), `oldest`, `parts`/`fewest` (unknown counts
-  last), `likes` (most first, then newest), `name`/`name-desc`
-  (case-insensitive, then id), or `random` with
+  last), `likes` (most first, then newest), or `random` with
   `seed=[a-z0-9]{1,16}`; the cursor is opaque. A page's ids are sorted off
   the covering metadata index and its tiles read off the card index, never
   the rows behind their Projects and previews.
@@ -325,6 +324,8 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
   `POST /api/auth/users/role` `{email, role}` for every account with that
   verified email. Bin and maintenance stay admin-only. No bulk model fill.
 - `POST /api/gallery/<id>/like` (same-origin) toggles one like per account.
+  The Owner's accounts instead add a heart each press and take one back with
+  `?take=1` (⌥-click), the last taking the like away; `likes` counts hearts.
 - Withdraw is immediate and restorable; Reject takes preset reasons plus a note
   and, ticked by default, emails the author that reason (the account's address,
   else the one it published with; replies to the Owner; never an AI account);

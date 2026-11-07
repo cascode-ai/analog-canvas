@@ -634,7 +634,8 @@ export async function routeGalleryRequest(
     return Response.json(payload, { status });
   }
   // A like is a reader's mark, not a change of the circuit: a dataset's
-  // entries take it too, in their own store.
+  // entries take it too, in their own store. The Owner's accounts give a
+  // heart more each time, and `?take=1` takes one back (toggleLike).
   if (
     segments.length === 2 &&
     segments[1] === "like" &&
@@ -649,7 +650,13 @@ export async function routeGalleryRequest(
     const { status, payload } = await callGallery(
       likedSource ? withGalleryStore(env, likedSource) : env,
       "toggle-like",
-      { id: segments[0], userId: user.id, at: new Date().toISOString() },
+      {
+        id: segments[0],
+        userId: user.id,
+        at: new Date().toISOString(),
+        owner: user.isOwner === true,
+        take: url.searchParams.get("take") === "1",
+      },
     );
     return Response.json(payload, { status });
   }

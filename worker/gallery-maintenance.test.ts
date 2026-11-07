@@ -203,7 +203,7 @@ describe("off-site Gallery backup credential", () => {
     expect(afterSave.snapshotRevision).not.toBe(store.snapshotRevision);
     // A like is Gallery data, so it restarts both.
     env.gallerySql.exec(
-      "INSERT INTO gallery_likes VALUES (?, ?, ?)",
+      "INSERT INTO gallery_likes (entry_id, user_id, liked_at) VALUES (?, ?, ?)",
       id,
       "u1",
       "2026-10-07",
@@ -898,7 +898,7 @@ describe("gallery administration", () => {
       }),
     );
     env.gallerySql.exec(
-      "INSERT INTO gallery_likes VALUES (?, ?, ?)",
+      "INSERT INTO gallery_likes (entry_id, user_id, liked_at) VALUES (?, ?, ?)",
       id,
       "visitor",
       "2026-09-20",
@@ -984,7 +984,9 @@ describe("gallery administration", () => {
     ).toBe(400);
     expect(
       env.gallerySql.exec("SELECT * FROM gallery_likes").toArray(),
-    ).toEqual([{ entry_id: id, user_id: "visitor", liked_at: "2026-09-20" }]);
+    ).toEqual([
+      { entry_id: id, user_id: "visitor", liked_at: "2026-09-20", hearts: 1 },
+    ]);
     expect(
       env.gallerySql.exec("SELECT id FROM gallery_entries").toArray(),
     ).toHaveLength(1);
@@ -1012,13 +1014,13 @@ describe("gallery administration", () => {
       }),
     );
     env.gallerySql.exec(
-      "INSERT INTO gallery_likes VALUES (?, ?, ?)",
+      "INSERT INTO gallery_likes (entry_id, user_id, liked_at) VALUES (?, ?, ?)",
       id,
       "u1",
       "2026-09-20",
     );
     env.gallerySql.exec(
-      "INSERT INTO gallery_likes VALUES (?, ?, ?)",
+      "INSERT INTO gallery_likes (entry_id, user_id, liked_at) VALUES (?, ?, ?)",
       id,
       "u2",
       "2026-09-20",

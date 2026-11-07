@@ -324,23 +324,27 @@ export function ReviewPage({
     [card, busy, fetchLike, flags, note, marks, cards, go, index, replaceCard],
   );
 
-  // A like is the reader's own mark, apart from the review.
-  const toggleLike = useCallback(async () => {
-    if (!card) return;
-    const response = await fetchLike(
-      `/api/gallery/${encodeURIComponent(card.id)}/like`,
-      { method: "POST", credentials: "same-origin" },
-    ).catch(() => null);
-    if (!response?.ok) {
-      setMessage("The like could not be saved.");
-      return;
-    }
-    const { likedByViewer, likes } = (await response.json()) as {
-      likedByViewer: boolean;
-      likes: number;
-    };
-    replaceCard(card.id, (each) => ({ ...each, likedByViewer, likes }));
-  }, [card, fetchLike, replaceCard]);
+  // A like is the reader's own mark, apart from the review. The Owner's
+  // accounts add a heart each press, and ⌥-click takes one back.
+  const toggleLike = useCallback(
+    async (take = false) => {
+      if (!card) return;
+      const response = await fetchLike(
+        `/api/gallery/${encodeURIComponent(card.id)}/like${take ? "?take=1" : ""}`,
+        { method: "POST", credentials: "same-origin" },
+      ).catch(() => null);
+      if (!response?.ok) {
+        setMessage("The like could not be saved.");
+        return;
+      }
+      const { likedByViewer, likes } = (await response.json()) as {
+        likedByViewer: boolean;
+        likes: number;
+      };
+      replaceCard(card.id, (each) => ({ ...each, likedByViewer, likes }));
+    },
+    [card, fetchLike, replaceCard],
+  );
 
   const toggleFlag = useCallback((key: string) => {
     setFailing(true);
@@ -522,11 +526,15 @@ export function ReviewPage({
                       className={`review-like${card.likedByViewer ? " on" : ""}`}
                       aria-pressed={card.likedByViewer}
                       title={
-                        card.likedByViewer
-                          ? "Remove your like (L)"
-                          : "Like this circuit (L)"
+                        owner
+                          ? "Add a heart (L; ⌥-click takes one back)"
+                          : card.likedByViewer
+                            ? "Remove your like (L)"
+                            : "Like this circuit (L)"
                       }
-                      onClick={() => void toggleLike()}
+                      onClick={(event) =>
+                        void toggleLike(owner && event.altKey)
+                      }
                     >
                       <HeartIcon filled={card.likedByViewer} />{" "}
                       {num(card.likes)}

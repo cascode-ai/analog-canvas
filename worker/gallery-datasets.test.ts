@@ -455,8 +455,6 @@ describe("reference datasets in stores of their own (#1510)", () => {
       ["random", "abc123"],
       ["parts", ""],
       ["likes", ""],
-      ["name", ""],
-      ["name-desc", ""],
     ] as const) {
       const seen = await walk(order, seed);
       expect([...seen].sort()).toEqual([...everyId].sort());

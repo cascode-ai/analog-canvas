@@ -337,7 +337,7 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
   const likes = new Map(
     sql
       .exec<{ entry_id: string; count: number }>(
-        "SELECT entry_id, COUNT(*) AS count FROM gallery_likes GROUP BY entry_id",
+        "SELECT entry_id, SUM(hearts) AS count FROM gallery_likes GROUP BY entry_id",
       )
       .toArray()
       .map((row) => [row.entry_id, row.count]),

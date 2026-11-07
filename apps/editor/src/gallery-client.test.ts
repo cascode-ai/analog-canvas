@@ -352,6 +352,32 @@ describe("refreshing a loaded wall", () => {
     expect(merged.total).toBe(4);
   });
 
+  it("holds each circuit once when a shuffled wall refreshes", () => {
+    // Two shuffled pages loaded; the refresh answers the same first page,
+    // whose cursor is a place in the shuffle, not a time.
+    const loaded = [
+      entry("x", 10),
+      entry("y", 50),
+      entry("z", 20),
+      entry("w", 40),
+    ];
+    const page = {
+      entries: [entry("x", 10), entry("y", 50)],
+      nextCursor: "r123|y",
+    };
+    const merged = withLoadedTail(
+      { entries: loaded, nextCursor: "r9|w" },
+      page,
+    );
+    expect(merged.entries.map((item) => item.id)).toEqual(["x", "y", "z", "w"]);
+    expect(merged.nextCursor).toBe("r9|w");
+    // A page that shares nothing with the wall keeps nothing behind it.
+    const other = { entries: [entry("v", 30)], nextCursor: "r5|v" };
+    expect(withLoadedTail({ entries: loaded, nextCursor: "r9|w" }, other)).toBe(
+      other,
+    );
+  });
+
   it("answers with the page when nothing older was loaded or all fits", () => {
     const page = {
       entries: [entry("c", 50)],

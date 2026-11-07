@@ -91,14 +91,18 @@ function requestedAttentionKind(body: Record<string, unknown>): string | null {
 }
 
 /**
- * One thumb per account, and pressing it again takes it back. The entry has
- * to exist and be public: a like is not a way to discover a withdrawn one.
+ * One thumb per account, and pressing it again takes it back. One of the
+ * Owner's accounts gives one heart more with each press instead, so a circuit
+ * it finds especially good weighs more on the wall; `take` takes one back,
+ * the last one taking the like away. The entry has to exist and be public: a
+ * like is not a way to discover a withdrawn one.
  */
 export function toggleLike(
   sql: SqlStorage,
   id: string,
   userId: string,
   at: string,
+  { owner = false, take = false }: { owner?: boolean; take?: boolean } = {},
 ): Response {
   const entry = sql
     .exec<{ status: string }>(
@@ -109,34 +113,51 @@ export function toggleLike(
   if (!entry || entry.status !== "public") {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
-  const existing = sql
-    .exec<{ entry_id: string }>(
-      "SELECT entry_id FROM gallery_likes WHERE entry_id = ? AND user_id = ?",
-      id,
-      userId,
-    )
-    .toArray();
-  if (existing.length > 0) {
+  const hearts =
+    sql
+      .exec<{ hearts: number }>(
+        "SELECT hearts FROM gallery_likes WHERE entry_id = ? AND user_id = ?",
+        id,
+        userId,
+      )
+      .toArray()[0]?.hearts ?? 0;
+  const next = !owner
+    ? Number(hearts === 0)
+    : take
+      ? Math.max(hearts - 1, 0)
+      : hearts + 1;
+  if (next === 0 && hearts > 0) {
     sql.exec(
       "DELETE FROM gallery_likes WHERE entry_id = ? AND user_id = ?",
       id,
       userId,
     );
-  } else {
+  } else if (next > 0 && hearts === 0) {
     sql.exec(
-      "INSERT INTO gallery_likes(entry_id, user_id, liked_at) VALUES (?, ?, ?)",
+      "INSERT INTO gallery_likes(entry_id, user_id, liked_at, hearts) VALUES (?, ?, ?, ?)",
       id,
       userId,
       at,
+      next,
+    );
+  } else if (next !== hearts) {
+    sql.exec(
+      "UPDATE gallery_likes SET hearts = ? WHERE entry_id = ? AND user_id = ?",
+      next,
+      id,
+      userId,
     );
   }
   const likes =
     sql
       .exec<{
         count: number;
-      }>("SELECT COUNT(*) AS count FROM gallery_likes WHERE entry_id = ?", id)
+      }>(
+        "SELECT COALESCE(SUM(hearts), 0) AS count FROM gallery_likes WHERE entry_id = ?",
+        id,
+      )
       .toArray()[0]?.count ?? 0;
-  return Response.json({ likes, likedByViewer: existing.length === 0 });
+  return Response.json({ likes, likedByViewer: next > 0 });
 }
 
 /**
@@ -295,23 +316,17 @@ const searchMatchesByRequest = new WeakMap<object, string>();
 /**
  * The wall's orders (#1615): a shuffle, the default, that a seed keeps steady
  * from page to page; by time, newest or oldest first; by part count, most
- * or fewest first, circuits whose part count is unknown last either way; by
- * likes, most first; or by name, A to Z or Z to A (letters' case aside).
+ * or fewest first, circuits whose part count is unknown last either way; or
+ * by likes, most first.
  */
 export type WallOrder =
-  | "random"
-  | "newest"
-  | "oldest"
-  | "parts"
-  | "fewest"
-  | "likes"
-  | "name"
-  | "name-desc";
+  "random" | "newest" | "oldest" | "parts" | "fewest" | "likes";
 
 const KNOWN_PARTS =
   "CASE WHEN e.component_count_version > 0 THEN e.component_count END";
-/** A circuit's likes, counted off the likes' entry index. */
-const WALL_LIKES = "(SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id)";
+/** A circuit's likes: every account's hearts on it. */
+const WALL_LIKES =
+  "(SELECT COALESCE(SUM(hearts), 0) FROM gallery_likes WHERE entry_id = e.id)";
 /** Part counts as each part order sorts them, unknown counts at the end. */
 const WALL_PARTS = {
   parts: `COALESCE(${KNOWN_PARTS}, -1)`,
@@ -331,9 +346,7 @@ export function wallOrder(body: Record<string, unknown>): {
     body.order === "oldest" ||
     body.order === "parts" ||
     body.order === "fewest" ||
-    body.order === "likes" ||
-    body.order === "name" ||
-    body.order === "name-desc"
+    body.order === "likes"
   )
     return { order: body.order, seed: "" };
   return { order: "newest", seed: "" };
@@ -381,14 +394,7 @@ const DESCENDING: Record<WallOrder, readonly boolean[]> = {
   fewest: [false, true, true],
   likes: [true, true, true],
   random: [false, false],
-  name: [false, false],
-  "name-desc": [true, true],
 };
-
-/** A name as SQLite's NOCASE compares it: ASCII letters folded, nothing else. */
-function nocase(name: string): string {
-  return name.replace(/[A-Z]/gu, (letter) => letter.toLowerCase());
-}
 
 export function compareWallKeys(
   order: WallOrder,
@@ -556,11 +562,6 @@ export function list(
         key: [row.likes, row.created_at, row.id],
         cursor: `l${row.likes}|${row.created_at}|${row.id}`,
       };
-    if (order === "name" || order === "name-desc")
-      return {
-        key: [nocase(row.name), row.id],
-        cursor: `${order === "name" ? "a" : "z"}${JSON.stringify([row.name, row.id])}`,
-      };
     return {
       key: [row.created_at, row.id],
       cursor: `${order === "oldest" ? "o" : ""}${row.created_at}|${row.id}`,
@@ -628,35 +629,12 @@ export function list(
         );
         tailBindings.push(Number(likes), Number(likes), rest);
       }
-    } else if (order === "name" || order === "name-desc") {
-      const tag = order === "name" ? "a" : "z";
-      const resume = cursor?.startsWith(tag)
-        ? (() => {
-            try {
-              const parsed = JSON.parse(cursor.slice(1)) as unknown;
-              return Array.isArray(parsed) &&
-                parsed.length === 2 &&
-                parsed.every((part) => typeof part === "string")
-                ? (parsed as [string, string])
-                : null;
-            } catch {
-              return null;
-            }
-          })()
-        : null;
-      if (resume) {
-        const beyond = order === "name" ? ">" : "<";
-        where.push(
-          `(e.name COLLATE NOCASE ${beyond} ? OR (e.name COLLATE NOCASE = ? AND e.id ${beyond} ?))`,
-        );
-        tailBindings.push(resume[0], resume[0], resume[1]);
-      }
     } else {
       const tag = ascending ? "o" : "";
       if (
         cursor &&
         cursor.startsWith(tag) &&
-        (tag || !/^[ofplraz]/u.test(cursor))
+        (tag || !/^[ofplr]/u.test(cursor))
       ) {
         where.push(`(e.created_at || '|' || e.id) ${after} ?`);
         tailBindings.push(cursor.slice(tag.length));
@@ -667,11 +645,7 @@ export function list(
         ? `${WALL_PARTS[order]} ${order === "parts" ? "DESC" : "ASC"}, e.created_at DESC, e.id DESC`
         : order === "likes"
           ? `${WALL_LIKES} DESC, e.created_at DESC, e.id DESC`
-          : order === "name"
-            ? "e.name COLLATE NOCASE ASC, e.id ASC"
-            : order === "name-desc"
-              ? "e.name COLLATE NOCASE DESC, e.id DESC"
-              : time;
+          : time;
     // The page's ids first, sorted off the covering index; then their rows.
     const ids = sql
       .exec<{ id: string }>(
@@ -832,7 +806,7 @@ export function catalog(sql: SqlStorage): Response {
          e.owner_user_id, e.schema_version, e.tags, e.curation_json,
          e.netlistable, e.ai_generated, e.preview_revision, e.preview_width,
          e.preview_height,
-         (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes
+         ${WALL_LIKES} AS likes
        FROM gallery_entries e WHERE e.status = 'public'
        ORDER BY e.name COLLATE NOCASE ASC, e.name ASC, e.id ASC`,
     )
@@ -871,8 +845,6 @@ export function ownerData(
   sql: SqlStorage,
   body: Record<string, unknown>,
 ): Response {
-  const likes =
-    "(SELECT COUNT(*) FROM gallery_likes l WHERE l.entry_id = e.id)";
   const parts =
     "CASE WHEN e.component_count_version > 0 THEN e.component_count END";
   // Opens in all, and since `since` (the last seven days, from the route).
@@ -902,7 +874,7 @@ export function ownerData(
       }>(
         `SELECT e.id, e.name, e.created_at, ${parts} AS parts,
                 t.transistors, e.netlistable, e.ai_generated,
-                ${HAS_TESTBENCH} AS simulatable, ${likes} AS likes,
+                ${HAS_TESTBENCH} AS simulatable, ${WALL_LIKES} AS likes,
                 ${opens} AS opens, ${recent} AS recent
          FROM gallery_entries e
          ${CURRENT_TRANSISTORS}
@@ -954,7 +926,7 @@ export function ownerData(
               SUM(${parts}) AS components, SUM(t.transistors) AS transistors,
               COUNT(t.entry_id) AS counted,
               SUM(e.ai_generated = 1) AS ai, SUM(e.netlistable = 1) AS netlist,
-              SUM(${likes}) AS likes, SUM(${opens}) AS opens,
+              SUM(${WALL_LIKES}) AS likes, SUM(${opens}) AS opens,
               MAX(e.created_at) AS latest
        FROM gallery_entries e INDEXED BY idx_gallery_entries_feed_stats_wall
        ${CURRENT_TRANSISTORS}

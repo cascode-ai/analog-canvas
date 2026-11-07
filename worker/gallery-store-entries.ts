@@ -584,7 +584,8 @@ function ownedEntries(
 
 /** Owned rows with the likes they hold, as the wall counts them. */
 const OWNED_ROWS = `SELECT e.*,
-    (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes
+    (SELECT COALESCE(SUM(hearts), 0) FROM gallery_likes WHERE entry_id = e.id)
+      AS likes
   FROM gallery_entries e`;
 
 export function mine(sql: SqlStorage, ownerUserId: string): Response {

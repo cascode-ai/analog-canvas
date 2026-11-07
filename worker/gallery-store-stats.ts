@@ -287,8 +287,8 @@ function summarize(
               CASE WHEN e.component_count_version > 0
                 THEN e.component_count END AS components,
               t.transistors, t.entry_id IS NOT NULL AS counted,
-              (SELECT COUNT(*) FROM gallery_likes l WHERE l.entry_id = e.id)
-                AS likes
+              (SELECT COALESCE(SUM(l.hearts), 0) FROM gallery_likes l
+                WHERE l.entry_id = e.id) AS likes
        FROM gallery_entries e INDEXED BY idx_gallery_entries_feed_stats_wall
        ${CURRENT_TRANSISTORS}
        WHERE e.status = 'public' ${where}`,

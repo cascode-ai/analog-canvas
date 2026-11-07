@@ -741,17 +741,13 @@ export async function loadGalleryTags(
 }
 
 /**
- * The wall's size in words, said only when the server has said it: a
- * pre-totals API or a still-loading feed renders nothing rather than a guess.
- * "Filtered" names the server-side narrowing (author, tags); "match" belongs
- * to the text query, whose clause counts VISIBLE entries and says "so far"
- * until the feed is exhausted.
- */
-/**
- * A refresh of the wall already on screen answers only its newest page. The
+ * A refresh of the wall already on screen answers only its first page. The
  * older pages already loaded stay behind it, so a search over them does not
- * blink out and back while the loader pages through the wall again. Entries
- * older than the new page's cursor are kept, in the server's order.
+ * blink out and back while the loader pages through the wall again: the
+ * entries loaded after the last one the new page also holds, in the order
+ * they had, in every order the wall takes (#1615). None of them is one the
+ * new page holds, since a tile twice leaves the wall a stale tile React no
+ * longer tracks; a page that shares nothing with the wall keeps nothing.
  */
 export function withLoadedTail<
   T extends { entries: GalleryFeedEntry[]; nextCursor: string | null },
@@ -760,10 +756,14 @@ export function withLoadedTail<
   page: T,
 ): T {
   if (page.nextCursor === null) return page;
-  const boundary = page.nextCursor;
-  const tail = previous.entries.filter(
-    (entry) => `${entry.createdAt}|${entry.id}` < boundary,
-  );
+  const onPage = new Set(page.entries.map((entry) => entry.id));
+  const last = previous.entries.findLastIndex((entry) => onPage.has(entry.id));
+  const tail =
+    last < 0
+      ? []
+      : previous.entries
+          .slice(last + 1)
+          .filter((entry) => !onPage.has(entry.id));
   return tail.length === 0
     ? page
     : {
@@ -773,6 +773,13 @@ export function withLoadedTail<
       };
 }
 
+/**
+ * The wall's size in words, said only when the server has said it: a
+ * pre-totals API or a still-loading feed renders nothing rather than a guess.
+ * "Filtered" names the server-side narrowing (author, tags); "match" belongs
+ * to the text query, whose clause counts VISIBLE entries and says "so far"
+ * until the feed is exhausted.
+ */
 export function galleryCountLabel(
   total: number | null,
   options: {

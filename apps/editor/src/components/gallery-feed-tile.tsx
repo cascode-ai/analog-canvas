@@ -75,6 +75,7 @@ export function GalleryWallTile({
   setReviewing,
   withdrawEntry,
   verifySimulation,
+  ownerHearts = false,
 }: {
   entry: GalleryFeedEntry;
   linkedId: string | null;
@@ -91,13 +92,15 @@ export function GalleryWallTile({
     nextAuthor: string | null,
     nextOwnerUserId?: string | null,
   ) => void;
-  toggleLike: (entryId: string) => Promise<void>;
+  toggleLike: (entryId: string, take?: boolean) => Promise<void>;
   toggleTag: (tag: string) => void;
   setRejecting: (entry: GalleryFeedEntry) => void;
   setReviewing: (entry: GalleryFeedEntry) => void;
   withdrawEntry: (entry: GalleryFeedEntry) => Promise<void>;
   /** The Owner's accounts' "Verify simulation" (#1545); absent for anyone else. */
   verifySimulation?: ((entry: GalleryFeedEntry) => Promise<void>) | undefined;
+  /** One of the Owner's accounts: each press adds a heart, ⌥ takes one back. */
+  ownerHearts?: boolean;
 }) {
   // A reference dataset's circuit is read-only, on its own wall or the
   // community's (#1697): no likes, no owner tools.
@@ -224,17 +227,23 @@ export function GalleryWallTile({
               data-testid={`gallery-like-${entry.id}`}
               aria-pressed={entry.likedByViewer === true}
               title={
-                entry.likedByViewer ? "Remove your like" : "Like this circuit"
+                ownerHearts
+                  ? "Add a heart (⌥-click takes one back)"
+                  : entry.likedByViewer
+                    ? "Remove your like"
+                    : "Like this circuit"
               }
               aria-label={
-                entry.likedByViewer
-                  ? `Remove your like from ${entry.name}`
-                  : `Like ${entry.name}`
+                ownerHearts
+                  ? `Add a heart to ${entry.name}`
+                  : entry.likedByViewer
+                    ? `Remove your like from ${entry.name}`
+                    : `Like ${entry.name}`
               }
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                void toggleLike(entry.id);
+                void toggleLike(entry.id, ownerHearts && event.altKey);
               }}
             >
               <HeartIcon filled={entry.likedByViewer === true} />
