@@ -63,9 +63,10 @@ rollback does not touch it.
 Production records its rollback target before deploying, then verifies served
 entry bytes against the candidate (as brotli to a brotli client, never brotli
 to a gzip client), shell/editor/analytics, public routes, MCP manifest,
-stale-asset handling, one Agent session create/remove, and an OP/TRAN/DC/Noise
-simulation smoke. If secret sync or verification fails it restores the recorded
-Worker version, verifies it and still fails the run; without a rollback target
+stale-asset handling and one Agent session create/remove. It runs no
+simulation: the simulator host has its own health checks, and a simulator
+problem never rolls the website back. If secret sync or verification fails it
+restores the recorded Worker version, verifies it and still fails the run; without a rollback target
 it reports that a human must intervene. The simulator token is required before
 deploying.
 
@@ -154,8 +155,7 @@ The gateway authenticates with `SIMULATION_UPSTREAM_TOKEN`. The [host
 composition](../containers/ngspice/host/compose.yaml) gives each executor a
 private scratch volume, without credentials, host ports or egress. The SG13G2
 Dockerfile builds the qualified Profile and proves its bundled identity.
-Host health checks both routes and Production smoke runs the 13-device SG13G2
-reference circuit with a combinational gate.
+Host health checks both routes.
 
 The [Simulator host workflow](../.github/workflows/simulator-host.yml) rebuilds
 the host on `main` pushes affecting its declared runtime paths. Changes only
@@ -180,7 +180,8 @@ ngspice untouched. Neither engine falls back to the other.
 
 Production runs go through the managed `/api/simulation/runs` (signed-in
 accounts only); `/api/simulate` is the direct/local transport and never a
-fallback. Deploy smoke checks use a per-deploy `SIMULATION_SMOKE_TOKEN`.
+fallback. The smoke scripts (`scripts/*-smoke.mjs`) are run by hand; against
+Production they need a `SIMULATION_SMOKE_TOKEN` put on the Worker.
 [Simulation execution](specs/simulation-execution.md) owns the run contracts.
 
 ## China region
