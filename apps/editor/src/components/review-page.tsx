@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import "../styles/gallery-entry.css";
 import "../styles/datasets-page.css";
@@ -546,21 +553,40 @@ function VerdictNote({
     comparison.verdict !== "match" && comparison.category
       ? ` · ${comparison.category}`
       : "";
+  const text = (
+    <>
+      <b>
+        {verdict.label}
+        {kind}
+      </b>
+      {sentence && sentence !== comparison.category ? ` — ${sentence}` : ""}
+    </>
+  );
+  // Two lines show; when that cuts the sentence, hovering shows all of it.
+  const shown = useRef<HTMLParagraphElement>(null);
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const element = shown.current;
+    if (element) setCut(element.scrollHeight > element.clientHeight + 1);
+  }, [sentence]);
   return (
-    <div className="review-verdict" data-testid="review-verdict">
+    <div
+      className={`review-verdict${cut ? " cut" : ""}`}
+      data-testid="review-verdict"
+      tabIndex={cut ? 0 : undefined}
+    >
       <span
         className={`datasets-icon v-${comparison.verdict}`}
         aria-hidden="true"
       >
         {verdict.icon}
       </span>
-      <p>
-        <b>
-          {verdict.label}
-          {kind}
-        </b>
-        {sentence && sentence !== comparison.category ? ` — ${sentence}` : ""}
-      </p>
+      <p ref={shown}>{text}</p>
+      {cut ? (
+        <p className="review-verdict-full" role="tooltip">
+          {text}
+        </p>
+      ) : null}
     </div>
   );
 }

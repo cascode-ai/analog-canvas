@@ -232,6 +232,33 @@
   color: var(--icm-text);
 }
 
+/* A cut sentence in full, over the netlist, while the pointer or focus is on
+   the note. */
+.review-verdict.cut {
+  position: relative;
+  cursor: help;
+}
+
+.review-verdict .review-verdict-full {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: none;
+  padding: 8px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
+  -webkit-line-clamp: unset;
+}
+
+.review-verdict.cut:hover .review-verdict-full,
+.review-verdict.cut:focus-within .review-verdict-full {
+  display: block;
+}
+
 /* A long thread scrolls in place rather than pushing the controls down. */
 .review-others {
   max-height: 3.4em;
