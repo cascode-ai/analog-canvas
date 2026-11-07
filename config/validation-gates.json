@@ -382,6 +382,7 @@
       "config/validation-gates.json",
       "docs/testing/**",
       "scripts/gate-*.mjs",
+      "scripts/generate-*.mjs",
       "scripts/check-test-impact.mjs",
       "scripts/ci-plan.mjs",
       "scripts/check-core-results*.mjs",

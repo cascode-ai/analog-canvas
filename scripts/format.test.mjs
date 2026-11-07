@@ -1,8 +1,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterAll, afterEach, expect, it } from "vitest";
 
 const roots = [];
 const cli = resolve("scripts/format.mjs");
@@ -18,9 +18,8 @@ function commit(root) {
   git(root, "commit", "-qm", "fixture");
   return git(root, "rev-parse", "HEAD");
 }
-function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "ci-format-"));
-  roots.push(root);
+function prepareFixture() {
+  const root = mkdtempSync(join(tmpdir(), "ci-format-seed-"));
   git(root, "init", "-q");
   git(root, "config", "core.autocrlf", "false");
   git(root, "config", "user.email", "fixture@example.invalid");
@@ -33,6 +32,15 @@ function fixture() {
     "scripts/one.mjs",
   ])
     put(root, path, "export const value = 1;\n");
+  return root;
+}
+const prepared = prepareFixture();
+afterAll(() => rmSync(prepared, { recursive: true, force: true }));
+
+function fixture() {
+  const root = mkdtempSync(join(tmpdir(), "ci-format-"));
+  roots.push(root);
+  cpSync(prepared, root, { recursive: true });
   return root;
 }
 function check(root, base) {

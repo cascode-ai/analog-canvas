@@ -81,6 +81,46 @@ describe("verify:pr selection", () => {
     expect(choose(["apps/editor/e2e/copy-paste.spec.ts"])).toBeNull();
   });
 
+  it.each([
+    ["runner", "scripts/test-standalone-setup.mjs"],
+    ["shared contract test", "packages/model/src/schema.test.ts"],
+    ["generator", "scripts/generate-component-library.mjs"],
+    ["shared fixture", "fixtures/projects/minimal/project.icproj.json"],
+    ["selection rules", "scripts/lib/verify-pr-selection.mjs"],
+    ["unknown input", "tooling/unknown.toml"],
+  ])("keeps full units for a mixed ordinary test and %s change", (_, path) => {
+    const paths = ["apps/editor/src/components/account.test.tsx", path];
+    expect(unitTestCommand(planValidation(paths, catalog), paths)).toEqual([
+      "pnpm",
+      "test:local",
+    ]);
+  });
+
+  it("traces a test's shared helper strictly and falls back if either path was deleted", () => {
+    const paths = [
+      "apps/editor/src/features/netlist-export/rnl-core.test-support.ts",
+      "apps/editor/src/features/netlist-export/rnl-round-trip.test.ts",
+    ];
+    const plan = planValidation(paths, catalog);
+    expect(unitTestCommand(plan, paths)).toEqual([
+      "pnpm",
+      "exec",
+      "vitest",
+      "related",
+      "--run",
+      "--maxWorkers=2",
+      "--no-passWithNoTests",
+      ...paths,
+    ]);
+    for (const deleted of paths)
+      expect(
+        unitTestCommand(
+          plan,
+          paths.filter((path) => path !== deleted),
+        ),
+      ).toEqual(["pnpm", "test:local"]);
+  });
+
   it("checks the files format:check reads, and no others", () => {
     // config/, docs/, fixtures/ and worker/ are outside format:check's
     // globs: generated artifacts there keep their generator's layout.
