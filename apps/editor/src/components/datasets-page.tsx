@@ -226,8 +226,8 @@ export function DatasetsPage({
           </p>
         ) : (
           <>
-            <ReviewSummary fetchLike={fetchLike} />
             <SourceNote source={filters.source} />
+            <ReviewSummary fetchLike={fetchLike} />
             <section className="datasets-stats">
               <VerdictCard
                 rows={rows}
@@ -333,11 +333,11 @@ function SourceTabs({
     [null, "All datasets", `${num(count(null))} circuits`],
     ...COMPARISON_SOURCES.map(
       (source) =>
-        [
-          source.key,
-          source.name,
-          `${num(count(source.key))} · ${source.license}`,
-        ] as [string, string, string],
+        [source.key, source.name, `${num(count(source.key))} circuits`] as [
+          string,
+          string,
+          string,
+        ],
     ),
   ];
   return (
@@ -380,10 +380,10 @@ function SourceNote({ source }: { source: string | null }) {
         </>
       ) : (
         <>
+          Licences:{" "}
           {COMPARISON_SOURCES.map(
-            (item) => `${item.name} (${item.license})`,
-          ).join(" and ")}
-          . Original figures are shown under each dataset&apos;s licence.
+            (item) => `${item.name} ${item.license}`,
+          ).join(" · ")}
         </>
       )}
     </p>

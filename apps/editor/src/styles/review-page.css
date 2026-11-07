@@ -666,9 +666,19 @@
 /* Statistics: who reviewed and fixed how much; the Owner's open issues. */
 .review-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  /* Side by side only where the reviewers' seven columns fit. */
+  grid-template-columns: repeat(auto-fit, minmax(30rem, 1fr));
   gap: 12px;
-  margin: 8px 0 4px;
+  margin: 0 0 12px;
+}
+
+.review-summary > .datasets-card {
+  min-width: 0;
+}
+
+/* A narrow card scrolls its table rather than spilling past its edge. */
+.review-people-scroll {
+  overflow-x: auto;
 }
 
 .review-export {
@@ -707,8 +717,10 @@
   font-weight: 600;
 }
 
+/* One issue a row: its drawing, what is wrong (the whole text on hover),
+   who said so. Ten rows show; the rest scroll. */
 .review-issue-list {
-  max-height: 14rem;
+  max-height: calc(10 * 24px);
   margin: 0;
   padding: 0;
   overflow: auto;
@@ -717,16 +729,43 @@
 }
 
 .review-issue-list li {
-  padding: 2px 0;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  height: 24px;
+  line-height: 24px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.review-issue-list li:last-child {
+  border-bottom: 0;
+}
+
+.review-issue-list .what {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-issue-list a,
 .review-disputed a {
+  flex-shrink: 0;
+  color: var(--icm-accent);
   font-family: var(--icm-font-mono);
+  text-decoration: none;
+}
+
+.review-issue-list a:hover,
+.review-disputed a:hover {
+  text-decoration: underline;
 }
 
 .review-issue-list .meta {
+  flex-shrink: 0;
   color: var(--icm-text-muted);
+  white-space: nowrap;
 }
 
 .review-disputed {

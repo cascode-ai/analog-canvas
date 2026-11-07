@@ -112,32 +112,34 @@ export function ReviewSummary({
         ) : people.length === 0 ? (
           <p className="datasets-empty">No reviews or fixes yet.</p>
         ) : (
-          <table className="review-people-table">
-            <thead>
-              <tr>
-                <th>Person</th>
-                <th>Reviews</th>
-                <th>Passed</th>
-                <th>Flagged</th>
-                <th>Drawings fixed</th>
-                <th>Objects changed</th>
-                <th>Issues answered</th>
-              </tr>
-            </thead>
-            <tbody>
-              {people.map((row) => (
-                <tr key={row.person}>
-                  <td>{row.person}</td>
-                  <td>{num(row.reviews)}</td>
-                  <td>{num(row.passes)}</td>
-                  <td>{num(row.issues)}</td>
-                  <td>{num(row.circuits)}</td>
-                  <td>{num(row.changes)}</td>
-                  <td>{num(row.addressed)}</td>
+          <div className="review-people-scroll">
+            <table className="review-people-table">
+              <thead>
+                <tr>
+                  <th>Person</th>
+                  <th>Reviews</th>
+                  <th>Passed</th>
+                  <th>Flagged</th>
+                  <th title="Drawings fixed">Fixed</th>
+                  <th title="Objects changed in those fixes">Objects</th>
+                  <th title="Issues answered">Answered</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {people.map((row) => (
+                  <tr key={row.person}>
+                    <td>{row.person}</td>
+                    <td>{num(row.reviews)}</td>
+                    <td>{num(row.passes)}</td>
+                    <td>{num(row.issues)}</td>
+                    <td>{num(row.circuits)}</td>
+                    <td>{num(row.changes)}</td>
+                    <td>{num(row.addressed)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
       {open ? (
@@ -176,11 +178,18 @@ export function ReviewSummary({
           ) : (
             <ul className="review-issue-list">
               {open.issues.slice(0, 60).map((issue) => (
-                <li key={issue.id}>
-                  <a href={link(issue.store, issue.entryId)}>{issue.entryId}</a>{" "}
-                  {issue.flags.map(flagLabel).join(", ")}
-                  {issue.note ? <span> — {issue.note}</span> : null}
-                  <span className="meta"> · {issue.reviewer}</span>
+                <li
+                  key={issue.id}
+                  title={[issue.flags.map(flagLabel).join(", "), issue.note]
+                    .filter(Boolean)
+                    .join(" — ")}
+                >
+                  <a href={link(issue.store, issue.entryId)}>{issue.entryId}</a>
+                  <span className="what">
+                    {issue.flags.map(flagLabel).join(", ")}
+                    {issue.note ? ` — ${issue.note}` : null}
+                  </span>
+                  <span className="meta">{issue.reviewer}</span>
                 </li>
               ))}
             </ul>
