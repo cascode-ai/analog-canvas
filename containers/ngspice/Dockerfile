@@ -104,10 +104,10 @@ RUN set -eu; \
 # Where the harness makes each run's private directory, and the two kernel
 # limits it starts the simulator under. The limits are set here rather than
 # defaulted in the harness because they only mean anything against a known
-# account: RLIMIT_NPROC counts every thread this uid owns on the host, and on
-# the operator host that is this harness, its gateway and the VACASK pair
-# (about 45 Node threads) plus one simulator. 128 processes is far above
-# anything ngspice reaches — it does not fork — and far below a fork bomb.
+# account: RLIMIT_NPROC counts every thread this UID owns on the host. The
+# operator Compose profiles separate Production and regional UIDs and set
+# SIMULATION_OMP_THREADS to the executor CPU quota. The run limit leaves room
+# for the profile's services and both ngspice executors under that quota.
 # 524288 blocks is 256 MiB in dash's 512-byte units, a ceiling on what one
 # `write` can pour onto the scratch disk; no rawfile of a schematic-sized
 # circuit comes near it. The harness reads both back at startup, as this

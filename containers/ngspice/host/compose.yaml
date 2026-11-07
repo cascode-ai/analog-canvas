@@ -7,6 +7,7 @@ services:
       context: ../../..
       dockerfile: containers/ngspice/Dockerfile
     container_name: analog-canvas-ngspice-executor
+    user: "10001:10001"
     # An init as PID 1 reaps the orphans of a deck whose process group was
     # killed; without it they stay zombies of this uid and count against the
     # run's RLIMIT_NPROC until the container restarts (#1665).
@@ -20,6 +21,8 @@ services:
     pids_limit: 256
     cpus: 8.0
     mem_limit: 16g
+    environment:
+      SIMULATION_OMP_THREADS: "8"
     volumes:
       - run-root:/var/lib/simulation
       # ngspice opens its scratch files with tmpfile(), which glibc always
@@ -42,6 +45,7 @@ services:
       context: ../../..
       dockerfile: containers/ngspice/sg13g2/Dockerfile
     container_name: analog-canvas-sg13g2-executor
+    user: "10001:10001"
     init: true
     restart: unless-stopped
     read_only: true
@@ -52,6 +56,8 @@ services:
     pids_limit: 256
     cpus: 8.0
     mem_limit: 16g
+    environment:
+      SIMULATION_OMP_THREADS: "8"
     volumes:
       - sg13g2-run-root:/var/lib/simulation
       - type: tmpfs
@@ -68,6 +74,7 @@ services:
   simulator:
     image: analog-canvas-ngspice:${SIMULATION_IMAGE_TAG:-local}
     container_name: analog-canvas-ngspice
+    user: "10001:10001"
     command:
       - node
       - /opt/harness/gateway.mjs
@@ -122,6 +129,7 @@ services:
   regional-executor:
     image: analog-canvas-ngspice:${SIMULATION_IMAGE_TAG:-local}
     profiles: [regional]
+    user: "10002:10002"
     init: true
     restart: unless-stopped
     read_only: true
@@ -130,8 +138,11 @@ services:
     pids_limit: 256
     cpus: 2.0
     mem_limit: 2g
+    environment:
+      SIMULATION_OMP_THREADS: "2"
+    tmpfs:
+      - /var/lib/simulation:rw,nosuid,nodev,size=536870912,uid=10002,gid=10002,mode=0700
     volumes:
-      - regional-run-root:/var/lib/simulation
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -141,6 +152,7 @@ services:
   regional-sg13g2:
     image: analog-canvas-sg13g2:${SIMULATION_IMAGE_TAG:-local}
     profiles: [regional]
+    user: "10002:10002"
     init: true
     restart: unless-stopped
     read_only: true
@@ -149,8 +161,11 @@ services:
     pids_limit: 256
     cpus: 2.0
     mem_limit: 2g
+    environment:
+      SIMULATION_OMP_THREADS: "2"
+    tmpfs:
+      - /var/lib/simulation:rw,nosuid,nodev,size=536870912,uid=10002,gid=10002,mode=0700
     volumes:
-      - regional-sg13g2-run-root:/var/lib/simulation
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -160,6 +175,7 @@ services:
   regional-gateway:
     image: analog-canvas-ngspice:${SIMULATION_IMAGE_TAG:-local}
     profiles: [regional]
+    user: "10002:10002"
     command: [node, /opt/harness/gateway.mjs]
     environment:
       SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "268435456"
@@ -180,10 +196,6 @@ services:
     networks: [regional-simulation, regional-ingress]
 
 volumes:
-  regional-run-root:
-    name: analog-canvas-regional-run-root
-  regional-sg13g2-run-root:
-    name: analog-canvas-regional-sg13g2-run-root
   sg13g2-run-root:
     name: analog-canvas-sg13g2-run-root
   run-root:

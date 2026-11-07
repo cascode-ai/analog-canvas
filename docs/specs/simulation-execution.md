@@ -182,13 +182,15 @@ Shared minimums for the hosted runner and the local host:
 
 ### How the hosted container meets it
 
-- uid 10001 cannot write simulator, models or harness (the workflow asserts it).
+- The [host profile's unprivileged UID](../deployment.md#where-the-simulator-runs)
+  cannot write simulator, models or harness.
 - The run root is image-prepared outside `/run`; the harness falls back to the
   platform temp dir and reports both in `/health`; no directory is
   `run-directory-unavailable`.
 - The per-run directory is cwd, `HOME`, `TMPDIR` and the only writable path; the
   deck is `deck.cir`, named relatively so no host path reaches the log. The
-  environment is only `PATH`, `HOME`, `TMPDIR`, `TERM`, `C` locale.
+  environment contains only `PATH`, `HOME`, `TMPDIR`, `TERM`, the `C` locale and
+  `OMP_NUM_THREADS`/`OMP_THREAD_LIMIT` from the host thread budget.
 - `.spiceinit` sets `filetype=ascii`; deck text is never modified.
 - The simulator runs in its own session and the deadline signals its group. A
   lease watchdog covers admission through cleanup; on expiry the harness marks
