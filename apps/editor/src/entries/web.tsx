@@ -64,7 +64,7 @@ export function mountWebEditor() {
   const startPath = window.location.pathname;
   // `/editor` and `/g/<id>`: every path no other page claims.
   const editorRoute =
-    !/^\/(?:analytics|moderation|privacy|changelog|account|mine)?\/?$/.test(
+    !/^\/(?:analytics|moderation|privacy|changelog|account|mine|datasets)?\/?$/.test(
       startPath,
     );
   // Unpaired Gallery visitors must not download the Editor/Agent runtime.
@@ -222,6 +222,14 @@ export function mountWebEditor() {
     ),
   );
 
+  const DatasetsPage = lazy(
+    guardedRouteChunk(() =>
+      import("../components/datasets-page").then((module) => ({
+        default: module.DatasetsPage,
+      })),
+    ),
+  );
+
   const PrivacyPage = lazy(
     guardedRouteChunk(() =>
       import("../components/privacy-page").then((module) => ({
@@ -313,6 +321,15 @@ export function mountWebEditor() {
           fallback={<div className="analytics-loading">Loading account…</div>}
         >
           <AccountPage />
+        </Suspense>
+      );
+    }
+    if (/^\/datasets\/?$/.test(path)) {
+      return (
+        <Suspense
+          fallback={<div className="analytics-loading">Loading datasets…</div>}
+        >
+          <DatasetsPage visitStats={stats} />
         </Suspense>
       );
     }

@@ -240,6 +240,33 @@ describe("posting import batches with the Owner token (#1769)", () => {
       "6 posted, 1 failed.",
       "failed ag-5: no-result",
     ]);
+
+    // Comparisons post from a JSON-lines file to their own route, for a
+    // dataset that takes them.
+    const file = join(scratch(), "comparisons.jsonl");
+    writeFileSync(file, '{"id":"ag-1"}\n\n{"id":"ag-2"}\n');
+    const sent = [];
+    const comparing = (source) =>
+      main(["--post-comparisons", file, "--source", source], {
+        root,
+        env: { ANALOG_CANVAS_OWNER_TOKEN: "acot_t" },
+        fetchImpl: async (url, init) => {
+          const { comparisons } = JSON.parse(init.body);
+          sent.push({ url, ids: comparisons.map((item) => item.id) });
+          return Response.json({
+            results: comparisons.map((item) => ({ id: item.id, ok: true })),
+          });
+        },
+        log: () => {},
+      });
+    expect(await comparing("analoggenie")).toBe(0);
+    expect(sent).toEqual([
+      {
+        url: "https://analog-canvas.tokenzhang.com/api/gallery/sources/analoggenie/comparisons",
+        ids: ["ag-1", "ag-2"],
+      },
+    ]);
+    await expect(comparing("amsnet")).rejects.toThrow(/no comparisons/u);
   });
 
   it("sends the token over https, or plain http to this machine only", () => {

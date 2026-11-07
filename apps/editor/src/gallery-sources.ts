@@ -14,6 +14,8 @@ export interface GallerySource {
   license: string;
   homepage: string;
   paper?: string;
+  /** Whether its original figures may be shown beside our redraws. */
+  comparisons?: boolean;
 }
 
 const GALLERY_SOURCES: readonly GallerySource[] = registry.sources;
@@ -29,3 +31,7 @@ export function gallerySourceOfEntryId(id: string): GallerySource | null {
   const prefix = /^([a-z][a-z0-9]*)-/u.exec(id)?.[1];
   return GALLERY_SOURCES.find((source) => source.prefix === prefix) ?? null;
 }
+
+/** The datasets whose original figures /datasets sets beside our redraws. */
+export const COMPARISON_SOURCES: readonly GallerySource[] =
+  GALLERY_SOURCES.filter((source) => source.comparisons);

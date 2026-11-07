@@ -87,6 +87,26 @@ function DatasetIcon() {
   );
 }
 
+/** "Original vs redraw": two sheets side by side. */
+function CompareIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinejoin="round"
+    >
+      <rect x="2.5" y="4" width="8" height="16" rx="1.5" />
+      <rect x="13.5" y="4" width="8" height="16" rx="1.5" />
+    </svg>
+  );
+}
+
 /** An origin ("From Virtuoso"): a drawing carried out of another tool. */
 function ExportedIcon() {
   return (
@@ -273,6 +293,20 @@ export function GalleryQuickFilters({
           <DatasetIcon /> <span>Datasets</span>
           {quickCount("datasets")}
         </button>
+      ) : null}
+      {showDatasets ? (
+        // Each dataset circuit's original figure beside our redraw.
+        <a
+          className={`${quickMarkClass(false)} gallery-sidebar-link`}
+          href="/datasets"
+          data-testid="gallery-datasets-compare"
+          title="Each dataset circuit's original figure beside our redraw"
+        >
+          <CompareIcon /> <span>Original vs redraw</span>
+          <span className="gallery-sidebar-count" aria-hidden="true">
+            ›
+          </span>
+        </a>
       ) : null}
       {/* Where a circuit came from: an origin tag, filtered as one. */}
       {origins.map(({ tag, mark, count }) => {
