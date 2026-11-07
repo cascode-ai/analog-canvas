@@ -19,6 +19,17 @@ its workflows.
 - `STORE_BACKUP_TOKEN`, stored and rotated the same way, reads only
   `automated-backup?scope=store` pages.
 
+## Reviews capture
+
+`automated-backup?scope=reviews` (the Gallery credential) reads a store's
+[reviews](specs/community-gallery.md#reviews), fixes and reference images:
+`entryReviews`, `entryFixes`, `entryReferences`. `&source=<key>` reads a
+dataset's store instead of the community one; `source` with another scope is
+400 `invalid-source`. The scope has its own revision and change index, so a
+review restarts no Gallery capture. The weekly run captures it for the
+community and each dataset with comparisons, beside the Gallery archive.
+`schema-restore` does not restore it; recover rows from the offline archive.
+
 ## Gallery capture
 
 Each capture holds every Gallery row (all statuses, versions, likes, project

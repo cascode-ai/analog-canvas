@@ -26,7 +26,11 @@ import {
 } from "@icm/model";
 import { sameOrigin } from "./same-origin";
 import { withGalleryStore } from "./gallery-datasets";
-import { GALLERY_SOURCES, type GallerySource } from "./gallery-sources";
+import {
+  GALLERY_SOURCES,
+  gallerySourceByKey,
+  type GallerySource,
+} from "./gallery-sources";
 import { GALLERY_MAX_PROJECT_BYTES, type GalleryEnv } from "./gallery-store";
 import {
   callGallery,
@@ -618,9 +622,10 @@ export async function routeGalleryMaintenance(
 ): Promise<Response | null> {
   if (isAutomatedBackup(segments)) {
     // Each credential reads its own scope: Gallery-only, or the whole store
-    // with private Cloud Projects.
-    const scope =
-      url.searchParams.get("scope") === "store" ? "store" : "gallery";
+    // with private Cloud Projects. The Gallery credential also reads the
+    // reviews scope, of the community store or a dataset's (`source`).
+    const named = url.searchParams.get("scope");
+    const scope = named === "store" || named === "reviews" ? named : "gallery";
     if (
       scope === "store"
         ? !hasStoreBackupToken(request, env)
@@ -630,6 +635,13 @@ export async function routeGalleryMaintenance(
         { error: "unauthorized" },
         { status: 401, headers: { "cache-control": "no-store" } },
       );
+    const sourceKey = url.searchParams.get("source");
+    const source = sourceKey ? gallerySourceByKey(sourceKey) : null;
+    if (sourceKey && (!source || scope !== "reviews"))
+      return Response.json(
+        { error: "invalid-source" },
+        { status: 400, headers: { "cache-control": "no-store" } },
+      );
     if (request.method !== "GET")
       return Response.json(
         { error: "method-not-allowed" },
@@ -637,12 +649,16 @@ export async function routeGalleryMaintenance(
       );
     // The object allows only its scope's tables, so a Gallery page never
     // names a private Project.
-    const { status, payload } = await callGallery(env, "schema-backup", {
-      scope,
-      table: url.searchParams.get("table"),
-      after: url.searchParams.get("after"),
-      key: url.searchParams.get("key"),
-    });
+    const { status, payload } = await callGallery(
+      source ? withGalleryStore(env, source) : env,
+      "schema-backup",
+      {
+        scope,
+        table: url.searchParams.get("table"),
+        after: url.searchParams.get("after"),
+        key: url.searchParams.get("key"),
+      },
+    );
     return Response.json(payload, {
       status,
       headers: { "cache-control": "no-store" },

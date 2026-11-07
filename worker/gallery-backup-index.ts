@@ -6,10 +6,13 @@ export const BACKUP_TABLES = {
   galleryLikes: { name: "gallery_likes", keys: ["entry_id", "user_id"] },
   cloudProjects: { name: "cloud_projects", keys: ["id"] },
   cloudProjectVersions: { name: "cloud_project_versions", keys: ["id"] },
+  entryReviews: { name: "entry_reviews", keys: ["id"] },
+  entryFixes: { name: "entry_fixes", keys: ["id"] },
+  entryReferences: { name: "entry_references", keys: ["entry_id"] },
 } as const;
 export type BackupTable = keyof typeof BACKUP_TABLES;
 export const BACKUP_SCOPES: Record<
-  "gallery" | "store",
+  "gallery" | "store" | "reviews",
   readonly BackupTable[]
 > = {
   gallery: ["galleryEntries", "galleryEntryVersions", "galleryLikes"],
@@ -20,6 +23,10 @@ export const BACKUP_SCOPES: Record<
     "cloudProjects",
     "cloudProjectVersions",
   ],
+  // Reviews, fixes and reference images: each store's, a dataset's too.
+  // Their own scope, so a review restarts no Gallery capture and leaves the
+  // wall's cached statistics alone.
+  reviews: ["entryReviews", "entryFixes", "entryReferences"],
 };
 export type BackupScope = keyof typeof BACKUP_SCOPES;
 const RETAINED_REVISIONS = 100_000;
