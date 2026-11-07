@@ -8,6 +8,7 @@ import { FakeAgentHttp } from "../../../packages/agent-client/src/test-support/f
 import { callTool, listToolDefinitions } from "./tools.js";
 import type { ToolSessionState } from "./tools.js";
 import { readResourceContent } from "./resources.js";
+import { assembleServer, resolveConfig } from "./server.js";
 
 const MAX_TOOL_DESCRIPTION_LENGTH = 900;
 
@@ -101,6 +102,46 @@ describe("mcp tool surface", () => {
     );
     expect(result).toMatchObject({ runtime: { apiBaseUrl: http.baseUrl } });
   });
+  it("names the bound origin, and says so when ANALOG_CANVAS_API_URL was unset", async () => {
+    const defaulted = resolveConfig({});
+    expect(defaulted).toMatchObject({
+      apiBaseUrl: "https://analog-canvas.tokenzhang.com",
+      apiBaseUrlDefaulted: true,
+    });
+    expect(
+      resolveConfig({ ANALOG_CANVAS_API_URL: "http://localhost:18082" }),
+    ).not.toHaveProperty("apiBaseUrlDefaulted");
+    const http = new FakeAgentHttp({
+      baseUrl: "https://analog-canvas.tokenzhang.com",
+    });
+    const session: ToolSessionState = {
+      client: new AgentSessionClient({ http }),
+      apiBaseUrlDefaulted: true,
+    };
+    const { runtime } = parseText(
+      await callTool("connection_status", { refresh: false }, session),
+    ) as { runtime: Record<string, unknown> };
+    expect(runtime).toMatchObject({
+      apiBaseUrl: "https://analog-canvas.tokenzhang.com",
+      apiOrigin: "https://analog-canvas.tokenzhang.com",
+      apiOriginSource: "default",
+      note: expect.stringContaining("ANALOG_CANVAS_API_URL is unset"),
+    });
+    const { serverInfo } = assembleServer(defaulted, session);
+    expect(serverInfo.instructions).toContain(
+      "This server is bound to https://analog-canvas.tokenzhang.com",
+    );
+    expect(serverInfo.instructions).toContain("ANALOG_CANVAS_API_URL is unset");
+    const local = assembleServer(undefined, {
+      client: new AgentSessionClient({
+        http: new FakeAgentHttp({ baseUrl: "http://localhost:18082/" }),
+      }),
+    });
+    expect(local.serverInfo.instructions).toContain(
+      "This server is bound to http://localhost:18082 ",
+    );
+    expect(local.serverInfo.instructions).not.toContain("unset");
+  });
   it("reports an outdated adapter from the origin's manifest, read once per session (#1844)", async () => {
     const [major] = AGENT_MCP_VERSION.split(".").map(Number);
     const latestVersion = `${major! + 1}.0.0`;
@@ -165,6 +206,8 @@ describe("mcp tool surface", () => {
     expect(runtime).toEqual({
       version: AGENT_MCP_VERSION,
       apiBaseUrl: "https://relay.test",
+      apiOrigin: "https://relay.test",
+      apiOriginSource: "configured",
     });
     // A failed read is not kept: the next network read tries again.
     reachable = true;

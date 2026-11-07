@@ -239,7 +239,18 @@
     "/api/agent/claims": {
       "post": {
         "operationId": "agentClaimRedeem",
-        "description": "Exchange a human-provided claim for authorized Document IDs, a scoped bearer and a revocable connector. Repeating a valid claim rotates credentials and invalidates the earlier pairing.",
+        "description": "Exchange a human-provided claim for authorized Document IDs, a scoped bearer and a revocable connector. A claim is redeemed once; only its redeemer's retry within 2 minutes (same optional x-agent-redemption key) answers again, replacing the earlier credentials. Another site's claim is CLAIM_WRONG_SITE.",
+        "parameters": [
+          {
+            "name": "x-agent-redemption",
+            "in": "header",
+            "description": "Optional random key this client keeps for the Claim; a retry with the same key within 2 minutes is answered again",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,128}$"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -275,6 +286,9 @@
           },
           "413": {
             "$ref": "#/components/responses/REQUEST_TOO_LARGE"
+          },
+          "421": {
+            "$ref": "#/components/responses/CLAIM_WRONG_SITE"
           }
         }
       }
@@ -315,6 +329,9 @@
           },
           "413": {
             "$ref": "#/components/responses/REQUEST_TOO_LARGE"
+          },
+          "421": {
+            "$ref": "#/components/responses/CLAIM_WRONG_SITE"
           }
         }
       }
@@ -858,6 +875,23 @@
           }
         }
       },
+      "CLAIM_WRONG_SITE": {
+        "description": "Typed Agent session transport error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/agentTransportErrorResponse"
+            },
+            "example": {
+              "ok": false,
+              "error": {
+                "code": "CLAIM_WRONG_SITE",
+                "message": "This Claim or connector belongs to a different Analog Canvas site. Use the MCP server registered for the address shown in the copied connection message. This site is https://editor.example."
+              }
+            }
+          }
+        }
+      },
       "RATE_LIMITED": {
         "description": "Typed Agent session transport error",
         "content": {
@@ -1032,12 +1066,15 @@
                   "SESSION_EXPIRED",
                   "SESSION_PAUSED",
                   "SESSION_REVOKED",
+                  "SESSION_TAKEN_OVER",
                   "PROJECT_REPLACED",
                   "PROJECT_CONTEXT_STALE",
                   "NO_ACTIVE_PROJECT",
                   "CLAIM_INVALID",
                   "CLAIM_EXPIRED",
                   "CLAIM_ALREADY_USED",
+                  "CLAIM_ALREADY_REDEEMED",
+                  "CLAIM_WRONG_SITE",
                   "CONNECTOR_INVALID",
                   "CONNECTOR_EXPIRED",
                   "TOKEN_INVALID",

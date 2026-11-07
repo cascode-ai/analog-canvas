@@ -667,6 +667,11 @@ describe("MCP tools on the live editor", () => {
     const paired = JSON.parse(await reply({ claimCode: "session-1.code" }));
     const { editKinds, ...summary } = paired.capabilities;
     expect(paired.mode).toBe("claimed");
+    // The one site this server serves.
+    expect(paired.site).toEqual({
+      apiOrigin: new URL(editor.http.baseUrl).origin,
+      apiOriginSource: "configured",
+    });
     expect(editKinds).toContain("transact_document");
     const text = await reply({});
     const resumed = JSON.parse(text);

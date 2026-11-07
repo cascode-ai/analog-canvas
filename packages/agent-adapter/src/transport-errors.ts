@@ -54,6 +54,12 @@ export const AGENT_TRANSPORT_ERRORS: Record<
     category: "unrecoverable-credential",
     message: "Session has been revoked",
   },
+  SESSION_TAKEN_OVER: {
+    status: 409,
+    category: "unrecoverable-credential",
+    message:
+      "Another Agent connection redeemed this session's Claim and took over this editor tab. One adapter drives one editor tab: for a parallel chat open another editor tab and connect with its own Claim.",
+  },
   PROJECT_REPLACED: {
     status: 409,
     category: "unrecoverable-credential",
@@ -84,6 +90,19 @@ export const AGENT_TRANSPORT_ERRORS: Record<
     status: 409,
     category: "unrecoverable-credential",
     message: "Claim code was already used by a legacy session",
+  },
+  CLAIM_ALREADY_REDEEMED: {
+    status: 409,
+    category: "unrecoverable-credential",
+    message:
+      "This Claim was already redeemed; a Claim connects one adapter. If this chat is connected, call connect without a Claim; otherwise open another editor tab and connect with its own Claim.",
+  },
+  CLAIM_WRONG_SITE: {
+    status: 421,
+    // The credential is valid at its own site: nothing here may discard it.
+    category: "request-rejected",
+    message:
+      "This Claim or connector belongs to a different Analog Canvas site. Use the MCP server registered for the address shown in the copied connection message.",
   },
   CONNECTOR_INVALID: {
     status: 401,

@@ -18,6 +18,11 @@ export type AgentSessionStatus = "active" | "paused" | "revoked";
 export interface AgentSessionLimits {
   /** Short hand-off claim lifetime. */
   claimTtlMs: number;
+  /**
+   * After its first redemption a Claim answers only the same adapter's retry
+   * (a lost response), and only this long. Absent in older persisted limits.
+   */
+  claimRetryGraceMs?: number;
   /** Capability token lifetime. */
   tokenTtlMs: number;
   /** Sliding inactivity timeout; every credential also requires a live session. */
@@ -41,8 +46,11 @@ export interface AgentSessionLimits {
   resultCacheMaxBytes: number;
 }
 
+const CLAIM_RETRY_GRACE_MS = 2 * 60 * 1000;
+
 export const DEFAULT_AGENT_SESSION_LIMITS: AgentSessionLimits = {
   claimTtlMs: 30 * 60 * 1000,
+  claimRetryGraceMs: CLAIM_RETRY_GRACE_MS,
   tokenTtlMs: 8 * 60 * 60 * 1000,
   sessionTtlMs: 30 * 60 * 1000,
   // The bearer lifetime: presence alone never outlives what an Agent that
@@ -99,7 +107,22 @@ interface ClaimRecord {
   expiresAt: number;
   /** Retained only to distinguish an unclaimed session in persisted state. */
   used: boolean;
+  /** First redemption; absent in Claims redeemed before single use. */
+  redeemedAt?: number;
+  /** Verifier of the redemption key the first redeemer named, if any. */
+  redeemedBy?: string;
 }
+
+/**
+ * Credentials a later redemption replaced while they were live, so their
+ * holder learns it was taken over instead of guessing at a stale token.
+ */
+interface ReplacedCredential {
+  connector: string;
+  token?: string;
+}
+
+const REPLACED_CREDENTIAL_LIMIT = 4;
 
 interface TokenRecord {
   verifier: string;
@@ -160,6 +183,7 @@ interface SessionInternals {
   claim: ClaimRecord | null;
   token: TokenRecord | null;
   connector: ConnectorRecord | null;
+  replaced: ReplacedCredential[];
   rateWindow: RateWindow;
   cache: Map<string, CachedResult>;
   pending: Map<string, PendingRequest>;
@@ -197,6 +221,8 @@ export interface PersistedAgentSessionState {
   token: TokenRecord | null;
   /** Optional for backward-compatible restore of pre-M4 Durable Object state. */
   connector?: ConnectorRecord | null;
+  /** Optional for states saved before takeover was reported. */
+  replaced?: ReplacedCredential[];
   rateWindow: RateWindow;
   /**
    * Write requests in flight. States saved before completed writes were
@@ -276,6 +302,7 @@ export class AgentSessionMachine {
         },
         token: null,
         connector: null,
+        replaced: [],
         rateWindow: { windowStart: options.now, count: 0 },
         cache: new Map(),
         pending: new Map(),
@@ -363,6 +390,7 @@ export class AgentSessionMachine {
           ? { ...state.token, scopes: [...state.token.scopes] }
           : null,
         connector: state.connector ? { ...state.connector } : null,
+        replaced: (state.replaced ?? []).map((value) => ({ ...value })),
         rateWindow: { ...state.rateWindow },
         // Project-bearing responses remain process-local. Only request IDs,
         // payload hashes, and timestamps survive to preserve at-most-once
@@ -401,6 +429,9 @@ export class AgentSessionMachine {
       connector: this.internals.connector
         ? { ...this.internals.connector }
         : null,
+      ...(this.internals.replaced.length
+        ? { replaced: this.internals.replaced.map((value) => ({ ...value })) }
+        : {}),
       rateWindow: { ...this.internals.rateWindow },
       // Completed writes are stored apart, one record each, so the state
       // stays the same size however many writes a session completes.
@@ -460,12 +491,16 @@ export class AgentSessionMachine {
   }
 
   /**
-   * Exchange a valid hand-off claim for a scoped capability token. A retry
-   * replaces the previous token because the session retains one verifier.
+   * Exchange a valid hand-off claim for a scoped capability token. A Claim
+   * is redeemed once: afterwards only a retry by the same redeemer within
+   * the grace window is answered, with fresh credentials that replace the
+   * previous ones. A redeemer that named no key (older adapters, raw HTTP)
+   * cannot be told apart, so a retry that names none is answered too.
    */
   redeemClaim(
     code: string,
     now: number,
+    redemptionKey?: string,
   ):
     | { ok: true; claim: RedeemedAgentClaim }
     | { ok: false; code: AgentTransportErrorCode } {
@@ -479,9 +514,37 @@ export class AgentSessionMachine {
       return { ok: false, code: "CLAIM_INVALID" };
     }
     if (now >= claim.expiresAt) return { ok: false, code: "CLAIM_EXPIRED" };
+    const redeemer =
+      redemptionKey === undefined ? undefined : secretVerifier(redemptionKey);
+    if (claim.used) {
+      const grace = this.limits.claimRetryGraceMs ?? CLAIM_RETRY_GRACE_MS;
+      const sameRedeemer =
+        claim.redeemedBy === undefined || redeemer === undefined
+          ? claim.redeemedBy === redeemer
+          : constantTimeEqual(redeemer, claim.redeemedBy);
+      const retry =
+        claim.redeemedAt !== undefined &&
+        now - claim.redeemedAt < grace &&
+        sameRedeemer;
+      if (!retry) return { ok: false, code: "CLAIM_ALREADY_REDEEMED" };
+    } else {
+      claim.used = true;
+      claim.redeemedAt = now;
+      if (redeemer !== undefined) claim.redeemedBy = redeemer;
+    }
 
     this.recordActivity(now);
-    claim.used = true;
+    if (this.internals.connector) {
+      this.internals.replaced = [
+        ...this.internals.replaced,
+        {
+          connector: this.internals.connector.verifier,
+          ...(this.internals.token
+            ? { token: this.internals.token.verifier }
+            : {}),
+        },
+      ].slice(-REPLACED_CREDENTIAL_LIMIT);
+    }
     const connectorToken = this.random();
     const connectorExpiresAt = this.internals.expiresAt;
     this.internals.connector = {
@@ -509,11 +572,14 @@ export class AgentSessionMachine {
     const lifecycle = this.lifecycleCode(now);
     if (lifecycle) return { ok: false, code: lifecycle };
     const connector = this.internals.connector;
-    if (
-      !connector ||
-      !constantTimeEqual(secretVerifier(connectorToken), connector.verifier)
-    ) {
-      return { ok: false, code: "CONNECTOR_INVALID" };
+    const verifier = secretVerifier(connectorToken);
+    if (!connector || !constantTimeEqual(verifier, connector.verifier)) {
+      return {
+        ok: false,
+        code: this.replacedBy("connector", verifier)
+          ? "SESSION_TAKEN_OVER"
+          : "CONNECTOR_INVALID",
+      };
     }
     if (now >= connector.expiresAt) {
       return { ok: false, code: "CONNECTOR_EXPIRED" };
@@ -543,8 +609,14 @@ export class AgentSessionMachine {
     const lifecycle = this.lifecycleCode(now);
     if (lifecycle) return { ok: false, code: lifecycle };
     const record = this.internals.token;
-    if (!record || !constantTimeEqual(secretVerifier(token), record.verifier)) {
-      return { ok: false, code: "TOKEN_INVALID" };
+    const verifier = secretVerifier(token);
+    if (!record || !constantTimeEqual(verifier, record.verifier)) {
+      return {
+        ok: false,
+        code: this.replacedBy("token", verifier)
+          ? "SESSION_TAKEN_OVER"
+          : "TOKEN_INVALID",
+      };
     }
     if (now >= record.expiresAt) return { ok: false, code: "TOKEN_EXPIRED" };
     return {
@@ -837,6 +909,13 @@ export class AgentSessionMachine {
       tokenExpiresAt,
       scopes: [...this.internals.scopes],
     };
+  }
+
+  private replacedBy(kind: "connector" | "token", verifier: string): boolean {
+    return this.internals.replaced.some((replaced) => {
+      const previous = replaced[kind];
+      return previous !== undefined && constantTimeEqual(verifier, previous);
+    });
   }
 
   private lifecycleCode(now: number): AgentTransportErrorCode | null {

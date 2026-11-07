@@ -21,7 +21,7 @@ import {
 } from "./install.js";
 import { probeInstalledMcp } from "./installation-probe.js";
 import { MCP_SERVER_VERSION } from "./server.js";
-import { AGENT_MCP_VERSION } from "@icm/agent-adapter";
+import { AGENT_MCP_VERSION, agentMcpServerName } from "@icm/agent-adapter";
 
 const launch = {
   command: "C:\\node\\node.exe",
@@ -298,6 +298,16 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
       const both = await readFile(config, "utf8");
       expect(both).toContain(configured.trim());
       expect(both).toContain("http://localhost:18082");
+      // The name every host registers this site under, as its manifest does.
+      expect(local.serverName).toBe(
+        agentMcpServerName("http://localhost:18082"),
+      );
+      expect(local.serverName).not.toBe(installed.serverName);
+      expect(both).toContain(local.serverName);
+      expect(local.hosts.claudeCode.command).toContain(
+        `claude mcp add ${local.serverName} --scope user --env ANALOG_CANVAS_API_URL=http://localhost:18082 -- `,
+      );
+      expect(local.hosts.claudeCode.command).toContain(local.launch.args[0]);
       const localBlock = both.slice(configured.trimEnd().length).trim();
       await installMcp(
         ["--origin", launch.env.ANALOG_CANVAS_API_URL + "/", "--host", "codex"],
@@ -471,6 +481,15 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
         launch,
       ).match(/\[mcp_servers\.'analog-canvas'\]/gu),
     ).toHaveLength(1);
+  });
+  it("keeps the per-origin registration names Codex installs already use (#2020)", () => {
+    for (const origin of [
+      "https://analog-canvas.tokenzhang.com",
+      "http://localhost:18082",
+    ])
+      expect(agentMcpServerName(installationOrigin(`${origin}/`))).toBe(
+        `analog-canvas-${createHash("sha256").update(origin).digest("hex").slice(0, 16)}`,
+      );
   });
   it("does not confuse environments or accept credentials in origins", () => {
     expect(

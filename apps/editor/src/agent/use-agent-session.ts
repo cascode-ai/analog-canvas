@@ -709,6 +709,8 @@ export function useAgentSession(
               ) {
                 live.claimed = true;
                 live.paused = false;
+                // A redeemed Claim connects no other adapter: stop showing it.
+                live.claimCode = null;
                 syncDeadline(
                   sessionEvent.data.expiresAt
                     ? Date.parse(sessionEvent.data.expiresAt)
@@ -719,6 +721,8 @@ export function useAgentSession(
                     live.acknowledgedContext === options.contextRevision
                       ? "connected"
                       : "reconnecting",
+                  claimCode: null,
+                  claimExpiresAt: null,
                 });
               } else if (
                 sessionEvent.success &&

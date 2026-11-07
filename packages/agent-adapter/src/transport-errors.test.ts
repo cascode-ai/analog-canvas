@@ -58,6 +58,24 @@ describe("agent transport error table", () => {
     );
   });
 
+  it("keeps a credential valid at its own site, and ends a taken-over or reused pairing", () => {
+    expect(agentTransportErrorStatus("CLAIM_WRONG_SITE")).toBe(421);
+    expect(agentTransportErrorCategory("CLAIM_WRONG_SITE")).toBe(
+      "request-rejected",
+    );
+    for (const code of [
+      "SESSION_TAKEN_OVER",
+      "CLAIM_ALREADY_REDEEMED",
+    ] as const) {
+      expect(agentTransportErrorStatus(code)).toBe(409);
+      expect(agentTransportErrorCategory(code)).toBe(
+        "unrecoverable-credential",
+      );
+    }
+  });
+
+  // An adapter released before a code existed reads it this way: it reports
+  // the relay's message and keeps running.
   it("treats codes outside the enum as rejected requests", () => {
     expect(agentTransportErrorCategory("SOMETHING_NEW")).toBe(
       "request-rejected",

@@ -49,11 +49,31 @@ class ClosedSocket {
   static readonly CLOSING = 2;
   static readonly CLOSED = 3;
   readyState = 0;
-  addEventListener() {}
+  addEventListener(_type: string, _listener: (event: unknown) => void) {}
   removeEventListener() {}
   send() {}
   close() {
     this.readyState = 3;
+  }
+}
+
+/** A relay socket the test opens and speaks through. */
+class ScriptedSocket extends ClosedSocket {
+  static readonly opened: ScriptedSocket[] = [];
+  private readonly listeners = new Map<
+    string,
+    Array<(event: unknown) => void>
+  >();
+  constructor() {
+    super();
+    ScriptedSocket.opened.push(this);
+  }
+  override addEventListener(type: string, listener: (event: unknown) => void) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  }
+  emit(type: string, event: unknown = {}) {
+    if (type === "open") this.readyState = 1;
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
 }
 
@@ -218,6 +238,38 @@ describe("workspace Agent provider (#1673)", () => {
     await settle(() => expect(seen.session!.claimCode).toBe("CLAIM-1"));
     expect(sessionCreations).toBe(1);
     expect(seen.session!.status).not.toBe("idle");
+  });
+
+  it("stops showing the Claim once an Agent redeemed it", async () => {
+    vi.stubGlobal("WebSocket", ScriptedSocket);
+    ScriptedSocket.opened.length = 0;
+    vi.mocked(loadAgentRuntime).mockImplementationOnce(realRuntime);
+    await openEditor();
+    await clickConnect();
+    await settle(() => expect(seen.session!.claimCode).toBe("CLAIM-1"));
+    await settle(() => expect(ScriptedSocket.opened).toHaveLength(1));
+    const socket = ScriptedSocket.opened[0]!;
+    await act(async () => socket.emit("open"));
+    await act(async () =>
+      socket.emit("message", {
+        data: JSON.stringify({
+          protocolVersion: "1.0",
+          sessionId: "session-1",
+          messageId: "ready-1",
+          requestId: "event-ready-1",
+          sentAt: new Date().toISOString(),
+          kind: "event",
+          payload: { type: "session.ready", sessionId: "session-1" },
+        }),
+      }),
+    );
+    await settle(() =>
+      expect(seen.session).toMatchObject({
+        claimCode: null,
+        claimExpiresAt: null,
+      }),
+    );
+    expect(seen.session!.status).not.toBe("waiting-for-agent");
   });
 
   it("shows a runtime that could not load, then retries on the next click", async () => {

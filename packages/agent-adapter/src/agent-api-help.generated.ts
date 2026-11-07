@@ -3,7 +3,7 @@ export const agentApiHelp = {
   agentSessionStatus:
     "Read authenticated relay observations without contacting the editor or renewing the idle deadline. Attachment is not execution readiness. Paused sessions remain readable.",
   agentClaimRedeem:
-    "Exchange a human-provided claim for authorized Document IDs, a scoped bearer and a revocable connector. Repeating a valid claim rotates credentials and invalidates the earlier pairing.",
+    "Exchange a human-provided claim for authorized Document IDs, a scoped bearer and a revocable connector. A claim is redeemed once; only its redeemer's retry within 2 minutes (same optional x-agent-redemption key) answers again, replacing the earlier credentials. Another site's claim is CLAIM_WRONG_SITE.",
   agentConnectorResume:
     "Exchange a server-issued persistent connector credential for a fresh short-lived Circuit bearer. The connector remains revocable with its browser session.",
   agentSessionCircuit:

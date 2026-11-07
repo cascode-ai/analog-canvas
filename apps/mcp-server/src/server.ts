@@ -3,6 +3,7 @@ import { AGENT_MCP_VERSION } from "@icm/agent-adapter";
 import {
   createOperationSession,
   resolveConfig,
+  siteBinding,
   type RuntimeConfig,
 } from "./operation-session.js";
 export { resolveConfig } from "./operation-session.js";
@@ -48,5 +49,13 @@ export function assembleServer(
     listResourceTemplates,
     readResource: readResourceContent,
   };
-  return { handler, serverInfo: MCP_SERVER_INFO, toolSession };
+  const binding = siteBinding(toolSession);
+  return {
+    handler,
+    serverInfo: {
+      ...MCP_SERVER_INFO,
+      instructions: `${agentServerInstructions}\n\nThis server is bound to ${binding.apiOrigin} and connects only Claims from that address.${binding.note ? ` ${binding.note}` : ""}`,
+    },
+    toolSession,
+  };
 }

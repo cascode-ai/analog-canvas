@@ -12,6 +12,8 @@ import {
 
 export interface OperationSession {
   client: AgentSessionClient;
+  /** ANALOG_CANVAS_API_URL was unset, so the client took the default site. */
+  apiBaseUrlDefaulted?: boolean;
   workspaceBase?: string;
   workspaceBases?: Map<string, string>;
   workspaceRoot?: string;
@@ -20,6 +22,8 @@ export interface OperationSession {
 
 export interface RuntimeConfig {
   apiBaseUrl: string;
+  /** ANALOG_CANVAS_API_URL was unset; reported, never silent. */
+  apiBaseUrlDefaulted?: boolean;
   connectorPath: string;
   /**
    * The default per-origin connector file, which a long-lived MCP process
@@ -38,6 +42,7 @@ export function resolveConfig(
     env.ANALOG_CANVAS_API_URL ?? "https://analog-canvas.tokenzhang.com";
   return {
     apiBaseUrl,
+    ...(env.ANALOG_CANVAS_API_URL ? {} : { apiBaseUrlDefaulted: true }),
     connectorPath: defaultConnectorFilePath(homedir(), env, apiBaseUrl),
     connectorLease: !env.ANALOG_CANVAS_MCP_CONNECTOR?.trim(),
     workspaceRoot: userWorkspaceRoot(env),
@@ -45,6 +50,27 @@ export function resolveConfig(
       ? { taskDirectory: env.ANALOG_CANVAS_TASK_DIR }
       : {}),
   };
+}
+
+/**
+ * The one site this process serves: Claims and connectors from another site
+ * are refused, so connect, connection_status and the instructions name it.
+ */
+export function siteBinding(
+  session: Pick<OperationSession, "client" | "apiBaseUrlDefaulted">,
+): {
+  apiOrigin: string;
+  apiOriginSource: "configured" | "default";
+  note?: string;
+} {
+  const apiOrigin = new URL(session.client.apiBaseUrl).origin;
+  return session.apiBaseUrlDefaulted
+    ? {
+        apiOrigin,
+        apiOriginSource: "default",
+        note: `ANALOG_CANVAS_API_URL is unset, so this MCP server uses the default site ${apiOrigin}. For another site, register its own MCP server from that address's /api/agent/mcp-manifest.json.`,
+      }
+    : { apiOrigin, apiOriginSource: "configured" };
 }
 
 /** One client state machine; neither entry point needs the other's handler. */
@@ -62,6 +88,7 @@ export function createOperationSession(
   const connectorStore = new ConnectorStore(config.connectorPath, { lease });
   if (lease) releaseLeaseOnExit(connectorStore);
   return {
+    ...(config.apiBaseUrlDefaulted ? { apiBaseUrlDefaulted: true } : {}),
     ...(config.workspaceRoot ? { workspaceRoot: config.workspaceRoot } : {}),
     ...(config.taskDirectory ? { taskDirectory: config.taskDirectory } : {}),
     client: new AgentSessionClient({

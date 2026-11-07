@@ -47,7 +47,7 @@ import {
   changedObjectIds,
 } from "@icm/agent-client";
 import type { AgentRequestTiming } from "@icm/agent-client";
-import type { OperationSession } from "./operation-session.js";
+import { siteBinding, type OperationSession } from "./operation-session.js";
 import type { ContractTool } from "./tool-contracts.js";
 import {
   diagnosticsCompact,
@@ -773,6 +773,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       return {
         ok: true,
         mode: report.mode,
+        site: siteBinding(session),
         projectId: report.projectId,
         documentIds: report.documentIds,
         tokenExpiresAt: report.tokenExpiresAt,
@@ -853,6 +854,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         runtime: {
           version: AGENT_MCP_VERSION,
           apiBaseUrl: session.client.apiBaseUrl,
+          ...siteBinding(session),
           ...(release
             ? {
                 latestVersion: release.latestVersion,

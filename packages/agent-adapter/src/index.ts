@@ -2,6 +2,7 @@
 // Node `Buffer`, so the editor (WP-WA3) can import them directly. The Node-only
 // loopback transport lives in `./loopback.ts` and the `./loopback` subpath.
 
+export * from "./agent-site.js";
 export * from "./envelope.js";
 export * from "./file-resource.js";
 export * from "./host.js";

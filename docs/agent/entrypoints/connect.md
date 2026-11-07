@@ -3,7 +3,7 @@ Claim: {{claim}}
 
 I authorize MCP first, with raw HTTP Kit fallback before pairing; respect MCP-only requests.
 
-1. If MCP is callable for this exact origin, check `connection_status({"refresh":false})`, connect, then read analog-canvas://reference/quickstart. No download needed.
+1. If MCP is callable for this exact origin (`connection_status({"refresh":false})` reports it as runtime.apiOrigin), connect, then read analog-canvas://reference/quickstart. No download needed. A server bound to another origin cannot use this Claim.
 2. Otherwise install once only with evidence this host can run/register stdio here; shell/npm alone is insufficient. Check Node before executing the pinned package. Manifest: {{manifestUrl}}
 Use its host-specific setup, verify SHA-256 and preserve unrelated settings. Local handshake is not host loading: verify callable tools.
 3. Unknown host, unsuitable Node, download/startup failure or unloaded tools: report the stage, keep any installation and use the raw HTTP Kit and its OpenAPI: {{kitUrl}}

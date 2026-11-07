@@ -69,11 +69,21 @@ export class ConnectorStore {
     await writeAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`);
   }
 
-  async clear(): Promise<void> {
+  /**
+   * Forget the saved connector. Given `ownConnectorToken`, the file goes only
+   * while it still holds that connector: a process that was taken over must
+   * not delete the one that replaced it.
+   */
+  async clear(ownConnectorToken?: string): Promise<void> {
     if (this.options.lease) {
       this.memory = null;
       if (!(await this.holds())) return;
     }
+    if (
+      ownConnectorToken !== undefined &&
+      (await this.read())?.connectorToken !== ownConnectorToken
+    )
+      return;
     await rm(this.path, { force: true });
   }
 
