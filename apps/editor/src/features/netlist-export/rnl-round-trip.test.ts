@@ -5969,7 +5969,7 @@ describe("RNL round trip of examples as the editor opens them", () => {
       ]),
     ),
   )(
-    "brings %s (%s, %s) back with every part, ground, wire and junction",
+    "brings %s (%s, %s) back with every part, ground, wire, junction and label",
     async (name, opening, format) => {
       const project = openedExample(name, opening);
       const exported = createRnlExport(project, { format });
@@ -6004,41 +6004,13 @@ describe("RNL round trip of examples as the editor opens them", () => {
         item.cell.toLowerCase(),
       ))
         expect(after[cell], cell).toEqual(before[cell]);
+      expect(
+        labelDifferences(labelCensus(project), labelCensus(plan.project)),
+      ).toEqual([]);
       // ... and the file brings back no Cell the drawing did not have.
       expect(Object.keys(after).length).toBeGreaterThan(0);
       for (const [cell, census] of Object.entries(after))
         expect(census, cell).toEqual(before[cell]);
-    },
-  );
-  // The library's five examples as the editor opens them: every label comes
-  // back where it was, as big, with the text it showed, and none twice.
-  it.each(
-    [
-      "common-source-amplifier",
-      "two-stage-op-amp",
-      "current-mirror-loaded-differential-pair",
-      "fully-differential-two-stage-op-amp",
-      "five-transistor-ota-sky130",
-    ].flatMap((name) =>
-      openings.flatMap((opening) => [
-        [name, opening, "spice"] as const,
-        [name, opening, "spectre"] as const,
-      ]),
-    ),
-  )(
-    "brings every label of %s (%s, %s) back as drawn",
-    async (name, opening, format) => {
-      const project = openedExample(name, opening);
-      const exported = createRnlExport(project, { format });
-      if (exported.status !== "ready") throw new Error("export blocked");
-      const written = await runtime.write({
-        write: exported.request,
-        svg: false,
-      });
-      const plan = await importRnl(written.text, format);
-      expect(
-        labelDifferences(labelCensus(project), labelCensus(plan.project)),
-      ).toEqual([]);
     },
   );
 });
