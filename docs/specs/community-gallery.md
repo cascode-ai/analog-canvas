@@ -529,11 +529,17 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 ### Reviews
 
 `/review` shows one drawing at a time beside its reference (a dataset's
-original figure, or a community circuit's reference image): the comment
-with Like, ✓ Pass (passes at once, Enter) and ✕ Not pass (X: opens the
-reasons, of which at least one must be chosen before Submit issue; Esc
-closes them), and others' reviews, above the two pictures; below them, what comparing a dataset's two netlists found
-(verdict, kind, one sentence); then each side's SPICE netlist at its full
+original figure, or a community circuit's reference image): the comment,
+Like, ✓ Pass and ✕ Submit issue, the reasons (always shown; digits toggle
+them, Esc clears them), and others' reviews, above the two pictures. Enter,
+in the comment too (Shift+Enter starts a new line), sends what is there:
+with a reason an issue, else a pass, the comment and boxes going with
+either; → does the same for a drawing not yet reviewed or changed since,
+so moving on passes it, and ← only steps back. Pass and Submit issue are
+outlined in their colour, half-filled under the pointer and solid when
+pressed or chosen (Submit issue once a reason is). Below the pictures, what comparing a dataset's two netlists found (a
+callout in the verdict's tint: verdict and kind as tags, then the
+difference, two lines unless opened); then each side's SPICE netlist at its full
 length (ours spends a daily open as opening the entry does). The page
 scrolls. A drag on a picture boxes a spot (numbered, removable, ≤12 per
 review); a click opens both pictures over the window, each zoomed by the

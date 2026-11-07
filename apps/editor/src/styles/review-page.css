@@ -334,27 +334,102 @@
 }
 
 /* What comparing the two netlists found, across both columns. */
+/* What comparing the netlists found: a callout in its verdict's tint. */
 .review-verdict {
   display: flex;
+  flex-direction: column;
   grid-column: 1 / -1;
-  align-items: flex-start;
-  gap: 7px;
-  font-size: 12px;
-  line-height: 1.45;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--tint-edge);
+  border-left: 3px solid var(--tint);
+  border-radius: var(--icm-radius-md);
+  background: var(--tint-bg);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
-.review-verdict .datasets-icon {
-  flex-shrink: 0;
-  margin-top: 1px;
+.review-verdict.is-match {
+  --tint: #0ca30c;
+  --tint-edge: #cfe9cf;
+  --tint-bg: #f3faf3;
+  padding-block: 6px;
+}
+
+.review-verdict.is-notation {
+  --tint: #8a8985;
+  --tint-edge: #e3e2df;
+  --tint-bg: #f7f7f5;
+}
+
+.review-verdict.is-error {
+  --tint: #d03b3b;
+  --tint-edge: #f2d2d2;
+  --tint-bg: #fdf4f4;
+}
+
+.review-verdict.is-unclear {
+  --tint: #e8a400;
+  --tint-edge: #f2e2bb;
+  --tint-bg: #fffaee;
+}
+
+.review-verdict-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-verdict-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 3px;
+  border: 1px solid var(--tint-edge);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--icm-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.review-verdict-kind {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 6%);
+  color: var(--icm-text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.review-verdict-what {
+  color: var(--icm-text-muted);
+  font-size: 12px;
 }
 
 .review-verdict p {
   margin: 0;
-  color: var(--icm-text-muted);
+  color: var(--icm-text);
 }
 
-.review-verdict b {
-  color: var(--icm-text);
+.review-verdict p.clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.review-verdict-more {
+  align-self: flex-start;
+  margin-top: -4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--icm-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 /* A long thread scrolls in place rather than pushing the pictures down. */
@@ -474,18 +549,41 @@
   font: 11px var(--font-mono, ui-monospace, monospace);
 }
 
-/* Pass (✓) passes at once; Not pass (✕) opens the reasons, and with one
-   chosen sends the issue, solid red. Enter sends the one showing its key. */
+/* Pass (✓) and Not pass (✕): outlined in their colour, half-filled under
+   the pointer, solid when pressed or chosen (this reviewer's verdict on the
+   drawing, or the reasons open). */
 .review-actions .review-pass,
 .review-actions .review-issue {
+  --hue: #0ca30c;
+  --hue-text: #08800a;
+  --hue-soft: #e2f5e2;
   min-width: 112px;
   justify-content: center;
+  border-color: var(--hue);
+  background: var(--icm-surface);
+  color: var(--hue-text);
   font-weight: 600;
+  transition:
+    background-color 0.12s,
+    color 0.12s;
 }
 
-.review-actions .review-pass {
-  border-color: #0ca30c;
-  background: #0ca30c;
+.review-actions .review-issue {
+  --hue: #d03b3b;
+  --hue-text: #c02f2f;
+  --hue-soft: #fbe4e4;
+}
+
+.review-actions .review-pass:hover:not(:disabled),
+.review-actions .review-issue:hover:not(:disabled) {
+  background: var(--hue-soft);
+}
+
+.review-actions .review-pass:active:not(:disabled),
+.review-actions .review-issue:active:not(:disabled),
+.review-actions .review-pass.on,
+.review-actions .review-issue.on {
+  background: var(--hue);
   color: #fff;
 }
 
@@ -495,17 +593,6 @@
   cursor: not-allowed;
 }
 
-.review-actions .review-issue {
-  border-color: #d03b3b;
-  background: var(--icm-surface);
-  color: #d03b3b;
-}
-
-.review-actions .review-issue.ready {
-  background: #d03b3b;
-  color: #fff;
-}
-
 .review-actions .review-pass > span,
 .review-actions .review-issue > span {
   font-size: 15px;
@@ -513,9 +600,10 @@
 }
 
 .review-actions .review-pass kbd,
-.review-actions .review-issue.ready kbd {
-  border-color: rgb(255 255 255 / 50%);
-  color: #fff;
+.review-actions .review-issue kbd {
+  border-color: currentColor;
+  color: inherit;
+  opacity: 0.7;
 }
 
 /* A red outlined heart; liked, a red filled one. */
