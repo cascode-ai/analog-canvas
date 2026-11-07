@@ -58,16 +58,20 @@ export interface AgentMcpBootstrapManifest {
 
 export function agentMcpBootstrapManifest(
   publicOrigin: string,
+  serveReleaseArchive = false,
 ): AgentMcpBootstrapManifest {
   const origin = publicOrigin.replace(/\/$/u, "");
   // Every host registers each site under its own name, as the installer does.
   const serverName = agentMcpServerName(origin);
   const releaseBase = `https://github.com/${distribution.release.repository}/releases/download/${distribution.release.tag}`;
-  const downloadUrl = `${releaseBase}/${distribution.release.asset}`;
-  const packageSpec = distribution.npmPublished
+  const downloadUrl = serveReleaseArchive
+    ? `${origin}/downloads/mcp/${distribution.release.asset}`
+    : `${releaseBase}/${distribution.release.asset}`;
+  const useNpm = distribution.npmPublished && !serveReleaseArchive;
+  const packageSpec = useNpm
     ? `${distribution.packageName}@${distribution.version}`
     : downloadUrl;
-  const launchArgs = distribution.npmPublished
+  const launchArgs = useNpm
     ? ["--yes", packageSpec]
     : ["--yes", `--package=${packageSpec}`, distribution.binaryName];
   const launchText = ["npx", ...launchArgs].join(" ");

@@ -34,7 +34,7 @@ export function installationOrigin(value: string): string {
   return url.origin;
 }
 
-export function installationDeclaration(value: unknown) {
+export function installationDeclaration(value: unknown, origin: string) {
   const m = value as {
     format?: string;
     version?: string;
@@ -54,10 +54,14 @@ export function installationDeclaration(value: unknown) {
       "stop",
     );
   const version = m.version!;
-  const url = `https://github.com/cascode-ai/analog-canvas/releases/download/mcp-v${version}/analog-canvas-mcp-server-${version}.tgz`;
+  const asset = `analog-canvas-mcp-server-${version}.tgz`;
+  const githubUrl = `https://github.com/cascode-ai/analog-canvas/releases/download/mcp-v${version}/${asset}`;
+  const localUrl = `${origin}/downloads/mcp/${asset}`;
+  const url = m.distribution?.downloadUrl;
+  const sha256 = m.distribution?.sha256 ?? "";
   if (
-    m.distribution?.downloadUrl !== url ||
-    !/^[a-f0-9]{64}$/u.test(m.distribution.sha256 ?? "")
+    (url !== githubUrl && url !== localUrl) ||
+    !/^[a-f0-9]{64}$/u.test(sha256)
   )
     throw new InstallationFailure(
       "manifest",
@@ -65,7 +69,7 @@ export function installationDeclaration(value: unknown) {
       "Invalid pinned MCP distribution",
       "stop",
     );
-  return { version, url, sha256: m.distribution.sha256! };
+  return { version, url, sha256, sameOrigin: url === localUrl };
 }
 
 export function verifyInstallationBytes(bytes: Uint8Array, sha256: string) {
@@ -110,6 +114,7 @@ async function download(
   url: string,
   limit: number,
   stage: "manifest" | "download",
+  redirect: RequestRedirect,
 ) {
   for (let attempt = 0; ; attempt++) {
     let status: number | undefined;
@@ -117,8 +122,19 @@ async function download(
       const response = await fetch(url, {
         signal: AbortSignal.timeout(30_000),
         cache: "no-store",
+        redirect,
       });
       status = response.status;
+      if (redirect === "manual" && status >= 300 && status < 400) {
+        await response.body?.cancel();
+        throw new InstallationFailure(
+          stage,
+          "UNEXPECTED_REDIRECT",
+          "MCP download must stay on the editor origin",
+          "stop",
+          { httpStatus: status },
+        );
+      }
       if (!response.ok || !response.body) {
         await response.body?.cancel();
         throw Error("HTTP failure");
@@ -215,11 +231,18 @@ export async function installMcp(
             `${origin}/api/agent/mcp-manifest.json`,
             128_000,
             "manifest",
+            "manual",
           )
         ).toString("utf8"),
       ),
+      origin,
     );
-    const bytes = await download(declaration.url, 24_000_000, "download");
+    const bytes = await download(
+      declaration.url,
+      24_000_000,
+      "download",
+      declaration.sameOrigin ? "manual" : "follow",
+    );
     verifyInstallationBytes(bytes, declaration.sha256);
     stage = "extract";
     // Unique immutable installation keeps an already-running/previous binary intact.

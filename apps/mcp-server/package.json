@@ -1,6 +1,6 @@
 {
   "name": "@icm/mcp-server",
-  "version": "0.17.90",
+  "version": "0.17.91",
   "private": true,
   "type": "module",
   "exports": {
