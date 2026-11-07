@@ -41,6 +41,7 @@ import type {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { BlockSymbolLayoutTarget } from "./block-symbol-layout-target";
+import { cellNameIssue } from "./new-cell";
 import type { CellInterfaceConfirmation } from "./cell-interface-confirmation-types";
 export type { CellInterfaceConfirmation } from "./cell-interface-confirmation-types";
 
@@ -273,6 +274,12 @@ export function createProjectStructureCommands({
     );
     const name = inputName.trim();
     if (!target || !name || name === target.name) return;
+    // A rename meets the rule a new Cell does, said the same way.
+    const issue = cellNameIssue(project, name, documentId);
+    if (issue) {
+      setStatus(issue);
+      return;
+    }
     if (
       commitStructure("rename-cell", planRenameCell(project, documentId, name))
     ) {
@@ -962,6 +969,14 @@ export function createProjectStructureCommands({
     const name = input.name.trim();
     const cellName = input.cellName.trim();
     if (!name || !cellName) return false;
+    const issue =
+      cellName === activeDocument.name
+        ? undefined
+        : cellNameIssue(project, cellName, activeDocument.id);
+    if (issue) {
+      setStatus(issue);
+      return false;
+    }
     const edits: ProjectStructureEdit[] = [
       ...(name === project.name
         ? []

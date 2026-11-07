@@ -32,21 +32,37 @@ export function inferPinDirection(name: string): ChildPortDraft["direction"] {
   return role === "output" ? "output" : "input";
 }
 
-/** A Cell's name is its SPICE subcircuit name. */
+/**
+ * A Cell's name is its SPICE subcircuit name. The editor asks for one that
+ * exports unchanged; an Agent's or an import's other names export
+ * normalized, with a warning.
+ */
 export const CELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
-/** Why `name` cannot name a new Cell of this Project; undefined when it can. */
+/**
+ * Why `name` cannot name a Cell of this Project, new or renamed; undefined
+ * when it can. `exceptId` is the Cell being renamed.
+ */
 export function cellNameIssue(
   project: CircuitProject,
   name: string,
+  exceptId?: string,
 ): string | undefined {
   if (!CELL_NAME.test(name))
     return "Use letters, digits and _, starting with a letter or _";
-  return project.documents.some(
-    (cell) =>
-      (cell.netlist?.name ?? cell.name).toLowerCase() === name.toLowerCase(),
+  const folded = name.toLowerCase();
+  if (
+    project.documents.some(
+      (cell) =>
+        cell.id !== exceptId &&
+        (cell.netlist?.name ?? cell.name).toLowerCase() === folded,
+    )
   )
-    ? `A Cell named ${name} already exists`
+    return `A Cell named ${name} already exists`;
+  return project.externalSubcircuitDefinitions.some(
+    (definition) => definition.name.toLowerCase() === folded,
+  )
+    ? `An external circuit is named ${name}`
     : undefined;
 }
 

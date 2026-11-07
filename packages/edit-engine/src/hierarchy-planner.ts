@@ -137,6 +137,27 @@ export function createExternalSubcircuitInstance(
   };
 }
 
+/**
+ * Names, folded to lower case, that a Cell and an external circuit share. A
+ * netlist calls both by that name, so one would shadow the other.
+ */
+export function externalCellNameClashes(
+  project: CircuitProject,
+): Map<string, string> {
+  const cells = new Set(
+    project.documents.map((document) =>
+      (document.netlist?.name ?? document.name).toLowerCase(),
+    ),
+  );
+  return new Map(
+    project.externalSubcircuitDefinitions.flatMap((definition) =>
+      cells.has(definition.name.toLowerCase())
+        ? [[definition.name.toLowerCase(), definition.name] as const]
+        : [],
+    ),
+  );
+}
+
 export function planCreateCell(
   document: SchematicDocument,
 ): ProjectStructureEdit[] {

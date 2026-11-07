@@ -364,6 +364,39 @@ describe("Project structure commands", () => {
     expect(deps.commitStructure).toHaveBeenCalledTimes(1);
   });
 
+  it("renames a Cell under the rule New Cell follows, wherever it is renamed", () => {
+    const input = dependencies();
+    const child = createEmptyDocument("document-child", "Child");
+    input.project.documents.push(child);
+    input.project.externalSubcircuitDefinitions.push({
+      id: "ext",
+      name: "opamp_ext",
+      terminals: [],
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    const commands = createProjectStructureCommands(input);
+
+    commands.renameCell(child.id, "two words");
+    expect(input.setStatus).toHaveBeenLastCalledWith(
+      "Use letters, digits and _, starting with a letter or _",
+    );
+    commands.renameCell(child.id, "OPAMP_EXT");
+    expect(input.setStatus).toHaveBeenLastCalledWith(
+      "An external circuit is named OPAMP_EXT",
+    );
+    expect(
+      commands.editProjectInfo({
+        name: input.project.name,
+        cellName: "two words",
+      }),
+    ).toBe(false);
+    expect(input.commitStructure).not.toHaveBeenCalled();
+    // A new spelling of its own name is fine.
+    commands.renameCell(child.id, "CHILD");
+    expect(input.commitStructure).toHaveBeenCalledTimes(1);
+  });
+
   it("deletes a Cell through the project structure boundary", () => {
     const input = dependencies();
     const child = createEmptyDocument("document-child", "Child");
