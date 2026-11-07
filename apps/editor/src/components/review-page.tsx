@@ -771,7 +771,6 @@ function ReviewItem({
         <div>
           <h4>
             Redraw <span>· Analog Canvas</span>
-            <span className="pic-hint">drag: box a spot · click: zoom</span>
           </h4>
           {picture(redraw, "redraw")}
         </div>
