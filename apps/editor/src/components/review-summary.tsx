@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import "../styles/review-page.css";
 
-import { flagLabel, storesOf, type ShownReview } from "../review-queue";
+import { flagLabel, REVIEW_STORES, type ShownReview } from "../review-queue";
 
 interface PersonWork {
   person: string;
@@ -58,7 +58,7 @@ export function ReviewSummary({
   const [open, setOpen] = useState<Issues | null>(null);
   useEffect(() => {
     let cancelled = false;
-    const stores = storesOf("random");
+    const stores = REVIEW_STORES;
     const read = <T,>(store: string, part: string) =>
       fetchLike(`/api/gallery/review/${store}/${part}`, {
         credentials: "same-origin",
