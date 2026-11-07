@@ -481,6 +481,12 @@ importers:
       "@icm/project-protocol":
         specifier: workspace:*
         version: link:../project-protocol
+      "@icm/spice":
+        specifier: workspace:*
+        version: link:../spice
+      "@rich-netlist/runtime":
+        specifier: 0.5.2
+        version: 0.5.2
 
   packages/simulation-service:
     dependencies:
