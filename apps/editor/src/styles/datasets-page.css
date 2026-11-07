@@ -23,16 +23,6 @@
   padding: 14px 0 6px;
 }
 
-.datasets-back {
-  color: var(--icm-text-muted);
-  font-size: 12px;
-  text-decoration: none;
-}
-
-.datasets-back:hover {
-  color: var(--icm-accent);
-}
-
 .datasets-intro h2 {
   margin: 0 0 2px;
   font-size: 22px;
@@ -455,19 +445,45 @@
   font: inherit;
 }
 
-.datasets-review-link {
-  padding: 4px 10px;
-  border: 1px solid var(--icm-text);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text);
-  font-size: 12px;
+/* Review's two modes, top right: review (the default), or statistics. */
+.review-intro-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.review-intro-side .datasets-tabs {
+  margin-left: 0;
+}
+
+.review-mode-switch {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+}
+
+.review-mode-switch a {
+  padding: 5px 14px;
+  color: var(--icm-text-muted);
+  font-size: 13px;
   font-weight: 600;
   text-decoration: none;
 }
 
-.datasets-review-link:hover {
+.review-mode-switch a + a {
+  border-left: 1px solid var(--icm-border);
+}
+
+.review-mode-switch a[aria-current="page"] {
   background: var(--icm-text);
   color: #fff;
+}
+
+a.gallery-view-tab {
+  text-decoration: none;
 }
 
 .datasets-pill {

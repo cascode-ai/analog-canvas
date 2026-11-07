@@ -502,6 +502,7 @@ export function GalleryFeed({
           {(
             [
               ["gallery", "Community gallery"],
+              ["review", "Review"],
               ["shelf", "My shelf"],
             ] as const
           ).map(([id, label]) => (
@@ -513,6 +514,11 @@ export function GalleryFeed({
               data-testid={`gallery-view-${id}`}
               aria-selected={view === id}
               onClick={() => {
+                // Review is its own page, between the two walls.
+                if (id === "review") {
+                  window.location.assign("/review");
+                  return;
+                }
                 // Opening My shelf opens the Arena gate (#1681). A page
                 // loaded on the shelf opens none, so a reload ends a gate.
                 if (id === "shelf" && view !== "shelf") cloudShelfOpened();

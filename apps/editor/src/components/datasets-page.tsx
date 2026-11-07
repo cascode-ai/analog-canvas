@@ -38,6 +38,7 @@ import {
   type DatasetComparison,
 } from "../dataset-comparisons";
 import { GalleryChrome } from "./gallery-chrome";
+import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
 
 type Load =
   | { status: "loading" }
@@ -148,21 +149,22 @@ export function DatasetsPage({
   return (
     <main className="review-shell datasets-shell" data-testid="datasets-page">
       <GalleryChrome subtitle="Datasets" visitStats={visitStats} />
+      <GalleryReviewTabs />
       <div className="page-body datasets-body" {...tipHandlers}>
         <section className="datasets-intro">
           <div>
-            <a className="datasets-back" href="/">
-              ← Gallery
-            </a>
-            <h2>Reference datasets</h2>
+            <h2>Statistics</h2>
             <p>
               Each circuit&apos;s original figure beside our redraw, with both
               netlists compared.
             </p>
           </div>
-          {load.status === "ready" ? (
-            <SourceTabs rows={rows} filters={filters} set={set} />
-          ) : null}
+          <div className="review-intro-side">
+            <ReviewModeSwitch mode="statistics" scope={filters.source} />
+            {load.status === "ready" ? (
+              <SourceTabs rows={rows} filters={filters} set={set} />
+            ) : null}
+          </div>
         </section>
         {load.status === "loading" ? (
           <p className="gallery-status">Loading the datasets…</p>
@@ -617,13 +619,6 @@ function Toolbar({
           </button>
         ))}
       </span>
-      <a
-        className="datasets-review-link"
-        href={`/review?scope=${filters.source ?? "analoggenie"}`}
-        data-testid="datasets-review-link"
-      >
-        Review mode
-      </a>
       {pills.map(([key, label]) => (
         <span key={key} className="datasets-pill">
           {label}

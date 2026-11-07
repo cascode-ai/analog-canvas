@@ -56,6 +56,8 @@ export interface ReviewCard {
   previewRevision: string;
   components: number;
   reviews: number;
+  likes: number;
+  likedByViewer: boolean;
   mine: ShownReview | null;
   /** A community circuit's reference image, if its author gave one. */
   reference?: { revision: string };
@@ -103,9 +105,10 @@ export function withReview(card: ReviewCard, review: ShownReview): ReviewCard {
   };
 }
 
-export const REVIEW_SCOPES = ["analoggenie", "circuitthink", "community"];
+/** What /review covers, as its sidebar lists it: the community first. */
+const REVIEW_SCOPES = ["community", "analoggenie", "circuitthink"];
 
 export function scopeFromSearch(search: string): string {
   const scope = new URLSearchParams(search).get("scope") ?? "";
-  return REVIEW_SCOPES.includes(scope) ? scope : "analoggenie";
+  return REVIEW_SCOPES.includes(scope) ? scope : "community";
 }
