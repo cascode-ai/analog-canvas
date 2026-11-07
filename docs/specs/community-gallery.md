@@ -336,7 +336,11 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
 ## Owner editing
 
 - `PUT /api/gallery/<id>` (same-origin) updates content and metadata under
-  submission rules: admins and moderators any entry, others their own (403).
+  submission rules: admins and moderators any entry, others their own. Anyone
+  else fixes its drawing in place under the dataset rule (403 `fix-locked`
+  `{contributions, needed}` below 10 public circuits): only the drawing
+  changes, the fixer's Shelf draft stays unlinked, and anyone but the owner
+  changing the drawing is an `edit` fix shown as "fixed by" ([Fixes](#fixes)).
   Byline and status are kept; the preview and marks are recomputed; 200
   `{id, status, previewRevision}`. `aiGenerated` sets the mark, omission keeps
   it (seat entries always keep it); the mark belongs to the entry, not a
@@ -453,12 +457,13 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
 - Fixing a dataset's drawing: the Owner, admins, moderators and any account
   with at least 10 public circuits of its own may, from the editor's Save fix
   (`PUT /api/gallery/<id>` `{projectText}`, same-origin; 401; 403
-  `dataset-edit-locked` `{contributions, needed}`). Only the drawing changes:
+  `fix-locked` `{contributions, needed}`). Only the drawing changes:
   name, description, tags and byline stay, a testbench the fixer did not send
   too. The fix is recorded as an `edit` fix ([Fixes](#fixes)); entries name
   their `edit` fixers, first first, as `fixedBy`, shown as "fixed by" beside
   the byline on tiles, the phone page and Review. `GET /api/gallery/quota`
-  adds `datasetEdits: {allowed, contributions, needed}`.
+  adds `fixes: {allowed, contributions, needed}`, the right to fix drawings not
+  one's own (a dataset's or another account's).
 - `GET /api/gallery/sources` → `{sources: [... , count]}`; readers see non-empty
   datasets, Owner accounts all.
 - `POST /api/gallery/sources/<key>/entries` (the Owner's same-origin session,

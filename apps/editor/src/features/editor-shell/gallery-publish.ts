@@ -46,7 +46,10 @@ function galleryPublicationBinding(binding: CloudProjectBinding | null) {
     : {};
 }
 
-export { canUpdateGalleryPublication } from "./gallery-publication-permission";
+export {
+  canUpdateGalleryPublication,
+  galleryFixOf,
+} from "./gallery-publication-permission";
 /** A Gallery read that failed, with the HTTP status that said so. */
 export class GalleryReadError extends Error {
   constructor(
@@ -121,12 +124,12 @@ export interface GalleryQuota {
   resetsAt: string;
   /** Curators publish without the allowance. */
   exempt: boolean;
-  /** Whether this account may fix a reference dataset's drawings. */
-  datasetEdits?: DatasetEdits;
+  /** Whether this account may fix drawings not its own. */
+  fixes?: FixAccess;
 }
 
-/** Fixing a dataset's drawing opens with enough public circuits of one's own. */
-export interface DatasetEdits {
+/** Fixing others' drawings opens with enough public circuits of one's own. */
+export interface FixAccess {
   allowed: boolean;
   contributions: number;
   needed: number;
@@ -152,8 +155,8 @@ export async function loadGalleryQuota(
           remaining: quota.remaining,
           resetsAt: quota.resetsAt,
           exempt: quota.exempt === true,
-          ...(typeof quota.datasetEdits?.allowed === "boolean"
-            ? { datasetEdits: quota.datasetEdits }
+          ...(typeof quota.fixes?.allowed === "boolean"
+            ? { fixes: quota.fixes }
             : {}),
         }
       : null;
@@ -299,7 +302,7 @@ export function publishProjectToGallery(
   );
 }
 
-/** Owner or moderator update of an existing entry. */
+/** An existing entry's update: its owner's, a curator's, or a fixer's. */
 export function updateGalleryEntry(
   entryId: string,
   project: CircuitProject,
@@ -342,8 +345,8 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
               ? "The Project failed strict validation on the server"
               : outcome.message === "drafting-cover"
                 ? "A white drafting line or fill covers part of the drawing. Remove it: draw nothing over wires or parts, and a crossing without a dot needs no hop"
-                : outcome.message === "dataset-edit-locked"
-                  ? "Fixing a dataset's drawings opens once you have published 10 circuits of your own"
+                : outcome.message === "fix-locked"
+                  ? "Fixing drawings that are not your own opens once you have published 10 circuits of your own"
                   : outcome.message === "forbidden"
                     ? "Only the entry's owner or a moderator can update it; an AI account can take over another AI account's circuit with a take-over"
                     : outcome.message === "take-over-forbidden"

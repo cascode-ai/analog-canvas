@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canUpdateGalleryPublication,
+  galleryFixOf,
   describePublishOutcome,
   loadGalleryPublicationContext,
   loadGalleryQuota,
@@ -36,19 +37,28 @@ describe("canUpdateGalleryPublication", () => {
   });
   const admin = { id: "a1", isAdmin: true };
 
-  it("offers the update to the owner and the Owner; a dataset's drawing to whoever may fix it", () => {
+  it("offers the update to the owner and the Owner; others' drawings to whoever may fix them", () => {
     expect(
       canUpdateGalleryPublication(context("k7m2", "u1"), {
         id: "u1",
         isAdmin: false,
       }),
     ).toBe(true);
+    const other = { id: "u2", isAdmin: false };
+    expect(canUpdateGalleryPublication(context("k7m2", "u1"), other)).toBe(
+      false,
+    );
+    // Someone else's circuit is fixed in place, by the byline it keeps.
     expect(
-      canUpdateGalleryPublication(context("k7m2", "u1"), {
-        id: "u2",
-        isAdmin: false,
+      canUpdateGalleryPublication(context("k7m2", "u1"), other, {
+        allowed: true,
       }),
-    ).toBe(false);
+    ).toBe(true);
+    expect(galleryFixOf(context("k7m2", "u1"), other)).toBe("Someone");
+    expect(
+      galleryFixOf(context("k7m2", "u1"), { id: "u1", isAdmin: false }),
+    ).toBeNull();
+    expect(galleryFixOf(context("k7m2", "u1"), admin)).toBeNull();
     expect(canUpdateGalleryPublication(context("k7m2", "u1"), admin)).toBe(
       true,
     );
@@ -78,7 +88,7 @@ describe("loadGalleryQuota", () => {
       remaining: 97,
       resetsAt: "2026-10-08T00:00:00.000Z",
       exempt: false,
-      datasetEdits: { allowed: true, contributions: 12, needed: 10 },
+      fixes: { allowed: true, contributions: 12, needed: 10 },
     };
     expect(await loadGalleryQuota(fetchReturning(200, quota))).toEqual(quota);
     expect(

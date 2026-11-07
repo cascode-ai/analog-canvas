@@ -10,6 +10,7 @@ import {
   ownerAccountOf,
   projectText,
   route,
+  signIn,
   submitOne,
   wiredProjectText,
 } from "./gallery.test-support";
@@ -185,7 +186,7 @@ describe("reference datasets in stores of their own (#1510)", () => {
     const locked = await fix(maker, wiredProjectText("Fixed"));
     expect(locked.status).toBe(403);
     expect(await locked.json()).toEqual({
-      error: "dataset-edit-locked",
+      error: "fix-locked",
       contributions: 9,
       needed: 10,
     });
@@ -196,7 +197,7 @@ describe("reference datasets in stores of their own (#1510)", () => {
     expect(
       await (await call("/api/gallery/quota", maker)).json(),
     ).toMatchObject({
-      datasetEdits: { allowed: true, contributions: 10, needed: 10 },
+      fixes: { allowed: true, contributions: 10, needed: 10 },
     });
     expect((await fix(maker, wiredProjectText("Fixed"))).status).toBe(200);
     const fixed = await entry();
@@ -218,6 +219,96 @@ describe("reference datasets in stores of their own (#1510)", () => {
 
     // The Owner's re-import is the dataset's own, not a fix to credit.
     await importing(wiredProjectText("Re-imported", 260));
+    expect((await entry()).fixedBy).toEqual(fixed.fixedBy);
+  });
+
+  it("lets an account with ten public circuits fix another account's circuit in place, its byline kept", async () => {
+    const env = environment();
+    const maker = await makerOf(env);
+    const fixer = await signIn(env.authDurable, "fixer@example.com");
+    const id = await submitOne(env, "Transmission gate", { cookie: maker });
+    const call = (path: string, cookie: string, init: RequestInit = {}) =>
+      route(
+        env,
+        new Request(`${ORIGIN}${path}`, {
+          ...init,
+          headers: {
+            Origin: ORIGIN,
+            Cookie: cookie,
+            "content-type": "application/json",
+          },
+        }),
+      );
+    const fix = () =>
+      call(`/api/gallery/${id}`, fixer, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: "Renamed",
+          description: "Rewritten",
+          tags: ["other"],
+          aiGenerated: true,
+          projectText: wiredProjectText("Fixed"),
+        }),
+      });
+    const entry = async () =>
+      (
+        (await (await call(`/api/gallery/${id}?summary=1`, maker)).json()) as {
+          entry: {
+            name: string;
+            author: string;
+            description: string;
+            aiGenerated?: boolean;
+            fixedBy?: string[];
+          };
+        }
+      ).entry;
+    const before = await entry();
+
+    // Nine circuits of one's own are not yet enough.
+    for (let index = 0; index < 9; index += 1)
+      await submitOne(env, `Fixer circuit ${index}`, { cookie: fixer });
+    const locked = await fix();
+    expect(locked.status).toBe(403);
+    expect(await locked.json()).toEqual({
+      error: "fix-locked",
+      contributions: 9,
+      needed: 10,
+    });
+
+    // The tenth opens it: the drawing changes in place; name, description,
+    // byline and mark stay, and the fixer is named beside the byline.
+    await submitOne(env, "Fixer circuit 9", { cookie: fixer });
+    expect((await fix()).status).toBe(200);
+    const fixed = await entry();
+    expect(fixed).toMatchObject({
+      name: before.name,
+      author: before.author,
+      description: before.description,
+      fixedBy: [expect.any(String)],
+    });
+    expect(fixed.aiGenerated).toBe(before.aiGenerated);
+    // No copy appears under the fixer's name.
+    expect(
+      (
+        (await (await call("/api/gallery?q=Transmission", fixer)).json()) as {
+          entries: { id: string }[];
+        }
+      ).entries.map((each) => each.id),
+    ).toEqual([id]);
+
+    // The owner's own update is no fix to credit.
+    expect(
+      (
+        await call(`/api/gallery/${id}`, maker, {
+          method: "PUT",
+          body: JSON.stringify({
+            name: before.name,
+            description: before.description,
+            projectText: wiredProjectText("Owner again", 260),
+          }),
+        })
+      ).status,
+    ).toBe(200);
     expect((await entry()).fixedBy).toEqual(fixed.fixedBy);
   });
 

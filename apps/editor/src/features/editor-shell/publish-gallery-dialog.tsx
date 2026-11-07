@@ -48,15 +48,16 @@ export interface PublishGalleryDialogProps {
   /** Opened from the duplicate check's notice: show that check's results. */
   openedFromCheckNotice?: boolean | undefined;
   /** Present when the current Project is associated with a gallery entry the
-   * signed-in user may update (owner, admin, or moderator). */
+   * signed-in user may update (owner, curator, or a fixer). */
   updateTarget?: { id: string; name: string } | null;
   /**
-   * The Project was opened from a reference dataset's drawing: its source's
-   * name, and whether this account may fix it (null until the quota loads).
-   * Fixing changes the drawing alone and credits the fixer.
+   * The Project was opened from a drawing not this account's own, a
+   * reference dataset's or another account's circuit: whose (the dataset's
+   * name or the byline), and whether this account may fix it (null until
+   * the quota loads). Fixing changes the drawing alone and credits the fixer.
    */
-  datasetFix?: {
-    source: string;
+  fix?: {
+    of: string;
     edits: { allowed: boolean; contributions: number; needed: number } | null;
   } | null;
   /** The opened entry's stored fields, prefilled once in update mode. */
@@ -121,7 +122,7 @@ export function PublishGalleryDialog({
   topologyProject = null,
   openedFromCheckNotice = false,
   updateTarget = null,
-  datasetFix = null,
+  fix = null,
   updateDefaults = null,
   agentEdited = false,
   quota = null,
@@ -139,8 +140,8 @@ export function PublishGalleryDialog({
     canUpdate ? "update" : "new",
   );
   const updating = canUpdate && mode === "update";
-  // A dataset's drawing changes alone: its name, description and tags stay.
-  const fixing = updating && datasetFix !== null;
+  // A fixed drawing changes alone: its name, description and tags stay.
+  const fixing = updating && fix !== null;
   const [name, setName] = useState(draft?.name ?? defaultName);
   const [nameEdited, setNameEdited] = useState(
     draft?.editedFields?.name ?? !!draft?.name,
@@ -421,8 +422,8 @@ export function PublishGalleryDialog({
                       setModeTouched(true);
                     }}
                   />
-                  {datasetFix
-                    ? `Fix “${updateTarget?.name}” in ${datasetFix.source} (replaces its drawing)`
+                  {fix
+                    ? `Fix ${fix.of}’s “${updateTarget?.name}” (replaces its drawing)`
                     : `Update “${updateTarget?.name}” (replaces that entry)`}
                 </label>
                 <label>
@@ -438,7 +439,7 @@ export function PublishGalleryDialog({
                   />
                   Publish as a new entry
                 </label>
-                {onShowHistory && !datasetFix ? (
+                {onShowHistory && !fix ? (
                   <button
                     type="button"
                     className="publish-gallery-history-link"
@@ -450,24 +451,21 @@ export function PublishGalleryDialog({
                 ) : null}
               </div>
             ) : null}
-            {datasetFix && datasetFix.edits && !datasetFix.edits.allowed ? (
+            {fix && fix.edits && !fix.edits.allowed ? (
               <p
                 className="publish-gallery-note"
-                data-testid="publish-dataset-locked"
+                data-testid="publish-fix-locked"
               >
-                Fixing {datasetFix.source}&apos;s drawings opens once you have
-                published {datasetFix.edits.needed} circuits of your own (you
-                have {datasetFix.edits.contributions}). Until then, publish it
-                as a new entry.
+                Fixing {fix.of}&apos;s drawing opens once you have published{" "}
+                {fix.edits.needed} circuits of your own (you have{" "}
+                {fix.edits.contributions}). Until then, publish it as a new
+                entry.
               </p>
             ) : null}
             {fixing ? (
-              <p
-                className="publish-gallery-note"
-                data-testid="publish-dataset-fix"
-              >
-                Only the drawing changes: {datasetFix!.source}&apos;s name,
-                description and byline stay, and the circuit shows “fixed by{" "}
+              <p className="publish-gallery-note" data-testid="publish-fix">
+                Only the drawing changes: {fix!.of}&apos;s name, description and
+                byline stay, and the circuit shows “fixed by{" "}
                 {session?.displayName}”.
               </p>
             ) : null}

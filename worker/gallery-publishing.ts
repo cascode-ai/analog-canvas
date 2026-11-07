@@ -46,15 +46,16 @@ import {
 import { withGalleryStore } from "./gallery-datasets";
 import { type GallerySource } from "./gallery-sources";
 
-/** Public circuits an account must have published to fix a dataset's drawing. */
-const DATASET_EDIT_CONTRIBUTIONS = 10;
+/** Public circuits an account must have published to fix others' drawings. */
+const FIX_CONTRIBUTIONS = 10;
 
 /**
- * Whether an account fixes a reference dataset's drawings: the Owner,
- * admins and moderators always; anyone else once they have published
- * DATASET_EDIT_CONTRIBUTIONS public circuits of their own.
+ * Whether an account fixes drawings that are not its own, a reference
+ * dataset's or another account's circuit: the Owner, admins and moderators
+ * always; anyone else once they have published FIX_CONTRIBUTIONS public
+ * circuits of their own.
  */
-async function datasetEditAccess(
+async function fixAccess(
   env: GalleryEnv,
   user: { id: string; isOwner?: boolean; isAdmin?: boolean; role?: string },
 ): Promise<{ allowed: boolean; contributions: number; needed: number }> {
@@ -69,9 +70,9 @@ async function datasetEditAccess(
       user.isOwner === true ||
       user.isAdmin === true ||
       user.role === "moderator" ||
-      contributions >= DATASET_EDIT_CONTRIBUTIONS,
+      contributions >= FIX_CONTRIBUTIONS,
     contributions,
-    needed: DATASET_EDIT_CONTRIBUTIONS,
+    needed: FIX_CONTRIBUTIONS,
   };
 }
 
@@ -139,11 +140,11 @@ export async function handleDatasetEntryEdit(
   }
   const user = await sessionUserOf(request, env);
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const access = await datasetEditAccess(env, user);
+  const access = await fixAccess(env, user);
   if (!access.allowed)
     return Response.json(
       {
-        error: "dataset-edit-locked",
+        error: "fix-locked",
         contributions: access.contributions,
         needed: access.needed,
       },
@@ -320,10 +321,11 @@ export async function handleSubmission(
 }
 
 /**
- * Owner or curator entry update. A moderator may update any entry; an
- * ordinary session must own the entry and passes the quality gates. Either
- * way the entry keeps its byline and its current status, so editing a
- * published circuit neither takes it off the wall nor re-attributes it.
+ * An entry's update: its owner's, a curator's (any entry), or a fix of
+ * someone else's drawing by an account fixAccess lets fix it. Every way the
+ * entry keeps its byline and its current status, so editing a published
+ * circuit neither takes it off the wall nor re-attributes it; anyone but
+ * its owner who changes the drawing is credited as its fixer.
  */
 export async function handleEntryUpdate(
   request: Request,
@@ -335,7 +337,12 @@ export async function handleEntryUpdate(
   }
   const existing = await callGallery<{
     status?: string;
-    entry?: { author?: string };
+    entry?: {
+      author?: string;
+      name?: string;
+      description?: string;
+      tags?: string[];
+    };
     ownerUserId?: string | null;
     projectText?: string;
     testbench?: string | null;
@@ -378,25 +385,40 @@ export async function handleEntryUpdate(
     )
   )
     return Response.json({ error: "take-over-forbidden" }, { status: 403 });
-  if (!privileged && !owner && !takingOver) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
+  // Someone else's drawing, fixed in place as a dataset's is: only the
+  // drawing changes, and its fixer is named beside the byline.
+  const fixing = !privileged && !owner && !takingOver;
+  if (fixing) {
+    const access = await fixAccess(env, user);
+    if (!access.allowed)
+      return Response.json(
+        {
+          error: "fix-locked",
+          contributions: access.contributions,
+          needed: access.needed,
+        },
+        { status: 403 },
+      );
   }
-  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
+  const current = existing.payload.entry;
+  const name = fixing
+    ? (current?.name ?? null)
+    : fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   // An update never re-attributes the entry, not even when a moderator
   // makes it: the byline stays the one the submitter published under. Only
   // a take-over moves it, to the AI account that made this version.
   const author = takingOver
     ? seat!.displayName
     : (existing.payload.entry?.author ?? "");
-  const description = fieldText(
-    body?.description,
-    GALLERY_MAX_DESCRIPTION_LENGTH,
-  );
-  const aiGenerated = aiMark(body?.aiGenerated);
+  const description = fixing
+    ? (current?.description ?? "")
+    : fieldText(body?.description, GALLERY_MAX_DESCRIPTION_LENGTH);
+  const aiGenerated = fixing ? undefined : aiMark(body?.aiGenerated);
   if (!body || !name || description === null || aiGenerated === null) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
-  const binding = publicationBindingFields(body);
+  // A fixer's own Shelf draft stays unlinked from the entry it fixed.
+  const binding = fixing ? {} : publicationBindingFields(body);
   if (!binding)
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   if (typeof body.projectText !== "string") {
@@ -432,6 +454,8 @@ export async function handleEntryUpdate(
     ...binding,
     userId: user.id,
     editorName: user.displayName,
+    // Anyone but the owner changing the drawing is its fixer.
+    ...(owner || takingOver ? {} : { fixKind: "edit" }),
     id,
     at: new Date().toISOString(),
     name,
@@ -444,7 +468,7 @@ export async function handleEntryUpdate(
     schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     netlistable,
     componentCount: galleryComponentCount(project),
-    tags: wrapTags(sanitizeGalleryTags(body.tags)),
+    tags: wrapTags(sanitizeGalleryTags(fixing ? current?.tags : body.tags)),
     // Absent leaves the stored mark as it is; an AI account's entry always
     // keeps it, whoever updates it.
     ...(takingOver || isAiSeatEntry(existing.payload.ownerUserId, author)
@@ -504,8 +528,8 @@ export async function routeGalleryPublishing(
           ),
         ).toISOString(),
         exempt: user.isAdmin === true || user.role === "moderator",
-        // Whether this account may fix a reference dataset's drawings.
-        datasetEdits: await datasetEditAccess(env, user),
+        // Whether this account may fix drawings not its own.
+        fixes: await fixAccess(env, user),
       },
       { headers: { "cache-control": "no-store" } },
     );

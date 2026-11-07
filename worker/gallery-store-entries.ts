@@ -456,6 +456,7 @@ export function replaceEntry(
       editorId: body.userId,
       editorName: body.editorName,
       at: String(body.at ?? new Date().toISOString()),
+      ...(body.fixKind === "edit" ? { kind: "edit" as const } : {}),
     });
     forgetTransistorCount(sql, row.id);
     // A take-over (#1499): the entry becomes the new AI account's, and a
