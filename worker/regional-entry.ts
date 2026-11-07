@@ -85,9 +85,10 @@ export default {
         !bearerMatches(incoming, base.PROJECT_SYNC_ADMIN_TOKEN)
       )
         return Response.json({ error: "not-found" }, { status: 404 });
+      // canvas-cn-project-sync.timer is the region's only Project sync driver.
       await canvas.scheduled(
         { scheduledTime: Date.now(), cron: "regional-timer" },
-        base,
+        { ...base, PROJECTS: undefined } as unknown as Env,
       );
       return Response.json({ status: "ran" }, { headers: { "cache-control": "no-store" } });
     }

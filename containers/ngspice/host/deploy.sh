@@ -42,18 +42,22 @@ if [ -f "$tunnel_env" ]; then
   tunnel_enabled=true
 fi
 
-if [ "$tunnel_enabled" = true ]; then
-  compose() {
-    docker compose --project-name analog-canvas-sim \
-      --env-file "$runtime_env" --env-file "$tunnel_env" \
-      --profile tunnel -f "$compose_file" "$@"
-  }
-else
-  compose() {
-    docker compose --project-name analog-canvas-sim \
-      --env-file "$runtime_env" -f "$compose_file" "$@"
-  }
+regional_enabled=false
+if [ -f "$regional_env" ]; then
+  grep -Eq '^REGIONAL_SIMULATION_ACCESS_TOKEN=.+$' "$regional_env"     || fail "$regional_env exists but does not contain REGIONAL_SIMULATION_ACCESS_TOKEN"
+  regional_enabled=true
 fi
+
+compose() {
+  set -- -f "$compose_file" "$@"
+  if [ "$regional_enabled" = true ]; then
+    set -- --env-file "$regional_env" --profile regional "$@"
+  fi
+  if [ "$tunnel_enabled" = true ]; then
+    set -- --env-file "$tunnel_env" --profile tunnel "$@"
+  fi
+  docker compose --project-name analog-canvas-sim --env-file "$runtime_env" "$@"
+}
 
 # The #587 host used the same deliberate container names but created them with
 # operator-owned docker commands. Compose cannot adopt such a container. The

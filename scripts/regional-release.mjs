@@ -29,6 +29,8 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const FORMAL = join(root, "containers/canvas-cn/formal");
 export const RELEASE_DIRECTORY = "regional-release";
 const WRANGLER = "wrangler@4.120.1";
+/** Production redirects `.html` paths; root copies carry this suffix instead. */
+const ROOT_SUFFIX = ".bin";
 /** Files of containers/canvas-cn/formal the host installs from a release. */
 export const RELEASE_SOURCES = [
   "config.capnp",
@@ -100,9 +102,16 @@ async function mcpBundle(target, fetchLike = fetch) {
     await readFile(join(root, "config/agent-mcp-distribution.json"), "utf8"),
   );
   const { repository, tag, asset, sha256: expected } = distribution.release;
-  const response = await fetchLike(
-    `https://github.com/${repository}/releases/download/${tag}/${asset}`,
-  );
+  const url = `https://github.com/${repository}/releases/download/${tag}/${asset}`;
+  let response;
+  for (let attempt = 1; ; attempt++) {
+    response = await fetchLike(url).catch((error) => ({
+      ok: false,
+      status: error.message,
+    }));
+    if (response.ok || attempt === 4) break;
+    await new Promise((done) => setTimeout(done, attempt * 5000));
+  }
   if (!response.ok) throw new Error(`MCP bundle download: ${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
   if (sha256(bytes) !== expected)
@@ -118,8 +127,11 @@ export async function describeRelease(dist, directory, sha) {
   for (const path of await files(directory)) {
     if (path === "release.json") continue;
     const bytes = await readFile(join(directory, path));
-    out[path.startsWith("root/") ? `assets/${path.slice(5)}` : path] =
-      sha256(bytes);
+    out[
+      path.startsWith("root/")
+        ? `assets/${path.slice(5, -ROOT_SUFFIX.length)}`
+        : path
+    ] = sha256(bytes);
   }
   for (const path of await files(join(dist, "assets"))) {
     if (path.endsWith(".br")) continue;
@@ -133,7 +145,7 @@ export async function describeRelease(dist, directory, sha) {
     // Hashed editor assets come from Production's own path; all else from here.
     sources: {
       "assets/assets/": "/assets/",
-      "assets/": `/${RELEASE_DIRECTORY}/${sha}/root/`,
+      "assets/": `/${RELEASE_DIRECTORY}/${sha}/root/{path}${ROOT_SUFFIX}`,
       "": `/${RELEASE_DIRECTORY}/${sha}/`,
     },
     files: Object.fromEntries(Object.entries(out).sort()),
@@ -182,8 +194,9 @@ export async function createRegionalRelease(dist, sha, work, options = {}) {
       path.endsWith(".br")
     )
       continue;
-    await mkdir(dirname(join(target, "root", path)), { recursive: true });
-    await copyFile(join(dist, path), join(target, "root", path));
+    const copy = join(target, "root", `${path}${ROOT_SUFFIX}`);
+    await mkdir(dirname(copy), { recursive: true });
+    await copyFile(join(dist, path), copy);
   }
   const manifest = await describeRelease(dist, target, sha);
   const text = `${JSON.stringify(manifest, null, 2)}\n`;

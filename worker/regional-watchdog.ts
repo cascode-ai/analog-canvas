@@ -60,7 +60,7 @@ export async function watchRegionalPulls(
     body: JSON.stringify({ from: env.AUTH_EMAIL_FROM, to, subject, text }),
   }).catch(() => null);
   if (!sent?.ok) {
-    if (action === "alert") await step({ now, unsent: true });
+    await step({ now, unsent: action });
     return null;
   }
   return action;

@@ -53,7 +53,10 @@ it("alerts the Owner from the source when the private region stops pulling, then
   expect(await tick(t0 + 77 * MINUTE)).toBe("alert");
   vi.setSystemTime(t0 + 78 * MINUTE);
   expect((await pull()).status).toBe(200);
-  expect(await tick(t0 + 79 * MINUTE)).toBe("recover");
+  mailUp = false;
+  expect(await tick(t0 + 79 * MINUTE)).toBeNull();
+  mailUp = true;
+  expect(await tick(t0 + 80 * MINUTE)).toBe("recover");
   expect(await tick(t0 + 84 * MINUTE)).toBeNull();
   expect(mails.map((m) => m.subject)).toEqual([
     "Analog Canvas China region silent for 16 min",

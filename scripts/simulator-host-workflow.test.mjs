@@ -49,6 +49,14 @@ describe("the operator simulator host", () => {
     expect(gateway).toContain("SIMULATION_ACCESS_TOKEN");
   });
 
+  it("starts the China region's profile only with its own credential file", () => {
+    expect(deploy).toMatch(/regional_enabled=false\n/u);
+    expect(deploy.indexOf("regional_enabled=false")).toBeLessThan(
+      deploy.indexOf('"$regional_enabled" = true'),
+    );
+    expect(deploy).toContain('--env-file "$regional_env" --profile regional');
+  });
+
   it("never prunes the host's other Docker data", () => {
     expect(deploy).not.toMatch(/docker (?:system|volume|network) prune/u);
   });

@@ -29,11 +29,11 @@ class FakeProduction:
             if path.startswith('assets/assets/'):
                 self.served['/assets/' + path[len('assets/assets/'):]] = data
             elif path.startswith('assets/'):
-                self.served[f'/regional-release/{commit}/root/' + path[len('assets/'):]] = data
+                self.served[f'/regional-release/{commit}/root/' + path[len('assets/'):] + '.bin'] = data
             else:
                 self.served[f'/regional-release/{commit}/' + path] = data
         manifest = {'schemaVersion': 1, 'commit': commit, 'files': manifest_files, 'sources': {
-            'assets/assets/': '/assets/', 'assets/': f'/regional-release/{commit}/root/',
+            'assets/assets/': '/assets/', 'assets/': f'/regional-release/{commit}/root/{{path}}.bin',
             '': f'/regional-release/{commit}/'}}
         text = json.dumps(manifest).encode()
         self.served[f'/regional-release/{commit}/release.json'] = text
@@ -47,9 +47,10 @@ class FakeProduction:
 
 
 class FakeHost:
-    def __init__(self, active=()):
+    def __init__(self, active=(), broken_nginx=False):
         self.calls = []
         self.active_units = set(active)
+        self.broken_nginx = broken_nginx
 
     def systemctl(self, *args, check=True):
         self.calls.append(('systemctl',) + args)
@@ -62,6 +63,9 @@ class FakeHost:
 
     def nginx_reload(self):
         self.calls.append(('nginx',))
+        if self.broken_nginx:
+            self.broken_nginx = False
+            raise OSError('nginx -t failed')
 
 
 CONFIG = b'(name = "X", text = embed "/sync-inbound-token"),\n(name = "W", text = embed "/project-writes-enabled")'
@@ -145,6 +149,23 @@ class ReleaseTest(unittest.TestCase):
                         host.calls.index(('systemctl', 'restart', 'canvas-cn-formal.service')))
         again = release.tick(self.args(), host, production, now=1800)
         self.assertEqual(again['status'], 'current')
+
+    def test_reads_only_the_small_pointer_while_current(self):
+        production = FakeProduction(self.files, commit=OLD)
+        result = release.tick(self.args(0), FakeHost(), production, now=1000)
+        self.assertEqual(result['status'], 'current')
+        self.assertEqual(production.requests, ['/regional-release/current.json'])
+
+    def test_rolls_back_a_failure_after_the_switch_began(self):
+        (self.units / 'canvas-cn-formal.service.d').mkdir()
+        self.nginx.write_bytes(b'old site')
+        host = FakeHost(broken_nginx=True)
+        result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'rolled-back')
+        self.assertEqual(self.current.resolve().name, OLD)
+        self.assertEqual(self.nginx.read_bytes(), b'old site')
+        self.assertEqual((self.units / 'canvas-cn-formal.service').read_text(), 'old')
+        self.assertIn(('systemctl', 'restart', 'canvas-cn-formal.service'), host.calls)
 
     def test_refuses_a_file_whose_bytes_differ_from_the_manifest(self):
         production = FakeProduction(self.files)

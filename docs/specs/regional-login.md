@@ -83,6 +83,8 @@ serves local authorization. Resource replication is owned by
   lease. Logout, expiry and restriction changes therefore reach a connected
   region within one renewal, and the lease only bounds how long a region keeps
   serving through a cross-border outage. Expired leases return no user.
+  Production must qualify alarm capacity and clock synchronization before
+  enabling this profile.
 - Authority logout, session expiry or account disappearance stops renewal;
   prior leases expire within their bound. `blocked` retains its Gallery-only meaning; it is not a
   global account-disable flag. This protocol adds no global-disable feature.

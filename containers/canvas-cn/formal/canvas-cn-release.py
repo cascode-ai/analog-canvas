@@ -63,25 +63,39 @@ class Fetcher:
         with self.opener.open(request, timeout=self.timeout) as response:
             data = response.read(limit + 1)
         if len(data) > limit:
-            raise ReleaseError('oversized-file')
+            # A missing release file answers with the editor shell.
+            raise ReleaseError('transport-or-invalid-status')
         return data
 
 
 def source_of(manifest, path):
-    """The Production path a release file is fetched from (longest prefix)."""
+    """The Production path a release file is fetched from (longest prefix).
+
+    A source may name the file as `{path}`; root files carry a suffix there so
+    Production's HTML handling cannot redirect them.
+    """
     for prefix in sorted(manifest['sources'], key=len, reverse=True):
         if path.startswith(prefix):
-            return manifest['sources'][prefix] + path[len(prefix):]
-    raise ReleaseError('unmapped-file')
+            source, rest = manifest['sources'][prefix], path[len(prefix):]
+            return source.replace('{path}', rest) if '{path}' in source else source + rest
+    raise ReleaseError('release-failed')
 
 
-def read_manifest(fetcher):
-    current = json.loads(fetcher.get('/regional-release/current.json', 4096))
-    commit = current.get('commit')
+def read_current(fetcher):
+    try:
+        current = json.loads(fetcher.get('/regional-release/current.json', 4096))
+    except ValueError:
+        raise ReleaseError('transport-or-invalid-status')
+    commit = current.get('commit') if isinstance(current, dict) else None
     if not isinstance(commit, str) or not SHA.match(commit):
         raise ReleaseError('transport-or-invalid-status')
     if current.get('manifest') != f'/regional-release/{commit}/release.json':
         raise ReleaseError('transport-or-invalid-status')
+    return current
+
+
+def read_manifest(fetcher, current):
+    commit = current['commit']
     text = fetcher.get(current['manifest'], 8 * 1024 * 1024)
     if sha256(text) != current.get('sha256'):
         raise ReleaseError('release-failed')
@@ -165,7 +179,8 @@ def switch(link, target):
 def install_units(release, unit_dir, host):
     """Copy changed units; report which changed and which are new."""
     changed, added = [], []
-    for unit in sorted(release.glob('canvas-cn-*.service')) + sorted(release.glob('canvas-cn-*.timer')):
+    units = sorted(release.glob('canvas-cn-*.service')) + sorted(release.glob('canvas-cn-*.timer'))
+    for unit in (u for u in units if u.is_file()):
         installed = unit_dir / unit.name
         if installed.is_file() and installed.read_bytes() == unit.read_bytes():
             continue
@@ -213,8 +228,10 @@ def tick(args, host=None, fetcher=None, now=None):
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     current = pathlib.Path(args.current)
     serving = current.resolve()
-    installed = json.loads((serving / 'release.json').read_text()).get('commit')
-    commit, manifest, text = read_manifest(fetcher)
+    record = serving / 'release.json'
+    installed = json.loads(record.read_text()).get('commit') if record.is_file() else None
+    published = read_current(fetcher)
+    commit = published['commit']
     result = {'health': 'ok', 'reason': None, 'serving': installed, 'lastAttemptAt': now}
     if commit == installed:
         return dict(result, status='current', lastCaughtUpAt=now)
@@ -226,7 +243,8 @@ def tick(args, host=None, fetcher=None, now=None):
         pending = {'commit': commit, 'firstSeen': now}
     if now - pending['firstSeen'] < args.settle_seconds:
         return dict(result, status='settling', pending=pending, lastCaughtUpAt=state.get('lastCaughtUpAt', now))
-    releases = pathlib.Path(args.releases)
+    commit, manifest, text = read_manifest(fetcher, published)
+    releases = pathlib.Path(args.releases).resolve()
     target = releases / commit
     partial = releases / (commit + '.partial')
     shutil.rmtree(partial, ignore_errors=True)
@@ -239,41 +257,60 @@ def tick(args, host=None, fetcher=None, now=None):
         shutil.rmtree(target)
     partial.rename(target)
     unit_dir = pathlib.Path(args.unit_dir)
-    saved_units = {p.name: p.read_bytes() for p in unit_dir.glob('canvas-cn-*')}
-    nginx_before = pathlib.Path(NGINX_SITE).read_bytes() if pathlib.Path(NGINX_SITE).exists() else None
+    saved_units = {p.name: p.read_bytes() for p in unit_dir.glob('canvas-cn-*') if p.is_file()}
+    site = pathlib.Path(NGINX_SITE)
+    nginx_before = site.read_bytes() if site.exists() else None
     paused = [timer for timer in SYNC_TIMERS if host.active(timer)]
     for timer in paused:
         host.systemctl('stop', timer, check=False)
+    changed, added, operator_restarted = [], [], False
     try:
-        host.backup(target)
-        changed, added = install_units(target, unit_dir, host)
-        nginx_new = (target / 'nginx.conf').read_bytes()
-        if nginx_new != nginx_before:
-            pathlib.Path(NGINX_SITE).write_bytes(nginx_new)
-            host.nginx_reload()
-        switch(current, target)
-        if 'canvas-cn-operator.service' in changed:
-            host.systemctl('restart', 'canvas-cn-operator.service')
-        host.systemctl('restart', 'canvas-cn-formal.service')
-        ok = smoke(args.local, credentials, attempts=args.smoke_attempts)
+        try:
+            host.backup(target)
+        except Exception:
+            # Nothing is switched yet: the serving release keeps running.
+            return dict(result, health='failed', reason='release-failed', status='backup-failed')
+        try:
+            changed, added = install_units(target, unit_dir, host)
+            nginx_new = (target / 'nginx.conf').read_bytes()
+            if nginx_new != nginx_before:
+                site.write_bytes(nginx_new)
+                host.nginx_reload()
+            switch(current, target)
+            if 'canvas-cn-operator.service' in changed:
+                operator_restarted = True
+                host.systemctl('restart', 'canvas-cn-operator.service')
+            host.systemctl('restart', 'canvas-cn-formal.service')
+            ok = smoke(args.local, credentials, attempts=args.smoke_attempts)
+        except Exception:
+            ok = False
         if ok:
             for unit in added:
                 if unit in AUTO_TIMERS:
-                    host.systemctl('enable', '--now', unit)
+                    host.systemctl('enable', '--now', unit, check=False)
             prune(releases, keep={target, serving}, count=args.keep)
             return dict(result, status='installed', serving=commit, previous=installed,
                         downloadedBytes=downloaded, lastCaughtUpAt=now)
+        # Restore the serving release exactly: link, units, nginx site, processes.
         switch(current, serving)
-        for name, data in saved_units.items():
-            (unit_dir / name).write_bytes(data)
         for name in changed + added:
             if name not in saved_units:
                 (unit_dir / name).unlink(missing_ok=True)
-        host.systemctl('daemon-reload')
-        if nginx_before is not None and nginx_new != nginx_before:
-            pathlib.Path(NGINX_SITE).write_bytes(nginx_before)
-            host.nginx_reload()
-        host.systemctl('restart', 'canvas-cn-formal.service')
+        for name, data in saved_units.items():
+            (unit_dir / name).write_bytes(data)
+        host.systemctl('daemon-reload', check=False)
+        if site.exists() and site.read_bytes() != nginx_before:
+            if nginx_before is None:
+                site.unlink()
+            else:
+                site.write_bytes(nginx_before)
+            try:
+                host.nginx_reload()
+            except Exception:
+                pass
+        if operator_restarted:
+            host.systemctl('restart', 'canvas-cn-operator.service', check=False)
+        host.systemctl('restart', 'canvas-cn-formal.service', check=False)
         restored = smoke(args.local, credentials, attempts=args.smoke_attempts)
         return dict(result, health='failed', reason='release-rolled-back' if restored else 'release-failed',
                     status='rolled-back', failedCommit=commit, failedReason='release-rolled-back')
@@ -283,7 +320,8 @@ def tick(args, host=None, fetcher=None, now=None):
 
 
 def prune(releases, keep, count):
-    candidates = sorted((p for p in releases.iterdir() if p.is_dir() and p not in keep
+    keep = {p.resolve() for p in keep}
+    candidates = sorted((p for p in releases.iterdir() if p.is_dir() and p.resolve() not in keep
                          and not p.name.endswith('.partial')), key=lambda p: p.stat().st_mtime, reverse=True)
     for old in candidates[max(count - len(keep), 0):]:
         shutil.rmtree(old, ignore_errors=True)

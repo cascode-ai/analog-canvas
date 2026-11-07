@@ -1,8 +1,5 @@
-// The China runtime's only declaration of how it differs from Production.
-// `wrangler.jsonc` stays the single source for bindings, variables, limits and
-// scheduled work; `scripts/regional-runtime.mjs` generates config.capnp and the
-// scheduled timer from both files, and `--check` fails CI when a Production
-// binding is neither carried nor listed here with a reason.
+// The China runtime's differences from wrangler.jsonc (docs/deployment.md,
+// "China region"). Every exclusion carries its reason.
 {
   "entry": "worker/regional-entry.ts",
   "listen": "127.0.0.1:8792",

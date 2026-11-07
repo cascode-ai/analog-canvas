@@ -122,7 +122,7 @@ export class RegionalProjectDO {
    */
   watchdog(
     now: number,
-    unsent = false,
+    unsent?: "alert" | "recover",
   ): { action: "alert" | "recover" | null; lastPullAt: number | null } {
     const row = this.sql
       .exec<{ last_pull_at: number; stale: number; alerted_at: number }>(
@@ -130,8 +130,13 @@ export class RegionalProjectDO {
       )
       .toArray()[0];
     if (!row) return { action: null, lastPullAt: null };
+    // An unsent mail is decided again on the next tick.
     if (unsent) {
-      this.sql.exec("UPDATE project_sync_watchdog SET alerted_at = 0");
+      this.sql.exec(
+        unsent === "alert"
+          ? "UPDATE project_sync_watchdog SET alerted_at = 0"
+          : "UPDATE project_sync_watchdog SET stale = 1",
+      );
       return { action: null, lastPullAt: row.last_pull_at };
     }
     const stale = now - row.last_pull_at > WATCHDOG_STALE_MS;
@@ -268,7 +273,14 @@ export class RegionalProjectDO {
     if (operation === "sync-status")
       return Response.json(this.journal.status());
     if (operation === "sync-watchdog")
-      return Response.json(this.watchdog(Number(body.now), body.unsent === true));
+      return Response.json(
+        this.watchdog(
+          Number(body.now),
+          body.unsent === "alert" || body.unsent === "recover"
+            ? body.unsent
+            : undefined,
+        ),
+      );
     if (operation === "sync-delivery")
       return this.journal.delivery(body.status);
     if (operation === "sync-reconcile")

@@ -10,10 +10,9 @@ host.
 
 ## Files
 
-- `region.jsonc` is the region's only declaration of its differences from
-  `wrangler.jsonc`. `config.capnp`, `canvas-cn-scheduled.timer` and the
-  credential block of `canvas-cn-formal.service` are generated from both
-  (`node scripts/regional-runtime.mjs`); never edit them by hand.
+- `config.capnp`, `canvas-cn-scheduled.timer` and the credential block of
+  `canvas-cn-formal.service` are generated from `region.jsonc`; never edit
+  them by hand.
 - `canvas-cn-release.py` installs releases; `formal-backup.sh` takes the
   stopped-state backup it runs first; `scheduled-tick.py` runs Production's
   scheduled work; `sync-tick.py`, `resource-sync-tick.py` and `sync-alert.py`
@@ -52,10 +51,11 @@ overseas endpoint. Only the Auth contract's browser routes are proxied there.
 
 ## Operating rules
 
-- Production's release follows Production after 10 minutes. The release
-  monitor is `/var/lib/canvas-cn-release/monitor.json`; a commit refused or
-  rolled back there stays refused until the next commit or until an operator
-  deletes that state after fixing its cause (usually a missing credential).
+- The release monitor is `/var/lib/canvas-cn-release/monitor.json`. To retry
+  a refused commit after fixing its cause (usually a missing credential),
+  delete that state file.
+- Rate limits use nginx's client address; behind the SSH trial entrance every
+  browser shares one address and therefore one allowance.
 - Project sync fails a tick on `retry`, `blocked`, `disabled`, a remaining write
   fence, 120 seconds without catch-up, or 80% of the journal budget; its
   monitor holds counters only. The region pulls and pushes; the source needs no
