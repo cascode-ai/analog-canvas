@@ -125,6 +125,11 @@ import {
 } from "./gallery-store-reviews";
 import { installFixes } from "./gallery-store-fixes";
 import {
+  bookmarks,
+  installBookmarks,
+  toggleBookmark,
+} from "./gallery-store-bookmarks";
+import {
   deleteReference,
   installReferences,
   readReference,
@@ -350,6 +355,8 @@ export class GalleryDO {
     installReviews(this.sql);
     // Each change of an entry's drawing: who, how much, which issues.
     installFixes(this.sql);
+    // Circuits each reader keeps for reference from Statistics.
+    installBookmarks(this.sql);
     // Each community entry's reference image, if its author gave one.
     installReferences(this.sql);
     // A tile's whole card, by id: a page's tiles and the Owner's lists read
@@ -725,6 +732,14 @@ export class GalleryDO {
         return version(this.sql, String(body.entryId), String(body.versionId));
       case "restore-version":
         return restoreVersion(this.state, body);
+      case "toggle-bookmark":
+        return toggleBookmark(this.sql, {
+          userId: String(body.userId),
+          id: String(body.id),
+          at: String(body.at),
+        });
+      case "bookmarks":
+        return bookmarks(this.sql, String(body.userId));
       case "toggle-like":
         return toggleLike(
           this.sql,

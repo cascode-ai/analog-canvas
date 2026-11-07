@@ -853,3 +853,33 @@ a.gallery-view-tab {
     margin-left: 0;
   }
 }
+
+/* Saved for reference: the reader's own list, kept apart from likes. */
+.datasets-save.on,
+.datasets-saved-filter.on {
+  border-color: #e8a400;
+  background: #fff6db;
+  color: #8a5a00;
+}
+
+.datasets-saved-filter {
+  padding: 5px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.datasets-saved-mark {
+  color: #e8a400;
+}
+
+/* The viewer's pictures zoom and pan in place. */
+.datasets-viewer .review-pic {
+  flex: 1;
+  aspect-ratio: auto;
+  max-height: none;
+  border: 0;
+}

@@ -25,6 +25,15 @@ export function flagLabel(key: string): string {
   return REVIEW_FLAGS.find((flag) => flag.key === key)?.label ?? key;
 }
 
+/** A box on one of Review's two pictures, in fractions of its size. */
+export interface ReviewMark {
+  side: "original" | "redraw";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface ShownReview {
   id: string;
   entryId: string;
@@ -34,6 +43,8 @@ export interface ShownReview {
   verdict: "pass" | "issue";
   flags: string[];
   note: string;
+  /** Boxes the reviewer drew on the pictures. */
+  marks?: ReviewMark[];
   at: string;
   resolved: boolean;
 }

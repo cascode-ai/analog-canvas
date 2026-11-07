@@ -7,7 +7,7 @@
 //   GET  /api/gallery/review/<scope>/people  each reviewer's totals
 //   GET  /api/gallery/review/<scope>/issues  Owner: open issues, disputes
 //   GET  /api/gallery/<id>/reviews           blind until one's own review
-//   POST /api/gallery/<id>/reviews           {revision, verdict, flags, note}
+//   POST /api/gallery/<id>/reviews           {revision, verdict, flags, note, marks}
 //   PATCH /api/gallery/<id>/reviews/<review> Owner: {resolved: true}
 
 import type { SessionUser } from "./auth-do";
@@ -89,6 +89,7 @@ export async function routeReviews(
       verdict: body?.verdict,
       flags: body?.flags,
       note: body?.note,
+      marks: body?.marks,
       reviewerId: viewer.id,
       reviewerName: viewer.displayName,
       day: new Date().toISOString().slice(0, 10),

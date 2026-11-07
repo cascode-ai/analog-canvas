@@ -17,6 +17,8 @@ export interface DatasetComparison {
   components: number;
   previewRevision: string;
   figureRevision: string;
+  /** The reader keeps it for reference (their bookmark). */
+  saved?: boolean;
 }
 
 export const VERDICTS: readonly {
@@ -94,6 +96,8 @@ export interface ComparisonFilters {
   size: number | null;
   family: string | null;
   query: string;
+  /** Only the circuits the reader keeps. */
+  saved: boolean;
   sort: ComparisonSort;
   view: ComparisonView;
 }
@@ -105,6 +109,7 @@ export const NO_FILTERS: ComparisonFilters = {
   size: null,
   family: null,
   query: "",
+  saved: false,
   sort: "id",
   view: "pair",
 };
@@ -138,6 +143,7 @@ export function rowsWithout(
       (skip.includes("family") ||
         !filters.family ||
         row.families.includes(filters.family)) &&
+      (!filters.saved || row.saved === true) &&
       (!query ||
         row.id.toLowerCase().includes(query) ||
         row.name.toLowerCase().includes(query)),
@@ -241,6 +247,7 @@ export function filtersFromSearch(search: string): ComparisonFilters {
         ? family
         : null,
     query: params.get("q") ?? "",
+    saved: params.get("saved") === "1",
     sort: sort in SORTS ? (sort as ComparisonSort) : "id",
     view: view in VIEWS ? (view as ComparisonView) : "pair",
   };
@@ -255,6 +262,7 @@ export function searchOfFilters(filters: ComparisonFilters): string {
   if (filters.size !== null) params.set("size", sizeBinLabel(filters.size));
   if (filters.family) params.set("contains", filters.family);
   if (filters.query.trim()) params.set("q", filters.query.trim());
+  if (filters.saved) params.set("saved", "1");
   if (filters.sort !== "id") params.set("sort", filters.sort);
   if (filters.view !== "pair") params.set("view", filters.view);
   const text = params.toString();

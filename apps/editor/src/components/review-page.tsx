@@ -28,6 +28,7 @@ import {
   withReview,
   type EntryFix,
   type ReviewCard,
+  type ReviewMark,
   type ShownReview,
 } from "../review-queue";
 import { fetchSessionUser } from "./account";
@@ -35,6 +36,8 @@ import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
 import { SidebarFoldButton, useCollapsedSidebar } from "./gallery-tag-sidebar";
 import { HeartIcon } from "./gallery-feed-tile";
+import { MarkablePicture, ZoomView } from "./review-picture";
+import { NetlistPair, useNetlistText } from "./review-netlists";
 
 type Load =
   | { status: "loading" }
@@ -74,6 +77,8 @@ export function ReviewPage({
   const [index, setIndex] = useState(0);
   const [flags, setFlags] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  // Boxes the reviewer drew on the pictures, numbered in this order.
+  const [marks, setMarks] = useState<ReviewMark[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [sidebarCollapsed, toggleSidebar] = useCollapsedSidebar(
@@ -209,6 +214,7 @@ export function ReviewPage({
     const own = card?.mine?.current ? card.mine : null;
     setFlags(own?.verdict === "issue" ? own.flags : []);
     setNote(own?.note ?? "");
+    setMarks(own?.marks ?? []);
     setMessage("");
   }, [card?.id, card?.mine]);
 
@@ -235,6 +241,7 @@ export function ReviewPage({
             verdict: flags.length ? "issue" : "pass",
             flags,
             note,
+            marks,
           }),
         },
       );
@@ -267,7 +274,18 @@ export function ReviewPage({
     } finally {
       setBusy(false);
     }
-  }, [card, busy, fetchLike, flags, note, cards, go, index, replaceCard]);
+  }, [
+    card,
+    busy,
+    fetchLike,
+    flags,
+    note,
+    marks,
+    cards,
+    go,
+    index,
+    replaceCard,
+  ]);
 
   // A like is the reader's own mark, apart from the review.
   const toggleLike = useCallback(async () => {
@@ -409,21 +427,13 @@ export function ReviewPage({
                   card={card}
                   fetchLike={fetchLike}
                   owner={owner}
+                  marks={marks}
+                  onAddMark={(mark) =>
+                    setMarks((current) =>
+                      current.length >= 12 ? current : [...current, mark],
+                    )
+                  }
                 >
-                  <div className="review-flags" role="group" aria-label="Flags">
-                    {flagsFor(card.scope).map((flag) => (
-                      <button
-                        key={flag.key}
-                        type="button"
-                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
-                        aria-pressed={flags.includes(flag.key)}
-                        onClick={() => toggleFlag(flag.key)}
-                      >
-                        <kbd>{flag.hotkey}</kbd>
-                        {flag.label}
-                      </button>
-                    ))}
-                  </div>
                   <div className="review-actions">
                     <textarea
                       className="review-note"
@@ -465,6 +475,42 @@ export function ReviewPage({
                       {flags.length ? "Submit issue" : "Pass"}
                       <kbd>Enter</kbd>
                     </button>
+                  </div>
+                  <div className="review-flags" role="group" aria-label="Flags">
+                    {flagsFor(card.scope).map((flag) => (
+                      <button
+                        key={flag.key}
+                        type="button"
+                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
+                        aria-pressed={flags.includes(flag.key)}
+                        onClick={() => toggleFlag(flag.key)}
+                      >
+                        <kbd>{flag.hotkey}</kbd>
+                        {flag.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="review-marks-row">
+                    {marks.map((mark, number) => (
+                      <button
+                        key={number}
+                        type="button"
+                        className="review-mark-chip"
+                        title="Remove this box"
+                        onClick={() =>
+                          setMarks((current) =>
+                            current.filter((_, at) => at !== number),
+                          )
+                        }
+                      >
+                        <b>{number + 1}</b>
+                        {mark.side === "original" ? "Original" : "Redraw"} ×
+                      </button>
+                    ))}
+                    <span className="hint">
+                      Drag on a picture to box a spot (refer to it by number) ·
+                      click a picture to zoom
+                    </span>
                   </div>
                   {message ? <p className="review-message">{message}</p> : null}
                 </ReviewItem>
@@ -511,15 +557,68 @@ function ReviewItem({
   card,
   fetchLike,
   owner,
+  marks,
+  onAddMark,
   children,
 }: {
   card: ReviewCard;
   fetchLike: typeof fetch;
   owner: boolean;
+  marks: readonly ReviewMark[];
+  onAddMark: (mark: ReviewMark) => void;
   children: ReactNode;
 }) {
   const comparison = card.comparison;
   const store = card.scope;
+  const [zoomed, setZoomed] = useState(false);
+  // Another review's boxes, while the reader points at it.
+  const [shownMarks, setShownMarks] = useState<ReviewMark[] | null>(null);
+  const theirs = useNetlistText(
+    comparison
+      ? `/api/gallery/sources/${store}/comparisons/${encodeURIComponent(card.id)}`
+      : null,
+    (payload) => payload.sourceNetlist,
+    "The dataset gives no netlist.",
+    fetchLike,
+  );
+  const ours = useNetlistText(
+    `/api/gallery/${encodeURIComponent(card.id)}?netlist=spice`,
+    (payload) => payload.netlist?.text,
+    "This drawing exports no netlist.",
+    fetchLike,
+  );
+  const original = comparison
+    ? {
+        src: `/api/gallery/sources/${store}/comparisons/${encodeURIComponent(card.id)}/figure?v=${encodeURIComponent(comparison.figureRevision)}`,
+        alt: "Original figure",
+        label: `Original · ${scopeName(store)}`,
+      }
+    : card.reference
+      ? {
+          src: `/api/gallery/${encodeURIComponent(card.id)}/reference?v=${encodeURIComponent(card.reference.revision)}`,
+          alt: "Reference image",
+          label: "Reference · uploaded by its author",
+        }
+      : null;
+  const redraw = {
+    src: galleryPreviewUrl(card.id, card.previewRevision),
+    alt: "The drawing under review",
+    label: "Redraw · Analog Canvas",
+  };
+  const picture = (
+    shownPicture: { src: string; alt: string },
+    side: ReviewMark["side"],
+  ) => (
+    <MarkablePicture
+      src={shownPicture.src}
+      alt={shownPicture.alt}
+      side={side}
+      marks={marks}
+      shown={shownMarks}
+      onAdd={onAddMark}
+      onOpen={() => setZoomed(true)}
+    />
+  );
   return (
     <article className="review-item">
       <div className="head">
@@ -539,7 +638,12 @@ function ReviewItem({
         </a>
       </div>
       {children}
-      <OthersReviews card={card} fetchLike={fetchLike} owner={owner} />
+      <OthersReviews
+        card={card}
+        fetchLike={fetchLike}
+        owner={owner}
+        onShowMarks={setShownMarks}
+      />
       <div className="review-cols">
         <div>
           <h4>
@@ -553,53 +657,36 @@ function ReviewItem({
                   : "none yet"}
             </span>
           </h4>
-          <div className="review-pic">
-            {comparison ? (
-              <img
-                src={`/api/gallery/sources/${store}/comparisons/${encodeURIComponent(card.id)}/figure?v=${encodeURIComponent(comparison.figureRevision)}`}
-                alt="Original figure"
-              />
-            ) : card.reference ? (
-              <img
-                src={`/api/gallery/${encodeURIComponent(card.id)}/reference?v=${encodeURIComponent(card.reference.revision)}`}
-                alt="Reference image"
-              />
-            ) : (
+          {original ? (
+            picture(original, "original")
+          ) : (
+            <div className="review-pic">
               <span className="none">No reference figure</span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <div>
           <h4>
             Redraw <span>· Analog Canvas</span>
           </h4>
-          <div className="review-pic">
-            <img
-              src={galleryPreviewUrl(card.id, card.previewRevision)}
-              alt="The drawing under review"
-            />
-          </div>
+          {picture(redraw, "redraw")}
         </div>
         {comparison ? <VerdictNote comparison={comparison} /> : null}
-        {comparison ? (
-          <NetlistPane
-            key={`theirs-${card.id}`}
-            url={`/api/gallery/sources/${store}/comparisons/${encodeURIComponent(card.id)}`}
-            read={(payload) => payload.sourceNetlist}
-            empty="The dataset gives no netlist."
-            fetchLike={fetchLike}
-          />
-        ) : (
-          <div />
-        )}
-        <NetlistPane
-          key={`ours-${card.id}`}
-          url={`/api/gallery/${encodeURIComponent(card.id)}?netlist=spice`}
-          read={(payload) => payload.netlist?.text}
-          empty="This drawing exports no netlist."
-          fetchLike={fetchLike}
-        />
+        <NetlistPair theirs={comparison ? theirs : null} ours={ours} />
       </div>
+      {zoomed ? (
+        <ZoomView
+          title={`${card.id} · ${card.name}`}
+          pictures={[
+            ...(original ? [{ ...original, side: "original" as const }] : []),
+            { ...redraw, side: "redraw" as const },
+          ]}
+          marks={marks}
+          shown={shownMarks}
+          onAdd={onAddMark}
+          onClose={() => setZoomed(false)}
+        />
+      ) : null}
     </article>
   );
 }
@@ -646,10 +733,13 @@ function OthersReviews({
   card,
   fetchLike,
   owner,
+  onShowMarks,
 }: {
   card: ReviewCard;
   fetchLike: typeof fetch;
   owner: boolean;
+  /** Pointing at a review shows its boxes on the pictures. */
+  onShowMarks: (marks: ReviewMark[] | null) => void;
 }) {
   const [shown, setShown] = useState<ShownReview[] | null>(null);
   const [fixes, setFixes] = useState<EntryFix[]>([]);
@@ -705,7 +795,12 @@ function OthersReviews({
         </li>
       ))}
       {(shown ?? []).map((review) => (
-        <li key={review.id}>
+        <li
+          key={review.id}
+          className={review.marks?.length ? "with-marks" : undefined}
+          onMouseEnter={() => review.marks?.length && onShowMarks(review.marks)}
+          onMouseLeave={() => onShowMarks(null)}
+        >
           <span
             className={`datasets-icon ${review.verdict === "pass" ? "v-match" : "v-error"}`}
             aria-hidden="true"
@@ -717,6 +812,14 @@ function OthersReviews({
             ? " passed"
             : ` flagged ${review.flags.map(flagLabel).join(", ")}`}
           {review.note ? <span className="note"> — {review.note}</span> : null}
+          {review.marks?.length ? (
+            <span
+              className="review-mark-count"
+              title="Point here to show this review's boxes on the pictures"
+            >
+              ▭ {review.marks.length}
+            </span>
+          ) : null}
           {review.resolved ? <span className="meta"> · resolved</span> : null}
           {owner && review.verdict === "issue" && !review.resolved ? (
             <button type="button" onClick={() => void resolve(review)}>
@@ -727,45 +830,6 @@ function OthersReviews({
       ))}
     </ul>
   );
-}
-
-/**
- * One side's SPICE netlist under its picture. Ours is the entry's, read as
- * opening it is: it spends one of the day's circuit opens.
- */
-function NetlistPane({
-  url,
-  read,
-  empty,
-  fetchLike,
-}: {
-  url: string;
-  read: (payload: {
-    sourceNetlist?: string;
-    netlist?: { text?: string } | null;
-  }) => string | undefined;
-  empty: string;
-  fetchLike: typeof fetch;
-}) {
-  const [text, setText] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void fetchLike(url, { credentials: "same-origin" })
-      .then(async (response) => {
-        if (response.status === 429)
-          return "Today's circuit opens are used up; the netlist returns tomorrow.";
-        if (!response.ok) return "The netlist could not be loaded.";
-        return read(await response.json())?.trim() || empty;
-      })
-      .catch(() => "The netlist could not be loaded.")
-      .then((next) => !cancelled && setText(next));
-    return () => {
-      cancelled = true;
-    };
-    // `read` and `empty` belong to the caller's one call site per side.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, fetchLike]);
-  return <pre className="review-netlist">{text ?? "Loading the netlist…"}</pre>;
 }
 
 /**

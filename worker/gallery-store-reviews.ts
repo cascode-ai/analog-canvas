@@ -44,6 +44,59 @@ export function installReviews(sql: SqlStorage): void {
     ON entry_reviews(entry_id, created_at)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS idx_entry_reviews_reviewer
     ON entry_reviews(reviewer_id, created_at)`);
+  // Boxes the reviewer drew on the pictures, as JSON (see reviewMarks).
+  try {
+    sql.exec(
+      "ALTER TABLE entry_reviews ADD COLUMN marks TEXT NOT NULL DEFAULT ''",
+    );
+  } catch {
+    // Column already present.
+  }
+}
+
+/** A box on one of the two pictures, in fractions of its width and height. */
+interface ReviewMark {
+  side: "original" | "redraw";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+const MARK_LIMIT = 12;
+
+/**
+ * A review's boxes: at most MARK_LIMIT, each on a side and inside its
+ * picture, rounded to four places. Null when any is not one.
+ */
+function reviewMarks(value: unknown): ReviewMark[] | null {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > MARK_LIMIT) return null;
+  const marks: ReviewMark[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return null;
+    const side = item.side;
+    const [x, y, w, h] = [item.x, item.y, item.w, item.h].map(Number);
+    if (
+      (side !== "original" && side !== "redraw") ||
+      ![x, y, w, h].every((part) => Number.isFinite(part)) ||
+      x! < 0 ||
+      y! < 0 ||
+      w! <= 0 ||
+      h! <= 0 ||
+      x! + w! > 1.0001 ||
+      y! + h! > 1.0001
+    )
+      return null;
+    const round = (part: number) => Math.round(part * 10_000) / 10_000;
+    marks.push({
+      side,
+      x: round(x!),
+      y: round(y!),
+      w: round(w!),
+      h: round(h!),
+    });
+  }
+  return marks;
 }
 
 interface ReviewRow {
@@ -55,11 +108,18 @@ interface ReviewRow {
   verdict: string;
   flags: string;
   note: string;
+  marks?: string;
   created_at: string;
   resolved_at: string | null;
 }
 
 function shown(row: ReviewRow, current: string | undefined) {
+  let marks: ReviewMark[] = [];
+  try {
+    marks = row.marks ? (reviewMarks(JSON.parse(row.marks)) ?? []) : [];
+  } catch {
+    marks = [];
+  }
   return {
     id: row.id,
     entryId: row.entry_id,
@@ -69,6 +129,7 @@ function shown(row: ReviewRow, current: string | undefined) {
     verdict: row.verdict,
     flags: row.flags ? row.flags.split(",") : [],
     note: row.note,
+    marks,
     at: row.created_at,
     resolved: row.resolved_at !== null,
   };
@@ -109,7 +170,9 @@ export function submitReview(sql: SqlStorage, body: unknown): Response {
   const verdict = String(body.verdict ?? "");
   const flags = Array.isArray(body.flags) ? body.flags : [];
   const note = typeof body.note === "string" ? body.note.trim() : "";
+  const marks = reviewMarks(body.marks);
   if (
+    !marks ||
     !reviewerId ||
     !["pass", "issue"].includes(verdict) ||
     !flags.every((flag) =>
@@ -156,13 +219,14 @@ export function submitReview(sql: SqlStorage, body: unknown): Response {
     verdict,
     flags: [...new Set(flags as string[])].join(","),
     note,
+    marks: marks.length ? JSON.stringify(marks) : "",
     created_at: new Date().toISOString(),
     resolved_at: null,
   };
   sql.exec(
     `INSERT INTO entry_reviews (id, entry_id, preview_revision, reviewer_id,
-       reviewer_name, verdict, flags, note, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       reviewer_name, verdict, flags, note, marks, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id,
     row.entry_id,
     row.preview_revision,
@@ -171,6 +235,7 @@ export function submitReview(sql: SqlStorage, body: unknown): Response {
     row.verdict,
     row.flags,
     row.note,
+    row.marks,
     row.created_at,
   );
   return Response.json({ review: shown(row, entry.preview_revision) });

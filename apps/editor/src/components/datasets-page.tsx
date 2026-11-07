@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -40,6 +41,7 @@ import {
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
 import { ReviewSummary } from "./review-summary";
+import { MarkablePicture } from "./review-picture";
 
 type Load =
   | { status: "loading" }
@@ -120,7 +122,60 @@ export function DatasetsPage({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const rows = load.status === "ready" ? load.rows : [];
+  // The circuits this reader keeps for reference, from each dataset.
+  const [saved, setSaved] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (load.status !== "ready") return;
+    let cancelled = false;
+    void Promise.all(
+      COMPARISON_SOURCES.map((source) =>
+        fetchLike(`/api/gallery/sources/${source.key}/bookmarks`, {
+          credentials: "same-origin",
+        })
+          .then((response) =>
+            response.ok
+              ? (response.json() as Promise<{ ids: string[] }>)
+              : null,
+          )
+          .catch(() => null),
+      ),
+    ).then((lists) => {
+      if (!cancelled)
+        setSaved(new Set(lists.flatMap((list) => list?.ids ?? [])));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [load.status, fetchLike]);
+  const toggleSaved = useCallback(
+    async (id: string) => {
+      const response = await fetchLike(
+        `/api/gallery/${encodeURIComponent(id)}/bookmark`,
+        { method: "POST", credentials: "same-origin" },
+      ).catch(() => null);
+      if (!response?.ok) {
+        setToast("It could not be saved.");
+        return;
+      }
+      const { saved: kept } = (await response.json()) as { saved: boolean };
+      setSaved((current) => {
+        const next = new Set(current);
+        if (kept) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+      setToast(kept ? "Saved for reference" : "Removed from Saved");
+    },
+    [fetchLike],
+  );
+  const loaded = load.status === "ready" ? load.rows : null;
+  const rows = useMemo(
+    () =>
+      (loaded ?? []).map((row) =>
+        saved.has(row.id) ? { ...row, saved: true } : row,
+      ),
+    [loaded, saved],
+  );
   const visible = useMemo(
     () => sortedComparisons(rowsWithout(rows, filters), filters.sort),
     [rows, filters],
@@ -187,6 +242,7 @@ export function DatasetsPage({
               set={set}
               setFilters={setFilters}
               count={visible.length}
+              savedCount={saved.size}
             />
             <section
               className={`datasets-list datasets-view-${filters.view}`}
@@ -214,6 +270,7 @@ export function DatasetsPage({
                         showSource={!filters.source}
                         open={() => setViewer(index)}
                         say={setToast}
+                        toggleSaved={() => void toggleSaved(row.id)}
                         fetchLike={fetchLike}
                       />
                     ),
@@ -237,6 +294,7 @@ export function DatasetsPage({
           index={viewer}
           go={setViewer}
           close={() => setViewer(null)}
+          toggleSaved={(id) => void toggleSaved(id)}
         />
       ) : null}
       {tip ? (
@@ -557,11 +615,13 @@ function Toolbar({
   set,
   setFilters,
   count,
+  savedCount,
 }: {
   filters: ComparisonFilters;
   set: (change: Partial<ComparisonFilters>) => void;
   setFilters: (filters: ComparisonFilters) => void;
   count: number;
+  savedCount: number;
 }) {
   const [query, setQuery] = useState(filters.query);
   useEffect(() => setQuery(filters.query), [filters.query]);
@@ -613,6 +673,16 @@ function Toolbar({
           </button>
         ))}
       </span>
+      <button
+        type="button"
+        className={`datasets-saved-filter${filters.saved ? " on" : ""}`}
+        aria-pressed={filters.saved}
+        data-testid="datasets-saved-filter"
+        title="Only the circuits you saved for reference"
+        onClick={() => set({ saved: !filters.saved })}
+      >
+        {filters.saved ? "★" : "☆"} Saved · {num(savedCount)}
+      </button>
       {pills.map(([key, label]) => (
         <span key={key} className="datasets-pill">
           {label}
@@ -688,6 +758,7 @@ function ComparisonRow({
   showSource,
   open,
   say,
+  toggleSaved,
   fetchLike,
 }: {
   row: DatasetComparison;
@@ -695,6 +766,7 @@ function ComparisonRow({
   showSource: boolean;
   open: () => void;
   say: (text: string) => void;
+  toggleSaved: () => void;
   fetchLike: typeof fetch;
 }) {
   const [why, setWhy] = useState(false);
@@ -717,6 +789,7 @@ function ComparisonRow({
           {showSource && source ? ` · ${source.name}` : ""}
         </span>
         <span className="acts">
+          <SaveButton saved={row.saved === true} toggle={toggleSaved} />
           <button type="button" onClick={copyLink}>
             Copy link
           </button>
@@ -888,7 +961,27 @@ function GridCard({ row, open }: { row: DatasetComparison; open: () => void }) {
         <span title={verdictOf(row.verdict).label}>
           <VerdictIcon verdict={row.verdict} />
         </span>
+        {row.saved ? (
+          <span className="datasets-saved-mark" title="Saved for reference">
+            ★
+          </span>
+        ) : null}
       </span>
+    </button>
+  );
+}
+
+/** Keep a circuit for reference, or let it go: the reader's own list. */
+function SaveButton({ saved, toggle }: { saved: boolean; toggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className={`datasets-save${saved ? " on" : ""}`}
+      aria-pressed={saved}
+      title={saved ? "Remove from Saved" : "Save for reference"}
+      onClick={toggle}
+    >
+      {saved ? "★ Saved" : "☆ Save"}
     </button>
   );
 }
@@ -898,11 +991,13 @@ function Viewer({
   index,
   go,
   close,
+  toggleSaved,
 }: {
   rows: DatasetComparison[];
   index: number;
   go: (index: number) => void;
   close: () => void;
+  toggleSaved: (id: string) => void;
 }) {
   const row = rows[index]!;
   useEffect(() => {
@@ -926,7 +1021,13 @@ function Viewer({
         <span className="id">{row.id}</span>
         <span>{row.name}</span>
         <VerdictBadge verdict={row.verdict} />
-        <span className="hint">← → next · Esc close</span>
+        <span className="hint">
+          ← → next · wheel zooms, drag pans · Esc close
+        </span>
+        <SaveButton
+          saved={row.saved === true}
+          toggle={() => toggleSaved(row.id)}
+        />
         <button type="button" onClick={close}>
           Close
         </button>
@@ -934,18 +1035,25 @@ function Viewer({
       <div className="vb">
         <div>
           <h4>Original · {gallerySourceByKey(row.source)?.name}</h4>
-          <span>
-            <img src={comparisonFigureUrl(row)} alt="Original figure" />
-          </span>
+          <MarkablePicture
+            key={`original-${row.id}`}
+            src={comparisonFigureUrl(row)}
+            alt="Original figure"
+            side="original"
+            marks={[]}
+            zoomed
+          />
         </div>
         <div>
           <h4>Redraw · Analog Canvas</h4>
-          <span>
-            <img
-              src={galleryPreviewUrl(row.id, row.previewRevision)}
-              alt="Our redraw"
-            />
-          </span>
+          <MarkablePicture
+            key={`redraw-${row.id}`}
+            src={galleryPreviewUrl(row.id, row.previewRevision)}
+            alt="Our redraw"
+            side="redraw"
+            marks={[]}
+            zoomed
+          />
         </div>
       </div>
     </div>

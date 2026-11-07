@@ -65,6 +65,19 @@ describe("reviews of Gallery drawings", () => {
       { revision, verdict: "pass", flags: ["ugly"] },
       { revision, verdict: "issue", flags: [] },
       { revision, verdict: "issue", flags: ["blurry"] },
+      // A box must name a side and stay inside its picture.
+      {
+        revision,
+        verdict: "issue",
+        flags: ["ugly"],
+        marks: [{ side: "left", x: 0, y: 0, w: 0.5, h: 0.5 }],
+      },
+      {
+        revision,
+        verdict: "issue",
+        flags: ["ugly"],
+        marks: [{ side: "redraw", x: 0.8, y: 0, w: 0.5, h: 0.5 }],
+      },
     ])
       expect((await review(id, reader, body)).status).toBe(400);
     expect(
@@ -86,6 +99,7 @@ describe("reviews of Gallery drawings", () => {
       verdict: "issue",
       flags: ["loose", "ugly"],
       note: "Wide gaps between the stages.",
+      marks: [{ side: "redraw", x: 0.1, y: 0.2, w: 0.30004, h: 0.2 }],
     });
     expect(flagged.status).toBe(200);
     const reviewId = ((await flagged.json()) as { review: { id: string } })
@@ -100,6 +114,7 @@ describe("reviews of Gallery drawings", () => {
           verdict: "issue",
           flags: ["loose", "ugly"],
           note: "Wide gaps between the stages.",
+          marks: [{ side: "redraw", x: 0.1, y: 0.2, w: 0.3, h: 0.2 }],
         }),
       ]),
     });

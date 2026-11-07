@@ -93,21 +93,30 @@
   text-align: center;
 }
 
+/* Stepping is half of every decision: big enough to hit without aiming. */
 .review-steps button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 3px 9px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
+  min-width: 40px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--icm-border-strong, var(--icm-border));
+  border-radius: var(--icm-radius-md);
   background: var(--icm-surface);
-  color: var(--icm-text-muted);
-  font-size: 12px;
+  color: var(--icm-text);
+  font-size: 14px;
   cursor: pointer;
+}
+
+.review-steps button:hover {
+  border-color: var(--icm-text);
 }
 
 .review-steps button:last-child {
   margin-left: 6px;
+  font-weight: 600;
 }
 
 .review-item {
@@ -142,13 +151,21 @@
 }
 
 .review-item .open {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
   margin-left: auto;
-  padding: 2px 9px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text-muted);
-  font-size: 12px;
+  padding: 0 14px;
+  border: 1px solid var(--icm-border-strong, var(--icm-border));
+  border-radius: var(--icm-radius-md);
+  color: var(--icm-text);
+  font-size: 13px;
+  font-weight: 600;
   text-decoration: none;
+}
+
+.review-item .open:hover {
+  border-color: var(--icm-text);
 }
 
 .review-cols {
@@ -181,6 +198,7 @@
 /* As wide as its column at 4:3, but never taller than what is left of the
    screen after the chrome, the tabs and the verdict controls. */
 .review-pic {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -192,9 +210,67 @@
   background: #fff;
 }
 
+/* The picture and its boxes, zoomed and panned together. */
+.review-pic-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 0 0;
+}
+
 .review-pic img {
   max-width: 96%;
   max-height: 96%;
+  user-select: none;
+}
+
+.review-pic[data-drawing] {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.review-pic.zoomed:not([data-drawing]) {
+  cursor: grab;
+  touch-action: none;
+}
+
+.review-marks {
+  position: absolute;
+  pointer-events: none;
+}
+
+.review-mark {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #d03b3b;
+  border-radius: 3px;
+  background: rgb(208 59 59 / 8%);
+}
+
+.review-mark b {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #d03b3b;
+  color: #fff;
+  font: 700 11px/18px var(--icm-font-mono);
+  text-align: center;
+}
+
+/* Another reviewer's boxes, while the reader points at their review. */
+.review-mark.other {
+  border: 2px dashed #e8590c;
+  background: rgb(232 89 12 / 8%);
+}
+
+.review-mark.other b {
+  background: #e8590c;
 }
 
 .review-pic .none {
@@ -204,6 +280,7 @@
 
 /* As tall as the netlist is long; a long line scrolls sideways. */
 .review-netlist {
+  min-width: 0;
   box-sizing: border-box;
   margin: 0;
   padding: 5px 8px;
@@ -214,6 +291,36 @@
   background: var(--icm-surface-muted);
   font: 11px/1.4 var(--icm-font-mono);
   white-space: pre;
+}
+
+/* Each line its own row; a device's line lights with its counterpart. */
+.review-netlist.matched {
+  padding: 5px 0;
+}
+
+.review-netlist .nl-line {
+  display: block;
+  padding: 0 8px;
+}
+
+.review-netlist .nl-device {
+  cursor: pointer;
+}
+
+.review-netlist .nl-device:hover {
+  background: rgb(42 120 214 / 8%);
+}
+
+.review-netlist .nl-device.on {
+  background: #ffe8a3;
+  box-shadow: inset 3px 0 0 #e8a400;
+}
+
+.review-netlist-pairing {
+  grid-column: 1 / -1;
+  margin: -2px 0 0;
+  color: var(--icm-text-muted);
+  font-size: 12px;
 }
 
 /* What comparing the two netlists found, across both columns. */
@@ -386,6 +493,135 @@
 
 .review-actions .review-like.on {
   border-color: #e0245e;
+}
+
+/* The reviewer's boxes, each a removable chip, and how to draw one. */
+.review-marks-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.review-mark-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 3px;
+  border: 1px solid #f2b8b8;
+  border-radius: 999px;
+  background: #fdecec;
+  color: var(--icm-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.review-mark-chip b {
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: #d03b3b;
+  color: #fff;
+  font: 700 10px/16px var(--icm-font-mono);
+  text-align: center;
+}
+
+.review-marks-row .hint {
+  color: var(--icm-text-muted);
+}
+
+.review-others li.with-marks {
+  cursor: default;
+}
+
+.review-others li.with-marks:hover {
+  background: rgb(232 89 12 / 6%);
+}
+
+.review-mark-count {
+  color: #e8590c;
+  font-size: 11px;
+}
+
+/* Both pictures over the whole window, to zoom into a dense figure. */
+.review-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--icm-surface);
+}
+
+.review-zoom-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--icm-border);
+  font-size: 13px;
+}
+
+.review-zoom-head .title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-zoom-head .hint {
+  flex: 1;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.review-zoom-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.review-zoom-head button[aria-pressed="true"] {
+  border-color: #d03b3b;
+  background: #fdecec;
+}
+
+.review-zoom-body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 0;
+  padding: 12px 16px 16px;
+}
+
+.review-zoom-body > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.review-zoom-body h4 {
+  margin: 0 0 6px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.review-zoom .review-pic {
+  flex: 1;
+  aspect-ratio: auto;
+  max-height: none;
 }
 
 .review-message {
