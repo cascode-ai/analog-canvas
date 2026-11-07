@@ -37,7 +37,7 @@
     },
     {
       "source": "docs/agent/circuit-style-knowledge.md",
-      "sha256": "82224a41c84e840f07ae63354ab21ad6ec5d239fe2e3adc3cfcdc968f4ff7ed8"
+      "sha256": "5b52eb476e798aaedea87b3139e59af31169ee1618b17c6729a4432ccbda9182"
     },
     {
       "source": "docs/agent/assets/folded-cascode-recommended.svg",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "a105e65bd8ef30564c93e2d5ed2114d6ef16020595af9a1953f84a17dafe60db"
+      "sha256": "db59c76d97149a70a2aec423368cbe1dfe0ff0327cf0ccf9fa80897b701d6d9e"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "9cd5c40cbb99f2f438c51ca31164f5227be47db03f0495e66b37972b0606a9df"
+      "sha256": "df187bc7d7caa78f009cff698b9f1f68ed591e1f9f94f1dab9f7c6db6b306f70"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
