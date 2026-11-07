@@ -172,65 +172,80 @@ describe("regional replication rejection and history over HTTP", () => {
     ).json();
     expect(history.versions).toHaveLength(1);
   });
-  it("saves and replicates accumulated history larger than one runtime SQLite row", async () => {
-    const env = environment(),
-      cookie = await makerOf(env);
-    const make = (region: "cn" | "overseas") => {
-      const store = new RegionalProjectDO(
-        sqliteState(undefined, 2 * 1024 * 1024),
-        { PROJECT_REGION: region },
-      );
-      return {
-        ...regional(env, region),
-        PROJECTS: {
-          getByName: () => ({
-            fetch: (url: string, init?: RequestInit) =>
-              store.fetch(new Request(url, init)),
-          }),
-        },
-      };
-    };
-    const a = make("overseas"),
-      b = make("cn");
-    identity();
-    const document = parseProject(testbenchProjectText("Large"));
-    const folder = document.simulationFolders![0]!;
-    if (folder.input.kind !== "source")
-      throw new Error("expected source fixture");
-    folder.input.files[0]!.text =
-      "* " + "large fixture ".repeat(50000) + "\n.end\n";
-    let saved: { id: string; saveToken: string } | undefined;
-    for (let index = 0; index < 4; index++) {
-      document.name = `Large ${index}`;
-      const response = await route(
-        a,
-        new Request(`${ORIGIN}/api/projects${saved ? "/" + saved.id : ""}`, {
-          method: saved ? "PUT" : "POST",
-          headers: {
-            Cookie: cookie,
-            Origin: ORIGIN,
-            ...(saved ? { "If-Match": saved.saveToken } : {}),
+  it.each(["false", "true"])(
+    "saves and replicates history larger than one SQLite row (compressed %s)",
+    async (compress) => {
+      const env = environment(),
+        cookie = await makerOf(env);
+      const make = (region: "cn" | "overseas") => {
+        const store = new RegionalProjectDO(
+          sqliteState(undefined, 2 * 1024 * 1024),
+          {
+            PROJECT_REGION: region,
+            PROJECT_SYNC_COMPRESS_JOURNAL: compress,
           },
-          body: JSON.stringify({
-            name: document.name,
-            projectText: serializeProject(document),
+        );
+        return {
+          ...regional(env, region),
+          PROJECTS: {
+            getByName: () => ({
+              fetch: (url: string, init?: RequestInit) =>
+                store.fetch(new Request(url, init)),
+            }),
+          },
+        };
+      };
+      const a = make("overseas"),
+        b = make("cn");
+      identity();
+      const document = parseProject(testbenchProjectText("Large"));
+      const folder = document.simulationFolders![0]!;
+      if (folder.input.kind !== "source")
+        throw new Error("expected source fixture");
+      folder.input.files[0]!.text =
+        "* " + "large 源🙂 fixture ".repeat(50000) + "\n.end\n";
+      let saved: { id: string; saveToken: string } | undefined;
+      for (let index = 0; index < 4; index++) {
+        document.name = `Large ${index}`;
+        const response = await route(
+          a,
+          new Request(`${ORIGIN}/api/projects${saved ? "/" + saved.id : ""}`, {
+            method: saved ? "PUT" : "POST",
+            headers: {
+              Cookie: cookie,
+              Origin: ORIGIN,
+              ...(saved ? { "If-Match": saved.saveToken } : {}),
+            },
+            body: JSON.stringify({
+              name: document.name,
+              projectText: serializeProject(document),
+            }),
           }),
-        }),
-      );
-      expect(response.status).toBe(saved ? 200 : 201);
-      saved = (await response.json()).project;
-      expect((await deliver(b, await exported(a, index))).status).toBe(200);
-    }
-    const history = await (
-      await route(
+        );
+        expect(response.status).toBe(saved ? 200 : 201);
+        saved = (await response.json()).project;
+        expect((await deliver(b, await exported(a, index))).status).toBe(200);
+      }
+      const history = await (
+        await route(
+          b,
+          new Request(`${ORIGIN}/api/projects/${saved!.id}/versions`, {
+            headers: { Cookie: cookie },
+          }),
+        )
+      ).json();
+      expect(history.versions).toHaveLength(3);
+      const current = await route(
         b,
-        new Request(`${ORIGIN}/api/projects/${saved!.id}/versions`, {
+        new Request(`${ORIGIN}/api/projects/${saved!.id}`, {
           headers: { Cookie: cookie },
         }),
-      )
-    ).json();
-    expect(history.versions).toHaveLength(3);
-  });
+      );
+      expect((await current.json()).project.projectText).toBe(
+        serializeProject(document),
+      );
+    },
+  );
   it("does not release another owner's pending creation grant on a rejected delete", async () => {
     const env = environment(),
       cookie = await makerOf(env),

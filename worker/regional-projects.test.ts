@@ -282,39 +282,44 @@ describe("regional private Projects over HTTP", () => {
       ).status,
     ).toBe(503);
   });
-  it("refuses a save atomically when its durable replication journal has no capacity", async () => {
-    const env = environment(),
-      cookie = await makerOf(env);
-    const store = new RegionalProjectDO(sqliteState(), {
-      PROJECT_REGION: "overseas",
-      PROJECT_SYNC_MAX_BYTES: 1,
-    });
-    const regional = {
-      ...env,
-      PROJECT_SYNC_TOKEN: "peer-secret",
-      PROJECTS: {
-        getByName: () => ({
-          fetch: (url: string, init?: RequestInit) =>
-            store.fetch(new Request(url, init)),
+  it.each(["false", "true"])(
+    "refuses a save atomically when its journal has no capacity (compressed %s)",
+    async (compress) => {
+      const env = environment(),
+        cookie = await makerOf(env);
+      const store = new RegionalProjectDO(sqliteState(), {
+        PROJECT_REGION: "overseas",
+        PROJECT_SYNC_MAX_BYTES: 1,
+        PROJECT_SYNC_COMPRESS_JOURNAL: compress,
+      });
+      const regional = {
+        ...env,
+        PROJECT_SYNC_TOKEN: "peer-secret",
+        PROJECTS: {
+          getByName: () => ({
+            fetch: (url: string, init?: RequestInit) =>
+              store.fetch(new Request(url, init)),
+          }),
+        },
+      };
+      expect(
+        (await route(regional, saveRequest(cookie, "Cannot acknowledge")))
+          .status,
+      ).toBe(507);
+      const list = await route(
+        regional,
+        new Request(`${ORIGIN}/api/projects`, { headers: { Cookie: cookie } }),
+      );
+      expect((await list.json()).projects).toEqual([]);
+      const events = await route(
+        regional,
+        new Request(`${ORIGIN}/api/project-sync/events`, {
+          headers: { Authorization: "Bearer peer-secret" },
         }),
-      },
-    };
-    expect(
-      (await route(regional, saveRequest(cookie, "Cannot acknowledge"))).status,
-    ).toBe(507);
-    const list = await route(
-      regional,
-      new Request(`${ORIGIN}/api/projects`, { headers: { Cookie: cookie } }),
-    );
-    expect((await list.json()).projects).toEqual([]);
-    const events = await route(
-      regional,
-      new Request(`${ORIGIN}/api/project-sync/events`, {
-        headers: { Authorization: "Bearer peer-secret" },
-      }),
-    );
-    expect((await events.json()).events).toEqual([]);
-  });
+      );
+      expect((await events.json()).events).toEqual([]);
+    },
+  );
   it("captures an existing source Project and its history before enabling regional saves", async () => {
     const env = environment(),
       cookie = await makerOf(env);

@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+import { gzipSync, gunzipSync } from "node:zlib";
 import type { SqlStorage } from "./gallery-store";
 import { isRecord } from "./gallery-store";
 import { MAX_SYNC_BYTES, type ProjectChange } from "./project-sync-protocol";
@@ -31,6 +33,9 @@ export interface ProjectSyncStatus {
 export class ProjectSyncCapacityError extends Error {}
 export class ProjectSyncFenceError extends Error {}
 
+const CHUNK_CHARS = 128 * 1024;
+const CHUNK_BYTES = CHUNK_CHARS * 3;
+
 export async function projectPayloadHash(payload: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -47,6 +52,7 @@ export class ProjectSyncJournal {
     private readonly sql: SqlStorage,
     private readonly origin: "cn" | "overseas",
     private readonly maxBytes = 64 * 1024 * 1024,
+    private readonly compress = false,
   ) {
     if (
       !Number.isSafeInteger(maxBytes) ||
@@ -109,41 +115,52 @@ export class ProjectSyncJournal {
       )
       .one().bytes;
   }
-  private capacity(payload: string): void {
-    const bytes = new TextEncoder().encode(payload).length;
-    if (bytes > MAX_SYNC_BYTES || this.bytes() + bytes > this.maxBytes)
-      throw new ProjectSyncCapacityError(
-        "Replication journal capacity exceeded",
-      );
-  }
-
   private payload(head: string): string {
     return this.sql
-      .exec<{ payload: string }>(
+      .exec<{ payload: string | ArrayBuffer | Uint8Array }>(
         "SELECT payload FROM project_sync_payloads WHERE head=? ORDER BY chunk",
         head,
       )
       .toArray()
-      .map((row) => row.payload)
+      .map(({ payload }) =>
+        typeof payload === "string"
+          ? payload
+          : gunzipSync(payload, { maxOutputLength: CHUNK_BYTES }).toString(
+              "utf8",
+            ),
+      )
       .join("");
   }
 
   private storePayload(head: string, payload: string): void {
-    this.capacity(payload);
-    let chunk = 0;
+    if (Buffer.byteLength(payload) > MAX_SYNC_BYTES)
+      throw new ProjectSyncCapacityError("Replication event size exceeded");
+    const chunks: (string | Uint8Array)[] = [];
+    let storedBytes = 0;
     for (let start = 0; start < payload.length;) {
-      let end = Math.min(start + 128 * 1024, payload.length);
+      let end = Math.min(start + CHUNK_CHARS, payload.length);
       // Never split a UTF-16 surrogate pair before SQLite encodes each chunk.
       const last = payload.charCodeAt(end - 1);
       if (end < payload.length && last >= 0xd800 && last <= 0xdbff) end--;
+      const chunk = payload.slice(start, end);
+      const rawBytes = Buffer.byteLength(chunk);
+      const gzip = this.compress ? gzipSync(chunk, { level: 1 }) : null;
+      const stored = gzip && gzip.length < rawBytes ? gzip : chunk;
+      chunks.push(stored);
+      storedBytes += typeof stored === "string" ? rawBytes : stored.length;
+      start = end;
+    }
+    if (this.bytes() + storedBytes > this.maxBytes)
+      throw new ProjectSyncCapacityError(
+        "Replication journal capacity exceeded",
+      );
+    for (const [chunk, value] of chunks.entries())
       this.sql.exec(
         "INSERT INTO project_sync_payloads VALUES (?,?,?)",
         head,
-        chunk++,
-        payload.slice(start, end),
+        chunk,
+        value,
       );
-      start = end;
-    }
   }
 
   knownHead(id: string, owner: string, head: unknown): boolean {

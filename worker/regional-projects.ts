@@ -30,6 +30,7 @@ export interface ProjectRegionConfig {
   PROJECT_REGION_USERS?: string;
   PROJECT_PROTECTED_IDS?: string;
   PROJECT_SYNC_MAX_BYTES?: number | string;
+  PROJECT_SYNC_COMPRESS_JOURNAL?: string;
 }
 
 class ProjectCreationRefused extends Error {
@@ -84,6 +85,7 @@ export class RegionalProjectDO {
       env.PROJECT_SYNC_MAX_BYTES === undefined
         ? undefined
         : Number(env.PROJECT_SYNC_MAX_BYTES),
+      env.PROJECT_SYNC_COMPRESS_JOURNAL === "true",
     );
     this.quota = new ProjectQuota(this.sql);
   }

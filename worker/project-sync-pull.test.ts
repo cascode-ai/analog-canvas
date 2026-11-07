@@ -13,9 +13,13 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
-it.each([false, true])(
-  "synchronizes both ways and recovers restarts with only domestic connections (lost pull reply: %s)",
-  async (losePullReply) => {
+it.each([
+  { losePullReply: false, compressed: false },
+  { losePullReply: true, compressed: false },
+  { losePullReply: false, compressed: true },
+])(
+  "synchronizes both ways and recovers restarts (lost reply: $losePullReply, compressed journal: $compressed)",
+  async ({ losePullReply, compressed }) => {
     const secret = "isolated-pull-authority-secret-for-test";
     const config = JSON.stringify({
       origin: ORIGIN,
@@ -48,8 +52,11 @@ it.each([false, true])(
             }),
           },
         },
-        restart: () => {
-          store = new RegionalProjectDO(state, { PROJECT_REGION: region });
+        restart: (compress = false) => {
+          store = new RegionalProjectDO(state, {
+            PROJECT_REGION: region,
+            PROJECT_SYNC_COMPRESS_JOURNAL: compress ? "true" : "false",
+          });
         },
       };
     };
@@ -118,6 +125,21 @@ it.each([false, true])(
     expect(await tick()).toBe("sent");
     const current = await open(domestic.env);
     expect(current.name).toBe("Source draft");
+    const journal = async (suffix: string) =>
+      (
+        await route(
+          domestic.env,
+          new Request(`https://cn.test/api/project-sync/${suffix}`, {
+            headers: { Authorization: "Bearer cn-peer" },
+          }),
+        )
+      ).json();
+    if (compressed) {
+      source.restart(true);
+      domestic.restart(true);
+      expect(await tick()).toBe("caught-up");
+    }
+    const before = await journal("status");
     const saved = await route(
       domestic.env,
       new Request(`${ORIGIN}/api/projects/${id}`, {
@@ -134,6 +156,13 @@ it.each([false, true])(
       }),
     );
     expect(saved.status).toBe(200);
+    if (compressed) {
+      const after = await journal("status");
+      const { events } = await journal(`events?after=${before.sequence}`);
+      expect(after.journalBytes - before.journalBytes).toBeLessThan(
+        Buffer.byteLength(events[0].payload),
+      );
+    }
     expect(await tick()).toBe("sent");
     expect((await open(source.env)).name).toBe("Domestic acknowledged");
     domestic.restart();
