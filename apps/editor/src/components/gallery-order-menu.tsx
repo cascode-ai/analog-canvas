@@ -1,8 +1,9 @@
 /**
  * The wall's order (#1615), left of the contributor count: random by
  * default, by time or part count in either direction, or most liked
- * first. Choosing Random
- * again reshuffles. On a narrow screen only the icon shows.
+ * first. A shuffled wall has a button left of it that shuffles again in
+ * place, as choosing Random again does. On a narrow screen only the icons
+ * show.
  */
 import { useRef } from "react";
 
@@ -82,31 +83,55 @@ export function GalleryOrderMenu({
     </button>
   );
   return (
-    <details
-      ref={rootRef}
-      className="gallery-order-menu"
-      data-testid="gallery-order-menu"
-    >
-      <summary
-        className="gallery-order-button"
-        data-testid="gallery-order-button"
-        aria-label={`Order: ${LABELS[order]}`}
-        title={`Order: ${LABELS[order]}`}
+    <>
+      {order === "random" ? (
+        <button
+          type="button"
+          className="gallery-reshuffle"
+          data-testid="gallery-reshuffle"
+          aria-label="Shuffle again"
+          title="Shuffle again"
+          onClick={() => choose("random")}
+        >
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3" />
+          </svg>
+        </button>
+      ) : null}
+      <details
+        ref={rootRef}
+        className="gallery-order-menu"
+        data-testid="gallery-order-menu"
       >
-        <OrderIcon order={order} />
-        <span className="gallery-order-label">{LABELS[order]}</span>
-      </summary>
-      <div className="gallery-order-popover" role="menu">
-        {item("random", order === "random" ? "Shuffle again" : "Random")}
-        <span className="gallery-order-group">Time</span>
-        {item("newest", "Newest first")}
-        {item("oldest", "Oldest first")}
-        <span className="gallery-order-group">Parts</span>
-        {item("parts", "Most first")}
-        {item("fewest", "Fewest first")}
-        <span className="gallery-order-group">Likes</span>
-        {item("likes", "Most first")}
-      </div>
-    </details>
+        <summary
+          className="gallery-order-button"
+          data-testid="gallery-order-button"
+          aria-label={`Order: ${LABELS[order]}`}
+          title={`Order: ${LABELS[order]}`}
+        >
+          <OrderIcon order={order} />
+          <span className="gallery-order-label">{LABELS[order]}</span>
+        </summary>
+        <div className="gallery-order-popover" role="menu">
+          {item("random", "Random")}
+          <span className="gallery-order-group">Time</span>
+          {item("newest", "Newest first")}
+          {item("oldest", "Oldest first")}
+          <span className="gallery-order-group">Parts</span>
+          {item("parts", "Most first")}
+          {item("fewest", "Fewest first")}
+          <span className="gallery-order-group">Likes</span>
+          {item("likes", "Most first")}
+        </div>
+      </details>
+    </>
   );
 }
