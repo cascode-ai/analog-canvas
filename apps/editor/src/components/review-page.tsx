@@ -78,9 +78,8 @@ export function ReviewPage({
   const focusId = useRef(new URLSearchParams(window.location.search).get("id"));
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [index, setIndex] = useState(0);
+  // The reasons chosen: with any, Enter sends an issue; with none, a pass.
   const [flags, setFlags] = useState<string[]>([]);
-  // Not pass chosen: the reasons show, and at least one must be picked.
-  const [failing, setFailing] = useState(false);
   const [note, setNote] = useState("");
   // Boxes the reviewer drew on the pictures, numbered in this order.
   const [marks, setMarks] = useState<ReviewMark[]>([]);
@@ -255,7 +254,6 @@ export function ReviewPage({
   useEffect(() => {
     const own = card?.mine?.current ? card.mine : null;
     setFlags(own?.verdict === "issue" ? own.flags : []);
-    setFailing(own?.verdict === "issue");
     setNote(own?.note ?? "");
     setMarks(own?.marks ?? []);
   }, [card?.id, card?.mine]);
@@ -272,7 +270,7 @@ export function ReviewPage({
   // Pass, or an issue: its flags, else Other when only a comment or boxes
   // say what is wrong.
   const submit = useCallback(
-    async (verdict: "pass" | "issue") => {
+    async (verdict: "pass" | "issue", after?: number) => {
       if (!card || busy) return;
       setBusy(true);
       try {
@@ -295,6 +293,11 @@ export function ReviewPage({
           review?: ShownReview;
           error?: string;
         };
+        // One's own drawing takes no review: step past it.
+        if (payload.error === "own-entry") {
+          go(after ?? index + 1);
+          return;
+        }
         if (!response.ok || !payload.review) {
           setMessage(
             payload.error === "stale"
@@ -308,12 +311,13 @@ export function ReviewPage({
         const review = payload.review;
         replaceCard(card.id, (each) => withReview(each, review));
         go(
-          nextUnreviewed(
-            cards.map((each) =>
-              each.id === card.id ? withReview(each, review) : each,
+          after ??
+            nextUnreviewed(
+              cards.map((each) =>
+                each.id === card.id ? withReview(each, review) : each,
+              ),
+              index,
             ),
-            index,
-          ),
         );
       } catch {
         setMessage("The review could not be saved.");
@@ -343,7 +347,6 @@ export function ReviewPage({
   }, [card, fetchLike, replaceCard]);
 
   const toggleFlag = useCallback((key: string) => {
-    setFailing(true);
     setFlags((current) =>
       current.includes(key)
         ? current.filter((flag) => flag !== key)
@@ -351,16 +354,32 @@ export function ReviewPage({
     );
   }, []);
 
-  // Not pass opens the reasons; with one chosen it sends the issue.
-  const notPass = useCallback(() => {
-    if (!failing) setFailing(true);
-    else if (flags.length) void submit("issue");
-    else setMessage("Choose at least one reason.");
-  }, [failing, flags.length, submit]);
+  // Enter sends what is there: the reasons as an issue, else a pass; a
+  // comment and boxes go with either.
+  const commit = useCallback(
+    (after?: number) => void submit(flags.length ? "issue" : "pass", after),
+    [flags.length, submit],
+  );
   const passIt = useCallback(() => {
-    setFailing(false);
+    setFlags([]);
     void submit("pass");
   }, [submit]);
+  const sendIssue = useCallback(() => {
+    if (flags.length) void submit("issue");
+    else setMessage("Choose at least one reason above.");
+  }, [flags.length, submit]);
+  // → moves on. Looking at a drawing and moving on passes it: one not yet
+  // reviewed (or changed since) is sent as Enter would send it first.
+  const advance = useCallback(() => {
+    if (!card) return;
+    const own = card.mine?.current ? card.mine : null;
+    const unchanged =
+      own !== null &&
+      JSON.stringify([own.flags, own.note, own.marks ?? []]) ===
+        JSON.stringify([flags, note.trim(), marks]);
+    if (unchanged) go(index + 1);
+    else commit(index + 1);
+  }, [card, flags, note, marks, go, index, commit]);
 
   // Enter submits, digits flag, ← → step, N jumps to the next unreviewed.
   useEffect(() => {
@@ -369,10 +388,17 @@ export function ReviewPage({
         event.target instanceof Element &&
         event.target.closest("textarea, input, select");
       if (typing) {
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        const inNote =
+          event.target instanceof Element &&
+          event.target.closest(".review-note");
+        if (
+          event.key === "Enter" &&
+          !event.isComposing &&
+          event.keyCode !== 229 &&
+          ((inNote && !event.shiftKey) || event.metaKey || event.ctrlKey)
+        ) {
           event.preventDefault();
-          if (failing) notPass();
-          else passIt();
+          commit();
         }
         return;
       }
@@ -381,15 +407,10 @@ export function ReviewPage({
         (each) => each.hotkey === event.key,
       );
       if (flag) toggleFlag(flag.key);
-      else if (event.key === "Enter") {
-        if (failing) notPass();
-        else passIt();
-      } else if (event.key.toLowerCase() === "x") notPass();
-      else if (event.key === "Escape" && failing) {
-        setFailing(false);
-        setFlags([]);
-      } else if (event.key.toLowerCase() === "l") void toggleLike();
-      else if (event.key === "ArrowRight") go(index + 1);
+      else if (event.key === "Enter") commit();
+      else if (event.key === "Escape" && flags.length) setFlags([]);
+      else if (event.key.toLowerCase() === "l") void toggleLike();
+      else if (event.key === "ArrowRight") advance();
       else if (event.key === "ArrowLeft") go(index - 1);
       else if (event.key.toLowerCase() === "n")
         go(nextUnreviewed(cards, index));
@@ -401,11 +422,11 @@ export function ReviewPage({
   }, [
     scope,
     card,
-    failing,
+    flags.length,
     toggleFlag,
     toggleLike,
-    notPass,
-    passIt,
+    commit,
+    advance,
     go,
     index,
     cards,
@@ -473,9 +494,9 @@ export function ReviewPage({
                     </span>
                     <button
                       type="button"
-                      title="Next (→)"
+                      title="Next (→): a drawing you leave without a reason is passed"
                       aria-label="Next"
-                      onClick={() => go(index + 1)}
+                      onClick={advance}
                     >
                       →
                     </button>
@@ -510,8 +531,8 @@ export function ReviewPage({
                       }
                       title={
                         flags.length
-                          ? "Such as: M3's drain on VOUT instead of X. ⌘/Ctrl+Enter submits."
-                          : "⌘/Ctrl+Enter submits."
+                          ? "Such as: M3's drain on VOUT instead of X. Enter submits; Shift+Enter starts a new line."
+                          : "Enter submits; Shift+Enter starts a new line."
                       }
                       value={note}
                       maxLength={1000}
@@ -533,60 +554,49 @@ export function ReviewPage({
                     </button>
                     <button
                       type="button"
-                      className="review-pass"
+                      className={`review-pass${!flags.length && card.mine?.current && card.mine.verdict === "pass" ? " on" : ""}`}
                       disabled={busy}
-                      title="Nothing wrong with it"
+                      title="Nothing wrong with it (→ passes it too)"
                       data-testid="review-pass"
                       onClick={passIt}
                     >
                       <span aria-hidden="true">✓</span> Pass
-                      {failing ? null : <kbd>Enter</kbd>}
+                      {flags.length ? null : <kbd>Enter</kbd>}
                     </button>
                     <button
                       type="button"
-                      className={`review-issue${flags.length ? " ready" : ""}`}
-                      disabled={busy || (failing && flags.length === 0)}
+                      className={`review-issue${flags.length || (card.mine?.current && card.mine.verdict === "issue") ? " on" : ""}`}
+                      disabled={busy}
                       title={
-                        !failing
-                          ? "Something is wrong: choose the reasons (X)"
-                          : flags.length
-                            ? "Send the reasons with your comment and boxes"
-                            : "Choose at least one reason below"
+                        flags.length
+                          ? "Send the reasons with your comment and boxes"
+                          : "Choose a reason below first"
                       }
                       data-testid="review-not-pass"
-                      onClick={notPass}
+                      onClick={sendIssue}
                     >
-                      <span aria-hidden="true">✕</span>{" "}
-                      {failing ? "Submit issue" : "Not pass"}
-                      {failing ? (
-                        flags.length ? (
-                          <kbd>Enter</kbd>
-                        ) : null
-                      ) : (
-                        <kbd>X</kbd>
-                      )}
+                      <span aria-hidden="true">✕</span> Submit issue
+                      {flags.length ? <kbd>Enter</kbd> : null}
                     </button>
                   </div>
-                  {failing ? (
-                    <div
-                      className="review-flags"
-                      role="group"
-                      aria-label="Reasons"
-                    >
-                      {flagsFor(card.scope).map((flag) => (
-                        <button
-                          key={flag.key}
-                          type="button"
-                          className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
-                          aria-pressed={flags.includes(flag.key)}
-                          onClick={() => toggleFlag(flag.key)}
-                        >
-                          <kbd>{flag.hotkey}</kbd>
-                          {flag.label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                  <div
+                    className="review-flags"
+                    role="group"
+                    aria-label="Reasons"
+                  >
+                    {flagsFor(card.scope).map((flag) => (
+                      <button
+                        key={flag.key}
+                        type="button"
+                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
+                        aria-pressed={flags.includes(flag.key)}
+                        onClick={() => toggleFlag(flag.key)}
+                      >
+                        <kbd>{flag.hotkey}</kbd>
+                        {flag.label}
+                      </button>
+                    ))}
+                  </div>
                   {marks.length ? (
                     <div className="review-marks-row">
                       {marks.map((mark, number) => (
@@ -830,34 +840,54 @@ function ReviewItem({
 
 /**
  * Between the pictures and the netlists, what comparing the two netlists
- * found: the verdict and its kind, then where the dataset differs.
+ * found: a callout tinted by its verdict, the verdict and its kind as tags,
+ * then where the dataset differs (two lines, the rest on request).
  */
 function VerdictNote({
   comparison,
 }: {
   comparison: NonNullable<ReviewCard["comparison"]>;
 }) {
+  const [open, setOpen] = useState(false);
   const verdict = verdictOf(comparison.verdict as ComparisonVerdict);
+  const kind = comparison.verdict === "match" ? "" : comparison.category;
   const sentence =
     comparison.verdict === "match"
-      ? "Both netlists describe the same circuit."
-      : comparison.reason || comparison.detail;
-  const kind =
-    comparison.verdict !== "match" && comparison.category
-      ? ` · ${comparison.category}`
-      : "";
+      ? ""
+      : comparison.reason || comparison.detail || "";
+  const said = sentence && sentence !== kind ? sentence : "";
   return (
-    <div className="review-verdict" data-testid="review-verdict">
-      <span
-        className={`datasets-icon v-${comparison.verdict}`}
-        aria-hidden="true"
-      >
-        {verdict.icon}
-      </span>
-      <p>
-        <b>{verdict.label}</b> ({verdict.what}){kind ? <b>{kind}</b> : null}
-        {sentence && sentence !== comparison.category ? ` — ${sentence}` : ""}
-      </p>
+    <div
+      className={`review-verdict is-${comparison.verdict}`}
+      data-testid="review-verdict"
+    >
+      <div className="review-verdict-head">
+        <span className="review-verdict-pill" title={verdict.what}>
+          <span
+            className={`datasets-icon v-${comparison.verdict}`}
+            aria-hidden="true"
+          >
+            {verdict.icon}
+          </span>
+          {verdict.label}
+        </span>
+        {kind ? <span className="review-verdict-kind">{kind}</span> : null}
+        {comparison.verdict === "match" ? (
+          <span className="review-verdict-what">
+            The two netlists describe the same circuit.
+          </span>
+        ) : null}
+      </div>
+      {said ? <p className={open ? "" : "clamped"}>{said}</p> : null}
+      {said.length > 180 ? (
+        <button
+          type="button"
+          className="review-verdict-more"
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? "Show less" : "Show all"}
+        </button>
+      ) : null}
     </div>
   );
 }
