@@ -809,6 +809,7 @@ export function GalleryFeed({
                           verifySimulation={
                             ownerAccount ? verifySimulation : undefined
                           }
+                          ownerHearts={ownerAccount}
                         />
                       ),
                     })),

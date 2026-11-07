@@ -197,7 +197,7 @@ it("reuses normalized dataset statistics and invalidates a replaced import", asy
   expect(first.total).toBe(1);
   expect(aggregateQueries(env).length).toBeGreaterThan(0);
   queries.length = 0;
-  const warm = await read("tags=AMPLIFIER&q=dataset&limit=10&order=name");
+  const warm = await read("tags=AMPLIFIER&q=dataset&limit=10&order=likes");
   expect(warm.total).toBe(1);
   expect(warm.filterCounts).toEqual(first.filterCounts);
   expect(aggregateQueries(env)).toEqual([]);

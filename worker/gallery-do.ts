@@ -311,6 +311,9 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN preview_width REAL",
       "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
       "ALTER TABLE gallery_entries ADD COLUMN ai_generated INTEGER NOT NULL DEFAULT 0",
+      // A like's hearts: one, but for the Owner's accounts, which may give
+      // more (toggleLike).
+      "ALTER TABLE gallery_likes ADD COLUMN hearts INTEGER NOT NULL DEFAULT 1",
       // The private testbench (#1545). A column of each row rather than a
       // table: it goes wherever its entry or version goes (history,
       // take-over, deletion) and rides in every backup page as it is.
@@ -746,6 +749,7 @@ export class GalleryDO {
           String(body.id),
           String(body.userId),
           String(body.at),
+          { owner: body.owner === true, take: body.take === true },
         );
       case "cloud-project-create":
         return cloudProjectCreate(this.sql, body);

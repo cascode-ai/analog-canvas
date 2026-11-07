@@ -230,17 +230,21 @@ export function useGalleryWall({
   );
 
   /**
-   * One thumb per account, taken back by pressing again. The server owns the
+   * One thumb per account, taken back by pressing again; the Owner's
+   * accounts add a heart each press and `take` one back. The server owns the
    * count; this applies what it returns rather than guessing, so two tabs
    * cannot drift apart.
    */
-  async function toggleLike(entryId: string): Promise<void> {
+  async function toggleLike(entryId: string, take = false): Promise<void> {
     let response: Response;
     try {
-      response = await fetch(`/api/gallery/${entryId}/like`, {
-        method: "POST",
-        credentials: "same-origin",
-      });
+      response = await fetch(
+        `/api/gallery/${entryId}/like${take ? "?take=1" : ""}`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+        },
+      );
     } catch {
       return;
     }

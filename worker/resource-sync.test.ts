@@ -1498,8 +1498,16 @@ it("converges when both regions write the same like before either copy arrives",
     cn = await region("cn", auth);
   const id = await publish(overseas, "Liked twice");
   await drain(overseas, cn, "gallery");
-  const like = (site: Site) =>
-    site.call(`/api/gallery/${id}/like`, "POST", {}, undefined, true);
+  // The Owner's account reads the queue below; its press adds a heart, and
+  // `take` takes one back.
+  const like = (site: Site, take = false) =>
+    site.call(
+      `/api/gallery/${id}/like${take ? "?take=1" : ""}`,
+      "POST",
+      {},
+      undefined,
+      true,
+    );
   expect((await like(overseas)).status).toBe(200);
   expect((await like(cn)).status).toBe(200);
   await drain(cn, overseas, "gallery-interactions");
@@ -1518,9 +1526,10 @@ it("converges when both regions write the same like before either copy arrives",
     ).entries.find((card: { id: string }) => card.id === id);
   for (const site of [overseas, cn])
     expect(await likes(site)).toMatchObject({ likes: 1, likedByViewer: true });
-  // One record remains, the overseas one: only overseas can remove it.
+  // One record remains, the overseas one: only overseas can change it.
   expect((await like(cn)).status).toBe(409);
-  expect(await (await like(overseas)).json()).toEqual({
+  expect((await like(cn, true)).status).toBe(409);
+  expect(await (await like(overseas, true)).json()).toEqual({
     likes: 0,
     likedByViewer: false,
   });

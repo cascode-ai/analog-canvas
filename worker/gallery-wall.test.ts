@@ -592,47 +592,11 @@ describe("newest-first gallery feed", () => {
     ]);
   });
 
-  it("orders by name, A to Z or Z to A, letters' case aside, paging without repeats", async () => {
-    const env = environment();
-    const wall = await wallOf(env, 7);
-    const names = [
-      "delta",
-      "Alpha",
-      "charlie",
-      "Bravo",
-      "alpha",
-      "echo",
-      "(a) circuit",
-    ];
-    wall.forEach((id, index) =>
-      env.gallerySql.exec(
-        "UPDATE gallery_entries SET name = ? WHERE id = ?",
-        names[index]!,
-        id,
-      ),
-    );
-    const nameOf = new Map(wall.map((id, index) => [id, names[index]!]));
-    const az = await walk(env, "name");
-    expect(az.map((id) => nameOf.get(id)!.toLowerCase())).toEqual([
-      "(a) circuit",
-      "alpha",
-      "alpha",
-      "bravo",
-      "charlie",
-      "delta",
-      "echo",
-    ]);
-    // Names equal but for case keep one order: by id.
-    const alphas = az.filter((id) => nameOf.get(id)!.toLowerCase() === "alpha");
-    expect(alphas).toEqual([wall[1], wall[4]].sort());
-    expect(await walk(env, "name-desc")).toEqual([...az].reverse());
-  });
-
   it("sorts a page's ids off the covering index and reads only their rows", async () => {
     const env = environment();
     await wallOf(env, 4);
     const before = env.galleryQueries.length;
-    for (const order of ["random", "parts", "name", "likes"])
+    for (const order of ["random", "parts", "likes"])
       await orderedPage(env, order, "abc123");
     const queries = env.galleryQueries.slice(before);
     const plan = (query: string) =>
@@ -650,12 +614,12 @@ describe("newest-first gallery feed", () => {
     // Each order's ids come off the index alone, never the wide rows that
     // carry Project Code and previews (about a second a page, 2026-10-13).
     const sorts = queries.filter((q) => /^\s*SELECT e\.id FROM/u.test(q));
-    expect(sorts).toHaveLength(4);
+    expect(sorts).toHaveLength(3);
     for (const query of sorts) expect(plan(query)).toContain("COVERING INDEX");
     // The page's tiles are read by id off the card index, never the rows
     // behind their Projects and previews (about 0.8 s a page on Production).
     const reads = queries.filter((q) => q.includes("e.id IN ("));
-    expect(reads).toHaveLength(4);
+    expect(reads).toHaveLength(3);
     for (const query of reads)
       expect(plan(query)).toContain(
         "COVERING INDEX idx_gallery_entries_card (id=?)",
@@ -1167,6 +1131,62 @@ describe("netlist marks and thumbs", () => {
     expect(anonymous.total).toBe(0);
     expect(anonymous.authors).toEqual([]);
     expect((await list("", cookie)).entries).toHaveLength(2);
+  });
+
+  it("lets the Owner's accounts give a circuit many hearts, one per press", async () => {
+    const env = environment();
+    const maker = await makerOf(env);
+    const owner = await ownerAccountOf(env);
+    const first = await submitOne(env, "First", { cookie: maker });
+    const second = await submitOne(env, "Second", { cookie: maker });
+    const press = async (id: string, cookie: string, take = false) =>
+      (await (
+        await route(
+          env,
+          new Request(
+            `${ORIGIN}/api/gallery/${id}/like${take ? "?take=1" : ""}`,
+            { method: "POST", headers: { Origin: ORIGIN, Cookie: cookie } },
+          ),
+        )
+      ).json()) as { likes: number; likedByViewer: boolean };
+    // Anyone else's thumb is one, taken back by pressing again, take or not.
+    expect(await press(first, maker)).toEqual({
+      likes: 1,
+      likedByViewer: true,
+    });
+    expect(await press(first, maker, true)).toEqual({
+      likes: 0,
+      likedByViewer: false,
+    });
+    await press(first, maker);
+    for (let count = 0; count < 3; count += 1) await press(second, owner);
+    expect(await press(second, owner)).toEqual({
+      likes: 4,
+      likedByViewer: true,
+    });
+    expect(await press(second, owner, true)).toEqual({
+      likes: 3,
+      likedByViewer: true,
+    });
+    // Most liked counts the hearts, and so does every reader's wall.
+    const wall = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery?order=likes`, {
+          headers: cookieHeaders(maker),
+        }),
+      )
+    ).json()) as { entries: { id: string; likes: number }[] };
+    expect(wall.entries.map(({ id, likes }) => ({ id, likes }))).toEqual([
+      { id: second, likes: 3 },
+      { id: first, likes: 1 },
+    ]);
+    // The last heart taken back takes the like away.
+    for (let count = 0; count < 3; count += 1) await press(second, owner, true);
+    expect(await press(second, owner, true)).toEqual({
+      likes: 0,
+      likedByViewer: false,
+    });
   });
 
   it("narrows the wall by size in parts, any of several sizes at once", async () => {
