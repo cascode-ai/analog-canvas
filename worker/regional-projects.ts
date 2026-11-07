@@ -7,7 +7,10 @@ import {
 } from "./project-sync-journal";
 import { decodeProjectEvent } from "./project-sync-protocol";
 import { ProjectQuota } from "./project-quota";
-import { projectRegionUsers } from "./project-region-scope";
+import {
+  projectRegionUsers,
+  protectedProjectIds,
+} from "./project-region-scope";
 import { submit, replaceEntry } from "./gallery-store-entries";
 import {
   cloudProjectCreate,
@@ -25,6 +28,7 @@ import {
 export interface ProjectRegionConfig {
   PROJECT_REGION: "cn" | "overseas";
   PROJECT_REGION_USERS?: string;
+  PROJECT_PROTECTED_IDS?: string;
   PROJECT_SYNC_MAX_BYTES?: number | string;
 }
 
@@ -138,13 +142,15 @@ export class RegionalProjectDO {
     )
       return Response.json({ error: "region-not-configured" }, { status: 503 });
     let users: string[] | null;
+    let protectedIds: string[];
     try {
       users = projectRegionUsers(this.env.PROJECT_REGION_USERS);
+      protectedIds = protectedProjectIds(this.env.PROJECT_PROTECTED_IDS);
     } catch {
       return Response.json({ error: "region-not-configured" }, { status: 503 });
     }
     if (operation === "submit" || operation === "replace-entry")
-      return this.publish(operation, body, users);
+      return this.publish(operation, body, users, protectedIds);
     if (operation === "cloud-project-region")
       return Response.json({ region: this.env.PROJECT_REGION });
     if (operation === "sync-seed")
@@ -230,6 +236,11 @@ export class RegionalProjectDO {
         return Response.json({ error: "invalid-event" }, { status: 400 });
       if (users !== null && !users.includes(decoded.change.ownerUserId))
         return Response.json({ error: "owner-not-admitted" }, { status: 403 });
+      if (
+        this.env.PROJECT_REGION === "overseas" &&
+        protectedIds.includes(decoded.change.id)
+      )
+        return Response.json({ error: "protected-project" }, { status: 403 });
       return this.state.storage.transactionSync(() => {
         const result = this.journal.receive(decoded.event, decoded.change);
         if (result.ok && this.journal.deleted(decoded.change.id))
@@ -239,6 +250,37 @@ export class RegionalProjectDO {
     }
     const id = String(body.id ?? "");
     const userId = String(body.userId ?? "");
+    if (
+      this.env.PROJECT_REGION === "cn" &&
+      protectedIds.includes(id) &&
+      [
+        "cloud-project-create",
+        "cloud-project-update",
+        "cloud-project-check-update",
+        "cloud-project-delete",
+        "cloud-project-favorite",
+        "cloud-project-preview-store",
+      ].includes(operation)
+    ) {
+      const owned =
+        this.sql
+          .exec(
+            "SELECT id FROM cloud_projects WHERE id=? AND user_id=?",
+            id,
+            userId,
+          )
+          .toArray().length > 0;
+      return owned
+        ? Response.json(
+            {
+              error: "protected-project",
+              message:
+                "This historical Project is read-only during regional acceptance. Save a new copy to edit it.",
+            },
+            { status: 403 },
+          )
+        : Response.json({ error: "not-found" }, { status: 404 });
+    }
     const captured = this.state.storage.transactionSync(() => {
       this.captureExisting(id, userId);
       if (operation === "cloud-project-list") {
@@ -309,6 +351,7 @@ export class RegionalProjectDO {
     operation: "submit" | "replace-entry",
     body: Record<string, unknown>,
     users: string[] | null,
+    protectedIds: string[],
   ): Response {
     return this.state.storage.transactionSync(() => {
       const affected = this.sql
@@ -328,6 +371,11 @@ export class RegionalProjectDO {
         )
         .toArray()
         .filter((row) => users === null || users.includes(row.user_id));
+      if (
+        this.env.PROJECT_REGION === "cn" &&
+        affected.some((row) => protectedIds.includes(row.id))
+      )
+        return Response.json({ error: "protected-project" }, { status: 403 });
       if (affected.some((row) => this.journal.conflicted(row.id)))
         return Response.json({ error: "revision-conflict" }, { status: 409 });
       const before = new Map<string, string>();
