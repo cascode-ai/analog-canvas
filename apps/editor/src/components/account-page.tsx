@@ -15,9 +15,11 @@ import {
   type SessionUser,
 } from "./account";
 import { AiAccountsContent } from "./ai-accounts";
+import { StatisticsContent } from "./gallery-stats";
 import { GalleryChrome } from "./gallery-chrome";
 import { ModerationContent } from "./moderation";
 import { OwnerDataContent } from "./owner-data";
+import { OwnerTokensSection } from "./owner-tokens";
 import { MySubmissionsContent } from "./my-submissions";
 import { usePageTitle } from "../app/use-page-title";
 
@@ -182,10 +184,17 @@ export function AccountDeleteDialog({
 }
 
 export type AccountTab =
-  "circuits" | "projects" | "moderation" | "data" | "ai" | "settings";
+  | "circuits"
+  | "statistics"
+  | "projects"
+  | "moderation"
+  | "data"
+  | "ai"
+  | "settings";
 
 const TAB_LABELS: Record<AccountTab, string> = {
   circuits: "Circuits",
+  statistics: "Statistics",
   projects: "Cloud Projects",
   moderation: "Moderation",
   data: "Data",
@@ -194,8 +203,8 @@ const TAB_LABELS: Record<AccountTab, string> = {
 };
 
 /**
- * The tabs this account has: its published circuits, then its private Cloud
- * Projects, which the editor's File menu no longer lists. Moderation and
+ * The tabs this account has: its published circuits and their statistics,
+ * then its private Cloud Projects, which the editor's File menu no longer lists. Moderation and
  * the AI accounts are the Owner's: a moderator's tools are on each circuit's
  * own page, so there is nothing for them to open here. Data is the Owner's
  * own accounts' alone, not every administrator's (#1446).
@@ -203,6 +212,7 @@ const TAB_LABELS: Record<AccountTab, string> = {
 export function accountTabs(user: SessionUser): AccountTab[] {
   return [
     "circuits",
+    "statistics",
     "projects",
     ...(user.isAdmin ? (["moderation"] as const) : []),
     ...(user.isOwner ? (["data"] as const) : []),
@@ -214,7 +224,8 @@ export function accountTabs(user: SessionUser): AccountTab[] {
 /** The tab a link names (`?tab=…`), or the circuits. */
 export function accountTabFromSearch(search: string): AccountTab {
   const tab = new URLSearchParams(search).get("tab");
-  return tab === "projects" ||
+  return tab === "statistics" ||
+    tab === "projects" ||
     tab === "moderation" ||
     tab === "data" ||
     tab === "ai" ||
@@ -321,6 +332,10 @@ function AccountSettings({
         )}
         <p className="account-page-note">Shown on the circuits you publish.</p>
       </section>
+
+      {/* Upload tokens are the Owner's own accounts' alone, never an AI
+          account a browser was switched to. */}
+      {user.isOwner && !user.seat ? <OwnerTokensSection /> : null}
 
       <section
         className="account-page-section"
@@ -473,6 +488,8 @@ export function AccountDashboard({
             <h2>{TAB_LABELS[id]}</h2>
             {id === "circuits" ? (
               <MySubmissionsContent />
+            ) : id === "statistics" ? (
+              <StatisticsContent />
             ) : id === "projects" ? (
               <Suspense
                 fallback={

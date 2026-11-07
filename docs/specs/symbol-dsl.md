@@ -110,7 +110,7 @@ owns visual authority.
   the selected instance on Apply; cancel and draft save leave instances alone.
   Apply is one Undo; variants start with new publication intent. Mutating a
   source also used by other owners requires explicit shared-source editing in
-  Cell Manager or an isolated variant. Unsafe namespace rewrites refuse with a
+  its external circuit sheet or an isolated variant. Unsafe namespace rewrites refuse with a
   location; ordinary source editing retains the full supported language.
 - GUI and Agent share these planners through `apply-component-definition`,
   `apply-component-artwork` and `create-component-variant`. Existing explicit
@@ -143,13 +143,15 @@ owns visual authority.
   non-executable drafts at its fixed library revision, never replacing
   drawing captures; destination and write rules are in
   [publication](component-publication.md).
-- Library shows public discovery. **My shelf** holds personal publications, Project
-  drafts/capacity and authorized deleted records; administrators can review all
-  removals. Management results use one dismissible message without resizing the
-  grid; successful deletion/restoration messages expire and recovery remains in
-  the shelf. Invalid cards retain diagnostics without a global repair banner.
-  Public and shelf discovery filters are independent.
-- Opening Library warms the split authoring editor without adding it to initial
+- The Library's **Community** fold shows public discovery. **My components**,
+  inside it, holds personal publications, Project drafts/capacity and authorized
+  deleted records; administrators can review all removals. Management results
+  use one dismissible message in the fold; successful deletion/restoration
+  messages expire and recovery remains in **Deleted**. A row needing repair keeps
+  its diagnostic in its **Details**, without a global repair banner. Type and
+  order apply to every list in the fold; author applies to Community and
+  Deleted. Placing a symbol-only record says it has no circuit to netlist.
+- Opening the fold warms the split authoring editor without adding it to initial
   shell loading. Cold Create loading remains modal and cancelable; a late chunk
   never reopens a canceled candidate.
 - Project drafts have typed component/source/candidate identities. GUI and Agent
@@ -161,10 +163,9 @@ owns visual authority.
   Removing an open candidate's saved checkpoint keeps its raw input, invalidates
   old Agent revisions and marks it unsaved. Overlapping publication refuses deletion.
 - Discovery derives capability from the validated definition (**Circuit**,
-  **Symbol only**, **Invalid**; none certifies an engine). Cards place these compact
-  tags beside the title and retain the author below; artwork occupies its own fitted
-  preview. Details and other actions use a top-right anchored menu; authorized
-  removal uses a separate × and a compact confirmation.
+  **Symbol only**, **Invalid**; none certifies an engine). A row shows a fitted
+  thumbnail, the name and the author, with a compact tag for a circuit. Details
+  and other actions open from the row's menu; authorized removal confirms in it.
   Invalid historical records stay visible but unplaceable and never block
   valid ones; summaries carry no executable source; selection
   re-reads the full record and checks its revision.

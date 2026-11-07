@@ -42,22 +42,12 @@ here retain their unsectioned conversion-input include. Its Profile must
 declare wrapper `defaultScale=1e-6`; Canvas dimensions and source do not inject a
 second scale. It needs native BSIM4 4.8.3 with the reviewed chain-rule correction,
 the native R/C/source modules, and a declared Python 3 standard library.
-This Profile is **not a fully qualified hosted environment**; among the
-committed Worker configurations, only Preview routes it to the isolated VACASK
-executor.
+This Profile is **not a fully qualified hosted environment**; a Worker
+configuration that sets `VACASK_PROFILE_ID` routes it to the separate VACASK
+gateway, never to ngspice.
 
 `containers/vacask/starter-journey.test.mjs` verifies source/helper identity.
-The opt-in runs against a real VACASK binary were removed in #1646; nothing set
-their environment, so they never ran in CI. They executed all four folders
-through Prepare/Start/Read and paged File/CSV output, checking nine finite
-OP outputs, OP/DC KCL below 1 nA, all 181 DC biases, all 641 AC gain samples, both
-native transient groups without resampling/loss, the exact sine stimulus and
-measurements recomputed from the returned arrays. RC/RLC analytical acceptance
-is rerun because report code is shared.
-
-These checks establish example and result fidelity, **not equivalence to the old
-BSIM4 4.5/4.62 baseline**. Upgrading to 4.8.3 is user-authorized; coefficients are
-not retuned. Native execution and complete finite results, not cross-engine
-numerical equivalence, are the [migration plan](../../docs/roadmap/vacask-migration.md)
-acceptance. Local execution does not establish cloud isolation,
-resource acceptance or production readiness.
+Acceptance is native execution with complete finite results, **not equivalence
+to the old BSIM4 4.5/4.62 baseline** or to another engine
+([migration plan](../../docs/roadmap/vacask-migration.md)). Upgrading to 4.8.3 is
+user-authorized; coefficients are not retuned.

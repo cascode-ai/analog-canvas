@@ -58,3 +58,23 @@ it("keeps every original tag and a removed tag from a saved filter reachable", (
   expect(markup).toContain('data-testid="gallery-search"');
   expect(markup).not.toContain('data-testid="gallery-tag-search"');
 });
+
+it("leaves an origin out of the Tags list and its Clear count", () => {
+  const render = (selected: string[]) =>
+    renderToStaticMarkup(
+      createElement(GalleryTagSidebar, {
+        tags: [
+          { tag: "ota", count: 4 },
+          { tag: "virtuoso-exported", count: 2 },
+        ],
+        selected,
+        onChange: () => {},
+        search: "",
+        onSearchChange: () => {},
+        quickFilters: null,
+      }),
+    );
+  expect(render(["virtuoso-exported"])).not.toContain("gallery-tags-clear");
+  expect(render(["virtuoso-exported", "ota"])).toContain("Clear 1 selected");
+  expect(render([])).not.toContain("gallery-tag-option-virtuoso-exported");
+});

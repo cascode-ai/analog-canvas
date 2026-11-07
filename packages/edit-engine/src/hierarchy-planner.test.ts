@@ -850,7 +850,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     });
     expect(gate(bind(fda, "")).netlist).toEqual({
       binding: { kind: "unresolved-subcircuit", name: "opamp_differential" },
-      parameters: { gain: "1e6" },
+      parameters: { gain: "1e6", vocm: "0" },
     });
   });
 
@@ -1638,6 +1638,56 @@ describe("hierarchy domain planners", () => {
     expect(() => planDeleteCell(project, child.id)).toThrow(
       "Cell child is still referenced by top.X1",
     );
+  });
+
+  it("refuses a Cell and an external circuit of one name, but keeps an old clash", () => {
+    const project = createEmptyProject("project", "Project", "top");
+    project.documents.push(createEmptyDocument("child", "Child"));
+    const external = (id: string, name: string) => ({
+      id,
+      name,
+      terminals: [],
+      formalParameters: [],
+      interfaceStatus: "declared" as const,
+    });
+    project.externalSubcircuitDefinitions.push(external("ext", "opamp_ext"));
+    const run = (from: typeof project, edits: ProjectStructureEdit[]) =>
+      executeProjectTransaction(from, {
+        projectId: from.id,
+        expectedStructureRevision: from.structureRevision,
+        transactionId: "names",
+        actor: { kind: "agent", id: "agent" },
+        edits,
+      });
+    const clash =
+      "opamp_ext names both a Cell and an external circuit; rename one of them";
+
+    expect(
+      run(project, planRenameCell(project, "child", "OPAMP_EXT")),
+    ).toMatchObject({ ok: false, error: { message: clash } });
+    expect(
+      run(project, [
+        {
+          kind: "upsert_external_subcircuit_definition",
+          definition: external("ext-2", "Child"),
+        },
+      ]),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        message:
+          "Child names both a Cell and an external circuit; rename one of them",
+      },
+    });
+    // An Agent's free-form name still exports, normalized.
+    expect(
+      run(project, planRenameCell(project, "child", "TB recovered")).ok,
+    ).toBe(true);
+    // A Project saved with a clash still takes other edits.
+    const old = structuredClone(project);
+    old.documents[1]!.name = "opamp_ext";
+    old.documents[1]!.netlist!.name = "opamp_ext";
+    expect(run(old, planRenameCell(old, "top", "Top_2")).ok).toBe(true);
   });
 
   it("constructs one canonical caller from the child interface", () => {

@@ -92,12 +92,19 @@ export function SymbolArtwork({
         (!box.width && !box.height)
       )
         return;
-      // Fit the actual rendered text and geometry. Eight CSS pixels protect strokes;
-      // a magnification cap keeps small glyphs from filling a large detail pane.
+      // Fit the actual rendered text and geometry. Up to eight CSS pixels a side
+      // protect strokes, proportionally less in a small thumbnail so it is not
+      // half margin; a magnification cap keeps small glyphs from filling a
+      // large detail pane.
+      const margin = Math.min(
+        16,
+        svg.clientWidth * 0.16,
+        svg.clientHeight * 0.16,
+      );
       const scale = Math.min(
         3,
-        Math.max(1, svg.clientWidth - 16) / Math.max(1, box.width),
-        Math.max(1, svg.clientHeight - 16) / Math.max(1, box.height),
+        Math.max(1, svg.clientWidth - margin) / Math.max(1, box.width),
+        Math.max(1, svg.clientHeight - margin) / Math.max(1, box.height),
       );
       const width = svg.clientWidth / scale;
       const height = svg.clientHeight / scale;

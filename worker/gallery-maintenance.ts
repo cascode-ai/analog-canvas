@@ -25,6 +25,8 @@ import {
   type RichTextDocument,
 } from "@icm/model";
 import { sameOrigin } from "./same-origin";
+import { withGalleryStore } from "./gallery-datasets";
+import { GALLERY_SOURCES, type GallerySource } from "./gallery-sources";
 import { GALLERY_MAX_PROJECT_BYTES, type GalleryEnv } from "./gallery-store";
 import {
   callGallery,
@@ -474,6 +476,99 @@ export async function refreshNetlistMarks(
 }
 
 /**
+ * One batch of transistor counts for the circuits that have none at this
+ * build's rule, so the account statistics and the Owner's Data tab need not
+ * count a whole Gallery on a read.
+ */
+export async function refreshTransistorCounts(
+  env: GalleryEnv,
+  limit?: number,
+): Promise<{ status: number; payload: unknown }> {
+  return callGallery(env, "transistor-refresh", {
+    ...(limit === undefined ? {} : { limit }),
+  });
+}
+
+/** The Gallery's stores, in order: the community's, then each dataset's. */
+const RECOUNT_STORES: readonly (GallerySource | null)[] = [
+  null,
+  ...GALLERY_SOURCES,
+];
+const storeKey = (store: GallerySource | null) => store?.key ?? "community";
+
+/**
+ * The scheduled pass over the Gallery's statistics: every store counts a
+ * batch of devices, and its figures again when due (refreshTransistorCounts),
+ * so a Statistics read never counts.
+ */
+export async function refreshGalleryStatistics(
+  env: GalleryEnv,
+  limit: number,
+): Promise<void> {
+  for (const store of RECOUNT_STORES)
+    await refreshTransistorCounts(
+      store ? withGalleryStore(env, store) : env,
+      limit,
+    );
+}
+
+/**
+ * One batch of the Owner's Recount: the devices of every public circuit,
+ * the community's first, then each reference dataset's, one store at a
+ * time. `store` and `after` name where it resumes; the reply's `store` and
+ * `next` name the next batch, both null after the last, and `remaining`
+ * counts every store's circuits still to come. A store with no circuit is
+ * passed over.
+ */
+export async function recountTransistors(
+  env: GalleryEnv,
+  store: string,
+  after: string,
+): Promise<{ status: number; payload: unknown }> {
+  const at = RECOUNT_STORES.findIndex((each) => storeKey(each) === store);
+  if (at < 0) return { status: 400, payload: { error: "unknown-store" } };
+  const storeEnv = (each: GallerySource | null) =>
+    each ? withGalleryStore(env, each) : env;
+  const batch = await callGallery<{
+    counted: number;
+    remaining: number;
+    next: string | null;
+  }>(storeEnv(RECOUNT_STORES[at]!), "transistor-recount", { after });
+  if (batch.status !== 200) return batch;
+  const later = await Promise.all(
+    RECOUNT_STORES.slice(at + 1).map(async (each) => ({
+      each,
+      count: Number(
+        (
+          await callGallery<{ count?: number }>(
+            storeEnv(each),
+            "public-count",
+            {},
+          )
+        ).payload.count ?? 0,
+      ),
+    })),
+  );
+  const following = later.find((item) => item.count > 0);
+  const resume =
+    batch.payload.next !== null
+      ? { store, next: batch.payload.next }
+      : following
+        ? { store: storeKey(following.each), next: "" }
+        : { store: null, next: null };
+  return {
+    status: 200,
+    payload: {
+      counted: batch.payload.counted,
+      remaining:
+        batch.payload.remaining +
+        later.reduce((sum, item) => sum + item.count, 0),
+      ...resume,
+    },
+  };
+}
+
+/**
  * A backup Release named for the testbench move (#1545): a Gallery or store
  * capture (`gallery-` or `store-<time>Z-<run>-<attempt>`, as
  * scripts/gallery-private-snapshot.mjs downloads it) from the last day.
@@ -546,6 +641,7 @@ export async function routeGalleryMaintenance(
       scope,
       table: url.searchParams.get("table"),
       after: url.searchParams.get("after"),
+      key: url.searchParams.get("key"),
     });
     return Response.json(payload, {
       status,
@@ -621,6 +717,7 @@ export async function routeGalleryMaintenance(
       scope: "store",
       table: url.searchParams.get("table"),
       after: url.searchParams.get("after"),
+      key: url.searchParams.get("key"),
     });
     return Response.json(payload, {
       status,

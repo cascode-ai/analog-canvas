@@ -14,6 +14,7 @@ import {
 } from "./project-structure-commands";
 import type { CellInterfaceConfirmation } from "./project-structure-commands";
 import { localBlockSymbolTarget } from "./block-symbol-layout-target";
+import { createChildCellDraft } from "./new-cell";
 
 function dependencies() {
   const project = createEmptyProject("project", "Project");
@@ -30,9 +31,7 @@ function dependencies() {
     resolver: createProjectSymbolResolver(project, builtInSymbols),
     commitStructure,
     setStatus: vi.fn(),
-    onCellCreated: vi.fn(),
     nextSequence: vi.fn(() => 1),
-    createDocumentId: vi.fn(() => "document-child"),
   };
 }
 
@@ -291,7 +290,15 @@ describe("Project structure commands", () => {
     };
     const commands = createProjectStructureCommands(input);
 
-    commands.createCell("  Child  ");
+    commands.createCell(
+      createChildCellDraft(
+        input.project,
+        input.activeDocument.id,
+        "document-child",
+        "Child",
+        [],
+      ),
+    );
 
     const [transactionId, edits, activeDocumentId] =
       input.commitStructure.mock.calls[0]!;
@@ -308,7 +315,6 @@ describe("Project structure commands", () => {
         },
       },
     ]);
-    expect(input.onCellCreated).toHaveBeenCalledOnce();
     expect(input.setStatus).toHaveBeenCalledWith("Created Cell Child");
     expect(edits[0]).toMatchObject({ kind: "add_document" });
     if (edits[0]?.kind !== "add_document") return;
@@ -356,6 +362,83 @@ describe("Project structure commands", () => {
     ).toBe(true);
     expect(commands.editProjectInfo({ name: " ", cellName: "x" })).toBe(false);
     expect(deps.commitStructure).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks before deleting a Cell a simulation runs", () => {
+    const input = dependencies();
+    const bench = createEmptyDocument("document-bench", "Bench");
+    input.project.documents.push(bench);
+    input.project.simulationFolders.push({
+      id: "ac",
+      name: "AC sweep",
+      version: 4,
+      input: {
+        kind: "source",
+        entry: "run.cir",
+        configPath: "experiment.json",
+        files: [
+          { path: "run.cir", text: ".control\nac dec 10 1 1e6\n.endc\n" },
+          { path: "experiment.json", text: "{}" },
+        ],
+        circuitBindings: [
+          {
+            id: "bench",
+            path: "circuit.spice",
+            documentId: bench.id,
+            emission: "top-level",
+          },
+        ],
+        dependencies: [],
+      },
+    });
+    const requestConfirmation =
+      vi.fn<(request: CellInterfaceConfirmation) => void>();
+    const commands = createProjectStructureCommands({
+      ...input,
+      requestConfirmation,
+    });
+
+    expect(commands.deleteCell(bench.id)).toBe(true);
+    expect(input.commitStructure).not.toHaveBeenCalled();
+    const [request] = requestConfirmation.mock.calls[0]!;
+    expect(request.message).toBe(
+      "Bench is the circuit of simulation AC sweep. It keeps naming the Cell and will not run until bound to another one.",
+    );
+    expect(request.apply()).toBe(true);
+    expect(input.commitStructure).toHaveBeenCalledTimes(1);
+  });
+
+  it("renames a Cell under the rule New Cell follows, wherever it is renamed", () => {
+    const input = dependencies();
+    const child = createEmptyDocument("document-child", "Child");
+    input.project.documents.push(child);
+    input.project.externalSubcircuitDefinitions.push({
+      id: "ext",
+      name: "opamp_ext",
+      terminals: [],
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    const commands = createProjectStructureCommands(input);
+
+    commands.renameCell(child.id, "two words");
+    expect(input.setStatus).toHaveBeenLastCalledWith(
+      "Use letters, digits and _, starting with a letter or _",
+    );
+    commands.renameCell(child.id, "OPAMP_EXT");
+    expect(input.setStatus).toHaveBeenLastCalledWith(
+      "An external circuit is named OPAMP_EXT",
+    );
+    expect(
+      commands.editProjectInfo({
+        name: input.project.name,
+        cellName: "two words",
+      }),
+    ).toBe(false);
+    expect(input.commitStructure).not.toHaveBeenCalled();
+    // A new spelling of its own name is fine.
+    commands.renameCell(child.id, "CHILD");
+    expect(input.commitStructure).toHaveBeenCalledTimes(1);
   });
 
   it("deletes a Cell through the project structure boundary", () => {

@@ -4,7 +4,8 @@ export const SITE_REPOSITORY_URL =
 /** The introduction to RNL, the rich netlist the RNL formats write. */
 export const RNL_INTRO_URL = "https://rich-netlist.github.io/rnl/en/";
 
-export const SITE_CHANGE_LOG_URL = `${SITE_REPOSITORY_URL}/commits/main`;
+/** What changed, one line a day (change-log.ts). */
+export const SITE_CHANGE_LOG_PATH = "/changelog";
 
 /** The privacy and cookie notice. */
 export const SITE_PRIVACY_PATH = "/privacy";

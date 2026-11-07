@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 78,
+  "id": "powerpoint-circuit",
+  "name": "PowerPoint circuit",
+  "topDocumentId": "document-main",
+  "defaults": {
+    "instance": { "mirror": "none", "rotation": 0 },
+    "instancesByType": {},
+    "label": { "alignment": "middle", "locked": false, "rotation": 0 },
+    "routeLeg": { "mode": "manual" }
+  },
+  "documents": [
+    {
+      "id": "document-main",
+      "name": "dut",
+      "netlist": { "formalParameters": [], "name": "dut", "terminals": [] },
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "labelSubscriptAfterFirst": false,
+        "labelSubscriptItalic": false,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "instances": [],
+      "routes": [],
+      "connections": { "contacts": [], "unrouted": [] },
+      "nets": [],
+      "junctions": [],
+      "annotations": [],
+      "drafting": { "objects": [] },
+      "connectivityEvidence": [],
+      "layoutGroups": [],
+      "constraints": [],
+      "sourceStatus": "in-sync",
+      "revision": 0,
+      "noConnects": []
+    }
+  ],
+  "externalSubcircuitDefinitions": [],
+  "simulationFolders": [],
+  "source": {
+    "dialect": "none",
+    "entry": null,
+    "files": [],
+    "sourcePolicy": "copy"
+  },
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "structureRevision": 0
+}

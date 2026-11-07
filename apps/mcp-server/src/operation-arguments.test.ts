@@ -96,7 +96,7 @@ describe("shared simulation argument normalization", () => {
       ["request", "maxChars"],
     ],
   ])(
-    "rejects conflicts and boundaries at %s before dispatch",
+    "rejects conflicts and boundaries at %s before dispatch: %j",
     async (tool, args, path) => {
       const result = (await executeOperation(
         tool as string,

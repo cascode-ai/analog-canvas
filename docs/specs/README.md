@@ -34,11 +34,16 @@ Proposed regional deployment contract:
 | [`rnl-interchange.md`](rnl-interchange.md)                         | RNL export formats and import (proposed)                              |
 | [`performance.md`](performance.md)                                 | Benchmark workloads and release budgets                               |
 | [`editor-interaction.md`](editor-interaction.md)                   | Gestures, selection, previews, controls (sole owner)                  |
+| [`hierarchy-navigation.md`](hierarchy-navigation.md)               | Unified Cell tree, occurrence paths, shared editing and refactors     |
 | [`community-gallery.md`](community-gallery.md)                     | Gallery feed, accounts, moderation                                    |
 | [`selection-boards.md`](selection-boards.md)                       | Link-shared lists of Gallery entries, changes and their record        |
 | [`analog-arena.md`](analog-arena.md)                               | Contract with the AnalogArena Worker (cross-repo)                     |
 
 ## Writing a spec
+
+The optional desktop integration is specified by
+[PowerPoint local deployment](powerpoint-local.md) and
+[PowerPoint editor close](powerpoint-close.md).
 
 All specs are `accepted`. Add one only for a stable cross-module contract, from
 [`spec.template.md`](spec.template.md): `pnpm docs:check` checks status

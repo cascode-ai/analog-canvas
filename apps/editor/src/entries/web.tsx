@@ -64,7 +64,9 @@ export function mountWebEditor() {
   const startPath = window.location.pathname;
   // `/editor` and `/g/<id>`: every path no other page claims.
   const editorRoute =
-    !/^\/(?:analytics|moderation|privacy|account|mine)?\/?$/.test(startPath);
+    !/^\/(?:analytics|moderation|privacy|changelog|account|mine)?\/?$/.test(
+      startPath,
+    );
   // Unpaired Gallery visitors must not download the Editor/Agent runtime.
   // The editor routes load it with the editor; /privacy and a recovered
   // Agent session hold it above the page.
@@ -89,7 +91,7 @@ export function mountWebEditor() {
       return undefined;
     let storedFilters: string | null = null;
     try {
-      storedFilters = localStorage.getItem(GALLERY_FILTERS_KEY);
+      storedFilters = sessionStorage.getItem(GALLERY_FILTERS_KEY);
     } catch {
       // An explicit URL filter still works when browser storage is disabled.
     }
@@ -228,6 +230,14 @@ export function mountWebEditor() {
     ),
   );
 
+  const ChangeLogPage = lazy(
+    guardedRouteChunk(() =>
+      import("../components/change-log-page").then((module) => ({
+        default: module.ChangeLogPage,
+      })),
+    ),
+  );
+
   /** `/` is the gallery, `/editor` the editor, `/g/<id>` one gallery entry. */
   function galleryEntryIdOf(path: string): string | null {
     const match = /^\/g\/([A-Za-z0-9-]{1,64})\/?$/.exec(path);
@@ -283,6 +293,17 @@ export function mountWebEditor() {
           fallback={<div className="analytics-loading">Loading privacy…</div>}
         >
           <PrivacyPage />
+        </Suspense>
+      );
+    }
+    if (/^\/changelog\/?$/.test(path)) {
+      return (
+        <Suspense
+          fallback={
+            <div className="analytics-loading">Loading the change log…</div>
+          }
+        >
+          <ChangeLogPage />
         </Suspense>
       );
     }

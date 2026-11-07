@@ -25,7 +25,8 @@ export type ToolIconName =
   | "undo"
   | "redo"
   | "delete"
-  | "reset-labels";
+  | "reset-labels"
+  | "hierarchy";
 
 export function ToolIcon({ name }: { name: ToolIconName }) {
   const common = {
@@ -42,6 +43,15 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
         <>
           <rect x="4" y="4" width="12" height="12" rx="1.5" {...common} />
           <path d="M10 7v6M7 10h6" {...common} />
+        </>
+      ) : null}
+      {name === "hierarchy" ? (
+        <>
+          {/* One parent block over two children = a Cell tree */}
+          <rect x="7" y="2.5" width="6" height="4.5" rx="1" {...common} />
+          <rect x="2.5" y="13" width="6" height="4.5" rx="1" {...common} />
+          <rect x="11.5" y="13" width="6" height="4.5" rx="1" {...common} />
+          <path d="M10 7v3M5.5 13v-3h9v3" {...common} />
         </>
       ) : null}
       {name === "library" ? (

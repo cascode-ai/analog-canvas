@@ -184,10 +184,32 @@
   line-height: var(--icm-line-tight);
   text-align: center;
 }
-.draft-rotation-stem {
-  stroke: #246bfd;
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
+.draft-handle.draft-leg-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 10px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+.draft-leg-hit-y {
+  cursor: ns-resize;
+}
+.draft-leg-hit-x {
+  cursor: ew-resize;
+}
+.draft-rotate-handle {
+  cursor: grab;
+}
+.draft-rotate-handle:active {
+  cursor: grabbing;
+}
+.draft-rotate-glyph {
+  fill: none;
+  stroke: var(--icm-accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 .drafting-outline-arrow-hit {
   pointer-events: stroke;

@@ -358,8 +358,12 @@ the RNL language and its runtime belong to rnl.
     hangs on the junction it stands beside, else on the Pin; a drawn name
     still binds only where it reads as the part's name; a level another tool
     wrote is read from its texts as above;
-  - a bound label keeps the drawn styles as its format only where they
-    differ from what the binding shows anyway;
+  - in a file Analog Canvas wrote (`analog-canvas-extensions`), a label
+    keeps its size and colour, and a bound label the drawn styles as its
+    format only where they differ from what the binding shows anyway;
+    another tool's labels (a part's name and values, net, power and Cell
+    Pin labels) take the house look: their text and place, never that
+    tool's size, styles or colour;
   - a part the author never named (`$CANVAS_UNNAMED`) unnamed again, with
     no netlist record, as the editor keeps one, where the netlist import
     gave its record no parameter; its name label, written with the
@@ -389,8 +393,9 @@ the RNL language and its runtime belong to rnl.
     its wire (before Canvas 0.4, or another tool's), on a wire of its net
     within three, else where it stands; a name the netlist had to spell
     otherwise is matched in the file's own dialect; a current or
-    voltage marker's label keeps its size and colour; a label in its part's
-    colour follows the part, one in another colour keeps it as its own;
+    voltage marker's label keeps its size and colour; in Analog Canvas's own
+    file a label in its part's colour follows the part, one in another
+    colour keeps it as its own;
     scripts stand outside bold (`bold`, `italic`, then the scripts), so a
     subscript and the superscript after it stay stacked; the export writes a
     script upright inside italic, as it is drawn, unless it has its own italic
@@ -435,9 +440,12 @@ the RNL language and its runtime belong to rnl.
   SCS import of the same files, or, where that import writes a netlist other
   than the one it read (a ground pin named VSS read as a port, and a GND pin
   written beside it), its netlist read back as the files were is equal to
-  theirs; equal is the comparison's "equal", never "unknown". The Project is
-  one the editor can save.
-  A drawing that would change the netlist (`RNL_IMPORT_CHANGES_NETLIST`), or
+  theirs, rooted at the top and at each Cell no Cell calls; equal is the
+  comparison's "equal", never "unknown", and past its size limit, or with no
+  devices, the same printed cards. The comparison reads parameters as their
+  text, never evaluated. The Project is one the editor can save.
+  A drawing that would change the netlist, or of a circuit that cannot be
+  compared (`RNL_IMPORT_CHANGES_NETLIST`, which names why), or
   that does not make a Project the editor can save, such as a wire joining
   terminals the netlist keeps on different nets (`RNL_IMPORT_INVALID_DRAWING`),
   is left out, and the circuit comes in undrawn with that error. An import

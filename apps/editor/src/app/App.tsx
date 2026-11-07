@@ -1,3 +1,24 @@
+import { CellHierarchyTree } from "../features/hierarchy/cell-hierarchy-tree";
+import { HierarchyBreadcrumb } from "../features/hierarchy/hierarchy-breadcrumb";
+import {
+  hierarchyPathKey,
+  stableRootOrder,
+} from "../features/hierarchy/project-hierarchy";
+import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
+import { NewCellDialog } from "../features/hierarchy/new-cell-dialog";
+import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
+import type {
+  CellUse,
+  SelectionCellPin,
+} from "../features/hierarchy/hierarchy-refactor";
+import {
+  createHierarchyRefactorCommands,
+  sharedEditNote,
+  type OccurrenceToOpen,
+} from "../features/hierarchy/hierarchy-refactor-commands";
+import { createChildCellDraft } from "../features/hierarchy/new-cell";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import { PowerPointSave } from "./powerpoint-save";
 import { useSignalMemberInspection } from "../features/selection/use-signal-member-inspection";
 import { editorSnapshotDerived } from "./editor-snapshot-derived-cache";
 import {
@@ -26,6 +47,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -60,7 +82,6 @@ import {
   resolveMosBulkConnection,
   supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
-  summarizeProjectCells,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
 import {
@@ -208,6 +229,11 @@ import {
   useEditorDerivedModel,
 } from "./use-editor-derived-model";
 import type { RoutingGuidanceView } from "../interaction/interaction-state";
+import { newComponentDefinition } from "../features/user-components/component-definition-edit";
+import {
+  componentCapability,
+  SYMBOL_ONLY_NOTE,
+} from "../features/user-components/component-library-contract";
 import { ShapesPanel } from "../features/editor-shell/shapes-panel";
 import {
   type GalleryEntryContext,
@@ -274,7 +300,12 @@ import {
 } from "./use-simulation-surface";
 import { EditorSimulationSurface } from "./editor-simulation-surface";
 import { EditorDialogs } from "./editor-dialogs";
-import { EditorComponentEditor } from "./editor-component-editor";
+import {
+  EditorComponentEditor,
+  EditorLibraryComponents,
+  preloadLibraryComponents,
+  type EditorComponentEditorProps,
+} from "./editor-component-editor";
 import { useEditorCommandRouter } from "./use-editor-command-router";
 import { useEditorShortcuts } from "./use-editor-shortcuts";
 import { EditorCanvasContextMenu, EditorMenuBar } from "./editor-menus";
@@ -425,6 +456,8 @@ const PROPERTIES_WIDTH_STORAGE_KEY = "icm.properties-panel-width.v1";
 const SIMULATION_WIDTH_STORAGE_KEY = "icm.simulation-panel-width.v2";
 // The drag floor only keeps the panel from disappearing behind its own
 // collapsed rail; how narrow the inspector is useful is the reader's call.
+/** A drop waits only for the render that shows the placement its drag began. */
+const DROP_WAIT_MS = 1000;
 const PROPERTIES_WIDTH_MIN = 160;
 const PROPERTIES_WIDTH_MAX = 760;
 /** Only the untouched default opens this wide; a drag may go narrower. */
@@ -631,6 +664,8 @@ function WorkspaceEditor({
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
   const [userComponentsOpen, setUserComponentsOpen] = useState(false);
+  const [componentSearchRequest, setComponentSearchRequest] = useState(0);
+  const returnToLibrary = useRef(false);
   const libraryResizeOriginRef = useRef<{
     pointerX: number;
     width: number;
@@ -699,6 +734,7 @@ function WorkspaceEditor({
     compactLibraryPanelOpen,
     setCompactLibraryPanelOpen,
     leftPanelMode,
+    showLeftPanel,
     selectionOpen,
     setSelectionOpen,
     searchOpen,
@@ -714,6 +750,7 @@ function WorkspaceEditor({
     closeSearch,
     toggleExamplesPanel: toggleExamplesPanelFromShell,
     toggleLibraryPanel,
+    toggleHierarchyPanel,
   } = useEditorPanels({
     initialCompact: compactLayoutMatches(COMPACT_LAYOUT_MEDIA_QUERY),
     compactMediaQuery: COMPACT_LAYOUT_MEDIA_QUERY,
@@ -722,6 +759,8 @@ function WorkspaceEditor({
       new URLSearchParams(window.location.search).get("new") === "1",
     libraryStorageKey: LIBRARY_PANEL_STORAGE_KEY,
     libraryWidthStorageKey: LIBRARY_WIDTH_STORAGE_KEY,
+    // As the project panel closes the left one when it opens.
+    onCompactLeftPanelOpen: () => setProjectPanel(null),
   });
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
@@ -916,6 +955,29 @@ function WorkspaceEditor({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
+  // The Cell definition open in Cell properties; External Circuits keep the
+  // Cell Manager dialog above.
+  const [cellPropertiesId, setCellPropertiesId] = useState<string | null>(null);
+  const [importCellOpen, setImportCellOpen] = useState(false);
+  const [hierarchyExpanded, setHierarchyExpanded] = useState<string[]>([]);
+  // The tree row whose uses are listed inline; the breadcrumb can open it.
+  const [hierarchyUsesKey, setHierarchyUsesKey] = useState<string | null>(null);
+  // A new Cell is a child placed in the open Cell, or an unplaced root.
+  const [newCellMode, setNewCellMode] = useState<
+    "child" | "root" | "selection" | null
+  >(null);
+  // Parts a new Cell is made from, and the Pins their leaving Nets need.
+  const [selectionCell, setSelectionCell] = useState<{
+    instanceIds: string[];
+    pins: SelectionCellPin[];
+  } | null>(null);
+  // The instance whose Cell the Replace dialog switches.
+  const [replaceUse, setReplaceUse] = useState<CellUse | null>(null);
+  // A Cell occurrence to open once a commit has rendered, so its fit includes
+  // what the commit drew.
+  const [openAfterCommit, setOpenAfterCommit] =
+    useState<OccurrenceToOpen | null>(null);
+
   const [modelEditorDefinitionId, setModelEditorDefinitionId] = useState<
     string | null
   >(null);
@@ -1263,6 +1325,12 @@ function WorkspaceEditor({
       if (options.agentEdited) editorDocumentController.noteAgentEdit();
       documentViewBoxes.current = new Map();
       setDocumentStack([]);
+      setHierarchyExpanded([]);
+      setNewCellMode(null);
+      setSelectionCell(null);
+      setReplaceUse(null);
+      setCellPropertiesId(null);
+      setImportCellOpen(false);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
       // Each newly opened circuit starts with its netlist. Ordinary edits and
@@ -1505,10 +1573,11 @@ function WorkspaceEditor({
       setStatus,
     });
   const {
-    createCell,
     renameCell,
+    renameCellTerminal,
     editProjectInfo,
     deleteCell,
+    setTopCell,
     updateCellPortDirection,
     moveCellPort,
     editCellParameter,
@@ -1521,6 +1590,7 @@ function WorkspaceEditor({
     convertCellTerminalSignal,
     removeCellTerminalSelection,
     renameProject,
+    createCell,
   } = createProjectStructureCommands({
     requestConfirmation: (request) =>
       setInterfaceConfirmation({ request, snapshot: project }),
@@ -1529,7 +1599,6 @@ function WorkspaceEditor({
     resolver,
     commitStructure,
     setStatus,
-    onCellCreated: () => setDocumentStack([]),
     nextSequence: () => {
       uniqueSuffixCounter.current += 1;
       return uniqueSuffixCounter.current;
@@ -2858,11 +2927,36 @@ function WorkspaceEditor({
                 definitionId: definition.id,
                 masterName: definition.name,
                 symbol,
+                // A component keeps the name it was made or published with.
+                ...(project.componentDefinitions?.some(
+                  (component) => component.symbol.id === definition.symbolId,
+                )
+                  ? { displayName: symbol.name }
+                  : {}),
               },
             ]
           : [];
       }),
-    [project.externalSubcircuitDefinitions, resolver],
+    [
+      project.externalSubcircuitDefinitions,
+      project.componentDefinitions,
+      resolver,
+    ],
+  );
+  const insertDialogProjectComponents = useMemo(
+    () =>
+      (project.componentDefinitions ?? [])
+        .filter(
+          (definition) =>
+            !project.externalSubcircuitDefinitions.some(
+              (external) => external.symbolId === definition.symbol.id,
+            ),
+        )
+        .map((definition) => ({
+          symbol: definition.symbol,
+          definition,
+        })),
+    [project.componentDefinitions, project.externalSubcircuitDefinitions],
   );
   // The device the library's own tile already places in this Process
   // (SKY130's default transistors and BJTs, which arrive bound) gets no
@@ -2887,8 +2981,24 @@ function WorkspaceEditor({
       netlistPreferences.preferences,
     ],
   );
+  const placementResolver = useMemo(
+    () =>
+      pendingComponentPlacement?.draftCell
+        ? createProjectSymbolResolver(
+            {
+              ...project,
+              documents: [
+                ...project.documents,
+                pendingComponentPlacement.draftCell,
+              ],
+            },
+            builtInSymbols,
+          )
+        : resolver,
+    [project, resolver, pendingComponentPlacement?.draftCell],
+  );
   const pendingPlacementSymbol = pendingSymbolId
-    ? (resolver.resolve(pendingSymbolId)?.definition ??
+    ? (placementResolver.resolve(pendingSymbolId)?.definition ??
       findPaletteSymbol(document.presentation.styleProfileId, pendingSymbolId))
     : undefined;
   const {
@@ -2904,7 +3014,16 @@ function WorkspaceEditor({
     mirrorPendingComponent: mirrorPendingComponentFromHook,
     startInsert: startInsertFromHook,
   } = useComponentPlacement({
+    onChildCreated: (instanceId, childDocumentId) =>
+      setOpenAfterCommit({
+        id: childDocumentId,
+        path: [
+          ...documentStack,
+          { parentDocumentId: document.id, instanceId, childDocumentId },
+        ],
+      }),
     recentStorageKey: RECENT_COMPONENTS_STORAGE_KEY,
+    onLibraryChanged: () => setComponentLibraryRefresh((value) => value + 1),
     document,
     project,
     resolver,
@@ -3753,8 +3872,9 @@ function WorkspaceEditor({
     };
   }
 
+  /** The Cell the last navigation fit framed, to fit again below. */
+  const fittedDocument = useRef<string | null>(null);
   const {
-    switchDocument,
     selectDocumentFromHierarchy,
     jumpToCaller,
     navigateToLocator,
@@ -3782,6 +3902,9 @@ function WorkspaceEditor({
     defaultViewBox: DEFAULT_VIEWBOX,
     setViewBox,
     measureCanvasView,
+    onFit: (documentId) => {
+      fittedDocument.current = documentId;
+    },
     openDocument,
     resetInteractionState,
     selectOnly,
@@ -3797,6 +3920,258 @@ function WorkspaceEditor({
     selectedInstance,
     setStatus,
   });
+  // A navigation fits before its instance path appears over the canvas or
+  // goes. Once the path is drawn, before it is painted, fit the Cell again
+  // with the path's inset, so entering, leaving and F land on one view.
+  useLayoutEffect(() => {
+    const fitted = fittedDocument.current;
+    fittedDocument.current = null;
+    if (fitted !== document.id) return;
+    fitDocument(fitted);
+    // That fit reported itself too; it needs no second pass.
+    fittedDocument.current = null;
+  }, [document.id, documentStack]);
+  useEffect(() => {
+    const resolved = reconcileHierarchyPath(
+      project,
+      document.id,
+      documentStack,
+    );
+    if (resolved.path.length !== documentStack.length) {
+      openCellOccurrence(resolved.documentId, resolved.path);
+      setStatus(
+        "The hierarchy changed; returned to the nearest surviving parent",
+      );
+    } else if (documentStack.length && resolved.documentId !== document.id) {
+      setDocumentStack([]);
+    }
+  }, [project]);
+  useEffect(() => {
+    if (!openAfterCommit) return;
+    // The breadcrumb shows where the Cell is; the Library stays open for
+    // drawing inside it.
+    openCellOccurrence(openAfterCommit.id, openAfterCommit.path);
+    if (openAfterCommit.select?.length)
+      selectOnly("instance", openAfterCommit.select);
+    if (openAfterCommit.status) setStatus(openAfterCommit.status);
+    setOpenAfterCommit(null);
+  }, [project, openAfterCommit]);
+  // The first edit of a shared definition says once, in the status bar, that
+  // it changes every use; the breadcrumb keeps the count in view afterwards.
+  const sharedEditNotices = useRef(new Set<string>());
+  const lastEditedDocument = useRef(document);
+  useEffect(() => {
+    const previous = lastEditedDocument.current;
+    lastEditedDocument.current = document;
+    if (previous.id !== document.id || previous.revision === document.revision)
+      return;
+    const key = `${projectSessionId}/${document.id}`;
+    if (sharedEditNotices.current.has(key)) return;
+    const uses = buildProjectHierarchy(project).usage(document.id, 0).total;
+    if (uses < 2) return;
+    sharedEditNotices.current.add(key);
+    setStatus(
+      `${document.name} has ${uses} uses; this edit changes all of them`,
+    );
+  }, [document]);
+  useEffect(() => {
+    const root = documentStack[0]?.parentDocumentId ?? document.id;
+    // The root you work in stays open, with the path down to where you are.
+    const ancestors = [
+      hierarchyPathKey(root, []),
+      ...documentStack.map((_, index) =>
+        hierarchyPathKey(root, documentStack.slice(0, index)),
+      ),
+    ];
+    setHierarchyExpanded((keys) =>
+      ancestors.every((key) => keys.includes(key))
+        ? keys
+        : [...new Set([...keys, ...ancestors])],
+    );
+  }, [documentStack, document.id]);
+  const openCellProperties = (id: string) => setCellPropertiesId(id);
+  const beginNewCell = (mode: "child" | "root" | "selection") => {
+    cancelAllTransientInteraction();
+    setNewCellMode(mode);
+  };
+  const beginNewChild = () => beginNewCell("child");
+  const nextRefactorSequence = () => {
+    uniqueSuffixCounter.current += 1;
+    return uniqueSuffixCounter.current;
+  };
+  const hierarchyRefactor = createHierarchyRefactorCommands({
+    project,
+    document,
+    createDocumentId: () => createId("document"),
+    nextSequence: nextRefactorSequence,
+    commitStructure: (transactionId, edits) =>
+      commitStructure(transactionId, edits),
+    setStatus,
+    spendSharedEditNotice: (documentId) =>
+      sharedEditNotices.current.add(`${projectSessionId}/${documentId}`),
+    openOccurrence: setOpenAfterCommit,
+    selectInstances: (ids) => selectOnly("instance", ids),
+  });
+  /** Open New Cell on the selected parts, with the Pins their Nets need. */
+  const beginCellFromSelection = () => {
+    const pins = hierarchyRefactor.selectionPins(selectedIds);
+    if (!pins) return;
+    setSelectionCell({ instanceIds: [...selectedIds], pins });
+    beginNewCell("selection");
+  };
+  // A Cell made from the selection edits the open Cell; with several uses
+  // the dialog says so before it runs.
+  const openCellNote = useMemo(
+    () => sharedEditNote(project, document.id),
+    [project, document.id],
+  );
+  // The tree's root order belongs to the tab, not the tree, so it outlasts
+  // the panel; see stableRootOrder.
+  const rootOrders = useRef(new Map<string, readonly string[]>());
+  const projectRoots = useMemo(
+    () => buildProjectHierarchy(project).roots,
+    [project],
+  );
+  const hierarchyRoots = useMemo(
+    () =>
+      stableRootOrder(
+        rootOrders.current.get(projectSessionId) ?? [],
+        projectRoots,
+      ),
+    [projectRoots, projectSessionId],
+  );
+  useEffect(() => {
+    rootOrders.current.set(projectSessionId, hierarchyRoots);
+  }, [projectSessionId, hierarchyRoots]);
+  /** Start placing a Cell from the tree, as the Insert dialog would. */
+  const placeCellFromTree = (id: string): boolean => {
+    const issue = cellPlacementIssue(project, document.id, id);
+    const candidate = cellInsertCandidates.find(
+      (item) => item.childDocumentId === id,
+    );
+    if (issue || !candidate) {
+      setStatus(issue ?? "This Cell cannot be placed here");
+      return false;
+    }
+    startInsertFromHook({
+      kind: "quick",
+      request: {
+        kind: "cell",
+        symbolId: candidate.symbol.id,
+        symbolName: candidate.cellName,
+        childDocumentId: id,
+        cellName: candidate.cellName,
+        parameters: {},
+        initialRotation: 0,
+        showReference: false,
+        referenceText: null,
+        showValue: true,
+      },
+    });
+    return true;
+  };
+  /** Start placing an external circuit in the open Cell, from its row or sheet. */
+  const placeExternalCircuit = (definitionId: string): boolean => {
+    const candidate = externalSubcircuitInsertCandidates.find(
+      (item) => item.definitionId === definitionId,
+    );
+    if (!candidate) {
+      setStatus("The selected external master has no resolved symbol");
+      return false;
+    }
+    setCellManagerOpen(false);
+    setModelEditorDefinitionId(null);
+    startInsertFromHook({
+      kind: "quick",
+      request: {
+        kind: "external-subcircuit",
+        definitionId,
+        symbolId: candidate.symbol.id,
+        symbolName: candidate.masterName,
+        masterName: candidate.masterName,
+        parameters: {},
+        initialRotation: 0,
+        showReference: !candidate.symbol.hierarchicalBlock,
+        referenceText: null,
+        showValue: true,
+      },
+    });
+    return true;
+  };
+  /** Open one external circuit's sheet, or a new one's. */
+  const openExternalCircuit = (definitionId: string | null) => {
+    setModelEditorDefinitionId(definitionId);
+    setModelEditorLocation(undefined);
+    setCellManagerOpen(true);
+  };
+  /**
+   * A drag from a panel is one gesture: it places once where it ends on the
+   * canvas and leaves placement mode, or cancels when released elsewhere. A
+   * Library component may still be on its way; its drop waits for it.
+   */
+  const dropPlacement = (clientX: number, clientY: number) => {
+    const placed = pendingComponentPlacement;
+    if (!placed) {
+      awaitedDrop.current = { clientX, clientY, at: performance.now() };
+      return;
+    }
+    const svg = window.document.querySelector<SVGSVGElement>(
+      '[data-testid="schematic-canvas"]',
+    );
+    const box = svg?.getBoundingClientRect();
+    if (
+      !svg ||
+      !box ||
+      clientX < box.left ||
+      clientX > box.right ||
+      clientY < box.top ||
+      clientY > box.bottom
+    ) {
+      cancelComponentInsertFromHook();
+      return;
+    }
+    const name =
+      placed.cellName ??
+      resolver.resolve(placed.symbolId)?.definition.name ??
+      "the component";
+    const note =
+      placed.capture &&
+      componentCapability(placed.capture.payload) === "symbol-only"
+        ? ` · ${SYMBOL_ONLY_NOTE}`
+        : "";
+    const finish = (landed?: boolean) => {
+      cancelAllTransientInteraction();
+      if (landed !== false)
+        setStatus(`Placed ${name}${note} · Undo removes it`);
+    };
+    // A captured component is checked first, and placement must outlast that.
+    const settled = commitPendingPlacementAtFromHook(
+      resolvePendingPlacementPoint(
+        pointFromClient(clientX, clientY, svg, false),
+        svg,
+      ).point,
+    );
+    if (settled) void settled.then(finish);
+    else finish();
+  };
+  const awaitedDrop = useRef<{
+    clientX: number;
+    clientY: number;
+    at: number;
+  } | null>(null);
+  // A drag outlives the render that started it.
+  const latestDrop = useRef(dropPlacement);
+  latestDrop.current = dropPlacement;
+  const dropOnCanvas = (clientX: number, clientY: number) =>
+    latestDrop.current(clientX, clientY);
+  useEffect(() => {
+    const awaited = awaitedDrop.current;
+    if (!awaited || !pendingComponentPlacement) return;
+    awaitedDrop.current = null;
+    // Only the placement that drag began, not one started long after it failed.
+    if (performance.now() - awaited.at < DROP_WAIT_MS)
+      latestDrop.current(awaited.clientX, awaited.clientY);
+  }, [pendingComponentPlacement]);
   const { endpointSignalInspection, routeSignalInspection } =
     useSignalMemberInspection({
       model: {
@@ -3878,11 +4253,7 @@ function WorkspaceEditor({
     project,
     document,
     selection: visualSelection,
-    enabled:
-      !componentEditor &&
-      !userComponentsOpen &&
-      !interfaceConfirmation &&
-      !versionHistoryOpen,
+    enabled: !componentEditor && !interfaceConfirmation && !versionHistoryOpen,
     setStatus,
     beginPaste: (clipboard) => beginClipboardPlacement(clipboard),
   });
@@ -4022,11 +4393,6 @@ function WorkspaceEditor({
       resetSelection();
     }
   }
-
-  const cellManagerEntries = useMemo(
-    () => summarizeProjectCells(project),
-    [project],
-  );
 
   function placeCellInstance(): void {
     if (cellInsertCandidates.length === 0) {
@@ -4621,8 +4987,6 @@ function WorkspaceEditor({
       nativeProjectStore,
       setStatus,
       componentEditor,
-      userComponentsOpen,
-      setUserComponentsOpen,
       selectionOpen,
       setSelectionOpen,
       searchOpen,
@@ -4812,7 +5176,9 @@ function WorkspaceEditor({
           placement.netLabelTarget,
         );
       },
-      commitPendingPlacement: commitPendingPlacementAtFromHook,
+      commitPendingPlacement: (point) => {
+        void commitPendingPlacementAtFromHook(point);
+      },
       clearComponentPreview: () => setComponentPreviewPoint(null),
       clearVddRailPreview: () => setVddRailPreviewPoint(null),
       clearCopyPreview: () => {
@@ -4906,6 +5272,8 @@ function WorkspaceEditor({
     renameShelfProject,
     deleteShelfProject,
   } = useProjectTabSessions({
+    hierarchyExpanded,
+    setHierarchyExpanded,
     projectStore,
     onCloudProjectSaved: noteCloudProjectSaved,
     onCloudProjectsDeleted: noteCloudProjectsDeleted,
@@ -5115,8 +5483,77 @@ function WorkspaceEditor({
       allowNextBrowserUnload,
     });
 
+  const componentEditorProps: EditorComponentEditorProps = {
+    project,
+    projectSessionId,
+    resolver,
+    dispatchProjectTransaction,
+    externalSubcircuitInsertCandidates,
+    setExternalSubcircuitDefinition,
+    removeExternalSubcircuitDefinition,
+    copyText: (text) => exportDelivery.copyText(text),
+    onBeforePlace: () => {
+      setCellManagerOpen(false);
+      setModelEditorDefinitionId(null);
+    },
+    capabilities,
+    setStatus,
+    componentEditor,
+    setComponentEditor,
+    componentLibraryRefresh,
+    setComponentLibraryRefresh,
+    userComponentsOpen,
+    setUserComponentsOpen,
+    editorDocumentController,
+    synchronizeExternalCommit,
+    definitionProjectRef,
+    selectOnly,
+    cancelAllTransientInteraction,
+    editorCommands,
+    returnToLibrary,
+  };
+  /** Opening the list again also checks it against the library. */
+  const openUserComponents = () => {
+    cancelAllTransientInteraction();
+    setUserComponentsOpen(true);
+    setComponentLibraryRefresh((value) => value + 1);
+    showLeftPanel("library");
+    setComponentSearchRequest((value) => value + 1);
+  };
+  const openCreateComponent = () => {
+    returnToLibrary.current = true;
+    cancelAllTransientInteraction();
+    setComponentEditor({
+      key: crypto.randomUUID(),
+      projectSessionId,
+      mode: "new",
+      definition: newComponentDefinition(),
+    });
+  };
   return (
     <main className="app-shell">
+      {import.meta.env.ICM_DESKTOP && (
+        <PowerPointSave
+          project={project}
+          document={document}
+          blocker={currentEditBlocker}
+          capture={captureAuthoredProject}
+          openDocument={selectDocumentFromHierarchy}
+          readProject={(id) => {
+            const matches = projectTabs
+              .entries()
+              .filter(({ session }) => session.controller.project.id === id);
+            const entry = matches.length === 1 ? matches[0] : null;
+            return entry
+              ? {
+                  tabId: entry.id,
+                  project: entry.session.controller.project,
+                  documentId: entry.session.controller.document.id,
+                }
+              : null;
+          }}
+        />
+      )}
       {publishedNotice ? (
         <Suspense fallback={null}>
           <GalleryPublishedNotice
@@ -5166,6 +5603,7 @@ function WorkspaceEditor({
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorMenuBar
+        toggleHierarchyPanel={toggleHierarchyPanel}
         identity={identity}
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
@@ -5177,7 +5615,7 @@ function WorkspaceEditor({
         publicSimulationUiEnabled={publicSimulationUiEnabled}
         setStatus={setStatus}
         userComponentsOpen={userComponentsOpen}
-        setUserComponentsOpen={setUserComponentsOpen}
+        openUserComponents={openUserComponents}
         leftPanelMode={leftPanelMode}
         setSelectionOpen={setSelectionOpen}
         searchOpen={searchOpen}
@@ -5186,11 +5624,8 @@ function WorkspaceEditor({
         recoverySessions={recoverySessions}
         project={project}
         document={document}
-        documentStack={documentStack}
         visualSelection={visualSelection}
         selectionFilterOpen={selectionFilterOpen}
-        cellManagerOpen={cellManagerOpen}
-        setCellManagerOpen={setCellManagerOpen}
         netlistPreflightOpen={netlistPreflightOpen}
         setNetlistPreflightOpen={setNetlistPreflightOpen}
         projectPanel={projectPanel}
@@ -5233,7 +5668,6 @@ function WorkspaceEditor({
         selectedEndpoint={selectedEndpoint}
         projectInputRef={projectInputRef}
         tabProjectInputRef={tabProjectInputRef}
-        hasHierarchyEnterSelection={hasHierarchyEnterSelection}
         flightlines={flightlines}
         displayedFlightlines={displayedFlightlines}
         crossings={crossings}
@@ -5243,12 +5677,8 @@ function WorkspaceEditor({
         alignmentParticipantCount={alignmentParticipantCount}
         internalSelection={internalSelection}
         projectInstanceCount={projectInstanceCount}
-        selectDocumentFromHierarchy={selectDocumentFromHierarchy}
-        enterSelectedHierarchy={enterSelectedHierarchy}
-        returnToTopDocument={returnToTopDocument}
         toggleProjectPanel={toggleProjectPanel}
         toggleExamplesPanel={toggleExamplesPanel}
-        cancelAllTransientInteraction={cancelAllTransientInteraction}
         placeCellInstance={placeCellInstance}
         editorCommands={editorCommands}
         importSpiceFiles={importSpiceFiles}
@@ -5271,7 +5701,100 @@ function WorkspaceEditor({
         leaveForGallery={leaveForGallery}
         leaveForArena={leaveForArena}
       />
+      {newCellMode ? (
+        <NewCellDialog
+          project={project}
+          parentId={document.id}
+          {...(newCellMode !== "root" ? { parentName: document.name } : {})}
+          {...(newCellMode === "selection" && selectionCell
+            ? {
+                fromSelection: {
+                  parts: selectionCell.instanceIds.length,
+                  pins: selectionCell.pins,
+                  ...(openCellNote ? { note: openCellNote } : {}),
+                },
+              }
+            : {})}
+          onCancel={() => {
+            setNewCellMode(null);
+            setSelectionCell(null);
+          }}
+          onCreate={(name, ports) => {
+            try {
+              if (newCellMode === "selection") {
+                if (!selectionCell) return "Select the parts again";
+                const refusal = hierarchyRefactor.fromSelection(
+                  selectionCell.instanceIds,
+                  name,
+                  selectionCell.pins.map((pin, index) => ({
+                    ...pin,
+                    direction: ports[index]?.direction ?? pin.direction,
+                  })),
+                );
+                if (refusal) return refusal;
+                setNewCellMode(null);
+                setSelectionCell(null);
+                return undefined;
+              }
+              const draftCell = createChildCellDraft(
+                project,
+                document.id,
+                createId("document"),
+                name,
+                ports,
+              );
+              if (newCellMode === "root") {
+                // An unplaced Cell is created at once and opened for drawing;
+                // it is a root of its own until something places it.
+                if (!createCell(draftCell))
+                  return "The Cell could not be created; see the status bar";
+                setOpenAfterCommit({ id: draftCell.id, path: [] });
+              } else {
+                startInsertFromHook({
+                  kind: "quick",
+                  request: {
+                    kind: "cell",
+                    draftCell,
+                    symbolId: hierarchicalSymbolId(name),
+                    symbolName: name,
+                    childDocumentId: draftCell.id,
+                    cellName: name,
+                    parameters: {},
+                    initialRotation: 0,
+                    showReference: false,
+                    referenceText: null,
+                    showValue: true,
+                  },
+                });
+              }
+              setNewCellMode(null);
+              return undefined;
+            } catch (error) {
+              return error instanceof Error ? error.message : String(error);
+            }
+          }}
+        />
+      ) : null}
+      {replaceUse ? (
+        <ReplaceCellDialog
+          project={project}
+          use={replaceUse}
+          onCancel={() => setReplaceUse(null)}
+          onReplace={(uses, replacementId) => {
+            if (hierarchyRefactor.replace(uses, replacementId))
+              setReplaceUse(null);
+          }}
+        />
+      ) : null}
       <EditorDialogs
+        cellPropertiesId={cellPropertiesId}
+        setCellPropertiesId={setCellPropertiesId}
+        importCellOpen={importCellOpen}
+        setImportCellOpen={setImportCellOpen}
+        renameCellTerminal={renameCellTerminal}
+        setCellSymbolBodySize={setCellSymbolBodySize}
+        setCellSymbolPortPlacement={setCellSymbolPortPlacement}
+        setTopCell={setTopCell}
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
         exportDelivery={exportDelivery}
@@ -5297,8 +5820,6 @@ function WorkspaceEditor({
         editorDocumentController={editorDocumentController}
         projectSessionId={projectSessionId}
         galleryTopologyProject={galleryTopologyProject}
-        projectConnectivityIndex={projectConnectivityIndex}
-        setDocumentStack={setDocumentStack}
         cellManagerOpen={cellManagerOpen}
         setCellManagerOpen={setCellManagerOpen}
         modelEditorDefinitionId={modelEditorDefinitionId}
@@ -5348,10 +5869,8 @@ function WorkspaceEditor({
         approveAgentFileCandidate={approveAgentFileCandidate}
         rejectAgentFileCandidate={rejectAgentFileCandidate}
         commitStructure={commitStructure}
-        createCell={createCell}
         renameCell={renameCell}
         editProjectInfo={editProjectInfo}
-        deleteCell={deleteCell}
         updateCellPortDirection={updateCellPortDirection}
         moveCellPort={moveCellPort}
         editCellParameter={editCellParameter}
@@ -5363,20 +5882,19 @@ function WorkspaceEditor({
         searchResults={searchResults}
         requestElectricalDiagnostics={requestElectricalDiagnostics}
         cellInsertCandidates={cellInsertCandidates}
-        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
         insertDialogExternalCandidates={insertDialogExternalCandidates}
+        insertDialogProjectComponents={insertDialogProjectComponents}
         cancelComponentInsertFromHook={cancelComponentInsertFromHook}
         insertDialogOpen={insertDialogOpen}
         insertInitialSelectionId={insertInitialSelectionId}
         insertScope={insertScope}
         recentSymbolIds={recentSymbolIds}
-        switchDocument={switchDocument}
         jumpToCaller={jumpToCaller}
-        openCellOccurrence={openCellOccurrence}
+        placeExternalCircuit={placeExternalCircuit}
+        openCreatedCell={(id) => setOpenAfterCommit({ id, path: [] })}
         navigateToNetlistDiagnostic={navigateToNetlistDiagnostic}
         selectSearchResult={selectSearchResult}
         jumpToProjectDiagnostic={jumpToProjectDiagnostic}
-        cellManagerEntries={cellManagerEntries}
         editorCommands={editorCommands}
         exportDesignNetlist={exportDesignNetlist}
         workspaceReopen={workspaceReopen}
@@ -5485,13 +6003,80 @@ function WorkspaceEditor({
             }}
           />
         ) : null}
-        {!capabilities.community || leftPanelMode === "library" ? (
+        {leftPanelMode === "hierarchy" ? (
+          <CellHierarchyTree
+            key={projectSessionId}
+            project={project}
+            roots={hierarchyRoots}
+            activeDocumentId={document.id}
+            path={documentStack}
+            expandedKeys={hierarchyExpanded}
+            onExpandedKeysChange={setHierarchyExpanded}
+            selectedInstanceIds={selectedIds}
+            usesKey={hierarchyUsesKey}
+            onUsesKeyChange={setHierarchyUsesKey}
+            open={visibleLibraryPanelOpen}
+            actions={{
+              open: openCellOccurrence,
+              openDefinition: (id) => openCellOccurrence(id, []),
+              properties: openCellProperties,
+              rename: renameCell,
+              newChild: (id, path) => {
+                openCellOccurrence(id, path);
+                beginNewChild();
+              },
+              newCell: () => beginNewCell("root"),
+              place: placeCellFromTree,
+              drop: dropOnCanvas,
+              setTop: (id) => void setTopCell(id),
+              remove: (id) => void deleteCell(id),
+              newChildFromSelection: beginCellFromSelection,
+              makeUnique: hierarchyRefactor.makeUnique,
+              replace: setReplaceUse,
+              flatten: hierarchyRefactor.flatten,
+              newExternal: () => openExternalCircuit(null),
+              externals: {
+                edit: openExternalCircuit,
+                place: placeExternalCircuit,
+                remove: (id) => void removeExternalSubcircuitDefinition(id),
+                openCaller: jumpToCaller,
+              },
+              // Cloud import needs the Web build's Project store.
+              ...(!import.meta.env?.ICM_DESKTOP
+                ? { importCell: () => setImportCellOpen(true) }
+                : {}),
+              notice: setStatus,
+            }}
+          />
+        ) : !capabilities.community || leftPanelMode === "library" ? (
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
             onStartInsert={(launch) =>
               editorCommands.execute({ id: "insert.start", launch })
             }
+            onDropPlacement={dropOnCanvas}
+            {...(capabilities.community || capabilities.localComponents
+              ? {
+                  userComponents: {
+                    label: capabilities.community
+                      ? "Community"
+                      : "My components",
+                    open: userComponentsOpen,
+                    onOpenChange: setUserComponentsOpen,
+                    focusRequest: componentSearchRequest,
+                    onCreate: openCreateComponent,
+                    prepare: preloadLibraryComponents,
+                    render: (fold) => (
+                      <EditorLibraryComponents
+                        {...componentEditorProps}
+                        fold={fold}
+                        onDropPlacement={dropOnCanvas}
+                      />
+                    ),
+                  },
+                }
+              : {})}
           />
         ) : (
           <Suspense
@@ -6437,6 +7022,26 @@ function WorkspaceEditor({
                             setCellManagerOpen(true);
                           }
                         : undefined,
+                      hierarchyParameters: selectedHierarchyCell
+                        ? {
+                            project,
+                            parent: document,
+                            cell: selectedHierarchyCell,
+                            instance: selectedInstance,
+                            onDefinition: () =>
+                              openCellProperties(selectedHierarchyCell.id),
+                            onChange: (name, value) =>
+                              transact([
+                                {
+                                  kind: "patch_instance_netlist_parameters",
+                                  instanceId: selectedInstance.id,
+                                  ...(value === null
+                                    ? { unset: [name] }
+                                    : { set: { [name]: value } }),
+                                },
+                              ]).ok,
+                          }
+                        : null,
                       cellSymbolLayout: selectedBlockLayout
                         ? {
                             target: selectedBlockLayout,
@@ -7560,6 +8165,29 @@ function WorkspaceEditor({
               setStatus("Text cancelled");
             },
           }}
+          navigation={
+            <HierarchyBreadcrumb
+              project={project}
+              activeDocumentId={document.id}
+              path={documentStack}
+              onOpen={(id, path, fromInstanceId) => {
+                openCellOccurrence(id, path);
+                if (fromInstanceId) selectOnly("instance", [fromInstanceId]);
+              }}
+              onUp={returnToParentDocument}
+              onTop={returnToTopDocument}
+              onShowTree={() => showLeftPanel("hierarchy")}
+              onShowUses={() => {
+                showLeftPanel("hierarchy");
+                setHierarchyUsesKey(
+                  hierarchyPathKey(
+                    documentStack[0]?.parentDocumentId ?? document.id,
+                    documentStack,
+                  ),
+                );
+              }}
+            />
+          }
           notice={
             !import.meta.env?.ICM_DESKTOP && galleryDailyLimit ? (
               <GalleryDailyLimitCard
@@ -7594,34 +8222,7 @@ function WorkspaceEditor({
           />
         ) : null}
       </div>
-      <EditorComponentEditor
-        project={project}
-        projectSessionId={projectSessionId}
-        resolver={resolver}
-        dispatchProjectTransaction={dispatchProjectTransaction}
-        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
-        setExternalSubcircuitDefinition={setExternalSubcircuitDefinition}
-        removeExternalSubcircuitDefinition={removeExternalSubcircuitDefinition}
-        copyText={(text) => exportDelivery.copyText(text)}
-        onBeforePlace={() => {
-          setCellManagerOpen(false);
-          setModelEditorDefinitionId(null);
-        }}
-        capabilities={capabilities}
-        setStatus={setStatus}
-        componentEditor={componentEditor}
-        setComponentEditor={setComponentEditor}
-        componentLibraryRefresh={componentLibraryRefresh}
-        setComponentLibraryRefresh={setComponentLibraryRefresh}
-        userComponentsOpen={userComponentsOpen}
-        setUserComponentsOpen={setUserComponentsOpen}
-        editorDocumentController={editorDocumentController}
-        synchronizeExternalCommit={synchronizeExternalCommit}
-        definitionProjectRef={definitionProjectRef}
-        selectOnly={selectOnly}
-        cancelAllTransientInteraction={cancelAllTransientInteraction}
-        editorCommands={editorCommands}
-      />
+      <EditorComponentEditor {...componentEditorProps} />
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}

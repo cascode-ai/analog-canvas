@@ -112,3 +112,30 @@
 .privacy-choice [role="alert"] {
   color: #b3261e;
 }
+
+/* /changelog: one line a day, the date in a narrow column beside it. */
+.change-log-days {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.privacy-document .change-log-days li + li {
+  margin-top: 0;
+}
+
+.change-log-days li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 12px;
+}
+
+.change-log-days time {
+  color: var(--icm-text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.85;
+  white-space: nowrap;
+}

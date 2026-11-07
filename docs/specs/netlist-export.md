@@ -140,7 +140,8 @@ pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
   differential op-amp (unlimited) are frequency-independent E/G sources that
-  VDD/VSS neither power nor clamp.
+  VDD/VSS neither power nor clamp. The fully differential op-amp's outputs are
+  `vocm` ± `gain`·V(IN+, IN−)/2 from ground (`vocm` 0, an ideal CMFB's level).
 - Op-amp: `gain`·V(IN+, IN−) (default 1e6), exact between `vlow`/`vhigh` and
   bending onto each limit within 1e-4 of the span. Limits are volts or
   `VDD`/`VSS` (default). It is powered when its VDD is a Net (selected or the one
@@ -291,7 +292,7 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   one that converts is converted.
 - Printed body spans map to owner, applied revision, file and offset; body and
   default edits Apply to that owner; interface and cross-owner edits need the
-  Cell Manager editor. Drafts never replace applied bytes; interface-only
+  external circuit sheet. Drafts never replace applied bytes; interface-only
   placeholders block Copy and export.
 
 ## Printer contracts

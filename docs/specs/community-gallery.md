@@ -117,7 +117,8 @@ entries, keyset cursor, limit ≤60.
   datasets' circuits), `liked=1` (signed out selects none), `parts=0-5,…` (ANY
   taxonomy size; unknown narrows nothing), `q`, authorized `attention`/`reason`.
 - `order`: `newest` (default), `oldest`, `parts`/`fewest` (unknown counts
-  last), `name`/`name-desc` (case-insensitive, then id), or `random` with
+  last), `likes` (most first, then newest), `name`/`name-desc`
+  (case-insensitive, then id), or `random` with
   `seed=[a-z0-9]{1,16}`; the cursor is opaque. A page's ids are sorted off
   the covering metadata index and its tiles read off the card index, never
   the rows behind their Projects and previews.
@@ -261,6 +262,35 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
 - `GET /api/gallery/mine`: own entries with `status`, `rejectReason`,
   `recycledAt`, `likes`, `withdrawnByCurator`; `scope=ai-seats` for AI seats
   (others 403 `ai-accounts-only`; unknown 400 `invalid-scope`).
+- Statistics tab (account page; `view=mine` opens the account's own,
+  `source=community|datasets` the Gallery's stores, all by default):
+  - `GET /api/gallery/stats?source=all|community|datasets` (401 signed out):
+    the chosen stores' merged `summary`, their 10 `topAuthors` and `sources`
+    (`{key, name, circuits}` per store; a dataset that fails adds nothing).
+    A dataset's circuits count in `datasets` and its weeks as `dataset`,
+    neither people's nor AI's. A read never counts: each store answers the
+    figures it keeps (`computedAt`, the oldest store's), which the scheduled
+    pass counts again when an hour old or once a new or edited circuit is
+    counted, and a store's Recount when it ends.
+  - `GET /api/gallery/mine/stats` (401 signed out): the account's public
+    circuits, newest first (`{id,name,createdAt,components,transistors,
+aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
+    testbench, the Sim badge after Netlist), its `summary`, and `rank`
+    `{position, authors}` by public circuits (null with none); the account's
+    view compares it with the community's.
+  - `summary` counts public circuits: totals, `counted`, `ai`, `netlist`,
+    likes received; `types` (each circuit's first tag of a circuit-function
+    group, the boards' rule; null untagged), the 12 most used `tags`,
+    `devices` by kind, `sizes` (the component ranges), `transistorBins`
+    (0, 1–5, 6–10, 11–20, 21–50, 51+) and `weeks` (the last 16, Monday UTC,
+    people and AI).
+  - Devices are the drawn parts of the top Cell and of each called Cell, once
+    per call: NMOS, PMOS, BJT, resistor, capacitor, inductor, diode, source,
+    switch, block (a behavioral body), other; Ports, markers and undrawn parts
+    are not counted. Transistors are its MOS and BJT parts. Kept beside their
+    rule version, not backed up, counted by the scheduled pass (100 per
+    store a tick), again after an edit, and on an account's own read of its
+    still uncounted circuits; null while unreadable.
 - Moderators: `users.role` (`user`/`moderator`), set by the super-admin via
   `POST /api/auth/users/role` `{email, role}` for every account with that
   verified email. Bin and maintenance stay admin-only. No bulk model fill.
@@ -494,10 +524,20 @@ ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
   Project-bearing tables from `{backup}` with 3-version retention, within one
   100 MB request; whole-store rollback is point-in-time recovery.
 - `GET /api/gallery/owner-data` (Owner accounts; 401 signed out or credential,
-  403 otherwise): public per-author counts, opens, average parts, AI and
-  netlist marks, likes and newest time, and `mostOpened` (the 50 circuits
-  opened most, datasets' included, with `opens` and `opensLastWeek`);
-  `author=<key>` lists that author's circuits with the same opens.
+  403 otherwise): public per-author counts, opens, total `components` and
+  `transistors` (`transistorsPending`: circuits the scheduled pass has yet to
+  count), AI and netlist marks, likes and newest time, and `mostOpened` (the 50
+  circuits opened most, datasets' included, with `opens` and `opensLastWeek`);
+  `author=<key>` counts that author's circuits, each with its `parts`,
+  `transistors`, `simulatable` and the same opens, with their `summary` and
+  `rank` as `mine/stats` gives them.
+- `POST /api/gallery/owner-data/recount` (same-origin, Owner accounts):
+  counts the devices of up to 200 public circuits of `store` (`community`,
+  the default, or a dataset's key) after `after`, in ID order, whatever their
+  stored count; the community's first, then each dataset holding any circuit.
+  `{counted, remaining, store, next}`: `remaining` over every store still to
+  come, resumed from `store` and `next` until `next` is null; an unknown
+  store is 400. The Data tab's Recount runs it to the end.
 
 `label-looks` fields (body, then each of the reply's `results`):
 

@@ -1,4 +1,4 @@
-import { useCallback, useId, useState, type ReactNode } from "react";
+import { useCallback, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
@@ -12,7 +12,7 @@ interface ToolbarCommand {
 
 export interface DrawingToolbarProps {
   communityEnabled?: boolean;
-  leftPanelMode: "examples" | "library";
+  leftPanelMode: "examples" | "library" | "hierarchy";
   libraryPanelOpen: boolean;
   projectPanel: "netlist" | "project-code" | null;
   leftPanelsDisabled?: boolean;
@@ -24,6 +24,8 @@ export interface DrawingToolbarProps {
   redo: ToolbarCommand;
   onToggleExamples: () => void;
   onToggleLibrary: () => void;
+  /** The Cell tree shares the Library's place; absent, no toggle is shown. */
+  onToggleHierarchy?: () => void;
   onToggleNetlist: () => void;
   onToggleProjectCode: () => void;
   onActivateTool: (tool: EditorTool) => void;
@@ -33,28 +35,40 @@ export interface DrawingToolbarProps {
   resetLabels?: ToolbarCommand;
 }
 
-function ImmediatePanelButton({
+/**
+ * A toolbar button. `text` is the name shown beside its icon; a narrow window
+ * hides it, and it then shows as the tooltip. A button without text has a
+ * tooltip only if its icon does not say what it does. A tooltip shows at once
+ * on hover or focus.
+ */
+function ToolbarButton({
   testId,
   label,
-  tooltip,
+  text,
+  tooltip = text,
   shortcut,
   pressed,
   controls,
   disabled,
+  iconOnly = false,
   onClick,
   children,
 }: {
   testId: string;
   label: string;
-  tooltip: string;
+  text?: string;
+  tooltip?: string;
   shortcut?: string;
-  pressed: boolean;
+  /** Toggles report their state; plain commands such as Undo leave it out. */
+  pressed?: boolean;
   controls?: string;
   disabled?: boolean;
+  iconOnly?: boolean;
   onClick(): void;
   children: ReactNode;
 }) {
   const tooltipId = useId();
+  const textRef = useRef<HTMLSpanElement>(null);
   const [position, setPosition] = useState<{
     left: number;
     top: number;
@@ -82,6 +96,8 @@ function ImmediatePanelButton({
     [],
   );
   const show = (target: HTMLElement): void => {
+    // A name shown on the button already says it.
+    if (!tooltip || textRef.current?.offsetWidth) return;
     const bounds = target.getBoundingClientRect();
     setPosition({
       left: bounds.left + bounds.width / 2,
@@ -92,11 +108,11 @@ function ImmediatePanelButton({
     <>
       <button
         type="button"
-        className="draw-tool"
+        className={iconOnly ? "draw-tool draw-tool-icon" : "draw-tool"}
         aria-label={label}
         aria-describedby={position ? tooltipId : undefined}
         aria-pressed={pressed}
-        aria-expanded={pressed}
+        aria-expanded={controls ? pressed : undefined}
         aria-controls={controls}
         aria-keyshortcuts={shortcut}
         data-testid={testId}
@@ -108,6 +124,7 @@ function ImmediatePanelButton({
         onBlur={() => setPosition(null)}
       >
         {children}
+        {text ? <span ref={textRef}>{text}</span> : null}
       </button>
       {position && typeof document !== "undefined"
         ? createPortal(
@@ -142,6 +159,7 @@ export function DrawingToolbar({
   redo,
   onToggleExamples,
   onToggleLibrary,
+  onToggleHierarchy,
   onToggleNetlist,
   onToggleProjectCode,
   onActivateTool,
@@ -151,6 +169,7 @@ export function DrawingToolbar({
 }: DrawingToolbarProps) {
   const examplesOpen = leftPanelMode === "examples" && libraryPanelOpen;
   const libraryOpen = leftPanelMode === "library" && libraryPanelOpen;
+  const hierarchyOpen = leftPanelMode === "hierarchy" && libraryPanelOpen;
 
   return (
     <div
@@ -160,152 +179,143 @@ export function DrawingToolbar({
     >
       <div className="draw-toolbar-panels" role="group" aria-label="Panels">
         {communityEnabled ? (
-          <ImmediatePanelButton
+          <ToolbarButton
             testId="examples-toggle"
             label="Insert from Gallery"
+            text="Insert"
             shortcut="G"
-            tooltip={
-              examplesOpen
-                ? "Hide Insert from Gallery"
-                : "Insert a circuit from the Gallery"
-            }
             pressed={examplesOpen}
             controls="examples-panel"
             disabled={leftPanelsDisabled}
             onClick={onToggleExamples}
           >
             <ToolIcon name="examples" />
-            <span>Insert</span>
-          </ImmediatePanelButton>
+          </ToolbarButton>
         ) : null}
-        <ImmediatePanelButton
+        <ToolbarButton
           testId="library-toggle"
           label="Component library"
+          text="Library"
           shortcut="B"
-          tooltip={
-            libraryPanelOpen
-              ? "Hide component library"
-              : "Show component library"
-          }
           pressed={libraryOpen}
           controls="shapes-library-panel"
           disabled={leftPanelsDisabled}
           onClick={onToggleLibrary}
         >
           <ToolIcon name="library" />
-          <span>Library</span>
-        </ImmediatePanelButton>
-        <ImmediatePanelButton
+        </ToolbarButton>
+        {onToggleHierarchy ? (
+          <ToolbarButton
+            testId="hierarchy-toggle"
+            label="Hierarchy"
+            text="Hierarchy"
+            pressed={hierarchyOpen}
+            controls="hierarchy-panel"
+            disabled={leftPanelsDisabled}
+            onClick={onToggleHierarchy}
+          >
+            <ToolIcon name="hierarchy" />
+          </ToolbarButton>
+        ) : null}
+        <ToolbarButton
           testId="netlist-panel-toggle"
           label="Netlist"
+          text="Netlist"
           shortcut="N"
-          tooltip={projectPanel === "netlist" ? "Hide Netlist" : "Show Netlist"}
           pressed={projectPanel === "netlist"}
           onClick={onToggleNetlist}
         >
           <ToolIcon name="netlist" />
-          <span>Netlist</span>
-        </ImmediatePanelButton>
-        <ImmediatePanelButton
+        </ToolbarButton>
+        <ToolbarButton
           testId="project-code-toggle"
           label="Project Code"
-          tooltip={
-            projectPanel === "project-code"
-              ? "Hide Project Code"
-              : "Show Project Code"
-          }
+          text="Project Code"
           pressed={projectPanel === "project-code"}
           onClick={onToggleProjectCode}
         >
           <ToolIcon name="project-code" />
-          <span>Project Code</span>
-        </ImmediatePanelButton>
+        </ToolbarButton>
       </div>
       <span className="draw-toolbar-divider" aria-hidden="true" />
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-undo"
-        title="Undo (Ctrl+Z)"
-        onClick={undo.execute}
+      {/* Familiar tools are bare icons. Only Wire and No Connect, whose icons
+          do not say what they do, explain themselves on hover. */}
+      <ToolbarButton
+        testId="draw-tool-undo"
+        label="Undo"
+        shortcut="Ctrl+Z"
+        iconOnly
         disabled={!undo.enabled}
+        onClick={undo.execute}
       >
         <ToolIcon name="undo" />
-        <span>Undo</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-redo"
-        title="Redo (Ctrl+Shift+Z)"
-        onClick={redo.execute}
+      </ToolbarButton>
+      <ToolbarButton
+        testId="draw-tool-redo"
+        label="Redo"
+        shortcut="Ctrl+Shift+Z"
+        iconOnly
         disabled={!redo.enabled}
+        onClick={redo.execute}
       >
         <ToolIcon name="redo" />
-        <span>Redo</span>
-      </button>
+      </ToolbarButton>
       <span className="draw-toolbar-divider" aria-hidden="true" />
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-wire"
-        aria-pressed={tool === "wire"}
-        title="Wire (W)"
+      <ToolbarButton
+        testId="draw-tool-wire"
+        label="Wire"
+        tooltip="Wire"
+        shortcut="W"
+        iconOnly
+        pressed={tool === "wire"}
         onClick={() => onActivateTool("wire")}
       >
         <ToolIcon name="wire" />
-        <span>Wire</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-no-connect"
-        aria-pressed={tool === "no-connect"}
-        title="No Connect: mark intentionally unused pins"
+      </ToolbarButton>
+      <ToolbarButton
+        testId="draw-tool-no-connect"
+        label="No Connect"
+        tooltip="No Connect: mark intentionally unused pins"
+        iconOnly
+        pressed={tool === "no-connect"}
         onClick={() => onActivateTool("no-connect")}
       >
         <ToolIcon name="no-connect" />
-        <span>NoConn</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-text"
-        aria-label="Text"
-        title="Text (T)"
+      </ToolbarButton>
+      <ToolbarButton
+        testId="draw-tool-text"
+        label="Text"
+        shortcut="T"
+        iconOnly
         onClick={onAddText}
       >
         <ToolIcon name="text" />
-        <span>Text</span>
-      </button>
+      </ToolbarButton>
       <AnnotationMenu
         styleProfileId={styleProfileId}
         onStartInsert={onStartInsert}
       />
       <span className="toolbar-divider" aria-hidden="true" />
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-document-style"
-        aria-pressed={documentSettingsOpen}
-        title="Properties: Ports, canvas, and selected objects"
+      {/* These icons say too little alone, so their names stay beside them. */}
+      <ToolbarButton
+        testId="draw-tool-document-style"
+        label="Properties"
+        text="Properties"
+        pressed={documentSettingsOpen}
         onClick={onOpenDocumentSettings}
       >
         <ToolIcon name="style" />
-        <span>Properties</span>
-      </button>
+      </ToolbarButton>
       {resetLabels ? (
-        <button
-          type="button"
-          className="draw-tool"
-          data-testid="draw-tool-reset-labels"
-          title="Reset labels: every label to the default size and look (italic first letter, upright subscript)"
+        <ToolbarButton
+          testId="draw-tool-reset-labels"
+          label="Reset labels"
+          text="Reset labels"
           disabled={!resetLabels.enabled}
           onClick={resetLabels.execute}
         >
           <ToolIcon name="reset-labels" />
-          <span>Reset labels</span>
-        </button>
+        </ToolbarButton>
       ) : null}
     </div>
   );

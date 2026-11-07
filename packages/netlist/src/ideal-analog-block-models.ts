@@ -95,7 +95,7 @@ function controlledSource(
  * limit or power this model. The ground-referenced output can therefore
  * exceed those rails. The single-ended op-amp is limited and has bodies of
  * its own (generated-models.ts); the fully differential op-amp's outputs sit
- * about ground, with no common mode a limit could keep.
+ * about `vocm` (ground by default), held there as an ideal CMFB holds them.
  */
 export function idealAnalogBlockCell(
   target: string,
@@ -108,9 +108,10 @@ export function idealAnalogBlockCell(
   const model = builtInModelContract(name);
   if (model?.family !== "linear") return null;
   const ports = model.ports.map((port) => port.name);
-  const parameter = adderSigns ? undefined : model.parameters[0];
-  if (!adderSigns && !parameter)
+  const parameters = adderSigns ? [] : model.parameters;
+  if (!adderSigns && parameters.length === 0)
     throw new Error(`Ideal analog model has no parameter: ${name}`);
+  const differential = model.implementation === "opamp_differential";
 
   const e = (
     reference: string,
@@ -135,10 +136,24 @@ export function idealAnalogBlockCell(
         e("ESUMA", ["Y", "nsum", "A", "0"], gain(adderSigns[0])),
         e("ESUMB", ["nsum", "0", "B", "0"], gain(adderSigns[1])),
       ]
-    : model.implementation === "opamp_differential"
+    : differential
       ? [
-          e("EPLUS", ["VOP", "0", "VIP", "VIN"], "gain/2"),
-          e("EMINUS", ["VON", "0", "VIN", "VIP"], "gain/2"),
+          {
+            id: deriveStableId("netlist-ideal-block-source", target, "VCM"),
+            reference: "VCM",
+            invocationKind: "primitive",
+            deviceClass: "voltage-source",
+            target: null,
+            nodes: [
+              { pinName: "+", netName: "ncm" },
+              { pinName: "-", netName: "0" },
+            ],
+            parameters: [
+              { name: "dc", rawValue: format === "spice" ? "{vocm}" : "vocm" },
+            ],
+          },
+          e("EPLUS", ["VOP", "ncm", "VIP", "VIN"], "gain/2"),
+          e("EMINUS", ["VON", "ncm", "VIN", "VIP"], "gain/2"),
         ]
       : model.implementation === "voltage_amplifier"
         ? [e("ECORE", ["VOUT", "0", "VIN", "0"])]
@@ -161,26 +176,26 @@ export function idealAnalogBlockCell(
         name: port,
         scope: "local" as const,
       })),
-      ...(adderSigns
+      ...(adderSigns || differential
         ? [
             {
-              id: deriveStableId("netlist-ideal-block-net", target, "nsum"),
-              name: "nsum",
+              id: deriveStableId(
+                "netlist-ideal-block-net",
+                target,
+                adderSigns ? "nsum" : "ncm",
+              ),
+              name: adderSigns ? "nsum" : "ncm",
               scope: "local" as const,
             },
           ]
         : []),
     ],
-    formalParameters: parameter
-      ? [
-          {
-            name: parameter.name,
-            ...(parameter.defaultValue !== undefined
-              ? { defaultValue: parameter.defaultValue }
-              : {}),
-          },
-        ]
-      : [],
+    formalParameters: parameters.map((parameter) => ({
+      name: parameter.name,
+      ...(parameter.defaultValue !== undefined
+        ? { defaultValue: parameter.defaultValue }
+        : {}),
+    })),
     instances,
   };
 }

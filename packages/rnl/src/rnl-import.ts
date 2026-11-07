@@ -499,6 +499,10 @@ export function applyRnlSnapshot(
     const [major = 0, minor = 0] = version.split(".").map(Number);
     return name === "analog-canvas-extensions" && (major > 0 || minor >= 4);
   });
+  // Analog Canvas wrote the file (any version): its labels' looks are its own.
+  const canvasLooks = snapshot.packages.some(
+    ({ name }) => name === "analog-canvas-extensions",
+  );
   const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
     diagnostics.push({
@@ -562,6 +566,7 @@ export function applyRnlSnapshot(
       keptParameters,
       canvas04,
       tiedToGround,
+      canvasLooks,
     );
   }
   for (const { documentId, name } of cellNames)
@@ -932,7 +937,8 @@ function applyLevel(
   diagnostics: RnlImportDiagnostic[],
   hiddenLabels: RnlHiddenLabels[],
   parameterTexts: RnlParameterText[],
-  /** The Cell Pins the drawing does not place, gathered across levels. */
+  /** The Cell Pins the drawing does not place, gathered across levels, each
+   * keyed by its Document (`pinKey`): an instance ID is the Document's own. */
   undrawnPins: Set<string>,
   powerLabelPorts: RnlPowerLabelPort[],
   /** The Cells' own names (Canvas 0.4), given once every level is read. */
@@ -945,6 +951,8 @@ function applyLevel(
   wiresNamed: boolean,
   /** Each Cell's pins its calls all tie to ground (`groundTiedPins`). */
   tiedToGround: Set<string>,
+  /** Analog Canvas wrote the file, so its labels keep their looks. */
+  canvasLooks: boolean,
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -2340,6 +2348,7 @@ function applyLevel(
     legNear,
     format,
     wiresNamed,
+    canvasLooks,
     called: project.documents.some((item) =>
       item.instances.some(
         (instance) =>
@@ -2350,7 +2359,7 @@ function applyLevel(
   });
   for (const terminal of document.netlist?.terminals ?? [])
     for (const id of terminal.interfaceInstanceIds)
-      if (!movedPins.has(id)) undrawnPins.add(id);
+      if (!movedPins.has(id)) undrawnPins.add(pinKey(document.id, id));
   // A port the drawing shows only as a power label that names it, no Pin
   // drawn (#1783): the label is the port, as the editor keeps a local power
   // label (withPowerLabelPorts, once the drawing is known to keep the
@@ -2510,6 +2519,7 @@ function importTexts(
     legNear,
     format,
     wiresNamed,
+    canvasLooks,
     called,
   }: {
     consumed: ReadonlySet<string>;
@@ -2534,11 +2544,12 @@ function importTexts(
     format: "spice" | "spectre";
     /** The file says which wire each net label is on (Canvas 0.4). */
     wiresNamed: boolean;
+    /** Analog Canvas wrote the file, so its labels keep their looks. */
+    canvasLooks: boolean;
     called: boolean;
   },
 ): void {
   const profile = resolveDocumentStyleProfile(document.presentation);
-  const scaled = sizeScale;
   const labelled = new Set(
     document.annotations.flatMap((item) =>
       item.anchor.kind === "object" ? [item.anchor.objectId] : [],
@@ -2552,6 +2563,11 @@ function importTexts(
     (object) =>
       object.kind === "usage" && object.definition === "$CANVAS_TYPESETTING",
   );
+  // A label's size, styles and colour come back only from Analog Canvas's own
+  // export. Another tool's texts carry that tool's typography (Virtuoso's
+  // upright 10-point names), so its labels take the house look: the text
+  // and where it stands, nothing of how it was set.
+  const scaled = canvasLooks ? sizeScale : () => ({});
   const statedOf = new Map(
     model.objects.flatMap((object) =>
       object.kind === "usage" &&
@@ -2604,7 +2620,7 @@ function importTexts(
     annotation: Parameters<typeof boundText>[0],
     content: NonNullable<Annotation["content"]>,
   ) =>
-    sameStyledText(boundText(annotation), content)
+    !canvasLooks || sameStyledText(boundText(annotation), content)
       ? {}
       : { formatOverride: content };
 
@@ -2663,7 +2679,8 @@ function importTexts(
       ...(shown === name
         ? {
             binding: { kind: "net-name" as const, netId: port.netId },
-            ...(sameStyledText(
+            ...(!canvasLooks ||
+            sameStyledText(
               labelTextDocument(name, document.presentation),
               content,
             )
@@ -2715,6 +2732,7 @@ function importTexts(
       (object) => object.id === text.attach,
     )?.style?.["textcolor"];
     const color =
+      canvasLooks &&
       typeof textcolor === "string" &&
       !(
         typeof ownerColour === "string" &&
@@ -2855,7 +2873,9 @@ function importTexts(
         look: {
           alignment,
           rotation,
-          ...(typeof colour === "string" ? { textColor: colour } : {}),
+          ...(canvasLooks && typeof colour === "string"
+            ? { textColor: colour }
+            : {}),
           ...scaled(text.size, profile.typography.netFontSize),
         },
       });
@@ -3040,7 +3060,8 @@ function importTexts(
           : {
               binding: { kind: "net-name" as const, netId },
               // The name its claim gives the net, set as the Cell sets names.
-              ...(shown === name &&
+              ...(canvasLooks &&
+              shown === name &&
               !sameStyledText(
                 labelTextDocument(name, document.presentation),
                 content,
@@ -4095,7 +4116,7 @@ function unpinUndrawnPorts(
         !pinId ||
         more.length ||
         labelled.has(terminal.id) ||
-        !undrawnPins.has(pinId)
+        !undrawnPins.has(pinKey(document.id, pinId))
       )
         continue;
       // A pin alone on its net but for unwired bodies and rails is one the
@@ -4103,7 +4124,7 @@ function unpinUndrawnPorts(
       const net = document.nets.find((item) => item.id === terminal.netId);
       if (
         net?.terminals.every(
-          (item) => item.instanceId === pinId || unwiredSupply(project, item),
+          (item) => item.instanceId === pinId || unwiredSupply(document, item),
         )
       )
         continue;
@@ -4149,9 +4170,10 @@ function removeEachAddedPin(
         if (
           !net ||
           !pins.size ||
-          [...pins].some((id) => !undrawnPins.has(id)) ||
+          [...pins].some((id) => !undrawnPins.has(pinKey(document.id, id))) ||
           !net.terminals.every(
-            (item) => pins.has(item.instanceId) || unwiredSupply(project, item),
+            (item) =>
+              pins.has(item.instanceId) || unwiredSupply(document, item),
           ) ||
           document.annotations.some(
             (item) => "netId" in item && item.netId === net.id,
@@ -4195,14 +4217,15 @@ function removeEachAddedPin(
  * a MOS body left unwired, as the netlist import binds it, or the rail of
  * a Library gate or flip-flop, which its symbol draws no pin for, drawn on
  * a Cell of the Project (#1450) or on the body the netlist writes itself.
+ * The pin is one of the net's Document, whose own instance it names (#1955).
  */
 function unwiredSupply(
-  project: CircuitProject,
+  document: SchematicDocument,
   item: { instanceId: string; pinName: string },
 ) {
-  const instance = project.documents
-    .flatMap((document) => document.instances)
-    .find((candidate) => candidate.id === item.instanceId);
+  const instance = document.instances.find(
+    (candidate) => candidate.id === item.instanceId,
+  );
   if (!instance) return false;
   if (item.pinName === "B")
     return !!mosBulkKind(instance) && !instance.mosBulkBinding;

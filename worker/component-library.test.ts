@@ -107,6 +107,56 @@ describe("public component library", () => {
         .source,
     ).toBeDefined();
   });
+  it("reads up to 48 revision-bound previews in one request, each with its own visibility and errors", async () => {
+    const route = harness();
+    await route(
+      "PUT",
+      "/native-summary",
+      { ...nativePackage(), revision: 0 },
+      "alice",
+    );
+    await route(
+      "PUT",
+      "/withdrawn-summary",
+      { definition: { symbol: definition("Withdrawn").symbol }, revision: 0 },
+      "alice",
+    );
+    await route(
+      "PATCH",
+      "/withdrawn-summary",
+      { revision: 1, action: "delete" },
+      "alice",
+    );
+    const read = (ids: string, user?: string) =>
+      route("GET", `?view=previews&ids=${ids}`, undefined, user);
+    const batch = await (
+      await read(
+        "native-summary:1,native-summary:2,withdrawn-summary:2,missing-record:1",
+      )
+    ).json();
+    expect(batch.previews).toEqual([
+      expect.objectContaining({
+        id: "native-summary",
+        revision: 1,
+        symbol: expect.objectContaining({ name: "Packaged resistor" }),
+      }),
+      expect.objectContaining({ id: "native-summary", status: 409 }),
+      expect.objectContaining({ id: "withdrawn-summary", status: 404 }),
+      expect.objectContaining({ id: "missing-record", status: 404 }),
+    ]);
+    // A withdrawn record previews only for its author.
+    expect(
+      (await (await read("withdrawn-summary:2", "alice")).json()).previews[0]
+        .symbol.name,
+    ).toBe("Withdrawn");
+    const tooMany = Array.from(
+      { length: 49 },
+      (_, index) => `record-${String(index).padStart(4, "0")}:1`,
+    ).join(",");
+    expect((await read(tooMany)).status).toBe(400);
+    expect((await read("bad id:1")).status).toBe(400);
+    expect((await read("native-summary:0")).status).toBe(400);
+  });
   it("expires publication recovery after seven days without replaying a stale receipt", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {

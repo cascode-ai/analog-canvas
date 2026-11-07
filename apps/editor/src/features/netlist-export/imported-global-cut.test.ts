@@ -1,6 +1,11 @@
 import { executeTransaction } from "@icm/edit-engine";
 import { createEmptyProject, createRoutePath } from "@icm/model";
-import { analyzeDesignNetlist, printSpiceNetlist } from "@icm/netlist";
+import {
+  analyzeDesignNetlist,
+  printSpiceNetlist,
+  projectElectricalGraph,
+} from "@icm/netlist";
+import { importSpiceSources } from "@icm/spice";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -115,5 +120,32 @@ describe("imported global cut", () => {
     expect(spice).toContain(".global VDD");
     expect(spice).toContain("R1 VDD NC0001 1k");
     expect(spice).toContain("R2 VDD__2 NC0002 2k");
+  });
+
+  it("imports a supply a Cell takes as a Pin and a global as one node it can export and compare", async () => {
+    const text = [
+      "Supply pin",
+      ".global VDD",
+      ".subckt load VDD a",
+      "R1 a VDD 1k",
+      ".ends",
+      ".subckt top VDD a",
+      "X1 VDD a load",
+      "R2 a VDD 2k",
+      ".ends",
+      "X0 VDD n top",
+      ".end",
+      "",
+    ].join("\n");
+    const imported = await importSpiceSources(
+      [{ path: "supply-pin.sp", bytes: new TextEncoder().encode(text) }],
+      "supply-pin.sp",
+    );
+    expect(imported.successful).toBe(true);
+    const analysis = analyzeDesignNetlist(imported.project!);
+    expect(
+      analysis.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(projectElectricalGraph(imported.project!).status).toBe("ready");
   });
 });

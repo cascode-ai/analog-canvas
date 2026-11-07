@@ -1,0 +1,276 @@
+/* An account's circuits: one card holding a sortable table with a total
+   row. The Owner's Data tab nests the same table inside its authors table,
+   so the selectors here outrank that table's own (`.owner-data-table td`
+   and the like). */
+
+.circuit-stats {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.circuit-stats-card {
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: 12px;
+  background: var(--icm-surface);
+  box-shadow: 0 1px 2px rgb(15 15 15 / 4%);
+}
+
+.circuit-stats-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.circuit-stats-caption {
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.circuit-stats-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.circuit-stats .circuit-stats-action {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: 8px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.circuit-stats .circuit-stats-action:hover:not(:disabled) {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-tint);
+}
+
+.circuit-stats .circuit-stats-action:disabled {
+  color: var(--icm-text-muted);
+}
+
+.circuit-stats-search {
+  width: min(16rem, 100%);
+  padding: 6px 10px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: 8px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+}
+
+.circuit-stats-search:focus-visible {
+  border-color: var(--icm-accent);
+  outline: 3px solid rgb(var(--icm-accent-rgb) / 18%);
+  outline-offset: 0;
+}
+
+.circuit-stats-scroll {
+  max-height: max(24rem, calc(100dvh - 24rem));
+  overflow: auto;
+}
+
+.circuit-stats .circuit-stats-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.circuit-stats .circuit-stats-table thead th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  padding: 0 14px;
+  height: 36px;
+  border-bottom: 1px solid var(--icm-border);
+  color: var(--icm-text-muted);
+  background: var(--icm-chrome-bg);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.circuit-stats .circuit-stats-table th.circuit-stats-numeric {
+  text-align: right;
+}
+
+.circuit-stats .circuit-stats-sort,
+.circuit-stats .circuit-stats-sort:hover:not(:disabled) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 600;
+}
+
+.circuit-stats .circuit-stats-sort:hover:not(:disabled),
+.circuit-stats .circuit-stats-sort[data-active] {
+  color: var(--icm-text);
+}
+
+.circuit-stats-sort-mark {
+  font-size: 11px;
+  opacity: 0.35;
+}
+
+.circuit-stats-sort[data-active] .circuit-stats-sort-mark {
+  color: var(--icm-accent);
+  opacity: 1;
+}
+
+.circuit-stats .circuit-stats-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--icm-border);
+  vertical-align: middle;
+}
+
+.circuit-stats .circuit-stats-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.circuit-stats .circuit-stats-table tbody tr:hover td {
+  background: rgb(55 53 47 / 3%);
+}
+
+.circuit-stats .circuit-stats-name a {
+  color: var(--icm-text);
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.circuit-stats .circuit-stats-name a:hover {
+  color: var(--icm-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.circuit-stats-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+.circuit-stats .circuit-stats-date {
+  color: var(--icm-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.circuit-stats .circuit-stats-table .circuit-stats-numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.circuit-stats-measure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.circuit-stats-bar {
+  position: relative;
+  width: 64px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--icm-surface-muted);
+}
+
+.circuit-stats-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+}
+
+.circuit-stats-bar-components {
+  background: #a5a29b;
+}
+
+.circuit-stats-bar-transistors {
+  background: var(--icm-accent);
+}
+
+.circuit-stats-value {
+  min-width: 4ch;
+  color: var(--icm-text);
+  font-weight: 550;
+}
+
+.circuit-stats-plain {
+  color: var(--icm-text);
+}
+
+.circuit-stats-unknown {
+  color: var(--icm-text-disabled);
+}
+
+.circuit-stats .circuit-stats-table tfoot th,
+.circuit-stats .circuit-stats-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--icm-border-strong);
+  border-bottom: 0;
+  color: var(--icm-text);
+  background: var(--icm-chrome-bg);
+  font-weight: 650;
+  text-align: left;
+}
+
+.circuit-stats .circuit-stats-table tfoot .circuit-stats-numeric {
+  text-align: right;
+}
+
+.circuit-stats .circuit-stats-table tfoot .circuit-stats-date {
+  color: var(--icm-text-muted);
+  font-weight: 500;
+}
+
+.circuit-stats-footnote {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--icm-border);
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .circuit-stats-bar {
+    display: none;
+  }
+
+  /* Names keep their width; the table scrolls sideways instead. */
+  .circuit-stats .circuit-stats-table {
+    min-width: 34rem;
+  }
+}

@@ -81,7 +81,7 @@ describe("native job ownership", () => {
     ["inputRevision", undefined, "prepared-input-identity-missing"],
     ["inputRevision", "x".repeat(257), "prepared-input-identity-missing"],
   ])(
-    "rejects invalid %s before staging or execution",
+    "rejects invalid %s=%j before staging or execution",
     async (field, value, code) => {
       input[field] = value;
       expect(

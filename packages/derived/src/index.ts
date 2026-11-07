@@ -5,7 +5,6 @@ export * from "./annotation-text.js";
 export * from "./connectivity.js";
 export * from "./import-reference.js";
 export * from "./contact.js";
-export * from "./cell-summary.js";
 export * from "./contact-target.js";
 export * from "./connectivity-index.js";
 export * from "./diagnostics/diagnostic.js";
@@ -20,6 +19,11 @@ export {
   type SchematicTextFace,
 } from "./fraction-text-metrics.js";
 export * from "./hierarchy-navigation.js";
+export {
+  buildProjectHierarchy,
+  reconcileHierarchyPath,
+  type ProjectHierarchy,
+} from "./project-hierarchy.js";
 export * from "./instance-label-placement.js";
 export * from "./instance-value.js";
 export * from "./logical-net.js";

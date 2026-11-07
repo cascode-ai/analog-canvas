@@ -232,23 +232,45 @@ test("shows the complete Project Code and protects an invalid or stale draft", a
   await expect(projectCode).toContainText('"name": "Canvas changed"');
 });
 
-test("keeps panel tooltips visible and exposes panel keyboard shortcuts", async ({
+test("explains only unclear tool icons on hover, inside the window, and exposes panel keyboard shortcuts", async ({
   page,
 }) => {
   await openEditor(page);
   const gallery = page.getByTestId("examples-toggle");
   await expect(gallery).not.toHaveAttribute("title");
   await expect(gallery).toHaveAttribute("aria-keyshortcuts", "G");
-  await gallery.hover();
+  // Labelled panel buttons and familiar icons say what they are: no tooltip.
   const tooltip = page.getByRole("tooltip");
-  await expect(tooltip).toContainText("Insert a circuit from the Gallery");
-  await expect(tooltip).toContainText("(G)");
+  for (const testId of [
+    "examples-toggle",
+    "library-toggle",
+    "draw-tool-text",
+  ]) {
+    await page.getByTestId(testId).hover();
+    await expect(tooltip).toHaveCount(0);
+  }
+  // No Connect's icon does not, so it explains itself at once, inside even a
+  // narrow window.
+  await page.setViewportSize({ width: 560, height: 720 });
+  await page.getByTestId("draw-tool-no-connect").hover();
+  await expect(tooltip).toHaveText(
+    "No Connect: mark intentionally unused pins",
+  );
   const tooltipBounds = await tooltip.boundingBox();
   expect(tooltipBounds).not.toBeNull();
   expect(tooltipBounds!.x).toBeGreaterThanOrEqual(8);
   expect(tooltipBounds!.x + tooltipBounds!.width).toBeLessThanOrEqual(
     await page.evaluate(() => window.innerWidth - 8),
   );
+  // That window hides the toolbar's labels, so their tooltips show them and
+  // the buttons keep their names.
+  await page.getByTestId("library-toggle").hover();
+  await expect(tooltip).toHaveText("Library (B)");
+  const properties = page.getByTestId("draw-tool-document-style");
+  await properties.hover();
+  await expect(tooltip).toHaveText("Properties");
+  await expect(properties).toHaveAccessibleName("Properties");
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   // B and N toggle their panels the same way (editor-shortcuts maps all three).
   const initialPressed = await gallery.getAttribute("aria-pressed");

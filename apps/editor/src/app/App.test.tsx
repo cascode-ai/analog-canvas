@@ -86,13 +86,16 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Cell netlist interface");
     expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
-    // Hierarchy stays discoverable for a flat Project; the operational row is
-    // still omitted until there is hierarchy to navigate or enter.
+    // A flat Project gives no space to hierarchy: no row and no path. Every
+    // Cell command lives in the tree; Circuit and the Panels toggle open it.
     expect(markup).not.toContain('data-testid="cell-navigation"');
+    expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
     expect(markup).toContain('data-testid="hierarchy-entry"');
+    expect(markup).toContain('data-testid="hierarchy-toggle"');
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
-    expect(markup).not.toContain('data-testid="cell-command-menu"');
-    expect(markup).toContain(">Cell Manager…</button>");
+    expect(markup).toContain(">Show hierarchy tree</button>");
+    expect(markup).not.toContain(">New child Cell…</button>");
+    expect(markup).not.toContain(">External Circuits…</button>");
     expect(markup).toContain("Edit Device Data…");
     // Three header menus: File (the file commands), Edit, and Circuit
     // (Hierarchy and Netlist); the command row keeps actions.
@@ -218,9 +221,13 @@ describe("editor shell", () => {
       <App services={services} project={project} />,
     );
     expect(markup).toContain('data-testid="hierarchy-entry"');
-    expect(markup).toContain('data-testid="cell-navigation"');
-    expect(markup).toContain("Enter Cell");
-    expect(markup).toContain("Manage Cells…");
+    expect(markup).not.toContain('data-testid="cell-navigation"');
+    // At Top the path stays hidden even though the Project has a child.
+    expect(markup).not.toContain('data-testid="hierarchy-breadcrumb"');
+    // Circuit only opens the tree, which carries every Cell action.
+    expect(markup).toContain(">Show hierarchy tree</button>");
+    expect(markup).not.toContain(">Place Cell…</button>");
+    expect(markup).not.toContain("Up to caller");
   });
 
   it("links GitHub and the change log directly without a Help surface", () => {
@@ -247,9 +254,7 @@ describe("editor shell", () => {
       /<a[^>]*data-testid="editor-repository-link"[^>]*>/u.exec(markup)?.[0],
     ).toContain('target="_blank"');
     expect(markup).toContain('data-testid="statusbar-change-log"');
-    expect(markup).toContain(
-      'href="https://github.com/cascode-ai/analog-canvas/commits/main"',
-    );
+    expect(markup).toContain('href="/changelog"');
     expect(markup).toContain('data-testid="statusbar-shortcut-hints"');
     expect(markup).toContain("Hints</button>");
     expect(markup).not.toContain('data-testid="canvas-shortcut-hints"');
@@ -257,12 +262,12 @@ describe("editor shell", () => {
     expect(markup).toContain("Presented by");
     expect(markup).toContain('href="https://tokenzhang.com"');
     expect(markup).toContain('src="/tokenzhang-favicon.png"');
-    const navigationEnd = markup.indexOf("</nav>");
+    const header = markup.slice(0, markup.indexOf("</header>"));
+    expect(header).toContain('data-testid="editor-repository-link"');
     const repositoryLink = markup.indexOf(
       'data-testid="editor-repository-link"',
     );
     const ownerLink = markup.indexOf('href="https://tokenzhang.com"');
-    expect(repositoryLink).toBeGreaterThan(navigationEnd);
     expect(ownerLink).toBeGreaterThan(repositoryLink);
     expect(markup).not.toContain('role="dialog"');
     // Agent connects directly from the command row; no one-item menu or
@@ -346,7 +351,7 @@ describe("editor shell", () => {
     expect(markup.indexOf('href="/analytics"')).toBeGreaterThan(statusbar);
   });
 
-  it("opens Netlist beside shapes quick-place without a searchable catalog", () => {
+  it("opens Netlist beside shapes quick-place with one search over the Library", () => {
     const project = createEmptyProject("selection-shelf", "Selection Shelf");
     const markup = renderToStaticMarkup(
       <App services={services} project={project} />,
@@ -359,7 +364,9 @@ describe("editor shell", () => {
     // The toolbar button that opens a panel is the one that closes it.
     expect(markup).not.toContain('aria-label="Close project tools"');
     expect(markup).not.toContain('data-testid="selection-shelf"');
-    expect(markup).not.toContain('aria-label="Properties"');
+    expect(markup).not.toContain(
+      'aria-label="Properties" role="complementary"',
+    );
     // The panel toggles live in the horizontal toolbar; there is no rail.
     expect(markup).not.toContain('aria-label="Tool rail"');
     expect(markup).toContain('aria-label="Shapes"');
@@ -383,11 +390,11 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="selection-filter-button"');
     expect(markup).toContain("Choose Selectable Objects… (Ctrl+Shift+F)");
     expect(markup).toContain("Find in Circuit… (Ctrl+F)");
-    expect(markup).toContain("User Components…");
+    expect(markup).toContain("Community Components…");
     expect(markup).not.toContain("&gt;Undo&lt;");
     expect(markup).not.toContain("&gt;Redo&lt;");
     expect(markup).not.toContain("Symbols &amp; Tools");
-    expect(markup).not.toContain("Search components");
+    expect(markup).toContain("Search components");
     expect(markup).not.toContain("Browse all");
   });
 

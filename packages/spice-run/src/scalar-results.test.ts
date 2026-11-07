@@ -41,6 +41,9 @@ describe("captured scalar cardinality", () => {
       value: 4,
       unit: "Hz",
     });
+    expect(simulationAnalysisToCsv(r.data.analyses[0]!)).toContain(
+      "peak_frequency,4,0,Hz",
+    );
   });
   it("keeps an unqualified one-point AC acquisition as a waveform", () => {
     const onePoint = source

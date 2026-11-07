@@ -18,6 +18,8 @@ describe("galleryTagLabel", () => {
     expect(galleryTagLabel("active rc")).toBe("Active RC");
     expect(galleryTagLabel("gm c")).toBe("gm-C");
     expect(galleryTagLabel("custom legacy tag")).toBe("Custom Legacy Tag");
+    // An origin, not a kind of circuit: "From Virtuoso", not "Virtuoso-Exported".
+    expect(galleryTagLabel("virtuoso-exported")).toBe("From Virtuoso");
   });
 
   it("keeps a mixed-case term's capitals inside a longer tag", () => {

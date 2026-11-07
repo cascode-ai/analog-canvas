@@ -13,6 +13,7 @@ import {
   placeComponentAt,
   setComponentCodeField,
   openEditor,
+  openMenu,
   downloadBytes,
   openProjectFile,
   parseSavedProject,
@@ -30,9 +31,11 @@ test("No Connect tool snaps near pins, places repeatedly and exits without chang
 }) => {
   await openEditor(page);
   await placeComponentAt(page, "resistor", { x: 340, y: 220 });
-  await expect(page.getByTestId("draw-tool-no-connect")).toHaveText("NoConn");
-  await expect(page.getByTestId("draw-tool-no-connect")).toHaveAttribute(
-    "title",
+  // An icon-only tool: its name is announced, its purpose shows on hover.
+  const tool = page.getByTestId("draw-tool-no-connect");
+  await expect(tool).toHaveAccessibleName("No Connect");
+  await tool.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(
     "No Connect: mark intentionally unused pins",
   );
   await clickDrawTool(page, "no-connect");
@@ -371,8 +374,17 @@ test("authors components, connectivity and No Connect manually from an empty can
   page,
 }) => {
   await openEditor(page);
-  // A flat Project has no hierarchy to navigate, so that row stays hidden.
-  await expect(page.getByTestId("cell-navigation")).toHaveCount(0);
+  // A flat Project shows no hierarchy chrome; Circuit only opens the tree,
+  // where its first child Cell is made.
+  await expect(page.getByTestId("hierarchy-breadcrumb")).toHaveCount(0);
+  await expect(page.getByTestId("hierarchy-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await expect(
+    (await openMenu(page, "Hierarchy")).getByRole("button"),
+  ).toHaveText(["Show hierarchy tree"]);
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("0");
 
   await placeComponent(page, "resistor", { x: 340, y: 220 });

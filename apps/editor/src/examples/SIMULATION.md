@@ -2,9 +2,7 @@
 
 The four `simulation-*.icproj.json` files are complete source-Code Projects,
 exposed only in the Simulation start area. They are not Gallery registrations.
-They were imported from the four user-reviewed Downloads exports on 2026-09-13;
-schematics, parameters and executable source were preserved. Only teaching
-comments were added. Run history is not part of these assets.
+Run history is not part of these assets.
 
 The import boundary parses an isolated copy and applies the same conductor and
 legacy Ground-marker normalization as File/Open. It assigns a new Project id,
@@ -18,22 +16,14 @@ All 19 starter experiments are native VACASK; see
 [RLC acceptance](../../../../netlists/native-rlc-filter/README.md) and
 [common-source acceptance](../../../../netlists/native-common-source/README.md) and
 [OTA acceptance](../../../../netlists/native-ota/README.md).
-Their Canvas data is preserved; only executable source, report files and requested
-Profile change. AC exposes a complex Gain trace; the workspace shows Specs and
-Console, and CSV keeps real/imaginary data for external dB/phase views.
-Historical numerical acceptance remains separate from these source migrations:
-compiling a native program does not establish equivalence to the old simulator.
-The saved local `output/native-simulation-examples` evidence is not a golden
-inside the bundled Projects. The separate twelve-folder
-[Library OTA lab](../../../../netlists/native-ota-library/README.md) is now explicitly
-converted too; its historical source is retained for import tests. Other user
-experiments are not implicitly converted by either asset migration.
+AC exposes a complex Gain trace; the workspace shows Specs and Console, and CSV
+keeps real/imaginary data for external dB/phase views. Compiling a native program
+does not establish equivalence to another simulator. The separate twelve-folder
+[Library OTA lab](../../../../netlists/native-ota-library/README.md) is native as
+well; its older source is retained for import tests.
 
-The subsequent common-source conversion requests an explicit BSIM4 4.8.3 TT
-candidate; this is a model-version upgrade requiring separate qualification,
-not a declaration of equality to the original ngspice model. Four missing GND
-claims were materialized with the existing File/Open normalization so direct
-compilation has the same electrical input as the GUI. Geometry is unchanged.
+The common-source starter requests an explicit BSIM4 4.8.3 TT candidate, a
+model-version upgrade requiring separate qualification.
 
 OTA experiment 08 intentionally uses Canvas only for the `ota_5t` subcircuit.
 Its sources, load and feedback are in `testbench.spice`; the visible open-loop
@@ -66,7 +56,4 @@ Omitting `--project` selects all five Projects and all 31 folders: the four
 starters plus the twelve-folder Library OTA lab (`--project ota-library`,
 exported from `five-transistor-ota-sky130.icproj.json`). Every selected
 folder must compile before any output is written; failures are not silently
-skipped. The full starter-library test remains an acceptance obligation alongside
-focused export tests. The former optional external OTA input is retired; the reviewed
-bundled OTA is the single source, as for the other examples. This command does
-not authorize using the older fixed-Preview remote runner for VACASK acceptance.
+skipped. The bundled OTA is the single source, as for the other examples.

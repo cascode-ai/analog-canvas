@@ -1,69 +1,19 @@
-import { readFile } from "node:fs/promises";
-import { runInNewContext } from "node:vm";
-import { parsers } from "prettier/plugins/yaml";
 import { describe, expect, it } from "vitest";
 import { matchesAny } from "./lib/validation-gates.mjs";
 
-// Read the checked-in workflow through the formatter's YAML parser. These
-// tests exercise event/path/job routing; they never run a workflow step.
-async function workflow(path) {
-  const ast = await parsers.yaml.parse(await readFile(path, "utf8"));
-  function value(node) {
-    if (!node) return null;
-    if (["mapping", "flowMapping"].includes(node.type))
-      return Object.fromEntries(
-        node.children.map((item) => item.children.map(value)),
-      );
-    if (["sequence", "flowSequence"].includes(node.type))
-      return node.children.map(value);
-    if (Object.hasOwn(node, "value")) return node.value;
-    return value(node.children?.[0]);
-  }
-  return value(
-    ast.children[0].children.find((node) => node.type === "documentBody"),
-  );
-}
+import { permitsCondition, workflow } from "./test-support/workflow.mjs";
 
 function permits(job, event, action) {
-  if (!job.if) return true;
-  return Boolean(
-    runInNewContext(
-      job.if,
-      {
-        github: { event_name: event },
-        inputs: { action },
-        contains: (list, item) => list.includes(item),
-        fromJSON: JSON.parse,
-      },
-      { timeout: 100 },
-    ),
-  );
+  return permitsCondition(job.if, {
+    github: { event_name: event },
+    inputs: { action },
+    contains: (list, item) => list.includes(item),
+    fromJSON: JSON.parse,
+  });
 }
 
 function permitsStep(step, steps, successful = true, cancelled = false) {
-  const condition = (step.if ?? "success()").replace(
-    /^\$\{\{\s*|\s*\}\}$/gu,
-    "",
-  );
-  // Actions adds success() unless the condition contains a status function.
-  if (
-    !/\b(?:always|success|failure|cancelled)\s*\(/u.test(condition) &&
-    !successful
-  )
-    return false;
-  return Boolean(
-    runInNewContext(
-      condition,
-      {
-        steps,
-        success: () => successful && !cancelled,
-        cancelled: () => cancelled,
-        always: () => true,
-        failure: () => !successful,
-      },
-      { timeout: 100 },
-    ),
-  );
+  return permitsCondition(step.if, { steps }, { successful, cancelled });
 }
 
 describe("environment workflow execution boundaries", () => {

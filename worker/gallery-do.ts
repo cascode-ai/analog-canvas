@@ -36,6 +36,13 @@ import {
   schemaConverge,
 } from "./gallery-store-maintenance";
 import {
+  circuitStats,
+  galleryStats,
+  installTransistorCounts,
+  recountTransistors,
+  refreshTransistorCounts,
+} from "./gallery-store-stats";
+import {
   authorCounts,
   catalog,
   list,
@@ -333,6 +340,7 @@ export class GalleryDO {
     `);
     installBackupRevisions(this.sql);
     installBoards(this.sql);
+    installTransistorCounts(this.sql);
     // Which circuits each account opened today; the scheduled pass (and the
     // first counted open of a new day) drops earlier days. Not a backup table.
     this.sql.exec(`
@@ -612,6 +620,14 @@ export class GalleryDO {
         return allIds(this.sql);
       case "netlistable-refresh":
         return refreshNetlistable(this.sql, body);
+      case "transistor-refresh":
+        return refreshTransistorCounts(this.sql, body);
+      case "transistor-recount":
+        return recountTransistors(this.sql, body);
+      case "circuit-stats":
+        return circuitStats(this.sql, body);
+      case "gallery-stats":
+        return galleryStats(this.sql, body);
       case "testbench-privacy":
         return moveStoredTestbenches(this.sql, body);
       case "simulation-checks-queue":

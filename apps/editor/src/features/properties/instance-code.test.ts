@@ -97,12 +97,15 @@ describe("instance code", () => {
       main: { M1: { parameters: { l: "120n" } } },
       child: { M2: { parameters: { l: "120n", L: "240n" } } },
     },
-  ])("rejects the whole transaction when a later Cell is invalid", (code) => {
-    const project = fixture();
-    const before = structuredClone(project);
-    expect(apply(project, code).ok).toBe(false);
-    expect(project).toEqual(before);
-  });
+  ])(
+    "rejects the whole transaction when a later Cell is invalid: %j",
+    (code) => {
+      const project = fixture();
+      const before = structuredClone(project);
+      expect(apply(project, code).ok).toBe(false);
+      expect(project).toEqual(before);
+    },
+  );
 
   it.each([
     "{",

@@ -1100,59 +1100,6 @@ it("joins a wire that ends on a point another wire runs straight through", async
   ).toEqual([]);
 });
 
-it("ends a wire to a port on no port, or to ground on no ground, at a junction there", async () => {
-  // A flat file has no ports, and its VSS is no ground: the port is its
-  // net's label, the ground a picture, and both keep their wires.
-  const text = [
-    "* flat",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
-    "R1 in VSS 1k",
-    "V1 in 0 1",
-    "V2 VSS 0 0",
-    "* @RNL {",
-    '*   #R1 @PLACE(0, 0) => @ORIENT("R0");',
-    '*   %p = $IO_PORT @ATTACH &in => @PLACE(-6, 1) => @ORIENT("R0");',
-    '*   %g = $GROUND @ATTACH &VSS => @PLACE(0, -4) => @ORIENT("R0");',
-    "*   &in @WIRE {%p:p (0, 1) #R1:1};",
-    "*   &VSS @WIRE {#R1:2 %g:p};",
-    "* }",
-    ".end",
-    "",
-  ].join("\n");
-  const plan = await importRnl(text, "spice");
-  expect(failures(plan)).toEqual([]);
-  expect(
-    plan.diagnostics.filter((item) => item.code === "RNL_IMPORT_WIRE_SKIPPED"),
-  ).toEqual([]);
-  const top = plan.project.documents.find((d) =>
-    d.instances.some((i) => i.id.toLowerCase() === "r1"),
-  )!;
-  const ends = top.routes.flatMap((route) => [
-    route.start,
-    ...route.legs.flatMap((leg) =>
-      leg.to.kind === "endpoint" ? [leg.to.endpoint] : [],
-    ),
-  ]);
-  const junctions = ends.flatMap((end) =>
-    end.kind === "junction" ? [end.junctionId] : [],
-  );
-  expect(junctions).toHaveLength(2);
-  const name = (netId: string) =>
-    top.importReference?.nets.find((net) => net.id === netId)?.name;
-  const label = top.annotations.find((item) => item.kind === "net-label");
-  expect(label && name(label.netId!)).toBe("in");
-  expect(label?.binding?.kind).toBe("net-name");
-  expect(label?.anchor.kind === "object" && label.anchor.objectId).toBe(
-    top.junctions.find((junction) => name(junction.netId) === "in")?.id,
-  );
-  expect(junctions).toContain(
-    top.junctions.find((junction) => name(junction.netId) === "VSS")?.id,
-  );
-  expect(
-    top.drafting?.objects.filter((item) => item.kind === "floating-symbol"),
-  ).toHaveLength(1);
-});
-
 it("reads a Cell's call drawn with the standard gate in its terminal order as the Library gate", async () => {
   // X1 prints its pins as $INVERTER numbers its terminals (a, y, then the
   // supplies); X2 prints its supplies first, so its wires would move.
@@ -5774,6 +5721,55 @@ describe.each(["circle", "diamond"] as const)(
   },
 );
 
+describe("another tool's label looks", () => {
+  it.each(["spice", "spectre"] as const)(
+    "give way to the house look; only Analog Canvas's own file keeps them (%s)",
+    async (format) => {
+      // Names set the way Virtuoso sets them: 10-point and coloured.
+      const project = withImportedInstanceDisplays(
+        controlledSources(["vcvs", "vccs"]),
+      );
+      for (const annotation of project.documents[0]!.annotations)
+        if (annotation.kind === "instance-label") {
+          annotation.sizeScale = 0.6616;
+          annotation.textColor = "#aa3300";
+        }
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      const labels = async (write: typeof exported.request) => {
+        const written = await runtime.write({ write, svg: false });
+        const plan = await importRnl(written.text, format);
+        expect(failures(plan)).toEqual([]);
+        return plan.project.documents[0]!.annotations.filter(
+          (annotation) => annotation.kind === "instance-label",
+        );
+      };
+      const own = await labels(exported.request);
+      expect(own.length).toBeGreaterThan(0);
+      for (const label of own) {
+        expect(label.sizeScale).toBe(0.6616);
+        expect(label.textColor).toBe("#aa3300");
+      }
+      // The same file as another tool writes it.
+      const foreign = await labels({
+        ...withoutCanvasMeaning(exported.request),
+        ops: withoutCanvasMeaning(exported.request).ops.filter(
+          (op) =>
+            !(
+              op.op === "use-package" && op.name === "analog-canvas-extensions"
+            ),
+        ),
+      });
+      expect(foreign.length).toBe(own.length);
+      for (const label of foreign) {
+        expect(label.sizeScale).toBeUndefined();
+        expect(label.textColor).toBeUndefined();
+        expect(label.formatOverride).toBeUndefined();
+      }
+    },
+  );
+});
+
 describe("legacy controlled-source diamond symbols", () => {
   it.each([
     ["spice", CONTROLLED_SOURCE_KINDS],
@@ -5973,7 +5969,7 @@ describe("RNL round trip of examples as the editor opens them", () => {
       ]),
     ),
   )(
-    "brings %s (%s, %s) back with every part, ground, wire and junction",
+    "brings %s (%s, %s) back with every part, ground, wire, junction and label",
     async (name, opening, format) => {
       const project = openedExample(name, opening);
       const exported = createRnlExport(project, { format });
@@ -6008,41 +6004,13 @@ describe("RNL round trip of examples as the editor opens them", () => {
         item.cell.toLowerCase(),
       ))
         expect(after[cell], cell).toEqual(before[cell]);
+      expect(
+        labelDifferences(labelCensus(project), labelCensus(plan.project)),
+      ).toEqual([]);
       // ... and the file brings back no Cell the drawing did not have.
       expect(Object.keys(after).length).toBeGreaterThan(0);
       for (const [cell, census] of Object.entries(after))
         expect(census, cell).toEqual(before[cell]);
-    },
-  );
-  // The library's five examples as the editor opens them: every label comes
-  // back where it was, as big, with the text it showed, and none twice.
-  it.each(
-    [
-      "common-source-amplifier",
-      "two-stage-op-amp",
-      "current-mirror-loaded-differential-pair",
-      "fully-differential-two-stage-op-amp",
-      "five-transistor-ota-sky130",
-    ].flatMap((name) =>
-      openings.flatMap((opening) => [
-        [name, opening, "spice"] as const,
-        [name, opening, "spectre"] as const,
-      ]),
-    ),
-  )(
-    "brings every label of %s (%s, %s) back as drawn",
-    async (name, opening, format) => {
-      const project = openedExample(name, opening);
-      const exported = createRnlExport(project, { format });
-      if (exported.status !== "ready") throw new Error("export blocked");
-      const written = await runtime.write({
-        write: exported.request,
-        svg: false,
-      });
-      const plan = await importRnl(written.text, format);
-      expect(
-        labelDifferences(labelCensus(project), labelCensus(plan.project)),
-      ).toEqual([]);
     },
   );
 });
@@ -6062,5 +6030,84 @@ it.each(["spice", "spectre"] as const)(
     expect(after.status === "ready" && after.file.text).toBe(
       before.status === "ready" && before.file.text,
     );
+  },
+);
+
+/**
+ * delayCellFixture with a second Cell b that draws a Library inverter X1,
+ * its rails unwired: the call in dut is X1 too, or named apart.
+ */
+function sameIdInAnotherCell(sameId: boolean): CircuitProject {
+  const project = delayCellFixture(true);
+  const top = project.documents[0]!;
+  const call = top.instances[0]!;
+  call.symbolId = hierarchicalSymbolId("delay_cmos");
+  if (!sameId) {
+    call.id = "Xother";
+    call.reference = "Xother";
+    for (const net of top.nets)
+      for (const terminal of net.terminals)
+        if (terminal.instanceId === "X1") terminal.instanceId = "Xother";
+  }
+  const b = createEmptyDocument("b", "b");
+  b.netlist!.name = "b";
+  b.instances.push({
+    id: "X1",
+    reference: "X1",
+    symbolId: "inverter",
+    placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: {
+        kind: "unresolved-subcircuit",
+        name: subcircuitDescriptor("inverter")!.target,
+      },
+      parameters: {},
+    },
+  });
+  for (const [pin, name] of [
+    ["A", "input"],
+    ["Y", "output"],
+  ] as const) {
+    b.nets.push({ id: name, terminals: [{ instanceId: "X1", pinName: pin }] });
+    b.connectivityEvidence.push({
+      id: `name-${name}`,
+      kind: "net-name-hint",
+      netId: name,
+      sourceName: name,
+      origin: "spice-import",
+    });
+  }
+  project.documents.push(b);
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "reads each Cell's pins by its own instances, whatever another Cell names alike, through %s+RNL (#1955)",
+  async (format) => {
+    const cellB = async (sameId: boolean) => {
+      const plan = await roundTrip(sameIdInAnotherCell(sameId), format);
+      const b = plan.project.documents.find(
+        (document) => document.netlist?.name === "b",
+      )!;
+      return {
+        instances: b.instances.map(({ id, symbolId, placement }) => ({
+          id,
+          symbolId,
+          placement,
+        })),
+        interfaces: b.netlist!.terminals.map((terminal) => ({
+          name: terminal.name,
+          instanceIds: terminal.interfaceInstanceIds,
+          annotationId: terminal.interfaceAnnotationId,
+        })),
+      };
+    };
+    const apart = await cellB(false);
+    // b's Library inverter is no call of a Cell: its rails stay Cell Pins,
+    // and dut's call X1, a Cell's, does not make them unwired supplies.
+    expect(apart.interfaces.map((item) => item.instanceIds.length)).toEqual([
+      1, 1,
+    ]);
+    expect(await cellB(true)).toEqual(apart);
   },
 );

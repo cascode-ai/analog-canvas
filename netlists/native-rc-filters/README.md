@@ -17,19 +17,17 @@ unchanged. No Gallery data is modified.
 
 The requested `vacask-sky130-candidate` Profile needs native resistor/capacitor OSDI,
 voltage sources and a declared Python 3 runtime. This candidate name is not a
-qualified hosted Profile; among the committed Worker configurations, only
-Preview routes it to the isolated VACASK executor. Select/configure an
-actual matching native environment before Run; no ngspice fallback or automatic
-Profile swap.
+qualified hosted Profile; a Worker configuration that sets `VACASK_PROFILE_ID`
+routes it to the separate VACASK gateway. There is no ngspice fallback or
+automatic Profile swap.
 The report uses only Python's standard library and the copied report helpers.
 
 - Temperature 27 C; R=10 kohm, C=10 nF; AC 10 Hz–1 MHz, 80 points/decade.
 - Step source remains the Canvas pulse: delay 100 us, rise/fall 100 ns,
   width 2 ms, period 4 ms, 0–1 V. Stop remains 1 ms, initial step 1 us.
 - Maximum integration step remains 1 us. Native `tran_fbr=0.025` resolves the
-  short source ramp after a breakpoint. The default breakpoint fraction yielded
-  about 11.7 uV error; reducing only maxstep to 250 ns still gave 11.3 uV.
-  This is a native solver-setting adjustment, not a relaxed acceptance tolerance.
+  short source ramp after a breakpoint; it is a solver setting, not a relaxed
+  tolerance.
 - Native complex `Gain=V(out)/V(in)` replaces old separately computed `gain_db`
   and `phase_deg` raw columns. The GUI no longer plots results; CSV retains
   real/imaginary transfer data for external dB and phase views. `gain_at_fc`
@@ -41,16 +39,8 @@ The report uses only Python's standard library and the copied report helpers.
 ## Acceptance
 
 `containers/vacask/starter-journey.test.mjs` checks all four bundled
-source folders against these recipes and the native compiler. The opt-in
-runs against a real VACASK binary were removed in #1646; nothing set their
-environment, so they never ran in CI.
-
-Those runs compared against the analytical first-order RC response, including
-the finite 100 ns ramp. Complex AC component error must be below 1e-7; the
-sampled cutoff dB interpolation error below 0.002 dB; the two step measurement
-errors below 10 uV. The scalar interpolation limits are not model tolerances.
+source folders against these recipes and the native compiler.
 No MOS, foundry corner, hosted isolation or production qualification is claimed.
 
-The example export command now reads these reviewed bundled Projects, rather
-than rebuilding a separate circuit/program. See the
+The example export command reads these bundled Projects; see the
 [export instructions](../../apps/editor/src/examples/SIMULATION.md).

@@ -23,6 +23,7 @@ import {
   normalizedBearing,
   rotatePointByDegrees,
 } from "../../canvas/canvas-geometry";
+import { moveArrowLeg } from "./arrow-legs";
 import { rectangleGridGeometry } from "./rectangle-grid-geometry";
 import {
   isClosedPolyline,
@@ -41,7 +42,8 @@ export type DraftingHandle =
         | "rectangle-corner"
         | "rectangle-edge"
         | "circle-radius"
-        | "path-corner";
+        | "path-corner"
+        | "leg";
       index: number;
     };
 
@@ -191,9 +193,15 @@ export function applyDraftingHandle(
   if (handle.kind === "rotate") {
     if (object.kind !== "arrow" || originalGeometry.kind !== "arrow")
       return object;
-    const bearing = normalizedBearing(originalGeometry.center, point) + 90;
-    const result = setDraftingBearing(object, originalGeometry, bearing, grid);
-    return result.kind === "updated" ? result.object : object;
+    // The handle stands above the middle of the arrow's bounds: the
+    // pointer's bearing from there is the turn, in steps of
+    // ROTATE_HANDLE_STEP, given to the whole line at once so its legs keep
+    // their lengths and corners.
+    const pivot = centerOfBounds(originalGeometry.bounds);
+    const turn = ((normalizedBearing(pivot, point) - 270 + 540) % 360) - 180;
+    const step =
+      Math.round(turn / ROTATE_HANDLE_STEP) * ROTATE_HANDLE_STEP || 0;
+    return step === 0 ? object : rotateArrow(object, pivot, step, grid);
   }
   if (handle.kind === "outline-width") {
     if (
@@ -232,9 +240,21 @@ export function applyDraftingHandle(
     }
     if (
       object.outline &&
-      (handle.kind === "curve" || handle.kind === "waypoint")
+      (handle.kind === "curve" ||
+        handle.kind === "waypoint" ||
+        handle.kind === "leg")
     )
       return object;
+    if (handle.kind === "leg" && originalGeometry.kind === "arrow") {
+      const moved = moveArrowLeg(
+        object,
+        originalGeometry,
+        handle.index,
+        point,
+        grid,
+      );
+      return moved ?? object;
+    }
     if (handle.kind === "waypoint") {
       if (handle.index < 0 || handle.index >= (object.waypoints?.length ?? 0)) {
         return object;
@@ -577,6 +597,37 @@ export function uprightOrUp(rotation: number): 0 | 270 {
   return rotation % 180 === 90 ? 270 : 0;
 }
 
+/** The rotate handle turns an arrow in steps of this many degrees. */
+const ROTATE_HANDLE_STEP = 15;
+
+/** Every point of an arrow turned by one angle about one pivot. */
+function rotateArrow(
+  object: Extract<DraftingObject, { kind: "arrow" }>,
+  pivot: DerivedPoint,
+  deltaDegrees: number,
+  grid: number,
+): Extract<DraftingObject, { kind: "arrow" }> {
+  return {
+    ...object,
+    from:
+      object.from.kind === "free"
+        ? rotateFreeAnchor(object.from, pivot, deltaDegrees, grid)
+        : object.from,
+    to:
+      object.to.kind === "free"
+        ? rotateFreeAnchor(object.to, pivot, deltaDegrees, grid)
+        : object.to,
+    waypoints: object.waypoints?.map((point) =>
+      snapGridPoint(rotatePointByDegrees(point, pivot, deltaDegrees), grid),
+    ),
+    curveControls: object.curveControls?.map((point) =>
+      point
+        ? snapGridPoint(rotatePointByDegrees(point, pivot, deltaDegrees), grid)
+        : null,
+    ),
+  };
+}
+
 export function rotateDraftingObject(
   object: DraftingObject,
   geometry: ResolvedDraftingGeometry,
@@ -584,31 +635,8 @@ export function rotateDraftingObject(
   grid: number,
 ): DraftingObject | null {
   if (object.locked) return null;
-  if (object.kind === "arrow" && geometry.kind === "arrow") {
-    const pivot = geometry.center;
-    return {
-      ...object,
-      from:
-        object.from.kind === "free"
-          ? rotateFreeAnchor(object.from, pivot, deltaDegrees, grid)
-          : object.from,
-      to:
-        object.to.kind === "free"
-          ? rotateFreeAnchor(object.to, pivot, deltaDegrees, grid)
-          : object.to,
-      waypoints: object.waypoints?.map((point) =>
-        snapGridPoint(rotatePointByDegrees(point, pivot, deltaDegrees), grid),
-      ),
-      curveControls: object.curveControls?.map((point) =>
-        point
-          ? snapGridPoint(
-              rotatePointByDegrees(point, pivot, deltaDegrees),
-              grid,
-            )
-          : null,
-      ),
-    };
-  }
+  if (object.kind === "arrow" && geometry.kind === "arrow")
+    return rotateArrow(object, geometry.center, deltaDegrees, grid);
   if (
     object.kind === "construction-line" &&
     geometry.kind === "construction-line"

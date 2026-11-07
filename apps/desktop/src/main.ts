@@ -1,6 +1,7 @@
 // Adapted from LXY-freshman/schematic-draft @ 5231840f (AGPL-3.0-only).
 // Original author: LXY-freshman. See ../SOURCES.md for exact source and changes.
-import { mkdirSync, appendFileSync } from "node:fs";
+import { createPowerPointSession } from "./powerpoint-session.js";
+import { mkdirSync, appendFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
   app,
@@ -40,6 +41,11 @@ declare const __ICM_DESKTOP_BUILD__: {
 };
 
 const PRODUCT_NAME = "Analog Canvas Preview";
+if (process.env.CIRCUIT_PPT_SESSION)
+  writeFileSync(
+    join(process.env.CIRCUIT_PPT_SESSION, "editor.pid"),
+    String(process.pid),
+  );
 const launchFiles = createLaunchFileQueue();
 launchFiles.enqueue(process.argv);
 // Packaged-executable acceptance attaches both debuggers before creating a
@@ -144,6 +150,7 @@ async function createWindow() {
     if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault();
   });
   let deciding = false;
+  const powerpointMode = !!process.env.CIRCUIT_PPT_SESSION;
   window.on("close", (event) => {
     event.preventDefault();
     if (deciding) return;
@@ -152,20 +159,34 @@ async function createWindow() {
       readState: async () =>
         workspaceCloseState(
           await window.webContents.executeJavaScript(
-            "window.__analogCanvasDesktop?.state() ?? null",
+            powerpointMode
+              ? "window.__circuitPowerPoint?.state() ?? null"
+              : "window.__analogCanvasDesktop?.state() ?? null",
           ),
         ),
       ask: async (state) => {
         const { response } = await dialog.showMessageBox(window, {
           type: "question",
           title: PRODUCT_NAME,
-          message: state
-            ? "Save changes before closing?"
-            : "The editor is not answering. Close without saving?",
-          detail: state
-            ? state.dirty.map((tab) => tab.name).join("\n")
-            : "Keep the window open to retry. Closing may lose unsaved work.",
-          buttons: ["Keep open", "Discard and close", "Save all and close"],
+          message: powerpointMode
+            ? state
+              ? "Save to PowerPoint before closing?"
+              : "The drawing save status is unavailable."
+            : state
+              ? "Save changes before closing?"
+              : "The editor is not answering. Close without saving?",
+          detail: powerpointMode
+            ? `${state ? state.dirty.map((tab) => tab.name).join("\n") : "The editor is not responding. Keep it open and retry."}\nThe linked drawing updates PowerPoint; other project tabs save locally.\nSave the presentation in PowerPoint with Ctrl+S afterwards.`
+            : state
+              ? state.dirty.map((tab) => tab.name).join("\n")
+              : "Keep the window open to retry. Closing may lose unsaved work.",
+          buttons: powerpointMode
+            ? [
+                "Keep open",
+                "Close without updating PowerPoint",
+                "Save to PowerPoint and close",
+              ]
+            : ["Keep open", "Discard and close", "Save all and close"],
           defaultId: 0,
           cancelId: 0,
           noLink: true,
@@ -174,7 +195,9 @@ async function createWindow() {
       },
       save: async () => {
         const value = (await window.webContents.executeJavaScript(
-          "window.__analogCanvasDesktop?.save() ?? { status: 'failed', message: 'The editor stopped answering' }",
+          powerpointMode
+            ? "window.__circuitPowerPoint?.save() ?? { status: 'failed', message: 'The PowerPoint save service is not ready. Please retry.' }"
+            : "window.__analogCanvasDesktop?.save() ?? { status: 'failed', message: 'The editor stopped answering' }",
         )) as { status?: unknown; message?: unknown } | null;
         return {
           status: typeof value?.status === "string" ? value.status : "failed",
@@ -194,7 +217,9 @@ async function createWindow() {
       reportFailure: async (message) => {
         await dialog.showMessageBox(window, {
           type: "warning",
-          message: "The window stayed open",
+          message: powerpointMode
+            ? "The drawing was not saved; the editor stayed open"
+            : "The window stayed open",
           detail: message,
           buttons: ["OK"],
         });
@@ -294,7 +319,8 @@ else {
           : resolve(import.meta.dirname, "../../editor/dist-desktop"),
         exportFile,
         components: createLocalComponentHandler(
-          join(userData, "components.json"),
+          process.env.CIRCUIT_PPT_COMPONENTS ??
+            join(userData, "components.json"),
         ),
         externalLink: createExternalLinkHandler(
           (url) => shell.openExternal(url),
@@ -440,8 +466,13 @@ else {
           library,
         ),
       });
+      const powerPointSession = createPowerPointSession(
+        process.env.CIRCUIT_PPT_SESSION,
+      );
       protocol.handle(APP_SCHEME, (request) => {
         audit(`${request.url}`);
+        if (new URL(request.url).pathname === "/desktop/powerpoint")
+          return powerPointSession(request);
         return handler(request);
       });
       await createWindow();

@@ -16,8 +16,14 @@ or an operator connection; the restricted trial's acceptance remains Issue #1974
   deploy for this profile. Separately dry-run `egress-bundle.jsonc`, then place
   its bundled `egress.js` as `egress.mjs` beside `config.capnp`. The raw egress
   source imports the shared Auth route contract and cannot be copied unbundled.
-- Build the editor into the release's `assets/`. Install `nginx.conf` for the
-  browser proxy and separate static-asset listener; both bind only to loopback.
+- Run `node containers/canvas-cn/formal/build-editor.mjs`, then copy
+  `apps/editor/dist/` into the release's `assets/`. This hosted build enables
+  Simulation and Agent and selects managed simulation with gzip artifact support.
+  Its isolated built-page check must show both entrances and submit Run to managed
+  admission; API-only operator checks do not qualify the browser. Keep the common
+  product code aligned with an explicitly recorded, qualified overseas main SHA.
+  Install `nginx.conf` for the browser proxy and separate static-asset listener;
+  both bind only to loopback.
 - Run `node containers/canvas-cn/formal/prepare-artifacts.mjs <private-release>`
   and copy `artifact-storage.capnp` beside the main configuration. The script
   copies the installed, pinned Miniflare storage modules and records their

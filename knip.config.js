@@ -51,6 +51,8 @@ export default {
         "containers/canvas-cn/formal/egress.mjs!",
         // Invoked by the standalone regional release preparation command.
         "containers/canvas-cn/formal/prepare-artifacts.mjs!",
+        "containers/canvas-cn/formal/build-editor.mjs!",
+        "containers/canvas-cn/formal/verify-editor.mjs!",
         // Loaded by the standalone workerd login profile's config.capnp.
         "containers/canvas-cn/login/entry.mjs!",
         "containers/canvas-cn/login/egress.mjs!",

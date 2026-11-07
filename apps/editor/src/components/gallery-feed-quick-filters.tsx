@@ -87,6 +87,27 @@ function DatasetIcon() {
   );
 }
 
+/** An origin ("From Virtuoso"): a drawing carried out of another tool. */
+function ExportedIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M13 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V11" />
+      <path d="M14 4h6v6M20 4l-9 9" />
+    </svg>
+  );
+}
+
 /** "Made by hand": a person, the other side of the AI mark. */
 function PersonIcon() {
   return (
@@ -119,6 +140,8 @@ export function GalleryQuickFilters({
   netlistableOnly,
   withoutNetlistOnly,
   likedOnly,
+  origins,
+  selectedTags,
   updateFilters,
   quickCount,
 }: {
@@ -133,6 +156,9 @@ export function GalleryQuickFilters({
   netlistableOnly: boolean;
   withoutNetlistOnly: boolean;
   likedOnly: boolean;
+  /** Origin tags on the wall ("virtuoso-exported"), with their counts. */
+  origins: readonly { tag: string; mark: string; count: ReactNode }[];
+  selectedTags: readonly string[];
   updateFilters: (patch: Partial<GalleryFilterState>) => void;
   quickCount: (
     key:
@@ -248,6 +274,34 @@ export function GalleryQuickFilters({
           {quickCount("datasets")}
         </button>
       ) : null}
+      {/* Where a circuit came from: an origin tag, filtered as one. */}
+      {origins.map(({ tag, mark, count }) => {
+        const chosen = selectedTags.includes(tag);
+        return (
+          <button
+            key={tag}
+            type="button"
+            className={quickMarkClass(chosen)}
+            data-testid={`gallery-filter-origin-${tag.replace(/\s/gu, "-")}`}
+            aria-pressed={chosen}
+            title={
+              chosen
+                ? "Show circuits wherever they came from"
+                : `Show only circuits exported from ${mark}`
+            }
+            onClick={() =>
+              updateFilters({
+                tags: chosen
+                  ? selectedTags.filter((each) => each !== tag)
+                  : [...selectedTags, tag],
+              })
+            }
+          >
+            <ExportedIcon /> <span>From {mark}</span>
+            <span className="gallery-sidebar-count">{count}</span>
+          </button>
+        );
+      })}
       <button
         type="button"
         className={quickMarkClass(netlistableOnly)}

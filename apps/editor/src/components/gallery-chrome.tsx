@@ -1,7 +1,11 @@
 import { AccountMenu } from "./account";
 import { BugReportLink } from "./bug-report-link";
 import { CrossedSwordsIcon } from "./crossed-swords-icon";
-import { SITE_PRIVACY_PATH, SITE_REPOSITORY_URL } from "./site-resource-links";
+import {
+  SITE_CHANGE_LOG_PATH,
+  SITE_PRIVACY_PATH,
+  SITE_REPOSITORY_URL,
+} from "./site-resource-links";
 
 /**
  * The one gallery site header, shared by the feed and every gallery
@@ -103,6 +107,13 @@ export function GalleryChrome({
           data-testid="gallery-privacy-link"
         >
           Privacy
+        </a>
+        <a
+          className="analytics-link gallery-privacy-link"
+          href={SITE_CHANGE_LOG_PATH}
+          data-testid="gallery-change-log-link"
+        >
+          Change log
         </a>
       </div>
       <nav className="gallery-actions">

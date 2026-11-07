@@ -14,7 +14,6 @@ import { EditorTestTelemetry } from "../features/editor-shell/editor-test-teleme
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
 import { SITE_REPOSITORY_URL } from "../components/site-resource-links";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
-import { HierarchyToolbar } from "../features/hierarchy/hierarchy-toolbar";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
 import { dismissOpenCommandMenus } from "./editor-runtime-helpers";
 import type { NativeExternalTarget } from "../hosts/native-external-links";
@@ -40,6 +39,12 @@ interface AlignmentAction extends CommandAction {
   label: string;
 }
 
+/** Every Cell command is in the hierarchy tree; the menu only opens it. */
+export interface HierarchyMenuCommands {
+  treeOpen: boolean;
+  onToggleTree: () => void;
+}
+
 export interface EditorAppChromeProps {
   communityEnabled?: boolean;
   identityEnabled?: boolean;
@@ -60,8 +65,6 @@ export interface EditorAppChromeProps {
   onInsertComponent: () => void;
   userComponentsOpen: boolean;
   onOpenUserComponents: () => void;
-  cellManagerOpen: boolean;
-  onManageCells: () => void;
   placeProjectCell: CommandAction;
   selectionFilterOpen: boolean;
   onOpenSelectionFilter: () => void;
@@ -85,7 +88,7 @@ export interface EditorAppChromeProps {
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
   drawingToolbar: ComponentProps<typeof DrawingToolbar>;
-  hierarchyToolbar: ComponentProps<typeof HierarchyToolbar>;
+  hierarchy: HierarchyMenuCommands;
   telemetry: ComponentProps<typeof EditorTestTelemetry>;
 }
 
@@ -110,8 +113,6 @@ export function EditorAppChrome({
   onInsertComponent,
   userComponentsOpen,
   onOpenUserComponents,
-  cellManagerOpen,
-  onManageCells,
   placeProjectCell,
   selectionFilterOpen,
   onOpenSelectionFilter,
@@ -135,7 +136,7 @@ export function EditorAppChrome({
   publishGalleryOpen,
   onPublishGallery,
   drawingToolbar,
-  hierarchyToolbar,
+  hierarchy,
   telemetry,
 }: EditorAppChromeProps) {
   const copyNetlist = (format: "spice" | "spectre") => {
@@ -256,7 +257,9 @@ export function EditorAppChrome({
                     aria-expanded={userComponentsOpen}
                     onClick={onOpenUserComponents}
                   >
-                    User Components…
+                    {communityEnabled
+                      ? "Community Components…"
+                      : "My Components…"}
                   </button>
                 ) : null}
                 {placeProjectCell.enabled ? (
@@ -354,11 +357,12 @@ export function EditorAppChrome({
                 <button
                   type="button"
                   data-testid="hierarchy-entry"
-                  aria-haspopup="dialog"
-                  aria-expanded={cellManagerOpen}
-                  onClick={onManageCells}
+                  aria-pressed={hierarchy.treeOpen}
+                  onClick={hierarchy.onToggleTree}
                 >
-                  Cell Manager…
+                  {hierarchy.treeOpen
+                    ? "Hide hierarchy tree"
+                    : "Show hierarchy tree"}
                 </button>
               </div>
               <div
@@ -559,7 +563,6 @@ export function EditorAppChrome({
         </div>
       </div>
       <DrawingToolbar {...drawingToolbar} />
-      <HierarchyToolbar {...hierarchyToolbar} />
       {projectTabs}
       <EditorTestTelemetry {...telemetry} />
     </header>

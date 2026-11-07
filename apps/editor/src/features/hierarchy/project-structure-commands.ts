@@ -15,6 +15,7 @@ import {
   planUpdateCellTerminalDirection,
   planUpdateCellPortDirection,
   planRenameCellParameter,
+  planAddCellParameter,
   planSetCellParameterDefault,
   planRemoveCellParameter,
   proposeUpsertExternalSubcircuitDefinition,
@@ -22,8 +23,6 @@ import {
 } from "@icm/edit-engine";
 import type { ProjectStructureEdit, SchematicEdit } from "@icm/edit-engine";
 import {
-  createCellDocument,
-  createId,
   CircuitProjectSchema,
   CellSymbolPresentationSchema,
   semanticTextDocument,
@@ -33,6 +32,7 @@ import {
 } from "@icm/model";
 import type {
   Annotation,
+  CellPortDirection,
   CellSymbolPresentation,
   CircuitProject,
   ExternalSubcircuitDefinition,
@@ -41,12 +41,14 @@ import type {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { BlockSymbolLayoutTarget } from "./block-symbol-layout-target";
+import { cellNameIssue } from "./new-cell";
 import type { CellInterfaceConfirmation } from "./cell-interface-confirmation-types";
 export type { CellInterfaceConfirmation } from "./cell-interface-confirmation-types";
 
-type CellDirection = "input" | "output" | "inout" | "passive";
+type CellDirection = CellPortDirection;
 type CellPinSide = "north" | "east" | "south" | "west" | "auto";
 export type CellParameterChange =
+  | { kind: "add"; value: string }
   | { kind: "rename"; value: string }
   | { kind: "default"; value: string }
   | { kind: "remove" };
@@ -71,9 +73,7 @@ export interface ProjectStructureCommandDependencies {
     activeDocumentId?: string,
   ) => boolean;
   setStatus: (status: string) => void;
-  onCellCreated: () => void;
   nextSequence: () => number;
-  createDocumentId?: () => string;
 }
 
 /** Confirmation authorizes precisely the immutable Project the user reviewed. */
@@ -103,9 +103,7 @@ export function createProjectStructureCommands({
   resolver,
   commitStructure,
   setStatus,
-  onCellCreated,
   nextSequence,
-  createDocumentId = () => createId("document"),
   requestConfirmation,
 }: ProjectStructureCommandDependencies) {
   const confirm = (request: CellInterfaceConfirmation): boolean => {
@@ -249,18 +247,12 @@ export function createProjectStructureCommands({
         })
       : apply();
   };
-  const createCell = (inputName: string): void => {
-    const name = inputName.trim();
-    if (!name) return;
-    const child = createCellDocument(
-      createDocumentId(),
-      name,
-      activeDocument.presentation,
-    );
-    if (commitStructure("create-cell", planCreateCell(child), child.id)) {
-      onCellCreated();
-      setStatus(`Created Cell ${name}`);
-    }
+  /** Add a prepared, unplaced Cell and make it the open one. */
+  const createCell = (cell: SchematicDocument): boolean => {
+    if (!commitStructure("create-cell", planCreateCell(cell), cell.id))
+      return false;
+    setStatus(`Created Cell ${cell.name}`);
+    return true;
   };
 
   const setTopCell = (documentId: string): boolean => {
@@ -282,6 +274,12 @@ export function createProjectStructureCommands({
     );
     const name = inputName.trim();
     if (!target || !name || name === target.name) return;
+    // A rename meets the rule a new Cell does, said the same way.
+    const issue = cellNameIssue(project, name, documentId);
+    if (issue) {
+      setStatus(issue);
+      return;
+    }
     if (
       commitStructure("rename-cell", planRenameCell(project, documentId, name))
     ) {
@@ -294,13 +292,32 @@ export function createProjectStructureCommands({
       (candidate) => candidate.id === documentId,
     );
     if (!target) return false;
-    const committed = commitStructure(
-      "delete-cell",
-      planDeleteCell(project, documentId),
-      project.topDocumentId,
+    const apply = () => {
+      const committed = commitStructure(
+        "delete-cell",
+        planDeleteCell(project, documentId),
+        documentId === activeDocument.id
+          ? project.topDocumentId
+          : activeDocument.id,
+      );
+      if (committed) setStatus(`Deleted Cell ${target.name}`);
+      return committed;
+    };
+    // An experiment keeps naming a deleted Cell, to be bound again before it
+    // runs, so a simulated Cell goes only once the author has seen which.
+    const experiments = project.simulationFolders.filter((folder) =>
+      folder.input.circuitBindings.some(
+        (binding) => binding.documentId === documentId,
+      ),
     );
-    if (committed) setStatus(`Deleted Cell ${target.name}`);
-    return committed;
+    if (!experiments.length) return apply();
+    const names = experiments.map((folder) => folder.name).join(", ");
+    return confirm({
+      title: "Delete a simulated Cell?",
+      confirmLabel: "Delete Cell",
+      message: `${target.name} is the circuit of ${experiments.length === 1 ? "simulation" : "simulations"} ${names}. ${experiments.length === 1 ? "It keeps" : "They keep"} naming the Cell and will not run until bound to another one.`,
+      apply,
+    });
   };
 
   const updateCellPinDirection = (
@@ -691,21 +708,28 @@ export function createProjectStructureCommands({
   ): ExternalDefinitionResult => {
     try {
       const edits =
-        change.kind === "rename"
-          ? planRenameCellParameter(
+        change.kind === "add"
+          ? planAddCellParameter(
               project,
               targetDocumentId,
-              name,
+              name.trim(),
               change.value.trim(),
             )
-          : change.kind === "default"
-            ? planSetCellParameterDefault(
+          : change.kind === "rename"
+            ? planRenameCellParameter(
                 project,
                 targetDocumentId,
                 name,
                 change.value.trim(),
               )
-            : planRemoveCellParameter(project, targetDocumentId, name);
+            : change.kind === "default"
+              ? planSetCellParameterDefault(
+                  project,
+                  targetDocumentId,
+                  name,
+                  change.value.trim(),
+                )
+              : planRemoveCellParameter(project, targetDocumentId, name);
       const ok =
         edits.length === 0 ||
         commitStructure(`cell-parameter-${change.kind}`, edits);
@@ -962,6 +986,14 @@ export function createProjectStructureCommands({
     const name = input.name.trim();
     const cellName = input.cellName.trim();
     if (!name || !cellName) return false;
+    const issue =
+      cellName === activeDocument.name
+        ? undefined
+        : cellNameIssue(project, cellName, activeDocument.id);
+    if (issue) {
+      setStatus(issue);
+      return false;
+    }
     const edits: ProjectStructureEdit[] = [
       ...(name === project.name
         ? []

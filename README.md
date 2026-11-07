@@ -70,6 +70,7 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 - **Try the Windows desktop preview:** [download and run the preview](#windows-desktop-preview).
 - **Learn the editor:** [Getting started](docs/user/getting-started.md),
   [schematic hierarchy](docs/user/schematic-hierarchy.md),
+  [analog simulation](docs/user/analog-simulation.md),
   [compatibility](docs/user/project-compatibility.md), and
   [troubleshooting](docs/user/troubleshooting.md).
 - **Understand the product:** [current architecture](docs/overall-product-plan.md)
@@ -88,6 +89,11 @@ same checked-in original skills;
 describe how the local registration works.
 
 ## Windows desktop preview
+
+Windows desktop PowerPoint users can optionally install the
+[local PowerPoint integration](apps/powerpoint/README.md) to create circuit
+drawings and reopen their embedded Projects from slides. It is built and
+installed separately; hosted and standalone desktop use remain unchanged.
 
 [**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-9174bd37ff7f-8/analog-canvas-desktop-windows-x64-9174bd37ff7f.zip)
 · [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-9174bd37ff7f-8)
@@ -111,8 +117,8 @@ describe how the local registration works.
    external changes are checked before writing. Closing offers to save all changed
    tabs, commits the latest workspace before exit, and stays open if saving or
    workspace persistence fails.
-6. **User Components** supports local circuit and artwork definitions through
-   the shared authoring editor. Create, edit, import/export, remove and restore
+6. **My components**, in the Library panel, holds local circuit and artwork
+   definitions made in the shared authoring editor. Create, edit, import/export, remove and restore
    definitions without an account. The library persists separately in
    `%APPDATA%\Analog Canvas\components.json`; placed project instances retain
    their captured version when the library changes.

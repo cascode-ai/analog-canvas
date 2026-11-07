@@ -7,10 +7,7 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
-import {
-  deriveRoutingAffectedClosure,
-  type HierarchyFrame,
-} from "@icm/derived";
+import { deriveRoutingAffectedClosure } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { NetlistNamingProfile } from "@icm/netlist";
@@ -86,20 +83,18 @@ export function EditorMenuBar({
   publicSimulationUiEnabled,
   setStatus,
   userComponentsOpen,
-  setUserComponentsOpen,
+  openUserComponents,
   leftPanelMode,
   setSelectionOpen,
   searchOpen,
   toggleLibraryPanel,
+  toggleHierarchyPanel,
   visibleLibraryPanelOpen,
   recoverySessions,
   project,
   document,
-  documentStack,
   visualSelection,
   selectionFilterOpen,
-  cellManagerOpen,
-  setCellManagerOpen,
   netlistPreflightOpen,
   setNetlistPreflightOpen,
   projectPanel,
@@ -142,7 +137,6 @@ export function EditorMenuBar({
   selectedEndpoint,
   projectInputRef,
   tabProjectInputRef,
-  hasHierarchyEnterSelection,
   flightlines,
   displayedFlightlines,
   crossings,
@@ -152,12 +146,8 @@ export function EditorMenuBar({
   alignmentParticipantCount,
   internalSelection,
   projectInstanceCount,
-  selectDocumentFromHierarchy,
-  enterSelectedHierarchy,
-  returnToTopDocument,
   toggleProjectPanel,
   toggleExamplesPanel,
-  cancelAllTransientInteraction,
   placeCellInstance,
   editorCommands,
   importSpiceFiles,
@@ -191,20 +181,18 @@ export function EditorMenuBar({
   publicSimulationUiEnabled: boolean;
   setStatus: Dispatch<SetStateAction<string>>;
   userComponentsOpen: boolean;
-  setUserComponentsOpen: Dispatch<SetStateAction<boolean>>;
+  openUserComponents(): void;
   leftPanelMode: EditorPanels["leftPanelMode"];
   setSelectionOpen: EditorPanels["setSelectionOpen"];
   searchOpen: EditorPanels["searchOpen"];
   toggleLibraryPanel: EditorPanels["toggleLibraryPanel"];
+  toggleHierarchyPanel: EditorPanels["toggleHierarchyPanel"];
   visibleLibraryPanelOpen: boolean;
   recoverySessions: UseRecoveryCoordinatorResult["sessions"];
   project: CircuitProject;
   document: SchematicDocument;
-  documentStack: HierarchyFrame[];
   visualSelection: SelectionController["selection"];
   selectionFilterOpen: boolean;
-  cellManagerOpen: boolean;
-  setCellManagerOpen: Dispatch<SetStateAction<boolean>>;
   netlistPreflightOpen: boolean;
   setNetlistPreflightOpen: Dispatch<SetStateAction<boolean>>;
   projectPanel: EditorProjectPanelMode | null;
@@ -247,7 +235,6 @@ export function EditorMenuBar({
   selectedEndpoint: WireSource | null;
   projectInputRef: RefObject<HTMLInputElement | null>;
   tabProjectInputRef: RefObject<HTMLInputElement | null>;
-  hasHierarchyEnterSelection: boolean;
   flightlines: EditorDerivedModel["flightlines"];
   displayedFlightlines: EditorDerivedModel["displayedFlightlines"];
   crossings: EditorDerivedModel["crossings"];
@@ -257,12 +244,8 @@ export function EditorMenuBar({
   alignmentParticipantCount: number;
   internalSelection: ReturnType<typeof deriveRoutingAffectedClosure>;
   projectInstanceCount: number;
-  selectDocumentFromHierarchy: NavigationController["selectDocumentFromHierarchy"];
-  enterSelectedHierarchy: NavigationController["enterSelectedHierarchy"];
-  returnToTopDocument: NavigationController["returnToTopDocument"];
   toggleProjectPanel: (mode: EditorProjectPanelMode) => void;
   toggleExamplesPanel: () => void;
-  cancelAllTransientInteraction: () => void;
   placeCellInstance: () => void;
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   importSpiceFiles: FileCommands["importSpiceFiles"];
@@ -486,13 +469,8 @@ export function EditorMenuBar({
       }}
       searchOpen={searchOpen}
       selectionFilterOpen={selectionFilterOpen}
-      cellManagerOpen={cellManagerOpen}
-      onManageCells={() => setCellManagerOpen(true)}
       userComponentsOpen={userComponentsOpen}
-      onOpenUserComponents={() => {
-        cancelAllTransientInteraction();
-        setUserComponentsOpen(true);
-      }}
+      onOpenUserComponents={openUserComponents}
       onInsertComponent={() =>
         editorCommands.execute({
           id: "insert.start",
@@ -620,6 +598,7 @@ export function EditorMenuBar({
         },
         onToggleExamples: toggleExamplesPanel,
         onToggleLibrary: toggleLibraryPanel,
+        onToggleHierarchy: toggleHierarchyPanel,
         onToggleNetlist: () => toggleProjectPanel("netlist"),
         onToggleProjectCode: () => toggleProjectPanel("project-code"),
         onActivateTool: (nextTool) =>
@@ -648,17 +627,9 @@ export function EditorMenuBar({
           },
         },
       }}
-      hierarchyToolbar={{
-        documents: project.documents,
-        activeDocumentId: document.id,
-        topDocumentId: project.topDocumentId,
-        navigationDepth: documentStack.length,
-        canEnter: hasHierarchyEnterSelection,
-        onTop: returnToTopDocument,
-        onSelectDocument: selectDocumentFromHierarchy,
-        onEnter: enterSelectedHierarchy,
-        onManageCells: () => setCellManagerOpen(true),
-        onPlaceCell: placeCellInstance,
+      hierarchy={{
+        treeOpen: leftPanelMode === "hierarchy" && visibleLibraryPanelOpen,
+        onToggleTree: toggleHierarchyPanel,
       }}
       telemetry={{
         snapshot: {

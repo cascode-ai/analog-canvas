@@ -43,7 +43,11 @@ import {
   ModelSourceApplyError,
   modelSourceMigrationResolver,
 } from "./model-source-planner.js";
-import { reviewedExternalDefinitionEditIssue } from "./hierarchy-planner.js";
+import {
+  cellDeletionRefusal,
+  externalCellNameClashes,
+  reviewedExternalDefinitionEditIssue,
+} from "./hierarchy-planner.js";
 
 import {
   MAX_SCHEMATIC_EDITS_PER_TRANSACTION,
@@ -877,27 +881,19 @@ function applyProjectTransaction(
           `Document does not exist: ${edit.documentId}`,
         );
       }
-      if (edit.documentId === candidate.topDocumentId) {
+      const refusal = cellDeletionRefusal(candidate, edit.documentId);
+      if (refusal?.reason === "top") {
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",
           "The top Cell cannot be deleted",
         );
       }
-      const caller = candidate.documents.flatMap((document) =>
-        document.instances.flatMap((instance) => {
-          const binding = instance.netlist?.binding;
-          return binding?.kind === "subcircuit" &&
-            binding.childDocumentId === edit.documentId
-            ? [{ documentId: document.id, instanceId: instance.id }]
-            : [];
-        }),
-      )[0];
-      if (caller) {
+      if (refusal) {
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",
-          `Cell ${edit.documentId} is still referenced by ${caller.documentId}.${caller.instanceId}`,
+          `Cell ${edit.documentId} is still referenced by ${refusal.documentId}.${refusal.instanceId}`,
         );
       }
       candidate.documents.splice(index, 1);
@@ -1586,6 +1582,20 @@ function applyProjectTransaction(
         },
       },
     ]);
+  }
+  // A Cell and an external circuit of one name would shadow each other in
+  // the netlist. Only a clash this transaction makes is refused, so an older
+  // Project that has one still opens and edits.
+  const clashed = externalCellNameClashes(project);
+  const clash = [...externalCellNameClashes(candidate)].find(
+    ([folded]) => !clashed.has(folded),
+  );
+  if (clash) {
+    return rejectProjectTransaction(
+      project,
+      "EDIT_PRECONDITION",
+      `${clash[1]} names both a Cell and an external circuit; rename one of them`,
+    );
   }
   const validated = validateProjectResult(candidate);
   if (!validated.success) {

@@ -1,26 +1,23 @@
 name: SG13G2 qualification
 on:
   workflow_dispatch:
+  # Only what the SG13G2 Profile itself is made of: its image, process data,
+  # executor routing and qualification sources. Its checks are not required
+  # merge checks; run it by hand (workflow_dispatch) after a broader change.
   pull_request:
     paths:
-      - containers/ngspice/**
-      - containers/simulation/**
-      - packages/devices/**
-      - packages/netlist/**
-      - packages/simulation-service/**
-      - packages/spice-run/**
-      - worker/simulation*.ts
-      - apps/editor/e2e/sg13g2-simulation.spec.ts
-      - apps/editor/e2e/mcp-stdio-fixture.ts
-      - apps/editor/e2e/editor-fixtures.ts
-      - apps/editor/src/app/App.tsx
-      - apps/editor/src/app/use-simulation-surface.ts
-      - apps/editor/src/features/properties/**
-      - apps/editor/src/features/netlist-export/**
-      - scripts/sg13g2*qualification.mjs
-      - scripts/production-sg13g2-smoke.mjs
-      - scripts/lib/environment-test-lanes.mjs
+      - "**/*sg13g2*"
+      - containers/ngspice/sg13g2/**
+      - containers/ngspice/runtime/entrypoint.mjs
+      - containers/simulation/run-local-files.mjs
       - netlists/sg13g2-qualification/**
+      - packages/devices/src/reviewed-external.ts
+      - packages/netlist/src/model-source-process.ts
+      - packages/simulation-service/src/prepare-ngspice.ts
+      - apps/editor/src/features/netlist-export/netlist-process*.ts
+      - worker/simulation.ts
+      - scripts/package-ngspice-harness.mjs
+      - scripts/lib/environment-test-lanes.mjs
       - .github/workflows/sg13g2-tests.yml
 permissions:
   contents: read

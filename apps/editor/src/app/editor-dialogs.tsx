@@ -1,16 +1,12 @@
 // The editor's dialogs and banners: recovery, replace guard, Project Info,
-// search, insert, Cell Manager, netlist preflight, Gallery publishing and
-// version history, and the Agent connection and file approval.
+// search, insert, Cell properties, External Circuits, Cell import, netlist
+// preflight, Gallery publishing and version history, and the Agent
+// connection and file approval.
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { flushSync } from "react-dom";
 import { claimNow } from "../agent/claim-clock";
 import { planProjectCellImport } from "@icm/edit-engine";
-import type {
-  HierarchyFrame,
-  ProjectConnectivityIndex,
-  runErcChecks,
-  summarizeProjectCells,
-} from "@icm/derived";
+import type { runErcChecks } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
 import type { createEditorCommandRouter } from "../commands/editor-command";
@@ -23,6 +19,7 @@ import type { useProjectFileLifecycle } from "../document/use-project-file-lifec
 import type {
   CellInsertCandidate,
   ExternalSubcircuitInsertCandidate,
+  ProjectComponentInsertCandidate,
 } from "../features/component-insert/insert-component-dialog";
 import type { useComponentPlacement } from "../features/component-insert/use-component-placement";
 import type { createEditorFileCommands } from "../features/editor-shell/editor-file-commands";
@@ -104,8 +101,13 @@ export function EditorDialogs({
   editorDocumentController,
   projectSessionId,
   galleryTopologyProject,
-  projectConnectivityIndex,
-  setDocumentStack,
+  cellPropertiesId,
+  setCellPropertiesId,
+  importCellOpen,
+  setImportCellOpen,
+  renameCellTerminal,
+  setCellSymbolBodySize,
+  setCellSymbolPortPlacement,
   cellManagerOpen,
   setCellManagerOpen,
   modelEditorDefinitionId,
@@ -155,10 +157,9 @@ export function EditorDialogs({
   approveAgentFileCandidate,
   rejectAgentFileCandidate,
   commitStructure,
-  createCell,
   renameCell,
+  setTopCell,
   editProjectInfo,
-  deleteCell,
   updateCellPortDirection,
   moveCellPort,
   editCellParameter,
@@ -170,20 +171,19 @@ export function EditorDialogs({
   searchResults,
   requestElectricalDiagnostics,
   cellInsertCandidates,
-  externalSubcircuitInsertCandidates,
   insertDialogExternalCandidates,
+  insertDialogProjectComponents,
   cancelComponentInsertFromHook,
   insertDialogOpen,
   insertInitialSelectionId,
   insertScope,
   recentSymbolIds,
-  switchDocument,
   jumpToCaller,
-  openCellOccurrence,
+  placeExternalCircuit,
+  openCreatedCell,
   navigateToNetlistDiagnostic,
   selectSearchResult,
   jumpToProjectDiagnostic,
-  cellManagerEntries,
   editorCommands,
   exportDesignNetlist,
   workspaceReopen,
@@ -216,8 +216,13 @@ export function EditorDialogs({
   editorDocumentController: EditorDocumentController;
   projectSessionId: string;
   galleryTopologyProject: ReturnType<typeof projectWithTopologyRoot>;
-  projectConnectivityIndex: ProjectConnectivityIndex;
-  setDocumentStack: Dispatch<SetStateAction<HierarchyFrame[]>>;
+  cellPropertiesId: string | null;
+  setCellPropertiesId: Dispatch<SetStateAction<string | null>>;
+  importCellOpen: boolean;
+  setImportCellOpen: Dispatch<SetStateAction<boolean>>;
+  renameCellTerminal: ProjectStructureCommands["renameCellTerminal"];
+  setCellSymbolBodySize: ProjectStructureCommands["setCellSymbolBodySize"];
+  setCellSymbolPortPlacement: ProjectStructureCommands["setCellSymbolPortPlacement"];
   cellManagerOpen: boolean;
   setCellManagerOpen: Dispatch<SetStateAction<boolean>>;
   modelEditorDefinitionId: string | null;
@@ -269,10 +274,9 @@ export function EditorDialogs({
   approveAgentFileCandidate: AgentConnection["approveAgentFileCandidate"];
   rejectAgentFileCandidate: AgentConnection["rejectAgentFileCandidate"];
   commitStructure: TransactionCommands["commitStructure"];
-  createCell: ProjectStructureCommands["createCell"];
   renameCell: ProjectStructureCommands["renameCell"];
+  setTopCell: ProjectStructureCommands["setTopCell"];
   editProjectInfo: ProjectStructureCommands["editProjectInfo"];
-  deleteCell: ProjectStructureCommands["deleteCell"];
   updateCellPortDirection: ProjectStructureCommands["updateCellPortDirection"];
   moveCellPort: ProjectStructureCommands["moveCellPort"];
   editCellParameter: ProjectStructureCommands["editCellParameter"];
@@ -284,20 +288,21 @@ export function EditorDialogs({
   searchResults: EditorDerivedModel["searchResults"];
   requestElectricalDiagnostics: () => ReturnType<typeof runErcChecks>;
   cellInsertCandidates: readonly CellInsertCandidate[];
-  externalSubcircuitInsertCandidates: readonly ExternalSubcircuitInsertCandidate[];
   insertDialogExternalCandidates: readonly ExternalSubcircuitInsertCandidate[];
+  insertDialogProjectComponents: readonly ProjectComponentInsertCandidate[];
   cancelComponentInsertFromHook: ComponentPlacement["cancelComponentInsert"];
   insertDialogOpen: ComponentPlacement["insertDialogOpen"];
   insertInitialSelectionId: ComponentPlacement["insertInitialSelectionId"];
   insertScope: ComponentPlacement["insertScope"];
   recentSymbolIds: ComponentPlacement["recentSymbolIds"];
-  switchDocument: NavigationController["switchDocument"];
   jumpToCaller: NavigationController["jumpToCaller"];
-  openCellOccurrence: NavigationController["openCellOccurrence"];
+  /** Start placing an external circuit; false when it has no symbol. */
+  placeExternalCircuit: (definitionId: string) => boolean;
+  /** Open a Cell a transaction just created, once the Project holds it. */
+  openCreatedCell(documentId: string): void;
   navigateToNetlistDiagnostic: NavigationController["navigateToNetlistDiagnostic"];
   selectSearchResult: NavigationController["selectSearchResult"];
   jumpToProjectDiagnostic: NavigationController["jumpToProjectDiagnostic"];
-  cellManagerEntries: ReturnType<typeof summarizeProjectCells>;
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   exportDesignNetlist: ReturnType<
     typeof createEditorFileCommands
@@ -412,6 +417,7 @@ export function EditorDialogs({
               recentSymbolIds,
               cells: cellInsertCandidates,
               externalDefinitions: insertDialogExternalCandidates,
+              projectComponents: insertDialogProjectComponents,
               scope: insertScope,
               initialSelectionId: insertInitialSelectionId,
               onApply: (request) =>
@@ -429,47 +435,13 @@ export function EditorDialogs({
               open: cellManagerOpen,
               initialExternalId: modelEditorDefinitionId,
               initialModelLocation: modelEditorLocation,
-              cells: cellManagerEntries,
               project,
-              hierarchyCalls: projectConnectivityIndex.hierarchy.calls,
-              onOpenOccurrence: (documentId, hierarchyPath) => {
-                openCellOccurrence(documentId, hierarchyPath);
-                setCellManagerOpen(false);
-              },
-              activeDocumentId: document.id,
               onClose: () => {
                 setCellManagerOpen(false);
                 setModelEditorDefinitionId(null);
                 setModelEditorLocation(undefined);
               },
-              onCreate: (name) => {
-                createCell(name);
-                setCellManagerOpen(false);
-              },
-              onOpen: (documentId) => {
-                setCellManagerOpen(false);
-                setDocumentStack([]);
-                switchDocument(documentId);
-              },
-              onRename: renameCell,
-              onReorder: (documentIds, topDocumentId) => {
-                commitStructure("reorder-cells", [
-                  { kind: "reorder_documents", documentIds },
-                  { kind: "set_top_document", documentId: topDocumentId },
-                ]);
-              },
-              onDelete: (documentId) => {
-                if (deleteCell(documentId)) {
-                  setCellManagerOpen(false);
-                }
-              },
               onJumpToCaller: jumpToCaller,
-              onSetPortDirection: (documentId, portId, direction) =>
-                updateCellPortDirection(portId, direction, documentId),
-              onMovePort: (documentId, portId, delta) =>
-                moveCellPort(portId, delta, documentId),
-              onEditParameter: (documentId, name, change) =>
-                editCellParameter(name, change, documentId),
               externalDefinitions: project.externalSubcircuitDefinitions,
               onSetExternalDefinition: setExternalSubcircuitDefinition,
               onCopyModelText: (text) => exportDelivery.copyText(text),
@@ -506,63 +478,35 @@ export function EditorDialogs({
                 };
               },
               onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
-              onPlaceExternal: (definitionId) => {
-                const candidate = externalSubcircuitInsertCandidates.find(
-                  (item) => item.definitionId === definitionId,
-                );
-                if (!candidate) {
-                  setStatus(
-                    "The selected external master has no resolved symbol",
-                  );
-                  return;
-                }
-                setCellManagerOpen(false);
-                setModelEditorDefinitionId(null);
-                editorCommands.execute({
-                  id: "insert.start",
-                  launch: {
-                    kind: "quick",
-                    request: {
-                      kind: "external-subcircuit",
-                      definitionId,
-                      symbolId: candidate.symbol.id,
-                      symbolName: candidate.masterName,
-                      masterName: candidate.masterName,
-                      parameters: {},
-                      initialRotation: 0,
-                      showReference: !candidate.symbol.hierarchicalBlock,
-                      referenceText: null,
-                      showValue: true,
-                    },
-                  },
-                });
-              },
-              onPlaceCell: (childDocumentId) => {
-                const candidate = cellInsertCandidates.find(
-                  (c) => c.childDocumentId === childDocumentId,
-                );
-                if (!candidate) return;
-                setCellManagerOpen(false);
-                setModelEditorDefinitionId(null);
-                editorCommands.execute({
-                  id: "insert.start",
-                  launch: {
-                    kind: "quick",
-                    request: {
-                      kind: "cell",
-                      symbolId: candidate.symbol.id,
-                      symbolName: candidate.cellName,
-                      childDocumentId,
-                      cellName: candidate.cellName,
-                      parameters: {},
-                      initialRotation: 0,
-                      showReference: false,
-                      referenceText: null,
-                      showValue: true,
-                    },
-                  },
-                });
-              },
+              onPlaceExternal: (definitionId) =>
+                void placeExternalCircuit(definitionId),
+            }
+          : null
+      }
+      cellProperties={
+        cellPropertiesId
+          ? {
+              project,
+              cellId: cellPropertiesId,
+              onClose: () => setCellPropertiesId(null),
+              onRename: renameCell,
+              onRenamePin: (cellId, terminalId, name) =>
+                renameCellTerminal(terminalId, name, cellId),
+              onSetPinDirection: (cellId, portId, direction) =>
+                updateCellPortDirection(portId, direction, cellId),
+              onMovePin: (cellId, portId, delta) =>
+                moveCellPort(portId, delta, cellId),
+              onEditParameter: (cellId, name, change) =>
+                editCellParameter(name, change, cellId),
+              onSymbolSizeChange: setCellSymbolBodySize,
+              onPinSideChange: setCellSymbolPortPlacement,
+              onSetTop: (cellId) => void setTopCell(cellId),
+            }
+          : null
+      }
+      importCell={
+        importCellOpen
+          ? {
               cloudProjects,
               activeCloudProjectId: cloudBinding?.id ?? null,
               ...(!import.meta.env?.ICM_DESKTOP
@@ -605,6 +549,11 @@ export function EditorDialogs({
                   documentId: plan.rootDocumentId,
                 };
               },
+              onImported: (documentId) => {
+                setImportCellOpen(false);
+                if (documentId) openCreatedCell(documentId);
+              },
+              onClose: () => setImportCellOpen(false),
             }
           : null
       }

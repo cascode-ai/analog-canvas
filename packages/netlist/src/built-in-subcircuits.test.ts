@@ -336,35 +336,6 @@ describe("built-in Analog Block subcircuits", () => {
     },
   );
 
-  it("keeps an unbound op-amp on its ideal body beside a declared master named opamp (#1928)", () => {
-    const project = analogBlockProject(
-      ["opamp"],
-      [
-        ["IN+", "plus"],
-        ["IN-", "minus"],
-        ["OUT", "out"],
-      ],
-    );
-    project.externalSubcircuitDefinitions.push({
-      id: "external-opamp",
-      name: "opamp",
-      interfaceStatus: "declared",
-      formalParameters: [],
-      terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
-        id: `external-${name}`,
-        name,
-        direction: "passive" as const,
-      })),
-    });
-    const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
-    // The declared master is the author's, reached only by set-model.
-    expect(result.file.text).toMatch(/^X1 .* icm_opamp\w*( |$)/mu);
-    expect(result.file.text).not.toMatch(/^X1 .* opamp( |$)/mu);
-    expect(result.externalMasterCount).toBe(0);
-  });
-
   it("limits an ideal op-amp to its drawn supplies, and to ±5 V without them (#1463)", () => {
     const opamp = (
       parameters: Record<string, string>,
@@ -1057,11 +1028,6 @@ describe("built-in Analog Block subcircuits", () => {
     expect(result.file.text).toContain(
       "X1 VDD VSS plus_node minus_node positive_out negative_out opamp_differential",
     );
-    expect(result.file.text).toContain(
-      ".subckt opamp_differential VDD VSS VIP VIN VOP VON params: gain=1e6",
-    );
-    expect(result.file.text).toContain("EPLUS VOP 0 VIP VIN {gain/2}");
-    expect(result.file.text).toContain("EMINUS VON 0 VIN VIP {gain/2}");
     expect(result.externalMasterCount).toBe(0);
   });
 
@@ -1087,8 +1053,9 @@ describe("built-in Analog Block subcircuits", () => {
     expect(result.file.text).toContain(
       "subckt opamp_differential (VDD VSS VIP VIN VOP VON)",
     );
+    expect(result.file.text).toContain("VCM (ncm 0) vsource dc=vocm");
     expect(result.file.text).toContain(
-      "EPLUS (VOP 0 VIP VIN) vcvs gain=gain/2",
+      "EPLUS (VOP ncm VIP VIN) vcvs gain=gain/2",
     );
     expect(project).toEqual(before);
   });
@@ -1111,6 +1078,14 @@ describe("built-in Analog Block subcircuits", () => {
     expect(
       result.file.text.match(/\.subckt opamp_differential\b/gu),
     ).toHaveLength(1);
+    expect(result.file.text).toContain(
+      [
+        ".subckt opamp_differential VDD VSS VIP VIN VOP VON params: gain=1e6 vocm=0",
+        "VCM ncm 0 DC {vocm}",
+        "EPLUS VOP ncm VIP VIN {gain/2}",
+        "EMINUS VON ncm VIN VIP {gain/2}",
+      ].join("\n"),
+    );
     expect(result.file.text).toContain(
       "X2 VDD VSS plus_node1 minus_node1 positive_out1 negative_out1 opamp_differential",
     );

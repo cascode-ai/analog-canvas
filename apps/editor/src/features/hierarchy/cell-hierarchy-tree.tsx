@@ -1,99 +1,832 @@
-import { useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import type { CircuitProject, HierarchyFrame } from "@icm/model";
+import { buildProjectHierarchy, type ProjectHierarchy } from "@icm/derived";
+import { cellDeletionRefusal } from "@icm/edit-engine";
+import { ContextMenu } from "../../components/context-menu";
+import { startCanvasDrag } from "../editor-shell/canvas-drag";
+import {
+  frameReference,
+  hierarchyPathKey,
+  occurrenceLabel,
+} from "./project-hierarchy";
+import { cellPlacementIssue } from "./project-structure-commands";
+import { cellFromSelectionRefusal, type CellUse } from "./hierarchy-refactor";
+import { sharedEditNote } from "./hierarchy-refactor-commands";
+import { HierarchyIcon as Icon } from "./hierarchy-icons";
+import {
+  ExternalCircuitRows,
+  type ExternalCircuitRowActions,
+} from "./external-circuit-rows";
 
-type TreeProps = {
-  project: CircuitProject;
-  calls: readonly HierarchyFrame[];
-  onOpen(documentId: string, path: readonly HierarchyFrame[]): void;
-};
-
-/** Expand occurrences lazily; repeated masters never imply a shared path. */
-function Branch({
-  project,
-  calls,
-  onOpen,
-  documentId,
-  path,
-  label,
-}: TreeProps & {
-  documentId: string;
-  path: readonly HierarchyFrame[];
-  label: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const children = calls.filter((call) => call.parentDocumentId === documentId);
-  const cyclic = path.some((frame) => frame.parentDocumentId === documentId);
-  const expandable = children.length > 0 && !cyclic && path.length < 32;
-  return (
-    <li>
-      <div className="cell-hierarchy-row">
-        {expandable ? (
-          <button
-            type="button"
-            aria-label={`Expand ${label}`}
-            aria-expanded={expanded}
-            onClick={() => setExpanded(!expanded)}
-          >
-            {expanded ? "−" : "+"}
-          </button>
-        ) : (
-          <span aria-hidden="true">·</span>
-        )}
-        <button
-          type="button"
-          disabled={cyclic}
-          onClick={() => onOpen(documentId, path)}
-        >
-          {label}
-        </button>
-        {cyclic ? <small>Cycle</small> : null}
-      </div>
-      {expanded && expandable ? (
-        <ul>
-          {children.map((frame) => {
-            const parent = project.documents.find(
-              (item) => item.id === documentId,
-            );
-            const instance = parent?.instances.find(
-              (item) => item.id === frame.instanceId,
-            );
-            const child = project.documents.find(
-              (item) => item.id === frame.childDocumentId,
-            );
-            return (
-              <Branch
-                key={frame.instanceId}
-                project={project}
-                calls={calls}
-                onOpen={onOpen}
-                documentId={frame.childDocumentId}
-                path={[...path, frame]}
-                label={`${instance?.reference ?? frame.instanceId} · ${child?.name ?? frame.childDocumentId}`}
-              />
-            );
-          })}
-        </ul>
-      ) : null}
-    </li>
-  );
+/** What the tree asks of the editor; the editor owns every edit and refusal. */
+export interface HierarchyTreeActions {
+  open(documentId: string, path: readonly HierarchyFrame[]): void;
+  openDefinition(documentId: string): void;
+  properties(documentId: string): void;
+  rename(documentId: string, name: string): void;
+  newChild(documentId: string, path: readonly HierarchyFrame[]): void;
+  /** Make a child Cell of the open Cell from the parts selected in it. */
+  newChildFromSelection(): void;
+  /** Start placing a Cell in the open Cell; false when it is refused. */
+  place(documentId: string): boolean;
+  /** End a drag from the tree: place under the pointer, or cancel off canvas. */
+  drop(clientX: number, clientY: number): void;
+  setTop(documentId: string): void;
+  remove(documentId: string): void;
+  /** Start a new external circuit from SPICE source. */
+  newExternal(): void;
+  /** The External circuits rows: open, place, delete and find callers. */
+  externals: Omit<ExternalCircuitRowActions, "drop" | "notice">;
+  /** Create an unplaced Cell and open it. */
+  newCell(): void;
+  /** Copy a Cell from another Cloud Project; absent where Cloud is not. */
+  importCell?(): void;
+  /** Give an occurrence's instance its own copy of its Cell. */
+  makeUnique(use: CellUse): void;
+  /** Switch an occurrence's instance to another Cell with the same Pins. */
+  replace(use: CellUse): void;
+  /** Put an occurrence's parts into its parent instead of the instance; the
+   * parent then opens at `parentPath`. */
+  flatten(use: CellUse, parentPath: readonly HierarchyFrame[]): void;
+  notice(message: string): void;
 }
 
-export function CellHierarchyTree(props: TreeProps) {
-  const top = props.project.documents.find(
-    (item) => item.id === props.project.topDocumentId,
+export interface CellHierarchyTreeProps {
+  project: CircuitProject;
+  /** Root Cells in display order (`stableRootOrder`); the editor keeps it. */
+  roots: readonly string[];
+  activeDocumentId: string;
+  path: readonly HierarchyFrame[];
+  expandedKeys: readonly string[];
+  onExpandedKeysChange(keys: string[]): void;
+  /** Instances selected on the canvas of the open Cell. */
+  selectedInstanceIds: readonly string[];
+  /** The row whose uses are listed under it, if any. */
+  usesKey: string | null;
+  onUsesKeyChange(key: string | null): void;
+  open: boolean;
+  actions: HierarchyTreeActions;
+}
+
+interface Row {
+  key: string;
+  rootId: string;
+  documentId: string;
+  path: readonly HierarchyFrame[];
+  hasChildren: boolean;
+  cycle: boolean;
+}
+
+interface Match {
+  key: string;
+  rootId: string;
+  documentId: string;
+  path: readonly HierarchyFrame[];
+}
+
+const INDENT = 14;
+
+/** Occurrence rows in display order; collapsed rows hide their subtree. */
+function visibleRows(
+  hierarchy: ProjectHierarchy,
+  rootId: string,
+  expanded: ReadonlySet<string>,
+): Row[] {
+  const rows: Row[] = [];
+  const visit = (documentId: string, path: readonly HierarchyFrame[]) => {
+    const key = hierarchyPathKey(rootId, path);
+    const cycle = path.some((frame) => frame.parentDocumentId === documentId);
+    const children = cycle ? [] : hierarchy.children(documentId);
+    rows.push({
+      key,
+      rootId,
+      documentId,
+      path,
+      hasChildren: children.length > 0,
+      cycle,
+    });
+    if (expanded.has(key))
+      for (const child of children)
+        visit(child.childDocumentId, [...path, child]);
+  };
+  visit(rootId, []);
+  return rows;
+}
+
+/**
+ * The hierarchy's one working surface. Every occurrence is a row: click opens
+ * it, double-click or F2 renames its Cell, dragging it onto the canvas places
+ * the Cell, and its row actions appear only where the pointer or focus is.
+ */
+export function CellHierarchyTree(props: CellHierarchyTreeProps) {
+  const { project, actions } = props;
+  const hierarchy = useMemo(() => buildProjectHierarchy(project), [project]);
+  const useCounts = useMemo(
+    () =>
+      new Map(
+        project.documents.map((cell) => [
+          cell.id,
+          hierarchy.usage(cell.id, 0).total,
+        ]),
+      ),
+    [hierarchy, project],
   );
-  return top ? (
-    <details className="cell-hierarchy-tree">
-      <summary>Hierarchy</summary>
-      <ul>
-        <Branch
-          key={top.id}
-          {...props}
-          documentId={top.id}
-          path={[]}
-          label={top.name}
+  const expanded = useMemo(
+    () => new Set(props.expandedKeys),
+    [props.expandedKeys],
+  );
+  const [filter, setFilter] = useState("");
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{
+    row: Row;
+    x: number;
+    y: number;
+    fromKeyboard?: boolean;
+  } | null>(null);
+  const treeRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLInputElement>(null);
+  const suppressClick = useRef(false);
+  // A drag outlives the render that started it; it must reach the editor's
+  // latest actions, which see the placement the drag itself began.
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+
+  // Top is only a badge on its Cell; the roots are every Cell nothing calls.
+  const topId = project.topDocumentId;
+  const { roots } = props;
+  const activeRoot = props.path[0]?.parentDocumentId ?? props.activeDocumentId;
+  const activeKey = hierarchyPathKey(activeRoot, props.path);
+
+  // A Cell instance selected on the canvas lights its row under the open one.
+  const selectedFrames = hierarchy
+    .children(props.activeDocumentId)
+    .filter((frame) => props.selectedInstanceIds.includes(frame.instanceId));
+  const selectedKeys = new Set(
+    selectedFrames.map((frame) =>
+      hierarchyPathKey(activeRoot, [...props.path, frame]),
+    ),
+  );
+  useEffect(() => {
+    if (selectedFrames.length && !expanded.has(activeKey))
+      props.onExpandedKeysChange([...props.expandedKeys, activeKey]);
+  }, [selectedFrames.length, activeKey]);
+
+  useEffect(() => {
+    treeRef.current
+      ?.querySelector(`[data-key="${CSS.escape(activeKey)}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeKey, props.open]);
+
+  const name = (id: string) => hierarchy.document(id)?.name ?? id;
+  const reference = (frame: HierarchyFrame) => frameReference(project, frame);
+  const usesOf = (documentId: string) => useCounts.get(documentId) ?? 0;
+  const rowLabel = (row: Row) => {
+    const frame = row.path.at(-1);
+    if (frame) return `${reference(frame)}: ${name(row.documentId)}`;
+    return row.documentId === topId
+      ? `Top · ${name(row.documentId)}`
+      : name(row.documentId);
+  };
+
+  const rows = roots.flatMap((id) => visibleRows(hierarchy, id, expanded));
+  const tabKey = rows.some((row) => row.key === focusKey)
+    ? focusKey
+    : rows.some((row) => row.key === activeKey)
+      ? activeKey
+      : rows[0]?.key;
+
+  const query = filter.trim().toLowerCase();
+  // At most 50 uses of a Cell and 100 matches in all; a capped list says so.
+  const { matches, matchesTruncated } = useMemo(() => {
+    if (!query) return { matches: [], matchesTruncated: false };
+    const found: Match[] = [];
+    const seen = new Set<string>();
+    let truncated = false;
+    for (const cell of project.documents) {
+      const cellMatch = cell.name.toLowerCase().includes(query);
+      const usage = hierarchy.usage(cell.id, 50);
+      if (usage.truncated && cellMatch) truncated = true;
+      const occurrences = [
+        ...(hierarchy.roots.includes(cell.id)
+          ? [{ rootDocumentId: cell.id, path: [] as readonly HierarchyFrame[] }]
+          : []),
+        ...usage.occurrences,
+      ];
+      for (const use of occurrences) {
+        const key = hierarchyPathKey(use.rootDocumentId, use.path);
+        const last = use.path.at(-1);
+        const referenceMatch =
+          last && reference(last).toLowerCase().includes(query);
+        if (seen.has(key) || !(cellMatch || referenceMatch)) continue;
+        seen.add(key);
+        found.push({
+          key,
+          rootId: use.rootDocumentId,
+          documentId: cell.id,
+          path: use.path,
+        });
+      }
+    }
+    return {
+      matches: found.slice(0, 100),
+      matchesTruncated: truncated || found.length > 100,
+    };
+  }, [query, hierarchy, project]);
+
+  const rowButton = (key: string) =>
+    treeRef.current?.querySelector<HTMLElement>(
+      `[data-key="${CSS.escape(key)}"] .hierarchy-node-label`,
+    );
+  const focusRow = (key: string) => {
+    setFocusKey(key);
+    requestAnimationFrame(() => rowButton(key)?.focus());
+  };
+  const setRowExpanded = (row: Row, open: boolean) =>
+    props.onExpandedKeysChange(
+      open
+        ? [...new Set([...props.expandedKeys, row.key])]
+        : props.expandedKeys.filter((key) => key !== row.key),
+    );
+  const cellUseOf = (row: Row): CellUse => {
+    const frame = row.path.at(-1)!;
+    return { documentId: frame.parentDocumentId, instanceId: frame.instanceId };
+  };
+  // The edit engine's own rule, said in the tree's words.
+  const deleteRefusal = (row: Row) => {
+    const refusal = cellDeletionRefusal(project, row.documentId);
+    if (!refusal) return undefined;
+    if (refusal.reason === "top")
+      return "Top cannot be deleted; set another Cell as Top first";
+    const caller = {
+      parentDocumentId: refusal.documentId,
+      instanceId: refusal.instanceId,
+      childDocumentId: row.documentId,
+    };
+    return `${name(row.documentId)} is placed in ${name(refusal.documentId)} as ${frameReference(project, caller)}; delete that instance first`;
+  };
+  /** Said before a refactor that edits a parent with several uses. */
+  const sharedParentNote = (row: Row) => {
+    const parentId = row.path.at(-1)?.parentDocumentId;
+    return parentId ? sharedEditNote(project, parentId) : undefined;
+  };
+  const remove = (row: Row) => {
+    const refusal = deleteRefusal(row);
+    if (refusal) actions.notice(refusal);
+    else actions.remove(row.documentId);
+  };
+  const placementRefusal = (row: Row) =>
+    cellPlacementIssue(project, props.activeDocumentId, row.documentId);
+  const place = (row: Row) => {
+    const issue = placementRefusal(row);
+    if (issue) {
+      actionsRef.current.notice(issue);
+      return false;
+    }
+    return actionsRef.current.place(row.documentId);
+  };
+  const commitRename = (row: Row, value: string) => {
+    setRenaming(null);
+    const next = value.trim();
+    if (next && next !== name(row.documentId))
+      actions.rename(row.documentId, next);
+    focusRow(row.key);
+  };
+  const collapseAll = () =>
+    props.onExpandedKeysChange(
+      props.path.map((_, index) =>
+        hierarchyPathKey(activeRoot, props.path.slice(0, index)),
+      ),
+    );
+
+  const startDrag = (row: Row, event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (row.cycle) return;
+    startCanvasDrag(event, {
+      begin: () => place(row),
+      drop: (x, y) => actionsRef.current.drop(x, y),
+      suppressClick,
+    });
+  };
+
+  const onTreeKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (!target.classList.contains("hierarchy-node-label")) return;
+    const key = target.closest<HTMLElement>("[data-key]")?.dataset.key;
+    const index = rows.findIndex((row) => row.key === key);
+    const row = rows[index];
+    if (!row) return;
+    const goTo = (next: Row | undefined) => {
+      if (next) focusRow(next.key);
+    };
+    // Every row command is in the menu, so the keyboard needs a way to it.
+    if (
+      event.key === "ContextMenu" ||
+      (event.key === "F10" && event.shiftKey)
+    ) {
+      const box = target.getBoundingClientRect();
+      setMenu({ row, x: box.left + 24, y: box.bottom, fromKeyboard: true });
+      event.preventDefault();
+      return;
+    }
+    switch (event.key) {
+      case "ArrowDown":
+        goTo(rows[index + 1]);
+        break;
+      case "ArrowUp":
+        goTo(rows[index - 1]);
+        break;
+      case "Home":
+        goTo(rows[0]);
+        break;
+      case "End":
+        goTo(rows.at(-1));
+        break;
+      case "ArrowRight":
+        if (row.hasChildren && !expanded.has(row.key))
+          setRowExpanded(row, true);
+        else if (row.hasChildren) goTo(rows[index + 1]);
+        break;
+      case "ArrowLeft":
+        if (row.hasChildren && expanded.has(row.key))
+          setRowExpanded(row, false);
+        else if (row.path.length)
+          focusRow(hierarchyPathKey(row.rootId, row.path.slice(0, -1)));
+        break;
+      case "F2":
+        setRenaming(row.key);
+        break;
+      case "Delete":
+      case "Backspace":
+        remove(row);
+        break;
+      default:
+        // Typing on a row starts filtering, as in a file explorer.
+        if (
+          event.key.length === 1 &&
+          event.key !== " " &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey
+        ) {
+          setFilter(event.key);
+          filterRef.current?.focus();
+          break;
+        }
+        return;
+    }
+    event.preventDefault();
+  };
+
+  const onFilterKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    const first = event.currentTarget
+      .closest(".hierarchy-panel")
+      ?.querySelector<HTMLElement>(".hierarchy-match");
+    if (event.key === "ArrowDown" && first) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.key === "Enter" && matches[0]) {
+      event.preventDefault();
+      actions.open(matches[0].documentId, matches[0].path);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setFilter("");
+      if (tabKey) focusRow(tabKey);
+    }
+  };
+  const onMatchKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const step =
+      event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      filterRef.current?.focus();
+      return;
+    }
+    if (!step) return;
+    event.preventDefault();
+    const sibling =
+      step > 0
+        ? event.currentTarget.nextElementSibling
+        : event.currentTarget.previousElementSibling;
+    if (sibling instanceof HTMLElement && sibling.matches(".hierarchy-match"))
+      sibling.focus();
+    else if (step < 0) filterRef.current?.focus();
+  };
+
+  const renderRow = (row: Row) => {
+    const cellName = name(row.documentId);
+    const frame = row.path.at(-1);
+    const uses = usesOf(row.documentId);
+    const isExpanded = expanded.has(row.key);
+    const active = row.key === activeKey;
+    const label = rowLabel(row);
+    const usage =
+      props.usesKey === row.key ? hierarchy.usage(row.documentId) : null;
+    return (
+      <Fragment key={row.key}>
+        <div
+          role="treeitem"
+          aria-level={row.path.length + 1}
+          aria-expanded={row.hasChildren ? isExpanded : undefined}
+          aria-selected={active}
+          className="hierarchy-node"
+          data-key={row.key}
+          data-active={active || undefined}
+          data-selected={selectedKeys.has(row.key) || undefined}
+          style={{ paddingLeft: 2 + row.path.length * INDENT }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setMenu({ row, x: event.clientX, y: event.clientY });
+          }}
+        >
+          {row.hasChildren ? (
+            <button
+              type="button"
+              tabIndex={-1}
+              className="hierarchy-expand"
+              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label}`}
+              aria-expanded={isExpanded}
+              onClick={() => setRowExpanded(row, !isExpanded)}
+            >
+              {isExpanded ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span className="hierarchy-expand" aria-hidden="true" />
+          )}
+          {renaming === row.key ? (
+            <input
+              className="hierarchy-rename"
+              aria-label={`Rename ${cellName}`}
+              defaultValue={cellName}
+              autoFocus
+              onFocus={(event) => event.currentTarget.select()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter")
+                  commitRename(row, event.currentTarget.value);
+                else if (event.key === "Escape") {
+                  setRenaming(null);
+                  focusRow(row.key);
+                }
+              }}
+              onBlur={(event) => {
+                if (renaming === row.key)
+                  commitRename(row, event.currentTarget.value);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="hierarchy-node-label"
+              aria-label={label}
+              tabIndex={row.key === tabKey ? 0 : -1}
+              aria-current={active ? "page" : undefined}
+              disabled={row.cycle}
+              onFocus={() => setFocusKey(row.key)}
+              onPointerDown={(event) => startDrag(row, event)}
+              onClick={() => {
+                if (!suppressClick.current)
+                  actions.open(row.documentId, row.path);
+              }}
+              onDoubleClick={() => setRenaming(row.key)}
+            >
+              {frame ? (
+                <>
+                  <span className="hierarchy-ref">{reference(frame)}</span>
+                  <span className="hierarchy-cell">{cellName}</span>
+                </>
+              ) : (
+                <span className="hierarchy-ref">{cellName}</span>
+              )}
+            </button>
+          )}
+          {/* Top is a state shown on its Cell: the badge marks the root the
+              tree starts from, and every other Cell's row offers the same
+              badge to move it there. */}
+          {row.documentId !== topId ? (
+            <button
+              type="button"
+              tabIndex={-1}
+              className="hierarchy-top hierarchy-set-top"
+              aria-label={`Set ${cellName} as Top`}
+              onClick={() => actions.setTop(row.documentId)}
+            >
+              Top
+            </button>
+          ) : (
+            <span className="hierarchy-top">Top</span>
+          )}
+          {uses > 1 ? (
+            <button
+              type="button"
+              tabIndex={-1}
+              className="hierarchy-uses"
+              aria-expanded={Boolean(usage)}
+              aria-label={`${uses} uses of ${cellName}`}
+              onClick={() => props.onUsesKeyChange(usage ? null : row.key)}
+            >
+              ×{uses}
+            </button>
+          ) : null}
+          <span className="hierarchy-row-actions">
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={`New child Cell in ${cellName}`}
+              title={`New child Cell in ${cellName}`}
+              onClick={() => actions.newChild(row.documentId, row.path)}
+            >
+              <Icon name="child" />
+            </button>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={`Place ${cellName}`}
+              title={`Place ${cellName} in ${name(props.activeDocumentId)}, or drag the row onto the canvas`}
+              onClick={() => place(row)}
+            >
+              <Icon name="place" />
+            </button>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={`${cellName} properties`}
+              title={`${cellName} properties: Pins, parameters and symbol`}
+              onClick={() => actions.properties(row.documentId)}
+            >
+              <Icon name="properties" />
+            </button>
+          </span>
+        </div>
+        {usage ? (
+          <div
+            className="hierarchy-inline-uses"
+            role="group"
+            aria-label={`Uses of ${cellName}`}
+            style={{ paddingLeft: 24 + row.path.length * INDENT }}
+          >
+            {usage.occurrences.map((use) => {
+              const key = hierarchyPathKey(use.rootDocumentId, use.path);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className="hierarchy-use"
+                  aria-current={key === activeKey ? "true" : undefined}
+                  onClick={() => actions.open(use.documentId, use.path)}
+                >
+                  {occurrenceLabel(project, use.rootDocumentId, use.path)}
+                </button>
+              );
+            })}
+            {usage.truncated ? (
+              <small>Showing the first {usage.occurrences.length} uses.</small>
+            ) : null}
+          </div>
+        ) : null}
+      </Fragment>
+    );
+  };
+
+  const menuItem = (
+    label: string,
+    run: () => void,
+    shortcut?: string,
+    refusal?: string,
+    note?: string,
+  ) => (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={Boolean(refusal)}
+      onClick={() => {
+        // The keyboard stays on the row, unless the command opens a dialog.
+        if (menu?.fromKeyboard) rowButton(menu.row.key)?.focus();
+        setMenu(null);
+        run();
+      }}
+    >
+      <span>
+        {label}
+        {/* Why it is refused, or what else it changes, is read and heard
+            before the command runs, not only on hover. */}
+        {(refusal ?? note) ? (
+          <small className="hierarchy-menu-note">{refusal ?? note}</small>
+        ) : null}
+      </span>
+      {shortcut ? <kbd>{shortcut}</kbd> : null}
+    </button>
+  );
+
+  return (
+    <aside
+      id="hierarchy-panel"
+      className={`shapes-panel hierarchy-panel${props.open ? "" : " collapsed"}`}
+      aria-label="Circuit hierarchy"
+      data-plain-keys="local"
+      hidden={!props.open}
+    >
+      <div className="hierarchy-header">
+        <input
+          ref={filterRef}
+          type="search"
+          className="hierarchy-filter"
+          placeholder="Filter Cells and instances"
+          aria-label="Filter the hierarchy"
+          value={filter}
+          onChange={(event) => setFilter(event.currentTarget.value)}
+          onKeyDown={onFilterKeyDown}
         />
-      </ul>
-    </details>
-  ) : null;
+        <button
+          type="button"
+          className="hierarchy-icon-button"
+          aria-label="New Cell"
+          title="New Cell: create an unplaced Cell and open it"
+          onClick={actions.newCell}
+        >
+          <Icon name="add" />
+        </button>
+        <button
+          type="button"
+          className="hierarchy-icon-button"
+          aria-label="Collapse all"
+          title="Collapse all but the open path"
+          onClick={collapseAll}
+        >
+          <Icon name="collapse" />
+        </button>
+      </div>
+      {query ? (
+        <div
+          className="hierarchy-matches"
+          role="group"
+          aria-label="Matching occurrences"
+        >
+          {matches.map((match) => {
+            const last = match.path.at(-1);
+            return (
+              <button
+                key={match.key}
+                type="button"
+                className="hierarchy-match"
+                aria-current={match.key === activeKey ? "true" : undefined}
+                onClick={() => actions.open(match.documentId, match.path)}
+                onKeyDown={onMatchKeyDown}
+              >
+                <span className="hierarchy-match-name">
+                  {last ? `${reference(last)} · ` : ""}
+                  {name(match.documentId)}
+                </span>
+                <span className="hierarchy-match-path">
+                  {occurrenceLabel(project, match.rootId, match.path)}
+                </span>
+              </button>
+            );
+          })}
+          {!matches.length &&
+          !project.externalSubcircuitDefinitions.some((definition) =>
+            definition.name.toLowerCase().includes(query),
+          ) ? (
+            <p className="hierarchy-hint">Nothing matches “{filter.trim()}”.</p>
+          ) : null}
+          {matchesTruncated ? (
+            <p className="hierarchy-hint" role="status">
+              Showing the first {matches.length} matches; type more to narrow
+              them.
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div
+          ref={treeRef}
+          role="tree"
+          aria-label="Cell occurrences"
+          className="hierarchy-tree"
+          onKeyDown={onTreeKeyDown}
+        >
+          {rows.map(renderRow)}
+          {!roots.some((id) => hierarchy.children(id).length) ? (
+            <p className="hierarchy-hint">
+              Hover a row and use + to add a child Cell.
+            </p>
+          ) : null}
+        </div>
+      )}
+      {/* External circuits are worked on here too, below the Cells. */}
+      <ExternalCircuitRows
+        project={project}
+        activeName={name(props.activeDocumentId)}
+        query={query}
+        actions={{
+          ...actions.externals,
+          drop: actions.drop,
+          notice: actions.notice,
+        }}
+      />
+      <footer className="hierarchy-footer">
+        {actions.importCell ? (
+          <button type="button" onClick={actions.importCell}>
+            Import Cell…
+          </button>
+        ) : null}
+        <button type="button" onClick={actions.newExternal}>
+          New external circuit…
+        </button>
+      </footer>
+      {menu ? (
+        <ContextMenu
+          position={menu}
+          label={`Actions for ${rowLabel(menu.row)}`}
+          testId="hierarchy-context-menu"
+          className="hierarchy-context-menu"
+          takeFocus={menu.fromKeyboard ?? false}
+          onClose={() => setMenu(null)}
+        >
+          {menuItem("Open definition", () =>
+            actions.openDefinition(menu.row.documentId),
+          )}
+          {menuItem("Rename", () => setRenaming(menu.row.key), "F2")}
+          {menuItem("New child Cell…", () =>
+            actions.newChild(menu.row.documentId, menu.row.path),
+          )}
+          {/* Parts selected on the canvas belong to the open Cell, on any of
+              its rows: a definition opened directly has no row of its own. */}
+          {menu.row.documentId === props.activeDocumentId &&
+          props.selectedInstanceIds.length
+            ? menuItem(
+                "New child Cell from selection…",
+                actions.newChildFromSelection,
+                undefined,
+                cellFromSelectionRefusal(
+                  project,
+                  props.activeDocumentId,
+                  props.selectedInstanceIds,
+                ),
+                sharedEditNote(project, menu.row.documentId),
+              )
+            : null}
+          {menuItem(
+            `Place in ${name(props.activeDocumentId)}`,
+            () => place(menu.row),
+            undefined,
+            placementRefusal(menu.row),
+          )}
+          {menuItem("Cell properties…", () =>
+            actions.properties(menu.row.documentId),
+          )}
+          {usesOf(menu.row.documentId) > 1
+            ? menuItem(`Show ${usesOf(menu.row.documentId)} uses`, () =>
+                props.onUsesKeyChange(menu.row.key),
+              )
+            : null}
+          {menu.row.path.length ? (
+            <>
+              <div className="hierarchy-context-divider" role="separator" />
+              {menuItem(
+                "Make unique copy",
+                () => actions.makeUnique(cellUseOf(menu.row)),
+                undefined,
+                undefined,
+                sharedParentNote(menu.row),
+              )}
+              {menuItem(
+                "Replace Cell…",
+                () => actions.replace(cellUseOf(menu.row)),
+                undefined,
+                undefined,
+                sharedParentNote(menu.row),
+              )}
+              {menuItem(
+                `Flatten into ${name(menu.row.path.at(-1)!.parentDocumentId)}`,
+                () =>
+                  actions.flatten(
+                    cellUseOf(menu.row),
+                    menu.row.path.slice(0, -1),
+                  ),
+                undefined,
+                undefined,
+                sharedParentNote(menu.row),
+              )}
+            </>
+          ) : null}
+          <div className="hierarchy-context-divider" role="separator" />
+          {menu.row.documentId !== topId
+            ? menuItem("Set as Top", () => actions.setTop(menu.row.documentId))
+            : null}
+          {menuItem(
+            "Delete Cell",
+            () => remove(menu.row),
+            "Del",
+            deleteRefusal(menu.row),
+          )}
+        </ContextMenu>
+      ) : null}
+    </aside>
+  );
 }

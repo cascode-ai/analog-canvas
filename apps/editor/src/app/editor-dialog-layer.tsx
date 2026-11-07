@@ -11,6 +11,8 @@ import {
 } from "../components/recovery-banners";
 import {
   LazyCellManagerDialog,
+  LazyCellPropertiesDialog,
+  LazyImportCellDialog,
   LazyConnectAgentPanel,
   LazyInsertComponentDialog,
   LazyNetlistPreflightDialog,
@@ -33,6 +35,8 @@ export interface EditorDialogLayerProps {
   search: ComponentProps<typeof LazyProjectSearchDialog> | null;
   insertComponent: ComponentProps<typeof LazyInsertComponentDialog> | null;
   cellManager: ComponentProps<typeof LazyCellManagerDialog> | null;
+  cellProperties: ComponentProps<typeof LazyCellPropertiesDialog> | null;
+  importCell: ComponentProps<typeof LazyImportCellDialog> | null;
   netlistPreflight: ComponentProps<typeof LazyNetlistPreflightDialog> | null;
   publishGallery: ComponentProps<typeof LazyPublishGalleryDialog> | null;
   versionHistory: ComponentProps<typeof LazyVersionHistoryDialog> | null;
@@ -56,6 +60,8 @@ export function EditorDialogLayer({
   search,
   insertComponent,
   cellManager,
+  cellProperties,
+  importCell,
   netlistPreflight,
   publishGallery,
   versionHistory,
@@ -85,6 +91,10 @@ export function EditorDialogLayer({
           <LazyInsertComponentDialog {...insertComponent} />
         ) : null}
         {cellManager ? <LazyCellManagerDialog {...cellManager} /> : null}
+        {cellProperties ? (
+          <LazyCellPropertiesDialog {...cellProperties} />
+        ) : null}
+        {importCell ? <LazyImportCellDialog {...importCell} /> : null}
         {netlistPreflight ? (
           <LazyNetlistPreflightDialog {...netlistPreflight} />
         ) : null}

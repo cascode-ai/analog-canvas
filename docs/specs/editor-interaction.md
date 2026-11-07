@@ -14,6 +14,22 @@ rendering and recovery.
   controller (`all` picker, `cells` picker, or a chosen Symbol) delegating to the
   component, Cell, Cell-Pin, external-master or VDD-rail planner, or activating
   an editor tool. It adds no Project type, Edit Engine operation or Agent endpoint.
+- The Library panel searches **Official components** (the built-in catalog) and
+  one component fold below it: **Community** on the Web, with
+  [**My components**](symbol-dsl.md) inside it, or **My components** on the
+  desktop. The fold starts shut and loads only once opened or searched;
+  pointing at its header starts loading its code, and the public catalog does
+  not wait for the account. Edit's command opens it and focuses the search.
+  Fold headers stay against the panel's top edge while their lists scroll,
+  with a category or **My components** header just below.
+- A component row places on click or Enter, or once where a drag onto the
+  canvas ends. Its commands open from **⋯**, right-click or the Menu key;
+  **Details** shows its large preview beside the panel. One author's
+  records of one name share a row whose count lists them. The fold reads its
+  catalog again when an editing session ends, when Edit's command reopens it
+  and when a placement finds its record changed.
+- `I` lists the components a Project holds under **In this Project**, by their
+  own names.
 - A Cell placement shares cursor preview, snap, rotation, mirror and cancel with
   Symbols and creates one typed subcircuit Instance through a Project structural
   transaction. `Xn` is its sole Netlist Reference; an internal Cell shows its
@@ -27,7 +43,7 @@ rendering and recovery.
   starts `passive`. Duplicate names are valid; placement and rename change only
   the selected Pin (never attach, merge or sync).
 - **Enter Cell** opens only a hierarchical Instance. A Pin shows only its
-  terminal-name annotation; direction lives in Cell Manager. Caller
+  terminal-name annotation; direction lives in Cell properties. Caller
   reconciliation compares the name projection before/after, does nothing while
   the old-name group survives, and never merges caller Nets.
 - Delete reuses the instance/route deletion proposal. A run that only tapped the
@@ -137,6 +153,17 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 - Reference labels keep four units between their ink and the symbol ink, at
   whole-unit coordinates; eight 45° turns restore them.
 
+### Drawing toolbar
+
+- Undo, Redo, Wire, No Connect, Text and the annotation menu are icons with
+  accessible names. Only Wire and No Connect, whose icons do not say what they
+  do, show a tooltip, at once on hover or focus. Labelled buttons, including
+  **Properties** and **Reset labels**, show none until a narrow window hides
+  their labels; the tooltip then shows the label.
+- **Hierarchy**, beside Insert and Library, shows or hides the hierarchy tree.
+  In the compact layout one side shows at a time: a left panel and the
+  Netlist or Project Code panel close each other.
+
 ### Cell symbol layout
 
 - The canonical session pins a definition and invoking occurrence by identity,
@@ -175,9 +202,10 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 
 ### No Connect
 
-- Compact tool labels show **NoConn**; explanatory tooltips retain **No Connect**.
-  The toolbar, Library tile and `I` search (`NC`, `noconn`,
-  `No Connect`) activate the same marking tool, never create an Instance.
+- The toolbar icon is named **No Connect** and explained in its tooltip; the
+  status bar, preview and Insert list use **NoConn**. The toolbar, Library
+  tile and `I` search (`NC`, `noconn`, `No Connect`) activate the same marking
+  tool, never create an Instance.
 - Hover and click choose the nearest visible device terminal within 12 screen
   pixels. Ambiguous overlapping terminals are not guessed. The preview names
   the target and distinguishes connected and already-marked pins.
@@ -198,9 +226,11 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   selection. It never affects drawing, probing, visibility, connectivity,
   movement closure, Search or diagnostic navigation.
 - Click replaces; `Shift`/`Ctrl`-click toggles; right-clicking a selected object
-  keeps the mixed selection. The canvas menu holds only Duplicate, Rotate,
-  Mirror, Delete and Align. Rotate (R) turns a free drawing text between
-  reading across and reading up the page; a half turn leaves it.
+  keeps the mixed selection. The canvas menu holds the selection's commands:
+  Properties, Copy, Rotate, Mirror, Delete and Align, plus Edit Component
+  Definition, Enter Cell or Couple inductors where they apply. Rotate (R) turns a
+  free drawing text between reading across and reading up the page; a half turn
+  leaves it.
 - The six align commands share one planner. Participants: placed Instances,
   selected annotations and DraftText (an anchored label with its host follows
   once); not Routes or Junctions. One undo. The GUI never calls `align_instances`.

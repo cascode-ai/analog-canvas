@@ -1,12 +1,23 @@
 import { Fragment, useEffect, useState } from "react";
 
+import {
+  AuthorStatsView,
+  type AuthorStatsPayload,
+  type GalleryStatsSummary,
+  readGalleryStats,
+} from "./gallery-stats";
+
 /** One author's public circuits, counted (`GET /api/gallery/owner-data`). */
 export interface OwnerDataAuthor {
   author: string;
   /** The account ID, or `legacy:` and the byline of an account-less entry. */
   key: string;
   circuits: number;
-  averageParts: number | null;
+  /** The parts of its circuits in all, null while none is counted. */
+  components: number | null;
+  /** Its circuits' transistors counted so far, and how many are still to count. */
+  transistors: number;
+  transistorsPending: number;
   ai: number;
   withNetlist: number;
   likes: number;
@@ -21,7 +32,10 @@ export interface OwnerDataCircuit {
   name: string;
   createdAt: string;
   parts: number | null;
+  transistors: number | null;
   netlistable: boolean;
+  /** It carries a testbench: the Sim badge. */
+  simulatable: boolean;
   aiGenerated: boolean;
   likes: number;
   opens: number;
@@ -56,27 +70,104 @@ async function readOwnerData<T>(query = ""): Promise<T | null> {
 
 const day = (iso: string) => iso.slice(0, 10);
 
+/** An author's circuits as the circuit table counts them: parts as components. */
+const withComponents = (
+  read: AuthorStatsPayload<OwnerDataCircuit>,
+): OwnerAuthorStats => ({
+  ...read,
+  circuits: read.circuits.map((circuit) => ({
+    ...circuit,
+    components: circuit.parts,
+  })),
+});
+
+/** One author's circuits, with the circuit table's own field names. */
+type OwnerAuthorStats = AuthorStatsPayload<
+  OwnerDataCircuit & { components: number | null }
+>;
+
+const readAuthor = (key: string) =>
+  readOwnerData<AuthorStatsPayload<OwnerDataCircuit>>(
+    `?author=${encodeURIComponent(key)}`,
+  );
+
+/** The Recount: every public circuit's transistors counted again, in batches. */
+type Recount =
+  | { status: "idle" }
+  | { status: "running"; counted: number; total: number | null }
+  | { status: "done"; counted: number }
+  | { status: "failed" };
+
+/** One Recount batch, the community's then each dataset's; null `next` ends it. */
+interface RecountBatch {
+  counted: number;
+  remaining: number;
+  store: string | null;
+  next: string | null;
+}
+
+async function recountBatch(
+  store: string,
+  after: string,
+): Promise<RecountBatch | null> {
+  try {
+    const response = await fetch("/api/gallery/owner-data/recount", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ store, after }),
+    });
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The Owner's own look at the Gallery (#1446): every author's public
- * circuits counted, and one author's circuits on a click. Public facts only,
- * and only the Owner's own accounts can read them.
+ * circuits counted, and on a click the panel the author sees on their own
+ * Statistics tab, with likes and opens beside. Public facts only, and only
+ * the Owner's own accounts can read them.
  */
 export function OwnerDataContent() {
   const [data, setData] = useState<OwnerData | null | "failed">(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [circuits, setCircuits] = useState<
-    Record<string, OwnerDataCircuit[] | "failed">
+    Record<string, OwnerAuthorStats | "failed">
   >({});
+  // The whole Gallery's statistics, which each author's sit beside.
+  const [library, setLibrary] = useState<GalleryStatsSummary>();
+  const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [recount, setRecount] = useState<Recount>({ status: "idle" });
   useEffect(() => {
     let cancelled = false;
     void readOwnerData<OwnerData>().then((read) => {
       if (!cancelled) setData(read ?? "failed");
     });
+    void readGalleryStats("community").then((read) => {
+      if (!cancelled && read) setLibrary(read.summary);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
+  // The open author's circuits, read once until a Recount clears them.
+  const openCircuits = open === null ? null : circuits[open];
+  useEffect(() => {
+    if (open === null || openCircuits !== undefined) return;
+    let cancelled = false;
+    void readAuthor(open).then((read) => {
+      if (!cancelled)
+        setCircuits((known) => ({
+          ...known,
+          [open]: read ? withComponents(read) : "failed",
+        }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, openCircuits]);
   if (data === null)
     return <p className="gallery-status">Loading the Gallery's numbers…</p>;
   if (data === "failed")
@@ -87,21 +178,64 @@ export function OwnerDataContent() {
     );
   const toggle = (key: string) => {
     setOpen((current) => (current === key ? null : key));
-    // Read once; a failed read is tried again on the next click.
-    if (circuits[key] && circuits[key] !== "failed") return;
-    void readOwnerData<{ circuits: OwnerDataCircuit[] }>(
-      `?author=${encodeURIComponent(key)}`,
-    ).then((read) =>
-      setCircuits((known) => ({ ...known, [key]: read?.circuits ?? "failed" })),
-    );
+    // A failed read is tried again on the next click.
+    if (circuits[key] === "failed")
+      setCircuits((known) => {
+        const kept = { ...known };
+        delete kept[key];
+        return kept;
+      });
+  };
+  const refreshAuthor = (key: string) => {
+    setRefreshing(key);
+    void readAuthor(key).then((read) => {
+      setRefreshing(null);
+      // A failed refresh keeps the numbers already shown.
+      if (read)
+        setCircuits((known) => ({ ...known, [key]: withComponents(read) }));
+    });
+  };
+  const runRecount = async () => {
+    setRecount({ status: "running", counted: 0, total: null });
+    let store = "community";
+    let after = "";
+    let counted = 0;
+    for (;;) {
+      const batch = await recountBatch(store, after);
+      if (!batch) {
+        setRecount({ status: "failed" });
+        return;
+      }
+      counted += batch.counted;
+      setRecount({
+        status: "running",
+        counted,
+        total: counted + batch.remaining,
+      });
+      if (batch.next === null || batch.store === null) break;
+      store = batch.store;
+      after = batch.next;
+    }
+    // The authors and the Gallery again, and each author's circuits read
+    // afresh when opened.
+    const [read, gallery] = await Promise.all([
+      readOwnerData<OwnerData>(),
+      readGalleryStats("community"),
+    ]);
+    if (read) setData(read);
+    if (gallery) setLibrary(gallery.summary);
+    setCircuits({});
+    setRecount({ status: "done", counted });
   };
   const total = data.authors.reduce(
     (sum, row) => ({
       circuits: sum.circuits + row.circuits,
+      components: sum.components + (row.components ?? 0),
+      transistors: sum.transistors + row.transistors,
       ai: sum.ai + row.ai,
       withNetlist: sum.withNetlist + row.withNetlist,
     }),
-    { circuits: 0, ai: 0, withNetlist: 0 },
+    { circuits: 0, components: 0, transistors: 0, ai: 0, withNetlist: 0 },
   );
   const needle = query.trim().toLowerCase();
   const authors = needle
@@ -155,24 +289,54 @@ export function OwnerDataContent() {
         <h3 id="owner-authors">Authors</h3>
         <p className="account-page-note" data-testid="owner-data-totals">
           {total.circuits} circuits by {data.authors.length} authors ·{" "}
-          {total.ai} AI generated · {total.circuits - total.ai} human made ·{" "}
+          {total.components.toLocaleString("en-US")} components ·{" "}
+          {total.transistors.toLocaleString("en-US")} transistors · {total.ai}{" "}
+          AI generated · {total.circuits - total.ai} human made ·{" "}
           {total.withNetlist} with netlist
         </p>
-        <input
-          className="owner-data-search"
-          type="search"
-          aria-label="Search authors"
-          placeholder="Search authors…"
-          value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
-        />
+        <div className="owner-data-tools">
+          <input
+            className="owner-data-search"
+            type="search"
+            aria-label="Search authors"
+            placeholder="Search authors…"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+          <button
+            type="button"
+            className="owner-data-recount"
+            data-testid="owner-data-recount"
+            disabled={recount.status === "running"}
+            onClick={() => void runRecount()}
+            title="Count every public circuit's devices again, the datasets' too"
+          >
+            {recount.status === "running" ? "Recounting…" : "Recount"}
+          </button>
+          <span
+            className="owner-data-recount-status"
+            role="status"
+            data-testid="owner-data-recount-status"
+          >
+            {recount.status === "running"
+              ? recount.total === null
+                ? "Starting…"
+                : `${recount.counted.toLocaleString("en-US")} of ${recount.total.toLocaleString("en-US")} circuits`
+              : recount.status === "done"
+                ? `${recount.counted.toLocaleString("en-US")} circuits recounted`
+                : recount.status === "failed"
+                  ? "Recount stopped — try again"
+                  : null}
+          </span>
+        </div>
         <div className="owner-data-scroll">
           <table className="owner-data-table">
             <thead>
               <tr>
                 <th>Author</th>
                 <th className="owner-data-number">Circuits</th>
-                <th className="owner-data-number">Avg parts</th>
+                <th className="owner-data-number">Components</th>
+                <th className="owner-data-number">Transistors</th>
                 <th className="owner-data-number">AI</th>
                 <th className="owner-data-number">Human</th>
                 <th className="owner-data-number">Netlist</th>
@@ -199,7 +363,23 @@ export function OwnerDataContent() {
                       </td>
                       <td className="owner-data-number">{row.circuits}</td>
                       <td className="owner-data-number">
-                        {row.averageParts ?? "—"}
+                        {row.components?.toLocaleString("en-US") ?? "—"}
+                      </td>
+                      <td
+                        className="owner-data-number"
+                        title={
+                          row.transistorsPending
+                            ? `${row.transistorsPending} circuits not counted yet`
+                            : undefined
+                        }
+                      >
+                        {row.transistors.toLocaleString("en-US")}
+                        {row.transistorsPending ? (
+                          <span className="owner-data-pending">
+                            {" "}
+                            +{row.transistorsPending} pending
+                          </span>
+                        ) : null}
                       </td>
                       <td className="owner-data-number">{row.ai}</td>
                       <td className="owner-data-number">
@@ -212,7 +392,7 @@ export function OwnerDataContent() {
                     </tr>
                     {open === row.key ? (
                       <tr className="owner-data-detail">
-                        <td colSpan={9}>
+                        <td colSpan={10}>
                           {listed === undefined ? (
                             <p className="account-page-note">Loading…</p>
                           ) : listed === "failed" ? (
@@ -220,39 +400,32 @@ export function OwnerDataContent() {
                               Could not load these circuits.
                             </p>
                           ) : (
-                            <table
-                              className="owner-data-table"
-                              data-testid="owner-data-circuits"
-                            >
-                              <tbody>
-                                {listed.map((circuit) => (
-                                  <tr key={circuit.id}>
-                                    <td>
-                                      <a href={`/g/${circuit.id}`}>
-                                        {circuit.name}
-                                      </a>
-                                    </td>
-                                    <td className="owner-data-date">
-                                      {day(circuit.createdAt)}
-                                    </td>
-                                    <td className="owner-data-number">
-                                      {circuit.parts ?? "—"} parts
-                                    </td>
-                                    <td>{circuit.aiGenerated ? "AI" : ""}</td>
-                                    <td>
-                                      {circuit.netlistable ? "Netlist" : ""}
-                                    </td>
-                                    <td className="owner-data-number">
-                                      {circuit.likes} ♥
-                                    </td>
-                                    <td className="owner-data-number">
-                                      {circuit.opens} opens ·{" "}
-                                      {circuit.opensLastWeek} this week
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                            <div data-testid="owner-data-circuits">
+                              <AuthorStatsView
+                                stats={listed}
+                                library={library}
+                                who={row.author}
+                                refreshing={refreshing === row.key}
+                                onRefresh={() => refreshAuthor(row.key)}
+                                columns={[
+                                  {
+                                    key: "likes",
+                                    label: "Likes",
+                                    value: (circuit) => circuit.likes,
+                                  },
+                                  {
+                                    key: "opens",
+                                    label: "Opens",
+                                    value: (circuit) => circuit.opens,
+                                  },
+                                  {
+                                    key: "week",
+                                    label: "Last 7 days",
+                                    value: (circuit) => circuit.opensLastWeek,
+                                  },
+                                ]}
+                              />
+                            </div>
                           )}
                         </td>
                       </tr>

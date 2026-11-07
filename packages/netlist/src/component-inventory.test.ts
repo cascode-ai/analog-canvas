@@ -120,7 +120,7 @@ describe("authoring inventory agrees with real electrical extraction", () => {
   });
 
   it.each(definitions.filter((definition) => definition.subcircuit))(
-    "preserves signal and supply mapping for $symbol.id",
+    "preserves signal and supply mapping for $symbol.id (case %#)",
     (definition) => {
       const project = createEmptyProject("inventory", "Inventory", "dut"),
         document = project.documents[0]!;

@@ -87,7 +87,7 @@ function change(
 
 describe("annotation code projection", () => {
   it.each(objects)(
-    "round trips $kind without changing identity, geometry or content",
+    "round trips $kind (polarity $polarity) without changing identity, geometry or content",
     (object) => {
       const result = parseDraftingPropertyCode(source(object), context(object));
       expect(result.ok).toBe(true);

@@ -33,6 +33,11 @@ consume.
   Author aggregates are separate from this entry budget. Clients follow the
   returned cursor, not the requested page size, until complete; catalog
   changes still reject mixed-revision pages.
+- `GET /api/components?view=previews&ids=<id>:<revision>,…` returns up to 48
+  revision-bound preview symbols in request order. Each item applies its
+  record's visibility and carries its own changed, missing or repair error; a
+  longer or malformed list is refused. Clients read one batch per screenful
+  and fall back to `/<id>?view=preview` where a service predates it.
 
 ## Destination
 
@@ -77,9 +82,9 @@ consume.
   Deleted discovery, previews and records are visible only to their author and
   administrators. Public discovery and new insertion exclude deleted records.
   Catalog revisions, author totals and duplicate lookup reflect each transition.
-- GUI card actions and Agent `delete`/`restore` share this authority; cards offer
-  deletion only to authorized users. Deleted view is opt-in; restore feedback and
-  management menus do not change Project Undo history.
+- GUI row menus and Agent `delete`/`restore` share this authority; menus offer
+  deletion only to authorized users. The Deleted fold is opt-in; restore feedback
+  and management menus do not change Project Undo history.
 
 - An identical update returns `unchanged` (no revision or time change).
   Duplicate new publications: HTTP 409 `COMPONENT_ALREADY_PUBLISHED` with

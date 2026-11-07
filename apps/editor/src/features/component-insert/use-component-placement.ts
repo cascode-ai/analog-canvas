@@ -1,3 +1,4 @@
+import { planChildCellPlacement } from "../hierarchy/new-cell";
 import { useRef, useState } from "react";
 import { planComponentPlacement } from "../user-components/component-placement";
 import { checkNativeComponentRevision } from "../../hosts/native-component-library";
@@ -29,7 +30,12 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { createDraftText, defaultDraftTextDocument } from "@icm/model";
-import { hierarchicalSymbolId, type SymbolResolver } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  hierarchicalSymbolId,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
 import type {
@@ -62,6 +68,11 @@ import { sharedComponentNetlist } from "../user-components/component-definition-
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
 import type { PendingComponentPlacement } from "../../interaction/interaction-state";
 import type { DrawingTool } from "../../interaction/interaction-state";
+import { ComponentLibraryError } from "../user-components/component-library-error";
+import {
+  componentCapability,
+  SYMBOL_ONLY_NOTE,
+} from "../user-components/component-library-contract";
 import { uprightOrUp } from "../drafting/drafting-manipulation";
 
 type TransactionResult = { ok: boolean; revision: number };
@@ -106,6 +117,7 @@ export interface UseComponentPlacementOptions {
     transactionId: string,
     edits: ProjectStructureEdit[],
   ) => boolean;
+  onChildCreated?: (instanceId: string, childDocumentId: string) => void;
   selectOnly: (
     kind: "instance" | "route" | "drafting",
     ids: readonly string[],
@@ -135,6 +147,8 @@ export interface UseComponentPlacementOptions {
   completeVddRailPlacement: () => void;
   setComponentPreviewPoint: (point: Point) => void;
   setStatus: (status: string) => void;
+  /** A captured component's library record changed before it landed. */
+  onLibraryChanged?: () => void;
   vddRailMode: boolean;
   vddRailNetName: string | null;
   vddRailStart: Point | null;
@@ -327,9 +341,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     ) {
       return;
     }
-    const child = options.project.documents.find(
-      (candidate) => candidate.id === placementRequest.childDocumentId,
-    );
+    const child =
+      placementRequest.draftCell ??
+      options.project.documents.find(
+        (candidate) => candidate.id === placementRequest.childDocumentId,
+      );
     if (!child?.netlist) {
       options.setStatus("The selected Cell no longer exists");
       return;
@@ -356,26 +372,57 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       },
       reference,
     );
+    const draft = placementRequest.draftCell;
+    const resolver = draft
+      ? createProjectSymbolResolver(
+          {
+            ...options.project,
+            documents: [...options.project.documents, draft],
+          },
+          builtInSymbols,
+        )
+      : options.resolver;
     const annotations = defaultInstanceDisplayAnnotations(
       options.document,
       instance,
-      options.resolver,
+      resolver,
       options.styleProfile,
       {
         showDesignator: placementRequest.showReference,
         masterName: child.netlist.name,
       },
     );
-    const committed = options.transactProject(
-      "place-cell-instance",
-      planPlaceCellInstance(
-        options.project,
-        options.document.id,
-        instance,
-        annotations,
-      ),
-    );
-    if (!committed) return;
+    try {
+      const edits = draft
+        ? planChildCellPlacement(
+            options.project,
+            options.document.id,
+            draft,
+            instance,
+            annotations,
+          )
+        : planPlaceCellInstance(
+            options.project,
+            options.document.id,
+            instance,
+            annotations,
+          );
+      if (
+        !options.transactProject(
+          draft ? "create-child-cell" : "place-cell-instance",
+          edits,
+        )
+      )
+        return;
+    } catch (error) {
+      options.setStatus(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    if (draft) {
+      options.cancelAllTransientInteraction();
+      options.onChildCreated?.(id, draft.id);
+      return;
+    }
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
     options.setStatus(
@@ -386,9 +433,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   const placeNewCapturedComponent = async (
     position: Point,
     placementRequest: PendingComponentPlacement,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const capture = placementRequest.capture;
-    if (!capture || captureBusy.current) return;
+    if (!capture || captureBusy.current) return false;
     captureBusy.current = true;
     const structureRevision = capture.structureRevision;
     const documentRevision = capture.documentRevision;
@@ -408,7 +455,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         }
       }
       const current = latest.current;
-      if (current.pendingComponentPlacement?.capture !== capture) return;
+      if (current.pendingComponentPlacement?.capture !== capture) return false;
       if (
         capture.projectId !== current.project.id ||
         capture.documentId !== current.document.id ||
@@ -438,7 +485,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           plan.documentEdits,
           effect ? { expectedElectricalEffect: effect } : {},
         );
-        if (!gated) return;
+        if (!gated) return false;
         const filled = current.processFill(gated);
         edits = [
           ...plan.edits.filter((edit) => edit.kind !== "transact_document"),
@@ -452,7 +499,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           ]),
         ];
       }
-      if (!current.transactProject("place-public-component", edits)) return;
+      if (!current.transactProject("place-public-component", edits))
+        return false;
       capture.structureRevision = structureRevision + 1;
       capture.documentRevision = documentRevision + 1;
       current.selectOnly("instance", [plan.instance.id]);
@@ -477,12 +525,16 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             ? ` · ${nearMiss}`
             : "";
       current.setStatus(
-        `Placed ${capture.payload.definition.symbol.name}${connectionStatus} · click to place another · Esc exits`,
+        `Placed ${capture.payload.definition.symbol.name}${connectionStatus}${componentCapability(capture.payload) === "symbol-only" ? ` · ${SYMBOL_ONLY_NOTE}` : ""} · click to place another · Esc exits`,
       );
+      return true;
     } catch (error) {
       latest.current.setStatus(
         error instanceof Error ? error.message : String(error),
       );
+      if (error instanceof ComponentLibraryError && error.status === 409)
+        latest.current.onLibraryChanged?.();
+      return false;
     } finally {
       captureBusy.current = false;
     }
@@ -971,7 +1023,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     );
   };
 
-  const commitPendingPlacementAt = (point: Point): void => {
+  /** Settles once a captured component, checked first, has landed or not. */
+  const commitPendingPlacementAt = (point: Point): void | Promise<boolean> => {
     if (options.vddRailMode) {
       if (!options.vddRailStart) {
         options.setVddRailStart(point);
@@ -996,8 +1049,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     if (!options.pendingSymbolId || !options.pendingComponentPlacement) return;
     if (options.pendingComponentPlacement.capture) {
-      void placeNewCapturedComponent(point, options.pendingComponentPlacement);
-      return;
+      return placeNewCapturedComponent(
+        point,
+        options.pendingComponentPlacement,
+      );
     }
     if (options.pendingComponentPlacement.kind === "drafting-text") {
       placeDraftingTextAnnotation(point, options.pendingComponentPlacement);

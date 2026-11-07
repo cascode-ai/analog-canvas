@@ -14,6 +14,7 @@ import {
 import type { DraftingObject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+import { arrowLegSlide } from "../features/drafting/arrow-legs";
 import { type DraftingHandle } from "../features/drafting/drafting-manipulation";
 import {
   isClosedPolyline,
@@ -28,6 +29,9 @@ import {
 import type { EditorTool } from "../interaction/interaction-state";
 import type { SelectionPolicy } from "../features/selection/selection-filter";
 import { serializePolylinePoints } from "./canvas-geometry";
+
+/** Clearance between a selection's top and its rotate button. */
+const ROTATE_HANDLE_GAP = 22;
 
 export function EditorDraftingHitTargets({
   document,
@@ -377,7 +381,7 @@ export function EditorDraftingHandles({
   };
   if (object.kind === "arrow" && geometry.kind === "arrow") {
     const closed = isClosedPolyline(object);
-    // Rotation edits the bearing of the first leg, not the endpoint chord.
+    // An outline's width is set across its first leg.
     const directionEnd = geometry.points[1]!;
     const dx = directionEnd.x - geometry.from.x,
       dy = directionEnd.y - geometry.from.y;
@@ -390,10 +394,14 @@ export function EditorDraftingHandles({
         POLYLINE_CORNER_DIRECTIONS[index]!.y * POLYLINE_RESIZE_PADDING,
     }));
     const length = Math.hypot(dx, dy) || 1;
-    const offset = object.outline ? object.outline.width / 2 + 18 : 25;
+    // Above the selection, centred: the turn is read about the middle of
+    // its bounds from there.
     const rotationHandle = {
-      x: geometry.center.x + (dy / length) * offset,
-      y: geometry.center.y - (dx / length) * offset,
+      x: geometry.bounds.x + geometry.bounds.width / 2,
+      y:
+        Math.min(...(corners ?? geometry.points).map((point) => point.y)) -
+        (corners ? 0 : (object.outline?.width ?? 0) / 2) -
+        ROTATE_HANDLE_GAP,
     };
     const widthHandle = {
       x: geometry.center.x - ((dy / length) * (object.outline?.width ?? 0)) / 2,
@@ -401,6 +409,27 @@ export function EditorDraftingHandles({
     };
     return (
       <g data-testid={`drafting-handles-${object.id}`}>
+        {/* Under every other handle: a straight leg pressed anywhere along
+            its length slides across itself. */}
+        {geometry.points.slice(0, -1).map((point, index) => {
+          const slide = arrowLegSlide(object, geometry, index);
+          if (!slide) return null;
+          const end = geometry.points[index + 1]!;
+          return (
+            <line
+              key={`leg-${index}`}
+              className={`draft-handle draft-leg-hit draft-leg-hit-${slide}`}
+              data-testid={`draft-handle-leg-${index}-${object.id}`}
+              x1={point.x}
+              y1={point.y}
+              x2={end.x}
+              y2={end.y}
+              onPointerDown={(event) =>
+                onHandlePointerDown(event, object, { kind: "leg", index })
+              }
+            />
+          );
+        })}
         {corners && (
           <>
             <rect
@@ -432,19 +461,22 @@ export function EditorDraftingHandles({
           </>
         )}
         {object.from.kind === "free" && object.to.kind === "free" ? (
-          <>
-            <line
-              className="draft-rotation-stem"
-              x1={geometry.center.x}
-              y1={geometry.center.y}
-              x2={rotationHandle.x}
-              y2={rotationHandle.y}
-              pointerEvents="none"
+          <g
+            className="draft-rotate-handle"
+            data-testid={`draft-handle-rotate-${object.id}`}
+            aria-label="Rotate"
+            transform={`translate(${rotationHandle.x} ${rotationHandle.y})`}
+            onPointerDown={(event) =>
+              onHandlePointerDown(event, object, { kind: "rotate" })
+            }
+          >
+            <title>Rotate (15° steps)</title>
+            <circle className="draft-handle" r="8" />
+            <path
+              className="draft-rotate-glyph"
+              d="M4.5 0a4.5 4.5 0 1 1-1.32-3.18M4.5-4.5v2.6H1.9"
             />
-            {circle(rotationHandle, `draft-handle-rotate-${object.id}`, {
-              kind: "rotate",
-            })}
-          </>
+          </g>
         ) : null}
         {object.outline
           ? circle(widthHandle, `draft-handle-width-${object.id}`, {
