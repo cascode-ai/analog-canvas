@@ -139,6 +139,14 @@ export const AgentAdapterVersionSchema = z
   .string()
   .regex(/^\d{1,6}\.\d{1,6}\.\d{1,6}$/u);
 
+/**
+ * The adapter's own random key in a claim's `x-agent-redemption` header, so a
+ * retry after a lost response is told apart from another adapter.
+ */
+export const AgentRedemptionKeySchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{16,128}$/u);
+
 /** A bounded event delivered on the Agent SSE stream. */
 export const AgentSessionEventSchema = z.discriminatedUnion("type", [
   z.strictObject({
@@ -220,6 +228,7 @@ export const AgentTransportErrorCodeSchema = z.enum([
   "SESSION_EXPIRED",
   "SESSION_PAUSED",
   "SESSION_REVOKED",
+  "SESSION_TAKEN_OVER",
   "PROJECT_REPLACED",
   "PROJECT_CONTEXT_STALE",
   "NO_ACTIVE_PROJECT",
@@ -227,6 +236,8 @@ export const AgentTransportErrorCodeSchema = z.enum([
   "CLAIM_INVALID",
   "CLAIM_EXPIRED",
   "CLAIM_ALREADY_USED",
+  "CLAIM_ALREADY_REDEEMED",
+  "CLAIM_WRONG_SITE",
   // Persistent connector
   "CONNECTOR_INVALID",
   "CONNECTOR_EXPIRED",

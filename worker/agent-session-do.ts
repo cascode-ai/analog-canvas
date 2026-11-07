@@ -765,9 +765,15 @@ export class AgentSessionDO {
     const body = (await request.json().catch(() => null)) as {
       code?: unknown;
       adapterVersion?: unknown;
+      redemptionKey?: unknown;
     } | null;
     const code = typeof body?.code === "string" ? body.code : "";
-    const result = redeemClaimResponse(machine, code, Date.now());
+    const result = redeemClaimResponse(
+      machine,
+      code,
+      Date.now(),
+      typeof body?.redemptionKey === "string" ? body.redemptionKey : undefined,
+    );
     await this.persist();
     if (!result.ok) {
       return jsonResponse(

@@ -16,6 +16,8 @@ import {
   AgentProjectResourceRequestSchema,
   AgentSessionMachine,
   AgentSimulationResourceRequestSchema,
+  agentMcpServerName,
+  agentSiteTag,
   type AgentMcpBootstrapManifest,
   type AgentSessionLimits,
   type PersistedAgentSessionState,
@@ -306,9 +308,14 @@ function folder() {
 }
 
 describe("agent-session relay", () => {
-  it("redeems a valid claim again by replacing the prior bearer", () => {
+  it("answers the redeemer's retry by replacing the prior bearer, and no other redemption", () => {
     const { machine, session, now } = folder();
-    const first = redeemClaimResponse(machine, session.claimCode, now());
+    const first = redeemClaimResponse(
+      machine,
+      session.claimCode,
+      now(),
+      "adapter-key-0001",
+    );
     expect(first).toMatchObject({
       ok: true,
       sessionId: machine.sessionId,
@@ -316,11 +323,27 @@ describe("agent-session relay", () => {
       documentIds: ["document-1"],
     });
 
-    const retry = redeemClaimResponse(machine, session.claimCode, now());
+    expect(
+      redeemClaimResponse(
+        machine,
+        session.claimCode,
+        now(),
+        "adapter-key-0002",
+      ),
+    ).toMatchObject({ ok: false, error: { code: "CLAIM_ALREADY_REDEEMED" } });
+    const retry = redeemClaimResponse(
+      machine,
+      session.claimCode,
+      now(),
+      "adapter-key-0001",
+    );
     expect(retry).toMatchObject({ ok: true, projectId: "project-1" });
     if (!first.ok || !retry.ok) return;
     expect(retry.agentToken).not.toBe(first.agentToken);
-    expect(machine.authorize(first.agentToken, now()).ok).toBe(false);
+    expect(machine.authorize(first.agentToken, now())).toEqual({
+      ok: false,
+      code: "SESSION_TAKEN_OVER",
+    });
     expect(machine.authorize(retry.agentToken, now()).ok).toBe(true);
   });
 
@@ -617,9 +640,11 @@ describe("public Agent session routes", () => {
     expect(response?.status).toBe(200);
     expect(response?.headers.get("cache-control")).toBe("public, max-age=300");
     const manifest = (await response!.json()) as AgentMcpBootstrapManifest;
+    const serverName = agentMcpServerName("https://editor.example");
+    expect(serverName).toMatch(/^analog-canvas-[0-9a-f]{16}$/u);
     expect(manifest).toMatchObject({
       format: AGENT_MCP_BOOTSTRAP_FORMAT,
-      name: "analog-canvas",
+      name: serverName,
       version: mcpDistribution.version,
       transport: "stdio",
       requirements: { node: ">=24.0.0" },
@@ -640,9 +665,37 @@ describe("public Agent session routes", () => {
     expect(manifest.launch.env.ANALOG_CANVAS_API_URL).toBe(
       "https://editor.example",
     );
-    expect(manifest.hosts.cursor.config.mcpServers["analog-canvas"]).toEqual(
+    expect(manifest.hosts.cursor.config.mcpServers[serverName]).toEqual(
       manifest.launch,
     );
+    expect(manifest.hosts.claudeCode.command).toContain(
+      '--install --origin "https://editor.example" --host config',
+    );
+  });
+
+  it("names each site's MCP server apart in every host entry", async () => {
+    const { env } = routedFixture();
+    const names = await Promise.all(
+      ["https://analog-canvas.example", "http://localhost:18082"].map(
+        async (origin) => {
+          const response = await routeAgentSessionRequest(
+            new Request(`${origin}/api/agent/mcp-manifest.json`),
+            env,
+          );
+          const manifest =
+            (await response!.json()) as AgentMcpBootstrapManifest;
+          expect(Object.keys(manifest.hosts.cursor.config.mcpServers)).toEqual([
+            manifest.name,
+          ]);
+          return manifest.name;
+        },
+      ),
+    );
+    expect(names).toEqual([
+      agentMcpServerName("https://analog-canvas.example"),
+      agentMcpServerName("http://localhost:18082"),
+    ]);
+    expect(names[0]).not.toBe(names[1]);
   });
 
   it("allows only one concurrent creation for a session object", async () => {
@@ -777,6 +830,205 @@ describe("public Agent session routes", () => {
       sessionId: created.session.sessionId,
       connectorToken: claim.connectorToken,
     });
+  });
+
+  it("tags new sessions with their site and refuses another site's Claim and connector", async () => {
+    const { env, objects } = routedFixture();
+    const route = (origin: string, path: string, body: unknown) =>
+      routeAgentSessionRequest(
+        new Request(`${origin}${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        env,
+      );
+    const created = (await (await route(
+      "https://editor.example",
+      "/api/agent/sessions",
+      {
+        projectSessionId: "project:site",
+        projectId: "project",
+        documentIds: ["document-main"],
+        scopes: ["circuit.snapshot"],
+      },
+    ))!.json()) as { session: { sessionId: string; claimCode: string } };
+    const { sessionId, claimCode } = created.session;
+    expect(sessionId).toMatch(
+      new RegExp(`^${agentSiteTag("https://editor.example")}_[0-9a-f-]{36}$`),
+    );
+
+    const elsewhere = await route(
+      "http://localhost:18082",
+      "/api/agent/claims",
+      {
+        claimCode,
+      },
+    );
+    expect(elsewhere!.status).toBe(421);
+    const refusal = (await elsewhere!.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(refusal.error.code).toBe("CLAIM_WRONG_SITE");
+    expect(refusal.error.message).toContain("http://localhost:18082");
+    expect(refusal.error.message).toContain("copied connection message");
+    // Refused before any session object is addressed.
+    expect([...objects.keys()]).toEqual([sessionId]);
+
+    const claimed = await route("https://editor.example", "/api/agent/claims", {
+      claimCode,
+    });
+    expect(claimed!.status).toBe(200);
+    const { connectorToken } = (await claimed!.json()) as {
+      connectorToken: string;
+    };
+    const resumedElsewhere = await route(
+      "http://localhost:18082",
+      "/api/agent/connectors/resume",
+      { sessionId, connectorToken },
+    );
+    expect(resumedElsewhere!.status).toBe(421);
+    expect(await resumedElsewhere!.json()).toMatchObject({
+      ok: false,
+      error: { code: "CLAIM_WRONG_SITE" },
+    });
+  });
+
+  it("treats loopback names as one site and keeps legacy untagged sessions working anywhere", async () => {
+    const { env } = routedFixture();
+    const route = (origin: string, path: string, body: unknown) =>
+      routeAgentSessionRequest(
+        new Request(`${origin}${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        env,
+      );
+    const local = (await (await route(
+      "http://127.0.0.1:5173",
+      "/api/agent/sessions",
+      {
+        projectSessionId: "project:loopback",
+        projectId: "project",
+        documentIds: ["document-main"],
+        scopes: ["circuit.snapshot"],
+      },
+    ))!.json()) as { session: { claimCode: string } };
+    expect(
+      (await route("http://localhost:5173", "/api/agent/claims", {
+        claimCode: local.session.claimCode,
+      }))!.status,
+    ).toBe(200);
+
+    // A session created before site tags has a bare UUID.
+    const legacyId = crypto.randomUUID();
+    const legacy = (await (
+      await env.AGENT_SESSION.getByName(legacyId).fetch(
+        "https://agent-session.internal/create",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            sessionId: legacyId,
+            projectSessionId: "project:legacy",
+            projectId: "project",
+            documentIds: ["document-main"],
+            scopes: ["circuit.snapshot"],
+          }),
+        },
+      )
+    ).json()) as { session: { claimCode: string } };
+    const claimed = await route("http://localhost:18082", "/api/agent/claims", {
+      claimCode: `${legacyId}.${legacy.session.claimCode}`,
+    });
+    expect(claimed!.status).toBe(200);
+    const { connectorToken } = (await claimed!.json()) as {
+      connectorToken: string;
+    };
+    expect(
+      (await route(
+        "https://another-site.example",
+        "/api/agent/connectors/resume",
+        { sessionId: legacyId, connectorToken },
+      ))!.status,
+    ).toBe(200);
+  });
+
+  it("refuses a reused Claim, answers its redeemer's retry and reports the takeover", async () => {
+    const { env } = routedFixture();
+    const route = (path: string, body: unknown, key?: string) =>
+      routeAgentSessionRequest(
+        new Request(`https://editor.example${path}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(key ? { "x-agent-redemption": key } : {}),
+          },
+          body: JSON.stringify(body),
+        }),
+        env,
+      );
+    const created = (await (await route("/api/agent/sessions", {
+      projectSessionId: "project:single-use",
+      projectId: "project",
+      documentIds: ["document-main"],
+      scopes: ["circuit.snapshot"],
+    }))!.json()) as { session: { sessionId: string; claimCode: string } };
+    const { sessionId, claimCode } = created.session;
+    type Credentials = { agentToken: string; connectorToken: string };
+    const first = await route(
+      "/api/agent/claims",
+      { claimCode },
+      "chat-one-key-0001",
+    );
+    expect(first!.status).toBe(200);
+    const original = (await first!.json()) as Credentials;
+
+    const second = await route(
+      "/api/agent/claims",
+      { claimCode },
+      "chat-two-key-0002",
+    );
+    expect(second!.status).toBe(409);
+    expect(await second!.json()).toMatchObject({
+      ok: false,
+      error: { code: "CLAIM_ALREADY_REDEEMED" },
+    });
+    const status = (token: string) =>
+      routeAgentSessionRequest(
+        new Request(
+          `https://editor.example/api/agent/sessions/${sessionId}/status`,
+          { headers: { authorization: `Bearer ${token}` } },
+        ),
+        env,
+      );
+    // The refused chat displaced nobody.
+    expect((await status(original.agentToken))!.status).toBe(200);
+
+    const retry = await route(
+      "/api/agent/claims",
+      { claimCode },
+      "chat-one-key-0001",
+    );
+    expect(retry!.status).toBe(200);
+    const replacement = (await retry!.json()) as Credentials;
+    expect(replacement.agentToken).not.toBe(original.agentToken);
+
+    const replacedBearer = await status(original.agentToken);
+    expect(replacedBearer!.status).toBe(409);
+    expect(await replacedBearer!.json()).toMatchObject({
+      error: { code: "SESSION_TAKEN_OVER" },
+    });
+    const replacedConnector = await route("/api/agent/connectors/resume", {
+      sessionId,
+      connectorToken: original.connectorToken,
+    });
+    expect(replacedConnector!.status).toBe(409);
+    expect(await replacedConnector!.json()).toMatchObject({
+      error: { code: "SESSION_TAKEN_OVER" },
+    });
+    expect((await status(replacement.agentToken))!.status).toBe(200);
   });
 
   it("tells the editor which adapter release paired on each claim and resume (#1844)", async () => {

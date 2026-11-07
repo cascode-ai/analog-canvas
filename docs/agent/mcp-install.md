@@ -19,15 +19,21 @@ hosts use their documented registration boundary, preserving unrelated settings.
 When `installation.available` is true, follow its verified installation: check
 the archive digest before executing; the installer tests stdio readiness
 before updating the named host configuration and keeps unrelated settings.
-The installer returns `serverName`, a stable registration name derived from
-the exact origin. Codex installs update only that origin's registration;
-other origins and legacy `analog-canvas` registrations remain intact. Use
-the returned name as the host's resource alias. A running adapter keeps its
-startup origin; disconnecting or supplying another Claim does not retarget it.
-The
-launch names the Node that ran the installer (a Homebrew Node through its
-formula's `opt` link; re-run to replace a versioned Cellar path). Updating is
-explicit. Without installer support, use the manifest's configuration mode and
+Every host registers each site under one stable name derived from the exact
+origin: the manifest's `name`, its Cursor entry and the installer's
+`serverName`. Codex installs update only that origin's registration; for
+Claude Code run the installer's `hosts.claudeCode.command` (`claude mcp add
+<serverName>` with the verified local launch). Other origins and legacy
+`analog-canvas` registrations remain intact. Use the name as the host's
+resource alias. A running adapter keeps its startup origin; disconnecting or
+supplying another Claim does not retarget it, and another site's Claim is
+refused (`CLAIM_WRONG_SITE`) naming the bound origin: use the server
+registered for the address in the copied connection message. Without
+`ANALOG_CANVAS_API_URL` an adapter binds to the overseas site and says so in
+`connection_status` (`runtime.apiOriginSource: "default"`) and its
+instructions. The launch names the Node that ran the installer (a Homebrew
+Node through its formula's `opt` link; re-run to replace a versioned Cellar
+path). Updating is explicit. Without installer support, use the manifest's configuration mode and
 launch configuration; never infer flags from another version or assume an old
 package has the installer.
 
@@ -62,8 +68,11 @@ The default file (one per origin) belongs to the first running MCP process that
 uses it and a restart resumes it; a concurrent process keeps its own connector
 in memory and needs its own claim, so parallel clients never drive one page by
 accident. Give each parallel worker its own connector file, or share one file
-to share a page on purpose. Disconnect or expiry revokes the session; Project
-switches do not.
+to share a page on purpose. A Claim connects one adapter: parallel chats each
+open their own editor tab and connect with its Claim. A reused Claim is
+`CLAIM_ALREADY_REDEEMED`; an adapter replaced by a later redemption gets
+`SESSION_TAKEN_OVER` and needs its own tab and Claim. Disconnect or expiry
+revokes the session; Project switches do not.
 
 Automation that opens the editor itself (a headless browser driving batch
 workers) opens `/editor?agent=pair`: the page connects on load as **Connect

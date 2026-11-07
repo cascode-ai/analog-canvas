@@ -4,6 +4,7 @@ import { realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { agentMcpServerName } from "@icm/agent-adapter";
 import { codexMcpConfig } from "./installation-config.js";
 import { probeInstalledMcp } from "./installation-probe.js";
 import {
@@ -95,6 +96,14 @@ export function stableNodeExecutable(execPath: string): string {
   } catch {
     return execPath;
   }
+}
+
+/**
+ * Double quotes keep a path with spaces whole in POSIX shells, cmd and
+ * PowerShell; a path holding `"` or `$` still needs the user's own quoting.
+ */
+function shellArgument(value: string): string {
+  return /^[\w./:=@%+-]+$/u.test(value) ? value : `"${value}"`;
 }
 
 async function download(
@@ -194,7 +203,7 @@ export async function installMcp(
       options.set(key, value);
     }
     const origin = installationOrigin(options.get("--origin") ?? "");
-    const serverName = `analog-canvas-${createHash("sha256").update(origin).digest("hex").slice(0, 16)}`;
+    const serverName = agentMcpServerName(origin);
     const host = options.get("--host") ?? "config";
     if (!["codex", "config"].includes(host))
       throw Error("Supported installation hosts: codex, config");
@@ -322,6 +331,26 @@ export async function installMcp(
       configPath,
       backupPath,
       launch,
+      // Claude Code owns its configuration: register through its own CLI.
+      hosts: {
+        claudeCode: {
+          command: [
+            "claude",
+            "mcp",
+            "add",
+            serverName,
+            "--scope",
+            "user",
+            "--env",
+            `ANALOG_CANVAS_API_URL=${origin}`,
+            "--",
+            launch.command,
+            ...launch.args,
+          ]
+            .map(shellArgument)
+            .join(" "),
+        },
+      },
       message:
         "Local MCP initialize/tools/list passed; host loading is unverified. Verify callable tools in this conversation. If a reload is needed, preserve this installation and use the raw HTTP Kit only when the connection request authorizes fallback. Pair and read the Editor circuit before reporting connection success.",
     };

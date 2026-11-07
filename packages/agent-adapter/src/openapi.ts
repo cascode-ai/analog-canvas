@@ -213,6 +213,14 @@ export const agentTransportErrorExamples = {
       message: "Request exceeds the byte limit",
     },
   },
+  "421": {
+    ok: false,
+    error: {
+      code: "CLAIM_WRONG_SITE",
+      message:
+        "This Claim or connector belongs to a different Analog Canvas site. Use the MCP server registered for the address shown in the copied connection message. This site is https://editor.example.",
+    },
+  },
   "429": {
     ok: false,
     error: { code: "RATE_LIMITED", message: "Session rate limit exceeded" },
@@ -366,6 +374,7 @@ const claimResponses = {
   "404": transportErrorResponse(agentTransportErrorExamples["404"]),
   "409": transportErrorResponse(agentTransportErrorExamples["409"]),
   "413": transportErrorResponse(agentTransportErrorExamples["413"]),
+  "421": transportErrorResponse(agentTransportErrorExamples["421"]),
 } as const;
 
 export const agentCircuitOpenApi = {
@@ -530,6 +539,15 @@ export const agentCircuitOpenApi = {
       post: {
         operationId: "agentClaimRedeem",
         description: agentApiHelp.agentClaimRedeem,
+        parameters: [
+          {
+            name: "x-agent-redemption",
+            in: "header",
+            description:
+              "Optional random key this client keeps for the Claim; a retry with the same key within 2 minutes is answered again",
+            schema: { type: "string", pattern: "^[A-Za-z0-9_-]{16,128}$" },
+          },
+        ],
         requestBody: {
           required: true,
           content: {

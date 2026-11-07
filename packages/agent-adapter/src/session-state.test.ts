@@ -219,8 +219,8 @@ describe("AgentSessionMachine", () => {
     ).toBe(false);
   });
 
-  it("reissues a token for a valid claim and invalidates the earlier bearer", () => {
-    const { machine, session, now } = setup();
+  it("answers a keyless retry within the grace window and reports the replaced pairing as taken over", () => {
+    const { machine, session, now, advance } = setup();
     expect(machine.claimed).toBe(false);
     const first = machine.redeemClaim(session.claimCode, now());
     expect(first.ok).toBe(true);
@@ -231,14 +231,125 @@ describe("AgentSessionMachine", () => {
     const auth = machine.authorize(first.claim.agentToken, now());
     expect(auth.ok).toBe(true);
 
+    advance(60_000);
     const retry = machine.redeemClaim(session.claimCode, now());
     expect(retry.ok).toBe(true);
     if (!retry.ok) return;
     expect(retry.claim.agentToken).not.toBe(first.claim.agentToken);
-    const priorToken = machine.authorize(first.claim.agentToken, now());
-    expect(priorToken.ok).toBe(false);
-    if (!priorToken.ok) expect(priorToken.code).toBe("TOKEN_INVALID");
+    expect(machine.authorize(first.claim.agentToken, now())).toEqual({
+      ok: false,
+      code: "SESSION_TAKEN_OVER",
+    });
+    expect(machine.resumeConnector(first.claim.connectorToken, now())).toEqual({
+      ok: false,
+      code: "SESSION_TAKEN_OVER",
+    });
     expect(machine.authorize(retry.claim.agentToken, now()).ok).toBe(true);
+    // An adapter naming a key is not that keyless redeemer.
+    expect(
+      machine.redeemClaim(session.claimCode, now(), "adapter-key-0002"),
+    ).toEqual({ ok: false, code: "CLAIM_ALREADY_REDEEMED" });
+    // Unrelated secrets stay generic.
+    expect(machine.authorize("never-issued", now())).toEqual({
+      ok: false,
+      code: "TOKEN_INVALID",
+    });
+    expect(machine.resumeConnector("never-issued", now())).toEqual({
+      ok: false,
+      code: "CONNECTOR_INVALID",
+    });
+  });
+
+  it("redeems a Claim once: a reused Claim is refused after the grace window", () => {
+    const { machine, session, now, advance } = setup();
+    const first = machine.redeemClaim(
+      session.claimCode,
+      now(),
+      "adapter-key-0001",
+    );
+    if (!first.ok) throw new Error("claim failed");
+    advance(DEFAULT_AGENT_SESSION_LIMITS.claimRetryGraceMs!);
+    expect(
+      machine.redeemClaim(session.claimCode, now(), "adapter-key-0001"),
+    ).toEqual({ ok: false, code: "CLAIM_ALREADY_REDEEMED" });
+    expect(machine.redeemClaim(session.claimCode, now())).toEqual({
+      ok: false,
+      code: "CLAIM_ALREADY_REDEEMED",
+    });
+    // The refusal leaves the live pairing alone.
+    expect(machine.authorize(first.claim.agentToken, now()).ok).toBe(true);
+  });
+
+  it("answers the same redeemer's retry within the grace window and refuses any other adapter", () => {
+    const { machine, session, now, advance } = setup();
+    const first = machine.redeemClaim(
+      session.claimCode,
+      now(),
+      "adapter-key-0001",
+    );
+    if (!first.ok) throw new Error("claim failed");
+    advance(30_000);
+    expect(
+      machine.redeemClaim(session.claimCode, now(), "adapter-key-0002"),
+    ).toEqual({ ok: false, code: "CLAIM_ALREADY_REDEEMED" });
+    expect(machine.redeemClaim(session.claimCode, now())).toEqual({
+      ok: false,
+      code: "CLAIM_ALREADY_REDEEMED",
+    });
+    expect(machine.authorize(first.claim.agentToken, now()).ok).toBe(true);
+    const retry = machine.redeemClaim(
+      session.claimCode,
+      now(),
+      "adapter-key-0001",
+    );
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    expect(machine.authorize(retry.claim.agentToken, now()).ok).toBe(true);
+  });
+
+  it("keeps single use and takeover across a Durable Object restart", () => {
+    const { machine, session, now, random } = setup();
+    const first = machine.redeemClaim(
+      session.claimCode,
+      now(),
+      "adapter-key-0001",
+    );
+    const retry = machine.redeemClaim(
+      session.claimCode,
+      now(),
+      "adapter-key-0001",
+    );
+    if (!first.ok || !retry.ok) throw new Error("claim failed");
+    const restored = AgentSessionMachine.restore(
+      machine.serialize(),
+      random,
+      now(),
+    );
+    expect(
+      restored.redeemClaim(session.claimCode, now(), "adapter-key-0002"),
+    ).toEqual({ ok: false, code: "CLAIM_ALREADY_REDEEMED" });
+    expect(restored.authorize(first.claim.agentToken, now())).toEqual({
+      ok: false,
+      code: "SESSION_TAKEN_OVER",
+    });
+    expect(restored.authorize(retry.claim.agentToken, now()).ok).toBe(true);
+  });
+
+  it("refuses a Claim redeemed before single use, whose redemption time is unknown", () => {
+    const { machine, session, now, random } = setup();
+    if (!machine.redeemClaim(session.claimCode, now()).ok)
+      throw new Error("claim failed");
+    const state = machine.serialize();
+    const { redeemedAt: _drop, ...legacyClaim } = state.claim!;
+    const restored = AgentSessionMachine.restore(
+      { ...state, claim: legacyClaim },
+      random,
+      now(),
+    );
+    expect(restored.redeemClaim(session.claimCode, now())).toEqual({
+      ok: false,
+      code: "CLAIM_ALREADY_REDEEMED",
+    });
   });
 
   it("resumes a connector with a fresh bearer and revokes both together", () => {

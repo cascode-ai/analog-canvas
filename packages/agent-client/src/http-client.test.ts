@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  AgentRedemptionKeySchema,
+  agentSiteSessionId,
+} from "@icm/agent-adapter";
 import { AgentHttpClient } from "./http-client.js";
 
 const BASE = "https://relay.test";
@@ -307,6 +311,82 @@ describe("agent http client", () => {
     await expect(missing.mcpManifest()).rejects.toThrow("HTTP 404");
     expect(missing.requestTimings).toEqual([]);
   });
+  it("refuses another site's Claim or connector before sending, naming its bound origin", async () => {
+    let sent = 0;
+    const http = new AgentHttpClient({
+      baseUrl: `${BASE}/`,
+      fetch: async () => {
+        sent += 1;
+        return jsonResponse(500, {});
+      },
+    });
+    const foreign = agentSiteSessionId("http://localhost:18082", "id");
+    for (const attempt of [
+      () => http.claim(`${foreign}.code`),
+      () => http.resumeConnector(foreign, "connector"),
+    ])
+      await expect(attempt()).rejects.toMatchObject({
+        code: "CLAIM_WRONG_SITE",
+        category: "request-rejected",
+        message: expect.stringContaining(`bound to ${BASE}.`),
+      });
+    expect(sent).toBe(0);
+  });
+
+  it("sends its own site's and legacy untagged Claims, loopback names alike", async () => {
+    const sent: string[] = [];
+    const http = new AgentHttpClient({
+      baseUrl: "http://localhost:5173",
+      fetch: async (_input, init) => {
+        sent.push(
+          (JSON.parse(String(init?.body)) as { claimCode: string }).claimCode,
+        );
+        return jsonResponse(401, {
+          ok: false,
+          error: { code: "CLAIM_INVALID", message: "unknown" },
+        });
+      },
+    });
+    const own = `${agentSiteSessionId("http://127.0.0.1:5173", "id")}.code`;
+    for (const claimCode of [own, "0b6c1f0e-2d6a-4a8e-9a43-3b1b5d1f7a10.code"])
+      await expect(http.claim(claimCode)).rejects.toMatchObject({
+        code: "CLAIM_INVALID",
+      });
+    expect(sent).toEqual([own, "0b6c1f0e-2d6a-4a8e-9a43-3b1b5d1f7a10.code"]);
+  });
+
+  it("names one redemption key per adapter on claims only, so the relay can answer its retry", async () => {
+    const keys: Array<[string, string | null]> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      keys.push([
+        String(input).slice(BASE.length),
+        new Headers(init?.headers).get("x-agent-redemption"),
+      ]);
+      return jsonResponse(409, {
+        ok: false,
+        error: { code: "CLAIM_ALREADY_REDEEMED", message: "redeemed" },
+      });
+    };
+    const http = new AgentHttpClient({ baseUrl: BASE, fetch: fetchImpl });
+    for (const attempt of [
+      () => http.claim("s.c"),
+      () => http.claim("s.c"),
+      () => http.resumeConnector("s", "connector"),
+      () =>
+        new AgentHttpClient({ baseUrl: BASE, fetch: fetchImpl }).claim("s.c"),
+    ])
+      await expect(attempt()).rejects.toMatchObject({
+        code: "CLAIM_ALREADY_REDEEMED",
+        category: "unrecoverable-credential",
+        httpStatus: 409,
+      });
+    const [first, retry, resume, other] = keys;
+    expect(AgentRedemptionKeySchema.safeParse(first![1]).success).toBe(true);
+    expect(retry).toEqual(first);
+    expect(resume).toEqual(["/api/agent/connectors/resume", null]);
+    expect(other![1]).not.toBe(first![1]);
+  });
+
   it("normalizes a rejected claim into an unrecoverable credential error", async () => {
     const http = new AgentHttpClient({
       baseUrl: BASE,

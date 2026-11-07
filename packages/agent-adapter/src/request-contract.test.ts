@@ -253,6 +253,7 @@ describe("Agent golden request contract", () => {
       "404",
       "409",
       "413",
+      "421",
     ]);
   });
 });

@@ -2,9 +2,10 @@
 
 ## Connect
 
-`connection_status({"refresh":false})` reports the loaded version and API
-origin locally. When the origin matches, `connect` with the Claim once (omit it
-to resume the saved connector); the exchange checks compatibility. Read
+`connection_status({"refresh":false})` reports the loaded version and bound
+API origin (`runtime.apiOrigin`) locally. When the origin matches, `connect`
+with the Claim once (omit it to resume the saved connector); the exchange
+checks compatibility and its `site` names the bound origin. Read
 [installation](mcp-install.md) only for a missing, wrong-origin or incompatible
 adapter. The reply is authoritative context (identity, counts, revisions,
 capabilities; a resume counts edit kinds as `editKindCount`, and

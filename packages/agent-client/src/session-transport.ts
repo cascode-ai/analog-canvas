@@ -128,6 +128,8 @@ export abstract class AgentSessionTransport {
   } | null = null;
   protected capabilitiesCache: AgentCapabilitiesResponse | null = null;
   private resumePromise: Promise<ActiveSession | null> | null = null;
+  /** The connector this process redeemed or resumed, if any. */
+  private ownConnector: string | undefined;
   protected simulationMetadata = new Map<
     string,
     {
@@ -392,7 +394,12 @@ export abstract class AgentSessionTransport {
     this.cache.clear();
     this.knownRevisions.clear();
     this.receipts.length = 0;
-    await this.connectorStore?.clear();
+    // A takeover leaves the saved file to whoever holds the session now:
+    // only a file still holding this process's own connector goes.
+    if (code !== "SESSION_TAKEN_OVER") await this.connectorStore?.clear();
+    else if (this.ownConnector)
+      await this.connectorStore?.clear(this.ownConnector);
+    this.ownConnector = undefined;
   }
 
   protected async ensureSession(): Promise<ActiveSession> {
@@ -462,6 +469,7 @@ export abstract class AgentSessionTransport {
     // Other Agent operations or manual edits can renew the session after this
     // credential was saved. Only the server can decide whether it expired.
     this.connection.apply("resume-started");
+    this.ownConnector = stored.connectorToken;
     try {
       const claim = await this.http.resumeConnector(
         stored.sessionId,
@@ -551,6 +559,7 @@ export abstract class AgentSessionTransport {
   }
 
   protected async persistConnector(claim: ClaimSuccess): Promise<void> {
+    this.ownConnector = claim.connectorToken;
     if (!this.connectorStore) return;
     const credential: StoredConnectorCredential = {
       version: 1,

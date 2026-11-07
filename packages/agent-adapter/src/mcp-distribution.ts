@@ -1,4 +1,5 @@
 import distribution from "../../../config/agent-mcp-distribution.json" with { type: "json" };
+import { agentMcpServerName } from "./agent-site.js";
 
 export const AGENT_MCP_BOOTSTRAP_FORMAT = "analog-canvas-mcp-bootstrap-v1";
 // Packaging injects only the version. Embedding the full distribution object
@@ -59,6 +60,8 @@ export function agentMcpBootstrapManifest(
   publicOrigin: string,
 ): AgentMcpBootstrapManifest {
   const origin = publicOrigin.replace(/\/$/u, "");
+  // Every host registers each site under its own name, as the installer does.
+  const serverName = agentMcpServerName(origin);
   const releaseBase = `https://github.com/${distribution.release.repository}/releases/download/${distribution.release.tag}`;
   const downloadUrl = `${releaseBase}/${distribution.release.asset}`;
   const packageSpec = distribution.npmPublished
@@ -78,7 +81,7 @@ export function agentMcpBootstrapManifest(
 
   return {
     format: AGENT_MCP_BOOTSTRAP_FORMAT,
-    name: distribution.name,
+    name: serverName,
     version: distribution.version,
     transport: "stdio",
     requirements: { node: distribution.node },
@@ -86,7 +89,7 @@ export function agentMcpBootstrapManifest(
       mode: "verified-local-bundle",
       available: localInstallation,
       command: `${launchText} --install --origin ${JSON.stringify(origin)} --host config`,
-      note: "Install only with evidence of this conversation's actual stdio host and effective configuration. Check the launching Node first and verify the archive SHA-256 before executing. Generic installation returns a local launch object; use hosts.codex only for a confirmed Codex host. Installation does not prove callable tools. When the user's handoff authorizes fallback, bootstrap/environment failures can use the raw HTTP Kit without Node; integrity/identity failures stop. Keep any completed installation if host loading needs another conversation.",
+      note: "Install only with evidence of this conversation's actual stdio host and effective configuration. Check the launching Node first and verify the archive SHA-256 before executing. Generic installation returns a local launch object, its per-origin serverName and the exact Claude Code registration command; use hosts.codex only for a confirmed Codex host. Installation does not prove callable tools. When the user's handoff authorizes fallback, bootstrap/environment failures can use the raw HTTP Kit without Node; integrity/identity failures stop. Keep any completed installation if host loading needs another conversation.",
     },
     launch: {
       command: "npx",
@@ -97,20 +100,22 @@ export function agentMcpBootstrapManifest(
       codex: {
         command: localInstallation
           ? `${launchText} --install --origin ${JSON.stringify(origin)} --host codex`
-          : `codex mcp add ${distribution.name} --env ANALOG_CANVAS_API_URL=${origin} -- ${launchText}`,
+          : `codex mcp add ${serverName} --env ANALOG_CANVAS_API_URL=${origin} -- ${launchText}`,
       },
+      // The verified installer returns the exact `claude mcp add` command
+      // for its local launch under the same name.
       claudeCode: {
         command: localInstallation
           ? `${launchText} --install --origin ${JSON.stringify(origin)} --host config`
-          : `claude mcp add ${distribution.name} --scope user --env ANALOG_CANVAS_API_URL=${origin} -- ${launchText}`,
+          : `claude mcp add ${serverName} --scope user --env ANALOG_CANVAS_API_URL=${origin} -- ${launchText}`,
         windowsCommand: localInstallation
           ? `${launchText} --install --origin ${JSON.stringify(origin)} --host config`
-          : `claude mcp add ${distribution.name} --scope user --env ANALOG_CANVAS_API_URL=${origin} -- cmd /c ${launchText}`,
+          : `claude mcp add ${serverName} --scope user --env ANALOG_CANVAS_API_URL=${origin} -- cmd /c ${launchText}`,
       },
       cursor: {
         config: {
           mcpServers: {
-            [distribution.name]: {
+            [serverName]: {
               command: "npx",
               args: launchArgs,
               env: { ANALOG_CANVAS_API_URL: origin },

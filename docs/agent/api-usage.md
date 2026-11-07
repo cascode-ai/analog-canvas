@@ -91,8 +91,8 @@ response and the resource result.
 
 Exchange the saved connector at `POST /api/agent/connectors/resume` and save
 the refreshed credentials; ask even past the saved deadline, since activity may
-have extended it. Reusing a valid claim rotates the pairing and invalidates
-earlier credentials.
+have extended it. A Claim is redeemed once: only a retry after a lost response,
+within 2 minutes, is answered again, and it replaces the earlier credentials.
 
 - Invalid/expired bearer: resume once, then retry the exact request.
 - Invalid/expired connector or revoked/expired session: stop; get new

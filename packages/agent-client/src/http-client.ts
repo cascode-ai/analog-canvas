@@ -14,6 +14,7 @@ import {
   AgentProjectResourceResponseSchema,
   AgentSessionStatusResponseSchema,
   type AgentSessionStatusResponse,
+  agentSessionFromOtherSite,
 } from "@icm/agent-adapter";
 import {
   invalidResponseFailure,
@@ -129,6 +130,8 @@ export class AgentHttpClient {
   private readonly rateLimitRetryAttempts: number;
   private readonly sleep: (milliseconds: number) => Promise<void>;
   private readonly adapterVersion: string | undefined;
+  /** This process's own key, so the relay answers its claim retry only. */
+  private readonly redemptionKey = crypto.randomUUID();
 
   constructor(options: AgentHttpClientOptions) {
     this.baseUrlValue = options.baseUrl;
@@ -250,15 +253,32 @@ export class AgentHttpClient {
    * claim code prefix, so the response alone is sufficient afterwards.
    */
   async claim(claimCode: string): Promise<ClaimSuccess> {
+    this.assertSite(claimCode.slice(0, Math.max(0, claimCode.indexOf("."))));
     const response = await this.send("/api/agent/claims", {
       method: "POST",
-      headers: this.pairingHeaders(),
+      headers: {
+        ...this.pairingHeaders(),
+        "x-agent-redemption": this.redemptionKey,
+      },
       body: JSON.stringify({ claimCode }),
     });
     return this.consume(response, (body) => {
       if (response.ok) return this.parseCredential(body, "Claim");
       throw this.transportError(response.status, body);
     });
+  }
+
+  /**
+   * A session issued by another site is unknown here: name the origin this
+   * adapter is bound to instead of sending its Claim or connector there.
+   */
+  private assertSite(sessionId: string): void {
+    const origin = new URL(this.baseUrl).origin;
+    if (agentSessionFromOtherSite(sessionId, origin))
+      throw transportFailure(
+        "CLAIM_WRONG_SITE",
+        `This Claim or connector was issued by a different Analog Canvas site; this MCP server is bound to ${origin}. Use the MCP server registered for the address shown in the copied connection message, or install one for it from that address's /api/agent/mcp-manifest.json.`,
+      );
   }
 
   private pairingHeaders(): Record<string, string> {
@@ -292,6 +312,7 @@ export class AgentHttpClient {
     sessionId: string,
     connectorToken: string,
   ): Promise<ClaimSuccess> {
+    this.assertSite(sessionId);
     const response = await this.send("/api/agent/connectors/resume", {
       method: "POST",
       headers: this.pairingHeaders(),

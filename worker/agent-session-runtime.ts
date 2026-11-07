@@ -1,6 +1,7 @@
 import {
   AgentAdapterVersionSchema,
   AgentClaimRequestSchema,
+  AgentRedemptionKeySchema,
   AgentConnectorResumeRequestSchema,
   DEFAULT_AGENT_SESSION_LIMITS,
   AgentSessionMachine,
@@ -8,6 +9,8 @@ import {
   agentEditCategory,
   agentCircuitOpenApi,
   agentMcpBootstrapManifest,
+  agentSessionFromOtherSite,
+  agentSiteSessionId,
   agentTransportErrorMessage,
   agentTransportErrorStatus,
   type AgentCircuitRequest,
@@ -39,6 +42,29 @@ function adapterVersion(request: Request): { adapterVersion?: string } {
     request.headers.get("x-agent-adapter-version"),
   );
   return parsed.success ? { adapterVersion: parsed.data } : {};
+}
+
+/** The redeemer's own key, telling its retry apart from another adapter. */
+function redemptionKey(request: Request): { redemptionKey?: string } {
+  const parsed = AgentRedemptionKeySchema.safeParse(
+    request.headers.get("x-agent-redemption"),
+  );
+  return parsed.success ? { redemptionKey: parsed.data } : {};
+}
+
+/**
+ * Sessions live in this site's Durable Objects only: another site's Claim or
+ * connector would reach an empty session here (web-agent-session.md#pairing).
+ */
+function wrongSite(origin: string, allowedOrigin: string): Response {
+  return jsonResponse(
+    errorBody(
+      "CLAIM_WRONG_SITE",
+      `${errorMessage("CLAIM_WRONG_SITE")} This site is ${origin}.`,
+    ),
+    transportStatus("CLAIM_WRONG_SITE"),
+    allowedOrigin,
+  );
 }
 
 export const EDITOR_SOCKET_TAG = "editor";
@@ -213,7 +239,7 @@ export async function routeAgentSessionRequest(
       );
     }
     const body = parsedBody.value as Record<string, unknown>;
-    const sessionId = crypto.randomUUID();
+    const sessionId = agentSiteSessionId(url.origin, crypto.randomUUID());
     const response = await env.AGENT_SESSION.getByName(sessionId).fetch(
       "https://agent-session.internal/create",
       {
@@ -279,12 +305,18 @@ export async function routeAgentSessionRequest(
     }
     const sessionId = claimCode.slice(0, separator);
     const code = claimCode.slice(separator + 1);
+    if (agentSessionFromOtherSite(sessionId, url.origin))
+      return wrongSite(url.origin, allowedOrigin);
     return env.AGENT_SESSION.getByName(sessionId).fetch(
       "https://agent-session.internal/claim",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code, ...adapterVersion(request) }),
+        body: JSON.stringify({
+          code,
+          ...adapterVersion(request),
+          ...redemptionKey(request),
+        }),
       },
     );
   }
@@ -316,6 +348,8 @@ export async function routeAgentSessionRequest(
         allowedOrigin,
       );
     }
+    if (agentSessionFromOtherSite(parsed.data.sessionId, url.origin))
+      return wrongSite(url.origin, allowedOrigin);
     return env.AGENT_SESSION.getByName(parsed.data.sessionId).fetch(
       "https://agent-session.internal/resume-connector",
       {
@@ -598,6 +632,7 @@ export function redeemClaimResponse(
   machine: AgentSessionMachine,
   code: string,
   now: number,
+  redemptionKey?: string,
 ):
   | {
       ok: true;
@@ -611,7 +646,7 @@ export function redeemClaimResponse(
       documentIds: string[];
     }
   | RelayError {
-  const result = machine.redeemClaim(code, now);
+  const result = machine.redeemClaim(code, now, redemptionKey);
   return result.ok
     ? {
         ok: true,

@@ -29,7 +29,22 @@ GET  /api/agent/openapi.json
   tier picker; replacement also grants full access; recovery resumes the
   original scopes). The relay returns a short-lived Claim; redemption returns
   `sessionId`, authorized `documentIds`, a bearer and a session-bound
-  connector. Redeeming a still-valid Claim again only rotates both.
+  connector.
+- A Claim is redeemed once. Afterwards it answers only its redeemer's retry
+  within 2 minutes (same `x-agent-redemption` key, or no key on either, which
+  older adapters cannot tell apart) with fresh credentials; any other
+  redemption is `CLAIM_ALREADY_REDEEMED`. The editor stops showing the Claim
+  once paired.
+- A redemption that replaces a live connector remembers the replaced
+  connector and bearer; their next use answers `SESSION_TAKEN_OVER`, and that
+  adapter leaves a saved connector file that no longer holds its connector.
+  One adapter drives one editor tab; parallel chats each pair their own tab.
+- Sites share no sessions. New session IDs are `<tag>_<id>`, the tag being
+  the first 8 hex of SHA-256 of the issuing origin's host (loopback hosts as
+  `localhost`; `packages/agent-adapter/src/agent-site.ts`). The relay answers
+  a Claim or connector resume tagged for another site with `CLAIM_WRONG_SITE`
+  (421), naming its own origin; untagged legacy IDs are accepted. Adapters
+  refuse a foreign tag before sending, naming their bound origin.
 - An adapter names its release in the `x-agent-adapter-version` header
   (`x.y.z`) of claim and connector resume; the relay keeps the last one for
   the session and sends the editor `agent.adapter` (absent or malformed:
@@ -168,6 +183,7 @@ reconciles, never blindly replays.
   under the 32 MiB Durable Object WebSocket message).
 - Secrets use constant-time comparison and redacted telemetry. Responses are
   `no-store`; payloads and secrets stay out of analytics and recovery.
-  Offline, revoked, expired, replaced, connector-invalid, permission-denied,
-  stale-revision, invalid-request and request-ID-reuse failures are typed.
+  Offline, revoked, expired, replaced, taken-over, wrong-site,
+  already-redeemed, connector-invalid, permission-denied, stale-revision,
+  invalid-request and request-ID-reuse failures are typed.
   Revoke is locally terminal even when the relay is unreachable.
