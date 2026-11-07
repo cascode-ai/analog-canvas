@@ -40,6 +40,15 @@ export function installComparisons(sql: SqlStorage): void {
       updated_at TEXT NOT NULL
     ) WITHOUT ROWID
   `);
+  // The list's fields without the figure. A row's figure sits before its
+  // revision, so reading the row for the list walked every figure (about
+  // 3 s for AnalogGenie's 1,029). The list scans this index first
+  // (CROSS JOIN keeps that order), then each entry by its card index.
+  sql.exec(`
+    CREATE INDEX IF NOT EXISTS idx_dataset_comparisons_card
+    ON dataset_comparisons(id, verdict, category, detail, reason, families,
+      figure_revision)
+  `);
 }
 
 const FIGURE_MAGIC: Record<string, (bytes: Uint8Array) => boolean> = {
@@ -172,7 +181,7 @@ export function listComparisons(sql: SqlStorage): Response {
     }>(
       `SELECT c.id, e.name, c.verdict, c.category, c.detail, c.reason,
          c.families, e.component_count, e.preview_revision, c.figure_revision
-       FROM dataset_comparisons c JOIN gallery_entries e ON e.id = c.id
+       FROM dataset_comparisons c CROSS JOIN gallery_entries e ON e.id = c.id
        WHERE e.status = 'public' ORDER BY c.id`,
     )
     .toArray();
@@ -197,7 +206,7 @@ export function comparisonCount(sql: SqlStorage): number {
   return sql
     .exec<{ count: number }>(
       `SELECT COUNT(*) AS count FROM dataset_comparisons c
-       JOIN gallery_entries e ON e.id = c.id WHERE e.status = 'public'`,
+       CROSS JOIN gallery_entries e ON e.id = c.id WHERE e.status = 'public'`,
     )
     .one().count;
 }
