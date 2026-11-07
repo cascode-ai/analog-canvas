@@ -716,6 +716,84 @@ it("copies reference images, blind reviews and fix history with their publicatio
   );
 });
 
+it("seeds historical drawings and rootless figures in bounded, deduplicated batches", async () => {
+  const source = await region("overseas", environment(), false);
+  for (let i = 0; i < 49; i++) {
+    const result = await source.call(
+      "/api/gallery/sources/analoggenie/entries",
+      "POST",
+      {
+        entries: [
+          {
+            id: `ag-batch-${i}`,
+            name: `Drawing ${i}`,
+            projectText: projectText(),
+          },
+        ],
+      },
+      undefined,
+      true,
+    );
+    expect(await result.json()).toMatchObject({ results: [{ ok: true }] });
+  }
+  const figure = {
+    type: "image/png",
+    data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 1, 2]).toString(
+      "base64",
+    ),
+  };
+  const imported = await source.call(
+    "/api/gallery/sources/analoggenie/comparisons",
+    "POST",
+    {
+      comparisons: ["ag-batch-0", "ag-orphan-a", "ag-orphan-b"].map((id) => ({
+        id,
+        verdict: "match",
+        figure,
+      })),
+    },
+    undefined,
+    true,
+  );
+  expect(await imported.json()).toMatchObject({
+    results: [{ ok: true }, { ok: true }, { ok: true }],
+  });
+  source.enable();
+  for (const expected of [
+    { seeded: 50, more: true },
+    { seeded: 1, more: false },
+    { seeded: 0, more: false },
+  ]) {
+    const response = await source.call(
+      "/api/resource-sync/analoggenie/seed",
+      "POST",
+      {},
+      "admin-secret",
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(expected);
+  }
+  const ids = [];
+  let after = 0;
+  while (true) {
+    const response = await source.call(
+      `/api/resource-sync/analoggenie/changes?after=${after}`,
+      "GET",
+      undefined,
+      "peer-secret",
+    );
+    const envelope = await response.json();
+    if (envelope.event === null) break;
+    const event = JSON.parse(envelope.payload);
+    ids.push(event.id);
+    after = event.sequence;
+  }
+  expect(ids).toHaveLength(51);
+  expect(new Set(ids).size).toBe(51);
+  expect(ids).toContain("ag-orphan-a");
+  expect(ids).toContain("ag-orphan-b");
+});
+
 it("seeds Dataset figures imported before their drawings, and reserves their origin", async () => {
   const auth = environment(),
     source = await region("overseas", auth, false),
