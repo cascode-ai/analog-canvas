@@ -88,7 +88,8 @@ describe("review queue", () => {
     ]);
     expect(scopeFromSearch("?scope=community")).toBe("community");
     expect(scopeFromSearch("?scope=analoggenie")).toBe("analoggenie");
-    expect(scopeFromSearch("?scope=amsnet")).toBe("random");
+    expect(scopeFromSearch("?scope=amsnet")).toBe("amsnet");
+    expect(scopeFromSearch("?scope=analogretriever")).toBe("random");
     expect(scopeFromSearch("")).toBe("random");
   });
 });

@@ -266,7 +266,9 @@ describe("posting import batches with the Owner token (#1769)", () => {
         ids: ["ag-1", "ag-2"],
       },
     ]);
-    await expect(comparing("amsnet")).rejects.toThrow(/no comparisons/u);
+    await expect(comparing("analogretriever")).rejects.toThrow(
+      /no comparisons/u,
+    );
   });
 
   it("sends the token over https, or plain http to this machine only", () => {

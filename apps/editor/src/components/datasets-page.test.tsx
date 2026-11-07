@@ -67,7 +67,9 @@ describe("/datasets", () => {
               comparison("ag-1", "match"),
               comparison("ag-2", "error", "Split node"),
             ]
-          : [comparison("ct-001", "notation", "Source as port")],
+          : String(url).includes("circuitthink")
+            ? [comparison("ct-001", "notation", "Source as port")]
+            : [],
       }),
     );
     const rows = () =>
