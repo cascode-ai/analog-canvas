@@ -69,9 +69,10 @@ A drawing that only matches its netlist is not done.
   [distant connection](#bias-and-control-labels).
 - **Unshown circuitry:** parts the source does not show (bias, a block's transistors) sit
   80–120 from the drawing, packed the same way.
-- **Self-check** (targets from human-drawn Gallery circuits): area per part ≤ 10,000 grid²
-  and nearest neighbour ≤ 55. Area per part is the bounding box of the part origins, plus 80
-  on each axis, divided by the parts; Cells count separately. Also avoid a strip longer than
+- **Self-check** (targets from human-drawn Gallery circuits): area utilization at least
+  36%, aiming for about 45%, and nearest neighbour ≤ 55. Utilization is the parts' own
+  area, 3,600 grid² (60 × 60) each, over the bounding box of the part origins plus 80 on
+  each axis; Cells count separately. Below 40% reads loose. Also avoid a strip longer than
   3.5 times its width.
 - **Compacting a loose drawing:** move whole areas with one selection `transform` so their
   internal wires come along. Redraw the few wires between areas instead of leaving
