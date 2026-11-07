@@ -18,7 +18,13 @@ hosts use their documented registration boundary, preserving unrelated settings.
 
 When `installation.available` is true, follow its verified installation: check
 the archive digest before executing; the installer tests stdio readiness
-before updating the named host configuration and keeps unrelated settings. The
+before updating the named host configuration and keeps unrelated settings.
+The installer returns `serverName`, a stable registration name derived from
+the exact origin. Codex installs update only that origin's registration;
+other origins and legacy `analog-canvas` registrations remain intact. Use
+the returned name as the host's resource alias. A running adapter keeps its
+startup origin; disconnecting or supplying another Claim does not retarget it.
+The
 launch names the Node that ran the installer (a Homebrew Node through its
 formula's `opt` link; re-run to replace a versioned Cellar path). Updating is
 explicit. Without installer support, use the manifest's configuration mode and

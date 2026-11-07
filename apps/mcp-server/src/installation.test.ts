@@ -283,13 +283,32 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
         ),
       ).toBe("export const headless = true;\n");
       expect(await readFile(installed.backupPath!, "utf8")).toBe(original);
-      const configured = await readFile(config, "utf8");
+      let configured = await readFile(config, "utf8");
       expect(configured).toContain(original.trim());
       expect(configured).toContain(launch.env.ANALOG_CANVAS_API_URL);
       expect(configured).toContain(
         `command = ${JSON.stringify(installed.launch.command)}`,
       );
       expect(fetchMock).toHaveBeenCalledTimes(2);
+      // Installing a second Editor must preserve the first one's launch.
+      const local = await installMcp(
+        ["--origin", "http://localhost:18082", "--host", "codex"],
+        { home: directory, codex },
+      );
+      const both = await readFile(config, "utf8");
+      expect(both).toContain(configured.trim());
+      expect(both).toContain("http://localhost:18082");
+      const localBlock = both.slice(configured.trimEnd().length).trim();
+      await installMcp(
+        ["--origin", launch.env.ANALOG_CANVAS_API_URL + "/", "--host", "codex"],
+        { home: directory, codex },
+      );
+      configured = await readFile(config, "utf8");
+      expect(configured).toContain(localBlock);
+      expect(configured.match(/ANALOG_CANVAS_API_URL =/gu)).toHaveLength(2);
+      expect(configured).toContain(
+        local.launch.args[0]!.replaceAll("\\", "\\\\"),
+      );
       fetchMock.mockRejectedValue(Error("offline"));
       await expect(
         probeInstalledMcp(
