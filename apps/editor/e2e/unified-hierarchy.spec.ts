@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createHierarchyInstance } from "@icm/edit-engine";
 import { createEmptyProject } from "@icm/model";
 import { hierarchyNavigationFixture as fixture } from "../../../netlists/hierarchy-navigation/fixture";
 import {
@@ -351,6 +352,35 @@ test("deep rows with long names and their actions stay within the tree's panel",
   await tree.getByLabel("Filter the hierarchy").fill("TooLong");
   await expect(tree.locator(".hierarchy-match").first()).toBeVisible();
   expect(await contained()).toEqual({ overflow: 0, cut: 0 });
+});
+
+test("the filter says when it shows only the first uses of a Cell", async ({
+  page,
+}) => {
+  const project = fixture();
+  const unused = project.documents.find((cell) => cell.id === "unused")!;
+  const pair = project.documents.find((cell) => cell.id === "pair")!;
+  // Sixty more uses of Pair than the filter lists.
+  for (let index = 0; index < 60; index++)
+    unused.instances.push(
+      createHierarchyInstance(`XQ${index}`, pair, {
+        position: {
+          x: 200 + (index % 10) * 120,
+          y: 400 + Math.floor(index / 10) * 120,
+        },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+  await openProject(page, project);
+  const tree = await openHierarchyTree(page);
+  await tree.getByLabel("Filter the hierarchy").fill("Pair");
+  await expect(tree.locator(".hierarchy-match")).toHaveCount(50);
+  await expect(tree.getByRole("status")).toHaveText(
+    "Showing the first 50 matches; type more to narrow them.",
+  );
+  await tree.getByLabel("Filter the hierarchy").fill("XQ59");
+  await expect(tree.getByRole("status")).toHaveCount(0);
 });
 
 test("a row's menu stays inside a short window and works from the keyboard", async ({

@@ -195,7 +195,7 @@ function undeclaredOverrides(
   to: SchematicDocument,
 ): string[] {
   const declared = new Set(
-    to.netlist!.formalParameters.map((parameter) =>
+    (to.netlist?.formalParameters ?? []).map((parameter) =>
       parameter.name.toLowerCase(),
     ),
   );
@@ -247,7 +247,7 @@ function rebindEdits(
           {
             kind: "set_instance_symbol" as const,
             instanceId: instance.id,
-            symbolId: hierarchicalSymbolId(to.netlist!.name),
+            symbolId: hierarchicalSymbolId(to.netlist?.name ?? to.name),
             ...(Object.keys(pinMap).length ? { pinMap } : {}),
           },
         ]),
@@ -339,13 +339,21 @@ export function replacementCandidates(
   project: CircuitProject,
   uses: readonly CellUse[],
   sourceId: string,
-): { cell: SchematicDocument; issue?: string }[] {
+): { cell: SchematicDocument; issue?: string; drops?: string[] }[] {
   const source = requireCell(project, sourceId);
   return project.documents
     .filter((cell) => cell.id !== sourceId && cell.netlist)
     .map((cell) => {
       const issue = replacementIssue(project, uses, source, cell);
-      return issue ? { cell, issue } : { cell };
+      if (issue) return { cell, issue };
+      const drops = [
+        ...new Set(
+          uses.flatMap((use) =>
+            undeclaredOverrides(resolveCellUse(project, use).instance, cell),
+          ),
+        ),
+      ];
+      return drops.length ? { cell, drops } : { cell };
     });
 }
 
@@ -862,7 +870,9 @@ export function planFlattenInstance(
     };
   const kept = new Set(parts.map((item) => item.id));
   const values = instanceParameterValues(child, instance);
-  const pinNets = new Set(child.netlist!.terminals.map((pin) => pin.netId));
+  const pinNets = new Set(
+    (child.netlist?.terminals ?? []).map((pin) => pin.netId),
+  );
   // The child's labels join Nets its wires do not, and the wires stay
   // behind: each set of Nets joined by a name becomes one Net, a Pin's Net
   // where the set has one, so the parts keep every connection they had.

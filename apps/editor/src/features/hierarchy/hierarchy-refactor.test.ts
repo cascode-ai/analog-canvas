@@ -152,6 +152,21 @@ describe("hierarchy refactoring", () => {
       candidates.find((item) => item.cell.id === id)?.issue;
     expect(issue("unused")).toBeUndefined();
     expect(issue(top)).toMatch(/cannot contain itself/u);
+    // X1 overrides gain; a Cell that declares no gain says it drops it.
+    const bare = hierarchyNavigationFixture();
+    bare.documents
+      .find((item) => item.id === "amplifier")!
+      .netlist!.formalParameters.splice(0);
+    expect(
+      replacementCandidates(
+        bare,
+        [{ documentId: top, instanceId: "X1" }],
+        "channel",
+      ).find((item) => item.cell.id === "amplifier")?.drops,
+    ).toEqual(["gain"]);
+    expect(
+      candidates.find((item) => item.cell.id === "unused")?.drops,
+    ).toBeUndefined();
     commit(
       controller,
       planReplaceCell(

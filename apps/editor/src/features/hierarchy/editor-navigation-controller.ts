@@ -160,7 +160,7 @@ export function createEditorNavigationController({
         objectId: instanceId,
         hierarchyPath: parentDocumentId === document.id ? documentStack : [],
       },
-      `Opened caller ${parent.name}.${instanceId}`,
+      `Opened caller ${parent.name} · ${parent.instances.find((instance) => instance.id === instanceId)?.reference ?? instanceId}`,
     );
     setCellManagerOpen(false);
   };
