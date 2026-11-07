@@ -99,6 +99,7 @@ class ReleaseTest(unittest.TestCase):
         (old / 'release.json').write_text(json.dumps({'commit': OLD, 'files': {
             'assets/assets/kept.js': digest(b'kept'), 'config.capnp': digest(CONFIG)}}))
         (self.units / 'canvas-cn-formal.service').write_text('old')
+        (old / '.verified').write_text('')
         self.current = root / 'current'
         self.current.symlink_to(old)
         self.nginx = root / 'nginx.conf'
@@ -166,6 +167,25 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(self.nginx.read_bytes(), b'old site')
         self.assertEqual((self.units / 'canvas-cn-formal.service').read_text(), 'old')
         self.assertIn(('systemctl', 'restart', 'canvas-cn-formal.service'), host.calls)
+
+    def test_rolls_back_an_unproved_release_left_by_an_interrupted_runner(self):
+        new = self.releases / NEW
+        new.mkdir()
+        (new / 'release.json').write_text(json.dumps({'commit': NEW, 'files': {}}))
+        self.current.unlink()
+        self.current.symlink_to(new)
+        pathlib.Path(self.args().state).write_text(json.dumps({'previous': str(self.releases / OLD)}))
+        self.smoked = False
+        result = release.tick(self.args(0), FakeHost(), FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'rolled-back')
+        self.assertEqual(self.current.resolve().name, OLD)
+
+    def test_records_a_failed_backup_so_the_runtime_is_not_stopped_every_minute(self):
+        host = FakeHost()
+        host.backup = lambda target: (_ for _ in ()).throw(OSError('disk full'))
+        result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
+        self.assertEqual((result['status'], result['failedCommit']), ('backup-failed', NEW))
+        self.assertEqual(self.current.resolve().name, OLD)
 
     def test_refuses_a_file_whose_bytes_differ_from_the_manifest(self):
         production = FakeProduction(self.files)

@@ -30,6 +30,8 @@ SYNC_TIMERS = ['canvas-cn-project-sync.timer', 'canvas-cn-resource-sync.timer']
 # replication timers stay an operator's decision.
 AUTO_TIMERS = {'canvas-cn-scheduled.timer', 'canvas-cn-release.timer', 'canvas-cn-release-alert.timer'}
 NGINX_SITE = '/etc/nginx/conf.d/analog-canvas-formal.conf'
+# Written into a release only after it passed its smoke checks while serving.
+VERIFIED = '.verified'
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -176,9 +178,8 @@ def switch(link, target):
     os.replace(temporary, link)
 
 
-def install_units(release, unit_dir, host):
-    """Copy changed units; report which changed and which are new."""
-    changed, added = [], []
+def install_units(release, unit_dir, host, changed, added):
+    """Copy changed units, recording each before it is written."""
     units = sorted(release.glob('canvas-cn-*.service')) + sorted(release.glob('canvas-cn-*.timer'))
     for unit in (u for u in units if u.is_file()):
         installed = unit_dir / unit.name
@@ -188,7 +189,6 @@ def install_units(release, unit_dir, host):
         shutil.copyfile(unit, installed)
     if changed or added:
         host.systemctl('daemon-reload')
-    return changed, added
 
 
 def smoke(local, credentials, attempts=30, delay=2):
@@ -230,6 +230,20 @@ def tick(args, host=None, fetcher=None, now=None):
     serving = current.resolve()
     record = serving / 'release.json'
     installed = json.loads(record.read_text()).get('commit') if record.is_file() else None
+    credentials = pathlib.Path(args.credentials)
+    if not (serving / VERIFIED).exists():
+        # A runner stopped between switch and smoke left this release unproved.
+        previous = state.get('previous')
+        if smoke(args.local, credentials, attempts=args.smoke_attempts):
+            (serving / VERIFIED).write_text('')
+        elif previous and pathlib.Path(previous).is_dir() and pathlib.Path(previous) != serving:
+            switch(current, pathlib.Path(previous))
+            host.systemctl('restart', 'canvas-cn-formal.service', check=False)
+            return {'health': 'failed', 'reason': 'release-rolled-back', 'status': 'rolled-back',
+                    'serving': None, 'lastAttemptAt': now, 'failedCommit': installed,
+                    'failedReason': 'release-rolled-back'}
+        else:
+            raise ReleaseError('release-failed')
     published = read_current(fetcher)
     commit = published['commit']
     result = {'health': 'ok', 'reason': None, 'serving': installed, 'lastAttemptAt': now}
@@ -251,7 +265,6 @@ def tick(args, host=None, fetcher=None, now=None):
     partial.mkdir(parents=True)
     downloaded = assemble(fetcher, manifest, serving, partial)
     (partial / 'release.json').write_bytes(text)
-    credentials = pathlib.Path(args.credentials)
     check_credentials((partial / 'config.capnp').read_text(), credentials)
     if target.exists():
         shutil.rmtree(target)
@@ -268,10 +281,13 @@ def tick(args, host=None, fetcher=None, now=None):
         try:
             host.backup(target)
         except Exception:
-            # Nothing is switched yet: the serving release keeps running.
-            return dict(result, health='failed', reason='release-failed', status='backup-failed')
+            # Nothing is switched yet; do not stop the runtime again each minute.
+            return dict(result, health='failed', reason='release-failed', status='backup-failed',
+                        failedCommit=commit, failedReason='release-failed')
         try:
-            changed, added = install_units(target, unit_dir, host)
+            # Persisted before switching, so an interrupted runner can roll back.
+            save(state_path, dict(state, previous=str(serving), installing=commit))
+            install_units(target, unit_dir, host, changed, added)
             nginx_new = (target / 'nginx.conf').read_bytes()
             if nginx_new != nginx_before:
                 site.write_bytes(nginx_new)
@@ -285,11 +301,12 @@ def tick(args, host=None, fetcher=None, now=None):
         except Exception:
             ok = False
         if ok:
+            (target / VERIFIED).write_text('')
             for unit in added:
                 if unit in AUTO_TIMERS:
                     host.systemctl('enable', '--now', unit, check=False)
             prune(releases, keep={target, serving}, count=args.keep)
-            return dict(result, status='installed', serving=commit, previous=installed,
+            return dict(result, status='installed', serving=commit, previous=str(serving),
                         downloadedBytes=downloaded, lastCaughtUpAt=now)
         # Restore the serving release exactly: link, units, nginx site, processes.
         switch(current, serving)
@@ -353,7 +370,7 @@ def main():
     except (OSError, ValueError, TypeError, KeyError, subprocess.CalledProcessError, urllib.error.URLError):
         # Bodies and paths may contain upstream payloads; report the class only.
         result = {'health': 'failed', 'reason': 'transport-or-invalid-status', 'lastAttemptAt': time.time()}
-    for key in ['lastCaughtUpAt', 'failedCommit', 'failedReason', 'pending']:
+    for key in ['lastCaughtUpAt', 'failedCommit', 'failedReason', 'pending', 'previous']:
         if key not in result and key in previous:
             result[key] = previous[key]
     save(state_path, result)
