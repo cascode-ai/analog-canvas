@@ -20,6 +20,15 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   access outside it is refused. An omitted list retains the existing all-account
   opt-in mode. Keep the admitted set fixed while replication is active; removing
   accounts or rolling back requires freezing writes and reconciling both stores.
+- A historical-copy trial sets the same `PROJECT_PROTECTED_IDS` JSON list on
+  both stores before capture (at most 1000 IDs). China can read and receive
+  those Projects and their history, but refuses local save, restore, deletion,
+  favorite, preview-cache writes and publication binding changes with 403
+  `protected-project`. Overseas refuses incoming events for those IDs while
+  preserving its owner's normal local operations. Unlisted new test Projects
+  retain bidirectional writes. An omitted list preserves unrestricted regional
+  behavior; malformed configuration fails closed. Keep the list fixed during
+  acceptance; a rejected event blocks its ordered stream, never skips a receipt.
 - Save commits the current Project, retained three earlier saves and outbound
   event in one local transaction. HTTP success acknowledges local durability,
   not arrival in the other region. Failed journal capacity rolls back the save.
@@ -117,6 +126,9 @@ Credentials stay outside Git and release bundles. HTTP 409 blocks reconciliation
   nonparticipating overseas behavior and restrict domestic access and replication.
   [Pull tests](../../worker/project-sync-pull.test.ts) verify both directions,
   lost responses and restart when only the domestic region can initiate connections.
+- [Historical-copy tests](../../worker/regional-projects-protection.test.ts)
+  verify read-only domestic copies, overseas rejection of return mutations and
+  unaffected source saves and separate test-Project synchronization.
 - [Runtime entry test](../../worker/regional-entry.test.ts) uses actual authority
   and regional session stores to read and save a replicated Project locally.
 - [Standalone candidate](../../containers/canvas-cn/formal/README.md) activation,
