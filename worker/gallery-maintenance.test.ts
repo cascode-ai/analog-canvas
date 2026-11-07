@@ -18,6 +18,7 @@ import {
   cookieHeaders,
   environment,
   makerOf,
+  ownerAccountOf,
   pagedStoreBackup,
   previousRouteVersionText,
   previousVersionText,
@@ -101,6 +102,77 @@ describe("off-site Gallery backup credential", () => {
       page.rows,
     );
     replay.close();
+  });
+
+  it("reads each store's reviews, fixes and reference images in their own scope, a dataset's too", async () => {
+    const env = environment();
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    env.STORE_BACKUP_TOKEN = "store-only-secret";
+    const owner = await ownerAccountOf(env);
+    await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/sources/analoggenie/entries`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: owner },
+        body: JSON.stringify({
+          entries: [
+            { id: "ag-1", name: "AG 1", projectText: projectText("ag") },
+          ],
+        }),
+      }),
+    );
+    const get = (query: string, token = "backup-only-secret") =>
+      route(
+        env,
+        new Request(`${endpoint}?${query}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      );
+    const review = (sql: Harness["gallerySql"], id: string, entry: string) =>
+      sql.exec(
+        `INSERT INTO entry_reviews (id, entry_id, preview_revision, reviewer_id,
+           reviewer_name, verdict, created_at) VALUES (?, ?, 'p', 'u', 'U', 'pass', '2026-11-07')`,
+        id,
+        entry,
+      );
+    const gallery = (await (await get("table=inventory")).json()) as {
+      snapshotRevision: string;
+    };
+    review(env.gallerySql, "r1", "x");
+    review(
+      env.galleryStoreStates.get("source:analoggenie")!.storage.sql,
+      "r2",
+      "ag-1",
+    );
+    for (const [query, id] of [
+      ["scope=reviews", "r1"],
+      ["scope=reviews&source=analoggenie", "r2"],
+    ] as const) {
+      const inventory = (await (
+        await get(`${query}&table=inventory`)
+      ).json()) as any;
+      expect(inventory).toMatchObject({
+        scope: "reviews",
+        tables: { entryReviews: 1, entryFixes: 0, entryReferences: 0 },
+      });
+      const page = (await (
+        await get(`${query}&table=entryReviews`)
+      ).json()) as any;
+      expect(page.rows.map((row: { id: string }) => row.id)).toEqual([id]);
+    }
+    // A review restarts no Gallery capture.
+    expect(
+      ((await (await get("table=inventory")).json()) as typeof gallery)
+        .snapshotRevision,
+    ).toBe(gallery.snapshotRevision);
+    // A dataset is read in the reviews scope only, with the Gallery token.
+    expect((await get("source=analoggenie&table=inventory")).status).toBe(400);
+    expect(
+      (await get("scope=reviews&source=nope&table=inventory")).status,
+    ).toBe(400);
+    expect(
+      (await get("scope=reviews&table=inventory", "store-only-secret")).status,
+    ).toBe(401);
   });
 
   it("keeps a Gallery capture's revision through private Project saves", async () => {

@@ -490,7 +490,7 @@ links to it.
   when the reviewer's is older). Each reviewer's latest review of the current
   revision counts; an update leaves earlier reviews in the history, no
   longer counting. Rows are only added; the Owner marks an issue resolved.
-  Reviews are in no backup yet.
+  Reviews are backed up in the `reviews` scope ([backups](../gallery-backup.md)).
 - Blind: a reviewer sees others' reviews of an entry only once their own of
   its current revision is in; the Owner always.
 - `GET /api/gallery/review/<scope>/queue` (`scope`: a dataset with
@@ -513,7 +513,7 @@ note}` → `{review}`; 403 `own-entry`, 409 `stale`, 429. `PATCH
   dataset), the revisions before and after, how many devices (instances),
   wires (routes and junctions) and labels (annotations and drafting text)
   were added, removed or changed, and the open issues of the replaced
-  revision it answers. Fixes are only added and are in no backup yet.
+  revision it answers. Fixes are only added; the `reviews` backup scope holds them.
 - `GET /api/gallery/<id>/reviews`, unblinded, adds `fixes` (newest first).
   `GET /api/gallery/review/<scope>/people` → `{people: [{person, reviews,
 passes, issues, fixes, circuits, changes, addressed}]}`: everything each
@@ -531,7 +531,7 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
 - Signed-in readers read it: `GET …/reference[?v=<revision>]` (immutable when
   `v` names it). The community review queue names it (`reference:
 {revision}`), lists such entries first, and `/review` sets it beside the
-  drawing. Reference images are in no backup yet.
+  drawing. The `reviews` backup scope holds them.
 
 ## Accounts and sessions
 
