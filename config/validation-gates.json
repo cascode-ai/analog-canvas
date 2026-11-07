@@ -346,14 +346,13 @@
       "apps/editor/e2e/mcp-stdio-fixture.ts"
     ],
     "release": [
-      "apps/local-host/**",
       "config/agent-mcp-distribution.json",
       "packages/exporters/**",
       "scripts/export-golden.mjs",
       "scripts/visual-golden.mjs",
       "scripts/package-*.mjs",
       "scripts/pwa-icons.mjs",
-      "scripts/*release-smoke.mjs",
+      "scripts/mcp-release-smoke.mjs",
       "scripts/editor-production-smoke.mjs"
     ],
     "highRisk": [

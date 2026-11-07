@@ -207,9 +207,6 @@ jobs:
       - name: package-release
         timeout-minutes: 5
         run: node scripts/package-release.mjs
-      - name: release-smoke
-        timeout-minutes: 5
-        run: node scripts/release-smoke.mjs
       - name: mcp-release-smoke
         timeout-minutes: 5
         run: node scripts/mcp-release-smoke.mjs

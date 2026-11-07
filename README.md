@@ -184,7 +184,6 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
   project surfaces.
 - `apps/editor/analytics/`: the complete first-party analytics module: page,
   styles, browser reporting, HTTP routes, map data, and Durable Object backend.
-- `apps/local-host/`: loopback-only production host for the installable PWA.
 - `apps/mcp-server/`: packaged stdio MCP adapter for authorized Agent sessions.
 - `packages/model/`, `packages/project-protocol/`, and `packages/edit-engine/`:
   current persisted circuit model, bounded file compatibility, and atomic

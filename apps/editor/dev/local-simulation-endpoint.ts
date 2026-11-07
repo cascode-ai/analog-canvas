@@ -65,6 +65,12 @@ export async function handleLocalSimulation(
         "Configure a local execution adapter to run simulations. Editing and saved inputs remain available.",
     });
   } catch {
+    // A reply that broke after its headers can only be cut off; the
+    // endpoint's caller keeps serving either way.
+    if (response.headersSent) {
+      response.destroy();
+      return;
+    }
     send(503, {
       error: "simulation-executor-unavailable",
       message:

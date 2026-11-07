@@ -1,8 +1,8 @@
 import type { Connect, Plugin } from "vite";
-import { createLocalSimulationHandler } from "../../local-host/src/simulation-adapter.js";
-import { handleLocalSimulation } from "../../local-host/src/simulation-endpoint.js";
+import { createLocalSimulationHandler } from "./local-simulation-adapter.js";
+import { handleLocalSimulation } from "./local-simulation-endpoint.js";
 
-/** Development transport only: reuse local-host's bounded native adapter. */
+/** Development transport only: the bounded loopback adapter to a native executor. */
 export function localSimulation(origin?: string): Plugin {
   const handler = origin ? createLocalSimulationHandler(origin) : undefined;
   // The dev server and `vite preview` (the built editor browser tests use)

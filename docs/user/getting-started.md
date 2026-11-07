@@ -318,13 +318,3 @@ column. It compares extracted electrical netlists (not names, layout or
 order), lists groups and **Unable to compare** entries with reasons, and
 **Keep selected, remove…** or **Remove all extra copies** moves extras to the
 admin recycle bin after rechecking them.
-
-## Portable release
-
-```powershell
-pnpm release:package
-node output/release/analog-canvas-v0.9.2/start.mjs
-```
-
-Open `http://127.0.0.1:4173` with Node 24; Chromium can install it as an app.
-It accepts only loopback connections.

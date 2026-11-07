@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES } from "@icm/spice-run";
-import { createLocalSimulationHandler } from "./simulation-adapter.js";
+import { createLocalSimulationHandler } from "./local-simulation-adapter.js";
 
 const request = (body: unknown) =>
   new Request("http://localhost/api/simulate", {
