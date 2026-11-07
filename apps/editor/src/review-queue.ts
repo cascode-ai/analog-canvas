@@ -132,6 +132,17 @@ export const REVIEW_STORES = [
   ...COMPARISON_SOURCES.map((source) => source.key),
 ];
 
+/**
+ * The drawing a pasted link or id names: `/g/<id>`, a Review link's
+ * `id=<id>`, or the id itself; null when it names none.
+ */
+export function entryIdOf(text: string): string | null {
+  const trimmed = text.trim();
+  const link = /(?:\/g\/|[?&]id=)([A-Za-z0-9_-]+)/u.exec(trimmed);
+  if (link) return link[1]!;
+  return /^[A-Za-z0-9_-]+$/u.test(trimmed) ? trimmed : null;
+}
+
 /** Random (the default) mixes every store; any other scope is one store. */
 export function scopeFromSearch(search: string): string {
   const scope = new URLSearchParams(search).get("scope") ?? "";

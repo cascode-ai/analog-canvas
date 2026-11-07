@@ -172,6 +172,13 @@ describe("reference datasets in stores of their own (#1510)", () => {
         }
       ).entry;
 
+    // Its netlist alone, without the drawing, spends no daily open.
+    const alone = (await (
+      await call("/api/gallery/ag-308?summary=1&netlist=spice", maker)
+    ).json()) as { netlist?: unknown; projectText?: string };
+    expect(alone.netlist).toBeDefined();
+    expect(alone.projectText).toBeUndefined();
+
     // Nine circuits of one's own are not yet enough.
     for (let index = 0; index < 9; index += 1)
       await submitOne(env, `Maker circuit ${index}`, { cookie: maker });

@@ -15,6 +15,7 @@ import { galleryPreviewUrl } from "../gallery-client";
 import { gallerySourceByKey } from "../gallery-sources";
 import { verdictOf, type ComparisonVerdict } from "../dataset-comparisons";
 import {
+  entryIdOf,
   flagLabel,
   flagsFor,
   hasReference,
@@ -192,6 +193,47 @@ export function ReviewPage({
       ),
     [],
   );
+
+  // A drawing named by its link or id: here if it is in this list, else in
+  // its own store, with the reference filter off when it has no reference.
+  const jumpTo = useCallback(
+    (text: string) => {
+      const id = entryIdOf(text);
+      if (!id) {
+        setMessage("Paste a drawing's link or id.");
+        return false;
+      }
+      const here = cards.findIndex((each) => each.id === id);
+      if (here >= 0) {
+        setIndex(here);
+        return true;
+      }
+      const store = Object.keys(byScope).find(
+        (key) =>
+          key !== "random" && byScope[key]!.some((each) => each.id === id),
+      );
+      if (!store) {
+        setMessage(`${id} is not here to review.`);
+        return false;
+      }
+      const target = byScope[store]!.find((each) => each.id === id)!;
+      focusId.current = id;
+      if (referencesOnly && !hasReference(target)) setReferencesOnly(false);
+      setScope(store);
+      return true;
+    },
+    [cards, byScope, referencesOnly],
+  );
+  // A random drawing of this list not yet reviewed (any, once all are).
+  const jumpRandom = useCallback(() => {
+    const others = cards
+      .map((each, at) => ({ each, at }))
+      .filter(({ at }) => at !== index);
+    const open = others.filter(({ each }) => !reviewed(each));
+    const pool = open.length ? open : others;
+    if (pool.length)
+      setIndex(pool[Math.floor(Math.random() * pool.length)]!.at);
+  }, [cards, index]);
 
   const choose = useCallback(
     (next: string) => {
@@ -416,8 +458,7 @@ export function ReviewPage({
       else if (event.key.toLowerCase() === "l") void toggleLike();
       else if (event.key === "ArrowRight") advance();
       else if (event.key === "ArrowLeft") go(index - 1);
-      else if (event.key.toLowerCase() === "n")
-        go(nextUnreviewed(cards, index));
+      else if (event.key.toLowerCase() === "r") jumpRandom();
       else return;
       event.preventDefault();
     };
@@ -433,7 +474,7 @@ export function ReviewPage({
     advance,
     go,
     index,
-    cards,
+    jumpRandom,
   ]);
 
   return (
@@ -506,10 +547,28 @@ export function ReviewPage({
                     </button>
                     <button
                       type="button"
-                      onClick={() => go(nextUnreviewed(cards, index))}
+                      title="A random drawing here you have not reviewed (R)"
+                      onClick={jumpRandom}
                     >
-                      Next unreviewed <kbd>N</kbd>
+                      Random <kbd>R</kbd>
                     </button>
+                    <form
+                      className="review-jump"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const input = event.currentTarget.elements.namedItem(
+                          "jump",
+                        ) as HTMLInputElement;
+                        if (jumpTo(input.value)) input.value = "";
+                      }}
+                    >
+                      <input
+                        name="jump"
+                        autoComplete="off"
+                        placeholder="Jump to: link or id"
+                        aria-label="Jump to a drawing by its link or id"
+                      />
+                    </form>
                   </span>
                 </div>
                 <ReviewItem
