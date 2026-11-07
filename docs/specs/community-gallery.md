@@ -156,8 +156,10 @@ entries, keyset cursor, limit ≤60.
 
 - `GET /api/gallery/<id>` returns canonical `projectText` (one daily open);
   `?summary=1` is free. `?netlist=spice` adds
-  `netlist: {format: "spice", text}`, or `{format: "spice", blocked}` with the
-  error messages when the drawing does not extract. Folders only for testbench
+  `netlist: {format: "spice", text, instances: [{instanceId, line}]}` (each
+  top-level device's first line, from 0, as the editor's Project Code locates
+  it), or `{format: "spice", blocked}` with the error messages when the
+  drawing does not extract. Folders only for testbench
   readers
   ([Testbench privacy](#testbench-privacy)).
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v5`
@@ -503,8 +505,11 @@ scrolls. A drag on a picture boxes a spot (numbered, removable, ≤12 per
 review); a click opens both pictures over the window, each zoomed by the
 wheel and panned by a drag, where B or Shift-drag boxes too. Pointing at
 another review shows its boxes. Choosing a device's netlist line lights the
-device the other side's netlist pairs with it: matched by what the devices
-connect to (names differ), a reading aid rather than a check. It is the Gallery's Review tab,
+device the other side's netlist pairs with it, matched by what the devices
+connect to (names differ; a reading aid rather than a check), and lights our
+device in our drawing (by its instance, as the editor's Project Code finds
+it). Open in editor opens a tab; back in Review, a drawing changed there
+shows its new version. It is the Gallery's Review tab,
 between Community gallery and My shelf; its pages keep that tab row, which
 ends in the switch between Review (the default) and Statistics (`/datasets`,
 look only). Its sidebar, in the wall sidebar's markup, is one list of

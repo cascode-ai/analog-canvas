@@ -11,6 +11,72 @@ type Drag =
 const FIT: View = { scale: 1, x: 0, y: 0 };
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
+/** A spot of a picture, in fractions of its size. */
+export type PictureBox = Omit<ReviewMark, "side">;
+
+/**
+ * Where each device sits in one of our drawings: its symbol's box, by
+ * instance id, read off the same SVG the picture shows. The SVG is laid
+ * out off screen to measure, without its styles, scripts or handlers.
+ */
+export function useInstanceBoxes(
+  src: string,
+  fetchLike: typeof fetch = fetch,
+): ReadonlyMap<string, PictureBox> {
+  const [boxes, setBoxes] = useState<ReadonlyMap<string, PictureBox>>(
+    () => new Map(),
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLike(src, { credentials: "same-origin" })
+      .then((response) => (response.ok ? response.text() : null))
+      .then((text) => {
+        if (cancelled || !text || typeof DOMParser === "undefined") return;
+        const parsed = new DOMParser().parseFromString(text, "image/svg+xml");
+        for (const element of parsed.querySelectorAll(
+          "script, style, foreignObject, image",
+        ))
+          element.remove();
+        for (const element of parsed.querySelectorAll("*"))
+          for (const attribute of [...element.attributes])
+            if (attribute.name.toLowerCase().startsWith("on"))
+              element.removeAttribute(attribute.name);
+        const svg = parsed.documentElement;
+        if (svg.nodeName.toLowerCase() !== "svg") return;
+        const host = document.createElement("div");
+        host.style.cssText =
+          "position:absolute;left:-10000px;top:0;width:800px;visibility:hidden";
+        host.append(document.importNode(svg, true));
+        document.body.append(host);
+        const placed = host.querySelector("svg")!;
+        const view = placed.viewBox.baseVal;
+        const next = new Map<string, PictureBox>();
+        if (view && view.width > 0 && view.height > 0)
+          for (const group of placed.querySelectorAll<SVGGraphicsElement>(
+            "g[data-symbol-id][data-object-id]",
+          )) {
+            const box = group.getBBox();
+            const pad = 4;
+            const x = clamp((box.x - pad - view.x) / view.width);
+            const y = clamp((box.y - pad - view.y) / view.height);
+            next.set(group.dataset.objectId!, {
+              x,
+              y,
+              w: clamp((box.x + box.width + pad - view.x) / view.width) - x,
+              h: clamp((box.y + box.height + pad - view.y) / view.height) - y,
+            });
+          }
+        host.remove();
+        setBoxes(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [src, fetchLike]);
+  return boxes;
+}
+
 /**
  * One of Review's two pictures, with the boxes drawn on it. Inline, a drag
  * boxes a spot and a click opens the zoomed view; zoomed, the wheel zooms
@@ -24,6 +90,7 @@ export function MarkablePicture({
   side,
   marks,
   shown = null,
+  highlight = null,
   onAdd,
   onOpen,
   zoomed = false,
@@ -36,6 +103,8 @@ export function MarkablePicture({
   marks: readonly ReviewMark[];
   /** Another review's boxes, while the reader points at that review. */
   shown?: readonly ReviewMark[] | null;
+  /** The device lit in the netlists, where it sits in this picture. */
+  highlight?: PictureBox | null;
   onAdd?: (mark: ReviewMark) => void;
   onOpen?: () => void;
   zoomed?: boolean;
@@ -207,6 +276,18 @@ export function MarkablePicture({
                 />
               ) : null,
             )}
+            {highlight ? (
+              <span
+                className="review-lit"
+                data-testid="review-lit"
+                style={{
+                  left: `${highlight.x * 100}%`,
+                  top: `${highlight.y * 100}%`,
+                  width: `${highlight.w * 100}%`,
+                  height: `${highlight.h * 100}%`,
+                }}
+              />
+            ) : null}
             {draft ? <MarkBox mark={draft} label={null} /> : null}
           </div>
         ) : null}
@@ -258,6 +339,7 @@ export function ZoomView({
     alt: string;
     side: ReviewMark["side"];
     label: string;
+    highlight?: PictureBox | null;
   }[];
   marks: readonly ReviewMark[];
   shown?: readonly ReviewMark[] | null;
@@ -314,6 +396,7 @@ export function ZoomView({
               side={picture.side}
               marks={marks}
               shown={shown ?? null}
+              highlight={picture.highlight ?? null}
               {...(onAdd ? { onAdd } : {})}
               zoomed
               boxTool={boxTool}

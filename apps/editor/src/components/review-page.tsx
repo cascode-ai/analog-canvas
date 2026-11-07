@@ -36,7 +36,7 @@ import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
 import { SidebarFoldButton, useCollapsedSidebar } from "./gallery-tag-sidebar";
 import { HeartIcon } from "./gallery-feed-tile";
-import { MarkablePicture, ZoomView } from "./review-picture";
+import { MarkablePicture, useInstanceBoxes, ZoomView } from "./review-picture";
 import { NetlistPair, useNetlistText } from "./review-netlists";
 
 type Load =
@@ -211,6 +211,43 @@ export function ReviewPage({
     [scope],
   );
 
+  // Back from the editor (Open in editor opens a tab): a drawing changed
+  // there shows its new version here; reviews of the old one no longer count.
+  useEffect(() => {
+    if (!card) return;
+    const id = card.id;
+    const revision = card.previewRevision;
+    const check = () => {
+      if (document.visibilityState !== "visible") return;
+      void fetchLike(`/api/gallery/${encodeURIComponent(id)}?summary=1`, {
+        credentials: "same-origin",
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then(
+          (
+            payload: {
+              entry?: { previewRevision?: string; fixedBy?: string[] };
+            } | null,
+          ) => {
+            const entry = payload?.entry;
+            if (!entry?.previewRevision || entry.previewRevision === revision)
+              return;
+            replaceCard(id, (each) => ({
+              ...each,
+              previewRevision: entry.previewRevision!,
+              ...(entry.fixedBy ? { fixedBy: entry.fixedBy } : {}),
+              mine: each.mine ? { ...each.mine, current: false } : null,
+              reviews: 0,
+            }));
+            setMessage("This drawing just changed: here is its new version.");
+          },
+        )
+        .catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", check);
+    return () => document.removeEventListener("visibilitychange", check);
+  }, [card?.id, card?.previewRevision, fetchLike, replaceCard]);
+
   // A new card starts clean, or with the reviewer's own current review.
   useEffect(() => {
     const own = card?.mine?.current ? card.mine : null;
@@ -218,8 +255,8 @@ export function ReviewPage({
     setFailing(own?.verdict === "issue");
     setNote(own?.note ?? "");
     setMarks(own?.marks ?? []);
-    setMessage("");
   }, [card?.id, card?.mine]);
+  useEffect(() => setMessage(""), [card?.id]);
 
   const go = useCallback(
     (next: number | null) => {
@@ -545,45 +582,28 @@ export function ReviewPage({
                           {flag.label}
                         </button>
                       ))}
-                      <span className="review-flags-hint">
-                        {flags.length
-                          ? "Add a comment or boxes if it helps."
-                          : "Choose at least one reason."}
-                      </span>
-                      <button
-                        type="button"
-                        className="review-flags-cancel"
-                        onClick={() => {
-                          setFailing(false);
-                          setFlags([]);
-                        }}
-                      >
-                        Cancel <kbd>Esc</kbd>
-                      </button>
                     </div>
                   ) : null}
-                  <div className="review-marks-row">
-                    {marks.map((mark, number) => (
-                      <button
-                        key={number}
-                        type="button"
-                        className="review-mark-chip"
-                        title="Remove this box"
-                        onClick={() =>
-                          setMarks((current) =>
-                            current.filter((_, at) => at !== number),
-                          )
-                        }
-                      >
-                        <b>{number + 1}</b>
-                        {mark.side === "original" ? "Original" : "Redraw"} ×
-                      </button>
-                    ))}
-                    <span className="hint">
-                      Drag on a picture to box a spot (refer to it by number) ·
-                      click a picture to zoom
-                    </span>
-                  </div>
+                  {marks.length ? (
+                    <div className="review-marks-row">
+                      {marks.map((mark, number) => (
+                        <button
+                          key={number}
+                          type="button"
+                          className="review-mark-chip"
+                          title="Remove this box"
+                          onClick={() =>
+                            setMarks((current) =>
+                              current.filter((_, at) => at !== number),
+                            )
+                          }
+                        >
+                          <b>{number + 1}</b>
+                          {mark.side === "original" ? "Original" : "Redraw"} ×
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   {message ? <p className="review-message">{message}</p> : null}
                 </ReviewItem>
               </>
@@ -643,6 +663,8 @@ function ReviewItem({
   const comparison = card.comparison;
   const store = card.scope;
   const [zoomed, setZoomed] = useState(false);
+  // The device lit in the netlists, by its instance in our drawing.
+  const [lit, setLit] = useState<string | null>(null);
   // Another review's boxes, while the reader points at it.
   const [shownMarks, setShownMarks] = useState<ReviewMark[] | null>(null);
   const theirs = useNetlistText(
@@ -654,7 +676,7 @@ function ReviewItem({
     fetchLike,
   );
   const ours = useNetlistText(
-    `/api/gallery/${encodeURIComponent(card.id)}?netlist=spice`,
+    `/api/gallery/${encodeURIComponent(card.id)}?netlist=spice&v=${encodeURIComponent(card.previewRevision)}`,
     (payload) => payload.netlist?.text,
     "This drawing exports no netlist.",
     fetchLike,
@@ -677,6 +699,8 @@ function ReviewItem({
     alt: "The drawing under review",
     label: "Redraw · Analog Canvas",
   };
+  const boxes = useInstanceBoxes(redraw.src, fetchLike);
+  const highlight = lit ? (boxes.get(lit) ?? null) : null;
   const picture = (
     shownPicture: { src: string; alt: string },
     side: ReviewMark["side"],
@@ -687,6 +711,7 @@ function ReviewItem({
       side={side}
       marks={marks}
       shown={shownMarks}
+      highlight={side === "redraw" ? highlight : null}
       onAdd={onAddMark}
       onOpen={() => setZoomed(true)}
     />
@@ -705,7 +730,13 @@ function ReviewItem({
             : ""}{" "}
           · {card.components} devices
         </span>
-        <a className="open" href={`/g/${encodeURIComponent(card.id)}`}>
+        <a
+          className="open"
+          href={`/g/${encodeURIComponent(card.id)}`}
+          target="_blank"
+          rel="noopener"
+          title="Opens in a new tab; come back here and the drawing refreshes"
+        >
           Open in editor
         </a>
       </div>
@@ -740,18 +771,23 @@ function ReviewItem({
         <div>
           <h4>
             Redraw <span>· Analog Canvas</span>
+            <span className="pic-hint">drag: box a spot · click: zoom</span>
           </h4>
           {picture(redraw, "redraw")}
         </div>
         {comparison ? <VerdictNote comparison={comparison} /> : null}
-        <NetlistPair theirs={comparison ? theirs : null} ours={ours} />
+        <NetlistPair
+          theirs={comparison ? theirs : null}
+          ours={ours}
+          onLight={setLit}
+        />
       </div>
       {zoomed ? (
         <ZoomView
           title={`${card.id} · ${card.name}`}
           pictures={[
             ...(original ? [{ ...original, side: "original" as const }] : []),
-            { ...redraw, side: "redraw" as const },
+            { ...redraw, side: "redraw" as const, highlight },
           ]}
           marks={marks}
           shown={shownMarks}
