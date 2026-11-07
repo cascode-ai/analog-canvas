@@ -194,6 +194,7 @@ export async function installMcp(
       options.set(key, value);
     }
     const origin = installationOrigin(options.get("--origin") ?? "");
+    const serverName = `analog-canvas-${createHash("sha256").update(origin).digest("hex").slice(0, 16)}`;
     const host = options.get("--host") ?? "config";
     if (!["codex", "config"].includes(host))
       throw Error("Supported installation hosts: codex, config");
@@ -286,7 +287,7 @@ export async function installMcp(
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
-      const next = codexMcpConfig(previous ?? "", "analog-canvas", launch);
+      const next = codexMcpConfig(previous ?? "", serverName, launch);
       await mkdir(resolve(configPath, ".."), { recursive: true });
       if (previous !== undefined) {
         backupPath = `${configPath}.mcp-backup-${randomUUID()}`;
@@ -316,6 +317,7 @@ export async function installMcp(
       stage: "host-loading" as const,
       nextAction: "verify-host-tools" as const,
       origin,
+      serverName,
       ...readiness,
       configPath,
       backupPath,
