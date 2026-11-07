@@ -130,9 +130,12 @@ export function scopeFromSearch(search: string): string {
   return REVIEW_STORES.includes(scope) ? scope : "random";
 }
 
-/** Whether the address asks for drawings with a reference figure only. */
+/**
+ * Whether only drawings with a reference figure show: yes unless the
+ * address turns it off (`refs=0`), so a reviewer starts on pairs to compare.
+ */
 export function referencesOnlyFromSearch(search: string): boolean {
-  return new URLSearchParams(search).get("refs") === "1";
+  return new URLSearchParams(search).get("refs") !== "0";
 }
 
 /**

@@ -551,8 +551,9 @@ ends in the switch between Review (the default) and Statistics (`/datasets`,
 look only). Its sidebar, in the wall sidebar's markup, is one list of
 filters, each with the count it would show: Random (every store mixed, the
 default; choosing it again shuffles anew), Community and each dataset with
-comparisons, then With a reference figure. The address keeps them
-(`?scope=<random|community|key>&refs=1`; `&id=` opens one drawing). Both
+comparisons, then With a reference figure (on by default). The address
+keeps them (`?scope=<random|community|key>`, `&refs=0` when the reference
+filter is off; `&id=` opens one drawing). Both
 sidebars fold to a strip at the left from a button at their top; each
 browser remembers it. Statistics lists each person's reviews and fixes over
 every store and, for the Owner, the open issues and disputes (each a link
