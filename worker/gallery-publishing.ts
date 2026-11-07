@@ -14,6 +14,7 @@ import {
   projectDraftingCover,
   type CircuitProject,
 } from "@icm/model";
+import { galleryReadKeyOf } from "./gallery-read-keys";
 import { galleryStatsOf, galleryStatsSourceOf } from "./gallery-stats-sources";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
@@ -467,6 +468,10 @@ export async function routeGalleryPublishing(
   env: GalleryEnv,
   segments: readonly string[],
 ): Promise<Response | null> {
+  // A `full` read key reads the version history of public circuits.
+  const historyKey = async (access: { status: string | null }) =>
+    access.status === "public" &&
+    (await galleryReadKeyOf(request, env))?.scope === "full";
   // What a signed-in publisher may still publish today, before they fill in
   // a form the quota would refuse (#1417).
   if (
@@ -505,14 +510,16 @@ export async function routeGalleryPublishing(
       { headers: { "cache-control": "no-store" } },
     );
   }
-  // The Gallery's statistics, for any signed-in account: the community's,
-  // the reference datasets' or all (`source`, all by default).
+  // The Gallery's statistics, for any signed-in account or read key: the
+  // community's, the reference datasets' or all (`source`, all by default).
   if (
     segments.length === 1 &&
     segments[0] === "stats" &&
     request.method === "GET"
   ) {
-    const user = await sessionUserOf(request, env);
+    const user =
+      (await sessionUserOf(request, env)) ??
+      (await galleryReadKeyOf(request, env));
     if (!user) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
@@ -576,7 +583,7 @@ export async function routeGalleryPublishing(
     if (!access.found) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
-    if (!access.reviewer && !access.reads) {
+    if (!access.reviewer && !access.reads && !(await historyKey(access))) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
     const { status, payload } = await callGallery(env, "versions", {
@@ -595,7 +602,10 @@ export async function routeGalleryPublishing(
   ) {
     const headers = { "cache-control": "no-store" };
     const access = await entryManager(request, env, segments[0]!);
-    if (!access.found || (!access.reviewer && !access.reads)) {
+    if (
+      !access.found ||
+      (!access.reviewer && !access.reads && !(await historyKey(access)))
+    ) {
       return Response.json({ error: "not-found" }, { status: 404, headers });
     }
     const { status, payload } = await callGallery<{
@@ -622,7 +632,10 @@ export async function routeGalleryPublishing(
     request.method === "GET"
   ) {
     const access = await entryManager(request, env, segments[0]!);
-    if (!access.found || (!access.reviewer && !access.reads)) {
+    if (
+      !access.found ||
+      (!access.reviewer && !access.reads && !(await historyKey(access)))
+    ) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
     const { status, payload } = await callGallery<{

@@ -16,6 +16,8 @@ its workflows.
   deploying; never commit or print it. It allows member Gallery reads,
   `GET /api/gallery/maintenance/automated-backup?table=…` pages and the netlist
   read below; no admin session, writes, restore or private Cloud Projects.
+  A person or script reading the Gallery uses a read key
+  ([reader access](specs/community-gallery.md#reader-access)), never this one.
 - `STORE_BACKUP_TOKEN`, stored and rotated the same way, reads only
   `automated-backup?scope=store` pages.
 

@@ -76,7 +76,9 @@ async function revokeToken(id: string): Promise<boolean> {
  * (Safari refuses a write after an await); elsewhere the text is written
  * once it arrives.
  */
-async function copyMinted(minted: Promise<{ token: string }>): Promise<void> {
+export async function copyMinted(
+  minted: Promise<{ token: string }>,
+): Promise<void> {
   if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
     await navigator.clipboard.write([
       new ClipboardItem({
