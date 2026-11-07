@@ -10,6 +10,74 @@ import { GalleryTagGroups } from "./gallery-tag-groups";
 import { galleryOriginTagMark } from "../gallery-origin-tags";
 
 const WIDTH_KEY = "icm.gallery.sidebarWidth";
+const COLLAPSED_KEY = "icm.gallery.sidebarCollapsed";
+
+/** Whether a sidebar is folded to the left, remembered under its key. */
+export function useCollapsedSidebar(key: string): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () =>
+    setCollapsed((current) => {
+      try {
+        localStorage.setItem(key, current ? "0" : "1");
+      } catch {
+        // It folds; only the memory of it is lost.
+      }
+      return !current;
+    });
+  return [collapsed, toggle];
+}
+
+/** The button that folds a sidebar to the left, or opens it again. */
+export function SidebarFoldButton({
+  collapsed,
+  onToggle,
+  testId,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  testId: string;
+}) {
+  const label = collapsed ? "Show the sidebar" : "Hide the sidebar";
+  return (
+    <button
+      type="button"
+      className="sidebar-fold-button"
+      aria-label={label}
+      title={label}
+      aria-expanded={!collapsed}
+      data-testid={testId}
+      onClick={onToggle}
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect
+          x="1.75"
+          y="2.75"
+          width="12.5"
+          height="10.5"
+          rx="1.8"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <path d="M6 3v10" stroke="currentColor" strokeWidth="1.4" />
+        <path
+          d={collapsed ? "m9 6.2 1.8 1.8L9 9.8" : "m11 6.2-1.8 1.8 1.8 1.8"}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 420;
 
@@ -53,6 +121,7 @@ export function GalleryTagSidebar({
   adminTools?: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, toggleCollapsed] = useCollapsedSidebar(COLLAPSED_KEY);
   // An origin (From Virtuoso) is a quick filter: the Tags heading neither
   // counts nor clears it.
   const circuitTagsSelected = selected.filter(
@@ -99,6 +168,23 @@ export function GalleryTagSidebar({
     dragRef.current = null;
     setDragging(false);
   };
+  // Folded, the sidebar is a strip with the button that opens it again;
+  // its search and filters keep their state.
+  if (collapsed)
+    return (
+      <div
+        ref={slotRef}
+        className="gallery-sidebar-slot"
+        data-collapsed="true"
+        data-testid="gallery-sidebar-collapsed"
+      >
+        <SidebarFoldButton
+          collapsed
+          onToggle={toggleCollapsed}
+          testId="gallery-sidebar-fold"
+        />
+      </div>
+    );
   return (
     <div
       ref={slotRef}
@@ -140,6 +226,11 @@ export function GalleryTagSidebar({
             onChange={(event) => onSearchChange(event.currentTarget.value)}
           />
         </label>
+        <SidebarFoldButton
+          collapsed={false}
+          onToggle={toggleCollapsed}
+          testId="gallery-sidebar-fold"
+        />
       </div>
       <button
         type="button"

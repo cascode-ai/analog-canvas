@@ -12,6 +12,10 @@ Gallery, User Components and Dataset publications use origin-owned replicas.
 - The publishing region alone edits, moderates, likes, withdraws, restores or
   deletes a resource. The other region serves a local read-only copy. Existing
   IDs, owners, retained versions and publication status survive copying.
+- Dataset comparison figures/netlists, community reference images, reviews and
+  fix history follow the same publication origin. Keep comparisons imported
+  before a drawing and audit records retained after its deletion; seeding covers
+  these identities too. Their existing visibility and blind-review rules remain.
 - Aggregate byline maintenance, retention and automatic simulation checks operate
   only on locally published resources. A copied byline changes with its next
   publisher snapshot; a profile rename must not fail because foreign copies exist.

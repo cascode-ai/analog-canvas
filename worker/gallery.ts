@@ -14,6 +14,9 @@ import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
+import { routeComparisons } from "./gallery-comparisons";
+import { routeReviews } from "./gallery-reviews";
+import { routeReference } from "./gallery-references";
 import { spiceNetlistOf } from "./gallery-netlist";
 import {
   ownerData,
@@ -602,6 +605,32 @@ export async function routeGalleryRequest(
     return trapResponse(trap, segments[1]);
   }
 
+  // Reviews reach any store, a dataset's too, before its read-only rule.
+  const reviews = await routeReviews(request, env, segments, readSession);
+  if (reviews) return reviews;
+  const reference = await routeReference(request, env, segments, readSession);
+  if (reference) return reference;
+  // A like is a reader's mark, not a change of the circuit: a dataset's
+  // entries take it too, in their own store.
+  if (
+    segments.length === 2 &&
+    segments[1] === "like" &&
+    request.method === "POST"
+  ) {
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const user = await sessionUserOf(request, env);
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const likedSource = gallerySourceOfEntryId(segments[0]!);
+    const { status, payload } = await callGallery(
+      likedSource ? withGalleryStore(env, likedSource) : env,
+      "toggle-like",
+      { id: segments[0], userId: user.id, at: new Date().toISOString() },
+    );
+    return Response.json(payload, { status });
+  }
+
   // Reference datasets (#1510). Each lives in a store of its own: a request
   // reaches it by the import route, its entry's id, or the wall's `source`.
   // Nothing writes there but the Owner's import.
@@ -619,6 +648,8 @@ export async function routeGalleryRequest(
       request.method === "POST"
     )
       return handleSourceImport(request, env, named);
+    if (named && segments[2] === "comparisons")
+      return routeComparisons(request, env, named, segments.slice(3));
     return Response.json({ error: "not-found" }, { status: 404 });
   }
   const source =
@@ -636,24 +667,6 @@ export async function routeGalleryRequest(
     source,
     url.searchParams.get("source") === "community",
   );
-
-  if (
-    segments.length === 2 &&
-    segments[1] === "like" &&
-    request.method === "POST"
-  ) {
-    if (!sameOrigin(request)) {
-      return Response.json({ error: "forbidden" }, { status: 403 });
-    }
-    const user = await sessionUserOf(request, env);
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-    const { status, payload } = await callGallery(env, "toggle-like", {
-      id: segments[0],
-      userId: user.id,
-      at: new Date().toISOString(),
-    });
-    return Response.json(payload, { status });
-  }
 
   if (segments.length === 0 && request.method === "GET") {
     // Signed in, the feed says which circuits this account has already

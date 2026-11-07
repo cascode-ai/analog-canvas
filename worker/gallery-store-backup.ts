@@ -91,7 +91,8 @@ export function schemaBackup(
   // Bound each response to one record: a complete store can exceed the
   // Worker's memory limit before Response.json has even serialized it, so
   // there is no single-response dump. An unnamed scope reads the narrower.
-  const scope: BackupScope = body.scope === "store" ? "store" : "gallery";
+  const scope: BackupScope =
+    body.scope === "store" || body.scope === "reviews" ? body.scope : "gallery";
   const tables = Object.fromEntries(
     BACKUP_SCOPES[scope].map((key) => [key, BACKUP_TABLES[key]]),
   );

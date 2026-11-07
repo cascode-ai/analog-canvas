@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { OWNER_ACCOUNT_IDS } from "./auth";
+import { routeGalleryRequest } from "./gallery";
 import {
   ORIGIN,
   environment,
@@ -90,9 +91,14 @@ describe("reference datasets in stores of their own (#1510)", () => {
       ]),
     });
 
-    // Read-only: no like, update or withdraw reaches it.
+    // Read-only: no update or withdraw reaches it; a like does, being a
+    // reader's mark rather than a change of the circuit.
+    expect(
+      await (
+        await call("/api/gallery/ag-308/like", { method: "POST", body: "{}" })
+      ).json(),
+    ).toMatchObject({ likedByViewer: true, likes: 1 });
     for (const [path, method] of [
-      ["/api/gallery/ag-308/like", "POST"],
       ["/api/gallery/ag-308", "PUT"],
       ["/api/gallery/ag-308/recycle", "POST"],
     ] as const)
@@ -352,5 +358,140 @@ describe("reference datasets in stores of their own (#1510)", () => {
     };
     expect(tags.tags).toContainEqual({ tag: "amplifier", count: 5 });
     expect((await page("source=community")).total).toBe(4);
+  });
+
+  it("sets a dataset circuit's original figure and verdict beside its entry, for licensed datasets only", async () => {
+    const env = environment();
+    const owner = await ownerAccountOf(env);
+    const maker = await makerOf(env);
+    const call = (path: string, init: RequestInit = {}, cookie = owner) =>
+      route(
+        env,
+        new Request(`${ORIGIN}${path}`, {
+          ...init,
+          headers: {
+            Origin: ORIGIN,
+            Cookie: cookie,
+            "content-type": "application/json",
+          },
+        }),
+      );
+    const post = (path: string, body: unknown, cookie = owner) =>
+      call(path, { method: "POST", body: JSON.stringify(body) }, cookie);
+    await post("/api/gallery/sources/analoggenie/entries", {
+      entries: ["ag-308", "ag-309"].map((id) => ({
+        id,
+        name: `AnalogGenie ${id}`,
+        projectText: projectText(id),
+      })),
+    });
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3,
+    ]);
+    const figure = { type: "image/png", data: png.toString("base64") };
+    const comparison = {
+      id: "ag-308",
+      verdict: "error",
+      category: "Split node",
+      detail: "Node split",
+      reason: "The dataset splits the M4 drain from its gate.",
+      families: ["MOS"],
+      sourceNetlist: "M1 (a b c d) nmos4",
+      figure,
+    };
+    const comparisons = "/api/gallery/sources/analoggenie/comparisons";
+
+    expect(
+      (await post(comparisons, { comparisons: [comparison] }, maker)).status,
+    ).toBe(403);
+    // A dataset whose figures we may not show takes none.
+    expect(
+      (
+        await post("/api/gallery/sources/amsnet/comparisons", {
+          comparisons: [{ ...comparison, id: "amsnet-1" }],
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      await (
+        await post(comparisons, {
+          comparisons: [
+            comparison,
+            { id: "ag-309", verdict: "match" },
+            { ...comparison, id: "ag-310", verdict: "wrong" },
+            { ...comparison, id: "ag-311", category: "" },
+            {
+              ...comparison,
+              id: "ag-312",
+              figure: { type: "image/jpeg", data: figure.data },
+            },
+            { ...comparison, id: "ct-1" },
+          ],
+        })
+      ).json(),
+    ).toMatchObject({
+      results: [
+        { id: "ag-308", ok: true, created: true },
+        { id: "ag-309", ok: false, error: "figure-required" },
+        { id: "ag-310", ok: false, error: "invalid-fields" },
+        { id: "ag-311", ok: false, error: "invalid-fields" },
+        { id: "ag-312", ok: false, error: "invalid-figure" },
+        { id: "ct-1", ok: false, error: "invalid-id" },
+      ],
+    });
+
+    // Any signed-in reader lists it with its entry's name and preview.
+    const listed = (await (await call(comparisons, {}, maker)).json()) as {
+      comparisons: { id: string; figureRevision: string }[];
+    };
+    expect(listed.comparisons).toEqual([
+      expect.objectContaining({
+        id: "ag-308",
+        name: "AnalogGenie ag-308",
+        verdict: "error",
+        category: "Split node",
+        families: ["MOS"],
+      }),
+    ]);
+    const revision = listed.comparisons[0]!.figureRevision;
+    expect(
+      (await (await call("/api/gallery/sources", {}, maker)).json()) as {
+        sources: { key: string }[];
+      },
+    ).toMatchObject({
+      sources: expect.arrayContaining([
+        expect.objectContaining({ key: "analoggenie", comparisons: 1 }),
+      ]),
+    });
+    const image = await call(
+      `${comparisons}/ag-308/figure?v=${revision}`,
+      {},
+      maker,
+    );
+    expect(image.headers.get("content-type")).toBe("image/png");
+    expect(image.headers.get("cache-control")).toContain("immutable");
+    expect(Buffer.from(await image.arrayBuffer())).toEqual(png);
+    expect(
+      await (await call(`${comparisons}/ag-308`, {}, maker)).json(),
+    ).toEqual({ id: "ag-308", sourceNetlist: "M1 (a b c d) nmos4" });
+    // Signed out, it asks to sign in as every Gallery read does.
+    expect(
+      (await routeGalleryRequest(new Request(`${ORIGIN}${comparisons}`), env))
+        ?.status,
+    ).toBe(401);
+
+    // Imported again without a figure, it keeps the stored one.
+    const { figure: _kept, ...withoutFigure } = comparison;
+    await post(comparisons, {
+      comparisons: [{ ...withoutFigure, verdict: "notation" }],
+    });
+    expect(
+      ((await (await call(comparisons)).json()) as typeof listed).comparisons,
+    ).toEqual([
+      expect.objectContaining({
+        verdict: "notation",
+        figureRevision: revision,
+      }),
+    ]);
   });
 });

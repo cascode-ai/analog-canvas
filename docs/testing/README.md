@@ -50,8 +50,9 @@ stage is unnecessary when its checks already have valid evidence.
   refresh the plan from the real diff.
 - Before review and commit, run the local PR checks and fulfil the affected
   build/browser/environment obligations from the final diff. Local unit checks
-  trace ordinary source changes; shared-core, deleted source, configuration and
-  unclassified inputs require the full unit suite. Built Web/offline boundaries
+  trace ordinary source changes; shared-core, shared generators
+  (`scripts/generate-*.mjs`), deleted source, configuration and unclassified
+  inputs require the full unit suite. Built Web/offline boundaries
   are explicit obligations: import tracing alone cannot qualify them.
 - Run full local unit and browser suites once for shared-core, validation
   infrastructure or uncertain impact (the plan's high-risk/full-fallback routes).

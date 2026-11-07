@@ -16,6 +16,8 @@ export interface GallerySource {
   license: string;
   homepage: string;
   paper?: string;
+  /** Whether its original figures may be shown beside our redraws. */
+  comparisons?: boolean;
 }
 
 export const GALLERY_SOURCES: readonly GallerySource[] = registry.sources;

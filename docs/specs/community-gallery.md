@@ -414,9 +414,10 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
   ignore their own selection. Dataset statistics are cached by normalized
   filters, access scope and data revision; imports and netlist-mark
   recomputation invalidate them.
-- Every write answers 403 `dataset-read-only`; entries have no owner or AI mark
-  (they count under `datasets`, not `human`) and show no like or owner tools;
-  an opened copy publishes as a new community entry.
+- Every write answers 403 `dataset-read-only` except a like, a review and the
+  Owner's imports; entries have no owner or AI mark (they count under
+  `datasets`, not `human`) and show no owner tools; an opened copy publishes
+  as a new community entry.
 - `GET /api/gallery/sources` → `{sources: [... , count]}`; readers see non-empty
   datasets, Owner accounts all.
 - `POST /api/gallery/sources/<key>/entries` (the Owner's same-origin session,
@@ -428,13 +429,118 @@ createdAt?}]}` (≤10), validated like submissions with the prefix
   `{id, ok, created, previewRevision}` or `{id, ok: false, error}`. Imports
   post from the CLI with `pnpm gallery:import-batches … --post`
   ([Batch drawing](../agent/batch-drawing.md)).
-- Owner tokens (#1769): one labelled token per machine for that import; no
-  other route accepts one, and a token does not expire until it is revoked.
+- Owner tokens (#1769): one labelled token per machine for that import and
+  the comparison import below; no other route accepts one, and a token does
+  not expire until it is revoked.
   The Owner's same-origin session (else 401/403) mints one
   with `POST /api/auth/owner-tokens {label}` → `{id, label, token, createdAt}`
   (`acot_…`, shown once; AuthDO keeps its SHA-256), lists them with
   `GET /api/auth/owner-tokens` → `{tokens: [{id, label, createdAt,
 lastUsedAt}]}`, and revokes one with `DELETE /api/auth/owner-tokens/<id>`.
+
+### Dataset comparisons
+
+`/datasets`, Review's Statistics mode, sets each dataset circuit's original
+figure beside our redraw, with the verdict of comparing both netlists; the
+wall's Datasets filter and a dataset's wall also link to it. The page is English and reads like every other
+Gallery read (signed in; signed out it asks to sign in).
+
+- Only datasets whose figures we may show take comparisons: `comparisons:
+true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,
+  Apache-2.0). Any other answers 404.
+- A comparison belongs to an entry of its dataset's store and is listed only
+  while that entry is public. Comparisons are re-importable derived data:
+  not in the backups.
+- Verdicts: `match` (netlists agree), `notation` (same circuit, written
+  differently, such as an ideal source as a port), `error` (the dataset's
+  netlist is wrong), `unclear` (the figure is ambiguous). Every verdict
+  except `match` names a `category`; all of them are public.
+- `GET /api/gallery/sources` adds `comparisons`, each dataset's listed count.
+- `GET /api/gallery/sources/<key>/comparisons` → `{source, comparisons:
+[{id, name, verdict, category, detail, reason, families, components,
+previewRevision, figureRevision}]}`, every listed one; the page sorts,
+  filters and counts them itself.
+- `GET …/comparisons/<id>` → `{id, sourceNetlist}`: the dataset's own
+  netlist. Our netlist is the entry's (`GET /api/gallery/<id>?netlist=spice`),
+  which spends a daily open as any open does.
+- `GET …/comparisons/<id>/figure[?v=<figureRevision>]` → the original figure
+  (`image/png`, `image/jpeg` or `image/webp`), immutable when `v` names it.
+- `POST …/comparisons` (Owner session or Owner token, as the entry import):
+  `{comparisons: [{id, verdict, category?, detail?, reason?, families?,
+sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
+  decoded, its bytes the named type; `families` from MOS, BJT, Op-amp,
+  Inductor, Diode, Switch). An existing id is replaced; a figure left out
+  keeps the stored one. Per row `{id, ok}` or `{id, ok: false, error}`:
+  `invalid-id`, `invalid-fields`, `invalid-figure`, `figure-required` (a new
+  comparison without one). Imports post with `pnpm gallery:import-batches
+--post-comparisons FILE --source KEY`.
+
+### Reviews
+
+`/review` shows one drawing at a time beside its reference (a dataset's
+original figure, or a community circuit's reference image) for a verdict,
+each side's SPICE netlist under its picture (ours spends a daily open as
+opening the entry does), and the reader's like. It is the Gallery's Review tab, between Community
+gallery and My shelf; its pages keep that tab row. Review is the default
+mode; the top-right switch opens Statistics (`/datasets`, look only). Its
+sidebar, in the wall sidebar's markup, lists the community first, then each
+dataset with comparisons. Both sidebars fold to a strip at the left from a
+button at their top; each browser remembers it. The
+Owner's panel exports the open issues and disputes as JSON.
+
+- Any signed-in account reviews any public entry except its own, a dataset's
+  too (its store's only other write is the Owner's import). A review is
+  `pass`, or `issue` with flags from `wrong`, `netlist`, `loose`, `ugly`, `overlap`,
+  `wiring`, `incomplete`, `simple`, `duplicate`, `other`; either may carry a
+  comment (`note`, ≤1000). At most 300 reviews per account per store each UTC day
+  (`daily-review-limit`).
+- A review belongs to the entry's preview revision at that moment (`stale`
+  when the reviewer's is older). Each reviewer's latest review of the current
+  revision counts; an update leaves earlier reviews in the history, no
+  longer counting. Rows are only added; the Owner marks an issue resolved.
+  Reviews are backed up in the `reviews` scope ([backups](../gallery-backup.md)).
+- Blind: a reviewer sees others' reviews of an entry only once their own of
+  its current revision is in; the Owner always.
+- `GET /api/gallery/review/<scope>/queue` (`scope`: a dataset with
+  comparisons, or `community`) → `{entries: [{id, name, author,
+previewRevision, components, reviews, likes, likedByViewer, mine,
+comparison?, reference?}]}`: the entries
+  the reader may review, unreviewed by them first, then fewest counting
+  reviews; `mine` is the reader's latest review, `reviews` how many count.
+- `GET /api/gallery/<id>/reviews` → `{blind: true, revision}` or `{blind:
+false, revision, current, history}`. `POST` `{revision, verdict, flags,
+note}` → `{review}`; 403 `own-entry`, 409 `stale`, 429. `PATCH
+…/reviews/<reviewId>` `{resolved: true}`: Owner only.
+- `GET /api/gallery/review/<scope>/issues` (Owner) → `{issues, disputed}`:
+  open issues counting now, and entries whose counting reviews both pass and
+  hold an open issue. `…/people`: see Fixes.
+
+### Fixes
+
+- Every change of an entry's preview (its author's or the Owner's update, a
+  dataset re-import) adds a fix: who made it (the importing Owner for a
+  dataset), the revisions before and after, how many devices (instances),
+  wires (routes and junctions) and labels (annotations and drafting text)
+  were added, removed or changed, and the open issues of the replaced
+  revision it answers. Fixes are only added; the `reviews` backup scope holds them.
+- `GET /api/gallery/<id>/reviews`, unblinded, adds `fixes` (newest first).
+  `GET /api/gallery/review/<scope>/people` → `{people: [{person, reviews,
+passes, issues, fixes, circuits, changes, addressed}]}`: everything each
+  person reviewed and fixed in that store.
+
+### Reference images
+
+- A community entry's owner or the Owner puts a reference image (what the
+  drawing was drawn from, such as a textbook figure) from the tile's ⋯ menu,
+  confirming they may share it: `PUT /api/gallery/<id>/reference` `{image:
+{type, data}, rights: true}` (PNG, JPEG or WebP, ≤512 KB decoded; the page
+  redraws a larger file as WebP) → `{revision}`; `DELETE` removes it. Errors:
+  403 `forbidden`, 400 `rights-required` or `invalid-image`. Dataset entries
+  take none (404): their figures are comparisons.
+- Signed-in readers read it: `GET …/reference[?v=<revision>]` (immutable when
+  `v` names it). The community review queue names it (`reference:
+{revision}`), lists such entries first, and `/review` sets it beside the
+  drawing. The `reviews` backup scope holds them.
 
 ## Accounts and sessions
 

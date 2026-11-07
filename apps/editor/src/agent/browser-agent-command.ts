@@ -136,6 +136,16 @@ import {
 } from "../features/wiring/route-interaction-geometry";
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
 import {
+  cellFromSelectionRefusal,
+  cellUses,
+  planCellFromSelection,
+  planFlattenInstance,
+  planMakeUniqueCell,
+  planReplaceCell,
+  resolveCellUse,
+  selectionCellPins,
+} from "../features/hierarchy/hierarchy-refactor";
+import {
   planVddRailEdits,
   railSupplyPinEdits,
 } from "../features/component-insert/vdd-rail";
@@ -1695,6 +1705,75 @@ export function planBrowserAgentCommand(
       };
     case "delete-cell":
       return { structureEdits: planDeleteCell(project, command.id) };
+    // The hierarchy tree's own planners: one Project transaction each.
+    case "set-top-cell":
+      if (!project.documents.some((cell) => cell.id === command.id))
+        throw new Error(`Cell not found: ${command.id}`);
+      return {
+        structureEdits:
+          project.topDocumentId === command.id
+            ? []
+            : [{ kind: "set_top_document", documentId: command.id }],
+      };
+    case "make-unique-cell":
+      return {
+        structureEdits: planMakeUniqueCell(
+          project,
+          { documentId, instanceId: command.instanceId },
+          command.id,
+          command.name,
+        ).edits,
+      };
+    case "replace-cell": {
+      const uses = command.instanceIds.map((instanceId) => ({
+        documentId,
+        instanceId,
+      }));
+      return {
+        structureEdits: planReplaceCell(
+          project,
+          command.allUses
+            ? [
+                ...new Map(
+                  uses
+                    .flatMap((use) =>
+                      cellUses(project, resolveCellUse(project, use).cell.id),
+                    )
+                    .map((use) => [`${use.documentId}/${use.instanceId}`, use]),
+                ).values(),
+              ]
+            : uses,
+          command.replacementId,
+        ),
+      };
+    }
+    case "flatten-instance":
+      return {
+        structureEdits: planFlattenInstance(
+          project,
+          { documentId, instanceId: command.instanceId },
+          sequence,
+        ).edits,
+      };
+    case "cell-from-selection": {
+      const refusal = cellFromSelectionRefusal(
+        project,
+        documentId,
+        command.instanceIds,
+      );
+      if (refusal) throw new Error(refusal);
+      return {
+        structureEdits: planCellFromSelection(
+          project,
+          documentId,
+          command.instanceIds,
+          command.id,
+          command.name,
+          selectionCellPins(project, documentId, command.instanceIds),
+          sequence,
+        ).edits,
+      };
+    }
     case "bind-cell-parameter":
       return {
         structureEdits: planBindCellParameter(

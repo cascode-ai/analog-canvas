@@ -2,8 +2,8 @@
 
 The private `cascode-ai/analog-canvas-backups` repository owns the backup
 collector, its tests, schedule (weekly, plus manual dispatch) and recovery
-instructions. Snapshots are date-stamped private Release attachments, never
-overwritten; automatic retention deletion is off. `cascode-ai` members can read
+instructions. Snapshots are date-stamped private Release attachments, never overwritten;
+each run keeps only the two newest Releases of its kind and deletes older ones. `cascode-ai` members can read
 them (they contain submitter emails and sign-in methods; store snapshots also
 every private Cloud Project); only the Owner changes the repository or starts
 its workflows.
@@ -18,6 +18,17 @@ its workflows.
   read below; no admin session, writes, restore or private Cloud Projects.
 - `STORE_BACKUP_TOKEN`, stored and rotated the same way, reads only
   `automated-backup?scope=store` pages.
+
+## Reviews capture
+
+`automated-backup?scope=reviews` (the Gallery credential) reads a store's
+[reviews](specs/community-gallery.md#reviews), fixes and reference images:
+`entryReviews`, `entryFixes`, `entryReferences`. `&source=<key>` reads a
+dataset's store instead of the community one; `source` with another scope is
+400 `invalid-source`. The scope has its own revision and change index, so a
+review restarts no Gallery capture. The weekly run captures it for the
+community and each dataset with comparisons, beside the Gallery archive.
+`schema-restore` does not restore it; recover rows from the offline archive.
 
 ## Gallery capture
 

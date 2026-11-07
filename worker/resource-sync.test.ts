@@ -10,6 +10,7 @@ import {
   ORIGIN,
   projectText,
   testbenchProjectText,
+  wiredProjectText,
 } from "./gallery.test-support";
 import { routeComponentLibraryRequest } from "./component-library";
 import { ComponentLibraryDO, GalleryDO } from "./index";
@@ -598,4 +599,220 @@ it("replicates hard deletion without reviving it on a stale receipt", async () =
     ).status,
   ).toBe(200);
   expect((await peer.call(`/api/gallery/${id}`)).status).toBe(404);
+});
+
+it("copies reference images, blind reviews and fix history with their publication", async () => {
+  const auth = environment(),
+    source = await region("cn", auth),
+    peer = await region("overseas", auth);
+  const created = await source.call("/api/gallery/submissions", "POST", {
+    name: "Reviewed fixture",
+    projectText: projectText(),
+  });
+  const id = (await created.json()).id;
+  const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 1, 2]);
+  const image = { type: "image/png", data: bytes.toString("base64") };
+  expect(
+    (
+      await source.call(`/api/gallery/${id}/reference`, "PUT", {
+        image,
+        rights: true,
+      })
+    ).status,
+  ).toBe(200);
+  const revision = (await (await source.call(`/api/gallery/${id}`)).json())
+    .entry.previewRevision;
+  const reviewed = await source.call(
+    `/api/gallery/${id}/reviews`,
+    "POST",
+    { revision, verdict: "issue", flags: ["wiring"], note: "Synthetic review" },
+    undefined,
+    true,
+  );
+  expect(reviewed.status).toBe(200);
+  await transfer(source, peer, "gallery");
+  const read = await peer.call(`/api/gallery/${id}/reference`);
+  expect(read.status).toBe(200);
+  expect(Buffer.from(await read.arrayBuffer())).toEqual(bytes);
+  expect(
+    await (await peer.call(`/api/gallery/${id}/reviews`)).json(),
+  ).toMatchObject({ blind: true });
+  expect(
+    await (
+      await peer.call(
+        `/api/gallery/${id}/reviews`,
+        "GET",
+        undefined,
+        undefined,
+        true,
+      )
+    ).json(),
+  ).toMatchObject({
+    current: [
+      expect.objectContaining({ verdict: "issue", note: "Synthetic review" }),
+    ],
+  });
+  expect(
+    (
+      await peer.call(
+        `/api/gallery/${id}/reviews`,
+        "POST",
+        { revision, verdict: "pass" },
+        undefined,
+        true,
+      )
+    ).status,
+  ).toBe(409);
+  expect(
+    (await peer.call(`/api/gallery/${id}/reference`, "DELETE")).status,
+  ).toBe(409);
+  expect(
+    (
+      await source.call(`/api/gallery/${id}`, "PUT", {
+        name: "Updated fixture",
+        projectText: wiredProjectText("Updated fixture"),
+      })
+    ).status,
+  ).toBe(200);
+  await transfer(source, peer, "gallery");
+  const history = await (
+    await peer.call(
+      `/api/gallery/${id}/reviews`,
+      "GET",
+      undefined,
+      undefined,
+      true,
+    )
+  ).json();
+  expect(history).toMatchObject({
+    current: [],
+    history: [expect.objectContaining({ current: false })],
+    fixes: [expect.objectContaining({ addressed: 1 })],
+  });
+  expect((await source.call(`/api/gallery/${id}`, "DELETE")).status).toBe(200);
+  await transfer(source, peer, "gallery");
+  expect((await peer.call(`/api/gallery/${id}`)).status).toBe(404);
+  expect((await peer.call(`/api/gallery/${id}/reference`)).status).toBe(404);
+  expect(
+    await (
+      await peer.call(
+        "/api/gallery/review/community/people",
+        "GET",
+        undefined,
+        undefined,
+        true,
+      )
+    ).json(),
+  ).toEqual(
+    await (
+      await source.call(
+        "/api/gallery/review/community/people",
+        "GET",
+        undefined,
+        undefined,
+        true,
+      )
+    ).json(),
+  );
+});
+
+it("seeds Dataset figures imported before their drawings, and reserves their origin", async () => {
+  const auth = environment(),
+    source = await region("overseas", auth, false),
+    peer = await region("cn", auth);
+  const id = "ag-early-figure";
+  const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 1, 2]);
+  const figure = { type: "image/png", data: bytes.toString("base64") };
+  const imported = await source.call(
+    "/api/gallery/sources/analoggenie/comparisons",
+    "POST",
+    {
+      comparisons: [
+        { id, verdict: "match", sourceNetlist: "* synthetic", figure },
+      ],
+    },
+    undefined,
+    true,
+  );
+  expect(await imported.json()).toMatchObject({ results: [{ ok: true }] });
+  source.enable();
+  expect(
+    await (
+      await source.call(
+        "/api/resource-sync/analoggenie/seed",
+        "POST",
+        {},
+        "admin-secret",
+      )
+    ).json(),
+  ).toMatchObject({ seeded: 1 });
+  const orphan = await transfer(source, peer, "analoggenie");
+  const unseeded = await region("cn", auth, false);
+  expect(
+    await (
+      await unseeded.call(
+        "/api/gallery/sources/analoggenie/comparisons",
+        "POST",
+        { comparisons: [{ id, verdict: "match", figure }] },
+        undefined,
+        true,
+      )
+    ).json(),
+  ).toMatchObject({ results: [{ ok: true }] });
+  unseeded.enable();
+  expect(
+    (
+      await unseeded.call(
+        "/api/resource-sync/analoggenie/changes",
+        "POST",
+        orphan,
+        "peer-secret",
+      )
+    ).status,
+  ).toBe(409);
+  expect(
+    await (
+      await peer.call("/api/gallery/sources/analoggenie/comparisons")
+    ).json(),
+  ).toMatchObject({ comparisons: [] });
+  const entry = {
+    id,
+    name: "Early figure fixture",
+    projectText: projectText(),
+  };
+  expect(
+    await (
+      await peer.call(
+        "/api/gallery/sources/analoggenie/entries",
+        "POST",
+        { entries: [entry] },
+        undefined,
+        true,
+      )
+    ).json(),
+  ).toMatchObject({ results: [{ ok: false }] });
+  expect(
+    await (
+      await source.call(
+        "/api/gallery/sources/analoggenie/entries",
+        "POST",
+        { entries: [entry] },
+        undefined,
+        true,
+      )
+    ).json(),
+  ).toMatchObject({ results: [{ ok: true }] });
+  await transfer(source, peer, "analoggenie");
+  expect(
+    await (
+      await peer.call("/api/gallery/sources/analoggenie/comparisons")
+    ).json(),
+  ).toMatchObject({
+    comparisons: [expect.objectContaining({ id, verdict: "match" })],
+  });
+  const image = await peer.call(
+    `/api/gallery/sources/analoggenie/comparisons/${id}/figure`,
+  );
+  expect(image.status).toBe(200);
+  expect(Buffer.from(await image.arrayBuffer())).toEqual(bytes);
 });

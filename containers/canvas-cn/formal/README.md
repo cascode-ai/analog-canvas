@@ -128,6 +128,10 @@ On the source, the candidate must be reviewed and deployed before setting
 - Keep original resource tables intact. Call the admin-authenticated seed HTTP
   entrance for Community, Components and every configured Dataset source until
   each answers `more=false`. This creates change metadata, not republications.
+- This first activation requires previously unseeded publication stores. A
+  later snapshot-schema expansion needs an explicit backfill of already tracked
+  resources before declaring catch-up; ordinary seeding skips their identities.
+  Do not clear existing metadata or receiver cursors to force such an upgrade.
 - Copy `resource-sync-tick.py` and `config/gallery-sources.json` into the immutable
   release. The private `resource-sync.json` contains `localOrigin`, `peerOrigin`,
   `localTokenFile` and `peerTokenFile`; token files are separate from Project

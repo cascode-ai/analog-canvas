@@ -63,6 +63,17 @@ export function GallerySourceNote({ source }: { source: GallerySource }) {
       <a href={source.homepage} target="_blank" rel="noreferrer">
         Dataset
       </a>
+      {source.comparisons ? (
+        <>
+          {" · "}
+          <a
+            href={`/datasets?source=${encodeURIComponent(source.key)}`}
+            data-testid="gallery-source-compare"
+          >
+            Compare with original figures
+          </a>
+        </>
+      ) : null}
     </p>
   );
 }

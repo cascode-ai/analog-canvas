@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { GalleryFeedEntry } from "../gallery-client";
+import { uploadReferenceImage } from "../reference-image";
 
 const OWNER_REJECT_REASONS = [
   "too ugly",
@@ -27,6 +28,7 @@ export function GalleryTileMenu({
   entry,
   busy,
   administrator,
+  manage = true,
   onReview,
   onWithdraw,
   onVerifySimulation,
@@ -35,67 +37,124 @@ export function GalleryTileMenu({
   busy: boolean;
   /** An administrator may also edit and replace the drawing. */
   administrator: boolean;
+  /** Its author or an administrator; anyone else gets Copy address alone. */
+  manage?: boolean;
   onReview: () => void;
   onWithdraw: () => void;
   onVerifySimulation?: () => void;
 }) {
-  const scope = administrator ? "owner" : "author";
+  const scope = administrator ? "owner" : manage ? "author" : "reader";
+  const [copied, setCopied] = useState(false);
+  const [referenceNote, setReferenceNote] = useState("");
   const close = (element: HTMLElement) =>
     element.closest("details")?.removeAttribute("open");
+  const path = `/g/${entry.id}`;
   return (
     <details
       className="gallery-owner-menu"
       data-testid={`gallery-${scope}-menu-${entry.id}`}
     >
       <summary
-        aria-label={`Manage ${entry.name}`}
-        title={`Manage ${entry.name}`}
+        aria-label={`${manage ? "Manage" : "More for"} ${entry.name}`}
+        title={`${manage ? "Manage" : "More for"} ${entry.name}`}
       >
         ⋯
       </summary>
       <div className="gallery-owner-popover">
+        {/* Everyone's first item: the circuit's own address. */}
         <button
           type="button"
-          data-testid={`gallery-${scope}-review-${entry.id}`}
+          data-testid={`gallery-copy-address-${entry.id}`}
+          title={path}
           onClick={(event) => {
-            close(event.currentTarget);
-            onReview();
+            const menu = event.currentTarget;
+            const address = `${window.location.origin}${path}`;
+            void navigator.clipboard?.writeText(address).then(() => {
+              setCopied(true);
+              window.setTimeout(() => {
+                setCopied(false);
+                close(menu);
+              }, 900);
+            });
           }}
         >
-          Review drawing
+          {copied ? "Copied" : "Copy address"}
         </button>
-        {administrator ? (
-          <a
-            href={`/g/${entry.id}`}
-            data-testid={`gallery-owner-edit-${entry.id}`}
-          >
-            Edit and replace
-          </a>
+        {manage ? (
+          <>
+            {/* What it was drawn from, shown beside it in /review. */}
+            <label
+              className="gallery-owner-menu-file"
+              data-testid={`gallery-reference-${entry.id}`}
+              title="An image you may share, such as the figure you drew it from. Signed-in readers see it beside the drawing in Review."
+            >
+              {referenceNote || "Reference image…"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (
+                    !file ||
+                    !window.confirm(
+                      "Upload this as the drawing's reference image? Upload only an image you have the right to share: signed-in readers will see it.",
+                    )
+                  )
+                    return;
+                  setReferenceNote("Uploading…");
+                  void uploadReferenceImage(entry.id, file).then((note) => {
+                    setReferenceNote(note);
+                    window.setTimeout(() => setReferenceNote(""), 2400);
+                  });
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              data-testid={`gallery-${scope}-review-${entry.id}`}
+              onClick={(event) => {
+                close(event.currentTarget);
+                onReview();
+              }}
+            >
+              Review drawing
+            </button>
+            {administrator ? (
+              <a
+                href={`/g/${entry.id}`}
+                data-testid={`gallery-owner-edit-${entry.id}`}
+              >
+                Edit and replace
+              </a>
+            ) : null}
+            {onVerifySimulation ? (
+              <button
+                type="button"
+                disabled={busy}
+                data-testid={`gallery-verify-simulation-${entry.id}`}
+                onClick={(event) => {
+                  close(event.currentTarget);
+                  onVerifySimulation();
+                }}
+              >
+                Verify simulation
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={busy}
+              data-testid={`gallery-${scope}-withdraw-${entry.id}`}
+              onClick={(event) => {
+                close(event.currentTarget);
+                onWithdraw();
+              }}
+            >
+              Withdraw
+            </button>
+          </>
         ) : null}
-        {onVerifySimulation ? (
-          <button
-            type="button"
-            disabled={busy}
-            data-testid={`gallery-verify-simulation-${entry.id}`}
-            onClick={(event) => {
-              close(event.currentTarget);
-              onVerifySimulation();
-            }}
-          >
-            Verify simulation
-          </button>
-        ) : null}
-        <button
-          type="button"
-          disabled={busy}
-          data-testid={`gallery-${scope}-withdraw-${entry.id}`}
-          onClick={(event) => {
-            close(event.currentTarget);
-            onWithdraw();
-          }}
-        >
-          Withdraw
-        </button>
       </div>
     </details>
   );

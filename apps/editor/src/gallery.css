@@ -917,7 +917,8 @@
 }
 
 .gallery-owner-popover a,
-.gallery-owner-popover button {
+.gallery-owner-popover button,
+.gallery-owner-popover .gallery-owner-menu-file {
   box-sizing: border-box;
   width: 100%;
   padding: 8px 10px;
@@ -933,8 +934,13 @@
 }
 
 .gallery-owner-popover a:hover,
-.gallery-owner-popover button:hover {
+.gallery-owner-popover button:hover,
+.gallery-owner-popover .gallery-owner-menu-file:hover {
   background: var(--icm-surface-hover);
+}
+
+.gallery-owner-popover .gallery-owner-menu-file {
+  display: block;
 }
 
 .gallery-owner-popover button:disabled {
@@ -2007,6 +2013,9 @@ div.gallery-contributor-status {
 }
 
 .gallery-sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 20px 14px 0;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--icm-border);
@@ -2015,6 +2024,41 @@ div.gallery-contributor-status {
 .gallery-search-field {
   position: relative;
   display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Folds a sidebar to a strip at the left, and opens it again. */
+.sidebar-fold-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--icm-radius-sm);
+  background: none;
+  color: var(--icm-text-muted);
+  cursor: pointer;
+}
+
+.sidebar-fold-button:hover {
+  border-color: var(--icm-border);
+  background: var(--icm-surface-hover);
+  color: var(--icm-text);
+}
+
+.sidebar-fold-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.gallery-sidebar-slot[data-collapsed="true"] {
+  width: 44px;
+  padding-top: 18px;
+  text-align: center;
 }
 
 .gallery-search-icon {
@@ -2112,6 +2156,15 @@ div.gallery-contributor-status {
   }
   .gallery-sidebar-resize-handle {
     display: none;
+  }
+  /* A phone opens and closes its filters with Search & filters instead. */
+  .gallery-sidebar-search .sidebar-fold-button {
+    display: none;
+  }
+  .gallery-sidebar-slot[data-collapsed="true"] {
+    width: auto;
+    padding: 8px 12px;
+    text-align: left;
   }
   .gallery-sidebar-toggle {
     display: flex;

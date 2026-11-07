@@ -2,7 +2,8 @@
 // Turn a draw:batch run (#1498) into import batches for a reference dataset's
 // Gallery store (#1510): every accepted drawing as one entry, ten per file,
 // in the body POST /api/gallery/sources/<key>/entries takes. With --post it
-// also posts them with the Owner token (#1769).
+// also posts them with the Owner token (#1769). --post-comparisons posts a
+// dataset's comparisons (original figure and verdict) the same way.
 import {
   existsSync,
   mkdirSync,
@@ -24,6 +25,7 @@ export const DEFAULT_ORIGIN = "https://analog-canvas.tokenzhang.com";
 const TOKEN_ENV = "ANALOG_CANVAS_OWNER_TOKEN";
 const USAGE = `usage: node scripts/gallery-import-batches.mjs RUN_DIR --source KEY [--out DIR] [--manifest TASKS.jsonl] [--include-suspect] [--post] [--origin URL]
        node scripts/gallery-import-batches.mjs --post-dir DIR --source KEY [--origin URL]
+       node scripts/gallery-import-batches.mjs --post-comparisons FILE.jsonl --source KEY [--origin URL]
 
 Writes DIR/KEY-0001.json, … (default DIR: RUN_DIR/gallery-import), each
 {"entries": [...]} with at most ${BATCH} accepted drawings, and lists what
@@ -32,7 +34,9 @@ two redraws agreed against the dataset's netlist.
 
 --post then posts them, ${POST_BATCH} entries a request, to --origin (default
 ${DEFAULT_ORIGIN}; https://, or http:// to localhost, 127.0.0.1 or [::1]);
---post-dir posts the batch files already in DIR. The Owner token comes from
+--post-dir posts the batch files already in DIR; --post-comparisons posts
+a JSON-lines file of comparisons, one a line, to …/comparisons (datasets
+with comparisons only). The Owner token comes from
 ${TOKEN_ENV}, else ~/.config/analog-canvas/owner-token. Dropped connections
 and 5xx are retried; a 401 or 403 stops the run. It prints posted and failed
 counts and failed ids, and exits non-zero if anything failed.`;
@@ -45,22 +49,33 @@ export function parseArguments(argv) {
     if (argument === "--include-suspect") options.includeSuspect = true;
     else if (argument === "--post") options.post = true;
     else if (
-      ["--source", "--out", "--manifest", "--origin", "--post-dir"].includes(
-        argument,
-      )
+      [
+        "--source",
+        "--out",
+        "--manifest",
+        "--origin",
+        "--post-dir",
+        "--post-comparisons",
+      ].includes(argument)
     ) {
       const value = argv[(index += 1)];
       if (!value) throw new Error(`${argument} takes a value`);
-      options[argument === "--post-dir" ? "postDir" : argument.slice(2)] =
-        value;
+      options[
+        argument === "--post-dir"
+          ? "postDir"
+          : argument === "--post-comparisons"
+            ? "comparisons"
+            : argument.slice(2)
+      ] = value;
     } else if (argument.startsWith("--"))
       throw new Error(`Unknown option ${argument}`);
     else rest.push(argument);
   }
-  if (!options.source || rest.length !== (options.postDir ? 0 : 1))
+  const postsOnly = Boolean(options.postDir || options.comparisons);
+  if (!options.source || rest.length !== (postsOnly ? 0 : 1))
     throw new Error(USAGE);
   if (options.origin) options.origin = postOrigin(options.origin);
-  if (options.postDir) return { ...options, post: true };
+  if (postsOnly) return { ...options, post: true };
   return { ...options, run: rest[0] };
 }
 
@@ -115,7 +130,9 @@ export function batchFiles(dir) {
  * why, and, when stopped, the refusal and how many were never sent.
  */
 export async function postBatches({
-  files,
+  files = [],
+  items,
+  kind = "entries",
   source,
   origin = DEFAULT_ORIGIN,
   token,
@@ -123,10 +140,12 @@ export async function postBatches({
   sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
   log = () => {},
 }) {
-  const entries = files.flatMap(
-    (file) => JSON.parse(readFileSync(file, "utf8")).entries ?? [],
-  );
-  const url = `${origin.replace(/\/+$/u, "")}/api/gallery/sources/${encodeURIComponent(source)}/entries`;
+  const entries =
+    items ??
+    files.flatMap(
+      (file) => JSON.parse(readFileSync(file, "utf8")).entries ?? [],
+    );
+  const url = `${origin.replace(/\/+$/u, "")}/api/gallery/sources/${encodeURIComponent(source)}/${kind}`;
   let posted = 0;
   const failed = [];
   for (let index = 0; index < entries.length; index += POST_BATCH) {
@@ -143,7 +162,7 @@ export async function postBatches({
             authorization: `Bearer ${token}`,
             "content-type": "application/json",
           },
-          body: JSON.stringify({ entries: chunk }),
+          body: JSON.stringify({ [kind]: chunk }),
         });
         if (response.ok) {
           answer = await response.json();
@@ -296,7 +315,15 @@ export async function main(
   }
   const options = parseArguments(argv);
   let files;
-  if (options.postDir) {
+  let items;
+  if (options.comparisons) {
+    if (!datasetSource(root, options.source).comparisons)
+      throw new Error(`${options.source} takes no comparisons`);
+    items = readFileSync(resolve(options.comparisons), "utf8")
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line));
+  } else if (options.postDir) {
     datasetSource(root, options.source);
     files = batchFiles(resolve(options.postDir));
   } else {
@@ -312,6 +339,7 @@ export async function main(
   if (!options.post) return 0;
   const { posted, failed, stopped } = await postBatches({
     files,
+    ...(items ? { items, kind: "comparisons" } : {}),
     source: options.source,
     origin: options.origin ?? DEFAULT_ORIGIN,
     token: ownerToken(env, home),

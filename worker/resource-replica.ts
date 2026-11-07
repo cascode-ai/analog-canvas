@@ -21,6 +21,10 @@ const tables = {
     ["gallery_entries", "id"],
     ["gallery_entry_versions", "entry_id"],
     ["gallery_likes", "entry_id"],
+    ["dataset_comparisons", "id"],
+    ["entry_references", "entry_id"],
+    ["entry_reviews", "entry_id"],
+    ["entry_fixes", "entry_id"],
   ],
 } as const;
 export type ResourceKind = keyof typeof tables;
@@ -64,7 +68,7 @@ export class ResourceReplica {
       this.tables.some(
         (t) =>
           !t.columns.includes(t.key) ||
-          t.columns.some((c) => !/^[a-z_]+$/.test(c)),
+          t.columns.some((c) => !/^[a-z_][a-z0-9_]*$/.test(c)),
       )
     )
       throw new Error("Resource schema unavailable");
@@ -150,10 +154,13 @@ export class ResourceReplica {
   }
   seed() {
     return this.state.storage.transactionSync(() => {
-      const table = this.tables[0]!;
+      // Figures may precede a drawing; review/fix history may outlive it.
+      const identities = this.tables
+        .map((t) => `SELECT ${t.key} AS id FROM ${t.name}`)
+        .join(" UNION ");
       const rows = this.sql
         .exec<{ id: string }>(
-          `SELECT id FROM ${table.name} WHERE id NOT IN
+          `SELECT id FROM (${identities}) WHERE id NOT IN
         (SELECT id FROM resource_replica_keys) ORDER BY id LIMIT 50`,
         )
         .toArray();
@@ -277,7 +284,18 @@ export class ResourceReplica {
       )
         return fail("invalid-resource-rows", 400);
     }
-    if (!event.rows[0].length && event.rows.some((r: any[]) => r.length))
+    if (
+      !event.rows[0].length &&
+      this.tables.some(
+        (t, i) =>
+          ![
+            "dataset_comparisons",
+            "entry_references",
+            "entry_reviews",
+            "entry_fixes",
+          ].includes(t.name) && event.rows[i].length,
+      )
+    )
       return fail("orphan-resource-rows", 400);
     return this.state.storage.transactionSync(() => {
       const received = this.status().received;
@@ -306,9 +324,15 @@ export class ResourceReplica {
       if (
         (owner && owner.origin !== peer) ||
         (!owner &&
-          this.sql
-            .exec(`SELECT id FROM ${main.name} WHERE id=?`, event.id)
-            .toArray().length)
+          this.tables.some(
+            (t) =>
+              this.sql
+                .exec(
+                  `SELECT ${t.key} FROM ${t.name} WHERE ${t.key}=? LIMIT 1`,
+                  event.id,
+                )
+                .toArray().length,
+          ))
       )
         return fail("resource-origin-collision");
       this.sql.exec("UPDATE resource_replica_meta SET importing=1 WHERE id=1");

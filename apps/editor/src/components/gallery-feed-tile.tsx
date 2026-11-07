@@ -204,31 +204,29 @@ export function GalleryWallTile({
               </>
             ) : null}
             {savedAtLabel(entry.createdAt)}
-            {dataset ? null : " · "}
-            {dataset ? null : (
-              <button
-                type="button"
-                className="gallery-tile-like"
-                data-testid={`gallery-like-${entry.id}`}
-                aria-pressed={entry.likedByViewer === true}
-                title={
-                  entry.likedByViewer ? "Remove your like" : "Like this circuit"
-                }
-                aria-label={
-                  entry.likedByViewer
-                    ? `Remove your like from ${entry.name}`
-                    : `Like ${entry.name}`
-                }
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  void toggleLike(entry.id);
-                }}
-              >
-                <HeartIcon filled={entry.likedByViewer === true} />
-                {entry.likes ?? 0}
-              </button>
-            )}
+            {" · "}
+            <button
+              type="button"
+              className="gallery-tile-like"
+              data-testid={`gallery-like-${entry.id}`}
+              aria-pressed={entry.likedByViewer === true}
+              title={
+                entry.likedByViewer ? "Remove your like" : "Like this circuit"
+              }
+              aria-label={
+                entry.likedByViewer
+                  ? `Remove your like from ${entry.name}`
+                  : `Like ${entry.name}`
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                void toggleLike(entry.id);
+              }}
+            >
+              <HeartIcon filled={entry.likedByViewer === true} />
+              {entry.likes ?? 0}
+            </button>
           </span>
           {entry.description ? (
             <span
@@ -260,12 +258,11 @@ export function GalleryWallTile({
           ) : null}
         </span>
       </a>
-      {!dataset &&
-      (isOwner ||
-        verifySimulation ||
-        (!!viewerId && viewerId === entry.ownerUserId)) ? (
+      {/* Every signed-in reader's menu opens with Copy address; the author
+          and the Owner also manage the circuit there (a dataset's: never). */}
+      {viewerId || isOwner ? (
         <Suspense fallback={null}>
-          {isOwner ? (
+          {isOwner && !dataset ? (
             <GalleryOwnerRejectButton
               entry={entry}
               busy={ownerBusy === entry.id}
@@ -275,7 +272,13 @@ export function GalleryWallTile({
           <GalleryTileMenu
             entry={entry}
             busy={ownerBusy === entry.id}
-            administrator={isOwner}
+            administrator={isOwner && !dataset}
+            manage={
+              !dataset &&
+              (isOwner ||
+                !!verifySimulation ||
+                (!!viewerId && viewerId === entry.ownerUserId))
+            }
             onReview={() => setReviewing(entry)}
             onWithdraw={() => void withdrawEntry(entry)}
             {...(verifySimulation
