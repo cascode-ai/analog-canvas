@@ -26,7 +26,8 @@ it("initializes every publication stream in the Workers SQL runtime", async () =
     bundle: true,
     format: "esm",
     platform: "browser",
-    external: ["cloudflare:*"],
+    // Keep the same built-ins that the deployed workerd resolves at runtime.
+    external: ["cloudflare:*", "node:buffer", "node:zlib"],
     write: false,
   });
   const mf = new Miniflare(

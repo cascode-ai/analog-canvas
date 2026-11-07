@@ -13,9 +13,13 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
-it.each([false, true])(
-  "synchronizes both ways and recovers restarts with only domestic connections (lost pull reply: %s)",
-  async (losePullReply) => {
+it.each([
+  { losePullReply: false, compressed: false },
+  { losePullReply: true, compressed: false },
+  { losePullReply: false, compressed: true },
+])(
+  "synchronizes both ways and recovers restarts (lost reply: $losePullReply, compressed journal: $compressed)",
+  async ({ losePullReply, compressed }) => {
     const secret = "isolated-pull-authority-secret-for-test";
     const config = JSON.stringify({
       origin: ORIGIN,
@@ -48,8 +52,11 @@ it.each([false, true])(
             }),
           },
         },
-        restart: () => {
-          store = new RegionalProjectDO(state, { PROJECT_REGION: region });
+        restart: (compress = false) => {
+          store = new RegionalProjectDO(state, {
+            PROJECT_REGION: region,
+            PROJECT_SYNC_COMPRESS_JOURNAL: compress ? "true" : "false",
+          });
         },
       };
     };
@@ -118,6 +125,24 @@ it.each([false, true])(
     expect(await tick()).toBe("sent");
     const current = await open(domestic.env);
     expect(current.name).toBe("Source draft");
+    const journal = async (env: typeof domestic.env, suffix: string) =>
+      (
+        await route(
+          env,
+          new Request(`https://cn.test/api/project-sync/${suffix}`, {
+            headers: { Authorization: `Bearer ${env.PROJECT_SYNC_TOKEN}` },
+          }),
+        )
+      ).json();
+    const legacyEvent = compressed
+      ? (await journal(source.env, "events?after=0")).events[0]
+      : null;
+    if (compressed) {
+      source.restart(true);
+      domestic.restart(true);
+      expect(await tick()).toBe("caught-up");
+    }
+    const before = await journal(domestic.env, "status");
     const saved = await route(
       domestic.env,
       new Request(`${ORIGIN}/api/projects/${id}`, {
@@ -134,6 +159,16 @@ it.each([false, true])(
       }),
     );
     expect(saved.status).toBe(200);
+    const newEventPath = `events?after=${before.sequence}`;
+    const newEvent = compressed
+      ? (await journal(domestic.env, newEventPath)).events[0]
+      : null;
+    if (newEvent) {
+      const after = await journal(domestic.env, "status");
+      expect(after.journalBytes - before.journalBytes).toBeLessThan(
+        Buffer.byteLength(newEvent.payload),
+      );
+    }
     expect(await tick()).toBe("sent");
     expect((await open(source.env)).name).toBe("Domestic acknowledged");
     domestic.restart();
@@ -145,6 +180,28 @@ it.each([false, true])(
     source.restart();
     expect(await tick()).toBe("caught-up");
     expect((await open(source.env)).name).toBe("Domestic acknowledged");
+    if (compressed) {
+      expect((await journal(source.env, "events?after=0")).events[0]).toEqual(
+        legacyEvent,
+      );
+      expect((await journal(domestic.env, newEventPath)).events[0]).toEqual(
+        newEvent,
+      );
+      const versions = `${ORIGIN}/api/projects/${id}/versions`;
+      const headers = { Cookie: cookie };
+      const history = await (
+        await route(domestic.env, new Request(versions, { headers }))
+      ).json();
+      expect(history.versions).toHaveLength(1);
+      const prior = await route(
+        domestic.env,
+        new Request(`${versions}/${history.versions[0].versionId}/project`, {
+          headers,
+        }),
+      );
+      expect(prior.status).toBe(200);
+      expect((await prior.json()).projectText).toBe(current.projectText);
+    }
     const refused = await route(
       source.env,
       new Request(`${ORIGIN}/api/project-sync/pull`, {

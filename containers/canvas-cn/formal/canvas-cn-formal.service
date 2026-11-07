@@ -16,6 +16,7 @@ LoadCredential=identity-token:/etc/analog-canvas-formal/identity-token
 LoadCredential=identity-url:/etc/analog-canvas-formal/identity-url
 LoadCredential=operator-token:/etc/analog-canvas-formal/operator-token
 LoadCredential=peer-origin:/etc/analog-canvas-formal/peer-origin
+LoadCredential=project-compress-journal:/etc/analog-canvas-formal/project-compress-journal
 LoadCredential=project-protected-ids.json:/etc/analog-canvas-formal/project-protected-ids.json
 LoadCredential=project-region-users.json:/etc/analog-canvas-formal/project-region-users.json
 LoadCredential=project-writes-enabled:/etc/analog-canvas-formal/project-writes-enabled

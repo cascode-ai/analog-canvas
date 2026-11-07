@@ -29,12 +29,14 @@ host.
 2. Root-owned credential files in `/etc/analog-canvas-formal`, one per name in
    the service's generated `LoadCredential` block, written without a trailing
    newline. `project-writes-enabled` and `resource-writes-enabled` contain
-   exactly `true` or `false`; they are the host's only switches. Inbound,
+   exactly `true` or `false`. Inbound,
    outbound and admin synchronization tokens are separate; the opposite region
    uses the inbound token for its delivery. `regional-client.json` follows the
    Auth contract and its secret equals `identity-token`.
    `project-region-users.json` lists the confirmed cohort, the same list as
-   the source's `PROJECT_REGION_USERS`. `sync-alert.json` holds `apiKey`,
+   the source's `PROJECT_REGION_USERS`. Start `project-compress-journal` at
+   `false`. Enable it only under the [Project journal contract](../../../docs/specs/regional-projects.md#rules).
+   `sync-alert.json` holds `apiKey`,
    `from` and the authorized recipient `to`.
 3. `/etc/analog-canvas-operator/` holds `operator-key`, `known_hosts` and
    `ssh-config` (`Host canvas-operator` with its `HostName` and `User`). The key

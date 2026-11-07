@@ -171,6 +171,7 @@ export type GalleryEnv = {
   PROJECT_SYNC_ADMIN_TOKEN?: string;
   /** The private region initiates both directions when its peer cannot dial in. */
   PROJECT_SYNC_PULL?: string;
+  PROJECT_SYNC_COMPRESS_JOURNAL?: string;
   PROJECT_IDENTITY_URL?: string;
   PROJECT_IDENTITY_TOKEN?: string;
   /** Sessions are the only identity: publishing requires one. */
