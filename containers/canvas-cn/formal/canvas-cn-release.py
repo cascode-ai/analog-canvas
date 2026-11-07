@@ -50,7 +50,7 @@ def sha256(data):
 
 
 class Fetcher:
-    def __init__(self, origin, timeout=60):
+    def __init__(self, origin, timeout=120):
         if not re.match(r'^https://[A-Za-z0-9.-]+$', origin):
             raise ValueError('HTTPS origin required')
         self.origin = origin
@@ -123,8 +123,31 @@ def check_credentials(config_text, credentials):
             raise ReleaseError('release-failed')
 
 
-def assemble(fetcher, manifest, current, target, workers=6):
-    """Copy unchanged files from the serving release; download the rest."""
+def fetch_verified(fetcher, path, digest, attempts=4, delay=5):
+    """One release file; the border link drops reads, so retry with backoff."""
+    for attempt in range(1, attempts + 1):
+        try:
+            data = fetcher.get(path)
+            if sha256(data) == digest:
+                return data
+            error = ReleaseError('release-failed')
+        except urllib.error.HTTPError as failure:
+            if failure.code < 500 and failure.code != 429:
+                raise
+            error = failure
+        except (OSError, urllib.error.URLError) as failure:
+            error = failure
+        if attempt < attempts:
+            time.sleep(delay * attempt)
+    raise error
+
+
+def assemble(fetcher, manifest, current, target, workers=4):
+    """Copy unchanged files from the serving release; download the rest.
+
+    Files already in `target` with the right digest (an earlier interrupted
+    attempt) are kept, so a slow link still converges across ticks.
+    """
     known = {}
     old = current / 'release.json'
     if old.is_file():
@@ -136,14 +159,16 @@ def assemble(fetcher, manifest, current, target, workers=6):
         path, digest = item
         destination = target / path
         destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.is_file() and sha256(destination.read_bytes()) == digest:
+            return 0
         local = known.get(digest)
         if local is not None and sha256(local.read_bytes()) == digest:
             shutil.copyfile(local, destination)
             return 0
-        data = fetcher.get(source_of(manifest, path))
-        if sha256(data) != digest:
-            raise ReleaseError('release-failed')
-        destination.write_bytes(data)
+        data = fetch_verified(fetcher, source_of(manifest, path), digest)
+        temporary = destination.with_name(destination.name + '.part')
+        temporary.write_bytes(data)
+        os.replace(temporary, destination)
         return len(data)
 
     with concurrent.futures.ThreadPoolExecutor(workers) as pool:
@@ -261,8 +286,11 @@ def tick(args, host=None, fetcher=None, now=None):
     releases = pathlib.Path(args.releases).resolve()
     target = releases / commit
     partial = releases / (commit + '.partial')
-    shutil.rmtree(partial, ignore_errors=True)
-    partial.mkdir(parents=True)
+    # Kept across ticks: verified files survive an interrupted download.
+    partial.mkdir(parents=True, exist_ok=True)
+    for stale in releases.glob('*.partial'):
+        if stale != partial:
+            shutil.rmtree(stale, ignore_errors=True)
     downloaded = assemble(fetcher, manifest, serving, partial)
     (partial / 'release.json').write_bytes(text)
     check_credentials((partial / 'config.capnp').read_text(), credentials)

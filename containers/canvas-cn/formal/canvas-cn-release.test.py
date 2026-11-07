@@ -116,8 +116,11 @@ class ReleaseTest(unittest.TestCase):
         }
         self.smoked = True
         release.smoke = lambda *args, **kwargs: self.smoked
+        self.sleep = release.time.sleep
+        release.time.sleep = lambda seconds: None
 
     def tearDown(self):
+        release.time.sleep = self.sleep
         self.temp.cleanup()
 
     def args(self, settle=600):
@@ -185,6 +188,41 @@ class ReleaseTest(unittest.TestCase):
         host.backup = lambda target: (_ for _ in ()).throw(OSError('disk full'))
         result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
         self.assertEqual((result['status'], result['failedCommit']), ('backup-failed', NEW))
+        self.assertEqual(self.current.resolve().name, OLD)
+
+    def test_retries_a_dropped_read_and_keeps_verified_files_between_ticks(self):
+        production = FakeProduction(self.files)
+        served = production.get
+        drops = {'/assets/new.js': 1}
+
+        def flaky(path, limit=0):
+            if drops.get(path):
+                drops[path] -= 1
+                raise TimeoutError('The read operation timed out')
+            return served(path, limit)
+        production.get = flaky
+        partial = self.releases / (NEW + '.partial')
+        (partial / 'assets').mkdir(parents=True)
+        (partial / 'assets/index.html').write_bytes(b'<div id="root"></div>')
+        result = release.tick(self.args(0), FakeHost(), production, now=1000)
+        self.assertEqual(result['status'], 'installed')
+        self.assertNotIn(f'/regional-release/{NEW}/root/index.html.bin', production.requests)
+        self.assertEqual(drops['/assets/new.js'], 0)
+
+    def test_gives_up_on_a_missing_file_without_retrying(self):
+        import urllib.error
+        production = FakeProduction(self.files)
+        calls = []
+
+        def missing(path, limit=0):
+            calls.append(path)
+            if path == '/assets/new.js':
+                raise urllib.error.HTTPError(path, 404, 'missing', {}, None)
+            return production.served[path]
+        production.get = missing
+        with self.assertRaises(Exception):
+            release.tick(self.args(0), FakeHost(), production, now=1000)
+        self.assertEqual(calls.count('/assets/new.js'), 1)
         self.assertEqual(self.current.resolve().name, OLD)
 
     def test_refuses_a_file_whose_bytes_differ_from_the_manifest(self):
