@@ -12,6 +12,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { buildProjectConnectivityIndex } from "./connectivity-index.js";
+import { deriveNetConnectivity } from "./connectivity.js";
 import { computeNetHighlight } from "./net-highlight.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -287,5 +288,41 @@ describe("Project Connectivity Index logical aliases", () => {
       "net-out",
       "net-vss",
     ]);
+  });
+
+  it("serves as the connectivity context of a drawing whose MOS body is hidden", () => {
+    // The index's Logical Net records share a name with the endpoint
+    // lookup's Logical Net resolution; the body policy must read the latter.
+    const project = createEmptyProject("project-body", "Body");
+    const document = project.documents[0]!;
+    document.instances.push(
+      {
+        id: "M1",
+        symbolId: "nmos",
+        symbolVariantId: "textbook-3terminal",
+        placement: null,
+      },
+      { id: "GND1", symbolId: "ground", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-gnd",
+        terminals: [
+          { instanceId: "GND1", pinName: "0" },
+          { instanceId: "M1", pinName: "S" },
+        ],
+      },
+      { id: "net-body", terminals: [{ instanceId: "M1", pinName: "B" }] },
+    );
+    const index = buildProjectConnectivityIndex(project, resolver);
+    for (const net of document.nets)
+      expect(
+        deriveNetConnectivity(
+          document,
+          resolver,
+          net,
+          index.documents.get(document.id),
+        ),
+      ).toEqual(deriveNetConnectivity(document, resolver, net));
   });
 });

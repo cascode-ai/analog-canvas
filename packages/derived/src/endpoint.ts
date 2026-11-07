@@ -60,14 +60,14 @@ export interface EndpointObjectLookup {
    * seconds deciding whether a body lead is visible. A builder that resolves
    * them once per index sets this.
    */
-  readonly logicalNets?: ResolvedDocumentLogicalNets;
+  readonly logicalNetResolution?: ResolvedDocumentLogicalNets;
 }
 
 /** One raw lookup for this exact model value, including hidden MOS body policy. */
 export function buildEndpointObjectLookup(
   document: SchematicDocument,
 ): EndpointObjectLookup & {
-  readonly logicalNets: ResolvedDocumentLogicalNets;
+  readonly logicalNetResolution: ResolvedDocumentLogicalNets;
 } {
   return {
     instancesById: new Map(
@@ -76,7 +76,7 @@ export function buildEndpointObjectLookup(
     junctionsById: new Map(
       document.junctions.map((junction) => [junction.id, junction]),
     ),
-    logicalNets: resolveCommittedDocumentLogicalNets(document),
+    logicalNetResolution: resolveCommittedDocumentLogicalNets(document),
   };
 }
 
@@ -292,7 +292,7 @@ export function isVisibleEndpoint(
     return Boolean(
       endpoint.pinName === "B" &&
       resolved.variant.auxiliaryPins?.some((pin) => pin.name === "B") &&
-      mosBulkShouldBeVisible(document, instance, lookup?.logicalNets),
+      mosBulkShouldBeVisible(document, instance, lookup?.logicalNetResolution),
     );
   }
   const pin = resolved.definition.pins.find(

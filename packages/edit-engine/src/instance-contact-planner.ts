@@ -64,7 +64,7 @@ export function createPlacementContactContext(
   const lookup: EndpointObjectLookup = {
     instancesById: new Map(document.instances.map((item) => [item.id, item])),
     junctionsById: new Map(document.junctions.map((item) => [item.id, item])),
-    get logicalNets() {
+    get logicalNetResolution() {
       return (logicalNets ??= resolveDocumentLogicalNets(document));
     },
   };
@@ -104,7 +104,7 @@ export function createPlacementContactContext(
     },
     routesById: new Map(document.routes.map((route) => [route.id, route])),
     get logicalNets() {
-      return lookup.logicalNets!;
+      return lookup.logicalNetResolution!;
     },
     get routingGeometry() {
       return routingGeometry();
