@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { visibleInstanceBounds } from "@icm/derived";
 import type { ProjectStructureEdit } from "@icm/edit-engine";
+import type { CircuitProject, SchematicDocument } from "@icm/model";
+import { createDesignNetlistExport } from "@icm/netlist";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -250,6 +252,134 @@ describe("hierarchy refactoring", () => {
     expect(binding(controller, "amplifier", "XP")).toEqual({
       kind: "subcircuit",
       childDocumentId: "pair",
+    });
+  });
+
+  describe("Nets the child joins by name", () => {
+    /** A resistor between two new Nets of `cell`, placed at `x`. */
+    const resistor = (
+      target: SchematicDocument,
+      id: string,
+      x: number,
+      nets: [string, string],
+    ) => {
+      target.instances.push({
+        id,
+        reference: id,
+        symbolId: "resistor",
+        placement: { position: { x, y: 400 }, rotation: 0, mirror: "none" },
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      });
+      nets.forEach((netId, index) => {
+        const net = target.nets.find((item) => item.id === netId);
+        const terminal = { instanceId: id, pinName: String(index + 1) };
+        if (net) net.terminals.push(terminal);
+        else target.nets.push({ id: netId, terminals: [terminal] });
+      });
+    };
+    /** A label naming `netId`, as the canvas draws one. */
+    const label = (
+      target: SchematicDocument,
+      netId: string,
+      name: string,
+      scope: "local" | "global" = "local",
+      powerDomain?: "vdd" | "ground",
+    ) => {
+      const annotationId = `label-${netId}-${target.annotations.length}`;
+      target.annotations.push({
+        id: annotationId,
+        kind: powerDomain ? "power-label" : "net-label",
+        netId,
+        binding: { kind: "net-name", netId },
+        anchor: { kind: "free", position: { x: 300, y: 340 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      target.connectivityEvidence.push({
+        id: `claim-${annotationId}`,
+        kind: "name-claim",
+        netId,
+        name,
+        owner: { kind: "net-label", annotationId },
+        scope,
+        ...(powerDomain ? { powerDomain } : {}),
+      });
+    };
+    /** The node each listed device's first pin is on, in `cellName`. */
+    const firstNodes = (project: CircuitProject, cellName: string) => {
+      const exported = createDesignNetlistExport(project);
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported));
+      const body = exported.file.text.split(`.subckt ${cellName} `)[1]!;
+      return Object.fromEntries(
+        body
+          .split(`.ends ${cellName}`)[0]!
+          .split("\n")
+          .slice(1)
+          .flatMap((line) => {
+            const [reference, node] = line.trim().split(/\s+/u);
+            return reference && node ? [[reference, node]] : [];
+          }),
+      );
+    };
+    const flatten = (project: CircuitProject) => {
+      const controller = new EditorDocumentController(project);
+      commit(
+        controller,
+        planFlattenInstance(controller.project, XP_IN_AMPLIFIER, 1).edits,
+      );
+      return controller.project;
+    };
+
+    it("stay one Net, renamed where the parent has the name", () => {
+      const project = hierarchyNavigationFixture();
+      const pair = project.documents.find((item) => item.id === "pair")!;
+      resistor(pair, "R2", 300, ["a", "IN"]);
+      resistor(pair, "R3", 400, ["b", "IN"]);
+      label(pair, "a", "MID");
+      label(pair, "b", "MID");
+      const amplifier = project.documents.find(
+        (item) => item.id === "amplifier",
+      )!;
+      resistor(amplifier, "R9", 600, ["m", "IN"]);
+      label(amplifier, "m", "MID");
+      expect(firstNodes(project, "Pair")).toMatchObject({
+        R2: "MID",
+        R3: "MID",
+      });
+
+      const nodes = firstNodes(flatten(project), "Amplifier");
+      // Both parts stay on one Net, which keeps the child's name apart from
+      // the parent's own MID.
+      expect(nodes["R9"]).toBe("MID");
+      expect(
+        Object.entries(nodes).filter(([, node]) => node === "XP_MID"),
+      ).toHaveLength(2);
+    });
+
+    it("join the parent's Net where the name is also a Pin's", () => {
+      const project = hierarchyNavigationFixture();
+      const pair = project.documents.find((item) => item.id === "pair")!;
+      resistor(pair, "R2", 300, ["a", "OUT"]);
+      label(pair, "a", "IN");
+      const nodes = firstNodes(flatten(project), "Amplifier");
+      expect(Object.values(nodes).filter((node) => node === "IN")).toHaveLength(
+        2,
+      );
+    });
+
+    it("keep a global supply name", () => {
+      const project = hierarchyNavigationFixture();
+      const pair = project.documents.find((item) => item.id === "pair")!;
+      resistor(pair, "R2", 300, ["v", "IN"]);
+      label(pair, "v", "VDD", "global", "vdd");
+      const before = firstNodes(project, "Pair")["R2"];
+      const nodes = firstNodes(flatten(project), "Amplifier");
+      expect(Object.values(nodes)).toContain(before);
     });
   });
 
