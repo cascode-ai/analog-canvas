@@ -462,21 +462,59 @@
   font: 11px var(--icm-font-mono);
 }
 
-.review-actions .review-submit {
-  min-width: 132px;
+/* Pass (✓) passes at once; Not pass (✕) opens the reasons, and with one
+   chosen sends the issue, solid red. Enter sends the one showing its key. */
+.review-actions .review-pass,
+.review-actions .review-issue {
+  min-width: 112px;
   justify-content: center;
-  border-color: #0ca30c;
-  background: #0ca30c;
-  color: #fff;
   font-weight: 600;
 }
 
-.review-actions .review-submit.issue {
-  border-color: #d03b3b;
-  background: #d03b3b;
+.review-actions .review-pass {
+  border-color: #0ca30c;
+  background: #0ca30c;
+  color: #fff;
 }
 
-.review-actions .review-submit kbd {
+.review-actions .review-pass:disabled,
+.review-actions .review-issue:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review-actions .review-issue {
+  border-color: #d03b3b;
+  background: var(--icm-surface);
+  color: #d03b3b;
+}
+
+.review-actions .review-issue.ready {
+  background: #d03b3b;
+  color: #fff;
+}
+
+.review-actions .review-pass > span,
+.review-actions .review-issue > span {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.review-flags-hint {
+  align-self: center;
+  margin-left: 4px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.review-flags .review-flags-cancel {
+  margin-left: auto;
+  border-color: transparent;
+  color: var(--icm-text-muted);
+}
+
+.review-actions .review-pass kbd,
+.review-actions .review-issue.ready kbd {
   border-color: rgb(255 255 255 / 50%);
   color: #fff;
 }

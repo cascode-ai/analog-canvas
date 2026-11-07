@@ -494,8 +494,9 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 
 `/review` shows one drawing at a time beside its reference (a dataset's
 original figure, or a community circuit's reference image): the comment
-with Like and Pass, the flags below it, and others' reviews, above the two
-pictures; below them, what comparing a dataset's two netlists found
+with Like, ✓ Pass (passes at once, Enter) and ✕ Not pass (X: opens the
+reasons, of which at least one must be chosen before Submit issue; Esc
+closes them), and others' reviews, above the two pictures; below them, what comparing a dataset's two netlists found
 (verdict, kind, one sentence); then each side's SPICE netlist at its full
 length (ours spends a daily open as opening the entry does). The page
 scrolls. A drag on a picture boxes a spot (numbered, removable, ≤12 per
