@@ -114,6 +114,15 @@ import {
   listComparisons,
 } from "./gallery-store-comparisons";
 import {
+  entryReviews,
+  installReviews,
+  resolveReview,
+  reviewIssues,
+  reviewPeople,
+  reviewQueue,
+  submitReview,
+} from "./gallery-store-reviews";
+import {
   RegionalProjectDO,
   type ProjectRegionConfig,
 } from "./regional-projects";
@@ -329,6 +338,8 @@ export class GalleryDO {
     installSimulationChecks(this.sql);
     // Each dataset circuit's original figure and comparison verdict.
     installComparisons(this.sql);
+    // Who passed or flagged which version of an entry.
+    installReviews(this.sql);
     // A tile's whole card, by id: a page's tiles and the Owner's lists read
     // it here, never the row, whose card fields sit behind its Project and
     // preview (about 100 kB, some 25 pages each; 30 cold tiles took about
@@ -555,6 +566,18 @@ export class GalleryDO {
         return comparisonPart(this.sql, body, "netlist");
       case "comparison-figure":
         return comparisonPart(this.sql, body, "figure");
+      case "review-submit":
+        return submitReview(this.sql, body);
+      case "review-entry":
+        return entryReviews(this.sql, body);
+      case "review-queue":
+        return reviewQueue(this.sql, body);
+      case "review-issues":
+        return reviewIssues(this.sql);
+      case "review-resolve":
+        return resolveReview(this.sql, body);
+      case "review-people":
+        return reviewPeople(this.sql);
       case "topology-inventory":
         return Response.json({
           ids: this.sql
