@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { makerOf, ORIGIN } from "./gallery.test-support";
 import { accounts, config } from "./regional-auth.test-support";
 import { RegionalSessionDO } from "./regional-session";
+import { REGIONAL_LEASE_MS } from "./regional-auth-contract";
 
 it("renews 1000 sessions across restart with two-second transport and processing overhead", async () => {
   const h = accounts();
@@ -70,7 +71,7 @@ it("renews 1000 sessions across restart with two-second transport and processing
   region.fetchLike = async () => {
     throw new Error("isolated outage");
   };
-  h.advance(60_001);
+  h.advance(REGIONAL_LEASE_MS + 1);
   await region.alarm();
   expect(new Set(await states())).toEqual(new Set(["expired"]));
 }, 60_000);

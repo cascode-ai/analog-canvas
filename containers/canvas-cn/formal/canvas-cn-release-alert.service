@@ -1,0 +1,17 @@
+[Unit]
+Description=Report regional release installation failures
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+LoadCredential=sync-alert.json:/etc/analog-canvas-formal/sync-alert.json
+StateDirectory=canvas-cn-release-alert
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /opt/analog-canvas/current-formal/sync-alert.py --scope Release --stale-seconds 1200 --config %d/sync-alert.json --monitor /var/lib/canvas-cn-release/monitor.json --state /var/lib/canvas-cn-release-alert/delivery.json
+TimeoutStartSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077

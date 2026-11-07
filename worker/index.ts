@@ -65,6 +65,7 @@ import {
   withoutClientArenaAccount,
   type ArenaEnv,
 } from "./arena";
+import { watchRegionalPulls } from "./regional-watchdog";
 
 // The stores that keep durable data also answer point-in-time recovery. The
 // export names are the deployed class names, so they must not change.
@@ -146,6 +147,7 @@ export default {
       // The simulation checks the Owner queued (#1545) take the rest of
       // the tick, one folder at a time; with none queued, one read.
       await advanceSimulationChecks(env);
+      await watchRegionalPulls(env).catch(() => null);
     }
   },
 };

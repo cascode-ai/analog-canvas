@@ -1,0 +1,11 @@
+[Unit]
+Description=Independently watch regional release installation
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=30s
+AccuracySec=1s
+Unit=canvas-cn-release-alert.service
+
+[Install]
+WantedBy=timers.target

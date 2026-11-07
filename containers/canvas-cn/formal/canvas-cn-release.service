@@ -1,0 +1,16 @@
+[Unit]
+Description=Install the Canvas release Production serves, after it settles
+After=network-online.target canvas-cn-formal.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+StateDirectory=canvas-cn-release
+StateDirectoryMode=0700
+# Root: it switches the release link, units and nginx site and restarts the
+# runtime. It never writes state directories or credentials.
+ExecStart=/usr/bin/python3 /opt/analog-canvas/current-formal/canvas-cn-release.py --state /var/lib/canvas-cn-release/monitor.json
+TimeoutStartSec=900
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077

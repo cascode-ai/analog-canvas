@@ -16,6 +16,7 @@ import {
   secret,
   transportOrigin,
 } from "./regional-auth.test-support";
+import { REGIONAL_LEASE_MS } from "./regional-auth-contract";
 
 it.each(["github", "google", "email"])(
   "selects %s instead of silently reusing the overseas session",
@@ -883,7 +884,7 @@ it("does not extend authorization when account transport fails or redirects", as
   h.region.fetchLike = async () => {
     throw new Error("offline");
   };
-  h.advance(30_001);
+  h.advance(REGIONAL_LEASE_MS - 29_999);
   await h.region.alarm();
   expect(await (await h.call("/api/auth/me", cookie)).json()).toEqual({
     user: null,
@@ -1007,7 +1008,7 @@ it.each([false, true])(
     );
     await ready.promise;
     expect((await h.call("/api/auth/owner-tokens", cookie)).status).toBe(200);
-    if (expired) h.advance(60_001);
+    if (expired) h.advance(REGIONAL_LEASE_MS + 1);
     resume.resolve();
     expect((await updating).status).toBe(expired ? 401 : 200);
   },

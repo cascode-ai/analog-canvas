@@ -115,7 +115,75 @@ services:
         gw_priority: 1
       simulation: {}
 
+  # The China region's dedicated execution (profile `regional`): the same
+  # images and gateway as Production with their own executors, scratch,
+  # network and credential. Its gateway listens only on loopback, where the
+  # regional host's operator SSH tunnel reaches it (docs/deployment.md).
+  regional-executor:
+    image: analog-canvas-ngspice:${SIMULATION_IMAGE_TAG:-local}
+    profiles: [regional]
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    cpus: 2.0
+    mem_limit: 2g
+    volumes:
+      - regional-run-root:/var/lib/simulation
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 268435456
+    networks: [regional-simulation]
+
+  regional-sg13g2:
+    image: analog-canvas-sg13g2:${SIMULATION_IMAGE_TAG:-local}
+    profiles: [regional]
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    cpus: 2.0
+    mem_limit: 2g
+    volumes:
+      - regional-sg13g2-run-root:/var/lib/simulation
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 268435456
+    networks: [regional-simulation]
+
+  regional-gateway:
+    image: analog-canvas-ngspice:${SIMULATION_IMAGE_TAG:-local}
+    profiles: [regional]
+    command: [node, /opt/harness/gateway.mjs]
+    environment:
+      SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "268435456"
+      SIMULATION_GATEWAY_MAX_REQUEST_BYTES: "8388608"
+      SIMULATION_ACCESS_TOKEN: ${REGIONAL_SIMULATION_ACCESS_TOKEN:-}
+      SIMULATION_EXECUTOR_URL: http://regional-executor:8080
+      SG13G2_EXECUTOR_URL: http://regional-sg13g2:8080
+    depends_on: [regional-executor, regional-sg13g2]
+    ports:
+      - "127.0.0.1:19094:8080"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    cpus: 0.25
+    mem_limit: 128m
+    networks: [regional-simulation, regional-ingress]
+
 volumes:
+  regional-run-root:
+    name: analog-canvas-regional-run-root
+  regional-sg13g2-run-root:
+    name: analog-canvas-regional-sg13g2-run-root
   sg13g2-run-root:
     name: analog-canvas-sg13g2-run-root
   run-root:
@@ -127,3 +195,8 @@ networks:
     internal: true
   tunnel-egress:
     name: analog-canvas-tunnel-egress
+  regional-simulation:
+    name: analog-canvas-regional-internal
+    internal: true
+  regional-ingress:
+    name: analog-canvas-regional-ingress

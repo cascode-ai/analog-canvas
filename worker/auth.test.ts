@@ -14,6 +14,7 @@ import {
   type AuthEnv,
   type SessionUser,
 } from "./auth";
+import { REGIONAL_LEASE_MS } from "./regional-auth-contract";
 
 const ORIGIN = "https://canvas.test";
 const REGIONAL_ORIGIN = "https://cn.canvas.test";
@@ -1792,7 +1793,7 @@ describe("regional identity handoff", () => {
     time += 30_000;
     await regional.alarm();
     expect((await localMe()).authorization).toBe("active");
-    time += 30_001;
+    time += REGIONAL_LEASE_MS - 29_999;
     expect(await localMe()).toEqual({ user: null, authorization: "expired" });
     network = true;
     await regional.alarm();

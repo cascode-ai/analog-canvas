@@ -22,7 +22,18 @@ describe("the operator simulator host", () => {
     expect(compose).toContain("read_only: true");
     expect(compose).toMatch(/cap_drop:\s*\n\s*- ALL/u);
     expect(compose).toContain("internal: true");
-    expect(compose).not.toMatch(/^\s*ports:/mu);
+    // Production publishes no host port. Only the China region's gateway
+    // listens, on loopback, for that region's operator SSH tunnel.
+    const regional = compose.slice(compose.indexOf("  regional-executor:"));
+    expect(
+      compose.slice(0, compose.indexOf("  regional-executor:")),
+    ).not.toMatch(/^\s*ports:/mu);
+    expect(regional.match(/^\s*- "[^"]*:\d+:8080"/gmu)).toEqual([
+      '      - "127.0.0.1:19094:8080"',
+    ]);
+    expect(
+      regional.slice(0, regional.indexOf("  regional-gateway:")),
+    ).not.toContain("ACCESS_TOKEN");
     const executor = compose.slice(
       compose.indexOf("  executor:"),
       compose.indexOf("  simulator:"),

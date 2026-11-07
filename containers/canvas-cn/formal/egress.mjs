@@ -1,21 +1,37 @@
 import { isRegionalAuthorityBrowserRoute } from "../../../worker/regional-auth-contract.ts";
 
-const operators = new Map([
-  ["https://ngspice.canvas-operator.invalid", "NGSPICE_OPERATOR"],
-  ["https://vacask.canvas-operator.invalid", "VACASK_OPERATOR"],
-]);
+/** Operator routes generated from wrangler.jsonc upstreams (scripts/regional-runtime.mjs). */
+const DEFAULT_OPERATORS = [
+  { origin: "https://ngspice.canvas-operator.invalid", binding: "NGSPICE_OPERATOR", prefixes: [""] },
+  { origin: "https://vacask.canvas-operator.invalid", binding: "VACASK_OPERATOR", prefixes: [""] },
+];
+
+function operatorFor(destination, env) {
+  const routes = env.OPERATORS ? JSON.parse(env.OPERATORS) : DEFAULT_OPERATORS;
+  const route = routes.find((r) => r.origin === destination.origin);
+  if (!route) return null;
+  // Longest prefix first, so /sg13g2/run is not read as an unknown root path.
+  const prefix = [...route.prefixes].sort((a, b) => b.length - a.length).find(
+    (p) => p === "" || destination.pathname.startsWith(`${p}/`),
+  );
+  return {
+    binding: route.binding,
+    path: prefix === undefined ? null : destination.pathname.slice(prefix.length),
+  };
+}
 
 export default {
   async fetch(request, env) {
     try {
       const destination = new URL(request.url);
-      const operator = operators.get(destination.origin);
-      if (operator) {
+      const route = operatorFor(destination, env);
+      if (route) {
+        const operator = route.binding;
         const allowed =
           !destination.search &&
-          ((request.method === "GET" && destination.pathname === "/health") ||
+          ((request.method === "GET" && route.path === "/health") ||
             (request.method === "POST" &&
-              ["/run", "/cancel"].includes(destination.pathname)));
+              ["/run", "/cancel"].includes(route.path)));
         if (!allowed)
           return new Response("Operator destination refused", { status: 403 });
         if (!env[operator])
@@ -26,7 +42,7 @@ export default {
           new Request(request, {
             redirect: "manual",
             signal: AbortSignal.timeout(
-              destination.pathname === "/run" ? 150000 : 10000,
+              route.path === "/run" ? 150000 : 10000,
             ),
           }),
         );

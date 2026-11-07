@@ -10,7 +10,9 @@ User=canvas-operator
 Group=canvas-operator
 LoadCredential=operator-key:/etc/analog-canvas-operator/operator-key
 LoadCredential=known-hosts:/etc/analog-canvas-operator/known_hosts
-ExecStart=/usr/bin/ssh -F /dev/null -N -T -i %d/operator-key -o BatchMode=yes -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=%d/known-hosts -L 127.0.0.1:19094:127.0.0.1:19094 -L 127.0.0.1:19095:127.0.0.1:19095 analogcanvas@43.157.84.91
+# `Host canvas-operator` with its HostName and User; the address stays off Git.
+LoadCredential=operator-ssh-config:/etc/analog-canvas-operator/ssh-config
+ExecStart=/usr/bin/ssh -F %d/operator-ssh-config -N -T -i %d/operator-key -o BatchMode=yes -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=%d/known-hosts -L 127.0.0.1:19094:127.0.0.1:19094 -L 127.0.0.1:19095:127.0.0.1:19095 canvas-operator
 Restart=always
 RestartSec=5
 TimeoutStopSec=10

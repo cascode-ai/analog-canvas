@@ -1,160 +1,102 @@
-# Restricted regional Canvas candidate
+# China regional runtime
 
-This opt-in profile implements the [Project contract](../../../docs/specs/regional-projects.md)
-with [regional sessions](../../../docs/specs/regional-login.md). It is separate
-from both acceptance datasets and is not installed or activated by a code push.
-The entry uses the common Canvas router and regional sessions. Its local
-bindings cover Gallery, User Components, Agent, topology, analytics, Projects
-and simulation storage. Route availability does not certify resource replication
-or an operator connection; the restricted trial's acceptance remains Issue #1974.
+The China region runs Production's release on one host under the pinned
+workerd ([standalone runtime](../README.md)), implementing the
+[Project contract](../../../docs/specs/regional-projects.md),
+[publication replicas](../../../docs/specs/regional-resources.md) and
+[regional sessions](../../../docs/specs/regional-login.md). Delivery rules are
+in [China region](../../../docs/deployment.md#china-region); this file owns the
+host.
 
-## Preparation
+## Files
 
-- Build `bundle.jsonc` using the repository-pinned Wrangler with `deploy --dry-run
---outdir <absolute-private-release>/worker`. It bundles `worker/regional-entry.ts`;
-  rename the generated `regional-entry.js` to `index.js`. Never invoke a real
-  deploy for this profile. Separately dry-run `egress-bundle.jsonc`, then place
-  its bundled `egress.js` as `egress.mjs` beside `config.capnp`. The raw egress
-  source imports the shared Auth route contract and cannot be copied unbundled.
-- Run `node containers/canvas-cn/formal/build-editor.mjs`, then copy
-  `apps/editor/dist/` into the release's `assets/`. This hosted build enables
-  Simulation and Agent and selects managed simulation with gzip artifact support.
-  Its isolated built-page check must show both entrances and submit Run to managed
-  admission; API-only operator checks do not qualify the browser. Keep the common
-  product code aligned with an explicitly recorded, qualified overseas main SHA.
-  Install `nginx.conf` for the browser proxy and separate static-asset listener;
-  both bind only to loopback.
-- Run `node containers/canvas-cn/formal/prepare-artifacts.mjs <private-release>`
-  and copy `artifact-storage.capnp` beside the main configuration. The script
-  copies the installed, pinned Miniflare storage modules and records their
-  hashes and upstream metadata. These modules provide the native R2-compatible
-  artifact binding; no Miniflare development server or storage control endpoint
-  runs. Preserve their license and include both blob files and metadata in backup.
-- Use the pinned workerd binary from the [standalone runtime](../README.md).
-  Namespace keys and state paths in `config.capnp` are persistent identities.
-  One process owns each directory. Never copy trial accounts into formal state.
-  This profile starts from an empty formal store. Startup refuses an earlier
-  separate Project namespace; migrate and verify its complete Project/journal/
-  quota state before adopting the shared Gallery store. Never discard that
-  directory to bypass the check.
-- The service's `LoadCredential` entries enumerate required private files.
-  Write token and URL files without trailing newlines. `regional-client.json`
-  follows the Auth contract; its secret and `identity-token` must agree. Inbound,
-  outbound and admin synchronization credentials are separate. The opposite
-  region uses the corresponding inbound token for its outbound delivery.
-- `project-region-users.json` contains the private, confirmed original account
-  IDs. Use the same cohort at the source, following the Project contract.
-- Set `PROJECT_REGION=overseas` only on a reviewed source candidate; the
-  [Project contract](../../../docs/specs/regional-projects.md) reuses its existing
-  singleton. Leave `PROJECTS` unbound at the source. The unmodified overseas
-  configuration remains disabled.
-- Authority and peer origins must reach overseas unambiguously. Geographic DNS
-  on a shared public domain is not sufficient for background traffic or login
-  handoff. For a shared browser origin, pin `transportOrigin` to a separate
-  overseas endpoint and use that origin in `identity-url`. Only the
-  [Auth contract's browser routes](../../../worker/regional-auth-contract.ts)
-  are proxied there, preserving Origin, cookies and query parameters. Browser
-  redirects return to the browser without being followed; server-side RPC and
-  synchronization redirects are rejected. Local session and account routes are
-  never included in this browser proxy.
+- `region.jsonc` is the region's only declaration of its differences from
+  `wrangler.jsonc`. `config.capnp`, `canvas-cn-scheduled.timer` and the
+  credential block of `canvas-cn-formal.service` are generated from both
+  (`node scripts/regional-runtime.mjs`); never edit them by hand.
+- `canvas-cn-release.py` installs releases; `formal-backup.sh` takes the
+  stopped-state backup it runs first; `scheduled-tick.py` runs Production's
+  scheduled work; `sync-tick.py`, `resource-sync-tick.py` and `sync-alert.py`
+  drive and watch replication. Each has a Python test beside it.
+- Namespace keys in `region.jsonc` and state paths are persistent identities.
+  One process owns a state directory; never start two writers on it.
 
-## Dedicated operator transport
+## One-time host setup
 
-Install `canvas-cn-operator.service` with its dedicated Unix user, SSH key and
-pinned host key. Its key must permit forwarding only to the dedicated gateways;
-preserve existing operator keys and containers. Use separate executor storage,
-credentials and resource limits from overseas work. The tunnel listens only on
-loopback; the runtime's fixed operator service bindings carry `/health`, `/run`
-and `/cancel` through it. Internal HTTPS origin names identify this encrypted
-transport and are not public DNS endpoints. Redirects and alternate destinations
-are rejected; uncertain executions are never retried through another operator.
+1. Users `canvas-formal` and `canvas-operator`; the pinned workerd at
+   `/opt/analog-canvas/runtime/workerd-2026-09-11` (hash in the standalone
+   README); nginx including `nginx.conf` as
+   `/etc/nginx/conf.d/analog-canvas-formal.conf`.
+2. Root-owned credential files in `/etc/analog-canvas-formal`, one per name in
+   the service's generated `LoadCredential` block, written without a trailing
+   newline. `project-writes-enabled` and `resource-writes-enabled` contain
+   exactly `true` or `false`; they are the host's only switches. Inbound,
+   outbound and admin synchronization tokens are separate; the opposite region
+   uses the inbound token for its delivery. `regional-client.json` follows the
+   Auth contract and its secret equals `identity-token`.
+   `project-region-users.json` lists the confirmed cohort, the same list as
+   the source's `PROJECT_REGION_USERS`. `sync-alert.json` holds `apiKey`,
+   `from` and the authorized recipient `to`.
+3. `/etc/analog-canvas-operator/` holds `operator-key`, `known_hosts` and
+   `ssh-config` (`Host canvas-operator` with its `HostName` and `User`). The key
+   may only forward to the regional gateways; the address never enters Git.
+4. Install `canvas-cn-release.py`, `canvas-cn-release.service` and its timer
+   from a release once and enable the timer. From then on releases install
+   themselves; their first install also enables the scheduled and release
+   alert timers. Replication timers are enabled by an operator.
 
-`operator-token` authenticates these gateways. `simulation-smoke-token` uses
-the existing deployment-check permission for `/api/simulate` only; it grants
-neither a user session nor Project access. Keep both in root-owned credentials,
-rotate the smoke token for each release, and verify real operator responses
-before accepting the release. Tunnel failure must leave editing and login
-available while computation fails closed.
+The browser entrance is `127.0.0.1:8082` (an SSH forward during the trial).
+Authority and peer origins must reach overseas unambiguously: with a shared
+public browser domain, pin `transportOrigin` and `identity-url` to a separate
+overseas endpoint. Only the Auth contract's browser routes are proxied there.
 
-## Activation gates
+## Operating rules
 
-1. Qualify both candidates on isolated data, including process restart, actual
-   workerd alarms, session lease renewal and the editor's central-login flow.
-   The first restricted trial uses a localhost SSH entrance and the existing
-   overseas business origin. Same-domain TLS and geographic routing belong to
-   the later public-opening rehearsal.
-2. Install the formal service under its dedicated Unix user and prepare its
-   state directory. Keep `PROJECT_WRITES_ENABLED=false`; the loopback entry is
-   accessible through SSH. The entry normalizes trusted proxy requests to the
-   configured client origin and preserves browser Origin checks.
-3. Enable scoped source capture in an approved maintenance change, then call its admin
-   seed endpoint until `remaining=0`. Run delivery in both directions until
-   contiguous receipts agree. Compare owner-scoped Project IDs, bytes, history
-   and counts. Unknown owners and gaps must be resolved before proceeding.
-4. Include `sync-tick.py` in the immutable release and install the replication
-   service/timer with the unit's two root-owned credentials. A tick fails on
-   `retry`, `blocked`, `disabled`, a remaining write fence, 120 seconds without
-   catch-up or with pending work, or 80% of the configured journal budget.
-   Its private `monitor.json` and systemd journal contain only health counters;
-   HTTP success alone is not convergence. A failed tick is retried by the timer.
-   The sync service requires an already running runtime; it must not start a
-   stopped runtime during a consistent backup or maintenance window.
-   Include `sync-alert.py` and install its separate service/timer. Its root-owned
-   `sync-alert.json` credential contains `apiKey`, `from` and the explicitly
-   authorized recipient `to`. The watcher sends failures, stale activity and
-   recovery through Resend; repeated failures are limited to one per hour, with
-   a persisted idempotency key for uncertain sends. After 23 hours, an uncertain
-   send stops retrying until an operator reconciles the mail log; it cannot
-   assume the provider still deduplicates that key. Run its `--test` once and
-   confirm receipt before opening writes. API acceptance is not mailbox delivery.
-   Journal output alone does not deliver an alert. The private
-   region actively pulls and pushes; the source needs no inbound domestic URL.
-5. Qualify off-host backup and restore for the whole stopped state directory,
-   including sessions, Project journal, quota, receipts and artifact storage.
-   Restore to a separate directory/port. Clear restored regional sessions and
-   pending handoffs before connecting it to the authority; reconcile Project cursors
-   before writes. Preserve every acknowledged save when rolling back binaries.
-6. Enable writes for a small verified cohort only after catch-up and recovery
-   acceptance. ICP, HTTPS and public regional routing remain separate gates.
+- Production's release follows Production after 10 minutes. The release
+  monitor is `/var/lib/canvas-cn-release/monitor.json`; a commit refused or
+  rolled back there stays refused until the next commit or until an operator
+  deletes that state after fixing its cause (usually a missing credential).
+- Project sync fails a tick on `retry`, `blocked`, `disabled`, a remaining write
+  fence, 120 seconds without catch-up, or 80% of the journal budget; its
+  monitor holds counters only. The region pulls and pushes; the source needs no
+  inbound domestic URL. The sync service never starts a stopped runtime.
+- Alerts: `sync-alert.py` mails failures, stale monitors and recovery for the
+  Project, Publication and Release scopes, at most hourly per failure, with a
+  persisted idempotency key; after 23 hours an uncertain send waits for an
+  operator. Production separately mails when the region stops pulling. Confirm
+  `--test` delivery in the mailbox before opening writes.
+- Simulation reaches the regional gateways through `canvas-cn-operator`. Tunnel
+  failure leaves editing and login available while computation fails closed;
+  uncertain runs are never retried elsewhere. `simulation-smoke-token` only
+  authorizes the deployment check on `/api/simulate`.
+- Backups stop the runtime briefly and keep the newest 20 snapshots of state,
+  sessions, journals, receipts and artifact storage. Copy verified archives
+  off host. Restore into a separate directory and port, clear restored sessions
+  and pending handoffs before connecting it to the authority, and reconcile
+  Project and publication cursors before writes. A release rollback keeps every
+  acknowledged write; never select an older state directory.
 
 ## Publication replicas
 
-[Publication replicas](../../../docs/specs/regional-resources.md) are separately
-opt-in. The domestic template closes publication writes until initialization.
-On the source, the candidate must be reviewed and deployed before setting
-`RESOURCE_REGION=overseas`, the separate peer/admin tokens and
-`RESOURCE_WRITES_ENABLED=true`. A code push alone enables none of them.
+Publication replication is opt-in on each side. On the source set
+`RESOURCE_REGION=overseas`, the separate peer and admin tokens and
+`RESOURCE_WRITES_ENABLED=true`; a code push enables none of them.
 
-- Keep original resource tables intact. Call the admin-authenticated seed HTTP
-  entrance for Community, Components and every configured Dataset source until
-  each answers `more=false`. This creates change metadata, not republications.
-- This first activation requires previously unseeded publication stores. A
-  later snapshot-schema expansion needs an explicit backfill of already tracked
-  resources before declaring catch-up; ordinary seeding skips their identities.
-  Do not clear existing metadata or receiver cursors to force such an upgrade.
-- Copy `resource-sync-tick.py` and `config/gallery-sources.json` into the immutable
-  release. The private `resource-sync.json` contains `localOrigin`, `peerOrigin`,
-  `localTokenFile` and `peerTokenFile`; token files are separate from Project
-  credentials. Only loopback may use HTTP. The runner refuses redirects and
-  validates the configured side's region, stream, cursor and payload hash.
-  The runner's configuration and token files are owned by `root:canvas-formal`
-  with mode `0640`, inside a directory readable only by that group and root.
-- Install the publication sync service/timer after both peers are configured.
-  Establish caught-up and compare resource IDs, owners, status and retained
-  content before enabling domestic publication writes. Imported resources stay
-  read-only; a failed stream cannot be skipped by advancing its cursor.
-- Monitor publication sync independently of Project sync. Use a separate state
-  file and the qualified alert watcher; a stale or blocked monitor must reach
-  the configured operator. Local route checks alone are not delivery evidence.
-- Stop both synchronization timers for a consistent backup. Retain publication
-  metadata, receipts and deletion markers in the stopped-state backup. Restore
-  into closed Project AND publication configurations and reconcile both peers
-  before writes. Binary rollback must retain all acknowledged data and the
-  replication guard; rolling back to a binary unaware of replica ownership is
-  not an admissible write-enabled rollback.
+- Seed Community, Components, every configured Dataset source and each
+  store's interaction stream through the admin-authenticated HTTP entrance
+  until each answers `more=false`. Seeding
+  adds change metadata only. A later snapshot-schema expansion backfills
+  already tracked resources explicitly; never clear metadata or cursors.
+- The private `resource-sync.json` names `localOrigin`, `peerOrigin`,
+  `localTokenFile` and `peerTokenFile` (owned `root:canvas-formal`, mode
+  `0640`). Only loopback may use HTTP; the runner refuses redirects and checks
+  region, stream, cursor and payload hash.
+- Enable the publication timer after both peers are configured, reach
+  caught-up and compare IDs, owners, status and content before opening
+  domestic publication writes. A failed stream is never skipped by advancing
+  its cursor.
 
-The profile does not provide automatic journal compaction,
-abandoned quota reclamation or account-deletion
-propagation. These limits are visible deployment dependencies, not implemented
-by pointing DNS at this service. Source activation also requires reviewing the
-regional mode's disabled legacy operations in the Project contract.
+The region provides no automatic journal compaction, abandoned quota
+reclamation or account-deletion propagation; the
+[Project contract](../../../docs/specs/regional-projects.md) lists the disabled
+legacy operations.

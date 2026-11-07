@@ -6,6 +6,8 @@ source_root="$(CDPATH= cd -- "$script_dir/../../.." && pwd)"
 host_home="${SIMULATOR_HOST_HOME:-$HOME/analog-canvas-sim}"
 runtime_env="$host_home/secrets/runtime.env"
 tunnel_env="$host_home/secrets/tunnel.env"
+# The China region's credential; present only once that region is connected.
+regional_env="$host_home/secrets/regional.env"
 compose_file="$script_dir/compose.yaml"
 
 fail() {
@@ -78,6 +80,15 @@ if [ "$tunnel_enabled" = true ]; then
   compose up -d --remove-orphans
 else
   compose up -d --remove-orphans simulator
+fi
+if [ "$regional_enabled" = true ]; then
+  compose up -d regional-gateway
+  # The regional gateway answers its own loopback port with the same images.
+  for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    if curl -fsS --max-time 5 http://127.0.0.1:19094/health >/dev/null 2>&1; then break; fi
+    [ "$attempt" = 12 ] && fail "regional gateway did not become healthy"
+    sleep 5
+  done
 fi
 
 "$script_dir/health.sh" >/dev/null

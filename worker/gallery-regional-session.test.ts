@@ -7,6 +7,7 @@ import {
   ORIGIN,
   sqliteState,
 } from "./gallery.test-support";
+import { REGIONAL_LEASE_MS } from "./regional-auth-contract";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -66,7 +67,7 @@ it("stops Gallery access at the regional session lease deadline after a recent r
       target,
     );
 
-  now += 59_000;
+  now += REGIONAL_LEASE_MS - 1_000;
   expect((await read())?.status).toBe(200);
   now += 2_000;
   expect((await read())?.status).toBe(401);

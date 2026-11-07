@@ -25,16 +25,17 @@ def write_state(path, state):
     os.replace(temp, path)
 
 
-def condition(path, now):
+def condition(path, now, stale_seconds=120):
     try:
         status = json.loads(path.read_text())
         at = status.get('lastAttemptAt')
-        if type(at) not in [int, float] or not math.isfinite(at) or at > now or now - at > 120:
+        if type(at) not in [int, float] or not math.isfinite(at) or at > now or now - at > stale_seconds:
             return 'stale-monitor'
         if status.get('health') == 'ok':
             return 'ok'
         reasons = {'retry', 'blocked', 'disabled', 'write-fenced', 'journal-capacity',
-                   'replication-lag', 'transport-or-invalid-status'}
+                   'replication-lag', 'transport-or-invalid-status',
+                   'release-failed', 'release-rolled-back'}
         return status.get('reason') if status.get('reason') in reasons else 'invalid-monitor'
     except (OSError, ValueError, TypeError, AttributeError):
         return 'invalid-monitor'
@@ -42,7 +43,8 @@ def condition(path, now):
 
 def run(args):
     scope = getattr(args, 'scope', 'Project')
-    service = 'canvas-cn-resource-sync.service' if scope == 'Publication' else 'canvas-cn-project-sync.service'
+    service = {'Publication': 'canvas-cn-resource-sync.service',
+               'Release': 'canvas-cn-release.service'}.get(scope, 'canvas-cn-project-sync.service')
     endpoint = urllib.parse.urlsplit(args.mail_endpoint)
     local_test = endpoint.scheme == 'http' and endpoint.hostname == '127.0.0.1' and endpoint.path == '/emails'
     if args.mail_endpoint != 'https://api.resend.com/emails' and not local_test:
@@ -54,7 +56,7 @@ def run(args):
     state_path = pathlib.Path(args.state)
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     now = time.time()
-    health = condition(pathlib.Path(args.monitor), now)
+    health = condition(pathlib.Path(args.monitor), now, getattr(args, 'stale_seconds', 120))
     pending = state.get('pending')
     if pending is None:
         previous = state.get('acceptedCondition', 'ok')
@@ -113,7 +115,8 @@ def main():
         parser.add_argument('--' + flag, required=True)
     parser.add_argument('--mail-endpoint', default='https://api.resend.com/emails')
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--scope', choices=['Project', 'Publication'], default='Project')
+    parser.add_argument('--scope', choices=['Project', 'Publication', 'Release'], default='Project')
+    parser.add_argument('--stale-seconds', type=int, default=120)
     args = parser.parse_args()
     try:
         print(json.dumps(run(args)))

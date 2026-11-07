@@ -2,7 +2,9 @@
 
 Status: `proposed`
 
-Regional rollout contract; not enabled in Production.
+Regional rollout contract. Production is the source for the admitted Project
+cohort and for publications; the event protocol below remains a proposal for
+identity and completed simulation evidence.
 
 Primary owner: Auth, Gallery, Component Library and regional replication.
 

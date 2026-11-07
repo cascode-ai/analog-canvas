@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { AuthDO } from "../../../worker/auth-do";
 import { RegionalSessionDO } from "../../../worker/regional-session";
+import { REGIONAL_LEASE_MS } from "../../../worker/regional-auth-contract";
 import { build } from "vite";
 import { fileURLToPath } from "node:url";
 
@@ -134,7 +135,7 @@ export async function regionalAccounts(
   return {
     origin: clientOrigin,
     expireLease: () => {
-      time += 60_001;
+      time += REGIONAL_LEASE_MS + 1;
     },
     emailCode: () => code,
     close: async () => {

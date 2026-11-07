@@ -77,12 +77,12 @@ serves local authorization. Resource replication is owned by
   restriction. Evidence is bounded before serialization using the existing
   block-record limits. A transport failure reports unavailability, never
   successful delivery; unsent block notices remain retryable at the authority.
-- The authorization lease and alarm interval are defined in the
-  [protocol module](../../worker/regional-auth-contract.ts). Background alarms
-  renew before expiry; a failed renewal never extends a lease. Expired leases
-  return no user. Alarm delay or cross-border outages can therefore pause private
-  operations even while regional data is available. Production must qualify
-  alarm capacity and clock synchronization before enabling this profile.
+- The authorization lease (30 minutes) and renewal interval (30 seconds) are
+  defined in the [protocol module](../../worker/regional-auth-contract.ts).
+  Background alarms renew every interval; a failed renewal never extends a
+  lease. Logout, expiry and restriction changes therefore reach a connected
+  region within one renewal, and the lease only bounds how long a region keeps
+  serving through a cross-border outage. Expired leases return no user.
 - Authority logout, session expiry or account disappearance stops renewal;
   prior leases expire within their bound. `blocked` retains its Gallery-only meaning; it is not a
   global account-disable flag. This protocol adds no global-disable feature.

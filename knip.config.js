@@ -49,10 +49,8 @@ export default {
         "worker/index.ts!",
         "worker/regional-entry.ts!",
         "containers/canvas-cn/formal/egress.mjs!",
-        // Invoked by the standalone regional release preparation command.
+        // Invoked by scripts/regional-release.mjs inside the candidate build.
         "containers/canvas-cn/formal/prepare-artifacts.mjs!",
-        "containers/canvas-cn/formal/build-editor.mjs!",
-        "containers/canvas-cn/formal/verify-editor.mjs!",
         // Loaded by the standalone workerd login profile's config.capnp.
         "containers/canvas-cn/login/entry.mjs!",
         "containers/canvas-cn/login/egress.mjs!",
