@@ -1,3 +1,4 @@
+import { locallyOwnedResources } from "./resource-replica";
 // Bylines that follow an account: AI accounts' official names, GPT-6.1 Sol's
 // circuits moved off GPT-6 Astra's seat, and profile renames.
 
@@ -33,7 +34,7 @@ export function moveSolFromAstra(sql: SqlStorage, through: string): void {
   const astra = AI_SEATS.find((seat) => seat.seat === "ai-designer-2")!;
   const sol = AI_SEATS.find((seat) => seat.seat === "ai-designer-3")!;
   const moved = `SELECT id FROM gallery_entries
-     WHERE owner_user_id = ? AND created_at > ? AND created_at <= ?`;
+     WHERE owner_user_id = ? AND created_at > ? AND created_at <= ? AND ${locallyOwnedResources(sql)}`;
   sql.exec(
     `UPDATE gallery_entry_versions SET author = ? WHERE entry_id IN (${moved})`,
     sol.displayName,
@@ -91,7 +92,7 @@ export function syncAiSeatBylines(state: DurableObjectStateLike): void {
          WHERE author <> ? AND author NOT IN (${others.map(() => "?").join(", ")})
            AND entry_id IN (
            SELECT id FROM gallery_entries
-           WHERE owner_user_id = ? AND author IN (?, ?)
+           WHERE owner_user_id = ? AND author IN (?, ?) AND ${locallyOwnedResources(sql)}
          )`,
         displayName,
         displayName,
@@ -102,7 +103,7 @@ export function syncAiSeatBylines(state: DurableObjectStateLike): void {
       );
       sql.exec(
         `UPDATE gallery_entries SET author = ?, ai_generated = 1
-         WHERE owner_user_id = ? AND author IN (?, ?)
+         WHERE owner_user_id = ? AND author IN (?, ?) AND ${locallyOwnedResources(sql)}
            AND (author <> ? OR ai_generated <> 1)`,
         displayName,
         userId,
@@ -142,7 +143,7 @@ export function renameOwner(
     entries = sql
       .exec<{ count: number }>(
         `SELECT COUNT(*) AS count FROM gallery_entries
-         WHERE owner_user_id = ?`,
+         WHERE owner_user_id = ? AND ${locallyOwnedResources(sql)}`,
         ownerUserId,
       )
       .one().count;
@@ -150,7 +151,7 @@ export function renameOwner(
       .exec<{ count: number }>(
         `SELECT COUNT(*) AS count FROM gallery_entry_versions
          WHERE entry_id IN (
-           SELECT id FROM gallery_entries WHERE owner_user_id = ?
+           SELECT id FROM gallery_entries WHERE owner_user_id = ? AND ${locallyOwnedResources(sql)}
          )`,
         ownerUserId,
       )
@@ -158,13 +159,13 @@ export function renameOwner(
     sql.exec(
       `UPDATE gallery_entry_versions SET author = ?
        WHERE entry_id IN (
-         SELECT id FROM gallery_entries WHERE owner_user_id = ?
+         SELECT id FROM gallery_entries WHERE owner_user_id = ? AND ${locallyOwnedResources(sql)}
        )`,
       displayName,
       ownerUserId,
     );
     sql.exec(
-      "UPDATE gallery_entries SET author = ? WHERE owner_user_id = ?",
+      `UPDATE gallery_entries SET author = ? WHERE owner_user_id = ? AND ${locallyOwnedResources(sql)}`,
       displayName,
       ownerUserId,
     );

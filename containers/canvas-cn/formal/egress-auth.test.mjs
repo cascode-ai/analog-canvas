@@ -13,9 +13,11 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("discovers enabled login methods through the standalone egress policy", async () => {
+it("discovers the authority's enabled sign-in providers through standalone egress", async () => {
   const h = accounts({
-    GOOGLE_CLIENT_ID: "google",
+    GH_OAUTH_CLIENT_ID: "github-test",
+    GH_OAUTH_CLIENT_SECRET: "secret",
+    GOOGLE_CLIENT_ID: "google-test",
     GOOGLE_CLIENT_SECRET: "secret",
   });
   vi.stubGlobal("fetch", (request) => h.source.authDurable.fetch(request));
@@ -24,10 +26,13 @@ it("discovers enabled login methods through the standalone egress policy", async
       PEER_ORIGIN: transportOrigin,
       IDENTITY_URL: transportOrigin + "/api/auth/regional/identities",
     });
-  expect(await (await h.call("/api/auth/providers", "")).json()).toMatchObject({
-    github: false,
+  const response = await h.call("/api/auth/providers", "");
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    github: true,
     google: true,
     email: true,
+    central: true,
   });
 });
 

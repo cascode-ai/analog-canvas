@@ -38,8 +38,8 @@ forwarded-account contract; voting replication is a separate delivery.
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | Account IDs, verified identities, roles, blocks, deletions | Authority-originated security records                                                      |
 | Private Cloud Projects and their retained history          | Regional writes; preserve ownership, lineage and conflict branches                         |
-| Gallery publications, versions, moderation, likes          | Explicit resource events; private saves never publish automatically                        |
-| User Components and publication status                     | Preserve component IDs, revisions, dependencies and permissions                            |
+| Gallery publications, versions, moderation, likes          | [Origin-owned replicas](regional-resources.md); private saves never publish automatically  |
+| User Components and Dataset publications                   | [Origin-owned replicas](regional-resources.md), preserving IDs, revisions and permissions  |
 | Completed simulation metadata and retained files           | Immutable result references; transfer and verify file bytes before announcing availability |
 | Active simulations and Agent/topology sessions             | Owned by their executing region; never replay a job by replicating its status              |
 | Visitor statistics, caches, browser recovery               | Regional; not part of the account/Project merge                                            |
@@ -57,8 +57,10 @@ both producers. An ID collision between unrelated resource origins or owners
 is a reconciliation error, never an upsert that combines their contents.
 
 Private Cloud Projects use the implemented [regional Project protocol](regional-projects.md).
-The following proposal applies to the remaining resource owners; it is not a
-second Project wire format.
+Gallery, User Components and Dataset publications instead use the accepted
+[publishing-region contract](regional-resources.md). The following event
+proposal concerns future identity and completed simulation evidence replication;
+it is neither their publication protocol nor a second Project wire format.
 
 ```text
 event:
@@ -121,10 +123,6 @@ ack:
   next save either uses the acknowledged head or returns a conflict. Normal
   retained history keeps its existing limit; unresolved branches are retained
   separately until resolution or explicit deletion.
-- Likes are per-account state, not independently incremented global counters.
-  Concurrent like/unlike resolves to unlike; moderation/rejection overrides a
-  concurrent ordinary publication update. A public entry can only be restored
-  through an explicit authorized action after observing that state.
 - Deletion leaves a tombstone and dominates stale or concurrent updates. A
   deleted ID cannot be recreated by retrying an old event. Tombstones remain
   until every supported replica has acknowledged them; an abandoned replica

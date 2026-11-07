@@ -1,15 +1,18 @@
 [Unit]
 Description=Deliver one durable Canvas Project replication event
 After=canvas-cn-formal.service
-Requires=canvas-cn-formal.service
+Requisite=canvas-cn-formal.service
 
 [Service]
 Type=oneshot
 User=canvas-formal
 Group=canvas-formal
-# Root-owned curl config: header = "Authorization: Bearer <sync-admin-token>".
-LoadCredential=sync-curl.conf:/etc/analog-canvas-formal/sync-curl.conf
-ExecStart=/usr/bin/curl --config %d/sync-curl.conf --silent --show-error --fail-with-body --max-time 30 --request POST http://127.0.0.1:8792/api/project-sync/run
+LoadCredential=sync-admin-token:/etc/analog-canvas-formal/sync-admin-token
+LoadCredential=sync-inbound-token:/etc/analog-canvas-formal/sync-inbound-token
+StateDirectory=canvas-cn-project-sync
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /opt/analog-canvas/current-formal/sync-tick.py --credentials %d --state /var/lib/canvas-cn-project-sync/monitor.json
+TimeoutStartSec=100
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

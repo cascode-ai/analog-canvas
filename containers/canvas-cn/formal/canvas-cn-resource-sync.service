@@ -1,0 +1,18 @@
+[Unit]
+Description=Replicate origin-owned Canvas publications
+After=canvas-cn-formal.service network-online.target
+Requisite=canvas-cn-formal.service
+
+[Service]
+Type=oneshot
+User=canvas-formal
+Group=canvas-formal
+StateDirectory=canvas-cn-resource-sync
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /opt/analog-canvas/current-formal/resource-sync-tick.py --config /etc/analog-canvas-formal/resource-sync.json --sources /opt/analog-canvas/current-formal/gallery-sources.json --state /var/lib/canvas-cn-resource-sync/monitor.json
+TimeoutStartSec=100
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077

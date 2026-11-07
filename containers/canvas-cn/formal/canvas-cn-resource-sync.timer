@@ -1,0 +1,11 @@
+[Unit]
+Description=Advance Canvas publication replicas
+
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=15s
+AccuracySec=1s
+Unit=canvas-cn-resource-sync.service
+
+[Install]
+WantedBy=timers.target

@@ -1,3 +1,4 @@
+import { locallyOwnedResources } from "./resource-replica";
 // The Gallery's simulation checks (#1545): the queue the Owner fills, one
 // entry at a time, and each entry's latest verdict. The verdict is a column
 // of the entry, private like its testbench; the runs themselves are the
@@ -164,7 +165,7 @@ export function queueSimulationChecks(
         ? sql
             .exec<{ id: string; has_testbench: number }>(
               `SELECT id, 1 AS has_testbench FROM gallery_entries
-               WHERE status = 'public' AND ${HAS_TESTBENCH}
+               WHERE status = 'public' AND ${HAS_TESTBENCH} AND ${locallyOwnedResources(sql)}
                ORDER BY created_at, id`,
             )
             .toArray()
@@ -172,7 +173,7 @@ export function queueSimulationChecks(
             sql
               .exec<{ id: string; has_testbench: number }>(
                 `SELECT id, ${HAS_TESTBENCH} AS has_testbench
-                 FROM gallery_entries WHERE id = ?`,
+                 FROM gallery_entries WHERE id = ? AND ${locallyOwnedResources(sql)}`,
                 id,
               )
               .toArray(),

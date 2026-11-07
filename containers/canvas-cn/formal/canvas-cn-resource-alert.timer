@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch Canvas publication replication independently
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=30s
+AccuracySec=1s
+Unit=canvas-cn-resource-alert.service
+
+[Install]
+WantedBy=timers.target

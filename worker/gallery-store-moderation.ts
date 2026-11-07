@@ -1,3 +1,4 @@
+import { locallyOwnedResources } from "./resource-replica";
 // Moderation: curation, duplicate cleanup, rejection, the recycle bin, and
 // deleting an entry or a whole account's data.
 
@@ -357,6 +358,7 @@ export function sweepRecycledRows(sql: SqlStorage, ownerUserId: string): void {
     .exec<{ id: string }>(
       `SELECT id FROM gallery_entries
        WHERE status = 'recycled' AND owner_user_id = ? AND reviewed_by IS NULL
+         AND ${locallyOwnedResources(sql)}
        ORDER BY recycled_at DESC, id DESC
        LIMIT -1 OFFSET ?`,
       ownerUserId,

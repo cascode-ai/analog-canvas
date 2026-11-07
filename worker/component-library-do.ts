@@ -54,7 +54,10 @@ export class ComponentLibraryDO {
   private readonly contentIndex: ComponentPublicationIndex;
   private readonly catalog: ComponentCatalog;
   private readonly management: ComponentManagement;
-  constructor(private readonly state: ComponentLibraryState) {
+  constructor(
+    private readonly state: ComponentLibraryState,
+    _env?: unknown,
+  ) {
     this.sql = state.storage.sql;
     this.sql.exec(`CREATE TABLE IF NOT EXISTS components (
       id TEXT PRIMARY KEY, revision INTEGER NOT NULL, author_id TEXT NOT NULL,

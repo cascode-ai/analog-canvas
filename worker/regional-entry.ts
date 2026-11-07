@@ -1,19 +1,24 @@
-import { routeAuthRequest, type AuthEnv } from "./auth";
-import { routeCloudProjects } from "./gallery-cloud-projects";
-import { routeProjectSync } from "./project-sync";
+import canvas from "./index";
 import {
   isRegionalAuthorityBrowserRoute,
   regionalConfig,
 } from "./regional-auth-contract";
-import type { GalleryEnv } from "./gallery-store";
-export { RegionalSessionDO } from "./regional-session";
-export { RegionalProjectDO } from "./regional-projects";
-export { GalleryDO } from "./gallery-do";
+export {
+  RegionalSessionDO,
+  RegionalProjectDO,
+  GalleryDO,
+  ComponentLibraryDO,
+  AgentSessionDO,
+  SimulationControlDO,
+  TopologyTaskDO,
+  AnalyticsDO,
+} from "./index";
 
-type Env = GalleryEnv &
-  AuthEnv & { AUTH_REGIONAL_CLIENT?: string; PROJECT_WRITES_ENABLED?: string };
+type Env = Parameters<typeof canvas.fetch>[1] & {
+  PROJECT_WRITES_ENABLED?: string;
+};
 
-/** Private loopback service behind a trusted reverse proxy; only owned APIs are enabled. */
+/** The common Canvas runtime behind a trusted regional loopback proxy. */
 export default {
   async fetch(incoming: Request, env: Env): Promise<Response> {
     const config = regionalConfig(env.AUTH_REGIONAL_CLIENT);
@@ -52,10 +57,6 @@ export default {
         );
       }
     }
-    const auth = await routeAuthRequest(request, env);
-    if (auth) return auth;
-    const sync = await routeProjectSync(request, env);
-    if (sync) return sync;
     if (
       local.pathname.startsWith("/api/projects") &&
       incoming.method !== "GET" &&
@@ -65,9 +66,7 @@ export default {
         { error: "regional-writes-disabled" },
         { status: 503 },
       );
-    return (
-      (await routeCloudProjects(request, env, new URL(request.url))) ??
-      Response.json({ error: "capability-not-enabled" }, { status: 404 })
-    );
+    return canvas.fetch(request, env);
   },
+  scheduled: canvas.scheduled,
 };

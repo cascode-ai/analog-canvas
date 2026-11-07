@@ -810,7 +810,7 @@ describe("MCP tools on the live editor", () => {
     );
   });
 
-  it("lists Cloud Projects through the editor's Project resource", async () => {
+  it("lists Cloud Projects without leaking storage metadata through the Agent resource", async () => {
     const projects = [
       {
         id: "cloud-ota",
@@ -823,7 +823,16 @@ describe("MCP tools on the live editor", () => {
     const { tool, http } = await connected({
       // The Cloud Projects service's answer.
       projectHost: {
-        listProjects: async () => ({ status: "listed", projects }),
+        listProjects: async () => ({
+          status: "listed",
+          projects: projects.map((project) => ({
+            ...project,
+            saveToken: "private-regional-save-token",
+            conflicted: false,
+            favorite: true,
+            galleryEntryId: null,
+          })),
+        }),
       },
     });
     expect(await tool("project_cells", { action: "list-projects" })).toEqual({

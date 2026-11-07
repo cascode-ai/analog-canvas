@@ -1,3 +1,4 @@
+import { locallyOwnedResources } from "./resource-replica";
 // Maintenance passes over stored entries: Project format and schema
 // convergence, netlist marks and part counts, label looks, moving testbenches
 // out of the Project Code, and the pages of the netlist read.
@@ -499,7 +500,7 @@ export function refreshNetlistable(
   const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
   // The part count is the same kind of answer about the drawing, kept
   // current by the same pass.
-  const stale = `netlistable_version < ? OR component_count_version < ?`;
+  const stale = `(netlistable_version < ? OR component_count_version < ?) AND ${locallyOwnedResources(sql)}`;
   const rows = sql
     .exec<{
       id: string;
@@ -678,7 +679,7 @@ export function moveStoredTestbenches(
       const row = sql
         .exec<{ id: string; project_text: string }>(
           `SELECT id, project_text FROM ${table}
-           WHERE ${INLINE_TESTBENCH} AND id > ? ORDER BY id LIMIT 1`,
+           WHERE ${INLINE_TESTBENCH} AND ${locallyOwnedResources(sql, table === "gallery_entries" ? "id" : "entry_id")} AND id > ? ORDER BY id LIMIT 1`,
           after,
         )
         .toArray()[0];
@@ -703,7 +704,7 @@ export function moveStoredTestbenches(
     Number(
       sql
         .exec<{ count: number }>(
-          `SELECT COUNT(*) AS count FROM ${table} WHERE ${where}`,
+          `SELECT COUNT(*) AS count FROM ${table} WHERE (${where}) AND ${locallyOwnedResources(sql, table === "gallery_entries" ? "id" : "entry_id")}`,
         )
         .one().count,
     );

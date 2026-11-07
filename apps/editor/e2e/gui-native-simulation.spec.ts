@@ -9,6 +9,40 @@ import {
   rcExample,
 } from "./simulation-e2e-fixtures.js";
 
+test("GUI retains the sign-in failure after a rejected run is read again", async ({
+  page,
+}) => {
+  const project = await nativeRcProject("sign-in-rejected", "Sign-in rejected");
+  const executor = await createAgentNativeExecutor();
+  try {
+    await page.route("**/api/simulate", (route) => {
+      if (route.request().postDataJSON().operation === "capabilities")
+        return route.fulfill({ json: executor.capabilities });
+      return route.fulfill({
+        status: 401,
+        json: {
+          error: "SIGN_IN_REQUIRED",
+          message: "Sign in to run simulations",
+        },
+      });
+    });
+    const panel = await openSimulation(
+      page,
+      project,
+      "sign-in-rejected.icproj.json",
+    );
+    await panel.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(panel.getByRole("status")).toHaveText("failed");
+    await expect(panel).toContainText("Sign in to run simulations");
+    await expect(panel).not.toContainText("SIMULATION_DETAILS_INVALID");
+    await expect(
+      panel.getByRole("tab", { name: "Console", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+  } finally {
+    await executor.close();
+  }
+});
+
 // The GUI's one end-to-end native run: replayed VACASK records by default,
 // the real executable with ICM_E2E_VACASK_REAL=1.
 test("GUI shows unruled VACASK measurements and opens their Console evidence", async ({

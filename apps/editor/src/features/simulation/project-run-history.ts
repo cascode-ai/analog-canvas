@@ -17,7 +17,7 @@ export interface ProjectRunRecord {
   owner: "agent" | "human";
   presentation: SimulationArchivePresentation;
   state: Run["state"];
-  /** The simulator's verdict, once the run reports one. */
+  /** The simulator's verdict, or failed when execution ended with a problem. */
   outcome?: SimulationOutcomeStatus;
   archive?: SimulationRunArchiveSummary;
   /** Only retained when persistence fails; durable history holds metadata. */
@@ -54,7 +54,9 @@ export function folderRunStatus(
 ): FolderRunStatus | undefined {
   const shownStatus = shown && {
     state: shown.state,
-    outcome: shown.result?.outcome.status,
+    outcome:
+      shown.result?.outcome.status ??
+      (shown.error ? ("failed" as const) : undefined),
   };
   const newestRun = projectRuns.findLast(
     (item) => item.presentation.folderId === folderId,
@@ -138,6 +140,7 @@ export class ProjectRunHistory {
       if (this.disposed) return;
       record.state = run.state;
       if (run.result) record.outcome = run.result.outcome.status;
+      else if (run.error && run.state === "finished") record.outcome = "failed";
       this.notify();
       if (["finished", "cancelled", "lost", "failed"].includes(run.state)) {
         if (!run.result && !run.outputData) {

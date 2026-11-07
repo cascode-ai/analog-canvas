@@ -301,7 +301,15 @@ export class BrowserAgentProjectHost {
         requestId: request.requestId,
         operation: request.operation,
         ok: true,
-        projects: listed.projects.map((project) => ({ ...project })),
+        projects: listed.projects.map(
+          ({ id, name, revision, updatedAt, schemaVersion }) => ({
+            id,
+            name,
+            revision,
+            updatedAt,
+            schemaVersion,
+          }),
+        ),
       };
     }
 

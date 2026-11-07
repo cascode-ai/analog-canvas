@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import entry from "./regional-entry";
+import { regionalRuntimeBindings } from "./regional-entry.test-support";
 import { RegionalSessionDO } from "./regional-session";
 import {
   environment,
@@ -33,6 +34,7 @@ function proxyEnvironment() {
   );
   const target = {
     ...environment(),
+    ...regionalRuntimeBindings(),
     AUTH_REGIONAL_CLIENT: config,
     AUTH: {
       getByName: () => ({

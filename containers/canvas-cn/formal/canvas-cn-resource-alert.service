@@ -1,0 +1,18 @@
+[Unit]
+Description=Report Canvas publication replication failures
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=canvas-formal
+Group=canvas-formal
+LoadCredential=sync-alert.json:/etc/analog-canvas-formal/sync-alert.json
+StateDirectory=canvas-cn-resource-alert
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /opt/analog-canvas/current-formal/sync-alert.py --scope Publication --config %d/sync-alert.json --monitor /var/lib/canvas-cn-resource-sync/monitor.json --state /var/lib/canvas-cn-resource-alert/delivery.json
+TimeoutStartSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077
