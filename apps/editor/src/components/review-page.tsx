@@ -76,6 +76,8 @@ export function ReviewPage({
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [index, setIndex] = useState(0);
   const [flags, setFlags] = useState<string[]>([]);
+  // Not pass chosen: the reasons show, and at least one must be picked.
+  const [failing, setFailing] = useState(false);
   const [note, setNote] = useState("");
   // Boxes the reviewer drew on the pictures, numbered in this order.
   const [marks, setMarks] = useState<ReviewMark[]>([]);
@@ -213,6 +215,7 @@ export function ReviewPage({
   useEffect(() => {
     const own = card?.mine?.current ? card.mine : null;
     setFlags(own?.verdict === "issue" ? own.flags : []);
+    setFailing(own?.verdict === "issue");
     setNote(own?.note ?? "");
     setMarks(own?.marks ?? []);
     setMessage("");
@@ -226,66 +229,60 @@ export function ReviewPage({
     [cards.length],
   );
 
-  const submit = useCallback(async () => {
-    if (!card || busy) return;
-    setBusy(true);
-    try {
-      const response = await fetchLike(
-        `/api/gallery/${encodeURIComponent(card.id)}/reviews`,
-        {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            revision: card.previewRevision,
-            verdict: flags.length ? "issue" : "pass",
-            flags,
-            note,
-            marks,
-          }),
-        },
-      );
-      const payload = (await response.json()) as {
-        review?: ShownReview;
-        error?: string;
-      };
-      if (!response.ok || !payload.review) {
-        setMessage(
-          payload.error === "stale"
-            ? "This drawing changed since it loaded. Reload to review the new version."
-            : payload.error === "daily-review-limit"
-              ? "That is today's limit of reviews here. Thank you!"
-              : "The review could not be saved.",
+  // Pass, or an issue: its flags, else Other when only a comment or boxes
+  // say what is wrong.
+  const submit = useCallback(
+    async (verdict: "pass" | "issue") => {
+      if (!card || busy) return;
+      setBusy(true);
+      try {
+        const response = await fetchLike(
+          `/api/gallery/${encodeURIComponent(card.id)}/reviews`,
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              revision: card.previewRevision,
+              verdict,
+              flags: verdict === "pass" ? [] : flags,
+              note,
+              marks,
+            }),
+          },
         );
-        return;
-      }
-      const review = payload.review;
-      replaceCard(card.id, (each) => withReview(each, review));
-      go(
-        nextUnreviewed(
-          cards.map((each) =>
-            each.id === card.id ? withReview(each, review) : each,
+        const payload = (await response.json()) as {
+          review?: ShownReview;
+          error?: string;
+        };
+        if (!response.ok || !payload.review) {
+          setMessage(
+            payload.error === "stale"
+              ? "This drawing changed since it loaded. Reload to review the new version."
+              : payload.error === "daily-review-limit"
+                ? "That is today's limit of reviews here. Thank you!"
+                : "The review could not be saved.",
+          );
+          return;
+        }
+        const review = payload.review;
+        replaceCard(card.id, (each) => withReview(each, review));
+        go(
+          nextUnreviewed(
+            cards.map((each) =>
+              each.id === card.id ? withReview(each, review) : each,
+            ),
+            index,
           ),
-          index,
-        ),
-      );
-    } catch {
-      setMessage("The review could not be saved.");
-    } finally {
-      setBusy(false);
-    }
-  }, [
-    card,
-    busy,
-    fetchLike,
-    flags,
-    note,
-    marks,
-    cards,
-    go,
-    index,
-    replaceCard,
-  ]);
+        );
+      } catch {
+        setMessage("The review could not be saved.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [card, busy, fetchLike, flags, note, marks, cards, go, index, replaceCard],
+  );
 
   // A like is the reader's own mark, apart from the review.
   const toggleLike = useCallback(async () => {
@@ -305,15 +302,25 @@ export function ReviewPage({
     replaceCard(card.id, (each) => ({ ...each, likedByViewer, likes }));
   }, [card, fetchLike, replaceCard]);
 
-  const toggleFlag = useCallback(
-    (key: string) =>
-      setFlags((current) =>
-        current.includes(key)
-          ? current.filter((flag) => flag !== key)
-          : [...current, key],
-      ),
-    [],
-  );
+  const toggleFlag = useCallback((key: string) => {
+    setFailing(true);
+    setFlags((current) =>
+      current.includes(key)
+        ? current.filter((flag) => flag !== key)
+        : [...current, key],
+    );
+  }, []);
+
+  // Not pass opens the reasons; with one chosen it sends the issue.
+  const notPass = useCallback(() => {
+    if (!failing) setFailing(true);
+    else if (flags.length) void submit("issue");
+    else setMessage("Choose at least one reason.");
+  }, [failing, flags.length, submit]);
+  const passIt = useCallback(() => {
+    setFailing(false);
+    void submit("pass");
+  }, [submit]);
 
   // Enter submits, digits flag, ← → step, N jumps to the next unreviewed.
   useEffect(() => {
@@ -324,7 +331,8 @@ export function ReviewPage({
       if (typing) {
         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
-          void submit();
+          if (failing) notPass();
+          else passIt();
         }
         return;
       }
@@ -333,8 +341,14 @@ export function ReviewPage({
         (each) => each.hotkey === event.key,
       );
       if (flag) toggleFlag(flag.key);
-      else if (event.key === "Enter") void submit();
-      else if (event.key.toLowerCase() === "l") void toggleLike();
+      else if (event.key === "Enter") {
+        if (failing) notPass();
+        else passIt();
+      } else if (event.key.toLowerCase() === "x") notPass();
+      else if (event.key === "Escape" && failing) {
+        setFailing(false);
+        setFlags([]);
+      } else if (event.key.toLowerCase() === "l") void toggleLike();
       else if (event.key === "ArrowRight") go(index + 1);
       else if (event.key === "ArrowLeft") go(index - 1);
       else if (event.key.toLowerCase() === "n")
@@ -344,7 +358,18 @@ export function ReviewPage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [scope, card, toggleFlag, toggleLike, submit, go, index, cards]);
+  }, [
+    scope,
+    card,
+    failing,
+    toggleFlag,
+    toggleLike,
+    notPass,
+    passIt,
+    go,
+    index,
+    cards,
+  ]);
 
   return (
     <main
@@ -468,28 +493,75 @@ export function ReviewPage({
                     </button>
                     <button
                       type="button"
-                      className={`review-submit${flags.length ? " issue" : ""}`}
+                      className="review-pass"
                       disabled={busy}
-                      onClick={() => void submit()}
+                      title="Nothing wrong with it"
+                      data-testid="review-pass"
+                      onClick={passIt}
                     >
-                      {flags.length ? "Submit issue" : "Pass"}
-                      <kbd>Enter</kbd>
+                      <span aria-hidden="true">✓</span> Pass
+                      {failing ? null : <kbd>Enter</kbd>}
+                    </button>
+                    <button
+                      type="button"
+                      className={`review-issue${flags.length ? " ready" : ""}`}
+                      disabled={busy || (failing && flags.length === 0)}
+                      title={
+                        !failing
+                          ? "Something is wrong: choose the reasons (X)"
+                          : flags.length
+                            ? "Send the reasons with your comment and boxes"
+                            : "Choose at least one reason below"
+                      }
+                      data-testid="review-not-pass"
+                      onClick={notPass}
+                    >
+                      <span aria-hidden="true">✕</span>{" "}
+                      {failing ? "Submit issue" : "Not pass"}
+                      {failing ? (
+                        flags.length ? (
+                          <kbd>Enter</kbd>
+                        ) : null
+                      ) : (
+                        <kbd>X</kbd>
+                      )}
                     </button>
                   </div>
-                  <div className="review-flags" role="group" aria-label="Flags">
-                    {flagsFor(card.scope).map((flag) => (
+                  {failing ? (
+                    <div
+                      className="review-flags"
+                      role="group"
+                      aria-label="Reasons"
+                    >
+                      {flagsFor(card.scope).map((flag) => (
+                        <button
+                          key={flag.key}
+                          type="button"
+                          className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
+                          aria-pressed={flags.includes(flag.key)}
+                          onClick={() => toggleFlag(flag.key)}
+                        >
+                          <kbd>{flag.hotkey}</kbd>
+                          {flag.label}
+                        </button>
+                      ))}
+                      <span className="review-flags-hint">
+                        {flags.length
+                          ? "Add a comment or boxes if it helps."
+                          : "Choose at least one reason."}
+                      </span>
                       <button
-                        key={flag.key}
                         type="button"
-                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
-                        aria-pressed={flags.includes(flag.key)}
-                        onClick={() => toggleFlag(flag.key)}
+                        className="review-flags-cancel"
+                        onClick={() => {
+                          setFailing(false);
+                          setFlags([]);
+                        }}
                       >
-                        <kbd>{flag.hotkey}</kbd>
-                        {flag.label}
+                        Cancel <kbd>Esc</kbd>
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  ) : null}
                   <div className="review-marks-row">
                     {marks.map((mark, number) => (
                       <button
@@ -718,10 +790,7 @@ function VerdictNote({
         {verdict.icon}
       </span>
       <p>
-        <b>
-          {verdict.label}
-          {kind}
-        </b>
+        <b>{verdict.label}</b> ({verdict.what}){kind ? <b>{kind}</b> : null}
         {sentence && sentence !== comparison.category ? ` — ${sentence}` : ""}
       </p>
     </div>
