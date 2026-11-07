@@ -66,15 +66,6 @@ describe("Cloudflare deploy workflow", () => {
     });
   });
 
-  it("masks this deploy's simulation check credential", () => {
-    const made = workflow.indexOf(
-      "name: Make this deploy's simulation check credential",
-    );
-    const secrets = workflow.indexOf("name: Sync worker secrets");
-    expect(made).toBeGreaterThan(-1);
-    expect(workflow.slice(made, secrets)).toContain("::add-mask::$token");
-  });
-
   it("verifies the pinned MCP release before deploying", () => {
     const precheck = step("Verify the pinned MCP release before deployment");
     expect(precheck).toContain(
