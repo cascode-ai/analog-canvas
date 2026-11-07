@@ -524,6 +524,64 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     name: NameSchema,
   }),
   z.strictObject({ kind: z.literal("delete-cell"), id: StableIdSchema }),
+  z
+    .strictObject({ kind: z.literal("set-top-cell"), id: StableIdSchema })
+    .describe(
+      "Make Cell id the Project's default entry. Moves nothing and changes no simulation's Cell.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("make-unique-cell"),
+      instanceId: StableIdSchema.describe(
+        "A Cell instance in the target Document.",
+      ),
+      id: StableIdSchema.describe("The copy's new Cell id."),
+      name: NameSchema.optional().describe(
+        "Defaults to the source's next free number, as Amp_2.",
+      ),
+    })
+    .describe(
+      "Give one instance its own copy of its Cell, calling the same children; the Cell's other uses keep it. One undo.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("replace-cell"),
+      instanceIds: NonemptyIdsSchema.describe(
+        "Cell instances in the target Document.",
+      ),
+      replacementId: StableIdSchema,
+      allUses: z
+        .boolean()
+        .optional()
+        .describe(
+          "Also every other use, in any Document, of the Cells those instances call.",
+        ),
+    })
+    .describe(
+      "Switch instances to another Cell with the same Pin names (any case). Refuses a cycle; drops overrides the new Cell does not declare. One undo.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("flatten-instance"),
+      instanceId: StableIdSchema.describe(
+        "A Cell instance in the target Document.",
+      ),
+    })
+    .describe(
+      "Put the instance's Cell parts into the target Document in its place, with its parameter values; Nets stay joined, unrouted. Other uses keep the Cell. One undo.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("cell-from-selection"),
+      instanceIds: NonemptyIdsSchema.describe(
+        "Parts of the target Document to move.",
+      ),
+      id: StableIdSchema.describe("The new Cell's id."),
+      name: NameSchema,
+    })
+    .describe(
+      "Move parts into a new Cell placed where they were: one Pin per Net leaving them, named after it; parent parameters they use pass through. Refuses splitting an inductor coupling. One undo.",
+    ),
   z.strictObject({
     kind: z.literal("bind-cell-parameter"),
     instanceId: StableIdSchema,

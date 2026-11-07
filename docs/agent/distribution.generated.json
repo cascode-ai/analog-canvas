@@ -53,7 +53,7 @@
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "sha256": "efdc57969829c18a86bc488465858ece85935c46f69364e5843272daf8c63397"
+      "sha256": "3fe3f660c115b8711e7c4a5eee2c76d9d9d01fd2e3dd70f08d8ede6572beb711"
     },
     {
       "source": "docs/agent/http-kit/README.md",
@@ -77,7 +77,7 @@
     },
     {
       "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-      "sha256": "3d42ae311955c1922d711212a12d05e5414c9d1a5bb565035abc78be31b15bbc"
+      "sha256": "234bba9fe4c539cabbc719d59d56810b1dc55208af18f4414fb3b6190d2069a5"
     },
     {
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "221e60e77137a4d9a830eccef9a8b1c9102ef7e5a6aa06c55a195421ae31afc0"
+      "sha256": "9aa67221660e88601b197babf7dedad77a1962adc6f74f80738021e45afcb469"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "9e161f94f2e2260ebbb80dd148f4e13c29a02edb0283bd7689f3135eddeb20ce"
+      "sha256": "9cd5c40cbb99f2f438c51ca31164f5227be47db03f0495e66b37972b0606a9df"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

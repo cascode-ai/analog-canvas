@@ -8,6 +8,7 @@ import { AgentAuthoringCommandSchema } from "@icm/agent-adapter";
 import { expect, it } from "vitest";
 import { planBrowserAgentCommand } from "./browser-agent-command";
 import { liveAgentEditor } from "./live-agent-editor.test-support";
+import { hierarchyNavigationFixture } from "../../../../netlists/hierarchy-navigation/fixture";
 
 it.each(["INPUT", "INPUT".repeat(30)])(
   "authors and renames vector Cell Pins through the live Agent service (%s)",
@@ -347,4 +348,163 @@ it("uses the shared parameter planner across child fields and caller overrides",
     /still referenced/,
   );
   expect(project).toEqual(before);
+});
+
+it("reshapes the hierarchy through the live Agent service, one undo each", () => {
+  const { controller, service } = liveAgentEditor({
+    project: hierarchyNavigationFixture(),
+  });
+  let step = 0;
+  /** Transact `actions` in `documentId`; the result, which must be ok. */
+  const act = (documentId: string, actions: unknown[]) => {
+    const document = controller.project.documents.find(
+      (cell) => cell.id === documentId,
+    )!;
+    const result = service.handle({
+      apiVersion: "3.0",
+      requestId: `reshape-${++step}`,
+      transactionId: `reshape-${step}`,
+      operation: "transact",
+      documentId,
+      expectedRevision: document.revision,
+      expectedStructureRevision: controller.project.structureRevision,
+      actions,
+    } as never);
+    expect(result.ok, JSON.stringify(result).slice(0, 600)).toBe(true);
+  };
+  const binding = (documentId: string, instanceId: string) =>
+    controller.project.documents
+      .find((cell) => cell.id === documentId)!
+      .instances.find((item) => item.id === instanceId)?.netlist?.binding;
+  const cells = () => controller.project.documents.map((cell) => cell.id);
+
+  act("top", [{ kind: "set-top-cell", id: "unused" }]);
+  expect(controller.project.topDocumentId).toBe("unused");
+
+  act("top", [
+    { kind: "make-unique-cell", instanceId: "X1", id: "channel-x1" },
+  ]);
+  expect(binding("top", "X1")).toEqual({
+    kind: "subcircuit",
+    childDocumentId: "channel-x1",
+  });
+  expect(
+    controller.project.documents.find((cell) => cell.id === "channel-x1")?.name,
+  ).toBe("Channel_2");
+
+  act("top", [
+    {
+      kind: "replace-cell",
+      instanceIds: ["X1"],
+      replacementId: "channel",
+      allUses: true,
+    },
+  ]);
+  expect(binding("top", "X1")).toMatchObject({ childDocumentId: "channel" });
+
+  act("amplifier", [{ kind: "flatten-instance", instanceId: "XP" }]);
+  const amplifier = controller.project.documents.find(
+    (cell) => cell.id === "amplifier",
+  )!;
+  expect(amplifier.instances.some((item) => item.id === "XP")).toBe(false);
+  const resistor = amplifier.instances.find(
+    (item) => item.symbolId === "resistor",
+  )!;
+  expect(resistor.netlist?.parameters).toEqual({ value: "{gain}" });
+
+  act("amplifier", [
+    {
+      kind: "cell-from-selection",
+      instanceIds: [resistor.id],
+      id: "wrap",
+      name: "Wrap",
+    },
+  ]);
+  expect(cells()).toContain("wrap");
+  expect(
+    controller.project.documents
+      .find((cell) => cell.id === "wrap")!
+      .netlist!.terminals.map((pin) => pin.name),
+  ).toEqual(["IN", "OUT"]);
+
+  // Each is one step back, undone from the Cell it edited.
+  for (const [documentId, expected] of [
+    ["amplifier", () => expect(cells()).not.toContain("wrap")],
+    [
+      "amplifier",
+      () =>
+        expect(
+          controller.project.documents
+            .find((cell) => cell.id === "amplifier")!
+            .instances.some((item) => item.id === "XP"),
+        ).toBe(true),
+    ],
+    [
+      "top",
+      () =>
+        expect(binding("top", "X1")).toMatchObject({
+          childDocumentId: "channel-x1",
+        }),
+    ],
+    [
+      "top",
+      () =>
+        expect(binding("top", "X1")).toMatchObject({
+          childDocumentId: "channel",
+        }),
+    ],
+    ["top", () => expect(controller.project.topDocumentId).toBe("top")],
+  ] as const) {
+    act(documentId, [{ kind: "undo" }]);
+    expected();
+  }
+});
+
+it("refuses what the tree refuses: a split coupling, a cycle and an unknown Top", () => {
+  const { controller, service } = liveAgentEditor({
+    project: hierarchyNavigationFixture(),
+  });
+  const run = (documentId: string, actions: unknown[]) =>
+    service.handle({
+      apiVersion: "3.0",
+      requestId: "refuse",
+      transactionId: "refuse",
+      operation: "transact",
+      documentId,
+      expectedRevision: controller.project.documents.find(
+        (cell) => cell.id === documentId,
+      )!.revision,
+      expectedStructureRevision: controller.project.structureRevision,
+      actions,
+    } as never);
+  const before = structuredClone(controller.project);
+  for (const [documentId, actions, message] of [
+    [
+      "top",
+      [{ kind: "set-top-cell", id: "missing" }],
+      /Cell not found: missing/u,
+    ],
+    [
+      "channel",
+      [{ kind: "replace-cell", instanceIds: ["XA"], replacementId: "channel" }],
+      /cannot contain itself/u,
+    ],
+    [
+      "pair",
+      [
+        {
+          kind: "cell-from-selection",
+          instanceIds: ["P_IN"],
+          id: "x",
+          name: "X",
+        },
+      ],
+      /Select the parts to move into the new Cell/u,
+    ],
+  ] as const) {
+    const result = run(documentId, [...actions]);
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).toMatch(message);
+  }
+  expect(controller.project).toEqual(before);
 });
