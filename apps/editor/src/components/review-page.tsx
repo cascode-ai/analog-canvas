@@ -12,7 +12,7 @@ import "../styles/datasets-page.css";
 import "../styles/review-page.css";
 import "./gallery-tag-groups.css";
 import { galleryPreviewUrl } from "../gallery-client";
-import { COMPARISON_SOURCES, gallerySourceByKey } from "../gallery-sources";
+import { gallerySourceByKey } from "../gallery-sources";
 import { verdictOf, type ComparisonVerdict } from "../dataset-comparisons";
 import {
   flagLabel,
@@ -34,10 +34,13 @@ import {
 import { fetchSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
-import { SidebarFoldButton, useCollapsedSidebar } from "./gallery-tag-sidebar";
+import { useCollapsedSidebar } from "./gallery-tag-sidebar";
 import { HeartIcon } from "./gallery-feed-tile";
 import { MarkablePicture, useInstanceBoxes, ZoomView } from "./review-picture";
 import { NetlistPair, useNetlistText } from "./review-netlists";
+import { AutoCheck } from "./review-auto-check";
+import { ScopeSidebar } from "./review-sidebar";
+import type { LayoutCheckKind, LayoutFinding } from "../layout-check";
 
 type Load =
   | { status: "loading" }
@@ -699,8 +702,33 @@ function ReviewItem({
     alt: "The drawing under review",
     label: "Redraw · Analog Canvas",
   };
-  const boxes = useInstanceBoxes(redraw.src, fetchLike);
+  const { boxes, view } = useInstanceBoxes(redraw.src, fetchLike);
   const highlight = lit ? (boxes.get(lit) ?? null) : null;
+  // What the layout checks find in our drawing; the checks load with it.
+  const [findings, setFindings] = useState<LayoutFinding[] | null>(null);
+  useEffect(() => {
+    const project = ours.project;
+    if (!project) return;
+    let cancelled = false;
+    void import("../layout-check").then(({ checkLayoutText }) => {
+      if (!cancelled) setFindings(checkLayoutText(project));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ours.project]);
+  const [hintKind, setHintKind] = useState<LayoutCheckKind | null>(null);
+  const hints =
+    view && findings && hintKind
+      ? findings
+          .filter((finding) => finding.kind === hintKind)
+          .map(({ box }) => ({
+            x: (box.x - view.x) / view.w,
+            y: (box.y - view.y) / view.h,
+            w: box.w / view.w,
+            h: box.h / view.h,
+          }))
+      : [];
   const picture = (
     shownPicture: { src: string; alt: string },
     side: ReviewMark["side"],
@@ -712,6 +740,7 @@ function ReviewItem({
       marks={marks}
       shown={shownMarks}
       highlight={side === "redraw" ? highlight : null}
+      hints={side === "redraw" ? hints : []}
       onAdd={onAddMark}
       onOpen={() => setZoomed(true)}
     />
@@ -775,6 +804,7 @@ function ReviewItem({
           </h4>
           {picture(redraw, "redraw")}
         </div>
+        <AutoCheck findings={findings} onShow={setHintKind} />
         {comparison ? <VerdictNote comparison={comparison} /> : null}
         <NetlistPair
           theirs={comparison ? theirs : null}
@@ -787,7 +817,7 @@ function ReviewItem({
           title={`${card.id} · ${card.name}`}
           pictures={[
             ...(original ? [{ ...original, side: "original" as const }] : []),
-            { ...redraw, side: "redraw" as const, highlight },
+            { ...redraw, side: "redraw" as const, highlight, hints },
           ]}
           marks={marks}
           shown={shownMarks}
@@ -934,94 +964,5 @@ function OthersReviews({
         </li>
       ))}
     </ul>
-  );
-}
-
-/**
- * The left column, in the Gallery sidebar's own markup and look: one list
- * of filters. Where the drawings come from (Random mixes them all; Random
- * again shuffles anew), then only those with a reference figure; each row
- * counts what it would show. It folds to a strip as that one does.
- */
-function ScopeSidebar({
-  scope,
-  choose,
-  counts,
-  referencesOnly,
-  references,
-  onReferencesOnly,
-  collapsed,
-  onToggle,
-}: {
-  scope: string;
-  choose: (scope: string) => void;
-  counts: Record<string, number>;
-  referencesOnly: boolean;
-  references: number | null;
-  onReferencesOnly: () => void;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  if (collapsed)
-    return (
-      <div className="gallery-sidebar-slot" data-collapsed="true">
-        <SidebarFoldButton
-          collapsed
-          onToggle={onToggle}
-          testId="review-sidebar-fold"
-        />
-      </div>
-    );
-  const item = (key: string, label: string) => (
-    <button
-      key={key}
-      type="button"
-      className="gallery-sidebar-option"
-      aria-pressed={scope === key}
-      data-testid={`review-scope-${key}`}
-      title={
-        key === "random" && scope === "random" ? "Shuffle again" : undefined
-      }
-      onClick={() => choose(key)}
-    >
-      <span>{label}</span>
-      <span className="gallery-sidebar-count">
-        {counts[key] === undefined ? "" : num(counts[key])}
-      </span>
-    </button>
-  );
-  return (
-    <div className="gallery-sidebar-slot">
-      <div className="gallery-sidebar-search review-sidebar-top">
-        <h2>Filter</h2>
-        <SidebarFoldButton
-          collapsed={false}
-          onToggle={onToggle}
-          testId="review-sidebar-fold"
-        />
-      </div>
-      <aside className="gallery-tag-sidebar" aria-label="Filter">
-        <div className="review-sidebar-list">
-          {item("random", "Random")}
-          {item("community", "Community")}
-          {COMPARISON_SOURCES.map((source) => item(source.key, source.name))}
-        </div>
-        <div className="review-sidebar-list">
-          <button
-            type="button"
-            className="gallery-sidebar-option"
-            aria-pressed={referencesOnly}
-            data-testid="review-references-only"
-            title="Only drawings with an original figure or a reference image"
-            onClick={onReferencesOnly}
-          >
-            <span>With a reference figure</span>
-            <span className="gallery-sidebar-count">
-              {references === null ? "" : num(references)}
-            </span>
-          </button>
-        </div>
-      </aside>
-    </div>
   );
 }

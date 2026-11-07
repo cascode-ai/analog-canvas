@@ -773,3 +773,46 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* What the layout checks found in our drawing, under the pictures. */
+.review-auto {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 12px;
+}
+
+.review-auto .label {
+  color: var(--icm-text-muted);
+  font-weight: 600;
+}
+
+.review-auto .clean {
+  color: #2b8a3e;
+}
+
+.review-auto-chip {
+  padding: 1px 8px;
+  border: 1px solid #a5c8f0;
+  border-radius: 999px;
+  background: #f1f7fe;
+  color: #1c5cab;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.review-auto-chip:hover,
+.review-auto-chip.on {
+  border-color: #1c7ed6;
+  background: #d9eafb;
+}
+
+.review-hint-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px dashed #1c7ed6;
+  border-radius: 3px;
+  background: rgb(28 126 214 / 8%);
+}

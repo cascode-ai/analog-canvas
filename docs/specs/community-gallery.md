@@ -509,7 +509,15 @@ device the other side's netlist pairs with it, matched by what the devices
 connect to (names differ; a reading aid rather than a check), and lights our
 device in our drawing (by its instance, as the editor's Project Code finds
 it). Open in editor opens a tab; back in Review, a drawing changed there
-shows its new version. It is the Gallery's Review tab,
+shows its new version. Under the pictures, Auto check lists by kind what the layout
+checks (`apps/editor/src/layout-check.ts`) find in our drawing: a step of at
+most 20 in a wire between two runs; neighbours alike and turned alike whose
+pins miss a shared row or column by at most 15; branch dots off level or out
+of line by at most 15; structural twins (alike in all they connect to) at
+most 40 apart in height but not level, or level but not mirrored; branch
+dots of one net at most 10 apart; a net's wires closing a loop; wires of one
+net over each other. Pointing at a kind boxes its findings on our picture; a
+click keeps them. It is the Gallery's Review tab,
 between Community gallery and My shelf; its pages keep that tab row, which
 ends in the switch between Review (the default) and Statistics (`/datasets`,
 look only). Its sidebar, in the wall sidebar's markup, is one list of

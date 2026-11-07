@@ -22,10 +22,20 @@ export type PictureBox = Omit<ReviewMark, "side">;
 export function useInstanceBoxes(
   src: string,
   fetchLike: typeof fetch = fetch,
-): ReadonlyMap<string, PictureBox> {
+): {
+  boxes: ReadonlyMap<string, PictureBox>;
+  /** The drawing's own coordinates the picture shows (its viewBox). */
+  view: { x: number; y: number; w: number; h: number } | null;
+} {
   const [boxes, setBoxes] = useState<ReadonlyMap<string, PictureBox>>(
     () => new Map(),
   );
+  const [shownView, setShownView] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
   useEffect(() => {
     let cancelled = false;
     void fetchLike(src, { credentials: "same-origin" })
@@ -68,13 +78,20 @@ export function useInstanceBoxes(
           }
         host.remove();
         setBoxes(next);
+        if (view && view.width > 0 && view.height > 0)
+          setShownView({
+            x: view.x,
+            y: view.y,
+            w: view.width,
+            h: view.height,
+          });
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [src, fetchLike]);
-  return boxes;
+  return { boxes, view: shownView };
 }
 
 /**
@@ -91,6 +108,7 @@ export function MarkablePicture({
   marks,
   shown = null,
   highlight = null,
+  hints = [],
   onAdd,
   onOpen,
   zoomed = false,
@@ -105,6 +123,8 @@ export function MarkablePicture({
   shown?: readonly ReviewMark[] | null;
   /** The device lit in the netlists, where it sits in this picture. */
   highlight?: PictureBox | null;
+  /** What the layout checks found, while the reader points at them. */
+  hints?: readonly PictureBox[];
   onAdd?: (mark: ReviewMark) => void;
   onOpen?: () => void;
   zoomed?: boolean;
@@ -288,6 +308,18 @@ export function MarkablePicture({
                 }}
               />
             ) : null}
+            {hints.map((hint, index) => (
+              <span
+                key={`hint-${index}`}
+                className="review-hint-box"
+                style={{
+                  left: `${hint.x * 100}%`,
+                  top: `${hint.y * 100}%`,
+                  width: `${hint.w * 100}%`,
+                  height: `${hint.h * 100}%`,
+                }}
+              />
+            ))}
             {draft ? <MarkBox mark={draft} label={null} /> : null}
           </div>
         ) : null}
@@ -340,6 +372,7 @@ export function ZoomView({
     side: ReviewMark["side"];
     label: string;
     highlight?: PictureBox | null;
+    hints?: readonly PictureBox[];
   }[];
   marks: readonly ReviewMark[];
   shown?: readonly ReviewMark[] | null;
@@ -397,6 +430,7 @@ export function ZoomView({
               marks={marks}
               shown={shown ?? null}
               highlight={picture.highlight ?? null}
+              hints={picture.hints ?? []}
               {...(onAdd ? { onAdd } : {})}
               zoomed
               boxTool={boxTool}

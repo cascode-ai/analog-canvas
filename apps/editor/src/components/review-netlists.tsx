@@ -9,6 +9,8 @@ export interface LoadedNetlist {
   ok: boolean;
   /** Each device's first line and its instance in our drawing (ours only). */
   places?: { line: number; instanceId: string }[];
+  /** Our drawing's Project Code, for the layout checks (ours only). */
+  project?: string;
 }
 
 /** One side's SPICE netlist, read once per URL. */
@@ -41,7 +43,9 @@ export function useNetlistText(
           };
         if (!response.ok)
           return { text: "The netlist could not be loaded.", ok: false };
-        const payload = (await response.json()) as Parameters<typeof read>[0];
+        const payload = (await response.json()) as Parameters<
+          typeof read
+        >[0] & { projectText?: unknown };
         const raw = read(payload) ?? "";
         const text = raw.trim();
         if (!text) return { text: empty, ok: false };
@@ -53,7 +57,14 @@ export function useNetlistText(
           instanceId: place.instanceId,
           line: place.line - lead,
         }));
-        return places ? { text, ok: true, places } : { text, ok: true };
+        return {
+          text,
+          ok: true,
+          ...(places ? { places } : {}),
+          ...(typeof payload.projectText === "string"
+            ? { project: payload.projectText }
+            : {}),
+        };
       })
       .catch(() => ({ text: "The netlist could not be loaded.", ok: false }))
       .then((next) => !cancelled && setLoaded(next));
