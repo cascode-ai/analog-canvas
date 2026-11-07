@@ -480,8 +480,8 @@ lastUsedAt}]}`, and revokes one with `DELETE /api/auth/owner-tokens/<id>`.
 ### Dataset comparisons
 
 `/datasets`, Review's Statistics mode, sets each dataset circuit's original
-figure beside our redraw, with the verdict of comparing both netlists; the
-wall's Datasets filter and a dataset's wall also link to it. The page is English and reads like every other
+figure beside our redraw, with the verdict of comparing both netlists; a
+dataset's wall also links to it. The page is English and reads like every other
 Gallery read (signed in; signed out it asks to sign in).
 
 - Only datasets whose figures we may show take comparisons: `comparisons:
