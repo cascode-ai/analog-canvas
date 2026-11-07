@@ -304,3 +304,64 @@ export function matchDevices(
     }
   return pairs;
 }
+
+/**
+ * Devices one netlist holds twice over: alike in kind and in everything
+ * they connect to, such as a differential pair's halves or a current
+ * mirror's two sides, by the same colour refinement. Pairs only; devices on
+ * the very same nets (in parallel) are not twins.
+ */
+export function structuralTwins(
+  devices: readonly NetlistDevice[],
+  rounds = 6,
+): [NetlistDevice, NetlistDevice][] {
+  const intern = new Map<string, number>();
+  const id = (key: string) => {
+    let value = intern.get(key);
+    if (value === undefined) intern.set(key, (value = intern.size));
+    return value;
+  };
+  let colours = devices.map((device) => id(device.kind));
+  const nets = new Map<string, number>();
+  for (const device of devices)
+    for (const pin of device.pins)
+      nets.set(pin.net, id(pin.net.startsWith("#") ? pin.net : "net"));
+  for (let round = 0; round < rounds; round += 1) {
+    colours = devices.map((device, index) =>
+      id(
+        `${colours[index]}|${device.pins
+          .map((pin) => `${pin.role}:${nets.get(pin.net)}`)
+          .sort()
+          .join(",")}`,
+      ),
+    );
+    const touching = new Map<string, string[]>();
+    devices.forEach((device, index) => {
+      for (const pin of device.pins)
+        touching.set(pin.net, [
+          ...(touching.get(pin.net) ?? []),
+          `${colours[index]}@${pin.role}`,
+        ]);
+    });
+    for (const [net, around] of touching)
+      nets.set(net, id(`${nets.get(net)}|${around.sort().join(",")}`));
+  }
+  const groups = new Map<number, NetlistDevice[]>();
+  devices.forEach((device, index) =>
+    groups.set(colours[index]!, [
+      ...(groups.get(colours[index]!) ?? []),
+      device,
+    ]),
+  );
+  const netsOf = (device: NetlistDevice) =>
+    device.pins
+      .map((pin) => pin.net)
+      .sort()
+      .join(",");
+  return [...groups.values()]
+    .filter(
+      (group): group is [NetlistDevice, NetlistDevice] =>
+        group.length === 2 && netsOf(group[0]!) !== netsOf(group[1]!),
+    )
+    .map(([a, b]) => [a, b]);
+}
