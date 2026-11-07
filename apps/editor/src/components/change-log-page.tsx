@@ -2,7 +2,7 @@ import "../styles/gallery-entry.css";
 import "../styles/privacy.css";
 
 import { usePageTitle } from "../app/use-page-title";
-import { CHANGE_LOG } from "./change-log";
+import { CHANGE_LOG, type ChangeLogDay } from "./change-log";
 import { GalleryChrome } from "./gallery-chrome";
 import { SITE_REPOSITORY_URL } from "./site-resource-links";
 
@@ -20,10 +20,9 @@ const at = (date: string) => new Date(`${date}T00:00:00.000Z`);
 
 /** The change log's days by month, newest first, as the page lists them. */
 export function changeLogMonths(
-  days: readonly { date: string; summary: string }[] = CHANGE_LOG,
-): { month: string; days: { date: string; summary: string }[] }[] {
-  const months: { month: string; days: { date: string; summary: string }[] }[] =
-    [];
+  days: readonly ChangeLogDay[] = CHANGE_LOG,
+): { month: string; days: ChangeLogDay[] }[] {
+  const months: { month: string; days: ChangeLogDay[] }[] = [];
   for (const day of days) {
     const month = MONTH.format(at(day.date));
     const last = months.at(-1);
@@ -33,7 +32,10 @@ export function changeLogMonths(
   return months;
 }
 
-/** `/changelog`: what changed, one line a day, readable signed out. */
+/**
+ * `/changelog`: what changed each day, readable signed out; a day of several
+ * changes numbers them.
+ */
 export function ChangeLogPage() {
   usePageTitle("Change log");
   return (
@@ -42,7 +44,7 @@ export function ChangeLogPage() {
       <article className="page-body privacy-document change-log">
         <h1>Change log</h1>
         <p className="privacy-updated">
-          What changed in Analog Canvas, one line a day. Every commit is on{" "}
+          What changed in Analog Canvas, day by day. Every commit is on{" "}
           <a href={`${SITE_REPOSITORY_URL}/commits/main`}>GitHub</a>.
         </p>
         {changeLogMonths().map(({ month, days }) => (
@@ -52,7 +54,15 @@ export function ChangeLogPage() {
               {days.map((day) => (
                 <li key={day.date} data-testid="change-log-day">
                   <time dateTime={day.date}>{DAY.format(at(day.date))}</time>
-                  <span>{day.summary}</span>
+                  {day.items.length === 1 ? (
+                    <span>{day.items[0]}</span>
+                  ) : (
+                    <ol className="change-log-items">
+                      {day.items.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ol>
+                  )}
                 </li>
               ))}
             </ol>

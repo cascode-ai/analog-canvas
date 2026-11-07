@@ -488,7 +488,7 @@ a board with one line a dataset (its name links its own page and paper; its
 verdicts as one bar; circuits large, then errors and accuracy; most circuits
 first, every dataset together at the foot) whose lines and verdict legend
 narrow the page; then, a row each, why the datasets differ (their errors and
-their notation side by side) and circuit size; for the Owner alone, the
+what they write differently, side by side) and circuit size; for the Owner alone, the
 reviews; then the circuits, each with both netlists in the netlists view. The
 page is English and reads like every other Gallery read (signed in; signed
 out it asks to sign in).
@@ -502,7 +502,9 @@ true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,
 - Verdicts: `match` (netlists agree), `notation` (same circuit, written
   differently, such as an ideal source as a port), `error` (the dataset's
   netlist is wrong), `unclear` (the figure is ambiguous). Every verdict
-  except `match` names a `category`; all of them are public.
+  except `match` names a `category`; all of them are public. The pages name
+  them Match, Written differently, Dataset error and Figure ambiguous, with
+  no gloss: the board's legend is one row of name, count and share.
 - A reader saves circuits for reference, privately: Save on a row or in the
   viewer, and the toolbar's Saved filter (`saved=1` in the address). `POST
 /api/gallery/<id>/bookmark` (same-origin, signed in) toggles one →

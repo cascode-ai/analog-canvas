@@ -929,7 +929,7 @@ function VerdictNote({
       data-testid="review-verdict"
     >
       <div className="review-verdict-head">
-        <span className="review-verdict-pill" title={verdict.what}>
+        <span className="review-verdict-pill">
           <span
             className={`datasets-icon v-${comparison.verdict}`}
             aria-hidden="true"
@@ -939,11 +939,6 @@ function VerdictNote({
           {verdict.label}
         </span>
         {kind ? <span className="review-verdict-kind">{kind}</span> : null}
-        {comparison.verdict === "match" ? (
-          <span className="review-verdict-what">
-            The two netlists describe the same circuit.
-          </span>
-        ) : null}
       </div>
       {said ? <p className={open ? "" : "clamped"}>{said}</p> : null}
       {said.length > 180 ? (

@@ -16,8 +16,8 @@
   max-width: 82rem;
 }
 
-/* The opening, after the benchmark pages: a large title, one line on what
-   this is, and the headline numbers in a monospace block. */
+/* The opening, after the benchmark pages: a large title and the headline
+   numbers in a monospace block. */
 .ds-hero {
   display: flex;
   flex-wrap: wrap;
@@ -34,14 +34,6 @@
   font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.05;
-}
-
-.ds-hero p {
-  max-width: 34rem;
-  margin: 10px 0 0;
-  color: var(--icm-text-muted);
-  font-size: 15px;
-  line-height: 1.5;
 }
 
 .ds-hero-stats {
@@ -200,18 +192,6 @@
   grid-template-columns: 18px auto auto auto;
 }
 
-.ds-note {
-  margin: 10px 6px 0;
-  color: var(--icm-text-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.ds-note a {
-  color: var(--icm-accent);
-  text-decoration: none;
-}
-
 /* Why the datasets differ: their errors and their notation side by side. */
 .datasets-why {
   display: grid;
@@ -226,12 +206,6 @@
   margin: 2px 0 10px;
   font-size: 14px;
   font-weight: 650;
-}
-
-.datasets-why-col h4 .what {
-  color: var(--icm-text-muted);
-  font-size: 12px;
-  font-weight: 400;
 }
 
 .datasets-why-col h4 .n {
