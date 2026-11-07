@@ -188,6 +188,48 @@ describe("verified offline MCP installation", () => {
       }
     }
   });
+  it.each([
+    ["https://editor.example", 302, "UNEXPECTED_REDIRECT"],
+    ["https://editor.example", 200, "PACKAGE_INTEGRITY_FAILED"],
+    ["https://other.example", 200, "MANIFEST_INVALID"],
+  ])(
+    "checks the regional archive from %s (%s)",
+    async (origin, status, code) => {
+      const downloadUrl = `${origin}/downloads/mcp/analog-canvas-mcp-server-1.2.3.tgz`;
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (url) =>
+          String(url).endsWith("mcp-manifest.json")
+            ? Response.json({
+                format: "analog-canvas-mcp-bootstrap-v1",
+                version: "1.2.3",
+                requirements: { node: ">=24.0.0" },
+                distribution: { downloadUrl, sha256: "a".repeat(64) },
+              })
+            : new Response("unverified bytes", {
+                status,
+                headers: { location: "https://other.example/package.tgz" },
+              }),
+        );
+      try {
+        await expect(
+          installMcp(["--origin", "https://editor.example"]),
+        ).rejects.toMatchObject({
+          diagnostic: { code, nextAction: "stop" },
+        });
+        if (code === "MANIFEST_INVALID")
+          expect(fetchMock).toHaveBeenCalledTimes(1);
+        else
+          expect(fetchMock).toHaveBeenNthCalledWith(
+            2,
+            downloadUrl,
+            expect.objectContaining({ redirect: "manual" }),
+          );
+      } finally {
+        fetchMock.mockRestore();
+      }
+    },
+  );
   it("installs verified bytes, backs up host settings, launches offline through Homebrew's opt link and leaves settings intact on failed update", async () => {
     const directory = await mkdtemp(join(tmpdir(), "icm-mcp-install-"));
     const fetchMock = vi.spyOn(globalThis, "fetch");
@@ -219,14 +261,22 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
         version: "1.2.3",
         requirements: { node: ">=24.0.0" },
         distribution: {
-          downloadUrl:
-            "https://github.com/cascode-ai/analog-canvas/releases/download/mcp-v1.2.3/analog-canvas-mcp-server-1.2.3.tgz",
+          downloadUrl: `${launch.env.ANALOG_CANVAS_API_URL}/downloads/mcp/analog-canvas-mcp-server-1.2.3.tgz`,
           sha256: createHash("sha256").update(bytes).digest("hex"),
         },
       };
       fetchMock.mockImplementation(async (url) =>
         String(url).endsWith("mcp-manifest.json")
-          ? Response.json(manifest)
+          ? Response.json({
+              ...manifest,
+              distribution: {
+                ...manifest.distribution,
+                downloadUrl: manifest.distribution.downloadUrl.replace(
+                  launch.env.ANALOG_CANVAS_API_URL,
+                  new URL(String(url)).origin,
+                ),
+              },
+            })
           : new Response(bytes),
       );
       const original =
@@ -259,7 +309,14 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
         );
       }
       const installed = await installMcp(
-        ["--origin", launch.env.ANALOG_CANVAS_API_URL, "--host", "codex"],
+        [
+          "--origin",
+          launch.env.ANALOG_CANVAS_API_URL,
+          "--host",
+          "codex",
+          "--archive",
+          archive,
+        ],
         { home: directory, codex, execPath: node },
       );
       expect(installed.launch.command).toBe(
@@ -289,7 +346,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
       expect(configured).toContain(
         `command = ${JSON.stringify(installed.launch.command)}`,
       );
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
       // Installing a second Editor must preserve the first one's launch.
       const local = await installMcp(
         ["--origin", "http://localhost:18082", "--host", "codex"],
@@ -514,15 +571,18 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
       "integrity",
     );
     expect(() =>
-      installationDeclaration({
-        format: "analog-canvas-mcp-bootstrap-v1",
-        version: "1.0.0",
-        requirements: { node: ">=24.0.0" },
-        distribution: {
-          downloadUrl: "https://other.example/file",
-          sha256: sha,
+      installationDeclaration(
+        {
+          format: "analog-canvas-mcp-bootstrap-v1",
+          version: "1.0.0",
+          requirements: { node: ">=24.0.0" },
+          distribution: {
+            downloadUrl: "https://other.example/file",
+            sha256: sha,
+          },
         },
-      }),
+        "https://editor.example",
+      ),
     ).toThrow("distribution");
     expect(MCP_SERVER_VERSION).toBe(AGENT_MCP_VERSION);
   });

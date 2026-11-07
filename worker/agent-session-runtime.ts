@@ -88,6 +88,7 @@ export type AgentSessionNamespaceLike = {
 export interface AgentSessionRouterEnv {
   AGENT_SESSION: AgentSessionNamespaceLike;
   AGENT_ALLOWED_ORIGIN?: string;
+  AGENT_MCP_DOWNLOAD_ORIGIN?: string;
 }
 
 export type DurableStorageLike = {
@@ -221,7 +222,10 @@ export async function routeAgentSessionRequest(
     url.pathname === "/api/agent/mcp-manifest.json"
   ) {
     const response = jsonResponse(
-      agentMcpBootstrapManifest(url.origin),
+      agentMcpBootstrapManifest(
+        url.origin,
+        env.AGENT_MCP_DOWNLOAD_ORIGIN === url.origin,
+      ),
       200,
       allowedOrigin,
     );

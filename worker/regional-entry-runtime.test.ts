@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import distribution from "../config/agent-mcp-distribution.json" with { type: "json" };
 import canvas from "./index";
 import * as regionalModule from "./regional-entry";
 import entry from "./regional-entry";
@@ -27,11 +28,32 @@ function target(extra: Record<string, unknown> = {}) {
   };
 }
 
+it("advertises the verified release archive from the regional editor origin", async () => {
+  const response = await entry.fetch(
+    new Request(`${origin}/api/agent/mcp-manifest.json`),
+    target(),
+  );
+  expect(response.status).toBe(200);
+  const manifest = await response.json();
+  const downloadUrl = `${origin}/downloads/mcp/${distribution.release.asset}`;
+  expect(manifest).toMatchObject({
+    version: distribution.version,
+    distribution: { downloadUrl, sha256: distribution.release.sha256 },
+    launch: { command: "npx", env: { ANALOG_CANVAS_API_URL: origin } },
+  });
+  expect(manifest.launch.args.join(" ")).toContain("https://github.com/");
+  expect(manifest.installation.command).toMatch(/^node /u);
+  expect(manifest.installation.command).toContain(downloadUrl);
+  expect(manifest.installation.command).toContain(distribution.release.sha256);
+  expect(manifest.hosts.codex.command).toContain(downloadUrl);
+});
+
 it("exports only entrypoints workerd accepts: the handler and classes", () => {
   for (const [name, value] of Object.entries(regionalModule)) {
     if (name === "default") continue;
     expect(
-      typeof value === "function" && /^class\b/u.test(Function.prototype.toString.call(value)),
+      typeof value === "function" &&
+        /^class\b/u.test(Function.prototype.toString.call(value)),
       `${name} must be a Durable Object or entrypoint class`,
     ).toBe(true);
   }

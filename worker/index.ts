@@ -90,6 +90,7 @@ type Env = TopologyTaskEnv &
     ASSETS: { fetch(request: Request): Promise<Response> };
     AGENT_SESSION: AgentSessionNamespaceLike;
     AGENT_ALLOWED_ORIGIN?: string;
+    AGENT_MCP_DOWNLOAD_ORIGIN?: string;
     GALLERY: GalleryNamespaceLike;
     GALLERY_BACKUP_TOKEN?: string;
     STORE_BACKUP_TOKEN?: string;
