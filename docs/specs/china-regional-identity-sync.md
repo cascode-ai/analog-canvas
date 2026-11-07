@@ -38,7 +38,8 @@ forwarded-account contract; voting replication is a separate delivery.
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | Account IDs, verified identities, roles, blocks, deletions | Authority-originated security records                                                      |
 | Private Cloud Projects and their retained history          | Regional writes; preserve ownership, lineage and conflict branches                         |
-| Gallery publications, versions, moderation, likes          | [Origin-owned replicas](regional-resources.md); private saves never publish automatically  |
+| Gallery publications, versions, moderation                 | [Origin-owned replicas](regional-resources.md); private saves never publish automatically  |
+| Gallery likes and reviews                                  | [Writer-owned replicas](regional-resources.md), either region may write                    |
 | User Components and Dataset publications                   | [Origin-owned replicas](regional-resources.md), preserving IDs, revisions and permissions  |
 | Completed simulation metadata and retained files           | Immutable result references; transfer and verify file bytes before announcing availability |
 | Active simulations and Agent/topology sessions             | Owned by their executing region; never replay a job by replicating its status              |

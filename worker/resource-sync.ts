@@ -1,6 +1,10 @@
 import { bearerMatches } from "./bearer";
 import { readSyncJson } from "./project-sync-http";
-import { RESOURCE_MAX_BYTES, type ReplicaConfig } from "./resource-replica";
+import {
+  INTERACTION_STREAM_SUFFIX,
+  RESOURCE_MAX_BYTES,
+  type ReplicaConfig,
+} from "./resource-replica";
 import { GALLERY_SOURCES, galleryStoreName } from "./gallery-sources";
 type Namespace = {
   getByName(name: string): {
@@ -29,7 +33,8 @@ export async function routeResourceSync(
       url.pathname,
     );
   if (!match) return refuse("not-found", 404);
-  const [, stream, operation] = match;
+  const stream = match[1]!,
+    operation = match[2]!;
   if (
     !bearerMatches(
       request,
@@ -39,11 +44,16 @@ export async function routeResourceSync(
     )
   )
     return refuse("unauthorized", 401);
-  const source = GALLERY_SOURCES.find((s) => s.key === stream);
+  // A Gallery store's likes and reviews travel in `<store>-interactions`.
+  const interactions = stream.endsWith(INTERACTION_STREAM_SUFFIX);
+  const name = interactions
+    ? stream.slice(0, -INTERACTION_STREAM_SUFFIX.length)
+    : stream;
+  const source = GALLERY_SOURCES.find((s) => s.key === name);
   const store =
-    stream === "components"
+    name === "components" && !interactions
       ? env.COMPONENT_LIBRARY?.getByName("components")
-      : stream === "gallery"
+      : name === "gallery"
         ? env.GALLERY?.getByName("gallery")
         : source
           ? env.GALLERY?.getByName(galleryStoreName(source))

@@ -9,6 +9,7 @@ import { designExtractsNetlist, NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { storedProject, withTestbench } from "./gallery-testbench";
+import { locallyOwnedResources } from "./resource-replica";
 import {
   type DurableObjectStateLike,
   type EntryRow,
@@ -52,9 +53,11 @@ export function deleteOrphanGalleryData(sql: SqlStorage): void {
     `DELETE FROM gallery_entry_versions
      WHERE entry_id NOT IN (SELECT id FROM gallery_entries)`,
   );
+  // Another region's likes stay with their writer, which removes them itself.
   sql.exec(
     `DELETE FROM gallery_likes
-     WHERE entry_id NOT IN (SELECT id FROM gallery_entries)`,
+     WHERE entry_id NOT IN (SELECT id FROM gallery_entries)
+       AND ${locallyOwnedResources(sql, "entry_id:user_id", "interactions")}`,
   );
 }
 

@@ -1,10 +1,10 @@
-import { expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { sha256Hex } from "@icm/derived";
 
 import { builtInSymbols } from "@icm/symbols";
 import { deviceDescriptor } from "@icm/devices";
 import {
-  environment,
+  environment as galleryEnvironment,
   makerOf,
   ownerAccountOf,
   sqliteState,
@@ -17,6 +17,27 @@ import { routeComponentLibraryRequest } from "./component-library";
 import { ComponentLibraryDO, GalleryDO } from "./index";
 import { routeGalleryRequest } from "./gallery";
 import { routeResourceSync } from "./resource-sync";
+
+afterEach(() => vi.unstubAllGlobals());
+
+const IDENTITY_SECRET = "resource-identity-secret-0123456789abcdef";
+const AUTHORITY = JSON.stringify({
+  origin: ORIGIN,
+  clientOrigin: "https://cn.test",
+  secret: IDENTITY_SECRET,
+});
+/** One identity authority both regions consult, as in Production. */
+function environment(config: Parameters<typeof galleryEnvironment>[0] = {}) {
+  const auth = galleryEnvironment({
+    AUTH_REGIONAL_AUTHORITY: AUTHORITY,
+    ...config,
+  });
+  // China reaches the authority over HTTPS; overseas uses its AUTH binding.
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+    auth.authDurable.fetch(new Request(input, init)),
+  );
+  return auth;
+}
 
 async function region(
   origin: "cn" | "overseas",
@@ -47,6 +68,9 @@ async function region(
     RESOURCE_WRITES_ENABLED: "true",
     RESOURCE_SYNC_TOKEN: "peer-secret",
     RESOURCE_SYNC_ADMIN_TOKEN: "admin-secret",
+    PROJECT_IDENTITY_URL: `${ORIGIN}/api/auth/regional/identities`,
+    PROJECT_IDENTITY_TOKEN: IDENTITY_SECRET,
+    ...(origin === "overseas" ? { AUTH_REGIONAL_AUTHORITY: AUTHORITY } : {}),
     GALLERY: {
       getByName: (name: string) => ({
         fetch: (url: string, init?: RequestInit) =>
@@ -87,7 +111,13 @@ async function region(
     env,
     call,
     restart: () => stores.clear(),
+    /** A store's SQL, as a migration or another release would change it. */
+    sql: (name = "gallery") => {
+      get(name);
+      return states.get(name)!.storage.sql;
+    },
     cookie,
+    admin,
     enable: () => {
       env.RESOURCE_REGION = origin;
       stores.clear();
@@ -225,17 +255,24 @@ it("copies migrated publication schemas whose named columns have a different phy
   ).toMatchObject({
     entry: { id: published.id, name: "Migrated publication" },
   });
-  // Different names are still incompatible, even with a valid envelope hash.
-  event.schema[0].columns[0] = "unrecognized_column";
-  const invalid = JSON.stringify(event);
-  const refused = await cn.call(
-    "/api/resource-sync/gallery/changes",
-    "POST",
-    { payload: invalid, digest: sha256Hex(invalid) },
-    "peer-secret",
-  );
-  expect(refused.status).toBe(400);
-  expect(await refused.json()).toEqual({ error: "invalid-resource-event" });
+  // Different tables or keys are still incompatible, even with a valid hash.
+  for (const change of [
+    (e: typeof event) => (e.schema[1].name = "unrecognized_table"),
+    (e: typeof event) => (e.schema[1].key = "id"),
+    (e: typeof event) => e.schema.pop(),
+  ]) {
+    const altered = JSON.parse(payload);
+    change(altered);
+    const invalid = JSON.stringify(altered);
+    const refused = await cn.call(
+      "/api/resource-sync/gallery/changes",
+      "POST",
+      { payload: invalid, digest: sha256Hex(invalid) },
+      "peer-secret",
+    );
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ error: "invalid-resource-event" });
+  }
 });
 it("copies Gallery and Dataset publications through separate streams without publishing private Projects", async () => {
   const auth = environment();
@@ -677,6 +714,7 @@ it("copies reference images, blind reviews and fix history with their publicatio
   );
   expect(reviewed.status).toBe(200);
   await transfer(source, peer, "gallery");
+  await transfer(source, peer, "gallery-interactions");
   const read = await peer.call(`/api/gallery/${id}/reference`);
   expect(read.status).toBe(200);
   expect(Buffer.from(await read.arrayBuffer())).toEqual(bytes);
@@ -698,17 +736,6 @@ it("copies reference images, blind reviews and fix history with their publicatio
       expect.objectContaining({ verdict: "issue", note: "Synthetic review" }),
     ],
   });
-  expect(
-    (
-      await peer.call(
-        `/api/gallery/${id}/reviews`,
-        "POST",
-        { revision, verdict: "pass" },
-        undefined,
-        true,
-      )
-    ).status,
-  ).toBe(409);
   expect(
     (await peer.call(`/api/gallery/${id}/reference`, "DELETE")).status,
   ).toBe(409);
@@ -939,4 +966,646 @@ it("seeds Dataset figures imported before their drawings, and reserves their ori
   );
   expect(image.status).toBe(200);
   expect(Buffer.from(await image.arrayBuffer())).toEqual(bytes);
+});
+
+type Site = Awaited<ReturnType<typeof region>>;
+async function drain(source: Site, target: Site, stream: string) {
+  for (let i = 0; i < 20; i++)
+    if ((await transfer(source, target, stream)).event === null) return;
+  throw new Error("Unexpected unbounded test stream");
+}
+async function publish(site: Site, name: string, owner = false) {
+  const created = await site.call(
+    "/api/gallery/submissions",
+    "POST",
+    { name, projectText: projectText(name) },
+    undefined,
+    owner,
+  );
+  expect(created.status).toBe(201);
+  return (await created.json()).id as string;
+}
+async function receivedBy(site: Site, stream = "gallery") {
+  return (
+    await (
+      await site.call(
+        `/api/resource-sync/${stream}/status`,
+        "GET",
+        undefined,
+        "peer-secret",
+      )
+    ).json()
+  ).received;
+}
+async function firstChange(site: Site, stream = "gallery", after = 0) {
+  return (
+    await site.call(
+      `/api/resource-sync/${stream}/changes?after=${after}`,
+      "GET",
+      undefined,
+      "peer-secret",
+    )
+  ).json();
+}
+const deliver = (site: Site, envelope: unknown, stream = "gallery") =>
+  site.call(
+    `/api/resource-sync/${stream}/changes`,
+    "POST",
+    envelope,
+    "peer-secret",
+  );
+const resign = (event: unknown) => {
+  const payload = JSON.stringify(event);
+  return { payload, digest: sha256Hex(payload) };
+};
+
+it("holds a newer release's extra column until the receiver upgrades, and fills an older release's absent column with the local default", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  overseas
+    .sql()
+    .exec(
+      "ALTER TABLE gallery_entries ADD COLUMN future_note TEXT NOT NULL DEFAULT ''",
+    );
+  overseas.restart();
+  const id = await publish(overseas, "Newer release");
+  overseas
+    .sql()
+    .exec(
+      "UPDATE gallery_entries SET future_note='from the newer release' WHERE id=?",
+      id,
+    );
+  const envelope = await firstChange(overseas);
+  const refused = await deliver(cn, envelope);
+  expect(refused.status).toBe(409);
+  expect(await refused.json()).toEqual({ error: "resource-schema-newer" });
+  expect(await receivedBy(cn)).toBeNull();
+  expect((await cn.call(`/api/gallery/${id}`)).status).toBe(404);
+  // Snapshot versions never mix: a version-1 sender blocks the same way.
+  const old = await deliver(
+    cn,
+    resign({ ...JSON.parse(envelope.payload), version: 1 }),
+  );
+  expect(old.status).toBe(409);
+  expect(await old.json()).toEqual({ error: "resource-version-unsupported" });
+  cn.sql().exec(
+    "ALTER TABLE gallery_entries ADD COLUMN future_note TEXT NOT NULL DEFAULT ''",
+  );
+  cn.restart();
+  expect((await deliver(cn, envelope)).status).toBe(200);
+  expect(
+    cn
+      .sql()
+      .exec<{
+        future_note: string;
+      }>("SELECT future_note FROM gallery_entries WHERE id=?", id)
+      .toArray()[0]?.future_note,
+  ).toBe("from the newer release");
+  cn.sql().exec(
+    "ALTER TABLE gallery_entries ADD COLUMN local_rank INTEGER NOT NULL DEFAULT 7",
+  );
+  cn.restart();
+  const older = await publish(overseas, "Older release");
+  await transfer(overseas, cn, "gallery");
+  expect(
+    cn
+      .sql()
+      .exec<{
+        local_rank: number;
+      }>("SELECT local_rank FROM gallery_entries WHERE id=?", older)
+      .toArray()[0]?.local_rank,
+  ).toBe(7);
+});
+
+it("recreates replica triggers after a migration adds a column, so the column is replicated and guarded", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Migrated triggers");
+  await transfer(overseas, cn, "gallery");
+  for (const site of [overseas, cn]) {
+    site.sql().exec("ALTER TABLE gallery_entries ADD COLUMN later_flag TEXT");
+    site.restart();
+  }
+  const { sequence } = await (
+    await overseas.call(
+      "/api/resource-sync/gallery/status",
+      "GET",
+      undefined,
+      "peer-secret",
+    )
+  ).json();
+  overseas
+    .sql()
+    .exec("UPDATE gallery_entries SET later_flag='changed' WHERE id=?", id);
+  const change = await firstChange(overseas, "gallery", sequence);
+  const event = JSON.parse(change.payload);
+  expect(event.id).toBe(id);
+  expect(event.rows[0][0].later_flag).toBe("changed");
+  expect(() =>
+    cn
+      .sql()
+      .exec("UPDATE gallery_entries SET later_flag='local' WHERE id=?", id),
+  ).toThrow("RESOURCE_SOURCE_READ_ONLY");
+  expect((await deliver(cn, change)).status).toBe(200);
+});
+
+it("keeps the previous release's replica SQL working after this release ran, and recovers when rolled forward again", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Rollback fixture", true);
+  await drain(overseas, cn, "gallery");
+  // The previous release's constructor and receipt statements, verbatim.
+  for (const sql of [overseas.sql(), cn.sql()]) {
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_meta (id INTEGER PRIMARY KEY, region TEXT NOT NULL, epoch TEXT NOT NULL, sequence INTEGER NOT NULL, importing INTEGER NOT NULL, writable INTEGER NOT NULL)",
+    );
+    sql.exec(
+      "INSERT OR IGNORE INTO resource_replica_meta VALUES (1,?,?,0,0,0)",
+      "overseas",
+      crypto.randomUUID(),
+    );
+    sql.exec(
+      "SELECT region,epoch,sequence FROM resource_replica_meta WHERE id=1",
+    );
+    sql.exec("UPDATE resource_replica_meta SET writable=? WHERE id=1", 1);
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_keys (id TEXT PRIMARY KEY, origin TEXT NOT NULL) WITHOUT ROWID",
+    );
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_changes (id TEXT PRIMARY KEY, sequence INTEGER NOT NULL UNIQUE) WITHOUT ROWID",
+    );
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_peer (id INTEGER PRIMARY KEY, epoch TEXT NOT NULL, sequence INTEGER NOT NULL)",
+    );
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS resource_replica_receipts (sequence INTEGER PRIMARY KEY, digest TEXT NOT NULL)",
+    );
+    // It still guards likes with their entry.
+    sql.exec(`CREATE TRIGGER IF NOT EXISTS replica_guard_gallery_likes_INSERT
+        BEFORE INSERT ON gallery_likes
+        WHEN (SELECT importing FROM resource_replica_meta WHERE id=1)=0
+        BEGIN
+          SELECT CASE WHEN (SELECT writable FROM resource_replica_meta WHERE id=1)=0
+            THEN RAISE(ABORT,'RESOURCE_WRITES_DISABLED') END;
+          SELECT CASE WHEN EXISTS(SELECT 1 FROM resource_replica_keys WHERE id=NEW.entry_id
+            AND origin<>(SELECT region FROM resource_replica_meta WHERE id=1))
+            THEN RAISE(ABORT,'RESOURCE_SOURCE_READ_ONLY') END;
+        END`);
+    sql.exec(
+      "INSERT OR IGNORE INTO resource_replica_keys VALUES (?,?)",
+      "rollback-key",
+      "cn",
+    );
+    sql.exec(
+      "INSERT INTO resource_replica_changes VALUES (?,?)",
+      "rollback-key",
+      900,
+    );
+    sql.exec(
+      "INSERT OR REPLACE INTO resource_replica_peer VALUES (1,?,?)",
+      "e",
+      1,
+    );
+    sql.exec(
+      "INSERT INTO resource_replica_receipts VALUES (?,?)",
+      900,
+      "digest",
+    );
+  }
+  // Rolled forward: this release replaces the old likes guard again.
+  cn.restart();
+  expect(
+    cn
+      .sql()
+      .exec(
+        "SELECT name FROM sqlite_master WHERE type='trigger' AND name GLOB 'replica_*_gallery_likes_*'",
+      )
+      .toArray(),
+  ).toEqual([]);
+  expect((await cn.call(`/api/gallery/${id}/like`, "POST", {})).status).toBe(
+    200,
+  );
+});
+
+it("keeps submitter email and provider in the publishing region; copies keep owner IDs and private testbenches", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const created = await overseas.call("/api/gallery/submissions", "POST", {
+    name: "Private fields",
+    projectText: testbenchProjectText("Private fields"),
+  });
+  expect(created.status).toBe(201);
+  const id = (await created.json()).id;
+  const columns =
+    "submitter_email,submitter_provider,owner_user_id,testbench_text";
+  const [source] = overseas
+    .sql()
+    .exec<Record<string, string | null>>(
+      `SELECT ${columns} FROM gallery_entries WHERE id=?`,
+      id,
+    )
+    .toArray();
+  expect(source).toMatchObject({ submitter_email: "maker@example.com" });
+  const envelope = await firstChange(overseas);
+  expect(envelope.payload).not.toContain("maker@example.com");
+  expect(JSON.parse(envelope.payload).schema[0].columns).not.toContain(
+    "submitter_provider",
+  );
+  const event = JSON.parse(envelope.payload);
+  event.schema[0].columns.push("submitter_email");
+  event.rows[0][0].submitter_email = "forged@example.com";
+  const forged = await deliver(cn, resign(event));
+  expect(forged.status).toBe(400);
+  expect(await forged.json()).toEqual({ error: "invalid-resource-event" });
+  expect((await deliver(cn, envelope)).status).toBe(200);
+  const [copy] = cn
+    .sql()
+    .exec<Record<string, string | null>>(
+      `SELECT ${columns} FROM gallery_entries WHERE id=?`,
+      id,
+    )
+    .toArray();
+  expect(copy).toEqual({
+    ...source,
+    submitter_email: null,
+    submitter_provider: null,
+  });
+  expect(copy!.testbench_text).toBeTruthy();
+});
+
+it("looks up copied accounts: an unavailable authority is retried, a deleted account is counted, not blocking", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  await publish(overseas, "Verified owner");
+  const envelope = await firstChange(overseas);
+  const offline = () =>
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("Identity authority unreachable");
+    });
+  offline();
+  const unavailable = await deliver(cn, envelope);
+  expect(unavailable.status).toBe(503);
+  expect(await unavailable.json()).toEqual({ error: "identity-unavailable" });
+  expect(await receivedBy(cn)).toBeNull();
+  // The overseas region reaches its own authority through the AUTH binding.
+  await publish(cn, "Domestic owner");
+  expect((await deliver(overseas, await firstChange(cn))).status).toBe(200);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+    auth.authDurable.fetch(new Request(input, init)),
+  );
+  expect((await deliver(cn, envelope)).status).toBe(200);
+  // A redelivered receipt answers before any lookup.
+  offline();
+  expect(await (await deliver(cn, envelope)).json()).toMatchObject({
+    duplicate: true,
+  });
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+    auth.authDurable.fetch(new Request(input, init)),
+  );
+  // Publications and reviews of since-deleted accounts still copy.
+  await publish(overseas, "Deleted owner");
+  const next = JSON.parse(
+    (
+      await firstChange(
+        overseas,
+        "gallery",
+        JSON.parse(envelope.payload).sequence,
+      )
+    ).payload,
+  );
+  next.rows[0][0].owner_user_id = 424242;
+  expect((await deliver(cn, resign(next))).status).toBe(200);
+  const status = await (
+    await cn.call(
+      "/api/resource-sync/gallery/status",
+      "GET",
+      undefined,
+      "peer-secret",
+    )
+  ).json();
+  expect(status).toMatchObject({
+    received: { sequence: next.sequence },
+    missingAccounts: 1,
+  });
+});
+
+it("copies likes and reviews written before replication was enabled, without a release step", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth, false),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Liked before replication", true);
+  expect(
+    (await overseas.call(`/api/gallery/${id}/like`, "POST", {})).status,
+  ).toBe(200);
+  const revision = (await (await overseas.call(`/api/gallery/${id}`)).json())
+    .entry.previewRevision;
+  expect(
+    (
+      await overseas.call(`/api/gallery/${id}/reviews`, "POST", {
+        revision,
+        verdict: "issue",
+        flags: ["wiring"],
+        note: "Before replication",
+      })
+    ).status,
+  ).toBe(200);
+  overseas.enable();
+  expect(
+    await (
+      await overseas.call(
+        "/api/resource-sync/gallery/seed",
+        "POST",
+        {},
+        "admin-secret",
+      )
+    ).json(),
+  ).toMatchObject({ seeded: 1 });
+  await drain(overseas, cn, "gallery");
+  await drain(overseas, cn, "gallery-interactions");
+  const queue = await (
+    await cn.call("/api/gallery/review/community/queue")
+  ).json();
+  expect(
+    queue.entries.find((card: { id: string }) => card.id === id),
+  ).toMatchObject({
+    likes: 1,
+    likedByViewer: true,
+    mine: { verdict: "issue", note: "Before replication" },
+  });
+});
+
+it("lets the next region to like re-claim a like withdrawn elsewhere, both ways", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Liked again", true);
+  await drain(overseas, cn, "gallery");
+  const toggle = async (site: Site) =>
+    (await site.call(`/api/gallery/${id}/like`, "POST", {})).json();
+  const sync = async () => {
+    await drain(overseas, cn, "gallery-interactions");
+    await drain(cn, overseas, "gallery-interactions");
+  };
+  const likes = async (site: Site) =>
+    (
+      await (await site.call("/api/gallery/review/community/queue")).json()
+    ).entries.find((card: { id: string }) => card.id === id).likes;
+  for (const [writer, other] of [
+    [overseas, cn],
+    [cn, overseas],
+    [overseas, cn],
+  ] as const) {
+    expect(await toggle(writer)).toEqual({ likes: 1, likedByViewer: true });
+    await sync();
+    expect(await likes(other)).toBe(1);
+    expect(await toggle(writer)).toEqual({ likes: 0, likedByViewer: false });
+    await sync();
+    expect(await likes(other)).toBe(0);
+  }
+});
+
+it("removes only locally owned publications with a deleted account; copies wait for their origin", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const foreign = await publish(overseas, "Copied abroad");
+  await drain(overseas, cn, "gallery");
+  const local = await publish(cn, "Published at home");
+  const [{ owner_user_id: userId }] = cn
+    .sql()
+    .exec<{
+      owner_user_id: string;
+    }>("SELECT owner_user_id FROM gallery_entries WHERE id=?", local)
+    .toArray() as [{ owner_user_id: string }];
+  const deleted = await cn.env.GALLERY.getByName("gallery").fetch(
+    "https://gallery/delete-account",
+    { method: "POST", body: JSON.stringify({ userId }) },
+  );
+  expect(deleted.status).toBe(200);
+  expect(await deleted.json()).toMatchObject({ entries: 1 });
+  expect((await cn.call(`/api/gallery/${local}`)).status).toBe(404);
+  expect((await cn.call(`/api/gallery/${foreign}`)).status).toBe(200);
+});
+
+it("lets either region like and review any entry; each record stays with its writer and both regions converge", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const queue = async (site: Site, owner = false) =>
+    (
+      await (
+        await site.call(
+          "/api/gallery/review/community/queue",
+          "GET",
+          undefined,
+          undefined,
+          owner,
+        )
+      ).json()
+    ).entries as {
+      id: string;
+      likes: number;
+      likedByViewer: boolean;
+      mine: { verdict: string } | null;
+    }[];
+  const foreign = await publish(overseas, "Liked abroad", true);
+  await drain(overseas, cn, "gallery");
+  const liked = await cn.call(`/api/gallery/${foreign}/like`, "POST", {});
+  expect(await liked.json()).toEqual({ likes: 1, likedByViewer: true });
+  const revision = (await (await cn.call(`/api/gallery/${foreign}`)).json())
+    .entry.previewRevision;
+  const reviewed = await cn.call(`/api/gallery/${foreign}/reviews`, "POST", {
+    revision,
+    verdict: "issue",
+    flags: ["wiring"],
+    note: "Written in China",
+  });
+  expect(reviewed.status).toBe(200);
+  // The entry stream no longer carries them; their own stream does.
+  expect((await firstChange(cn)).event).toBeNull();
+  await drain(cn, overseas, "gallery-interactions");
+  expect(
+    (await queue(overseas)).find((card) => card.id === foreign),
+  ).toMatchObject({
+    likes: 1,
+    likedByViewer: true,
+    mine: { verdict: "issue" },
+  });
+  expect(
+    await (
+      await overseas.call(
+        `/api/gallery/${foreign}/reviews`,
+        "GET",
+        undefined,
+        undefined,
+        true,
+      )
+    ).json(),
+  ).toMatchObject({
+    current: [expect.objectContaining({ note: "Written in China" })],
+  });
+  const unlike = await overseas.call(
+    `/api/gallery/${foreign}/like`,
+    "POST",
+    {},
+  );
+  expect(unlike.status).toBe(409);
+  expect(await unlike.json()).toMatchObject({
+    code: "RESOURCE_SOURCE_READ_ONLY",
+  });
+  // The other direction: an overseas like of a China entry.
+  const domestic = await publish(cn, "Liked from abroad");
+  await drain(cn, overseas, "gallery");
+  expect(
+    (
+      await overseas.call(
+        `/api/gallery/${domestic}/like`,
+        "POST",
+        {},
+        undefined,
+        true,
+      )
+    ).status,
+  ).toBe(200);
+  await drain(overseas, cn, "gallery-interactions");
+  expect(
+    (await queue(cn, true)).find((card) => card.id === domestic),
+  ).toMatchObject({ likes: 1, likedByViewer: true });
+  // The publishing region still deletes its entry; China keeps its own like.
+  expect(
+    (
+      await overseas.call(
+        `/api/gallery/${foreign}`,
+        "DELETE",
+        undefined,
+        undefined,
+        true,
+      )
+    ).status,
+  ).toBe(200);
+  await drain(overseas, cn, "gallery");
+  expect((await cn.call(`/api/gallery/${foreign}`)).status).toBe(404);
+});
+
+it("converges when both regions write the same like before either copy arrives", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Liked twice");
+  await drain(overseas, cn, "gallery");
+  const like = (site: Site) =>
+    site.call(`/api/gallery/${id}/like`, "POST", {}, undefined, true);
+  expect((await like(overseas)).status).toBe(200);
+  expect((await like(cn)).status).toBe(200);
+  await drain(cn, overseas, "gallery-interactions");
+  await drain(overseas, cn, "gallery-interactions");
+  const likes = async (site: Site) =>
+    (
+      await (
+        await site.call(
+          "/api/gallery/review/community/queue",
+          "GET",
+          undefined,
+          undefined,
+          true,
+        )
+      ).json()
+    ).entries.find((card: { id: string }) => card.id === id);
+  for (const site of [overseas, cn])
+    expect(await likes(site)).toMatchObject({ likes: 1, likedByViewer: true });
+  // One record remains, the overseas one: only overseas can remove it.
+  expect((await like(cn)).status).toBe(409);
+  expect(await (await like(overseas)).json()).toEqual({
+    likes: 0,
+    likedByViewer: false,
+  });
+  await drain(overseas, cn, "gallery-interactions");
+  expect(await likes(cn)).toMatchObject({ likes: 0, likedByViewer: false });
+});
+
+it("keeps China's source tail reachable when it adopts the overseas copy of a like it had not sent yet", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Adopted like");
+  await drain(overseas, cn, "gallery");
+  for (const site of [overseas, cn])
+    expect(
+      (await site.call(`/api/gallery/${id}/like`, "POST", {})).status,
+    ).toBe(200);
+  // China's like is its newest change; it adopts the overseas record first.
+  await drain(overseas, cn, "gallery-interactions");
+  const tail = await (
+    await cn.call(
+      "/api/resource-sync/gallery-interactions/status",
+      "GET",
+      undefined,
+      "peer-secret",
+    )
+  ).json();
+  const noop = await firstChange(cn, "gallery-interactions");
+  expect(JSON.parse(noop.payload)).toMatchObject({
+    sequence: tail.sequence,
+    noop: true,
+    rows: [[], []],
+  });
+  await drain(cn, overseas, "gallery-interactions");
+  expect(await receivedBy(overseas, "gallery-interactions")).toMatchObject({
+    sequence: tail.sequence,
+  });
+  expect(
+    await firstChange(cn, "gallery-interactions", tail.sequence),
+  ).toMatchObject({ event: null, sequence: tail.sequence });
+});
+
+it("accepts gzip peer bodies and bounds their decompressed size", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const id = await publish(overseas, "Compressed");
+  const post = (body: BodyInit, encoding = "gzip") =>
+    routeResourceSync(
+      new Request(ORIGIN + "/api/resource-sync/gallery/changes", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer peer-secret",
+          "content-encoding": encoding,
+        },
+        body,
+      }),
+      cn.env,
+    );
+  const gzip = (stream: ReadableStream<Uint8Array>) =>
+    new Response(
+      stream.pipeThrough(
+        new CompressionStream("gzip") as unknown as TransformStream<
+          Uint8Array,
+          Uint8Array
+        >,
+      ),
+    ).arrayBuffer();
+  const chunk = new TextEncoder().encode("a".repeat(1 << 20));
+  const bomb = await gzip(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"payload":"'));
+        for (let i = 0; i < 49; i++) controller.enqueue(chunk);
+        controller.close();
+      },
+    }),
+  );
+  expect(bomb.byteLength).toBeLessThan(1 << 20);
+  expect((await post(bomb))!.status).toBe(413);
+  expect((await post("{}", "br"))!.status).toBe(400);
+  const envelope = JSON.stringify(await firstChange(overseas));
+  const accepted = await post(
+    await gzip(new Blob([envelope]).stream() as ReadableStream<Uint8Array>),
+  );
+  expect(accepted!.status).toBe(200);
+  expect((await cn.call(`/api/gallery/${id}`)).status).toBe(200);
 });
