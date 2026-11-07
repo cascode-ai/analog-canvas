@@ -316,9 +316,15 @@ export function deleteAccount(
     const likes = sql
       .exec<{
         id: string;
-      }>("SELECT entry_id AS id FROM gallery_likes WHERE user_id = ?", userId)
+      }>(
+        `SELECT entry_id AS id FROM gallery_likes WHERE user_id = ? AND ${localLike(sql)}`,
+        userId,
+      )
       .toArray();
-    sql.exec("DELETE FROM gallery_likes WHERE user_id = ?", userId);
+    sql.exec(
+      `DELETE FROM gallery_likes WHERE user_id = ? AND ${localLike(sql)}`,
+      userId,
+    );
     const projects = sql
       .exec<{
         id: string;
@@ -335,10 +341,21 @@ export function deleteAccount(
   });
 }
 
+/**
+ * Likes written in the other region stay with their writer: hidden while
+ * their entry is gone, and removed there by its own cleanup.
+ */
+function localLike(sql: SqlStorage): string {
+  return locallyOwnedResources(sql, "entry_id:user_id", "interactions");
+}
+
 /** Remove one entry and everything hanging off it. Callers own the transaction. */
 function hardDeleteEntryRows(sql: SqlStorage, id: string): void {
   sql.exec("DELETE FROM gallery_entry_versions WHERE entry_id = ?", id);
-  sql.exec("DELETE FROM gallery_likes WHERE entry_id = ?", id);
+  sql.exec(
+    `DELETE FROM gallery_likes WHERE entry_id = ? AND ${localLike(sql)}`,
+    id,
+  );
   sql.exec("DELETE FROM gallery_entries WHERE id = ?", id);
   forgetTransistorCount(sql, id);
 }

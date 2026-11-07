@@ -2,8 +2,13 @@ import type { GalleryEnv } from "./gallery-store";
 import { bearerMatches } from "./bearer";
 import { decodeProjectEvent, MAX_SYNC_BYTES } from "./project-sync-protocol";
 import type { ProjectEvent, ProjectSyncStatus } from "./project-sync-journal";
-import { readSyncJson, peerOrigin } from "./project-sync-http";
-import { regionalConfig, REGIONAL_PREFIX } from "./regional-auth-contract";
+import {
+  gzipBody,
+  readSyncJson,
+  peerOrigin,
+  syncTimeoutMs,
+} from "./project-sync-http";
+import { requireKnownAccounts } from "./sync-identity";
 
 /** Only a separately scoped peer credential can read private replication events. */
 export async function routeProjectSync(
@@ -167,7 +172,8 @@ async function pullProjectSync(
       {
         method: "POST",
         redirect: "manual",
-        signal: AbortSignal.timeout(15_000),
+        // The reply may carry one maximal event across the border.
+        signal: AbortSignal.timeout(120_000),
         headers: {
           Authorization: `Bearer ${env.PROJECT_SYNC_PEER_TOKEN}`,
           "Content-Type": "application/json",
@@ -259,12 +265,15 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
       return { status: ack.ok ? "caught-up" : "blocked" };
     }
     const event = events[0]!;
+    const body = JSON.stringify({ event });
     const sent = await fetch(new URL("/api/project-sync/events", peer), {
       method: "POST",
-      headers,
+      headers: { ...headers, "Content-Encoding": "gzip" },
       redirect: "manual",
-      signal: AbortSignal.timeout(15000),
-      body: JSON.stringify({ event }),
+      signal: AbortSignal.timeout(
+        syncTimeoutMs(new TextEncoder().encode(body).length),
+      ),
+      body: await gzipBody(body),
     });
     if (!sent.ok) return { status: sent.status >= 500 ? "retry" : "blocked" };
     const received = (await readSyncJson(sent, 4096)) as {
@@ -287,52 +296,13 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
   }
 }
 
-async function requireProjectOwner(
+function requireProjectOwner(
   env: GalleryEnv,
   ownerUserId: string,
 ): Promise<Response | null> {
-  if (!env.PROJECT_IDENTITY_URL || !env.PROJECT_IDENTITY_TOKEN)
-    return Response.json({ error: "identity-unavailable" }, { status: 503 });
-  try {
-    const identityUrl = new URL(env.PROJECT_IDENTITY_URL);
-    if (
-      identityUrl.protocol !== "https:" ||
-      identityUrl.username ||
-      identityUrl.password
-    )
-      throw new Error("Invalid identity endpoint");
-    const identityRequest: RequestInit = {
-      method: "POST",
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
-      headers: {
-        Authorization: `Bearer ${env.PROJECT_IDENTITY_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ userIds: [ownerUserId] }),
-    };
-    const authority = regionalConfig(env.AUTH_REGIONAL_AUTHORITY);
-    // The source owns this authority. Keep its authenticated request inside
-    // the AUTH binding instead of depending on public routing back to itself.
-    const identity =
-      env.PROJECT_REGION === "overseas" &&
-      env.AUTH &&
-      authority &&
-      identityUrl.href === `${authority.origin}${REGIONAL_PREFIX}identities`
-        ? await env.AUTH.getByName("auth").fetch(
-            identityUrl.href,
-            identityRequest,
-          )
-        : await fetch(identityUrl, identityRequest);
-    if (!identity.ok) throw new Error("Identity unavailable");
-    const result = (await readSyncJson(identity, 16384)) as {
-      identities?: { id: string; status: string; user?: { id: string } }[];
-    };
-    const owner = result.identities?.find((item) => item.id === ownerUserId);
-    if (owner?.status !== "found" || owner.user?.id !== ownerUserId)
-      return Response.json({ error: "unknown-owner" }, { status: 409 });
-  } catch {
-    return Response.json({ error: "identity-unavailable" }, { status: 503 });
-  }
-  return null;
+  return requireKnownAccounts(
+    env,
+    [ownerUserId],
+    env.PROJECT_REGION === "overseas",
+  );
 }

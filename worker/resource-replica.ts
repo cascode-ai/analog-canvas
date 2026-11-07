@@ -10,192 +10,312 @@ export type ReplicaConfig = {
   RESOURCE_WRITES_ENABLED?: string;
 };
 type Row = Record<string, string | number | null>;
-type Table = { name: string; key: string; columns: string[] };
+/**
+ * `key` names the identity columns, joined by ':' in a change ID; only the
+ * last may contain ':'. `columns` are all local columns (guarded and
+ * change-detected); `shared` excludes the private ones.
+ */
+type Table = { name: string; key: string; columns: string[]; shared: string[] };
 
-/** Migrations may append the same named columns in a different physical order. */
-function sameSchema(input: unknown, expected: Table[]): boolean {
-  if (!Array.isArray(input) || input.length !== expected.length) return false;
-  return expected.every((schema, i) => {
-    const table = input[i];
-    if (!table || !Array.isArray(table.columns)) return false;
-    return (
-      JSON.stringify({ ...table, columns: [...table.columns].sort() }) ===
-      JSON.stringify({
-        ...schema,
-        columns: [...schema.columns].sort(),
-      })
-    );
-  });
-}
 export const RESOURCE_MAX_BYTES = 24 * 1024 * 1024;
-const tables = {
-  components: [
-    ["components", "id"],
-    ["component_lifecycle", "component_id"],
-  ],
-  gallery: [
-    ["gallery_entries", "id"],
-    ["gallery_entry_versions", "entry_id"],
-    ["gallery_likes", "entry_id"],
-    ["dataset_comparisons", "id"],
-    ["entry_references", "entry_id"],
-    ["entry_reviews", "entry_id"],
-    ["entry_fixes", "entry_id"],
-  ],
+/** Receivers refuse every other snapshot version; versions never mix. */
+const SNAPSHOT_VERSION = 2;
+/** Changing trigger bodies bumps this so installed triggers are recreated. */
+const TRIGGER_VERSION = 2;
+/** Writer-owned likes and reviews of a Gallery store travel in their own stream. */
+export const INTERACTION_STREAM_SUFFIX = "-interactions";
+/** Concurrent creation of one interaction identity keeps this region's record. */
+const INTERACTION_TIE_WINNER: ResourceRegion = "overseas";
+const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
+const kinds = {
+  components: {
+    prefix: "replica",
+    tables: [
+      ["components", "id"],
+      ["component_lifecycle", "component_id"],
+    ],
+  },
+  gallery: {
+    prefix: "replica",
+    tables: [
+      ["gallery_entries", "id"],
+      ["gallery_entry_versions", "entry_id"],
+      ["dataset_comparisons", "id"],
+      ["entry_references", "entry_id"],
+      ["entry_fixes", "entry_id"],
+    ],
+  },
+  interactions: {
+    prefix: "interaction",
+    tables: [
+      ["gallery_likes", "entry_id:user_id"],
+      ["entry_reviews", "id"],
+    ],
+  },
 } as const;
-export type ResourceKind = keyof typeof tables;
+export type ResourceKind = keyof typeof kinds;
+/** Figures may precede a drawing; review and fix history may outlive it. */
+const ROOTLESS = ["dataset_comparisons", "entry_references", "entry_fixes"];
+/** Columns that never leave their region; copies hold the column default. */
+const PRIVATE_COLUMNS: Record<string, readonly string[]> = {
+  gallery_entries: ["submitter_email", "submitter_provider"],
+};
+/** Account columns a receiver verifies with the identity authority before import. */
+const ACCOUNT_COLUMNS: Record<string, readonly string[]> = {
+  gallery_entries: ["owner_user_id"],
+  components: ["author_id"],
+  gallery_likes: ["user_id"],
+  entry_reviews: ["reviewer_id"],
+};
 
 const fail = (error: string, status = 409) =>
   Response.json({ error }, { status });
+const metaTable = (prefix: string) =>
+  prefix === "replica" ? "resource_replica" : `${prefix}_replica`;
+const identity = (key: string, ref = "") =>
+  key
+    .split(":")
+    .map((c) => ref + c)
+    .join("||':'||");
+/** Identity columns as a WHERE clause; bind with `keyParts`. */
+const keyMatch = (key: string) =>
+  key
+    .split(":")
+    .map((c) => `${c}=?`)
+    .join(" AND ");
+function keyParts(key: string, id: string): string[] {
+  const count = key.split(":").length;
+  const parts = id.split(":");
+  return [...parts.slice(0, count - 1), parts.slice(count - 1).join(":")];
+}
 
 /** Aggregate maintenance must select authoritative rows before applying limits. */
-export function locallyOwnedResources(sql: Sql, key = "id"): string {
-  if (!/^[a-z_.]+$/.test(key)) throw new Error("Invalid resource key column");
+export function locallyOwnedResources(
+  sql: Sql,
+  key = "id",
+  scope: "resources" | "interactions" = "resources",
+): string {
+  if (!/^[a-z_.:]+$/.test(key)) throw new Error("Invalid resource key column");
+  const meta =
+    scope === "resources" ? "resource_replica" : "interaction_replica";
   const enabled = sql
     .exec(
-      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='resource_replica_meta'",
+      `SELECT 1 FROM sqlite_master WHERE type='table' AND name='${meta}_meta'`,
     )
     .toArray().length;
   return enabled
-    ? `${key} NOT IN (SELECT id FROM resource_replica_keys WHERE origin<>(SELECT region FROM resource_replica_meta WHERE id=1))`
+    ? `(${identity(key)}) NOT IN (SELECT id FROM ${meta}_keys WHERE origin<>(SELECT region FROM ${meta}_meta WHERE id=1))`
     : "1=1";
 }
 
-/** Origin-owned publications. Changes are coalesced current snapshots, not replayable commands. */
+/** Account IDs a snapshot would import; malformed payloads yield none and are refused later. */
+export function snapshotAccounts(envelope: unknown): string[] {
+  const ids = new Set<string>();
+  try {
+    const event = JSON.parse((envelope as { payload: string }).payload);
+    event.schema.forEach((table: { name: string }, i: number) => {
+      for (const row of event.rows[i])
+        for (const column of ACCOUNT_COLUMNS[table.name] ?? [])
+          if (typeof row[column] === "string" && row[column])
+            ids.add(row[column]);
+    });
+  } catch {
+    return [];
+  }
+  return [...ids];
+}
+
+/**
+ * Publications are origin-owned; likes and reviews are owned by the region
+ * that wrote them. Changes are coalesced current snapshots, not replayable
+ * commands.
+ */
 export class ResourceReplica {
   private readonly sql: Sql;
   private readonly tables: Table[];
+  private readonly meta: string;
+  private readonly writerOwned: boolean;
   constructor(
     private readonly state: ReplicaState,
     readonly region: ResourceRegion,
-    kind: ResourceKind,
+    private readonly kind: ResourceKind,
     writable: boolean,
   ) {
     this.sql = state.storage.sql;
-    this.tables = tables[kind].map(([name, key]) => ({
-      name,
-      key,
-      columns: this.sql
+    this.writerOwned = kind === "interactions";
+    const prefix = kinds[kind].prefix;
+    this.meta = metaTable(prefix);
+    this.tables = kinds[kind].tables.map(([name, key]) => {
+      const columns = this.sql
         .exec<{ name: string }>(`PRAGMA table_info(${name})`)
         .toArray()
-        .map((c) => c.name),
-    }));
+        .map((c) => c.name);
+      const hidden = PRIVATE_COLUMNS[name] ?? [];
+      return {
+        name,
+        key,
+        columns,
+        shared: columns.filter((c) => !hidden.includes(c)),
+      };
+    });
     if (
       this.tables.some(
         (t) =>
-          !t.columns.includes(t.key) ||
-          t.columns.some((c) => !/^[a-z_][a-z0-9_]*$/.test(c)),
+          t.key.split(":").some((k) => !t.columns.includes(k)) ||
+          t.columns.some((c) => !IDENTIFIER.test(c)),
       )
     )
       throw new Error("Resource schema unavailable");
+    const meta = this.meta;
     this.sql.exec(
-      "CREATE TABLE IF NOT EXISTS resource_replica_meta (id INTEGER PRIMARY KEY, region TEXT NOT NULL, epoch TEXT NOT NULL, sequence INTEGER NOT NULL, importing INTEGER NOT NULL, writable INTEGER NOT NULL)",
+      `CREATE TABLE IF NOT EXISTS ${meta}_meta (id INTEGER PRIMARY KEY, region TEXT NOT NULL, epoch TEXT NOT NULL, sequence INTEGER NOT NULL, importing INTEGER NOT NULL, writable INTEGER NOT NULL, signature TEXT NOT NULL DEFAULT '')`,
     );
+    try {
+      this.sql.exec(
+        `ALTER TABLE ${meta}_meta ADD COLUMN signature TEXT NOT NULL DEFAULT ''`,
+      );
+    } catch {
+      // Column already present.
+    }
     this.sql.exec(
-      "INSERT OR IGNORE INTO resource_replica_meta VALUES (1,?,?,0,0,0)",
+      `INSERT OR IGNORE INTO ${meta}_meta (id,region,epoch,sequence,importing,writable) VALUES (1,?,?,0,0,0)`,
       region,
       crypto.randomUUID(),
     );
-    if (this.meta().region !== region)
+    this.sql.exec(
+      `CREATE TABLE IF NOT EXISTS ${meta}_keys (id TEXT PRIMARY KEY, origin TEXT NOT NULL) WITHOUT ROWID`,
+    );
+    this.sql.exec(
+      `CREATE TABLE IF NOT EXISTS ${meta}_changes (id TEXT PRIMARY KEY, sequence INTEGER NOT NULL UNIQUE) WITHOUT ROWID`,
+    );
+    this.sql.exec(
+      `CREATE TABLE IF NOT EXISTS ${meta}_peer (id INTEGER PRIMARY KEY, epoch TEXT NOT NULL, sequence INTEGER NOT NULL)`,
+    );
+    this.sql.exec(
+      `CREATE TABLE IF NOT EXISTS ${meta}_receipts (sequence INTEGER PRIMARY KEY, digest TEXT NOT NULL)`,
+    );
+    if (this.head().region !== region)
       throw new Error("Resource state cannot change region");
     this.sql.exec(
-      "UPDATE resource_replica_meta SET writable=? WHERE id=1",
+      `UPDATE ${meta}_meta SET writable=? WHERE id=1`,
       writable ? 1 : 0,
     );
-    this.sql.exec(
-      "CREATE TABLE IF NOT EXISTS resource_replica_keys (id TEXT PRIMARY KEY, origin TEXT NOT NULL) WITHOUT ROWID",
+    // CREATE TRIGGER IF NOT EXISTS freezes the column list it compared, so a
+    // migrated column set (or table set) recreates both trigger families.
+    const signature = sha256Hex(
+      JSON.stringify({
+        version: TRIGGER_VERSION,
+        tables: this.tables.map((t) => [t.name, t.key, [...t.columns].sort()]),
+      }),
     );
-    this.sql.exec(
-      "CREATE TABLE IF NOT EXISTS resource_replica_changes (id TEXT PRIMARY KEY, sequence INTEGER NOT NULL UNIQUE) WITHOUT ROWID",
-    );
-    this.sql.exec(
-      "CREATE TABLE IF NOT EXISTS resource_replica_peer (id INTEGER PRIMARY KEY, epoch TEXT NOT NULL, sequence INTEGER NOT NULL)",
-    );
-    this.sql.exec(
-      "CREATE TABLE IF NOT EXISTS resource_replica_receipts (sequence INTEGER PRIMARY KEY, digest TEXT NOT NULL)",
-    );
-    for (const table of this.tables) this.install(table);
+    state.storage.transactionSync(() => {
+      const installed = this.sql
+        .exec<{ signature: string }>(
+          `SELECT signature FROM ${meta}_meta WHERE id=1`,
+        )
+        .toArray()[0]!.signature;
+      if (installed === signature) return;
+      for (const { name } of this.sql
+        .exec<{ name: string }>(
+          `SELECT name FROM sqlite_master WHERE type='trigger' AND (name GLOB '${prefix}_guard_*' OR name GLOB '${prefix}_change_*')`,
+        )
+        .toArray())
+        this.sql.exec(`DROP TRIGGER IF EXISTS ${name}`);
+      for (const table of this.tables) this.install(prefix, table);
+      this.sql.exec(
+        `UPDATE ${meta}_meta SET signature=? WHERE id=1`,
+        signature,
+      );
+    });
   }
-  private meta() {
-    return this.sql
-      .exec<{ region: ResourceRegion; epoch: string; sequence: number }>(
-        "SELECT region,epoch,sequence FROM resource_replica_meta WHERE id=1",
-      )
-      .toArray()[0]!;
-  }
-  private install(table: Table) {
+  private install(prefix: string, table: Table) {
+    const meta = this.meta;
     for (const [event, ref] of [
       ["INSERT", "NEW"],
       ["UPDATE", "NEW"],
       ["DELETE", "OLD"],
     ]) {
-      const id = `${ref}.${table.key}`;
+      const id = identity(table.key, `${ref}.`);
       const unchanged =
         event === "UPDATE"
           ? ` AND NOT (${table.columns.map((c) => `NEW.${c} IS OLD.${c}`).join(" AND ")})`
           : "";
-      this.sql
-        .exec(`CREATE TRIGGER IF NOT EXISTS replica_guard_${table.name}_${event}
+      this.sql.exec(`CREATE TRIGGER ${prefix}_guard_${table.name}_${event}
         BEFORE ${event} ON ${table.name}
-        WHEN (SELECT importing FROM resource_replica_meta WHERE id=1)=0${unchanged}
+        WHEN (SELECT importing FROM ${meta}_meta WHERE id=1)=0${unchanged}
         BEGIN
-          SELECT CASE WHEN (SELECT writable FROM resource_replica_meta WHERE id=1)=0
+          SELECT CASE WHEN (SELECT writable FROM ${meta}_meta WHERE id=1)=0
             THEN RAISE(ABORT,'RESOURCE_WRITES_DISABLED') END;
-          SELECT CASE WHEN EXISTS(SELECT 1 FROM resource_replica_keys WHERE id=${id}
-            AND origin<>(SELECT region FROM resource_replica_meta WHERE id=1))
+          SELECT CASE WHEN EXISTS(SELECT 1 FROM ${meta}_keys WHERE id=${id}
+            AND origin<>(SELECT region FROM ${meta}_meta WHERE id=1))
             THEN RAISE(ABORT,'RESOURCE_SOURCE_READ_ONLY') END;
         END`);
-      this.sql
-        .exec(`CREATE TRIGGER IF NOT EXISTS replica_change_${table.name}_${event}
+      this.sql.exec(`CREATE TRIGGER ${prefix}_change_${table.name}_${event}
         AFTER ${event} ON ${table.name}
-        WHEN (SELECT importing FROM resource_replica_meta WHERE id=1)=0${unchanged}
+        WHEN (SELECT importing FROM ${meta}_meta WHERE id=1)=0${unchanged}
         BEGIN
-          INSERT OR IGNORE INTO resource_replica_keys VALUES (${id},(SELECT region FROM resource_replica_meta WHERE id=1));
-          UPDATE resource_replica_meta SET sequence=sequence+1 WHERE id=1;
-          INSERT INTO resource_replica_changes VALUES (${id},(SELECT sequence FROM resource_replica_meta WHERE id=1))
+          INSERT OR IGNORE INTO ${meta}_keys VALUES (${id},(SELECT region FROM ${meta}_meta WHERE id=1));
+          UPDATE ${meta}_meta SET sequence=sequence+1 WHERE id=1;
+          INSERT INTO ${meta}_changes VALUES (${id},(SELECT sequence FROM ${meta}_meta WHERE id=1))
             ON CONFLICT(id) DO UPDATE SET sequence=excluded.sequence;
         END`);
     }
   }
+  private rowsOf(table: Table, id: string, columns = table.columns) {
+    return this.sql
+      .exec<Row>(
+        `SELECT ${columns.join(",")} FROM ${table.name} WHERE ${keyMatch(table.key)} ORDER BY ${columns.join(",")}`,
+        ...keyParts(table.key, id),
+      )
+      .toArray();
+  }
+  private head() {
+    return this.sql
+      .exec<{ region: ResourceRegion; epoch: string; sequence: number }>(
+        `SELECT region,epoch,sequence FROM ${this.meta}_meta WHERE id=1`,
+      )
+      .toArray()[0]!;
+  }
   status() {
     return {
-      ...this.meta(),
+      ...this.head(),
       received:
         this.sql
           .exec<{ epoch: string; sequence: number }>(
-            "SELECT epoch,sequence FROM resource_replica_peer WHERE id=1",
+            `SELECT epoch,sequence FROM ${this.meta}_peer WHERE id=1`,
           )
           .toArray()[0] ?? null,
     };
   }
   seed() {
+    const meta = this.meta;
     return this.state.storage.transactionSync(() => {
-      // Figures may precede a drawing; review/fix history may outlive it.
       // Keep queries below the Workers compound-SELECT limit. Insert keys
       // between tables so shared identities consume only one batch slot.
       let seeded = 0;
       for (const table of this.tables) {
+        const id = identity(table.key);
         const rows = this.sql
           .exec<{ id: string }>(
-            `SELECT DISTINCT ${table.key} AS id FROM ${table.name}
-             WHERE ${table.key} NOT IN (SELECT id FROM resource_replica_keys)
-             ORDER BY ${table.key} LIMIT ?`,
+            `SELECT DISTINCT ${id} AS id FROM ${table.name}
+             WHERE ${id} NOT IN (SELECT id FROM ${meta}_keys)
+             ORDER BY 1 LIMIT ?`,
             50 - seeded,
           )
           .toArray();
         for (const { id } of rows) {
           this.sql.exec(
-            "INSERT INTO resource_replica_keys VALUES (?,?)",
+            `INSERT INTO ${meta}_keys VALUES (?,?)`,
             id,
             this.region,
           );
           this.sql.exec(
-            "UPDATE resource_replica_meta SET sequence=sequence+1 WHERE id=1",
+            `UPDATE ${meta}_meta SET sequence=sequence+1 WHERE id=1`,
           );
           this.sql.exec(
-            "INSERT INTO resource_replica_changes VALUES (?,?)",
+            `INSERT INTO ${meta}_changes VALUES (?,?)`,
             id,
-            this.meta().sequence,
+            this.head().sequence,
           );
         }
         seeded += rows.length;
@@ -208,34 +328,30 @@ export class ResourceReplica {
     if (!Number.isSafeInteger(after) || after < 0)
       return fail("invalid-cursor", 400);
     const snapshot = this.state.storage.transactionSync(() => {
-      const meta = this.meta();
+      const meta = this.head();
       if (after > meta.sequence) return null;
       const next = this.sql
         .exec<{ id: string; sequence: number }>(
-          "SELECT id,sequence FROM resource_replica_changes WHERE sequence>? ORDER BY sequence LIMIT 1",
+          `SELECT id,sequence FROM ${this.meta}_changes WHERE sequence>? ORDER BY sequence LIMIT 1`,
           after,
         )
         .toArray()[0];
       if (!next) return { event: null, ...meta };
-      const rows = this.tables.map((t) =>
-        this.sql
-          .exec<Row>(
-            `SELECT * FROM ${t.name} WHERE ${t.key}=? ORDER BY ${t.columns.join(",")}`,
-            next.id,
-          )
-          .toArray(),
-      );
       return {
         event: {
-          version: 1,
+          version: SNAPSHOT_VERSION,
           stream,
           origin: this.region,
           epoch: meta.epoch,
           after,
           sequence: next.sequence,
           id: next.id,
-          schema: this.tables,
-          rows,
+          schema: this.tables.map((t) => ({
+            name: t.name,
+            key: t.key,
+            columns: t.shared,
+          })),
+          rows: this.tables.map((t) => this.rowsOf(t, next.id, t.shared)),
         },
       };
     });
@@ -262,37 +378,74 @@ export class ResourceReplica {
     } catch {
       return fail("invalid-resource-envelope", 400);
     }
+    if (
+      event &&
+      Number.isSafeInteger(event.version) &&
+      event.version !== SNAPSHOT_VERSION
+    )
+      return fail("resource-version-unsupported");
     const peer = this.region === "cn" ? "overseas" : "cn";
+    const schema: { columns: string[] }[] = event?.schema;
     if (
       !event ||
-      event.version !== 1 ||
+      event.version !== SNAPSHOT_VERSION ||
       event.stream !== stream ||
       event.origin !== peer ||
       typeof event.epoch !== "string" ||
       !/^[a-zA-Z0-9-]{1,80}$/.test(event.epoch) ||
       typeof event.id !== "string" ||
-      !/^[a-zA-Z0-9:_-]{1,160}$/.test(event.id) ||
+      !/^[a-zA-Z0-9:_.@-]{1,320}$/.test(event.id) ||
       !Number.isSafeInteger(event.sequence) ||
       !Number.isSafeInteger(event.after) ||
       event.after < 0 ||
       event.sequence <= event.after ||
-      !sameSchema(event.schema, this.tables) ||
+      !Array.isArray(schema) ||
+      schema.length !== this.tables.length ||
+      this.tables.some((t, i) => {
+        const s = schema[i] as any;
+        return (
+          !s ||
+          typeof s !== "object" ||
+          Object.keys(s).length !== 3 ||
+          s.name !== t.name ||
+          s.key !== t.key ||
+          !Array.isArray(s.columns) ||
+          s.columns.some(
+            (c: unknown) =>
+              typeof c !== "string" ||
+              !IDENTIFIER.test(c) ||
+              (PRIVATE_COLUMNS[t.name] ?? []).includes(c),
+          ) ||
+          new Set(s.columns).size !== s.columns.length ||
+          t.key.split(":").some((k) => !s.columns.includes(k))
+        );
+      }) ||
       !Array.isArray(event.rows) ||
       event.rows.length !== this.tables.length
     )
       return fail("invalid-resource-event", 400);
+    // One release of skew: an older sender's absent columns take the local
+    // default; a newer sender's extra column waits for this receiver's upgrade.
+    if (
+      this.tables.some((t, i) =>
+        schema[i]!.columns.some((c) => !t.shared.includes(c)),
+      )
+    )
+      return fail("resource-schema-newer");
     for (const [i, table] of this.tables.entries()) {
       const rows = event.rows[i];
+      const columns = schema[i]!.columns;
+      const parts = table.key.split(":");
       if (
         !Array.isArray(rows) ||
         rows.length > 10000 ||
-        (i === 0 && rows.length > 1) ||
+        ((this.writerOwned || i === 0) && rows.length > 1) ||
         rows.some(
           (r: any) =>
             !r ||
             typeof r !== "object" ||
-            Object.keys(r).length !== table.columns.length ||
-            table.columns.some(
+            Object.keys(r).length !== columns.length ||
+            columns.some(
               (c) =>
                 !Object.hasOwn(r, c) ||
                 !(
@@ -301,24 +454,21 @@ export class ResourceReplica {
                   (typeof r[c] === "number" && Number.isFinite(r[c]))
                 ),
             ) ||
-            r[table.key] !== event.id,
+            parts.slice(0, -1).some((k) => String(r[k]).includes(":")) ||
+            parts.map((k) => r[k]).join(":") !== event.id,
         )
       )
         return fail("invalid-resource-rows", 400);
     }
     if (
+      !this.writerOwned &&
       !event.rows[0].length &&
       this.tables.some(
-        (t, i) =>
-          ![
-            "dataset_comparisons",
-            "entry_references",
-            "entry_reviews",
-            "entry_fixes",
-          ].includes(t.name) && event.rows[i].length,
+        (t, i) => !ROOTLESS.includes(t.name) && event.rows[i].length,
       )
     )
       return fail("orphan-resource-rows", 400);
+    const meta = this.meta;
     return this.state.storage.transactionSync(() => {
       const received = this.status().received;
       if (received && received.epoch !== event.epoch)
@@ -326,7 +476,7 @@ export class ResourceReplica {
       if (received && event.sequence <= received.sequence) {
         const prior = this.sql
           .exec<{ digest: string }>(
-            "SELECT digest FROM resource_replica_receipts WHERE sequence=?",
+            `SELECT digest FROM ${meta}_receipts WHERE sequence=?`,
             event.sequence,
           )
           .toArray()[0];
@@ -336,73 +486,78 @@ export class ResourceReplica {
       }
       if (event.after !== (received?.sequence ?? 0))
         return fail("resource-cursor-mismatch");
+      const accept = () => {
+        this.sql.exec(
+          `INSERT OR REPLACE INTO ${meta}_peer VALUES (1,?,?)`,
+          event.epoch,
+          event.sequence,
+        );
+        this.sql.exec(
+          `INSERT INTO ${meta}_receipts VALUES (?,?)`,
+          event.sequence,
+          envelope.digest,
+        );
+      };
       const owner = this.sql
         .exec<{ origin: string }>(
-          "SELECT origin FROM resource_replica_keys WHERE id=?",
+          `SELECT origin FROM ${meta}_keys WHERE id=?`,
           event.id,
         )
         .toArray()[0];
-      const main = this.tables[0]!;
       if (
         (owner && owner.origin !== peer) ||
-        (!owner &&
-          this.tables.some(
-            (t) =>
-              this.sql
-                .exec(
-                  `SELECT ${t.key} FROM ${t.name} WHERE ${t.key}=? LIMIT 1`,
-                  event.id,
-                )
-                .toArray().length,
-          ))
-      )
-        return fail("resource-origin-collision");
-      this.sql.exec("UPDATE resource_replica_meta SET importing=1 WHERE id=1");
+        (!owner && this.tables.some((t) => this.rowsOf(t, event.id).length))
+      ) {
+        if (!this.writerOwned) return fail("resource-origin-collision");
+        // Both regions wrote the same like: keep the tie winner's record in
+        // both, so the stream converges instead of blocking.
+        if (peer !== INTERACTION_TIE_WINNER) {
+          accept();
+          return Response.json({ sequence: event.sequence, superseded: true });
+        }
+        this.sql.exec(`DELETE FROM ${meta}_changes WHERE id=?`, event.id);
+      }
+      this.sql.exec(`UPDATE ${meta}_meta SET importing=1 WHERE id=1`);
       this.sql.exec(
-        "INSERT OR IGNORE INTO resource_replica_keys VALUES (?,?)",
+        `INSERT INTO ${meta}_keys VALUES (?,?) ON CONFLICT(id) DO UPDATE SET origin=excluded.origin`,
         event.id,
         peer,
       );
       // Replace one resource and its retained children, never a whole store.
       for (const table of [...this.tables].reverse())
         this.sql.exec(
-          `DELETE FROM ${table.name} WHERE ${table.key}=?`,
-          event.id,
+          `DELETE FROM ${table.name} WHERE ${keyMatch(table.key)}`,
+          ...keyParts(table.key, event.id),
         );
-      for (const [i, table] of this.tables.entries())
+      for (const [i, table] of this.tables.entries()) {
+        const columns = schema[i]!.columns;
         for (const row of event.rows[i])
           this.sql.exec(
-            `INSERT INTO ${table.name} (${table.columns.join(",")}) VALUES (${table.columns.map(() => "?").join(",")})`,
-            ...table.columns.map((c) => row[c]),
+            `INSERT INTO ${table.name} (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})`,
+            ...columns.map((c) => row[c]),
           );
-      if (main.name === "components") {
+      }
+      if (this.kind === "components") {
         this.sql.exec(
           "DELETE FROM component_content_index WHERE component_id=?",
           event.id,
         );
         this.sql.exec("UPDATE component_content_progress SET complete=0");
       } else {
-        this.sql.exec(
-          "DELETE FROM gallery_entry_transistors WHERE entry_id=?",
-          event.id,
-        );
-        this.sql.exec(
-          "DELETE FROM gallery_entry_devices WHERE entry_id=?",
-          event.id,
-        );
+        if (this.kind === "gallery") {
+          this.sql.exec(
+            "DELETE FROM gallery_entry_transistors WHERE entry_id=?",
+            event.id,
+          );
+          this.sql.exec(
+            "DELETE FROM gallery_entry_devices WHERE entry_id=?",
+            event.id,
+          );
+        }
         this.sql.exec("DELETE FROM gallery_stats_snapshot");
       }
-      this.sql.exec(
-        "INSERT OR REPLACE INTO resource_replica_peer VALUES (1,?,?)",
-        event.epoch,
-        event.sequence,
-      );
-      this.sql.exec(
-        "INSERT INTO resource_replica_receipts VALUES (?,?)",
-        event.sequence,
-        envelope.digest,
-      );
-      this.sql.exec("UPDATE resource_replica_meta SET importing=0 WHERE id=1");
+      accept();
+      this.sql.exec(`UPDATE ${meta}_meta SET importing=0 WHERE id=1`);
       return Response.json({ sequence: event.sequence });
     });
   }
@@ -415,28 +570,41 @@ export function withResourceReplication<
 >(Base: Store, kind: ResourceKind) {
   return class extends Base {
     readonly resourceReplica?: ResourceReplica;
+    readonly interactionReplica?: ResourceReplica;
     constructor(...args: any[]) {
       super(...args);
       const config = args[1] as ReplicaConfig | undefined;
-      if (config?.RESOURCE_REGION)
-        this.resourceReplica = new ResourceReplica(
+      if (!config?.RESOURCE_REGION) return;
+      const writable = config.RESOURCE_WRITES_ENABLED === "true";
+      this.resourceReplica = new ResourceReplica(
+        args[0],
+        config.RESOURCE_REGION,
+        kind,
+        writable,
+      );
+      if (kind === "gallery")
+        this.interactionReplica = new ResourceReplica(
           args[0],
           config.RESOURCE_REGION,
-          kind,
-          config.RESOURCE_WRITES_ENABLED === "true",
+          "interactions",
+          writable,
         );
     }
     override async fetch(request: Request): Promise<Response> {
       try {
-        const replica = this.resourceReplica;
         const operation = new URL(request.url).pathname;
         if (operation.startsWith("/resource-sync/")) {
-          if (!replica) return fail("resource-sync-disabled", 404);
           const body = (await request.json()) as {
             stream: string;
             after: number;
             envelope: unknown;
           };
+          const replica = String(body.stream).endsWith(
+            INTERACTION_STREAM_SUFFIX,
+          )
+            ? this.interactionReplica
+            : this.resourceReplica;
+          if (!replica) return fail("resource-sync-disabled", 404);
           switch (operation) {
             case "/resource-sync/status":
               return Response.json(replica.status());
@@ -469,7 +637,7 @@ export function withResourceReplication<
           return Response.json(
             {
               code: "RESOURCE_SOURCE_READ_ONLY",
-              error: "Edit this resource at its publishing region.",
+              error: "Edit this resource in the region that wrote it.",
             },
             { status: 409 },
           );

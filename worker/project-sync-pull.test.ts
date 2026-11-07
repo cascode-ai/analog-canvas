@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { gzipBody } from "./project-sync-http";
 import { RegionalProjectDO } from "./regional-projects";
 import {
   environment,
@@ -61,6 +62,7 @@ it.each([false, true])(
     expect(created.status).toBe(201);
     const id = (await created.json()).project.id;
     let redirectPeer = true;
+    const pushEncodings: (string | null)[] = [];
     vi.stubGlobal(
       "fetch",
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -69,6 +71,8 @@ it.each([false, true])(
           throw new TypeError("Unsupported edge redirect mode");
         const request = new Request(input, init);
         expect(new URL(request.url).origin).toBe(ORIGIN);
+        if (new URL(request.url).pathname === "/api/project-sync/events")
+          pushEncodings.push(request.headers.get("content-encoding"));
         if (redirectPeer) {
           expect(request.redirect).toBe("manual");
           return Response.redirect("https://untrusted.test/collect", 302);
@@ -149,5 +153,19 @@ it.each([false, true])(
       }),
     );
     expect(refused.status).toBe(401);
+    // Pushes cross the border gzipped; receivers bound the inflated size.
+    expect(pushEncodings).toContain("gzip");
+    const inflated = await route(
+      source.env,
+      new Request(`${ORIGIN}/api/project-sync/pull`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer overseas-peer",
+          "Content-Encoding": "gzip",
+        },
+        body: await gzipBody(JSON.stringify({ status: "a".repeat(8192) })),
+      }),
+    );
+    expect(inflated.status).toBe(413);
   },
 );
