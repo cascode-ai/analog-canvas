@@ -1,6 +1,8 @@
 // /review: one drawing at a time, its reference beside it, a verdict and
 // flags. This module is the page's data and rules; the page draws them.
 
+import { COMPARISON_SOURCES } from "./gallery-sources";
+
 /** What a reviewer can flag, with its key; the last two are community's. */
 const REVIEW_FLAGS = [
   { key: "wrong", label: "Wrong circuit", hotkey: "1" },
@@ -121,8 +123,14 @@ export function withReview(card: ReviewCard, review: ShownReview): ReviewCard {
   };
 }
 
-/** The stores /review reads, as its sidebar lists them: the community first. */
-export const REVIEW_STORES = ["community", "analoggenie", "circuitthink"];
+/**
+ * The stores /review reads, as its sidebar lists them: the community first,
+ * then each dataset whose original figures it sets beside our redraws.
+ */
+export const REVIEW_STORES = [
+  "community",
+  ...COMPARISON_SOURCES.map((source) => source.key),
+];
 
 /** Random (the default) mixes every store; any other scope is one store. */
 export function scopeFromSearch(search: string): string {
