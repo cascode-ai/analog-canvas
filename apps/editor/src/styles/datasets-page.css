@@ -2,6 +2,7 @@
    Verdict colours are status colours (each with an icon and a label);
    magnitudes are one blue. */
 .datasets-shell {
+  --ds-mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
   --ds-bar: #2a78d6;
   --ds-bar-on: #1c5cab;
   --ds-bar-off: #b7d3f6;
@@ -15,48 +16,209 @@
   max-width: 82rem;
 }
 
-/* The page opens on its dataset tabs; its mode switch is in the tab row. */
-.datasets-head {
+/* The opening, after the benchmark pages: a large title, one line on what
+   this is, and the headline numbers in a monospace block. */
+.ds-hero {
   display: flex;
-  padding: 12px 0 4px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px 40px;
+  padding: 28px 0 24px;
+  border-bottom: 1px solid var(--icm-border);
 }
 
-.datasets-tabs {
-  display: flex;
-  gap: 6px;
+.ds-hero h1 {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
 }
 
-.datasets-tabs button {
-  padding: 6px 12px;
+.ds-hero p {
+  max-width: 34rem;
+  margin: 10px 0 0;
+  color: var(--icm-text-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.ds-hero-stats {
+  display: flex;
+  margin: 0;
+}
+
+.ds-hero-stats div {
+  padding: 2px 22px;
+  border-left: 1px solid var(--icm-border);
+}
+
+.ds-hero-stats div:last-child {
+  padding-right: 0;
+}
+
+.ds-hero-stats dt {
+  color: var(--icm-text-muted);
+  font: 500 10px var(--ds-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ds-hero-stats dd {
+  margin: 4px 0 0;
+  font: 600 26px var(--ds-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.ds-heading {
+  margin: 32px 0 12px;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/* The board: one line a dataset, its verdicts as one long bar. */
+.ds-board-card {
+  padding: 6px 18px 14px;
   border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
+  border-radius: var(--icm-radius-lg);
   background: var(--icm-surface);
+}
+
+.ds-board-row {
+  display: grid;
+  grid-template-columns:
+    28px minmax(140px, 200px) minmax(0, 1fr)
+    84px 64px 64px 72px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 58px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--icm-border);
+  background: none;
   color: var(--icm-text);
+  font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.datasets-tabs button small {
-  display: block;
+.ds-board-row > :nth-child(n + 4) {
+  font-family: var(--ds-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ds-board-row.head {
+  min-height: 36px;
   color: var(--icm-text-muted);
-  font-size: 11px;
+  font: 500 10px var(--ds-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: default;
 }
 
-.datasets-tabs button.on {
-  border-color: var(--icm-text);
-  box-shadow: inset 0 0 0 1px var(--icm-text);
+.ds-board-row:not(.head):hover {
+  background: var(--icm-surface-hover);
 }
 
-.datasets-source {
-  min-height: 18px;
-  margin: 0 0 10px;
+.ds-board-row.on {
+  background: #eef3fb;
+  box-shadow: inset 3px 0 0 var(--ds-bar);
+}
+
+.ds-board.sel .ds-board-row:not(.head, .on) {
+  opacity: 0.5;
+}
+
+.ds-board-row.total {
+  border-bottom: 0;
+  border-top: 2px solid var(--icm-border);
+}
+
+.ds-board-row .rank {
+  color: var(--icm-text-muted);
+  font: 500 12px var(--ds-mono);
+}
+
+.ds-board-row .name b {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.ds-board-row .name small {
+  display: block;
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font: 11px var(--ds-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-bar {
+  display: flex;
+  gap: 2px;
+  height: 18px;
+}
+
+.ds-bar > span {
+  min-width: 3px;
+  transition: opacity 0.12s;
+}
+
+.ds-bar > span:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.ds-bar > span:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.ds-bar > span.dim {
+  opacity: 0.25;
+}
+
+.ds-board-row .acc {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ds-board-row .num {
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
+.ds-board-card .datasets-legend {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: none;
+  gap: 4px 10px;
+  margin-top: 12px;
+}
+
+.ds-board-card .datasets-legend button {
+  grid-template-columns: 18px auto auto auto;
+}
+
+.ds-note {
+  margin: 10px 6px 0;
   color: var(--icm-text-muted);
   font-size: 12px;
+  line-height: 1.5;
+}
+
+.ds-note a {
+  color: var(--icm-accent);
+  text-decoration: none;
 }
 
 .datasets-stats {
   display: grid;
-  grid-template-columns: 1.15fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
@@ -108,33 +270,6 @@
 .datasets-seg button.on {
   background: var(--icm-text);
   color: #fff;
-}
-
-.datasets-stack {
-  display: flex;
-  gap: 2px;
-  height: 22px;
-  margin: 2px 0 12px;
-}
-
-.datasets-stack button {
-  min-width: 3px;
-  padding: 0;
-  border: 0;
-  cursor: pointer;
-  transition: opacity 0.12s;
-}
-
-.datasets-stack button:first-child {
-  border-radius: 4px 0 0 4px;
-}
-
-.datasets-stack button:last-child {
-  border-radius: 0 4px 4px 0;
-}
-
-.datasets-stack.sel button:not(.on) {
-  opacity: 0.28;
 }
 
 .v-match {
@@ -213,25 +348,6 @@
 
 .datasets-icon.v-unclear {
   color: #4a3500;
-}
-
-.datasets-kpis {
-  display: flex;
-  gap: 18px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--icm-border);
-}
-
-.datasets-kpis b {
-  font-size: 20px;
-  font-variant-numeric: tabular-nums;
-}
-
-.datasets-kpis span {
-  display: block;
-  color: var(--icm-text-muted);
-  font-size: 11px;
 }
 
 .datasets-bars {
@@ -513,7 +629,7 @@ a.gallery-view-tab {
 .datasets-row .id,
 .datasets-card-g .id,
 .datasets-viewer .id {
-  font: 600 12px var(--icm-font-mono);
+  font: 600 12px var(--ds-mono);
 }
 
 .datasets-row .name {
@@ -651,7 +767,7 @@ a.gallery-view-tab {
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);
-  font: 11px/1.4 var(--icm-font-mono);
+  font: 11px/1.4 var(--ds-mono);
   white-space: pre;
 }
 
@@ -823,14 +939,15 @@ a.gallery-view-tab {
   max-height: 100%;
 }
 
-/* Narrower: the verdict across the top, the two charts side by side. */
+/* Narrower: the board drops its secondary numbers. */
 @media (max-width: 1100px) {
-  .datasets-stats {
-    grid-template-columns: 1fr 1fr;
+  .ds-board-row {
+    grid-template-columns: 22px minmax(120px, 170px) minmax(0, 1fr) 72px 64px;
   }
 
-  .datasets-stats > :first-child {
-    grid-column: 1 / -1;
+  .ds-board-row > :nth-child(6),
+  .ds-board-row > :nth-child(7) {
+    display: none;
   }
 
   .datasets-view-netlists .datasets-row .cols {
@@ -849,8 +966,35 @@ a.gallery-view-tab {
     grid-template-columns: 1fr;
   }
 
-  .datasets-tabs {
-    margin-left: 0;
+  .ds-hero h1 {
+    font-size: 32px;
+  }
+
+  .ds-hero-stats div {
+    padding: 2px 14px;
+  }
+
+  .ds-hero-stats div:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .ds-hero-stats dd {
+    font-size: 20px;
+  }
+
+  .ds-board-card {
+    padding-inline: 8px;
+  }
+
+  .ds-board-row {
+    grid-template-columns: minmax(96px, 120px) minmax(0, 1fr) 56px;
+    gap: 10px;
+  }
+
+  .ds-board-row > :first-child,
+  .ds-board-row > :nth-child(5) {
+    display: none;
   }
 }
 

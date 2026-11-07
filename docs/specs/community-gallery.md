@@ -481,8 +481,13 @@ lastUsedAt}]}`, and revokes one with `DELETE /api/auth/owner-tokens/<id>`.
 
 `/datasets`, Review's Statistics mode, sets each dataset circuit's original
 figure beside our redraw, with the verdict of comparing both netlists; a
-dataset's wall also links to it. The page is English and reads like every other
-Gallery read (signed in; signed out it asks to sign in).
+dataset's wall also links to it. It opens on its numbers: the totals, then
+a board with one line a dataset (its verdicts as one bar; accuracy, strict
+accuracy, errors, circuits; best accuracy first, every dataset together at
+the foot) whose lines and verdict legend narrow the page, then the error and
+size breakdowns, the reviews, and the circuits. The page is English and
+reads like every other Gallery read (signed in; signed out it asks to sign
+in).
 
 - Only datasets whose figures we may show take comparisons: `comparisons:
 true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,

@@ -209,11 +209,6 @@ export function DatasetsPage({
         <ReviewModeSwitch mode="statistics" scope={filters.source} />
       </GalleryReviewTabs>
       <div className="page-body datasets-body" {...tipHandlers}>
-        {load.status === "ready" ? (
-          <div className="datasets-head">
-            <SourceTabs rows={rows} filters={filters} set={set} />
-          </div>
-        ) : null}
         {load.status === "loading" ? (
           <p className="gallery-status">Loading the datasets…</p>
         ) : load.status === "signed-out" ? (
@@ -226,17 +221,22 @@ export function DatasetsPage({
           </p>
         ) : (
           <>
-            <SourceNote source={filters.source} />
-            <ReviewSummary fetchLike={fetchLike} />
+            <Hero rows={rows} />
+            <h2 className="ds-heading">Accuracy by dataset</h2>
+            <DatasetBoard
+              rows={rows}
+              filters={filters}
+              set={set}
+              setFilters={setFilters}
+            />
+            <h2 className="ds-heading">Breakdown</h2>
             <section className="datasets-stats">
-              <VerdictCard
-                rows={rows}
-                filters={filters}
-                setFilters={setFilters}
-              />
               <WhyCard rows={rows} filters={filters} setFilters={setFilters} />
               <SizeCard rows={rows} filters={filters} set={set} />
             </section>
+            <h2 className="ds-heading">Reviews</h2>
+            <ReviewSummary fetchLike={fetchLike} />
+            <h2 className="ds-heading">Circuits</h2>
             <Toolbar
               filters={filters}
               set={set}
@@ -317,79 +317,6 @@ export function DatasetsPage({
   );
 }
 
-function SourceTabs({
-  rows,
-  filters,
-  set,
-}: {
-  rows: DatasetComparison[];
-  filters: ComparisonFilters;
-  set: (change: Partial<ComparisonFilters>) => void;
-}) {
-  const base = rowsWithout(rows, filters, "source");
-  const count = (key: string | null) =>
-    base.filter((row) => !key || row.source === key).length;
-  const tabs: [string | null, string, string][] = [
-    [null, "All datasets", `${num(count(null))} circuits`],
-    ...COMPARISON_SOURCES.map(
-      (source) =>
-        [source.key, source.name, `${num(count(source.key))} circuits`] as [
-          string,
-          string,
-          string,
-        ],
-    ),
-  ];
-  return (
-    <nav className="datasets-tabs" aria-label="Dataset">
-      {tabs.map(([key, name, sub]) => (
-        <button
-          key={key ?? "all"}
-          type="button"
-          className={filters.source === key ? "on" : ""}
-          aria-pressed={filters.source === key}
-          onClick={() => set({ source: key })}
-        >
-          <b>{name}</b>
-          <small>{sub}</small>
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function SourceNote({ source }: { source: string | null }) {
-  const named = gallerySourceByKey(source);
-  return (
-    <p className="datasets-source">
-      {named ? (
-        <>
-          {named.name} · {named.license} licence ·{" "}
-          <a href={named.homepage} target="_blank" rel="noreferrer">
-            Dataset ↗
-          </a>
-          {named.paper ? (
-            <>
-              {" · "}
-              <a href={named.paper} target="_blank" rel="noreferrer">
-                Paper ↗
-              </a>
-            </>
-          ) : null}
-          {" · "}original figures shown under its licence
-        </>
-      ) : (
-        <>
-          Licences:{" "}
-          {COMPARISON_SOURCES.map(
-            (item) => `${item.name} ${item.license}`,
-          ).join(" · ")}
-        </>
-      )}
-    </p>
-  );
-}
-
 function VerdictIcon({ verdict }: { verdict: ComparisonVerdict }) {
   return (
     <span className={`datasets-icon v-${verdict}`} aria-hidden="true">
@@ -398,35 +325,129 @@ function VerdictIcon({ verdict }: { verdict: ComparisonVerdict }) {
   );
 }
 
-function VerdictCard({
+/** The page's opening: what it is, and its numbers over every dataset. */
+function Hero({ rows }: { rows: DatasetComparison[] }) {
+  const of = (key: ComparisonVerdict) =>
+    rows.filter((row) => row.verdict === key).length;
+  const stats: [string, string][] = [
+    ["circuits", num(rows.length)],
+    ["datasets", String(COMPARISON_SOURCES.length)],
+    ["dataset errors", num(of("error"))],
+    ["accuracy", `${percent(of("match") + of("notation"), rows.length)}%`],
+  ];
+  return (
+    <header className="ds-hero">
+      <div>
+        <h1>Dataset audit</h1>
+        <p>
+          Public analog-circuit datasets, each figure redrawn in Analog Canvas
+          and its netlist checked against the dataset&apos;s.
+        </p>
+      </div>
+      <dl className="ds-hero-stats">
+        {stats.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </header>
+  );
+}
+
+/** One line of the board: a set of circuits' verdicts and what they make. */
+function boardLine(rows: DatasetComparison[]) {
+  const of = (key: ComparisonVerdict) =>
+    rows.filter((row) => row.verdict === key).length;
+  return {
+    total: rows.length,
+    of,
+    accuracy: percent(of("match") + of("notation"), rows.length),
+    strict: percent(of("match"), rows.length),
+  };
+}
+
+/**
+ * The page's chart: each dataset's verdicts as one bar, best accuracy
+ * first, every dataset together at the foot. A line narrows the page to
+ * its dataset; a verdict in the legend narrows it to that verdict.
+ */
+function DatasetBoard({
   rows,
   filters,
+  set,
   setFilters,
 }: {
   rows: DatasetComparison[];
   filters: ComparisonFilters;
+  set: (change: Partial<ComparisonFilters>) => void;
   setFilters: (filters: ComparisonFilters) => void;
 }) {
-  const base = rowsWithout(rows, filters, "verdict", "category");
-  const counts = Object.fromEntries(countBy(base, (row) => row.verdict));
-  const of = (key: ComparisonVerdict) => counts[key] ?? 0;
-  const pick = (key: ComparisonVerdict) =>
-    setFilters(toggleVerdict(filters, key, rows));
+  const base = rowsWithout(rows, filters, "source", "verdict", "category");
+  const lines = COMPARISON_SOURCES.map((source) => ({
+    key: source.key as string | null,
+    name: source.name,
+    note: source.license,
+    ...boardLine(base.filter((row) => row.source === source.key)),
+  })).sort((a, b) => b.accuracy - a.accuracy);
+  const all = {
+    key: null as string | null,
+    name: "All datasets",
+    note: `${COMPARISON_SOURCES.length} datasets`,
+    ...boardLine(base),
+  };
+  const chosen = rowsWithout(rows, filters, "verdict", "category");
+  const ofChosen = (key: ComparisonVerdict) =>
+    chosen.filter((row) => row.verdict === key).length;
+  const named = gallerySourceByKey(filters.source);
+  const line = (item: typeof all, rank: number | null) => (
+    <button
+      key={item.key ?? "all"}
+      type="button"
+      className={`ds-board-row${rank === null ? " total" : ""}${filters.source === item.key ? " on" : ""}`}
+      aria-pressed={filters.source === item.key}
+      onClick={() =>
+        set({ source: filters.source === item.key ? null : item.key })
+      }
+    >
+      <span className="rank">{rank ?? ""}</span>
+      <span className="name">
+        <b>{item.name}</b>
+        <small>{item.note}</small>
+      </span>
+      <span className="ds-bar">
+        {VERDICTS.map((verdict) =>
+          item.of(verdict.key) ? (
+            <span
+              key={verdict.key}
+              className={`v-${verdict.key}${filters.verdict && filters.verdict !== verdict.key ? " dim" : ""}`}
+              style={{ flexGrow: item.of(verdict.key) }}
+              data-tip={`${item.name} · ${verdict.label} · ${num(item.of(verdict.key))} (${percent(item.of(verdict.key), item.total)}%)`}
+            />
+          ) : null,
+        )}
+      </span>
+      <span className="acc">{item.accuracy}%</span>
+      <span className="num">{item.strict}%</span>
+      <span className="num">{num(item.of("error"))}</span>
+      <span className="num">{num(item.total)}</span>
+    </button>
+  );
   return (
-    <div className="datasets-card">
-      <h3>Verdict</h3>
-      <div className={`datasets-stack${filters.verdict ? " sel" : ""}`}>
-        {VERDICTS.filter((verdict) => of(verdict.key)).map((verdict) => (
-          <button
-            key={verdict.key}
-            type="button"
-            className={`v-${verdict.key}${filters.verdict === verdict.key ? " on" : ""}`}
-            style={{ flexGrow: of(verdict.key) }}
-            aria-label={`${verdict.label}: ${of(verdict.key)}`}
-            data-tip={`${verdict.label} · ${num(of(verdict.key))} (${percent(of(verdict.key), base.length)}%) · click to filter`}
-            onClick={() => pick(verdict.key)}
-          />
-        ))}
+    <section className="ds-board-card">
+      <div className={`ds-board${filters.source ? " sel" : ""}`}>
+        <div className="ds-board-row head" aria-hidden="true">
+          <span>#</span>
+          <span>Dataset</span>
+          <span>Verdicts</span>
+          <span>Accuracy</span>
+          <span>Strict</span>
+          <span>Errors</span>
+          <span>Circuits</span>
+        </div>
+        {lines.map((item, index) => line(item, index + 1))}
+        {line(all, null)}
       </div>
       <div className="datasets-legend">
         {VERDICTS.map((verdict) => (
@@ -435,33 +456,50 @@ function VerdictCard({
             type="button"
             className={filters.verdict === verdict.key ? "on" : ""}
             aria-pressed={filters.verdict === verdict.key}
-            onClick={() => pick(verdict.key)}
+            onClick={() =>
+              setFilters(toggleVerdict(filters, verdict.key, rows))
+            }
           >
             <VerdictIcon verdict={verdict.key} />
             <span>
               {verdict.label}
               <span className="what">{verdict.what}</span>
             </span>
-            <span className="n">{num(of(verdict.key))}</span>
-            <span className="p">{percent(of(verdict.key), base.length)}%</span>
+            <span className="n">{num(ofChosen(verdict.key))}</span>
+            <span className="p">
+              {percent(ofChosen(verdict.key), chosen.length)}%
+            </span>
           </button>
         ))}
       </div>
-      <div className="datasets-kpis">
-        <div data-tip="Match and Notation, over all circuits">
-          <b>{percent(of("match") + of("notation"), base.length)}%</b>
-          <span>dataset accuracy</span>
-        </div>
-        <div data-tip="Match only">
-          <b>{percent(of("match"), base.length)}%</b>
-          <span>strict accuracy</span>
-        </div>
-        <div data-tip="Circuits whose dataset netlist is wrong">
-          <b>{num(of("error"))}</b>
-          <span>dataset errors</span>
-        </div>
-      </div>
-    </div>
+      <p className="ds-note">
+        Accuracy counts Match and Notation; strict counts Match alone. Click a
+        dataset or a verdict to narrow the charts and circuits below.{" "}
+        {named ? (
+          <>
+            {named.name}:{" "}
+            <a href={named.homepage} target="_blank" rel="noreferrer">
+              dataset ↗
+            </a>
+            {named.paper ? (
+              <>
+                {" · "}
+                <a href={named.paper} target="_blank" rel="noreferrer">
+                  paper ↗
+                </a>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            Licences:{" "}
+            {COMPARISON_SOURCES.map(
+              (item) => `${item.name} ${item.license}`,
+            ).join(" · ")}
+          </>
+        )}
+      </p>
+    </section>
   );
 }
 

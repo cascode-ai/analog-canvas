@@ -136,7 +136,7 @@
 }
 
 .review-item .id {
-  font: 600 12px var(--icm-font-mono);
+  font: 600 12px var(--font-mono, ui-monospace, monospace);
 }
 
 .review-item .name {
@@ -259,7 +259,7 @@
   border-radius: 9px;
   background: #d03b3b;
   color: #fff;
-  font: 700 11px/18px var(--icm-font-mono);
+  font: 700 11px/18px var(--font-mono, ui-monospace, monospace);
   text-align: center;
 }
 
@@ -289,7 +289,7 @@
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);
-  font: 11px/1.4 var(--icm-font-mono);
+  font: 11px/1.4 var(--font-mono, ui-monospace, monospace);
   white-space: pre;
 }
 
@@ -462,7 +462,7 @@
 
 .review-flags kbd {
   color: var(--icm-text-muted);
-  font: 11px var(--icm-font-mono);
+  font: 11px var(--font-mono, ui-monospace, monospace);
 }
 
 .review-actions kbd,
@@ -471,7 +471,7 @@
   border: 1px solid var(--icm-border);
   border-radius: 3px;
   color: var(--icm-text-muted);
-  font: 11px var(--icm-font-mono);
+  font: 11px var(--font-mono, ui-monospace, monospace);
 }
 
 /* Pass (✓) passes at once; Not pass (✕) opens the reasons, and with one
@@ -561,7 +561,7 @@
   border-radius: 8px;
   background: #d03b3b;
   color: #fff;
-  font: 700 10px/16px var(--icm-font-mono);
+  font: 700 10px/16px var(--font-mono, ui-monospace, monospace);
   text-align: center;
 }
 
@@ -753,7 +753,7 @@
 .review-disputed a {
   flex-shrink: 0;
   color: var(--icm-accent);
-  font-family: var(--icm-font-mono);
+  font-family: var(--font-mono, ui-monospace, monospace);
   text-decoration: none;
 }
 
