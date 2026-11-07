@@ -1,0 +1,11 @@
+[Unit]
+Description=Independently watch Canvas Project replication health
+
+[Timer]
+OnBootSec=90s
+OnUnitInactiveSec=30s
+AccuracySec=2s
+Unit=canvas-cn-sync-alert.service
+
+[Install]
+WantedBy=timers.target

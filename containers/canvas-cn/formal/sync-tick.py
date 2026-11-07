@@ -40,6 +40,14 @@ def check_status(status):
         raise ValueError('invalid status')
 
 
+def save_status(state, result):
+    temp = state.with_suffix('.next')
+    with temp.open('w', encoding='utf-8') as output:
+        os.chmod(temp, 0o600)
+        json.dump(result, output)
+    os.replace(temp, state)
+
+
 def run(args):
     parsed = urllib.parse.urlsplit(args.origin)
     if (parsed.scheme != 'http' or parsed.hostname not in ['127.0.0.1', 'localhost', '::1']
@@ -87,11 +95,7 @@ def run(args):
                   status=pump['status'], pending=status['pending'],
                   journalBytes=status['journalBytes'], lagSeconds=round(max(lag, 0)),
                   lastAttemptAt=now, lastCaughtUpAt=caught_up)
-    temp = state.with_suffix('.next')
-    with temp.open('w', encoding='utf-8') as output:
-        os.chmod(temp, 0o600)
-        json.dump(result, output)
-    os.replace(temp, state)
+    save_status(state, result)
     return result
 
 
@@ -107,7 +111,13 @@ def main():
         result = run(args)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, urllib.error.URLError):
         # Exception bodies may contain an upstream payload or credential path.
-        result = {'health': 'failed', 'reason': 'transport-or-invalid-status'}
+        result = {'health': 'failed', 'reason': 'transport-or-invalid-status',
+                  'lastAttemptAt': time.time(), 'lastCaughtUpAt': 0}
+        try:
+            save_status(pathlib.Path(args.state), result)
+        except OSError:
+            # The independent watcher treats an unchanged/missing file as stale.
+            pass
     print(json.dumps(result))
     return 0 if result['health'] == 'ok' else 1
 

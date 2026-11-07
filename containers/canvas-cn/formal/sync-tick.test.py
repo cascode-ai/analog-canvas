@@ -110,6 +110,7 @@ class SyncTickTest(unittest.TestCase):
         self.redirect = True
         self.assertNotEqual(self.run_tick().returncode, 0)
         self.assertEqual(len(self.requests), 1)
+        self.assertEqual(json.loads((self.root / 'monitor.json').read_text())['health'], 'failed')
 
     def test_prolonged_inbound_progress_raises_lag(self):
         self.pump = {'status': 'sent'}

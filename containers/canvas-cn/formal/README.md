@@ -93,8 +93,15 @@ available while computation fails closed.
    HTTP success alone is not convergence. A failed tick is retried by the timer.
    The sync service requires an already running runtime; it must not start a
    stopped runtime during a consistent backup or maintenance window.
-   Connect these signals and a missing/stale timer to an actually delivered alert;
-   journal output alone does not deliver an alert. The private
+   Include `sync-alert.py` and install its separate service/timer. Its root-owned
+   `sync-alert.json` credential contains `apiKey`, `from` and the explicitly
+   authorized recipient `to`. The watcher sends failures, stale activity and
+   recovery through Resend; repeated failures are limited to one per hour, with
+   a persisted idempotency key for uncertain sends. After 23 hours, an uncertain
+   send stops retrying until an operator reconciles the mail log; it cannot
+   assume the provider still deduplicates that key. Run its `--test` once and
+   confirm receipt before opening writes. API acceptance is not mailbox delivery.
+   Journal output alone does not deliver an alert. The private
    region actively pulls and pushes; the source needs no inbound domestic URL.
 5. Qualify off-host backup and restore for the whole stopped state directory,
    including sessions, Project journal, quota, receipts and artifact storage.
