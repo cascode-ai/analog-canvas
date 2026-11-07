@@ -293,16 +293,6 @@
   white-space: pre;
 }
 
-/* How to box and zoom, at the end of the redraw's heading. */
-.review-cols h4 .pic-hint {
-  float: right;
-  color: var(--icm-text-muted);
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 /* The device lit in the netlists, where it sits in our drawing. */
 .review-lit {
   position: absolute;
@@ -428,8 +418,10 @@
   background: #fdecec;
 }
 
+/* In a narrow window the buttons wrap below the comment, never past the card. */
 .review-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: 6px;
   margin-top: 6px;
@@ -437,7 +429,7 @@
 
 .review-note {
   box-sizing: border-box;
-  flex: 1;
+  flex: 1 1 14rem;
   min-width: 0;
   height: 34px;
   padding: 7px 8px;

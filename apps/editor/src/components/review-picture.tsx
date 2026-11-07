@@ -182,6 +182,14 @@ export function MarkablePicture({
       ref={box}
       className={`review-pic${zoomed ? " zoomed" : ""}`}
       data-drawing={drawing(false) ? "true" : undefined}
+      // How to use it, without taking room beside it.
+      title={
+        zoomed
+          ? undefined
+          : onAdd
+            ? "Drag to box a spot · click to zoom"
+            : "Click to zoom"
+      }
       onPointerDown={(event) => {
         if (event.button !== 0 || !image.current) return;
         event.currentTarget.setPointerCapture(event.pointerId);
