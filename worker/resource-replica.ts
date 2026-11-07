@@ -11,6 +11,22 @@ export type ReplicaConfig = {
 };
 type Row = Record<string, string | number | null>;
 type Table = { name: string; key: string; columns: string[] };
+
+/** Migrations may append the same named columns in a different physical order. */
+function sameSchema(input: unknown, expected: Table[]): boolean {
+  if (!Array.isArray(input) || input.length !== expected.length) return false;
+  return expected.every((schema, i) => {
+    const table = input[i];
+    if (!table || !Array.isArray(table.columns)) return false;
+    return (
+      JSON.stringify({ ...table, columns: [...table.columns].sort() }) ===
+      JSON.stringify({
+        ...schema,
+        columns: [...schema.columns].sort(),
+      })
+    );
+  });
+}
 export const RESOURCE_MAX_BYTES = 24 * 1024 * 1024;
 const tables = {
   components: [
@@ -260,7 +276,7 @@ export class ResourceReplica {
       !Number.isSafeInteger(event.after) ||
       event.after < 0 ||
       event.sequence <= event.after ||
-      JSON.stringify(event.schema) !== JSON.stringify(this.tables) ||
+      !sameSchema(event.schema, this.tables) ||
       !Array.isArray(event.rows) ||
       event.rows.length !== this.tables.length
     )

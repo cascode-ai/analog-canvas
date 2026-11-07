@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { sha256Hex } from "@icm/derived";
 
 import { builtInSymbols } from "@icm/symbols";
 import { deviceDescriptor } from "@icm/devices";
@@ -191,6 +192,51 @@ async function transfer(
   expect(result.status, JSON.stringify(await result.clone().json())).toBe(200);
   return event;
 }
+it("copies migrated publication schemas whose named columns have a different physical order", async () => {
+  const auth = environment();
+  const overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const created = await overseas.call("/api/gallery/submissions", "POST", {
+    name: "Migrated publication",
+    projectText: projectText(),
+  });
+  expect(created.status).toBe(201);
+  const published = await created.json();
+  const feed = await overseas.call(
+    "/api/resource-sync/gallery/changes?after=0",
+    "GET",
+    undefined,
+    "peer-secret",
+  );
+  const envelope = await feed.json();
+  const event = JSON.parse(envelope.payload);
+  // ALTER TABLE appends columns; an older store need not have CREATE TABLE's order.
+  event.schema[0].columns.reverse();
+  const payload = JSON.stringify(event);
+  const copied = await cn.call(
+    "/api/resource-sync/gallery/changes",
+    "POST",
+    { payload, digest: sha256Hex(payload) },
+    "peer-secret",
+  );
+  expect(copied.status).toBe(200);
+  expect(
+    await (await cn.call("/api/gallery/" + published.id)).json(),
+  ).toMatchObject({
+    entry: { id: published.id, name: "Migrated publication" },
+  });
+  // Different names are still incompatible, even with a valid envelope hash.
+  event.schema[0].columns[0] = "unrecognized_column";
+  const invalid = JSON.stringify(event);
+  const refused = await cn.call(
+    "/api/resource-sync/gallery/changes",
+    "POST",
+    { payload: invalid, digest: sha256Hex(invalid) },
+    "peer-secret",
+  );
+  expect(refused.status).toBe(400);
+  expect(await refused.json()).toEqual({ error: "invalid-resource-event" });
+});
 it("copies Gallery and Dataset publications through separate streams without publishing private Projects", async () => {
   const auth = environment();
   const overseas = await region("overseas", auth),
