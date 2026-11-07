@@ -378,8 +378,13 @@ export function ReviewPage({
                     rows={1}
                     placeholder={
                       flags.length
-                        ? "What is wrong, and where: such as M3's drain on VOUT instead of X (optional; ⌘/Ctrl+Enter submits)"
-                        : "Comment (optional; ⌘/Ctrl+Enter submits)"
+                        ? "What is wrong, and where (optional)"
+                        : "Comment (optional)"
+                    }
+                    title={
+                      flags.length
+                        ? "Such as: M3's drain on VOUT instead of X. ⌘/Ctrl+Enter submits."
+                        : "⌘/Ctrl+Enter submits."
                     }
                     value={note}
                     maxLength={1000}

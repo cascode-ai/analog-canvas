@@ -36,17 +36,19 @@
   border-bottom: 0;
 }
 
-/* Progress, then stepping, on one line. */
+/* Progress, then stepping, on one line; in a narrow window stepping takes
+   the next line, at the right. */
 .review-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 6px 14px;
   margin-bottom: 8px;
 }
 
 .review-progress {
   display: flex;
-  flex: 1;
+  flex: 1 1 20rem;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -55,9 +57,16 @@
   white-space: nowrap;
 }
 
+.review-progress > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .review-progress .bar {
   display: flex;
   flex: 1;
+  min-width: 3rem;
   height: 8px;
   overflow: hidden;
   border-radius: 4px;
@@ -73,6 +82,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  margin-left: auto;
 }
 
 .review-steps .position {
@@ -168,13 +178,14 @@
   text-transform: none;
 }
 
-/* What is left of the screen after the chrome, the tabs, the netlists and
-   the verdict controls. */
+/* As wide as its column at 4:3, but never taller than what is left of the
+   screen after the chrome, the tabs, the netlists and the verdict controls. */
 .review-pic {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: clamp(180px, calc(100dvh - 430px), 640px);
+  aspect-ratio: 4 / 3;
+  max-height: clamp(180px, calc(100dvh - 430px), 640px);
   overflow: hidden;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
@@ -487,7 +498,30 @@
   font-size: 12px;
 }
 
-@media (max-width: 720px) {
+/* A half-screen window gives the pictures the room: a narrower sidebar
+   (its entries are short) and tighter sides. */
+@media (max-width: 900px) {
+  .review-page .gallery-sidebar-slot:not([data-collapsed="true"]) {
+    width: 210px;
+  }
+  .review-body {
+    padding-inline: 12px;
+  }
+  .review-item {
+    padding-inline: 8px;
+  }
+  .review-cols {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 620px) {
+  .review-page .gallery-sidebar-slot:not([data-collapsed="true"]) {
+    width: auto;
+  }
+}
+
+@media (max-width: 520px) {
   .review-cols {
     grid-template-columns: 1fr;
   }
