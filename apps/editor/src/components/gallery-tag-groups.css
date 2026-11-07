@@ -29,11 +29,6 @@
   font-weight: 600;
 }
 
-/* Beside the quick filters, a row that opens a page: /datasets. */
-a.gallery-sidebar-link {
-  text-decoration: none;
-}
-
 /* Under Needs attention: which reason the wall narrows to. */
 .gallery-attention-reason {
   display: flex;
