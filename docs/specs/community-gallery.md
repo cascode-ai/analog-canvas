@@ -486,8 +486,7 @@ Gallery read (signed in; signed out it asks to sign in).
 
 - Only datasets whose figures we may show take comparisons: `comparisons:
 true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,
-  Apache-2.0; AMS-Net, by the Owner's decision of 2026-11-07). Any other
-  answers 404.
+  Apache-2.0; AMS-Net, GPL-3.0). Any other answers 404.
 - A comparison belongs to an entry of its dataset's store and is listed only
   while that entry is public. Comparisons are re-importable derived data:
   not in the backups.
