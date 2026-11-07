@@ -116,20 +116,27 @@ export class ProjectSyncJournal {
       .one().bytes;
   }
   private payload(head: string): string {
-    return this.sql
+    const rows = this.sql
       .exec<{ payload: string | ArrayBuffer | Uint8Array }>(
         "SELECT payload FROM project_sync_payloads WHERE head=? ORDER BY chunk",
         head,
       )
-      .toArray()
-      .map(({ payload }) =>
+      .toArray();
+    const chunks: string[] = [];
+    let decodedBytes = 0;
+    for (const { payload } of rows) {
+      const chunk =
         typeof payload === "string"
           ? payload
           : gunzipSync(payload, { maxOutputLength: CHUNK_BYTES }).toString(
               "utf8",
-            ),
-      )
-      .join("");
+            );
+      decodedBytes += Buffer.byteLength(chunk);
+      if (decodedBytes > MAX_SYNC_BYTES)
+        throw new ProjectSyncCapacityError("Replication event size exceeded");
+      chunks.push(chunk);
+    }
+    return chunks.join("");
   }
 
   private storePayload(head: string, payload: string): void {

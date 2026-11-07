@@ -81,6 +81,7 @@
     "RESOURCE_SYNC_ADMIN_TOKEN": "resource-admin-token",
     "PROJECT_REGION_USERS": "project-region-users.json",
     "PROJECT_PROTECTED_IDS": "project-protected-ids.json",
+    "PROJECT_SYNC_COMPRESS_JOURNAL": "project-compress-journal",
     "AUTH_REGIONAL_CLIENT": "regional-client.json",
     "PROJECT_SYNC_TOKEN": "sync-inbound-token",
     "PROJECT_SYNC_PEER_URL": "peer-origin",

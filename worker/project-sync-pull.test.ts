@@ -125,21 +125,24 @@ it.each([
     expect(await tick()).toBe("sent");
     const current = await open(domestic.env);
     expect(current.name).toBe("Source draft");
-    const journal = async (suffix: string) =>
+    const journal = async (env: typeof domestic.env, suffix: string) =>
       (
         await route(
-          domestic.env,
+          env,
           new Request(`https://cn.test/api/project-sync/${suffix}`, {
-            headers: { Authorization: "Bearer cn-peer" },
+            headers: { Authorization: `Bearer ${env.PROJECT_SYNC_TOKEN}` },
           }),
         )
       ).json();
+    const legacyEvent = compressed
+      ? (await journal(source.env, "events?after=0")).events[0]
+      : null;
     if (compressed) {
       source.restart(true);
       domestic.restart(true);
       expect(await tick()).toBe("caught-up");
     }
-    const before = await journal("status");
+    const before = await journal(domestic.env, "status");
     const saved = await route(
       domestic.env,
       new Request(`${ORIGIN}/api/projects/${id}`, {
@@ -156,11 +159,14 @@ it.each([
       }),
     );
     expect(saved.status).toBe(200);
-    if (compressed) {
-      const after = await journal("status");
-      const { events } = await journal(`events?after=${before.sequence}`);
+    const newEventPath = `events?after=${before.sequence}`;
+    const newEvent = compressed
+      ? (await journal(domestic.env, newEventPath)).events[0]
+      : null;
+    if (newEvent) {
+      const after = await journal(domestic.env, "status");
       expect(after.journalBytes - before.journalBytes).toBeLessThan(
-        Buffer.byteLength(events[0].payload),
+        Buffer.byteLength(newEvent.payload),
       );
     }
     expect(await tick()).toBe("sent");
@@ -174,6 +180,28 @@ it.each([
     source.restart();
     expect(await tick()).toBe("caught-up");
     expect((await open(source.env)).name).toBe("Domestic acknowledged");
+    if (compressed) {
+      expect((await journal(source.env, "events?after=0")).events[0]).toEqual(
+        legacyEvent,
+      );
+      expect((await journal(domestic.env, newEventPath)).events[0]).toEqual(
+        newEvent,
+      );
+      const versions = `${ORIGIN}/api/projects/${id}/versions`;
+      const headers = { Cookie: cookie };
+      const history = await (
+        await route(domestic.env, new Request(versions, { headers }))
+      ).json();
+      expect(history.versions).toHaveLength(1);
+      const prior = await route(
+        domestic.env,
+        new Request(`${versions}/${history.versions[0].versionId}/project`, {
+          headers,
+        }),
+      );
+      expect(prior.status).toBe(200);
+      expect((await prior.json()).projectText).toBe(current.projectText);
+    }
     const refused = await route(
       source.env,
       new Request(`${ORIGIN}/api/project-sync/pull`, {
