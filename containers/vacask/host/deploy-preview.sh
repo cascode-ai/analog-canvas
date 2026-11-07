@@ -15,7 +15,7 @@ release="analog-canvas-vacask-preview/releases/$GITHUB_SHA"
 ssh sim "mkdir -p ~/$release/context"
 scp candidate-download/vacask-candidate-source.tgz "sim:$release/context.tgz"
 scp candidate-download/native-compose-config.json "sim:$release/runtime.json"
-tar -cf - containers/vacask/Dockerfile containers/vacask/host/compose.yaml containers/ngspice/gateway.mjs | ssh sim "tar -xf - -C ~/$release"
+tar -cf - containers/vacask/Dockerfile containers/vacask/host/compose.yaml containers/ngspice/gateway.mjs containers/ngspice/host/check-regional-budget.sh | ssh sim "tar -xf - -C ~/$release"
 ssh sim "test \$(awk '/MemAvailable:/ {print \$2}' /proc/meminfo) -gt 1572864 && test \$(df -Pk ~ | awk 'NR==2 {print \$4}') -gt 3145728"
 ssh sim "tar -xzf ~/$release/context.tgz -C ~/$release/context && docker build --platform linux/amd64 -f ~/$release/containers/vacask/Dockerfile -t icm-vacask-preview:$GITHUB_SHA ~/$release/context"
 
@@ -53,7 +53,7 @@ absolute_release=$(ssh sim "realpath ~/$release")
   printf 'VACASK_RUNTIME_CONFIG=%s/runtime.json\n' "$absolute_release"
   printf 'VACASK_GATEWAY_PORT=19090\nSIMULATION_ACCESS_TOKEN=%s\nVACASK_TUNNEL_TOKEN=%s\n' "$access_token" "$tunnel_token"
 } | ssh sim "umask 077; cat > ~/$release/candidate.env"
-ssh sim "docker compose -p icm-vacask-preview --env-file ~/$release/candidate.env -f ~/$release/containers/vacask/host/compose.yaml --profile tunnel up -d"
+ssh sim "VACASK_RUN_UID=10001 docker compose -p icm-vacask-preview --env-file ~/$release/candidate.env -f ~/$release/containers/vacask/host/compose.yaml --profile tunnel up -d"
 for attempt in $(seq 1 18); do
   if curl -fsS --max-time 10 "https://$host/health" > candidate-download/health.json; then break; fi
   sleep 5
@@ -74,7 +74,7 @@ if ssh sim "grep -Eq '^REGIONAL_VACASK_ACCESS_TOKEN=.+$' ~/analog-canvas-sim/sec
 VACASK_RUNTIME_CONFIG=%s/runtime.json
 VACASK_GATEWAY_PORT=19095
 ' '$GITHUB_SHA' '$absolute_release'; sed -n 's/^REGIONAL_VACASK_ACCESS_TOKEN=/SIMULATION_ACCESS_TOKEN=/p' ~/analog-canvas-sim/secrets/regional.env; } > ~/$release/regional.env"
-  ssh sim "docker compose -p icm-vacask-regional --env-file ~/$release/regional.env -f ~/$release/containers/vacask/host/compose.yaml up -d"
+  ssh sim "sh ~/$release/containers/ngspice/host/check-regional-budget.sh && VACASK_RUN_UID=10002 docker compose -p icm-vacask-regional --env-file ~/$release/regional.env -f ~/$release/containers/vacask/host/compose.yaml up -d"
   ssh sim 'for i in $(seq 1 18); do curl -fsS --max-time 5 http://127.0.0.1:19095/health >/dev/null && exit 0; sleep 5; done; exit 1'
 fi
 ssh sim "docker image inspect icm-vacask-preview:$GITHUB_SHA --format '{{.Id}}'"

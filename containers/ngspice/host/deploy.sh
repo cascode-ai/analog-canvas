@@ -81,22 +81,24 @@ replace_legacy_container analog-canvas-ngspice
 replace_legacy_container analog-canvas-ngspice-executor
 if [ "$tunnel_enabled" = true ]; then
   replace_legacy_container analog-canvas-tunnel
-  compose up -d --remove-orphans
+  compose up -d --remove-orphans simulator tunnel
 else
   compose up -d --remove-orphans simulator
-fi
-if [ "$regional_enabled" = true ]; then
-  compose up -d regional-gateway
-  # The regional gateway answers its own loopback port with the same images.
-  for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
-    if curl -fsS --max-time 5 http://127.0.0.1:19094/health >/dev/null 2>&1; then break; fi
-    [ "$attempt" = 12 ] && fail "regional gateway did not become healthy"
-    sleep 5
-  done
 fi
 
 "$script_dir/health.sh" >/dev/null
 ln -sfn "$source_root" "$host_home/current"
+
+if [ "$regional_enabled" = true ]; then
+  sh "$script_dir/check-regional-budget.sh"
+  compose up -d regional-gateway
+  for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    if curl -fsS --max-time 5 http://127.0.0.1:19094/health >/dev/null 2>&1 \
+        && curl -fsS --max-time 5 http://127.0.0.1:19094/sg13g2/health >/dev/null 2>&1; then break; fi
+    [ "$attempt" = 12 ] && fail "regional gateway did not become healthy"
+    sleep 5
+  done
+fi
 
 printf 'simulator host deployed: commit=%s image=analog-canvas-ngspice:%s tunnel=%s\n' \
   "$source_commit" "$SIMULATION_IMAGE_TAG" "$tunnel_enabled"

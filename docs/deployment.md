@@ -152,10 +152,13 @@ Never delete Production or retained Preview data while cleaning up.
 The Worker forwards SKY130 ngspice runs to `SIMULATION_UPSTREAM_URL` and
 SG13G2 runs to `SG13G2_UPSTREAM_URL` (gateway prefix `/sg13g2`).
 The gateway authenticates with `SIMULATION_UPSTREAM_TOKEN`. The [host
-composition](../containers/ngspice/host/compose.yaml) gives each executor a
-private scratch volume, without credentials, host ports or egress. The SG13G2
-Dockerfile builds the qualified Profile and proves its bundled identity.
-Host health checks both routes.
+composition](../containers/ngspice/host/compose.yaml) gives each executor
+private scratch, without credentials, host ports or egress. Production and
+China use separate host UIDs because Linux counts threads by real UID across
+containers. Match each executor's `SIMULATION_OMP_THREADS` to its CPU quota.
+Reserve thread headroom with `check-regional-budget.sh` before starting China
+services. The SG13G2 Dockerfile verifies the qualified Profile and host health
+checks both ngspice routes.
 
 The [Simulator host workflow](../.github/workflows/simulator-host.yml) rebuilds
 the host on `main` pushes affecting its declared runtime paths. Changes only
@@ -172,11 +175,25 @@ against the [hosted Profile](../containers/ngspice/hosted-sky130-profile.json).
 The restart policy must recover a harness that exits because it cannot prove a
 timed-out process is gone.
 
+Record the operator's `analog-canvas-sim/current` target and the live VACASK
+image and runtime config before replacing either stack. The ngspice deploy
+records the Production target after its health check, then starts and checks
+China. If only the China start fails, repair that profile and rerun the host
+deploy. For a Production rollback, run the retained release's `deploy.sh`.
+Before reverting to a release that shared the UIDs, stop the three regional
+ngspice services and keep `secrets/regional.env` aside for the rollback so the
+old deploy cannot start them again. Restore it when the isolated release is
+ready. Use the same image and runtime config for a VACASK config rollback.
+
 VACASK: the Profile named by `VACASK_PROFILE_ID` goes to `VACASK_UPSTREAM_URL`
 with `VACASK_UPSTREAM_TOKEN`. The workflow's `vacask-preview` action builds it
 from [`containers/vacask/host/compose.yaml`](../containers/vacask/host/compose.yaml)
 as a separate stack and rotates the bearer into the Production Worker, leaving
 ngspice untouched. Neither engine falls back to the other.
+Reconcile an existing regional VACASK stack with the new Compose file and its
+retained `regional.env`, image and runtime config. Set `VACASK_RUN_UID=10002`
+and run the regional budget guard before `up`; leave the Production gateway's
+bearer rotation to the `vacask-preview` action.
 
 Production runs go through the managed `/api/simulation/runs` (signed-in
 accounts only); `/api/simulate` is the direct/local transport and never a

@@ -243,6 +243,8 @@ describeHarness("the run directory", () => {
   it("hands the simulator an environment it built, not the one it inherited", async () => {
     const { port } = await startHarness(await simulator("env.sh", "env\n"), {
       ICM_HARNESS_SENTINEL: "must-not-reach-a-deck",
+      OMP_NUM_THREADS: "32",
+      SIMULATION_OMP_THREADS: "2",
     });
 
     const { payload } = await json(await run(port, { deck: "* env\n.end\n" }));
@@ -251,6 +253,8 @@ describeHarness("the run directory", () => {
     // in this process is a simulator input, so none of it is passed on.
     expect(payload.log).not.toContain("must-not-reach-a-deck");
     expect(payload.log).toContain("LC_ALL=C");
+    expect(payload.log).toMatch(/^OMP_NUM_THREADS=2$/mu);
+    expect(payload.log).toMatch(/^OMP_THREAD_LIMIT=2$/mu);
     // HOME is the run's own directory, so the `.spiceinit` ngspice reads is
     // this run's and never a file some earlier run left in a shared home.
     expect(payload.log).toMatch(/^HOME=.*run-/mu);

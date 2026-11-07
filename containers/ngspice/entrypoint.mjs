@@ -131,6 +131,12 @@ const MAX_PROCESSES = optionalPositiveEnv("SIMULATION_MAX_PROCESSES");
 /** `ulimit -f` counts 512-byte blocks in dash and 1 KiB blocks in bash. */
 const MAX_FILE_BLOCKS = optionalPositiveEnv("SIMULATION_MAX_FILE_BLOCKS");
 
+// OpenMP otherwise sees the host's CPUs instead of the container CPU quota.
+const OMP_THREADS = Number(process.env.SIMULATION_OMP_THREADS ?? "1");
+if (!Number.isSafeInteger(OMP_THREADS) || OMP_THREADS < 1) {
+  throw new Error("SIMULATION_OMP_THREADS must be a positive integer");
+}
+
 /**
  * How long each startup probe may take: the identity probe is then given up
  * on, while a limits probe that times out leaves the harness not ready.
@@ -543,6 +549,8 @@ function runEnvironment(directory) {
     LANG: "C",
     LC_ALL: "C",
     TERM: "dumb",
+    OMP_NUM_THREADS: String(OMP_THREADS),
+    OMP_THREAD_LIMIT: String(OMP_THREADS),
   };
 }
 
