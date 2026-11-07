@@ -15,6 +15,8 @@ slide picture. This contract covers closing its editor window.
 - A successful PowerPoint button save clears the linked drawing's close prompt
   for that exact project snapshot and displayed Cell, even if its local file is
   still dirty. Native Ctrl+S alone does not acknowledge a PowerPoint update.
+- The drawing as opened counts as acknowledged: unedited, it closes without a
+  PowerPoint prompt. The close prompt and the header button's dot agree.
 - Failure, missing acknowledgement, or newer edits keep the window open.
 - The close dialog labels the PowerPoint destination in English. Choosing not
   to update PowerPoint leaves its previously received drawing unchanged.
@@ -26,5 +28,6 @@ slide picture. This contract covers closing its editor window.
 
 [PowerPoint close tests](../../apps/editor/src/app/powerpoint-close.test.ts)
 cover acknowledged snapshots, failure, edits during saving, changed Cells,
-and other project tabs. Packaged desktop acceptance must exercise the button
+and other project tabs; [save tests](../../apps/editor/src/app/powerpoint-save.test.tsx)
+cover the opened drawing, the dot and the notices. Packaged desktop acceptance must exercise the button
 and window-close paths with the actual renderer and file exchange.

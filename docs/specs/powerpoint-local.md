@@ -41,6 +41,11 @@ Keep host entry-point changes limited to launch/save/close integration.
 - Explicit saves retain local revision files. The editor reports success only
   after PowerPoint acknowledges embedding the exact sequence. Saving the
   presentation remains a separate user action.
+- The editor saves from one header button, **PowerPoint**, and never covers the
+  canvas. Its dot is green when the slide shows the drawing on screen, amber
+  when it does not, and grey on another tab (clicking says to return to the
+  linked tab). Busy shows **Saving…**; each outcome is a notice that fades
+  (4 s, failures 8 s).
 - The [close contract](powerpoint-close.md) governs editor shutdown. Local
   Ctrl+S and PowerPoint acknowledgement have separate meanings.
 - A package has no account or hosted simulation dependency. Uninstalling

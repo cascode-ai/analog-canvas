@@ -4,6 +4,7 @@ import { cloudShelfOpened } from "../components/arena-gate-request";
 import {
   useRef,
   type Dispatch,
+  type ReactNode,
   type RefObject,
   type SetStateAction,
 } from "react";
@@ -169,6 +170,7 @@ export function EditorMenuBar({
   saveNativeTab,
   leaveForGallery,
   leaveForArena,
+  powerPointAction,
 }: {
   identity: EditorServices["identity"];
   projectStore: EditorServices["projectStore"];
@@ -267,6 +269,8 @@ export function EditorMenuBar({
   saveNativeTab: NativeProjectTabs["saveNativeTab"];
   leaveForGallery: () => void;
   leaveForArena: () => void;
+  /** A PowerPoint-launched session's save button; null otherwise. */
+  powerPointAction?: ReactNode;
 }) {
   const { NativeHeaderActions, openExternalLink } = useEditorServices();
   // Once its initial linked target has opened, this window resumes the active
@@ -298,7 +302,12 @@ export function EditorMenuBar({
         capabilities.community || capabilities.localComponents === true
       }
       externalLinksEnabled={capabilities.externalLinks}
-      hostActions={NativeHeaderActions ? <NativeHeaderActions /> : null}
+      hostActions={
+        <>
+          {powerPointAction}
+          {NativeHeaderActions ? <NativeHeaderActions /> : null}
+        </>
+      }
       onOpenExternalLink={
         openExternalLink
           ? (target) => {
