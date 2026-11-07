@@ -13,6 +13,11 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   access uses the local AUTH session; peer import verifies the owner through
   the authority's identities endpoint. Missing owners block import, never
   delete data or allocate replacement accounts.
+- When the overseas store owns the configured identity endpoint, it sends that
+  same authenticated request through its `AUTH` binding. Ownership requires the
+  exact identities URL under `AUTH_REGIONAL_AUTHORITY.origin`; other endpoints
+  and domestic identity checks keep their configured HTTPS transport. The
+  authority still checks the credential, origin and original account.
 - A restricted trial sets the same `PROJECT_REGION_USERS` JSON account list
   on the HTTP entry and both stores (at most 50 IDs). Source capture, quota
   grants and imports are confined to that list. Overseas accounts outside it

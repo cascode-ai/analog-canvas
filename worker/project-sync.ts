@@ -3,6 +3,7 @@ import { bearerMatches } from "./bearer";
 import { decodeProjectEvent, MAX_SYNC_BYTES } from "./project-sync-protocol";
 import type { ProjectEvent, ProjectSyncStatus } from "./project-sync-journal";
 import { readSyncJson, peerOrigin } from "./project-sync-http";
+import { regionalConfig, REGIONAL_PREFIX } from "./regional-auth-contract";
 
 /** Only a separately scoped peer credential can read private replication events. */
 export async function routeProjectSync(
@@ -300,7 +301,7 @@ async function requireProjectOwner(
       identityUrl.password
     )
       throw new Error("Invalid identity endpoint");
-    const identity = await fetch(identityUrl, {
+    const identityRequest: RequestInit = {
       method: "POST",
       redirect: "manual",
       signal: AbortSignal.timeout(10000),
@@ -309,7 +310,20 @@ async function requireProjectOwner(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ userIds: [ownerUserId] }),
-    });
+    };
+    const authority = regionalConfig(env.AUTH_REGIONAL_AUTHORITY);
+    // The source owns this authority. Keep its authenticated request inside
+    // the AUTH binding instead of depending on public routing back to itself.
+    const identity =
+      env.PROJECT_REGION === "overseas" &&
+      env.AUTH &&
+      authority &&
+      identityUrl.href === `${authority.origin}${REGIONAL_PREFIX}identities`
+        ? await env.AUTH.getByName("auth").fetch(
+            identityUrl.href,
+            identityRequest,
+          )
+        : await fetch(identityUrl, identityRequest);
     if (!identity.ok) throw new Error("Identity unavailable");
     const result = (await readSyncJson(identity, 16384)) as {
       identities?: { id: string; status: string; user?: { id: string } }[];
