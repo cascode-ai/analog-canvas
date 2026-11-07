@@ -17,6 +17,7 @@ import {
   type OccurrenceToOpen,
 } from "../features/hierarchy/hierarchy-refactor-commands";
 import { createChildCellDraft } from "../features/hierarchy/new-cell";
+import { projectComponentInsertCandidates } from "../features/component-insert/project-component-candidates";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { usePowerPointSave } from "./powerpoint-save";
 import { useSignalMemberInspection } from "../features/selection/use-signal-member-inspection";
@@ -2945,17 +2946,10 @@ function WorkspaceEditor({
   );
   const insertDialogProjectComponents = useMemo(
     () =>
-      (project.componentDefinitions ?? [])
-        .filter(
-          (definition) =>
-            !project.externalSubcircuitDefinitions.some(
-              (external) => external.symbolId === definition.symbol.id,
-            ),
-        )
-        .map((definition) => ({
-          symbol: definition.symbol,
-          definition,
-        })),
+      projectComponentInsertCandidates({
+        componentDefinitions: project.componentDefinitions,
+        externalSubcircuitDefinitions: project.externalSubcircuitDefinitions,
+      }),
     [project.componentDefinitions, project.externalSubcircuitDefinitions],
   );
   // The device the library's own tile already places in this Process
