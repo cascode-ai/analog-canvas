@@ -335,25 +335,18 @@ function VerdictIcon({ verdict }: { verdict: ComparisonVerdict }) {
   );
 }
 
-/** The page's opening: what it is, and its numbers over every dataset. */
+/** The page's opening: its title and its numbers over every dataset. */
 function Hero({ rows }: { rows: DatasetComparison[] }) {
   const of = (key: ComparisonVerdict) =>
     rows.filter((row) => row.verdict === key).length;
   const stats: [string, string][] = [
     ["circuits", num(rows.length)],
     ["datasets", String(COMPARISON_SOURCES.length)],
-    ["dataset errors", num(of("error"))],
     ["accuracy", `${percent(of("match") + of("notation"), rows.length)}%`],
   ];
   return (
     <header className="ds-hero">
-      <div>
-        <h1>Dataset audit</h1>
-        <p>
-          Public analog-circuit datasets, each figure redrawn in Analog Canvas
-          and its netlist checked against the dataset&apos;s.
-        </p>
-      </div>
+      <h1>Dataset audit</h1>
       <dl className="ds-hero-stats">
         {stats.map(([label, value]) => (
           <div key={label}>
@@ -422,7 +415,6 @@ function DatasetBoard({
   const chosen = rowsWithout(rows, filters, "verdict", "category");
   const ofChosen = (key: ComparisonVerdict) =>
     chosen.filter((row) => row.verdict === key).length;
-  const named = gallerySourceByKey(filters.source);
   const choose = (key: string | null) =>
     set({ source: filters.source === key ? null : key });
   // A link in a line opens its page and leaves the selection alone.
@@ -531,49 +523,20 @@ function DatasetBoard({
             type="button"
             className={filters.verdict === verdict.key ? "on" : ""}
             aria-pressed={filters.verdict === verdict.key}
+            title="Click to show only these"
             onClick={() =>
               setFilters(toggleVerdict(filters, verdict.key, rows))
             }
           >
             <VerdictIcon verdict={verdict.key} />
-            <span>
-              {verdict.label}
-              <span className="what">{verdict.what}</span>
-            </span>
+            <span>{verdict.label}</span>
             <span className="n">{num(ofChosen(verdict.key))}</span>
             <span className="p">
-              {percent(ofChosen(verdict.key), chosen.length)}%
+              · {percent(ofChosen(verdict.key), chosen.length)}%
             </span>
           </button>
         ))}
       </div>
-      <p className="ds-note">
-        Accuracy counts Match and Notation (written differently, same circuit).
-        Click a dataset or a verdict to narrow the charts and circuits below.{" "}
-        {named ? (
-          <>
-            {named.name}:{" "}
-            <a href={named.homepage} target="_blank" rel="noreferrer">
-              dataset ↗
-            </a>
-            {named.paper ? (
-              <>
-                {" · "}
-                <a href={named.paper} target="_blank" rel="noreferrer">
-                  paper ↗
-                </a>
-              </>
-            ) : null}
-          </>
-        ) : (
-          <>
-            Licences:{" "}
-            {COMPARISON_SOURCES.map(
-              (item) => `${item.name} ${item.license}`,
-            ).join(" · ")}
-          </>
-        )}
-      </p>
     </section>
   );
 }
@@ -589,7 +552,7 @@ function WhyCard({
 }) {
   // Each kind of difference counts every circuit the other filters leave.
   const base = rowsWithout(rows, filters, "verdict", "category");
-  const column = (mode: "error" | "notation", title: string, what: string) => {
+  const column = (mode: "error" | "notation", title: string) => {
     const mine = base.filter((row) => row.verdict === mode);
     const items = countBy(mine, (row) => row.category);
     const max = items[0]?.[1] ?? 1;
@@ -598,7 +561,6 @@ function WhyCard({
       <div className="datasets-why-col">
         <h4>
           <VerdictIcon verdict={mode} /> {title}
-          <span className="what">{what}</span>
           <span className="n">{num(mine.length)}</span>
         </h4>
         {items.length === 0 ? (
@@ -633,12 +595,8 @@ function WhyCard({
   };
   return (
     <div className="datasets-card datasets-why">
-      {column("error", "Dataset errors", "the dataset's netlist is wrong")}
-      {column(
-        "notation",
-        "Written differently",
-        "the same circuit, written another way",
-      )}
+      {column("error", "Dataset errors")}
+      {column("notation", "Written differently")}
     </div>
   );
 }

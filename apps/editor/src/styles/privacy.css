@@ -122,14 +122,24 @@
   list-style: none;
 }
 
-.privacy-document .change-log-days li + li {
+.privacy-document .change-log-days > li + li {
   margin-top: 0;
 }
 
-.change-log-days li {
+.change-log-days > li {
   display: grid;
   grid-template-columns: 4.5rem minmax(0, 1fr);
   gap: 12px;
+}
+
+/* A day of several changes numbers them. */
+.change-log-items {
+  margin: 0;
+  padding-left: 1.3em;
+}
+
+.privacy-document .change-log-items li + li {
+  margin-top: 2px;
 }
 
 .change-log-days time {

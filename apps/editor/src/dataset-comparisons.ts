@@ -24,18 +24,12 @@ export interface DatasetComparison {
 export const VERDICTS: readonly {
   key: ComparisonVerdict;
   label: string;
-  what: string;
   icon: string;
 }[] = [
-  { key: "match", label: "Match", what: "netlists agree", icon: "✓" },
-  {
-    key: "notation",
-    label: "Notation",
-    what: "written differently",
-    icon: "≈",
-  },
-  { key: "error", label: "Dataset error", what: "dataset is wrong", icon: "✕" },
-  { key: "unclear", label: "Unclear", what: "figure ambiguous", icon: "?" },
+  { key: "match", label: "Match", icon: "✓" },
+  { key: "notation", label: "Written differently", icon: "≈" },
+  { key: "error", label: "Dataset error", icon: "✕" },
+  { key: "unclear", label: "Figure ambiguous", icon: "?" },
 ];
 
 export function verdictOf(key: ComparisonVerdict) {
