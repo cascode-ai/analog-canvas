@@ -19,6 +19,10 @@ hosts use their documented registration boundary, preserving unrelated settings.
 When `installation.available` is true, follow its verified installation: check
 the archive digest before executing; the installer tests stdio readiness
 before updating the named host configuration and keeps unrelated settings.
+The installer refuses redirects for the manifest and editor-origin archive.
+Regional install commands verify the exact archive bytes before loading any
+archive code. In Cursor use the resulting local launch for a regional install;
+the manifest's legacy launch keeps the permanent release URL.
 Every host registers each site under one stable name derived from the exact
 origin: the manifest's `name`, its Cursor entry and the installer's
 `serverName`. Codex installs update only that origin's registration; for

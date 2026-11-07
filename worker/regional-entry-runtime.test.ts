@@ -39,10 +39,12 @@ it("advertises the verified release archive from the regional editor origin", as
   expect(manifest).toMatchObject({
     version: distribution.version,
     distribution: { downloadUrl, sha256: distribution.release.sha256 },
-    launch: { env: { ANALOG_CANVAS_API_URL: origin } },
+    launch: { command: "npx", env: { ANALOG_CANVAS_API_URL: origin } },
   });
-  expect(manifest.launch.args).toContain(`--package=${downloadUrl}`);
+  expect(manifest.launch.args.join(" ")).toContain("https://github.com/");
+  expect(manifest.installation.command).toMatch(/^node /u);
   expect(manifest.installation.command).toContain(downloadUrl);
+  expect(manifest.installation.command).toContain(distribution.release.sha256);
   expect(manifest.hosts.codex.command).toContain(downloadUrl);
 });
 
