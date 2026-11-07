@@ -200,6 +200,19 @@ export function GalleryWallTile({
                 >
                   {entry.author}
                 </button>
+                {entry.fixedBy?.length ? (
+                  <span
+                    className="gallery-tile-fixer"
+                    data-testid={`gallery-fixer-${entry.id}`}
+                    title={`Fixed by ${entry.fixedBy.join(", ")}`}
+                  >
+                    {" · fixed by "}
+                    {entry.fixedBy[0]}
+                    {entry.fixedBy.length > 1
+                      ? ` +${entry.fixedBy.length - 1}`
+                      : ""}
+                  </span>
+                ) : null}
                 {" · "}
               </>
             ) : null}

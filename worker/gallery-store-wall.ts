@@ -26,6 +26,7 @@ import {
   unwrapTags,
 } from "./gallery-store";
 import { SIMULATION_CHECK_PASSES } from "./gallery-store-simulation-checks";
+import { fixersOf } from "./gallery-store-fixes";
 import type { GalleryWallStatisticsCache } from "./gallery-store-wall-cache";
 
 /** Longest search a reader may send; longer text is cut, not refused. */
@@ -687,6 +688,11 @@ export function list(
     const last = page.at(-1);
     if (rows.length > limit && last) nextCursor = placeOf(last).cursor;
   }
+  // A dataset drawing someone fixed names them beside its byline.
+  const fixers = fixersOf(
+    sql,
+    page.map((row) => row.id),
+  );
   return Response.json({
     // `simVerified` is every passing entry's here; the route keeps it only
     // for the viewers who may see the Sim mark (#1545).
@@ -695,6 +701,7 @@ export function list(
         row,
         body.isAdmin === true || (!!viewerId && viewerId === row.owner_user_id),
       ),
+      ...(fixers.has(row.id) ? { fixedBy: fixers.get(row.id) } : {}),
       ...(row.simulation_passes === 1 ? { simVerified: true } : {}),
       ...(body.sortKeys === true
         ? { sortKey: placeOf(row).key, cursor: placeOf(row).cursor }

@@ -50,6 +50,15 @@ export interface PublishGalleryDialogProps {
   /** Present when the current Project is associated with a gallery entry the
    * signed-in user may update (owner, admin, or moderator). */
   updateTarget?: { id: string; name: string } | null;
+  /**
+   * The Project was opened from a reference dataset's drawing: its source's
+   * name, and whether this account may fix it (null until the quota loads).
+   * Fixing changes the drawing alone and credits the fixer.
+   */
+  datasetFix?: {
+    source: string;
+    edits: { allowed: boolean; contributions: number; needed: number } | null;
+  } | null;
   /** The opened entry's stored fields, prefilled once in update mode. */
   updateDefaults?: {
     description: string;
@@ -112,6 +121,7 @@ export function PublishGalleryDialog({
   topologyProject = null,
   openedFromCheckNotice = false,
   updateTarget = null,
+  datasetFix = null,
   updateDefaults = null,
   agentEdited = false,
   quota = null,
@@ -129,6 +139,8 @@ export function PublishGalleryDialog({
     canUpdate ? "update" : "new",
   );
   const updating = canUpdate && mode === "update";
+  // A dataset's drawing changes alone: its name, description and tags stay.
+  const fixing = updating && datasetFix !== null;
   const [name, setName] = useState(draft?.name ?? defaultName);
   const [nameEdited, setNameEdited] = useState(
     draft?.editedFields?.name ?? !!draft?.name,
@@ -409,7 +421,9 @@ export function PublishGalleryDialog({
                       setModeTouched(true);
                     }}
                   />
-                  Update “{updateTarget?.name}” (replaces that entry)
+                  {datasetFix
+                    ? `Fix “${updateTarget?.name}” in ${datasetFix.source} (replaces its drawing)`
+                    : `Update “${updateTarget?.name}” (replaces that entry)`}
                 </label>
                 <label>
                   <input
@@ -424,7 +438,7 @@ export function PublishGalleryDialog({
                   />
                   Publish as a new entry
                 </label>
-                {onShowHistory ? (
+                {onShowHistory && !datasetFix ? (
                   <button
                     type="button"
                     className="publish-gallery-history-link"
@@ -436,7 +450,28 @@ export function PublishGalleryDialog({
                 ) : null}
               </div>
             ) : null}
-            <div className="publish-gallery-fields">
+            {datasetFix && datasetFix.edits && !datasetFix.edits.allowed ? (
+              <p
+                className="publish-gallery-note"
+                data-testid="publish-dataset-locked"
+              >
+                Fixing {datasetFix.source}&apos;s drawings opens once you have
+                published {datasetFix.edits.needed} circuits of your own (you
+                have {datasetFix.edits.contributions}). Until then, publish it
+                as a new entry.
+              </p>
+            ) : null}
+            {fixing ? (
+              <p
+                className="publish-gallery-note"
+                data-testid="publish-dataset-fix"
+              >
+                Only the drawing changes: {datasetFix!.source}&apos;s name,
+                description and byline stay, and the circuit shows “fixed by{" "}
+                {session?.displayName}”.
+              </p>
+            ) : null}
+            <div className="publish-gallery-fields" hidden={fixing}>
               <label>
                 Circuit name
                 <input
@@ -549,7 +584,7 @@ export function PublishGalleryDialog({
                 </div>
               </div>
             </div>
-            <div className="publish-gallery-ai">
+            <div className="publish-gallery-ai" hidden={fixing}>
               <label>
                 <input
                   type="checkbox"
@@ -594,7 +629,7 @@ export function PublishGalleryDialog({
                 </ul>
               </div>
             ) : null}
-            <p className="publish-gallery-note">
+            <p className="publish-gallery-note" hidden={fixing}>
               {updating
                 ? `Publishing as ${session?.displayName} — this updates the entry in place.`
                 : `Publishing as ${session?.displayName} — it goes up straight away.`}
@@ -643,7 +678,13 @@ export function PublishGalleryDialog({
               }
               onClick={() => void submit()}
             >
-              {busy ? "Publishing…" : updating ? "Update entry" : "Publish"}
+              {busy
+                ? "Publishing…"
+                : fixing
+                  ? "Save fix"
+                  : updating
+                    ? "Update entry"
+                    : "Publish"}
             </button>
           )}
         </div>

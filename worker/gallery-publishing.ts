@@ -42,6 +42,37 @@ import {
   withTestbench,
   withoutTestbench,
 } from "./gallery-testbench";
+import { withGalleryStore } from "./gallery-datasets";
+import { type GallerySource } from "./gallery-sources";
+
+/** Public circuits an account must have published to fix a dataset's drawing. */
+const DATASET_EDIT_CONTRIBUTIONS = 10;
+
+/**
+ * Whether an account fixes a reference dataset's drawings: the Owner,
+ * admins and moderators always; anyone else once they have published
+ * DATASET_EDIT_CONTRIBUTIONS public circuits of their own.
+ */
+async function datasetEditAccess(
+  env: GalleryEnv,
+  user: { id: string; isOwner?: boolean; isAdmin?: boolean; role?: string },
+): Promise<{ allowed: boolean; contributions: number; needed: number }> {
+  const { payload } = await callGallery<{ count?: number }>(
+    env,
+    "contributions",
+    { ownerUserId: user.id },
+  );
+  const contributions = Number(payload.count ?? 0);
+  return {
+    allowed:
+      user.isOwner === true ||
+      user.isAdmin === true ||
+      user.role === "moderator" ||
+      contributions >= DATASET_EDIT_CONTRIBUTIONS,
+    contributions,
+    needed: DATASET_EDIT_CONTRIBUTIONS,
+  };
+}
 
 /**
  * The publisher's AI mark: true or false when the request gives one,
@@ -89,6 +120,89 @@ function coveringDrafting(project: CircuitProject): Response | null {
         { status: 400 },
       )
     : null;
+}
+
+/**
+ * A fix of a reference dataset's drawing from the editor. Only the drawing
+ * changes: the dataset's name, description, tags and byline stay, and the
+ * fixer is recorded (an `edit` fix) and named beside the byline.
+ */
+export async function handleDatasetEntryEdit(
+  request: Request,
+  env: GalleryEnv,
+  source: GallerySource,
+  id: string,
+): Promise<Response> {
+  if (!sameOrigin(request)) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+  const user = await sessionUserOf(request, env);
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const access = await datasetEditAccess(env, user);
+  if (!access.allowed)
+    return Response.json(
+      {
+        error: "dataset-edit-locked",
+        contributions: access.contributions,
+        needed: access.needed,
+      },
+      { status: 403 },
+    );
+  const store = withGalleryStore(env, source);
+  const existing = await callGallery<{
+    entry?: {
+      name: string;
+      author: string;
+      description: string;
+      tags: string[];
+    };
+    testbench?: string | null;
+  }>(store, "any-entry", { id });
+  const current = existing.payload.entry;
+  if (existing.status !== 200 || !current)
+    return Response.json({ error: "not-found" }, { status: 404 });
+  const body = (await request.json().catch(() => null)) as {
+    projectText?: unknown;
+  } | null;
+  if (typeof body?.projectText !== "string")
+    return Response.json({ error: "invalid-project" }, { status: 400 });
+  if (
+    new TextEncoder().encode(body.projectText).length >
+    GALLERY_MAX_PROJECT_BYTES
+  )
+    return Response.json({ error: "too-large" }, { status: 413 });
+  let project: CircuitProject;
+  try {
+    project = parseProject(body.projectText);
+  } catch {
+    return Response.json({ error: "invalid-project" }, { status: 400 });
+  }
+  const cover = coveringDrafting(project);
+  if (cover) return cover;
+  project.name = current.name;
+  const stored = storedProject(serializeProject(project));
+  const { status, payload } = await callGallery(store, "import-entry", {
+    id,
+    at: new Date().toISOString(),
+    name: current.name,
+    author: current.author,
+    editorId: user.id,
+    editorName: user.displayName,
+    fixKind: "edit",
+    description: current.description,
+    projectText: stored.projectText,
+    // A fixer who reads no testbench sends none; the stored one stays.
+    testbench: stored.testbench ?? existing.payload.testbench ?? null,
+    svgText: await renderPreview(
+      project,
+      createProjectSymbolResolver(project, builtInSymbols),
+    ),
+    schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+    netlistable: designExtractsNetlist(project) ? 1 : 0,
+    componentCount: galleryComponentCount(project),
+    tags: wrapTags(sanitizeGalleryTags(current.tags)),
+  });
+  return Response.json(payload, { status });
 }
 
 export async function handleSubmission(
@@ -385,6 +499,8 @@ export async function routeGalleryPublishing(
           ),
         ).toISOString(),
         exempt: user.isAdmin === true || user.role === "moderator",
+        // Whether this account may fix a reference dataset's drawings.
+        datasetEdits: await datasetEditAccess(env, user),
       },
       { headers: { "cache-control": "no-store" } },
     );

@@ -191,6 +191,8 @@ export interface GalleryEntrySummary {
   author: string;
   /** Stable identity behind the mutable public byline; null for legacy rows. */
   ownerUserId: string | null;
+  /** Who fixed a dataset's drawing in the editor, first first: a second byline. */
+  fixedBy?: string[];
   description: string;
   createdAt: string;
   /**

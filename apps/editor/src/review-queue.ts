@@ -56,6 +56,8 @@ export interface ReviewCard {
   scope: string;
   name: string;
   author: string;
+  /** Who fixed a dataset's drawing: a second byline. */
+  fixedBy?: string[];
   previewRevision: string;
   components: number;
   reviews: number;

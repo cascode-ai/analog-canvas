@@ -393,3 +393,10 @@
   font-size: 11px;
   cursor: pointer;
 }
+
+/* A dataset fix changes the drawing alone: no fields to fill in. */
+.publish-gallery-fields[hidden],
+.publish-gallery-ai[hidden],
+.publish-gallery-note[hidden] {
+  display: none;
+}

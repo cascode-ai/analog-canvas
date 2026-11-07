@@ -203,6 +203,8 @@ export interface GalleryFeedEntry {
   author: string;
   /** Stable identity for contributor filtering; absent on an older API. */
   ownerUserId?: string | null;
+  /** Who fixed a dataset's drawing, first first: a second byline. */
+  fixedBy?: string[];
   description: string;
   createdAt: string;
   /** Absent only while a newer client is rolling out against an older API. */
