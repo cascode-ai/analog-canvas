@@ -107,11 +107,7 @@ export function buildDocumentDerivedContext(
     return cached.context;
   }
   const endpointLookup = buildEndpointObjectLookup(document);
-  const {
-    instancesById,
-    junctionsById,
-    logicalNets: logicalNetResolution,
-  } = endpointLookup;
+  const { instancesById, junctionsById, logicalNetResolution } = endpointLookup;
   const routesByNetId = groupedBy(
     document.routes,
     (item) => item.members?.map((member) => member.netId) ?? item.netId,
