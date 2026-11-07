@@ -50,6 +50,7 @@ export default {
         `POST ${new URL("/api/auth/regional/account", identity)}`,
         `POST ${new URL("/api/auth/regional/owner-token", identity)}`,
         `POST ${new URL("/api/auth/regional/security", identity)}`,
+        `POST ${new URL("/api/auth/regional/providers", identity)}`,
       ]);
       if (
         peer.protocol !== "https:" ||

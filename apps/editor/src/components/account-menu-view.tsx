@@ -76,6 +76,22 @@ export default function AccountMenuView({
     if (!result.ok) setMessage(result.message);
   };
 
+  const loginUrl = centralLoginUrl(providers);
+  const resume =
+    signInReturnTo ??
+    (typeof window === "undefined"
+      ? null
+      : window.location.pathname +
+        window.location.search +
+        window.location.hash);
+  const regionalHref = (choice?: string) => {
+    const params = new URLSearchParams();
+    if (resume) params.set("return", resume);
+    if (choice === "select") params.set("select", "true");
+    else if (choice) params.set("provider", choice);
+    return loginUrl + (params.size ? "?" + params : "");
+  };
+  const loginHref = loginUrl ? regionalHref() : null;
   if (user) {
     // The name is the one way into the account: its own page, where the
     // account is managed. Keep the same browser window so returning can
@@ -92,6 +108,15 @@ export default function AccountMenuView({
         >
           {user.displayName}
         </a>
+        {loginUrl ? (
+          <a
+            className="account-switch-back"
+            data-testid="account-switch-login"
+            href={regionalHref("select")}
+          >
+            Switch account
+          </a>
+        ) : null}
         {user.switchedFrom ? (
           <button
             type="button"
@@ -113,18 +138,6 @@ export default function AccountMenuView({
   }
 
   const notes = message ?? notice;
-  const loginUrl = centralLoginUrl(providers);
-  const resume =
-    signInReturnTo ??
-    (typeof window === "undefined"
-      ? null
-      : window.location.pathname +
-        window.location.search +
-        window.location.hash);
-  const loginHref =
-    loginUrl && resume
-      ? loginUrl + "?" + new URLSearchParams({ return: resume })
-      : loginUrl;
   return (
     <details
       ref={signIn}
@@ -139,13 +152,13 @@ export default function AccountMenuView({
             href={loginHref}
             data-testid="signin-central"
           >
-            Continue to sign in
+            Continue with current account
           </a>
         ) : null}
         {providers.github ? (
           <a
             className="account-provider"
-            href="/api/auth/github/start"
+            href={loginUrl ? regionalHref("github") : "/api/auth/github/start"}
             data-testid="signin-github"
           >
             <GitHubMark />
@@ -155,7 +168,7 @@ export default function AccountMenuView({
         {providers.google ? (
           <a
             className="account-provider"
-            href="/api/auth/google/start"
+            href={loginUrl ? regionalHref("google") : "/api/auth/google/start"}
             data-testid="signin-google"
           >
             <GoogleMark />
@@ -167,7 +180,16 @@ export default function AccountMenuView({
             <span>or</span>
           </div>
         ) : null}
-        {providers.email && sentTo === null ? (
+        {providers.email && loginUrl ? (
+          <a
+            className="account-provider"
+            href={regionalHref("email")}
+            data-testid="signin-email"
+          >
+            Continue with email
+          </a>
+        ) : null}
+        {providers.email && !loginUrl && sentTo === null ? (
           <form className="account-signin-email" onSubmit={submitEmail}>
             <input
               type="email"
@@ -187,7 +209,7 @@ export default function AccountMenuView({
             </button>
           </form>
         ) : null}
-        {providers.email && sentTo !== null ? (
+        {providers.email && !loginUrl && sentTo !== null ? (
           <form
             className="account-signin-email"
             onSubmit={(event) => void submitCode(event)}

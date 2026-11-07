@@ -13,6 +13,29 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("discovers the authority's enabled sign-in providers through standalone egress", async () => {
+  const h = accounts({
+    GH_OAUTH_CLIENT_ID: "github-test",
+    GH_OAUTH_CLIENT_SECRET: "secret",
+    GOOGLE_CLIENT_ID: "google-test",
+    GOOGLE_CLIENT_SECRET: "secret",
+  });
+  vi.stubGlobal("fetch", (request) => h.source.authDurable.fetch(request));
+  h.region.fetchLike = (input, init) =>
+    egress.fetch(new Request(input, init), {
+      PEER_ORIGIN: transportOrigin,
+      IDENTITY_URL: transportOrigin + "/api/auth/regional/identities",
+    });
+  const response = await h.call("/api/auth/providers", "");
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    github: true,
+    google: true,
+    email: true,
+    central: true,
+  });
+});
+
 it("enforces a Gallery block and Owner recovery through the standalone egress policy", async () => {
   const h = accounts();
   const network = vi.fn((request) => {

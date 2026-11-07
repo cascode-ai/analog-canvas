@@ -24,6 +24,13 @@ serves local authorization. Resource replication is owned by
   only the regional session and pending handoff. The editor recognizes `central`
   with the local `loginUrl` `/api/auth/regional/start`; overseas provider choices
   stay intact.
+- Regional sign-in lists the authority's enabled GitHub, Google and email
+  methods. Choosing a method starts that authentication even when an authority
+  session exists; only an explicit continuation reuses the current account.
+  Signed-in regional users can open the same chooser to switch accounts.
+  Cancelling selection preserves the current regional session. Successful
+  authentication uses the authority's ordinary browser session and returns to
+  the original regional page; provider identities remain separate.
 - Handoff codes are short-lived, single-use, browser-bound and redeemable only
   by the configured client with its verifier and service credential. A lost
   redemption response requires restarting login. The starting region binds a
@@ -124,6 +131,9 @@ production bindings, migrations or credentials are activated by this change.
 
 Authority POSTs require `Authorization: Bearer <client secret>` over the pinned
 HTTPS endpoint; no CORS grant is issued. They accept bounded JSON bodies.
+`POST /api/auth/regional/providers` accepts `{}` and returns the authority's
+enabled provider flags. Regional discovery reads these through the fixed
+transport; unavailability hides method shortcuts but retains the chooser.
 Security RPCs preserve executed handlers' status and body inside `result`;
 transport success does not imply operation success. Successful block/unblock
 responses require `restrictions: {revision, users: [{id, blocked}]}`. The source
