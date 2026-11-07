@@ -231,18 +231,23 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       detail: string | null;
       reason: string | null;
       figure_revision: string | null;
+      reference_revision: string | null;
     }>(
       // A dataset's queue scans its comparisons' card index first (CROSS
       // JOIN keeps the order), never the rows that hold the figures.
       compared
         ? `SELECT e.id, e.name, e.author, e.preview_revision, e.component_count,
-             c.verdict, c.category, c.detail, c.reason, c.figure_revision
+             c.verdict, c.category, c.detail, c.reason, c.figure_revision,
+             NULL AS reference_revision
            FROM dataset_comparisons c CROSS JOIN gallery_entries e ON e.id = c.id
            WHERE e.status = 'public'
              AND (e.owner_user_id IS NULL OR e.owner_user_id != ?)`
         : `SELECT e.id, e.name, e.author, e.preview_revision, e.component_count,
              NULL AS verdict, NULL AS category, NULL AS detail, NULL AS reason,
-             NULL AS figure_revision
+             NULL AS figure_revision,
+             (SELECT r.revision FROM entry_references r
+                INDEXED BY idx_entry_references_revision
+              WHERE r.entry_id = e.id) AS reference_revision
            FROM gallery_entries e INDEXED BY idx_gallery_entries_card
            WHERE e.status = 'public'
              AND (e.owner_user_id IS NULL OR e.owner_user_id != ?)`,
@@ -273,6 +278,9 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       components: entry.component_count,
       reviews: counts.get(entry.id) ?? 0,
       mine: own ? shown(own, entry.preview_revision) : null,
+      ...(entry.reference_revision
+        ? { reference: { revision: entry.reference_revision } }
+        : {}),
       ...(entry.verdict
         ? {
             comparison: {
@@ -290,6 +298,8 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
   cards.sort(
     (a, b) =>
       Number(done(a)) - Number(done(b)) ||
+      // A drawing with a reference to compare comes before one without.
+      Number(!("reference" in a)) - Number(!("reference" in b)) ||
       a.reviews - b.reviews ||
       a.id.localeCompare(b.id, "en", { numeric: true }),
   );

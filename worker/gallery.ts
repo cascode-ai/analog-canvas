@@ -16,6 +16,7 @@ import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
 import { routeComparisons } from "./gallery-comparisons";
 import { routeReviews } from "./gallery-reviews";
+import { routeReference } from "./gallery-references";
 import { spiceNetlistOf } from "./gallery-netlist";
 import {
   ownerData,
@@ -607,6 +608,8 @@ export async function routeGalleryRequest(
   // Reviews reach any store, a dataset's too, before its read-only rule.
   const reviews = await routeReviews(request, env, segments, readSession);
   if (reviews) return reviews;
+  const reference = await routeReference(request, env, segments, readSession);
+  if (reference) return reference;
 
   // Reference datasets (#1510). Each lives in a store of its own: a request
   // reaches it by the import route, its entry's id, or the wall's `source`.

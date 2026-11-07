@@ -173,9 +173,9 @@ export function ReviewPage({
   // Enter submits, digits flag, ← → step, N jumps to the next unreviewed.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const typing = (event.target as HTMLElement | null)?.closest(
-        "textarea, input, select",
-      );
+      const typing =
+        event.target instanceof Element &&
+        event.target.closest("textarea, input, select");
       if (typing) {
         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
@@ -397,13 +397,26 @@ function ReviewItem({
       <div className="review-cols">
         <div>
           <h4>
-            Original <span>· {scopeName(scope)}</span>
+            {comparison ? "Original" : "Reference"}{" "}
+            <span>
+              ·{" "}
+              {comparison
+                ? scopeName(scope)
+                : card.reference
+                  ? "uploaded by its author"
+                  : "none yet"}
+            </span>
           </h4>
           <div className="review-pic">
             {comparison ? (
               <img
                 src={`/api/gallery/sources/${scope}/comparisons/${encodeURIComponent(card.id)}/figure?v=${encodeURIComponent(comparison.figureRevision)}`}
                 alt="Original figure"
+              />
+            ) : card.reference ? (
+              <img
+                src={`/api/gallery/${encodeURIComponent(card.id)}/reference?v=${encodeURIComponent(card.reference.revision)}`}
+                alt="Reference image"
               />
             ) : (
               <span className="none">No reference figure</span>

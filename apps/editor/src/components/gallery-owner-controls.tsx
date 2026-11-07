@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { GalleryFeedEntry } from "../gallery-client";
+import { uploadReferenceImage } from "../reference-image";
 
 const OWNER_REJECT_REASONS = [
   "too ugly",
@@ -44,6 +45,7 @@ export function GalleryTileMenu({
 }) {
   const scope = administrator ? "owner" : manage ? "author" : "reader";
   const [copied, setCopied] = useState(false);
+  const [referenceNote, setReferenceNote] = useState("");
   const close = (element: HTMLElement) =>
     element.closest("details")?.removeAttribute("open");
   const path = `/g/${entry.id}`;
@@ -80,6 +82,35 @@ export function GalleryTileMenu({
         </button>
         {manage ? (
           <>
+            {/* What it was drawn from, shown beside it in /review. */}
+            <label
+              className="gallery-owner-menu-file"
+              data-testid={`gallery-reference-${entry.id}`}
+              title="An image you may share, such as the figure you drew it from. Signed-in readers see it beside the drawing in Review."
+            >
+              {referenceNote || "Reference image…"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (
+                    !file ||
+                    !window.confirm(
+                      "Upload this as the drawing's reference image? Upload only an image you have the right to share: signed-in readers will see it.",
+                    )
+                  )
+                    return;
+                  setReferenceNote("Uploading…");
+                  void uploadReferenceImage(entry.id, file).then((note) => {
+                    setReferenceNote(note);
+                    window.setTimeout(() => setReferenceNote(""), 2400);
+                  });
+                }}
+              />
+            </label>
             <button
               type="button"
               data-testid={`gallery-${scope}-review-${entry.id}`}
