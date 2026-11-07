@@ -92,12 +92,28 @@ export async function acceptAmplifier({
   await code.fill(JSON.stringify(properties, null, 2));
   await page.keyboard.press("Tab");
   await page.keyboard.press("Escape");
-  await page.getByTestId("document-selector").selectOption("document-ota-5t");
+  // Into the amplifier Cell and back out, through the hierarchy tree.
+  const hierarchy = page.getByTestId("hierarchy-toggle");
+  const treeWasOpen = (await hierarchy.getAttribute("aria-pressed")) === "true";
+  if (!treeWasOpen) await hierarchy.click();
+  const tree = page.getByRole("complementary", { name: "Circuit hierarchy" });
+  const row = (name) =>
+    tree
+      .locator(".hierarchy-node-label")
+      .and(tree.getByRole("button", { name, exact: true }));
+  const dut = row("XDUT: ota_5t");
+  if (!(await dut.count()))
+    await tree
+      .getByRole("button", { name: "Expand Top · Testbench", exact: true })
+      .click();
+  await dut.click();
   await expect(page.getByTestId("hit-M1")).toBeVisible();
   await expect(page.getByTestId("instance-count")).toHaveText("23");
-  await page
-    .getByTestId("document-selector")
-    .selectOption(original.topDocumentId);
+  await row("Top · Testbench").click();
+  await expect(page.getByTestId("active-document-id")).toHaveText(
+    original.topDocumentId,
+  );
+  if (!treeWasOpen) await hierarchy.click();
   await page.keyboard.press("Control+s");
   await expect(page.getByText(/^Saved:/)).toBeVisible();
   const location = await page
