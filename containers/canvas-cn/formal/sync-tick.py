@@ -85,12 +85,12 @@ def run(args):
             raise ValueError('missing timestamp timezone')
         lag = max(lag, now - oldest.timestamp())
     reason = None
-    if pump['status'] not in ['sent', 'caught-up']:
-        reason = pump['status']
-    elif status['fenced']:
+    if status['fenced']:
         reason = 'write-fenced'
     elif status['journalBytes'] >= args.max_journal_bytes * 0.8:
         reason = 'journal-capacity'
+    elif pump['status'] not in ['sent', 'caught-up']:
+        reason = pump['status']
     elif lag > args.max_lag_seconds:
         reason = 'replication-lag'
     result = dict(health='failed' if reason else 'ok', reason=reason,

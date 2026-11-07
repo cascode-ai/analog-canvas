@@ -311,15 +311,24 @@ def tick(args, host=None, fetcher=None, now=None):
         if earlier:
             earlier[-1].rename(partial)
     partial.mkdir(parents=True, exist_ok=True)
+    if partial.is_symlink():
+        raise ReleaseError('release-failed')
     for stale in releases.glob('*.partial'):
         if stale != partial:
             shutil.rmtree(stale, ignore_errors=True)
-    for unlisted in [p for p in partial.rglob('*') if p.is_file()]:
-        if str(unlisted.relative_to(partial)).replace(os.sep, '/') not in manifest['files']:
-            unlisted.unlink()
+    for path in partial.rglob('*'):
+        if path.is_symlink() or not (path.is_dir() or path.is_file()):
+            raise ReleaseError('release-failed')
+        if path.is_file() and path.relative_to(partial).as_posix() not in manifest['files']:
+            path.unlink()
     downloaded = assemble(fetcher, manifest, serving, partial)
     (partial / 'release.json').write_bytes(text)
     check_credentials((partial / 'config.capnp').read_text(), credentials)
+    # The service keeps a private umask for its monitor. Only the verified
+    # release tree is readable by the unprivileged runtime and nginx.
+    for path in partial.rglob('*'):
+        path.chmod(0o755 if path.is_dir() else 0o644)
+    partial.chmod(0o755)
     if target.exists():
         shutil.rmtree(target)
     partial.rename(target)
@@ -400,7 +409,7 @@ def prune(releases, keep, count):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--origin', default='https://analog-canvas.tokenzhang.com')
+    parser.add_argument('--origin', default='https://analog-canvas-origin.tokenzhang.com')
     parser.add_argument('--local', default='http://127.0.0.1:8792')
     parser.add_argument('--current', default='/opt/analog-canvas/current-formal')
     parser.add_argument('--releases', default='/opt/analog-canvas/formal-releases')

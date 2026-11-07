@@ -11,6 +11,8 @@ import urllib.request
 import uuid
 from datetime import datetime, timezone
 
+RETRY_GRACE_SECONDS = 120
+
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, file, code, message, headers, new_url):
@@ -57,9 +59,18 @@ def run(args):
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     now = time.time()
     health = condition(pathlib.Path(args.monitor), now, getattr(args, 'stale_seconds', 120))
+    if health != 'retry' and state.pop('retrySince', None) is not None:
+        write_state(state_path, state)
     pending = state.get('pending')
     if pending is None:
         previous = state.get('acceptedCondition', 'ok')
+        if health == 'retry' and not args.test:
+            since = state.get('retrySince')
+            if type(since) not in [int, float] or not math.isfinite(since) or not 0 <= since <= now:
+                since = state['retrySince'] = now
+                write_state(state_path, state)
+            if now - since < RETRY_GRACE_SECONDS:
+                return {'result': 'waiting-for-retry'}
         if args.test:
             if state.get('testAccepted'):
                 return {'result': 'already-tested'}
@@ -80,6 +91,8 @@ def run(args):
                                     + 'Inspect ' + service + ' and its private monitor.json on the domestic ECS.\n'
                                     + 'This message contains no Project content or credentials.'}}
         state['pending'] = pending
+        if target != 'test':
+            state.pop('retrySince', None)
         write_state(state_path, state)
     # Resend retains idempotency keys for 24h. Keep margin and stop ambiguous
     # delivery outside that window until an operator checks the mail log.
