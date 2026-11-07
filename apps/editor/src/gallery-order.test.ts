@@ -59,7 +59,10 @@ describe("the Gallery's order (#1615)", () => {
       createElement(GalleryOrderMenu, { order: "random", onChoose: () => {} }),
     );
     expect(html).toContain('aria-label="Order: Random"');
-    expect(html).toContain("Shuffle again");
+    // A shuffled wall shuffles again from a button beside the menu.
+    expect(html).toMatch(
+      /data-testid="gallery-reshuffle" aria-label="Shuffle again"/u,
+    );
     expect(html).toMatch(
       /aria-checked="true" data-testid="gallery-order-random"/u,
     );
@@ -67,6 +70,7 @@ describe("the Gallery's order (#1615)", () => {
       createElement(GalleryOrderMenu, { order: "parts", onChoose: () => {} }),
     );
     expect(parts).toContain('aria-label="Order: Most parts"');
+    expect(parts).not.toContain("gallery-reshuffle");
     expect(parts).toMatch(
       /aria-checked="true" data-testid="gallery-order-parts"/u,
     );

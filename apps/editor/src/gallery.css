@@ -1351,6 +1351,38 @@
   margin-left: 8px;
 }
 
+/* Left of a shuffled wall's order: shuffle again in place. */
+.gallery-reshuffle {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  align-self: center;
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  margin: 0 6px 6px auto;
+  padding: 0;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  background: var(--icm-surface);
+  color: var(--icm-text-muted);
+  cursor: pointer;
+}
+
+.gallery-reshuffle:hover {
+  border-color: var(--icm-accent);
+  color: var(--icm-text);
+}
+
+.gallery-reshuffle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.gallery-reshuffle + .gallery-order-menu {
+  margin-left: 0;
+}
+
 .gallery-order-button {
   display: flex;
   align-items: center;
