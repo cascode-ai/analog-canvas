@@ -46,14 +46,39 @@ export function withGalleryStore(
 export async function gallerySourceCounts(env: GalleryEnv) {
   return Promise.all(
     GALLERY_SOURCES.map(async (source) => {
-      const { payload } = await callGallery<{ count?: number }>(
-        withGalleryStore(env, source),
-        "public-count",
-        {},
-      );
-      return { ...source, count: Number(payload.count ?? 0) };
+      const { payload } = await callGallery<{
+        count?: number;
+        comparisons?: number;
+      }>(withGalleryStore(env, source), "public-count", {});
+      return {
+        ...source,
+        count: Number(payload.count ?? 0),
+        comparisons: Number(payload.comparisons ?? 0),
+      };
     }),
   );
+}
+
+/**
+ * Why a dataset import is refused, or null for the Owner: the Owner's
+ * same-origin session or an Owner token (#1769), which opens no other route.
+ */
+export async function ownerImportRefusal(
+  request: Request,
+  env: GalleryEnv,
+): Promise<Response | null> {
+  // A browser never adds a bearer by itself, so a request carrying one
+  // needs no same-origin check.
+  const viaToken = hasBearer(request);
+  if (!viaToken && !sameOrigin(request))
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  const user = viaToken
+    ? await ownerTokenUserOf(request, env)
+    : await sessionUserOf(request, env);
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!user.isOwner)
+    return Response.json({ error: "owner-only" }, { status: 403 });
+  return null;
 }
 
 /** Circuits one import request may carry. */
@@ -71,17 +96,8 @@ export async function handleSourceImport(
   env: GalleryEnv,
   source: GallerySource,
 ): Promise<Response> {
-  // A browser never adds a bearer by itself, so a request carrying one
-  // needs no same-origin check.
-  const viaToken = hasBearer(request);
-  if (!viaToken && !sameOrigin(request))
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  const user = viaToken
-    ? await ownerTokenUserOf(request, env)
-    : await sessionUserOf(request, env);
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (!user.isOwner)
-    return Response.json({ error: "owner-only" }, { status: 403 });
+  const refusal = await ownerImportRefusal(request, env);
+  if (refusal) return refusal;
   const body = (await request.json().catch(() => null)) as {
     entries?: unknown;
   } | null;

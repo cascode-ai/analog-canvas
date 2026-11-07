@@ -14,6 +14,7 @@ import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
+import { routeComparisons } from "./gallery-comparisons";
 import { spiceNetlistOf } from "./gallery-netlist";
 import {
   ownerData,
@@ -619,6 +620,8 @@ export async function routeGalleryRequest(
       request.method === "POST"
     )
       return handleSourceImport(request, env, named);
+    if (named && segments[2] === "comparisons")
+      return routeComparisons(request, env, named, segments.slice(3));
     return Response.json({ error: "not-found" }, { status: 404 });
   }
   const source =

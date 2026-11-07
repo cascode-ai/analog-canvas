@@ -428,13 +428,51 @@ createdAt?}]}` (≤10), validated like submissions with the prefix
   `{id, ok, created, previewRevision}` or `{id, ok: false, error}`. Imports
   post from the CLI with `pnpm gallery:import-batches … --post`
   ([Batch drawing](../agent/batch-drawing.md)).
-- Owner tokens (#1769): one labelled token per machine for that import; no
-  other route accepts one, and a token does not expire until it is revoked.
+- Owner tokens (#1769): one labelled token per machine for that import and
+  the comparison import below; no other route accepts one, and a token does
+  not expire until it is revoked.
   The Owner's same-origin session (else 401/403) mints one
   with `POST /api/auth/owner-tokens {label}` → `{id, label, token, createdAt}`
   (`acot_…`, shown once; AuthDO keeps its SHA-256), lists them with
   `GET /api/auth/owner-tokens` → `{tokens: [{id, label, createdAt,
 lastUsedAt}]}`, and revokes one with `DELETE /api/auth/owner-tokens/<id>`.
+
+### Dataset comparisons
+
+`/datasets` sets each dataset circuit's original figure beside our redraw,
+with the verdict of comparing both netlists; the wall's Datasets filter and
+a dataset's wall link to it. The page is English and reads like every other
+Gallery read (signed in; signed out it asks to sign in).
+
+- Only datasets whose figures we may show take comparisons: `comparisons:
+true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,
+  Apache-2.0). Any other answers 404.
+- A comparison belongs to an entry of its dataset's store and is listed only
+  while that entry is public. Comparisons are re-importable derived data:
+  not in the backups.
+- Verdicts: `match` (netlists agree), `notation` (same circuit, written
+  differently, such as an ideal source as a port), `error` (the dataset's
+  netlist is wrong), `unclear` (the figure is ambiguous). Every verdict
+  except `match` names a `category`; all of them are public.
+- `GET /api/gallery/sources` adds `comparisons`, each dataset's listed count.
+- `GET /api/gallery/sources/<key>/comparisons` → `{source, comparisons:
+[{id, name, verdict, category, detail, reason, families, components,
+previewRevision, figureRevision}]}`, every listed one; the page sorts,
+  filters and counts them itself.
+- `GET …/comparisons/<id>` → `{id, sourceNetlist}`: the dataset's own
+  netlist. Our netlist is the entry's (`GET /api/gallery/<id>?netlist=spice`),
+  which spends a daily open as any open does.
+- `GET …/comparisons/<id>/figure[?v=<figureRevision>]` → the original figure
+  (`image/png`, `image/jpeg` or `image/webp`), immutable when `v` names it.
+- `POST …/comparisons` (Owner session or Owner token, as the entry import):
+  `{comparisons: [{id, verdict, category?, detail?, reason?, families?,
+sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
+  decoded, its bytes the named type; `families` from MOS, BJT, Op-amp,
+  Inductor, Diode, Switch). An existing id is replaced; a figure left out
+  keeps the stored one. Per row `{id, ok}` or `{id, ok: false, error}`:
+  `invalid-id`, `invalid-fields`, `invalid-figure`, `figure-required` (a new
+  comparison without one). Imports post with `pnpm gallery:import-batches
+--post-comparisons FILE --source KEY`.
 
 ## Accounts and sessions
 

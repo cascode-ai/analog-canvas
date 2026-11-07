@@ -107,6 +107,13 @@ import {
 } from "./gallery-store-backup";
 import { GalleryWallStatisticsCache } from "./gallery-store-wall-cache";
 import {
+  comparisonCount,
+  comparisonPart,
+  importComparison,
+  installComparisons,
+  listComparisons,
+} from "./gallery-store-comparisons";
+import {
   RegionalProjectDO,
   type ProjectRegionConfig,
 } from "./regional-projects";
@@ -320,6 +327,8 @@ export class GalleryDO {
     `);
     // Each entry's latest simulation check and the queue of checks (#1545).
     installSimulationChecks(this.sql);
+    // Each dataset circuit's original figure and comparison verdict.
+    installComparisons(this.sql);
     // A tile's whole card, by id: a page's tiles and the Owner's lists read
     // it here, never the row, whose card fields sit behind its Project and
     // preview (about 100 kB, some 25 pages each; 30 cold tiles took about
@@ -536,7 +545,16 @@ export class GalleryDO {
               "SELECT COUNT(*) AS count FROM gallery_entries WHERE status = 'public'",
             )
             .one().count,
+          comparisons: comparisonCount(this.sql),
         });
+      case "comparison-import":
+        return importComparison(this.sql, body);
+      case "comparison-list":
+        return listComparisons(this.sql);
+      case "comparison-netlist":
+        return comparisonPart(this.sql, body, "netlist");
+      case "comparison-figure":
+        return comparisonPart(this.sql, body, "figure");
       case "topology-inventory":
         return Response.json({
           ids: this.sql
