@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  entryIdOf,
   flagsFor,
   hasReference,
   nextUnreviewed,
@@ -38,6 +39,17 @@ const card = (id: string, mine: ShownReview | null = null): ReviewCard => ({
 });
 
 describe("review queue", () => {
+  it("finds the drawing a pasted link or id names", () => {
+    expect(entryIdOf("https://analog-canvas.tokenzhang.com/g/ct-016")).toBe(
+      "ct-016",
+    );
+    expect(entryIdOf("/review?scope=amsnet&id=amsnet-12&refs=0")).toBe(
+      "amsnet-12",
+    );
+    expect(entryIdOf("  rmhkjz7h8z ")).toBe("rmhkjz7h8z");
+    expect(entryIdOf("not a link")).toBeNull();
+  });
+
   it("counts progress by the reviewer's current reviews and finds the next unreviewed", () => {
     const cards = [
       card("a", review("pass")),

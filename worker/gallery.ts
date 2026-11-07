@@ -999,6 +999,12 @@ export async function routeGalleryRequest(
     // `summary=1` answers the tile alone — what a link to the wall shows —
     // without the Project Code, so it costs no daily open.
     const summary = url.searchParams.get("summary") === "1";
+    // A dataset drawing's netlist alone, without the drawing, costs no open:
+    // /datasets lists it beside the dataset's own netlist.
+    const netlistAlone =
+      summary &&
+      url.searchParams.get("netlist") === "spice" &&
+      gallerySourceOfEntryId(segments[0]!) !== null;
     if (
       !summary &&
       payload.status === "public" &&
@@ -1040,6 +1046,9 @@ export async function routeGalleryRequest(
               submitterEmail: payload.submitterEmail ?? null,
               submitterProvider: payload.submitterProvider ?? null,
             }
+          : {}),
+        ...(netlistAlone
+          ? { netlist: spiceNetlistOf(payload.projectText ?? "") }
           : {}),
         ...(summary
           ? {}

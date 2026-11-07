@@ -81,6 +81,7 @@
 
 /* The board: one line a dataset, its verdicts as one long bar. */
 .ds-board-card {
+  margin-top: 28px;
   padding: 6px 18px 14px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-lg);
@@ -89,9 +90,7 @@
 
 .ds-board-row {
   display: grid;
-  grid-template-columns:
-    28px minmax(140px, 200px) minmax(0, 1fr)
-    84px 64px 64px 72px;
+  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr) 96px 72px 84px;
   align-items: center;
   gap: 14px;
   width: 100%;
@@ -106,7 +105,7 @@
   cursor: pointer;
 }
 
-.ds-board-row > :nth-child(n + 4) {
+.ds-board-row > :nth-child(n + 3) {
   font-family: var(--ds-mono);
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -137,11 +136,6 @@
 .ds-board-row.total {
   border-bottom: 0;
   border-top: 2px solid var(--icm-border);
-}
-
-.ds-board-row .rank {
-  color: var(--icm-text-muted);
-  font: 500 12px var(--ds-mono);
 }
 
 .ds-board-row .name b {
@@ -182,9 +176,11 @@
   opacity: 0.25;
 }
 
-.ds-board-row .acc {
-  font-size: 18px;
+/* The count is the headline; errors and accuracy are its detail. */
+.ds-board-row .circuits {
+  font-size: 22px;
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .ds-board-row .num {
@@ -216,10 +212,46 @@
   text-decoration: none;
 }
 
-.datasets-stats {
+/* Why the datasets differ: their errors and their notation side by side. */
+.datasets-why {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 32px;
+}
+
+.datasets-why-col h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 10px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.datasets-why-col h4 .what {
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.datasets-why-col h4 .n {
+  margin-left: auto;
+  font: 600 14px var(--ds-mono);
+}
+
+.ds-board-row:focus-visible {
+  outline: 2px solid var(--ds-bar);
+  outline-offset: -2px;
+}
+
+.ds-board-row .name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ds-board-row .name a:hover {
+  color: var(--icm-accent);
+  text-decoration: underline;
 }
 
 .datasets-card {
@@ -419,7 +451,7 @@
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  height: 104px;
+  height: 160px;
   padding-bottom: 2px;
   border-bottom: 1px solid var(--icm-border);
 }
@@ -777,15 +809,6 @@ a.gallery-view-tab {
   font-size: 11px;
 }
 
-.datasets-load {
-  padding: 4px 10px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface);
-  font-size: 12px;
-  cursor: pointer;
-}
-
 .datasets-view-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
@@ -939,14 +962,13 @@ a.gallery-view-tab {
   max-height: 100%;
 }
 
-/* Narrower: the board drops its secondary numbers. */
+/* Narrower: the board drops accuracy, then errors. */
 @media (max-width: 1100px) {
   .ds-board-row {
-    grid-template-columns: 22px minmax(120px, 170px) minmax(0, 1fr) 72px 64px;
+    grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) 84px 64px;
   }
 
-  .ds-board-row > :nth-child(6),
-  .ds-board-row > :nth-child(7) {
+  .ds-board-row > :nth-child(5) {
     display: none;
   }
 
@@ -960,7 +982,7 @@ a.gallery-view-tab {
 }
 
 @media (max-width: 720px) {
-  .datasets-stats,
+  .datasets-why,
   .datasets-row .cols,
   .datasets-view-netlists .datasets-row .cols {
     grid-template-columns: 1fr;
@@ -988,12 +1010,11 @@ a.gallery-view-tab {
   }
 
   .ds-board-row {
-    grid-template-columns: minmax(96px, 120px) minmax(0, 1fr) 56px;
+    grid-template-columns: minmax(96px, 120px) minmax(0, 1fr) 72px;
     gap: 10px;
   }
 
-  .ds-board-row > :first-child,
-  .ds-board-row > :nth-child(5) {
+  .ds-board-row > :nth-child(4) {
     display: none;
   }
 }

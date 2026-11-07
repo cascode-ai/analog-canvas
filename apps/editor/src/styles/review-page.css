@@ -114,9 +114,24 @@
   border-color: var(--icm-text);
 }
 
-.review-steps button:last-child {
+/* Jump to a drawing by its link or id. */
+.review-jump input {
+  box-sizing: border-box;
+  width: 13rem;
+  height: 34px;
   margin-left: 6px;
-  font-weight: 600;
+  padding: 0 10px;
+  border: 1px solid var(--icm-border-strong, var(--icm-border));
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.review-jump input:focus {
+  border-color: var(--icm-accent);
+  outline: none;
 }
 
 .review-item {

@@ -41,6 +41,7 @@ import {
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
 import { ReviewSummary } from "./review-summary";
+import { fetchSessionUser } from "./account";
 import { MarkablePicture } from "./review-picture";
 
 type Load =
@@ -96,6 +97,13 @@ export function DatasetsPage({
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(
     null,
   );
+  // Who reviewed and fixed what, and the open issues: the Owner's to see.
+  const [owner, setOwner] = useState(false);
+  useEffect(() => {
+    void fetchSessionUser()
+      .then((user) => setOwner(user?.isOwner === true))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,20 +230,22 @@ export function DatasetsPage({
         ) : (
           <>
             <Hero rows={rows} />
-            <h2 className="ds-heading">Accuracy by dataset</h2>
             <DatasetBoard
               rows={rows}
               filters={filters}
               set={set}
               setFilters={setFilters}
             />
-            <h2 className="ds-heading">Breakdown</h2>
-            <section className="datasets-stats">
-              <WhyCard rows={rows} filters={filters} setFilters={setFilters} />
-              <SizeCard rows={rows} filters={filters} set={set} />
-            </section>
-            <h2 className="ds-heading">Reviews</h2>
-            <ReviewSummary fetchLike={fetchLike} />
+            <h2 className="ds-heading">Why the datasets differ</h2>
+            <WhyCard rows={rows} filters={filters} setFilters={setFilters} />
+            <h2 className="ds-heading">Circuit size</h2>
+            <SizeCard rows={rows} filters={filters} set={set} />
+            {owner ? (
+              <>
+                <h2 className="ds-heading">Reviews</h2>
+                <ReviewSummary fetchLike={fetchLike} />
+              </>
+            ) : null}
             <h2 className="ds-heading">Circuits</h2>
             <Toolbar
               filters={filters}
@@ -356,6 +366,16 @@ function Hero({ rows }: { rows: DatasetComparison[] }) {
   );
 }
 
+/** What a dataset's own page is, by its address. */
+function homeLabel(url: string): string {
+  const host = new URL(url).hostname;
+  return host === "github.com"
+    ? "GitHub"
+    : host.endsWith("huggingface.co")
+      ? "Hugging Face"
+      : "Website";
+}
+
 /** One line of the board: a set of circuits' verdicts and what they make. */
 function boardLine(rows: DatasetComparison[]) {
   const of = (key: ComparisonVerdict) =>
@@ -389,32 +409,85 @@ function DatasetBoard({
     key: source.key as string | null,
     name: source.name,
     note: source.license,
+    source: source as (typeof COMPARISON_SOURCES)[number] | null,
     ...boardLine(base.filter((row) => row.source === source.key)),
-  })).sort((a, b) => b.accuracy - a.accuracy);
+  })).sort((a, b) => b.total - a.total);
   const all = {
     key: null as string | null,
     name: "All datasets",
     note: `${COMPARISON_SOURCES.length} datasets`,
+    source: null as (typeof COMPARISON_SOURCES)[number] | null,
     ...boardLine(base),
   };
   const chosen = rowsWithout(rows, filters, "verdict", "category");
   const ofChosen = (key: ComparisonVerdict) =>
     chosen.filter((row) => row.verdict === key).length;
   const named = gallerySourceByKey(filters.source);
-  const line = (item: typeof all, rank: number | null) => (
-    <button
+  const choose = (key: string | null) =>
+    set({ source: filters.source === key ? null : key });
+  // A link in a line opens its page and leaves the selection alone.
+  const away = (event: { stopPropagation: () => void }) =>
+    event.stopPropagation();
+  const line = (item: typeof all, total: boolean) => (
+    <div
       key={item.key ?? "all"}
-      type="button"
-      className={`ds-board-row${rank === null ? " total" : ""}${filters.source === item.key ? " on" : ""}`}
+      role="button"
+      tabIndex={0}
+      className={`ds-board-row${total ? " total" : ""}${filters.source === item.key ? " on" : ""}`}
       aria-pressed={filters.source === item.key}
-      onClick={() =>
-        set({ source: filters.source === item.key ? null : item.key })
-      }
+      onClick={() => choose(item.key)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        choose(item.key);
+      }}
     >
-      <span className="rank">{rank ?? ""}</span>
       <span className="name">
-        <b>{item.name}</b>
-        <small>{item.note}</small>
+        {item.source ? (
+          <a
+            href={item.source.homepage}
+            target="_blank"
+            rel="noreferrer"
+            title={`${item.name}: ${item.source.homepage}`}
+            onClick={away}
+          >
+            <b>{item.name}</b>
+          </a>
+        ) : (
+          <b>{item.name}</b>
+        )}
+        <small>
+          {item.source ? (
+            <>
+              <a
+                href={item.source.homepage}
+                target="_blank"
+                rel="noreferrer"
+                onClick={away}
+              >
+                {homeLabel(item.source.homepage)} ↗
+              </a>
+              {item.source.paper ? (
+                <>
+                  {" · "}
+                  <a
+                    href={item.source.paper}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={away}
+                  >
+                    Paper ↗
+                  </a>
+                </>
+              ) : null}
+              {" · "}
+              {item.note}
+            </>
+          ) : (
+            item.note
+          )}
+        </small>
       </span>
       <span className="ds-bar">
         {VERDICTS.map((verdict) =>
@@ -428,26 +501,28 @@ function DatasetBoard({
           ) : null,
         )}
       </span>
-      <span className="acc">{item.accuracy}%</span>
-      <span className="num">{item.strict}%</span>
+      <span className="circuits">{num(item.total)}</span>
       <span className="num">{num(item.of("error"))}</span>
-      <span className="num">{num(item.total)}</span>
-    </button>
+      <span
+        className="num"
+        data-tip={`${item.accuracy}% counting Match and Notation · ${item.strict}% exact Match`}
+      >
+        {item.accuracy}%
+      </span>
+    </div>
   );
   return (
     <section className="ds-board-card">
       <div className={`ds-board${filters.source ? " sel" : ""}`}>
         <div className="ds-board-row head" aria-hidden="true">
-          <span>#</span>
           <span>Dataset</span>
           <span>Verdicts</span>
-          <span>Accuracy</span>
-          <span>Strict</span>
-          <span>Errors</span>
           <span>Circuits</span>
+          <span>Errors</span>
+          <span>Accuracy</span>
         </div>
-        {lines.map((item, index) => line(item, index + 1))}
-        {line(all, null)}
+        {lines.map((item) => line(item, false))}
+        {line(all, true)}
       </div>
       <div className="datasets-legend">
         {VERDICTS.map((verdict) => (
@@ -473,8 +548,8 @@ function DatasetBoard({
         ))}
       </div>
       <p className="ds-note">
-        Accuracy counts Match and Notation; strict counts Match alone. Click a
-        dataset or a verdict to narrow the charts and circuits below.{" "}
+        Accuracy counts Match and Notation (written differently, same circuit).
+        Click a dataset or a verdict to narrow the charts and circuits below.{" "}
         {named ? (
           <>
             {named.name}:{" "}
@@ -512,67 +587,57 @@ function WhyCard({
   filters: ComparisonFilters;
   setFilters: (filters: ComparisonFilters) => void;
 }) {
-  const [chosen, setChosen] = useState<"error" | "notation">("error");
-  const mode =
-    filters.verdict === "error" || filters.verdict === "notation"
-      ? filters.verdict
-      : chosen;
-  const base = rowsWithout(rows, filters, "category").filter(
-    (row) => row.verdict === mode,
-  );
-  const items = countBy(base, (row) => row.category);
-  const max = items[0]?.[1] ?? 1;
-  const switchTo = (next: "error" | "notation") => {
-    setChosen(next);
-    if (filters.verdict === "error" || filters.verdict === "notation")
-      setFilters({ ...filters, verdict: next, category: null });
+  // Each kind of difference counts every circuit the other filters leave.
+  const base = rowsWithout(rows, filters, "verdict", "category");
+  const column = (mode: "error" | "notation", title: string, what: string) => {
+    const mine = base.filter((row) => row.verdict === mode);
+    const items = countBy(mine, (row) => row.category);
+    const max = items[0]?.[1] ?? 1;
+    const chosen = filters.verdict === mode ? filters.category : null;
+    return (
+      <div className="datasets-why-col">
+        <h4>
+          <VerdictIcon verdict={mode} /> {title}
+          <span className="what">{what}</span>
+          <span className="n">{num(mine.length)}</span>
+        </h4>
+        {items.length === 0 ? (
+          <p className="datasets-empty">None in this selection</p>
+        ) : (
+          <div className={`datasets-bars${chosen ? " sel" : ""}`}>
+            {items.map(([category, count]) => (
+              <button
+                key={category}
+                type="button"
+                className={chosen === category ? "on" : ""}
+                aria-pressed={chosen === category}
+                data-tip={`${category} · ${num(count)} (${percent(count, mine.length)}%) · click to filter`}
+                onClick={() =>
+                  setFilters(toggleCategory(filters, category, mode))
+                }
+              >
+                <span className="lab">{category}</span>
+                <span className="track">
+                  <span
+                    className="fill"
+                    style={{ width: `${(100 * count) / max}%` }}
+                  />
+                </span>
+                <span className="n">{count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
   return (
-    <div className="datasets-card">
-      <h3>
-        Why they differ
-        <span className="datasets-seg">
-          {(["error", "notation"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              className={mode === key ? "on" : ""}
-              onClick={() => switchTo(key)}
-            >
-              {key === "error" ? "Errors" : "Notation"}
-            </button>
-          ))}
-        </span>
-      </h3>
-      {items.length === 0 ? (
-        <p className="datasets-empty">
-          No {mode === "error" ? "dataset errors" : "notation differences"} in
-          this selection
-        </p>
-      ) : (
-        <div className={`datasets-bars${filters.category ? " sel" : ""}`}>
-          {items.map(([category, count]) => (
-            <button
-              key={category}
-              type="button"
-              className={filters.category === category ? "on" : ""}
-              aria-pressed={filters.category === category}
-              data-tip={`${category} · ${num(count)} (${percent(count, base.length)}%) · click to filter`}
-              onClick={() =>
-                setFilters(toggleCategory(filters, category, mode))
-              }
-            >
-              <span className="lab">{category}</span>
-              <span className="track">
-                <span
-                  className="fill"
-                  style={{ width: `${(100 * count) / max}%` }}
-                />
-              </span>
-              <span className="n">{count}</span>
-            </button>
-          ))}
-        </div>
+    <div className="datasets-card datasets-why">
+      {column("error", "Dataset errors", "the dataset's netlist is wrong")}
+      {column(
+        "notation",
+        "Written differently",
+        "the same circuit, written another way",
       )}
     </div>
   );
@@ -596,7 +661,6 @@ function SizeCard({
   const familyBase = rowsWithout(rows, filters, "family");
   return (
     <div className="datasets-card">
-      <h3>Circuit size</h3>
       <div className={`datasets-hist${filters.size !== null ? " sel" : ""}`}>
         {counts.map((count, index) => (
           <button
@@ -927,42 +991,29 @@ function Netlists({
       cancelled = true;
     };
   }, [row.source, row.id, fetchLike]);
-  const loadOurs = async () => {
-    setOurs("Loading…");
-    try {
-      const response = await fetchLike(
-        `/api/gallery/${encodeURIComponent(row.id)}?netlist=spice`,
-        { credentials: "same-origin" },
-      );
-      if (response.status === 429) {
-        setOurs("(Today's opens are used up.)");
-        return;
-      }
-      const payload = (await response.json()) as {
-        netlist?: { text?: string } | null;
-      };
-      setOurs(payload.netlist?.text?.trim() || "(No netlist.)");
-    } catch {
-      setOurs("(Could not load.)");
-    }
-  };
+  // Ours: the netlist alone, which spends no daily open.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLike(
+      `/api/gallery/${encodeURIComponent(row.id)}?summary=1&netlist=spice`,
+      { credentials: "same-origin" },
+    )
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { netlist?: { text?: string } | null } | null) => {
+        if (!cancelled)
+          setOurs(payload?.netlist?.text?.trim() || "(No netlist.)");
+      })
+      .catch(() => !cancelled && setOurs("(Could not load.)"));
+    return () => {
+      cancelled = true;
+    };
+  }, [row.id, fetchLike]);
   return (
     <>
       <div className="pre-h">{gallerySourceByKey(row.source)?.name}</div>
       <pre>{theirs ?? "Loading…"}</pre>
       <div className="pre-h">Ours</div>
-      {ours === null ? (
-        <button
-          type="button"
-          className="datasets-load"
-          onClick={() => void loadOurs()}
-          title="Uses one of today's circuit opens"
-        >
-          Show our netlist
-        </button>
-      ) : (
-        <pre>{ours}</pre>
-      )}
+      <pre>{ours ?? "Loading…"}</pre>
     </>
   );
 }

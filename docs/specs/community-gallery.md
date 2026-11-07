@@ -176,7 +176,8 @@ entries, keyset cursor, limit ≤60.
 ### Entry and preview
 
 - `GET /api/gallery/<id>` returns canonical `projectText` (one daily open);
-  `?summary=1` is free. `?netlist=spice` adds
+  `?summary=1` is free (with `&netlist=spice`, a dataset entry's answer
+  carries its netlist alone, still free). `?netlist=spice` adds
   `netlist: {format: "spice", text, instances: [{instanceId, line}]}` (each
   top-level device's first line, from 0, as the editor's Project Code locates
   it), or `{format: "spice", blocked}` with the error messages when the
@@ -483,12 +484,14 @@ lastUsedAt}]}`, and revokes one with `DELETE /api/auth/owner-tokens/<id>`.
 `/datasets`, Review's Statistics mode, sets each dataset circuit's original
 figure beside our redraw, with the verdict of comparing both netlists; a
 dataset's wall also links to it. It opens on its numbers: the totals, then
-a board with one line a dataset (its verdicts as one bar; accuracy, strict
-accuracy, errors, circuits; best accuracy first, every dataset together at
-the foot) whose lines and verdict legend narrow the page, then the error and
-size breakdowns, the reviews, and the circuits. The page is English and
-reads like every other Gallery read (signed in; signed out it asks to sign
-in).
+a board with one line a dataset (its name links its own page and paper; its
+verdicts as one bar; circuits large, then errors and accuracy; most circuits
+first, every dataset together at the foot) whose lines and verdict legend
+narrow the page; then, a row each, why the datasets differ (their errors and
+their notation side by side) and circuit size; for the Owner alone, the
+reviews; then the circuits, each with both netlists in the netlists view. The
+page is English and reads like every other Gallery read (signed in; signed
+out it asks to sign in).
 
 - Only datasets whose figures we may show take comparisons: `comparisons:
 true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,
@@ -512,8 +515,8 @@ true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,
 previewRevision, figureRevision}]}`, every listed one; the page sorts,
   filters and counts them itself.
 - `GET …/comparisons/<id>` → `{id, sourceNetlist}`: the dataset's own
-  netlist. Our netlist is the entry's (`GET /api/gallery/<id>?netlist=spice`),
-  which spends a daily open as any open does.
+  netlist. Our netlist is the entry's netlist alone
+  (`GET /api/gallery/<id>?summary=1&netlist=spice`), which spends no open.
 - `GET …/comparisons/<id>/figure[?v=<figureRevision>]` → the original figure
   (`image/png`, `image/jpeg` or `image/webp`), immutable when `v` names it.
 - `POST …/comparisons` (Owner session or Owner token, as the entry import):
@@ -535,7 +538,9 @@ them, Esc clears them), and others' reviews, above the two pictures. Enter,
 in the comment too (Shift+Enter starts a new line), sends what is there:
 with a reason an issue, else a pass, the comment and boxes going with
 either; → does the same for a drawing not yet reviewed or changed since,
-so moving on passes it, and ← only steps back. Pass and Submit issue are
+so moving on passes it, and ← only steps back. Random (R) opens a drawing
+of the list not yet reviewed; Jump to takes a drawing's link or id and opens
+it, in its own store if it is not in the list. Pass and Submit issue are
 outlined in their colour, half-filled under the pointer and solid when
 pressed or chosen (Submit issue once a reason is). Below the pictures, what comparing a dataset's two netlists found (a
 callout in the verdict's tint: verdict and kind as tags, then the
@@ -567,9 +572,9 @@ comparisons, then With a reference figure (on by default). The address
 keeps them (`?scope=<random|community|key>`, `&refs=0` when the reference
 filter is off; `&id=` opens one drawing). Both
 sidebars fold to a strip at the left from a button at their top; each
-browser remembers it. Statistics lists each person's reviews and fixes over
-every store and, for the Owner, the open issues and disputes (each a link
-into Review), exported as JSON.
+browser remembers it. Statistics shows the Owner each person's reviews and
+fixes over every store, and the open issues and disputes (each a link into
+Review), exported as JSON.
 
 - Any signed-in account reviews any public entry except its own, a dataset's
   too. A review is
