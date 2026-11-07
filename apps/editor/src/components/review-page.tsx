@@ -99,7 +99,7 @@ export function ReviewPage({
     window.history.replaceState(
       null,
       "",
-      `/review?scope=${scope}${referencesOnly ? "&refs=1" : ""}`,
+      `/review?scope=${scope}${referencesOnly ? "" : "&refs=0"}`,
     );
   }, [scope, referencesOnly]);
 
