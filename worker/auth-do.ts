@@ -150,6 +150,19 @@ export const AUTH_OWNER_COOKIE = "icm_owner_session";
 /** How an Owner token (#1769) begins, so a leaked one is recognisable. */
 export const OWNER_TOKEN_PREFIX = "acot_";
 const OWNER_TOKEN_LABEL_MAX = 80;
+/** How a read key begins (docs/specs/community-gallery.md#reader-access). */
+export const READ_KEY_PREFIX = "acrk_";
+const READ_KEY_DAYS_DEFAULT = 90;
+const READ_KEY_DAYS_MAX = 365;
+/** `gallery`: what a signed-in reader reads; `full` adds reviews and history. */
+export type ReadKeyScope = "gallery" | "full";
+/** A live read key as the Gallery sees it; never its secret. */
+export interface GalleryReadKey {
+  id: string;
+  label: string;
+  scope: ReadKeyScope;
+  expiresAt: string;
+}
 
 const TOKENZHANG_DISPLAY_NAME_MIGRATION =
   "2026-08-26-tokenzhang-to-zhishuai-zhang";
@@ -277,11 +290,11 @@ function randomToken(): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** An Owner token: the prefix and 32 random bytes, base64url. */
-function randomOwnerToken(): string {
+/** An Owner token or read key: its prefix and 32 random bytes, base64url. */
+function randomPrefixedToken(prefix: string): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   const base64 = btoa(String.fromCharCode(...bytes));
-  return `${OWNER_TOKEN_PREFIX}${base64.replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/u, "")}`;
+  return `${prefix}${base64.replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/u, "")}`;
 }
 
 /** Six random digits, every code equally likely (rejection sampling). */
@@ -610,6 +623,21 @@ export class AuthDO {
         last_used_at TEXT
       ) WITHOUT ROWID
     `);
+    // Read keys: the Owner's revocable bearers for reading the Gallery
+    // without a session, until its reads are public.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS read_keys (
+        token_hash TEXT PRIMARY KEY,
+        id TEXT NOT NULL UNIQUE,
+        created_by TEXT NOT NULL,
+        label TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        last_used_at TEXT,
+        uses INTEGER NOT NULL DEFAULT 0
+      ) WITHOUT ROWID
+    `);
     ensureAccountBlockTables(this.sql);
     this.ensureAiSeats(state);
   }
@@ -676,6 +704,9 @@ export class AuthDO {
     }
     if (url.pathname === "/internal/owner-token-user") {
       return noStoreJson({ user: await this.ownerTokenUser(request) });
+    }
+    if (url.pathname === "/internal/read-key") {
+      return noStoreJson({ key: await this.readKeyOf(request) });
     }
     if (url.pathname === "/internal/block-account" && request.method === "POST")
       return this.blockAccount(request);
@@ -752,6 +783,9 @@ export class AuthDO {
     }
     if (route === "owner-tokens" || route.startsWith("owner-tokens/")) {
       return this.ownerTokens(request, route.slice("owner-tokens".length));
+    }
+    if (route === "read-keys" || route.startsWith("read-keys/")) {
+      return this.readKeys(request, route.slice("read-keys".length));
     }
     if (route === "ai-accounts" && method === "GET") {
       return this.listAiAccounts(request);
@@ -1719,6 +1753,7 @@ export class AuthDO {
       return noStoreJson({ error: "arena-unlink-failed" }, 503);
     this.sql.exec("DELETE FROM sessions WHERE user_id = ?", user.id);
     this.sql.exec("DELETE FROM owner_tokens WHERE user_id = ?", user.id);
+    this.sql.exec("DELETE FROM read_keys WHERE created_by = ?", user.id);
     if (user.email) {
       this.sql.exec("DELETE FROM login_codes WHERE email = ?", user.email);
       this.sql.exec(
@@ -1800,7 +1835,7 @@ export class AuthDO {
       const label = typeof body?.label === "string" ? body.label.trim() : "";
       if (!label || label.length > OWNER_TOKEN_LABEL_MAX)
         return noStoreJson({ error: "invalid-fields" }, 400);
-      const token = randomOwnerToken();
+      const token = randomPrefixedToken(OWNER_TOKEN_PREFIX);
       const id = crypto.randomUUID();
       const createdAt = this.now().toISOString();
       this.sql.exec(
@@ -1847,6 +1882,125 @@ export class AuthDO {
       tokenHash,
     );
     return this.publicUser(row);
+  }
+
+  // --- Read keys -----------------------------------------------------------
+
+  /**
+   * Mint (POST {label, scope?, days?}), list (GET) and revoke (DELETE /<id>)
+   * read keys: a signed-in Owner's same-origin session alone. The raw key is
+   * returned once, at minting; only its hash is kept.
+   */
+  private async readKeys(request: Request, rest: string): Promise<Response> {
+    if (!sameOrigin(request)) return noStoreJson({ error: "forbidden" }, 403);
+    const caller = await this.sessionUser(request);
+    if (!caller) return noStoreJson({ error: "unauthorized" }, 401);
+    if (!caller.isOwner || caller.seat)
+      return noStoreJson({ error: "owner-only" }, 403);
+    const method = request.method;
+    if (rest === "" && method === "GET") {
+      const keys = this.sql
+        .exec<{
+          id: string;
+          label: string;
+          scope: ReadKeyScope;
+          createdAt: string;
+          expiresAt: string;
+          lastUsedAt: string | null;
+          uses: number;
+        }>(
+          `SELECT id, label, scope, created_at AS createdAt,
+             expires_at AS expiresAt, last_used_at AS lastUsedAt, uses
+           FROM read_keys ORDER BY created_at, id`,
+        )
+        .toArray();
+      return noStoreJson({ keys });
+    }
+    if (rest === "" && method === "POST") {
+      const body = (await request.json().catch(() => null)) as {
+        label?: unknown;
+        scope?: unknown;
+        days?: unknown;
+      } | null;
+      const label = typeof body?.label === "string" ? body.label.trim() : "";
+      const scope = body?.scope ?? "gallery";
+      const days = body?.days ?? READ_KEY_DAYS_DEFAULT;
+      if (
+        !label ||
+        label.length > OWNER_TOKEN_LABEL_MAX ||
+        (scope !== "gallery" && scope !== "full") ||
+        !Number.isInteger(days) ||
+        (days as number) < 1 ||
+        (days as number) > READ_KEY_DAYS_MAX
+      )
+        return noStoreJson({ error: "invalid-fields" }, 400);
+      const token = randomPrefixedToken(READ_KEY_PREFIX);
+      const id = crypto.randomUUID();
+      const now = this.now();
+      const createdAt = now.toISOString();
+      const expiresAt = new Date(
+        now.getTime() + (days as number) * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      this.sql.exec(
+        `INSERT INTO read_keys(token_hash, id, created_by, label, scope,
+           created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        await sha256(token),
+        id,
+        caller.id,
+        label,
+        scope,
+        createdAt,
+        expiresAt,
+      );
+      return noStoreJson(
+        { id, label, scope, token, createdAt, expiresAt },
+        201,
+      );
+    }
+    const id = /^\/([^/]+)$/u.exec(rest)?.[1];
+    if (id && method === "DELETE") {
+      const found = this.sql
+        .exec<{ id: string }>("SELECT id FROM read_keys WHERE id = ?", id)
+        .toArray();
+      if (found.length === 0) return noStoreJson({ error: "not-found" }, 404);
+      this.sql.exec("DELETE FROM read_keys WHERE id = ?", id);
+      return noStoreJson({ revoked: id });
+    }
+    return Response.json({ error: "not-found" }, { status: 404 });
+  }
+
+  /**
+   * The live read key in the bearer, or null for none, an unknown, revoked or
+   * expired one. Adds `x-read-key-uses` (the Gallery's reads since it last
+   * asked, this one included) to the key's count and marks it used.
+   */
+  private async readKeyOf(request: Request): Promise<GalleryReadKey | null> {
+    const token = /^Bearer (\S+)$/u.exec(
+      request.headers.get("Authorization") ?? "",
+    )?.[1];
+    if (!token?.startsWith(READ_KEY_PREFIX)) return null;
+    const tokenHash = await sha256(token);
+    const row = this.sql
+      .exec<GalleryReadKey>(
+        `SELECT id, label, scope, expires_at AS expiresAt FROM read_keys
+         WHERE token_hash = ?`,
+        tokenHash,
+      )
+      .toArray()[0];
+    const now = this.now();
+    if (!row || Date.parse(row.expiresAt) <= now.getTime()) return null;
+    const counted = Number(request.headers.get("x-read-key-uses") ?? "1");
+    const uses =
+      Number.isInteger(counted) && counted >= 0 && counted <= 1_000_000
+        ? counted
+        : 1;
+    this.sql.exec(
+      "UPDATE read_keys SET last_used_at = ?, uses = uses + ? WHERE token_hash = ?",
+      now.toISOString(),
+      uses,
+      tokenHash,
+    );
+    return { ...row };
   }
 
   // --- AI accounts --------------------------------------------------------

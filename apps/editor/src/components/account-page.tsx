@@ -20,6 +20,7 @@ import { GalleryChrome } from "./gallery-chrome";
 import { ModerationContent } from "./moderation";
 import { OwnerDataContent } from "./owner-data";
 import { OwnerTokensSection } from "./owner-tokens";
+import { ReadKeysSection } from "./read-keys";
 import { MySubmissionsContent } from "./my-submissions";
 import { usePageTitle } from "../app/use-page-title";
 
@@ -333,9 +334,14 @@ function AccountSettings({
         <p className="account-page-note">Shown on the circuits you publish.</p>
       </section>
 
-      {/* Upload tokens are the Owner's own accounts' alone, never an AI
-          account a browser was switched to. */}
-      {user.isOwner && !user.seat ? <OwnerTokensSection /> : null}
+      {/* Upload tokens and read keys are the Owner's own accounts' alone,
+          never an AI account a browser was switched to. */}
+      {user.isOwner && !user.seat ? (
+        <>
+          <OwnerTokensSection />
+          <ReadKeysSection />
+        </>
+      ) : null}
 
       <section
         className="account-page-section"

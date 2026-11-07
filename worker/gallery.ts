@@ -15,6 +15,7 @@ import { type CircuitProject } from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
 import { routeComparisons } from "./gallery-comparisons";
+import { galleryReadKeyOf } from "./gallery-read-keys";
 import { routeReviews } from "./gallery-reviews";
 import { routeReference } from "./gallery-references";
 import { spiceNetlistOf } from "./gallery-netlist";
@@ -523,16 +524,17 @@ export async function routeGalleryRequest(
   // Reuse only this request's membership and publication check on an edge hit.
   let signedOutPreviewAccess:
     { status?: string; previewRevision?: string } | undefined;
-  // The Community Gallery is for signed-in readers. Without a session or the
-  // read-only Gallery credential every read asks to sign in: the list and its
-  // search, an entry, its Project and its preview alike. The one exception is
-  // the wall's first twelve circuits, which a signed-out visitor sees dimmed
-  // and closed: the unfiltered first page, cut to them, and their previews.
-  // Writes keep their own, stricter checks.
+  // The Community Gallery is for signed-in readers. Without a session, a read
+  // key or the read-only Gallery credential every read asks to sign in: the
+  // list and its search, an entry, its Project and its preview alike. The one
+  // exception is the wall's first twelve circuits, which a signed-out visitor
+  // sees dimmed and closed: the unfiltered first page, cut to them, and their
+  // previews. Writes keep their own, stricter checks.
   if (
     (request.method === "GET" || request.method === "HEAD") &&
     !hasGalleryReadToken(request, env) &&
     !(isAutomatedBackup(segments) && hasStoreBackupToken(request, env)) &&
+    !(await galleryReadKeyOf(request, env)) &&
     !(await readReader())
   ) {
     // The wall's order and shuffle (#1615) change nothing here: a
@@ -997,11 +999,12 @@ export async function routeGalleryRequest(
       viewer.id !== payload.ownerUserId &&
       !curator &&
       viewer.provider !== AI_ACCOUNT_PROVIDER &&
-      !hasGalleryReadToken(request, env)
+      !hasGalleryReadToken(request, env) &&
+      !(await galleryReadKeyOf(request, env))
     ) {
       // Opening someone else's circuit spends the account's daily allowance;
-      // its author, curators, the Owner's AI accounts and the read
-      // credential are not counted.
+      // its author, curators, the Owner's AI accounts, read keys and the
+      // read credential are not counted.
       const day = new Date().toISOString().slice(0, 10);
       const { payload: open } = await callGallery<{ allowed?: boolean }>(
         env,

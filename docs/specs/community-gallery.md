@@ -16,8 +16,8 @@ restrictive CSP.
 ## Reader access
 
 - Every Gallery read (list, search, tags, authors, entry, Project, preview,
-  history) needs a session or the read-only credential (`GALLERY_BACKUP_TOKEN`
-  Bearer); otherwise `401 {"error":"sign-in-required"}`, `no-store`. The one
+  history) needs a session, a read key (below) or the read-only
+  credential (`GALLERY_BACKUP_TOKEN` Bearer); otherwise `401 {"error":"sign-in-required"}`, `no-store`. The one
   exception (owner decision): `GET /api/gallery` with no query answers the first
   twelve public entries as `{entries, nextCursor: null, signedOut: true}` with no
   count, and those twelve serve previews. Only the landing wall uses it; other
@@ -35,8 +35,30 @@ restrictive CSP.
   (`GALLERY_DAILY_OPEN_LIMIT`, UTC day, each circuit once). Past it:
   `429 {"error":"daily-open-limit","limit":100,"resetAt":…}` with `Retry-After`;
   Agents get `GALLERY_DAILY_LIMIT`. Uncounted: wall, search, tags, previews,
-  `?summary=1`, own circuits, curators, AI seats, the read-only credential. The
+  `?summary=1`, own circuits, curators, AI seats, read keys, the read-only
+  credential. The
   scheduled pass drops finished days.
+- Read keys: the Owner's revocable bearers for reading without a session,
+  temporary until Gallery reads open to everyone (writes will keep requiring
+  a session).
+  - The Owner's same-origin session (not an AI seat; else 401/403) mints one
+    with `POST /api/auth/read-keys {label, scope?, days?}` (`scope` `gallery`
+    by default or `full`; `days` 1–365, 90 by default) → `{id, label, scope,
+token, createdAt, expiresAt}` (`acrk_…`, shown once; AuthDO keeps its
+    SHA-256). `GET /api/auth/read-keys` → `{keys: [{id, label, scope,
+createdAt, expiresAt, lastUsedAt, uses}]}`; `DELETE …/<id>` revokes. The
+    Owner's Settings lists them under Read keys. Deleting the Owner account
+    removes its keys.
+  - `Authorization: Bearer <key>` reads as a signed-in reader does: every
+    route under this section, statistics, reference images and
+    `maintenance/netlists`, with no daily opens and no trap circuits. `full`
+    adds the review routes (every verdict, as the Owner sees them) and the
+    version history of public entries; a `gallery` key gets 403
+    `{"error":"read-key-scope"}` there. A key writes nothing, opens no
+    `/api/auth` route, backup page or private Cloud Project, and stays under
+    the flood limit.
+  - An isolate trusts a key's answer one minute, so a revocation or expiry
+    holds within it; `uses` counts the reads each isolate reports then.
 - Every allowed read, repeats included, adds one to the circuit's opens for
   the day (`gallery_entry_opens`: entry, day, count; never who; not backed
   up), which only `owner-data` reports.
