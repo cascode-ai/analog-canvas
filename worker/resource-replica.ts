@@ -155,31 +155,37 @@ export class ResourceReplica {
   seed() {
     return this.state.storage.transactionSync(() => {
       // Figures may precede a drawing; review/fix history may outlive it.
-      const identities = this.tables
-        .map((t) => `SELECT ${t.key} AS id FROM ${t.name}`)
-        .join(" UNION ");
-      const rows = this.sql
-        .exec<{ id: string }>(
-          `SELECT id FROM (${identities}) WHERE id NOT IN
-        (SELECT id FROM resource_replica_keys) ORDER BY id LIMIT 50`,
-        )
-        .toArray();
-      for (const { id } of rows) {
-        this.sql.exec(
-          "INSERT INTO resource_replica_keys VALUES (?,?)",
-          id,
-          this.region,
-        );
-        this.sql.exec(
-          "UPDATE resource_replica_meta SET sequence=sequence+1 WHERE id=1",
-        );
-        this.sql.exec(
-          "INSERT INTO resource_replica_changes VALUES (?,?)",
-          id,
-          this.meta().sequence,
-        );
+      // Keep queries below the Workers compound-SELECT limit. Insert keys
+      // between tables so shared identities consume only one batch slot.
+      let seeded = 0;
+      for (const table of this.tables) {
+        const rows = this.sql
+          .exec<{ id: string }>(
+            `SELECT DISTINCT ${table.key} AS id FROM ${table.name}
+             WHERE ${table.key} NOT IN (SELECT id FROM resource_replica_keys)
+             ORDER BY ${table.key} LIMIT ?`,
+            50 - seeded,
+          )
+          .toArray();
+        for (const { id } of rows) {
+          this.sql.exec(
+            "INSERT INTO resource_replica_keys VALUES (?,?)",
+            id,
+            this.region,
+          );
+          this.sql.exec(
+            "UPDATE resource_replica_meta SET sequence=sequence+1 WHERE id=1",
+          );
+          this.sql.exec(
+            "INSERT INTO resource_replica_changes VALUES (?,?)",
+            id,
+            this.meta().sequence,
+          );
+        }
+        seeded += rows.length;
+        if (seeded === 50) break;
       }
-      return Response.json({ seeded: rows.length, more: rows.length === 50 });
+      return Response.json({ seeded, more: seeded === 50 });
     });
   }
   async changes(stream: string, after: number) {
