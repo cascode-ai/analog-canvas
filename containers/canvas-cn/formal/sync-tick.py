@@ -72,8 +72,10 @@ def run(args):
     state = pathlib.Path(args.state)
     previous = json.loads(state.read_text()) if state.exists() else {}
     caught_up = previous.get('lastCaughtUpAt', now)
-    if type(caught_up) not in [int, float] or not math.isfinite(caught_up) or caught_up > now:
+    if type(caught_up) not in [int, float] or not math.isfinite(caught_up) or not 0 <= caught_up <= now:
         raise ValueError('invalid checkpoint')
+    if caught_up == 0:
+        caught_up = now
     if pump['status'] == 'caught-up':
         caught_up = now
     lag = now - caught_up
@@ -111,8 +113,16 @@ def main():
         result = run(args)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, urllib.error.URLError):
         # Exception bodies may contain an upstream payload or credential path.
+        now = time.time()
+        caught_up = now
+        try:
+            previous = json.loads(pathlib.Path(args.state).read_text()).get('lastCaughtUpAt')
+            if type(previous) in [int, float] and math.isfinite(previous) and 0 < previous <= now:
+                caught_up = previous
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
         result = {'health': 'failed', 'reason': 'transport-or-invalid-status',
-                  'lastAttemptAt': time.time(), 'lastCaughtUpAt': 0}
+                  'lastAttemptAt': now, 'lastCaughtUpAt': caught_up}
         try:
             save_status(pathlib.Path(args.state), result)
         except OSError:

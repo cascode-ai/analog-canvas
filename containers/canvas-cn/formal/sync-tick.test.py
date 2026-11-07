@@ -112,6 +112,20 @@ class SyncTickTest(unittest.TestCase):
         self.assertEqual(len(self.requests), 1)
         self.assertEqual(json.loads((self.root / 'monitor.json').read_text())['health'], 'failed')
 
+    def test_transport_failure_preserves_last_catch_up_time(self):
+        previous = (datetime.now(timezone.utc) - timedelta(seconds=30)).timestamp()
+        (self.root / 'monitor.json').write_text(json.dumps({'lastCaughtUpAt': previous}))
+        self.redirect = True
+        self.assertNotEqual(self.run_tick().returncode, 0)
+        self.assertEqual(json.loads((self.root / 'monitor.json').read_text())['lastCaughtUpAt'], previous)
+
+    def test_legacy_zero_checkpoint_does_not_report_epoch_lag(self):
+        (self.root / 'monitor.json').write_text(json.dumps({'lastCaughtUpAt': 0}))
+        self.pump = {'status': 'sent'}
+        result = self.run_tick()
+        self.assertEqual(result.returncode, 0)
+        self.assertLess(json.loads(result.stdout)['lagSeconds'], 5)
+
     def test_prolonged_inbound_progress_raises_lag(self):
         self.pump = {'status': 'sent'}
         old = (datetime.now(timezone.utc) - timedelta(minutes=5)).timestamp()
