@@ -2,8 +2,8 @@
 
 The private `cascode-ai/analog-canvas-backups` repository owns the backup
 collector, its tests, schedule (weekly, plus manual dispatch) and recovery
-instructions. Snapshots are date-stamped private Release attachments, never
-overwritten; automatic retention deletion is off. `cascode-ai` members can read
+instructions. Snapshots are date-stamped private Release attachments, never overwritten;
+each run keeps only the two newest Releases of its kind and deletes older ones. `cascode-ai` members can read
 them (they contain submitter emails and sign-in methods; store snapshots also
 every private Cloud Project); only the Owner changes the repository or starts
 its workflows.
