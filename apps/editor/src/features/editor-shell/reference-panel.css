@@ -1,0 +1,96 @@
+/* The opened drawing's reference figure, floating over the editor. */
+.reference-panel {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  height: 320px;
+  min-width: 220px;
+  min-height: 160px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow: hidden;
+  resize: both;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-lg);
+  background: var(--icm-surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+}
+
+.reference-panel.folded {
+  height: auto;
+  min-height: 0;
+  resize: horizontal;
+}
+
+.reference-panel-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  border-bottom: 1px solid var(--icm-border);
+  font-size: 12px;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+.reference-panel-head .title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-panel-head .hint {
+  flex: 1;
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-panel-head button {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--icm-radius-sm);
+  background: none;
+  color: var(--icm-text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reference-panel-head button:hover {
+  border-color: var(--icm-border);
+  color: var(--icm-text);
+}
+
+.reference-panel .review-pic {
+  flex: 1;
+  aspect-ratio: auto;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.reference-panel-reopen {
+  position: fixed;
+  right: 24px;
+  bottom: 56px;
+  z-index: 40;
+  padding: 6px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  background: var(--icm-surface);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 14%);
+  color: var(--icm-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}

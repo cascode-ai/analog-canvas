@@ -174,6 +174,12 @@ entries, keyset cursor, limit ≤60.
 - Hosted Production/preview always uses Gallery, never bundled examples;
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
+- An entry opened from the Gallery that has a reference figure (a dataset's
+  original figure, or a community circuit's reference image) shows it in a
+  Reference panel floating beside the canvas, to redraw or fix against: moved
+  by its title bar, resized from its corner, zoomed by the wheel and panned
+  by a drag, folded to its title bar, or closed to a Reference button that
+  brings it back.
 
 ## On a phone
 

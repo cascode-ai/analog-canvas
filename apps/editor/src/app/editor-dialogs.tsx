@@ -2,7 +2,13 @@
 // search, insert, Cell properties, External Circuits, Cell import, netlist
 // preflight, Gallery publishing and version history, and the Agent
 // connection and file approval.
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import {
+  lazy,
+  Suspense,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import { flushSync } from "react-dom";
 import { claimNow } from "../agent/claim-clock";
 import { planProjectCellImport } from "@icm/edit-engine";
@@ -38,6 +44,13 @@ import type { createProjectStructureCommands } from "../features/hierarchy/proje
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { primeGalleryPreview } from "../gallery-client";
 import { gallerySourceOfEntryId } from "../gallery-sources";
+// Loaded only for a drawing opened from the Gallery: not in the editor's
+// first payload.
+const ReferencePanel = lazy(() =>
+  import("../features/editor-shell/reference-panel").then((module) => ({
+    default: module.ReferencePanel,
+  })),
+);
 import type { EditorServices } from "../services/editor-services";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import { EditorDialogLayer } from "./editor-dialog-layer";
@@ -314,417 +327,445 @@ export function EditorDialogs({
   recordGalleryPublication: ReturnType<typeof useGalleryPublicationRecord>;
 }) {
   return (
-    <EditorDialogLayer
-      chunkLoadFailure={
-        chunkLoadFailure === null
-          ? null
-          : {
-              feature: chunkLoadFailure,
-              onDismiss: () => setChunkLoadFailure(null),
-            }
-      }
-      recoveryFailure={
-        (recoveryState === "quota-exceeded" ||
-          recoveryState === "unavailable" ||
-          recoveryState === "failed") &&
-        isDirtyWork() &&
-        !recoveryFailureDismissed
-          ? {
-              state: recoveryState,
-              onDownload: () => void downloadCurrentProjectBackup(),
-              onDismiss: () => setRecoveryFailureDismissed(true),
-            }
-          : null
-      }
-      recoveryAvailable={
-        startupRecovery?.latest
-          ? {
-              projectName: startupRecovery.projectName,
-              updatedAt: startupRecovery.latest.updatedAt,
-              onRestore: () => {
-                startupCloudRestoreAttemptedRef.current = true;
-                dismissStartupRecovery();
-                restoreRecoverySession(startupRecovery.workingCopyId, "latest");
-              },
-              onDownload: () =>
-                downloadRecoveryBackup(startupRecovery.workingCopyId, "latest"),
-              onDismiss: dismissStartupRecovery,
-            }
-          : null
-      }
-      workspaceReopen={
-        workspaceReopen
-          ? {
-              names: workspaceReopen.summary.names,
-              savedAt: workspaceReopen.summary.savedAt,
-              onReopen: () => void reopenClosedWindowTabs(),
-              onDismiss: () => setWorkspaceReopen(null),
-            }
-          : null
-      }
-      recentRecovery={
-        recoveryDialogOpen && recoverySessions.length > 0
-          ? {
-              sessions: recoverySessions,
-              onRestore: restoreRecoverySession,
-              onDownloadBackup: downloadRecoveryBackup,
-              onDeleteSession: deleteRecoverySessionFromDialog,
-              onClose: () => setRecoveryDialogOpen(false),
-            }
-          : null
-      }
-      replaceGuard={
-        replaceGuard !== null
-          ? {
-              intent: replaceGuard.intent,
-              cloudProjectLimit: projectStore?.limit ?? 0,
-              exportOnly: projectStore === null,
-              nativeSave: nativeProjectStore !== undefined,
-              saving: replaceGuardSaving,
-              onCancel: cancelReplaceGuard,
-              onSaveAndContinue: saveAndContinueReplaceGuard,
-              onDiscard: confirmReplaceGuard,
-            }
-          : null
-      }
-      projectInfo={
-        projectInfoOpen
-          ? {
-              name: project.name,
-              documentName: document.name,
-              publication: galleryEntryContext,
-              onSave: editProjectInfo,
-              onClose: () => setProjectInfoOpen(false),
-            }
-          : null
-      }
-      search={
-        searchOpen
-          ? {
-              open: searchOpen,
-              query: searchQuery,
-              results: searchResults,
-              onQueryChange: setSearchQuery,
-              onSelect: selectSearchResult,
-              onClose: closeSearch,
-            }
-          : null
-      }
-      insertComponent={
-        insertDialogOpen
-          ? {
-              open: insertDialogOpen,
-              styleProfileId: document.presentation.styleProfileId,
-              recentSymbolIds,
-              cells: cellInsertCandidates,
-              externalDefinitions: insertDialogExternalCandidates,
-              projectComponents: insertDialogProjectComponents,
-              scope: insertScope,
-              initialSelectionId: insertInitialSelectionId,
-              onApply: (request) =>
-                editorCommands.execute({
-                  id: "insert.start",
-                  launch: { kind: "quick", request },
-                }),
-              onCancel: cancelComponentInsertFromHook,
-            }
-          : null
-      }
-      cellManager={
-        cellManagerOpen
-          ? {
-              open: cellManagerOpen,
-              initialExternalId: modelEditorDefinitionId,
-              initialModelLocation: modelEditorLocation,
-              project,
-              onClose: () => {
-                setCellManagerOpen(false);
-                setModelEditorDefinitionId(null);
-                setModelEditorLocation(undefined);
-              },
-              onJumpToCaller: jumpToCaller,
-              externalDefinitions: project.externalSubcircuitDefinitions,
-              onSetExternalDefinition: setExternalSubcircuitDefinition,
-              onCopyModelText: (text) => exportDelivery.copyText(text),
-              onApplyModelSource: (edit) => {
-                const result = dispatchProjectTransaction({
-                  transactionId: `model-${crypto.randomUUID()}`,
-                  projectId: project.id,
-                  expectedStructureRevision: project.structureRevision,
-                  actor: { kind: "human", id: "human-local" },
-                  edits: [edit],
-                });
-                return {
-                  ok: result.ok,
-                  definitionId: edit.definitions[0]!.definitionId,
-                  message: result.ok
-                    ? "Applied shared model definition"
-                    : (result.diagnostics[0]?.message ?? result.error.message),
-                };
-              },
-              onSaveModelDraft: (edits, definitionId) => {
-                const result = dispatchProjectTransaction({
-                  transactionId: `model-draft-${crypto.randomUUID()}`,
-                  projectId: project.id,
-                  expectedStructureRevision: project.structureRevision,
-                  actor: { kind: "human", id: "human-local" },
-                  edits,
-                });
-                return {
-                  ok: result.ok,
-                  definitionId,
-                  message: result.ok
-                    ? "Saved draft. Applied model bytes are unchanged."
-                    : (result.diagnostics[0]?.message ?? result.error.message),
-                };
-              },
-              onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
-              onPlaceExternal: (definitionId) =>
-                void placeExternalCircuit(definitionId),
-            }
-          : null
-      }
-      cellProperties={
-        cellPropertiesId
-          ? {
-              project,
-              cellId: cellPropertiesId,
-              onClose: () => setCellPropertiesId(null),
-              onRename: renameCell,
-              onRenamePin: (cellId, terminalId, name) =>
-                renameCellTerminal(terminalId, name, cellId),
-              onSetPinDirection: (cellId, portId, direction) =>
-                updateCellPortDirection(portId, direction, cellId),
-              onMovePin: (cellId, portId, delta) =>
-                moveCellPort(portId, delta, cellId),
-              onEditParameter: (cellId, name, change) =>
-                editCellParameter(name, change, cellId),
-              onSymbolSizeChange: setCellSymbolBodySize,
-              onPinSideChange: setCellSymbolPortPlacement,
-              onSetTop: (cellId) => void setTopCell(cellId),
-            }
-          : null
-      }
-      importCell={
-        importCellOpen
-          ? {
-              cloudProjects,
-              activeCloudProjectId: cloudBinding?.id ?? null,
-              ...(!import.meta.env?.ICM_DESKTOP
-                ? { onLoadCloudProject: loadCloudProjectForCellImport }
-                : {}),
-              onImportCloudCell: async (source, sourceDocumentId) => {
-                const plan = planProjectCellImport(
-                  project,
-                  source,
-                  sourceDocumentId,
-                );
-                if (!plan.ok) {
-                  return { ok: false, message: plan.message };
-                }
-                if (plan.status === "already-imported") {
+    <>
+      {/* The figure the opened Gallery drawing was drawn from, beside it. */}
+      {!import.meta.env?.ICM_DESKTOP && galleryEntryContext ? (
+        <Suspense fallback={null}>
+          <ReferencePanel
+            key={galleryEntryContext.id}
+            entryId={galleryEntryContext.id}
+          />
+        </Suspense>
+      ) : null}
+      <EditorDialogLayer
+        chunkLoadFailure={
+          chunkLoadFailure === null
+            ? null
+            : {
+                feature: chunkLoadFailure,
+                onDismiss: () => setChunkLoadFailure(null),
+              }
+        }
+        recoveryFailure={
+          (recoveryState === "quota-exceeded" ||
+            recoveryState === "unavailable" ||
+            recoveryState === "failed") &&
+          isDirtyWork() &&
+          !recoveryFailureDismissed
+            ? {
+                state: recoveryState,
+                onDownload: () => void downloadCurrentProjectBackup(),
+                onDismiss: () => setRecoveryFailureDismissed(true),
+              }
+            : null
+        }
+        recoveryAvailable={
+          startupRecovery?.latest
+            ? {
+                projectName: startupRecovery.projectName,
+                updatedAt: startupRecovery.latest.updatedAt,
+                onRestore: () => {
+                  startupCloudRestoreAttemptedRef.current = true;
+                  dismissStartupRecovery();
+                  restoreRecoverySession(
+                    startupRecovery.workingCopyId,
+                    "latest",
+                  );
+                },
+                onDownload: () =>
+                  downloadRecoveryBackup(
+                    startupRecovery.workingCopyId,
+                    "latest",
+                  ),
+                onDismiss: dismissStartupRecovery,
+              }
+            : null
+        }
+        workspaceReopen={
+          workspaceReopen
+            ? {
+                names: workspaceReopen.summary.names,
+                savedAt: workspaceReopen.summary.savedAt,
+                onReopen: () => void reopenClosedWindowTabs(),
+                onDismiss: () => setWorkspaceReopen(null),
+              }
+            : null
+        }
+        recentRecovery={
+          recoveryDialogOpen && recoverySessions.length > 0
+            ? {
+                sessions: recoverySessions,
+                onRestore: restoreRecoverySession,
+                onDownloadBackup: downloadRecoveryBackup,
+                onDeleteSession: deleteRecoverySessionFromDialog,
+                onClose: () => setRecoveryDialogOpen(false),
+              }
+            : null
+        }
+        replaceGuard={
+          replaceGuard !== null
+            ? {
+                intent: replaceGuard.intent,
+                cloudProjectLimit: projectStore?.limit ?? 0,
+                exportOnly: projectStore === null,
+                nativeSave: nativeProjectStore !== undefined,
+                saving: replaceGuardSaving,
+                onCancel: cancelReplaceGuard,
+                onSaveAndContinue: saveAndContinueReplaceGuard,
+                onDiscard: confirmReplaceGuard,
+              }
+            : null
+        }
+        projectInfo={
+          projectInfoOpen
+            ? {
+                name: project.name,
+                documentName: document.name,
+                publication: galleryEntryContext,
+                onSave: editProjectInfo,
+                onClose: () => setProjectInfoOpen(false),
+              }
+            : null
+        }
+        search={
+          searchOpen
+            ? {
+                open: searchOpen,
+                query: searchQuery,
+                results: searchResults,
+                onQueryChange: setSearchQuery,
+                onSelect: selectSearchResult,
+                onClose: closeSearch,
+              }
+            : null
+        }
+        insertComponent={
+          insertDialogOpen
+            ? {
+                open: insertDialogOpen,
+                styleProfileId: document.presentation.styleProfileId,
+                recentSymbolIds,
+                cells: cellInsertCandidates,
+                externalDefinitions: insertDialogExternalCandidates,
+                projectComponents: insertDialogProjectComponents,
+                scope: insertScope,
+                initialSelectionId: insertInitialSelectionId,
+                onApply: (request) =>
+                  editorCommands.execute({
+                    id: "insert.start",
+                    launch: { kind: "quick", request },
+                  }),
+                onCancel: cancelComponentInsertFromHook,
+              }
+            : null
+        }
+        cellManager={
+          cellManagerOpen
+            ? {
+                open: cellManagerOpen,
+                initialExternalId: modelEditorDefinitionId,
+                initialModelLocation: modelEditorLocation,
+                project,
+                onClose: () => {
+                  setCellManagerOpen(false);
+                  setModelEditorDefinitionId(null);
+                  setModelEditorLocation(undefined);
+                },
+                onJumpToCaller: jumpToCaller,
+                externalDefinitions: project.externalSubcircuitDefinitions,
+                onSetExternalDefinition: setExternalSubcircuitDefinition,
+                onCopyModelText: (text) => exportDelivery.copyText(text),
+                onApplyModelSource: (edit) => {
+                  const result = dispatchProjectTransaction({
+                    transactionId: `model-${crypto.randomUUID()}`,
+                    projectId: project.id,
+                    expectedStructureRevision: project.structureRevision,
+                    actor: { kind: "human", id: "human-local" },
+                    edits: [edit],
+                  });
+                  return {
+                    ok: result.ok,
+                    definitionId: edit.definitions[0]!.definitionId,
+                    message: result.ok
+                      ? "Applied shared model definition"
+                      : (result.diagnostics[0]?.message ??
+                        result.error.message),
+                  };
+                },
+                onSaveModelDraft: (edits, definitionId) => {
+                  const result = dispatchProjectTransaction({
+                    transactionId: `model-draft-${crypto.randomUUID()}`,
+                    projectId: project.id,
+                    expectedStructureRevision: project.structureRevision,
+                    actor: { kind: "human", id: "human-local" },
+                    edits,
+                  });
+                  return {
+                    ok: result.ok,
+                    definitionId,
+                    message: result.ok
+                      ? "Saved draft. Applied model bytes are unchanged."
+                      : (result.diagnostics[0]?.message ??
+                        result.error.message),
+                  };
+                },
+                onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
+                onPlaceExternal: (definitionId) =>
+                  void placeExternalCircuit(definitionId),
+              }
+            : null
+        }
+        cellProperties={
+          cellPropertiesId
+            ? {
+                project,
+                cellId: cellPropertiesId,
+                onClose: () => setCellPropertiesId(null),
+                onRename: renameCell,
+                onRenamePin: (cellId, terminalId, name) =>
+                  renameCellTerminal(terminalId, name, cellId),
+                onSetPinDirection: (cellId, portId, direction) =>
+                  updateCellPortDirection(portId, direction, cellId),
+                onMovePin: (cellId, portId, delta) =>
+                  moveCellPort(portId, delta, cellId),
+                onEditParameter: (cellId, name, change) =>
+                  editCellParameter(name, change, cellId),
+                onSymbolSizeChange: setCellSymbolBodySize,
+                onPinSideChange: setCellSymbolPortPlacement,
+                onSetTop: (cellId) => void setTopCell(cellId),
+              }
+            : null
+        }
+        importCell={
+          importCellOpen
+            ? {
+                cloudProjects,
+                activeCloudProjectId: cloudBinding?.id ?? null,
+                ...(!import.meta.env?.ICM_DESKTOP
+                  ? { onLoadCloudProject: loadCloudProjectForCellImport }
+                  : {}),
+                onImportCloudCell: async (source, sourceDocumentId) => {
+                  const plan = planProjectCellImport(
+                    project,
+                    source,
+                    sourceDocumentId,
+                  );
+                  if (!plan.ok) {
+                    return { ok: false, message: plan.message };
+                  }
+                  if (plan.status === "already-imported") {
+                    setStatus(
+                      "Cell is already imported; opened the existing copy",
+                    );
+                    return {
+                      ok: true,
+                      message: "Cell already imported",
+                      documentId: plan.rootDocumentId,
+                    };
+                  }
+                  const committed = commitStructure("import-cloud-cell", [
+                    ...plan.edits,
+                  ]);
+                  if (!committed) {
+                    return {
+                      ok: false,
+                      message:
+                        "Cell import was rejected; refresh and try again",
+                    };
+                  }
                   setStatus(
-                    "Cell is already imported; opened the existing copy",
+                    `Imported ${plan.importedDocumentIds.length} Cell${plan.importedDocumentIds.length === 1 ? "" : "s"} from ${source.name}`,
                   );
                   return {
                     ok: true,
-                    message: "Cell already imported",
+                    message: "Cell imported",
                     documentId: plan.rootDocumentId,
                   };
-                }
-                const committed = commitStructure("import-cloud-cell", [
-                  ...plan.edits,
-                ]);
-                if (!committed) {
-                  return {
-                    ok: false,
-                    message: "Cell import was rejected; refresh and try again",
-                  };
-                }
-                setStatus(
-                  `Imported ${plan.importedDocumentIds.length} Cell${plan.importedDocumentIds.length === 1 ? "" : "s"} from ${source.name}`,
-                );
-                return {
-                  ok: true,
-                  message: "Cell imported",
-                  documentId: plan.rootDocumentId,
-                };
-              },
-              onImported: (documentId) => {
-                setImportCellOpen(false);
-                if (documentId) openCreatedCell(documentId);
-              },
-              onClose: () => setImportCellOpen(false),
-            }
-          : null
-      }
-      netlistPreflight={
-        netlistPreflightOpen
-          ? {
-              open: netlistPreflightOpen,
-              project,
-              format: netlistPreferences.format,
-              rootDocumentId: netlistRootDocumentId,
-              // The dialog only renders while open, so this IS the
-              // explicit check the author asked for.
-              electricalDiagnostics: requestElectricalDiagnostics(),
-              onClose: () => setNetlistPreflightOpen(false),
-              onNavigate: navigateToNetlistDiagnostic,
-              onNavigateElectrical: jumpToProjectDiagnostic,
-              onExport: (namingProfile) =>
-                void exportDesignNetlist(
-                  netlistPreferences.format,
-                  namingProfile,
-                ),
-            }
-          : null
-      }
-      publishGallery={
-        !import.meta.env?.ICM_DESKTOP && publishGalleryOpen
-          ? {
-              draft: publishDraft,
-              onDraftChange: setPublishDraft,
-              defaultName: galleryEntryContext?.name ?? project.name,
-              session: publishSession,
-              gateReport: publishGates,
-              topologyProject: galleryTopologyProject,
-              openedFromCheckNotice,
-              publicationLinkLoading,
-              publicationLinkError,
-              publicationLinkNotice,
-              onRetryPublicationLink: () =>
-                setPublicationLinkRetry((value) => value + 1),
-              ...(cloudBinding
-                ? { onLinkExisting: linkExistingPublication }
-                : {}),
-              updateTarget: canUpdateGalleryPublication(
-                galleryEntryContext,
-                publishSession,
-                publishQuota?.datasetEdits,
-              )
-                ? {
-                    id: galleryEntryContext!.id,
-                    name: galleryEntryContext!.name,
-                  }
-                : null,
-              datasetFix:
-                galleryEntryContext &&
-                gallerySourceOfEntryId(galleryEntryContext.id)
+                },
+                onImported: (documentId) => {
+                  setImportCellOpen(false);
+                  if (documentId) openCreatedCell(documentId);
+                },
+                onClose: () => setImportCellOpen(false),
+              }
+            : null
+        }
+        netlistPreflight={
+          netlistPreflightOpen
+            ? {
+                open: netlistPreflightOpen,
+                project,
+                format: netlistPreferences.format,
+                rootDocumentId: netlistRootDocumentId,
+                // The dialog only renders while open, so this IS the
+                // explicit check the author asked for.
+                electricalDiagnostics: requestElectricalDiagnostics(),
+                onClose: () => setNetlistPreflightOpen(false),
+                onNavigate: navigateToNetlistDiagnostic,
+                onNavigateElectrical: jumpToProjectDiagnostic,
+                onExport: (namingProfile) =>
+                  void exportDesignNetlist(
+                    netlistPreferences.format,
+                    namingProfile,
+                  ),
+              }
+            : null
+        }
+        publishGallery={
+          !import.meta.env?.ICM_DESKTOP && publishGalleryOpen
+            ? {
+                draft: publishDraft,
+                onDraftChange: setPublishDraft,
+                defaultName: galleryEntryContext?.name ?? project.name,
+                session: publishSession,
+                gateReport: publishGates,
+                topologyProject: galleryTopologyProject,
+                openedFromCheckNotice,
+                publicationLinkLoading,
+                publicationLinkError,
+                publicationLinkNotice,
+                onRetryPublicationLink: () =>
+                  setPublicationLinkRetry((value) => value + 1),
+                ...(cloudBinding
+                  ? { onLinkExisting: linkExistingPublication }
+                  : {}),
+                updateTarget: canUpdateGalleryPublication(
+                  galleryEntryContext,
+                  publishSession,
+                  publishQuota?.datasetEdits,
+                )
                   ? {
-                      source: gallerySourceOfEntryId(galleryEntryContext.id)!
-                        .name,
-                      edits: publishQuota?.datasetEdits ?? null,
+                      id: galleryEntryContext!.id,
+                      name: galleryEntryContext!.name,
                     }
                   : null,
-              updateDefaults: galleryEntryContext
-                ? {
-                    description: galleryEntryContext.description,
-                    tags: galleryEntryContext.tags,
-                    aiGenerated: galleryEntryContext.aiGenerated === true,
+                datasetFix:
+                  galleryEntryContext &&
+                  gallerySourceOfEntryId(galleryEntryContext.id)
+                    ? {
+                        source: gallerySourceOfEntryId(galleryEntryContext.id)!
+                          .name,
+                        edits: publishQuota?.datasetEdits ?? null,
+                      }
+                    : null,
+                updateDefaults: galleryEntryContext
+                  ? {
+                      description: galleryEntryContext.description,
+                      tags: galleryEntryContext.tags,
+                      aiGenerated: galleryEntryContext.aiGenerated === true,
+                    }
+                  : null,
+                agentEdited: editorDocumentController.agentEdited,
+                quota: publishQuota,
+                publish: (fields) =>
+                  publishProjectToGallery(project, fields, fetch, cloudBinding),
+                ...(galleryEntryContext
+                  ? {
+                      publishUpdate: (fields) =>
+                        updateGalleryEntry(
+                          galleryEntryContext.id,
+                          project,
+                          fields,
+                          fetch,
+                          cloudBinding,
+                        ),
+                    }
+                  : {}),
+                onPublished: (outcome) => {
+                  if (
+                    recordGalleryPublication(
+                      outcome,
+                      projectSessionId,
+                      "person",
+                    )
+                  ) {
+                    setPublishGalleryOpen(false);
+                    setPublishDraft(null);
                   }
-                : null,
-              agentEdited: editorDocumentController.agentEdited,
-              quota: publishQuota,
-              publish: (fields) =>
-                publishProjectToGallery(project, fields, fetch, cloudBinding),
-              ...(galleryEntryContext
-                ? {
-                    publishUpdate: (fields) =>
-                      updateGalleryEntry(
-                        galleryEntryContext.id,
-                        project,
-                        fields,
-                        fetch,
-                        cloudBinding,
-                      ),
-                  }
-                : {}),
-              onPublished: (outcome) => {
-                if (
-                  recordGalleryPublication(outcome, projectSessionId, "person")
-                ) {
-                  setPublishGalleryOpen(false);
-                  setPublishDraft(null);
-                }
-              },
-              ...(galleryEntryContext
-                ? {
-                    onShowHistory: () => {
-                      setPublishGalleryOpen(false);
-                      setVersionHistoryOpen(true);
+                },
+                ...(galleryEntryContext
+                  ? {
+                      onShowHistory: () => {
+                        setPublishGalleryOpen(false);
+                        setVersionHistoryOpen(true);
+                      },
+                    }
+                  : {}),
+                onClose: () => setPublishGalleryOpen(false),
+              }
+            : null
+        }
+        versionHistory={
+          !import.meta.env?.ICM_DESKTOP &&
+          versionHistoryOpen &&
+          galleryEntryContext
+            ? {
+                entryId: galleryEntryContext.id,
+                entryName: galleryEntryContext.name,
+                onBranch: async (snapshot) => {
+                  // The tab guard reads the committed dialog state. Waiting a
+                  // frame can still race a concurrent React render here.
+                  flushSync(() => setVersionHistoryOpen(false));
+                  return openProjectInTabRef.current(
+                    snapshot,
+                    DEFAULT_VIEWBOX,
+                    {
+                      source: "opened-file",
+                      persistenceState: "dirty",
                     },
-                  }
-                : {}),
-              onClose: () => setPublishGalleryOpen(false),
-            }
-          : null
-      }
-      versionHistory={
-        !import.meta.env?.ICM_DESKTOP &&
-        versionHistoryOpen &&
-        galleryEntryContext
-          ? {
-              entryId: galleryEntryContext.id,
-              entryName: galleryEntryContext.name,
-              onBranch: async (snapshot) => {
-                // The tab guard reads the committed dialog state. Waiting a
-                // frame can still race a concurrent React render here.
-                flushSync(() => setVersionHistoryOpen(false));
-                return openProjectInTabRef.current(snapshot, DEFAULT_VIEWBOX, {
-                  source: "opened-file",
-                  persistenceState: "dirty",
-                });
-              },
-              onRestored: ({ previewRevision }) => {
-                void primeGalleryPreview(
-                  galleryEntryContext.id,
-                  previewRevision,
-                );
-                galleryLoadGenerationRef.current += 1;
-                setGalleryRefreshSignal((previous) => previous + 1);
-                setVersionHistoryOpen(false);
-                setStatus("Version restored — reloading the entry");
-                void openGalleryEntryById(galleryEntryContext.id);
-              },
-              onClose: () => setVersionHistoryOpen(false),
-            }
-          : null
-      }
-      agentConnection={
-        !import.meta.env?.ICM_DESKTOP &&
-        publicAgentUiEnabled &&
-        agentSession &&
-        agentPanelOpen
-          ? {
-              open: agentPanelOpen,
-              status: agentSession.status,
-              pendingOperation: agentSession.pendingOperation,
-              claimCode: agentSession.claimCode,
-              claimExpiresAt: agentSession.claimExpiresAt,
-              scopes: agentSession.scopes,
-              expiresAt: agentSession.expiresAt,
-              error: agentSession.error,
-              backgroundRequests: agentSession.backgroundRequests,
-              adapterVersion: agentSession.adapterVersion,
-              now: claimNow(),
-              onPause: () => void agentSession.pause(),
-              onResume: () => void agentSession.resume(),
-              onReconnect: agentSession.reconnect,
-              onNewConnection: () => void agentSession.newConnection(),
-              onRevoke: () => void agentSession.revoke(),
-              onClose: () => setAgentPanelOpen(false),
-            }
-          : null
-      }
-      agentFileApproval={
-        publicAgentUiEnabled && agentFileCandidate
-          ? {
-              candidate: agentFileCandidate,
-              onReject: rejectAgentFileCandidate,
-              onApprove: approveAgentFileCandidate,
-            }
-          : null
-      }
-    />
+                  );
+                },
+                onRestored: ({ previewRevision }) => {
+                  void primeGalleryPreview(
+                    galleryEntryContext.id,
+                    previewRevision,
+                  );
+                  galleryLoadGenerationRef.current += 1;
+                  setGalleryRefreshSignal((previous) => previous + 1);
+                  setVersionHistoryOpen(false);
+                  setStatus("Version restored — reloading the entry");
+                  void openGalleryEntryById(galleryEntryContext.id);
+                },
+                onClose: () => setVersionHistoryOpen(false),
+              }
+            : null
+        }
+        agentConnection={
+          !import.meta.env?.ICM_DESKTOP &&
+          publicAgentUiEnabled &&
+          agentSession &&
+          agentPanelOpen
+            ? {
+                open: agentPanelOpen,
+                status: agentSession.status,
+                pendingOperation: agentSession.pendingOperation,
+                claimCode: agentSession.claimCode,
+                claimExpiresAt: agentSession.claimExpiresAt,
+                scopes: agentSession.scopes,
+                expiresAt: agentSession.expiresAt,
+                error: agentSession.error,
+                backgroundRequests: agentSession.backgroundRequests,
+                adapterVersion: agentSession.adapterVersion,
+                now: claimNow(),
+                onPause: () => void agentSession.pause(),
+                onResume: () => void agentSession.resume(),
+                onReconnect: agentSession.reconnect,
+                onNewConnection: () => void agentSession.newConnection(),
+                onRevoke: () => void agentSession.revoke(),
+                onClose: () => setAgentPanelOpen(false),
+              }
+            : null
+        }
+        agentFileApproval={
+          publicAgentUiEnabled && agentFileCandidate
+            ? {
+                candidate: agentFileCandidate,
+                onReject: rejectAgentFileCandidate,
+                onApprove: approveAgentFileCandidate,
+              }
+            : null
+        }
+      />
+    </>
   );
 }
