@@ -13,6 +13,11 @@
       "pattern": "analog-canvas.tokenzhang.com",
       "custom_domain": true,
     },
+    // Regional control traffic keeps this overseas origin when browser DNS splits.
+    {
+      "pattern": "analog-canvas-origin.tokenzhang.com",
+      "custom_domain": true,
+    },
     // AnalogArena's own host: this Worker serves the Schematic Arena at
     // /schematic there and sends every other path to Analog Canvas
     // (worker/arena.ts routeArenaHosts, docs/specs/analog-arena.md#hosts).

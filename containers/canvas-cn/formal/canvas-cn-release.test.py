@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import pathlib
 import tempfile
 import unittest
@@ -159,6 +160,27 @@ class ReleaseTest(unittest.TestCase):
         result = release.tick(self.args(0), FakeHost(), production, now=1000)
         self.assertEqual(result['status'], 'current')
         self.assertEqual(production.requests, ['/regional-release/current.json'])
+
+    @unittest.skipIf(os.name == 'nt', 'systemd and POSIX permissions')
+    def test_activated_release_is_readable_under_the_service_umask(self):
+        mask = os.umask(0o077)
+        try:
+            result = release.tick(self.args(0), FakeHost(), FakeProduction(self.files), now=1000)
+        finally:
+            os.umask(mask)
+        self.assertEqual(result['status'], 'installed')
+        target = self.current.resolve()
+        self.assertEqual(target.stat().st_mode & 0o777, 0o755)
+        self.assertEqual((target / 'assets').stat().st_mode & 0o777, 0o755)
+        self.assertEqual((target / 'assets/index.html').stat().st_mode & 0o777, 0o644)
+
+    def test_refuses_a_symlink_left_in_the_download_tree(self):
+        partial = self.releases / 'incoming.partial'
+        partial.mkdir()
+        (partial / 'outside').symlink_to(self.credentials, target_is_directory=True)
+        with self.assertRaises(release.ReleaseError):
+            release.tick(self.args(0), FakeHost(), FakeProduction(self.files), now=1000)
+        self.assertEqual(self.current.resolve().name, OLD)
 
     def test_rolls_back_a_failure_after_the_switch_began(self):
         (self.units / 'canvas-cn-formal.service.d').mkdir()

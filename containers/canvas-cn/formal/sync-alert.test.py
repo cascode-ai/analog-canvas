@@ -40,8 +40,8 @@ class AlertTest(unittest.TestCase):
         self.thread.join()
         self.temp.cleanup()
 
-    def health(self, health, age=0):
-        (self.root / 'monitor.json').write_text(json.dumps({'health': health, 'reason': 'retry' if health == 'failed' else None, 'lastAttemptAt': time.time() - age}))
+    def health(self, health, age=0, reason='blocked'):
+        (self.root / 'monitor.json').write_text(json.dumps({'health': health, 'reason': reason if health == 'failed' else None, 'lastAttemptAt': time.time() - age}))
 
     def tick(self, test=False, scope=None):
         args = [sys.executable, str(pathlib.Path(__file__).with_name('sync-alert.py')),
@@ -58,6 +58,27 @@ class AlertTest(unittest.TestCase):
     def test_healthy_service_sends_nothing(self):
         self.assertEqual(self.tick().returncode, 0)
         self.assertEqual(self.calls, [])
+
+    def test_only_a_sustained_retry_sends_failure_then_recovery(self):
+        self.health('failed', reason='retry')
+        self.assertEqual(self.tick().returncode, 0)
+        self.health('ok')
+        self.assertEqual(self.tick().returncode, 0)
+        self.assertEqual(self.calls, [])
+
+        self.health('failed', reason='retry')
+        self.assertEqual(self.tick().returncode, 0)
+        state_path = self.root / 'delivery.json'
+        state = json.loads(state_path.read_text())
+        state['retrySince'] = time.time() - 121
+        state_path.write_text(json.dumps(state))
+        self.assertEqual(self.tick().returncode, 0)
+        self.assertEqual(len(self.calls), 1)
+        self.assertIn('Status: retry', self.calls[0][1]['text'])
+        self.health('ok')
+        self.assertEqual(self.tick().returncode, 0)
+        self.assertEqual(len(self.calls), 2)
+        self.assertIn('RECOVERED', self.calls[1][1]['subject'])
 
     def test_publication_alert_identifies_the_independent_service(self):
         self.health('failed')

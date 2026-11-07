@@ -45,9 +45,10 @@ host.
    alert timers. Replication timers are enabled by an operator.
 
 The browser entrance is `127.0.0.1:8082` (an SSH forward during the trial).
-Authority and peer origins must reach overseas unambiguously: with a shared
-public browser domain, pin `transportOrigin` and `identity-url` to a separate
-overseas endpoint. Only the Auth contract's browser routes are proxied there.
+Keep `analog-canvas-origin.tokenzhang.com` on the overseas Worker. Pin the
+Project and publication peers, `identity-url` and `transportOrigin` to that
+host before splitting browser DNS. The release runner uses it by default.
+Only the Auth contract's browser routes are proxied there in shared-domain mode.
 
 ## Operating rules
 
@@ -60,11 +61,13 @@ overseas endpoint. Only the Auth contract's browser routes are proxied there.
   fence, 120 seconds without catch-up, or 80% of the journal budget; its
   monitor holds counters only. The region pulls and pushes; the source needs no
   inbound domestic URL. The sync service never starts a stopped runtime.
-- Alerts: `sync-alert.py` mails failures, stale monitors and recovery for the
-  Project, Publication and Release scopes, at most hourly per failure, with a
-  persisted idempotency key; after 23 hours an uncertain send waits for an
-  operator. Production separately mails when the region stops pulling. Confirm
-  `--test` delivery in the mailbox before opening writes.
+- Alerts: `sync-alert.py` watches Project, Publication and Release. Mail for
+  `retry` requires consecutive observations over two minutes. Other failures
+  and stale monitors alert at the next check. Repeat failure mail is at most
+  hourly, and recovery mail follows a failure accepted by the mail service.
+  Uncertain sends reuse their idempotency key for up to 23 hours. Production
+  separately alerts when the region stops pulling. Confirm `--test` delivery
+  before opening writes.
 - Simulation reaches the regional gateways through `canvas-cn-operator`. Tunnel
   failure leaves editing and login available while computation fails closed;
   uncertain runs are never retried elsewhere. `simulation-smoke-token` only

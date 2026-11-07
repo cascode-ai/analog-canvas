@@ -94,6 +94,7 @@ class SyncTickTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
     def test_capacity_and_fence_are_reported(self):
+        self.pump = {'status': 'retry'}
         for extra, reason in [({'journalBytes': 1024**3}, 'journal-capacity'), ({'fenced': True}, 'write-fenced')]:
             self.status.update(journalBytes=100, fenced=False)
             self.status.update(extra)
