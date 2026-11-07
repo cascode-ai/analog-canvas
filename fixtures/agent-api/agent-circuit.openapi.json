@@ -886,7 +886,7 @@
               "ok": false,
               "error": {
                 "code": "CLAIM_WRONG_SITE",
-                "message": "This Claim or connector belongs to a different Analog Canvas site than https://editor.example. Use the MCP server registered for the address shown in the copied connection message."
+                "message": "This Claim or connector belongs to a different Analog Canvas site. Use the MCP server registered for the address shown in the copied connection message. This site is https://editor.example."
               }
             }
           }
