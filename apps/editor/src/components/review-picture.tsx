@@ -1,0 +1,326 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+import type { ReviewMark } from "../review-queue";
+
+type Frame = { left: number; top: number; width: number; height: number };
+type View = { scale: number; x: number; y: number };
+type Drag =
+  | { kind: "draw"; startX: number; startY: number }
+  | { kind: "pan"; startX: number; startY: number; from: View };
+
+const FIT: View = { scale: 1, x: 0, y: 0 };
+const clamp = (value: number) => Math.min(1, Math.max(0, value));
+
+/**
+ * One of Review's two pictures, with the boxes drawn on it. Inline, a drag
+ * boxes a spot and a click opens the zoomed view; zoomed, the wheel zooms
+ * at the pointer, a drag pans, and with the box tool on (or Shift held) a
+ * drag boxes. Boxes are fractions of the picture, so they land on the same
+ * spot at any size.
+ */
+export function MarkablePicture({
+  src,
+  alt,
+  side,
+  marks,
+  shown = null,
+  onAdd,
+  onOpen,
+  zoomed = false,
+  boxTool = false,
+}: {
+  src: string;
+  alt: string;
+  side: ReviewMark["side"];
+  /** The reviewer's own boxes on both pictures, numbered in this order. */
+  marks: readonly ReviewMark[];
+  /** Another review's boxes, while the reader points at that review. */
+  shown?: readonly ReviewMark[] | null;
+  onAdd?: (mark: ReviewMark) => void;
+  onOpen?: () => void;
+  zoomed?: boolean;
+  boxTool?: boolean;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const image = useRef<HTMLImageElement>(null);
+  const [frame, setFrame] = useState<Frame | null>(null);
+  const [view, setView] = useState<View>(FIT);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const [draft, setDraft] = useState<ReviewMark | null>(null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  // Where the picture sits in its box, unzoomed: the boxes' frame.
+  const measure = () => {
+    const img = image.current;
+    if (img && img.offsetWidth > 0)
+      setFrame({
+        left: img.offsetLeft,
+        top: img.offsetTop,
+        width: img.offsetWidth,
+        height: img.offsetHeight,
+      });
+  };
+  useLayoutEffect(() => {
+    measure();
+    const element = box.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [src]);
+
+  // The wheel zooms at the pointer; it must not scroll the page meanwhile.
+  useEffect(() => {
+    const element = box.current;
+    if (!zoomed || !element) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = element.getBoundingClientRect();
+      const current = viewRef.current;
+      const scale = Math.min(
+        12,
+        Math.max(1, current.scale * Math.exp(-event.deltaY * 0.0015)),
+      );
+      const px = event.clientX - rect.left;
+      const py = event.clientY - rect.top;
+      setView(
+        scale === 1
+          ? FIT
+          : {
+              scale,
+              x: px - ((px - current.x) * scale) / current.scale,
+              y: py - ((py - current.y) * scale) / current.scale,
+            },
+      );
+    };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    return () => element.removeEventListener("wheel", onWheel);
+  }, [zoomed]);
+
+  /** The pointer as a fraction of the picture as drawn now. */
+  const fractionAt = (clientX: number, clientY: number) => {
+    const rect = image.current!.getBoundingClientRect();
+    return {
+      x: clamp((clientX - rect.left) / rect.width),
+      y: clamp((clientY - rect.top) / rect.height),
+    };
+  };
+  const drawing = (shift: boolean) => !!onAdd && (!zoomed || boxTool || shift);
+
+  return (
+    <div
+      ref={box}
+      className={`review-pic${zoomed ? " zoomed" : ""}`}
+      data-drawing={drawing(false) ? "true" : undefined}
+      onPointerDown={(event) => {
+        if (event.button !== 0 || !image.current) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        setDrag(
+          drawing(event.shiftKey)
+            ? { kind: "draw", startX: event.clientX, startY: event.clientY }
+            : zoomed
+              ? {
+                  kind: "pan",
+                  startX: event.clientX,
+                  startY: event.clientY,
+                  from: view,
+                }
+              : { kind: "draw", startX: event.clientX, startY: event.clientY },
+        );
+      }}
+      onPointerMove={(event) => {
+        if (!drag) return;
+        if (drag.kind === "pan") {
+          setView({
+            ...drag.from,
+            x: drag.from.x + event.clientX - drag.startX,
+            y: drag.from.y + event.clientY - drag.startY,
+          });
+          return;
+        }
+        const a = fractionAt(drag.startX, drag.startY);
+        const b = fractionAt(event.clientX, event.clientY);
+        setDraft({
+          side,
+          x: Math.min(a.x, b.x),
+          y: Math.min(a.y, b.y),
+          w: Math.abs(a.x - b.x),
+          h: Math.abs(a.y - b.y),
+        });
+      }}
+      onPointerUp={(event) => {
+        const was = drag;
+        setDrag(null);
+        setDraft(null);
+        if (was?.kind !== "draw") return;
+        const moved =
+          Math.abs(event.clientX - was.startX) +
+          Math.abs(event.clientY - was.startY);
+        if (moved < 6) {
+          if (!zoomed) onOpen?.();
+          return;
+        }
+        if (draft && onAdd && draft.w > 0.005 && draft.h > 0.005) onAdd(draft);
+      }}
+      onDoubleClick={() => zoomed && setView(FIT)}
+    >
+      <div
+        className="review-pic-stage"
+        style={
+          view === FIT
+            ? undefined
+            : {
+                transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+              }
+        }
+      >
+        <img
+          ref={image}
+          src={src}
+          alt={alt}
+          draggable={false}
+          onLoad={measure}
+        />
+        {frame ? (
+          <div
+            className="review-marks"
+            style={{
+              left: frame.left,
+              top: frame.top,
+              width: frame.width,
+              height: frame.height,
+            }}
+          >
+            {marks.map((mark, index) =>
+              mark.side === side ? (
+                <MarkBox key={`own-${index}`} mark={mark} label={index + 1} />
+              ) : null,
+            )}
+            {(shown ?? []).map((mark, index) =>
+              mark.side === side ? (
+                <MarkBox
+                  key={`shown-${index}`}
+                  mark={mark}
+                  label={index + 1}
+                  other
+                />
+              ) : null,
+            )}
+            {draft ? <MarkBox mark={draft} label={null} /> : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MarkBox({
+  mark,
+  label,
+  other = false,
+}: {
+  mark: ReviewMark;
+  label: number | null;
+  other?: boolean;
+}) {
+  return (
+    <span
+      className={`review-mark${other ? " other" : ""}`}
+      style={{
+        left: `${mark.x * 100}%`,
+        top: `${mark.y * 100}%`,
+        width: `${mark.w * 100}%`,
+        height: `${mark.h * 100}%`,
+      }}
+    >
+      {label === null ? null : <b>{label}</b>}
+    </span>
+  );
+}
+
+/**
+ * Both pictures over the whole window, each zoomed and panned on its own;
+ * the box tool boxes spots as the inline pictures do. Esc closes it, and
+ * while it is open Review's keys rest.
+ */
+export function ZoomView({
+  title,
+  pictures,
+  marks,
+  shown,
+  onAdd,
+  onClose,
+}: {
+  title: string;
+  pictures: {
+    src: string;
+    alt: string;
+    side: ReviewMark["side"];
+    label: string;
+  }[];
+  marks: readonly ReviewMark[];
+  shown?: readonly ReviewMark[] | null;
+  onAdd?: (mark: ReviewMark) => void;
+  onClose: () => void;
+}) {
+  const [boxTool, setBoxTool] = useState(false);
+  useEffect(() => {
+    // Captured first, so Review's own keys never see them.
+    const onKey = (event: KeyboardEvent) => {
+      event.stopPropagation();
+      if (event.key === "Escape") onClose();
+      else if (event.key.toLowerCase() === "b" && onAdd)
+        setBoxTool((on) => !on);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose, onAdd]);
+  return (
+    <div
+      className="review-zoom"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${title} zoomed`}
+      data-testid="review-zoom"
+    >
+      <div className="review-zoom-head">
+        <span className="title">{title}</span>
+        <span className="hint">
+          Wheel zooms · drag pans · double-click fits
+          {onAdd ? " · B or Shift-drag boxes a spot" : ""}
+        </span>
+        {onAdd ? (
+          <button
+            type="button"
+            aria-pressed={boxTool}
+            data-testid="review-zoom-box"
+            onClick={() => setBoxTool((on) => !on)}
+          >
+            ▭ Box
+          </button>
+        ) : null}
+        <button type="button" onClick={onClose}>
+          Close <kbd>Esc</kbd>
+        </button>
+      </div>
+      <div className="review-zoom-body">
+        {pictures.map((picture) => (
+          <div key={picture.side}>
+            <h4>{picture.label}</h4>
+            <MarkablePicture
+              src={picture.src}
+              alt={picture.alt}
+              side={picture.side}
+              marks={marks}
+              shown={shown ?? null}
+              {...(onAdd ? { onAdd } : {})}
+              zoomed
+              boxTool={boxTool}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

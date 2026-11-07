@@ -611,6 +611,26 @@ export async function routeGalleryRequest(
   if (reviews) return reviews;
   const reference = await routeReference(request, env, segments, readSession);
   if (reference) return reference;
+  // A bookmark is a reader's own note, kept in the circuit's store: a
+  // dataset's entries take it too.
+  if (
+    segments.length === 2 &&
+    segments[1] === "bookmark" &&
+    request.method === "POST"
+  ) {
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const user = await sessionUserOf(request, env);
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const kept = gallerySourceOfEntryId(segments[0]!);
+    const { status, payload } = await callGallery(
+      kept ? withGalleryStore(env, kept) : env,
+      "toggle-bookmark",
+      { id: segments[0], userId: user.id, at: new Date().toISOString() },
+    );
+    return Response.json(payload, { status });
+  }
   // A like is a reader's mark, not a change of the circuit: a dataset's
   // entries take it too, in their own store.
   if (
@@ -649,6 +669,26 @@ export async function routeGalleryRequest(
       request.method === "POST"
     )
       return handleSourceImport(request, env, named);
+    // The circuits of this dataset the reader keeps.
+    if (
+      named &&
+      segments.length === 3 &&
+      segments[2] === "bookmarks" &&
+      request.method === "GET"
+    ) {
+      const user = await sessionUserOf(request, env);
+      if (!user)
+        return Response.json({ error: "unauthorized" }, { status: 401 });
+      const { status, payload } = await callGallery(
+        withGalleryStore(env, named),
+        "bookmarks",
+        { userId: user.id },
+      );
+      return Response.json(payload, {
+        status,
+        headers: { "cache-control": "no-store" },
+      });
+    }
     if (named && segments[2] === "comparisons")
       return routeComparisons(request, env, named, segments.slice(3));
     return Response.json({ error: "not-found" }, { status: 404 });

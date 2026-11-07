@@ -214,6 +214,54 @@ describe("reference datasets in stores of their own (#1510)", () => {
     expect((await entry()).fixedBy).toEqual(fixed.fixedBy);
   });
 
+  it("keeps each reader's own bookmarks of a dataset's circuits", async () => {
+    const env = environment();
+    const owner = await ownerAccountOf(env);
+    const maker = await makerOf(env);
+    const call = (path: string, cookie: string, method = "GET") =>
+      route(
+        env,
+        new Request(`${ORIGIN}${path}`, {
+          method,
+          headers: { Origin: ORIGIN, Cookie: cookie },
+          ...(method === "POST"
+            ? { body: JSON.stringify({ entries: [] }) }
+            : {}),
+        }),
+      );
+    await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/sources/analoggenie/entries`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: owner },
+        body: JSON.stringify({
+          entries: ["ag-1", "ag-2"].map((id) => ({
+            id,
+            name: id,
+            projectText: projectText(id),
+          })),
+        }),
+      }),
+    );
+    const kept = async (cookie: string) =>
+      (await (
+        await call("/api/gallery/sources/analoggenie/bookmarks", cookie)
+      ).json()) as { ids: string[] };
+    expect(
+      await (await call("/api/gallery/ag-2/bookmark", maker, "POST")).json(),
+    ).toEqual({ saved: true });
+    expect(await kept(maker)).toEqual({ ids: ["ag-2"] });
+    // Another reader keeps none of them; a second click lets it go.
+    expect(await kept(owner)).toEqual({ ids: [] });
+    expect(
+      await (await call("/api/gallery/ag-2/bookmark", maker, "POST")).json(),
+    ).toEqual({ saved: false });
+    expect(await kept(maker)).toEqual({ ids: [] });
+    expect(
+      (await call("/api/gallery/ag-9/bookmark", maker, "POST")).status,
+    ).toBe(404);
+  });
+
   it("takes an Owner token from a non-browser client, on the import alone (#1769)", async () => {
     const env = environment();
     const owner = await ownerAccountOf(env);

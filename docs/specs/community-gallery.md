@@ -464,6 +464,12 @@ true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,
   differently, such as an ideal source as a port), `error` (the dataset's
   netlist is wrong), `unclear` (the figure is ambiguous). Every verdict
   except `match` names a `category`; all of them are public.
+- A reader saves circuits for reference, privately: Save on a row or in the
+  viewer, and the toolbar's Saved filter (`saved=1` in the address). `POST
+/api/gallery/<id>/bookmark` (same-origin, signed in) toggles one →
+  `{saved}`; `GET /api/gallery/sources/<key>/bookmarks` → `{ids}`, newest
+  first. Bookmarks are not backed up. The viewer's pictures zoom and pan
+  as Review's do.
 - `GET /api/gallery/sources` adds `comparisons`, each dataset's listed count.
 - `GET /api/gallery/sources/<key>/comparisons` → `{source, comparisons:
 [{id, name, verdict, category, detail, reason, families, components,
@@ -487,11 +493,17 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 ### Reviews
 
 `/review` shows one drawing at a time beside its reference (a dataset's
-original figure, or a community circuit's reference image): its verdict
-controls and others' reviews above the two pictures; below them, what
-comparing a dataset's two netlists found (verdict, kind, one sentence); then
-each side's SPICE netlist at its full length (ours spends a daily open as
-opening the entry does). The page scrolls. It is the Gallery's Review tab,
+original figure, or a community circuit's reference image): the comment
+with Like and Pass, the flags below it, and others' reviews, above the two
+pictures; below them, what comparing a dataset's two netlists found
+(verdict, kind, one sentence); then each side's SPICE netlist at its full
+length (ours spends a daily open as opening the entry does). The page
+scrolls. A drag on a picture boxes a spot (numbered, removable, ≤12 per
+review); a click opens both pictures over the window, each zoomed by the
+wheel and panned by a drag, where B or Shift-drag boxes too. Pointing at
+another review shows its boxes. Choosing a device's netlist line lights the
+device the other side's netlist pairs with it: matched by what the devices
+connect to (names differ), a reading aid rather than a check. It is the Gallery's Review tab,
 between Community gallery and My shelf; its pages keep that tab row, which
 ends in the switch between Review (the default) and Statistics (`/datasets`,
 look only). Its sidebar, in the wall sidebar's markup, is one list of
@@ -525,7 +537,9 @@ comparison?, reference?, fixedBy?}]}`: the entries
   reviews; `mine` is the reader's latest review, `reviews` how many count.
 - `GET /api/gallery/<id>/reviews` → `{blind: true, revision}` or `{blind:
 false, revision, current, history}`. `POST` `{revision, verdict, flags,
-note}` → `{review}`; 403 `own-entry`, 409 `stale`, 429. `PATCH
+note, marks?}` → `{review}` (`marks`: ≤12 `{side: original|redraw, x, y,
+w, h}` as fractions of that picture, else 400); 403 `own-entry`, 409
+  `stale`, 429. `PATCH
 …/reviews/<reviewId>` `{resolved: true}`: Owner only.
 - `GET /api/gallery/review/<scope>/issues` (Owner) → `{issues, disputed}`:
   open issues counting now, and entries whose counting reviews both pass and
