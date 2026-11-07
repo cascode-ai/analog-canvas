@@ -3990,10 +3990,6 @@ function WorkspaceEditor({
     );
   }, [documentStack, document.id]);
   const openCellProperties = (id: string) => setCellPropertiesId(id);
-  const openExternalCircuits = () => {
-    setModelEditorDefinitionId(null);
-    setCellManagerOpen(true);
-  };
   const beginNewCell = (mode: "child" | "root" | "selection") => {
     cancelAllTransientInteraction();
     setNewCellMode(mode);
@@ -4073,6 +4069,40 @@ function WorkspaceEditor({
       },
     });
     return true;
+  };
+  /** Start placing an external circuit in the open Cell, from its row or sheet. */
+  const placeExternalCircuit = (definitionId: string): boolean => {
+    const candidate = externalSubcircuitInsertCandidates.find(
+      (item) => item.definitionId === definitionId,
+    );
+    if (!candidate) {
+      setStatus("The selected external master has no resolved symbol");
+      return false;
+    }
+    setCellManagerOpen(false);
+    setModelEditorDefinitionId(null);
+    startInsertFromHook({
+      kind: "quick",
+      request: {
+        kind: "external-subcircuit",
+        definitionId,
+        symbolId: candidate.symbol.id,
+        symbolName: candidate.masterName,
+        masterName: candidate.masterName,
+        parameters: {},
+        initialRotation: 0,
+        showReference: !candidate.symbol.hierarchicalBlock,
+        referenceText: null,
+        showValue: true,
+      },
+    });
+    return true;
+  };
+  /** Open one external circuit's sheet, or a new one's. */
+  const openExternalCircuit = (definitionId: string | null) => {
+    setModelEditorDefinitionId(definitionId);
+    setModelEditorLocation(undefined);
+    setCellManagerOpen(true);
   };
   /**
    * A drag from a panel is one gesture: it places once where it ends on the
@@ -5852,7 +5882,6 @@ function WorkspaceEditor({
         searchResults={searchResults}
         requestElectricalDiagnostics={requestElectricalDiagnostics}
         cellInsertCandidates={cellInsertCandidates}
-        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
         insertDialogExternalCandidates={insertDialogExternalCandidates}
         insertDialogProjectComponents={insertDialogProjectComponents}
         cancelComponentInsertFromHook={cancelComponentInsertFromHook}
@@ -5861,6 +5890,7 @@ function WorkspaceEditor({
         insertScope={insertScope}
         recentSymbolIds={recentSymbolIds}
         jumpToCaller={jumpToCaller}
+        placeExternalCircuit={placeExternalCircuit}
         openCreatedCell={(id) => setOpenAfterCommit({ id, path: [] })}
         navigateToNetlistDiagnostic={navigateToNetlistDiagnostic}
         selectSearchResult={selectSearchResult}
@@ -6004,7 +6034,13 @@ function WorkspaceEditor({
               makeUnique: hierarchyRefactor.makeUnique,
               replace: setReplaceUse,
               flatten: hierarchyRefactor.flatten,
-              external: openExternalCircuits,
+              newExternal: () => openExternalCircuit(null),
+              externals: {
+                edit: openExternalCircuit,
+                place: placeExternalCircuit,
+                remove: (id) => void removeExternalSubcircuitDefinition(id),
+                openCaller: jumpToCaller,
+              },
               // Cloud import needs the Web build's Project store.
               ...(!import.meta.env?.ICM_DESKTOP
                 ? { importCell: () => setImportCellOpen(true) }

@@ -167,12 +167,32 @@ export async function openCellProperties(
   return sheet;
 }
 
-/** Open External Circuits, from the hierarchy tree's footer. */
+/** Open a new external circuit's sheet, from the hierarchy tree's footer. */
 export async function openExternalCircuits(page: Page): Promise<Locator> {
   await (
     await openHierarchyTree(page)
   )
-    .getByRole("button", { name: "External Circuits…", exact: true })
+    .getByRole("button", { name: "New external circuit…", exact: true })
+    .click();
+  return page.locator(".cell-manager-dialog");
+}
+
+/** Open an external circuit's sheet from its row in the hierarchy tree. */
+export async function openExternalCircuit(
+  page: Page,
+  name: string | RegExp,
+): Promise<Locator> {
+  const rows = (await openHierarchyTree(page)).getByRole("group", {
+    name: "External circuits",
+  });
+  await rows
+    .locator(".hierarchy-node-label")
+    .and(
+      rows.getByRole("button", {
+        name: typeof name === "string" ? `${name}, external circuit` : name,
+      }),
+    )
+    .first()
     .click();
   return page.locator(".cell-manager-dialog");
 }

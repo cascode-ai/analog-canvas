@@ -60,6 +60,7 @@ import { definitionError } from "../user-components/component-definition-error";
 import { CircuitInterfaceEditor } from "../user-components/circuit-interface-editor";
 import { newComponentDefinition } from "../user-components/component-definition-edit";
 import type { ExternalDefinitionResult } from "./project-structure-commands";
+import { inferPinDirection } from "./new-cell";
 import { CellSymbolLayoutProperties } from "../properties/component-structure-properties";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
 
@@ -560,7 +561,21 @@ export function ExternalModelSourceEditor({
               },
               ...(presentation ? { presentation } : {}),
             }
-          : {}),
+          : // A new model's Pins start from what their names say, as a
+            // new Cell's do; an applied model keeps the directions it has.
+            !project.externalSubcircuitDefinitions.some(
+                (d) => d.id === selectedDefinitionId,
+              ) && previewDefinition
+            ? {
+                terminalDirections: Object.fromEntries(
+                  previewDefinition.terminals.map((terminal) => [
+                    terminal.id,
+                    terminalDirections[terminal.id] ??
+                      inferPinDirection(terminal.name),
+                  ]),
+                ),
+              }
+            : {}),
         ...(portMaps[selectedDefinitionId]
           ? { portMap: portMaps[selectedDefinitionId] }
           : {}),

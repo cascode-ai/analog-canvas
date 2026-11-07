@@ -4,7 +4,7 @@ import {
   parseSavedProject,
   copyNetlistText,
   downloadBytes,
-  openExternalCircuits,
+  openExternalCircuit,
   openProjectFile as openFile,
   openEditor,
   readAgentClaim,
@@ -265,15 +265,6 @@ async function editFromMenu(page: Page, reference: string) {
     })
     .click();
   return componentEditor(page);
-}
-async function openExternalCircuit(page: Page, name: string) {
-  const manager = await openExternalCircuits(page);
-  await manager
-    .locator(".cell-manager-list-item")
-    .filter({ hasText: name })
-    .last()
-    .click();
-  return manager;
 }
 /** Shows the Library with its component fold open, as Edit's command does. */
 async function openUserComponents(page: Page) {
@@ -3201,7 +3192,7 @@ test("native Save draft keeps an existing placeholder owner's name and terminals
   await text(manager, "More").click();
   await button(manager, "Save draft").click();
   await expect(manager.getByRole("status")).toContainText("Saved draft");
-  await manager.getByLabel("Close External Circuits").click();
+  await manager.getByLabel("Close external circuit").click();
   const linked = await readProject(page);
   const source = linked.modelSources![0]!;
   const owner = linked.externalSubcircuitDefinitions[0]!;
@@ -3216,7 +3207,7 @@ test("native Save draft keeps an existing placeholder owner's name and terminals
   await text(editor, "More").click();
   await button(editor, "Save draft").click();
   await expect(editor.getByRole("status")).toContainText("Saved draft");
-  await editor.getByLabel("Close External Circuits").click();
+  await editor.getByLabel("Close external circuit").click();
   const saved = await readProject(page);
   expect(saved.externalSubcircuitDefinitions).toEqual([owner]);
   expect(saved.modelSources![0]!.draft!.files[0]!.text).toBe(
@@ -3637,7 +3628,7 @@ test("native port removal captures repaired custom artwork and detaches removed 
     .getByLabel("Migrate finite_gain.OUT")
     .selectOption("__disconnect");
   await applyModel(manager);
-  await button(manager, "Close External Circuits").click();
+  await button(manager, "Close external circuit").click();
   const after = await readProject(page);
   expect(
     after.externalSubcircuitDefinitions[0]!.terminals.map(

@@ -171,7 +171,6 @@ export function EditorDialogs({
   searchResults,
   requestElectricalDiagnostics,
   cellInsertCandidates,
-  externalSubcircuitInsertCandidates,
   insertDialogExternalCandidates,
   insertDialogProjectComponents,
   cancelComponentInsertFromHook,
@@ -180,6 +179,7 @@ export function EditorDialogs({
   insertScope,
   recentSymbolIds,
   jumpToCaller,
+  placeExternalCircuit,
   openCreatedCell,
   navigateToNetlistDiagnostic,
   selectSearchResult,
@@ -288,7 +288,6 @@ export function EditorDialogs({
   searchResults: EditorDerivedModel["searchResults"];
   requestElectricalDiagnostics: () => ReturnType<typeof runErcChecks>;
   cellInsertCandidates: readonly CellInsertCandidate[];
-  externalSubcircuitInsertCandidates: readonly ExternalSubcircuitInsertCandidate[];
   insertDialogExternalCandidates: readonly ExternalSubcircuitInsertCandidate[];
   insertDialogProjectComponents: readonly ProjectComponentInsertCandidate[];
   cancelComponentInsertFromHook: ComponentPlacement["cancelComponentInsert"];
@@ -297,6 +296,8 @@ export function EditorDialogs({
   insertScope: ComponentPlacement["insertScope"];
   recentSymbolIds: ComponentPlacement["recentSymbolIds"];
   jumpToCaller: NavigationController["jumpToCaller"];
+  /** Start placing an external circuit; false when it has no symbol. */
+  placeExternalCircuit: (definitionId: string) => boolean;
   /** Open a Cell a transaction just created, once the Project holds it. */
   openCreatedCell(documentId: string): void;
   navigateToNetlistDiagnostic: NavigationController["navigateToNetlistDiagnostic"];
@@ -477,37 +478,8 @@ export function EditorDialogs({
                 };
               },
               onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
-              onPlaceExternal: (definitionId) => {
-                const candidate = externalSubcircuitInsertCandidates.find(
-                  (item) => item.definitionId === definitionId,
-                );
-                if (!candidate) {
-                  setStatus(
-                    "The selected external master has no resolved symbol",
-                  );
-                  return;
-                }
-                setCellManagerOpen(false);
-                setModelEditorDefinitionId(null);
-                editorCommands.execute({
-                  id: "insert.start",
-                  launch: {
-                    kind: "quick",
-                    request: {
-                      kind: "external-subcircuit",
-                      definitionId,
-                      symbolId: candidate.symbol.id,
-                      symbolName: candidate.masterName,
-                      masterName: candidate.masterName,
-                      parameters: {},
-                      initialRotation: 0,
-                      showReference: !candidate.symbol.hierarchicalBlock,
-                      referenceText: null,
-                      showValue: true,
-                    },
-                  },
-                });
-              },
+              onPlaceExternal: (definitionId) =>
+                void placeExternalCircuit(definitionId),
             }
           : null
       }

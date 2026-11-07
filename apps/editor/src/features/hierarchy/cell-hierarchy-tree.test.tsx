@@ -20,7 +20,13 @@ const actions: HierarchyTreeActions = {
   drop: vi.fn(),
   setTop: vi.fn(),
   remove: vi.fn(),
-  external: vi.fn(),
+  newExternal: vi.fn(),
+  externals: {
+    edit: vi.fn(),
+    place: vi.fn(() => true),
+    remove: vi.fn(),
+    openCaller: vi.fn(),
+  },
   newCell: vi.fn(),
   makeUnique: vi.fn(),
   replace: vi.fn(),
@@ -127,5 +133,40 @@ describe("CellHierarchyTree", () => {
     const markup = render({ usesKey: key });
     expect(markup).toContain('aria-label="Uses of Channel"');
     expect(markup).toContain("Top / X2: Channel");
+  });
+
+  it("lists external circuits below the Cells, with their uses, only when there are any", () => {
+    expect(render()).not.toContain('aria-label="External circuits"');
+    const project = hierarchyNavigationFixture();
+    project.externalSubcircuitDefinitions.push({
+      id: "ext-opamp",
+      name: "opamp_ext",
+      terminals: [
+        { id: "t-in", name: "in", direction: "input" },
+        { id: "t-out", name: "out", direction: "output" },
+      ],
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    const pair = project.documents.find((cell) => cell.id === "pair")!;
+    for (const id of ["XU1", "XU2"])
+      pair.instances.push({
+        id,
+        reference: id,
+        symbolId: "external-ext-opamp",
+        placement: null,
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: "ext-opamp" },
+          parameters: {},
+        },
+      });
+    const markup = render({ project });
+    expect(markup).toContain('aria-label="External circuits"');
+    expect(markup).toContain('aria-label="opamp_ext, external circuit"');
+    expect(markup).toContain('aria-label="2 uses of opamp_ext"');
+    expect(markup).toContain('aria-label="Place opamp_ext"');
+    expect(markup).toContain('aria-label="opamp_ext model"');
+    expect(markup).toContain(">New external circuit…</button>");
+    expect(markup).not.toContain("External Circuits…");
   });
 });

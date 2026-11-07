@@ -137,10 +137,15 @@ child definition affects all uses; **×N** on its row lists them in the tree.
 
 ## External circuits
 
-The hierarchy panel's **External Circuits…** editor holds Project-owned native models.
-**New External Circuit** takes a SPICE `.subckt` or Spectre `subckt` body;
-its name, terminal order and defaults are parsed beside a pin-labelled
-preview. The starter text is commented examples:
+Project-owned native models are listed under **External circuits** in the
+hierarchy panel, below the Cells. Click a model's row to open its sheet; hover
+it to **Place** it or drag it onto the canvas; **×N** lists the parts that
+place it; right-click for **Delete model** once nothing places it.
+**New external circuit…** in the panel's footer takes a SPICE `.subckt` or
+Spectre `subckt` body; its name, terminal order and defaults are parsed as you
+type, and on a wide window its Pins and symbol sit beside the source. A new
+model's Pin directions start from their names, as a new Cell's do (`out` an
+output, supplies passive, others inputs). The starter text is commented examples:
 
 ```spice
 * .subckt my_cell PIN1 PIN2 params: PARAM1=1
@@ -180,7 +185,7 @@ The Netlist sidebar and Copy Netlist include the full applied model bodies
 once per source; editing a model body there needs the Apply checkmark or
 `Ctrl/Cmd+Enter` and writes back to the same source. A supported Spectre
 model runs on ngspice through its derived SPICE; licensed Spectre execution is
-not provided. Move models still defined in simulation files into External Circuits
+not provided. Move models still defined in simulation files into external circuits
 and remove the duplicates there.
 
 ## Netlist entry and simulation
