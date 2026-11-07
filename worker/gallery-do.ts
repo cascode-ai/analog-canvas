@@ -63,6 +63,7 @@ import {
 } from "./gallery-store-cloud-projects";
 import {
   aiSeatEntries,
+  contributions,
   countOpen,
   entry,
   forgetOpens,
@@ -674,6 +675,8 @@ export class GalleryDO {
         return aiSeatEntries(this.sql);
       case "quota":
         return quota(this.sql, String(body.ownerUserId), String(body.day));
+      case "contributions":
+        return contributions(this.sql, String(body.ownerUserId));
       case "all-ids":
         return allIds(this.sql);
       case "netlistable-refresh":

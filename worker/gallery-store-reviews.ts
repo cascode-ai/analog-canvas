@@ -5,7 +5,7 @@
 // history, no longer current.
 
 import { type SqlStorage, isRecord } from "./gallery-store";
-import { entryFixes, fixTotals } from "./gallery-store-fixes";
+import { allFixers, entryFixes, fixTotals } from "./gallery-store-fixes";
 
 /** What a reviewer can flag; the page names them. */
 const REVIEW_FLAGS = [
@@ -286,12 +286,14 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       .toArray()
       .map((row) => row.entry_id),
   );
+  const fixers = allFixers(sql);
   const cards = entries.map((entry) => {
     const own = mine.get(entry.id);
     return {
       id: entry.id,
       name: entry.name,
       author: entry.author,
+      ...(fixers.has(entry.id) ? { fixedBy: fixers.get(entry.id) } : {}),
       previewRevision: entry.preview_revision,
       components: entry.component_count,
       reviews: counts.get(entry.id) ?? 0,

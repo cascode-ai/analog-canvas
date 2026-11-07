@@ -1,7 +1,7 @@
 // One entry: publishing, updating and importing it, reading it and its
 // preview, the daily publish quota and the daily allowance of opens.
 
-import { recordFix } from "./gallery-store-fixes";
+import { fixersOf, recordFix } from "./gallery-store-fixes";
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { sha256Hex } from "@icm/derived";
 import {
@@ -328,8 +328,9 @@ export function entry(
   if (!row || (requiredStatus !== null && row.status !== requiredStatus)) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
+  const fixedBy = fixersOf(sql, [row.id]).get(row.id);
   return Response.json({
-    entry: summaryOf(row, true),
+    entry: { ...summaryOf(row, true), ...(fixedBy ? { fixedBy } : {}) },
     status: row.status,
     ownerUserId: row.owner_user_id,
     submitterEmail: row.submitter_email,
@@ -390,6 +391,7 @@ export function importEntry(
         editorId: body.editorId,
         editorName: body.editorName,
         at,
+        ...(body.fixKind === "edit" ? { kind: "edit" as const } : {}),
       });
     if (row) {
       snapshotEntry(sql, row, at);
@@ -518,6 +520,21 @@ function preservedTestbench(row: EntryRow): string | null {
   return storedProject(
     serializeProject(parseProject(withTestbench(row.project_text, testbench))),
   ).testbench;
+}
+
+/** How many public circuits an account has contributed. */
+export function contributions(sql: SqlStorage, ownerUserId: string): Response {
+  return Response.json({
+    count: Number(
+      sql
+        .exec<{ count: number }>(
+          `SELECT COUNT(*) AS count FROM gallery_entries
+           WHERE owner_user_id = ? AND status = 'public'`,
+          ownerUserId,
+        )
+        .one().count,
+    ),
+  });
 }
 
 /** The day's allowance, counted as a submission counts it. */

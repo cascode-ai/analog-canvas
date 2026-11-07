@@ -11,6 +11,7 @@ import {
   projectText,
   route,
   submitOne,
+  wiredProjectText,
 } from "./gallery.test-support";
 
 describe("reference datasets in stores of their own (#1510)", () => {
@@ -91,20 +92,21 @@ describe("reference datasets in stores of their own (#1510)", () => {
       ]),
     });
 
-    // Read-only: no update or withdraw reaches it; a like does, being a
+    // No withdraw reaches it (a fix of its drawing does; see below); a like does, being a
     // reader's mark rather than a change of the circuit.
     expect(
       await (
         await call("/api/gallery/ag-308/like", { method: "POST", body: "{}" })
       ).json(),
     ).toMatchObject({ likedByViewer: true, likes: 1 });
-    for (const [path, method] of [
-      ["/api/gallery/ag-308", "PUT"],
-      ["/api/gallery/ag-308/recycle", "POST"],
-    ] as const)
-      expect(await (await call(path, { method, body: "{}" })).json()).toEqual({
-        error: "dataset-read-only",
-      });
+    expect(
+      await (
+        await call("/api/gallery/ag-308/recycle", {
+          method: "POST",
+          body: "{}",
+        })
+      ).json(),
+    ).toEqual({ error: "dataset-read-only" });
 
     // Importing it again replaces it in place.
     expect(
@@ -115,6 +117,101 @@ describe("reference datasets in stores of their own (#1510)", () => {
     expect(await wall("?source=analoggenie")).toEqual([
       expect.objectContaining({ id: "ag-308" }),
     ]);
+  });
+
+  it("lets an account with ten public circuits fix a dataset's drawing, named beside its byline", async () => {
+    const env = environment();
+    const owner = await ownerAccountOf(env);
+    const maker = await makerOf(env);
+    const call = (path: string, cookie: string, init: RequestInit = {}) =>
+      route(
+        env,
+        new Request(`${ORIGIN}${path}`, {
+          ...init,
+          headers: {
+            Origin: ORIGIN,
+            Cookie: cookie,
+            "content-type": "application/json",
+          },
+        }),
+      );
+    const importing = (text: string) =>
+      call("/api/gallery/sources/analoggenie/entries", owner, {
+        method: "POST",
+        body: JSON.stringify({
+          entries: [
+            {
+              id: "ag-308",
+              name: "AnalogGenie #308",
+              description: "Redrawn from the dataset's figure.",
+              tags: ["amplifier"],
+              projectText: text,
+            },
+          ],
+        }),
+      });
+    await importing(projectText("ag-308"));
+    const fix = (cookie: string, text: string) =>
+      call("/api/gallery/ag-308", cookie, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: "Ignored",
+          description: "Ignored",
+          projectText: text,
+        }),
+      });
+    const entry = async () =>
+      (
+        (await (await call("/api/gallery/ag-308?summary=1", maker)).json()) as {
+          entry: {
+            name: string;
+            author: string;
+            description: string;
+            fixedBy?: string[];
+          };
+        }
+      ).entry;
+
+    // Nine circuits of one's own are not yet enough.
+    for (let index = 0; index < 9; index += 1)
+      await submitOne(env, `Maker circuit ${index}`, { cookie: maker });
+    const locked = await fix(maker, wiredProjectText("Fixed"));
+    expect(locked.status).toBe(403);
+    expect(await locked.json()).toEqual({
+      error: "dataset-edit-locked",
+      contributions: 9,
+      needed: 10,
+    });
+
+    // The tenth opens it: the drawing changes, the dataset's name,
+    // description and byline stay, and the fixer is named beside them.
+    await submitOne(env, "Maker circuit 9", { cookie: maker });
+    expect(
+      await (await call("/api/gallery/quota", maker)).json(),
+    ).toMatchObject({
+      datasetEdits: { allowed: true, contributions: 10, needed: 10 },
+    });
+    expect((await fix(maker, wiredProjectText("Fixed"))).status).toBe(200);
+    const fixed = await entry();
+    expect(fixed).toMatchObject({
+      name: "AnalogGenie #308",
+      author: "AnalogGenie (redrawn)",
+      description: "Redrawn from the dataset's figure.",
+      fixedBy: [expect.any(String)],
+    });
+    expect(
+      (
+        (await (
+          await call("/api/gallery?source=analoggenie", maker)
+        ).json()) as { entries: { id: string; fixedBy?: string[] }[] }
+      ).entries,
+    ).toEqual([
+      expect.objectContaining({ id: "ag-308", fixedBy: fixed.fixedBy }),
+    ]);
+
+    // The Owner's re-import is the dataset's own, not a fix to credit.
+    await importing(wiredProjectText("Re-imported", 260));
+    expect((await entry()).fixedBy).toEqual(fixed.fixedBy);
   });
 
   it("takes an Owner token from a non-browser client, on the import alone (#1769)", async () => {

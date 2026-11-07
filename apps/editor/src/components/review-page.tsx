@@ -528,8 +528,11 @@ function ReviewItem({
           {card.name}
         </span>
         <span className="meta">
-          {comparison ? scopeName(store) : card.author} · {card.components}{" "}
-          devices
+          {comparison ? scopeName(store) : card.author}
+          {card.fixedBy?.length
+            ? ` · fixed by ${card.fixedBy.join(", ")}`
+            : ""}{" "}
+          · {card.components} devices
         </span>
         <a className="open" href={`/g/${encodeURIComponent(card.id)}`}>
           Open in editor

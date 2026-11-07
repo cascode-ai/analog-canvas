@@ -37,6 +37,7 @@ import type { createEditorNavigationController } from "../features/hierarchy/edi
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { primeGalleryPreview } from "../gallery-client";
+import { gallerySourceOfEntryId } from "../gallery-sources";
 import type { EditorServices } from "../services/editor-services";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import { EditorDialogLayer } from "./editor-dialog-layer";
@@ -599,12 +600,22 @@ export function EditorDialogs({
               updateTarget: canUpdateGalleryPublication(
                 galleryEntryContext,
                 publishSession,
+                publishQuota?.datasetEdits,
               )
                 ? {
                     id: galleryEntryContext!.id,
                     name: galleryEntryContext!.name,
                   }
                 : null,
+              datasetFix:
+                galleryEntryContext &&
+                gallerySourceOfEntryId(galleryEntryContext.id)
+                  ? {
+                      source: gallerySourceOfEntryId(galleryEntryContext.id)!
+                        .name,
+                      edits: publishQuota?.datasetEdits ?? null,
+                    }
+                  : null,
               updateDefaults: galleryEntryContext
                 ? {
                     description: galleryEntryContext.description,

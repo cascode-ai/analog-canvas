@@ -414,10 +414,19 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
   ignore their own selection. Dataset statistics are cached by normalized
   filters, access scope and data revision; imports and netlist-mark
   recomputation invalidate them.
-- Every write answers 403 `dataset-read-only` except a like, a review and the
-  Owner's imports; entries have no owner or AI mark (they count under
-  `datasets`, not `human`) and show no owner tools; an opened copy publishes
-  as a new community entry.
+- Every write answers 403 `dataset-read-only` except a like, a review, a
+  fix of its drawing and the Owner's imports; entries have no owner or AI
+  mark (they count under `datasets`, not `human`) and show no owner tools;
+  an opened copy publishes as a new community entry, or saves as a fix.
+- Fixing a dataset's drawing: the Owner, admins, moderators and any account
+  with at least 10 public circuits of its own may, from the editor's Save fix
+  (`PUT /api/gallery/<id>` `{projectText}`, same-origin; 401; 403
+  `dataset-edit-locked` `{contributions, needed}`). Only the drawing changes:
+  name, description, tags and byline stay, a testbench the fixer did not send
+  too. The fix is recorded as an `edit` fix ([Fixes](#fixes)); entries name
+  their `edit` fixers, first first, as `fixedBy`, shown as "fixed by" beside
+  the byline on tiles, the phone page and Review. `GET /api/gallery/quota`
+  adds `datasetEdits: {allowed, contributions, needed}`.
 - `GET /api/gallery/sources` → `{sources: [... , count]}`; readers see non-empty
   datasets, Owner accounts all.
 - `POST /api/gallery/sources/<key>/entries` (the Owner's same-origin session,
@@ -496,7 +505,7 @@ every store and, for the Owner, the open issues and disputes (each a link
 into Review), exported as JSON.
 
 - Any signed-in account reviews any public entry except its own, a dataset's
-  too (its store's only other write is the Owner's import). A review is
+  too. A review is
   `pass`, or `issue` with flags from `wrong`, `netlist`, `loose`, `ugly`, `overlap`,
   `wiring`, `incomplete`, `simple`, `duplicate`, `other`; either may carry a
   comment (`note`, ≤1000). At most 300 reviews per account per store each UTC day
@@ -511,7 +520,7 @@ into Review), exported as JSON.
 - `GET /api/gallery/review/<scope>/queue` (`scope`: a dataset with
   comparisons, or `community`) → `{entries: [{id, name, author,
 previewRevision, components, reviews, likes, likedByViewer, mine,
-comparison?, reference?}]}`: the entries
+comparison?, reference?, fixedBy?}]}`: the entries
   the reader may review, unreviewed by them first, then fewest counting
   reviews; `mine` is the reader's latest review, `reviews` how many count.
 - `GET /api/gallery/<id>/reviews` → `{blind: true, revision}` or `{blind:
@@ -525,8 +534,9 @@ note}` → `{review}`; 403 `own-entry`, 409 `stale`, 429. `PATCH
 ### Fixes
 
 - Every change of an entry's preview (its author's or the Owner's update, a
-  dataset re-import) adds a fix: who made it (the importing Owner for a
-  dataset), the revisions before and after, how many devices (instances),
+  dataset re-import, a dataset fix) adds a fix: who made it (the importing
+  Owner for a re-import; `kind: edit` for a dataset fix), the revisions before
+  and after, how many devices (instances),
   wires (routes and junctions) and labels (annotations and drafting text)
   were added, removed or changed, and the open issues of the replaced
   revision it answers. Fixes are only added; the `reviews` backup scope holds them.

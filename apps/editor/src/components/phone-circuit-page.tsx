@@ -19,6 +19,8 @@ export interface PhoneEntry {
   id: string;
   name: string;
   author: string;
+  /** Who fixed a dataset's drawing: a second byline. */
+  fixedBy?: string[];
   description: string;
   createdAt: string;
   previewRevision: string;
@@ -91,6 +93,7 @@ export function PhoneCircuitView({
       <h1>{entry.name}</h1>
       <p className="phone-circuit-meta">
         {entry.author ? `${entry.author} · ` : ""}
+        {entry.fixedBy?.length ? `fixed by ${entry.fixedBy.join(", ")} · ` : ""}
         {day}
         {entry.netlistable ? " · Netlist" : ""}
         {entry.aiGenerated ? " · AI" : ""}

@@ -66,6 +66,7 @@ import {
   withGalleryStore,
 } from "./gallery-datasets";
 import {
+  handleDatasetEntryEdit,
   handleEntryUpdate,
   handleSubmission,
   routeGalleryPublishing,
@@ -655,6 +656,10 @@ export async function routeGalleryRequest(
   const source =
     (segments[0] ? gallerySourceOfEntryId(segments[0]) : null) ??
     gallerySourceByKey(url.searchParams.get("source"));
+  // A dataset's drawing, fixed in the editor by an account that may.
+  const editedSource = segments[0] ? gallerySourceOfEntryId(segments[0]) : null;
+  if (editedSource && segments.length === 1 && request.method === "PUT")
+    return handleDatasetEntryEdit(request, env, editedSource, segments[0]!);
   if (source) {
     if (request.method !== "GET" && request.method !== "HEAD")
       return Response.json({ error: "dataset-read-only" }, { status: 403 });

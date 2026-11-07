@@ -36,7 +36,7 @@ describe("canUpdateGalleryPublication", () => {
   });
   const admin = { id: "a1", isAdmin: true };
 
-  it("offers the update to the owner and the Owner, never on a reference dataset (#1510)", () => {
+  it("offers the update to the owner and the Owner; a dataset's drawing to whoever may fix it", () => {
     expect(
       canUpdateGalleryPublication(context("k7m2", "u1"), {
         id: "u1",
@@ -52,9 +52,21 @@ describe("canUpdateGalleryPublication", () => {
     expect(canUpdateGalleryPublication(context("k7m2", "u1"), admin)).toBe(
       true,
     );
+    // A dataset's drawing follows the quota's permission alone.
+    const reader = { id: "u3", isAdmin: false };
     expect(canUpdateGalleryPublication(context("ag-308", null), admin)).toBe(
       false,
     );
+    expect(
+      canUpdateGalleryPublication(context("ag-308", null), reader, {
+        allowed: false,
+      }),
+    ).toBe(false);
+    expect(
+      canUpdateGalleryPublication(context("ag-308", null), reader, {
+        allowed: true,
+      }),
+    ).toBe(true);
   });
 });
 
@@ -66,6 +78,7 @@ describe("loadGalleryQuota", () => {
       remaining: 97,
       resetsAt: "2026-10-08T00:00:00.000Z",
       exempt: false,
+      datasetEdits: { allowed: true, contributions: 12, needed: 10 },
     };
     expect(await loadGalleryQuota(fetchReturning(200, quota))).toEqual(quota);
     expect(

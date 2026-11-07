@@ -22,6 +22,15 @@ export function installFixes(sql: SqlStorage): void {
   `);
   sql.exec(`CREATE INDEX IF NOT EXISTS idx_entry_fixes_entry
     ON entry_fixes(entry_id, created_at)`);
+  // `edit`: a person's fix of a dataset's drawing in the editor, credited
+  // beside its byline; empty for an import or an entry's own update.
+  try {
+    sql.exec(
+      "ALTER TABLE entry_fixes ADD COLUMN kind TEXT NOT NULL DEFAULT ''",
+    );
+  } catch {
+    // Column already present.
+  }
 }
 
 type Objects = Map<string, string>;
@@ -98,6 +107,7 @@ export function recordFix(
     editorId: unknown;
     editorName: unknown;
     at: string;
+    kind?: "edit";
   },
 ): void {
   if (fix.fromRevision === fix.toRevision) return;
@@ -113,8 +123,9 @@ export function recordFix(
   const size = changeSize(fix.beforeText, fix.afterText);
   sql.exec(
     `INSERT INTO entry_fixes (id, entry_id, from_revision, to_revision,
-       editor_id, editor_name, devices, wires, labels, addressed, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       editor_id, editor_name, devices, wires, labels, addressed, created_at,
+       kind)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     crypto.randomUUID(),
     fix.entryId,
     fix.fromRevision,
@@ -128,7 +139,48 @@ export function recordFix(
     size.labels,
     addressed.join(","),
     fix.at,
+    fix.kind ?? "",
   );
+}
+
+/** Every entry's fixers in this store, as fixersOf names them. */
+export function allFixers(sql: SqlStorage): Map<string, string[]> {
+  const fixers = new Map<string, string[]>();
+  for (const row of sql
+    .exec<{ entry_id: string; editor_name: string }>(
+      "SELECT entry_id, editor_name FROM entry_fixes WHERE kind = 'edit' ORDER BY created_at",
+    )
+    .toArray()) {
+    const names = fixers.get(row.entry_id) ?? [];
+    if (!names.includes(row.editor_name)) names.push(row.editor_name);
+    fixers.set(row.entry_id, names);
+  }
+  return fixers;
+}
+
+/**
+ * Who fixed each of these entries' drawings in the editor (`edit` fixes),
+ * each name once, first fixer first: the entry's second byline.
+ */
+export function fixersOf(
+  sql: SqlStorage,
+  ids: readonly string[],
+): Map<string, string[]> {
+  const fixers = new Map<string, string[]>();
+  if (ids.length === 0) return fixers;
+  for (const row of sql
+    .exec<{ entry_id: string; editor_name: string }>(
+      `SELECT entry_id, editor_name FROM entry_fixes
+       WHERE kind = 'edit' AND entry_id IN (${ids.map(() => "?").join(", ")})
+       ORDER BY created_at`,
+      ...ids,
+    )
+    .toArray()) {
+    const names = fixers.get(row.entry_id) ?? [];
+    if (!names.includes(row.editor_name)) names.push(row.editor_name);
+    fixers.set(row.entry_id, names);
+  }
+  return fixers;
 }
 
 /** An entry's fixes, newest first. */

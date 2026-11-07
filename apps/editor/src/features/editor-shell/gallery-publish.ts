@@ -121,6 +121,15 @@ export interface GalleryQuota {
   resetsAt: string;
   /** Curators publish without the allowance. */
   exempt: boolean;
+  /** Whether this account may fix a reference dataset's drawings. */
+  datasetEdits?: DatasetEdits;
+}
+
+/** Fixing a dataset's drawing opens with enough public circuits of one's own. */
+export interface DatasetEdits {
+  allowed: boolean;
+  contributions: number;
+  needed: number;
 }
 
 /** Null when signed out or unreachable: the dialog then says nothing. */
@@ -143,6 +152,9 @@ export async function loadGalleryQuota(
           remaining: quota.remaining,
           resetsAt: quota.resetsAt,
           exempt: quota.exempt === true,
+          ...(typeof quota.datasetEdits?.allowed === "boolean"
+            ? { datasetEdits: quota.datasetEdits }
+            : {}),
         }
       : null;
   } catch {
@@ -330,11 +342,13 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
               ? "The Project failed strict validation on the server"
               : outcome.message === "drafting-cover"
                 ? "A white drafting line or fill covers part of the drawing. Remove it: draw nothing over wires or parts, and a crossing without a dot needs no hop"
-                : outcome.message === "forbidden"
-                  ? "Only the entry's owner or a moderator can update it; an AI account can take over another AI account's circuit with a take-over"
-                  : outcome.message === "take-over-forbidden"
-                    ? "Only an AI account can take over a circuit, and only another AI account's: a person's circuit is never taken over"
-                    : `The gallery rejected the submission (${outcome.message})`;
+                : outcome.message === "dataset-edit-locked"
+                  ? "Fixing a dataset's drawings opens once you have published 10 circuits of your own"
+                  : outcome.message === "forbidden"
+                    ? "Only the entry's owner or a moderator can update it; an AI account can take over another AI account's circuit with a take-over"
+                    : outcome.message === "take-over-forbidden"
+                      ? "Only an AI account can take over a circuit, and only another AI account's: a person's circuit is never taken over"
+                      : `The gallery rejected the submission (${outcome.message})`;
     case "unreachable":
       return `Could not reach the gallery: ${outcome.message}`;
   }
