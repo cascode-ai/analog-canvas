@@ -201,13 +201,28 @@ class ReleaseTest(unittest.TestCase):
                 raise TimeoutError('The read operation timed out')
             return served(path, limit)
         production.get = flaky
-        partial = self.releases / (NEW + '.partial')
+        # Progress from an interrupted download of an earlier commit is reused.
+        partial = self.releases / ('c' * 40 + '.partial')
         (partial / 'assets').mkdir(parents=True)
         (partial / 'assets/index.html').write_bytes(b'<div id="root"></div>')
         result = release.tick(self.args(0), FakeHost(), production, now=1000)
         self.assertEqual(result['status'], 'installed')
         self.assertNotIn(f'/regional-release/{NEW}/root/index.html.bin', production.requests)
         self.assertEqual(drops['/assets/new.js'], 0)
+        self.assertFalse(partial.exists())
+
+    def test_keeps_the_serving_release_chunks_for_open_tabs(self):
+        old = self.releases / OLD
+        (old / 'assets/assets/retired.js').write_bytes(b'retired')
+        record = json.loads((old / 'release.json').read_text())
+        record['files']['assets/assets/retired.js'] = digest(b'retired')
+        (old / 'release.json').write_text(json.dumps(record))
+        production = FakeProduction(self.files)
+        release.tick(self.args(0), FakeHost(), production, now=1000)
+        installed = self.releases / NEW
+        self.assertEqual((installed / 'assets/assets/retired.js').read_bytes(), b'retired')
+        self.assertNotIn('assets/assets/retired.js', json.loads((installed / 'release.json').read_text())['files'])
+        self.assertNotIn('/assets/retired.js', production.requests)
 
     def test_gives_up_on_a_missing_file_without_retrying(self):
         import urllib.error

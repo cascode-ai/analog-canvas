@@ -198,8 +198,9 @@ Production's release, never a separate build.
   mapping or exclusion in the same commit.
 - Every candidate carries `/regional-release/<sha>/` from
   `scripts/regional-release.mjs`. Once Production has served a commit for 10
-  minutes, the host's `canvas-cn-release.timer` installs it: changed files
-  only, every SHA-256 and required credential checked, a stopped-state backup,
+  minutes, the host's `canvas-cn-release.timer` installs it: this build's
+  changed files only (the previous regional release's chunks are kept for open
+  tabs; downloads resume across ticks and commits), every SHA-256 and required credential checked, a stopped-state backup,
   then smoke checks. A failed check switches back and alerts; that commit is
   not retried. A Production rollback is followed the same way.
 - Secrets and the writes switches are root-owned credential files on the

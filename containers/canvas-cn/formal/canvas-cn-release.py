@@ -172,7 +172,25 @@ def assemble(fetcher, manifest, current, target, workers=4):
         return len(data)
 
     with concurrent.futures.ThreadPoolExecutor(workers) as pool:
-        return sum(pool.map(place, manifest['files'].items()))
+        downloaded = sum(pool.map(place, manifest['files'].items()))
+    carry_previous_assets(current, target)
+    return downloaded
+
+
+def carry_previous_assets(current, target):
+    """Tabs opened on the serving release still load its hashed chunks.
+
+    Only the serving release's own listed assets are carried, so each release
+    keeps exactly one release of history and never grows.
+    """
+    old = current / 'release.json'
+    if not old.is_file():
+        return
+    for path in json.loads(old.read_text()).get('files', {}):
+        source, destination = current / path, target / path
+        if path.startswith('assets/assets/') and source.is_file() and not destination.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
 
 
 class Host:
@@ -285,12 +303,20 @@ def tick(args, host=None, fetcher=None, now=None):
     commit, manifest, text = read_manifest(fetcher, published)
     releases = pathlib.Path(args.releases).resolve()
     target = releases / commit
-    partial = releases / (commit + '.partial')
-    # Kept across ticks: verified files survive an interrupted download.
+    # One download directory for every commit: hashed paths are verified by
+    # digest, so progress survives both interruption and a newer commit.
+    partial = releases / 'incoming.partial'
+    if not partial.exists():
+        earlier = sorted(releases.glob('*.partial'), key=lambda p: p.stat().st_mtime)
+        if earlier:
+            earlier[-1].rename(partial)
     partial.mkdir(parents=True, exist_ok=True)
     for stale in releases.glob('*.partial'):
         if stale != partial:
             shutil.rmtree(stale, ignore_errors=True)
+    for unlisted in [p for p in partial.rglob('*') if p.is_file()]:
+        if str(unlisted.relative_to(partial)).replace(os.sep, '/') not in manifest['files']:
+            unlisted.unlink()
     downloaded = assemble(fetcher, manifest, serving, partial)
     (partial / 'release.json').write_bytes(text)
     check_credentials((partial / 'config.capnp').read_text(), credentials)
