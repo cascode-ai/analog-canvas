@@ -32,6 +32,7 @@ import type { createEditorFileCommands } from "../features/editor-shell/editor-f
 import type { createGalleryExampleCommands } from "../features/editor-shell/gallery-example-commands";
 import {
   canUpdateGalleryPublication,
+  galleryFixOf,
   publishProjectToGallery,
   updateGalleryEntry,
 } from "../features/editor-shell/gallery-publish";
@@ -43,7 +44,6 @@ import type { createEditorNavigationController } from "../features/hierarchy/edi
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { primeGalleryPreview } from "../gallery-client";
-import { gallerySourceOfEntryId } from "../gallery-sources";
 // Loaded only for a drawing opened from the Gallery: not in the editor's
 // first payload.
 const ReferencePanel = lazy(() =>
@@ -632,22 +632,19 @@ export function EditorDialogs({
                 updateTarget: canUpdateGalleryPublication(
                   galleryEntryContext,
                   publishSession,
-                  publishQuota?.datasetEdits,
+                  publishQuota?.fixes,
                 )
                   ? {
                       id: galleryEntryContext!.id,
                       name: galleryEntryContext!.name,
                     }
                   : null,
-                datasetFix:
-                  galleryEntryContext &&
-                  gallerySourceOfEntryId(galleryEntryContext.id)
-                    ? {
-                        source: gallerySourceOfEntryId(galleryEntryContext.id)!
-                          .name,
-                        edits: publishQuota?.datasetEdits ?? null,
-                      }
-                    : null,
+                fix: galleryFixOf(galleryEntryContext, publishSession)
+                  ? {
+                      of: galleryFixOf(galleryEntryContext, publishSession)!,
+                      edits: publishQuota?.fixes ?? null,
+                    }
+                  : null,
                 updateDefaults: galleryEntryContext
                   ? {
                       description: galleryEntryContext.description,
