@@ -8,6 +8,7 @@ import { createEmptyProject } from "@icm/model";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EditorDocumentController } from "../document/document-controller";
 import { loadAgentRuntime, type AgentRuntime } from "./agent-runtime-loader";
+import * as runtimeFixture from "./agent-runtime";
 import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "./session-recovery-presence";
 import type { UseAgentSessionResult } from "./use-agent-session";
 import {
@@ -22,7 +23,9 @@ vi.mock("./agent-runtime-loader", async (importOriginal) => ({
   loadedAgentRuntime: () => null,
 }));
 
-const realRuntime = () => import("./agent-runtime");
+// Compile the real fixture before test timing starts. The scripted loader
+// below still controls whether and when the provider receives the runtime.
+const realRuntime = async () => runtimeFixture;
 const project = createEmptyProject("project-main", "Main");
 
 /** A sessionStorage the test can read back. */

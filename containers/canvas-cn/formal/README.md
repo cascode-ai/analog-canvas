@@ -85,10 +85,16 @@ available while computation fails closed.
    seed endpoint until `remaining=0`. Run delivery in both directions until
    contiguous receipts agree. Compare owner-scoped Project IDs, bytes, history
    and counts. Unknown owners and gaps must be resolved before proceeding.
-4. Install the replication timer and its root-owned curl credential file as
-   specified by the unit. Each tick reports `sent`, `caught-up`, `retry` or
-   `blocked`; HTTP success alone is not convergence. Connect status/lag/capacity
-   and timer-failure monitoring to an actually delivered alert. The private
+4. Include `sync-tick.py` in the immutable release and install the replication
+   service/timer with the unit's two root-owned credentials. A tick fails on
+   `retry`, `blocked`, `disabled`, a remaining write fence, 120 seconds without
+   catch-up or with pending work, or 80% of the configured journal budget.
+   Its private `monitor.json` and systemd journal contain only health counters;
+   HTTP success alone is not convergence. A failed tick is retried by the timer.
+   The sync service requires an already running runtime; it must not start a
+   stopped runtime during a consistent backup or maintenance window.
+   Connect these signals and a missing/stale timer to an actually delivered alert;
+   journal output alone does not deliver an alert. The private
    region actively pulls and pushes; the source needs no inbound domestic URL.
 5. Qualify off-host backup and restore for the whole stopped state directory,
    including sessions, Project journal, quota, receipts and artifact storage.
