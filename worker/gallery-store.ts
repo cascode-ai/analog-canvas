@@ -177,6 +177,7 @@ export type GalleryEnv = {
   AUTH?: AuthNamespaceLike;
   /** Regional authorization leases must be checked locally on every request. */
   AUTH_REGIONAL_CLIENT?: string;
+  AUTH_REGIONAL_AUTHORITY?: string;
   ADMIN_EMAILS?: string;
   ADMIN_EMAILS_EXTRA?: string;
 };
