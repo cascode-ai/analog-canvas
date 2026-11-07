@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  arrangeQueue,
   flagsFor,
+  hasReference,
   nextUnreviewed,
   reviewProgress,
   scopeFromSearch,
@@ -24,6 +26,7 @@ const review = (verdict: "pass" | "issue", current = true): ShownReview => ({
 
 const card = (id: string, mine: ShownReview | null = null): ReviewCard => ({
   id,
+  scope: "community",
   name: id,
   author: "a",
   previewRevision: "v",
@@ -51,6 +54,21 @@ describe("review queue", () => {
       reviews: 1,
       mine: { verdict: "issue" },
     });
+    // Random mixes the stores, the unreviewed first; one store keeps its order.
+    const mixed = arrangeQueue([cards.slice(0, 2), cards.slice(2)], true);
+    expect(
+      mixed
+        .slice(0, 2)
+        .map((each) => each.id)
+        .sort(),
+    ).toEqual(["c", "d"]);
+    expect(mixed).toHaveLength(4);
+    expect(arrangeQueue([cards], false)).toEqual(cards);
+    expect(
+      [card("e"), { ...card("f"), reference: { revision: "r" } }]
+        .filter(hasReference)
+        .map((each) => each.id),
+    ).toEqual(["f"]);
   });
 
   it("offers too simple and duplicate for community drawings only", () => {
@@ -71,6 +89,7 @@ describe("review queue", () => {
     ]);
     expect(scopeFromSearch("?scope=community")).toBe("community");
     expect(scopeFromSearch("?scope=analoggenie")).toBe("analoggenie");
-    expect(scopeFromSearch("?scope=amsnet")).toBe("community");
+    expect(scopeFromSearch("?scope=amsnet")).toBe("random");
+    expect(scopeFromSearch("")).toBe("random");
   });
 });

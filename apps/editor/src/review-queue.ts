@@ -49,9 +49,11 @@ export interface EntryFix {
   at: string;
 }
 
-/** One card of GET /api/gallery/review/<scope>/queue. */
+/** One card of GET /api/gallery/review/<scope>/queue, with its store. */
 export interface ReviewCard {
   id: string;
+  /** The store it came from: `community` or a dataset's key. */
+  scope: string;
   name: string;
   author: string;
   previewRevision: string;
@@ -106,10 +108,45 @@ export function withReview(card: ReviewCard, review: ShownReview): ReviewCard {
   };
 }
 
-/** What /review covers, as its sidebar lists it: the community first. */
-const REVIEW_SCOPES = ["community", "analoggenie", "circuitthink"];
+/** The stores /review reads, as its sidebar lists them: the community first. */
+const REVIEW_STORES = ["community", "analoggenie", "circuitthink"];
 
+/** Random (the default) mixes every store; any other scope is one store. */
 export function scopeFromSearch(search: string): string {
   const scope = new URLSearchParams(search).get("scope") ?? "";
-  return REVIEW_SCOPES.includes(scope) ? scope : "community";
+  return REVIEW_STORES.includes(scope) ? scope : "random";
 }
+
+/** Whether the address asks for drawings with a reference figure only. */
+export function referencesOnlyFromSearch(search: string): boolean {
+  return new URLSearchParams(search).get("refs") === "1";
+}
+
+export function storesOf(scope: string): string[] {
+  return scope === "random" ? REVIEW_STORES : [scope];
+}
+
+/**
+ * One store's queue keeps the server's order. Random mixes every store's in
+ * a shuffled order, the reviewer's unreviewed drawings first.
+ */
+export function arrangeQueue(
+  lists: readonly ReviewCard[][],
+  random: boolean,
+  draw: () => number = Math.random,
+): ReviewCard[] {
+  if (!random) return lists.flat();
+  const shuffled = lists.flat();
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(draw() * (index + 1));
+    [shuffled[index], shuffled[other]] = [shuffled[other]!, shuffled[index]!];
+  }
+  return [
+    ...shuffled.filter((card) => !reviewed(card)),
+    ...shuffled.filter(reviewed),
+  ];
+}
+
+/** A drawing with something to compare it with: a figure or a reference. */
+export const hasReference = (card: ReviewCard) =>
+  Boolean(card.comparison || card.reference);

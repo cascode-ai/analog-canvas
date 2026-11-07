@@ -39,6 +39,7 @@ import {
 } from "../dataset-comparisons";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
+import { ReviewSummary } from "./review-summary";
 
 type Load =
   | { status: "loading" }
@@ -149,23 +150,15 @@ export function DatasetsPage({
   return (
     <main className="review-shell datasets-shell" data-testid="datasets-page">
       <GalleryChrome subtitle="Datasets" visitStats={visitStats} />
-      <GalleryReviewTabs />
+      <GalleryReviewTabs>
+        <ReviewModeSwitch mode="statistics" scope={filters.source} />
+      </GalleryReviewTabs>
       <div className="page-body datasets-body" {...tipHandlers}>
-        <section className="datasets-intro">
-          <div>
-            <h2>Statistics</h2>
-            <p>
-              Each circuit&apos;s original figure beside our redraw, with both
-              netlists compared.
-            </p>
+        {load.status === "ready" ? (
+          <div className="datasets-head">
+            <SourceTabs rows={rows} filters={filters} set={set} />
           </div>
-          <div className="review-intro-side">
-            <ReviewModeSwitch mode="statistics" scope={filters.source} />
-            {load.status === "ready" ? (
-              <SourceTabs rows={rows} filters={filters} set={set} />
-            ) : null}
-          </div>
-        </section>
+        ) : null}
         {load.status === "loading" ? (
           <p className="gallery-status">Loading the datasets…</p>
         ) : load.status === "signed-out" ? (
@@ -178,6 +171,7 @@ export function DatasetsPage({
           </p>
         ) : (
           <>
+            <ReviewSummary fetchLike={fetchLike} />
             <SourceNote source={filters.source} />
             <section className="datasets-stats">
               <VerdictCard

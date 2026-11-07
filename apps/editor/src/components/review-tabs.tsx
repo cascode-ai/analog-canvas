@@ -1,9 +1,13 @@
+import type { ReactNode } from "react";
+
+import { gallerySourceByKey } from "../gallery-sources";
+
 /**
  * Review sits between the Gallery's two walls: Community gallery, Review,
- * My shelf. Its pages keep that row with Review chosen, and switch between
- * reviewing (the default) and the read-only statistics of the comparisons.
+ * My shelf. Its pages keep that row with Review chosen; the row's right end
+ * holds their switch between reviewing (the default) and statistics.
  */
-export function GalleryReviewTabs() {
+export function GalleryReviewTabs({ children }: { children?: ReactNode }) {
   const tabs = [
     ["/?view=gallery", "Community gallery", false],
     ["/review", "Review", true],
@@ -28,6 +32,7 @@ export function GalleryReviewTabs() {
           </a>
         ))}
       </div>
+      {children ? <div className="review-tabs-side">{children}</div> : null}
     </div>
   );
 }
@@ -40,7 +45,8 @@ export function ReviewModeSwitch({
   mode: "review" | "statistics";
   scope: string | null;
 }) {
-  const dataset = scope && scope !== "community" ? scope : null;
+  const dataset =
+    scope && gallerySourceByKey(scope)?.comparisons ? scope : null;
   return (
     <nav className="review-mode-switch" aria-label="Mode">
       <a

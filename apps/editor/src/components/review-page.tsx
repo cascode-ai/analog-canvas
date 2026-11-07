@@ -8,17 +8,22 @@ import { galleryPreviewUrl } from "../gallery-client";
 import { COMPARISON_SOURCES, gallerySourceByKey } from "../gallery-sources";
 import { verdictOf, type ComparisonVerdict } from "../dataset-comparisons";
 import {
+  arrangeQueue,
   flagLabel,
   flagsFor,
+  hasReference,
   nextUnreviewed,
+  referencesOnlyFromSearch,
   reviewProgress,
   reviewed,
   scopeFromSearch,
+  storesOf,
   withReview,
   type EntryFix,
   type ReviewCard,
   type ShownReview,
 } from "../review-queue";
+import { fetchSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
 import { SidebarFoldButton, useCollapsedSidebar } from "./gallery-tag-sidebar";
@@ -47,6 +52,11 @@ export function ReviewPage({
   const [scope, setScope] = useState(() =>
     scopeFromSearch(window.location.search),
   );
+  const [referencesOnly, setReferencesOnly] = useState(() =>
+    referencesOnlyFromSearch(window.location.search),
+  );
+  // A link from Statistics names the drawing to open.
+  const focusId = useRef(new URLSearchParams(window.location.search).get("id"));
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [index, setIndex] = useState(0);
   const [flags, setFlags] = useState<string[]>([]);
@@ -56,29 +66,45 @@ export function ReviewPage({
   const [sidebarCollapsed, toggleSidebar] = useCollapsedSidebar(
     "icm.review.sidebarCollapsed",
   );
-  // The Owner's lists; null for anyone else (the route answers 403).
-  const [owner, setOwner] = useState<{
-    issues: ShownReview[];
-    disputed: string[];
-  } | null>(null);
-  const [ownerRound, setOwnerRound] = useState(0);
+  // The Owner sees everyone's verdicts at once and resolves issues.
+  const [owner, setOwner] = useState(false);
+  useEffect(() => {
+    void fetchSessionUser().then((user) => setOwner(user?.isOwner === true));
+  }, []);
 
   useEffect(() => {
-    window.history.replaceState(null, "", `/review?scope=${scope}`);
+    window.history.replaceState(
+      null,
+      "",
+      `/review?scope=${scope}${referencesOnly ? "&refs=1" : ""}`,
+    );
+  }, [scope, referencesOnly]);
+
+  useEffect(() => {
     let cancelled = false;
     setLoad({ status: "loading" });
-    void fetchLike(`/api/gallery/review/${scope}/queue`, {
-      credentials: "same-origin",
-    })
-      .then(async (response) => {
-        if (response.status === 401) return { status: "signed-out" } as const;
-        if (!response.ok) return { status: "failed" } as const;
+    void Promise.all(
+      storesOf(scope).map(async (store) => {
+        const response = await fetchLike(`/api/gallery/review/${store}/queue`, {
+          credentials: "same-origin",
+        });
+        if (response.status === 401) return null;
+        if (!response.ok) throw new Error(String(response.status));
         const { entries } = (await response.json()) as {
-          entries: ReviewCard[];
+          entries: Omit<ReviewCard, "scope">[];
         };
-        return { status: "ready", cards: entries } as const;
+        return entries.map((entry) => ({ ...entry, scope: store }));
+      }),
+    )
+      .then((lists): Load => {
+        if (lists.some((list) => list === null))
+          return { status: "signed-out" };
+        return {
+          status: "ready",
+          cards: arrangeQueue(lists as ReviewCard[][], scope === "random"),
+        };
       })
-      .catch(() => ({ status: "failed" }) as const)
+      .catch((): Load => ({ status: "failed" }))
       .then((next) => {
         if (cancelled) return;
         setLoad(next);
@@ -89,22 +115,36 @@ export function ReviewPage({
     };
   }, [scope, fetchLike]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void fetchLike(`/api/gallery/review/${scope}/issues`, {
-      credentials: "same-origin",
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => !cancelled && setOwner(payload))
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [scope, fetchLike, ownerRound]);
-
-  const cards = load.status === "ready" ? load.cards : [];
+  const all = useMemo(
+    () => (load.status === "ready" ? load.cards : []),
+    [load],
+  );
+  const cards = useMemo(
+    () => (referencesOnly ? all.filter(hasReference) : all),
+    [all, referencesOnly],
+  );
   const card = cards[index];
   const progress = useMemo(() => reviewProgress(cards), [cards]);
+  useEffect(() => {
+    if (!focusId.current || cards.length === 0) return;
+    const found = cards.findIndex((each) => each.id === focusId.current);
+    focusId.current = null;
+    if (found >= 0) setIndex(found);
+  }, [cards]);
+  const replaceCard = useCallback(
+    (id: string, change: (card: ReviewCard) => ReviewCard) =>
+      setLoad((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              cards: current.cards.map((each) =>
+                each.id === id ? change(each) : each,
+              ),
+            }
+          : current,
+      ),
+    [],
+  );
 
   // A new card starts clean, or with the reviewer's own current review.
   useEffect(() => {
@@ -154,17 +194,22 @@ export function ReviewPage({
         );
         return;
       }
-      const updated = cards.map((each) =>
-        each.id === card.id ? withReview(each, payload.review!) : each,
+      const review = payload.review;
+      replaceCard(card.id, (each) => withReview(each, review));
+      go(
+        nextUnreviewed(
+          cards.map((each) =>
+            each.id === card.id ? withReview(each, review) : each,
+          ),
+          index,
+        ),
       );
-      setLoad({ status: "ready", cards: updated });
-      go(nextUnreviewed(updated, index));
     } catch {
       setMessage("The review could not be saved.");
     } finally {
       setBusy(false);
     }
-  }, [card, busy, fetchLike, flags, note, cards, go, index]);
+  }, [card, busy, fetchLike, flags, note, cards, go, index, replaceCard]);
 
   // A like is the reader's own mark, apart from the review.
   const toggleLike = useCallback(async () => {
@@ -181,17 +226,8 @@ export function ReviewPage({
       likedByViewer: boolean;
       likes: number;
     };
-    setLoad((current) =>
-      current.status === "ready"
-        ? {
-            status: "ready",
-            cards: current.cards.map((each) =>
-              each.id === card.id ? { ...each, likedByViewer, likes } : each,
-            ),
-          }
-        : current,
-    );
-  }, [card, fetchLike]);
+    replaceCard(card.id, (each) => ({ ...each, likedByViewer, likes }));
+  }, [card, fetchLike, replaceCard]);
 
   const toggleFlag = useCallback(
     (key: string) =>
@@ -217,7 +253,9 @@ export function ReviewPage({
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const flag = flagsFor(scope).find((each) => each.hotkey === event.key);
+      const flag = flagsFor(card?.scope ?? scope).find(
+        (each) => each.hotkey === event.key,
+      );
       if (flag) toggleFlag(flag.key);
       else if (event.key === "Enter") void submit();
       else if (event.key.toLowerCase() === "l") void toggleLike();
@@ -230,110 +268,107 @@ export function ReviewPage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [scope, toggleFlag, toggleLike, submit, go, index, cards]);
+  }, [scope, card, toggleFlag, toggleLike, submit, go, index, cards]);
 
   return (
-    <main className="gallery-shell datasets-shell" data-testid="review-page">
+    <main
+      className="gallery-shell datasets-shell review-page"
+      data-testid="review-page"
+    >
       <GalleryChrome subtitle="Review" visitStats={visitStats} />
-      <GalleryReviewTabs />
+      <GalleryReviewTabs>
+        <ReviewModeSwitch mode="review" scope={scope} />
+      </GalleryReviewTabs>
       {/* The Gallery's own frame: its sidebar at the left, the work beside. */}
       <div className="gallery-browser">
         <ScopeSidebar
           scope={scope}
           choose={setScope}
+          referencesOnly={referencesOnly}
+          references={
+            load.status === "ready" ? all.filter(hasReference).length : null
+          }
+          onReferencesOnly={() => {
+            setReferencesOnly((current) => !current);
+            setIndex(0);
+          }}
           collapsed={sidebarCollapsed}
           onToggle={toggleSidebar}
         />
         <div className="gallery-main">
           <div className="page-body review-body">
-            <section className="datasets-intro">
-              <div>
-                <h2>Review</h2>
-                <p>
-                  Pass each drawing, or flag what is wrong with it. Others&apos;
-                  verdicts show once yours is in.
-                </p>
-              </div>
-              <div className="review-intro-side">
-                <ReviewModeSwitch mode="review" scope={scope} />
-              </div>
-            </section>
-            <div className="review-main">
-              {load.status === "loading" ? (
-                <p className="gallery-status">Loading the drawings…</p>
-              ) : load.status === "signed-out" ? (
-                <p className="gallery-status" data-testid="review-signed-out">
-                  Sign in (top right) to review.
-                </p>
-              ) : load.status === "failed" ? (
-                <p className="gallery-status">
-                  The drawings could not be loaded. Reload to try again.
-                </p>
-              ) : !card ? (
-                <p className="gallery-status">Nothing to review here yet.</p>
-              ) : (
-                <>
+            {load.status === "loading" ? (
+              <p className="gallery-status">Loading the drawings…</p>
+            ) : load.status === "signed-out" ? (
+              <p className="gallery-status" data-testid="review-signed-out">
+                Sign in (top right) to review.
+              </p>
+            ) : load.status === "failed" ? (
+              <p className="gallery-status">
+                The drawings could not be loaded. Reload to try again.
+              </p>
+            ) : !card ? (
+              <p className="gallery-status">
+                {referencesOnly
+                  ? "No drawing here has a reference figure yet."
+                  : "Nothing to review here yet."}
+              </p>
+            ) : (
+              <>
+                <div className="review-toolbar">
                   <Progress {...progress} total={cards.length} />
-                  <PeoplePanel scope={scope} fetchLike={fetchLike} />
-                  {owner ? (
-                    <OwnerPanel
-                      scope={scope}
-                      lists={owner}
-                      cards={cards}
-                      open={(id) =>
-                        go(cards.findIndex((each) => each.id === id))
-                      }
-                    />
-                  ) : null}
-                  <ReviewItem
-                    key={card.id}
-                    card={card}
-                    scope={scope}
-                    position={`${num(index + 1)} / ${num(cards.length)}`}
-                    fetchLike={fetchLike}
-                    owner={owner !== null}
-                    onResolved={() => setOwnerRound((round) => round + 1)}
-                  />
-                  <div className="review-actions">
+                  <span className="review-steps">
                     <button
                       type="button"
-                      className={`review-submit${flags.length ? " issue" : ""}`}
-                      disabled={busy}
-                      onClick={() => void submit()}
+                      title="Previous (←)"
+                      aria-label="Previous"
+                      onClick={() => go(index - 1)}
                     >
-                      {flags.length ? "Submit issue" : "Pass"}
-                      <kbd>Enter</kbd>
+                      ←
+                    </button>
+                    <span className="position">
+                      {num(index + 1)} / {num(cards.length)}
+                    </span>
+                    <button
+                      type="button"
+                      title="Next (→)"
+                      aria-label="Next"
+                      onClick={() => go(index + 1)}
+                    >
+                      →
                     </button>
                     <button
                       type="button"
-                      className={`review-like${card.likedByViewer ? " on" : ""}`}
-                      aria-pressed={card.likedByViewer}
-                      title={
-                        card.likedByViewer
-                          ? "Remove your like"
-                          : "Like this circuit"
-                      }
-                      onClick={() => void toggleLike()}
+                      onClick={() => go(nextUnreviewed(cards, index))}
                     >
-                      <HeartIcon filled={card.likedByViewer} />{" "}
-                      {num(card.likes)}
-                      <kbd>L</kbd>
+                      Next unreviewed <kbd>N</kbd>
                     </button>
-                    {flagsFor(scope).map((flag) => (
-                      <button
-                        key={flag.key}
-                        type="button"
-                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
-                        aria-pressed={flags.includes(flag.key)}
-                        onClick={() => toggleFlag(flag.key)}
-                      >
-                        <kbd>{flag.hotkey}</kbd>
-                        {flag.label}
-                      </button>
-                    ))}
-                  </div>
+                  </span>
+                </div>
+                <ReviewItem
+                  key={card.id}
+                  card={card}
+                  fetchLike={fetchLike}
+                  owner={owner}
+                />
+                <div className="review-flags" role="group" aria-label="Flags">
+                  {flagsFor(card.scope).map((flag) => (
+                    <button
+                      key={flag.key}
+                      type="button"
+                      className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
+                      aria-pressed={flags.includes(flag.key)}
+                      onClick={() => toggleFlag(flag.key)}
+                    >
+                      <kbd>{flag.hotkey}</kbd>
+                      {flag.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="review-actions">
                   <textarea
                     className="review-note"
+                    rows={1}
                     placeholder={
                       flags.length
                         ? "What is wrong, and where: such as M3's drain on VOUT instead of X (optional; ⌘/Ctrl+Enter submits)"
@@ -343,26 +378,32 @@ export function ReviewPage({
                     maxLength={1000}
                     onChange={(event) => setNote(event.target.value)}
                   />
-                  <div className="review-nav">
-                    <button type="button" onClick={() => go(index - 1)}>
-                      ← Previous
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => go(nextUnreviewed(cards, index))}
-                    >
-                      Next unreviewed <kbd>N</kbd>
-                    </button>
-                    <button type="button" onClick={() => go(index + 1)}>
-                      Next →
-                    </button>
-                    {message ? (
-                      <span className="review-message">{message}</span>
-                    ) : null}
-                  </div>
-                </>
-              )}
-            </div>
+                  <button
+                    type="button"
+                    className={`review-like${card.likedByViewer ? " on" : ""}`}
+                    aria-pressed={card.likedByViewer}
+                    title={
+                      card.likedByViewer
+                        ? "Remove your like (L)"
+                        : "Like this circuit (L)"
+                    }
+                    onClick={() => void toggleLike()}
+                  >
+                    <HeartIcon filled={card.likedByViewer} /> {num(card.likes)}
+                  </button>
+                  <button
+                    type="button"
+                    className={`review-submit${flags.length ? " issue" : ""}`}
+                    disabled={busy}
+                    onClick={() => void submit()}
+                  >
+                    {flags.length ? "Submit issue" : "Pass"}
+                    <kbd>Enter</kbd>
+                  </button>
+                </div>
+                {message ? <p className="review-message">{message}</p> : null}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -398,54 +439,30 @@ function Progress({
 
 function ReviewItem({
   card,
-  scope,
-  position,
   fetchLike,
   owner,
-  onResolved,
 }: {
   card: ReviewCard;
-  scope: string;
-  position: string;
   fetchLike: typeof fetch;
   owner: boolean;
-  onResolved: () => void;
 }) {
   const comparison = card.comparison;
+  const store = card.scope;
   return (
     <article className="review-item">
       <div className="head">
         <span className="id">{card.id}</span>
-        <span className="name">{card.name}</span>
-        {comparison ? (
-          <span className="datasets-badge">
-            <span
-              className={`datasets-icon v-${comparison.verdict}`}
-              aria-hidden="true"
-            >
-              {verdictOf(comparison.verdict as ComparisonVerdict).icon}
-            </span>
-            {verdictOf(comparison.verdict as ComparisonVerdict).label}
-          </span>
-        ) : (
-          <span className="meta">{card.author}</span>
-        )}
+        <span className="name" title={card.name}>
+          {card.name}
+        </span>
         <span className="meta">
-          {card.components} devices · {position}
+          {comparison ? scopeName(store) : card.author} · {card.components}{" "}
+          devices
         </span>
         <a className="open" href={`/g/${encodeURIComponent(card.id)}`}>
           Open in editor
         </a>
       </div>
-      {comparison && comparison.verdict !== "match" ? (
-        <p className="review-reason">
-          <b>{comparison.category}</b>
-          {comparison.detail && comparison.detail !== comparison.category
-            ? ` — ${comparison.detail}`
-            : ""}
-          {comparison.reason ? <span> {comparison.reason}</span> : null}
-        </p>
-      ) : null}
       <div className="review-cols">
         <div>
           <h4>
@@ -453,7 +470,7 @@ function ReviewItem({
             <span>
               ·{" "}
               {comparison
-                ? scopeName(scope)
+                ? scopeName(store)
                 : card.reference
                   ? "uploaded by its author"
                   : "none yet"}
@@ -462,7 +479,7 @@ function ReviewItem({
           <div className="review-pic">
             {comparison ? (
               <img
-                src={`/api/gallery/sources/${scope}/comparisons/${encodeURIComponent(card.id)}/figure?v=${encodeURIComponent(comparison.figureRevision)}`}
+                src={`/api/gallery/sources/${store}/comparisons/${encodeURIComponent(card.id)}/figure?v=${encodeURIComponent(comparison.figureRevision)}`}
                 alt="Original figure"
               />
             ) : card.reference ? (
@@ -475,13 +492,16 @@ function ReviewItem({
             )}
           </div>
           {comparison ? (
-            <NetlistPane
-              key={`theirs-${card.id}`}
-              url={`/api/gallery/sources/${scope}/comparisons/${encodeURIComponent(card.id)}`}
-              read={(payload) => payload.sourceNetlist}
-              empty="The dataset gives no netlist."
-              fetchLike={fetchLike}
-            />
+            <>
+              <NetlistPane
+                key={`theirs-${card.id}`}
+                url={`/api/gallery/sources/${store}/comparisons/${encodeURIComponent(card.id)}`}
+                read={(payload) => payload.sourceNetlist}
+                empty="The dataset gives no netlist."
+                fetchLike={fetchLike}
+              />
+              <VerdictNote comparison={comparison} />
+            </>
           ) : null}
         </div>
         <div>
@@ -503,13 +523,45 @@ function ReviewItem({
           />
         </div>
       </div>
-      <OthersReviews
-        card={card}
-        fetchLike={fetchLike}
-        owner={owner}
-        onResolved={onResolved}
-      />
+      <OthersReviews card={card} fetchLike={fetchLike} owner={owner} />
     </article>
+  );
+}
+
+/**
+ * Under the dataset's netlist, what comparing it with ours found: the
+ * verdict and its kind, then in a sentence where the dataset differs.
+ */
+function VerdictNote({
+  comparison,
+}: {
+  comparison: NonNullable<ReviewCard["comparison"]>;
+}) {
+  const verdict = verdictOf(comparison.verdict as ComparisonVerdict);
+  const sentence =
+    comparison.verdict === "match"
+      ? "Both netlists describe the same circuit."
+      : comparison.reason || comparison.detail;
+  const kind =
+    comparison.verdict !== "match" && comparison.category
+      ? ` · ${comparison.category}`
+      : "";
+  return (
+    <div className="review-verdict" data-testid="review-verdict">
+      <span
+        className={`datasets-icon v-${comparison.verdict}`}
+        aria-hidden="true"
+      >
+        {verdict.icon}
+      </span>
+      <p>
+        <b>
+          {verdict.label}
+          {kind}
+        </b>
+        {sentence && sentence !== comparison.category ? ` — ${sentence}` : ""}
+      </p>
+    </div>
   );
 }
 
@@ -518,12 +570,10 @@ function OthersReviews({
   card,
   fetchLike,
   owner,
-  onResolved,
 }: {
   card: ReviewCard;
   fetchLike: typeof fetch;
   owner: boolean;
-  onResolved: () => void;
 }) {
   const [shown, setShown] = useState<ShownReview[] | null>(null);
   const [fixes, setFixes] = useState<EntryFix[]>([]);
@@ -557,7 +607,6 @@ function OthersReviews({
       },
     );
     setRound((value) => value + 1);
-    onResolved();
   };
   if (!unblinded)
     return card.reviews ? (
@@ -604,149 +653,6 @@ function OthersReviews({
   );
 }
 
-/** The Owner's lists: open issues and disputed drawings, each a jump. */
-function OwnerPanel({
-  scope,
-  lists,
-  cards,
-  open,
-}: {
-  scope: string;
-  lists: { issues: ShownReview[]; disputed: string[] };
-  cards: readonly ReviewCard[];
-  open: (id: string) => void;
-}) {
-  const listed = new Set(cards.map((card) => card.id));
-  const issueIds = [...new Set(lists.issues.map((issue) => issue.entryId))];
-  const jump = (ids: string[]) =>
-    ids
-      .filter((id) => listed.has(id))
-      .slice(0, 40)
-      .map((id) => (
-        <button key={id} type="button" onClick={() => open(id)}>
-          {id}
-        </button>
-      ));
-  return (
-    <details className="review-owner">
-      <summary>
-        Owner · {issueIds.length} with open issues · {lists.disputed.length}{" "}
-        disputed
-      </summary>
-      <div>
-        <b>Open issues</b> {jump(issueIds)}
-      </div>
-      <div>
-        <b>Disputed</b> {jump(lists.disputed)}
-      </div>
-      <div>
-        <button
-          type="button"
-          className="review-export"
-          onClick={() => {
-            // Every open issue with its flags and comment, for whoever fixes
-            // the drawings.
-            const file = new Blob(
-              [
-                JSON.stringify(
-                  {
-                    scope,
-                    exportedAt: new Date().toISOString(),
-                    issues: lists.issues,
-                    disputed: lists.disputed,
-                  },
-                  null,
-                  2,
-                ),
-              ],
-              { type: "application/json" },
-            );
-            const link = Object.assign(document.createElement("a"), {
-              href: URL.createObjectURL(file),
-              download: `review-issues-${scope}.json`,
-            });
-            link.click();
-            URL.revokeObjectURL(link.href);
-          }}
-        >
-          Export issues (JSON)
-        </button>
-      </div>
-    </details>
-  );
-}
-
-interface PersonWork {
-  person: string;
-  reviews: number;
-  passes: number;
-  issues: number;
-  fixes: number;
-  circuits: number;
-  changes: number;
-  addressed: number;
-}
-
-/** Everyone's work here: reviews written and fixes made. */
-function PeoplePanel({
-  scope,
-  fetchLike,
-}: {
-  scope: string;
-  fetchLike: typeof fetch;
-}) {
-  const [people, setPeople] = useState<PersonWork[] | null>(null);
-  const load = () => {
-    if (people) return;
-    void fetchLike(`/api/gallery/review/${scope}/people`, {
-      credentials: "same-origin",
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { people?: PersonWork[] } | null) =>
-        setPeople(payload?.people ?? []),
-      )
-      .catch(() => setPeople([]));
-  };
-  useEffect(() => setPeople(null), [scope]);
-  return (
-    <details className="review-people" onToggle={load}>
-      <summary>People · reviews and fixes</summary>
-      {people === null ? null : people.length === 0 ? (
-        <p className="meta">No reviews or fixes here yet.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Person</th>
-              <th>Reviews</th>
-              <th>Passed</th>
-              <th>Flagged</th>
-              <th>Fixes</th>
-              <th>Circuits fixed</th>
-              <th>Objects changed</th>
-              <th>Issues answered</th>
-            </tr>
-          </thead>
-          <tbody>
-            {people.map((row) => (
-              <tr key={row.person}>
-                <td>{row.person}</td>
-                <td>{num(row.reviews)}</td>
-                <td>{num(row.passes)}</td>
-                <td>{num(row.issues)}</td>
-                <td>{num(row.fixes)}</td>
-                <td>{num(row.circuits)}</td>
-                <td>{num(row.changes)}</td>
-                <td>{num(row.addressed)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </details>
-  );
-}
-
 /**
  * One side's SPICE netlist under its picture. Ours is the entry's, read as
  * opening it is: it spends one of the day's circuit opens.
@@ -787,17 +693,25 @@ function NetlistPane({
 }
 
 /**
- * The left column, in the Gallery sidebar's own markup and look: the
- * community first, then each dataset. It folds to a strip as that one does.
+ * The left column, in the Gallery sidebar's own markup and look: Random
+ * (every store mixed), the community, then each dataset; below, the filter
+ * to drawings that have a figure to compare with. It folds to a strip as
+ * that one does.
  */
 function ScopeSidebar({
   scope,
   choose,
+  referencesOnly,
+  references,
+  onReferencesOnly,
   collapsed,
   onToggle,
 }: {
   scope: string;
   choose: (scope: string) => void;
+  referencesOnly: boolean;
+  references: number | null;
+  onReferencesOnly: () => void;
   collapsed: boolean;
   onToggle: () => void;
 }) {
@@ -836,6 +750,7 @@ function ScopeSidebar({
       </div>
       <aside className="gallery-tag-sidebar" aria-label="What to review">
         <div className="gallery-sidebar-quick">
+          {item("random", "Random", "")}
           {item("community", "Community", "")}
         </div>
         <div className="gallery-sidebar-heading">
@@ -845,6 +760,24 @@ function ScopeSidebar({
           {COMPARISON_SOURCES.map((source) =>
             item(source.key, source.name, source.license),
           )}
+        </div>
+        <div className="gallery-sidebar-heading">
+          <h2>Filter</h2>
+        </div>
+        <div className="review-sidebar-list">
+          <button
+            type="button"
+            className="gallery-sidebar-option"
+            aria-pressed={referencesOnly}
+            data-testid="review-references-only"
+            title="Only drawings with an original figure or a reference image"
+            onClick={onReferencesOnly}
+          >
+            <span>With a reference figure</span>
+            <span className="gallery-sidebar-count">
+              {references === null ? "" : num(references)}
+            </span>
+          </button>
         </div>
       </aside>
     </div>
