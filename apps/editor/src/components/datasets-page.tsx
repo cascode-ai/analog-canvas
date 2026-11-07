@@ -617,6 +617,13 @@ function Toolbar({
           </button>
         ))}
       </span>
+      <a
+        className="datasets-review-link"
+        href={`/review?scope=${filters.source ?? "analoggenie"}`}
+        data-testid="datasets-review-link"
+      >
+        Review mode
+      </a>
       {pills.map(([key, label]) => (
         <span key={key} className="datasets-pill">
           {label}

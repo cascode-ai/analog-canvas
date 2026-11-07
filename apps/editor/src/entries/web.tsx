@@ -64,7 +64,7 @@ export function mountWebEditor() {
   const startPath = window.location.pathname;
   // `/editor` and `/g/<id>`: every path no other page claims.
   const editorRoute =
-    !/^\/(?:analytics|moderation|privacy|changelog|account|mine|datasets)?\/?$/.test(
+    !/^\/(?:analytics|moderation|privacy|changelog|account|mine|datasets|review)?\/?$/.test(
       startPath,
     );
   // Unpaired Gallery visitors must not download the Editor/Agent runtime.
@@ -230,6 +230,14 @@ export function mountWebEditor() {
     ),
   );
 
+  const ReviewPage = lazy(
+    guardedRouteChunk(() =>
+      import("../components/review-page").then((module) => ({
+        default: module.ReviewPage,
+      })),
+    ),
+  );
+
   const PrivacyPage = lazy(
     guardedRouteChunk(() =>
       import("../components/privacy-page").then((module) => ({
@@ -330,6 +338,15 @@ export function mountWebEditor() {
           fallback={<div className="analytics-loading">Loading datasets…</div>}
         >
           <DatasetsPage visitStats={stats} />
+        </Suspense>
+      );
+    }
+    if (/^\/review\/?$/.test(path)) {
+      return (
+        <Suspense
+          fallback={<div className="analytics-loading">Loading review…</div>}
+        >
+          <ReviewPage visitStats={stats} />
         </Suspense>
       );
     }

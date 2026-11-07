@@ -455,6 +455,21 @@
   font: inherit;
 }
 
+.datasets-review-link {
+  padding: 4px 10px;
+  border: 1px solid var(--icm-text);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.datasets-review-link:hover {
+  background: var(--icm-text);
+  color: #fff;
+}
+
 .datasets-pill {
   display: inline-flex;
   align-items: center;

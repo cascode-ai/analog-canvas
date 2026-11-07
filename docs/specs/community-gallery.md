@@ -474,6 +474,38 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
   comparison without one). Imports post with `pnpm gallery:import-batches
 --post-comparisons FILE --source KEY`.
 
+### Reviews
+
+`/review` shows one drawing at a time beside its reference (a dataset's
+original figure; a community circuit has none yet) for a verdict. `/datasets`
+links to it.
+
+- Any signed-in account reviews any public entry except its own, a dataset's
+  too (its store's only other write is the Owner's import). A review is
+  `pass`, or `issue` with flags from `wrong`, `loose`, `ugly`, `overlap`,
+  `wiring`, `incomplete`, `simple`, `duplicate`, `other` and an optional note
+  (≤1000). At most 300 reviews per account per store each UTC day
+  (`daily-review-limit`).
+- A review belongs to the entry's preview revision at that moment (`stale`
+  when the reviewer's is older). Each reviewer's latest review of the current
+  revision counts; an update leaves earlier reviews in the history, no
+  longer counting. Rows are only added; the Owner marks an issue resolved.
+  Reviews are in no backup yet.
+- Blind: a reviewer sees others' reviews of an entry only once their own of
+  its current revision is in; the Owner always.
+- `GET /api/gallery/review/<scope>/queue` (`scope`: a dataset with
+  comparisons, or `community`) → `{entries: [{id, name, author,
+previewRevision, components, reviews, mine, comparison?}]}`: the entries
+  the reader may review, unreviewed by them first, then fewest counting
+  reviews; `mine` is the reader's latest review, `reviews` how many count.
+- `GET /api/gallery/<id>/reviews` → `{blind: true, revision}` or `{blind:
+false, revision, current, history}`. `POST` `{revision, verdict, flags,
+note}` → `{review}`; 403 `own-entry`, 409 `stale`, 429. `PATCH
+…/reviews/<reviewId>` `{resolved: true}`: Owner only.
+- `GET /api/gallery/review/<scope>/issues` (Owner) → `{issues, disputed}`:
+  open issues counting now, and entries whose counting reviews both pass and
+  hold an open issue. `…/people` → each reviewer's totals.
+
 ## Accounts and sessions
 
 `AuthDO` (one SQLite Durable Object) owns users and sessions behind
