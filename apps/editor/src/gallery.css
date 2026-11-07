@@ -917,8 +917,7 @@
 }
 
 .gallery-owner-popover a,
-.gallery-owner-popover button,
-.gallery-owner-popover .gallery-owner-menu-file {
+.gallery-owner-popover button {
   box-sizing: border-box;
   width: 100%;
   padding: 8px 10px;
@@ -934,13 +933,8 @@
 }
 
 .gallery-owner-popover a:hover,
-.gallery-owner-popover button:hover,
-.gallery-owner-popover .gallery-owner-menu-file:hover {
+.gallery-owner-popover button:hover {
   background: var(--icm-surface-hover);
-}
-
-.gallery-owner-popover .gallery-owner-menu-file {
-  display: block;
 }
 
 .gallery-owner-popover button:disabled {
