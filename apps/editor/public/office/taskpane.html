@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analog Canvas</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        color: #1f2933;
+        font:
+          13px/1.45 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      h1 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 4px;
+        font-size: 15px;
+      }
+      h1 img {
+        width: 20px;
+        height: 20px;
+      }
+      p {
+        margin: 0 0 14px;
+        color: #52606d;
+      }
+      button {
+        display: block;
+        width: 100%;
+        margin: 0 0 8px;
+        padding: 9px 12px;
+        border: 1px solid #c8d1db;
+        border-radius: 6px;
+        background: #fff;
+        color: inherit;
+        font: inherit;
+        font-weight: 600;
+        text-align: left;
+        cursor: pointer;
+      }
+      button.primary {
+        border-color: #2383e2;
+        background: #2383e2;
+        color: #fff;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      h2 {
+        margin: 16px 0 6px;
+        color: #52606d;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      #examples button {
+        padding: 7px 12px;
+        font-weight: 500;
+      }
+      #status {
+        min-height: 2.9em;
+        margin-top: 10px;
+        color: #52606d;
+        white-space: pre-wrap;
+      }
+      #status[data-failed] {
+        color: #b91c1c;
+      }
+      small {
+        display: block;
+        margin-top: 18px;
+        color: #7b8794;
+      }
+    </style>
+  </head>
+  <body>
+    <h1><img src="icon-64.png" alt="" />Analog Canvas</h1>
+    <p>Draw a circuit on this slide, or select one to edit it.</p>
+    <button id="new" class="primary" disabled>New circuit</button>
+    <button id="edit" disabled>Edit selected circuit</button>
+    <section id="examples" hidden>
+      <h2>Start from an example</h2>
+    </section>
+    <div id="status" role="status">Loading…</div>
+    <small
+      >The editor opens from analog-canvas.tokenzhang.com, so it is always the
+      latest version.</small
+    >
+    <script src="taskpane.js"></script>
+  </body>
+</html>

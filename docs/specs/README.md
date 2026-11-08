@@ -42,6 +42,7 @@ Proposed regional deployment contract:
 
 ## Writing a spec
 
+PowerPoint on every platform uses the [PowerPoint add-in](powerpoint-office-addin.md).
 The optional desktop integration is specified by
 [PowerPoint local deployment](powerpoint-local.md) and
 [PowerPoint editor close](powerpoint-close.md).

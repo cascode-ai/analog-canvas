@@ -26,8 +26,9 @@ export interface DrawingToolbarProps {
   onToggleLibrary: () => void;
   /** The Cell tree shares the Library's place; absent, no toggle is shown. */
   onToggleHierarchy?: () => void;
-  onToggleNetlist: () => void;
-  onToggleProjectCode: () => void;
+  /** Absent (the PowerPoint dialog), no Netlist or Project Code toggle. */
+  onToggleNetlist?: () => void;
+  onToggleProjectCode?: () => void;
   onActivateTool: (tool: EditorTool) => void;
   onAddText: () => void;
   onOpenDocumentSettings: () => void;
@@ -217,25 +218,29 @@ export function DrawingToolbar({
             <ToolIcon name="hierarchy" />
           </ToolbarButton>
         ) : null}
-        <ToolbarButton
-          testId="netlist-panel-toggle"
-          label="Netlist"
-          text="Netlist"
-          shortcut="N"
-          pressed={projectPanel === "netlist"}
-          onClick={onToggleNetlist}
-        >
-          <ToolIcon name="netlist" />
-        </ToolbarButton>
-        <ToolbarButton
-          testId="project-code-toggle"
-          label="Project Code"
-          text="Project Code"
-          pressed={projectPanel === "project-code"}
-          onClick={onToggleProjectCode}
-        >
-          <ToolIcon name="project-code" />
-        </ToolbarButton>
+        {onToggleNetlist ? (
+          <ToolbarButton
+            testId="netlist-panel-toggle"
+            label="Netlist"
+            text="Netlist"
+            shortcut="N"
+            pressed={projectPanel === "netlist"}
+            onClick={onToggleNetlist}
+          >
+            <ToolIcon name="netlist" />
+          </ToolbarButton>
+        ) : null}
+        {onToggleProjectCode ? (
+          <ToolbarButton
+            testId="project-code-toggle"
+            label="Project Code"
+            text="Project Code"
+            pressed={projectPanel === "project-code"}
+            onClick={onToggleProjectCode}
+          >
+            <ToolIcon name="project-code" />
+          </ToolbarButton>
+        ) : null}
       </div>
       <span className="draw-toolbar-divider" aria-hidden="true" />
       {/* Familiar tools are bare icons. Only Wire and No Connect, whose icons
