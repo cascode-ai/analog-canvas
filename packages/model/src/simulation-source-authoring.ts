@@ -6,19 +6,30 @@ import {
   type SimulationExperimentConfig,
 } from "./schema.js";
 
-/** The same small starter text for a human or Agent; no hidden analyses writer. */
+/**
+ * The same small starter text for a human or Agent; no hidden analyses writer.
+ * Without a Profile the folder has no configuration file and SPICE syntax: it
+ * is the author's Testbench, run with their own simulator (#2110).
+ */
 export function createSimulationFolder(options: {
   id: string;
   name: string;
-  profileId: string;
+  profileId?: string | undefined;
   /** Resolved from the selected environment; not a second persisted authority. */
-  engine?: "ngspice" | "vacask";
-  documentId?: string;
-  template?: "op" | "ac" | "tran";
+  engine?: "ngspice" | "vacask" | undefined;
+  documentId?: string | undefined;
+  /**
+   * `testbench` is one entry file holding the DUT call, with no run steps;
+   * the others are hosted-run starters.
+   */
+  template?: "op" | "ac" | "tran" | "testbench" | undefined;
   /** Supplied from the canonical netlist interface when authoring a textual TB. */
-  dut?: { name: string; ports: string[] };
+  dut?: { name: string; ports: string[] } | undefined;
 }): ProjectSimulationFolder {
-  const ngspice = options.engine === "ngspice";
+  if (options.template === "testbench") return testbenchFolder(options);
+  const ngspice =
+    options.engine === "ngspice" ||
+    (options.engine === undefined && options.profileId === undefined);
   const comment = ngspice ? "*" : "//";
   // Always-quoted interface identifiers preserve exact case and punctuation.
   // These are names, not source snippets; never interpolate new statements.
@@ -29,10 +40,13 @@ export function createSimulationFolder(options: {
       );
     return ngspice ? name : `'${name.replaceAll("'", "''")}'`;
   };
-  const config = NativeSimulationExperimentConfigSchema.parse({
-    version: 2,
-    environment: { profileId: options.profileId },
-  });
+  const config =
+    options.profileId === undefined
+      ? null
+      : NativeSimulationExperimentConfigSchema.parse({
+          version: 2,
+          environment: { profileId: options.profileId },
+        });
   return ProjectSimulationFolderSchema.parse({
     id: options.id,
     name: options.name,
@@ -100,10 +114,14 @@ export function createSimulationFolder(options: {
             "",
           ].join("\n"),
         },
-        {
-          path: "experiment.json",
-          text: JSON.stringify(config, null, 2) + "\n",
-        },
+        ...(config
+          ? [
+              {
+                path: "experiment.json",
+                text: JSON.stringify(config, null, 2) + "\n",
+              },
+            ]
+          : []),
       ],
       circuitBindings: options.documentId
         ? [
@@ -112,6 +130,61 @@ export function createSimulationFolder(options: {
               path: "circuit.spice",
               documentId: options.documentId,
               emission: options.dut ? "subcircuit" : "top-level",
+            },
+          ]
+        : [],
+      dependencies: [],
+    },
+  });
+}
+
+/**
+ * An author's Testbench: one SPICE entry that includes the Cell and calls it.
+ * The configuration path is reserved but holds no file until a Profile is
+ * chosen, so nothing here depends on a hosted environment.
+ */
+function testbenchFolder(options: {
+  id: string;
+  name: string;
+  documentId?: string | undefined;
+  dut?: { name: string; ports: string[] } | undefined;
+}): ProjectSimulationFolder {
+  const dut = options.dut;
+  if (dut && [dut.name, ...dut.ports].some((name) => !name || /\s/u.test(name)))
+    throw new Error(
+      "A DUT identifier must be non-empty and contain no whitespace",
+    );
+  const text = [
+    `* ${options.name.replace(/[\r\n]/gu, " ")}`,
+    "* Run this file with your own simulator and PDK: export the Cell's",
+    "* netlist (File › Export) as circuit.spice beside it, or edit the include.",
+    "* Write requirements as lines such as:  * @spec gain >= 60 unit=dB",
+    ...(options.documentId ? ['.include "circuit.spice"'] : []),
+    ...(dut
+      ? dut.ports.length
+        ? [`XDUT ${[...dut.ports, dut.name].join(" ")}`]
+        : ["* This Cell has no formal ports; it is the testbench itself."]
+      : []),
+    "* Sources, loads, models and analyses go here.",
+    ".end",
+    "",
+  ].join("\n");
+  return ProjectSimulationFolderSchema.parse({
+    id: options.id,
+    name: options.name,
+    version: 4,
+    input: {
+      kind: "source",
+      entry: "testbench.spice",
+      configPath: "experiment.json",
+      files: [{ path: "testbench.spice", text }],
+      circuitBindings: options.documentId
+        ? [
+            {
+              id: "circuit",
+              path: "circuit.spice",
+              documentId: options.documentId,
+              emission: dut?.ports.length ? "subcircuit" : "top-level",
             },
           ]
         : [],

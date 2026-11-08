@@ -87,10 +87,16 @@ Without a named Profile the create takes:
    count as qualified (SKY130 ngspice runs 16 V and 20 V devices unlisted).
 
 Ideal blocks, the generic diode and authored models never count; a Profile
-listing neither devices nor cell libraries is never default. With several or none, the author names
-one; Agent `simulation_folder` create refuses with `SIMULATION_PROFILE_REQUIRED`
-and the candidates. The GUI form mirrors this call and falls back to the VACASK
-candidate only offline.
+listing neither devices nor cell libraries is never default. With several or
+none, Agent `simulation_folder` create makes the author's Testbench and names
+the candidates in `folder.profileCandidates`. The GUI form mirrors this call
+and falls back to the VACASK candidate only offline.
+
+An author's Testbench (#2110) has no Profile and no configuration file: one
+SPICE `testbench.spice` entry that includes `circuit.spice` and calls the Cell
+as `XDUT`, run by the user's own simulator. Authoring, saving and exporting it
+need no Profile, Prepare or hosted access; choosing a Profile later adds the
+configuration.
 
 The top is always a testbench: a Cell with pins is a DUT called as `XDUT` from a
 new `testbench.spice` (ports in export order, clock phase pins included, bound as

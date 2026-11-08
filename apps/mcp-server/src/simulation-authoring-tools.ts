@@ -4,6 +4,7 @@ import {
   createSimulationStarter,
   newFolderCellRole,
   newFolderProfile,
+  type AdvertisedSimulationProfile,
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
@@ -48,9 +49,14 @@ const FolderArgs = z.discriminatedUnion("action", [
     name: Name,
     rootDocumentId: Id.optional(),
     profileId: Id.optional().describe(
-      "Omit to take the one Profile whose listed qualified devices include every reviewed PDK device the root Cell uses; a Profile listing none (VACASK) is never the default. Otherwise create refuses with error.candidates.",
+      "Omit to take the one Profile whose listed qualified devices include every reviewed PDK device the root Cell uses; a Profile listing none (VACASK) is never the default. When none or several qualify, the folder is the author's Testbench with no Profile, and folder.profileCandidates lists them.",
     ),
-    template: z.enum(["op", "ac", "tran"]).optional(),
+    template: z
+      .enum(["op", "ac", "tran", "testbench"])
+      .optional()
+      .describe(
+        "testbench: the author's Testbench for their own simulator, one testbench.spice entry with the DUT call and no Profile or run steps. The others are hosted-run starters.",
+      ),
     dut: z
       .strictObject({
         name: SpiceIdentifier.optional().describe(
@@ -137,6 +143,9 @@ interface Entry {
   definition: ContractTool;
   handle(args: unknown, session: ToolSessionState): Promise<unknown>;
 }
+type AdvertisedProfile = AdvertisedSimulationProfile & {
+  readonly engine?: "ngspice" | "vacask" | undefined;
+};
 const failure = (code: string, message: string) => ({
   ok: false,
   error: { code, message, recovery: "fix-input" },
@@ -326,30 +335,40 @@ export const simulationAuthoringTools: readonly Entry[] = [
       let dut: { name: string; ports: string[]; subckt: string } | undefined;
       let chosen:
         { profileId: string; engine: "ngspice" | "vacask" } | undefined;
+      let profileCandidates: string[] | undefined;
       if (parsed.action === "create") {
         if (parsed.dut && !parsed.rootDocumentId)
           return failure(
             "SIMULATION_DUT_CELL_REQUIRED",
             "A DUT template needs rootDocumentId; omit dut for text-only input.",
           );
-        // Without a profileId the default reads each Profile's qualified
-        // devices, which only the full discovery lists (#1349).
-        const discovery = await session.client.simulationMetadataResource(
-          {
-            apiVersion: "3.0",
-            requestId: crypto.randomUUID(),
-            operation: "capabilities",
-            detail: parsed.profileId ? "summary" : "full",
-          },
-          { refresh: parsed.refresh },
-        );
-        if (!discovery.ok) return discovery;
-        if (!("capabilities" in discovery))
+        if (parsed.template === "testbench" && parsed.profileId)
           return failure(
-            "SIMULATION_PROFILE_UNAVAILABLE",
-            "Expected simulation Profile discovery",
+            "SIMULATION_TESTBENCH_PROFILE",
+            "A testbench template runs outside Canvas and takes no profileId; omit one of them.",
           );
-        const profiles = discovery.capabilities.profiles;
+        // An author's Testbench needs no Profile, so it asks for none.
+        // Otherwise the default reads each Profile's qualified devices, which
+        // only the full discovery lists (#1349).
+        let profiles: readonly AdvertisedProfile[] = [];
+        if (parsed.template !== "testbench") {
+          const discovery = await session.client.simulationMetadataResource(
+            {
+              apiVersion: "3.0",
+              requestId: crypto.randomUUID(),
+              operation: "capabilities",
+              detail: parsed.profileId ? "summary" : "full",
+            },
+            { refresh: parsed.refresh },
+          );
+          if (!discovery.ok) return discovery;
+          if (!("capabilities" in discovery))
+            return failure(
+              "SIMULATION_PROFILE_UNAVAILABLE",
+              "Expected simulation Profile discovery",
+            );
+          profiles = discovery.capabilities.profiles;
+        }
         // A named Profile is checked before the Project is read.
         let profile = parsed.profileId
           ? profiles.find((item) => item.id === parsed.profileId)
@@ -380,29 +399,21 @@ export const simulationAuthoringTools: readonly Entry[] = [
             documentId: parsed.rootDocumentId,
           };
         }
-        if (!profile) {
-          if (!profiles.length)
-            return failure(
-              "SIMULATION_PROFILE_UNAVAILABLE",
-              "No simulation Profile is advertised.",
-            );
+        // With no single qualifying Profile the folder is the author's
+        // Testbench, run outside Canvas (#2110); the candidates stay named.
+        if (!profile && parsed.template !== "testbench" && profiles.length) {
           const choice = newFolderProfile(profiles, cell);
-          if (!choice.ok)
-            return {
-              ok: false,
-              error: {
-                code: "SIMULATION_PROFILE_REQUIRED",
-                message: `${choice.message} Name one in profileId: ${choice.candidates.join(", ")}.`,
-                recovery: "fix-input",
-                candidates: choice.candidates,
-              },
-            };
-          profile = profiles.find((item) => item.id === choice.profileId);
+          if (choice.ok)
+            profile = profiles.find((item) => item.id === choice.profileId);
+          else profileCandidates = choice.candidates;
         }
-        if (!profile?.engine)
+        if (profile && !profile.engine)
           return failure("SIMULATION_PROFILE_UNAVAILABLE", ENGINE_REQUIRED);
-        chosen = { profileId: profile.id, engine: profile.engine };
-        const profileId = profile.id;
+        if (profile?.engine)
+          chosen = { profileId: profile.id, engine: profile.engine };
+        const profileId = chosen?.profileId;
+        const engine = chosen?.engine;
+        const template = parsed.template ?? (chosen ? undefined : "testbench");
         // A Cell with pins is the DUT of a testbench.spice shell; one without
         // is the testbench, run as the deck's top (#1489). dut wraps either.
         if (
@@ -414,10 +425,10 @@ export const simulationAuthoringTools: readonly Entry[] = [
             id: parsed.folderId ?? crypto.randomUUID(),
             name: parsed.name,
             profileId,
-            engine: profile.engine,
+            ...(engine ? { engine } : {}),
             documentId: cell.documentId,
             mode: "dut",
-            ...(parsed.template ? { template: parsed.template } : {}),
+            ...(template ? { template } : {}),
           });
           if (!starter.ok || !starter.dut)
             return failure(
@@ -465,9 +476,9 @@ export const simulationAuthoringTools: readonly Entry[] = [
           id: parsed.folderId ?? crypto.randomUUID(),
           name: parsed.name,
           profileId,
-          engine: profile.engine,
+          engine,
           ...(dut ? { dut } : {}),
-          ...(parsed.template ? { template: parsed.template } : {}),
+          template,
           ...(parsed.rootDocumentId
             ? { documentId: parsed.rootDocumentId }
             : {}),
@@ -503,8 +514,10 @@ export const simulationAuthoringTools: readonly Entry[] = [
               id: next.id,
               name: next.name,
               entry: next.input.entry,
-              // A new folder names the Profile and engine its code is for.
+              // A new folder names the Profile and engine its code is for,
+              // or the candidates when it has none (#2110).
               ...chosen,
+              ...(profileCandidates?.length ? { profileCandidates } : {}),
             },
             ...(dut
               ? {

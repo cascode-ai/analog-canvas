@@ -1583,21 +1583,62 @@ describe("MCP tools on the live editor", () => {
     )!;
     const config = readSimulationExperimentConfig(folder);
     expect(config.ok && config.config.environment.profileId).toBe("sky130");
-    const before = structuredClone(controller.project);
+    // No Profile qualifies the varactor: the folder is the author's
+    // Testbench, with no configuration, and the candidates are named (#2110).
+    const sin = await tool("simulation_folder", {
+      action: "create",
+      name: "SIN",
+      rootDocumentId: "document-ota-5t-testbench-sin",
+    });
+    expect(sin).toMatchObject({
+      ok: true,
+      folder: {
+        name: "SIN",
+        entry: "testbench.spice",
+        profileCandidates: ["vacask", "sky130"],
+      },
+    });
+    expect(sin.folder).not.toHaveProperty("profileId");
+    const testbench = controller.project.simulationFolders.find(
+      (item) => item.id === sin.folder.id,
+    )!;
+    expect(testbench.input.files.map((file) => file.path)).toEqual([
+      "testbench.spice",
+    ]);
+  });
+
+  it("creates an author's Testbench without asking for any Profile (#2110)", async () => {
+    const { tool, controller } = await connected({
+      project: otaProject(),
+      simulationService: profileService({ id: "sky130", engine: "ngspice" }),
+    });
+    const created = await tool("simulation_folder", {
+      action: "create",
+      name: "Gain",
+      rootDocumentId: dutDocumentId,
+      template: "testbench",
+    });
+    expect(created).toMatchObject({
+      ok: true,
+      folder: { entry: "testbench.spice" },
+      dut: { ports: expect.any(Array) },
+    });
+    expect(created.folder).not.toHaveProperty("profileId");
+    const folder = controller.project.simulationFolders.find(
+      (item) => item.id === created.folder.id,
+    )!;
+    expect(folder.input.files[0]!.text).toMatch(/^XDUT /mu);
     expect(
       await tool("simulation_folder", {
         action: "create",
-        name: "SIN",
-        rootDocumentId: "document-ota-5t-testbench-sin",
+        name: "Both",
+        template: "testbench",
+        profileId: "sky130",
       }),
     ).toMatchObject({
       ok: false,
-      error: {
-        code: "SIMULATION_PROFILE_REQUIRED",
-        candidates: ["vacask", "sky130"],
-      },
+      error: { code: "SIMULATION_TESTBENCH_PROFILE" },
     });
-    expect(controller.project).toEqual(before);
   });
 
   it("manages source experiments without replacing authored bytes during rename/clone", async () => {

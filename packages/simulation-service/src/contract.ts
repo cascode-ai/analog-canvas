@@ -476,6 +476,8 @@ export {
 } from "./spec-contract.js";
 export {
   simulationSpecAnnotationDiagnostics,
+  simulationSpecAnnotations,
+  type SimulationSpecAnnotation,
   type SimulationSpecAnnotationDiagnostic,
 } from "./spec-annotation.js";
 
