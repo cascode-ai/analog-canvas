@@ -1,7 +1,5 @@
 import type { GalleryOrder } from "./gallery-order";
 import type { GalleryAttention } from "../../../worker/gallery-curation";
-import { withoutReservedEntries } from "./gallery-reserved-ids";
-import { dailyOpenResetTime } from "./daily-allowance";
 import {
   isRequestFailure,
   OFFLINE_FAILURE,
@@ -88,7 +86,7 @@ export function warmGalleryPreviews(
     image.src = url;
   },
 ): void {
-  if (result === GALLERY_SIGN_IN_REQUIRED || isRequestFailure(result)) return;
+  if (isRequestFailure(result)) return;
   for (const entry of result.entries.slice(0, WARMED_GALLERY_PREVIEWS))
     load(galleryPreviewUrl(entry.id, entry.previewRevision));
 }
@@ -261,11 +259,6 @@ export interface GalleryQuickFilterCounts {
 export interface GalleryFeedPage {
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
-  /**
-   * The wall's first circuits as a signed-out visitor sees them: shown
-   * dimmed, never opened, and never followed by another page.
-   */
-  signedOut?: true;
   /** Whole filtered wall's size; null on cursor pages or older API replies. */
   total: number | null;
   /** Counts across the filtered wall, before pagination, scoped to this viewer. */
@@ -284,18 +277,13 @@ export interface GalleryFeedPage {
   search?: string;
 }
 
-/** A Gallery read's answer when only signed-in readers may see the Gallery. */
-export const GALLERY_SIGN_IN_REQUIRED = "sign-in-required";
-/** A page, a request to sign in, or what the read failed on. */
-export type GalleryFeedResult =
-  GalleryFeedPage | RequestFailure | typeof GALLERY_SIGN_IN_REQUIRED;
+/** A page, or what the read failed on. */
+export type GalleryFeedResult = GalleryFeedPage | RequestFailure;
 
 export interface GalleryFeedState {
-  status: "loading" | "ready" | "unavailable" | "signed-out";
+  status: "loading" | "ready" | "unavailable";
   /** Why the wall is unavailable, or why its next page did not load. */
   failure?: string | undefined;
-  /** The failure is the account's Gallery block, shown as its own notice. */
-  blocked?: boolean | undefined;
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
@@ -517,12 +505,6 @@ export async function loadGalleryFeed(
   options: GalleryFeedQuery & {
     cursor?: string | null;
     limit?: number;
-    /**
-     * The landing wall takes a signed-out visitor's first circuits; every
-     * other reader (the Insert panel, the Agent) hears that the Gallery
-     * asks to sign in.
-     */
-    signedOutWall?: boolean;
   } = {},
 ): Promise<GalleryFeedResult> {
   const params = galleryFeedParams(options);
@@ -537,43 +519,22 @@ export async function loadGalleryFeed(
   } catch {
     return OFFLINE_FAILURE;
   }
-  // The Gallery is for signed-in readers; say so instead of "unavailable".
-  if (response.status === 401) return GALLERY_SIGN_IN_REQUIRED;
   if (!response.ok) return requestFailureOf(response);
   try {
     const payload = (await response.json()) as {
       entries?: GalleryFeedEntry[];
       nextCursor?: unknown;
-      signedOut?: unknown;
       total?: unknown;
       search?: unknown;
       filterCounts?: GalleryQuickFilterCounts;
       authors?: GalleryAuthorOption[];
       sources?: Record<string, number>;
     };
-    if (payload.signedOut === true && !options.signedOutWall)
-      return GALLERY_SIGN_IN_REQUIRED;
     return {
-      // A signed-out visitor's circuits carry only id, name and preview: the
-      // rest of an entry reads as empty, so nothing that reads the wall's
-      // entries meets a missing field.
-      entries:
-        payload.signedOut === true
-          ? ((payload.entries ?? []) as Partial<GalleryFeedEntry>[]).map(
-              (entry) =>
-                ({
-                  author: "",
-                  description: "",
-                  createdAt: "",
-                  schemaVersion: 0,
-                  ...entry,
-                }) as GalleryFeedEntry,
-            )
-          : withoutReservedEntries(payload.entries ?? []),
+      entries: payload.entries ?? [],
       nextCursor:
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       total: typeof payload.total === "number" ? payload.total : null,
-      ...(payload.signedOut === true ? { signedOut: true as const } : {}),
       ...(typeof payload.search === "string" ? { search: payload.search } : {}),
       ...(Array.isArray(payload.authors) &&
       payload.authors.every(
@@ -637,43 +598,6 @@ export async function loadGalleryFeed(
   }
 }
 
-/** The day's Gallery opens are spent: how many, and when more open. */
-export interface GalleryDailyOpenLimit {
-  limit: number;
-  resetAt: string;
-}
-
-/**
- * The refusal of a reader whose account has opened its daily share of other
- * people's circuits, or null when `response` is any other answer.
- */
-export async function dailyOpenLimit(
-  response: Response,
-): Promise<GalleryDailyOpenLimit | null> {
-  if (response.status !== 429) return null;
-  try {
-    const body = (await response.clone().json()) as {
-      error?: string;
-      limit?: number;
-      resetAt?: string;
-    };
-    if (body.error !== "daily-open-limit") return null;
-    return { limit: Number(body.limit), resetAt: String(body.resetAt) };
-  } catch {
-    return null;
-  }
-}
-
-/** The same refusal as one line, for a dialog or an Agent; null otherwise. */
-export async function dailyOpenLimitMessage(
-  response: Response,
-): Promise<string | null> {
-  const limit = await dailyOpenLimit(response);
-  return limit
-    ? `You have opened ${limit.limit} Gallery circuits today; more open at ${dailyOpenResetTime(limit)}`
-    : null;
-}
-
 /** A linked circuit the public wall does not hold. */
 export const GALLERY_ENTRY_MISSING: RequestFailure = {
   failure: "not-found",
@@ -684,8 +608,7 @@ export const GALLERY_ENTRY_MISSING: RequestFailure = {
  * One circuit on the public wall, found by its id: what a "View in Gallery"
  * link shows at once, however far down the wall it would sit. Only a circuit
  * not on the public wall (withdrawn, rejected, unknown) reads as missing;
- * any other failure says what it was. It asks for the tile only, which costs
- * no daily open.
+ * any other failure says what it was. It asks for the tile only.
  */
 export async function loadGalleryEntry(
   fetchLike: typeof fetch,

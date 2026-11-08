@@ -15,7 +15,7 @@ import {
 } from "./agent-session";
 import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
 import { serveAsset } from "./static-assets";
-import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
+import { routeGalleryRequest } from "./gallery";
 import { pumpProjectSync } from "./project-sync";
 import { routeResourceSync, type ResourceSyncEnv } from "./resource-sync";
 import { withResourceReplication } from "./resource-replica";
@@ -145,9 +145,6 @@ export default {
       // Project Code a batch a tick (#1545); then the pass reads one row.
       await moveTestbenches(env, { apply: true, scheduled: true });
     } finally {
-      // The privacy notice promises yesterday's opens are gone the next
-      // day, whatever became of the marks.
-      await forgetEarlierOpens(env);
       // A block notice the Owner did not get is sent again.
       await env.AUTH?.getByName("auth")
         .fetch("https://auth/internal/block-notices", { method: "POST" })

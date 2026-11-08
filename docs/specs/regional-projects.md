@@ -90,10 +90,13 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   `PROJECT_SYNC_COMPRESS_JOURNAL=true` only after a compatible release is
   available for rollback. Disabling compressed writes still reads existing
   chunks. Never roll a compressed store back to a reader without gzip support.
-  Events
-  and tombstones are retained for replay; no automatic compaction is provided.
-  Size the ceiling and monitor pending count, oldest pending time, bytes,
-  delivery status and consecutive failures before enabling sustained writes.
+  With a verified off-host recovery checkpoint, an administrator can reclaim
+  inactive payloads up to the checkpoint and both peers' acknowledged
+  positions. Active heads, conflicts, tombstones, quota, ancestry and original
+  positions and digests survive. A peer behind the compacted outbound floor
+  must recover from a newer checkpoint. Keep a rollback that can read that
+  floor once compaction starts. Monitor pending count, oldest pending time,
+  bytes, delivery status and consecutive failures.
 - Restart fences writes until peer reconciliation. A peer receipt beyond the
   restored local high-water mark requires recovery from a newer complete state;
   lowering the peer cursor cannot erase that evidence. The implementation never
@@ -135,21 +138,29 @@ The [event decoder](../../worker/project-sync-protocol.ts) owns the wire schema;
 [journal](../../worker/project-sync-journal.ts) owns durable cursor semantics.
 The [HTTP transport](../../worker/project-sync.ts) owns endpoint authorization.
 
-| Endpoint                               | Credential                    | Behavior                                                                           |
-| -------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------- |
-| `GET /api/project-sync/status`         | Direction-specific peer token | Cursor, capacity and delivery state; no contents                                   |
-| `GET /api/project-sync/events?after=N` | Peer token                    | At most one bounded event after N                                                  |
-| `POST /api/project-sync/events`        | Peer token                    | Validate and durably apply `{event}`                                               |
-| `POST /api/project-sync/quota`         | Peer token                    | Authority reserves `{id, ownerUserId}` and returns a durable grant                 |
-| `POST /api/project-sync/pull`          | Peer token                    | Reconcile `{status}`, acknowledge its verified receipt and return `{peer, events}` |
-| `POST /api/project-sync/seed`          | Separate admin token          | Capture one untracked or changed source Project                                    |
-| `POST /api/project-sync/run`           | Admin token                   | Reconcile and deliver one event; inspect returned status                           |
+| Endpoint                               | Credential                    | Behavior                                                                                          |
+| -------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET /api/project-sync/status`         | Direction-specific peer token | Cursor, capacity and delivery state; no contents                                                  |
+| `GET /api/project-sync/events?after=N` | Peer token                    | At most one bounded event after N                                                                 |
+| `POST /api/project-sync/events`        | Peer token                    | Validate and durably apply `{event}`                                                              |
+| `POST /api/project-sync/quota`         | Peer token                    | Authority reserves `{id, ownerUserId}` and returns a durable grant                                |
+| `POST /api/project-sync/pull`          | Peer token                    | Reconcile `{status}`, acknowledge its verified receipt and return `{peer, events}`                |
+| `POST /api/project-sync/seed`          | Separate admin token          | Capture one untracked or changed source Project                                                   |
+| `POST /api/project-sync/run`           | Admin token                   | Reconcile and deliver one event; inspect returned status                                          |
+| `POST /api/project-sync/compact`       | Admin token                   | Verify checkpoint positions and preview reclaimable bytes, or reclaim up to eight inactive events |
 
 All responses are no-store. Browser cookies confer no synchronization authority.
 Peer destinations are fixed HTTPS origins; redirects are refused. Identity token
 equals the configured regional authority client secret, not a management token.
 Credentials stay outside Git and release bundles. HTTP 409 blocks reconciliation,
 503 pauses unavailable/fenced writes, and 507 signals journal backpressure.
+
+Compaction accepts `{checkpoint: {cn, overseas}, dryRun}`. Each position has
+`epoch`, `sequence` and the original event `hash`. A stream at zero uses
+`hash: null`; an absent peer position uses `null`. Omit `dryRun` to preview.
+`dryRun: false` applies one batch and reports the number of events and bytes
+reclaimed. Extract the proof from the isolated restore in the
+[regional runtime guide](../../containers/canvas-cn/formal/README.md#operating-rules).
 
 ## Acceptance criteria
 

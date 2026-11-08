@@ -639,7 +639,7 @@ export function PublishGalleryDialog({
                 <span>
                   Publish my reference image with it
                   <span className="publish-gallery-optional">
-                    I may share it; signed-in readers see it beside the drawing
+                    I may share it; anyone sees it beside the drawing
                   </span>
                 </span>
               </label>

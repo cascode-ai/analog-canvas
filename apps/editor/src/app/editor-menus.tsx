@@ -557,6 +557,10 @@ export function EditorMenuBar({
           : []
       }
       instanceCodeOpen={projectPanel === "instances"}
+      testbenchOpen={projectPanel === "testbench"}
+      onOpenTestbench={() => {
+        toggleProjectPanel("testbench");
+      }}
       netlistPreflightOpen={netlistPreflightOpen}
       onOpenInstanceCode={() => {
         toggleProjectPanel("instances");
@@ -573,8 +577,20 @@ export function EditorMenuBar({
               label:
                 agentSession.status === "idle"
                   ? "Connect Agent"
-                  : "Manage Agent",
+                  : agentSession.status === "connected" ||
+                      agentSession.status === "working"
+                    ? "Agent connected: manage the connection"
+                    : "Manage Agent",
               execute: openAgentConnection,
+              connection:
+                agentSession.status === "connected" ||
+                agentSession.status === "working"
+                  ? "live"
+                  : agentSession.status === "paused" ||
+                      agentSession.status === "reconnecting" ||
+                      agentSession.status === "offline"
+                    ? "held"
+                    : null,
             }
           : null
       }
@@ -588,8 +604,8 @@ export function EditorMenuBar({
         leftPanelMode,
         libraryPanelOpen: visibleLibraryPanelOpen,
         projectPanel:
-          projectPanel === "project-code"
-            ? "project-code"
+          projectPanel === "project-code" || projectPanel === "testbench"
+            ? projectPanel
             : projectPanel
               ? "netlist"
               : null,
@@ -615,6 +631,7 @@ export function EditorMenuBar({
           ? {}
           : {
               onToggleNetlist: () => toggleProjectPanel("netlist"),
+              onToggleTestbench: () => toggleProjectPanel("testbench"),
               onToggleProjectCode: () => toggleProjectPanel("project-code"),
             }),
         onActivateTool: (nextTool) =>

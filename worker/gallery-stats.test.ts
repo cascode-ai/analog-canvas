@@ -201,7 +201,7 @@ describe("the Gallery's statistics", () => {
           cookie ? { headers: cookieHeaders(cookie) } : {},
         ),
       );
-    expect((await read("stats")).status).toBe(401);
+    expect((await read("stats")).status).toBe(200);
     // The scheduled pass counts the circuits and the figures ahead.
     await refreshGalleryStatistics(env, 100);
     const response = await read("stats", other);

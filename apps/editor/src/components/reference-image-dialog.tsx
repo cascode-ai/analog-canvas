@@ -156,8 +156,7 @@ export function ReferenceImageDialog({
             checked={rights}
             onChange={(event) => setRights(event.currentTarget.checked)}
           />
-          I may share this image. Signed-in readers see it beside the drawing in
-          Review.
+          I may share this image. Anyone sees it beside the drawing in Review.
         </label>
         <footer className="reference-actions">
           <button type="button" onClick={() => void pasteFromClipboard()}>

@@ -7,7 +7,6 @@ import {
   galleryAuthorsOf,
   galleryQueryFromFilters,
   galleryNarrowedByline,
-  galleryPreviewUrl,
   loadGalleryFeed,
   loadGalleryTags,
   type GalleryAuthorOption,
@@ -43,7 +42,6 @@ export {
   type GalleryTagOption,
 };
 import { fetchSessionUser } from "./account";
-import { requestSignIn } from "./sign-in-request";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
@@ -70,16 +68,6 @@ import { GalleryQuickFilters } from "./gallery-feed-quick-filters";
 import { galleryOriginTagMark } from "../gallery-origin-tags";
 import { GalleryWallTile } from "./gallery-feed-tile";
 import { GalleryWallEmpty } from "./gallery-feed-empty";
-import { GalleryBlockedNotice } from "./gallery-blocked-notice";
-
-/**
- * Heights of the grey stand-in tiles behind the sign-in invitation, for a
- * signed-out visitor the server shows no circuit at all; otherwise the veil
- * draws the wall's first circuits it shows, dimmed and closed.
- */
-const SIGNED_OUT_TILE_HEIGHTS = [
-  190, 250, 160, 220, 270, 180, 240, 200, 160, 260, 210, 180,
-];
 
 const ShelfWall = lazy(() =>
   import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
@@ -148,9 +136,11 @@ function countAttentionKinds(
 export function GalleryFeed({
   visitStats,
   preload,
+  filingNumber,
 }: {
   visitStats?: { pv: number; uv: number } | null | undefined;
   preload?: GalleryLandingPreload;
+  filingNumber?: string | undefined;
 }) {
   const { filters, setFilters, updateFilters, serverSearch } =
     useGalleryFilters();
@@ -529,8 +519,7 @@ export function GalleryFeed({
             </button>
           ))}
         </div>
-        {/* Signed out, the server shows the newest few whatever the order. */}
-        {view === "gallery" && state.status !== "signed-out" ? (
+        {view === "gallery" ? (
           <GalleryOrderMenu order={order} onChoose={chooseOrder} />
         ) : null}
         {/* The shelf states its own count ("N of 20 saved"); this one
@@ -575,74 +564,7 @@ export function GalleryFeed({
         </Suspense>
       ) : null}
 
-      {view === "gallery" && state.status === "signed-out" ? (
-        <section
-          className="gallery-sign-in"
-          data-testid="gallery-sign-in"
-          aria-labelledby="gallery-sign-in-title"
-        >
-          <div className="gallery-sign-in-veil" aria-hidden="true">
-            {state.entries.length > 0
-              ? state.entries.map((entry) => (
-                  <span
-                    key={entry.id}
-                    className="gallery-sign-in-tile gallery-sign-in-circuit"
-                    data-testid="gallery-sign-in-circuit"
-                  >
-                    <img
-                      src={galleryPreviewUrl(entry.id, entry.previewRevision)}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      draggable={false}
-                    />
-                    <span className="gallery-sign-in-circuit-name">
-                      {entry.name}
-                    </span>
-                  </span>
-                ))
-              : SIGNED_OUT_TILE_HEIGHTS.map((height, index) => (
-                  <span
-                    key={index}
-                    className="gallery-sign-in-tile"
-                    style={{ height }}
-                  />
-                ))}
-          </div>
-          <div className="gallery-sign-in-card">
-            <h2 id="gallery-sign-in-title">
-              The Gallery is for signed-in members
-            </h2>
-            <p>
-              Sign in to browse its circuits, open them in the editor and
-              publish your own.
-            </p>
-            <button
-              type="button"
-              className="gallery-unlock"
-              data-testid="gallery-unlock"
-              onClick={requestSignIn}
-            >
-              <svg
-                className="gallery-unlock-icon"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M7 11V8a5 5 0 0 1 9.6-2M5 11h14v10H5z M12 15v2"
-                />
-              </svg>
-              Sign in
-            </button>
-          </div>
-        </section>
-      ) : null}
-      {view === "gallery" && state.status !== "signed-out" ? (
+      {view === "gallery" ? (
         <div className="gallery-browser">
           <GalleryTagSidebar
             tags={tagOptions}
@@ -852,9 +774,7 @@ export function GalleryFeed({
                 )}
               </section>
             )}
-            {state.status === "ready" && state.blocked ? (
-              <GalleryBlockedNotice />
-            ) : state.status === "ready" && state.failure ? (
+            {state.status === "ready" && state.failure ? (
               <p className="gallery-status" data-testid="gallery-more-failed">
                 {state.failure}{" "}
                 <button type="button" onClick={retryNextPage}>
@@ -871,15 +791,18 @@ export function GalleryFeed({
           </div>
         </div>
       ) : null}
-      {state.status === "signed-out" ? null : (
-        <footer className="gallery-footnote" data-testid="gallery-footnote">
-          <p>
-            Open any circuit to edit your own copy; publish your own from the
-            editor.
+      <footer className="gallery-footnote" data-testid="gallery-footnote">
+        <p>
+          Open any circuit to edit your own copy; publish your own from the
+          editor.
+        </p>
+        <p data-testid="gallery-usage-note">{SITE_USAGE_NOTE}</p>
+        {filingNumber ? (
+          <p className="gallery-filing-number">
+            <a href="https://beian.miit.gov.cn/">{filingNumber}</a>
           </p>
-          <p data-testid="gallery-usage-note">{SITE_USAGE_NOTE}</p>
-        </footer>
-      )}
+        ) : null}
+      </footer>
       {rejecting ? (
         <Suspense fallback={null}>
           <RejectEntryDialog

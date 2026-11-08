@@ -248,7 +248,12 @@ async function pairAgent(page: Page, baseUrl: string) {
     http: new AgentHttpClient({ baseUrl }),
   });
   await client.connect(claimCode);
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  // Pairing closes the dialog; the header's Agent button lights up.
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId("open-agent")).toHaveAttribute(
+    "data-connection",
+    "live",
+  );
   return client;
 }
 async function editWithKey(page: Page, reference: string) {

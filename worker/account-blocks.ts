@@ -172,7 +172,7 @@ export function isBlocked(
 }
 
 /** Bound evidence before RPC serialization and when recording a block. */
-export function boundedBlockEvidence(evidence: BlockEvidence): BlockEvidence {
+function boundedBlockEvidence(evidence: BlockEvidence): BlockEvidence {
   return {
     entryId: evidence.entryId.slice(0, 64),
     path: evidence.path.slice(0, 512),

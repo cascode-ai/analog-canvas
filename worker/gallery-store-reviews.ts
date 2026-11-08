@@ -243,23 +243,26 @@ export function submitReview(sql: SqlStorage, body: unknown): Response {
 
 /**
  * One entry's reviews. A reviewer sees the others only once their own
- * review of the current version is in (blind review); the Owner always.
+ * review of the current version is in (blind review); the Owner and the
+ * drawing's author, who never reviews it, always.
  */
 export function entryReviews(sql: SqlStorage, body: unknown): Response {
   if (!isRecord(body))
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   const entryId = String(body.entryId ?? "");
-  const current = sql
-    .exec<{ preview_revision: string }>(
-      "SELECT preview_revision FROM gallery_entries WHERE id = ? AND status = 'public'",
+  const row = sql
+    .exec<{ preview_revision: string; owner_user_id: string | null }>(
+      "SELECT preview_revision, owner_user_id FROM gallery_entries WHERE id = ? AND status = 'public'",
       entryId,
     )
-    .toArray()[0]?.preview_revision;
+    .toArray()[0];
+  const current = row?.preview_revision;
   if (current === undefined)
     return Response.json({ error: "not-found" }, { status: 404 });
   const counting = currentReviews(sql, "AND r.entry_id = ?", entryId);
   const mine = counting.find((row) => row.reviewer_id === body.viewerId);
-  if (!mine && body.viewerIsOwner !== true)
+  const author = !!body.viewerId && row?.owner_user_id === body.viewerId;
+  if (!mine && !author && body.viewerIsOwner !== true)
     return Response.json({ blind: true, revision: current });
   const history = sql
     .exec<ReviewRow>(
@@ -292,6 +295,7 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       author: string;
       preview_revision: string;
       component_count: number;
+      owner_user_id: string | null;
       verdict: string | null;
       category: string | null;
       detail: string | null;
@@ -303,21 +307,19 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       // JOIN keeps the order), never the rows that hold the figures.
       compared
         ? `SELECT e.id, e.name, e.author, e.preview_revision, e.component_count,
+             e.owner_user_id,
              c.verdict, c.category, c.detail, c.reason, c.figure_revision,
              NULL AS reference_revision
            FROM dataset_comparisons c CROSS JOIN gallery_entries e ON e.id = c.id
-           WHERE e.status = 'public'
-             AND (e.owner_user_id IS NULL OR e.owner_user_id != ?)`
+           WHERE e.status = 'public'`
         : `SELECT e.id, e.name, e.author, e.preview_revision, e.component_count,
-             NULL AS verdict, NULL AS category, NULL AS detail, NULL AS reason,
+             e.owner_user_id, NULL AS verdict, NULL AS category, NULL AS detail, NULL AS reason,
              NULL AS figure_revision,
              (SELECT r.revision FROM entry_references r
                 INDEXED BY idx_entry_references_revision
               WHERE r.entry_id = e.id) AS reference_revision
            FROM gallery_entries e INDEXED BY idx_gallery_entries_card
-           WHERE e.status = 'public'
-             AND (e.owner_user_id IS NULL OR e.owner_user_id != ?)`,
-      reviewerId,
+           WHERE e.status = 'public'`,
     )
     .toArray();
   const mine = new Map(
@@ -365,6 +367,11 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       likes: likes.get(entry.id) ?? 0,
       likedByViewer: liked.has(entry.id),
       mine: own ? shown(own, entry.preview_revision) : null,
+      // Everyone sees every drawing; one's own is there to look at, as
+      // others review it.
+      ...(reviewerId && entry.owner_user_id === reviewerId
+        ? { own: true }
+        : {}),
       ...(entry.reference_revision
         ? { reference: { revision: entry.reference_revision } }
         : {}),
@@ -381,7 +388,8 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
         : {}),
     };
   });
-  const done = (card: (typeof cards)[number]) => card.mine?.current === true;
+  const done = (card: (typeof cards)[number]) =>
+    card.mine?.current === true || "own" in card;
   cards.sort(
     (a, b) =>
       Number(done(a)) - Number(done(b)) ||

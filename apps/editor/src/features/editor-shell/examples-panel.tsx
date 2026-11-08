@@ -5,17 +5,14 @@ import type { LibraryProjectExample } from "../../examples/library-examples";
 import {
   galleryCountLabel,
   galleryPreviewUrl,
-  GALLERY_SIGN_IN_REQUIRED,
   localhostExamplesEnabled,
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
 } from "../../gallery-client";
 import { galleryEntryMatchesQuery } from "../../gallery-search";
-import { requestSignIn } from "../../components/sign-in-request";
 import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
 import { createGalleryPanelLoader } from "./gallery-panel-loader";
 import { isRequestFailure } from "../../request-failure";
-import { GalleryBlockedNotice } from "../../components/gallery-blocked-notice";
 
 const ExamplesPanelTags = lazy(() =>
   import("./examples-panel-tags").then((module) => ({
@@ -45,11 +42,9 @@ export interface ExamplesPanelProps {
 }
 
 interface FeedState {
-  status: "loading" | "ready" | "unavailable" | "signed-out";
+  status: "loading" | "ready" | "unavailable";
   /** Why the feed is unavailable. */
   failure?: string | undefined;
-  /** The failure is the account's Gallery block, shown as its own notice. */
-  blocked?: boolean | undefined;
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
@@ -294,36 +289,22 @@ function GalleryPanel({
     ]).then(([page, base]) => {
       if (generation !== loadGenerationRef.current) return;
       firstPagePendingRef.current = false;
-      if (base === GALLERY_SIGN_IN_REQUIRED) page = GALLERY_SIGN_IN_REQUIRED;
-      if (page !== GALLERY_SIGN_IN_REQUIRED && !isRequestFailure(page)) {
+      if (!isRequestFailure(page)) {
         if (!selectedTags.length) baseCount.total = page.total;
-        else if (
-          base &&
-          base !== GALLERY_SIGN_IN_REQUIRED &&
-          !isRequestFailure(base)
-        )
-          baseCount.total = base.total;
+        else if (base && !isRequestFailure(base)) baseCount.total = base.total;
       }
-      const next: FeedState =
-        page === GALLERY_SIGN_IN_REQUIRED
-          ? { ...EMPTY_FEED, status: "signed-out" }
-          : isRequestFailure(page)
-            ? {
-                ...EMPTY_FEED,
-                status: "unavailable",
-                failure: page.message,
-                blocked: page.failure === "blocked",
-              }
-            : {
-                status: "ready",
-                entries: page.entries,
-                nextCursor: page.nextCursor,
-                total: baseCount.total ?? null,
-                // Only a server that says it searched has answered it.
-                search: page.search ?? "",
-                requestedSearch: serverSearch,
-                requestedTags: selectedTags,
-              };
+      const next: FeedState = isRequestFailure(page)
+        ? { ...EMPTY_FEED, status: "unavailable", failure: page.message }
+        : {
+            status: "ready",
+            entries: page.entries,
+            nextCursor: page.nextCursor,
+            total: baseCount.total ?? null,
+            // Only a server that says it searched has answered it.
+            search: page.search ?? "",
+            requestedSearch: serverSearch,
+            requestedTags: selectedTags,
+          };
       if (!selectedTags.length && next.status === "ready")
         baseCount.feed = next;
       setFeed(next);
@@ -341,7 +322,6 @@ function GalleryPanel({
       !open ||
       !sentinel ||
       feed.failure ||
-      feed.blocked ||
       feed.nextCursor === null ||
       firstPagePendingRef.current
     )
@@ -368,22 +348,7 @@ function GalleryPanel({
         })
         .then((page) => {
           if (generation !== loadGenerationRef.current) return;
-          if (page === GALLERY_SIGN_IN_REQUIRED) {
-            baseCountRef.current = null;
-            setFeed({ ...EMPTY_FEED, status: "signed-out" });
-            return;
-          }
           if (isRequestFailure(page)) {
-            if (page.failure === "blocked") {
-              baseCountRef.current = null;
-              setFeed({
-                ...EMPTY_FEED,
-                status: "unavailable",
-                failure: page.message,
-                blocked: true,
-              });
-              return;
-            }
             setFeed((previous) => ({
               ...previous,
               failure: page.message,
@@ -394,7 +359,6 @@ function GalleryPanel({
             const next = {
               ...previous,
               failure: undefined,
-              blocked: undefined,
               entries: [...previous.entries, ...page.entries],
               nextCursor: page.nextCursor,
               total: selectedTags.length
@@ -425,7 +389,6 @@ function GalleryPanel({
     feed.entries,
     feed.nextCursor,
     feed.failure,
-    feed.blocked,
     serverSearch,
     selectedTags,
   ]);
@@ -433,7 +396,6 @@ function GalleryPanel({
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
     deriveGalleryPanelView(feed, { searchQuery, selectedTags });
   const exhausted = feed.nextCursor === null;
-  const showControls = feed.status !== "signed-out";
 
   return (
     <aside
@@ -448,92 +410,55 @@ function GalleryPanel({
       data-open={open ? "true" : "false"}
     >
       <div className="shapes-panel-body">
-        {showControls ? (
-          <div className="examples-panel-controls">
-            <input
-              autoComplete="off"
-              type="search"
-              className="examples-panel-search"
-              value={searchQuery}
-              placeholder="Search Gallery…"
-              aria-label="Search circuits"
-              data-testid="examples-panel-search"
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-            {countLabel ? (
-              <span
-                className="examples-panel-count"
-                data-testid="examples-panel-count"
-              >
-                {countLabel}
-              </span>
-            ) : null}
-            {selectedTags.length ? (
-              <button
-                type="button"
-                className="examples-panel-clear-tags"
-                data-testid="examples-panel-clear-tags"
-                onClick={() => setSelectedTags([])}
-                aria-label={`Clear ${selectedTags.length} selected tags`}
-              >
-                Tags · {selectedTags.length} ×
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        <div
-          className="examples-panel-browser"
-          data-tags-available={showControls}
-        >
-          {showControls ? (
-            <aside
-              className="examples-panel-tags"
-              aria-label="Gallery tags"
-              data-testid="examples-panel-tags"
+        <div className="examples-panel-controls">
+          <input
+            autoComplete="off"
+            type="search"
+            className="examples-panel-search"
+            value={searchQuery}
+            placeholder="Search Gallery…"
+            aria-label="Search circuits"
+            data-testid="examples-panel-search"
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+          {countLabel ? (
+            <span
+              className="examples-panel-count"
+              data-testid="examples-panel-count"
             >
-              <h2>Tags</h2>
-              <Suspense fallback={null}>
-                <ExamplesPanelTags
-                  loader={loader}
-                  open={open}
-                  refreshSignal={refreshSignal}
-                  selected={selectedTags}
-                  onChange={setSelectedTags}
-                />
-              </Suspense>
-            </aside>
+              {countLabel}
+            </span>
           ) : null}
+          {selectedTags.length ? (
+            <button
+              type="button"
+              className="examples-panel-clear-tags"
+              data-testid="examples-panel-clear-tags"
+              onClick={() => setSelectedTags([])}
+              aria-label={`Clear ${selectedTags.length} selected tags`}
+            >
+              Tags · {selectedTags.length} ×
+            </button>
+          ) : null}
+        </div>
+        <div className="examples-panel-browser">
+          <aside
+            className="examples-panel-tags"
+            aria-label="Gallery tags"
+            data-testid="examples-panel-tags"
+          >
+            <h2>Tags</h2>
+            <Suspense fallback={null}>
+              <ExamplesPanelTags
+                loader={loader}
+                open={open}
+                refreshSignal={refreshSignal}
+                selected={selectedTags}
+                onChange={setSelectedTags}
+              />
+            </Suspense>
+          </aside>
           <div className="examples-panel-results">
-            {/* Signed out, the Gallery shows no circuit here either: grey
-            stand-ins under a veil, and the way to sign in. */}
-            {feed.status === "signed-out" ? (
-              <div
-                className="examples-panel-sign-in"
-                data-testid="examples-panel-sign-in"
-              >
-                <div className="examples-panel-sign-in-veil" aria-hidden="true">
-                  {Array.from({ length: 12 }, (_, index) => index).map(
-                    (index) => (
-                      <span
-                        key={index}
-                        className="examples-panel-sign-in-tile"
-                      />
-                    ),
-                  )}
-                </div>
-                <div className="examples-panel-sign-in-card">
-                  <p>Sign in to insert circuits from the Gallery.</p>
-                  <button
-                    type="button"
-                    className="examples-panel-sign-in-button"
-                    data-testid="examples-panel-sign-in-button"
-                    onClick={requestSignIn}
-                  >
-                    Sign in
-                  </button>
-                </div>
-              </div>
-            ) : null}
             {/* Columns follow the panel's dragged width, the same way the Library
             tiles do; a separate control for the same thing is one knob too
             many. */}
@@ -571,9 +496,7 @@ function GalleryPanel({
                   ))
                 : null}
             </div>
-            {!showGallery && feed.status === "unavailable" && feed.blocked ? (
-              <GalleryBlockedNotice compact />
-            ) : !showGallery && feed.status !== "signed-out" ? (
+            {!showGallery ? (
               <p className="examples-panel-empty">
                 {feed.status === "unavailable"
                   ? (feed.failure ?? "Gallery is unavailable. Try again later.")

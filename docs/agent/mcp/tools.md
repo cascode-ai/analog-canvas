@@ -48,8 +48,7 @@ refused action in `issues`.
 focus per call. Split create and wire phases so new pin geometry comes from
 a Snapshot (`pins` read). Several `connect` actions share one call,
 planned in order and committed once (one Undo); a failure leaves no wiring.
-`wireIntent` takes one intent or an ordered array (up to 64), within the edit
-limit. Multiple taps on one original Route may use pre-batch Route/leg IDs;
+`wireIntent` takes one intent or an ordered array. Multiple taps on one original Route may use pre-batch Route/leg IDs;
 the planner follows split children.
 
 `advanced_transact` is the full typed-edit escape hatch with the same

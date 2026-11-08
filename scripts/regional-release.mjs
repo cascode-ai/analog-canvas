@@ -36,6 +36,7 @@ export const RELEASE_SOURCES = [
   "config.capnp",
   "artifact-storage.capnp",
   "nginx.conf",
+  "nginx-public.conf",
   "formal-backup.sh",
   "canvas-cn-release.py",
   "scheduled-tick.py",

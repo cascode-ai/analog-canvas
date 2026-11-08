@@ -228,7 +228,6 @@ describe("Cell selection deletion", () => {
           point: { x: index ? 40 : -40, y: -60 },
         },
       })),
-      512,
     );
     if (typeof plan === "string") throw new Error(plan);
     run(plan.edits);

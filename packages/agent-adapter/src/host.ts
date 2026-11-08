@@ -42,11 +42,6 @@ export class AgentCommandPlanningError extends Error {
   constructor(
     readonly actionIndex: number,
     message: string,
-    /** A more specific code than EDIT_PRECONDITION, and its facts. */
-    readonly detail?: {
-      code: "LIMIT_EXCEEDED";
-      parameters: Readonly<Record<string, number>>;
-    },
   ) {
     super(`actions[${actionIndex}]: ${message}`);
   }
@@ -91,7 +86,6 @@ export interface AgentOperationHost {
   planAuthoringCommand?(
     documentId: string,
     command: AgentAuthoringCommand,
-    maxTransactionEdits?: number,
   ): AgentCommandPlan;
   getDocument(documentId: string): SchematicDocument | null;
   getProject?(): CircuitProject;
@@ -104,12 +98,6 @@ export interface AgentOperationHost {
     /** History target; must not change the foreground Cell. */
     documentId?: string,
   ): ProjectTransactionResult;
-  /**
-   * Runs `commit`, whose dispatched transactions become one undo step. When
-   * it answers false, none of them remains. Optional: without it a change
-   * over the edit limit is refused, not split.
-   */
-  commitAsOneStep?(commit: () => boolean): boolean;
   /** Optional because loopback/in-process hosts deliberately have no GUI. */
   applySemanticIntent?(
     request: AgentHostSemanticIntentRequest,

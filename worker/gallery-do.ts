@@ -64,9 +64,8 @@ import {
 import {
   aiSeatEntries,
   contributions,
-  countOpen,
   entry,
-  forgetOpens,
+  recordOpen,
   importEntry,
   mine,
   preview,
@@ -391,16 +390,8 @@ export class GalleryDO {
     installBackupRevisions(this.sql);
     installBoards(this.sql);
     installTransistorCounts(this.sql);
-    // Which circuits each account opened today; the scheduled pass (and the
-    // first counted open of a new day) drops earlier days. Not a backup table.
-    this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS gallery_daily_opens (
-        day TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        entry_id TEXT NOT NULL,
-        PRIMARY KEY (day, user_id, entry_id)
-      ) WITHOUT ROWID
-    `);
+    // Reads carry no daily allowance any more: drop what counted it.
+    this.sql.exec("DROP TABLE IF EXISTS gallery_daily_opens");
     // How often each circuit was opened each day, for the Owner's numbers:
     // counts only, never who. Not a backup table.
     this.sql.exec(`
@@ -671,23 +662,10 @@ export class GalleryDO {
         return entry(this.sql, String(body.id), "public");
       case "any-entry":
         return entry(this.sql, String(body.id), null);
-      case "count-open":
-        return countOpen(
-          this.state,
-          String(body.userId),
-          String(body.entryId),
-          String(body.day),
-        );
-      case "forget-opens":
-        return forgetOpens(this.sql, String(body.day));
+      case "record-open":
+        return recordOpen(this.sql, String(body.entryId), String(body.day));
       case "preview-access":
-        return previewAccess(
-          this.sql,
-          String(body.id),
-          typeof body.signedOutWallSize === "number"
-            ? body.signedOutWallSize
-            : undefined,
-        );
+        return previewAccess(this.sql, String(body.id));
       case "preview":
         return preview(this.sql, String(body.id));
       case "set-status":

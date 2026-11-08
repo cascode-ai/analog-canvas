@@ -98,7 +98,7 @@ it("requires no spending grant for static authoring help without relaxing run ac
   ]);
 });
 
-it("uses existing Project write authorization for Project-owned simulation source only", () => {
+it("authorizes Project-owned Testbench files by Project grants, without simulation.run", () => {
   const scopes = (input: unknown) =>
     fileOperationScopes(
       AgentFileResourceRequestSchema.parse({
@@ -113,7 +113,15 @@ it("uses existing Project write authorization for Project-owned simulation sourc
       action: "list",
       owner: { kind: "project-folder", folderId: "s" },
     }),
-  ).toEqual(["simulation.run"]);
+  ).toEqual(["project.download"]);
+  expect(
+    scopes({
+      action: "read",
+      owner: { kind: "project-folder", folderId: "s" },
+      path: "testbench.spice",
+    }),
+  ).toEqual(["project.download"]);
+  expect(scopes({ action: "list" })).toEqual(["simulation.run"]);
   expect(
     scopes({
       action: "update",
@@ -127,7 +135,10 @@ it("uses existing Project write authorization for Project-owned simulation sourc
       owner: { kind: "project-folder", folderId: "s" },
       expectedRevision: 0,
     }),
-  ).toEqual(["simulation.run", "project.import"]);
+  ).toEqual(["project.import"]);
+  expect(scopes({ action: "artifact", artifactId: "a" })).toEqual([
+    "simulation.run",
+  ]);
 });
 
 it("opens a staged import under the Project import scope", () => {

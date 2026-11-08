@@ -425,7 +425,7 @@ test("a View in Gallery link shows its circuit at once, centres it and rings it"
     if (url.searchParams.get("cursor")) return;
     return { entries: first.map((id) => tile(id)), nextCursor: "c1" };
   });
-  // A link asks for the tile alone (`?summary=1`), which costs no daily open.
+  // A link asks for the tile alone (`?summary=1`).
   for (const id of ["b-7", "a-3"])
     await page.route(
       (url) => url.pathname === `/api/gallery/${id}`,
@@ -665,12 +665,6 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await expect(galleryInformation).toContainText("Contributor");
   await expect(galleryInformation).toContainText(ENTRY.author);
   await expect(galleryInformation).toContainText(ENTRY.description);
-  await expect(
-    galleryInformation.getByRole("textbox", {
-      name: "Current Cell",
-      exact: true,
-    }),
-  ).toBeVisible();
   await closeProjectInfo(page);
 
   // The brand mark is the single way back; a second toolbar link said the
@@ -1432,22 +1426,22 @@ test("the editor's Gallery discards pending data from the previous account", asy
         await new Promise<void>((resolve) => {
           releaseOld = resolve;
         });
-      await route.fulfill(
-        signedOut
-          ? { status: 401, json: { error: "Sign in" } }
-          : {
-              json: {
-                entries: [
-                  {
-                    ...ENTRY,
-                    name: request === 1 ? "Old account" : "Current account",
-                  },
-                ],
-                nextCursor: null,
-                total: 1,
-              },
+      await route.fulfill({
+        json: {
+          entries: [
+            {
+              ...ENTRY,
+              name: signedOut
+                ? "Signed out"
+                : request === 1
+                  ? "Old account"
+                  : "Current account",
             },
-      );
+          ],
+          nextCursor: null,
+          total: 1,
+        },
+      });
     },
   );
   await openEditor(page);
@@ -1468,10 +1462,10 @@ test("the editor's Gallery discards pending data from the previous account", asy
   await expect(page.getByTestId("examples-panel-count")).toHaveText(
     "1 circuit",
   );
+  // Signed out, the panel reads the Gallery anew, as anyone does.
   signedOut = true;
   await accountChanged();
-  await expect(page.getByTestId("examples-panel-sign-in")).toBeVisible();
-  await expect(card).toHaveCount(0);
+  await expect(card).toContainText("Signed out");
 });
 
 test("Gallery copies SKY130 dependencies with preview, repeat placement and atomic undo", async ({

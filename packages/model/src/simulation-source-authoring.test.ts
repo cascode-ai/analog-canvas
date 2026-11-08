@@ -36,6 +36,53 @@ describe("experiment starter instructions", () => {
         );
     },
   );
+  it("starts an author's Testbench with no Profile, configuration or run steps", () => {
+    const folder = createSimulationFolder({
+      id: "tb",
+      name: "OTA gain",
+      template: "testbench",
+      documentId: "ota",
+      dut: { name: "ota5t", ports: ["inp", "inn", "out", "vdd", "0"] },
+    });
+    expect(folder.input.entry).toBe("testbench.spice");
+    expect(folder.input.files.map((file) => file.path)).toEqual([
+      "testbench.spice",
+    ]);
+    const text = folder.input.files[0]!.text;
+    expect(text).toContain('.include "circuit.spice"');
+    expect(text).toContain("XDUT inp inn out vdd 0 ota5t");
+    // The example names the syntax without declaring a Spec itself.
+    expect(text).toContain("@spec gain >= 60 unit=dB");
+    expect(text).not.toMatch(/^\s*\*\s*@spec/mu);
+    expect(text).not.toMatch(/Click Run|\.control|write out\.raw/u);
+    expect(folder.input.circuitBindings).toEqual([
+      expect.objectContaining({ documentId: "ota", emission: "subcircuit" }),
+    ]);
+    const portless = createSimulationFolder({
+      id: "tb2",
+      name: "Self-driven",
+      template: "testbench",
+      documentId: "bench",
+      dut: { name: "bench", ports: [] },
+    });
+    expect(portless.input.circuitBindings[0]!.emission).toBe("top-level");
+    expect(portless.input.files[0]!.text).not.toContain("XDUT");
+  });
+
+  it("writes no configuration and uses SPICE syntax when no Profile is named", () => {
+    const folder = createSimulationFolder({
+      id: "free",
+      name: "Free",
+      documentId: "dut",
+    });
+    expect(
+      folder.input.files.some((file) => file.path === folder.input.configPath),
+    ).toBe(false);
+    expect(
+      folder.input.files.find((file) => file.path === "run.cir")!.text,
+    ).toContain(".control");
+  });
+
   it("quotes DUT interface names without changing pin order, case or punctuation", () => {
     const folder = createSimulationFolder({
       id: "quoted",

@@ -28,8 +28,13 @@ SWITCHES = {'project-writes-enabled', 'resource-writes-enabled'}
 SYNC_TIMERS = ['canvas-cn-project-sync.timer', 'canvas-cn-resource-sync.timer']
 # Only these timers start by themselves when a release first ships them;
 # replication timers stay an operator's decision.
-AUTO_TIMERS = {'canvas-cn-scheduled.timer', 'canvas-cn-release.timer', 'canvas-cn-release-alert.timer'}
+AUTO_TIMERS = {'canvas-cn-scheduled.timer', 'canvas-cn-release.timer',
+               'canvas-cn-release-alert.timer', 'canvas-cn-formal-backup.timer'}
 NGINX_SITE = '/etc/nginx/conf.d/analog-canvas-formal.conf'
+PUBLIC_CONFIG = '/etc/analog-canvas-formal/public.json'
+PUBLIC_ORIGIN = 'https://analog-canvas.tokenzhang.com'
+TRANSPORT_ORIGIN = 'https://analog-canvas-origin.tokenzhang.com'
+ICP_FILING = re.compile(r'[\u3400-\u9fff]ICP备[0-9]+号(?:-[0-9]+)?')
 # Written into a release only after it passed its smoke checks while serving.
 VERIFIED = '.verified'
 
@@ -263,6 +268,63 @@ def save(path, value):
     os.replace(temporary, path)
 
 
+def public_settings():
+    path = pathlib.Path(PUBLIC_CONFIG)
+    return json.loads(path.read_text()) if path.is_file() else None
+
+
+def nginx_config(release, settings):
+    private = (release / 'nginx.conf').read_bytes()
+    if not settings:
+        return private
+    mode, number = settings['mode'], settings['filingNumber']
+    if mode not in ('stage', 'open') or (number and not ICP_FILING.fullmatch(number)):
+        raise ValueError('Invalid public listener or ICP filing number')
+    if mode == 'open' and not number:
+        raise ValueError('Public HTTPS requires an ICP filing number')
+    template = release / 'nginx-public.conf'
+    if not template.is_file():
+        # Releases older than the filing feature can still serve privately.
+        return private
+    public = template.read_text(encoding='utf-8')
+    return private + b'\n' + (public
+        .replace('@LISTEN@', '443 ssl' if mode == 'open' else '127.0.0.1:8443 ssl')
+        .replace('@UPSTREAM_HOST@', '$http_host' if mode == 'open' else 'localhost')
+        .replace('@FILING_NUMBER@', number)).encode('utf-8')
+
+
+def write_nginx_site(path, data):
+    temporary = path.with_suffix('.next')
+    temporary.write_bytes(data)
+    os.replace(temporary, path)
+
+
+def configure_public(release, mode, number, credentials, host):
+    settings = None if mode == 'off' else {'mode': mode, 'filingNumber': number}
+    candidate = nginx_config(release, settings)
+    if settings and not (release / 'nginx-public.conf').is_file():
+        raise ValueError('The serving release has no public listener template')
+    if mode == 'open':
+        client = json.loads((credentials / 'regional-client.json').read_text())
+        if (client.get('clientOrigin') != PUBLIC_ORIGIN or
+                client.get('origin') != PUBLIC_ORIGIN or
+                client.get('transportOrigin') != TRANSPORT_ORIGIN):
+            raise ValueError('Configure the regional public and transport origins first')
+    site, config = pathlib.Path(NGINX_SITE), pathlib.Path(PUBLIC_CONFIG)
+    previous = site.read_bytes()
+    write_nginx_site(site, candidate)
+    try:
+        host.nginx_reload()
+        if settings:
+            save(config, settings)
+        else:
+            config.unlink(missing_ok=True)
+    except (OSError, subprocess.CalledProcessError):
+        write_nginx_site(site, previous)
+        host.nginx_reload()
+        raise
+
+
 def tick(args, host=None, fetcher=None, now=None):
     host = host or Host()
     fetcher = fetcher or Fetcher(args.origin)
@@ -274,13 +336,19 @@ def tick(args, host=None, fetcher=None, now=None):
     record = serving / 'release.json'
     installed = json.loads(record.read_text()).get('commit') if record.is_file() else None
     credentials = pathlib.Path(args.credentials)
+    site = pathlib.Path(NGINX_SITE)
     if not (serving / VERIFIED).exists():
         # A runner stopped between switch and smoke left this release unproved.
         previous = state.get('previous')
         if smoke(args.local, credentials, attempts=args.smoke_attempts):
             (serving / VERIFIED).write_text('')
         elif previous and pathlib.Path(previous).is_dir() and pathlib.Path(previous) != serving:
-            switch(current, pathlib.Path(previous))
+            previous = pathlib.Path(previous)
+            restored_site = nginx_config(previous, public_settings())
+            if not site.is_file() or site.read_bytes() != restored_site:
+                write_nginx_site(site, restored_site)
+                host.nginx_reload()
+            switch(current, previous)
             host.systemctl('restart', 'canvas-cn-formal.service', check=False)
             return {'health': 'failed', 'reason': 'release-rolled-back', 'status': 'rolled-back',
                     'serving': None, 'lastAttemptAt': now, 'failedCommit': installed,
@@ -334,7 +402,6 @@ def tick(args, host=None, fetcher=None, now=None):
     partial.rename(target)
     unit_dir = pathlib.Path(args.unit_dir)
     saved_units = {p.name: p.read_bytes() for p in unit_dir.glob('canvas-cn-*') if p.is_file()}
-    site = pathlib.Path(NGINX_SITE)
     nginx_before = site.read_bytes() if site.exists() else None
     paused = [timer for timer in SYNC_TIMERS if host.active(timer)]
     for timer in paused:
@@ -351,9 +418,9 @@ def tick(args, host=None, fetcher=None, now=None):
             # Persisted before switching, so an interrupted runner can roll back.
             save(state_path, dict(state, previous=str(serving), installing=commit))
             install_units(target, unit_dir, host, changed, added)
-            nginx_new = (target / 'nginx.conf').read_bytes()
+            nginx_new = nginx_config(target, public_settings())
             if nginx_new != nginx_before:
-                site.write_bytes(nginx_new)
+                write_nginx_site(site, nginx_new)
                 host.nginx_reload()
             switch(current, target)
             if 'canvas-cn-operator.service' in changed:
@@ -383,7 +450,7 @@ def tick(args, host=None, fetcher=None, now=None):
             if nginx_before is None:
                 site.unlink()
             else:
-                site.write_bytes(nginx_before)
+                write_nginx_site(site, nginx_before)
             try:
                 host.nginx_reload()
             except Exception:
@@ -415,11 +482,20 @@ def main():
     parser.add_argument('--releases', default='/opt/analog-canvas/formal-releases')
     parser.add_argument('--credentials', default='/etc/analog-canvas-formal')
     parser.add_argument('--unit-dir', default='/etc/systemd/system')
-    parser.add_argument('--state', required=True)
+    parser.add_argument('--state', default='/var/lib/canvas-cn-release/monitor.json')
+    parser.add_argument('--public-mode', choices=('stage', 'open', 'off'))
+    parser.add_argument('--filing-number', default='')
     parser.add_argument('--settle-seconds', type=int, default=600)
     parser.add_argument('--smoke-attempts', type=int, default=30)
     parser.add_argument('--keep', type=int, default=10)
     args = parser.parse_args()
+    if args.public_mode:
+        try:
+            configure_public(pathlib.Path(args.current).resolve(), args.public_mode,
+                             args.filing_number, pathlib.Path(args.credentials), Host())
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            parser.exit(1, f'Public listener configuration failed: {error}\n')
+        return 0
     state_path = pathlib.Path(args.state)
     previous = {}
     try:

@@ -80,7 +80,12 @@ test("traces and marks explicit bus members through a real Agent with atomic cop
   });
   expect(claimed.ok()).toBe(true);
   const session = await claimed.json();
-  await panel.getByLabel("Close Agent dialog").click();
+  // Pairing closes the dialog; the header's Agent button lights up.
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId("open-agent")).toHaveAttribute(
+    "data-connection",
+    "live",
+  );
   const send = async (payload: Record<string, unknown>) => {
     const response = await request.post(
       `${baseURL}/api/agent/sessions/${session.sessionId}/circuit`,

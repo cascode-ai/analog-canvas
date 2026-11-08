@@ -34,7 +34,6 @@ import {
   announceGalleryChange,
   primeGalleryPreview,
   subscribeGalleryRefresh,
-  type GalleryDailyOpenLimit,
 } from "../gallery-client";
 import type { EditorServices } from "../services/editor-services";
 import type { useAgentProjectResources } from "./use-agent-hosts";
@@ -89,8 +88,6 @@ export function useGalleryPublishing({
   const [publishedNotice, setPublishedNotice] =
     useState<GalleryPublishedNoticeState | null>(null);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
-  const [galleryDailyLimit, setGalleryDailyLimit] =
-    useState<GalleryDailyOpenLimit | null>(null);
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
     null,
   );
@@ -210,8 +207,6 @@ export function useGalleryPublishing({
     setPublishedNotice,
     versionHistoryOpen,
     setVersionHistoryOpen,
-    galleryDailyLimit,
-    setGalleryDailyLimit,
     publishSession,
     cloudProjects,
     setCloudProjects,

@@ -236,8 +236,6 @@ export function useGalleryTabEntry({
   restoredWorkspace,
   preparedInitialProject,
   project,
-  projectSessionId,
-  setGalleryDailyLimit,
   setGalleryEntryContext,
   codeDraftDirty,
   openGalleryProjectInTabRef,
@@ -251,8 +249,6 @@ export function useGalleryTabEntry({
   restoredWorkspace: ProjectWorkspace | null;
   preparedInitialProject: CircuitProject;
   project: CircuitProject;
-  projectSessionId: string;
-  setGalleryDailyLimit: GalleryPublishing["setGalleryDailyLimit"];
   setGalleryEntryContext: GalleryPublishing["setGalleryEntryContext"];
   codeDraftDirty: boolean;
   openGalleryProjectInTabRef: RefObject<
@@ -268,12 +264,6 @@ export function useGalleryTabEntry({
   createTabSession: ProjectTabSessions["createTabSession"];
   projectTabs: ProjectTabSessions["projectTabs"];
 }) {
-  // The daily-limit card speaks about one attempt; another tab or a
-  // replaced project is not it.
-  useEffect(
-    () => setGalleryDailyLimit(null),
-    [projectTabs.activeId, projectSessionId],
-  );
   openGalleryProjectInTabRef.current = (next, view, context) => {
     // A fresh deep link has only a boot placeholder, not a user Project to
     // preserve. Fill it so opening a Gallery circuit does not leave an empty

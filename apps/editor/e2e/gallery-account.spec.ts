@@ -3,11 +3,9 @@
 // deleting an account are the account.test.tsx module contracts.
 
 import { expect, test } from "./gallery-test.js";
-import type { Locator, Page } from "@playwright/test";
 import { awaitEditorReady, openEditor } from "./editor-fixtures.js";
 import {
   ENTRY,
-  fulfillPreview,
   galleryResistorProject,
   mockGallery,
   mockGalleryApi,
@@ -244,9 +242,11 @@ test("central sign-in returns to the editor with its unsaved circuit and real re
     const galleryUrl = accounts.origin + "/api/gallery?tag=amplifier";
     expect((await page.request.get(galleryUrl)).status()).toBe(200);
     accounts.expireLease();
-    expect((await page.request.get(galleryUrl)).status()).toBe(401);
-    await page.getByTestId("examples-toggle").click();
-    await page.getByTestId("examples-panel-sign-in-button").click();
+    // Past the lease the session is gone, while anyone still reads the Gallery.
+    expect((await page.request.get(galleryUrl)).status()).toBe(200);
+    await page.goto(accounts.origin + "/editor?resume=1");
+    await awaitEditorReady(page);
+    await page.getByTestId("account-signin").locator("summary").click();
     await expect(page.getByTestId("signin-central")).toBeVisible();
     await page.getByTestId("signin-central").click();
     await expect(page).toHaveURL(accounts.origin + "/editor?resume=1");
@@ -338,165 +338,25 @@ for (const signedIn of [true, false]) {
   });
 }
 
-/** Open the wall signed out, at the prompt to sign in. */
-async function openSignedOut(page: Page): Promise<Locator> {
-  await mockProviders(page, ALL_PROVIDERS);
-  await signIn(page, null);
-  await page.goto("/");
-  const prompt = page.getByTestId("gallery-sign-in");
-  await expect(prompt).toContainText("The Gallery is for signed-in members");
-  return prompt;
-}
-
-test("signed out, the wall and the editor's Gallery panel are grey with a way to sign in, and no circuit", async ({
+test("signed out, the wall and the editor's Gallery panel show every circuit", async ({
   page,
 }) => {
-  // The Gallery answers only signed-in readers: every read is refused.
-  const reads: string[] = [];
-  await page.route("**/api/gallery**", (route) => {
-    reads.push(new URL(route.request().url()).pathname);
-    return route.fulfill({ status: 401, json: { error: "sign-in-required" } });
-  });
-  const prompt = await openSignedOut(page);
-  // Grey stand-ins keep the wall's shape; none of them is a circuit.
-  await expect(prompt.locator(".gallery-sign-in-tile")).toHaveCount(12);
-  await expect(prompt.locator(".gallery-sign-in-veil")).toHaveAttribute(
-    "aria-hidden",
-    "true",
+  // Anyone reads the Gallery; only writing to it asks who reads.
+  await mockProviders(page, ALL_PROVIDERS);
+  await signIn(page, null);
+  await mockGallery(page, [ENTRY]);
+  await page.goto("/");
+  await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toContainText(
+    ENTRY.name,
   );
-  await expect(page.locator('[data-testid^="gallery-tile-"]')).toHaveCount(0);
-  await expect(page.locator(".masonry")).toHaveCount(0);
-  await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
-  await expect(page.getByTestId("gallery-empty")).toHaveCount(0);
-  await expect(page.getByTestId("gallery-unavailable")).toHaveCount(0);
-  // The prompt says everything; no footnote promises browsing without it.
-  await expect(page.getByTestId("gallery-footnote")).toHaveCount(0);
-  // The invitation opens the header's sign-in choices.
-  const unlock = page.getByTestId("gallery-unlock");
-  await expect(unlock).toHaveText("Sign in");
-  // Its gradient stays under the pointer; the app-wide button hover once
-  // turned it grey under the white label.
-  await unlock.hover();
-  await expect
-    .poll(() =>
-      unlock.evaluate((element) => getComputedStyle(element).backgroundImage),
-    )
-    .toContain("linear-gradient");
-  await expect(page.getByTestId("signin-github")).toBeHidden();
-  await unlock.click();
-  await expect(page.getByTestId("signin-github")).toBeVisible();
-  await expect(page.getByTestId("signin-google")).toBeVisible();
-  // The email address takes a whole row, its button the row below.
-  const [address, send] = await Promise.all(
-    ["signin-email-input", "signin-email-send"].map((id) =>
-      page.getByTestId(id).boundingBox(),
-    ),
-  );
-  expect(Math.round(address!.width)).toBe(Math.round(send!.width));
-  expect(send!.y).toBeGreaterThan(address!.y + address!.height - 1);
+  await expect(page.getByTestId("gallery-order-menu")).toBeVisible();
+  await expect(page.getByTestId("gallery-footnote")).toBeVisible();
 
   await openEditor(page);
   await page.getByTestId("examples-toggle").click();
   const panel = page.getByTestId("examples-panel");
-  const locked = panel.getByTestId("examples-panel-sign-in");
-  await expect(locked).toContainText(
-    "Sign in to insert circuits from the Gallery.",
-  );
-  await expect(locked.locator(".examples-panel-sign-in-tile")).toHaveCount(12);
-  const veil = locked.locator(".examples-panel-sign-in-veil");
-  await expect(veil).toHaveCSS("pointer-events", "none");
-  await expect(veil).toHaveCSS("filter", "blur(10px)");
-  const panelBox = (await locked.boundingBox())!;
-  const cardBox = (await locked
-    .locator(".examples-panel-sign-in-card")
-    .boundingBox())!;
-  expect(
-    Math.abs(
-      cardBox.y + cardBox.height / 2 - (panelBox.y + panelBox.height / 2),
-    ),
-  ).toBeLessThanOrEqual(1);
-  await expect(panel.locator('[data-testid^="gallery-example-"]')).toHaveCount(
-    0,
-  );
-  await expect(panel.getByTestId("examples-panel-search")).toHaveCount(0);
-  await expect(page.getByTestId("signin-github")).toBeHidden();
-  await locked.getByTestId("examples-panel-sign-in-button").click();
-  await expect(page.getByTestId("signin-github")).toBeVisible();
-  // Asked for the list and refused; no preview or entry was read.
-  // The unfiltered wall, in whatever order it opens with (#1615).
-  expect(reads.some((path) => path === "/api/gallery")).toBe(true);
-  expect(reads.filter((path) => path.endsWith("/preview.svg"))).toEqual([]);
-});
-
-test("a signed-out visitor sees the wall's first twelve circuits, dimmed and closed", async ({
-  page,
-}) => {
-  // Signed out, the server answers only the unfiltered first page, cut to
-  // twelve, and those twelve previews; every other read asks to sign in.
-  // Exactly what the Worker sends signed out: id, name and preview only. A
-  // fuller mock once hid a crash on the fields the server leaves out.
-  const entries = Array.from({ length: 12 }, (_, n) => ({
-    id: `g${n + 1}`,
-    name: `Circuit ${n + 1}`,
-    previewRevision: `r${n + 1}`,
-  }));
-  const crashes: string[] = [];
-  page.on("pageerror", (error) => crashes.push(error.message));
-  const reads: string[] = [];
-  await page.route("**/api/gallery**", (route) => {
-    const url = new URL(route.request().url());
-    reads.push(url.pathname + url.search);
-    // The unfiltered first page, in whatever order it opens with (#1615).
-    if (
-      url.pathname === "/api/gallery" &&
-      [...url.searchParams.keys()].every((key) =>
-        ["order", "seed"].includes(key),
-      )
-    )
-      return route.fulfill({
-        json: { entries, nextCursor: null, signedOut: true },
-      });
-    if (url.pathname.endsWith("/preview.svg")) return fulfillPreview(route);
-    return route.fulfill({
-      status: 401,
-      json: { error: "sign-in-required" },
-    });
-  });
-  const prompt = await openSignedOut(page);
-  const circuits = prompt.getByTestId("gallery-sign-in-circuit");
-  await expect(circuits).toHaveCount(12);
-  await expect(circuits.first()).toContainText("Circuit 1");
-  const preview = circuits.first().locator("img");
-  await expect(preview).toHaveAttribute(
-    "src",
-    /^\/api\/gallery\/g1\/preview\.svg\?v=r1/u,
-  );
-  await expect
-    .poll(() =>
-      preview.evaluate((image) => (image as HTMLImageElement).naturalWidth),
-    )
-    .toBeGreaterThan(0);
-  // A little grey, and closed: no link, no real tile, no grey stand-in.
-  expect(
-    await circuits
-      .first()
-      .evaluate((tile) => Number(getComputedStyle(tile).opacity)),
-  ).toBeLessThan(1);
-  await expect(prompt.locator("a")).toHaveCount(0);
-  await expect(page.locator('[data-testid^="gallery-tile-"]')).toHaveCount(0);
-  await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
-  // Nor an order to choose (#1615): signed out, it would change nothing.
-  await expect(page.getByTestId("gallery-order-menu")).toHaveCount(0);
-  await circuits.nth(3).click({ force: true });
-  await expect(page).toHaveURL(/\/$/u);
-  // No circuit was opened, and no other page was asked for.
-  expect(reads.filter((path) => /^\/api\/gallery\/g\d+$/u.test(path))).toEqual(
-    [],
-  );
-  expect(reads.filter((path) => path.includes("cursor="))).toEqual([]);
-  // The page never broke on the fields the server leaves out.
-  await expect(page.locator(".editor-crash-screen")).toHaveCount(0);
-  expect(crashes).toEqual([]);
+  await expect(panel.getByTestId(`gallery-example-${ENTRY.id}`)).toBeVisible();
+  await expect(panel.getByTestId("examples-panel-search")).toBeVisible();
 });
 
 test("the account chip sits on the header line, ellipsizes a long name, and the credit never runs under it", async ({

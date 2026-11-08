@@ -582,7 +582,7 @@ const ApplyActionsArgs = z.strictObject({
       "Default compact: counts, sampled warnings, all errors; full: all.",
     ),
   documentId: z.string().min(1).optional(),
-  actions: z.array(AuthoringActionSchema).min(1).max(256),
+  actions: z.array(AuthoringActionSchema).min(1),
 });
 
 const AdvancedTransactArgs = z.strictObject({
@@ -591,17 +591,13 @@ const AdvancedTransactArgs = z.strictObject({
   edits: z
     .array(z.unknown())
     .min(1)
-    .max(256)
     .optional()
     .describe(
       "Typed edits; exact fields: analog-canvas://contract/edits/{kind}.",
     ),
-  structureEdits: z.array(z.unknown()).min(1).max(256).optional(),
+  structureEdits: z.array(z.unknown()).min(1).optional(),
   wireIntent: z
-    .union([
-      AgentWireIntentSchema,
-      z.array(AgentWireIntentSchema).min(1).max(64),
-    ])
+    .union([AgentWireIntentSchema, z.array(AgentWireIntentSchema).min(1)])
     .optional(),
   semanticIntent: AgentSemanticIntentSchema.optional(),
   command: AgentAuthoringCommandSchema.optional(),

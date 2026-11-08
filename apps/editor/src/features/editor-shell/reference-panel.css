@@ -78,7 +78,7 @@
   color: var(--icm-text);
 }
 
-/* Name, Cell, contributor and description: plain text until edited. */
+/* Name, contributor and description: plain text until edited. */
 .reference-panel-about {
   display: flex;
   flex-shrink: 0;
@@ -107,7 +107,6 @@
 }
 
 .reference-name,
-.reference-cell,
 .reference-description {
   box-sizing: border-box;
   width: 100%;
@@ -132,13 +131,11 @@
 }
 
 .reference-name:hover,
-.reference-cell:hover,
 .reference-description:hover {
   border-color: var(--icm-border);
 }
 
 .reference-name:focus,
-.reference-cell:focus,
 .reference-description:focus {
   border-color: var(--icm-accent);
   outline: none;
@@ -150,7 +147,7 @@
   display: none;
 }
 
-/* The Cell on screen, and who contributed a Gallery entry. */
+/* Who contributed a Gallery entry. */
 .reference-panel-facts {
   display: grid;
   gap: 2px;
@@ -176,18 +173,14 @@
   padding: 0 3px;
 }
 
-.reference-panel-facts dd:has(input) {
-  padding: 0;
-}
-
-/* The reference picture's own heading, under the facts. */
+/* The reference picture's own heading, under the facts; the line above it
+   is the facts' own, and the picture follows with none between. */
 .reference-panel-caption {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 8px;
   padding: 3px 6px 3px 11px;
-  border-bottom: 1px solid var(--icm-border);
   font-size: 12px;
 }
 

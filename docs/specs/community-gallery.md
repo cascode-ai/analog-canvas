@@ -15,53 +15,20 @@ restrictive CSP.
 
 ## Reader access
 
-- Every Gallery read (list, search, tags, authors, entry, Project, preview,
-  history) needs a session, a read key (below) or the read-only
-  credential (`GALLERY_BACKUP_TOKEN` Bearer); otherwise `401 {"error":"sign-in-required"}`, `no-store`. The one
-  exception (owner decision): `GET /api/gallery` with no query answers the first
-  twelve public entries as `{entries, nextCursor: null, signedOut: true}` with no
-  count, and those twelve serve previews. Only the landing wall uses it; other
-  readers (Insert from Gallery, Agent reads) treat it as a sign-in request.
-  `GET /api/gallery/tags` and `/sources` answer a signed-out visitor empty
-  (`{tags: [], groups: []}`, `{sources: []}`), since the landing page asks for
-  them before it knows who reads. Bundled editor examples are not Gallery
-  content.
-- "Public" means on the wall for signed-in readers; admin, owner-only and write
-  routes keep stricter checks. Previews are `private`; the edge cache holds
-  immutable bytes behind the reader check; sessions are cached one minute per
-  isolate.
-- Reading someone else's Project (`GET /api/gallery/<id>`: Open, Insert,
-  duplicate Compare, Agent reads) spends one of 100 daily opens
-  (`GALLERY_DAILY_OPEN_LIMIT`, UTC day, each circuit once). Past it:
-  `429 {"error":"daily-open-limit","limit":100,"resetAt":…}` with `Retry-After`;
-  Agents get `GALLERY_DAILY_LIMIT`. Uncounted: wall, search, tags, previews,
-  `?summary=1`, own circuits, curators, AI seats, read keys, the read-only
-  credential. The
-  scheduled pass drops finished days.
-- Read keys: the Owner's revocable bearers for reading without a session,
-  temporary until Gallery reads open to everyone (writes will keep requiring
-  a session).
-  - The Owner's same-origin session (not an AI seat; else 401/403) mints one
-    with `POST /api/auth/read-keys {label, scope?, days?}` (`scope` `gallery`
-    by default or `full`; `days` 1–365, 90 by default) → `{id, label, scope,
-token, createdAt, expiresAt}` (`acrk_…`, shown once; AuthDO keeps its
-    SHA-256). `GET /api/auth/read-keys` → `{keys: [{id, label, scope,
-createdAt, expiresAt, lastUsedAt, uses}]}`; `DELETE …/<id>` revokes. The
-    Owner's Settings lists them under Read keys. Deleting the Owner account
-    removes its keys.
-  - `Authorization: Bearer <key>` reads as a signed-in reader does: every
-    route under this section, statistics, reference images and
-    `maintenance/netlists`, with no daily opens and no trap circuits. `full`
-    adds the review routes (every verdict, as the Owner sees them) and the
-    version history of public entries; a `gallery` key gets 403
-    `{"error":"read-key-scope"}` there. A key writes nothing, opens no
-    `/api/auth` route, backup page or private Cloud Project, and stays under
-    the flood limit.
-  - An isolate trusts a key's answer one minute, so a revocation or expiry
-    holds within it; `uses` counts the reads each isolate reports then.
-- Every allowed read, repeats included, adds one to the circuit's opens for
-  the day (`gallery_entry_opens`: entry, day, count; never who; not backed
-  up), which only `owner-data` reports.
+- Every Gallery read is open to anyone, signed in or not, with no count of
+  who reads and no daily limit: list, search, tags, sources, authors, entry,
+  Project, preview, the version history of public entries, statistics,
+  reference images and `maintenance/netlists`. Writes (publish, update,
+  likes, reference images, moderation) need a session, and so do the review
+  routes, whose queue is a reviewer's own. Bundled editor examples are not
+  Gallery content.
+- "Public" means on the wall; admin, owner-only and write routes keep
+  stricter checks. Previews are `private`; the edge cache holds immutable
+  bytes; sessions are cached one minute per isolate.
+- Every read of a public circuit's Project (`GET /api/gallery/<id>`, not
+  `summary=1`) by anyone but its owner, repeats included, adds one to the
+  circuit's opens for the day (`gallery_entry_opens`: entry, day, count;
+  never who; not backed up), which only `owner-data` reports.
 
 ## Crawlers, AI and floods
 
@@ -80,38 +47,21 @@ createdAt, expiresAt, lastUsedAt, uses}]}`; `DELETE …/<id>` revokes. The
   carries `<meta name="robots" content="noai, noimageai">` and a `<noscript>`
   note, and the signed-in Gallery's footnote shows the note
   (`apps/editor/src/usage-policy-note.ts`, the one source of that line).
-- Trap circuits (`worker/gallery-traps.ts`): a signed-in member's list page
-  (`GET /api/gallery`, six circuits or more) carries one circuit whose id is
-  reserved (`apps/editor/src/gallery-reserved-ids.ts`). The client drops
-  reserved ids and no real circuit gets one, so only a program walking the
-  list reads it. The Owner, curators, moderators, AI seats and the read
-  credential meet none; to them a trap id is `404`. They are never blocked,
-  not even by a block recorded under their email (`worker/trap-exempt.ts`).
-- A request under a trap id is answered like an ordinary circuit, and
-  blocks the member's account (AuthDO `account_blocks`, matched by account
-  or email) when it comes from a program (no browser User-Agent, or a known
-  automation one), or when a browser has read the circuits (`GET
-/api/gallery/<id>`, not `summary=1`) of two different traps within 24 h.
-  A browser's previews and summaries never count: a page left open across a
-  deploy shows trap tiles (2026-10-22). Every later `/api/gallery` request
-  of the account is
-  `403 {"error":"account-blocked","usage":…}`, which the editor shows as a
-  notice in place of the wall and the Gallery panel (`gallery-blocked`): why,
-  that a reply to the email or a letter to the usage contact reports a
-  mistake, that the check is still being tested, and that Cloud Projects and
-  the editor are unaffected; never how the check works. The record keeps the email,
-  display name, sign-in method, time, path, IP address, country, user agent
-  and reason (`script` or `two-traps`), and outlives an unblock and the
-  account. The Owner is emailed at
-  once (Resend, to the usage contact), and so is the account's email, with
-  replies going to the usage contact: why, that a reply can report a mistake,
-  that the check is still being tested and that Cloud Projects are unaffected;
-  never how the check works. Blocks recorded before 2026-10-25 are told
-  only when the Owner asks. The scheduled pass resends an unsent notice. Owner only: `GET /api/auth/blocked` lists the records, and
-  `POST /api/auth/blocked/unblock {userId}` (same origin) lifts a block;
-  `POST /api/auth/blocked/apology {userId, subject, text}` then emails that
-  account the Owner's words once per block (site sender, replies to the
-  usage contact); `POST /api/auth/blocked/notify {userId}` sends that
+- Account blocks (AuthDO `account_blocks`, matched by account or email)
+  came from trap circuits, retired 2026-11-08; no read blocks an account
+  now. A recorded block refuses only the account's Gallery writes:
+  `403 {"error":"account-blocked","usage":…}`, shown as that write's
+  failure. The Owner, curators, moderators and AI seats are never blocked
+  (`worker/block-exempt.ts`). No new circuit takes a reserved id
+  (`apps/editor/src/gallery-reserved-ids.ts`), since the records name the
+  traps' ids. A record keeps the email, display name, sign-in method, time,
+  path, IP address, country, user agent and reason (`script` or
+  `two-traps`), and outlives an unblock and the account. The scheduled pass
+  resends an unsent notice. Owner only: `GET /api/auth/blocked` lists the
+  records, and `POST /api/auth/blocked/unblock {userId}` (same origin) lifts
+  a block; `POST /api/auth/blocked/apology {userId, subject, text}` then
+  emails that account the Owner's words once per block (site sender, replies
+  to the usage contact); `POST /api/auth/blocked/notify {userId}` sends the
   notice for an active block from before 2026-10-25, once.
 - `/api/*` has a flood limit of 1200 requests a minute per client address
   (Workers rate limiting, `API_RATE_LIMITER`). Past it:
@@ -175,9 +125,8 @@ entries, keyset cursor, limit ≤60.
 
 ### Entry and preview
 
-- `GET /api/gallery/<id>` returns canonical `projectText` (one daily open);
-  `?summary=1` is free (with `&netlist=spice`, a dataset entry's answer
-  carries its netlist alone, still free). `?netlist=spice` adds
+- `GET /api/gallery/<id>` returns canonical `projectText`; `?summary=1`
+  the entry alone (with `&netlist=spice`, its netlist alone). `?netlist=spice` adds
   `netlist: {format: "spice", text, instances: [{instanceId, line}]}` (each
   top-level device's first line, from 0, as the editor's Project Code locates
   it), or `{format: "spice", blocked}` with the error messages when the
@@ -197,8 +146,8 @@ entries, keyset cursor, limit ≤60.
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
 - Every drawing shows Project Info floating over the canvas's bottom-right
-  corner from the start: its name, the Cell on screen, a Gallery entry's
-  contributor, its description and its reference picture. Closing it is
+  corner from the start: its name, a Gallery entry's contributor, its
+  description and its reference picture. Closing it is
   remembered in this browser; Project Info in the status bar or the File menu
   opens it again. The picture is a
   pasted screenshot (⌘V / Ctrl+V, unless a text field or a circuit takes the
@@ -210,9 +159,8 @@ entries, keyset cursor, limit ≤60.
   its place across tabs,
   and selects nothing on the page while it moves; the image zooms with the
   wheel and pans with a drag.
-- Save renames the Cell on screen (with the circuit, one undo) and keeps an
-  unpublished drawing's name and description with it (Publish starts from
-  them). For a community entry its owner, an admin or a moderator
+- Save keeps an unpublished drawing's name and description with it (Publish
+  starts from them). For a community entry its owner, an admin or a moderator
   may change, Save writes them to the entry at once, and the image as its
   reference image when its owner or the Owner saves; a dataset's entry, or
   another's, is read-only and an image there stays on the page.
@@ -308,7 +256,7 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
   (others 403 `ai-accounts-only`; unknown 400 `invalid-scope`).
 - Statistics tab (account page; `view=mine` opens the account's own,
   `source=community|datasets` the Gallery's stores, all by default):
-  - `GET /api/gallery/stats?source=all|community|datasets` (401 signed out):
+  - `GET /api/gallery/stats?source=all|community|datasets` (anyone):
     the chosen stores' merged `summary`, their 10 `topAuthors` and `sources`
     (`{key, name, circuits}` per store; a dataset that fails adds nothing).
     A dataset's circuits count in `datasets` and its weeks as `dataset`,
@@ -382,7 +330,9 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
 - Every content-replacing update (`PUT`, restore) snapshots name, author,
   description, tags, Project text, testbench and preview into
   `gallery_entry_versions`, keeping the newest 3 beside the live state;
-  maintenance re-serialization does not. Access: moderators and the owner.
+  maintenance re-serialization does not. Reading a public entry's history is
+  open to anyone; a private one's, and restoring, to moderators and the
+  owner.
 - `GET …/versions` (newest first), `…/versions/<versionId>/preview.svg`,
   `…/versions/<versionId>/project` (`no-store`, folders only for testbench
   readers), `POST …/versions/<versionId>/restore` (snapshots first; keeps status
@@ -558,19 +508,18 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 
 `/review` shows one drawing at a time beside its reference (a dataset's
 original figure, or a community circuit's reference image): the comment,
-Like, ✓ Pass and ✕ Submit issue, the reasons (always shown; digits toggle
+Like and ✕ Submit issue (no Pass button), the reasons (always shown; digits toggle
 them, Esc clears them), and others' reviews, above the two pictures. Enter,
 in the comment too (Shift+Enter starts a new line), sends what is there:
 with a reason an issue, else a pass, the comment and boxes going with
 either; → does the same for a drawing not yet reviewed or changed since,
 so moving on passes it, and ← only steps back. Random (R) opens a drawing
-of the list not yet reviewed; Jump to takes a drawing's link or id and opens
-it, in its own store if it is not in the list. Pass and Submit issue are
-outlined in their colour, half-filled under the pointer and solid when
-pressed or chosen (Submit issue once a reason is). Below the pictures, what comparing a dataset's two netlists found (a
+of the list not yet reviewed. Submit issue is outlined in
+red, half-filled under the pointer and solid when pressed or chosen (once a
+reason is). Below the pictures, what comparing a dataset's two netlists found (a
 callout in the verdict's tint: verdict and kind as tags, then the
 difference, two lines unless opened); then each side's SPICE netlist at its full
-length (ours spends a daily open as opening the entry does). The page
+length. The page
 scrolls. A drag on a picture boxes a spot (numbered, removable, ≤12 per
 review); a click opens both pictures over the window, each zoomed by the
 wheel and panned by a drag, where B or Shift-drag boxes too. Pointing at
@@ -578,7 +527,7 @@ another review shows its boxes. Choosing a device's netlist line lights the
 device the other side's netlist pairs with it, matched by what the devices
 connect to (names differ; a reading aid rather than a check), and lights our
 device in our drawing (by its instance, as the editor's Project Code finds
-it). Open in editor opens a tab; back in Review, a drawing changed there
+it). Fix in editor, on the drawing's title row, opens a tab; back in Review, a drawing changed there
 shows its new version. Under the pictures, Auto check lists by kind what the layout
 checks (`apps/editor/src/layout-check.ts`) find in our drawing: a step of at
 most 20 in a wire between two runs; neighbours alike and turned alike whose
@@ -590,13 +539,17 @@ net over each other. Pointing at a kind boxes its findings on our picture; a
 click keeps them. It is the Gallery's Review tab,
 between Community gallery and My shelf; its pages keep that tab row, which
 ends in the switch between Review (the default) and Statistics (`/datasets`,
-look only). Its sidebar, in the wall sidebar's markup, is one list of
-filters, each with the count it would show: Random (every store mixed, the
-default; choosing it again shuffles anew), Community and each dataset with
-comparisons, then With a reference figure (on by default). The address
-keeps them (`?scope=<random|community|key>`, `&refs=0` when the reference
-filter is off; `&id=` opens one drawing, turning the reference filter off
-when it hides that one). Every tile's ⋯ menu has Report an issue, a link to
+look only). Its sidebar, in the wall sidebar's markup, starts with a search
+over names, authors and ids (a pasted link or id, entered, opens its drawing
+in its own store), then filters, each with the count choosing it would show:
+Random (every store mixed, the default; choosing it again shuffles anew),
+Community and each dataset with comparisons; With a reference figure (on by
+default, off when Community is chosen, whose drawings rarely have one); and
+Authors, most drawings first (twelve, then the rest on request). A reviewer's
+own drawings are never in their list. The address keeps them
+(`?scope=<random|community|key>`, `&refs=0|1` when the reference filter differs
+from its default, `&author=`; `&id=` opens one drawing, turning off any
+filter that hides it). Every tile's ⋯ menu has Report an issue, a link to
 the drawing in Review, for anyone signed in but its author. Both
 sidebars fold to a strip at the left from a button at their top; each
 browser remembers it. Statistics shows the Owner each person's reviews and
@@ -652,7 +605,8 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   drawing was drawn from, such as a textbook figure) from the tile's ⋯ menu:
   a dialog takes a pasted screenshot (⌘V / Ctrl+V or its Paste button), a
   dropped image or a chosen file, shows it, and uploads once they confirm
-  they may share it: `PUT /api/gallery/<id>/reference` `{image:
+  they may share it (Review's empty Reference pane takes a pasted or dropped
+  one the same way, for the Owner): `PUT /api/gallery/<id>/reference` `{image:
 {type, data}, rights: true}` (PNG, JPEG or WebP, ≤512 KB decoded; the page
   redraws a larger file as WebP) → `{revision}`; `DELETE` removes it. Errors:
   403 `forbidden`, 400 `rights-required` or `invalid-image`. Dataset entries
@@ -661,7 +615,7 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   reference window offers it, unticked: ticked, saying they may share it,
   it is put the same way after the entry saves; a failure leaves the entry
   published and the notice says how to attach it.
-- Signed-in readers read it: `GET …/reference[?v=<revision>]` (immutable when
+- Anyone reads it: `GET …/reference[?v=<revision>]` (immutable when
   `v` names it). The community review queue names it (`reference:
 {revision}`), lists such entries first, and `/review` sets it beside the
   drawing. The `reviews` backup scope holds them.
@@ -688,7 +642,7 @@ tokens and codes are stored.
 - `POST /api/auth/profile` (1–40 chars) and `/logout` are same-origin.
 - `POST /api/auth/account/delete` `{confirm: "delete-account"}` (same-origin):
   an AI seat gets 409 `ai-account`. GalleryDO deletes the account's circuits,
-  versions, likes, daily-open records and Cloud Projects;
+  versions, likes and Cloud Projects;
   ComponentLibraryDO its components; AnalogArena unlinks its Voter
   ([Account deletion](analog-arena.md#account-deletion)); AuthDO last removes
   sessions, Owner tokens, codes, counters and the row. A failing step answers 503 leaving the
@@ -733,8 +687,7 @@ else 401.
   [off-site backups](../gallery-backup.md).
 - `GET|POST /api/admin/recovery`: point-in-time recovery
   ([deployment](../deployment.md#point-in-time-recovery)).
-- `GET /api/gallery/maintenance/netlists` (administrator or read-only
-  credential): public entries in id order (`format=spice|spectre`,
+- `GET /api/gallery/maintenance/netlists` (anyone): public entries in id order (`format=spice|spectre`,
   `limit=1..200`, `after`, or `id`) with metadata, stored mark, netlist (or
   `null`) and diagnostics; pages end at 8,000,000 characters of Project Code.
 - `POST …/schema-current`: `{apply: false}` validates; `{apply: true}` converges

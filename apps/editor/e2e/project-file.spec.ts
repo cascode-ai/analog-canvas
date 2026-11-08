@@ -302,7 +302,12 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   const { claimCode } = await readAgentClaim(panel);
   const client = new AgentHttpClient({ baseUrl: baseURL! });
   const session = await client.claim(claimCode);
-  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  // Pairing closes the dialog; the header's Agent button lights up.
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId("open-agent")).toHaveAttribute(
+    "data-connection",
+    "live",
+  );
   await expectAgentRecoveryAlongsideWorkingCopy(page, session.sessionId);
   await page.reload();
   await expectRestoredCount("1");

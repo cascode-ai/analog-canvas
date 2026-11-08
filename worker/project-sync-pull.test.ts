@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { gzipSync } from "node:zlib";
 import { gzipBody } from "./project-sync-http";
+import type { ProjectEvent } from "./project-sync-journal";
 import { RegionalProjectDO } from "./regional-projects";
 import {
   environment,
@@ -196,6 +197,81 @@ it.each([
       expect((await journal(domestic.env, newEventPath)).events[0]).toEqual(
         newEvent,
       );
+      const position = ({ epoch, sequence, payloadHash }: ProjectEvent) => ({
+        epoch,
+        sequence,
+        hash: payloadHash,
+      });
+      const checkpoint = {
+        cn: position(newEvent),
+        overseas: position(legacyEvent),
+      };
+      const compact = (
+        env: typeof domestic.env,
+        dryRun: boolean,
+        proof = checkpoint,
+      ) =>
+        route(
+          env,
+          new Request(`${ORIGIN}/api/project-sync/compact`, {
+            method: "POST",
+            headers: { Authorization: "Bearer test-admin" },
+            body: JSON.stringify({ checkpoint: proof, dryRun }),
+          }),
+        );
+      for (const env of [source.env, domestic.env]) {
+        const start = await journal(env, "status");
+        const wrongCheckpoint = {
+          ...checkpoint,
+          overseas: { ...checkpoint.overseas, hash: "0".repeat(64) },
+        };
+        expect((await compact(env, false, wrongCheckpoint)).status).toBe(409);
+        const preview = await compact(env, true);
+        expect(preview.status).toBe(200);
+        expect(await preview.json()).toMatchObject({
+          events: 1,
+          bytes: Buffer.byteLength(legacyEvent.payload),
+        });
+        expect((await journal(env, "status")).journalBytes).toBe(
+          start.journalBytes,
+        );
+        const applied = await compact(env, false);
+        expect(applied.status).toBe(200);
+        expect(await applied.json()).toMatchObject({ events: 1 });
+        expect((await journal(env, "status")).journalBytes).toBe(
+          start.journalBytes - Buffer.byteLength(legacyEvent.payload),
+        );
+      }
+      expect(await journal(source.env, "events?after=0")).toMatchObject({
+        error: "compacted-cursor",
+        floor: 1,
+      });
+      const currentPeer = await journal(domestic.env, "status");
+      const stalePull = await route(
+        source.env,
+        new Request(`${ORIGIN}/api/project-sync/pull`, {
+          method: "POST",
+          headers: { Authorization: "Bearer overseas-peer" },
+          body: JSON.stringify({ status: { ...currentPeer, received: null } }),
+        }),
+      );
+      expect(stalePull.status).toBe(409);
+      expect(await stalePull.json()).toMatchObject({
+        error: "compacted-cursor",
+      });
+      expect((await journal(source.env, "status")).fenced).toBe(false);
+      source.restart();
+      domestic.restart();
+      expect(await tick()).toBe("caught-up");
+      const retry = await route(
+        domestic.env,
+        new Request(`${ORIGIN}/api/project-sync/events`, {
+          method: "POST",
+          headers: { Authorization: "Bearer cn-peer" },
+          body: JSON.stringify({ event: legacyEvent }),
+        }),
+      );
+      expect(retry.status).toBe(200);
       const versions = `${ORIGIN}/api/projects/${id}/versions`;
       const headers = { Cookie: cookie };
       const history = await (
@@ -210,6 +286,44 @@ it.each([
       );
       expect(prior.status).toBe(200);
       expect((await prior.json()).projectText).toBe(current.projectText);
+
+      for (const [env, name] of [
+        [source.env, "Concurrent overseas edit"],
+        [domestic.env, "Concurrent domestic edit"],
+      ] as const) {
+        const { saveToken } = await open(env);
+        const edited = await route(
+          env,
+          new Request(`${ORIGIN}/api/projects/${id}`, {
+            method: "PUT",
+            headers: { Cookie: cookie, Origin: ORIGIN, "If-Match": saveToken },
+            body: JSON.stringify({ name, projectText: projectText(name) }),
+          }),
+        );
+        expect(edited.status).toBe(200);
+      }
+      expect(await tick()).toBe("sent");
+      expect(await tick()).toBe("caught-up");
+      const conflictCheckpoint = {
+        cn: position((await journal(domestic.env, "events?after=1")).events[0]),
+        overseas: position(
+          (await journal(source.env, "events?after=1")).events[0],
+        ),
+      };
+      for (const env of [source.env, domestic.env]) {
+        const applied = await compact(env, false, conflictCheckpoint);
+        expect(applied.status).toBe(200);
+        expect(await applied.json()).toMatchObject({ events: 1 });
+        const openConflict = await route(
+          env,
+          new Request(`${ORIGIN}/api/projects/${id}`, { headers }),
+        );
+        expect(openConflict.status).toBe(409);
+        const { conflicts } = await openConflict.json();
+        expect(
+          conflicts.map((branch: { name: string }) => branch.name).sort(),
+        ).toEqual(["Concurrent domestic edit", "Concurrent overseas edit"]);
+      }
     }
     const refused = await route(
       source.env,

@@ -129,11 +129,11 @@ describe("reviews of Gallery drawings", () => {
         })
       ).status,
     ).toBe(200);
-    // The queue lists what the reader may review: never their own entry,
-    // a dataset's only with a comparison; the unreviewed first.
+    // The queue lists every drawing, the reader's own marked as theirs to
+    // look at; a dataset's only with a comparison; the unreviewed first.
     expect(
       await (await call("/api/gallery/review/community/queue", maker)).json(),
-    ).toEqual({ entries: [] });
+    ).toMatchObject({ entries: [{ id, own: true, mine: null }] });
     expect(
       await (await call("/api/gallery/review/community/queue", reader)).json(),
     ).toMatchObject({

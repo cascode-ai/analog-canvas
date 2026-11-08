@@ -32,6 +32,10 @@ import {
 import { resolveAnnotationName } from "@icm/derived";
 import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
+import {
+  netlistPanelStartsOpen,
+  rememberNetlistPanel,
+} from "../features/netlist-export/netlist-panel-start";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
 import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
@@ -188,7 +192,11 @@ import {
   releaseKeptDocumentStyleEdit,
 } from "../features/editor-shell/kept-document-style";
 import { terminalCurrentDirectionPartners } from "../features/simulation/terminal-current-pick";
-import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
+import {
+  PUBLIC_SIMULATION_UI_ENABLED,
+  simulationEntryVisible,
+} from "../features/simulation/public-simulation-ui";
+import { useHostedSimulation } from "../components/account";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import { CellSymbolLayoutToolbar } from "../features/hierarchy/cell-symbol-layout-toolbar";
 import { selectedBlockSymbolTarget } from "../features/hierarchy/block-symbol-layout-target";
@@ -223,6 +231,7 @@ import {
 } from "./editor-project-dock";
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
+import { TestbenchPanel } from "../features/testbench/testbench-panel";
 import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import { useProjectCheck } from "./use-project-check";
@@ -249,7 +258,6 @@ import {
 } from "../features/hierarchy/project-structure-commands";
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
 import { canUpdateGalleryPublication } from "../features/editor-shell/gallery-publication-permission";
-import { GalleryDailyLimitCard } from "../features/editor-shell/gallery-daily-limit-card";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
 import { LazyGalleryPublishedNotice as GalleryPublishedNotice } from "./lazy-editor-dialogs";
@@ -611,6 +619,13 @@ function propertiesMosBulkDefaultNetId(
   );
 }
 
+// The offline editor has no accounts: a constant keeps the account module,
+// an online implementation, out of its bundle.
+const useTeamAccount: (enabled: boolean) => boolean = import.meta.env
+  ?.ICM_DESKTOP
+  ? () => false
+  : useHostedSimulation;
+
 function WorkspaceEditor({
   project: initialProject,
   visitStats,
@@ -640,10 +655,19 @@ function WorkspaceEditor({
   } = useEditorServices();
   const publicAgentUiEnabled =
     !import.meta.env?.ICM_DESKTOP && capabilities.agent && requestedAgentUi;
-  const publicSimulationUiEnabled =
+  const simulationUiRequested =
     !import.meta.env?.ICM_DESKTOP &&
     capabilities.simulation &&
     requestedSimulationUi;
+  const managedSimulation =
+    resolveSimulationTransport(
+      import.meta.env.VITE_ICM_SIMULATION_TRANSPORT,
+    ) === "managed";
+  const publicSimulationUiEnabled = simulationEntryVisible({
+    requested: simulationUiRequested,
+    transport: managedSimulation ? "managed" : "direct",
+    teamAccount: useTeamAccount(simulationUiRequested && managedSimulation),
+  });
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
   );
@@ -1013,10 +1037,11 @@ function WorkspaceEditor({
   } | null>(null);
   const canvasContextMenuSuppressed = useRef(false);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
-  // The PowerPoint dialog shows the drawing alone.
+  // A drawing opens on its canvas; the netlist only for a reader who keeps it
+  // open, never in the PowerPoint dialog.
   const [projectPanel, setProjectPanel] =
     useState<EditorProjectPanelMode | null>(
-      isOfficeDialog() ? null : "netlist",
+      !isOfficeDialog() && netlistPanelStartsOpen() ? "netlist" : null,
     );
   const [netlistFocusedInstance, setNetlistFocusedInstance] = useState<{
     documentId: string;
@@ -1060,8 +1085,6 @@ function WorkspaceEditor({
     setPublishedNotice,
     versionHistoryOpen,
     setVersionHistoryOpen,
-    galleryDailyLimit,
-    setGalleryDailyLimit,
     publishSession,
     cloudProjects,
     setCloudProjects,
@@ -1337,12 +1360,15 @@ function WorkspaceEditor({
       setImportCellOpen(false);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
-      // Each newly opened circuit starts with its netlist, but in the
-      // PowerPoint dialog. Ordinary edits and user-driven panel changes do
-      // not reset the workspace.
+      // Each newly opened circuit starts on its canvas, with its netlist for
+      // a reader who keeps it open (never in the PowerPoint dialog).
+      // Ordinary edits and user-driven panel changes do not reset the
+      // workspace.
       propertiesOpenBeforeProjectPanelRef.current = false;
       setSelectionOpen(false);
-      setProjectPanel(isOfficeDialog() ? null : "netlist");
+      setProjectPanel(
+        !isOfficeDialog() && netlistPanelStartsOpen() ? "netlist" : null,
+      );
       if (compactLayout) setCompactLibraryPanelOpen(false);
       return nextDocument;
     },
@@ -1580,7 +1606,6 @@ function WorkspaceEditor({
   const {
     renameCell,
     renameCellTerminal,
-    editProjectInfo,
     deleteCell,
     setTopCell,
     updateCellPortDirection,
@@ -1633,7 +1658,6 @@ function WorkspaceEditor({
     cancelAllTransientInteraction,
     setGalleryEntryContext,
     setStatus,
-    setDailyOpenLimit: setGalleryDailyLimit,
   });
   const [draftingInspectorSegment, setDraftingInspectorSegment] = useState<{
     objectId: string;
@@ -4235,6 +4259,7 @@ function WorkspaceEditor({
   }
 
   function closeProjectPanel(): void {
+    if (projectPanel === "netlist") rememberNetlistPanel(false);
     setProjectPanel(null);
     setSelectionOpen(propertiesOpenBeforeProjectPanelRef.current);
   }
@@ -4244,6 +4269,7 @@ function WorkspaceEditor({
       closeProjectPanel();
       return;
     }
+    if (mode === "netlist") rememberNetlistPanel(true);
     showProjectPanel(mode);
   }
 
@@ -5356,8 +5382,6 @@ function WorkspaceEditor({
     restoredWorkspace,
     preparedInitialProject,
     project,
-    projectSessionId,
-    setGalleryDailyLimit,
     setGalleryEntryContext,
     codeDraftDirty,
     openGalleryProjectInTabRef,
@@ -5881,7 +5905,7 @@ function WorkspaceEditor({
         commitStructure={commitStructure}
         renameCell={renameCell}
         setGalleryEntryContext={setGalleryEntryContext}
-        editProjectInfo={editProjectInfo}
+        renameProject={renameProject}
         updateCellPortDirection={updateCellPortDirection}
         moveCellPort={moveCellPort}
         editCellParameter={editCellParameter}
@@ -6217,6 +6241,24 @@ function WorkspaceEditor({
                         )
                           throw new Error("Could not apply device mappings");
                       })
+                    }
+                  />
+                ) : projectPanel === "testbench" ? (
+                  <TestbenchPanel
+                    key={projectSessionId}
+                    project={project}
+                    rootDocumentId={netlistRootDocumentId}
+                    onRootChange={(documentId) =>
+                      setNetlistEntry({
+                        sessionId: projectSessionId,
+                        documentId,
+                      })
+                    }
+                    onDirtyChange={noteCodeDraftDirty}
+                    onCommit={(folder, transactionId) =>
+                      commitStructure(transactionId, [
+                        { kind: "upsert_simulation_folder", folder },
+                      ])
                     }
                   />
                 ) : projectPanel === "netlist" ? (
@@ -8206,15 +8248,6 @@ function WorkspaceEditor({
                 );
               }}
             />
-          }
-          notice={
-            !import.meta.env?.ICM_DESKTOP && galleryDailyLimit ? (
-              <GalleryDailyLimitCard
-                limit={galleryDailyLimit}
-                onBackToGallery={leaveForGallery}
-                onClose={() => setGalleryDailyLimit(null)}
-              />
-            ) : null
           }
         />
         {canvasContextMenu ? (
