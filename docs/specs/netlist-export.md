@@ -472,6 +472,9 @@ never invents an identifier.
 
 - The Netlist button copies in the current format and opens the live panel;
   clipboard rejection leaves selectable code, never a download.
+- A drawing opens without the live panel. Opened from its toolbar toggle, it
+  opens with the next drawing and page in this browser until closed there;
+  never in the PowerPoint dialog.
 - Source edits (References, targets, printed values) apply as one atomic
   transaction with per-Document revisions; printer locations link caret and
   canvas both ways (never by Reference spelling). Invalid edits keep the draft;

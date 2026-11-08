@@ -557,16 +557,16 @@ sourceNetlist?, figure?: {type, data}}]}` (≤10; `data` base64, ≤512 KB
 
 `/review` shows one drawing at a time beside its reference (a dataset's
 original figure, or a community circuit's reference image): the comment,
-Like, ✓ Pass and ✕ Submit issue, the reasons (always shown; digits toggle
+Like and ✕ Submit issue (no Pass button), the reasons (always shown; digits toggle
 them, Esc clears them), and others' reviews, above the two pictures. Enter,
 in the comment too (Shift+Enter starts a new line), sends what is there:
 with a reason an issue, else a pass, the comment and boxes going with
 either; → does the same for a drawing not yet reviewed or changed since,
 so moving on passes it, and ← only steps back. Random (R) opens a drawing
 of the list not yet reviewed; Jump to takes a drawing's link or id and opens
-it, in its own store if it is not in the list. Pass and Submit issue are
-outlined in their colour, half-filled under the pointer and solid when
-pressed or chosen (Submit issue once a reason is). Below the pictures, what comparing a dataset's two netlists found (a
+it, in its own store if it is not in the list. Submit issue is outlined in
+red, half-filled under the pointer and solid when pressed or chosen (once a
+reason is). Below the pictures, what comparing a dataset's two netlists found (a
 callout in the verdict's tint: verdict and kind as tags, then the
 difference, two lines unless opened); then each side's SPICE netlist at its full
 length (ours spends a daily open as opening the entry does). The page
@@ -577,7 +577,7 @@ another review shows its boxes. Choosing a device's netlist line lights the
 device the other side's netlist pairs with it, matched by what the devices
 connect to (names differ; a reading aid rather than a check), and lights our
 device in our drawing (by its instance, as the editor's Project Code finds
-it). Open in editor opens a tab; back in Review, a drawing changed there
+it). Fix in editor, on the drawing's title row, opens a tab; back in Review, a drawing changed there
 shows its new version. Under the pictures, Auto check lists by kind what the layout
 checks (`apps/editor/src/layout-check.ts`) find in our drawing: a step of at
 most 20 in a wire between two runs; neighbours alike and turned alike whose

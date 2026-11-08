@@ -61,7 +61,7 @@ const scopeName = (scope: string) =>
     : (gallerySourceByKey(scope)?.name ?? scope);
 const num = (value: number) => value.toLocaleString("en-US");
 
-/** /review: one drawing at a time beside its reference; Pass or flag it. */
+/** /review: one drawing at a time beside its reference; → passes it, a reason flags it. */
 export function ReviewPage({
   visitStats,
   fetchLike = fetch,
@@ -264,7 +264,7 @@ export function ReviewPage({
     [scope],
   );
 
-  // Back from the editor (Open in editor opens a tab): a drawing changed
+  // Back from the editor (Fix in editor opens a tab): a drawing changed
   // there shows its new version here; reviews of the old one no longer count.
   useEffect(() => {
     if (!card) return;
@@ -415,10 +415,6 @@ export function ReviewPage({
     (after?: number) => void submit(flags.length ? "issue" : "pass", after),
     [flags.length, submit],
   );
-  const passIt = useCallback(() => {
-    setFlags([]);
-    void submit("pass");
-  }, [submit]);
   const sendIssue = useCallback(() => {
     if (flags.length) void submit("issue");
     else setMessage("Choose at least one reason above.");
@@ -630,17 +626,6 @@ export function ReviewPage({
                     </button>
                     <button
                       type="button"
-                      className={`review-pass${!flags.length && card.mine?.current && card.mine.verdict === "pass" ? " on" : ""}`}
-                      disabled={busy}
-                      title="Nothing wrong with it (→ passes it too)"
-                      data-testid="review-pass"
-                      onClick={passIt}
-                    >
-                      <span aria-hidden="true">✓</span> Pass
-                      {flags.length ? null : <kbd>Enter</kbd>}
-                    </button>
-                    <button
-                      type="button"
                       className={`review-issue${flags.length || (card.mine?.current && card.mine.verdict === "issue") ? " on" : ""}`}
                       disabled={busy}
                       title={
@@ -845,15 +830,6 @@ function ReviewItem({
             : ""}{" "}
           · {card.components} devices
         </span>
-        <a
-          className="open"
-          href={`/g/${encodeURIComponent(card.id)}`}
-          target="_blank"
-          rel="noopener"
-          title="Opens in a new tab; come back here and the drawing refreshes"
-        >
-          Open in editor
-        </a>
       </div>
       {children}
       <OthersReviews
@@ -886,6 +862,17 @@ function ReviewItem({
         <div>
           <h4>
             Redraw <span>· Analog Canvas</span>
+            {/* Fixing the drawing happens in the editor, beside it. */}
+            <a
+              className="review-edit"
+              data-testid="review-edit"
+              href={`/g/${encodeURIComponent(card.id)}`}
+              target="_blank"
+              rel="noopener"
+              title="Fix this drawing in the editor (a new tab); come back here and it refreshes"
+            >
+              Fix in editor ↗
+            </a>
           </h4>
           {picture(redraw, "redraw")}
         </div>

@@ -32,6 +32,10 @@ import {
 import { resolveAnnotationName } from "@icm/derived";
 import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
+import {
+  netlistPanelStartsOpen,
+  rememberNetlistPanel,
+} from "../features/netlist-export/netlist-panel-start";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
 import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
@@ -1013,10 +1017,11 @@ function WorkspaceEditor({
   } | null>(null);
   const canvasContextMenuSuppressed = useRef(false);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
-  // The PowerPoint dialog shows the drawing alone.
+  // A drawing opens on its canvas; the netlist only for a reader who keeps it
+  // open, never in the PowerPoint dialog.
   const [projectPanel, setProjectPanel] =
     useState<EditorProjectPanelMode | null>(
-      isOfficeDialog() ? null : "netlist",
+      !isOfficeDialog() && netlistPanelStartsOpen() ? "netlist" : null,
     );
   const [netlistFocusedInstance, setNetlistFocusedInstance] = useState<{
     documentId: string;
@@ -1337,12 +1342,15 @@ function WorkspaceEditor({
       setImportCellOpen(false);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
-      // Each newly opened circuit starts with its netlist, but in the
-      // PowerPoint dialog. Ordinary edits and user-driven panel changes do
-      // not reset the workspace.
+      // Each newly opened circuit starts on its canvas, with its netlist for
+      // a reader who keeps it open (never in the PowerPoint dialog).
+      // Ordinary edits and user-driven panel changes do not reset the
+      // workspace.
       propertiesOpenBeforeProjectPanelRef.current = false;
       setSelectionOpen(false);
-      setProjectPanel(isOfficeDialog() ? null : "netlist");
+      setProjectPanel(
+        !isOfficeDialog() && netlistPanelStartsOpen() ? "netlist" : null,
+      );
       if (compactLayout) setCompactLibraryPanelOpen(false);
       return nextDocument;
     },
@@ -4234,6 +4242,7 @@ function WorkspaceEditor({
   }
 
   function closeProjectPanel(): void {
+    if (projectPanel === "netlist") rememberNetlistPanel(false);
     setProjectPanel(null);
     setSelectionOpen(propertiesOpenBeforeProjectPanelRef.current);
   }
@@ -4243,6 +4252,7 @@ function WorkspaceEditor({
       closeProjectPanel();
       return;
     }
+    if (mode === "netlist") rememberNetlistPanel(true);
     showProjectPanel(mode);
   }
 

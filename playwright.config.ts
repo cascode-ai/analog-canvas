@@ -47,14 +47,18 @@ export default defineConfig({
   ],
   use: {
     baseURL: externalBaseUrl ?? e2eBaseUrl,
-    // Cases start with the reference window closed, as a reader who closed
-    // it: open, it covers part of the canvas they click.
+    // Cases start as a reader who closed the reference window (open, it
+    // covers part of the canvas they click) and keeps the Live netlist open,
+    // the workspace the cases were written against.
     storageState: {
       cookies: [],
       origins: [
         {
           origin: externalBaseUrl ?? e2eBaseUrl,
-          localStorage: [{ name: "icm.reference-window.v1", value: "closed" }],
+          localStorage: [
+            { name: "icm.reference-window.v1", value: "closed" },
+            { name: "icm.netlist-panel.v1", value: "open" },
+          ],
         },
       ],
     },

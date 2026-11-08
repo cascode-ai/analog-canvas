@@ -117,13 +117,16 @@ function netlistCodeLayout() {
 // Every loading screen a first /editor visit reveals, in order, on a fresh
 // profile over a slow link where the route's chunks arrive over time. React
 // keeps a revealed fallback for at least 300 ms, so each further stage costs
-// that much (#1645). The Netlist panel, open by default, loads its code
-// editor after the editor appears; whatever it shows first must already be
-// laid out as that editor lays out its code (#1673).
+// that much (#1645). The Netlist panel, open for a reader who keeps it
+// open, loads its code editor after the editor appears; whatever it shows
+// first must already be laid out as that editor lays out its code (#1673).
 async function editorLoadingScreensOf(browser, url) {
   const context = await browser.newContext({ serviceWorkers: "block" });
   try {
     const page = await context.newPage();
+    await page.addInitScript(() =>
+      localStorage.setItem("icm.netlist-panel.v1", "open"),
+    );
     await page.addInitScript(
       `window.__icmNetlistCodeLayout = ${netlistCodeLayout}`,
     );
@@ -308,8 +311,10 @@ async function main() {
         )
         .sort(),
     );
-    // Netlist is requested by the default editor workspace. Its CodeMirror
-    // runtime must load here; only the Gallery keeps editor code deferred.
+    // The Netlist opens from its toolbar toggle (the editor starts without
+    // it). Its CodeMirror runtime must then load; only the Gallery keeps
+    // editor code deferred.
+    await page.getByTestId("netlist-panel-toggle").click();
     await page.waitForSelector(
       '[aria-label="Netlist code"][contenteditable="true"]',
     );
