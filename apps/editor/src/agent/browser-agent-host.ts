@@ -41,7 +41,6 @@ export class BrowserAgentHost implements AgentOperationHost {
   planAuthoringCommand(
     documentId: string,
     command: AgentAuthoringCommand,
-    maxTransactionEdits?: number,
   ): AgentCommandPlan {
     this.assertBound();
     return planBrowserAgentCommand(
@@ -49,7 +48,6 @@ export class BrowserAgentHost implements AgentOperationHost {
       documentId,
       this.controller.resolver,
       command,
-      maxTransactionEdits,
       this.planning,
     );
   }
@@ -136,16 +134,6 @@ export class BrowserAgentHost implements AgentOperationHost {
       this.onTransactionCommitted?.();
     }
     return result;
-  }
-
-  commitAsOneStep(commit: () => boolean): boolean {
-    this.assertBound();
-    const before = this.controller.project;
-    const kept = this.controller.commitAsOneStep(commit);
-    // The commits it undid were shown; show the Project they left.
-    if (!kept && this.controller.project !== before)
-      this.onTransactionCommitted?.();
-    return kept;
   }
 
   /**

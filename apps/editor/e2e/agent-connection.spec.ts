@@ -116,8 +116,9 @@ test.describe("first connection handoff", () => {
             expect(result.ok).toBe(true);
             return result;
           };
-          await expect(panel.getByTestId("agent-status")).toHaveText(
-            "Connected",
+          await expect(page.getByTestId("open-agent")).toHaveAttribute(
+            "data-connection",
+            "live",
           );
           const before = await circuit({ operation: "snapshot" });
           expect(before.snapshot.document.instances).toHaveLength(0);
@@ -140,8 +141,12 @@ test.describe("first connection handoff", () => {
             ).toHaveLength(0);
           };
         }
-        await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
-        await panel.getByLabel("Close Agent dialog").click();
+        // Pairing closes the dialog; the header's Agent button lights up.
+        await expect(panel).toHaveCount(0);
+        await expect(page.getByTestId("open-agent")).toHaveAttribute(
+          "data-connection",
+          "live",
+        );
         await expect(page.getByTestId("active-instance-count")).toHaveText("1");
         await page.getByTestId("draw-tool-undo").click();
         await expect(page.getByTestId("active-instance-count")).toHaveText("0");

@@ -55,13 +55,13 @@
   font-size: var(--icm-font-xs);
 }
 @container examples (min-width: 640px) {
-  .examples-panel-browser[data-tags-available="true"] {
+  .examples-panel-browser {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
   .examples-panel-tags {
     display: block;
   }
-  .examples-panel-browser[data-tags-available="true"] .examples-panel-results {
+  .examples-panel-browser .examples-panel-results {
     grid-column: 2 / -1;
   }
 }

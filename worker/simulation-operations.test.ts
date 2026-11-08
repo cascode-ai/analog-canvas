@@ -660,6 +660,53 @@ describe("managed simulation operations", () => {
     });
   });
 
+  it("starts runs only for the team, while anyone still lists their own runs", async () => {
+    const h = harness();
+    try {
+      const member = {
+        ...h.runtime,
+        principalOf: async () => {
+          const { isOwner: _owner, ...user } = await h.runtime.principalOf();
+          return { ...user, id: "member" };
+        },
+      };
+      const refused = await routeManagedSimulationRequest(
+        startRequest(),
+        h.env,
+        member,
+      );
+      expect(refused?.status).toBe(403);
+      expect((await refused!.json()).error).toBe("hosted-simulation-team-only");
+      expect(h.jobs).toHaveLength(0);
+      const listed = await routeManagedSimulationRequest(
+        new Request("https://canvas.test/api/simulation/runs"),
+        h.env,
+        member,
+      );
+      expect(listed?.status).toBe(200);
+      for (const team of [
+        { isAdmin: true },
+        { seat: "ai-designer-1" },
+        { isOwner: true as const },
+      ]) {
+        const started = await routeManagedSimulationRequest(
+          startRequest(),
+          h.env,
+          {
+            ...member,
+            principalOf: async () => ({
+              ...(await member.principalOf()),
+              ...team,
+            }),
+          },
+        );
+        expect(started?.status, JSON.stringify(team)).not.toBe(403);
+      }
+    } finally {
+      h.close();
+    }
+  });
+
   it("exposes drain and state counts only to administrators", async () => {
     const { env, runtime } = harness();
     const denied = await routeManagedSimulationRequest(

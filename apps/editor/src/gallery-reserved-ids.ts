@@ -1,7 +1,6 @@
 /**
- * Ids the Gallery keeps for itself: shaped like a circuit's short id but
- * never given to one, so a reader that meets one in a list skips it
- * (docs/specs/community-gallery.md#crawlers-ai-and-floods).
+ * Ids no new circuit is given: trap circuits once held them, and the block
+ * records of that time still name them.
  */
 const SHORT_ID = /^[23456789abcdefghjkmnpqrstvwxyz]{10}$/u;
 
@@ -13,11 +12,4 @@ export function isReservedGalleryId(id: string): boolean {
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash % 999_983 === 271_828;
-}
-
-/** A list page without the reserved entries the Gallery may mix into it. */
-export function withoutReservedEntries<T extends { id: string }>(
-  entries: readonly T[],
-): T[] {
-  return entries.filter((entry) => !isReservedGalleryId(entry.id));
 }

@@ -92,48 +92,6 @@ test("Insert retries a failed cursor and preserves the first page count", async 
   expect(attempts).toBe(2);
 });
 
-for (const status of [401, 403]) {
-  test(`Insert shows the ${status} recovery when the next page is refused`, async ({
-    page,
-  }) => {
-    await signIn(page, sessionUser());
-    await mockPreviews(page);
-    let attempts = 0;
-    await mockGalleryApi(page, { tags: [] }, async (url, route) => {
-      if (!url.searchParams.has("cursor"))
-        return route.fulfill({
-          json: { entries: [ENTRY], nextCursor: "page-2", total: 40 },
-        });
-      attempts++;
-      return route.fulfill({
-        status,
-        json: {
-          error: status === 403 ? "account-blocked" : "sign-in-required",
-        },
-      });
-    });
-    await openEditor(page);
-    await page.getByTestId("examples-toggle").click();
-    const panel = page.getByTestId("examples-panel");
-    await expect(
-      panel.getByTestId(
-        status === 403 ? "gallery-blocked" : "examples-panel-sign-in",
-      ),
-    ).toBeVisible();
-    await expect(
-      panel.getByRole("button", { name: "Retry", exact: true }),
-    ).toHaveCount(0);
-    await expect(panel.getByTestId(`gallery-example-${ENTRY.id}`)).toHaveCount(
-      0,
-    );
-    await panel.locator(".examples-panel-results").evaluate((e) => {
-      e.scrollTop = e.scrollHeight;
-    });
-    await page.evaluate(() => new Promise(requestAnimationFrame));
-    expect(attempts).toBe(1);
-  });
-}
-
 test("My submissions keeps the card and names failed withdraw, restore and delete", async ({
   page,
 }) => {

@@ -262,8 +262,9 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   expect(run.state).toBe("finished");
   const runState = async () =>
     (await send("simulation", { operation: "read", runId: run.id })).run.state;
-  // No Agent read is needed for the browser observer to finish the handoff.
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  // No Agent read is needed for the browser observer to finish the handoff;
+  // the connection dialog closed itself when the Agent paired.
+  await expect(panel).toHaveCount(0);
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await page.locator(".simulation-run-history > summary").click();
   const openResult = page

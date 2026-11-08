@@ -58,6 +58,10 @@ GET  /api/agent/openapi.json
   cannot expire it). Expiry removes the code, not its explanation; failed or
   cancelled setup removes it; a new connection replaces the handoff;
   Disconnect is locally terminal even with requests pending.
+- Pairing closes the Connect Agent panel and returns the editor to the
+  reader. The header's Agent button then lights: green while an Agent is
+  connected or working, amber while it is paused, reconnecting or offline;
+  it reopens the panel for Pause, New connection and Disconnect.
 - `GET /api/agent/kit`: one small public static JSON (`README.md`,
   `AGENTS.md`, a session `SKILL.md`, authoring rules, the built-in palette
   catalog) with no Project data, secrets or mutation, outside the Circuit
@@ -173,11 +177,12 @@ reconciles, never blindly replays.
 - Circuit scopes: Snapshot, render, source spans, geometry, connectivity,
   presentation, semantic editor control. File scopes: Project download, visual
   download, staging (`project.import`, which also gates the Project resource).
-  `simulation.run` covers Simulation operations and simulation workspaces
-  (capability/help requests need none); saving a Project-folder source needs
-  `simulation.run` + `project.import` (+ connectivity edit if it edits the
-  circuit). `gallery.publish` is independent of edit scopes; older sessions
-  need a new connection for it.
+  `simulation.run` covers Simulation operations, simulation workspaces and run
+  artifacts (capability/help requests need none). A Project folder is the
+  Project's authored Testbench: listing or reading it needs `project.download`,
+  saving it `project.import` (+ connectivity edit if it edits the circuit),
+  never `simulation.run`. `gallery.publish` is independent of edit scopes;
+  older sessions need a new connection for it.
 - Semantic control selects a locator, highlights a Net, activates/fits a Cell
   or clears focus; never advances revision or history.
 - The relay checks bearer, session/document binding, scope, expiry, body size

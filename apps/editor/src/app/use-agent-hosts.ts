@@ -476,6 +476,21 @@ export function useEditorAgentConnection({
     if (!publicAgentUiEnabled) return;
     setAgentStatusDismissed(false);
   }, [agentSession?.status, publicAgentUiEnabled]);
+  // The Agent's pairing closes the connection dialog: the editor is the
+  // reader's again, and the header's Agent button shows the connection.
+  const pairingStatus = useRef(agentSession?.status);
+  useEffect(() => {
+    const before = pairingStatus.current;
+    const now = agentSession?.status;
+    pairingStatus.current = now;
+    if (
+      (before === "creating" || before === "waiting-for-agent") &&
+      (now === "connected" || now === "working")
+    ) {
+      setAgentPanelOpen(false);
+      setStatus("Agent connected");
+    }
+  }, [agentSession?.status, setAgentPanelOpen, setStatus]);
 
   function approveAgentFileCandidate(): void {
     if (!agentFileCandidate || !browserAgentFileHost) return;

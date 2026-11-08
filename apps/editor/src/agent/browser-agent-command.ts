@@ -212,153 +212,6 @@ function checkedJunctionTransform(
   return gated.edits;
 }
 
-function projectStructureEditCount(
-  edits: readonly ProjectStructureEdit[],
-): number {
-  return edits.reduce(
-    (count, edit) =>
-      count + 1 + (edit.kind === "transact_document" ? edit.edits.length : 0),
-    0,
-  );
-}
-
-type DeleteSelection = (AgentAuthoringCommand & {
-  kind: "delete-selection";
-})["selection"];
-
-/** Selection fields in the order a fitting prefix takes them. */
-const DELETE_SELECTION_CLASSES = [
-  ["instanceIds", "Instances", "instance", "instances"],
-  ["routeIds", "Routes", "route", "routes"],
-  ["junctionIds", "Junctions", "junction", "junctions"],
-  ["annotationIds", "Annotations", "annotation", "annotations"],
-  ["draftingIds", "Drafting", "drafting object", "drafting objects"],
-  ["noConnectIds", "NoConnects", "no-connect", "no-connects"],
-] as const;
-
-function assertDeleteSelectionFits(
-  actionIndex: number,
-  expandedEdits: number,
-  maxTransactionEdits: number,
-  selection: DeleteSelection,
-  expansionOf: (selection: DeleteSelection) => number,
-): void {
-  if (
-    !Number.isFinite(maxTransactionEdits) ||
-    expandedEdits <= maxTransactionEdits
-  )
-    return;
-  // A prefix of the selection, in class order, is a selection of its own.
-  // Each probe plans exactly as the deletion would. The search keeps `low`
-  // fitting and `high` not, so its answer fits even where a larger selection
-  // happens to plan to fewer edits.
-  const ordered = DELETE_SELECTION_CLASSES.flatMap(([field]) =>
-    selection[field].map((id) => [field, id] as const),
-  );
-  const prefix = (count: number): DeleteSelection => {
-    const part: DeleteSelection = {
-      instanceIds: [],
-      routeIds: [],
-      junctionIds: [],
-      annotationIds: [],
-      draftingIds: [],
-      noConnectIds: [],
-    };
-    for (const [field, id] of ordered.slice(0, count)) part[field].push(id);
-    return part;
-  };
-  const fits = (count: number): boolean => {
-    try {
-      return expansionOf(prefix(count)) <= maxTransactionEdits;
-    } catch {
-      return false;
-    }
-  };
-  let low = 0;
-  let high = ordered.length;
-  while (high - low > 1) {
-    const middle = Math.floor((low + high) / 2);
-    if (fits(middle)) low = middle;
-    else high = middle;
-  }
-  const fitting = prefix(low);
-  const counts = Object.fromEntries(
-    DELETE_SELECTION_CLASSES.flatMap(([field, name]) => [
-      [`selected${name}`, selection[field].length],
-      [`fitting${name}`, fitting[field].length],
-    ]),
-  );
-  const fittingText = DELETE_SELECTION_CLASSES.flatMap(
-    ([field, , one, many]) => {
-      const count = fitting[field].length;
-      if (count === 0) return [];
-      const noun = count === 1 ? one : many;
-      return [
-        count === selection[field].length
-          ? `all ${count} ${noun}`
-          : `the first ${count} ${noun}`,
-      ];
-    },
-  ).join(" and ");
-  throw new AgentCommandPlanningError(
-    actionIndex,
-    `Delete selection expands to ${expandedEdits} edits, and one transaction takes at most ${maxTransactionEdits}. ` +
-      (low === 0
-        ? "Not even its first object fits alone; delete that object's wires first. "
-        : `${fittingText[0]!.toUpperCase()}${fittingText.slice(1)} fit: delete them in one call, then refresh and delete what remains (deleting a part also deletes wires that only tapped it). `) +
-      "Nothing was deleted.",
-    {
-      code: "LIMIT_EXCEEDED",
-      parameters: { expandedEdits, maxTransactionEdits, ...counts },
-    },
-  );
-}
-
-/**
- * A label preset over the edit limit commits nothing and names the leading
- * parts that fit, each count found by planning those parts as the preset
- * would, so the Agent splits it without guessing. `low` always fits.
- */
-function assertLabelPresetFits(
-  document: SchematicDocument,
-  ids: readonly string[],
-  expandedEdits: number,
-  maxTransactionEdits: number,
-  expansionOf: (ids: readonly string[]) => number,
-): void {
-  if (expandedEdits <= maxTransactionEdits) return;
-  let low = 0;
-  let high = ids.length;
-  while (high - low > 1) {
-    const middle = Math.floor((low + high) / 2);
-    if (expansionOf(ids.slice(0, middle)) <= maxTransactionEdits) low = middle;
-    else high = middle;
-  }
-  const names = ids
-    .slice(0, low)
-    .map(
-      (id) =>
-        document.instances.find((item) => item.id === id)?.reference ?? id,
-    );
-  throw new AgentCommandPlanningError(
-    0,
-    `apply-label-preset expands to ${expandedEdits} edits, and one transaction takes at most ${maxTransactionEdits}. ` +
-      (low === 0
-        ? "Not even its first part fits alone. "
-        : `The first ${low} of its ${ids.length} parts fit (${names.join(", ")}): apply it to them in one call and to the rest in another. `) +
-      "Nothing was changed.",
-    {
-      code: "LIMIT_EXCEEDED",
-      parameters: {
-        expandedEdits,
-        maxTransactionEdits,
-        selectedParts: ids.length,
-        fittingParts: low,
-      },
-    },
-  );
-}
-
 /**
  * A part the Agent places is named as a GUI placement names it. A missing
  * Reference takes the next free one. One the netlist would refuse, with
@@ -404,7 +257,6 @@ export function planBrowserAgentCommand(
   documentId: string,
   resolver: SymbolResolver,
   command: AgentAuthoringCommand,
-  maxTransactionEdits = Number.POSITIVE_INFINITY,
   context: BrowserAgentPlanningContext = {},
   /**
    * A batch's command: a rail takes its IDs from the batch's own sequence
@@ -583,20 +435,10 @@ export function planBrowserAgentCommand(
         if (!document.instances.some((item) => item.id === id))
           throw new Error(`Instance not found: ${id}`);
       // textbook is the only preset.
-      const plan = (parts: readonly string[]) =>
-        textbookLabelEdits(document, resolver, parts);
-      const edits = plan(ids);
-      assertLabelPresetFits(
-        document,
-        ids,
-        edits.length,
-        maxTransactionEdits,
-        (parts) => plan(parts).length,
-      );
-      return { edits };
+      return { edits: textbookLabelEdits(document, resolver, ids) };
     }
     case "route-net":
-      return planRouteNet(document, resolver, command, maxTransactionEdits);
+      return planRouteNet(document, resolver, command);
     case "delete-selection": {
       // GUI selections may contain stale IDs during gestures. An explicit
       // Agent selection is different: silently skipping one would report a
@@ -622,42 +464,26 @@ export function planBrowserAgentCommand(
               `selection.${field}: ${id} ${actual ? `belongs in ${actual}` : "does not exist"}; no objects were deleted`,
             );
         }
-      const planDeletion = (
-        selection: DeleteSelection,
-      ): { size: number; plan: AgentCommandPlan } => {
-        const selected = planCellSelectionDeletion(
-          document,
-          resolver,
-          selection,
-          sequence,
-        );
-        if (selected.terminalIds.length) {
-          const structureEdits = planRemoveCellTerminals(
+      const selected = planCellSelectionDeletion(
+        document,
+        resolver,
+        command.selection,
+        sequence,
+      );
+      if (selected.terminalIds.length)
+        return {
+          structureEdits: planRemoveCellTerminals(
             project,
             documentId,
             selected.terminalIds,
             [...selected.routing.edits],
-          );
-          return {
-            size: projectStructureEditCount(structureEdits),
-            plan: { structureEdits },
-          };
-        }
-        const gate = gateRoutingOperationPlan(document, selected.routing, {
-          symbolResolver: resolver,
-        });
-        if (!gate.ok) throw new Error(gate.message);
-        return { size: gate.edits.length, plan: { edits: [...gate.edits] } };
-      };
-      const planned = planDeletion(command.selection);
-      assertDeleteSelectionFits(
-        0,
-        planned.size,
-        maxTransactionEdits,
-        command.selection,
-        (selection) => planDeletion(selection).size,
-      );
-      return planned.plan;
+          ),
+        };
+      const gate = gateRoutingOperationPlan(document, selected.routing, {
+        symbolResolver: resolver,
+      });
+      if (!gate.ok) throw new Error(gate.message);
+      return { edits: [...gate.edits] };
     }
     case "set-port-direction": {
       if (command.target.kind === "terminal")
@@ -845,7 +671,6 @@ export function planBrowserAgentCommand(
             documentId,
             createProjectSymbolResolver(draft, builtInSymbols),
             item,
-            maxTransactionEdits,
             context,
             { sequence, index },
           );
@@ -966,16 +791,8 @@ export function planBrowserAgentCommand(
             `showReference and showValue are for devices; a Cell Pin or ground marker shows its Pin or Net name: ${id}`,
           );
       }
-      // Where each placement's edits start, and which placements are Cell
-      // Pins, which carry the interface into a Project transaction.
-      const starts: number[] = [];
-      const pins: boolean[] = [];
       const placed: Instance[] = [];
       for (const [index, source] of command.instances.entries()) {
-        starts.push(edits.length);
-        pins.push(
-          ["port", "port-filled", "vdd-port"].includes(source.symbolId),
-        );
         const pinAnchor = command.pinAnchors?.[source.id];
         let instance = source;
         if (pinAnchor) {
@@ -1134,41 +951,8 @@ export function planBrowserAgentCommand(
           })),
         );
       }
-      // One transaction takes a bounded number of edits, and each placement
-      // expands to several (the part, its labels, a Pin's terminal and Net).
-      // A batch over the bound commits nothing; it says what it expanded to
-      // and how many leading placements fit, so it splits without guessing:
-      // an action list is split there by the service itself (#1516).
-      const expanded = edits.length + (changesInterface ? 1 : 0);
-      if (expanded > maxTransactionEdits) {
-        let fitting = 0;
-        while (
-          fitting < command.instances.length &&
-          (starts[fitting + 1] ?? edits.length) +
-            (pins.slice(0, fitting + 1).some(Boolean) ? 1 : 0) <=
-            maxTransactionEdits
-        )
-          fitting += 1;
-        throw new AgentCommandPlanningError(
-          fitting,
-          `${command.instances.length} placements expand to ${expanded} edits, and one transaction takes at most ${maxTransactionEdits}. The first ${fitting} fit: place them in one call and the rest in another. Nothing was placed.`,
-          {
-            code: "LIMIT_EXCEEDED",
-            parameters: {
-              expandedEdits: expanded,
-              maxTransactionEdits,
-              fittingPlacements: fitting,
-            },
-          },
-        );
-      }
       // Labels of parts already drawn that the new ones cover move clear.
-      const settled = withLabelsClearOfPlacedParts(
-        document,
-        resolver,
-        edits,
-        maxTransactionEdits - (changesInterface ? 1 : 0),
-      );
+      const settled = withLabelsClearOfPlacedParts(document, resolver, edits);
       // A BJT the Process maps to a reviewed subcircuit arrives bound to it,
       // with its definition, exactly as a GUI placement does.
       const filled = context.processFill?.(project, documentId, settled);
@@ -1313,12 +1097,7 @@ export function planBrowserAgentCommand(
           annotation,
         })),
       ];
-      const moved = withLabelsClearOfPlacedParts(
-        document,
-        resolver,
-        placing,
-        maxTransactionEdits,
-      )
+      const moved = withLabelsClearOfPlacedParts(document, resolver, placing)
         .slice(placing.length)
         .flatMap((edit) =>
           edit.kind === "upsert_schematic_annotation" ? [edit.annotation] : [],

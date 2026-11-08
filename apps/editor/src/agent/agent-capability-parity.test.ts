@@ -786,7 +786,6 @@ it("places a part with the catalog defaults and the Process model a GUI placemen
         },
       ],
     },
-    Number.POSITIVE_INFINITY,
     context,
   );
   if (!("edits" in plan)) throw new Error("Expected document edits");
@@ -1345,7 +1344,6 @@ it("reads a SKY130 short device name as its reviewed target in a SKY130 Project"
         },
       ],
     },
-    Number.POSITIVE_INFINITY,
     context,
   );
   if (!("edits" in placed)) throw new Error("Expected document edits");
@@ -1356,7 +1354,6 @@ it("reads a SKY130 short device name as its reviewed target in a SKY130 Project"
     controller.document.id,
     controller.resolver,
     { kind: "set-model", instanceId: "M1", model: "nfet_01v8_lvt" },
-    Number.POSITIVE_INFINITY,
     context,
   );
   if (!("structureEdits" in plan)) throw new Error("Expected a model plan");
@@ -1394,95 +1391,76 @@ it("reads a SKY130 short device name as its reviewed target in a SKY130 Project"
   ).toBeUndefined();
 });
 
-it("places a batch over the edit limit in as many transactions as it takes, as one undo step and one receipt (#1516)", async () => {
-  const { client, controller } = await folder();
-  const actions = [
-    ...Array.from({ length: 20 }, (_, index) => ({
-      kind: "place-component" as const,
-      symbol: "nmos",
-      reference: `M${index + 1}`,
-      position: { x: (index % 5) * 100, y: Math.floor(index / 5) * 100 },
-      parameters: { w: "1u", l: "150n" },
-      // Each with its W/L on show: three edits a part, over the limit.
-      showValue: true,
+it("places, wires, deletes and moves batches of any size in one transaction each", async () => {
+  const { controller, tool } = await folder();
+  const count = 70;
+  const placements = Array.from({ length: 2 * count }, (_, i) => ({
+    kind: "place-component",
+    symbol: "resistor",
+    reference: `R${i + 1}`,
+    position: { x: (i % 2) * 400, y: Math.floor(i / 2) * 200 },
+    rotation: 270,
+    showValue: true,
+  }));
+  let revision = controller.document.revision;
+  // More than 64 parts with their values on show, in one call.
+  const placed = await tool("circuit_place", { actions: placements });
+  expect(placed.ok, JSON.stringify(placed).slice(0, 400)).toBe(true);
+  expect(controller.document.instances).toHaveLength(2 * count);
+  expect(controller.document.revision).toBe(++revision);
+  // More than 64 connections, in one call.
+  const wired = await tool("circuit_wire", {
+    actions: Array.from({ length: count }, (_, i) => ({
+      kind: "connect",
+      from: { kind: "pin", instance: `R${2 * i + 1}`, pin: "2" },
+      to: { kind: "pin", instance: `R${2 * i + 2}`, pin: "1" },
     })),
-    {
-      kind: "place-component" as const,
-      symbol: "vdd-port",
-      position: { x: 0, y: -100 },
-    },
-    {
-      kind: "place-component" as const,
-      symbol: "ground",
-      position: { x: 0, y: 500 },
-    },
-  ];
-  const before = controller.document.revision;
-  // A dry run checks one transaction: it says how far the batch expands and
-  // how many leading placements fit, exactly, as the split uses it.
-  const dry = { dryRunOnly: true };
-  const rejected = await client.applyActions(actions, dry);
-  expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  const limit = rejected.diagnostics?.[0]?.parameters as
-    | {
-        expandedEdits: number;
-        maxTransactionEdits: number;
-        fittingPlacements: number;
-      }
-    | undefined;
-  expect(limit?.maxTransactionEdits).toBe(64);
-  expect(limit?.expandedEdits).toBeGreaterThan(64);
-  expect(rejected.message).toContain(
-    `22 placements expand to ${limit?.expandedEdits} edits, and one transaction takes at most 64. The first ${limit?.fittingPlacements} fit`,
-  );
-  const fitting = limit!.fittingPlacements;
-  expect(fitting).toBeGreaterThan(10);
-  expect((await client.applyActions(actions.slice(0, fitting), dry)).ok).toBe(
-    true,
-  );
-  expect(
-    await client.applyActions(actions.slice(0, fitting + 1), dry),
-  ).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  expect(controller.document.revision).toBe(before);
-
-  const placed = await client.applyActions(actions);
-  expect(placed.ok, placed.message).toBe(true);
-  const ids = controller.document.instances.map((instance) => instance.id);
-  expect(ids).toHaveLength(22);
-  expect(placed.changedObjectIds).toEqual(expect.arrayContaining(ids));
-  expect(placed.revision).toBe(controller.document.revision);
-  // More than one transaction, each within the limit.
-  expect(controller.document.revision).toBeGreaterThan(before + 1);
-  // The ground of the last transaction gave the NMOS of the first their
-  // body, as one transaction would have.
-  const ground = controller.document.nets.find((net) =>
-    net.terminals.some((terminal) =>
-      controller.document.instances.some(
-        (instance) =>
-          instance.id === terminal.instanceId && instance.symbolId === "ground",
-      ),
-    ),
-  );
-  for (const instance of controller.document.instances)
-    if (instance.symbolId === "nmos")
-      expect(ground?.terminals).toContainEqual({
-        instanceId: instance.id,
-        pinName: "B",
-      });
-  // One undo step takes all of it back, one redo brings it again.
-  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  });
+  expect(wired.ok, JSON.stringify(wired).slice(0, 400)).toBe(true);
+  expect(controller.document.routes.length).toBeGreaterThanOrEqual(count);
+  expect(controller.document.revision).toBe(++revision);
+  // Every part moved at once.
+  const moved = await tool("circuit_selection", {
+    actions: [
+      {
+        kind: "transform",
+        selection: {
+          instanceIds: controller.document.instances.map((item) => item.id),
+        },
+        transform: { kind: "translate", delta: { x: 0, y: 2000 } },
+      },
+    ],
+  });
+  expect(moved.ok, JSON.stringify(moved).slice(0, 400)).toBe(true);
+  expect(controller.document.revision).toBe(++revision);
+  // Everything deleted at once.
+  const deleted = await tool("apply_actions", {
+    actions: [
+      {
+        kind: "delete-selection",
+        selection: {
+          instanceIds: controller.document.instances.map((item) => item.id),
+          routeIds: controller.document.routes.map((item) => item.id),
+          junctionIds: controller.document.junctions.map((item) => item.id),
+        },
+      },
+    ],
+  });
+  expect(deleted.ok, JSON.stringify(deleted).slice(0, 400)).toBe(true);
   expect(controller.document.instances).toHaveLength(0);
-  expect(controller.canUndo).toBe(false);
-  expect((await client.applyActions([{ kind: "redo" }])).ok).toBe(true);
-  expect(controller.document.instances.map((instance) => instance.id)).toEqual(
-    ids,
-  );
+  expect(controller.document.routes).toHaveLength(0);
+  expect(controller.document.revision).toBe(++revision);
+  // One undo step brings each batch back.
+  expect(
+    (await tool("apply_actions", { actions: [{ kind: "undo" }] })).ok,
+  ).toBe(true);
+  expect(controller.document.instances).toHaveLength(2 * count);
 });
 
-it("leaves nothing of a split placement batch when a later transaction is refused (#1516)", async () => {
+it("leaves nothing of a placement batch when one of its parts is refused (#1516)", async () => {
   const { client, controller } = await folder();
   const instances = Array.from({ length: 22 }, (_, index) => ({
-    // The last reuses the first's ID: only its own transaction finds out.
+    // The last reuses the first's ID.
     id: index === 21 ? "M1" : `M${index + 1}`,
     symbolId: "nmos",
     reference: `M${index + 1}`,
@@ -1503,145 +1481,9 @@ it("leaves nothing of a split placement batch when a later transaction is refuse
     },
   ]);
   expect(refused.ok).toBe(false);
-  expect(refused.message).toContain("instances[21]");
-  expect(refused.message).toContain("Object ID already exists: M1");
-  // Its first transaction was committed, then taken back.
-  expect(controller.document.revision).toBeGreaterThan(before.revision);
-  expect(controller.document.instances).toEqual(before.instances);
-  expect(controller.document.annotations).toEqual(before.annotations);
-  expect(controller.canUndo).toBe(false);
-});
-
-it("names the part of an over-limit delete that fits, and both calls succeed", async () => {
-  // #1269: the Agent split 14 parts, 16 wires and 12 junctions by trial.
-  const { client, controller, tool } = await folder();
-  const placements = Array.from({ length: 12 }, (_, i) =>
-    ["RL", "RR"].map((side, column) => ({
-      kind: "place-component",
-      symbol: "resistor",
-      reference: `${side}${i}`,
-      position: { x: column * 400, y: i * 200 },
-      rotation: 270,
-    })),
-  ).flat();
-  for (let offset = 0; offset < placements.length; offset += 12) {
-    const placed = await tool("circuit_place", {
-      actions: placements.slice(offset, offset + 12),
-    });
-    expect(placed.ok, JSON.stringify(placed)).toBe(true);
-  }
-  const wired = await tool("circuit_wire", {
-    actions: Array.from({ length: 12 }, (_, i) => ({
-      kind: "connect",
-      from: { kind: "pin", instance: `RL${i}`, pin: "2" },
-      to: { kind: "pin", instance: `RR${i}`, pin: "1" },
-    })),
-  });
-  expect(wired.ok, JSON.stringify(wired)).toBe(true);
-  const selection = {
-    instanceIds: controller.document.instances.map((item) => item.id),
-    routeIds: controller.document.routes.map((item) => item.id),
-    junctionIds: controller.document.junctions.map((item) => item.id),
-  };
-  const ordered = [
-    ...selection.instanceIds.map((id) => ["instanceIds", id] as const),
-    ...selection.routeIds.map((id) => ["routeIds", id] as const),
-    ...selection.junctionIds.map((id) => ["junctionIds", id] as const),
-  ];
-  const leading = (count: number) => {
-    const part = {
-      instanceIds: [] as string[],
-      routeIds: [] as string[],
-      junctionIds: [] as string[],
-    };
-    for (const [field, id] of ordered.slice(0, count)) part[field].push(id);
-    return part;
-  };
-  const before = controller.document.revision;
-  const rejected = await client.applyActions([
-    { kind: "delete-selection", selection },
-  ]);
-  expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  expect(controller.document.revision).toBe(before);
-  const limit = rejected.diagnostics?.[0]?.parameters as Record<string, number>;
-  expect(limit).toMatchObject({
-    maxTransactionEdits: 64,
-    selectedInstances: 24,
-    selectedRoutes: 12,
-  });
-  expect(limit.expandedEdits).toBeGreaterThan(64);
-  const fitting =
-    limit.fittingInstances! + limit.fittingRoutes! + limit.fittingJunctions!;
-  expect(limit.fittingInstances).toBeGreaterThan(0);
-  expect(rejected.message).toMatch(
-    /^actions\[0\]: Delete selection expands to \d+ edits, and one transaction takes at most 64\. (All|The first) \d+ instances.* fit: delete them in one call, then refresh and delete what remains/u,
-  );
-  // The count is exact: one more object does not fit, the named part does.
-  expect(
-    await client.applyActions(
-      [{ kind: "delete-selection", selection: leading(fitting + 1) }],
-      { dryRunOnly: true },
-    ),
-  ).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  const first = await client.applyActions([
-    { kind: "delete-selection", selection: leading(fitting) },
-  ]);
-  expect(first.ok, first.message).toBe(true);
-  // Refresh, as the message says: the rest of the selection, as it now is.
-  const remaining = {
-    instanceIds: selection.instanceIds.filter((id) =>
-      controller.document.instances.some((item) => item.id === id),
-    ),
-    routeIds: selection.routeIds.filter((id) =>
-      controller.document.routes.some((item) => item.id === id),
-    ),
-    junctionIds: selection.junctionIds.filter((id) =>
-      controller.document.junctions.some((item) => item.id === id),
-    ),
-  };
-  const rest = await client.applyActions([
-    { kind: "delete-selection", selection: remaining },
-  ]);
-  expect(rest.ok, rest.message).toBe(true);
-  expect(controller.document.instances).toHaveLength(0);
-  expect(controller.document.routes).toHaveLength(0);
-});
-
-it("names the command and what it expanded to when it exceeds the edit limit", async () => {
-  const { client, controller, tool } = await folder();
-  // One move edit per part: 72 parts take more than one transaction.
-  const placements = Array.from({ length: 72 }, (_, i) => ({
-    kind: "place-component",
-    symbol: "resistor",
-    reference: `R${i + 1}`,
-    position: { x: (i % 9) * 100, y: Math.floor(i / 9) * 200 },
-  }));
-  for (let offset = 0; offset < placements.length; offset += 12) {
-    const placed = await tool("circuit_place", {
-      actions: placements.slice(offset, offset + 12),
-    });
-    expect(placed.ok, JSON.stringify(placed)).toBe(true);
-  }
-  const before = structuredClone(controller.document);
-  const rejected = await client.applyActions([
-    {
-      kind: "transform",
-      selection: {
-        instanceIds: controller.document.instances.map((item) => item.id),
-      },
-      transform: { kind: "translate", delta: { x: 0, y: 2000 } },
-    },
-  ]);
-  expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  const limit = rejected.diagnostics?.[0]?.parameters as
-    { expandedEdits: number; maxTransactionEdits: number } | undefined;
-  expect(limit?.maxTransactionEdits).toBe(64);
-  expect(limit?.expandedEdits).toBeGreaterThan(64);
-  // The refusal names the action it refused (#1231).
-  expect(rejected.message).toBe(
-    `actions[0] (transform): transform expands to ${limit?.expandedEdits} edits, and one transaction takes at most 64. Act on fewer objects per call. Nothing was changed.`,
-  );
+  expect(refused.message).toContain("M1");
   expect(controller.document).toEqual(before);
+  expect(controller.canUndo).toBe(false);
 });
 
 it("defaults a native VDD name and rejects unused or non-Port direction targets", async () => {
@@ -1734,7 +1576,7 @@ it("atomically deletes mixed Instances and NoConnects through selection cleanup,
   expect(controller.document.noConnects).toEqual([]);
 });
 
-it("routes one Net through the existing authoring tool, preserves the service edit budget and never partially commits", async () => {
+it("routes one Net through the existing authoring tool as one undoable step", async () => {
   const { client, controller, tool } = await folder();
   expect(
     (
@@ -1760,30 +1602,7 @@ it("routes one Net through the existing authoring tool, preserves the service ed
     target,
     trunk: { start: { x: -40, y: 0 }, end: { x: 260, y: 0 } },
   };
-  const limited = createAgentCircuitService({
-    agentId: "test",
-    host: new BrowserAgentHost(controller),
-    permissions: {
-      snapshot: true,
-      render: true,
-      sourceSpans: false,
-      edit: { geometry: true, connectivity: true, presentation: true },
-    },
-    limits: { maxTransactionEdits: 3 },
-  });
   const before = structuredClone(controller.project);
-  expect(
-    limited.handle({
-      apiVersion: "3.0",
-      requestId: "limited",
-      operation: "transact",
-      transactionId: "limited",
-      documentId: controller.document.id,
-      expectedRevision: controller.document.revision,
-      command,
-    }).ok,
-  ).toBe(false);
-  expect(controller.project).toEqual(before);
   const result = await tool("apply_actions", { actions: [command] });
   expect(result.ok, JSON.stringify(result)).toBe(true);
   expect(controller.document.revision).toBe(before.documents[0]!.revision + 1);

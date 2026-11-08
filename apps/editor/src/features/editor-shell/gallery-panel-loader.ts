@@ -14,7 +14,6 @@ export function createGalleryPanelLoader(fetcher: typeof fetch) {
         galleryFeedQueryKey(query),
         query.cursor,
         query.limit,
-        query.signedOutWall,
       ]);
       const existing = feeds.get(key);
       if (existing) return existing;

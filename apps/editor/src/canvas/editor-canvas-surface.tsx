@@ -118,8 +118,6 @@ export interface EditorCanvasSurfaceProps {
   interactionPreviews: ComponentProps<typeof EditorInteractionPreviews>;
   /** Text the Text tool is writing before it is placed. */
   textDraft?: ComponentProps<typeof TextDraftEditorOverlay>;
-  /** A card in the middle of the canvas, above the drawing. */
-  notice?: ReactNode;
   /** Where the open Cell sits in the hierarchy, floating at the top edge. */
   navigation?: ReactNode;
   noConnectPreview?: ReactNode;
@@ -167,7 +165,6 @@ export function EditorCanvasSurface({
   draftingHandles,
   interactionPreviews,
   textDraft,
-  notice,
   navigation,
   noConnectPreview,
 }: EditorCanvasSurfaceProps) {
@@ -433,7 +430,6 @@ export function EditorCanvasSurface({
       </svg>
       {navigation}
       {cellSymbolLayoutControls}
-      {notice}
     </section>
   );
 }

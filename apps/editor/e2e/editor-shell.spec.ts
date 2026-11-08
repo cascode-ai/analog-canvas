@@ -600,13 +600,12 @@ test("Project Info holds the circuit's details and its reference picture, and fo
 }) => {
   await page.goto("/editor?new=1");
   const panel = await openProjectInfo(page);
-  // One window for the name, the Cell, the description and the picture.
+  // One window for the name, the description and the picture; the Cell is
+  // renamed in the hierarchy, not here.
   await expect(
     panel.getByRole("textbox", { name: "Circuit name", exact: true }),
   ).toBeVisible();
-  await expect(
-    panel.getByRole("textbox", { name: "Current Cell", exact: true }),
-  ).toBeVisible();
+  await expect(panel).not.toContainText("Current Cell");
   await expect(panel).toContainText("Reference picture");
   await expect(page.getByRole("dialog", { name: "Project Info" })).toHaveCount(
     0,
@@ -620,14 +619,14 @@ test("Project Info holds the circuit's details and its reference picture, and fo
     .getByRole("button", { name: "Picture only", exact: true })
     .click();
   await expect(
-    panel.getByRole("textbox", { name: "Current Cell", exact: true }),
+    panel.getByRole("textbox", { name: "Circuit name", exact: true }),
   ).toBeHidden();
   await expect(panel).toContainText("Reference picture");
   await panel
     .getByRole("button", { name: "Show details", exact: true })
     .click();
   await expect(
-    panel.getByRole("textbox", { name: "Current Cell", exact: true }),
+    panel.getByRole("textbox", { name: "Circuit name", exact: true }),
   ).toBeVisible();
 
   // Folded, the title bar rests on the window's bottom edge.

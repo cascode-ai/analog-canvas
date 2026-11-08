@@ -97,6 +97,7 @@ class ReleaseTest(unittest.TestCase):
         (old / 'assets/assets').mkdir(parents=True)
         (old / 'assets/assets/kept.js').write_bytes(b'kept')
         (old / 'config.capnp').write_bytes(CONFIG)
+        (old / 'nginx.conf').write_bytes(b'private site')
         (old / 'release.json').write_text(json.dumps({'commit': OLD, 'files': {
             'assets/assets/kept.js': digest(b'kept'), 'config.capnp': digest(CONFIG)}}))
         (self.units / 'canvas-cn-formal.service').write_text('old')
@@ -105,14 +106,18 @@ class ReleaseTest(unittest.TestCase):
         self.current.symlink_to(old)
         self.nginx = root / 'nginx.conf'
         release.NGINX_SITE = str(self.nginx)
+        self.public_config = root / 'public.json'
+        release.PUBLIC_CONFIG = str(self.public_config)
         self.files = {
             'assets/assets/kept.js': b'kept',
             'assets/assets/new.js': b'new',
             'assets/index.html': b'<div id="root"></div>',
             'config.capnp': CONFIG,
             'nginx.conf': b'server {}',
+            'nginx-public.conf': b'listen @LISTEN@; host @UPSTREAM_HOST@; filing @FILING_NUMBER@;',
             'canvas-cn-formal.service': b'new',
             'canvas-cn-scheduled.timer': b'timer',
+            'canvas-cn-formal-backup.timer': b'backup timer',
             'canvas-cn-resource-sync.timer': b'replication',
         }
         self.smoked = True
@@ -146,6 +151,7 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual((self.units / 'canvas-cn-formal.service').read_text(), 'new')
         self.assertEqual(self.nginx.read_bytes(), b'server {}')
         self.assertIn(('systemctl', 'enable', '--now', 'canvas-cn-scheduled.timer'), host.calls)
+        self.assertIn(('systemctl', 'enable', '--now', 'canvas-cn-formal-backup.timer'), host.calls)
         self.assertNotIn(('systemctl', 'enable', '--now', 'canvas-cn-resource-sync.timer'), host.calls)
         # Only the replication timer that was running is paused and restarted.
         self.assertIn(('systemctl', 'start', 'canvas-cn-project-sync.timer'), host.calls)
@@ -160,6 +166,31 @@ class ReleaseTest(unittest.TestCase):
         result = release.tick(self.args(0), FakeHost(), production, now=1000)
         self.assertEqual(result['status'], 'current')
         self.assertEqual(production.requests, ['/regional-release/current.json'])
+
+    def test_keeps_the_staged_tls_listener_and_filing_number_across_releases(self):
+        self.public_config.write_text(json.dumps({'mode': 'stage', 'filingNumber': '京ICP备12345678号-1'}))
+        result = release.tick(self.args(0), FakeHost(), FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'installed')
+        site = self.nginx.read_text(encoding='utf-8')
+        self.assertIn('listen 127.0.0.1:8443 ssl;', site)
+        self.assertIn('filing 京ICP备12345678号-1;', site)
+
+    def test_follows_a_rollback_to_before_the_public_template(self):
+        self.public_config.write_text(json.dumps({'mode': 'stage', 'filingNumber': ''}))
+        old_files = {path: data for path, data in self.files.items() if path != 'nginx-public.conf'}
+        result = release.tick(self.args(0), FakeHost(), FakeProduction(old_files), now=1000)
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual(self.nginx.read_bytes(), b'server {}')
+        self.assertTrue(self.public_config.exists())
+
+    def test_public_mode_requires_a_filing_number_before_changing_nginx(self):
+        self.nginx.write_text('private site')
+        host = FakeHost()
+        with self.assertRaises(ValueError):
+            release.configure_public(self.current.resolve(), 'open', '', self.credentials, host)
+        self.assertEqual(self.nginx.read_text(), 'private site')
+        self.assertFalse(self.public_config.exists())
+        self.assertEqual(host.calls, [])
 
     @unittest.skipIf(os.name == 'nt', 'systemd and POSIX permissions')
     def test_activated_release_is_readable_under_the_service_umask(self):
@@ -200,10 +231,12 @@ class ReleaseTest(unittest.TestCase):
         self.current.unlink()
         self.current.symlink_to(new)
         pathlib.Path(self.args().state).write_text(json.dumps({'previous': str(self.releases / OLD)}))
+        self.nginx.write_bytes(b'unproved public site')
         self.smoked = False
         result = release.tick(self.args(0), FakeHost(), FakeProduction(self.files), now=1000)
         self.assertEqual(result['status'], 'rolled-back')
         self.assertEqual(self.current.resolve().name, OLD)
+        self.assertEqual(self.nginx.read_bytes(), b'private site')
 
     def test_records_a_failed_backup_so_the_runtime_is_not_stopped_every_minute(self):
         host = FakeHost()

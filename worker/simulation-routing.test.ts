@@ -392,10 +392,37 @@ describe("signing in to simulate", () => {
     ).toBeNull();
   });
 
-  it("runs for a signed-in account or the deploy check's one-off credential, and nothing else", async () => {
+  it("runs for a team account or the deploy check's one-off credential, and nothing else", async () => {
+    const account = (user: Record<string, unknown>) => ({
+      AUTH: {
+        getByName: () => ({
+          fetch: async () => Response.json({ user: { id: "a", ...user } }),
+        }),
+      },
+    });
+    for (const team of [
+      { isOwner: true },
+      { seat: "ai-designer-1" },
+      { isAdmin: true },
+    ])
+      expect(
+        await refuseSignedOutSimulation(
+          request(nativeInput(), { cookie: "icm_session=abc" }),
+          account(team),
+        ),
+      ).toBeNull();
+    const member = await refuseSignedOutSimulation(
+      request(nativeInput(), { cookie: "icm_session=abc" }),
+      signedIn,
+    );
+    expect(member?.status).toBe(403);
+    expect(await member!.json()).toMatchObject({
+      error: "hosted-simulation-team-only",
+      message: expect.stringContaining("File › Export"),
+    });
     expect(
       await refuseSignedOutSimulation(
-        request(nativeInput(), { cookie: "icm_session=abc" }),
+        request({ operation: "capabilities" }, { cookie: "icm_session=abc" }),
         signedIn,
       ),
     ).toBeNull();

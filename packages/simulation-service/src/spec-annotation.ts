@@ -319,21 +319,34 @@ export function simulationSpecAnnotationDiagnostics(
   path: string,
   text: string,
 ): SimulationSpecAnnotationDiagnostic[] {
-  const diagnostics: SimulationSpecAnnotationDiagnostic[] = [];
+  return simulationSpecAnnotations(path, text)
+    .filter((spec) => spec.problems.length)
+    .map((spec) => ({
+      code: "SIMULATION_SPEC_INVALID",
+      severity: "warning",
+      message: spec.problems.join(" "),
+      path,
+      sourceRef: spec.sourceRef,
+    }));
+}
+
+/**
+ * Every Spec annotation in one source file, valid or not, located on its
+ * line: what a Testbench declares, read from its text (#2110).
+ */
+export function simulationSpecAnnotations(
+  path: string,
+  text: string,
+): (SimulationSpecAnnotation & { sourceRef: SourceSpan })[] {
+  const specs: (SimulationSpecAnnotation & { sourceRef: SourceSpan })[] = [];
   let offset = 0;
   text.split(/(?<=\n)/u).forEach((physical, index) => {
     const line = physical.replace(/\r?\n$/u, "");
-    const problems = SIMULATION_SPEC_LINE.test(line)
-      ? parseSimulationSpecAnnotation(line).problems
-      : [];
-    if (problems.length) {
+    if (SIMULATION_SPEC_LINE.test(line)) {
       const start = line.length - line.trimStart().length;
       const end = line.trimEnd().length;
-      diagnostics.push({
-        code: "SIMULATION_SPEC_INVALID",
-        severity: "warning",
-        message: problems.join(" "),
-        path,
+      specs.push({
+        ...parseSimulationSpecAnnotation(line),
         sourceRef: {
           fileId: path,
           start: { offset: offset + start, line: index + 1, column: start + 1 },
@@ -343,5 +356,5 @@ export function simulationSpecAnnotationDiagnostics(
     }
     offset += physical.length;
   });
-  return diagnostics;
+  return specs;
 }

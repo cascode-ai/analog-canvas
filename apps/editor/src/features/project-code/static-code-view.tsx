@@ -1,3 +1,12 @@
+import type { CSSProperties } from "react";
+
+/** A code viewport's height for its line count: 19.2 px lines and padding. */
+export function codeViewportHeight(lineCount: number): CSSProperties {
+  return {
+    "--netlist-editor-height": `${lineCount * 19.2 + 22}px`,
+  } as CSSProperties;
+}
+
 /**
  * Source text laid out as the code editor lays it out, line numbers and
  * all, while the editor's own code loads. Nothing moves when the editor

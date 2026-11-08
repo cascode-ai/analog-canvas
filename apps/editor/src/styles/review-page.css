@@ -13,17 +13,7 @@
   padding-bottom: 6px;
 }
 
-/* The sidebar is the Gallery's (gallery.css); only its top row differs. */
-.review-sidebar-top h2 {
-  flex: 1;
-  margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--icm-text-muted);
-}
-
+/* The sidebar is the Gallery's (gallery.css). */
 .review-sidebar-list {
   display: grid;
   gap: 3px;
@@ -34,6 +24,16 @@
 
 .review-sidebar-list:last-child {
   border-bottom: 0;
+}
+
+/* The search fills the top row beside the fold button, as the Gallery's. */
+.review-sidebar-top .review-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.review-authors-more {
+  color: var(--icm-text-muted);
 }
 
 /* Progress, then stepping, on one line; in a narrow window stepping takes
@@ -114,26 +114,6 @@
   border-color: var(--icm-text);
 }
 
-/* Jump to a drawing by its link or id. */
-.review-jump input {
-  box-sizing: border-box;
-  width: 13rem;
-  height: 34px;
-  margin-left: 6px;
-  padding: 0 10px;
-  border: 1px solid var(--icm-border-strong, var(--icm-border));
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  color: var(--icm-text);
-  font: inherit;
-  font-size: 13px;
-}
-
-.review-jump input:focus {
-  border-color: var(--icm-accent);
-  outline: none;
-}
-
 .review-item {
   padding: 8px 12px 10px;
   border: 1px solid var(--icm-border);
@@ -165,24 +145,6 @@
   font-size: 12px;
 }
 
-.review-item .open {
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  margin-left: auto;
-  padding: 0 14px;
-  border: 1px solid var(--icm-border-strong, var(--icm-border));
-  border-radius: var(--icm-radius-md);
-  color: var(--icm-text);
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.review-item .open:hover {
-  border-color: var(--icm-text);
-}
-
 .review-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -196,6 +158,10 @@
 }
 
 .review-cols h4 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
   margin: 0 0 4px;
   color: var(--icm-text-muted);
   font-size: 11px;
@@ -208,6 +174,25 @@
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
+}
+
+/* Fix in editor sits on the drawing's own title row. */
+.review-cols h4 .review-edit {
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--icm-border-strong, var(--icm-border));
+  border-radius: var(--icm-radius-md);
+  color: var(--icm-text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.review-cols h4 .review-edit:hover {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
 }
 
 /* As wide as its column at 4:3, but never taller than what is left of the
@@ -291,6 +276,90 @@
 .review-pic .none {
   color: var(--icm-text-muted);
   font-size: 12px;
+}
+
+/* One's own drawing: a note where the verdict controls stand. */
+.review-own {
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface-muted, #f6f7f8);
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
+/* The Owner's empty Reference pane takes a pasted or dropped image. */
+.review-reference-drop {
+  position: relative;
+  flex-direction: column;
+}
+
+.review-reference-drop.over {
+  outline: 2px dashed var(--icm-accent);
+  outline-offset: -6px;
+}
+
+.review-reference-empty {
+  align-self: stretch;
+  flex: 1;
+  margin: 10px;
+  padding: 12px;
+  border: 2px dashed var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: none;
+  color: var(--icm-text-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.review-reference-empty strong {
+  color: var(--icm-text);
+}
+
+.review-reference-empty:hover {
+  border-color: var(--icm-accent);
+}
+
+.review-reference-drop img {
+  flex: 1;
+  min-height: 0;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.review-reference-confirm {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--icm-border);
+  font-size: 12px;
+}
+
+.review-reference-confirm span {
+  flex: 1;
+  color: var(--icm-text-muted);
+}
+
+.review-reference-confirm button {
+  padding: 4px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.review-reference-confirm .is-primary {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent);
+  color: #fff;
+  font-weight: 600;
 }
 
 /* As tall as the netlist is long; a long line scrolls sideways. */
@@ -559,57 +628,41 @@
   font: 11px var(--font-mono, ui-monospace, monospace);
 }
 
-/* Pass (✓) and Not pass (✕): outlined in their colour, half-filled under
-   the pointer, solid when pressed or chosen (this reviewer's verdict on the
-   drawing, or the reasons open). */
-.review-actions .review-pass,
+/* Submit issue (✕): outlined in red, half-filled under the pointer, solid
+   when pressed or chosen (this reviewer's verdict on the drawing, or the
+   reasons open). Moving on (→) passes a drawing; there is no Pass button. */
 .review-actions .review-issue {
-  --hue: #0ca30c;
-  --hue-text: #08800a;
-  --hue-soft: #e2f5e2;
   min-width: 112px;
   justify-content: center;
-  border-color: var(--hue);
+  border-color: #d03b3b;
   background: var(--icm-surface);
-  color: var(--hue-text);
+  color: #c02f2f;
   font-weight: 600;
   transition:
     background-color 0.12s,
     color 0.12s;
 }
 
-.review-actions .review-issue {
-  --hue: #d03b3b;
-  --hue-text: #c02f2f;
-  --hue-soft: #fbe4e4;
-}
-
-.review-actions .review-pass:hover:not(:disabled),
 .review-actions .review-issue:hover:not(:disabled) {
-  background: var(--hue-soft);
+  background: #fbe4e4;
 }
 
-.review-actions .review-pass:active:not(:disabled),
 .review-actions .review-issue:active:not(:disabled),
-.review-actions .review-pass.on,
 .review-actions .review-issue.on {
-  background: var(--hue);
+  background: #d03b3b;
   color: #fff;
 }
 
-.review-actions .review-pass:disabled,
 .review-actions .review-issue:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.review-actions .review-pass > span,
 .review-actions .review-issue > span {
   font-size: 15px;
   line-height: 1;
 }
 
-.review-actions .review-pass kbd,
 .review-actions .review-issue kbd {
   border-color: currentColor;
   color: inherit;

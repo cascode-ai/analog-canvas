@@ -517,6 +517,17 @@ describe("emailed sign-in code", () => {
     expect((await me(auth, ordinaryCookie))?.isAdmin).toBe(false);
   });
 
+  it("tells the editor which accounts are offered hosted simulation", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "rk",
+      ADMIN_EMAILS: "a@example.com",
+    });
+    const admin = await emailSignIn(auth, "a@example.com");
+    const ordinary = await emailSignIn(auth, "user@example.com");
+    expect(await me(auth, admin)).toMatchObject({ hostedSimulation: true });
+    expect(await me(auth, ordinary)).not.toHaveProperty("hostedSimulation");
+  });
+
   it("codes are single-use, expire, bound guessing, and are rate-limited", async () => {
     const auth = harness({ RESEND_API_KEY: "rk" });
     const sent: { to: string; text: string }[] = [];

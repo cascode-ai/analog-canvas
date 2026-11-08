@@ -6,7 +6,6 @@ import {
   parseAgentProjectResourceRequest,
   type AgentCircuitRequest,
   type AgentCircuitResponse,
-  type AgentTransactRequest,
 } from "@icm/agent-adapter";
 import type { Annotation, RichTextDocument } from "@icm/model";
 import { ConnectorStore } from "../../../../packages/agent-client/src/connector-store";
@@ -28,7 +27,10 @@ const TOKEN = "token-0123456789abcdef0123456789abcdef";
 
 type LiveEditor = ReturnType<typeof liveAgentEditor>;
 type TransactForm = Partial<
-  Pick<AgentTransactRequest, "actions" | "command" | "edits">
+  Pick<
+    Extract<AgentCircuitRequest, { operation: "transact" }>,
+    "actions" | "command" | "edits"
+  >
 >;
 
 const snapshotRequest = {

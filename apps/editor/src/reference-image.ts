@@ -50,14 +50,17 @@ async function referenceImageOf(
 
 export const REFERENCE_SAVED = "Reference image saved";
 
-/** Upload one; the message to show, REFERENCE_SAVED when it worked. */
-export async function uploadReferenceImage(
+/**
+ * Upload one as an entry's reference image: its new revision, or the
+ * message to show when it was not saved.
+ */
+export async function putReferenceImage(
   entryId: string,
   file: File,
   fetchLike: typeof fetch = fetch,
-): Promise<string> {
+): Promise<{ revision: string } | { message: string }> {
   const image = await referenceImageOf(file);
-  if (!image) return "That file is not an image we can use.";
+  if (!image) return { message: "That file is not an image we can use." };
   const response = await fetchLike(
     `/api/gallery/${encodeURIComponent(entryId)}/reference`,
     {
@@ -67,7 +70,22 @@ export async function uploadReferenceImage(
       body: JSON.stringify({ image, rights: true }),
     },
   ).catch(() => null);
-  return response?.ok
-    ? REFERENCE_SAVED
-    : "The reference image could not be saved.";
+  const saved = response?.ok
+    ? ((await response.json().catch(() => null)) as {
+        revision?: string;
+      } | null)
+    : null;
+  return typeof saved?.revision === "string"
+    ? { revision: saved.revision }
+    : { message: "The reference image could not be saved." };
+}
+
+/** Upload one; the message to show, REFERENCE_SAVED when it worked. */
+export async function uploadReferenceImage(
+  entryId: string,
+  file: File,
+  fetchLike: typeof fetch = fetch,
+): Promise<string> {
+  const result = await putReferenceImage(entryId, file, fetchLike);
+  return "revision" in result ? REFERENCE_SAVED : result.message;
 }

@@ -26,7 +26,8 @@ export function shortId(length = SHORT_ID_LENGTH): string {
     for (const byte of bytes) {
       id += SHORT_ID_ALPHABET[byte % SHORT_ID_ALPHABET.length];
     }
-    // The Gallery keeps a sliver of ids for itself (gallery-traps.ts).
+    // A sliver of ids stays unused (gallery-reserved-ids.ts): the trap
+    // circuits that once held them are gone, and old blocks name them.
     if (!isReservedGalleryId(id)) return id;
   }
 }
@@ -84,14 +85,6 @@ export function dailySubmissionLimit(user: { provider: string }): number {
     ? GALLERY_AI_SEAT_DAILY_LIMIT
     : GALLERY_DAILY_SUBMISSION_LIMIT;
 }
-
-/**
- * Other people's circuits one account may open — read their Project Code —
- * in a UTC day. A person browsing never meets it; a script cannot carry the
- * whole Gallery off at once. Each circuit counts once a day; the wall, search
- * and previews are not counted.
- */
-export const GALLERY_DAILY_OPEN_LIMIT = 100;
 
 const GALLERY_MAX_TAGS = 12;
 const GALLERY_MAX_TAG_LENGTH = 32;

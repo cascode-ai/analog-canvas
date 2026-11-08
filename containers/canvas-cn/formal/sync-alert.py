@@ -11,7 +11,8 @@ import urllib.request
 import uuid
 from datetime import datetime, timezone
 
-RETRY_GRACE_SECONDS = 120
+CONFIRMATION_SECONDS = 120
+IMMEDIATE_SYNC_FAILURES = {'blocked', 'disabled', 'journal-capacity'}
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -43,6 +44,41 @@ def condition(path, now, stale_seconds=120):
         return 'invalid-monitor'
 
 
+def observe_confirmation(state, field, now):
+    since = state.get(field)
+    if type(since) not in [int, float] or not 0 <= since <= now:
+        since = state[field] = now
+    return now - since < CONFIRMATION_SECONDS
+
+
+def observe_sync_health(path, state, previous, health, now):
+    pending = state.get('pending')
+    pending_condition = pending['condition'] if pending is not None else 'ok'
+    before = state.copy()
+    if (pending is not None and health in IMMEDIATE_SYNC_FAILURES
+            and pending_condition not in IMMEDIATE_SYNC_FAILURES
+            and (pending_condition == 'ok' or previous not in IMMEDIATE_SYNC_FAILURES)):
+        state.setdefault('queuedUrgent', health)
+
+    if health == 'ok':
+        incident_open = (previous != 'ok' or pending_condition not in ('ok', 'test')
+                         or 'queuedUrgent' in state)
+        field = 'recoverySince' if incident_open else None
+    elif health in IMMEDIATE_SYNC_FAILURES:
+        field = None
+    else:
+        # Keep the existing retry clock across upgrades and soft reason changes.
+        field = 'retrySince'
+
+    for other in ('retrySince', 'recoverySince'):
+        if other != field:
+            state.pop(other, None)
+    waiting = field is not None and observe_confirmation(state, field, now)
+    if state != before:
+        write_state(path, state)
+    return waiting
+
+
 def run(args):
     scope = getattr(args, 'scope', 'Project')
     service = {'Publication': 'canvas-cn-resource-sync.service',
@@ -59,25 +95,38 @@ def run(args):
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     now = time.time()
     health = condition(pathlib.Path(args.monitor), now, getattr(args, 'stale_seconds', 120))
-    if health != 'retry' and state.pop('retrySince', None) is not None:
-        write_state(state_path, state)
+    previous = state.get('acceptedCondition', 'ok')
+    waiting = False
+    if scope == 'Release':
+        if health != 'retry' and state.pop('retrySince', None) is not None:
+            write_state(state_path, state)
+    else:
+        waiting = observe_sync_health(state_path, state, previous, health, now)
     pending = state.get('pending')
     if pending is None:
-        previous = state.get('acceptedCondition', 'ok')
-        if health == 'retry' and not args.test:
-            since = state.get('retrySince')
-            if type(since) not in [int, float] or not math.isfinite(since) or not 0 <= since <= now:
-                since = state['retrySince'] = now
-                write_state(state_path, state)
-            if now - since < RETRY_GRACE_SECONDS:
-                return {'result': 'waiting-for-retry'}
+        queued_urgent = state.get('queuedUrgent') if scope != 'Release' else None
+        if not args.test and queued_urgent is None:
+            if waiting:
+                return {'result': 'waiting-for-confirmation'}
+            if scope == 'Release' and health == 'retry':
+                since = state.get('retrySince')
+                waiting = observe_confirmation(state, 'retrySince', now)
+                if state['retrySince'] != since:
+                    write_state(state_path, state)
+                if waiting:
+                    return {'result': 'waiting-for-retry'}
+        escalated = (scope != 'Release' and health in IMMEDIATE_SYNC_FAILURES
+                     and previous not in IMMEDIATE_SYNC_FAILURES)
         if args.test:
             if state.get('testAccepted'):
                 return {'result': 'already-tested'}
             target = 'test'
+        elif queued_urgent is not None:
+            target = state.pop('queuedUrgent')
         elif health == 'ok' and previous == 'ok':
             return {'result': 'healthy'}
-        elif health != 'ok' and previous != 'ok' and now - state.get('lastAcceptedAt', 0) < 3600:
+        elif (health != 'ok' and previous != 'ok' and not escalated
+              and now - state.get('lastAcceptedAt', 0) < 3600):
             return {'result': 'suppressed'}
         else:
             target = health
@@ -93,6 +142,8 @@ def run(args):
         state['pending'] = pending
         if target != 'test':
             state.pop('retrySince', None)
+        if target == 'ok':
+            state.pop('recoverySince', None)
         write_state(state_path, state)
     # Resend retains idempotency keys for 24h. Keep margin and stop ambiguous
     # delivery outside that window until an operator checks the mail log.

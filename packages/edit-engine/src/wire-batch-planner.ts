@@ -472,7 +472,6 @@ export function planWireBatch(
   input:
     | Parameters<typeof proposeWireIntent>[2]
     | Parameters<typeof proposeWireIntent>[2][],
-  limit: number,
   options: { keepClear?: boolean } = {},
 ): { edits: SchematicEdit[] } | string {
   if (!Array.isArray(input)) {
@@ -687,8 +686,6 @@ export function planWireBatch(
         ? { ...edit, createNet: true }
         : edit,
     );
-    if (edits.length + materialized.length > limit)
-      return `Wire ${index + 1}: batch requires ${edits.length + materialized.length} edits, exceeding the ${limit}-edit transaction limit`;
     try {
       for (const edit of materialized) draft.apply(edit);
     } catch (error) {

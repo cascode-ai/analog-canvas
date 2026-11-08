@@ -14,7 +14,7 @@ export interface DrawingToolbarProps {
   communityEnabled?: boolean;
   leftPanelMode: "examples" | "library" | "hierarchy";
   libraryPanelOpen: boolean;
-  projectPanel: "netlist" | "project-code" | null;
+  projectPanel: "netlist" | "testbench" | "project-code" | null;
   leftPanelsDisabled?: boolean;
   tool: EditorTool;
   styleProfileId: string;
@@ -28,6 +28,8 @@ export interface DrawingToolbarProps {
   onToggleHierarchy?: () => void;
   /** Absent (the PowerPoint dialog), no Netlist or Project Code toggle. */
   onToggleNetlist?: () => void;
+  /** The Cell's Testbench and Specs, beside the netlist (#2110). */
+  onToggleTestbench?: () => void;
   onToggleProjectCode?: () => void;
   onActivateTool: (tool: EditorTool) => void;
   onAddText: () => void;
@@ -162,6 +164,7 @@ export function DrawingToolbar({
   onToggleLibrary,
   onToggleHierarchy,
   onToggleNetlist,
+  onToggleTestbench,
   onToggleProjectCode,
   onActivateTool,
   onAddText,
@@ -228,6 +231,17 @@ export function DrawingToolbar({
             onClick={onToggleNetlist}
           >
             <ToolIcon name="netlist" />
+          </ToolbarButton>
+        ) : null}
+        {onToggleTestbench ? (
+          <ToolbarButton
+            testId="testbench-panel-toggle"
+            label="Testbench"
+            text="Testbench"
+            pressed={projectPanel === "testbench"}
+            onClick={onToggleTestbench}
+          >
+            <ToolIcon name="testbench" />
           </ToolbarButton>
         ) : null}
         {onToggleProjectCode ? (

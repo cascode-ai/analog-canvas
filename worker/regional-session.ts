@@ -1,5 +1,6 @@
 import type { SessionUser } from "./auth-do";
 import { coordinatesProjectDeletion } from "./project-region-scope";
+import { withHostedSimulation } from "./hosted-simulation-access";
 import {
   ACCOUNT_DELETE_PATH,
   ACCOUNT_DELETION_TICK,
@@ -196,8 +197,10 @@ export class RegionalSessionDO {
             : {}),
         });
       }
-      if (url.pathname === "/api/auth/me")
-        return answer(await this.localUser(request));
+      if (url.pathname === "/api/auth/me") {
+        const local = await this.localUser(request);
+        return answer({ ...local, user: withHostedSimulation(local.user) });
+      }
     }
     if (request.method === "POST" && url.pathname === "/api/auth/logout") {
       if (request.headers.get("origin") !== this.config.clientOrigin)

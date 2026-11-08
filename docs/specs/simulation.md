@@ -87,10 +87,16 @@ Without a named Profile the create takes:
    count as qualified (SKY130 ngspice runs 16 V and 20 V devices unlisted).
 
 Ideal blocks, the generic diode and authored models never count; a Profile
-listing neither devices nor cell libraries is never default. With several or none, the author names
-one; Agent `simulation_folder` create refuses with `SIMULATION_PROFILE_REQUIRED`
-and the candidates. The GUI form mirrors this call and falls back to the VACASK
-candidate only offline.
+listing neither devices nor cell libraries is never default. With several or
+none, Agent `simulation_folder` create refuses `SIMULATION_PROFILE_REQUIRED`
+with the candidates for a hosted-run `template`; without one it makes the
+author's Testbench and names them in `folder.profileCandidates`. The GUI form
+mirrors this call and falls back to the VACASK candidate only offline.
+
+An author's Testbench (#2110, `template: "testbench"`) has no Profile and no
+configuration file; its entry is the `testbench.spice` below, which includes
+`circuit.spice`, run by the user's own simulator. Authoring, saving and
+exporting it need no Profile, Prepare or hosted access.
 
 The top is always a testbench: a Cell with pins is a DUT called as `XDUT` from a
 new `testbench.spice` (ports in export order, clock phase pins included, bound as
@@ -199,6 +205,27 @@ conversions and a generation digest; spans are never persisted.
   `b5bc7c4f3aac00e670b01b1d1ab64ec87055a491014af1de828764bf98faf766`, source
   `a0d1699af1940b06649276dcd6ff5a566c8c0cad01b2f7b5e99dedbb4d64c19b`, docs
   `6179b56c48bbe08a7e60775b629492df6b4182acafbf1b25c2c8cd78bea13e47`.
+
+## Testbench view
+
+Every account authors a Cell's Testbench in the right dock, opened like
+Netlist by its own toolbar toggle beside it (and Circuit › Netlist ›
+Testbench…). It adds no row inside the dock: the live netlist keeps its
+height budget. It needs no Profile, Prepare, Run or hosted access (#2110).
+
+- It shows the folders bound to the Netlist entry Cell, one at a time, with a
+  select only when there are several; folders of other Cells are listed in its
+  empty state. File tabs appear only for several visible files.
+- Specs are an outline read from the shown folder's `@spec` lines with the
+  run's parser; a click reveals the line, invalid lines show the run's words.
+  There is no second Spec store or editor.
+- A draft applies as one Project edit on blur or Mod+Enter. If the saved text
+  changed under a draft (Agent, Undo), the draft is kept and only Reload
+  replaces it; nothing overwrites silently.
+- Import (files, a folder, or a drop) is reviewed first: each file is new,
+  replaces, unchanged, or skipped (unsafe path, binary, or a path Canvas
+  writes, such as `circuit.spice`). Chosen files apply as one Project edit,
+  re-planned against the current folder.
 
 ## Workspace interaction
 

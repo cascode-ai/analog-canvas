@@ -29,11 +29,12 @@ export function createSimulationStarter(
   options: {
     id: string;
     name: string;
-    profileId: string;
+    /** None for an author's Testbench, run outside Canvas (#2110). */
+    profileId?: string | undefined;
     engine?: "ngspice" | "vacask";
     documentId?: string;
     mode: "circuit" | "dut" | "text";
-    template?: "op" | "ac" | "tran";
+    template?: "op" | "ac" | "tran" | "testbench";
   },
 ): SimulationStarterResult {
   if (options.mode === "text")
@@ -42,7 +43,7 @@ export function createSimulationStarter(
       folder: createSimulationFolder({
         id: options.id,
         name: options.name,
-        profileId: options.profileId,
+        ...(options.profileId ? { profileId: options.profileId } : {}),
         ...(options.engine ? { engine: options.engine } : {}),
         ...(options.template ? { template: options.template } : {}),
       }),

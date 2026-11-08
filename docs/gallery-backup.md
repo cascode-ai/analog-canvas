@@ -13,11 +13,11 @@ its workflows.
 - `GALLERY_BACKUP_TOKEN` (read-only) lives in this repository's
   `cloudflare-production` environment and the backups repository's Actions
   secrets; deployment syncs it to the Worker. Rotate by updating both and
-  deploying; never commit or print it. It allows member Gallery reads,
-  `GET /api/gallery/maintenance/automated-backup?table=…` pages and the netlist
-  read below; no admin session, writes, restore or private Cloud Projects.
-  A person or script reading the Gallery uses a read key
-  ([reader access](specs/community-gallery.md#reader-access)), never this one.
+  deploying; never commit or print it. It allows
+  `GET /api/gallery/maintenance/automated-backup?table=…` pages; no admin
+  session, writes, restore or private Cloud Projects. Every other Gallery
+  read is open to anyone
+  ([reader access](specs/community-gallery.md#reader-access)).
 - `STORE_BACKUP_TOKEN`, stored and rotated the same way, reads only
   `automated-backup?scope=store` pages.
 
@@ -84,14 +84,13 @@ from `GET /api/gallery/maintenance/schema-backup?table=…`.
 ## Reading netlists from another machine
 
 ```bash
-curl -H "Authorization: Bearer $GALLERY_BACKUP_TOKEN" \
-  "https://analog-canvas.tokenzhang.com/api/gallery/maintenance/netlists?format=spice"
+curl "https://analog-canvas.tokenzhang.com/api/gallery/maintenance/netlists?format=spice"
 ```
 
 Pages hold up to 100 public entries (`limit` ≤ 200); pass `nextCursor` as
 `after` until `null`. `format=spectre` and `id=<entry>` are supported; blocked
-exports carry `netlist: null` with diagnostics. Administrators can open the URL
-signed in, without the token. Fields:
+exports carry `netlist: null` with diagnostics. Anyone can open the URL.
+Fields:
 [Gallery specification](specs/community-gallery.md#administration).
 
 ## Recovery

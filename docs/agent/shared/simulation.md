@@ -6,6 +6,12 @@ acceptance annotations, verdicts and result files;
 retention and export. Never claim a result was saved merely because a run
 started or the source Project was exported.
 
+Hosted runs are for the Analog Canvas team only. For any other account,
+`run`/`start` refuse `hosted-simulation-team-only`: keep authoring the
+Project's Testbench (`simulation_folder` `template:"testbench"`,
+`simulation_edit`) and tell the user to export the netlist and run it with
+their own simulator. Never retry the refusal.
+
 ## Select the actual engine
 
 Read the returned Profile and source language; config version alone does not

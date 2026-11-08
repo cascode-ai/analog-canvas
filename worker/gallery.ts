@@ -6,16 +6,14 @@
 // is `GalleryDO` (gallery-do.ts); its operations live in gallery-store*.ts.
 
 import type { RejectionAuthor } from "./gallery-rejection-notice";
-import { boundedBlockEvidence } from "./account-blocks";
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { validGalleryAttention } from "./gallery-curation";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
-import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
+import { sessionUserOf, type SessionUser } from "./auth";
 import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
 import { routeComparisons } from "./gallery-comparisons";
-import { galleryReadKeyOf } from "./gallery-read-keys";
 import { routeReviews } from "./gallery-reviews";
 import { routeReference } from "./gallery-references";
 import { spiceNetlistOf } from "./gallery-netlist";
@@ -29,14 +27,6 @@ import { sameOrigin } from "./same-origin";
 import { SITE_USAGE_NOTE } from "../apps/editor/src/usage-policy-note";
 import { llmsUsagePolicy, robotsTxt } from "./usage-policy";
 import {
-  readsTraps,
-  trapOf,
-  trapReadKind,
-  trapResponse,
-  withTrap,
-} from "./gallery-traps";
-import {
-  GALLERY_DAILY_OPEN_LIMIT,
   GALLERY_MAX_REJECT_REASON_LENGTH,
   type GalleryEntrySummary,
   type GalleryEnv,
@@ -52,10 +42,7 @@ import {
   canReview,
   entryManager,
   fieldText,
-  hasGalleryReadToken,
-  hasStoreBackupToken,
   isAdmin,
-  isAutomatedBackup,
   readsAsOwner,
   readsTestbench,
   recoverFormulaPreview,
@@ -88,27 +75,6 @@ import {
 import type { SimulationCheck } from "./gallery-store-simulation-checks";
 
 export * from "./gallery-do";
-
-/** The day's opens are spent; they come back at the next UTC midnight. */
-function dailyOpenLimitResponse(day: string): Response {
-  const resetAt = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000);
-  return Response.json(
-    {
-      error: "daily-open-limit",
-      limit: GALLERY_DAILY_OPEN_LIMIT,
-      resetAt: resetAt.toISOString(),
-    },
-    {
-      status: 429,
-      headers: {
-        "cache-control": "no-store",
-        "retry-after": String(
-          Math.max(1, Math.ceil((resetAt.getTime() - Date.now()) / 1000)),
-        ),
-      },
-    },
-  );
-}
 
 export interface GalleryPreviewCache {
   match(request: Request): Promise<Response | undefined>;
@@ -153,62 +119,6 @@ async function storePreviewCache(
   } catch {
     // The response is still valid when an edge refuses or evicts the entry.
   }
-}
-
-/**
- * Who may read the Community Gallery: a signed-in account. Remembered per
- * session cookie for a minute in this isolate, so a wall of previews asks the
- * AuthDO once rather than once per image.
- */
-const galleryReaders = new Map<
-  string,
-  { expires: number; user: SessionUser }
->();
-async function galleryReaderOf(
-  request: Request,
-  readSession: () => Promise<SessionUser | null>,
-): Promise<SessionUser | null> {
-  const cookie = request.headers.get("Cookie") ?? "";
-  const now = Date.now();
-  const remembered = galleryReaders.get(cookie);
-  if (remembered && remembered.expires > now) return remembered.user;
-  const user = await readSession();
-  // A blocked account is asked again each time, so an unblock holds at once.
-  if (user && !user.blocked) {
-    if (galleryReaders.size >= 256)
-      galleryReaders.delete(galleryReaders.keys().next().value!);
-    galleryReaders.set(cookie, { expires: now + 60_000, user });
-  }
-  return user;
-}
-
-/** Tells the AuthDO an account read a trap circuit; it decides on a block. */
-async function blockForTrap(
-  env: GalleryEnv,
-  request: Request,
-  reader: SessionUser,
-  entryId: string,
-  kind: "script" | "read",
-): Promise<void> {
-  if (!env.AUTH) return;
-  const headers = request.headers;
-  await env.AUTH.getByName("auth")
-    .fetch("https://auth/internal/block-account", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        userId: reader.id,
-        kind,
-        ...boundedBlockEvidence({
-          entryId,
-          path: new URL(request.url).pathname,
-          ip: headers.get("cf-connecting-ip"),
-          country: headers.get("cf-ipcountry"),
-          userAgent: headers.get("user-agent"),
-        }),
-      }),
-    })
-    .catch(() => null);
 }
 
 /**
@@ -292,43 +202,6 @@ function wallFilters(url: URL) {
     // Words over names, bylines, descriptions and tags.
     q: url.searchParams.get("q"),
   };
-}
-
-/** Drop the record of earlier days' opens; only today's is ever needed. */
-/** How many of the wall's first circuits a signed-out visitor sees, dimmed. */
-export const SIGNED_OUT_WALL_SIZE = 12;
-
-/**
- * The wall's first circuits as a signed-out visitor sees them: the newest
- * public ones of the unfiltered wall, as many as SIGNED_OUT_WALL_SIZE, and
- * never a next page or a count (docs/specs/community-gallery.md#reader-access).
- */
-async function signedOutWallEntries(
-  env: GalleryEnv,
-): Promise<Pick<GalleryEntrySummary, "id" | "name" | "previewRevision">[]> {
-  const { payload } = await callGallery<{ entries?: GalleryEntrySummary[] }>(
-    env,
-    "list",
-    {
-      ...wallFilters(new URL("https://gallery.invalid/")),
-      isAdmin: false,
-      viewerId: "",
-      limit: String(SIGNED_OUT_WALL_SIZE),
-      statistics: false,
-      cursor: null,
-      tags: [],
-    },
-  );
-  // Only what the dimmed tile draws: no byline, description, tags or counts.
-  return (payload.entries ?? [])
-    .slice(0, SIGNED_OUT_WALL_SIZE)
-    .map(({ id, name, previewRevision }) => ({ id, name, previewRevision }));
-}
-
-export async function forgetEarlierOpens(env: GalleryEnv): Promise<void> {
-  await callGallery(env, "forget-opens", {
-    day: new Date().toISOString().slice(0, 10),
-  });
 }
 
 function rawGalleryHeaders(contentType: string, fileName: string): Headers {
@@ -518,96 +391,18 @@ export async function routeGalleryRequest(
   // The preview gate's one-minute cache must not supply list permissions.
   let session: Promise<SessionUser | null> | undefined;
   const readSession = () => (session ??= sessionUserOf(request, env));
-  // A cross-request cache could outlive a regional lease or local logout.
-  const readReader = env.AUTH_REGIONAL_CLIENT
-    ? readSession
-    : () => galleryReaderOf(request, readSession);
-  // Reuse only this request's membership and publication check on an edge hit.
-  let signedOutPreviewAccess:
-    { status?: string; previewRevision?: string } | undefined;
-  // The Community Gallery is for signed-in readers. Without a session, a read
-  // key or the read-only Gallery credential every read asks to sign in: the
-  // list and its search, an entry, its Project and its preview alike. The one
-  // exception is the wall's first twelve circuits, which a signed-out visitor
-  // sees dimmed and closed: the unfiltered first page, cut to them, and their
-  // previews. Writes keep their own, stricter checks.
+  // Every Gallery read is open to everyone, signed in or not; writes keep
+  // their own checks (docs/specs/community-gallery.md#reader-access). An
+  // account blocked for collecting the Gallery in bulk writes none of it.
   if (
-    (request.method === "GET" || request.method === "HEAD") &&
-    !hasGalleryReadToken(request, env) &&
-    !(isAutomatedBackup(segments) && hasStoreBackupToken(request, env)) &&
-    !(await galleryReadKeyOf(request, env)) &&
-    !(await readReader())
-  ) {
-    // The wall's order and shuffle (#1615) change nothing here: a
-    // signed-out visitor sees the newest twelve whichever order is asked.
-    const unfilteredWall = [...url.searchParams.keys()].every(
-      (key) => key === "order" || key === "seed",
-    );
-    if (segments.length === 0 && request.method === "GET" && unfilteredWall) {
-      return Response.json(
-        {
-          entries: await signedOutWallEntries(env),
-          nextCursor: null,
-          signedOut: true,
-        },
-        { headers: { "cache-control": "no-store" } },
-      );
-    }
-    // The landing page asks for the tag counts and the dataset list before
-    // it knows who is reading; a signed-out visitor gets empty ones rather
-    // than a refusal its console would show (2026-10-14).
-    if (
-      segments.length === 1 &&
-      request.method === "GET" &&
-      (segments[0] === "tags" || segments[0] === "sources")
-    )
-      return Response.json(
-        segments[0] === "tags" ? { tags: [], groups: [] } : { sources: [] },
-        { headers: { "cache-control": "no-store" } },
-      );
-    if (segments.length === 2 && segments[1] === "preview.svg") {
-      const access = await callGallery<{
-        status?: string;
-        previewRevision?: string;
-      }>(env, "preview-access", {
-        id: segments[0],
-        signedOutWallSize: SIGNED_OUT_WALL_SIZE,
-      });
-      if (access.status === 200 && access.payload.status === "public")
-        signedOutPreviewAccess = access.payload;
-    }
-    if (!signedOutPreviewAccess)
-      return Response.json(
-        { error: "sign-in-required" },
-        { status: 401, headers: { "cache-control": "no-store" } },
-      );
-  }
-
-  // An account blocked for collecting the Gallery in bulk reads and writes
-  // none of it.
-  if ((await readReader())?.blocked)
+    request.method !== "GET" &&
+    request.method !== "HEAD" &&
+    (await readSession())?.blocked
+  )
     return Response.json(
       { error: "account-blocked", usage: SITE_USAGE_NOTE },
       { status: 403, headers: { "cache-control": "no-store" } },
     );
-  // A trap circuit (gallery-traps.ts): only a program walking the list
-  // reads one. Its account is blocked and the Owner told; the reply looks
-  // like any circuit's. Anyone else meets no such circuit.
-  const trap = trapOf(segments[0]);
-  if (trap) {
-    const reader = await readSession();
-    if (!readsTraps(reader))
-      return Response.json(
-        { error: "not-found" },
-        { status: 404, headers: { "cache-control": "no-store" } },
-      );
-    const kind = trapReadKind(request, segments[1]);
-    if (kind) {
-      await blockForTrap(env, request, reader, trap.id, kind);
-      galleryReaders.delete(request.headers.get("Cookie") ?? "");
-    }
-    return trapResponse(trap, segments[1]);
-  }
 
   // Reviews reach any store, a dataset's too, before its read-only rule.
   const reviews = await routeReviews(request, env, segments, readSession);
@@ -754,7 +549,7 @@ export async function routeGalleryRequest(
     return Response.json(
       {
         ...payload,
-        entries: readsTraps(viewer) ? withTrap(entries, url.search) : entries,
+        entries,
       },
       { headers: { "cache-control": "no-store" } },
     );
@@ -887,12 +682,10 @@ export async function routeGalleryRequest(
       // A content URL stays immutable, but publication status does not. Check
       // the tiny access row before serving an edge hit so recycle/reject/delete
       // and a newer current revision retain exactly their existing behavior.
-      const access = signedOutPreviewAccess
-        ? { status: 200, payload: signedOutPreviewAccess }
-        : await callGallery<{
-            status?: string;
-            previewRevision?: string;
-          }>(env, "preview-access", { id: segments[0] });
+      const access = await callGallery<{
+        status?: string;
+        previewRevision?: string;
+      }>(env, "preview-access", { id: segments[0] });
       if (
         access.status === 200 &&
         access.payload.status === "public" &&
@@ -998,35 +791,21 @@ export async function routeGalleryRequest(
       delete payload.entry.assessedPreviewRevision;
     }
     // `summary=1` answers the tile alone — what a link to the wall shows —
-    // without the Project Code, so it costs no daily open.
+    // without the Project Code; with `netlist=spice`, the drawing's netlist
+    // alone, as /datasets and Review list it.
     const summary = url.searchParams.get("summary") === "1";
-    // A dataset drawing's netlist alone, without the drawing, costs no open:
-    // /datasets lists it beside the dataset's own netlist.
-    const netlistAlone =
-      summary &&
-      url.searchParams.get("netlist") === "spice" &&
-      gallerySourceOfEntryId(segments[0]!) !== null;
+    const netlistAlone = summary && url.searchParams.get("netlist") === "spice";
+    // Reading a circuit is free and unlimited; it adds one to the circuit's
+    // opens for the day (never who), except for its author.
     if (
       !summary &&
       payload.status === "public" &&
-      viewer &&
-      viewer.id !== payload.ownerUserId &&
-      !curator &&
-      viewer.provider !== AI_ACCOUNT_PROVIDER &&
-      !hasGalleryReadToken(request, env) &&
-      !(await galleryReadKeyOf(request, env))
-    ) {
-      // Opening someone else's circuit spends the account's daily allowance;
-      // its author, curators, the Owner's AI accounts, read keys and the
-      // read credential are not counted.
-      const day = new Date().toISOString().slice(0, 10);
-      const { payload: open } = await callGallery<{ allowed?: boolean }>(
-        env,
-        "count-open",
-        { userId: viewer.id, entryId: segments[0], day },
-      );
-      if (open.allowed !== true) return dailyOpenLimitResponse(day);
-    }
+      (!viewer || viewer.id !== payload.ownerUserId)
+    )
+      await callGallery(env, "record-open", {
+        entryId: segments[0],
+        day: new Date().toISOString().slice(0, 10),
+      });
     return Response.json(
       {
         entry: payload.entry && {

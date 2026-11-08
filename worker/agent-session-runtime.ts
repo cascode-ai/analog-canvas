@@ -486,17 +486,25 @@ export function fileOperationScopes(
   request: AgentFileResourceRequest,
 ): AgentSessionScope[] {
   switch (request.operation) {
-    case "simulation-input":
-      return request.input.action === "update" &&
-        request.input.owner.kind === "project-folder"
-        ? [
-            "simulation.run",
-            "project.import",
-            ...(request.input.circuitEdits.length
-              ? ["circuit.edit.connectivity" as const]
-              : []),
-          ]
-        : ["simulation.run"];
+    case "simulation-input": {
+      // A Project's Testbench files are authored source, so they take the
+      // Project's own grants; session workspaces, runs and artifacts are
+      // hosted simulation and keep `simulation.run` (#2110).
+      const input = request.input;
+      if (
+        (input.action === "list" || input.action === "read") &&
+        input.owner?.kind === "project-folder"
+      )
+        return ["project.download"];
+      if (input.action === "update" && input.owner.kind === "project-folder")
+        return [
+          "project.import",
+          ...(input.circuitEdits.length
+            ? ["circuit.edit.connectivity" as const]
+            : []),
+        ];
+      return ["simulation.run"];
+    }
     case "import-cell":
       return [
         "project.import",
