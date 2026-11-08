@@ -7,6 +7,7 @@ import type { Root } from "react-dom/client";
 import { createEmptyProject } from "@icm/model";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EditorDocumentController } from "../document/document-controller";
+import { useAgentPresence, type AgentPresence } from "./agent-presence";
 import { loadAgentRuntime, type AgentRuntime } from "./agent-runtime-loader";
 import * as runtimeFixture from "./agent-runtime";
 import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "./session-recovery-presence";
@@ -64,9 +65,13 @@ class ScriptedSocket extends ClosedSocket {
     string,
     Array<(event: unknown) => void>
   >();
+  readonly sent: Record<string, unknown>[] = [];
   constructor() {
     super();
     ScriptedSocket.opened.push(this);
+  }
+  override send(data?: unknown) {
+    this.sent.push(JSON.parse(String(data)) as Record<string, unknown>);
   }
   override addEventListener(type: string, listener: (event: unknown) => void) {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
@@ -80,7 +85,11 @@ class ScriptedSocket extends ClosedSocket {
 let storage: MemoryStorage;
 let sessionCreations: number;
 let root: Root | null;
-let seen: { session: UseAgentSessionResult | null };
+let seen: {
+  session: UseAgentSessionResult | null;
+  presence: AgentPresence;
+  pairings: number;
+};
 
 function relay(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input);
@@ -108,7 +117,7 @@ function relay(input: RequestInfo | URL, init?: RequestInit) {
 beforeEach(() => {
   storage = new MemoryStorage();
   sessionCreations = 0;
-  seen = { session: null };
+  seen = { session: null, presence: null, pairings: 0 };
   root = null;
   const page = {
     location: { href: "http://127.0.0.1/editor", search: "" },
@@ -154,7 +163,7 @@ function Editor() {
         : null,
     [runtime],
   );
-  seen.session = useEditorAgentSession(
+  const session = useEditorAgentSession(
     host
       ? {
           enabled: true,
@@ -165,6 +174,11 @@ function Editor() {
         }
       : null,
   );
+  seen.session = session;
+  // The Agent button's mark, and the panel closing as an Agent pairs.
+  seen.presence = useAgentPresence(session.status, () => {
+    seen.pairings += 1;
+  });
   return null;
 }
 
@@ -240,7 +254,7 @@ describe("workspace Agent provider (#1673)", () => {
     expect(seen.session!.status).not.toBe("idle");
   });
 
-  it("stops showing the Claim once an Agent redeemed it", async () => {
+  it("stops showing the Claim and closes the panel once an Agent redeemed it", async () => {
     vi.stubGlobal("WebSocket", ScriptedSocket);
     ScriptedSocket.opened.length = 0;
     vi.mocked(loadAgentRuntime).mockImplementationOnce(realRuntime);
@@ -270,6 +284,31 @@ describe("workspace Agent provider (#1673)", () => {
       }),
     );
     expect(seen.session!.status).not.toBe("waiting-for-agent");
+    // Redeemed, it resumes until the relay acknowledges this editor: no
+    // mark yet, and nothing reads as lost.
+    expect(seen.session!.status).toBe("reconnecting");
+    expect(seen.presence).toBeNull();
+    expect(seen.pairings).toBe(0);
+
+    await settle(() =>
+      expect(socket.sent.some(({ kind }) => kind === "heartbeat")).toBe(true),
+    );
+    const heartbeat = socket.sent.find(({ kind }) => kind === "heartbeat")!;
+    await act(async () =>
+      socket.emit("message", {
+        data: JSON.stringify({
+          protocolVersion: "1.0",
+          sessionId: "session-1",
+          kind: "heartbeat-ack",
+          nonce: heartbeat.nonce,
+          contextRevision: heartbeat.contextRevision,
+        }),
+      }),
+    );
+    // The Agent button turns green and the Connect Agent panel closes.
+    await settle(() => expect(seen.session!.status).toBe("connected"));
+    expect(seen.presence).toBe("connected");
+    expect(seen.pairings).toBe(1);
   });
 
   it("shows a runtime that could not load, then retries on the next click", async () => {

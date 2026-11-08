@@ -131,6 +131,7 @@ export function EditorMenuBar({
   openProjectFile,
   openCloudProjectById,
   agentSession,
+  agentPresence,
   openAgentConnection,
   tool,
   transact,
@@ -230,6 +231,7 @@ export function EditorMenuBar({
   openProjectFile: ProjectFileLifecycle["openProjectFile"];
   openCloudProjectById: ProjectFileLifecycle["openCloudProjectById"];
   agentSession: AgentConnection["agentSession"];
+  agentPresence: AgentConnection["agentPresence"];
   openAgentConnection: AgentConnection["openAgentConnection"];
   tool: InteractionState["tool"];
   transact: TransactionCommands["transact"];
@@ -571,6 +573,7 @@ export function EditorMenuBar({
                 agentSession.status === "idle"
                   ? "Connect Agent"
                   : "Manage Agent",
+              presence: agentPresence,
               execute: openAgentConnection,
             }
           : null

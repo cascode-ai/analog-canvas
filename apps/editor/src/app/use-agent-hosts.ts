@@ -25,6 +25,7 @@ import type { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
 import type { BrowserAgentHost } from "../agent/browser-agent-host";
 import type { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
 import type { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
+import { useAgentPresence } from "../agent/agent-presence";
 import { peekAgentSessionRecovery } from "../agent/session-recovery";
 import { claimNow } from "../agent/claim-clock";
 import type { UseAgentSessionOptions } from "../agent/use-agent-session";
@@ -476,6 +477,11 @@ export function useEditorAgentConnection({
     if (!publicAgentUiEnabled) return;
     setAgentStatusDismissed(false);
   }, [agentSession?.status, publicAgentUiEnabled]);
+  // Once an Agent pairs, the Agent button's mark shows the connection; the
+  // panel stays one click away.
+  const agentPresence = useAgentPresence(agentSession?.status ?? "idle", () =>
+    setAgentPanelOpen(false),
+  );
 
   function approveAgentFileCandidate(): void {
     if (!agentFileCandidate || !browserAgentFileHost) return;
@@ -522,6 +528,7 @@ export function useEditorAgentConnection({
     agentTargetRef,
     backgroundAgentHosts,
     agentSession,
+    agentPresence,
     approveAgentFileCandidate,
     rejectAgentFileCandidate,
     openAgentConnection,

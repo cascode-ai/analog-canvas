@@ -1400,6 +1400,7 @@ function WorkspaceEditor({
     agentTargetRef,
     backgroundAgentHosts,
     agentSession,
+    agentPresence,
     approveAgentFileCandidate,
     rejectAgentFileCandidate,
     openAgentConnection,
@@ -5654,6 +5655,7 @@ function WorkspaceEditor({
         openProjectFile={openProjectFile}
         openCloudProjectById={openCloudProjectById}
         agentSession={agentSession}
+        agentPresence={agentPresence}
         openAgentConnection={openAgentConnection}
         tool={tool}
         transact={transact}

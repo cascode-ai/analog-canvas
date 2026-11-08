@@ -34,7 +34,13 @@ GET  /api/agent/openapi.json
   within 2 minutes (same `x-agent-redemption` key, or no key on either, which
   older adapters cannot tell apart) with fresh credentials; any other
   redemption is `CLAIM_ALREADY_REDEEMED`. The editor stops showing the Claim
-  once paired.
+  once paired, and the Connect Agent panel closes once the paired Agent is
+  connected; the panel stays one click away on the header's **Agent**.
+- The **Agent** button marks the connection: green while a paired Agent is
+  connected or working; yellow while its connection is paused, resuming,
+  offline, revoked or expired (a saved session resuming on load included);
+  no mark before pairing (a Claim handed off, lapsed or cancelled) or once a
+  new connection starts.
 - A redemption that replaces a live connector remembers the replaced
   connector and bearer; their next use answers `SESSION_TAKEN_OVER`, and that
   adapter leaves a saved connector file that no longer holds its connector.

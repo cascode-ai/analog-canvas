@@ -8,6 +8,7 @@ import {
 import { BugReportLink } from "../components/bug-report-link";
 import { openOwnReference } from "../features/editor-shell/own-reference";
 import { CrossedSwordsIcon } from "../components/crossed-swords-icon";
+import { AgentActionButton, type AgentAction } from "./agent-action-button";
 import { ProjectMenu } from "./project-menu";
 import { AccountMenu, AccountStatePreload } from "../components/account";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
@@ -82,7 +83,7 @@ export interface EditorAppChromeProps {
   onOpenNetlistConfiguration: () => void;
   netlistFormat: "spice" | "spectre";
   onExportNetlist: (format: "spice" | "spectre") => void;
-  agentAction: { label: string; execute: () => void } | null;
+  agentAction: AgentAction | null;
   simulationAction?: () => void;
   simulationState?: "closed" | "open" | "maximized" | "minimized";
   publishGalleryOpen: boolean;
@@ -444,34 +445,7 @@ export function EditorAppChrome({
               </span>
             </button>
           ) : null}
-          {agentAction ? (
-            <button
-              type="button"
-              className="app-action app-action-agent"
-              data-testid="open-agent"
-              title={agentAction.label}
-              aria-label="Agent"
-              onClick={() => {
-                dismissOpenCommandMenus();
-                agentAction.execute();
-              }}
-            >
-              <svg
-                className="app-action-icon"
-                viewBox="0 0 16 16"
-                aria-hidden="true"
-              >
-                <path
-                  d="M8 1.5 9.4 6.6 14.5 8 9.4 9.4 8 14.5 6.6 9.4 1.5 8 6.6 6.6Z"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="app-action-label">Agent</span>
-            </button>
-          ) : null}
+          {agentAction ? <AgentActionButton action={agentAction} /> : null}
           {communityEnabled ? (
             <button
               type="button"
