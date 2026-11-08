@@ -55,7 +55,6 @@ const ReferenceWindow = lazy(() =>
 import {
   closeOwnReference,
   keepOwnReferenceImage,
-  openOwnReference,
   useOwnReferenceImage,
   useOwnReferenceOpen,
 } from "../features/editor-shell/own-reference";
@@ -396,7 +395,6 @@ export function EditorDialogs({
         <ReferenceWindow
           key={`${projectSessionId}:${galleryEntry?.id ?? ""}`}
           open={ownReferenceOpen}
-          onOpen={openOwnReference}
           onClose={closeOwnReference}
           entry={galleryEntry}
           session={publishSession}

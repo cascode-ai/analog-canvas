@@ -113,17 +113,29 @@ function ReferenceFloat({
   footer?: ReactNode;
 }) {
   const [folded, setFolded] = useState(remembered.folded);
-  // Bottom right of the window at first, above the status bar.
-  const [box, setBox] = useState<Box>(() =>
-    onScreen(
-      remembered.box ?? {
-        left: window.innerWidth - 404,
-        top: Math.max(60, window.innerHeight - 476),
-        width: 380,
-        height: 420,
-      },
-    ),
-  );
+  // At first in the canvas's bottom-right corner, clear of the side panels.
+  const [box, setBox] = useState<Box>(() => {
+    if (remembered.box) return onScreen(remembered.box);
+    const canvas = document
+      .querySelector('[data-testid="schematic-canvas"]')
+      ?.getBoundingClientRect();
+    const area = canvas ?? {
+      left: 0,
+      top: 60,
+      right: window.innerWidth,
+      bottom: window.innerHeight - 40,
+      width: window.innerWidth,
+      height: window.innerHeight - 100,
+    };
+    const width = Math.min(380, Math.max(MIN_WIDTH, area.width * 0.45));
+    const height = Math.min(420, Math.max(MIN_HEIGHT, area.height - 24));
+    return onScreen({
+      left: area.right - width - 12,
+      top: area.bottom - height - 12,
+      width,
+      height,
+    });
+  });
   useEffect(() => {
     remembered.box = box;
     remembered.folded = folded;
@@ -189,7 +201,7 @@ function ReferenceFloat({
         </button>
         <button
           type="button"
-          title="Close (the Reference button and Edit › Reference window bring it back)"
+          title="Close (Reference in the status bar brings it back)"
           aria-label="Close"
           onClick={onClose}
         >
@@ -221,7 +233,6 @@ const uploaded = new WeakSet<File>();
 
 export interface ReferenceWindowProps {
   open: boolean;
-  onOpen: () => void;
   onClose: () => void;
   /** The Gallery entry the drawing came from or was published as, if any. */
   entry: GalleryEntryContext | null;
@@ -245,11 +256,10 @@ export interface ReferenceWindowProps {
  * a drag. Save keeps the name and description with an unpublished drawing
  * (Publish starts from them); for a Gallery entry its owner or the Owner
  * may change, it saves them, and the image, to the entry at once. Closed,
- * a small Reference button at the corner brings it back.
+ * the status bar's Reference button brings it back.
  */
 export function ReferenceWindow({
   open,
-  onOpen,
   onClose,
   entry,
   session,
@@ -375,18 +385,7 @@ export function ReferenceWindow({
     onSaved(savedAs);
   }
 
-  if (!open)
-    return (
-      <button
-        type="button"
-        className="reference-panel-reopen"
-        data-testid="reference-panel-reopen"
-        title="Show the name, description and reference image"
-        onClick={onOpen}
-      >
-        Reference
-      </button>
-    );
+  if (!open) return null;
 
   const shown = image?.url ?? figure?.src ?? null;
   const onlyHere = image !== null && entry !== null && !savesImage;

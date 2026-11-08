@@ -277,26 +277,9 @@
   cursor: nwse-resize;
 }
 
-.reference-panel-reopen {
-  position: fixed;
-  right: 24px;
-  bottom: 56px;
-  z-index: 40;
-  padding: 6px 12px;
-  border: 1px solid var(--icm-border);
-  border-radius: 999px;
-  background: var(--icm-surface);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 14%);
-  color: var(--icm-text);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
 /* A phone's screen is the drawing's. */
 @media (max-width: 640px) {
-  .reference-panel,
-  .reference-panel-reopen {
+  .reference-panel {
     display: none;
   }
 }

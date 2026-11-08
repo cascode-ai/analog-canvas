@@ -196,9 +196,10 @@ entries, keyset cursor, limit ≤60.
 - Hosted Production/preview always uses Gallery, never bundled examples;
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
-- Every drawing shows a reference window floating beside the canvas from
-  the start, until closed to a Reference button (Edit › Reference window also
-  brings it back): its name, description and reference image. The image is a
+- Every drawing shows a reference window floating over the canvas's
+  bottom-right corner from the start: its name, description and reference
+  image. Closing it is remembered in this browser; Reference in the status
+  bar (or Edit › Reference window) opens it again. The image is a
   pasted screenshot (⌘V / Ctrl+V, unless a text field or a circuit takes the
   paste), a dropped image or a chosen file, kept per tab for the page's life;
   a drawing opened from the Gallery starts from its entry's figure (a
