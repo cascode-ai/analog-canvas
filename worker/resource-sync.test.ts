@@ -719,9 +719,13 @@ it("copies reference images, blind reviews and fix history with their publicatio
   const read = await peer.call(`/api/gallery/${id}/reference`);
   expect(read.status).toBe(200);
   expect(Buffer.from(await read.arrayBuffer())).toEqual(bytes);
+  // The drawing's author reads the copied review of it.
   expect(
     await (await peer.call(`/api/gallery/${id}/reviews`)).json(),
-  ).toMatchObject({ blind: true });
+  ).toMatchObject({
+    blind: false,
+    current: [{ verdict: "issue", flags: ["wiring"] }],
+  });
   expect(
     await (
       await peer.call(
