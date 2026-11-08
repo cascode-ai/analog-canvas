@@ -94,3 +94,37 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* The reader's own reference: a drop target until an image arrives. */
+.own-reference-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.own-reference-body.over {
+  outline: 2px dashed var(--icm-accent);
+  outline-offset: -6px;
+}
+
+.own-reference-empty {
+  flex: 1;
+  margin: 10px;
+  padding: 12px;
+  border: 2px dashed var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: none;
+  color: var(--icm-text-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.own-reference-empty strong {
+  color: var(--icm-text);
+}
+
+.own-reference-empty:hover {
+  border-color: var(--icm-accent);
+}

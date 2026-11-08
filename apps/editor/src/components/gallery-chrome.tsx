@@ -118,7 +118,7 @@ export function GalleryChrome({
       </div>
       <nav className="gallery-actions">
         <AccountMenu />
-        <BugReportLink testId="gallery-report-bug" surface={subtitle} />
+        <BugReportLink testId="gallery-report-bug" />
         <a
           className="app-repository-link"
           data-testid="gallery-repository-link"

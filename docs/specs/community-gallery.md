@@ -202,6 +202,10 @@ entries, keyset cursor, limit ≤60.
   by its title bar, resized from its corner, zoomed by the wheel and panned
   by a drag, folded to its title bar, or closed to a Reference button that
   brings it back.
+- Edit › Reference image… floats the reader's own figure to trace over the
+  same way, in any drawing: a pasted screenshot (⌘V / Ctrl+V, unless a text
+  field or a circuit takes the paste), a dropped image or a chosen file. It
+  stays in the page, kept across closing and reopening, and is never uploaded.
 
 ## On a phone
 
