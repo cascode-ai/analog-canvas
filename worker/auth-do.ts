@@ -44,7 +44,10 @@ import {
   AccountDeletions,
   deletionRequestId,
 } from "./account-deletions";
-import { includesProjectOwner } from "./project-region-scope";
+import {
+  coordinatesProjectDeletion,
+  includesProjectOwner,
+} from "./project-region-scope";
 import { exemptFromTraps } from "./trap-exempt";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
@@ -235,6 +238,7 @@ export type AuthEnv = {
   /** Opt-in authority/client origins and a scoped exchange secret. */
   AUTH_REGIONAL_AUTHORITY?: string;
   PROJECT_REGION_USERS?: string;
+  PROJECT_SYNC_EXPANSION?: string;
 };
 
 export interface SessionUser {
@@ -1751,8 +1755,17 @@ export class AuthDO {
       if (this.regional.accountDeletion === true) {
         const user = await this.sessionUser(request);
         if (!user) return noStoreJson({ error: "unauthorized" }, 401);
-        if (this.canCoordinateDeletion(user))
+        if (this.canCoordinateDeletion(user)) {
+          // A tab opened before expansion can still send the original confirmation.
+          if (
+            body?.confirm === "delete-account" &&
+            body.requestId === undefined &&
+            !this.regionalAccountRequests.has(request) &&
+            !includesProjectOwner(this.env.PROJECT_REGION_USERS, user.id)
+          )
+            body.requestId = crypto.randomUUID();
           return this.startRegionalDeletion(user, body);
+        }
         if (this.regionalAccountRequests.has(request))
           return noStoreJson({ error: "account-deletion-unavailable" }, 503);
       }
@@ -1830,7 +1843,12 @@ export class AuthDO {
   private canCoordinateDeletion(user: SessionUser | null): boolean {
     try {
       return (
-        !!user && includesProjectOwner(this.env.PROJECT_REGION_USERS, user.id)
+        !!user &&
+        coordinatesProjectDeletion(
+          this.env.PROJECT_REGION_USERS,
+          user.id,
+          this.env.PROJECT_SYNC_EXPANSION,
+        )
       );
     } catch {
       return false;

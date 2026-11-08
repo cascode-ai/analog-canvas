@@ -19,12 +19,25 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   and domestic identity checks keep their configured HTTPS transport. The
   authority still checks the credential, origin and original account.
 - A restricted trial sets the same `PROJECT_REGION_USERS` JSON account list
-  on the HTTP entry and both stores (at most 50 IDs). Source capture, quota
-  grants and imports are confined to that list. Overseas accounts outside it
-  retain legacy saves, publication and account deletion; domestic Project
-  access outside it is refused. An omitted list retains the existing all-account
-  opt-in mode. Keep the admitted set fixed while replication is active; removing
-  accounts or rolling back requires freezing writes and reconciling both stores.
+  on the HTTP entry and both stores (at most 50 IDs). With
+  `PROJECT_SYNC_EXPANSION=off` (default), capture, quota and imports follow that list.
+  Outside the list, overseas uses legacy saves, publication and account deletion,
+  and China refuses Project access. Omitting the list retains the all-account
+  opt-in mode.
+- Set `PROJECT_SYNC_EXPANSION=copy` on China before the source. Keep browser
+  and quota admission at the trial scope and coordinate account deletion for
+  every owner. Seed every overseas Project and replay its subsequent legacy
+  changes through the same stream. Pause domestic writes during the baseline
+  handoff, including writes through Gallery bindings. After the first outside
+  event is captured, stop or retry seeding on the same compatible release with
+  both peers in `copy`. The trial browser scope stays restricted and deletion
+  must continue to cover copied owners. Older trial-only releases cannot serve
+  a stream that already includes outside accounts.
+- Advance to `all` on the source first, then China, after the seed queue empties
+  and China applies the source high-water mark. Verify the remaining queue and
+  both receipts before enabling domestic writes. Retain the verified `all`
+  versions and configuration for subsequent release rollback. Reconcile both
+  stores and preserve acknowledged writes before reducing scope.
 - A historical-copy trial sets the same `PROJECT_PROTECTED_IDS` JSON list on
   both stores before capture (at most 1000 IDs). China can read and receive
   those Projects and their history, but refuses local save, restore, deletion,
@@ -37,9 +50,14 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
 - Save commits the current Project, retained three earlier saves and outbound
   event in one local transaction. HTTP success acknowledges local durability,
   not arrival in the other region. Failed journal capacity rolls back the save.
+  Keep recognized older history documents byte-for-byte even if the current
+  editor cannot open them. The current Project and history restore still
+  require successful parsing.
 - Regional PUT and history restore require the returned opaque `saveToken` in
-  `If-Match`. Integer-only tokens remain valid only outside regional mode.
-  Preview responses use no-store because integer revisions can coincide.
+  `If-Match`. For previously opened overseas tabs, full admission also accepts
+  a matching integer revision while the Project has a single, entirely local
+  lineage. After any remote change it requires the opaque token. Preview
+  responses use no-store because integer revisions can coincide.
 - Concurrent edits retain their heads and contents. My shelf exposes downloads
   and explicit selection; resolution must name exactly the current head set.
   A stale choice is refused. Deleted IDs remain tombstoned; late saves cannot
@@ -81,7 +99,9 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   lowering the peer cursor cannot erase that evidence. The implementation never
   resets epochs or reconstructs missing acknowledged writes automatically.
 - Source capture emits one existing Project plus its retained history per seed
-  call. Live writes capture their predecessor first in the same transaction.
+  call. It queues changed legacy Project IDs transactionally after first
+  capture, then seeds their latest state or deletion. Regional live writes
+  capture their predecessor first in the same transaction.
   Preserve the existing source singleton and compare both replicas before
   opening domestic writes. A Gallery-only export is not this migration format.
   With `PROJECT_REGION=overseas` and no explicit `PROJECTS` binding, the HTTP
@@ -122,7 +142,7 @@ The [HTTP transport](../../worker/project-sync.ts) owns endpoint authorization.
 | `POST /api/project-sync/events`        | Peer token                    | Validate and durably apply `{event}`                                               |
 | `POST /api/project-sync/quota`         | Peer token                    | Authority reserves `{id, ownerUserId}` and returns a durable grant                 |
 | `POST /api/project-sync/pull`          | Peer token                    | Reconcile `{status}`, acknowledge its verified receipt and return `{peer, events}` |
-| `POST /api/project-sync/seed`          | Separate admin token          | Capture one untracked source Project                                               |
+| `POST /api/project-sync/seed`          | Separate admin token          | Capture one untracked or changed source Project                                    |
 | `POST /api/project-sync/run`           | Admin token                   | Reconcile and deliver one event; inspect returned status                           |
 
 All responses are no-store. Browser cookies confer no synchronization authority.

@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { gzipSync } from "node:zlib";
 import { gzipBody } from "./project-sync-http";
 import { RegionalProjectDO } from "./regional-projects";
 import {
@@ -52,7 +53,12 @@ it.each([
             }),
           },
         },
-        restart: (compress = false) => {
+        restart: (compress = false, migrateLegacyCounter = false) => {
+          if (migrateLegacyCounter) {
+            for (const event of ["insert", "update", "delete"])
+              state.storage.sql.exec(`DROP TRIGGER project_sync_size_${event}`);
+            state.storage.sql.exec("DROP TABLE project_sync_size");
+          }
           store = new RegionalProjectDO(state, {
             PROJECT_REGION: region,
             PROJECT_SYNC_COMPRESS_JOURNAL: compress ? "true" : "false",
@@ -138,9 +144,12 @@ it.each([
       ? (await journal(source.env, "events?after=0")).events[0]
       : null;
     if (compressed) {
-      source.restart(true);
-      domestic.restart(true);
+      source.restart(true, true);
+      domestic.restart(true, true);
       expect(await tick()).toBe("caught-up");
+      expect((await journal(source.env, "status")).journalBytes).toBe(
+        Buffer.byteLength(legacyEvent.payload),
+      );
     }
     const before = await journal(domestic.env, "status");
     const saved = await route(
@@ -165,8 +174,8 @@ it.each([
       : null;
     if (newEvent) {
       const after = await journal(domestic.env, "status");
-      expect(after.journalBytes - before.journalBytes).toBeLessThan(
-        Buffer.byteLength(newEvent.payload),
+      expect(after.journalBytes - before.journalBytes).toBe(
+        gzipSync(newEvent.payload, { level: 1 }).byteLength,
       );
     }
     expect(await tick()).toBe("sent");

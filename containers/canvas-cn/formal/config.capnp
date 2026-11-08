@@ -38,6 +38,7 @@ const config :Workerd.Config = (
         (name = "RESOURCE_SYNC_TOKEN", text = embed "/resource-inbound-token"),
         (name = "RESOURCE_SYNC_ADMIN_TOKEN", text = embed "/resource-admin-token"),
         (name = "PROJECT_REGION_USERS", text = embed "/project-region-users.json"),
+        (name = "PROJECT_SYNC_EXPANSION", text = embed "/project-sync-expansion"),
         (name = "PROJECT_PROTECTED_IDS", text = embed "/project-protected-ids.json"),
         (name = "PROJECT_SYNC_COMPRESS_JOURNAL", text = embed "/project-compress-journal"),
         (name = "AUTH_REGIONAL_CLIENT", text = embed "/regional-client.json"),

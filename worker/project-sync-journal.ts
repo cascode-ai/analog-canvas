@@ -96,6 +96,24 @@ export class ProjectSyncJournal {
     sql.exec(
       "CREATE TABLE IF NOT EXISTS project_sync_payloads (head TEXT NOT NULL, chunk INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(head,chunk)) WITHOUT ROWID",
     );
+    sql.exec(`CREATE TABLE IF NOT EXISTS project_sync_size (
+      singleton INTEGER PRIMARY KEY CHECK(singleton=1), bytes INTEGER NOT NULL
+    )`);
+    sql.exec(`INSERT OR IGNORE INTO project_sync_size
+      SELECT 1, (SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM project_sync_payloads)
+      WHERE NOT EXISTS (SELECT 1 FROM project_sync_size)`);
+    for (const [event, delta] of [
+      ["INSERT", "length(CAST(NEW.payload AS BLOB))"],
+      [
+        "UPDATE",
+        "length(CAST(NEW.payload AS BLOB)) - length(CAST(OLD.payload AS BLOB))",
+      ],
+      ["DELETE", "-length(CAST(OLD.payload AS BLOB))"],
+    ] as const)
+      sql.exec(`CREATE TRIGGER IF NOT EXISTS project_sync_size_${event.toLowerCase()}
+        AFTER ${event} ON project_sync_payloads BEGIN
+          UPDATE project_sync_size SET bytes = bytes + (${delta}) WHERE singleton=1;
+        END`);
     sql.exec(
       `CREATE TABLE IF NOT EXISTS project_sync_peer (singleton INTEGER PRIMARY KEY CHECK(singleton=1), origin TEXT NOT NULL, epoch TEXT NOT NULL, sequence INTEGER NOT NULL)`,
     );
@@ -127,9 +145,7 @@ export class ProjectSyncJournal {
 
   private bytes(): number {
     return this.sql
-      .exec<{ bytes: number }>(
-        "SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) AS bytes FROM project_sync_payloads",
-      )
+      .exec<{ bytes: number }>("SELECT bytes FROM project_sync_size")
       .one().bytes;
   }
   private payload(head: string): string {
@@ -199,6 +215,18 @@ export class ProjectSyncJournal {
         )
         .toArray().length === 1
     );
+  }
+
+  localLineage(id: string): boolean {
+    return !this.sql
+      .exec(
+        `SELECT 1 FROM project_sync_nodes n
+       WHERE n.project_id=? AND NOT EXISTS (
+         SELECT 1 FROM project_sync_outbox o WHERE o.event_id=n.head
+       ) LIMIT 1`,
+        id,
+      )
+      .toArray().length;
   }
 
   snapshot(id: string): string {
@@ -281,12 +309,7 @@ export class ProjectSyncJournal {
     );
   }
 
-  record(
-    id: string,
-    ownerUserId: string,
-    _previousHead: string | undefined,
-    snapshot: string,
-  ): string {
+  record(id: string, ownerUserId: string, snapshot: string): string {
     if (this.fenced)
       throw new ProjectSyncFenceError(
         "Peer reconciliation required after restart",

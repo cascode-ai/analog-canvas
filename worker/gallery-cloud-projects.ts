@@ -111,9 +111,15 @@ async function handleCloudProjects(
     .get("if-match")
     ?.match(/^revision-(\d+)$/u);
   const saveToken = env.PROJECTS ? request.headers.get("if-match") : null;
+  const allowLegacyRevision =
+    env.PROJECT_REGION === "overseas" &&
+    env.PROJECT_SYNC_EXPANSION?.trim() === "all";
   if (
     request.method === "PUT" &&
-    !(env.PROJECTS ? saveToken?.startsWith("head-") : expectedRevisionMatch)
+    !(env.PROJECTS
+      ? saveToken?.startsWith("head-") ||
+        (allowLegacyRevision && expectedRevisionMatch)
+      : expectedRevisionMatch)
   ) {
     return Response.json(
       { error: "expected-revision-required" },
@@ -340,13 +346,21 @@ export async function routeCloudProjects(
 ): Promise<Response | null> {
   if (
     env.PROJECTS &&
-    env.PROJECT_REGION_USERS !== undefined &&
+    (env.PROJECT_REGION_USERS !== undefined ||
+      env.PROJECT_SYNC_EXPANSION !== undefined) &&
     (url.pathname === "/api/projects" ||
       url.pathname.startsWith("/api/projects/"))
   ) {
     const user = await sessionUserOf(request, env);
     try {
-      if (user && !includesProjectOwner(env.PROJECT_REGION_USERS, user.id)) {
+      if (
+        user &&
+        !includesProjectOwner(
+          env.PROJECT_REGION_USERS,
+          user.id,
+          env.PROJECT_SYNC_EXPANSION,
+        )
+      ) {
         if (env.PROJECT_REGION !== "overseas")
           return Response.json(
             { error: "owner-not-admitted" },

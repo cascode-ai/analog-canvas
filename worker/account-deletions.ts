@@ -17,6 +17,7 @@ export type AccountResourceBindings = {
   PROJECTS?: GalleryNamespaceLike;
   PROJECTS_STORE_NAME?: "projects" | "gallery";
   PROJECT_REGION_USERS?: string;
+  PROJECT_SYNC_EXPANSION?: string;
 };
 
 type Job = {

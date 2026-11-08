@@ -71,8 +71,7 @@
   // Region-only Durable Object aliases.
   "aliases": { "PROJECTS": "GalleryDO" },
   // Secrets and host-local switches, one root-owned credential file each
-  // (canvas-cn-formal.service LoadCredential). Switches hold `true` or
-  // `false`, so every host runs the same release bytes.
+  // (canvas-cn-formal.service LoadCredential). Every host runs the same release bytes.
   "credentials": {
     "SIMULATION_SMOKE_TOKEN": "simulation-smoke-token",
     "SIMULATION_UPSTREAM_TOKEN": "operator-token",
@@ -80,6 +79,7 @@
     "RESOURCE_SYNC_TOKEN": "resource-inbound-token",
     "RESOURCE_SYNC_ADMIN_TOKEN": "resource-admin-token",
     "PROJECT_REGION_USERS": "project-region-users.json",
+    "PROJECT_SYNC_EXPANSION": "project-sync-expansion",
     "PROJECT_PROTECTED_IDS": "project-protected-ids.json",
     "PROJECT_SYNC_COMPRESS_JOURNAL": "project-compress-journal",
     "AUTH_REGIONAL_CLIENT": "regional-client.json",

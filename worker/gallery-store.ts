@@ -165,6 +165,7 @@ export type GalleryEnv = {
   PROJECT_REGION?: "cn" | "overseas";
   /** Optional JSON list of accounts admitted to the regional Project trial. */
   PROJECT_REGION_USERS?: string;
+  PROJECT_SYNC_EXPANSION?: string;
   PROJECT_SYNC_TOKEN?: string;
   PROJECT_SYNC_PEER_URL?: string;
   PROJECT_SYNC_PEER_TOKEN?: string;
