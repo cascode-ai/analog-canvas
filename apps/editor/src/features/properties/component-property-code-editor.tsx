@@ -36,6 +36,8 @@ export interface ComponentPropertyCodeEditorProps {
   resolver?: SymbolResolver;
   instance: Instance;
   displayName?: string | null;
+  /** A switch clocked by its label's phase: that phase, null for its own name. */
+  switchControl?: string | null;
   itemName?: string;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
@@ -67,6 +69,7 @@ export function ComponentPropertyCodeEditor({
   resolver,
   instance,
   displayName,
+  switchControl,
   itemName,
   referenceVisible,
   valueVisible,
@@ -93,6 +96,7 @@ export function ComponentPropertyCodeEditor({
   const contextKey = JSON.stringify({
     instance,
     ...(displayName !== undefined ? { displayName } : {}),
+    ...(switchControl !== undefined ? { switchControl } : {}),
     referenceVisible,
     valueVisible,
     ...(parameterVisibility ? { parameterVisibility } : {}),

@@ -2,7 +2,8 @@ import type { SchematicDocument } from "@icm/model";
 import { razaviProductSymbols } from "@icm/symbols";
 import { expect, test, type Locator } from "@playwright/test";
 import { createEmptyProject } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
+import { drawnSwitchPhase } from "@icm/derived";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import {
   downloadBytes,
@@ -245,6 +246,44 @@ test("Cell Pin Properties edits the formal name even without a canvas label", as
     code.name = "Vcm";
   });
   await expectComponentCodeField(page, "name", "Vcm");
+});
+
+test("a switch's control sets the phase its label names, shown or hidden", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "ideal-switch", { x: 350, y: 220 });
+  await page.getByTestId("hit-S1").click();
+  await openSelectionShelf(page);
+  // A new switch is clocked by its own name; its label is its control.
+  await expectComponentCodeField(page, "control", null);
+  await expect(
+    page.getByLabel("Editable Canvas property code"),
+  ).not.toContainText("displayName");
+  await editComponentPropertyCode(page, (code) => {
+    code.control = "Φ_A_bar";
+    code.display.visualAnnotation = false;
+  });
+  await expectComponentCodeField(page, "control", "Φ_A_bar");
+  await expectComponentCodeField(page, "display.visualAnnotation", false);
+
+  const saved = parseProject(JSON.stringify(await exportedProject(page)));
+  const document = saved.documents[0]!;
+  const part = document.instances.find((item) => item.reference === "S1")!;
+  expect(drawnSwitchPhase(document, part)?.name).toBe("ΦA_bar");
+  const label = document.annotations.find(
+    (annotation) =>
+      annotation.kind === "instance-label" &&
+      annotation.anchor.kind === "object" &&
+      annotation.anchor.objectId === part.id,
+  );
+  expect(label?.visible).toBe(false);
+
+  await editComponentPropertyCode(page, (code) => {
+    code.control = null;
+  });
+  await expectComponentCodeField(page, "control", null);
+  await expectComponentCodeField(page, "display.visualAnnotation", false);
 });
 
 test("property inspection and remounts keep canvas keyboard ownership", async ({

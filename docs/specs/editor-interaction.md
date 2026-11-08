@@ -60,6 +60,12 @@ rendering and recovery.
 `appearance.color`, `display`, `displayName`, `parameters`, `netlistName`,
 `netlistTarget`, optional `symbol` and `signalFlow`.
 
+- A two-terminal switch or chopper shows `control` instead of `displayName`:
+  the clock phase its name label names, written as a name (`Φ_1`; `Φ_A_bar`
+  draws Φ̄_A), or `null` for its own name. Writing it rewrites the label and
+  keeps it shown or hidden as `display.visualAnnotation` says, so a phase drawn
+  once over ganged switches can stay one visible label. A switch with a CTRL pin
+  is wired instead. The Agent's `set-switch-control` plans the same edit.
 - `displayName` is visual and may differ from `netlistName`. Valid code plans the
   existing typed edits as one transaction (a target switch composes the
   structural planner); unknown keys or invalid values reject without change.

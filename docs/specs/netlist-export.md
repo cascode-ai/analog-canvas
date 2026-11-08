@@ -216,8 +216,9 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `bsource`, VACASK the qualified `icm_switch` (patched runtime,
   [patch](../../containers/vacask/patches/README.md)). No clock is invented;
   SPDT has no primitive.
-- Two-terminal switches follow the phase their label names (Φ₁ → `PHI1`; a
-  label showing its own name is its own phase, `S1 a b S1 VSS ideal_switch`);
+- Two-terminal switches follow the phase their label names, shown or hidden
+  (Φ₁ → `PHI1`; a label showing its own name is its own phase,
+  `S1 a b S1 VSS ideal_switch`; Properties edits it as `control`);
   single-ended ones use CTRL; both read against the Cell's ground (`VSS`, `0` at
   a deck top). The phase node is the same-Cell Net of that name.
 - An overbar names a separate `_bar` signal; export never inverts or adds an

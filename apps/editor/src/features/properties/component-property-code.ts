@@ -67,6 +67,12 @@ export interface ComponentPropertyCodeValue
   netName?: string;
   /** Visual instance annotation, independent from the exported netlist name. */
   displayName?: string;
+  /**
+   * A switch's control: the clock phase its label names, written as a name
+   * (Φ_A_bar draws Φ̄_A), or null for the switch's own name. Shown as
+   * `control`; only for a switch clocked by its label (switch-control.ts).
+   */
+  switchControl?: string | null;
   placement: ComponentPropertyPlacementCode | null;
   display?: ComponentPropertyDisplayCode;
   appearance: {
@@ -97,6 +103,8 @@ export interface ComponentPropertyCodeContext {
   instance: Instance;
   /** Null when this component has no independently editable instance label. */
   displayName?: string | null;
+  /** Undefined unless the part is a switch clocked by its label's phase. */
+  switchControl?: string | null;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
   parameterVisibility?: Record<string, boolean>;
@@ -398,6 +406,9 @@ export function componentPropertyCodeValue(
     ...(context.displayName !== undefined && context.displayName !== null
       ? { displayName: context.displayName }
       : {}),
+    ...(context.switchControl !== undefined
+      ? { switchControl: context.switchControl }
+      : {}),
     ...inductorCouplingPropertyValue(context.inductorCoupling),
     placement: instance.placement
       ? {
@@ -435,6 +446,7 @@ export function serializeComponentPropertyCode(
     netlistName,
     netlistTarget,
     control,
+    switchControl,
     dot,
     coupling,
     ...details
@@ -467,6 +479,7 @@ export function serializeComponentPropertyCode(
       ...(display ? { display } : {}),
       ...(displayName !== undefined ? { displayName } : {}),
       ...(control !== undefined ? { control } : {}),
+      ...(switchControl !== undefined ? { control: switchControl } : {}),
       ...(dot !== undefined ? { dot } : {}),
       ...(coupling !== undefined ? { coupling } : {}),
       ...details,
@@ -603,10 +616,27 @@ export function parseComponentPropertyCode(
     } else if ("supplies" in decoded) {
       throw new Error("supplies is not available for this component");
     }
-    if (!controlled && "control" in decoded)
+    const switchControlAvailable = context.switchControl !== undefined;
+    if (!controlled && !switchControlAvailable && "control" in decoded)
       throw new Error(
         "Controlled-source properties are not available for this component",
       );
+    let switchControl: string | null | undefined;
+    if (switchControlAvailable) {
+      if (!("control" in decoded))
+        throw new Error("control is required for this switch");
+      const written = decoded.control;
+      if (
+        written !== null &&
+        (typeof written !== "string" ||
+          !written.trim() ||
+          written.trim().length > 128)
+      )
+        throw new Error(
+          "control must name the switch's clock phase, such as Φ_1 or PHIA_bar, or be null for the switch's own name",
+        );
+      switchControl = written === null ? null : written.trim();
+    }
     let control: ComponentPropertyCodeValue["control"];
     if (controlled) {
       if (!isRecord(decoded.control))
@@ -652,6 +682,7 @@ export function parseComponentPropertyCode(
               control,
             }
           : {}),
+        ...(switchControl !== undefined ? { switchControl } : {}),
         ...parseInductorCouplingProperties(
           decoded,
           context.instance.id,
