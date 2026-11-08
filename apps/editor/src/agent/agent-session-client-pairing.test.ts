@@ -1,11 +1,16 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSessionStatusResponse } from "@icm/agent-adapter";
 import { createSimulationFolder } from "@icm/model";
 import { describe, expect, it, vi } from "vitest";
 import { ConnectorStore } from "../../../../packages/agent-client/src/connector-store";
-import { AgentSessionError } from "../../../../packages/agent-client/src/errors";
+import {
+  AgentSessionError,
+  transportFailure,
+} from "../../../../packages/agent-client/src/errors";
 import type {
   AgentHttpClient,
   ClaimSuccess,
@@ -79,6 +84,74 @@ const restartedHelper = (http: AgentHttpClient, store: ConnectorStore) =>
     connectorStore: store,
     sleep: async () => {},
   });
+
+/**
+ * The default per-origin connector file another running MCP process holds
+ * by its lease (#1522), saved by an earlier pairing of this editor's
+ * session. The relay rotates the bearer on each resume: only the newest
+ * answers.
+ */
+async function withHeldConnector(
+  run: (fixture: {
+    store: ConnectorStore;
+    holder: number;
+    lease: () => Promise<unknown>;
+    editor: ReturnType<typeof liveAgentEditor>;
+    exit: () => Promise<void>;
+  }) => Promise<void>,
+) {
+  const directory = await mkdtemp(join(tmpdir(), "analog-connector-"));
+  const holder = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"]);
+  try {
+    await once(holder, "spawn");
+    const path = join(directory, "connector.json");
+    await new ConnectorStore(path).save({
+      version: 1,
+      apiBaseUrl: "https://relay.test",
+      sessionId: "session-1",
+      connectorToken: "connector-one",
+      connectorExpiresAt: Number.MAX_SAFE_INTEGER,
+      storedAt: 0,
+    });
+    const store = new ConnectorStore(path, { lease: true });
+    await writeFile(store.leasePath, JSON.stringify({ pid: holder.pid }));
+    let minted = 0;
+    let current = "";
+    const editor = liveAgentEditor({
+      relay: {
+        resume: (_sessionId, connectorToken) =>
+          claim({
+            agentToken: (current = `bearer-${++minted}`),
+            connectorToken,
+          }),
+      },
+      client: { connectorStore: store, sleep: async () => {} },
+    });
+    const forward = editor.http.circuitHandler;
+    editor.http.circuitHandler = async (call) => {
+      if (call.token !== current)
+        throw transportFailure("TOKEN_INVALID", "Bearer was rotated", 401);
+      return forward(call);
+    };
+    vi.spyOn(editor.http, "status").mockImplementation(async () =>
+      observation(editor.controller),
+    );
+    await run({
+      store,
+      holder: holder.pid!,
+      lease: async () =>
+        JSON.parse(await readFile(store.leasePath, "utf8")) as unknown,
+      editor,
+      exit: async () => {
+        holder.kill();
+        await once(holder, "exit");
+      },
+    });
+  } finally {
+    holder.kill();
+    await rm(directory, { recursive: true, force: true });
+  }
+}
 
 describe("pairing the Agent client with the live editor", () => {
   it("starts capabilities and bootstrap Snapshot in the same post-claim wave", async () => {
@@ -456,6 +529,68 @@ describe("pairing the Agent client with the live editor", () => {
     expect(client.connection.snapshot.state).toBe("revoked");
     await expect(client.connect()).rejects.toMatchObject({
       code: "CLAIM_REQUIRED",
+    });
+  });
+
+  describe("a saved connector another running MCP process holds (#1522)", () => {
+    it("is taken over by connect without a Claim", async () => {
+      await withHeldConnector(async ({ editor, lease }) => {
+        const report = await editor.client.connect();
+        expect(report.mode).toBe("resumed");
+        expect(report.context?.revision).toBe(
+          editor.controller.document.revision,
+        );
+        expect(editor.http.resumes).toEqual([
+          { sessionId: "session-1", connectorToken: "connector-one" },
+        ]);
+        expect(await lease()).toEqual({ pid: process.pid });
+      });
+    });
+
+    it("tells the replaced holder another MCP process took it over, and it never takes it back unasked", async () => {
+      await withHeldConnector(async ({ editor, store, holder, lease }) => {
+        const { client, http } = editor;
+        await client.connect();
+        // Another MCP process connects without a Claim: it takes the lease
+        // and resumes the same connector, which rotates this one's bearer.
+        await writeFile(store.leasePath, JSON.stringify({ pid: holder }));
+        await http.resumeConnector("session-1", "connector-one");
+        await expect(
+          client.capabilities({ force: true }),
+        ).rejects.toMatchObject({
+          code: "SESSION_TAKEN_OVER",
+          category: "unrecoverable-credential",
+          message: expect.stringContaining(
+            `another MCP process (pid ${holder}) took this connection over`,
+          ),
+        });
+        expect(client.connection.snapshot.state).toBe("revoked");
+        await expect(
+          client.capabilities({ force: true }),
+        ).rejects.toMatchObject({ code: "SESSION_TAKEN_OVER" });
+        expect(http.resumes).toHaveLength(2);
+        // The file stays the taker's.
+        expect(await new ConnectorStore(store.path).load()).toMatchObject({
+          connectorToken: "connector-one",
+        });
+        // An explicit connect takes it back.
+        expect((await client.connect()).mode).toBe("resumed");
+        expect(await lease()).toEqual({ pid: process.pid });
+      });
+    });
+
+    it("stops blocking a resume once its holder exits", async () => {
+      await withHeldConnector(async ({ editor, exit, lease }) => {
+        const { client, http } = editor;
+        await expect(client.refreshSnapshot()).rejects.toMatchObject({
+          code: "NOT_CONNECTED",
+        });
+        await exit();
+        const snapshot = await client.refreshSnapshot();
+        expect(snapshot.revision).toBe(editor.controller.document.revision);
+        expect(http.resumes).toHaveLength(1);
+        expect(await lease()).toEqual({ pid: process.pid });
+      });
     });
   });
 });

@@ -68,14 +68,17 @@ data in diagnostics.
 Connect with the human's claim, then follow the [quickstart](mcp-quickstart.md).
 Later processes resume the saved revocable connector without a claim; keep it
 private. `ANALOG_CANVAS_MCP_CONNECTOR` overrides its file path, never a token.
-The default file (one per origin) belongs to the first running MCP process that
-uses it and a restart resumes it; a concurrent process keeps its own connector
-in memory and needs its own claim, so parallel clients never drive one page by
-accident. Give each parallel worker its own connector file, or share one file
-to share a page on purpose. A Claim connects one adapter: parallel chats each
-open their own editor tab and connect with its Claim. A reused Claim is
-`CLAIM_ALREADY_REDEEMED`; an adapter replaced by a later redemption gets
-`SESSION_TAKEN_OVER` and needs its own tab and Claim. Disconnect or expiry
+The default file (one per origin) belongs to one running MCP process at a
+time. `connect` without a claim takes it over, even from another running
+process (an abandoned chat's adapter never blocks a new one); that process
+then gets `SESSION_TAKEN_OVER` naming the taker's pid. A process connected
+with a claim while another holds the file keeps its connector in memory. Give
+each parallel worker its own connector file, or share one file to share a page
+on purpose. A Claim connects one adapter: parallel chats each open their own
+editor tab and connect with its Claim. A reused Claim is
+`CLAIM_ALREADY_REDEEMED`; an adapter replaced by a later redemption or a
+takeover gets `SESSION_TAKEN_OVER` and needs its own tab and Claim (or
+`connect` without one to take the connection back). Disconnect or expiry
 revokes the session; Project switches do not.
 
 Automation that opens the editor itself (a headless browser driving batch

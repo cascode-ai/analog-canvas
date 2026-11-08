@@ -42,19 +42,20 @@ export class AgentSessionClient extends AgentSessionTransactions {
   /**
    * Pair or re-check the current session. With a claim code, redeem it and
    * replace prior local state. Without one, reuse the in-memory bearer or
-   * resume the persisted connector.
+   * resume the persisted connector, taking the saved connector over from
+   * another live MCP process that holds it.
    */
   async connect(claimCode?: string): Promise<ConnectReport> {
     const startedAt = this.now();
     if (claimCode === undefined || claimCode.trim() === "") {
+      // A bearer the other process's resume rotated then fails the status
+      // check, which resumes again from the file this process now holds.
+      await this.connectorStore?.takeOver();
       const resumed = await this.tryResume(startedAt);
       if (resumed === null) {
-        const holder = this.connectorStore?.heldBy;
         throw new AgentSessionError(
           "CLAIM_REQUIRED",
-          holder
-            ? `another running MCP process (pid ${holder}) holds this origin's saved connector, so this one does not share its page; pass a claim code for a page of its own, or set ANALOG_CANVAS_MCP_CONNECTOR to one file to share a connector deliberately`
-            : "no valid saved connector; pass a claim code from the editor's connect panel",
+          "no valid saved connector; pass a claim code from the editor's connect panel",
           "unrecoverable-credential",
         );
       }
