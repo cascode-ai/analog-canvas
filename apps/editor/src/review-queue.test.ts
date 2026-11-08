@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  authorFromSearch,
   entryIdOf,
   flagsFor,
   hasReference,
+  matchesReviewSearch,
   nextUnreviewed,
+  referencesOnlyFromSearch,
+  reviewAuthors,
   reviewProgress,
   scopeFromSearch,
   shuffledQueue,
@@ -39,6 +43,49 @@ const card = (id: string, mine: ShownReview | null = null): ReviewCard => ({
 });
 
 describe("review queue", () => {
+  it("starts Community with every drawing and the datasets on their figures", () => {
+    expect(referencesOnlyFromSearch("?scope=community")).toBe(false);
+    expect(referencesOnlyFromSearch("?scope=community&refs=1")).toBe(true);
+    expect(referencesOnlyFromSearch("?scope=analoggenie")).toBe(true);
+    expect(referencesOnlyFromSearch("?scope=random&refs=0")).toBe(false);
+    expect(referencesOnlyFromSearch("")).toBe(true);
+    expect(authorFromSearch("?scope=community&author=Magic%20Li")).toBe(
+      "Magic Li",
+    );
+    expect(authorFromSearch("?scope=community")).toBeNull();
+  });
+
+  it("searches by name, author, id or link and lists authors by their drawings", () => {
+    const mirror = {
+      ...card("rmhkjz7h8z"),
+      name: "Cascode mirror",
+      author: "Lu Jie",
+    };
+    expect(matchesReviewSearch(mirror, "  MIRROR ")).toBe(true);
+    expect(matchesReviewSearch(mirror, "lu jie")).toBe(true);
+    expect(matchesReviewSearch(mirror, "rmhk")).toBe(true);
+    expect(
+      matchesReviewSearch(
+        mirror,
+        "https://analog-canvas.tokenzhang.com/g/rmhkjz7h8z",
+      ),
+    ).toBe(true);
+    expect(matchesReviewSearch(mirror, "bandgap")).toBe(false);
+    expect(matchesReviewSearch(mirror, "")).toBe(true);
+    expect(
+      reviewAuthors([
+        { ...card("a"), author: "Rgeph" },
+        { ...card("b"), author: "Magic Li" },
+        { ...card("c"), author: "Rgeph" },
+        { ...card("d"), author: "Lu Jie" },
+      ]),
+    ).toEqual([
+      { author: "Rgeph", count: 2 },
+      { author: "Lu Jie", count: 1 },
+      { author: "Magic Li", count: 1 },
+    ]);
+  });
+
   it("finds the drawing a pasted link or id names", () => {
     expect(entryIdOf("https://analog-canvas.tokenzhang.com/g/ct-016")).toBe(
       "ct-016",

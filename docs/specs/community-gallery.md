@@ -563,8 +563,7 @@ in the comment too (Shift+Enter starts a new line), sends what is there:
 with a reason an issue, else a pass, the comment and boxes going with
 either; → does the same for a drawing not yet reviewed or changed since,
 so moving on passes it, and ← only steps back. Random (R) opens a drawing
-of the list not yet reviewed; Jump to takes a drawing's link or id and opens
-it, in its own store if it is not in the list. Submit issue is outlined in
+of the list not yet reviewed. Submit issue is outlined in
 red, half-filled under the pointer and solid when pressed or chosen (once a
 reason is). Below the pictures, what comparing a dataset's two netlists found (a
 callout in the verdict's tint: verdict and kind as tags, then the
@@ -589,13 +588,17 @@ net over each other. Pointing at a kind boxes its findings on our picture; a
 click keeps them. It is the Gallery's Review tab,
 between Community gallery and My shelf; its pages keep that tab row, which
 ends in the switch between Review (the default) and Statistics (`/datasets`,
-look only). Its sidebar, in the wall sidebar's markup, is one list of
-filters, each with the count it would show: Random (every store mixed, the
-default; choosing it again shuffles anew), Community and each dataset with
-comparisons, then With a reference figure (on by default). The address
-keeps them (`?scope=<random|community|key>`, `&refs=0` when the reference
-filter is off; `&id=` opens one drawing, turning the reference filter off
-when it hides that one). Every tile's ⋯ menu has Report an issue, a link to
+look only). Its sidebar, in the wall sidebar's markup, starts with a search
+over names, authors and ids (a pasted link or id, entered, opens its drawing
+in its own store), then filters, each with the count choosing it would show:
+Random (every store mixed, the default; choosing it again shuffles anew),
+Community and each dataset with comparisons; With a reference figure (on by
+default, off when Community is chosen, whose drawings rarely have one); and
+Authors, most drawings first (twelve, then the rest on request). A reviewer's
+own drawings are never in their list. The address keeps them
+(`?scope=<random|community|key>`, `&refs=0|1` when the reference filter differs
+from its default, `&author=`; `&id=` opens one drawing, turning off any
+filter that hides it). Every tile's ⋯ menu has Report an issue, a link to
 the drawing in Review, for anyone signed in but its author. Both
 sidebars fold to a strip at the left from a button at their top; each
 browser remembers it. Statistics shows the Owner each person's reviews and
@@ -651,7 +654,8 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   drawing was drawn from, such as a textbook figure) from the tile's ⋯ menu:
   a dialog takes a pasted screenshot (⌘V / Ctrl+V or its Paste button), a
   dropped image or a chosen file, shows it, and uploads once they confirm
-  they may share it: `PUT /api/gallery/<id>/reference` `{image:
+  they may share it (Review's empty Reference pane takes a pasted or dropped
+  one the same way, for the Owner): `PUT /api/gallery/<id>/reference` `{image:
 {type, data}, rights: true}` (PNG, JPEG or WebP, ≤512 KB decoded; the page
   redraws a larger file as WebP) → `{revision}`; `DELETE` removes it. Errors:
   403 `forbidden`, 400 `rights-required` or `invalid-image`. Dataset entries
