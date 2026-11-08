@@ -1641,6 +1641,94 @@ describe("MCP tools on the live editor", () => {
     });
   });
 
+  it("shares one Testbench between a person and an Agent, with one Undo timeline (#2110)", async () => {
+    const { tool, controller } = await connected({ project: otaProject() });
+    const created = await tool("simulation_folder", {
+      action: "create",
+      name: "Gain",
+      rootDocumentId: dutDocumentId,
+      template: "testbench",
+    });
+    const owner = { kind: "project-folder", folderId: created.folder.id };
+    const folder = () =>
+      controller.project.simulationFolders.find(
+        (item) => item.id === created.folder.id,
+      )!;
+    // The person writes a Spec the way the Testbench view does: one
+    // Project edit replacing the folder.
+    const spec = "* @spec gain >= 60 unit=dB\n";
+    const human = folder();
+    expect(
+      controller.dispatchProjectTransaction({
+        transactionId: "edit-testbench-source",
+        projectId: controller.project.id,
+        expectedStructureRevision: controller.project.structureRevision,
+        actor: { kind: "human", id: "human-local" },
+        edits: [
+          {
+            kind: "upsert_simulation_folder",
+            folder: {
+              ...human,
+              input: {
+                ...human.input,
+                files: [
+                  {
+                    path: "testbench.spice",
+                    text: spec + human.input.files[0]!.text,
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: true, applied: true });
+    // The Agent reads the person's text and appends a load after it.
+    const read = await tool("simulation_source", {
+      request: {
+        action: "read",
+        owner,
+        path: "testbench.spice",
+        detail: "text",
+      },
+    });
+    expect(read).toMatchObject({ ok: true });
+    expect(JSON.stringify(read)).toContain("@spec gain >= 60 unit=dB");
+    const edited = await tool("simulation_edit", {
+      request: {
+        action: "update",
+        owner,
+        expectedRevision: controller.project.structureRevision,
+        writes: [
+          {
+            path: "testbench.spice",
+            text: `${folder().input.files[0]!.text}CL OUT 0 1p\n`,
+          },
+        ],
+      },
+    });
+    expect(edited).toMatchObject({ ok: true });
+    expect(folder().input.files[0]!.text).toContain("CL OUT 0 1p");
+    // The person's Undo takes back the Agent's edit, then their own.
+    controller.transact([{ kind: "undo" }]);
+    expect(folder().input.files[0]!.text).not.toContain("CL OUT 0 1p");
+    expect(folder().input.files[0]!.text.startsWith(spec)).toBe(true);
+    controller.transact([{ kind: "undo" }]);
+    expect(folder().input.files[0]!.text.startsWith(spec)).toBe(false);
+    // A stale revision is refused, never applied over newer text.
+    expect(
+      await tool("simulation_edit", {
+        request: {
+          action: "update",
+          owner,
+          expectedRevision: 0,
+          writes: [{ path: "testbench.spice", text: "* overwrite\n" }],
+        },
+      }),
+    ).toMatchObject({ ok: false });
+    expect(folder().input.files[0]!.text).not.toBe("* overwrite\n");
+  });
+
   it("manages source experiments without replacing authored bytes during rename/clone", async () => {
     const project = otaProject();
     const authored = createSimulationFolder({
