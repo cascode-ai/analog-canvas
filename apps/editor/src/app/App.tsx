@@ -258,7 +258,6 @@ import {
 } from "../features/hierarchy/project-structure-commands";
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
 import { canUpdateGalleryPublication } from "../features/editor-shell/gallery-publication-permission";
-import { GalleryDailyLimitCard } from "../features/editor-shell/gallery-daily-limit-card";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
 import { LazyGalleryPublishedNotice as GalleryPublishedNotice } from "./lazy-editor-dialogs";
@@ -1086,8 +1085,6 @@ function WorkspaceEditor({
     setPublishedNotice,
     versionHistoryOpen,
     setVersionHistoryOpen,
-    galleryDailyLimit,
-    setGalleryDailyLimit,
     publishSession,
     cloudProjects,
     setCloudProjects,
@@ -1661,7 +1658,6 @@ function WorkspaceEditor({
     cancelAllTransientInteraction,
     setGalleryEntryContext,
     setStatus,
-    setDailyOpenLimit: setGalleryDailyLimit,
   });
   const [draftingInspectorSegment, setDraftingInspectorSegment] = useState<{
     objectId: string;
@@ -5386,8 +5382,6 @@ function WorkspaceEditor({
     restoredWorkspace,
     preparedInitialProject,
     project,
-    projectSessionId,
-    setGalleryDailyLimit,
     setGalleryEntryContext,
     codeDraftDirty,
     openGalleryProjectInTabRef,
@@ -8254,15 +8248,6 @@ function WorkspaceEditor({
                 );
               }}
             />
-          }
-          notice={
-            !import.meta.env?.ICM_DESKTOP && galleryDailyLimit ? (
-              <GalleryDailyLimitCard
-                limit={galleryDailyLimit}
-                onBackToGallery={leaveForGallery}
-                onClose={() => setGalleryDailyLimit(null)}
-              />
-            ) : null
           }
         />
         {canvasContextMenu ? (

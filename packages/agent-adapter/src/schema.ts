@@ -367,7 +367,7 @@ function oneTransactionForm(
 export const AgentTransactionPayloadSchema = z
   .strictObject(TransactionPayloadShape)
   .superRefine(oneTransactionForm);
-export const AgentTransactRequestSchema = RequestBaseSchema.extend({
+const AgentTransactRequestSchema = RequestBaseSchema.extend({
   operation: z.literal("transact"),
   documentId: StableIdSchema,
   transactionId: StableIdSchema,
@@ -1103,7 +1103,6 @@ export type AgentCircuitRequest = z.infer<
   typeof AgentProductionCircuitRequestSchema
 >;
 export type AgentSnapshotRequest = z.infer<typeof AgentSnapshotRequestSchema>;
-export type AgentTransactRequest = z.infer<typeof AgentTransactRequestSchema>;
 export type AgentSemanticIntent = z.infer<typeof AgentSemanticIntentSchema>;
 export type AgentRenderRequest = z.infer<typeof AgentRenderRequestSchema>;
 export type AgentCircuitResponse = z.infer<typeof AgentCircuitResponseSchema>;

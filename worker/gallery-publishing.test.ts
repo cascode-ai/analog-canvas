@@ -488,8 +488,8 @@ describe("gallery submissions", () => {
     expect(cache.putCalls).toHaveLength(1);
   });
 
-  it.each(["recycle", "reject", "delete", "displace"] as const)(
-    "rechecks signed-out membership after %s even with warm preview bytes",
+  it.each(["recycle", "reject", "delete"] as const)(
+    "rechecks a signed-out preview's publication after %s even with warm preview bytes",
     async (action) => {
       const env = environment();
       const cookie = await adminOf(env);
@@ -507,10 +507,7 @@ describe("gallery submissions", () => {
         routeGalleryRequest(new Request(url), env, { previewCache: cache });
       expect((await read())?.status).toBe(200);
       expect((await read())?.status).toBe(200);
-      if (action === "displace") {
-        for (let index = 0; index < 12; index++)
-          await submitOne(env, `Newer ${index}`, { cookie });
-      } else {
+      {
         const response = await route(
           env,
           new Request(
@@ -541,10 +538,7 @@ describe("gallery submissions", () => {
       }
       env.galleryCalls.length = 0;
       const hidden = await read();
-      expect(hidden?.status).toBe(401);
-      expect(await hidden!.json()).toEqual({ error: "sign-in-required" });
-      expect(hidden?.headers.get("cache-control")).toBe("no-store");
-      expect(env.galleryCalls).toHaveLength(1);
+      expect(hidden?.status).toBe(404);
       expect(cache.putCalls).toHaveLength(1);
     },
   );

@@ -14,7 +14,6 @@ import { AI_SEATS } from "./auth";
 import {
   type DurableObjectStateLike,
   type EntryRow,
-  GALLERY_DAILY_OPEN_LIMIT,
   GALLERY_DAILY_SUBMISSION_LIMIT,
   type SqlStorage,
   advanceCurationRevision,
@@ -195,21 +194,12 @@ export function submit(
 }
 
 /** Minimum row needed to decide whether an immutable preview cache hit is valid. */
-export function previewAccess(
-  sql: SqlStorage,
-  id: string,
-  signedOutWallSize?: number,
-): Response {
+export function previewAccess(sql: SqlStorage, id: string): Response {
   const row = sql
     .exec<PreviewAccessRow>(
       `SELECT status, owner_user_id, preview_revision
-       FROM gallery_entries WHERE id = ?${
-         signedOutWallSize === undefined
-           ? ""
-           : " AND id IN (SELECT id FROM gallery_entries WHERE status = 'public' ORDER BY created_at DESC, id DESC LIMIT ?)"
-       }`,
+       FROM gallery_entries WHERE id = ?`,
       id,
-      ...(signedOutWallSize === undefined ? [] : [signedOutWallSize]),
     )
     .toArray()[0];
   if (!row) return Response.json({ error: "not-found" }, { status: 404 });
@@ -250,64 +240,19 @@ export function preview(sql: SqlStorage, id: string): Response {
 }
 
 /** Drop every record of opens before `day`; only that day's are needed. */
-export function forgetOpens(sql: SqlStorage, day: string): Response {
-  sql.exec("DELETE FROM gallery_daily_opens WHERE day < ?", day);
-  return Response.json({ forgotten: true });
-}
-
-/**
- * Spend one of the account's daily opens on `entryId`, unless it already
- * opened that circuit today. `allowed: false` once the day's allowance is
- * used up; the caller decides who is counted at all. Every allowed open
- * adds one to the circuit's opens that day, whoever opened it.
- */
-export function countOpen(
-  state: DurableObjectStateLike,
-  userId: string,
+/** One more open of `entryId` on `day`, for the Owner's numbers; never who. */
+export function recordOpen(
+  sql: SqlStorage,
   entryId: string,
   day: string,
 ): Response {
-  const sql = state.storage.sql;
-  return state.storage.transactionSync(() => {
-    forgetOpens(sql, day);
-    const seen =
-      sql
-        .exec(
-          "SELECT 1 FROM gallery_daily_opens WHERE day = ? AND user_id = ? AND entry_id = ?",
-          day,
-          userId,
-          entryId,
-        )
-        .toArray().length > 0;
-    const used = sql
-      .exec<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM gallery_daily_opens WHERE day = ? AND user_id = ?",
-        day,
-        userId,
-      )
-      .one().n;
-    const opened = () =>
-      sql.exec(
-        `INSERT INTO gallery_entry_opens (entry_id, day, opens) VALUES (?, ?, 1)
-         ON CONFLICT (entry_id, day) DO UPDATE SET opens = opens + 1`,
-        entryId,
-        day,
-      );
-    if (seen) {
-      opened();
-      return Response.json({ allowed: true, used });
-    }
-    if (used >= GALLERY_DAILY_OPEN_LIMIT)
-      return Response.json({ allowed: false, used });
-    sql.exec(
-      "INSERT INTO gallery_daily_opens (day, user_id, entry_id) VALUES (?, ?, ?)",
-      day,
-      userId,
-      entryId,
-    );
-    opened();
-    return Response.json({ allowed: true, used: used + 1 });
-  });
+  sql.exec(
+    `INSERT INTO gallery_entry_opens (entry_id, day, opens) VALUES (?, ?, 1)
+     ON CONFLICT (entry_id, day) DO UPDATE SET opens = opens + 1`,
+    entryId,
+    day,
+  );
+  return Response.json({ recorded: true });
 }
 
 /**

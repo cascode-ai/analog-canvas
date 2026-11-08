@@ -286,23 +286,39 @@ it.each([
   ["ordinary", "python-requests/2.32"],
   ["escaped evidence", "python-requests/" + "\\".repeat(9000)],
 ])(
-  "enforces a confirmed trap block on the next domestic Gallery request (%s)",
+  "enforces a confirmed block on the next domestic Gallery write, never a read (%s)",
   async (_label, userAgent) => {
     const h = accounts();
     const member = await h.connect(await makerOf(h.source));
     h.source.authDurable.fetchLike = async () =>
       Response.json({ id: "isolated-block-notice" });
-    const read = (path: string) =>
+    const { user } = await (await h.call("/api/auth/me", member)).json();
+    const blocked = await h.region.fetch(
+      new Request("https://auth/internal/block-account", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: user.id,
+          entryId: "ww5fnfambz",
+          kind: "script",
+          path: "/api/gallery/ww5fnfambz",
+          userAgent: userAgent.slice(0, 512),
+        }),
+      }),
+    );
+    expect(await blocked.json()).toEqual({ blocked: true });
+    const request = (path: string, method = "GET") =>
       route(
         h.resources,
         new Request(ORIGIN + path, {
-          headers: { cookie: member, "user-agent": userAgent },
+          method,
+          headers: { cookie: member, origin: ORIGIN, "user-agent": userAgent },
         }),
       );
-    expect((await read("/api/gallery/ww5fnfambz")).status).toBe(200);
-    const next = await read("/api/gallery");
-    expect(next.status).toBe(403);
-    expect(await next.json()).toMatchObject({ error: "account-blocked" });
+    // Gallery reads are everyone's; its writes are refused.
+    expect((await request("/api/gallery")).status).toBe(200);
+    const write = await request("/api/gallery/ww5fnfambz/like", "POST");
+    expect(write.status).toBe(403);
+    expect(await write.json()).toMatchObject({ error: "account-blocked" });
     expect(
       (await (await h.call("/api/auth/me", member)).json()).user,
     ).toMatchObject({ blocked: true });

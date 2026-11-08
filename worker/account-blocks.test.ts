@@ -1,10 +1,8 @@
-import { parseProject } from "@icm/project-protocol";
+// Accounts blocked for collecting the Gallery in bulk (account-blocks.ts):
+// the records the Owner reads, lifts and apologises for, and the notices.
+// Gallery reads are everyone's, so a block refuses only Gallery writes.
 import { describe, expect, it } from "vitest";
 
-import {
-  isReservedGalleryId,
-  withoutReservedEntries,
-} from "../apps/editor/src/gallery-reserved-ids";
 import {
   type Harness,
   ORIGIN,
@@ -14,9 +12,10 @@ import {
   makerOf,
   ownerAccountOf,
   route,
-  submitOne,
 } from "./gallery.test-support";
 import { ensureAccountBlockTables } from "./account-blocks";
+
+const TRAP_ID = "ww5fnfambz";
 
 /** Emails the AuthDO sends from now on: recipient, subject and text. */
 function outbox(env: Harness, ok = true) {
@@ -35,65 +34,61 @@ function outbox(env: Harness, ok = true) {
   return sent;
 }
 
-async function wall(env: Harness, headers: HeadersInit) {
-  const response = await route(
-    env,
-    new Request(`${ORIGIN}/api/gallery`, { headers }),
+/** Record a block of the session's account, as the AuthDO takes one. */
+async function block(
+  env: Harness,
+  cookie: string,
+  evidence: Record<string, string> = {},
+) {
+  const { user } = (await (
+    await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/me`, { headers: cookieHeaders(cookie) }),
+    )
+  ).json()) as { user: { id: string } };
+  return env.authDurable.fetch(
+    new Request("https://auth/internal/block-account", {
+      method: "POST",
+      body: JSON.stringify({
+        userId: user.id,
+        kind: "script",
+        entryId: TRAP_ID,
+        path: `/api/gallery/${TRAP_ID}`,
+        ...evidence,
+      }),
+    }),
   );
-  return {
-    status: response.status,
-    ...((await response.json()) as { entries?: { id: string }[] }),
-  };
 }
 
-async function sevenCircuits(env: Harness) {
-  const admin = await adminOf(env);
-  for (let index = 0; index < 7; index += 1)
-    await submitOne(env, `Circuit ${index}`, { cookie: admin });
-}
+/** A Gallery write (a like) and a Gallery read, as the account. */
+const like = (env: Harness, cookie: string) =>
+  route(
+    env,
+    new Request(`${ORIGIN}/api/gallery/${TRAP_ID}/like`, {
+      method: "POST",
+      headers: { Origin: ORIGIN, Cookie: cookie },
+    }),
+  );
+const read = (env: Harness, cookie: string) =>
+  route(
+    env,
+    new Request(`${ORIGIN}/api/gallery`, { headers: cookieHeaders(cookie) }),
+  );
 
-const trapFrom = (entries: { id: string }[]) =>
-  entries.find((entry) => isReservedGalleryId(entry.id))!;
-
-describe("trap circuits", () => {
-  it("mix one into a member's list page, which the client drops, and none into the Owner's or a curator's", async () => {
+describe("account blocks", () => {
+  it("block a member, keep who it was, email the Owner and the member, and refuse their Gallery writes alone", async () => {
     const env = environment();
-    await sevenCircuits(env);
-    const member = await wall(env, cookieHeaders(await makerOf(env)));
-    expect(member.entries).toHaveLength(8);
-    expect(trapFrom(member.entries!)).toBeDefined();
-    expect(withoutReservedEntries(member.entries!)).toHaveLength(7);
-
-    for (const cookie of [await adminOf(env), await ownerAccountOf(env)]) {
-      const exempt = await wall(env, cookieHeaders(cookie));
-      expect(exempt.entries).toHaveLength(7);
-    }
-    // The read credential (backups) meets none either.
-    expect((await wall(env, {})).entries).toHaveLength(7);
-  });
-
-  it("block the member who reads one, keep who it was and email the Owner and the member", async () => {
-    const env = environment();
-    await sevenCircuits(env);
     const maker = await makerOf(env);
-    const trap = trapFrom((await wall(env, cookieHeaders(maker))).entries!);
     const sent = outbox(env);
 
-    const read = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${trap.id}`, {
-        headers: {
-          Cookie: maker,
-          "cf-connecting-ip": "198.51.100.23",
-          "cf-ipcountry": "NL",
-          "user-agent": "python-requests/2.32",
-        },
-      }),
-    );
-    // An ordinary-looking circuit, so the program reading it does not stop.
-    expect(read.status).toBe(200);
-    const { projectText } = (await read.json()) as { projectText: string };
-    expect(parseProject(projectText).documents.length).toBeGreaterThan(0);
+    expect(
+      await (
+        await block(env, maker, {
+          ip: "198.51.100.23",
+          country: "NL",
+          userAgent: "python-requests/2.32",
+        })
+      ).json(),
+    ).toEqual({ blocked: true });
 
     expect(sent).toHaveLength(2);
     expect(sent[0]!.to).toEqual(["zzhishuai@ethz.ch"]);
@@ -108,12 +103,13 @@ describe("trap circuits", () => {
     });
     expect(sent[1]!.text).toContain("reply to this email");
     expect(sent[1]!.text).toContain("still being tested");
-    expect(sent[1]!.text).not.toContain(trap.id);
+    expect(sent[1]!.text).not.toContain(TRAP_ID);
 
-    // Every later Gallery request of the account is refused.
-    const after = await wall(env, cookieHeaders(maker));
+    // The account's Gallery writes are refused; its reads are anyone's.
+    const after = await like(env, maker);
     expect(after.status).toBe(403);
-    expect(after).toMatchObject({ error: "account-blocked" });
+    expect(await after.json()).toMatchObject({ error: "account-blocked" });
+    expect((await read(env, maker)).status).toBe(200);
 
     const owner = await ownerAccountOf(env);
     const records = (await (
@@ -126,7 +122,7 @@ describe("trap circuits", () => {
     expect(records.blocked).toEqual([
       expect.objectContaining({
         email: "maker@example.com",
-        entryId: trap.id,
+        entryId: TRAP_ID,
         ip: "198.51.100.23",
         country: "NL",
         userAgent: "python-requests/2.32",
@@ -156,12 +152,11 @@ describe("trap circuits", () => {
       }),
     );
     expect(await lifted.json()).toEqual({ unblocked: true });
-    expect((await wall(env, cookieHeaders(maker))).status).toBe(200);
+    expect((await like(env, maker)).status).not.toBe(403);
   });
 
   it("never block the Owner, not even by a block recorded under the Owner's email", async () => {
     const env = environment();
-    await sevenCircuits(env);
     const owner = await ownerAccountOf(env);
     // Another account under the Owner's email (a second sign-in method) was
     // blocked; the block holds by email, but never against the Owner.
@@ -179,47 +174,15 @@ describe("trap circuits", () => {
       "/api/gallery/trap",
       "script",
     );
-    expect((await wall(env, cookieHeaders(owner))).status).toBe(200);
-  });
-
-  it("block a browser only once it has read two different traps' circuits in a day, never for a preview", async () => {
-    const env = environment();
-    await sevenCircuits(env);
-    const browser = {
-      Cookie: await makerOf(env),
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0",
-    };
-    const read = (path: string) =>
-      route(env, new Request(`${ORIGIN}${path}`, { headers: browser }));
-    const sent = outbox(env);
-    // A page left open across a deploy shows trap tiles and loads their
-    // previews by itself (2026-10-22); its reader opened one circuit, twice.
-    await read("/api/gallery/ww5fnfambz/preview.svg");
-    await read("/api/gallery/s93tzkszt6/preview.svg");
-    await read("/api/gallery/s93tzkszt6?summary=1");
-    for (let time = 0; time < 2; time += 1)
-      expect((await read("/api/gallery/ww5fnfambz")).status).toBe(200);
-    expect((await wall(env, browser)).status).toBe(200);
-    expect(sent).toHaveLength(0);
-
-    // A second trap's circuit is no accident.
-    await read("/api/gallery/s93tzkszt6");
-    expect((await wall(env, browser)).status).toBe(403);
-    expect(sent).toHaveLength(2);
-    expect(sent[0]!.text).toContain("2 个不同蜜罐");
+    expect(await (await block(env, owner)).json()).toEqual({ blocked: false });
+    expect((await like(env, owner)).status).not.toBe(403);
   });
 
   it("let the Owner apologise once to an account unblocked after a mistake", async () => {
     const env = environment();
-    await sevenCircuits(env);
     const maker = await makerOf(env);
-    await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/ww5fnfambz`, {
-        headers: cookieHeaders(maker),
-      }),
-    );
+    outbox(env);
+    await block(env, maker);
     const owner = await ownerAccountOf(env);
     const ownerPost = (route: string, body: unknown, cookie = owner) =>
       env.authDurable.fetch(
@@ -307,38 +270,12 @@ describe("trap circuits", () => {
     expect(sent).toHaveLength(1);
   });
 
-  it("answer a curator as a missing circuit and block nobody", async () => {
-    const env = environment();
-    await sevenCircuits(env);
-    const trap = trapFrom(
-      (await wall(env, cookieHeaders(await makerOf(env)))).entries!,
-    );
-    const admin = await adminOf(env);
-    const sent = outbox(env);
-    const read = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${trap.id}`, {
-        headers: cookieHeaders(admin),
-      }),
-    );
-    expect(read.status).toBe(404);
-    expect(sent).toHaveLength(0);
-    expect((await wall(env, cookieHeaders(admin))).status).toBe(200);
-  });
-
   it("send the notices again on the next tick when the first try fails, never to blocks from before member notices", async () => {
     const env = environment();
-    await sevenCircuits(env);
     const maker = await makerOf(env);
-    const trap = trapFrom((await wall(env, cookieHeaders(maker))).entries!);
     outbox(env, false);
-    await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${trap.id}/preview.svg`, {
-        headers: cookieHeaders(maker),
-      }),
-    );
-    expect((await wall(env, cookieHeaders(maker))).status).toBe(403);
+    await block(env, maker);
+    expect((await like(env, maker)).status).toBe(403);
     // A block recorded before members were told (2026-10-25) stays untold.
     env.authSql.exec(
       `INSERT INTO account_blocks

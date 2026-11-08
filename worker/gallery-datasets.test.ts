@@ -434,8 +434,7 @@ describe("reference datasets in stores of their own (#1510)", () => {
     );
     expect(withCookie.status).toBe(401);
 
-    // No other route takes it: not a read, not a submission.
-    expect((await bearerCall("/api/gallery/ag-7", token)).status).toBe(401);
+    // No other route takes it: not a submission. (Reads need nothing.)
     expect(
       (
         await bearerCall("/api/gallery/submissions", token, {
@@ -715,11 +714,11 @@ describe("reference datasets in stores of their own (#1510)", () => {
     expect(
       await (await call(`${comparisons}/ag-308`, {}, maker)).json(),
     ).toEqual({ id: "ag-308", sourceNetlist: "M1 (a b c d) nmos4" });
-    // Signed out, it asks to sign in as every Gallery read does.
+    // Signed out, it reads as every Gallery read does.
     expect(
       (await routeGalleryRequest(new Request(`${ORIGIN}${comparisons}`), env))
         ?.status,
-    ).toBe(401);
+    ).toBe(200);
 
     // Imported again without a figure, it keeps the stored one.
     const { figure: _kept, ...withoutFigure } = comparison;

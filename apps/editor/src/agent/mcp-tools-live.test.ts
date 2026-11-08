@@ -399,24 +399,6 @@ describe("MCP tools on the live editor", () => {
     ]);
   });
 
-  it("reports Gallery login separately without replacing the target", async () => {
-    const editor = await connected({
-      projectHost: { fetch: async () => new Response(null, { status: 401 }) },
-    });
-    const before = serializeProject(editor.controller.project);
-    expect(
-      await editor.tool("gallery_circuits", {
-        action: "insert",
-        galleryEntryId: "g1",
-        targetDocumentId: "main",
-        position: { x: 100, y: 100 },
-      }),
-    ).toMatchObject({
-      ok: false,
-      error: { code: "SIGN_IN_REQUIRED", recovery: "sign-in" },
-    });
-    expect(serializeProject(editor.controller.project)).toBe(before);
-  });
   it.each([
     ["missing", "GALLERY_ENTRY_NOT_FOUND"],
     ["empty", "COPY_EMPTY"],

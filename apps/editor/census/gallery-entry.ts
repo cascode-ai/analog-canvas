@@ -68,7 +68,6 @@ async function exercise(projectText: string, operation: "open" | "insert") {
     },
     cancelAllTransientInteraction: () => {},
     setGalleryEntryContext: () => {},
-    setDailyOpenLimit: () => {},
     setStatus: (message) => {
       host.message = message;
     },

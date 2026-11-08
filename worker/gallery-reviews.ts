@@ -12,7 +12,6 @@
 
 import type { SessionUser } from "./auth-do";
 import { withGalleryStore } from "./gallery-datasets";
-import { galleryReadKeyOf, readKeyReviewer } from "./gallery-read-keys";
 import { callGallery } from "./gallery-requests";
 import {
   gallerySourceByKey,
@@ -43,15 +42,8 @@ export async function routeReviews(
   const onEntry = segments[1] === "reviews" && !scoped;
   if (!scoped && !onEntry) return null;
   const writes = request.method !== "GET" && request.method !== "HEAD";
-  // A `full` read key reads every verdict, as the Owner does; it never writes.
-  const key = writes ? null : await galleryReadKeyOf(request, env);
-  const viewer =
-    (await readSession()) ??
-    (key?.scope === "full" ? readKeyReviewer(key) : null);
-  if (!viewer)
-    return key
-      ? answer(403, { error: "read-key-scope" })
-      : answer(401, { error: "sign-in-required" });
+  const viewer = await readSession();
+  if (!viewer) return answer(401, { error: "sign-in-required" });
   if (writes && !sameOrigin(request))
     return answer(403, { error: "forbidden" });
 

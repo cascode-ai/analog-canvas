@@ -71,7 +71,11 @@ it("alerts the Owner from the source when the private region stops pulling, then
 it("watches nothing in the private region or without mail configuration", async () => {
   const resend = vi.fn() as unknown as typeof fetch;
   expect(
-    await watchRegionalPulls({ PROJECT_REGION: "cn", PROJECT_SYNC_TOKEN: "x" }, 0, resend),
+    await watchRegionalPulls(
+      { PROJECT_REGION: "cn", PROJECT_SYNC_TOKEN: "x" },
+      0,
+      resend,
+    ),
   ).toBeNull();
   expect(
     await watchRegionalPulls(

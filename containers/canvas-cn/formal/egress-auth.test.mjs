@@ -37,7 +37,7 @@ it("discovers the authority's enabled sign-in providers through standalone egres
   });
 });
 
-it("enforces a Gallery block and Owner recovery through the standalone egress policy", async () => {
+it("enforces a Gallery block on writes and Owner recovery through the standalone egress policy", async () => {
   const h = accounts();
   const network = vi.fn((request) => {
     expect(new URL(request.url).origin).toBe(transportOrigin);
@@ -54,15 +54,29 @@ it("enforces a Gallery block and Owner recovery through the standalone egress po
   h.source.authDurable.fetchLike = async () =>
     Response.json({ id: "isolated-block-notice" });
   const { user } = await (await h.call("/api/auth/me", member)).json();
-  const read = (path) =>
+  const blocking = await h.region.fetch(
+    new Request("https://auth/internal/block-account", {
+      method: "POST",
+      body: JSON.stringify({
+        userId: user.id,
+        entryId: "ww5fnfambz",
+        kind: "script",
+        path: "/api/gallery/ww5fnfambz",
+      }),
+    }),
+  );
+  expect(await blocking.json()).toEqual({ blocked: true });
+  const request = (path, method = "GET") =>
     route(
       h.resources,
       new Request(ORIGIN + path, {
-        headers: { cookie: member, "user-agent": "python-requests/2.32" },
+        method,
+        headers: { cookie: member, origin: ORIGIN },
       }),
     );
-  expect((await read("/api/gallery/ww5fnfambz")).status).toBe(200);
-  const blocked = await read("/api/gallery");
+  // A blocked account still reads the Gallery; its writes are refused.
+  expect((await request("/api/gallery?tag=amplifier")).status).toBe(200);
+  const blocked = await request("/api/gallery/ww5fnfambz/like", "POST");
   expect(blocked.status).toBe(403);
   expect(await blocked.json()).toMatchObject({ error: "account-blocked" });
   expect(
@@ -72,7 +86,9 @@ it("enforces a Gallery block and Owner recovery through the standalone egress po
       })
     ).status,
   ).toBe(200);
-  expect((await read("/api/gallery?tag=amplifier")).status).toBe(200);
+  expect(
+    (await request("/api/gallery/ww5fnfambz/like", "POST")).status,
+  ).not.toBe(403);
   expect(
     network.mock.calls.map(([request]) => new URL(request.url).pathname),
   ).toContain("/api/auth/regional/security");

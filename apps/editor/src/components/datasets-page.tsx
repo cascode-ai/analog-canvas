@@ -949,7 +949,7 @@ function Netlists({
       cancelled = true;
     };
   }, [row.source, row.id, fetchLike]);
-  // Ours: the netlist alone, which spends no daily open.
+  // Ours: the netlist alone.
   useEffect(() => {
     let cancelled = false;
     void fetchLike(

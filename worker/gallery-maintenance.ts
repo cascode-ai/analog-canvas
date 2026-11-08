@@ -40,7 +40,6 @@ import {
   isAutomatedBackup,
   renderPreview,
 } from "./gallery-requests";
-import { galleryReadKeyOf } from "./gallery-read-keys";
 
 /**
  * One entry of the netlist read: the netlist its drawing prints, or null when
@@ -670,20 +669,10 @@ export async function routeGalleryMaintenance(
     segments[0] === "maintenance" &&
     segments[1] === "netlists"
   ) {
-    // The public Gallery's netlists for a reader elsewhere: a script with a
-    // read key or the read-only Gallery credential, or an admin's session.
+    // The public Gallery's netlists for a reader elsewhere, open to anyone.
     // Pages run in entry-id order; pass `nextCursor` back as `after` until it
     // is null.
     const noStore = { "cache-control": "no-store" };
-    if (
-      !hasGalleryReadToken(request, env) &&
-      !(await galleryReadKeyOf(request, env)) &&
-      !(await isAdmin(request, env))
-    )
-      return Response.json(
-        { error: "unauthorized" },
-        { status: 401, headers: noStore },
-      );
     if (request.method !== "GET")
       return Response.json(
         { error: "method-not-allowed" },

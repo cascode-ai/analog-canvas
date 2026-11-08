@@ -357,17 +357,7 @@ describe("the drawing a server match is compared with", () => {
     expect((opened as typeof stored).documents[0]!.instances).toHaveLength(2);
   });
 
-  it("says why it cannot compare: the day's opens, or a changed circuit", async () => {
-    await expect(
-      comparisonCandidate(
-        match(),
-        serving(429, {
-          error: "daily-open-limit",
-          limit: 100,
-          resetAt: "2026-10-08T00:00:00.000Z",
-        }),
-      ),
-    ).resolves.toMatch(/^You have opened 100 Gallery circuits today/u);
+  it("says why it cannot compare: a changed circuit, or an older check", async () => {
     await expect(
       comparisonCandidate(
         match(),

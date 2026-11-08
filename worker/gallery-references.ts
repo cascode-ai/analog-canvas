@@ -4,7 +4,6 @@
 // their original figures are comparisons.
 
 import type { SessionUser } from "./auth-do";
-import { galleryReadKeyOf } from "./gallery-read-keys";
 import { callGallery } from "./gallery-requests";
 import { gallerySourceOfEntryId } from "./gallery-sources";
 import type { GalleryEnv } from "./gallery-store";
@@ -22,14 +21,7 @@ export async function routeReference(
   const entryId = segments[0]!;
   if (gallerySourceOfEntryId(entryId))
     return Response.json({ error: "not-found" }, { status: 404 });
-  const viewer = await readSession();
-  const keyReads =
-    request.method === "GET" && (await galleryReadKeyOf(request, env)) !== null;
-  if (!viewer && !keyReads)
-    return Response.json(
-      { error: "sign-in-required" },
-      { status: 401, headers: NO_STORE },
-    );
+  // Anyone reads it; only a signed-in account puts or removes one.
   if (request.method === "GET") {
     const { status, payload } = await callGallery<{
       type?: string;
@@ -61,7 +53,7 @@ export async function routeReference(
     return Response.json({ error: "not-found" }, { status: 404 });
   if (!sameOrigin(request))
     return Response.json({ error: "forbidden" }, { status: 403 });
-  // A read key writes nothing.
+  const viewer = await readSession();
   if (!viewer)
     return Response.json(
       { error: "sign-in-required" },
