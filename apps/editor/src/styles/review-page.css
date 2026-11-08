@@ -157,10 +157,12 @@
   min-width: 0;
 }
 
+/* One line however narrow the column: the source shortens, never wraps. */
 .review-cols h4 {
   display: flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
   min-height: 24px;
   margin: 0 0 4px;
   color: var(--icm-text-muted);
@@ -171,13 +173,17 @@
 }
 
 .review-cols h4 span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
 }
 
-/* Fix in editor sits on the drawing's own title row. */
+/* Open sits on the drawing's own title row. */
 .review-cols h4 .review-edit {
+  flex: none;
   margin-left: auto;
   padding: 2px 10px;
   border: 1px solid var(--icm-border-strong, var(--icm-border));

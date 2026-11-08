@@ -214,7 +214,10 @@ their IDs, never resolved to the first.
   `set-property` on such a part names `set-signal-flow`.
 - `tcoil` is a bridged T-coil (k plus bridge capacitor CB). A plain
   centre-tapped inductor (an LC tank fed at its tap) is `center-tap-inductor`:
-  two series halves meeting at pin 3, uncoupled unless k is given.
+  two series halves meeting at pin 3, uncoupled unless k is given. A SKY130
+  inductor (`set-model` `sky130_fd_pr__ind_03_90`,
+  `sky130_fd_pr__ind_05_125` or `sky130_fd_pr__ind_05_220`) is drawn with
+  it: A, B and CT are pins 1, 2 and 3, and SUB is set with `set-terminal-net`.
 
 ### Controlled sources
 

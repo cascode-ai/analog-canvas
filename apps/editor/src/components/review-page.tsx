@@ -319,7 +319,7 @@ export function ReviewPage({
     [scope],
   );
 
-  // Back from the editor (Fix in editor opens a tab): a drawing changed
+  // Back from the editor (Open puts it in a tab): a drawing changed
   // there shows its new version here; reviews of the old one no longer count.
   useEffect(() => {
     if (!card) return;
@@ -968,9 +968,9 @@ function ReviewItem({
               href={`/g/${encodeURIComponent(card.id)}`}
               target="_blank"
               rel="noopener"
-              title="Fix this drawing in the editor (a new tab); come back here and it refreshes"
+              title="Open this drawing in the editor (a new tab) to fix it; come back here and it refreshes"
             >
-              Fix in editor ↗
+              Open ↗
             </a>
           </h4>
           {picture(redraw, "redraw")}

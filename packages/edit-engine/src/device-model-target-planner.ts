@@ -46,6 +46,7 @@ function externalTerminalId(masterName: string, index: number): string {
 function matchingReviewedExternalDefinition(
   project: CircuitProject,
   definitionId: string,
+  symbolId: string,
 ) {
   const definition = project.externalSubcircuitDefinitions.find(
     (candidate) => candidate.id === definitionId,
@@ -55,6 +56,7 @@ function matchingReviewedExternalDefinition(
   const binding = resolveReviewedExternalBinding(
     definition.name,
     definition.terminals.map((terminal) => terminal.name),
+    symbolId,
   );
   if (!binding) return undefined;
   return { definition, binding };
@@ -401,6 +403,7 @@ export function planSetDeviceModelTarget(
       ? matchingReviewedExternalDefinition(
           project,
           instance.netlist.binding.definitionId,
+          instance.symbolId,
         )
       : undefined;
   // A part drawn with a block symbol returns to the symbol its reviewed

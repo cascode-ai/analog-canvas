@@ -192,13 +192,16 @@ export function matchesReviewSearch(card: ReviewCard, text: string): boolean {
   );
 }
 
-/** The authors of a list with their drawings, most first, then by name. */
+/**
+ * The people who drew a list's community drawings, most first, then by name.
+ * A dataset's drawings carry its byline; its own row above already picks them.
+ */
 export function reviewAuthors(
   cards: readonly ReviewCard[],
 ): { author: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const card of cards)
-    if (card.author)
+    if (card.author && card.scope === "community")
       counts.set(card.author, (counts.get(card.author) ?? 0) + 1);
   return [...counts]
     .map(([author, count]) => ({ author, count }))

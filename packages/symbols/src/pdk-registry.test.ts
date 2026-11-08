@@ -32,8 +32,8 @@ describe("PDK symbol mapping registry", () => {
     ).toMatchObject({ symbolId: "capacitor", pinNames: ["1", "2", "B"] });
     expect(resolvePdkSymbolMapping("sky130_fd_pr__ind_03_90", 4)).toMatchObject(
       {
-        symbolId: "inductor",
-        pinNames: ["1", "2", "CT", "SUB"],
+        symbolId: "center-tap-inductor",
+        pinNames: ["1", "2", "3", "SUB"],
       },
     );
   });
@@ -104,10 +104,11 @@ describe("PDK symbol mapping registry", () => {
     // Import builds a reviewed definition and the instance's pins from two
     // lookups; they agree only when each binding's symbol can be drawn.
     for (const binding of reviewedExternalDeviceBindings)
-      expect(
-        resolvePdkSymbolMapping(binding.masterName, binding.terminals.length)
-          ?.registryId,
-        binding.masterName,
-      ).toBe(binding.id);
+      if (!binding.legacy)
+        expect(
+          resolvePdkSymbolMapping(binding.masterName, binding.terminals.length)
+            ?.registryId,
+          binding.masterName,
+        ).toBe(binding.id);
   });
 });
