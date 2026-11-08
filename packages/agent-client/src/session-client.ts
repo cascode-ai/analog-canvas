@@ -12,6 +12,9 @@ export interface ConnectReport {
   projectId: string;
   documentIds: string[];
   tokenExpiresAt: number;
+  /** The scopes this session's claim or resume granted. */
+  scopes: string[];
+  /** The Circuit resource's capabilities, not the whole session's. */
   capabilities: {
     operations: string[];
     editKinds: string[];
@@ -163,6 +166,7 @@ export class AgentSessionClient extends AgentSessionTransactions {
       projectId: this.session?.projectId ?? "",
       documentIds: [...(this.session?.documentIds ?? [])],
       tokenExpiresAt: this.session?.tokenExpiresAt ?? 0,
+      scopes: [...(this.session?.scopes ?? [])],
       capabilities: {
         operations: [...capabilities.capabilities.operations],
         editKinds: [...capabilities.capabilities.editKinds],

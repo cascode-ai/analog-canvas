@@ -5,7 +5,7 @@ import {
 } from "@icm/agent-adapter";
 import { AgentSessionClient, AgentSessionError } from "@icm/agent-client";
 import { FakeAgentHttp } from "../../../packages/agent-client/src/test-support/fake-relay.js";
-import { callTool, listToolDefinitions } from "./tools.js";
+import { callTool, listToolDefinitions, toolGroups } from "./tools.js";
 import type { ToolSessionState } from "./tools.js";
 import { readResourceContent } from "./resources.js";
 import { assembleServer, resolveConfig } from "./server.js";
@@ -242,6 +242,24 @@ describe("mcp tool surface", () => {
     const serialized = JSON.stringify(tools);
     expect(serialized).not.toContain("align_instances");
     expect(serialized).not.toContain("add_power_rail");
+  });
+  // connect's access.tools is what an Agent takes as this server's surface.
+  it("groups every listed tool, and only listed tools, for connect", () => {
+    const groups = toolGroups();
+    expect(Object.keys(groups).sort()).toEqual([
+      "circuit",
+      "components",
+      "files",
+      "gallery",
+      "project",
+      "session",
+      "simulation",
+    ]);
+    expect(Object.values(groups).flat().sort()).toEqual(
+      listToolDefinitions()
+        .map((tool) => tool.name)
+        .sort(),
+    );
   });
   // Every Agent context pays for every description on every turn, so a long
   // workflow or policy text belongs in a reference the description links to.
