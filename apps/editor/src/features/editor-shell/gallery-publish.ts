@@ -85,7 +85,7 @@ export async function loadGalleryPublicationContext(
   projectId: string,
   fetchLike: typeof fetch = fetch,
 ): Promise<GalleryEntryContext | null> {
-  // The entry's details alone: they cost no daily open.
+  // The entry's details alone.
   const response = await fetchLike(
     `/api/gallery/${encodeURIComponent(id)}?summary=1`,
     { credentials: "same-origin", cache: "no-store" },

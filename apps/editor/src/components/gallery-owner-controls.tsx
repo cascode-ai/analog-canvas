@@ -102,7 +102,7 @@ export function GalleryTileMenu({
               <button
                 type="button"
                 data-testid={`gallery-reference-${entry.id}`}
-                title="An image you may share, such as the figure you drew it from. Signed-in readers see it beside the drawing in Review."
+                title="An image you may share, such as the figure you drew it from. Anyone sees it beside the drawing in Review."
                 onClick={(event) => {
                   close(event.currentTarget);
                   setReferenceOpen(true);

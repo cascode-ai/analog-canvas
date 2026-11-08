@@ -1,5 +1,4 @@
 import type { GalleryFeedState } from "../gallery-client";
-import { GalleryBlockedNotice } from "./gallery-blocked-notice";
 import {
   galleryFiltersNarrowQuery,
   type GalleryFilterState,
@@ -17,14 +16,12 @@ export function GalleryWallEmpty({
   signedIn,
   datasetName,
 }: {
-  state: Pick<GalleryFeedState, "status" | "failure" | "blocked" | "entries">;
+  state: Pick<GalleryFeedState, "status" | "failure" | "entries">;
   filters: GalleryFilterState;
   narrowedName: string | null;
   signedIn: boolean;
   datasetName: string | null;
 }) {
-  if (state.status === "unavailable" && state.blocked)
-    return <GalleryBlockedNotice />;
   if (state.status === "unavailable")
     return (
       <p className="gallery-status" data-testid="gallery-unavailable">

@@ -9,7 +9,6 @@ import {
   galleryFeedQueryKey,
   loadGalleryFeed,
   galleryTagScope,
-  GALLERY_SIGN_IN_REQUIRED,
   loadGalleryTagSummary,
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
@@ -293,7 +292,7 @@ export function useGalleryWall({
         feedQuery,
       )
         ? preload.feed
-        : loadGalleryFeed(fetch, { ...feedQuery, signedOutWall: true });
+        : loadGalleryFeed(fetch, feedQuery);
     void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
@@ -304,18 +303,7 @@ export function useGalleryWall({
         setState({
           status: "unavailable",
           failure: page.message,
-          blocked: page.failure === "blocked",
           entries: [],
-          nextCursor: null,
-          total: null,
-        });
-      } else if (page === GALLERY_SIGN_IN_REQUIRED || page.signedOut) {
-        // Signed out, the server shows at most the wall's first circuits,
-        // which the veil draws dimmed; refused outright, it shows none.
-        loadedQueryRef.current = queryKey;
-        setState({
-          status: "signed-out",
-          entries: page === GALLERY_SIGN_IN_REQUIRED ? [] : page.entries,
           nextCursor: null,
           total: null,
         });
@@ -365,25 +353,11 @@ export function useGalleryWall({
     void loadGalleryFeed(fetch, { ...feedQuery, cursor }).then((page) => {
       if (generation !== feedGenerationRef.current) return;
       loadingMoreRef.current = false;
-      if (page === GALLERY_SIGN_IN_REQUIRED) {
-        // The session ended while the reader scrolled.
-        setState({
-          status: "signed-out",
-          entries: [],
-          nextCursor: null,
-          total: null,
-        });
-        return;
-      }
       if (isRequestFailure(page)) {
         // The wall stays; the reader sees why it stopped and retries.
         setState((previous) =>
           previous.status === "ready" && previous.nextCursor === cursor
-            ? {
-                ...previous,
-                failure: page.message,
-                blocked: page.failure === "blocked",
-              }
+            ? { ...previous, failure: page.message }
             : previous,
         );
         return;
@@ -393,7 +367,6 @@ export function useGalleryWall({
           ? {
               ...previous,
               failure: undefined,
-              blocked: undefined,
               // A linked circuit shown first stays only there when its own
               // page arrives.
               entries: [

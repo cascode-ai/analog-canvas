@@ -1,10 +1,6 @@
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
-import {
-  SIGNED_OUT_WALL_SIZE,
-  forgetEarlierOpens,
-  routeGalleryRequest,
-} from "./gallery";
+import { routeGalleryRequest } from "./gallery";
 import { galleryReadableDocument } from "./gallery-documents";
 import {
   SHORT_ID_LENGTH,
@@ -12,18 +8,15 @@ import {
   svgPreviewDimensions,
 } from "./gallery-store";
 import workerEntry from "./index";
-import { withoutReservedEntries } from "../apps/editor/src/gallery-reserved-ids";
 import {
   type Harness,
   ORIGIN,
-  READER_TOKEN,
   adminOf,
   cookieHeaders,
   environment,
   makerOf,
   projectText,
   route,
-  seatOf,
   submitOne,
   wiredProjectText,
 } from "./gallery.test-support";
@@ -57,34 +50,31 @@ describe("Gallery readers", () => {
       env,
     ))!;
 
-  it("refuses every other read to a visitor without a session or the read credential", async () => {
+  it("serves every read to anyone, signed in or not, with no count of reads", async () => {
     const env = environment();
-    // The unfiltered first page and its previews are the signed-out wall's
-    // (below); every other read asks to sign in.
     const paths = [
-      ...(await reads(env)).filter(
-        (path) =>
-          path !== "/api/gallery" &&
-          !path.includes("/preview.svg") &&
-          path !== "/api/gallery/tags" &&
-          path !== "/api/gallery/sources",
-      ),
+      ...(await reads(env)),
+      "/api/gallery/sources",
+      "/api/gallery/stats",
       "/api/gallery?q=circuit",
       "/api/gallery?limit=1",
-      "/api/gallery?cursor=x",
     ];
-    for (const headers of [
-      undefined,
-      { Authorization: "Bearer wrong" },
-      { Cookie: "session=forged" },
-    ]) {
-      const label = JSON.stringify(headers);
+    const member = cookieHeaders(await makerOf(env));
+    for (const headers of [undefined, member]) {
+      const label = headers ? "member" : "signed out";
       for (const path of paths) {
         const response = await direct(env, path, headers);
-        expect(response.status, `${path} ${label}`).toBe(401);
-        expect(response.headers.get("cache-control")).toBe("no-store");
-        expect(await response.json()).toEqual({ error: "sign-in-required" });
+        expect(response.status, `${path} ${label}`).toBe(200);
       }
+      // The whole wall, not a signed-out sample of it.
+      const wall = (await (
+        await direct(env, "/api/gallery", headers)
+      ).json()) as {
+        entries: unknown[];
+        signedOut?: unknown;
+      };
+      expect(wall.entries).toHaveLength(1);
+      expect(wall).not.toHaveProperty("signedOut");
     }
     for (const path of paths)
       expect(
@@ -95,123 +85,16 @@ describe("Gallery readers", () => {
           )
         )?.status,
         path,
-      ).toBe(401);
-  });
-
-  it("answers a signed-out visitor's tag counts and dataset list empty, not refused", async () => {
-    // The landing page asks before it knows who reads (2026-10-14).
-    const env = environment();
-    await submitOne(env, "Tagged", { cookie: await adminOf(env) });
-    const tags = await direct(env, "/api/gallery/tags");
-    expect(tags.status).toBe(200);
-    expect(tags.headers.get("cache-control")).toBe("no-store");
-    expect(await tags.json()).toEqual({ tags: [], groups: [] });
-    const sources = await direct(env, "/api/gallery/sources");
-    expect(sources.status).toBe(200);
-    expect(await sources.json()).toEqual({ sources: [] });
-  });
-
-  it("shows a signed-out visitor the wall's first twelve circuits, with their previews only", async () => {
-    const env = environment();
-    const admin = await adminOf(env);
-    for (let n = 1; n <= SIGNED_OUT_WALL_SIZE + 1; n += 1)
-      await submitOne(env, `Circuit ${n}`, { cookie: admin });
-    const member = cookieHeaders(await makerOf(env));
-    const listed = (await (
-      await direct(env, "/api/gallery", member)
-    ).json()) as {
-      entries: { id: string; previewRevision: string }[];
-    };
-    // As the client reads it: without the trap circuit (gallery-traps.ts).
-    const wall = { entries: withoutReservedEntries(listed.entries) };
-    expect(wall.entries).toHaveLength(SIGNED_OUT_WALL_SIZE + 1);
-
-    const beforeSignedOut = env.galleryQueries.length;
-    const signedOut = await direct(env, "/api/gallery");
-    expect(signedOut.status).toBe(200);
-    expect(signedOut.headers.get("cache-control")).toBe("no-store");
-    const shown = (await signedOut.json()) as {
-      entries: { id: string }[];
-      nextCursor: unknown;
-      signedOut: unknown;
-      total?: unknown;
-    };
-    // The wall's own first twelve, no further page and no count.
-    expect(shown.entries.map((entry) => entry.id)).toEqual(
-      wall.entries.slice(0, SIGNED_OUT_WALL_SIZE).map((entry) => entry.id),
+      ).not.toBe(401);
+    // Writes still need a session.
+    const like = await routeGalleryRequest(
+      new Request(`${ORIGIN}${paths[4]}/like`, {
+        method: "POST",
+        headers: { Origin: ORIGIN },
+      }),
+      env,
     );
-    expect(shown.nextCursor).toBeNull();
-    expect(shown.signedOut).toBe(true);
-    expect(shown).not.toHaveProperty("total");
-    expect(
-      env.galleryQueries
-        .slice(beforeSignedOut)
-        .filter((query) =>
-          /^\s*SELECT (?:COUNT|MAX|json_extract)/iu.test(query),
-        ),
-    ).toEqual([]);
-    // The wall asks in its order, shuffled by default (#1615); signed out,
-    // the answer is the same twelve, and any filter still asks to sign in.
-    for (const order of ["?order=random&seed=abc123", "?order=parts"]) {
-      const ordered = await direct(env, `/api/gallery${order}`);
-      expect(ordered.status, order).toBe(200);
-      expect(await ordered.json(), order).toEqual(shown);
-    }
-    expect(
-      (await direct(env, "/api/gallery?order=parts&q=Circuit")).status,
-    ).toBe(401);
-    // Only what the dimmed tile draws: no byline, description, tags or counts.
-    for (const entry of shown.entries)
-      expect(Object.keys(entry).sort()).toEqual([
-        "id",
-        "name",
-        "previewRevision",
-      ]);
-
-    const preview = (entry: { id: string; previewRevision: string }) =>
-      direct(
-        env,
-        `/api/gallery/${entry.id}/preview.svg?v=${entry.previewRevision}`,
-      );
-    const first = await preview(wall.entries[0]!);
-    expect(first.status).toBe(200);
-    expect(first.headers.get("content-type")).toBe("image/svg+xml");
-    const thirteenth = await preview(wall.entries[SIGNED_OUT_WALL_SIZE]!);
-    expect(thirteenth.status).toBe(401);
-    expect(await thirteenth.json()).toEqual({ error: "sign-in-required" });
-    // Opening one of the twelve still asks to sign in.
-    expect(
-      (await direct(env, `/api/gallery/${wall.entries[0]!.id}`)).status,
-    ).toBe(401);
-  });
-
-  it("serves a signed-in member and the read credential every read", async () => {
-    const env = environment();
-    const paths = await reads(env);
-    const member = await makerOf(env);
-    for (const path of paths) {
-      // History stays its owner's or an admin's; the rest is any reader's.
-      const expected = path.endsWith("/versions") ? 401 : 200;
-      const read = await direct(env, path, cookieHeaders(member));
-      expect(read.status, path).toBe(expected);
-      if (expected === 401)
-        expect(((await read.json()) as { error: string }).error).not.toBe(
-          "sign-in-required",
-        );
-      expect(
-        (
-          await direct(env, path, {
-            Authorization: `Bearer ${READER_TOKEN}`,
-          })
-        ).status,
-        path,
-      ).toBe(expected);
-    }
-    const preview = await direct(env, paths.at(-1)!, cookieHeaders(member));
-    // A reader's browser may keep the image; a shared cache may not.
-    expect(preview.headers.get("cache-control")).toBe(
-      "private, max-age=31536000, immutable",
-    );
+    expect(like?.status).toBe(401);
   });
 });
 
@@ -253,109 +136,29 @@ describe("a circuit's netlist for a reader without the editor (2026-10-14)", () 
     ).json()) as { netlist?: { text?: string } };
     expect(written.netlist?.text).toContain(".end");
     expect((await read("")).netlist).toBeUndefined();
-    expect((await read("?summary=1&netlist=spice")).netlist).toBeUndefined();
+    // With the tile alone, the netlist alone: no Project Code.
+    const alone = (await read("?summary=1&netlist=spice")) as {
+      netlist?: { format?: string };
+      projectText?: unknown;
+    };
+    expect(alone.netlist?.format).toBe("spice");
+    expect(alone).not.toHaveProperty("projectText");
   });
 });
 
-describe("daily Gallery opens", () => {
+describe("Gallery opens", () => {
   const opens = (env: Harness) =>
     env.gallerySql
-      .exec<{
-        day: string;
-        user_id: string;
-        entry_id: string;
-      }>("SELECT * FROM gallery_daily_opens ORDER BY entry_id")
+      .exec<{ entry_id: string; opens: number }>(
+        "SELECT entry_id, opens FROM gallery_entry_opens ORDER BY entry_id",
+      )
       .toArray();
 
-  it("counts each circuit once a day and refuses the 101st, never the wall", async () => {
-    const env = environment();
-    const admin = await adminOf(env);
-    const first = await submitOne(env, "First circuit", { cookie: admin });
-    const second = await submitOne(env, "Second circuit", { cookie: admin });
-    const member = cookieHeaders(await makerOf(env));
-    const read = (path: string) =>
-      route(env, new Request(`${ORIGIN}${path}`, { headers: member }));
-    expect((await read(`/api/gallery/${first}`)).status).toBe(200);
-    expect((await read(`/api/gallery/${first}`)).status).toBe(200);
-    expect(opens(env)).toHaveLength(1);
-    const { day, user_id: userId } = opens(env)[0]!;
-    // The rest of the day's allowance, spent on other circuits.
-    for (let n = 0; n < 99; n += 1)
-      env.gallerySql.exec(
-        "INSERT INTO gallery_daily_opens VALUES (?, ?, ?)",
-        day,
-        userId,
-        `seen-${n}`,
-      );
-    const refused = await read(`/api/gallery/${second}`);
-    expect(refused.status).toBe(429);
-    expect(refused.headers.get("retry-after")).toMatch(/^\d+$/u);
-    expect(await refused.json()).toEqual({
-      error: "daily-open-limit",
-      limit: 100,
-      resetAt: new Date(
-        Date.parse(`${day}T00:00:00Z`) + 86_400_000,
-      ).toISOString(),
-    });
-    // What was opened today, the tile, the wall and the preview still answer.
-    expect((await read(`/api/gallery/${first}`)).status).toBe(200);
-    const tile = await read(`/api/gallery/${second}?summary=1`);
-    expect(tile.status).toBe(200);
-    const { entry, ...rest } = (await tile.json()) as {
-      entry: { previewRevision: string };
-    };
-    expect(rest).not.toHaveProperty("projectText");
-    expect((await read("/api/gallery")).status).toBe(200);
-    expect(
-      (
-        await read(
-          `/api/gallery/${second}/preview.svg?v=${entry.previewRevision}`,
-        )
-      ).status,
-    ).toBe(200);
-    expect(opens(env)).toHaveLength(100);
-  });
-
-  it("counts no author, curator, AI account or read credential, and forgets earlier days", async () => {
-    const env = environment();
-    const admin = await adminOf(env);
-    const theirs = await submitOne(env, "Curated", { cookie: admin });
-    const maker = await makerOf(env);
-    const own = await submitOne(env, "Own work", { cookie: maker });
-    const seat = await seatOf(env);
-    env.gallerySql.exec(
-      "INSERT INTO gallery_daily_opens VALUES ('2000-01-01', 'someone', 'old')",
-    );
-    // A request without a session reads with the Gallery credential here.
-    for (const [path, headers] of [
-      [`/api/gallery/${theirs}`, cookieHeaders(admin)],
-      [`/api/gallery/${own}`, cookieHeaders(maker)],
-      [`/api/gallery/${theirs}`, cookieHeaders(seat)],
-      [`/api/gallery/${theirs}`, {}],
-    ] as const)
-      expect(
-        (await route(env, new Request(`${ORIGIN}${path}`, { headers }))).status,
-      ).toBe(200);
-    expect(opens(env).map((row) => row.entry_id)).toEqual(["old"]);
-    await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${theirs}`, {
-        headers: cookieHeaders(maker),
-      }),
-    );
-    expect(opens(env).map((row) => row.entry_id)).toEqual([theirs]);
-  });
-
-  it("leaves backups alone, and is forgotten the next day or with the account", async () => {
+  it("counts each read of a circuit, never who, never its author, with no daily cap", async () => {
     const env = environment();
     env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
-    const id = await submitOne(env, "Circuit", { cookie: await adminOf(env) });
-    const maker = cookieHeaders(await makerOf(env));
-    const open = () =>
-      route(
-        env,
-        new Request(`${ORIGIN}/api/gallery/${id}`, { headers: maker }),
-      );
+    const maker = await makerOf(env);
+    const id = await submitOne(env, "Circuit", { cookie: maker });
     const revision = async () =>
       (
         (await (
@@ -369,23 +172,26 @@ describe("daily Gallery opens", () => {
         ).json()) as { snapshotRevision: string }
       ).snapshotRevision;
     const before = await revision();
-    await open();
-    expect(opens(env)).toHaveLength(1);
+    const read = (path: string, headers?: HeadersInit) =>
+      routeGalleryRequest(
+        new Request(`${ORIGIN}${path}`, headers ? { headers } : {}),
+        env,
+      );
+    for (let n = 0; n < 120; n += 1)
+      expect((await read(`/api/gallery/${id}`))?.status).toBe(200);
+    // Its author's reads and a tile's summary are not opens.
+    await read(`/api/gallery/${id}`, cookieHeaders(maker));
+    await read(`/api/gallery/${id}?summary=1`);
+    expect(opens(env)).toEqual([{ entry_id: id, opens: 120 }]);
+    expect(
+      env.gallerySql
+        .exec(
+          "SELECT name FROM sqlite_master WHERE name = 'gallery_daily_opens'",
+        )
+        .toArray(),
+    ).toEqual([]);
+    // Counting changes nothing a backup holds.
     expect(await revision()).toBe(before);
-    // The scheduled pass forgets every earlier day.
-    env.gallerySql.exec("UPDATE gallery_daily_opens SET day = '2000-01-01'");
-    await forgetEarlierOpens(env);
-    expect(opens(env)).toEqual([]);
-    // Deleting the account takes today's opens with it.
-    await open();
-    await env.GALLERY.getByName("gallery").fetch(
-      "https://gallery/delete-account",
-      {
-        method: "POST",
-        body: JSON.stringify({ userId: opens(env)[0]!.user_id }),
-      },
-    );
-    expect(opens(env)).toEqual([]);
   });
 });
 

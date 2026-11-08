@@ -114,12 +114,12 @@ describe("gallery version history", () => {
       ]).size,
     ).toBe(3);
 
-    // Anonymous callers see nothing.
-    const denied = await route(
+    // Anyone reads a public circuit's history.
+    const open = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}/versions`),
     );
-    expect(denied.status).toBe(401);
+    expect(open.status).toBe(200);
 
     const listed = await route(
       env,
@@ -550,9 +550,9 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
       return new Request(`${ORIGIN}/api/gallery/${id}/versions`, { headers });
     }
     expect((await route(env, versionsRequest(strangerCookie))).status).toBe(
-      401,
+      200,
     );
-    expect((await route(env, versionsRequest(null))).status).toBe(401);
+    expect((await route(env, versionsRequest(null))).status).toBe(200);
     const listed = await route(env, versionsRequest(ownerCookie));
     expect(listed.status).toBe(200);
     const { versions } = (await listed.json()) as {
@@ -566,7 +566,8 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
       env,
       new Request(previewPath, { headers: { Cookie: strangerCookie } }),
     );
-    expect(strangerPreview.status).toBe(404);
+    // A public circuit's history is anyone's to read.
+    expect(strangerPreview.status).toBe(200);
     const ownerPreview = await route(
       env,
       new Request(previewPath, { headers: { Cookie: ownerCookie } }),
@@ -574,12 +575,12 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     expect(await ownerPreview.text()).toContain("<svg");
     const projectPath = previewPath.replace("preview.svg", "project");
     for (const cookie of [null, strangerCookie]) {
-      const denied = await route(
+      const read = await route(
         env,
         new Request(projectPath, { headers: cookie ? { Cookie: cookie } : {} }),
       );
-      expect(denied.status).toBe(404);
-      expect(denied.headers.get("cache-control")).toBe("no-store");
+      expect(read.status).toBe(200);
+      expect(read.headers.get("cache-control")).toBe("no-store");
     }
     const historical = await route(
       env,

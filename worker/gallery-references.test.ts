@@ -68,7 +68,7 @@ describe("reference images", () => {
           env,
         )
       )?.status,
-    ).toBe(401);
+    ).toBe(200);
     // A dataset's entries take none.
     expect((await call(owner, {}, "ag-308")).status).toBe(404);
 

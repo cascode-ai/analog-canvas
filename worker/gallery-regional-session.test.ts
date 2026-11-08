@@ -59,9 +59,10 @@ it("stops Gallery access at the regional session lease deadline after a recent r
   localAuth.fetchLike = vi.fn(async () => {
     throw new Error("cross-border unavailable");
   });
+  // A read only a session answers: the account's publishing allowance.
   const read = () =>
     routeGalleryRequest(
-      new Request(`${origin}/api/gallery?tag=amplifier`, {
+      new Request(`${origin}/api/gallery/quota`, {
         headers: { Cookie: cookie },
       }),
       target,

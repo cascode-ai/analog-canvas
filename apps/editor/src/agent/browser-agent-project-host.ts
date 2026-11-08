@@ -29,12 +29,7 @@ import {
   loadCloudProjectForCellImport,
   type CloudCellImportLoadResult,
 } from "../features/hierarchy/cloud-cell-import";
-import {
-  dailyOpenLimitMessage,
-  GALLERY_SIGN_IN_REQUIRED,
-  loadGalleryFeed,
-  type GalleryFeedEntry,
-} from "../gallery-client";
+import { loadGalleryFeed, type GalleryFeedEntry } from "../gallery-client";
 import { isRequestFailure, requestFailureOf } from "../request-failure";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
@@ -47,9 +42,9 @@ import {
   applyProjectCopyPlacement,
 } from "../features/clipboard/project-copy";
 
-/** Signed out, the Gallery answers nothing, the Agent included. */
+/** Anyone reads the Gallery; listing an account's own entries needs it signed in. */
 const GALLERY_SIGN_IN_MESSAGE =
-  "The Community Gallery is for signed-in members; sign in to the Editor first";
+  "Sign in to the Editor first to list the AI accounts' entries";
 
 export interface BrowserAgentProjectHostOptions {
   projectTransactionOptions?: ProjectTransactionOptions;
@@ -157,22 +152,12 @@ export class BrowserAgentProjectHost {
         ...(request.cursor ? { cursor: request.cursor } : {}),
         ...(request.limit === undefined ? {} : { limit: request.limit }),
       });
-      if (page === GALLERY_SIGN_IN_REQUIRED) {
-        return this.error(
-          request,
-          "SIGN_IN_REQUIRED",
-          GALLERY_SIGN_IN_MESSAGE,
-          "sign-in",
-        );
-      }
       if (isRequestFailure(page)) {
         return this.error(
           request,
-          page.failure === "blocked"
-            ? "GALLERY_ACCOUNT_BLOCKED"
-            : "GALLERY_UNAVAILABLE",
+          "GALLERY_UNAVAILABLE",
           `The public Gallery could not be read: ${page.message}`,
-          page.failure === "blocked" ? "fix-input" : "retry",
+          "retry",
         );
       }
       return {
@@ -510,35 +495,19 @@ export class BrowserAgentProjectHost {
         "retry",
       );
     }
-    const limited = await dailyOpenLimitMessage(response);
-    if (limited)
-      return this.error(request, "GALLERY_DAILY_LIMIT", limited, "retry");
     if (!response.ok) {
-      const failure = await requestFailureOf(response);
-      if (failure.failure === "blocked")
+      if (response.status === 404)
         return this.error(
           request,
-          "GALLERY_ACCOUNT_BLOCKED",
-          failure.message,
+          "GALLERY_ENTRY_NOT_FOUND",
+          "The Gallery entry does not exist",
           "fix-input",
         );
       return this.error(
         request,
-        response.status === 404
-          ? "GALLERY_ENTRY_NOT_FOUND"
-          : response.status === 401
-            ? "SIGN_IN_REQUIRED"
-            : "GALLERY_UNAVAILABLE",
-        response.status === 404
-          ? "The Gallery entry does not exist"
-          : response.status === 401
-            ? GALLERY_SIGN_IN_MESSAGE
-            : failure.message,
-        response.status === 404
-          ? "fix-input"
-          : response.status === 401
-            ? "sign-in"
-            : "retry",
+        "GALLERY_UNAVAILABLE",
+        (await requestFailureOf(response)).message,
+        "retry",
       );
     }
     let payload: {

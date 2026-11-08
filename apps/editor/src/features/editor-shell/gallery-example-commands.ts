@@ -3,10 +3,6 @@ import { parseProject } from "@icm/project-protocol";
 import type { ReplaceProjectOptions } from "../../document/use-project-file-lifecycle";
 import type { LibraryProjectExample } from "../../examples/library-examples";
 import type { SchematicClipboard } from "../clipboard/clipboard";
-import {
-  dailyOpenLimit,
-  type GalleryDailyOpenLimit,
-} from "../../gallery-client";
 import { GRID_INCOMPATIBLE } from "../clipboard/paste-proposal";
 import { OFFLINE_FAILURE, requestFailureOf } from "../../request-failure";
 import { captureGalleryDrawing, prepareGalleryProject } from "./gallery-import";
@@ -66,11 +62,6 @@ export interface GalleryExampleCommandDependencies {
   cancelAllTransientInteraction: () => void;
   setGalleryEntryContext: (context: GalleryEntryContext) => void;
   setStatus: (status: string) => void;
-  /**
-   * The card saying the account has opened its share of Gallery circuits for
-   * the day; null clears one an earlier attempt left.
-   */
-  setDailyOpenLimit: (limit: GalleryDailyOpenLimit | null) => void;
   fetchImpl?: typeof fetch;
 }
 
@@ -101,7 +92,6 @@ export function createGalleryExampleCommands({
   cancelAllTransientInteraction,
   setGalleryEntryContext,
   setStatus,
-  setDailyOpenLimit,
   fetchImpl = fetch,
 }: GalleryExampleCommandDependencies) {
   /**
@@ -204,7 +194,6 @@ export function createGalleryExampleCommands({
    */
   const readGalleryEntry = async (
     entryId: string,
-    signInStatus: string,
   ): Promise<(GalleryEntryPayload & { projectText: string }) | null> => {
     let response: Response;
     try {
@@ -213,15 +202,6 @@ export function createGalleryExampleCommands({
       });
     } catch {
       setStatus(OFFLINE_FAILURE.message);
-      return null;
-    }
-    if (response.status === 401) {
-      setStatus(signInStatus);
-      return null;
-    }
-    const limited = await dailyOpenLimit(response);
-    if (limited) {
-      setDailyOpenLimit(limited);
       return null;
     }
     if (!response.ok) {
@@ -255,11 +235,7 @@ export function createGalleryExampleCommands({
     inTab = false,
   ): Promise<void> => {
     if (import.meta.env?.ICM_DESKTOP) return;
-    setDailyOpenLimit(null);
-    const payload = await readGalleryEntry(
-      entryId,
-      "Sign in to open Community Gallery circuits",
-    );
+    const payload = await readGalleryEntry(entryId);
     if (!payload) return;
     try {
       await installGalleryEntry(
@@ -326,11 +302,7 @@ export function createGalleryExampleCommands({
 
   const insertGalleryEntryById = async (entryId: string): Promise<void> => {
     if (import.meta.env?.ICM_DESKTOP) return;
-    setDailyOpenLimit(null);
-    const payload = await readGalleryEntry(
-      entryId,
-      "Sign in to insert Community Gallery circuits",
-    );
+    const payload = await readGalleryEntry(entryId);
     if (!payload) return;
     try {
       const imported = parseProject(payload.projectText);

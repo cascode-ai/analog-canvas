@@ -22,7 +22,6 @@ import { createDefaultGalleryFilters } from "../gallery-filters";
 import { GalleryTileMenu } from "./gallery-owner-controls";
 
 import {
-  GALLERY_SIGN_IN_REQUIRED,
   galleryAuthorsOf,
   galleryFeedQueryKey,
   galleryNarrowedByline,
@@ -101,13 +100,10 @@ function fetchReturning(payload: unknown): typeof fetch {
 
 /** A page, or null for anything that is not one. */
 const pageOf = (result: Awaited<ReturnType<typeof loadGalleryFeed>>) =>
-  typeof result === "string" || isRequestFailure(result) ? null : result;
+  isRequestFailure(result) ? null : result;
 
 describe("loadGalleryFeed", () => {
-  it("says a signed-out reader must sign in instead of calling the Gallery unavailable", async () => {
-    expect(await loadGalleryFeed(fetchStatus(401))).toBe(
-      GALLERY_SIGN_IN_REQUIRED,
-    );
+  it("says what a failed read failed on instead of calling the Gallery unavailable", async () => {
     expect(await loadGalleryFeed(fetchStatus(503))).toEqual({
       failure: "server-error",
       message: "The server could not answer (503). Try again later.",
@@ -120,31 +116,6 @@ describe("loadGalleryFeed", () => {
         throw new TypeError("Failed to fetch");
       }) as typeof fetch),
     ).toBe(OFFLINE_FAILURE);
-  });
-
-  it("gives a signed-out visitor's first circuits to the landing wall only", async () => {
-    const signedOut = fetchReturning({
-      entries: [
-        {
-          id: "g1",
-          name: "Ring",
-          author: "tz",
-          description: "",
-          createdAt: "2026-08-21T00:00:00.000Z",
-          schemaVersion: 23,
-        },
-      ],
-      nextCursor: null,
-      signedOut: true,
-    });
-    // The Insert panel and the Agent hear that the Gallery asks to sign in.
-    expect(await loadGalleryFeed(signedOut)).toBe(GALLERY_SIGN_IN_REQUIRED);
-    const page = pageOf(
-      await loadGalleryFeed(signedOut, { signedOutWall: true }),
-    );
-    expect(page?.signedOut).toBe(true);
-    expect(page?.entries.map((entry) => entry.id)).toEqual(["g1"]);
-    expect(page?.nextCursor).toBeNull();
   });
 
   it("returns a page of entries with its cursor", async () => {
@@ -583,23 +554,6 @@ describe("GalleryWallEmpty", () => {
     expect(empty({ status: "ready", entries: [] }, filtered)).toContain(
       "No circuits match the selected tags.",
     );
-  });
-
-  it("shows a blocked account a notice of its own, not a loading failure", () => {
-    const markup = empty({
-      status: "unavailable",
-      failure: "This account's Gallery access is paused.",
-      blocked: true,
-      entries: [],
-    });
-    expect(markup).toContain('data-testid="gallery-blocked"');
-    expect(markup).toContain('role="alert"');
-    expect(markup).not.toContain('data-testid="gallery-unavailable"');
-    // Why, how to report a mistake, that the check is being tested, and
-    // what still works.
-    expect(markup).toContain("mailto:zzhishuai@ethz.ch");
-    expect(markup).toContain("still being tested");
-    expect(markup).toContain("Cloud Projects and the editor work as usual");
   });
 });
 

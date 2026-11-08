@@ -14,7 +14,6 @@ import {
   subscribeGalleryRefresh,
   warmGalleryPreviews,
   withLoadedTail,
-  GALLERY_SIGN_IN_REQUIRED,
   WARMED_GALLERY_PREVIEWS,
   type GalleryFeedEntry,
 } from "./gallery-client";
@@ -235,8 +234,7 @@ describe("Gallery preview caching", () => {
     );
     expect(loaded).toHaveLength(WARMED_GALLERY_PREVIEWS);
     expect(loaded[0]).toBe(galleryPreviewUrl("e0", "r0"));
-    // A signed-out or failed first page starts nothing.
-    warmGalleryPreviews(GALLERY_SIGN_IN_REQUIRED, (url) => loaded.push(url));
+    // A failed first page starts nothing.
     warmGalleryPreviews(OFFLINE_FAILURE, (url) => loaded.push(url));
     expect(loaded).toHaveLength(WARMED_GALLERY_PREVIEWS);
   });
@@ -397,7 +395,7 @@ describe("refreshing a loaded wall", () => {
 });
 
 describe("one Gallery tile", () => {
-  it("asks for the tile alone, which costs no daily open", async () => {
+  it("asks for the tile alone", async () => {
     const fetchLike = vi.fn<typeof fetch>(async () =>
       Response.json({ status: "public", entry: { id: "entry-1" } }),
     );

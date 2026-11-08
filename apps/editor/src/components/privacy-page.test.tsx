@@ -8,7 +8,6 @@ import {
   AUTH_SESSION_TTL_SECONDS,
   AUTH_STATE_COOKIE,
 } from "../../../../worker/auth-do";
-import { GALLERY_DAILY_OPEN_LIMIT } from "../../../../worker/gallery-store";
 import {
   ANALYTICS_OPT_OUT_COOKIE,
   ANALYTICS_PERSISTENCE_IDENTITY,
@@ -53,10 +52,10 @@ describe("privacy notice", () => {
       expect(markup).not.toContain(retired);
   });
 
-  it("states the daily Gallery open allowance the Worker enforces", () => {
-    expect(renderToStaticMarkup(<PrivacyPage />)).toContain(
-      `to allow up to ${GALLERY_DAILY_OPEN_LIMIT} a day`,
-    );
+  it("says anyone reads the Gallery and no read is counted by who", () => {
+    const markup = renderToStaticMarkup(<PrivacyPage />);
+    expect(markup).toContain("anyone can read the");
+    expect(markup).not.toContain("a day. The note");
   });
 
   it("names who runs the site, the contact, and how to delete an account", () => {

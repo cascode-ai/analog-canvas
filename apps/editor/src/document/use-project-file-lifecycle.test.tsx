@@ -114,7 +114,6 @@ async function mount(
       beginCopyPlacement: () => {},
       cancelAllTransientInteraction: () => {},
       setGalleryEntryContext: () => {},
-      setDailyOpenLimit: () => {},
       setStatus: (message) => statuses.push(message),
       fetchImpl,
     });

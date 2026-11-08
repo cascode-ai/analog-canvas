@@ -214,17 +214,15 @@ it("reuses normalized dataset statistics and invalidates a replaced import", asy
 
 it("separates administrator visibility for the same reader", async () => {
   const { env } = await wallFixture();
-  env.galleryStoreStates
-    .get("source:analoggenie")!
-    .storage.sql.exec(
-      "UPDATE gallery_entries SET owner_user_id = 'someone-else', curation_json = ?",
-      JSON.stringify({
-        attention: {
-          status: "needs-attention",
-          issues: [{ kind: "other", detail: "Review" }],
-        },
-      }),
-    );
+  env.galleryStoreStates.get("source:analoggenie")!.storage.sql.exec(
+    "UPDATE gallery_entries SET owner_user_id = 'someone-else', curation_json = ?",
+    JSON.stringify({
+      attention: {
+        status: "needs-attention",
+        issues: [{ kind: "other", detail: "Review" }],
+      },
+    }),
+  );
   const read = async (isAdmin: boolean) => {
     const response = await env.GALLERY.getByName("source:analoggenie").fetch(
       "https://gallery/list",

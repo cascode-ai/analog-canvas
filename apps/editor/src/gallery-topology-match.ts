@@ -6,16 +6,15 @@ import {
   projectElectricalGraph,
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
-import { dailyOpenLimitMessage, type GalleryFeedEntry } from "./gallery-client";
+import type { GalleryFeedEntry } from "./gallery-client";
 import { closeTopologyMatches } from "./gallery-topology-selection";
-import { withoutReservedEntries } from "./gallery-reserved-ids";
 
 export interface GalleryTopologyMatch extends TopologyCorrespondence {
   entry: GalleryFeedEntry;
   /**
    * Drawing-only candidate snapshot used by comparison. A check run in this
    * browser keeps it; a server check leaves it out, and Compare opens the
-   * circuit (one daily open) only if it is still the version compared.
+   * circuit only if it is still the version compared.
    */
   candidate?: CircuitProject;
 }
@@ -37,8 +36,6 @@ export async function comparisonCandidate(
       `/api/gallery/${encodeURIComponent(match.entry.id)}`,
       { credentials: "same-origin" },
     );
-    const limited = await dailyOpenLimitMessage(response);
-    if (limited) return limited;
     if (!response.ok) return "This Gallery circuit is no longer available";
     const detail = (await response.json()) as {
       entry?: GalleryFeedEntry;
@@ -122,7 +119,6 @@ export async function scanGalleryTopologyMatches(
       if (!Array.isArray(page.entries))
         throw new Error("Invalid Gallery response");
       report.total = page.total ?? report.total;
-      page.entries = withoutReservedEntries(page.entries);
       for (let offset = 0; offset < page.entries.length; offset += 3) {
         const batch = page.entries
           .slice(offset, offset + 3)

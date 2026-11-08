@@ -235,25 +235,20 @@ export function PrivacyPage() {
             <strong>Likes</strong> are stored with your account.
           </li>
           <li>
-            <strong>Gallery circuits you open</strong>: the site notes which
-            other people&rsquo;s circuits your account opened today, to allow up
-            to 100 a day. The note is deleted shortly after the day ends (UTC),
-            or at once with your account. Each open also adds one to that
+            <strong>Gallery circuits opened</strong>: anyone can read the
+            Gallery, signed in or not. Each open adds one to that
             circuit&rsquo;s count for the day, which keeps no trace of who
             opened it.
           </li>
           <li>
-            <strong>Bulk collection</strong>: the Gallery&rsquo;s lists hold a
-            few circuits the site never shows, which only a program reading the
-            Gallery in bulk opens. An account that reads one with a program, or
-            opens two of them within a day, is blocked from the Gallery. The
-            site keeps a record of it (email address, display name and sign-in
-            method, with the time, the IP address, country and browser
-            identification of that request) and emails it to the site&rsquo;s
-            operator. The record is kept, also after the account is deleted, as
-            evidence for enforcing the usage policy. The account is told by
-            email; reply to it, or write to {contact}, if you think a block is a
-            mistake.
+            <strong>Earlier blocks</strong>: until November 2026 the site
+            blocked accounts that collected the Gallery in bulk. It keeps those
+            records (email address, display name and sign-in method, with the
+            time, the IP address, country and browser identification of that
+            request), also after the account is deleted, as evidence for
+            enforcing the usage policy. A blocked account still reads the
+            Gallery but cannot publish to it or change it; write to {contact} if
+            you think a block is a mistake.
           </li>
           <li>
             <strong>Backups</strong> of the Gallery and Cloud Projects, with the
@@ -434,11 +429,11 @@ export function PrivacyPage() {
           revokes sign-in for that account and removes its Cloud Projects and
           their history, published circuits, shared components, likes and
           reviews from the regional services. Account Settings shows cleanup
-          progress when it continues in the background. The bulk-collection
-          block record described above is retained. AnalogArena Votes are
-          unlinked as described above. Export anything you want to keep first.
-          Drawings stored only in your browser stay there. Earlier backups
-          retain copies until they expire under the backup schedule.
+          progress when it continues in the background. A block record described
+          above is retained. AnalogArena Votes are unlinked as described above.
+          Export anything you want to keep first. Drawings stored only in your
+          browser stay there. Earlier backups retain copies until they expire
+          under the backup schedule.
         </p>
         <p>
           You may also ask what data the site keeps about you, have it corrected

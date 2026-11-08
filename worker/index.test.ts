@@ -168,7 +168,7 @@ describe("hosted simulation", () => {
 });
 
 describe("the scheduled pass", () => {
-  it("forgets earlier days' Gallery opens and moves the simulation checks on even when the netlist marks fail", async () => {
+  it("moves the simulation checks on even when the netlist marks fail", async () => {
     const { default: worker } = await import("./index");
     const operations: string[] = [];
     const env = {
@@ -193,7 +193,6 @@ describe("the scheduled pass", () => {
     // With no check queued, the checks cost one read.
     expect(operations).toEqual([
       "netlistable-refresh",
-      "forget-opens",
       "simulation-check-next",
     ]);
   });

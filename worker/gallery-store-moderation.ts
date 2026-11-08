@@ -306,7 +306,6 @@ export function deleteAccount(
   const sql = state.storage.sql;
   if (!userId) return Response.json({ error: "missing-user" }, { status: 400 });
   return state.storage.transactionSync(() => {
-    sql.exec("DELETE FROM gallery_daily_opens WHERE user_id = ?", userId);
     // Copies of the other region's publications are removed by their origin.
     const entries = sql
       .exec<{

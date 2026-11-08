@@ -14,7 +14,6 @@ import {
   projectDraftingCover,
   type CircuitProject,
 } from "@icm/model";
-import { galleryReadKeyOf } from "./gallery-read-keys";
 import { galleryStatsOf, galleryStatsSourceOf } from "./gallery-stats-sources";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
@@ -542,10 +541,9 @@ export async function routeGalleryPublishing(
   env: GalleryEnv,
   segments: readonly string[],
 ): Promise<Response | null> {
-  // A `full` read key reads the version history of public circuits.
-  const historyKey = async (access: { status: string | null }) =>
-    access.status === "public" &&
-    (await galleryReadKeyOf(request, env))?.scope === "full";
+  // Anyone reads the version history of a public circuit.
+  const publicHistory = (access: { status: string | null }) =>
+    access.status === "public";
   // What a signed-in publisher may still publish today, before they fill in
   // a form the quota would refuse (#1417).
   if (
@@ -584,19 +582,13 @@ export async function routeGalleryPublishing(
       { headers: { "cache-control": "no-store" } },
     );
   }
-  // The Gallery's statistics, for any signed-in account or read key: the
-  // community's, the reference datasets' or all (`source`, all by default).
+  // The Gallery's statistics, for anyone: the community's, the reference
+  // datasets' or all (`source`, all by default).
   if (
     segments.length === 1 &&
     segments[0] === "stats" &&
     request.method === "GET"
   ) {
-    const user =
-      (await sessionUserOf(request, env)) ??
-      (await galleryReadKeyOf(request, env));
-    if (!user) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
     const { status, payload } = await galleryStatsOf(
       env,
       galleryStatsSourceOf(new URL(request.url).searchParams.get("source")),
@@ -657,7 +649,7 @@ export async function routeGalleryPublishing(
     if (!access.found) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
-    if (!access.reviewer && !access.reads && !(await historyKey(access))) {
+    if (!access.reviewer && !access.reads && !publicHistory(access)) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
     const { status, payload } = await callGallery(env, "versions", {
@@ -678,7 +670,7 @@ export async function routeGalleryPublishing(
     const access = await entryManager(request, env, segments[0]!);
     if (
       !access.found ||
-      (!access.reviewer && !access.reads && !(await historyKey(access)))
+      (!access.reviewer && !access.reads && !publicHistory(access))
     ) {
       return Response.json({ error: "not-found" }, { status: 404, headers });
     }
@@ -708,7 +700,7 @@ export async function routeGalleryPublishing(
     const access = await entryManager(request, env, segments[0]!);
     if (
       !access.found ||
-      (!access.reviewer && !access.reads && !(await historyKey(access)))
+      (!access.reviewer && !access.reads && !publicHistory(access))
     ) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }

@@ -264,18 +264,8 @@ describe("off-site Gallery backup credential", () => {
       { method: "POST", body: JSON.stringify({ table: "cloudProjects" }) },
     );
     expect(await unscoped.json()).toEqual({ error: "invalid-table" });
-    // The store credential opens no other read: the bare wall shows it only
-    // what any signed-out visitor sees.
-    expect(
-      (
-        (await (await get("/api/gallery", store)).json()) as {
-          signedOut?: boolean;
-        }
-      ).signedOut,
-    ).toBe(true);
+    // The store credential opens no other private read.
     for (const path of [
-      "/api/gallery?limit=50",
-      "/api/gallery/maintenance/netlists",
       "/api/gallery/maintenance/schema-backup?table=cloudProjects",
       "/api/projects",
     ])
@@ -481,16 +471,11 @@ describe("Gallery netlist read", () => {
     expect(second.page.nextCursor).toBeNull();
   });
 
-  it("refuses other readers, writes, unknown formats and entries off the wall", async () => {
+  it("serves anyone, and refuses writes, unknown formats and entries off the wall", async () => {
     const env = environment();
-    expect((await read(env)).status).toBe(401);
-    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
-    expect((await read(env, "", {})).status).toBe(401);
-    expect(
-      (await read(env, "", { Authorization: "Bearer wrong" })).status,
-    ).toBe(401);
+    expect((await read(env, "", {})).status).toBe(200);
     expect((await read(env, "", { Cookie: await makerOf(env) })).status).toBe(
-      401,
+      200,
     );
     expect(
       (
