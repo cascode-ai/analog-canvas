@@ -396,6 +396,32 @@ R2 b c 1k
     },
   );
 
+  it("keeps a flat circuit's file-level .param as its top Cell's parameters", async () => {
+    const source = `top param
+.param rv=2k cv={1p*2}
+R1 a 0 {rv}
+C1 a 0 {cv}
+V1 a 0 1
+`;
+    const imported = await importSpiceSources(
+      [{ path: "topparam.cir", bytes: new TextEncoder().encode(source) }],
+      "topparam.cir",
+    );
+    expect(imported.successful).toBe(true);
+    const top = imported.project!.documents.find(
+      (document) => document.id === imported.project!.topDocumentId,
+    )!;
+    expect(top.netlist?.formalParameters).toEqual([
+      { name: "rv", defaultValue: "2k" },
+      { name: "cv", defaultValue: "{1p*2}" },
+    ]);
+    const result = createDesignNetlistExport(imported.project!);
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toMatch(/\brv=2k\b/u);
+    expect(result.file.text).toContain("cv={1p*2}");
+  });
+
   it("requires an authored DC value on an older Battery drawing", () => {
     const project = createEmptyProject("battery-project", "Battery");
     project.documents[0]!.instances.push({
