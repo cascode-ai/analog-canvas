@@ -689,7 +689,9 @@ tokens and codes are stored.
   ([Account deletion](analog-arena.md#account-deletion)); AuthDO last removes
   sessions, Owner tokens, codes, counters and the row. A failing step answers 503 leaving the
   account signed in; steps are idempotent. Reply
-  `{deleted: {circuits, likes, projects, components}}`.
+  `{deleted: {circuits, likes, projects, components}}` in the single-region flow.
+  [Regional deletion](regional-login.md#account-deletion) tracks cleanup after
+  authority revocation.
 - Super-admin is computed per request from `ADMIN_EMAILS` ∪ `ADMIN_EMAILS_EXTRA`
   (comma-separated, case-insensitive). The session cookie is the only write
   credential, except an Owner token on the dataset import
@@ -783,10 +785,8 @@ ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
 - The submitting account is the only submitter identity: no IP hash or separate
   counter; email and provider only for moderators and admins.
 - Account deletion removes its entries; `/privacy` is readable signed out.
-- Off-site backups (Gallery and whole-store, including Cloud Projects) are
-  private Releases never auto-deleted and read only for recovery
-  ([off-site backups](../gallery-backup.md)); they keep rows of later-deleted
-  accounts.
+- [Off-site backup retention](../gallery-backup.md) applies to snapshots
+  containing rows of accounts deleted after capture.
 
 ## Current-cell duplicate tasks
 

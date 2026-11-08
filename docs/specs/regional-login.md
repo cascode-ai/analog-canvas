@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Primary owner: Auth. Opt-in implementation; disabled in Production.
+Primary owner: Auth. Regional login is opt-in.
 
 The overseas account authority authenticates users; a regional session store
 serves local authorization. Resource replication is owned by
@@ -92,12 +92,14 @@ serves local authorization. Resource replication is owned by
   to read that owner's resources or allocate another quota. Unknown identities
   wait for reconciliation. Resource ownership, quotas and resource deletion
   remain the data worker's responsibility.
-- Identity disappearance cannot distinguish deletion from an unknown ID. It
-  never instructs a resource store to erase data. Versioned account-deletion
-  events and resource-cleanup receipts require a separate delivery.
-- The domestic trial disables account deletion visibly in Settings and refuses
-  its API locally before contacting the authority. Existing overseas deletion
-  is unchanged; cross-region cleanup is a deferred trial limitation.
+- A missing identity is distinct from a deleted ID. Only the authority's
+  explicit deletion record permits erasure. The deleted ID is never reassigned.
+- With Project and publication replication configured, set
+  `accountDeletion: true` in both regional Auth configs after both peers
+  support the deletion feed and erased Project receipts. Settings discovers
+  support through providers. During the trial, the overseas local flow serves accounts outside the
+  cohort, and coordinated deletion is limited to admitted accounts.
+
 - Failed sign-in discovery never discards a confirmed session. Until valid
   provider settings are available, account deletion remains disabled; account
   navigation and the confirmed identity remain visible.
@@ -105,6 +107,24 @@ serves local authorization. Resource replication is owned by
   private storage; they are excluded from resource replication. Store credentials
   outside source and logs. Recovery from a stale session-store backup must
   invalidate its pending handoffs and sessions before accepting traffic.
+
+## Account deletion
+
+- A same-origin, signed-in confirmation on `POST /api/auth/account/delete`
+  starts one durable job. The authority revokes sessions, grants, handoffs and
+  keys in the same transaction. Local leases expire within their existing bound
+  if a region is unreachable. China applies explicit revocation before
+  acknowledging its cleanup.
+- Supply a random UUID v4 `requestId` with `confirm: "delete-account"`. The same
+  receipt can check progress using `{requestId, statusOnly: true}` on that path
+  after sign-out. HTTP 202 reports pending cleanup and 200 reports completion
+  in both regions. The authority stores only the receipt digest.
+- The scheduled job retries local stores and the existing Arena unlink. China
+  pulls the ordered authority feed through the fixed transport, with the Auth
+  service credential, and acknowledges only after its stores commit. A lost
+  reply is safe to repeat. Keep the authority deletion ledger across restores.
+  See [backup retention](../gallery-backup.md) and
+  [regional recovery](../deployment.md#point-in-time-recovery).
 
 ## Contract
 
@@ -125,7 +145,8 @@ production bindings, migrations or credentials are activated by this change.
 | Regional `GET /api/auth/regional/callback`      | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                                                         |
 | Authority `POST /api/auth/regional/exchange`    | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt, restrictionRevision}`.                                                                            |
 | Authority `POST /api/auth/regional/renew`       | Authenticated region; `{grant}` → `{user, expiresAt, restrictionRevision}`.                                                                                            |
-| Authority `POST /api/auth/regional/identities`  | Authenticated importer; `{userIds}` (up to 100 IDs) → `{identities: [{id, status: "found", user} \| {id, status: "missing"}]}`.                                        |
+| Authority `POST /api/auth/regional/identities`  | Authenticated importer. Each of up to 100 requested IDs is `found` with its user, `deleted` or `missing`.                                                              |
+| Authority `POST /api/auth/regional/deletions`   | Authenticated region. `{after}` reads one ordered job as `{version: 1, job}`. `{acknowledge: sequence}` records completed China cleanup.                               |
 | Authority `POST /api/auth/regional/account`     | Authenticated region; `{grant, method, path, body}` → `{result: {status, body}, user, expiresAt, restrictionRevision, restrictions?}` for the exact account allowlist. |
 | Authority `POST /api/auth/regional/owner-token` | Authenticated region; `{token}` → `{user}` or 401. Only internal import authorization consumes this result.                                                            |
 | Authority `POST /api/auth/regional/security`    | Authenticated region; `{path, body}` for the three exact internal security/notification operations → `{result: {status, body}, restrictions?}`.                        |
@@ -145,6 +166,9 @@ Unauthorized/invalid grants return 401, malformed requests 400, disabled routes
 binding rather than accepting browser-supplied user IDs or service credentials.
 The same client credential authorizes identity lookup; it is not a global
 Cloudflare management token. This implementation admits one configured client.
+
+Deletion on the account RPC returns its progress result without a session
+lease. A receipt can query progress without a grant.
 
 ## Acceptance criteria
 

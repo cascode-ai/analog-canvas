@@ -1,4 +1,4 @@
-import registry from "../config/gallery-sources.json";
+import registry from "../config/gallery-sources.json" with { type: "json" };
 
 /**
  * Reference datasets the Gallery opens beside the community wall (#1510):

@@ -17,6 +17,7 @@ import { routeComponentLibraryRequest } from "./component-library";
 import { ComponentLibraryDO, GalleryDO } from "./index";
 import { routeGalleryRequest } from "./gallery";
 import { routeResourceSync } from "./resource-sync";
+import { RegionalSessionDO } from "./regional-session";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -1617,4 +1618,160 @@ it("accepts gzip peer bodies and bounds their decompressed size", async () => {
   );
   expect(accepted!.status).toBe(200);
   expect((await cn.call(`/api/gallery/${id}`)).status).toBe(200);
+});
+
+it("removes both regional copies and consumes stale publication and component snapshots", async () => {
+  const enabled = JSON.stringify({
+    ...JSON.parse(AUTHORITY),
+    accountDeletion: true,
+  });
+  let source: Site;
+  const auth = environment({
+    AUTH_REGIONAL_AUTHORITY: enabled,
+    GALLERY: { getByName: (name) => source.env.GALLERY.getByName(name) },
+    COMPONENT_LIBRARY: {
+      getByName: () => source.env.COMPONENT_LIBRARY.getByName(),
+    },
+  });
+  source = await region("overseas", auth);
+  const peer = await region("cn", auth);
+  const id = await publish(source, "Retiring drawing");
+  const kept = await publish(source, "Keep unrelated drawing", true);
+  const component = "/api/components/retiring-component";
+  const definition = {
+    symbol: builtInSymbols.find((symbol) => symbol.id === "resistor")!,
+    electrical: deviceDescriptor("resistor"),
+  };
+  expect(
+    (await source.call(component, "PUT", { definition, revision: 0 })).status,
+  ).toBe(200);
+  const staleGallery = await firstChange(source);
+  const staleComponent = await firstChange(source, "components");
+  await drain(source, peer, "gallery");
+  await drain(source, peer, "components");
+  const like = await peer.call(
+    "/api/gallery/" + id + "/like",
+    "POST",
+    {},
+    undefined,
+    true,
+  );
+  expect(await like.json()).toMatchObject({ likes: 1 });
+  const staleLike = await firstChange(peer, "gallery-interactions");
+  const restored = await region("overseas", auth);
+  const restoredId = await publish(restored, "Prior source backup");
+  const beforeReplay = await restored.call(
+    "/api/resource-sync/gallery/status",
+    "GET",
+    undefined,
+    "peer-secret",
+  );
+  const priorSequence = (await beforeReplay.json()).sequence;
+  peer.closeWrites();
+
+  const response = await auth.authDurable.fetch(
+    new Request(ORIGIN + "/api/auth/account/delete", {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie: source.cookie },
+      body: JSON.stringify({
+        requestId: crypto.randomUUID(),
+        confirm: "delete-account",
+      }),
+    }),
+  );
+  expect(response.status).toBe(202);
+  const tick = new Request("https://auth/internal/account-deletion-tick", {
+    method: "POST",
+  });
+  expect((await auth.authDurable.fetch(tick.clone())).status).toBe(200);
+  // The publication deletion can arrive before the authority cleanup tick.
+  await drain(source, peer, "gallery");
+  const withdrawn = await firstChange(peer, "gallery-interactions");
+  expect(JSON.parse(withdrawn.payload).rows[0]).toEqual([]);
+  expect(JSON.parse(withdrawn.payload).sequence).toBe(
+    JSON.parse(staleLike.payload).sequence,
+  );
+  const delayed = await source.call(
+    "/api/resource-sync/gallery-interactions/changes",
+    "POST",
+    staleLike,
+    "peer-secret",
+  );
+  expect(delayed.status).toBe(200);
+  const storage = { ...sqliteState().storage, setAlarm: async () => {} };
+  const session = new RegionalSessionDO(
+    { storage },
+    {
+      ...peer.env,
+      AUTH_REGIONAL_CLIENT: enabled,
+    },
+  );
+  expect((await session.fetch(tick.clone())).status).toBe(200);
+  for (const site of [source, peer]) {
+    expect(
+      (await site.call("/api/gallery/" + id, "GET", undefined, undefined, true))
+        .status,
+    ).toBe(404);
+    expect((await site.call(component)).status).toBe(404);
+    expect(
+      (
+        await site.call(
+          "/api/gallery/" + kept,
+          "GET",
+          undefined,
+          undefined,
+          true,
+        )
+      ).status,
+    ).toBe(200);
+  }
+  const rebuilt = await region("cn", auth);
+  for (const [stream, stale] of [
+    ["gallery", staleGallery],
+    ["components", staleComponent],
+  ]) {
+    const applied = await rebuilt.call(
+      "/api/resource-sync/" + stream + "/changes",
+      "POST",
+      stale,
+      "peer-secret",
+    );
+    expect(applied.status).toBe(200);
+  }
+  expect((await rebuilt.call("/api/gallery/" + id)).status).toBe(404);
+  expect((await rebuilt.call(component)).status).toBe(404);
+
+  const restoredRuntime = {
+    ...restored.env,
+    PROJECT_REGION: "overseas" as const,
+    PROJECT_SYNC_TOKEN: "restore-peer",
+    PROJECT_SYNC_ADMIN_TOKEN: "restore-admin",
+  };
+  const replay = await routeGalleryRequest(
+    new Request(ORIGIN + "/api/project-sync/recover-account-deletions", {
+      method: "POST",
+      headers: { authorization: "Bearer restore-admin" },
+      body: JSON.stringify({ after: 0 }),
+    }),
+    restoredRuntime,
+  );
+  expect(replay?.status).toBe(200);
+  const recovered = await restored.call(
+    "/api/resource-sync/gallery/status",
+    "GET",
+    undefined,
+    "peer-secret",
+  );
+  expect((await recovered.json()).sequence).toBe(priorSequence);
+  expect(
+    (
+      await restored.call(
+        "/api/gallery/" + restoredId,
+        "GET",
+        undefined,
+        undefined,
+        true,
+      )
+    ).status,
+  ).toBe(404);
 });

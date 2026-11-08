@@ -18,6 +18,7 @@ export type RegionalConfig = {
   /** Fixed authority backend; independent of browser geographic routing. */
   transportOrigin?: string;
   secret: string;
+  accountDeletion?: boolean;
 };
 
 export function regionalConfig(
@@ -80,6 +81,7 @@ export function isRegionalAccountRoute(method: string, path: string): boolean {
     return true;
   return [
     "POST /api/auth/profile",
+    "POST /api/auth/account/delete",
     "POST /api/auth/users/role",
     "GET /api/auth/admin/stats",
     "GET /api/auth/owner-tokens",

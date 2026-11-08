@@ -96,11 +96,17 @@ signed in, without the token. Fields:
 
 ## Recovery
 
+Live account cleanup is independent of backup expiry. Private Release copies
+expire through the retention above, Cloudflare bookmarks after their recovery
+window, and local snapshots under the regional host's backup policy. Keep
+exported operator copies access-controlled and apply their retention separately.
+
 Follow the Release archive's README. Inspect rows offline first, keep original
 IDs, history and likes, and take a new live backup before any administrator
 write. **Never feed a Gallery-only snapshot to `schema-restore`**: it also
-replaces private Cloud Projects. Within 30 days use
-[point-in-time recovery](deployment.md#point-in-time-recovery). Investigate any
+replaces private Cloud Projects. Use the
+[recovery rules for the active region](deployment.md#point-in-time-recovery).
+Investigate any
 failed or missing run; keep local copies as a second destination.
 
 ## Tools on snapshots

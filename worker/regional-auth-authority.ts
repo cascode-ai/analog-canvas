@@ -1,4 +1,8 @@
 import { AUTH_OWNER_COOKIE, type SessionUser } from "./auth-do";
+import {
+  ACCOUNT_DELETE_PATH,
+  type AccountDeletions,
+} from "./account-deletions";
 import { regionalLoginPage } from "./regional-login-page";
 import {
   answer,
@@ -57,6 +61,7 @@ export class RegionalAuthority {
     private readonly relatedRestrictions: (
       id: string,
     ) => { id: string; blocked: boolean }[],
+    private readonly deletions: AccountDeletions,
   ) {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_codes (
       code_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL,
@@ -88,7 +93,14 @@ export class RegionalAuthority {
       const body = await readBody(request);
       if (!body) return answer({ error: "invalid-request" }, 400);
       if (url.pathname === REGIONAL_PREFIX + "providers")
-        return answer(this.providers);
+        return answer({
+          ...this.providers,
+          ...(this.config.accountDeletion === true
+            ? { accountDeletion: true }
+            : {}),
+        });
+      if (url.pathname === REGIONAL_PREFIX + "deletions")
+        return this.deletions.feed(body);
       if (url.pathname === REGIONAL_PREFIX + "exchange")
         return this.exchange(body);
       if (url.pathname === REGIONAL_PREFIX + "renew") return this.renew(body);
@@ -146,6 +158,7 @@ export class RegionalAuthority {
           return answer({ error: "invalid-request" }, 400);
         return answer({
           identities: body.userIds.map((id: string) => {
+            if (this.deletions.has(id)) return { id, status: "deleted" };
             const user = this.identity(id);
             return user
               ? { id, status: "found", user }
@@ -342,16 +355,57 @@ export class RegionalAuthority {
     return { revision, users };
   }
 
+  private async deleteAccount(
+    body: Record<string, unknown>,
+  ): Promise<Response> {
+    const input = body.body as Record<string, unknown> | undefined;
+    const wrap = async (response: Response, revokedUserId?: string) =>
+      answer({
+        result: { status: response.status, body: await response.json() },
+        ...(revokedUserId ? { revokedUserId } : {}),
+      });
+    if (input?.statusOnly === true || input?.confirm === "delete-account") {
+      const previous = await this.deletions.status(input.requestId);
+      if (previous) return wrap(previous);
+      if (input.statusOnly === true)
+        return wrap(answer({ error: "unknown-deletion" }, 404));
+    }
+    if (this.config.accountDeletion !== true)
+      return answer({ error: "not-found" }, 404);
+    const grant = validNonce(body.grant)
+      ? await this.currentGrant(body.grant)
+      : null;
+    if (!grant) return answer({ error: "invalid-grant" }, 401);
+    const response = await this.account(
+      new Request(this.config.origin + ACCOUNT_DELETE_PATH, {
+        method: "POST",
+        headers: {
+          origin: this.config.origin,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(input ?? {}),
+      }),
+      grant.user,
+    );
+    return wrap(
+      response,
+      response.ok && this.deletions.has(grant.user.id)
+        ? grant.user.id
+        : undefined,
+    );
+  }
+
   private async accountOperation(
     body: Record<string, unknown>,
   ): Promise<Response> {
-    if (!validNonce(body.grant)) return answer({ error: "invalid-grant" }, 401);
     if (
       typeof body.method !== "string" ||
       typeof body.path !== "string" ||
       !isRegionalAccountRoute(body.method, body.path)
     )
       return answer({ error: "not-found" }, 404);
+    if (body.path === ACCOUNT_DELETE_PATH) return this.deleteAccount(body);
+    if (!validNonce(body.grant)) return answer({ error: "invalid-grant" }, 401);
     const grant = await this.currentGrant(body.grant);
     if (!grant) return answer({ error: "invalid-grant" }, 401);
     let response: Response;

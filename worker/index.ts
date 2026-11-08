@@ -1,3 +1,4 @@
+import { ACCOUNT_DELETION_TICK } from "./account-deletions";
 import {
   routeTopologyTaskRequest,
   type TopologyTaskEnv,
@@ -124,6 +125,12 @@ export default {
   // anybody pressing anything; when none are stale the pass reads one count
   // and stops.
   async scheduled(_event: ScheduledEventLike, env: Env): Promise<void> {
+    if (env.AUTH_REGIONAL_CLIENT || env.AUTH_REGIONAL_AUTHORITY) {
+      const cleanup = await env.AUTH.getByName("auth")
+        .fetch("https://auth" + ACCOUNT_DELETION_TICK, { method: "POST" })
+        .catch(() => null);
+      if (!cleanup?.ok) console.warn("account-deletion: cleanup pending");
+    }
     if (env.PROJECTS) {
       const result = await pumpProjectSync(env);
       if (result.status === "blocked" || result.status === "retry")

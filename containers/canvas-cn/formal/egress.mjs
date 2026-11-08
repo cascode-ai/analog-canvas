@@ -2,8 +2,16 @@ import { isRegionalAuthorityBrowserRoute } from "../../../worker/regional-auth-c
 
 /** Operator routes generated from wrangler.jsonc upstreams (scripts/regional-runtime.mjs). */
 const DEFAULT_OPERATORS = [
-  { origin: "https://ngspice.canvas-operator.invalid", binding: "NGSPICE_OPERATOR", prefixes: [""] },
-  { origin: "https://vacask.canvas-operator.invalid", binding: "VACASK_OPERATOR", prefixes: [""] },
+  {
+    origin: "https://ngspice.canvas-operator.invalid",
+    binding: "NGSPICE_OPERATOR",
+    prefixes: [""],
+  },
+  {
+    origin: "https://vacask.canvas-operator.invalid",
+    binding: "VACASK_OPERATOR",
+    prefixes: [""],
+  },
 ];
 
 function operatorFor(destination, env) {
@@ -11,12 +19,13 @@ function operatorFor(destination, env) {
   const route = routes.find((r) => r.origin === destination.origin);
   if (!route) return null;
   // Longest prefix first, so /sg13g2/run is not read as an unknown root path.
-  const prefix = [...route.prefixes].sort((a, b) => b.length - a.length).find(
-    (p) => p === "" || destination.pathname.startsWith(`${p}/`),
-  );
+  const prefix = [...route.prefixes]
+    .sort((a, b) => b.length - a.length)
+    .find((p) => p === "" || destination.pathname.startsWith(`${p}/`));
   return {
     binding: route.binding,
-    path: prefix === undefined ? null : destination.pathname.slice(prefix.length),
+    path:
+      prefix === undefined ? null : destination.pathname.slice(prefix.length),
   };
 }
 
@@ -41,9 +50,7 @@ export default {
         const response = await env[operator].fetch(
           new Request(request, {
             redirect: "manual",
-            signal: AbortSignal.timeout(
-              route.path === "/run" ? 150000 : 10000,
-            ),
+            signal: AbortSignal.timeout(route.path === "/run" ? 150000 : 10000),
           }),
         );
         return response.status >= 300 && response.status < 400
@@ -63,6 +70,7 @@ export default {
         `POST ${identity}`,
         `POST ${new URL("/api/auth/regional/exchange", identity)}`,
         `POST ${new URL("/api/auth/regional/renew", identity)}`,
+        `POST ${new URL("/api/auth/regional/deletions", identity)}`,
         `POST ${new URL("/api/auth/regional/account", identity)}`,
         `POST ${new URL("/api/auth/regional/owner-token", identity)}`,
         `POST ${new URL("/api/auth/regional/security", identity)}`,

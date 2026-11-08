@@ -163,6 +163,15 @@ describe("AccountMenuView", () => {
       ok: true,
       deleted,
     });
+    const deletion = {
+      requestId: "deletion-receipt",
+      overseas: "pending",
+      cn: "complete",
+    };
+    expect(await deleteAccount(reply(202, { deletion }))).toEqual({
+      ok: true,
+      deletion,
+    });
     expect(await deleteAccount(reply(401))).toEqual({
       ok: false,
       message: "You are signed out. Sign in again.",

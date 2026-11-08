@@ -79,6 +79,14 @@ their likes and reviews use writer-owned replicas.
 - Publication daily admission remains enforced by each region's existing API;
   it is not a globally reserved quota. Imported rows count in local admission
   after catch-up. Private Project quota coordination is unchanged.
+- An authority retirement removes the account's owned publications, components,
+  likes and reviews in both stores. A stale snapshot for the retired owner
+  advances the original receipt without restoring the resource. The publishing
+  region marks a retired publication's tombstone so either receiver can clear
+  its likes even when that stream reaches it first. Preserve independent audit
+  records. The cleanup receipt covers the retired account's live rows. Other
+  accounts' likes on a foreign publication clear with its origin's tombstone.
+  Unknown legacy bylines retain their existing import rules.
 - No remote request is required for ordinary reads or local publication. Sync
   retries in the background; one blocked stream never stops the others and
   stays visible in monitoring.

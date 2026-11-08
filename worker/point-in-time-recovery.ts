@@ -127,6 +127,10 @@ export type RecoveryEnv = {
   GALLERY?: StoreNamespace;
   ANALYTICS?: StoreNamespace;
   COMPONENT_LIBRARY?: StoreNamespace;
+  PROJECT_REGION?: string;
+  RESOURCE_REGION?: string;
+  AUTH_REGIONAL_AUTHORITY?: string;
+  AUTH_REGIONAL_CLIENT?: string;
 };
 
 /**
@@ -198,6 +202,17 @@ export async function routePointInTimeRecovery(
     return Response.json(
       { error: "confirmation-required", confirm: `restore ${store}` },
       { status: 400, headers: noStore },
+    );
+  if (
+    store !== "analytics" &&
+    (env.PROJECT_REGION ||
+      env.RESOURCE_REGION ||
+      env.AUTH_REGIONAL_AUTHORITY ||
+      env.AUTH_REGIONAL_CLIENT)
+  )
+    return Response.json(
+      { error: "regional-recovery-required" },
+      { status: 409, headers: noStore },
     );
   const armed = await object.fetch(target, {
     method: "POST",
