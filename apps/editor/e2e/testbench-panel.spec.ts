@@ -97,7 +97,7 @@ test.describe("Testbench view (#2110)", () => {
     await expect(review.getByRole("listitem")).toHaveText([
       /tb\.sp\s*New/u,
       /report\.py\s*New/u,
-      /circuit\.spice\s*Written by Canvas/u,
+      /circuit\.spice\s*Skipped: Canvas writes it/u,
     ]);
     await expect(
       review.getByRole("combobox", { name: "Testbench entry file" }),

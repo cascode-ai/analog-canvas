@@ -636,9 +636,9 @@ const IMPORT_STATUS: Record<ImportRowStatus, string> = {
   new: "New",
   replace: "Replaces",
   unchanged: "Unchanged",
-  generated: "Written by Canvas from the drawing; skipped",
-  unsafe: "Path not allowed; skipped",
-  binary: "Not a text file; skipped",
+  generated: "Skipped: Canvas writes it",
+  unsafe: "Skipped: unsafe path",
+  binary: "Skipped: not text",
 };
 
 function ImportIcon() {
