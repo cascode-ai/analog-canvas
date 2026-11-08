@@ -16,7 +16,7 @@ import {
   type PublishSessionUser,
 } from "./gallery-publish";
 import { GalleryTopologyCheck } from "./gallery-topology-check";
-import { useOwnReferenceImage } from "./own-reference";
+import type { OwnReferenceImage } from "./own-reference";
 import { REFERENCE_SAVED, uploadReferenceImage } from "../../reference-image";
 
 /** " (in 3 h 12 min)" until the given time, or nothing once it has passed. */
@@ -72,6 +72,8 @@ export interface PublishGalleryDialogProps {
   agentEdited?: boolean;
   /** Today's allowance for new entries; absent until it has loaded. */
   quota?: GalleryQuota | null;
+  /** The reader's own reference image (Edit › Reference image…), if any. */
+  ownReference?: OwnReferenceImage | null;
   publish: (fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>;
   publishUpdate?:
     | ((fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>)
@@ -128,6 +130,7 @@ export function PublishGalleryDialog({
   updateDefaults = null,
   agentEdited = false,
   quota = null,
+  ownReference = null,
   publish,
   publishUpdate,
   onPublished,
@@ -180,7 +183,6 @@ export function PublishGalleryDialog({
   // The reader's own reference image (Edit › Reference image…) goes with
   // the drawing only when they tick it, saying they may share it. A fix
   // changes the drawing alone.
-  const ownReference = useOwnReferenceImage();
   const [shareReference, setShareReference] = useState(false);
   const sharesReference = shareReference && ownReference !== null && !fixing;
   const [tagDraft, setTagDraft] = useState("");

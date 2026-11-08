@@ -59,8 +59,16 @@ const OwnReferencePanel = lazy(() =>
 );
 import {
   closeOwnReference,
+  keepOwnReferenceImage,
+  useOwnReferenceImage,
   useOwnReferenceOpen,
 } from "../features/editor-shell/own-reference";
+import { CIRCUIT_CLIPBOARD_MIME } from "../features/clipboard/system-clipboard";
+import { isTypingTarget } from "./editor-runtime-helpers";
+// A paste is the reference image's unless a text field or a circuit takes it.
+const ownReferenceTakesPaste = (event: ClipboardEvent) =>
+  !isTypingTarget(event.target) &&
+  !event.clipboardData?.types.includes(CIRCUIT_CLIPBOARD_MIME);
 import type { EditorServices } from "../services/editor-services";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import { EditorDialogLayer } from "./editor-dialog-layer";
@@ -337,11 +345,17 @@ export function EditorDialogs({
   recordGalleryPublication: ReturnType<typeof useGalleryPublicationRecord>;
 }) {
   const ownReferenceOpen = useOwnReferenceOpen();
+  const ownReference = useOwnReferenceImage();
   return (
     <>
       {ownReferenceOpen ? (
         <Suspense fallback={null}>
-          <OwnReferencePanel onClose={closeOwnReference} />
+          <OwnReferencePanel
+            src={ownReference?.url ?? null}
+            onImage={keepOwnReferenceImage}
+            takesPaste={ownReferenceTakesPaste}
+            onClose={closeOwnReference}
+          />
         </Suspense>
       ) : null}
       {/* The opened Gallery circuit's name, description and figure. */}
@@ -632,6 +646,7 @@ export function EditorDialogs({
             ? {
                 draft: publishDraft,
                 onDraftChange: setPublishDraft,
+                ownReference,
                 defaultName: galleryEntryContext?.name ?? project.name,
                 session: publishSession,
                 gateReport: publishGates,

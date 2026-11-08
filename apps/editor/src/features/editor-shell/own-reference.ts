@@ -3,8 +3,9 @@ import { useSyncExternalStore } from "react";
 // The reader's own reference image, a figure they paste, drop or choose to
 // trace over: whether the editor shows it, and the image itself, kept for the
 // page's life across closing and reopening its panel. The Edit menu opens
-// it; Publish offers to publish the image with the drawing. Its panel loads
-// apart from the editor's first payload.
+// it; Publish offers to publish the image with the drawing. The panel and
+// the Publish dialog load apart from the editor's first payload and take
+// what they need from here as props, so this stays in that payload's chunk.
 
 export interface OwnReferenceImage {
   file: File;
@@ -41,7 +42,7 @@ export function useOwnReferenceOpen(): boolean {
   return useSyncExternalStore(
     subscribe,
     () => open,
-    () => open,
+    () => false,
   );
 }
 
@@ -49,6 +50,6 @@ export function useOwnReferenceImage(): OwnReferenceImage | null {
   return useSyncExternalStore(
     subscribe,
     () => image,
-    () => image,
+    () => null,
   );
 }

@@ -5,9 +5,6 @@ import "./reference-panel.css";
 import { MarkablePicture } from "../../components/review-picture";
 import { gallerySourceOfEntryId } from "../../gallery-sources";
 import type { GalleryEntryContext } from "./gallery-example-commands";
-import { isTypingTarget } from "../../app/editor-runtime-helpers";
-import { CIRCUIT_CLIPBOARD_MIME } from "../clipboard/system-clipboard";
-import { keepOwnReferenceImage, useOwnReferenceImage } from "./own-reference";
 
 /**
  * The figure a Gallery drawing was drawn from: a dataset's original figure,
@@ -226,31 +223,36 @@ const imageAmong = (files: FileList | null | undefined) =>
  * pasted (⌘V / Ctrl+V), an image dropped, or a file chosen. It stays in
  * this page unless Publish is asked to publish it with the drawing.
  */
-export function OwnReferencePanel({ onClose }: { onClose: () => void }) {
-  const src = useOwnReferenceImage()?.url ?? null;
+export function OwnReferencePanel({
+  src,
+  onImage,
+  takesPaste,
+  onClose,
+}: {
+  /** The image shown, or null for the drop target. */
+  src: string | null;
+  onImage: (file: File) => void;
+  /** Whether a paste may be the figure (no text field or circuit takes it). */
+  takesPaste: (event: ClipboardEvent) => boolean;
+  onClose: () => void;
+}) {
   const [over, setOver] = useState(false);
   const chooser = useRef<HTMLInputElement>(null);
   const take = (file: File | null) => {
-    if (file) keepOwnReferenceImage(file);
+    if (file) onImage(file);
   };
-  // A pasted image is the figure, unless a text field or a circuit takes
-  // the paste.
   useEffect(() => {
     const paste = (event: ClipboardEvent) => {
-      if (
-        isTypingTarget(event.target) ||
-        event.clipboardData?.types.includes(CIRCUIT_CLIPBOARD_MIME)
-      )
-        return;
+      if (!takesPaste(event)) return;
       const image = imageAmong(event.clipboardData?.files);
       if (!image) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      take(image);
+      onImage(image);
     };
     window.addEventListener("paste", paste, true);
     return () => window.removeEventListener("paste", paste, true);
-  }, []);
+  }, [onImage, takesPaste]);
   return (
     <ReferenceFloat
       title="Reference image"
