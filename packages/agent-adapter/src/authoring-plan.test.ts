@@ -10,7 +10,6 @@ function planBlind(actions: unknown[]) {
     snapshot: () => {
       throw new Error("read the Document");
     },
-    maxEditsPerTransaction: () => 64,
   });
 }
 
@@ -184,7 +183,6 @@ describe("planning an action list", () => {
       planActions(actions, {
         allocateId: (prefix) => `${prefix}-new`,
         snapshot: () => snapshot,
-        maxEditsPerTransaction: () => 64,
       });
     expect(
       plan([
@@ -252,7 +250,6 @@ describe("planning an action list", () => {
           reads++;
           return snapshot;
         },
-        maxEditsPerTransaction: () => 64,
       },
     );
     expect(reads).toBe(1);

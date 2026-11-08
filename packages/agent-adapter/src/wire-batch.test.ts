@@ -4,7 +4,6 @@ import { expect, it } from "vitest";
 import { createAgentCircuitService } from "./service.js";
 
 function fixture(
-  limit = 64,
   positions = [
     [0, 100],
     [100, 100],
@@ -28,7 +27,6 @@ function fixture(
       sourceSpans: false,
       edit: { geometry: true, connectivity: true, presentation: true },
     },
-    limits: { maxTransactionEdits: limit },
     store: {
       getDocument: () => document,
       commitDocument: (next) => {
@@ -87,7 +85,7 @@ it("plans shared endpoints against evolving state and commits one revision", () 
 });
 
 it("creates a trunk and taps its evolving segments and shared Junction in one submission", () => {
-  const f = fixture(64, [
+  const f = fixture([
     [0, 100],
     [100, 200],
     [200, 200],
@@ -170,7 +168,7 @@ it("rejects crossing taps atomically even when qualified, but permits ordinary c
 });
 
 it("resolves a nearest Net target after it was created by an earlier wire", () => {
-  const f = fixture(64, [
+  const f = fixture([
     [0, 100],
     [100, 200],
     [200, 200],
@@ -213,7 +211,7 @@ it("reuses an existing terminal selected by a newly created Net", () => {
 });
 
 it("rebases two taps on one original route within a single atomic batch", () => {
-  const f = fixture(64, [
+  const f = fixture([
     [0, 100],
     [100, 200],
     [200, 200],
@@ -250,7 +248,7 @@ it("taps one wire again and again, one transaction per tap, within the ID limit 
   // piece the previous tap left, so the pieces' IDs derive from IDs that
   // earlier taps derived. The fifth such tap used to be refused.
   const taps = 12;
-  const f = fixture(64, [
+  const f = fixture([
     [0, 100],
     ...Array.from({ length: taps }, (_, index) => [100 * (index + 1), 200]),
     [100 * (taps + 1), 100],
@@ -375,7 +373,7 @@ it("merges two networks created earlier in the same atomic batch", () => {
   expect(f.document.nets).toHaveLength(1);
   expect(f.document.nets[0]!.terminals).toHaveLength(4);
 });
-it("keeps a batch preview read-only and enforces the total edit limit", () => {
+it("keeps a batch preview read-only", () => {
   const f = fixture();
   const before = structuredClone(f.document);
   expect(
@@ -383,14 +381,4 @@ it("keeps a batch preview read-only and enforces the total edit limit", () => {
   ).toMatchObject({ ok: true, applied: false });
   expect(f.document).toEqual(before);
   expect(f.commits).toBe(0);
-  const limited = fixture(1);
-  expect(
-    limited.submit([
-      limited.wire("a", "R0", "R1"),
-      limited.wire("b", "R1", "R2"),
-    ]),
-  ).toMatchObject({
-    ok: false,
-  });
-  expect(limited.commits).toBe(0);
 });

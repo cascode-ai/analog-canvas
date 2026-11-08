@@ -412,17 +412,11 @@ A pin unused on purpose (QBAR) needs No Connect or the netlist blocks with
 ## Batches and limits
 
 Placements, wires, labels, models and annotation moves batch atomically:
-failure commits nothing, success is one undo. A transaction takes at most
-`maxTransactionEdits` expanded edits (capabilities `limits`, 256 unless the
-Editor says otherwise; a part about two, three with `showValue:true`; a Cell
-Pin about five). A `circuit_place` batch (up to 64 parts) over the limit is placed in
-successive transactions with one receipt and one undo; a refusal leaves none.
-A dry run checks one transaction, so over the limit it fails `LIMIT_EXCEEDED`
-(as native `place-components` does) with `expandedEdits`, `maxTransactionEdits`
-and `fittingPlacements`. An over-limit `delete-selection` adds per-class
-`selected…` counts and the fitting leading part (`fittingInstances`, …):
-delete it, refresh, delete the rest. Other commands name themselves and their
-`expandedEdits`.
+failure commits nothing, success is one undo. A batch of any size is one
+transaction: no count of parts, wires, actions, edits or selected objects
+splits or refuses it; only the request's bytes are bounded
+(`maxRequestBytes`). An Editor page loaded before this rule refuses a large
+batch with `LIMIT_EXCEEDED` or `INVALID_REQUEST`: reload it and retry.
 
 Display flags, Port directions, VDD mode, terminal removal and power rails
 share a command batch (a VDD and a VSS rail: one call). Pure presentation
@@ -500,8 +494,7 @@ means deleting the Cell.
   `instanceIds`), one undo: hides every MOS W/L, shows ×m where `m` ≠ 1, leaves
   other values as they are, then arranges with `first-letter-subscript` (R_L,
   I_SS, M_1), counting the W/L space as free. Labels arrange-labels leaves alone
-  keep place and look. Over the limit nothing changes (`LIMIT_EXCEEDED`,
-  `fittingParts`).
+  keep place and look.
 - A full or `pins` Snapshot with `instanceLabels:true` (MCP object `inspect`)
   lists each instance's `annotations` (ids, text, `position`).
   `move-annotation` sets that position, `alignment` (`start|middle|end`)

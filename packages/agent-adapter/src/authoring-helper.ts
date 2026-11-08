@@ -69,8 +69,6 @@ export interface CompileContext {
   snapshot: AgentSessionSnapshot;
   /** Allocates a fresh non-colliding object ID for a given prefix. */
   allocateId: (prefix: string) => string;
-  /** Maximum edits per single transaction (from capabilities limits). */
-  maxEditsPerTransaction?: number;
 }
 
 /** One call's share of an action list that compiles to several transactions. */
@@ -578,7 +576,6 @@ export function compileActions(
   }
   const document = resolvedDocument(context.snapshot);
   const usedIds = existingIds(document);
-  const maxEdits = context.maxEditsPerTransaction ?? 64;
   const allocateId = (prefix: string): string => {
     const id = context.allocateId(prefix);
     if (usedIds.has(id)) {
@@ -617,7 +614,6 @@ export function compileActions(
       last.form === "edits" &&
       last.edits &&
       last.editActionIndices &&
-      last.edits.length < maxEdits &&
       (kind === "place-component") ===
         last.actionKinds.every((item) => item === "place-component") &&
       (kind === "delete") ===

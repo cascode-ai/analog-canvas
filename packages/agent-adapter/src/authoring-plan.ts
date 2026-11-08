@@ -235,14 +235,12 @@ function planOnDocument(
   direct: AuthoringAction[],
   snapshot: AgentSessionSnapshot,
   allocateId: (prefix: string) => string,
-  maxEditsPerTransaction: number,
 ): ActionPlan {
   let compiled: CompiledTransaction[];
   try {
     compiled = compileActions(actions, {
       snapshot,
       allocateId,
-      maxEditsPerTransaction,
     });
   } catch (error) {
     if (!(error instanceof ActionCompileError)) throw error;
@@ -348,20 +346,12 @@ export function planActions(
     allocateId: (prefix: string) => string;
     /** The Document, read only when the list needs it. */
     snapshot: () => AgentSessionSnapshot;
-    /** Read after the Document, when compiling needs it. */
-    maxEditsPerTransaction: () => number;
   },
 ): ActionPlan {
   const first = planWithoutDocument(actions, options.allocateId);
   if (first.kind !== "compile") return first;
   const snapshot = options.snapshot();
-  return planOnDocument(
-    actions,
-    first.direct,
-    snapshot,
-    options.allocateId,
-    options.maxEditsPerTransaction(),
-  );
+  return planOnDocument(actions, first.direct, snapshot, options.allocateId);
 }
 
 /**

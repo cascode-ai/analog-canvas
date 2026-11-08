@@ -73,7 +73,7 @@ export const AgentPermissionsSchema = z.strictObject({
 
 export const AgentLimitsSchema = z.strictObject({
   maxSnapshotBytes: z.number().int().positive().max(20_000_000),
-  maxTransactionEdits: z.number().int().positive().max(256),
+  maxTransactionEdits: z.number().int().positive(),
   maxRenderBytes: z.number().int().positive().max(20_000_000),
   maxRequestBytes: z.number().int().positive().max(2_000_000),
   changeHistoryEntries: z.number().int().positive().max(256),
@@ -321,24 +321,17 @@ export const AgentSchematicEditSchema = SchematicEditSchema.superRefine(
   },
 );
 const TransactionPayloadShape = {
-  edits: z.array(AgentSchematicEditSchema).min(1).max(256).optional(),
+  edits: z.array(AgentSchematicEditSchema).min(1).optional(),
   wireIntent: z
-    .union([
-      AgentWireIntentSchema,
-      z.array(AgentWireIntentSchema).min(1).max(64),
-    ])
+    .union([AgentWireIntentSchema, z.array(AgentWireIntentSchema).min(1)])
     .optional(),
   semanticIntent: AgentSemanticIntentSchema.optional(),
   command: AgentAuthoringCommandSchema.optional(),
-  structureEdits: z
-    .array(ProjectStructureEditSchema)
-    .min(1)
-    .max(256)
-    .optional(),
+  structureEdits: z.array(ProjectStructureEditSchema).min(1).optional(),
   /** High-level authoring actions, which the editor plans as the MCP
    * client compiles them: see the authoring contract. Malformed actions are
    * refused with ACTION_COMPILE_FAILED naming the action. */
-  actions: z.array(z.unknown()).min(1).max(256).optional(),
+  actions: z.array(z.unknown()).min(1).optional(),
 };
 /** A Project structure edit, as advanced_transact's structureEdits take
  * one; describe_tool reads each kind's contract from it (#1231). */

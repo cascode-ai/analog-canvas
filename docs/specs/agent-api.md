@@ -24,6 +24,10 @@ not Document state or an operation.
 
 - `capabilities` reports operations, permissions, edit kinds,
   `commandKinds`, `transactionForms`, resource capabilities and server limits.
+  Requests are bounded by bytes (`maxRequestBytes`), never by a count of
+  edits, actions, wires, parts or selected objects; a transaction of any size
+  commits once, as one undo. `maxTransactionEdits` stays reported (256) for
+  clients that read it and is not enforced.
 - `snapshot` returns one complete read-only Document plus the bounded Project
   index (with `structureRevision`).
 - `render` returns a bounded formal or diagnostics SVG.
@@ -73,7 +77,7 @@ appear only when present. Local and production codecs share one schema.
 - `transact.command` (exclusive form): Model switching, Cell lifecycle, copy,
   alignment, selection transforms via the GUI planners; structural commands
   require `expectedStructureRevision`.
-- `transact.actions` (exclusive form): up to 256 MCP `apply_actions` actions
+- `transact.actions` (exclusive form): MCP `apply_actions` actions
   ([authoring](../agent/shared/authoring.md)). The browser plans and commits
   them as one edit batch, wire batch, command or focus operation. The MCP
   Helper never plans them itself: an editor not listing `actions` in

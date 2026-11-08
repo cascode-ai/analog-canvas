@@ -49,12 +49,8 @@ import type {
   AgentSessionSnapshot,
   AgentSimulationResourceCapability,
   AgentProjectResourceCapability,
-  AgentTransactRequest,
 } from "./schema.js";
-import {
-  AgentAuthoringCommandSchema,
-  type AgentAuthoringCommand,
-} from "./authoring-command.js";
+import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
 import {
   agentAnnotationTextMeasure,
@@ -149,77 +145,6 @@ function errorResponse(
     error: { code, message },
     diagnostics,
   });
-}
-
-type PlaceComponents = Extract<
-  AgentAuthoringCommand,
-  { kind: "place-components" }
->;
-
-/** `count` placements from `start`, with what is keyed to their IDs. */
-function placementPart(
-  command: PlaceComponents,
-  start: number,
-  count: number,
-): PlaceComponents {
-  const instances = command.instances.slice(start, start + count);
-  const ids = new Set(instances.map((instance) => instance.id));
-  const theirs = <T>(record: Record<string, T>) =>
-    Object.fromEntries(Object.entries(record).filter(([id]) => ids.has(id)));
-  return {
-    ...command,
-    instances,
-    ...(command.pinAnchors ? { pinAnchors: theirs(command.pinAnchors) } : {}),
-    ...(command.terminalDirections
-      ? { terminalDirections: theirs(command.terminalDirections) }
-      : {}),
-    ...(command.displays ? { displays: theirs(command.displays) } : {}),
-  };
-}
-
-/** A part's refusal, its placements counted from the first of the whole. */
-function shiftedPlacementRefusal(
-  refusal: AgentCircuitResponse,
-  offset: number,
-): AgentCircuitResponse {
-  if (refusal.ok || offset === 0) return refusal;
-  const shift = (text: string) =>
-    text.replace(
-      /^(actions|instances)\[(\d+)\]/u,
-      (_match, list: string, index: string) =>
-        `${list}[${Number(index) + offset}]`,
-    );
-  return {
-    ...refusal,
-    error: { ...refusal.error, message: shift(refusal.error.message) },
-    diagnostics: refusal.diagnostics.map((diagnostic) => ({
-      ...diagnostic,
-      message: shift(diagnostic.message),
-      ...(diagnostic.path?.[0] === "actions" &&
-      typeof diagnostic.path[1] === "number"
-        ? {
-            path: [
-              "actions",
-              diagnostic.path[1] + offset,
-              ...diagnostic.path.slice(2),
-            ],
-          }
-        : {}),
-      ...(diagnostic.parameters
-        ? {
-            parameters: Object.fromEntries(
-              Object.entries(diagnostic.parameters).map(([key, value]) => [
-                key,
-                (key === "instanceIndex" || key === "actionIndex") &&
-                typeof value === "number"
-                  ? value + offset
-                  : value,
-              ]),
-            ),
-          }
-        : {}),
-    })),
-  };
 }
 
 function collectResolvedRoutes(
@@ -428,144 +353,6 @@ export function createAgentCircuitService(
   const allocateId =
     options.allocateId ??
     ((prefix: string) => `${prefix}-${crypto.randomUUID()}`);
-  /**
-   * A placement batch over the edit limit, placed in as many transactions as
-   * it takes, each planned on the Document the one before it left (#1516):
-   * one undo step and one receipt, or, when one is refused, none of them.
-   * The limit still bounds each transaction. Undefined when the refusal is
-   * not that, for a dry run, or when the host cannot keep the steps as one.
-   */
-  const placeInSteps = (
-    base: Omit<AgentTransactRequest, "actions">,
-    command: unknown,
-    refusal: AgentCircuitResponse,
-  ): AgentCircuitResponse | undefined => {
-    const placements = command as AgentAuthoringCommand | undefined;
-    const fitting = refusal.ok
-      ? undefined
-      : refusal.diagnostics[0]?.parameters?.fittingPlacements;
-    const document = host?.getDocument(base.documentId);
-    if (
-      refusal.ok ||
-      refusal.error.code !== "LIMIT_EXCEEDED" ||
-      placements?.kind !== "place-components" ||
-      typeof fitting !== "number" ||
-      fitting < 1 ||
-      base.dryRun ||
-      !host?.commitAsOneStep ||
-      !document
-    )
-      return undefined;
-    const before = diagnosticsFor(
-      host.getProject?.(),
-      document,
-      host.getResolver(),
-    );
-    const steps: Extract<
-      AgentCircuitResponse,
-      { operation: "transact"; ok: true }
-    >[] = [];
-    let failed: AgentCircuitResponse | undefined;
-    host.commitAsOneStep(() => {
-      const total = placements.instances.length;
-      for (let done = 0, take = fitting; done < total;) {
-        const answer = service.handle({
-          ...base,
-          expectedRevision:
-            host.getDocument(base.documentId)?.revision ??
-            base.expectedRevision,
-          ...(base.expectedStructureRevision === undefined
-            ? {}
-            : {
-                expectedStructureRevision:
-                  host.getProject?.()?.structureRevision ??
-                  base.expectedStructureRevision,
-              }),
-          command: placementPart(placements, done, take),
-        });
-        if (answer.ok && answer.operation === "transact") {
-          steps.push(answer);
-          done += take;
-          take = total - done;
-          continue;
-        }
-        // What is left may still be over the limit: place what fits.
-        const fits =
-          !answer.ok && answer.error.code === "LIMIT_EXCEEDED"
-            ? answer.diagnostics[0]?.parameters?.fittingPlacements
-            : undefined;
-        if (typeof fits === "number" && fits > 0 && fits < take) {
-          take = fits;
-          continue;
-        }
-        failed = shiftedPlacementRefusal(answer, done);
-        return false;
-      }
-      return true;
-    });
-    if (failed)
-      return failed.ok
-        ? failed
-        : response({
-            ...failed,
-            revision:
-              host.getDocument(base.documentId)?.revision ?? document.revision,
-          });
-    const first = steps[0]!;
-    const last = steps.at(-1)!;
-    const beforeIds = new Set(before.map(agentDiagnosticIdentity));
-    const afterIds = new Set(last.diagnostics.map(agentDiagnosticIdentity));
-    const removed = before.filter(
-      (diagnostic) => !afterIds.has(agentDiagnosticIdentity(diagnostic)),
-    );
-    const structures = steps.flatMap((step) =>
-      step.projectStructure ? [step.projectStructure] : [],
-    );
-    const routes = new Map(
-      steps.flatMap((step) =>
-        (step.resolvedRoutes ?? []).map(
-          (route) => [route.routeId, route] as const,
-        ),
-      ),
-    );
-    return response({
-      ...last,
-      diff: {
-        ...last.diff,
-        fromRevision: first.diff.fromRevision,
-        editKinds: [...new Set(steps.flatMap((step) => step.diff.editKinds))],
-        changedObjectIds: [
-          ...new Set(steps.flatMap((step) => step.diff.changedObjectIds)),
-        ],
-      },
-      terminalConnectivityChanged: steps.some(
-        (step) => step.terminalConnectivityChanged,
-      ),
-      diagnosticDelta: {
-        added: last.diagnostics.filter(
-          (diagnostic) => !beforeIds.has(agentDiagnosticIdentity(diagnostic)),
-        ),
-        removed: base.diagnosticDeltaDetail === "compact" ? [] : removed,
-        ...(base.diagnosticDeltaDetail === "compact"
-          ? { removedIds: removed.map(agentDiagnosticIdentity) }
-          : {}),
-      },
-      ...(structures.length
-        ? {
-            projectStructure: {
-              ...structures.at(-1)!,
-              fromRevision: structures[0]!.fromRevision,
-              changedDocumentIds: [
-                ...new Set(
-                  structures.flatMap((item) => item.changedDocumentIds),
-                ),
-              ],
-            },
-          }
-        : {}),
-      ...(routes.size ? { resolvedRoutes: [...routes.values()] } : {}),
-    });
-  };
   const service: AgentCircuitService = {
     limits,
     handle(input: unknown): AgentCircuitResponse {
@@ -1048,7 +835,6 @@ export function createAgentCircuitService(
               };
               return snapshot;
             },
-            maxEditsPerTransaction: () => limits.maxTransactionEdits,
           });
         } catch (error) {
           if (error !== snapshotDenied) throw error;
@@ -1172,7 +958,7 @@ export function createAgentCircuitService(
         // A list that needs the Document is planned on the one held now and
         // committed in the same step. A list that goes through as it is
         // keeps its form's revision checks.
-        const sent = service.handle({
+        const answer = service.handle({
           ...rest,
           ...(plan.readSnapshot
             ? {
@@ -1184,8 +970,6 @@ export function createAgentCircuitService(
             : {}),
           ...plan.payload,
         });
-        const answer =
-          (!sent.ok && placeInSteps(rest, plan.payload.command, sent)) || sent;
         if (answer.ok) {
           if (
             answer.operation !== "transact" ||
@@ -1245,34 +1029,6 @@ export function createAgentCircuitService(
         let commandSourceActions: readonly number[] | undefined;
         // What the plan says beside its edits, reported as information.
         let commandNotes: AgentDiagnostic[] = [];
-        // Planning replaces the command with its edits; an over-limit
-        // refusal still names the command and what it expanded to.
-        const plannedCommand = request.command?.kind;
-        const overLimit = (expandedEdits: number) => {
-          const max = limits.maxTransactionEdits;
-          const message =
-            plannedCommand === undefined
-              ? `A transaction may contain at most ${max} edits; this one has ${expandedEdits}. Nothing was changed.`
-              : `${plannedCommand} expands to ${expandedEdits} edits, and one transaction takes at most ${max}. ` +
-                (plannedCommand === "copy"
-                  ? "Copy fewer objects per call, keeping parts that share a wire together: a wire is copied only with both of its ends. "
-                  : "Act on fewer objects per call. ") +
-                "Nothing was changed.";
-          return fail(
-            "transact",
-            "LIMIT_EXCEEDED",
-            message,
-            document.revision,
-            [
-              {
-                code: "LIMIT_EXCEEDED",
-                severity: "error",
-                message,
-                parameters: { expandedEdits, maxTransactionEdits: max },
-              },
-            ],
-          );
-        };
         const placedInstanceIds =
           request.command?.kind === "place-components"
             ? request.command.instances.map((instance) => instance.id)
@@ -1296,7 +1052,6 @@ export function createAgentCircuitService(
             const planned = host.planAuthoringCommand(
               documentId,
               request.command,
-              limits.maxTransactionEdits,
             );
             commandSourceActions = planned.sourceActions;
             commandNotes = (
@@ -1378,10 +1133,7 @@ export function createAgentCircuitService(
               };
             }
           } catch (error) {
-            const code =
-              error instanceof AgentCommandPlanningError && error.detail
-                ? error.detail.code
-                : "EDIT_PRECONDITION";
+            const code = "EDIT_PRECONDITION";
             return fail(
               "transact",
               code,
@@ -1394,10 +1146,7 @@ export function createAgentCircuitService(
                       severity: "error",
                       message: error.message,
                       path: ["actions", error.actionIndex],
-                      parameters: {
-                        ...error.detail?.parameters,
-                        actionIndex: error.actionIndex,
-                      },
+                      parameters: { actionIndex: error.actionIndex },
                     },
                   ]
                 : [],
@@ -1509,14 +1258,6 @@ export function createAgentCircuitService(
           const nestedEdits = request.structureEdits.flatMap((edit) =>
             edit.kind === "transact_document" ? edit.edits : [],
           );
-          if (
-            request.structureEdits.length + nestedEdits.length >
-            limits.maxTransactionEdits
-          ) {
-            return overLimit(
-              request.structureEdits.length + nestedEdits.length,
-            );
-          }
           for (const edit of nestedEdits) {
             const category = agentEditCategory(edit.kind);
             if (category === "unsupported") {
@@ -1684,13 +1425,9 @@ export function createAgentCircuitService(
           }
         }
         const plannedWire = request.wireIntent
-          ? planWireBatch(
-              document,
-              resolver,
-              request.wireIntent,
-              limits.maxTransactionEdits,
-              { keepClear: true },
-            )
+          ? planWireBatch(document, resolver, request.wireIntent, {
+              keepClear: true,
+            })
           : null;
         if (typeof plannedWire === "string") {
           return fail(
@@ -1701,9 +1438,6 @@ export function createAgentCircuitService(
           );
         }
         const edits = request.edits ?? plannedWire?.edits ?? [];
-        if (edits.length > limits.maxTransactionEdits) {
-          return overLimit(edits.length);
-        }
         for (const edit of edits) {
           const category = agentEditCategory(edit.kind);
           if (category === "unsupported") {

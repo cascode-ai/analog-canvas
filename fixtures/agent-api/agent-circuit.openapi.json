@@ -1409,7 +1409,6 @@
           },
           "__schema8": {
             "minItems": 1,
-            "maxItems": 256,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema9"
@@ -6370,7 +6369,6 @@
               },
               {
                 "minItems": 1,
-                "maxItems": 64,
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema216"
@@ -6899,12 +6897,11 @@
                   },
                   "commands": {
                     "minItems": 1,
-                    "maxItems": 64,
                     "type": "array",
                     "items": {
                       "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema381"
                     },
-                    "description": "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode, bulk default or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies."
+                    "description": "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode, bulk default or terminal removal commands; one undo, no partial commit."
                   }
                 },
                 "required": [
@@ -6922,7 +6919,6 @@
                   },
                   "instances": {
                     "minItems": 1,
-                    "maxItems": 64,
                     "type": "array",
                     "items": {
                       "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema382"
@@ -9627,7 +9623,6 @@
           },
           "__schema314": {
             "minItems": 2,
-            "maxItems": 256,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
@@ -9708,7 +9703,6 @@
           },
           "__schema323": {
             "minItems": 1,
-            "maxItems": 256,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema152"
@@ -9772,7 +9766,6 @@
           },
           "__schema328": {
             "default": [],
-            "maxItems": 256,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
@@ -9898,7 +9891,6 @@
               },
               "pins": {
                 "minItems": 2,
-                "maxItems": 64,
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema335"
@@ -10211,7 +10203,6 @@
               },
               "instanceIds": {
                 "minItems": 1,
-                "maxItems": 64,
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
@@ -10274,7 +10265,6 @@
           },
           "__schema357": {
             "minItems": 1,
-            "maxItems": 256,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
@@ -10469,7 +10459,6 @@
           },
           "__schema370": {
             "minItems": 1,
-            "maxItems": 256,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
@@ -10760,7 +10749,6 @@
           },
           "__schema407": {
             "minItems": 1,
-            "maxItems": 256,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema408"
@@ -12181,7 +12169,6 @@
           },
           "__schema451": {
             "minItems": 1,
-            "maxItems": 256,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema452"
@@ -12325,7 +12312,7 @@
                       "maxTransactionEdits": {
                         "type": "integer",
                         "exclusiveMinimum": 0,
-                        "maximum": 256
+                        "maximum": 9007199254740991
                       },
                       "maxRenderBytes": {
                         "type": "integer",

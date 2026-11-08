@@ -19,16 +19,16 @@ re-inspect and reconsider, not retry.
 
 ## Recovery by cause
 
-| Cause | Action |
-| --- | --- |
-| INVALID_REQUEST / MCP EDIT_SCHEMA_INVALID | Fix the reported fields from the current schema; changed input needs a new identity |
-| STALE_REVISION / STALE_STRUCTURE_REVISION / MCP STATE_CHANGED | Refresh affected facts and reconsider the operation |
-| EDIT_PRECONDITION | Inspect path/objectIds for locks, pin maps or state; never reorder edits to bypass validation |
-| PERMISSION_DENIED | Narrow the operation or obtain authorization; no alternate mutation path |
-| LIMIT_EXCEEDED | Split coherent edits within the advertised bounds, keeping all connectivity work |
-| SNAPSHOT_TOO_LARGE | Select an existing child Document or report the limit |
-| RENDER_TOO_LARGE | Request bounded render regions |
-| GALLERY_ACCOUNT_BLOCKED | Contact the Owner using the message's address; do not retry, reconnect or change accounts to bypass the block. `recovery:"fix-input"` preserves the existing Project response contract; the code identifies this account intervention. |
+| Cause                                                         | Action                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| INVALID_REQUEST / MCP EDIT_SCHEMA_INVALID                     | Fix the reported fields from the current schema; changed input needs a new identity                                                                                                                                                    |
+| STALE_REVISION / STALE_STRUCTURE_REVISION / MCP STATE_CHANGED | Refresh affected facts and reconsider the operation                                                                                                                                                                                    |
+| EDIT_PRECONDITION                                             | Inspect path/objectIds for locks, pin maps or state; never reorder edits to bypass validation                                                                                                                                          |
+| PERMISSION_DENIED                                             | Narrow the operation or obtain authorization; no alternate mutation path                                                                                                                                                               |
+| LIMIT_EXCEEDED                                                | Only from an Editor page loaded before batch counts were unbounded: reload it and retry                                                                                                                                                |
+| SNAPSHOT_TOO_LARGE                                            | Select an existing child Document or report the limit                                                                                                                                                                                  |
+| RENDER_TOO_LARGE                                              | Request bounded render regions                                                                                                                                                                                                         |
+| GALLERY_ACCOUNT_BLOCKED                                       | Contact the Owner using the message's address; do not retry, reconnect or change accounts to bypass the block. `recovery:"fix-input"` preserves the existing Project response contract; the code identifies this account intervention. |
 
 Credentials, offline transport and request-cache recovery belong to the
 transport's entry guide. File and Simulation resources return their own domain

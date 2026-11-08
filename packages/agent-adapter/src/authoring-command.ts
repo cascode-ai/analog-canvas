@@ -29,8 +29,8 @@ const OptionalPinAnchorSchema = AgentPinAnchorSchema.optional().describe(
 // Reuse schema identities so the full HTTP contract emits one definition per
 // shared field shape; runtime constraints are unchanged.
 const NameSchema = z.string().min(1).max(128);
-const SelectedIdsSchema = z.array(StableIdSchema).max(256).default([]);
-const NonemptyIdsSchema = z.array(StableIdSchema).min(1).max(256);
+const SelectedIdsSchema = z.array(StableIdSchema).default([]);
+const NonemptyIdsSchema = z.array(StableIdSchema).min(1);
 const SelectionSchema = z.strictObject({
   instanceIds: SelectedIdsSchema,
   routeIds: SelectedIdsSchema,
@@ -57,8 +57,7 @@ const RouteNetCommandSchema = z.strictObject({
               pinName: z.string().min(1),
             }),
           )
-          .min(2)
-          .max(64),
+          .min(2),
       }),
       z.strictObject({
         kind: z.literal("import-net"),
@@ -178,7 +177,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
   z
     .strictObject({
       kind: z.literal("arrange-instances"),
-      instanceIds: z.array(StableIdSchema).min(2).max(256),
+      instanceIds: z.array(StableIdSchema).min(2),
       axis: z.enum(["x", "y"]),
       coordinate: z.number().int().optional(),
     })
@@ -198,7 +197,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
   z
     .strictObject({
       kind: z.literal("set-no-connect"),
-      endpoints: z.array(NoConnectSchema.shape.endpoint).min(1).max(256),
+      endpoints: z.array(NoConnectSchema.shape.endpoint).min(1),
       marked: z.boolean(),
     })
     .describe(
@@ -281,7 +280,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     ),
   z.strictObject({
     kind: z.literal("set-instance-display"),
-    instanceIds: z.array(StableIdSchema).min(1).max(64),
+    instanceIds: z.array(StableIdSchema).min(1),
     showReference: z.boolean().optional(),
     showValue: z.boolean().optional(),
     showParameters: z
@@ -293,7 +292,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     .strictObject({
       kind: z.literal("expand-net-labels"),
       expression: z.string().min(1).max(256),
-      routeIds: z.array(StableIdSchema).min(1).max(256),
+      routeIds: z.array(StableIdSchema).min(1),
     })
     .describe(
       "Expand a signal expression onto distinct existing scalar branches in explicit routeIds order, with one atomic Label edit.",
@@ -421,9 +420,8 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     commands: z
       .array(BatchItemSchema)
       .min(1)
-      .max(64)
       .describe(
-        "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode, bulk default or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies.",
+        "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode, bulk default or terminal removal commands; one undo, no partial commit.",
       ),
   }),
   z.strictObject({
@@ -431,7 +429,6 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     instances: z
       .array(InstancePlacementRequestSchema)
       .min(1)
-      .max(64)
       .describe(
         "A part without a reference takes the next free name, as a GUI insert does.",
       ),

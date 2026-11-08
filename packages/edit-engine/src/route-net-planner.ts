@@ -48,7 +48,6 @@ export function planRouteNet(
     target: RouteNetTarget;
     trunk?: { start: Point; end: Point } | undefined;
   },
-  maxEdits: number,
 ) {
   const context = deriveNetConnectivityContext(document, resolver);
   const target = input.target;
@@ -199,10 +198,6 @@ export function planRouteNet(
       components.push({ id: key, netId: null, nodes: [node] });
   }
   if (components.length < 2) return { edits: [] };
-  if (components.length - 1 > maxEdits)
-    throw new Error(
-      `route-net needs at least ${components.length - 1} connections, exceeding the ${maxEdits}-edit transaction limit`,
-    );
   const id = (part: string) =>
     deriveStableId("route-net", document.id, String(document.revision), part);
   // A generated wire over another Net's pin, through a part or onto another
@@ -318,7 +313,7 @@ export function planRouteNet(
   } else {
     wires = planNetTree(document, resolver, components, clearance, id);
   }
-  const plan = planWireBatch(document, resolver, wires, maxEdits);
+  const plan = planWireBatch(document, resolver, wires);
   if (typeof plan === "string") throw new Error(`route-net: ${plan}`);
   return plan;
 }
