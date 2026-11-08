@@ -209,7 +209,7 @@ export function deriveSelectionInspectionModel({
     ? componentLabel(project, selectedInstance, resolver)
     : undefined;
   const selectionShelfSummary = selectedInstance
-    ? `${selectedFormalTerminal?.name ?? selectedInstance.id} · ${selectedComponentLabel ?? selectedInstance.symbolId}`
+    ? `${selectedFormalTerminal?.name ?? selectedInstance.reference ?? selectedInstance.id} · ${selectedComponentLabel ?? selectedInstance.symbolId}`
     : selectedIds.length > 1
       ? `${selectedIds.length} components`
       : selectedRoute

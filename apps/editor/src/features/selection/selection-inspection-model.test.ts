@@ -14,6 +14,32 @@ const emptySupplementalSelection = {
 };
 
 describe("selection inspection model", () => {
+  it("names a renamed component by its reference, not its internal id", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      reference: "R7",
+      netlist: { parameters: { r: "1k" } },
+    });
+
+    const model = deriveSelectionInspectionModel({
+      project,
+      document,
+      resolver,
+      selection: { instanceIds: ["R1"], ...emptySupplementalSelection },
+      selectedEndpoint: null,
+    });
+
+    expect(model.selectionShelfSummary).toMatch(/^R7 · /u);
+  });
+
   it("resolves a selected hierarchy instance without owning navigation", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
