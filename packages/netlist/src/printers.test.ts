@@ -153,7 +153,14 @@ describe("design netlist printers", () => {
       ).toEqual([
         ["reference", null, "M_SAME"],
         ["target", null, "SAME"],
-        ...instance.parameters.map((p) => ["parameter", p.name, p.rawValue]),
+        ...instance.parameters.map((p) => [
+          "parameter",
+          p.name,
+          // Spectre reads a spaced expression in parentheses, not braces.
+          format === "spectre" && p.name === "expression"
+            ? "(α + β)"
+            : p.rawValue,
+        ]),
       ]);
       for (const field of locations.fields)
         expect(file.text.slice(field.startOffset, field.endOffset)).toBe(
@@ -324,7 +331,8 @@ describe("design netlist printers", () => {
     expect(spectre).toContain("C2 (vin 0) capacitor c=100f");
     expect(spectre).toContain("R2 (vin 0) resistor r=2.2M");
     expect(spectre).toContain("R3 (vin 0) resistor r=1m");
-    expect(spectre).toContain("M2 (vin vin 0 0) nch w=0.000254 l={2*scale}");
+    // Spectre reads no SPICE braces around an expression.
+    expect(spectre).toContain("M2 (vin vin 0 0) nch w=0.000254 l=2*scale");
     // SPICE keeps the text as written.
     expect(printSpiceNetlist(ir)).toContain("C2 vin 0 100fF");
     const { locations } = printDesignNetlistWithLocations("spectre", ir);
@@ -337,6 +345,13 @@ describe("design netlist printers", () => {
     });
     expect(restorePrintedParameter("4.7M", "spectre-number")).toBe("4.7Meg");
     expect(restorePrintedParameter("1m", "spectre-number")).toBe("1m");
+    // An expression edited in Spectre text regains its SPICE braces.
+    expect(restorePrintedParameter("2*scale", "spectre-number")).toBe(
+      "{2*scale}",
+    );
+    expect(restorePrintedParameter("(rv * 2)", "spectre-number")).toBe(
+      "{rv * 2}",
+    );
     // A value Spectre prints unchanged edits back the same way, so an M
     // typed into it is mega too.
     expect(
