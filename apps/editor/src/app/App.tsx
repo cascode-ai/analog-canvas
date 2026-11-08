@@ -192,7 +192,11 @@ import {
   releaseKeptDocumentStyleEdit,
 } from "../features/editor-shell/kept-document-style";
 import { terminalCurrentDirectionPartners } from "../features/simulation/terminal-current-pick";
-import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
+import {
+  PUBLIC_SIMULATION_UI_ENABLED,
+  simulationEntryVisible,
+} from "../features/simulation/public-simulation-ui";
+import { useHostedSimulation } from "../components/account";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import { CellSymbolLayoutToolbar } from "../features/hierarchy/cell-symbol-layout-toolbar";
 import { selectedBlockSymbolTarget } from "../features/hierarchy/block-symbol-layout-target";
@@ -646,10 +650,21 @@ function WorkspaceEditor({
   } = useEditorServices();
   const publicAgentUiEnabled =
     !import.meta.env?.ICM_DESKTOP && capabilities.agent && requestedAgentUi;
-  const publicSimulationUiEnabled =
+  const simulationUiRequested =
     !import.meta.env?.ICM_DESKTOP &&
     capabilities.simulation &&
     requestedSimulationUi;
+  const managedSimulation =
+    resolveSimulationTransport(
+      import.meta.env.VITE_ICM_SIMULATION_TRANSPORT,
+    ) === "managed";
+  const publicSimulationUiEnabled = simulationEntryVisible({
+    requested: simulationUiRequested,
+    transport: managedSimulation ? "managed" : "direct",
+    teamAccount: useHostedSimulation(
+      simulationUiRequested && managedSimulation,
+    ),
+  });
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
   );
