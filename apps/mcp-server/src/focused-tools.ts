@@ -155,6 +155,7 @@ export const FOCUSED_TOOLS = [
       // apply_actions still takes; both together exceed the host budget.
       "set-terminal-net",
       "set-source-control",
+      "set-switch-control",
       "set-model",
       "set-instance-display",
       "set-display-alias",

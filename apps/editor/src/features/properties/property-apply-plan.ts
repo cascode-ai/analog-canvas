@@ -30,6 +30,7 @@ import type { ComponentPropertyCodeValue } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { planElectricalMarkerName } from "./electrical-marker-name";
 import { planPropertyContactMove } from "./property-contact-move";
+import { planSwitchControl, switchControlOf } from "./switch-control";
 
 export interface PropertyApplyContext {
   project: CircuitProject;
@@ -168,7 +169,32 @@ export function planPropertyApply(
   const desiredReference = value.display?.visualAnnotation;
   const label = instanceLabelAnnotationFor(document, instance.id);
   const currentReference = label !== undefined && label.visible !== false;
+  // A switch's control is its label's phase: one label edit writes the phase
+  // and shows or hides it as asked.
+  const switchControl = value.switchControl;
   if (
+    switchControl !== undefined &&
+    switchControl !== switchControlOf(project, document, instance)
+  ) {
+    const plan = planSwitchControl({
+      document,
+      instanceId: instance.id,
+      control: switchControl,
+      visible: desiredReference ?? currentReference,
+      labelFor: instanceLabelAnnotationFor,
+      newLabelFor: (current, instanceId) =>
+        instanceDisplayEdits(current, resolver, [instanceId], {
+          showReference: true,
+        }).flatMap((edit) =>
+          edit.kind === "upsert_schematic_annotation" &&
+          edit.annotation.kind === "instance-label"
+            ? [edit.annotation]
+            : [],
+        )[0],
+    });
+    if (!plan.ok) return { kind: "rejected", message: plan.message };
+    edits.push(...plan.edits);
+  } else if (
     typeof desiredReference === "boolean" &&
     desiredReference !== currentReference
   ) {
