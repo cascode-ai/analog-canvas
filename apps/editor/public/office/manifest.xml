@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Analog Canvas for PowerPoint. The pane and the editor load from the site,
+     so every deploy is what the add-in runs; this file changes only for its
+     buttons, icons or permissions. Install steps: /office/. -->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+  xsi:type="TaskPaneApp">
+  <Id>6f6a2c1e-6c9b-4d3e-9a51-2f0b8e4d7a11</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Analog Canvas</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Analog Canvas" />
+  <Description DefaultValue="Draw analog circuit schematics on your slides and edit them again later, with the Analog Canvas editor." />
+  <IconUrl DefaultValue="https://analog-canvas.tokenzhang.com/office/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://analog-canvas.tokenzhang.com/office/icon-64.png" />
+  <SupportUrl DefaultValue="https://analog-canvas.tokenzhang.com/office/" />
+  <AppDomains>
+    <AppDomain>https://analog-canvas.tokenzhang.com</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Presentation" />
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="PowerPointApi" MinVersion="1.5" />
+      <Set Name="DialogApi" MinVersion="1.2" />
+      <Set Name="ImageCoercion" MinVersion="1.2" />
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://analog-canvas.tokenzhang.com/office/taskpane.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Presentation">
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="AnalogCanvas.Group">
+                <Label resid="AnalogCanvas.Label" />
+                <Icon>
+                  <bt:Image size="16" resid="AnalogCanvas.Icon16" />
+                  <bt:Image size="32" resid="AnalogCanvas.Icon32" />
+                  <bt:Image size="80" resid="AnalogCanvas.Icon80" />
+                </Icon>
+                <Control xsi:type="Button" id="AnalogCanvas.Open">
+                  <Label resid="AnalogCanvas.Label" />
+                  <Supertip>
+                    <Title resid="AnalogCanvas.Label" />
+                    <Description resid="AnalogCanvas.Tip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="AnalogCanvas.Icon16" />
+                    <bt:Image size="32" resid="AnalogCanvas.Icon32" />
+                    <bt:Image size="80" resid="AnalogCanvas.Icon80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <!-- This id lets a presentation holding a circuit open
+                         the pane itself (taskpane.js sets it). -->
+                    <TaskpaneId>Office.AutoShowTaskpaneWithDocument</TaskpaneId>
+                    <SourceLocation resid="AnalogCanvas.Taskpane" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="AnalogCanvas.Icon16" DefaultValue="https://analog-canvas.tokenzhang.com/office/icon-16.png" />
+        <bt:Image id="AnalogCanvas.Icon32" DefaultValue="https://analog-canvas.tokenzhang.com/office/icon-32.png" />
+        <bt:Image id="AnalogCanvas.Icon80" DefaultValue="https://analog-canvas.tokenzhang.com/office/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="AnalogCanvas.Taskpane" DefaultValue="https://analog-canvas.tokenzhang.com/office/taskpane.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="AnalogCanvas.Label" DefaultValue="Analog Canvas" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="AnalogCanvas.Tip" DefaultValue="Draw a circuit on this slide, or edit the selected one." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

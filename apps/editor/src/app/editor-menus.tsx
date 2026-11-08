@@ -40,6 +40,7 @@ import {
 } from "../services/editor-services";
 import { EditorAppChrome } from "./editor-app-chrome";
 import type { EditorProjectPanelMode } from "./editor-project-dock";
+import { isOfficeDialog } from "./office-link";
 import type { createEditorTransactionCommands } from "./editor-transaction-commands";
 import type { useProjectCheck } from "./use-project-check";
 import type { useEditorAgentConnection } from "./use-agent-hosts";
@@ -329,71 +330,74 @@ export function EditorMenuBar({
       }
       projectTabs={
         <>
-          <ProjectTabs
-            cloudEnabled={projectStore !== null}
-            tabs={projectTabs.tabs}
-            activeId={projectTabs.activeId}
-            busy={
-              projectTabs.busy ||
-              cloudManagementBusy ||
-              (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
-            }
-            onSelect={projectTabs.select}
-            onRename={(id, name) => {
-              if (id === projectTabs.activeId) renameProject(name);
-            }}
-            onEditingChange={(editing) => {
-              projectNameEditing.current = editing;
-            }}
-            onClose={(id) => {
-              if (nativeProjectStore) void closeNativeTab(id);
-              else void projectTabs.close(id, () => createTabSession());
-            }}
-            onCloseMany={(ids) => {
-              if (nativeProjectStore) void closeNativeTabs(ids);
-              else void projectTabs.closeMany(ids, () => createTabSession());
-            }}
-            {...(nativeProjectStore
-              ? {
-                  onSaveClose: async (id: string) => {
-                    const { saveAndCloseNativeTab } =
-                      await loadNativeProjectWorkspace();
-                    return saveAndCloseNativeTab(id, {
-                      busy: () =>
-                        nativeOperation.current ||
-                        nativeWorkspaceSaving.current ||
-                        isSaveInFlight(),
-                      setBusy: (busy) => {
-                        nativeWorkspaceSaving.current = busy;
-                        setNativeBusy(busy);
-                      },
-                      save: saveNativeTab,
-                      entries: projectTabs.entries,
-                      close: closeNativeTab,
-                      report: setStatus,
-                    });
-                  },
-                }
-              : {})}
-            onNew={() => {
-              void projectTabs.open(() => createTabSession());
-            }}
-            onOpenFile={() =>
-              nativeProjectStore
-                ? void openNativeProject()
-                : tabProjectInputRef.current?.click()
-            }
-            cloudProjects={cloudProjects}
-            onRenameShelf={renameShelfProject}
-            onDeleteShelf={deleteShelfProject}
-            onShelfOpened={() => {
-              void reloadCloudProjects();
-              cloudShelfOpened();
-            }}
-            onOpenShelf={(id) => {
-              void openCloudProjectById(id, true);
-            }}
-          />
+          {/* The PowerPoint dialog edits one drawing: no tabs. */}
+          {isOfficeDialog() ? null : (
+            <ProjectTabs
+              cloudEnabled={projectStore !== null}
+              tabs={projectTabs.tabs}
+              activeId={projectTabs.activeId}
+              busy={
+                projectTabs.busy ||
+                cloudManagementBusy ||
+                (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
+              }
+              onSelect={projectTabs.select}
+              onRename={(id, name) => {
+                if (id === projectTabs.activeId) renameProject(name);
+              }}
+              onEditingChange={(editing) => {
+                projectNameEditing.current = editing;
+              }}
+              onClose={(id) => {
+                if (nativeProjectStore) void closeNativeTab(id);
+                else void projectTabs.close(id, () => createTabSession());
+              }}
+              onCloseMany={(ids) => {
+                if (nativeProjectStore) void closeNativeTabs(ids);
+                else void projectTabs.closeMany(ids, () => createTabSession());
+              }}
+              {...(nativeProjectStore
+                ? {
+                    onSaveClose: async (id: string) => {
+                      const { saveAndCloseNativeTab } =
+                        await loadNativeProjectWorkspace();
+                      return saveAndCloseNativeTab(id, {
+                        busy: () =>
+                          nativeOperation.current ||
+                          nativeWorkspaceSaving.current ||
+                          isSaveInFlight(),
+                        setBusy: (busy) => {
+                          nativeWorkspaceSaving.current = busy;
+                          setNativeBusy(busy);
+                        },
+                        save: saveNativeTab,
+                        entries: projectTabs.entries,
+                        close: closeNativeTab,
+                        report: setStatus,
+                      });
+                    },
+                  }
+                : {})}
+              onNew={() => {
+                void projectTabs.open(() => createTabSession());
+              }}
+              onOpenFile={() =>
+                nativeProjectStore
+                  ? void openNativeProject()
+                  : tabProjectInputRef.current?.click()
+              }
+              cloudProjects={cloudProjects}
+              onRenameShelf={renameShelfProject}
+              onDeleteShelf={deleteShelfProject}
+              onShelfOpened={() => {
+                void reloadCloudProjects();
+                cloudShelfOpened();
+              }}
+              onOpenShelf={(id) => {
+                void openCloudProjectById(id, true);
+              }}
+            />
+          )}
           <input
             ref={tabProjectInputRef}
             hidden
@@ -607,8 +611,13 @@ export function EditorMenuBar({
         onToggleExamples: toggleExamplesPanel,
         onToggleLibrary: toggleLibraryPanel,
         onToggleHierarchy: toggleHierarchyPanel,
-        onToggleNetlist: () => toggleProjectPanel("netlist"),
-        onToggleProjectCode: () => toggleProjectPanel("project-code"),
+        // The PowerPoint dialog is for drawing; its netlist stays out of view.
+        ...(isOfficeDialog()
+          ? {}
+          : {
+              onToggleNetlist: () => toggleProjectPanel("netlist"),
+              onToggleProjectCode: () => toggleProjectPanel("project-code"),
+            }),
         onActivateTool: (nextTool) =>
           editorCommands.execute({
             id: "tool.activate",

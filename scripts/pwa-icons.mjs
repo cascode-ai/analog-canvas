@@ -93,12 +93,19 @@ if (check) {
 } else {
   await writeFile(iconPath, svg);
 }
-for (const size of [192, 512]) {
-  const path = resolve(publicRoot, `icon-${size}.png`);
+// The PWA's icons, and the PowerPoint add-in's (its manifest, ribbon button
+// and store listing take 16 to 128 pixels).
+for (const [folder, size] of [
+  ["", 192],
+  ["", 512],
+  ...[16, 32, 64, 80, 128].map((size) => ["office/", size]),
+]) {
+  const path = resolve(publicRoot, `${folder}icon-${size}.png`);
   const bytes = Buffer.from(rasterizeSvgBytes(svg, size));
   if (check) {
     const expected = await readFile(path);
-    if (!expected.equals(bytes)) throw new Error(`PWA icon differs: ${size}`);
+    if (!expected.equals(bytes))
+      throw new Error(`PWA icon differs: ${folder}${size}`);
   } else {
     await writeFile(path, bytes);
   }
