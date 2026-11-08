@@ -280,7 +280,7 @@ export function EditorAppChrome({
                   data-testid="own-reference-button"
                   onClick={openOwnReference}
                 >
-                  Reference image…
+                  Reference window
                 </button>
                 {hasSelectionActions ? (
                   <>

@@ -68,6 +68,7 @@ import {
 } from "./gallery-datasets";
 import {
   handleDatasetEntryEdit,
+  handleEntryDetails,
   handleEntryUpdate,
   handleSubmission,
   routeGalleryPublishing,
@@ -1117,6 +1118,8 @@ export async function routeGalleryRequest(
   if (segments.length === 1 && request.method === "PUT") {
     return handleEntryUpdate(request, env, segments[0]!);
   }
+  if (segments.length === 1 && request.method === "PATCH")
+    return handleEntryDetails(request, env, segments[0]!);
   if (
     segments.length === 2 &&
     segments[1] === "reject" &&

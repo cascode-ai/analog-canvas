@@ -1,10 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-// The reader's own reference image, a figure they paste, drop or choose to
-// trace over: whether the editor shows it, and the image itself, kept for the
-// page's life across closing and reopening its panel. The Edit menu opens
-// it; Publish offers to publish the image with the drawing. The panel and
-// the Publish dialog load apart from the editor's first payload and take
+// The reference window beside the canvas: whether it shows (from the start,
+// until closed), and each drawing's image the reader brought to trace over,
+// kept for the page's life. The Edit menu and the status bar open it; Publish offers to publish the image with the drawing. The window
+// and the Publish dialog load apart from the editor's first payload and take
 // what they need from here as props, so this stays in that payload's chunk.
 
 export interface OwnReferenceImage {
@@ -12,8 +11,25 @@ export interface OwnReferenceImage {
   url: string;
 }
 
-let open = false;
-let image: OwnReferenceImage | null = null;
+// Closed stays closed in this browser until opened again.
+const CLOSED_KEY = "icm.reference-window.v1";
+function rememberClosed(closed: boolean): void {
+  try {
+    if (closed) localStorage.setItem(CLOSED_KEY, "closed");
+    else localStorage.removeItem(CLOSED_KEY);
+  } catch {
+    // Without storage it opens with the next page.
+  }
+}
+let open = (() => {
+  try {
+    return localStorage.getItem(CLOSED_KEY) !== "closed";
+  } catch {
+    return true;
+  }
+})();
+/** By project tab session. */
+const images = new Map<string, OwnReferenceImage>();
 const listeners = new Set<() => void>();
 const changed = () => {
   for (const listener of listeners) listener();
@@ -25,16 +41,19 @@ const subscribe = (listener: () => void) => {
 
 export const openOwnReference = () => {
   open = true;
+  rememberClosed(false);
   changed();
 };
 export const closeOwnReference = () => {
   open = false;
+  rememberClosed(true);
   changed();
 };
 
-export function keepOwnReferenceImage(file: File): void {
-  if (image) URL.revokeObjectURL(image.url);
-  image = { file, url: URL.createObjectURL(file) };
+export function keepOwnReferenceImage(session: string, file: File): void {
+  const before = images.get(session);
+  if (before) URL.revokeObjectURL(before.url);
+  images.set(session, { file, url: URL.createObjectURL(file) });
   changed();
 }
 
@@ -46,10 +65,12 @@ export function useOwnReferenceOpen(): boolean {
   );
 }
 
-export function useOwnReferenceImage(): OwnReferenceImage | null {
+export function useOwnReferenceImage(
+  session: string,
+): OwnReferenceImage | null {
   return useSyncExternalStore(
     subscribe,
-    () => image,
+    () => images.get(session) ?? null,
     () => null,
   );
 }

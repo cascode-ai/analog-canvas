@@ -75,6 +75,7 @@ import {
   replaceEntry,
   submit,
   updateEntry,
+  updateEntryDetails,
 } from "./gallery-store-entries";
 import {
   boardChange,
@@ -721,6 +722,8 @@ export class GalleryDO {
         return renameOwner(this.state, body);
       case "update-entry":
         return updateEntry(this.sql, body);
+      case "entry-details":
+        return updateEntryDetails(this.state, body);
       case "label-looks-read":
         return labelLooksRead(this.sql, String(body.id), body.table);
       case "netlist-sources":

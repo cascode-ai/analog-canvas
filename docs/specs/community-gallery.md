@@ -196,18 +196,22 @@ entries, keyset cursor, limit ≤60.
 - Hosted Production/preview always uses Gallery, never bundled examples;
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
-- An entry opened from the Gallery shows its name and description in a panel
-  floating beside the canvas, with its reference figure (a dataset's original
-  figure, or a community circuit's reference image) when it has one, to
-  redraw or fix against: moved by its title bar, resized from its corner, the
-  figure zoomed by the wheel and panned by a drag, folded to its title bar, or
-  closed to a Reference (About, without a figure) button that brings it back.
-  A publication from the editor reloads it.
-- Edit › Reference image… floats the reader's own figure to trace over the
-  same way, in any drawing: a pasted screenshot (⌘V / Ctrl+V, unless a text
-  field or a circuit takes the paste), a dropped image or a chosen file. It
-  stays in the page, kept across closing and reopening, and is uploaded only
-  as the next section says.
+- Every drawing shows a reference window floating over the canvas's
+  bottom-right corner from the start: its name, description and reference
+  image. Closing it is remembered in this browser; Reference in the status
+  bar (or Edit › Reference window) opens it again. The image is a
+  pasted screenshot (⌘V / Ctrl+V, unless a text field or a circuit takes the
+  paste), a dropped image or a chosen file, kept per tab for the page's life;
+  a drawing opened from the Gallery starts from its entry's figure (a
+  dataset's original or the reference image). The window moves by its title
+  bar, resizes from any edge or corner, folds, keeps its place across tabs,
+  and selects nothing on the page while it moves; the image zooms with the
+  wheel and pans with a drag.
+- Save keeps an unpublished drawing's name and description with it (Publish
+  starts from them). For a community entry its owner, an admin or a moderator
+  may change, Save writes them to the entry at once, and the image as its
+  reference image when its owner or the Owner saves; a dataset's entry, or
+  another's, is read-only and an image there stays on the page.
 
 ## On a phone
 
@@ -351,6 +355,10 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
   `{id, status, previewRevision}`. `aiGenerated` sets the mark, omission keeps
   it (seat entries always keep it); the mark belongs to the entry, not a
   version. `ownerUserId` in the detail tells the editor who may update.
+- `PATCH /api/gallery/<id>` (same-origin) `{name, description}` changes them
+  alone under the same rules for its owner, admins and moderators (others 403,
+  a dataset's entry 403 `dataset-read-only`): the drawing, preview and marks
+  stay and the version before is kept. 200 `{id, name, description}`.
 - Take-over: an AI seat updating another seat's entry with `takeOver: true` moves
   owner and byline (200 adds `{ownerUserId, author}`), keeping id, likes, tags,
   mark and status; earlier versions keep their account. Involving a person is
@@ -645,8 +653,8 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   redraws a larger file as WebP) → `{revision}`; `DELETE` removes it. Errors:
   403 `forbidden`, 400 `rights-required` or `invalid-image`. Dataset entries
   take none (404): their figures are comparisons.
-- Publishing or updating from the editor (not a fix) with the reader's own
-  reference image open offers it, unticked: ticked, saying they may share it,
+- Publishing or updating from the editor (not a fix) with an image in the
+  reference window offers it, unticked: ticked, saying they may share it,
   it is put the same way after the entry saves; a failure leaves the entry
   published and the notice says how to attach it.
 - Signed-in readers read it: `GET …/reference[?v=<revision>]` (immutable when

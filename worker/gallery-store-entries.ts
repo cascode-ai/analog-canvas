@@ -513,6 +513,37 @@ export function replaceEntry(
   });
 }
 
+/**
+ * An entry's name and description changed alone: its drawing, preview and
+ * marks stay. The version before is kept, as an update keeps it.
+ */
+export function updateEntryDetails(
+  state: DurableObjectStateLike,
+  body: Record<string, unknown>,
+): Response {
+  const sql = state.storage.sql;
+  const row = sql
+    .exec<EntryRow>(
+      "SELECT * FROM gallery_entries WHERE id = ?",
+      String(body.id),
+    )
+    .toArray()[0];
+  if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+  const name = String(body.name);
+  const description = String(body.description);
+  if (name !== row.name || description !== row.description)
+    state.storage.transactionSync(() => {
+      snapshotEntry(sql, row, String(body.at ?? row.created_at));
+      sql.exec(
+        "UPDATE gallery_entries SET name = ?, description = ? WHERE id = ?",
+        name,
+        description,
+        row.id,
+      );
+    });
+  return Response.json({ id: row.id, name, description });
+}
+
 /** Keep current private content, migrating old folder shapes with their Project. */
 function preservedTestbench(row: EntryRow): string | null {
   const testbench = testbenchOf(row);
