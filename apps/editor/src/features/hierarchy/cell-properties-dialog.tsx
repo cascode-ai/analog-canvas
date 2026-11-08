@@ -223,9 +223,6 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
   const netlist = cell.netlist;
   const projection = projectCellInterface(netlist);
   const ports = projection.ports;
-  const issueByPortKey = new Map(
-    projection.issues.map((issue) => [issue.portKey, issue]),
-  );
   const target = localBlockSymbolTarget(cell);
   const placements = new Map(
     (target.presentation?.pinPlacements ?? []).map((placement) => [
@@ -398,7 +395,16 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                     <span role="columnheader" aria-label="Order" />
                   </div>
                   {ports.map((port, index) => {
-                    const issue = issueByPortKey.get(port.key);
+                    // Declarations of one name may state different
+                    // directions; a direction is only a drawing hint.
+                    const mixed =
+                      new Set(
+                        port.terminalIds.map(
+                          (id) =>
+                            netlist.terminals.find((item) => item.id === id)
+                              ?.direction,
+                        ),
+                      ).size > 1;
                     const placement = placements.get(port.id);
                     return (
                       <div
@@ -430,16 +436,11 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                               {port.interfaceInstanceIds.length} markers
                             </small>
                           ) : null}
-                          {issue ? (
-                            <small className="cell-pin-conflict" role="status">
-                              Direction conflict
-                            </small>
-                          ) : null}
                         </span>
                         <span role="cell">
                           <select
                             aria-label={`Formal port ${port.name} direction`}
-                            value={issue ? "" : port.direction}
+                            value={mixed ? "" : port.direction}
                             onChange={(event) =>
                               props.onSetPinDirection(
                                 cell.id,
@@ -448,7 +449,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                               )
                             }
                           >
-                            {issue ? (
+                            {mixed ? (
                               <option value="" disabled>
                                 Mixed
                               </option>

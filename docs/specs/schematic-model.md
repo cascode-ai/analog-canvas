@@ -57,7 +57,10 @@ cross-Document edits use one Project transaction guarded by
   direction, Net ID and a singleton `interfaceInstanceIds` naming its one
   canvas Instance (pin `P`). Each formal terminal has exactly one interface
   owner; there is no free-Port collection. Equal folded names resolve to one
-  Logical Net while declarations, directions and Base Nets stay separate. A
+  Logical Net, however each declaration is drawn (a VDD Power marker, a plain
+  Port), while declarations, directions and Base Nets stay separate. A
+  direction is a drawing hint (the block symbol's pin side), never checked; a
+  Port whose declarations differ reads passive. A
   Port name may differ from a visible internal Net Label without overwriting
   it.
 - `port` is the hollow Cell Pin, `port-filled` the solid Bias Voltage Port

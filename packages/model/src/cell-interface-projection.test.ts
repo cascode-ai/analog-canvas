@@ -55,12 +55,11 @@ describe("Cell interface projection", () => {
           interfaceInstanceIds: ["P2"],
         },
       ],
-      issues: [],
     });
     expect(netlist).toEqual(before);
   });
 
-  it("reports direction conflicts and uses a conservative passive projection", () => {
+  it("reads a port of mixed directions as passive and reports nothing", () => {
     const netlist: CellNetlistInterface = {
       name: "Stage",
       formalParameters: [],
@@ -94,19 +93,10 @@ describe("Cell interface projection", () => {
           interfaceInstanceIds: ["P1", "P2"],
         },
       ],
-      issues: [
-        {
-          code: "CELL_PORT_DIRECTION_CONFLICT",
-          portKey: "bus",
-          portName: "BUS",
-          terminalIds: ["terminal-a", "terminal-b"],
-          directions: ["input", "output"],
-        },
-      ],
     });
   });
 
   it("projects a missing netlist as an empty interface", () => {
-    expect(projectCellInterface(undefined)).toEqual({ ports: [], issues: [] });
+    expect(projectCellInterface(undefined)).toEqual({ ports: [] });
   });
 });

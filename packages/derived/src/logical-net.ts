@@ -166,13 +166,21 @@ export function resolveDocumentLogicalNets(
     ids.push(evidence.netId);
     byScopedName.set(key, ids);
   }
+  // A Cell has one Pin of each name, however its declarations are drawn: a
+  // VDD Pin on a VDD Power marker and a VDD Pin on a plain Port are the same
+  // Pin, though only the first stands on the supply's global scope.
+  const byFormalName = new Map<string, string[]>();
   for (const terminal of formalNames) {
     const key = `${terminal.scope}\u0000${foldNetName(terminal.name)}`;
     const ids = byScopedName.get(key) ?? [];
     ids.push(terminal.netId);
     byScopedName.set(key, ids);
+    const formalIds = byFormalName.get(foldNetName(terminal.name)) ?? [];
+    formalIds.push(terminal.netId);
+    byFormalName.set(foldNetName(terminal.name), formalIds);
   }
   unionGroups(set, byScopedName.values());
+  unionGroups(set, byFormalName.values());
 
   const membersByRoot = new Map<string, string[]>();
   for (const netId of baseNetIds) {
