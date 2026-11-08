@@ -182,16 +182,46 @@ export function describeCallSplit(calls: readonly ActionCall[]): string {
   );
 }
 
+/** One action a refused list refuses, as `error.issues` names it. */
+export interface ActionIssue {
+  actionIndex: number;
+  actionKind: string;
+  message: string;
+  /**
+   * Not checked further: the action names a part that this earlier action
+   * would have placed. Fixing that one is the repair.
+   */
+  dependsOn?: number | undefined;
+}
+
 export class ActionCompileError extends Error {
   readonly index: number;
   readonly actionKind: string;
+  /** The Reference or ID that named nothing, when that is the refusal. */
+  readonly missing: string | undefined;
+  /** Every action the list refuses, in order; this one is the first. */
+  issues: ActionIssue[];
 
-  constructor(index: number, actionKind: string, message: string) {
+  constructor(
+    index: number,
+    actionKind: string,
+    message: string,
+    missing?: string,
+  ) {
     super(`actions[${index}] (${actionKind}): ${message}`);
     this.name = "ActionCompileError";
     this.index = index;
     this.actionKind = actionKind;
+    this.missing = missing;
+    this.issues = [{ actionIndex: index, actionKind, message: this.message }];
   }
+}
+
+/** What a refusal's message adds when it is not the list's only one. */
+export function moreRefused(count: number): string {
+  return count
+    ? ` (and ${count} more action${count === 1 ? " is" : "s are"} refused; see issues)`
+    : "";
 }
 
 interface SnapshotInstance {
@@ -420,6 +450,7 @@ function resolveInstance(
       index,
       kind,
       `no instance matches ${ref.id ? `id "${ref.id}"` : `Reference or id "${ref.reference ?? ""}"`}`,
+      ref.id ?? ref.reference,
     );
   }
   return found;
@@ -567,15 +598,46 @@ export function compileActions(
   actions: readonly unknown[],
   context: CompileContext,
 ): CompiledTransaction[] {
-  const parsed = z.array(AuthoringActionSchema).safeParse(actions);
-  if (!parsed.success) {
+  // Each action is checked on its own, so a refusal names every action the
+  // list refuses, not only the first.
+  const refusals: ActionCompileError[] = [];
+  /** The names a refused placement would have given, by its action. */
+  const unplaced = new Map<string, number>();
+  const refuse = (error: ActionCompileError, action: unknown): void => {
+    refusals.push(error);
+    const place = action as {
+      kind?: unknown;
+      id?: unknown;
+      reference?: unknown;
+      symbol?: unknown;
+    };
+    if (place?.kind !== "place-component") return;
+    const names = [
+      place.id,
+      place.reference ?? (place.symbol === "vdd-port" ? "VDD" : undefined),
+    ];
+    for (const name of names)
+      if (typeof name === "string" && !unplaced.has(name))
+        unplaced.set(name, error.index);
+  };
+  const valid = actions.flatMap((action, index) => {
+    const parsed = AuthoringActionSchema.safeParse(action);
+    if (parsed.success) return [{ action: parsed.data, index }];
     const issue = parsed.error.issues[0];
-    throw new ActionCompileError(
-      Number(issue?.path[0] ?? 0) || 0,
-      "schema",
-      issue ? `${issue.path.join(".")}: ${issue.message}` : "invalid action",
+    refuse(
+      new ActionCompileError(
+        index,
+        "schema",
+        issue
+          ? `${[index, ...issue.path].join(".")}: ${issue.message}`
+          : "invalid action",
+      ),
+      action,
     );
-  }
+    return [];
+  });
+  /** The list's actions by index, for a placement's direction and display. */
+  const actionAt = new Map(valid.map(({ action, index }) => [index, action]));
   const document = resolvedDocument(context.snapshot);
   const usedIds = existingIds(document);
   const maxEdits = context.maxEditsPerTransaction ?? 64;
@@ -762,10 +824,47 @@ export function compileActions(
   };
 
   const createdBy = new Map<CompiledTransaction, number>();
-  parsed.data.forEach((action, index) => {
+  for (const { action, index } of valid) {
     const before = transactions.length;
     actionIndex = index;
     actionKind = action.kind;
+    try {
+      compileOne(action, index);
+    } catch (error) {
+      // An ID collision is the allocator's, not the list's: nothing to name.
+      if (!(error instanceof ActionCompileError) || error.index < 0)
+        throw error;
+      // An action that names a part a refused placement would have made
+      // would only repeat that refusal: it is marked, not checked further.
+      const dependsOn =
+        error.missing === undefined ? undefined : unplaced.get(error.missing);
+      if (dependsOn !== undefined)
+        error.issues = [
+          {
+            actionIndex: index,
+            actionKind: action.kind,
+            message: `actions[${index}] (${action.kind}): not checked; it names "${error.missing}", which actions[${dependsOn}] would have placed`,
+            dependsOn,
+          },
+        ];
+      refuse(error, action);
+      continue;
+    }
+    // Edit batches record their actions edit by edit; every other form is
+    // created by exactly one action.
+    for (const transaction of transactions.slice(before))
+      if (transaction.form !== "edits") createdBy.set(transaction, index);
+  }
+  const [first, ...more] = refusals.sort(
+    (left, right) => left.index - right.index,
+  );
+  if (first) {
+    first.issues = refusals.flatMap((refusal) => refusal.issues);
+    first.message += moreRefused(more.length);
+    throw first;
+  }
+
+  function compileOne(action: AuthoringAction, index: number): void {
     switch (action.kind) {
       case "route-net":
       case "set-port-direction":
@@ -1156,11 +1255,7 @@ export function compileActions(
         );
       }
     }
-    // Edit batches record their actions edit by edit; every other form is
-    // created by exactly one action.
-    for (const transaction of transactions.slice(before))
-      if (transaction.form !== "edits") createdBy.set(transaction, index);
-  });
+  }
 
   return transactions
     .map((transaction): CompiledTransaction => {
@@ -1220,8 +1315,9 @@ export function compileActions(
             ),
             terminalDirections: Object.fromEntries(
               transaction.edits.flatMap((edit, index) => {
-                const source =
-                  parsed.data[transaction.editActionIndices![index]!];
+                const source = actionAt.get(
+                  transaction.editActionIndices![index]!,
+                );
                 return edit.kind === "add_instance" &&
                   source?.kind === "place-component" &&
                   source.direction
@@ -1231,8 +1327,9 @@ export function compileActions(
             ),
             pinAnchors: Object.fromEntries(
               transaction.edits.flatMap((edit, index) => {
-                const source =
-                  parsed.data[transaction.editActionIndices![index]!];
+                const source = actionAt.get(
+                  transaction.editActionIndices![index]!,
+                );
                 return edit.kind === "add_instance" &&
                   source?.kind === "place-component" &&
                   source.pinAnchor
@@ -1242,8 +1339,9 @@ export function compileActions(
             ),
             ...placementDisplays(
               transaction.edits.flatMap((edit, index) => {
-                const source =
-                  parsed.data[transaction.editActionIndices![index]!];
+                const source = actionAt.get(
+                  transaction.editActionIndices![index]!,
+                );
                 return edit.kind === "add_instance" &&
                   source?.kind === "place-component"
                   ? [{ id: edit.instance.id, source }]
@@ -1400,6 +1498,18 @@ function compilePlaceComponent(
       `Instance Reference "${action.reference}" already exists in this document`,
     );
   }
+  // The commit refuses an off-grid origin too, but stops at the first: this
+  // names it beside the list's other refusals.
+  if (action.position && !action.mirrorOf && !action.pinAnchor) {
+    const { x, y } = action.position;
+    const grid = document.grid;
+    if (x % grid !== 0 || y % grid !== 0)
+      throw new ActionCompileError(
+        index,
+        action.kind,
+        `position (${x}, ${y}) is off the placement grid ${grid}; use multiples of ${grid}, such as (${Math.round(x / grid) * grid}, ${Math.round(y / grid) * grid})`,
+      );
+  }
   const parameters = validateActionParameters(
     index,
     action.kind,
@@ -1496,6 +1606,7 @@ function mirroredPlacement(
         : source.placed
           ? `${of.instance} lands by its pin anchor in this list; mirror it in a later call`
           : `${of.instance} is not placed yet; place it before mirroring it`,
+      source ? undefined : of.instance,
     );
   const position =
     of.x !== undefined

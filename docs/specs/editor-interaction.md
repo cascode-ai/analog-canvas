@@ -421,8 +421,9 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 
 ## Project sessions
 
-- Project renames (tab double-click, or Project Info which also renames the
-  on-screen Cell via `rename_project` + `rename_document` in one undo) commit only
+- Project renames (tab double-click, or the floating Project Info window,
+  which also renames the on-screen Cell via `rename_project` +
+  `rename_document` in one undo) commit only
   a changed nonempty name, ≤120 characters (longer old names are never
   truncated). Renames mark dirty but never save, rebind or republish.
 - Tab menu: Close, Close Others, Close All; dirty tabs need one decision; Close

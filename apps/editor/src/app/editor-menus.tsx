@@ -19,6 +19,7 @@ import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import type { CellInsertCandidate } from "../features/component-insert/insert-component-dialog";
 import { fullInsertLaunch } from "../features/component-insert/insert-launch";
 import type { createEditorFileCommands } from "../features/editor-shell/editor-file-commands";
+import { openOwnReference } from "../features/editor-shell/own-reference";
 import { ProjectTabs } from "../features/editor-shell/project-tabs";
 import type { useEditorPanels } from "../features/editor-shell/use-editor-panels";
 import type { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
@@ -40,7 +41,7 @@ import {
 } from "../services/editor-services";
 import { EditorAppChrome } from "./editor-app-chrome";
 import type { EditorProjectPanelMode } from "./editor-project-dock";
-import { isOfficeDialog } from "./office-link";
+import { isOfficeDialog } from "./office-messages";
 import type { createEditorTransactionCommands } from "./editor-transaction-commands";
 import type { useProjectCheck } from "./use-project-check";
 import type { useEditorAgentConnection } from "./use-agent-hosts";
@@ -105,7 +106,6 @@ export function EditorMenuBar({
   netlistNamingProfile,
   documentSettingsOpen,
   setDocumentSettingsOpen,
-  setProjectInfoOpen,
   projectNameEditing,
   publishGalleryOpen,
   setPublishGalleryOpen,
@@ -204,7 +204,6 @@ export function EditorMenuBar({
   netlistNamingProfile: NetlistNamingProfile;
   documentSettingsOpen: boolean;
   setDocumentSettingsOpen: Dispatch<SetStateAction<boolean>>;
-  setProjectInfoOpen: Dispatch<SetStateAction<boolean>>;
   projectNameEditing: RefObject<boolean>;
   publishGalleryOpen: GalleryPublishing["publishGalleryOpen"];
   setPublishGalleryOpen: GalleryPublishing["setPublishGalleryOpen"];
@@ -477,7 +476,7 @@ export function EditorMenuBar({
           ),
         onRevert: revertToSavedProjectBaseline,
         onOpenRecovery: openRecoveryDialog,
-        onOpenInfo: () => setProjectInfoOpen(true),
+        onOpenInfo: openOwnReference,
       }}
       searchOpen={searchOpen}
       selectionFilterOpen={selectionFilterOpen}

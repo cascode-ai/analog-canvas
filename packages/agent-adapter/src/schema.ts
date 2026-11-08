@@ -336,8 +336,8 @@ const TransactionPayloadShape = {
     .max(256)
     .optional(),
   /** High-level authoring actions, which the editor plans as the MCP
-   * client compiles them: see the authoring contract. Malformed actions are
-   * refused with ACTION_COMPILE_FAILED naming the action. */
+   * client compiles them: see the authoring contract. A list with malformed
+   * actions is refused with ACTION_COMPILE_FAILED naming each of them. */
   actions: z.array(z.unknown()).min(1).max(256).optional(),
 };
 /** A Project structure edit, as advanced_transact's structureEdits take
@@ -1051,6 +1051,18 @@ const AgentActionCallSchema = z.strictObject({
     "focus",
   ]),
 });
+/** One action a refused list refuses (ACTION_COMPILE_FAILED). */
+const AgentActionIssueSchema = z.strictObject({
+  actionIndex: z.number().int().nonnegative(),
+  /** The action's kind, or `schema` for a malformed one. */
+  actionKind: z.string().min(1),
+  message: z.string(),
+  /**
+   * Not checked further: the action names a part this earlier action would
+   * have placed; repairing that one is the repair.
+   */
+  dependsOn: z.number().int().nonnegative().optional(),
+});
 const AgentErrorResponseSchema = ResponseBaseSchema.extend({
   operation: z.enum(["error", "snapshot", "transact", "render"]),
   ok: z.literal(false),
@@ -1066,6 +1078,8 @@ const AgentErrorResponseSchema = ResponseBaseSchema.extend({
     actionIndex: z.number().int().nonnegative().optional(),
     /** The kind of that action, or `schema` for a malformed one. */
     actionKind: z.string().min(1).optional(),
+    /** ACTION_COMPILE_FAILED: every action the list refuses, in order. */
+    issues: z.array(AgentActionIssueSchema).min(1).optional(),
   }),
   diagnostics: z.array(AgentDiagnosticSchema),
 });

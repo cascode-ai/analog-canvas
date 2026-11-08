@@ -11,6 +11,7 @@ import {
   exportedProject,
   openMenu,
   openProjectFile,
+  closeProjectInfo,
   openProjectInfo,
   parseSavedProject,
   placeComponentAt,
@@ -1321,18 +1322,16 @@ test("tab rename keeps header geometry and Project Info renames the circuit and 
     const trigger = (await toggle.boundingBox())!;
     expect(trigger.x).toBeGreaterThanOrEqual(brand.x + brand.width);
     expect(trigger.width).toBeLessThanOrEqual(96);
-    const dialog = await openProjectInfo(page);
+    const info = await openProjectInfo(page);
     await expect(
-      dialog.getByRole("textbox", { name: "Name", exact: true }),
+      info.getByRole("textbox", { name: "Circuit name", exact: true }),
     ).toHaveValue(longName);
-    await expect(dialog).toContainText("Current Cell");
-    // About two thirds of the window.
-    const bounds = (await dialog.boundingBox())!;
+    await expect(info).toContainText("Current Cell");
+    // A narrower browser pulls the window back inside it.
+    const bounds = (await info.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-    expect(Math.abs(bounds.width - (width * 2) / 3)).toBeLessThanOrEqual(2);
-    await page.keyboard.press("Escape");
-    await expect(dialog).toBeHidden();
+    await closeProjectInfo(page);
   }
   // Escape cancels, and a blank name leaves the old name intact.
   await tab.dblclick();
@@ -1355,23 +1354,24 @@ test("tab rename keeps header geometry and Project Info renames the circuit and 
   });
   const cellName = await cellField.inputValue();
   await info
-    .getByRole("textbox", { name: "Name", exact: true })
+    .getByRole("textbox", { name: "Circuit name", exact: true })
     .fill("Bandgap reference");
   await cellField.fill("bandgap_core");
   await cellField.press("Enter");
-  await expect(info).toBeHidden();
   await expect(page.getByTestId("project-name")).toHaveText(
     "Bandgap reference",
   );
   await expect(tab).toContainText("Bandgap reference");
-  await openProjectInfo(page);
   await expect(cellField).toHaveValue("bandgap_core");
-  await page.keyboard.press("Escape");
+  await closeProjectInfo(page);
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("project-name")).toHaveText("New Circuit");
   await openProjectInfo(page);
   await expect(cellField).toHaveValue(cellName);
-  await page.keyboard.press("Escape");
+  await expect(
+    info.getByRole("textbox", { name: "Circuit name", exact: true }),
+  ).toHaveValue("New Circuit");
+  await closeProjectInfo(page);
 });
 
 test("attaches a Net Label copied across Projects with Ctrl+C/V to a wire with its exact look", async ({

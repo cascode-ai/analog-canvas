@@ -21,8 +21,9 @@ layout.
 ## The editor
 
 The header has **File**, **Edit** and **Circuit** menus and the **Simulate**,
-**Agent** and **Publish** actions. **File** holds Project Info (circuit and
-Cell names) and the file commands; **New Project** replaces the current tab's
+**Agent** and **Publish** actions. **File** holds Project Info (the circuit's
+name, its Cell, description and reference picture, in a floating window the
+status bar also opens) and the file commands; **New Project** replaces the current tab's
 circuit after asking about unsaved work. **Circuit** holds **Hierarchy** (the circuit tree) and **Netlist**.
 
 Each project tab is an independent circuit with its own view, selection, undo

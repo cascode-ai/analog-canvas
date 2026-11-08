@@ -40,6 +40,21 @@ it("summarizes repeated successful diagnostics without dropping errors or mutati
   ).toHaveLength(31);
 });
 
+it("passes every refused action of a list through to the Agent", () => {
+  const issues = [
+    { actionIndex: 1, actionKind: "place-component", message: "a" },
+    { actionIndex: 4, actionKind: "connect", message: "b", dependsOn: 1 },
+  ];
+  expect(
+    compactActionReport({
+      ok: false,
+      stage: "compile",
+      code: "ACTION_COMPILE_FAILED",
+      issues,
+    }),
+  ).toMatchObject({ issues });
+});
+
 it("searches resolved bound labels rather than absent literal content", () => {
   const project = parseProject(
     readFileSync(

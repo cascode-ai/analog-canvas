@@ -15,7 +15,7 @@ const NEW_PICTURE_SHARE = 0.7;
  * `examples/` beside this page, as [file, name]. A test opens each one.
  */
 const EXAMPLES = [
-  ["strongarm-latch.icproj.json", "StrongArm v2"],
+  ["strongarm-latch.icproj.json", "StrongArm comparator"],
   ["five-transistor-ota.icproj.json", "5T-OTA"],
   [
     "push-pull-source-follower.icproj.json",

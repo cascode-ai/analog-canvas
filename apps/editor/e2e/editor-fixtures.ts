@@ -250,12 +250,23 @@ export async function clickCommand(
   await details.getByRole("button", { name: button, exact: true }).click();
 }
 
-/** Read the current Cell and publication metadata from File → Project Info. */
+/**
+ * File → Project Info: the floating window with the circuit's name, the
+ * current Cell, a Gallery entry's contributor, the description and the
+ * reference picture.
+ */
 export async function openProjectInfo(page: Page): Promise<Locator> {
   await clickCommand(page, "File", "Project Info");
-  const dialog = page.getByRole("dialog", { name: "Project Info" });
-  await expect(dialog).toBeVisible();
-  return dialog;
+  const panel = page.getByRole("complementary", { name: "Project Info" });
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+/** Close the Project Info window from its title bar. */
+export async function closeProjectInfo(page: Page): Promise<void> {
+  const panel = page.getByRole("complementary", { name: "Project Info" });
+  await panel.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(panel).toBeHidden();
 }
 
 /** Rename the active project in its tab, as a reader would. */
