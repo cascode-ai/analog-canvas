@@ -76,13 +76,18 @@ from before the public template serves only the private listener.
   fence, 120 seconds without catch-up, or 80% of the journal budget; its
   monitor holds counters only. The region pulls and pushes; the source needs no
   inbound domestic URL. The sync service never starts a stopped runtime.
-- Alerts: `sync-alert.py` watches Project, Publication and Release. Mail for
-  `retry` requires consecutive observations over two minutes. Other failures
-  and stale monitors alert at the next check. Repeat failure mail is at most
-  hourly, and recovery mail follows a failure accepted by the mail service.
-  Uncertain sends reuse their idempotency key for up to 23 hours. Production
-  separately alerts when the region stops pulling. Confirm `--test` delivery
-  before opening writes.
+- Project and Publication failure mail requires two minutes of unhealthy
+  observations after the monitor detects an anomaly. A monitor report of
+  blocked or disabled sync or journal capacity alerts at the next check,
+  including escalation from an open incident with a less urgent report.
+  An escalation waits in the delivery state during an unresolved send.
+  Two minutes of healthy observations confirm recovery.
+- Release mail reports failure and recovery at the next check. Retry must
+  persist for two minutes before mail.
+- All scopes report recovery after an accepted failure email. An open incident
+  sends at most one reminder per hour. Uncertain sends reuse their idempotency
+  key for up to 23 hours. Production separately alerts when the region stops
+  pulling. Confirm test delivery before opening writes.
 - Simulation reaches the regional gateways through `canvas-cn-operator`. Tunnel
   failure leaves editing and login available while computation fails closed;
   uncertain runs are never retried elsewhere. `simulation-smoke-token` only
