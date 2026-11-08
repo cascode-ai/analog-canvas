@@ -55,6 +55,14 @@ Project and publication peers, `identity-url` and `transportOrigin` to that
 host before splitting browser DNS. The release runner uses it by default.
 Only the Auth contract's browser routes are proxied there in shared-domain mode.
 
+The release owns the public nginx template. Use its release runner with
+`--public-mode stage` to serve the canonical TLS certificate on loopback
+port 8443 against the private runtime. At cutover set the shared-domain
+origins, then use `--public-mode open --filing-number '京ICP备…号-1'`
+with the issued number. The browser home page links that number to the MIIT
+site. `--public-mode off` removes the public listener. Run these commands
+under the formal release lock and keep public settings on the host.
+
 ## Operating rules
 
 - The release monitor is `/var/lib/canvas-cn-release/monitor.json`. To retry

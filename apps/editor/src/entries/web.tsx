@@ -283,6 +283,11 @@ export function mountWebEditor() {
           ) : (
             <GalleryFeed
               visitStats={stats}
+              filingNumber={
+                document.querySelector<HTMLMetaElement>(
+                  'meta[name="canvas-icp-filing"]',
+                )?.content
+              }
               {...(initialGalleryPreload
                 ? { preload: initialGalleryPreload }
                 : {})}
