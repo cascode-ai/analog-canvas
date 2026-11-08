@@ -26,6 +26,9 @@ export type ReviewedExternalBindingId =
   | "sky130-ind-03-90"
   | "sky130-ind-05-125"
   | "sky130-ind-05-220"
+  | "sky130-ind-03-90-two-pin"
+  | "sky130-ind-05-125-two-pin"
+  | "sky130-ind-05-220-two-pin"
   | "sky130-pnp-05v5-w0p68l0p68"
   | "sky130-pnp-05v5-w3p40l3p40"
   | "sky130-npn-05v5-w1p00l1p00"
@@ -117,6 +120,7 @@ export interface ReviewedExternalDeviceBinding {
     | "resistor"
     | "capacitor"
     | "inductor"
+    | "center-tap-inductor"
     | "npn"
     | "pnp"
     | StandardCellGateSymbolId;
@@ -124,6 +128,12 @@ export interface ReviewedExternalDeviceBinding {
     "mos" | "resistor" | "capacitor" | "inductor" | "bjt" | "logic";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
+  /**
+   * An older drawing of a device another binding of the same master now
+   * draws: parts drawn this way keep working, and no new part is offered it
+   * (#1832).
+   */
+  readonly legacy?: true;
   /**
    * The MOS primitive's path inside the wrapper, for operating-point
    * vectors. A plain SKY130 MOS wrapper holds one `m<masterName>`; the
@@ -683,34 +693,62 @@ const sky130VaractorBinding = (): ReviewedExternalDeviceBinding => ({
   ],
 });
 
-const sky130InductorBinding = (
-  id: ReviewedExternalBindingId,
+/**
+ * A SKY130 inductor is drawn as the Centre-Tap Inductor: its ends A and B and
+ * its tap CT are pins to wire, and its substrate is set in Properties
+ * (#1832). A part drawn as the plain 2-pin inductor before then keeps its
+ * device, with the tap set in Properties.
+ */
+const sky130InductorBindings = (
+  id: "sky130-ind-03-90" | "sky130-ind-05-125" | "sky130-ind-05-220",
   masterName: string,
-): ReviewedExternalDeviceBinding => ({
-  id,
-  libraryId: "sky130_fd_pr",
-  masterName,
-  invocationKind: "external-subcircuit",
-  symbolId: "inductor",
-  deviceClass: "inductor",
-  terminals: [
+): readonly ReviewedExternalDeviceBinding[] => {
+  const common = {
+    libraryId: "sky130_fd_pr",
+    masterName,
+    invocationKind: "external-subcircuit",
+    deviceClass: "inductor",
+    parameters: [],
+  } as const;
+  const ends = [
     { targetName: "A", pinName: "1", interaction: "canvas" },
     { targetName: "B", pinName: "2", interaction: "canvas" },
+  ] as const;
+  const substrate = {
+    targetName: "SUB",
+    pinName: "SUB",
+    interaction: "property",
+    role: "substrate",
+  } as const;
+  return [
     {
-      targetName: "CT",
-      pinName: "CT",
-      interaction: "property",
-      role: "floating",
+      ...common,
+      id,
+      symbolId: "center-tap-inductor",
+      terminals: [
+        ...ends,
+        { targetName: "CT", pinName: "3", interaction: "canvas" },
+        substrate,
+      ],
     },
     {
-      targetName: "SUB",
-      pinName: "SUB",
-      interaction: "property",
-      role: "substrate",
+      ...common,
+      id: `${id}-two-pin`,
+      symbolId: "inductor",
+      legacy: true,
+      terminals: [
+        ...ends,
+        {
+          targetName: "CT",
+          pinName: "CT",
+          interaction: "property",
+          role: "floating",
+        },
+        substrate,
+      ],
     },
-  ],
-  parameters: [],
-});
+  ];
+};
 
 const bjtCanvasTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
   ["C", "B", "E"].map((name) => ({
@@ -1109,9 +1147,9 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
     sky130MimCapBinding("sky130-cap-mim-m3-1", "sky130_fd_pr__cap_mim_m3_1"),
     sky130MimCapBinding("sky130-cap-mim-m3-2", "sky130_fd_pr__cap_mim_m3_2"),
     sky130VaractorBinding(),
-    sky130InductorBinding("sky130-ind-03-90", "sky130_fd_pr__ind_03_90"),
-    sky130InductorBinding("sky130-ind-05-125", "sky130_fd_pr__ind_05_125"),
-    sky130InductorBinding("sky130-ind-05-220", "sky130_fd_pr__ind_05_220"),
+    ...sky130InductorBindings("sky130-ind-03-90", "sky130_fd_pr__ind_03_90"),
+    ...sky130InductorBindings("sky130-ind-05-125", "sky130_fd_pr__ind_05_125"),
+    ...sky130InductorBindings("sky130-ind-05-220", "sky130_fd_pr__ind_05_220"),
     sky130VerticalPnpBinding(
       "sky130-pnp-05v5-w0p68l0p68",
       "sky130_fd_pr__pnp_05v5_W0p68L0p68",
@@ -1437,20 +1475,31 @@ const reviewedById = new Map(
   ]),
 );
 
+/** Each master's bindings, the one new parts are drawn with first. */
+const reviewedByMaster = new Map<string, ReviewedExternalDeviceBinding[]>();
+for (const binding of reviewedExternalDeviceBindings) {
+  const master = binding.masterName.toLowerCase();
+  reviewedByMaster.set(master, [
+    ...(reviewedByMaster.get(master) ?? []),
+    binding,
+  ]);
+}
+
 /**
  * The reviewed device of a master name. `symbolId` is the symbol the part is
- * drawn with: a standard cell is reviewed only behind the Library gate of its
- * function (#1450). Without it, as when importing a netlist or drawing a
- * definition's block, a cell is an ordinary external subcircuit.
+ * drawn with: a device drawn two ways answers for that drawing (#1832), and a
+ * standard cell is reviewed only behind the Library gate of its function
+ * (#1450). Without it, as when importing a netlist or drawing a definition's
+ * block, a device is the way new parts draw it, and a cell is an ordinary
+ * external subcircuit.
  */
 export function reviewedExternalBindingForMaster(
   masterName: string,
   symbolId?: string,
 ): ReviewedExternalDeviceBinding | undefined {
-  const normalized = masterName.toLowerCase();
-  const device = reviewedExternalDeviceBindings.find(
-    (binding) => binding.masterName.toLowerCase() === normalized,
-  );
+  const devices = reviewedByMaster.get(masterName.toLowerCase());
+  const device =
+    devices?.find((binding) => binding.symbolId === symbolId) ?? devices?.[0];
   if (device || !symbolId || !GATE_OF_SYMBOL.has(symbolId)) return device;
   const cell = standardCellBindingForMaster(masterName);
   return cell?.symbolId === symbolId ? cell : undefined;
@@ -1557,23 +1606,31 @@ export function reviewedExternalModelSuggestions(
   return reviewedExternalDeviceBindings
     .filter(
       (binding) =>
-        reviewedExternalBindingSupportsSymbol(binding, symbolId) &&
+        binding.symbolId === symbolId &&
+        !binding.legacy &&
         sameProcess(binding.libraryId),
     )
     .map((binding) => binding.masterName);
 }
 
 /**
- * Whether a part drawn with this symbol may take the reviewed device. Only its
- * own symbol may: the binding's terminals name that symbol's pins, so on any
- * other drawing they are pins the part does not have, and it can be neither
- * wired nor exported.
+ * Whether a part drawn with this symbol may take the reviewed device: a
+ * binding of its master for that symbol does. The binding's terminals name
+ * its symbol's pins, so on any other drawing they are pins the part does not
+ * have, and it can be neither wired nor exported; resolve the master with the
+ * drawn symbol for the terminals that part has.
  */
 export function reviewedExternalBindingSupportsSymbol(
   binding: ReviewedExternalDeviceBinding,
   symbolId: string,
 ): boolean {
-  return binding.symbolId === symbolId;
+  return (
+    binding.symbolId === symbolId ||
+    (reviewedByMaster
+      .get(binding.masterName.toLowerCase())
+      ?.some((each) => each.symbolId === symbolId) ??
+      false)
+  );
 }
 
 /** Reviewed SKY130 plain-um input to the canonical Project length spelling. */

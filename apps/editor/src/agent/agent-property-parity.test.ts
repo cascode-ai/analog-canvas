@@ -1381,6 +1381,65 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     );
   });
 
+  it("draws a SKY130 inductor's centre tap as a pin to wire, and keeps a 2-pin one working (#1832)", async () => {
+    const { controller, apply, instance } = await session();
+    const port = (name: string, x: number, y: number) => ({
+      kind: "place-component",
+      symbol: "port",
+      reference: name,
+      direction: "inout",
+      pinAnchor: { pinName: "P", position: { x, y } },
+    });
+    // The Centre-Tap Inductor's ends and tap: 1 (-50, 0), 2 (50, 0), 3 (0, 20).
+    // A part drawn as the plain inductor before #1832 (pins at 0, -30 and
+    // 0, 30) keeps its device, with the tap set in Properties.
+    await apply([
+      place("center-tap-inductor", "X1", 300),
+      port("P", 250, 100),
+      port("N", 350, 100),
+      port("CT", 300, 120),
+      place("inductor", "L2", 600),
+      port("A2", 600, 70),
+      port("B2", 600, 130),
+      {
+        kind: "place-component",
+        symbol: "ground",
+        id: "gnd",
+        position: { x: 450, y: 300 },
+      },
+    ]);
+    await apply([
+      {
+        kind: "set-model",
+        target: { kind: "instance", reference: "X1" },
+        model: "sky130_fd_pr__ind_03_90",
+      },
+      {
+        kind: "set-model",
+        target: { kind: "instance", reference: "L2" },
+        model: "sky130_fd_pr__ind_05_125",
+      },
+    ]);
+    const zero = netOf(controller.document, "gnd", "0")!;
+    const set = (reference: string, pin: string) => ({
+      kind: "set-terminal-net",
+      target: { kind: "instance", reference },
+      pin,
+      net: { kind: "net", id: zero },
+    });
+    await apply([set("X1", "SUB"), set("L2", "SUB"), set("L2", "CT")]);
+    expect(instance("X1").symbolId).toBe("center-tap-inductor");
+    const exported = createDesignNetlistExport(controller.project, {
+      format: "spice",
+    });
+    const text =
+      exported.status === "ready"
+        ? exported.file.text
+        : JSON.stringify(exported.diagnostics);
+    expect(text).toMatch(/^X1 P N CT VSS sky130_fd_pr__ind_03_90$/mu);
+    expect(text).toMatch(/^XL2 A2 B2 VSS VSS sky130_fd_pr__ind_05_125$/mu);
+  });
+
   it("shows an op-amp's supply pins as Properties does, wires one, and keeps a wired one shown (#1833)", async () => {
     // X2 keeps an old fill, a style Properties no longer offers.
     const fill = { background: "#FFF2CC" };

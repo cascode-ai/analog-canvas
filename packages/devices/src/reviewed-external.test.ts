@@ -152,6 +152,24 @@ describe("reviewed external device bindings", () => {
       ]),
     ).toMatchObject({
       id: "sky130-ind-05-220",
+      symbolId: "center-tap-inductor",
+      terminals: [
+        { pinName: "1", interaction: "canvas" },
+        { pinName: "2", interaction: "canvas" },
+        { pinName: "3", interaction: "canvas" },
+        { pinName: "SUB", interaction: "property", role: "substrate" },
+      ],
+    });
+    // A part drawn as the plain inductor before #1832 keeps its device, with
+    // the tap in Properties; no new one is offered it.
+    expect(
+      resolveReviewedExternalBinding(
+        "sky130_fd_pr__ind_05_220",
+        ["A", "B", "CT", "SUB"],
+        "inductor",
+      ),
+    ).toMatchObject({
+      id: "sky130-ind-05-220-two-pin",
       symbolId: "inductor",
       terminals: [
         { pinName: "1", interaction: "canvas" },
@@ -160,6 +178,12 @@ describe("reviewed external device bindings", () => {
         { pinName: "SUB", interaction: "property", role: "substrate" },
       ],
     });
+    expect(reviewedExternalModelSuggestions("inductor")).toEqual([]);
+    expect(reviewedExternalModelSuggestions("center-tap-inductor")).toEqual([
+      "sky130_fd_pr__ind_03_90",
+      "sky130_fd_pr__ind_05_125",
+      "sky130_fd_pr__ind_05_220",
+    ]);
     // Both vertical PNP sizes, the larger one for currents past the smaller
     // one's high-injection knee (#1614).
     for (const [masterName, id] of [

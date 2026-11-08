@@ -88,6 +88,8 @@ describe("review queue", () => {
         { ...card("b"), author: "Magic Li" },
         { ...card("c"), author: "Rgeph" },
         { ...card("d"), author: "Lu Jie" },
+        // A dataset's byline has its own row among the stores.
+        { ...card("e"), scope: "analoggenie", author: "AnalogGenie (redrawn)" },
       ]),
     ).toEqual([
       { author: "Rgeph", count: 2 },

@@ -78,7 +78,8 @@ function drawnSymbolId(project: CircuitProject, instance: Instance): string {
   );
   return (
     (definition &&
-      reviewedExternalBindingForMaster(definition.name)?.symbolId) ??
+      reviewedExternalBindingForMaster(definition.name, instance.symbolId)
+        ?.symbolId) ??
     instance.symbolId
   );
 }
@@ -430,7 +431,7 @@ export function planNetlistProcess(
           : undefined;
       const target = highVoltage ?? rule.target;
       if (!fits(target)) continue;
-      const reviewed = reviewedExternalBindingForMaster(target);
+      const reviewed = reviewedExternalBindingForMaster(target, drawn);
       // A high-voltage device brings its own geometry, not the family's.
       const familyDefaults: Readonly<Record<string, string>> = highVoltage
         ? {}
