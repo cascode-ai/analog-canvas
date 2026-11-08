@@ -278,6 +278,17 @@
   font-size: 12px;
 }
 
+/* One's own drawing: a note where the verdict controls stand. */
+.review-own {
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface-muted, #f6f7f8);
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
 /* The Owner's empty Reference pane takes a pasted or dropped image. */
 .review-reference-drop {
   position: relative;

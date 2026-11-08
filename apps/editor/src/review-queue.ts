@@ -77,6 +77,8 @@ export interface ReviewCard {
   likes: number;
   likedByViewer: boolean;
   mine: ShownReview | null;
+  /** The reader's own drawing: theirs to look at, as others review it. */
+  own?: boolean;
   /** A community circuit's reference image, if its author gave one. */
   reference?: { revision: string };
   comparison?: {
@@ -91,15 +93,21 @@ export interface ReviewCard {
 /** Whether the reviewer's review of this card counts (its current version). */
 export const reviewed = (card: ReviewCard) => card.mine?.current === true;
 
+/** Nothing left for the reader to do: reviewed, or their own drawing. */
+export const settled = (card: ReviewCard) =>
+  reviewed(card) || card.own === true;
+
 export function reviewProgress(cards: readonly ReviewCard[]) {
   let passed = 0;
   let flagged = 0;
+  let own = 0;
   for (const card of cards)
-    if (reviewed(card)) {
+    if (card.own) own += 1;
+    else if (reviewed(card)) {
       if (card.mine!.verdict === "pass") passed += 1;
       else flagged += 1;
     }
-  return { passed, flagged, left: cards.length - passed - flagged };
+  return { passed, flagged, left: cards.length - own - passed - flagged };
 }
 
 /** The next card after `from` the reviewer has not reviewed, wrapping. */
@@ -109,7 +117,7 @@ export function nextUnreviewed(
 ): number | null {
   for (let step = 1; step <= cards.length; step += 1) {
     const index = (from + step) % cards.length;
-    if (!reviewed(cards[index]!)) return index;
+    if (!settled(cards[index]!)) return index;
   }
   return null;
 }
@@ -214,8 +222,8 @@ export function shuffledQueue(
     [shuffled[index], shuffled[other]] = [shuffled[other]!, shuffled[index]!];
   }
   return [
-    ...shuffled.filter((card) => !reviewed(card)),
-    ...shuffled.filter(reviewed),
+    ...shuffled.filter((card) => !settled(card)),
+    ...shuffled.filter(settled),
   ];
 }
 

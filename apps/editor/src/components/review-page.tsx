@@ -27,6 +27,7 @@ import {
   reviewAuthors,
   reviewProgress,
   reviewed,
+  settled,
   REVIEW_STORES,
   scopeFromSearch,
   shuffledQueue,
@@ -289,7 +290,7 @@ export function ReviewPage({
     const others = cards
       .map((each, at) => ({ each, at }))
       .filter(({ at }) => at !== index);
-    const open = others.filter(({ each }) => !reviewed(each));
+    const open = others.filter(({ each }) => !settled(each));
     const pool = open.length ? open : others;
     if (pool.length)
       setIndex(pool[Math.floor(Math.random() * pool.length)]!.at);
@@ -464,10 +465,14 @@ export function ReviewPage({
   }, []);
 
   // Enter sends what is there: the reasons as an issue, else a pass; a
-  // comment and boxes go with either.
+  // comment and boxes go with either. One's own drawing takes no review:
+  // Enter moves on.
   const commit = useCallback(
-    (after?: number) => void submit(flags.length ? "issue" : "pass", after),
-    [flags.length, submit],
+    (after?: number) =>
+      card?.own
+        ? go(index + 1)
+        : void submit(flags.length ? "issue" : "pass", after),
+    [card, go, index, flags.length, submit],
   );
   const sendIssue = useCallback(() => {
     if (flags.length) void submit("issue");
@@ -659,97 +664,111 @@ export function ReviewPage({
                     }))
                   }
                 >
-                  <div className="review-actions">
-                    <textarea
-                      className="review-note"
-                      rows={1}
-                      placeholder={
-                        flags.length
-                          ? "What is wrong, and where (optional)"
-                          : "Comment (optional)"
-                      }
-                      title={
-                        flags.length
-                          ? "Such as: M3's drain on VOUT instead of X. Enter submits; Shift+Enter starts a new line."
-                          : "Enter submits; Shift+Enter starts a new line."
-                      }
-                      value={note}
-                      maxLength={1000}
-                      onChange={(event) => setNote(event.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className={`review-like${card.likedByViewer ? " on" : ""}`}
-                      aria-pressed={card.likedByViewer}
-                      title={
-                        owner
-                          ? "Add a heart (L; ⌥-click takes one back)"
-                          : card.likedByViewer
-                            ? "Remove your like (L)"
-                            : "Like this circuit (L)"
-                      }
-                      onClick={(event) =>
-                        void toggleLike(owner && event.altKey)
-                      }
-                    >
-                      <HeartIcon filled={card.likedByViewer} />{" "}
-                      {num(card.likes)}
-                    </button>
-                    <button
-                      type="button"
-                      className={`review-issue${flags.length || (card.mine?.current && card.mine.verdict === "issue") ? " on" : ""}`}
-                      disabled={busy}
-                      title={
-                        flags.length
-                          ? "Send the reasons with your comment and boxes"
-                          : "Choose a reason below first"
-                      }
-                      data-testid="review-not-pass"
-                      onClick={sendIssue}
-                    >
-                      <span aria-hidden="true">✕</span> Submit issue
-                      {flags.length ? <kbd>Enter</kbd> : null}
-                    </button>
-                  </div>
-                  <div
-                    className="review-flags"
-                    role="group"
-                    aria-label="Reasons"
-                  >
-                    {flagsFor(card.scope).map((flag) => (
-                      <button
-                        key={flag.key}
-                        type="button"
-                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
-                        aria-pressed={flags.includes(flag.key)}
-                        onClick={() => toggleFlag(flag.key)}
-                      >
-                        <kbd>{flag.hotkey}</kbd>
-                        {flag.label}
-                      </button>
-                    ))}
-                  </div>
-                  {marks.length ? (
-                    <div className="review-marks-row">
-                      {marks.map((mark, number) => (
+                  {card.own ? (
+                    <p className="review-own" data-testid="review-own">
+                      Your drawing: others review it here, and their reviews
+                      show below. → moves on.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="review-actions">
+                        <textarea
+                          className="review-note"
+                          rows={1}
+                          placeholder={
+                            flags.length
+                              ? "What is wrong, and where (optional)"
+                              : "Comment (optional)"
+                          }
+                          title={
+                            flags.length
+                              ? "Such as: M3's drain on VOUT instead of X. Enter submits; Shift+Enter starts a new line."
+                              : "Enter submits; Shift+Enter starts a new line."
+                          }
+                          value={note}
+                          maxLength={1000}
+                          onChange={(event) => setNote(event.target.value)}
+                        />
                         <button
-                          key={number}
                           type="button"
-                          className="review-mark-chip"
-                          title="Remove this box"
-                          onClick={() =>
-                            setMarks((current) =>
-                              current.filter((_, at) => at !== number),
-                            )
+                          className={`review-like${card.likedByViewer ? " on" : ""}`}
+                          aria-pressed={card.likedByViewer}
+                          title={
+                            owner
+                              ? "Add a heart (L; ⌥-click takes one back)"
+                              : card.likedByViewer
+                                ? "Remove your like (L)"
+                                : "Like this circuit (L)"
+                          }
+                          onClick={(event) =>
+                            void toggleLike(owner && event.altKey)
                           }
                         >
-                          <b>{number + 1}</b>
-                          {mark.side === "original" ? "Original" : "Redraw"} ×
+                          <HeartIcon filled={card.likedByViewer} />{" "}
+                          {num(card.likes)}
                         </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {message ? <p className="review-message">{message}</p> : null}
+                        <button
+                          type="button"
+                          className={`review-issue${flags.length || (card.mine?.current && card.mine.verdict === "issue") ? " on" : ""}`}
+                          disabled={busy}
+                          title={
+                            flags.length
+                              ? "Send the reasons with your comment and boxes"
+                              : "Choose a reason below first"
+                          }
+                          data-testid="review-not-pass"
+                          onClick={sendIssue}
+                        >
+                          <span aria-hidden="true">✕</span> Submit issue
+                          {flags.length ? <kbd>Enter</kbd> : null}
+                        </button>
+                      </div>
+                      <div
+                        className="review-flags"
+                        role="group"
+                        aria-label="Reasons"
+                      >
+                        {flagsFor(card.scope).map((flag) => (
+                          <button
+                            key={flag.key}
+                            type="button"
+                            className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
+                            aria-pressed={flags.includes(flag.key)}
+                            onClick={() => toggleFlag(flag.key)}
+                          >
+                            <kbd>{flag.hotkey}</kbd>
+                            {flag.label}
+                          </button>
+                        ))}
+                      </div>
+                      {marks.length ? (
+                        <div className="review-marks-row">
+                          {marks.map((mark, number) => (
+                            <button
+                              key={number}
+                              type="button"
+                              className="review-mark-chip"
+                              title="Remove this box"
+                              onClick={() =>
+                                setMarks((current) =>
+                                  current.filter((_, at) => at !== number),
+                                )
+                              }
+                            >
+                              <b>{number + 1}</b>
+                              {mark.side === "original"
+                                ? "Original"
+                                : "Redraw"}{" "}
+                              ×
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {message ? (
+                        <p className="review-message">{message}</p>
+                      ) : null}
+                    </>
+                  )}
                 </ReviewItem>
               </>
             )}
@@ -1046,7 +1065,7 @@ function OthersReviews({
   const [shown, setShown] = useState<ShownReview[] | null>(null);
   const [fixes, setFixes] = useState<EntryFix[]>([]);
   const [round, setRound] = useState(0);
-  const unblinded = reviewed(card) || owner;
+  const unblinded = reviewed(card) || owner || card.own === true;
   const key = `${card.mine?.id ?? ""}:${owner}:${round}`;
   const loaded = useRef<string | null>(null);
   useEffect(() => {

@@ -55,6 +55,16 @@ describe("review queue", () => {
     expect(authorFromSearch("?scope=community")).toBeNull();
   });
 
+  it("shows one's own drawings without counting them as left to review", () => {
+    const cards = [
+      { ...card("a"), own: true },
+      card("b"),
+      card("c", review("pass")),
+    ];
+    expect(reviewProgress(cards)).toEqual({ passed: 1, flagged: 0, left: 1 });
+    expect(nextUnreviewed(cards, 2)).toBe(1);
+  });
+
   it("searches by name, author, id or link and lists authors by their drawings", () => {
     const mirror = {
       ...card("rmhkjz7h8z"),
