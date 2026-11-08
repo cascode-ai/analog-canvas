@@ -1051,6 +1051,7 @@ export function compileActions(
         );
         break;
       case "set-source-control":
+      case "set-switch-control":
         pushProperties(
           resolveInstance(document, index, action.kind, action.target),
           { control: action.control },

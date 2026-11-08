@@ -378,10 +378,6 @@
   font-size: var(--icm-font-xs);
 }
 
-.cell-pin-name .cell-pin-conflict {
-  color: var(--icm-warning);
-}
-
 .cell-props-row-actions {
   display: flex;
   justify-content: flex-end;

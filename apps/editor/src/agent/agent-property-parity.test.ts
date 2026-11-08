@@ -155,6 +155,66 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     expect(instance("F1").netlist).not.toHaveProperty("control");
   });
 
+  it("sets a switch's clock phase as Properties' control does, its label left hidden", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    await apply([
+      place("ideal-switch", "S1", 100),
+      place("resistor", "R1", 300),
+    ]);
+    await apply([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("S1").id],
+        showReference: false,
+      },
+    ]);
+    const before = structuredClone(controller.project);
+    const target = { kind: "instance", reference: "S1" };
+    await apply([{ kind: "set-switch-control", target, control: "Φ_A_bar" }]);
+
+    const document = before.documents[0]!;
+    const switchInstance = document.instances.find(
+      (item) => item.reference === "S1",
+    )!;
+    const plan = planPropertyApply(
+      {
+        project: before,
+        document,
+        resolver: createProjectSymbolResolver(before, builtInSymbols),
+        instance: switchInstance,
+      },
+      {
+        placement: null,
+        appearance: { color: "auto" },
+        switchControl: "Φ_A_bar",
+      },
+    );
+    expect(plan.kind).toBe("edits");
+    const gui = new EditorDocumentController(before);
+    if (plan.kind === "edits") expect(gui.transact(plan.edits).ok).toBe(true);
+    const annotations = (project: CircuitProject) =>
+      project.documents[0]!.annotations;
+    expect(annotations(controller.project)).toEqual(annotations(gui.project));
+    const label = annotations(controller.project).find(
+      (annotation) =>
+        annotation.kind === "instance-label" &&
+        annotation.anchor.kind === "object" &&
+        annotation.anchor.objectId === instance("S1").id,
+    );
+    expect(label?.visible).toBe(false);
+    expect(flattenRichText(label!.content!)).toBe("ΦA");
+
+    expect(
+      await refuse([
+        {
+          kind: "set-switch-control",
+          target: { kind: "instance", reference: "R1" },
+          control: "Φ_1",
+        },
+      ]),
+    ).toContain("takes no clock phase");
+  });
+
   it("switches a gate's input count as its Properties Inputs choice does (#1457)", async () => {
     const { controller, apply, refuse, instance } = await session();
     await apply([place("nor-gate", "X1", 100)]);

@@ -216,8 +216,9 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `bsource`, VACASK the qualified `icm_switch` (patched runtime,
   [patch](../../containers/vacask/patches/README.md)). No clock is invented;
   SPDT has no primitive.
-- Two-terminal switches follow the phase their label names (Φ₁ → `PHI1`; a
-  label showing its own name is its own phase, `S1 a b S1 VSS ideal_switch`);
+- Two-terminal switches follow the phase their label names, shown or hidden
+  (Φ₁ → `PHI1`; a label showing its own name is its own phase,
+  `S1 a b S1 VSS ideal_switch`; Properties edits it as `control`);
   single-ended ones use CTRL; both read against the Cell's ground (`VSS`, `0` at
   a deck top). The phase node is the same-Cell Net of that name.
 - An overbar names a separate `_bar` signal; export never inverts or adds an
@@ -333,8 +334,9 @@ IR and no partial netlist for Copy or export.
   names, multiply assigned terminals, missing definition/pin/Reference/target/
   parameter (no netlist record reads as empty), wrong prefix, unresolved child,
   cycles, unsupported dialect/device and resource limits.
-- Warnings include Formal Port direction conflicts and `MILLI_SCALE_VALUE`
-  (upper-case `M` before a unit, exported as written). Nothing downgrades a
+- Warnings include `MILLI_SCALE_VALUE` (upper-case `M` before a unit,
+  exported as written). A Port's direction is never checked: no netlist
+  writes one, and declarations of one name may state different directions. Nothing downgrades a
   missing electrical fact.
 
 ### One electrical extraction authority

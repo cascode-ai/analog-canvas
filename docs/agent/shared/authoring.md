@@ -232,9 +232,11 @@ replaces all netlist facts.
 ### Switch clock phases
 
 An Open or Closed switch (`ideal-switch`, `closed-switch`) is clocked by the
-phase its name label shows (a new `S1` by `S1`). Share a clock with
-`set-display-alias {target, text:"Φ_1"}` on each switch (netlist
-`S1 a b PHI1 VSS ideal_switch`), driven by a Net named `Φ1` or a Cell Pin
+phase its name label shows (a new `S1` by `S1`), shown or hidden. Share a
+clock with `set-switch-control {target, control:"Φ_1"}` on each switch, as
+Properties' `control` does (netlist `S1 a b PHI1 VSS ideal_switch`; the label
+keeps its visibility, so a phase drawn once over ganged switches stays one
+label; `null` clocks it by its own name), driven by a Net named `Φ1` or a Cell Pin
 `Φ1`; an undriven phase becomes a Cell input (`.subckt … PHI1`) passed up
 through callers. `text:"EN_bar"` (drawn E̅N̅) is its own signal: draw the
 inverter if the circuit makes it, else the testbench drives both. Free text

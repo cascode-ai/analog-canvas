@@ -382,6 +382,7 @@ import {
   planGroupPropertyCodeEdits,
 } from "../features/properties/group-property-code-edits";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
+import { switchControlOf } from "../features/properties/switch-control";
 import {
   groupBatchName,
   groupRenames,
@@ -4405,6 +4406,11 @@ function WorkspaceEditor({
         terminal.interfaceInstanceIds.includes(selectedInstance.id),
       )
     : undefined;
+  // A switch's label names its clock phase: Properties edits it as `control`,
+  // never as a free display name.
+  const selectedSwitchControl = selectedInstance
+    ? switchControlOf(project, document, selectedInstance)
+    : undefined;
   // A design routinely carries VDDH and VDDL, or VDD1 and VDD2, at once, so
   // VDD artwork keeps its authored supply name in either Cell Pin or Global mode.
   const selectedSupplyMarker =
@@ -6771,10 +6777,18 @@ function WorkspaceEditor({
                         // A Cell Pin's authored interface name is independent
                         // of its optional canvas annotation and opaque ID.
                         displayName:
-                          selectedFormalTerminal?.name ?? selectedDisplayName,
+                          selectedSwitchControl !== undefined
+                            ? null
+                            : (selectedFormalTerminal?.name ??
+                              selectedDisplayName),
+                        ...(selectedSwitchControl !== undefined
+                          ? { switchControl: selectedSwitchControl }
+                          : {}),
                         itemName:
                           selectedFormalTerminal?.name ??
-                          selectedDisplayName ??
+                          (selectedSwitchControl !== undefined
+                            ? null
+                            : selectedDisplayName) ??
                           selectedInstance.reference ??
                           selectedInstance.id,
                         defaultForeground: styleProfile.foreground,

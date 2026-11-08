@@ -163,7 +163,7 @@ describe("hierarchy netlist boundaries", () => {
     },
   );
 
-  it("diagnoses effective Port direction conflicts", () => {
+  it("exports a Port whose declarations state different directions", () => {
     const { project, child } = fixture();
     child.instances.push({
       id: "alias-marker",
@@ -177,11 +177,10 @@ describe("hierarchy netlist boundaries", () => {
       direction: "output",
       interfaceInstanceIds: ["alias-marker"],
     });
-    expect(analyzeDesignNetlist(project).diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: "CELL_PORT_DIRECTION_CONFLICT",
-        documentId: child.id,
-      }),
-    );
+    const result = analyzeDesignNetlist(project);
+    expect(
+      result.diagnostics.filter((item) => /DIRECTION/u.test(item.code)),
+    ).toEqual([]);
+    expect(result.ir).toBeDefined();
   });
 });

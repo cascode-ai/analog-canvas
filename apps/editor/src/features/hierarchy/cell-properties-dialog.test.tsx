@@ -83,7 +83,7 @@ describe("CellPropertiesDialog", () => {
     expect(markup).not.toContain("Set as Top");
   });
 
-  it("surfaces a direction conflict once on the projected Port", () => {
+  it("shows one Port of mixed directions as Mixed, with no conflict", () => {
     const project = createEmptyProject("project", "Project");
     const cell = project.documents[0]!;
     cell.netlist!.terminals.push(
@@ -106,7 +106,7 @@ describe("CellPropertiesDialog", () => {
     expect(
       markup.match(/aria-label="Formal port [^"]+ direction"/gu),
     ).toHaveLength(1);
-    expect(markup).toContain("Direction conflict");
+    expect(markup).not.toContain("Direction conflict");
     expect(markup).toContain(
       '<option value="" disabled="" selected="">Mixed</option>',
     );

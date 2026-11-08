@@ -249,6 +249,19 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
         "Replace only electrical control; null clears it. Stable IDs come from Snapshot. Parameters, binding and visual Annotation are preserved.",
       ),
   }),
+  z.strictObject({
+    kind: z.literal("set-switch-control"),
+    target: InstanceRefSchema,
+    control: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .nullable()
+      .describe(
+        "The clock phase a two-terminal switch or chopper reads from its name label, e.g. Φ_1 or PHIA_bar (_bar draws an overbar); null: its own name. The label keeps its visibility.",
+      ),
+  }),
   z
     .strictObject({
       kind: z.literal("place-component"),

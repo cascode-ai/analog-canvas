@@ -37,6 +37,7 @@ import {
   type LogicGateInputCount,
 } from "../features/properties/logic-gate-input-count";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
+import { switchControlOf } from "../features/properties/switch-control";
 
 type SetProperties = Extract<AgentAuthoringCommand, { kind: "set-properties" }>;
 
@@ -359,7 +360,19 @@ export function planSetProperties(
     }
   }
   let clearControl = false;
-  if (command.control !== undefined) {
+  const switchControl = switchControlOf(project, document, instance);
+  if (command.control !== undefined && switchControl !== undefined) {
+    // A switch's control is the clock phase its label names (switch-control.ts).
+    if (command.control !== null && typeof command.control !== "string")
+      throw new Error(
+        `${name} is a switch: its control is a clock phase such as Φ_1, or null for its own name`,
+      );
+    value.switchControl = command.control;
+  } else if (typeof command.control === "string") {
+    throw new Error(
+      `${name} (${instance.symbolId}) takes no clock phase; a phase is for a switch clocked by its label`,
+    );
+  } else if (command.control !== undefined) {
     const control = command.control;
     // Properties cannot clear a control or set a legacy current sensor; an
     // Agent can, through the same netlist record.
@@ -458,7 +471,8 @@ export function planSetProperties(
                   ),
                 )
               : { ...(instance.netlist?.parameters ?? {}) },
-            ...(command.control?.kind === "current"
+            ...(typeof command.control === "object" &&
+            command.control?.kind === "current"
               ? { control: command.control }
               : {}),
           },

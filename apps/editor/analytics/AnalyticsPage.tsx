@@ -260,7 +260,6 @@ export function AnalyticsPage() {
           <BugReportLink
             className="analytics-bug-report"
             testId="analytics-report-bug"
-            surface="Analytics"
           />
           <a className="analytics-home" href="/">
             ← Back to editor

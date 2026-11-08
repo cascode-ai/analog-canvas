@@ -40,11 +40,9 @@ test("a render crash shows the recovery screen instead of a blank page", async (
     "href",
     /^https:\/\/github\.com\/cascode-ai\/analog-canvas\/issues\/new\?/u,
   );
+  // A blank issue: the crash text never leaves the page.
   const bugReportHref = await bugReportLink.getAttribute("href");
-  expect(bugReportHref).not.toBeNull();
-  const bugReportBody = new URL(bugReportHref ?? "").searchParams.get("body");
-  expect(bugReportBody).not.toContain("render crashed");
-  expect(bugReportBody).not.toContain("test hook");
+  expect(new URL(bugReportHref ?? "").searchParams.get("body")).toBeNull();
 
   // Reloading brings the editor back without the transient crash flag.
   await crashScreen.getByRole("button", { name: "Reload editor" }).click();

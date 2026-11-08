@@ -55,19 +55,8 @@ export interface ProjectedFormalCellPort {
   readonly interfaceInstanceIds: readonly string[];
 }
 
-export interface CellPortDirectionConflict {
-  readonly code: "CELL_PORT_DIRECTION_CONFLICT";
-  readonly portKey: string;
-  readonly portName: string;
-  readonly terminalIds: readonly string[];
-  readonly directions: readonly CellPortDirection[];
-}
-
-export type CellInterfaceProjectionIssue = CellPortDirectionConflict;
-
 export interface CellInterfaceProjection {
   readonly ports: readonly ProjectedFormalCellPort[];
-  readonly issues: readonly CellInterfaceProjectionIssue[];
 }
 
 interface MutablePortGroup {
@@ -78,7 +67,6 @@ interface MutablePortGroup {
   terminalIds: string[];
   netIds: string[];
   interfaceInstanceIds: string[];
-  directions: CellPortDirection[];
 }
 
 /**
@@ -87,11 +75,17 @@ interface MutablePortGroup {
  * transient formal port. The source declarations and their Base Nets are never
  * rewritten or physically merged; the Logical-Net resolver interprets their
  * shared Port name as electrical identity.
+ *
+ * A Port's direction is a drawing hint (which side of the block symbol its pin
+ * takes); an analog Pin has no electrical direction and no netlist writes one.
+ * Declarations of one name may state different directions, as a VDD Power
+ * marker (inout) and a plain Port (passive) do by default: the shared Port then
+ * reads passive, and nothing reports it.
  */
 export function projectCellInterface(
   netlist: CellNetlistInterface | undefined,
 ): CellInterfaceProjection {
-  if (!netlist) return { ports: [], issues: [] };
+  if (!netlist) return { ports: [] };
 
   const groups: MutablePortGroup[] = [];
   const groupByKey = new Map<string, MutablePortGroup>();
@@ -107,7 +101,6 @@ export function projectCellInterface(
         terminalIds: [terminal.id],
         netIds: [terminal.netId],
         interfaceInstanceIds: [...terminal.interfaceInstanceIds],
-        directions: [terminal.direction],
       };
       groups.push(group);
       groupByKey.set(key, group);
@@ -117,26 +110,9 @@ export function projectCellInterface(
     existing.terminalIds.push(terminal.id);
     existing.netIds.push(terminal.netId);
     existing.interfaceInstanceIds.push(...terminal.interfaceInstanceIds);
-    if (!existing.directions.includes(terminal.direction)) {
-      existing.directions.push(terminal.direction);
+    if (existing.direction !== terminal.direction)
       existing.direction = "passive";
-    }
   }
 
-  return {
-    ports: groups.map(({ directions: _directions, ...port }) => port),
-    issues: groups.flatMap((group) =>
-      group.directions.length > 1
-        ? [
-            {
-              code: "CELL_PORT_DIRECTION_CONFLICT" as const,
-              portKey: group.key,
-              portName: group.name,
-              terminalIds: [...group.terminalIds],
-              directions: [...group.directions],
-            },
-          ]
-        : [],
-    ),
-  };
+  return { ports: groups };
 }

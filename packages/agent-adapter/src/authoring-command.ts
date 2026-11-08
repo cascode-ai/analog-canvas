@@ -125,11 +125,16 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
         .describe(
           "The Net of a terminal no pin of the part's symbol draws, by pin (a block's VDD, a substrate's B or SUB, an inductor's CT); null returns a supply to Auto and leaves another unconnected.",
         ),
-      control: InstanceNetlistDataSchema.shape.control
-        .unwrap()
+      control: z
+        .union([
+          InstanceNetlistDataSchema.shape.control.unwrap(),
+          z.string().trim().min(1).max(128),
+        ])
         .nullable()
         .optional()
-        .describe("A controlled source's control; null clears it."),
+        .describe(
+          "A controlled source's control; null clears it. For a switch clocked by its label (a two-terminal switch or a chopper), the clock phase as written, e.g. Φ_1 or PHIA_bar (_bar draws an overbar); null clocks it by its own name. Its label keeps its visibility.",
+        ),
       shape: z
         .enum(["circle", "diamond"])
         .optional()

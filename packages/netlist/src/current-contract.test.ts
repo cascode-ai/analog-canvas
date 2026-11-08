@@ -1475,6 +1475,91 @@ describe("current formal cell interface", () => {
     expect(printSpiceNetlist(result.ir!)).not.toContain(".global VDD");
   });
 
+  it("joins a VDD Power Pin and a plain VDD Port into one Pin, whatever their directions", () => {
+    // As drawn in the Gallery's Floating Charge-Transferer: VDD Power markers
+    // on a bias branch, and plain VDD Ports beside the switches.
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      { id: "P1", symbolId: "port", placement: null },
+      {
+        id: "M1",
+        symbolId: "pmos",
+        placement: null,
+        reference: "M1",
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "PMOS_MODEL" },
+          parameters: { w: "1u", l: "150n", m: "1", nf: "1" },
+        },
+      },
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: null,
+        reference: "R1",
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      },
+    );
+    document.nets.push(
+      {
+        id: "net-vdd-marker",
+        terminals: [
+          { instanceId: "VDD1", pinName: "P" },
+          { instanceId: "M1", pinName: "S" },
+          { instanceId: "M1", pinName: "B" },
+        ],
+      },
+      {
+        id: "net-vdd-port",
+        terminals: [
+          { instanceId: "P1", pinName: "P" },
+          { instanceId: "R1", pinName: "1" },
+        ],
+      },
+    );
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-vdd1",
+        name: "VDD",
+        netId: "net-vdd-marker",
+        direction: "inout",
+        interfaceInstanceIds: ["VDD1"],
+      },
+      {
+        id: "terminal-p1",
+        name: "VDD",
+        netId: "net-vdd-port",
+        direction: "passive",
+        interfaceInstanceIds: ["P1"],
+      },
+    );
+    for (const [instanceId, pinName, name] of [
+      ["M1", "D", "OUT"],
+      ["M1", "G", "IN"],
+      ["R1", "2", "OUT"],
+    ] as const) {
+      const netId = `net-${instanceId}-${pinName}`.toLowerCase();
+      document.nets.push({ id: netId, terminals: [{ instanceId, pinName }] });
+      claimNet(document, netId, name);
+    }
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.cells[0]?.ports).toEqual([
+      { id: "net-vdd-marker", name: "VDD", netName: "VDD" },
+    ]);
+    const spice = printSpiceNetlist(result.ir!);
+    expect(spice).toMatch(/^M1 OUT IN VDD VDD PMOS_MODEL /mu);
+    expect(spice).toMatch(/^R1 VDD OUT 1k$/mu);
+  });
+
   it("lets a Cell state its supply as its own Pin", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

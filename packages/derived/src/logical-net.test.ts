@@ -434,6 +434,45 @@ describe("resolved logical Nets", () => {
     expect(validateLogicalNetContract(document)).toEqual([]);
   });
 
+  it("joins a VDD Power Cell Pin and a plain VDD Port as one Pin", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.instances.push(
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      { id: "P1", symbolId: "port", placement: null },
+    );
+    document.nets.push(
+      { id: "net-marker", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
+      { id: "net-port", terminals: [{ instanceId: "P1", pinName: "P" }] },
+    );
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-vdd1",
+        name: "VDD",
+        netId: "net-marker",
+        direction: "inout",
+        interfaceInstanceIds: ["VDD1"],
+      },
+      {
+        id: "terminal-p1",
+        name: "vdd",
+        netId: "net-port",
+        direction: "passive",
+        interfaceInstanceIds: ["P1"],
+      },
+    );
+
+    const { groups } = resolveDocumentLogicalNets(document);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      name: "VDD",
+      baseNetIds: ["net-marker", "net-port"],
+      formalTerminalIds: ["terminal-p1", "terminal-vdd1"],
+      powerDomain: "vdd",
+      conflicts: [],
+    });
+    expect(validateLogicalNetContract(document)).toEqual([]);
+  });
+
   it("still rejects an ordinary Cell Pin standing on a Global Net", () => {
     const document = createEmptyDocument("document", "Document");
     document.instances.push({ id: "P1", symbolId: "port", placement: null });
