@@ -4,7 +4,6 @@ import { editInProgressReason, projectHoldReason } from "./edit-blockers";
 const idle = {
   componentEditor: false,
   documentSettingsOpen: false,
-  projectInfoOpen: false,
   projectNameEditing: false,
   textEditing: false,
   textOnScreen: false,
@@ -20,7 +19,7 @@ describe("edit blockers (#1462)", () => {
   it("names what holds the Project, a save or dialog before an edit", () => {
     expect(projectHoldReason(idle)).toBeNull();
     expect(
-      projectHoldReason({ ...idle, saving: true, projectInfoOpen: true }),
+      projectHoldReason({ ...idle, saving: true, documentSettingsOpen: true }),
     ).toBe("a save is still running");
     expect(projectHoldReason({ ...idle, codeDraftDirty: true })).toBe(
       "a code panel holds a draft that is not applied",

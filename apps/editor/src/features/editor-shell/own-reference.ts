@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { isOfficeDialog } from "../../app/office-messages";
 
 // The reference window beside the canvas: whether it shows (from the start,
 // until closed), and each drawing's image the reader brought to trace over,
@@ -21,7 +22,9 @@ function rememberClosed(closed: boolean): void {
     // Without storage it opens with the next page.
   }
 }
+// The PowerPoint dialog starts with the drawing alone; it opens there too.
 let open = (() => {
+  if (isOfficeDialog()) return false;
   try {
     return localStorage.getItem(CLOSED_KEY) !== "closed";
   } catch {

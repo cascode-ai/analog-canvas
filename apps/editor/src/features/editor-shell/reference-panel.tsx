@@ -24,7 +24,7 @@ import type { OwnReferenceImage } from "./own-reference";
 async function referenceOf(
   id: string,
   fetchLike: typeof fetch,
-): Promise<{ blob: Blob; label: string } | null> {
+): Promise<{ blob: Blob; label: string | null } | null> {
   const source = gallerySourceOfEntryId(id);
   if (source && !source.comparisons) return null;
   const response = await fetchLike(
@@ -36,8 +36,23 @@ async function referenceOf(
   if (!response?.ok) return null;
   return {
     blob: await response.blob(),
-    label: source ? `Original · ${source.name}` : "Reference image",
+    label: source ? `Original · ${source.name}` : null,
   };
+}
+
+/**
+ * A field's text: it follows the saved value (renamed on a tab, undone,
+ * another Cell opened) unless the reader has changed it here.
+ */
+function useDraft(saved: string): [string, (next: string) => void] {
+  const [draft, setDraft] = useState(saved);
+  const shown = useRef(saved);
+  useEffect(() => {
+    const before = shown.current;
+    shown.current = saved;
+    setDraft((current) => (current.trim() === before.trim() ? saved : current));
+  }, [saved]);
+  return [draft, setDraft];
 }
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -86,28 +101,55 @@ function onScreen(box: Box): Box {
   };
 }
 
-// Where the window was and whether it was folded, kept across tabs and
-// closing.
-const remembered: { box: Box | null; folded: boolean } = {
+/**
+ * A box pulled wholly inside the browser window as far as it fits: after
+ * the browser shrinks, the window's buttons stay within reach.
+ */
+function inside(box: Box): Box {
+  return {
+    ...box,
+    left: Math.max(0, Math.min(box.left, window.innerWidth - box.width)),
+    top: Math.max(0, Math.min(box.top, window.innerHeight - box.height)),
+  };
+}
+
+/**
+ * A folded window's box kept with its bottom edge on screen: folded, the
+ * title bar sits on that edge and may go anywhere a title bar can.
+ */
+function foldedOnScreen(box: Box): Box {
+  const kept = onScreen(box);
+  const bottom = Math.min(
+    Math.max(box.top + kept.height, 30),
+    window.innerHeight,
+  );
+  return { ...kept, top: bottom - kept.height };
+}
+
+// Where the window was, whether it was folded and whether it showed only
+// the picture, kept across tabs and closing.
+const remembered: { box: Box | null; folded: boolean; pictureOnly: boolean } = {
   box: null,
   folded: false,
+  pictureOnly: false,
 };
 
 /**
  * A window floating over the editor: it moves by its title bar, resizes
  * from any edge or corner, folds to its title bar and closes from it.
+ * Folded, the title bar rests on the window's bottom edge, out of the way
+ * where the window starts; unfolded, the window opens upward from there.
  */
 function ReferenceFloat({
   title,
-  hint,
   onClose,
   actions,
   children,
   footer,
 }: {
   title: string;
-  hint: string;
   onClose: () => void;
+  /** Buttons of the title bar, shown while the window is open. */
   actions?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
@@ -115,7 +157,10 @@ function ReferenceFloat({
   const [folded, setFolded] = useState(remembered.folded);
   // At first in the canvas's bottom-right corner, clear of the side panels.
   const [box, setBox] = useState<Box>(() => {
-    if (remembered.box) return onScreen(remembered.box);
+    if (remembered.box)
+      return (remembered.folded ? foldedOnScreen : onScreen)(
+        inside(remembered.box),
+      );
     const canvas = document
       .querySelector('[data-testid="schematic-canvas"]')
       ?.getBoundingClientRect();
@@ -141,11 +186,12 @@ function ReferenceFloat({
     remembered.folded = folded;
   }, [box, folded]);
   // A smaller browser window keeps it in view.
+  const inView = folded ? foldedOnScreen : onScreen;
   useEffect(() => {
-    const keep = () => setBox((current) => onScreen(current));
+    const keep = () => setBox((current) => inView(inside(current)));
     window.addEventListener("resize", keep);
     return () => window.removeEventListener("resize", keep);
-  }, []);
+  }, [inView]);
   const resize = (edge: Edge) => (event: ReactPointerEvent<HTMLElement>) => {
     const from = box;
     follow(event, (dx, dy) => {
@@ -160,7 +206,7 @@ function ReferenceFloat({
         next.height = Math.max(MIN_HEIGHT, from.height - dy);
         next.top = from.top + from.height - next.height;
       }
-      setBox(onScreen(next));
+      setBox(inView(next));
     });
   };
   return (
@@ -168,12 +214,13 @@ function ReferenceFloat({
       className={`reference-panel${folded ? " folded" : ""}`}
       data-testid="reference-panel"
       role="complementary"
-      aria-label="Reference"
+      aria-label={title}
       style={{
         left: box.left,
-        top: box.top,
         width: box.width,
-        ...(folded ? {} : { height: box.height }),
+        ...(folded
+          ? { bottom: window.innerHeight - (box.top + box.height) }
+          : { top: box.top, height: box.height }),
       }}
     >
       <div
@@ -183,25 +230,27 @@ function ReferenceFloat({
           const from = box;
           follow(event, (dx, dy) =>
             setBox(
-              onScreen({ ...from, left: from.left + dx, top: from.top + dy }),
+              inView({ ...from, left: from.left + dx, top: from.top + dy }),
             ),
           );
         }}
       >
         <span className="title">{title}</span>
-        <span className="hint">{hint}</span>
-        {actions}
+        {folded ? null : actions}
         <button
           type="button"
           title={folded ? "Show the window" : "Fold to the title bar"}
           aria-label={folded ? "Unfold" : "Fold"}
-          onClick={() => setFolded((value) => !value)}
+          onClick={() => {
+            setBox((current) => (folded ? onScreen : foldedOnScreen)(current));
+            setFolded(!folded);
+          }}
         >
           {folded ? "▢" : "–"}
         </button>
         <button
           type="button"
-          title="Close (Reference in the status bar brings it back)"
+          title="Close (Project Info in the status bar or the File menu brings it back)"
           aria-label="Close"
           onClick={onClose}
         >
@@ -239,24 +288,37 @@ export interface ReferenceWindowProps {
   session: Pick<SessionUser, "id" | "isAdmin" | "role" | "isOwner"> | null;
   /** An unpublished drawing's name and description, as last saved. */
   draft: { name: string; description: string };
+  /** The Cell on screen, renamed here. */
+  cellName: string;
+  /** Why the Cell on screen cannot take a name, or null. */
+  cellNameIssue: (name: string) => string | null;
   /** The image the reader brought for this drawing, if any. */
   image: OwnReferenceImage | null;
   onImage: (file: File) => void;
   /** Whether a paste may be the image (no text field or circuit takes it). */
   takesPaste: (event: ClipboardEvent) => boolean;
-  /** Saved: the editor keeps the name and description with the drawing. */
-  onSaved: (fields: { name: string; description: string }) => void;
+  /**
+   * Saved: the editor names the Cell, and keeps the name and description
+   * with the drawing when they (or the image) were saved too.
+   */
+  onSaved: (fields: {
+    cellName: string;
+    name?: string;
+    description?: string;
+  }) => void;
   fetchLike?: typeof fetch;
 }
 
 /**
- * Beside the canvas, the drawing's name, description and reference image,
- * in every drawing from the start: the image to trace over is pasted
- * (⌘V / Ctrl+V), dropped or chosen, and zooms with the wheel and pans with
- * a drag. Save keeps the name and description with an unpublished drawing
- * (Publish starts from them); for a Gallery entry its owner or the Owner
- * may change, it saves them, and the image, to the entry at once. Closed,
- * the status bar's Reference button brings it back.
+ * Project Info, beside the canvas in every drawing from the start: the
+ * drawing's name, the Cell on screen, a Gallery entry's contributor, the
+ * description and the reference picture. The picture to trace over is
+ * pasted (⌘V / Ctrl+V), dropped or chosen, and zooms with the wheel and
+ * pans with a drag. Save names the Cell and keeps the name and description
+ * with an unpublished drawing (Publish starts from them); for a Gallery
+ * entry its owner or the Owner may change, it saves them, and the picture,
+ * to the entry at once. Closed, Project Info in the status bar or the File
+ * menu brings it back.
  */
 export function ReferenceWindow({
   open,
@@ -264,6 +326,8 @@ export function ReferenceWindow({
   entry,
   session,
   draft,
+  cellName,
+  cellNameIssue,
   image,
   onImage,
   takesPaste,
@@ -286,9 +350,10 @@ export function ReferenceWindow({
   const savesImage =
     entry !== null && !dataset && (owner || session?.isOwner === true);
 
-  const [figure, setFigure] = useState<{ src: string; label: string } | null>(
-    null,
-  );
+  const [figure, setFigure] = useState<{
+    src: string;
+    label: string | null;
+  } | null>(null);
   useEffect(() => {
     if (!entry) return;
     let cancelled = false;
@@ -307,25 +372,24 @@ export function ReferenceWindow({
 
   const savedName = entry?.name ?? draft.name;
   const savedDescription = entry?.description ?? draft.description;
-  const [name, setName] = useState(savedName);
-  const [description, setDescription] = useState(savedDescription);
+  const [name, setName] = useDraft(savedName);
+  const [description, setDescription] = useDraft(savedDescription);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const textDirty =
     editsText &&
     (name.trim() !== savedName.trim() ||
       description.trim() !== savedDescription.trim());
-  // What was saved elsewhere shows here unless it is being edited.
-  const editing = useRef(false);
-  editing.current = textDirty;
-  useEffect(() => {
-    if (editing.current) return;
-    setName(savedName);
-    setDescription(savedDescription);
-  }, [savedName, savedDescription]);
   const imageDirty = image !== null && savesImage && !uploaded.has(image.file);
-  const dirty = textDirty || imageDirty;
+  // The Cell on screen is the drawing's own: anyone may rename it here.
+  const [cell, setCell] = useDraft(cellName);
+  const cellDirty = cell.trim() !== cellName;
+  const dirty = textDirty || imageDirty || cellDirty;
 
+  const [pictureOnly, setPictureOnly] = useState(remembered.pictureOnly);
+  useEffect(() => {
+    remembered.pictureOnly = pictureOnly;
+  }, [pictureOnly]);
   const [over, setOver] = useState(false);
   const chooser = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -347,6 +411,16 @@ export function ReferenceWindow({
     const savedAs = { name: name.trim(), description: description.trim() };
     if (!savedAs.name) {
       setNote("Give it a name first.");
+      return;
+    }
+    const cellAs = cell.trim();
+    const cellIssue = !cellAs
+      ? "Give the Cell a name."
+      : cellDirty
+        ? cellNameIssue(cellAs)
+        : null;
+    if (cellIssue) {
+      setNote(cellIssue);
       return;
     }
     setBusy(true);
@@ -382,7 +456,10 @@ export function ReferenceWindow({
     }
     setBusy(false);
     setNote("Saved");
-    onSaved(savedAs);
+    onSaved({
+      cellName: cellAs,
+      ...(textDirty || imageDirty ? savedAs : {}),
+    });
   }
 
   if (!open) return null;
@@ -409,26 +486,22 @@ export function ReferenceWindow({
 
   return (
     <ReferenceFloat
-      title={!image && figure ? figure.label : "Reference"}
-      hint={
-        onlyHere
-          ? "your image · only on this page"
-          : shown
-            ? "wheel zooms · drag pans"
-            : ""
-      }
+      title="Project Info"
       onClose={onClose}
       actions={
-        shown ? (
-          <button
-            type="button"
-            title="Use another image"
-            aria-label="Use another image"
-            onClick={choose}
-          >
-            ⟳
-          </button>
-        ) : null
+        <button
+          type="button"
+          title={
+            pictureOnly
+              ? "Show the details above the picture"
+              : "Show only the picture"
+          }
+          aria-label={pictureOnly ? "Show details" : "Picture only"}
+          aria-pressed={pictureOnly}
+          onClick={() => setPictureOnly((value) => !value)}
+        >
+          {pictureOnly ? "▾" : "▴"}
+        </button>
       }
       footer={
         dirty || note ? (
@@ -452,6 +525,7 @@ export function ReferenceWindow({
       <div
         className="reference-panel-about"
         data-testid="reference-panel-about"
+        hidden={pictureOnly}
       >
         {editsText ? (
           <>
@@ -488,6 +562,56 @@ export function ReferenceWindow({
             {shownDescription ? <p>{shownDescription}</p> : null}
           </>
         )}
+        <dl className="reference-panel-facts">
+          <div>
+            <dt>Current Cell</dt>
+            <dd>
+              <input
+                className="reference-cell"
+                data-testid="reference-cell"
+                aria-label="Current Cell"
+                value={cell}
+                maxLength={128}
+                autoComplete="off"
+                onChange={(event) => {
+                  setCell(event.currentTarget.value);
+                  setNote(null);
+                }}
+                onKeyDown={saveOnEnter}
+              />
+            </dd>
+          </div>
+          {entry ? (
+            <div>
+              <dt>Contributor</dt>
+              <dd>{entry.author.trim() || "Unknown contributor"}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </div>
+      <div className="reference-panel-caption">
+        <span className="title">
+          {!image && figure?.label
+            ? `Reference picture · ${figure.label}`
+            : "Reference picture"}
+        </span>
+        <span className="hint">
+          {onlyHere
+            ? "your image · only on this page"
+            : shown
+              ? "wheel zooms · drag pans"
+              : ""}
+        </span>
+        {shown ? (
+          <button
+            type="button"
+            title="Use another image"
+            aria-label="Use another image"
+            onClick={choose}
+          >
+            ⟳
+          </button>
+        ) : null}
       </div>
       <div
         className={`reference-panel-figure${over ? " over" : ""}`}

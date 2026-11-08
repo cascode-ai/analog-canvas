@@ -57,7 +57,8 @@ Use exactly one form: `edits`, `structureEdits`, `wireIntent`,
 `semanticIntent`, `command` or `actions`, with current `expectedRevision` and,
 when required, `expectedStructureRevision`. `actions` takes MCP
 `apply_actions`' actions; a refusal names `error.actionIndex` and
-`error.actionKind`, and `ACTION_BATCH_NOT_ATOMIC` lists the calls to send in
+`error.actionKind`, `ACTION_COMPILE_FAILED` lists every refused action in
+`error.issues`, and `ACTION_BATCH_NOT_ATOMIC` lists the calls to send in
 `error.calls`.
 
 For a risky edit, dry-run and inspect diff/diagnostics, then commit with

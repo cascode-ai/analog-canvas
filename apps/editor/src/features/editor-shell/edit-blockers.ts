@@ -2,7 +2,6 @@
 export interface EditInProgress {
   componentEditor: boolean;
   documentSettingsOpen: boolean;
-  projectInfoOpen: boolean;
   projectNameEditing: boolean;
   /** A canvas text edit, and whether its label is on screen to finish. */
   textEditing: boolean;
@@ -32,7 +31,6 @@ export function editInProgressReason(state: EditInProgress): string | null {
   return first([
     [state.componentEditor, "the component editor is open"],
     [state.documentSettingsOpen, "Document settings are open"],
-    [state.projectInfoOpen, "Project Info is open"],
     [state.projectNameEditing, "the Project's name is being edited on its tab"],
     [
       state.textEditing && state.textOnScreen,

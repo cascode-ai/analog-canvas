@@ -6,7 +6,6 @@ import {
 } from "react";
 
 import { BugReportLink } from "../components/bug-report-link";
-import { openOwnReference } from "../features/editor-shell/own-reference";
 import { CrossedSwordsIcon } from "../components/crossed-swords-icon";
 import { ProjectMenu } from "./project-menu";
 import { AccountMenu, AccountStatePreload } from "../components/account";
@@ -274,13 +273,6 @@ export function EditorAppChrome({
                   onClick={onOpenSearch}
                 >
                   Find in Circuit… (Ctrl+F)
-                </button>
-                <button
-                  type="button"
-                  data-testid="own-reference-button"
-                  onClick={openOwnReference}
-                >
-                  Reference window
                 </button>
                 {hasSelectionActions ? (
                   <>

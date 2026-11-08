@@ -4,8 +4,23 @@
  * sent in chunks a host's message limit cannot refuse.
  * `public/office/taskpane.js` speaks the same protocol.
  */
-export const OFFICE_DIALOG_PARAMETER = "office";
+const OFFICE_DIALOG_PARAMETER = "office";
+/** The dialog keeps its mode across the editor's own page changes. */
+const OFFICE_SESSION_KEY = "icm.office-dialog";
 const CHUNK_CHARACTERS = 30_000;
+
+/** True in the editor the PowerPoint add-in opens as its dialog. */
+export function isOfficeDialog(): boolean {
+  if (typeof window === "undefined") return false;
+  if (
+    new URLSearchParams(window.location.search).get(OFFICE_DIALOG_PARAMETER) ===
+    "dialog"
+  ) {
+    window.sessionStorage.setItem(OFFICE_SESSION_KEY, "1");
+    return true;
+  }
+  return window.sessionStorage.getItem(OFFICE_SESSION_KEY) === "1";
+}
 
 export type OfficeMessage =
   | { type: "ready" }
