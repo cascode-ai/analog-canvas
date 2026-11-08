@@ -81,7 +81,15 @@ export interface EditorAppChromeProps {
   onOpenNetlistConfiguration: () => void;
   netlistFormat: "spice" | "spectre";
   onExportNetlist: (format: "spice" | "spectre") => void;
-  agentAction: { label: string; execute: () => void } | null;
+  agentAction: {
+    label: string;
+    execute: () => void;
+    /**
+     * The connection the button shows: live while an Agent is paired, held
+     * while it is paused or its link is down, none otherwise.
+     */
+    connection?: "live" | "held" | null;
+  } | null;
   simulationAction?: () => void;
   simulationState?: "closed" | "open" | "maximized" | "minimized";
   publishGalleryOpen: boolean;
@@ -441,6 +449,7 @@ export function EditorAppChrome({
               type="button"
               className="app-action app-action-agent"
               data-testid="open-agent"
+              data-connection={agentAction.connection ?? undefined}
               title={agentAction.label}
               aria-label="Agent"
               onClick={() => {
@@ -462,6 +471,9 @@ export function EditorAppChrome({
                 />
               </svg>
               <span className="app-action-label">Agent</span>
+              {agentAction.connection ? (
+                <span className="app-action-light" aria-hidden="true" />
+              ) : null}
             </button>
           ) : null}
           {communityEnabled ? (

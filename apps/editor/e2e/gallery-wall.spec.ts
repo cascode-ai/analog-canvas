@@ -665,12 +665,6 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await expect(galleryInformation).toContainText("Contributor");
   await expect(galleryInformation).toContainText(ENTRY.author);
   await expect(galleryInformation).toContainText(ENTRY.description);
-  await expect(
-    galleryInformation.getByRole("textbox", {
-      name: "Current Cell",
-      exact: true,
-    }),
-  ).toBeVisible();
   await closeProjectInfo(page);
 
   // The brand mark is the single way back; a second toolbar link said the

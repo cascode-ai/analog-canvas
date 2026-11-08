@@ -251,9 +251,8 @@ export async function clickCommand(
 }
 
 /**
- * File → Project Info: the floating window with the circuit's name, the
- * current Cell, a Gallery entry's contributor, the description and the
- * reference picture.
+ * File → Project Info: the floating window with the circuit's name, a
+ * Gallery entry's contributor, the description and the reference picture.
  */
 export async function openProjectInfo(page: Page): Promise<Locator> {
   await clickCommand(page, "File", "Project Info");

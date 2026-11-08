@@ -41,7 +41,6 @@ import type { projectWithTopologyRoot } from "../features/editor-shell/gallery-t
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
 import type { useEditorPanels } from "../features/editor-shell/use-editor-panels";
 import { loadCloudProjectForCellImport } from "../features/hierarchy/cloud-cell-import";
-import { cellNameIssue } from "../features/hierarchy/new-cell";
 import type { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
@@ -187,7 +186,7 @@ export function EditorDialogs({
   renameCell,
   setGalleryEntryContext,
   setTopCell,
-  editProjectInfo,
+  renameProject,
   updateCellPortDirection,
   moveCellPort,
   editCellParameter,
@@ -303,7 +302,7 @@ export function EditorDialogs({
   renameCell: ProjectStructureCommands["renameCell"];
   setGalleryEntryContext: Dispatch<SetStateAction<GalleryEntryContext | null>>;
   setTopCell: ProjectStructureCommands["setTopCell"];
-  editProjectInfo: ProjectStructureCommands["editProjectInfo"];
+  renameProject: ProjectStructureCommands["renameProject"];
   updateCellPortDirection: ProjectStructureCommands["updateCellPortDirection"];
   moveCellPort: ProjectStructureCommands["moveCellPort"];
   editCellParameter: ProjectStructureCommands["editCellParameter"];
@@ -349,17 +348,13 @@ export function EditorDialogs({
   // name, its Gallery entry's (already saved there) or its draft's for
   // Publish.
   const referenceSaved = ({
-    cellName,
     name,
     description,
   }: {
-    cellName: string;
-    name?: string;
-    description?: string;
+    name: string;
+    description: string;
   }) => {
-    // The circuit's and the Cell's names, as one undoable edit.
-    editProjectInfo({ name: name ?? project.name, cellName });
-    if (name === undefined || description === undefined) return;
+    renameProject(name);
     if (galleryEntryContext) {
       const savedId = galleryEntryContext.id;
       setGalleryEntryContext((current) =>
@@ -401,10 +396,6 @@ export function EditorDialogs({
             name: project.name,
             description: publishDraft?.description ?? "",
           }}
-          cellName={document.name}
-          cellNameIssue={(name) =>
-            cellNameIssue(project, name, document.id) ?? null
-          }
           image={ownReference}
           onImage={keepReferenceImage}
           takesPaste={ownReferenceTakesPaste}

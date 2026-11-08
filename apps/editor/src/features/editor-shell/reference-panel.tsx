@@ -41,8 +41,8 @@ async function referenceOf(
 }
 
 /**
- * A field's text: it follows the saved value (renamed on a tab, undone,
- * another Cell opened) unless the reader has changed it here.
+ * A field's text: it follows the saved value (renamed on a tab, undone)
+ * unless the reader has changed it here.
  */
 function useDraft(saved: string): [string, (next: string) => void] {
   const [draft, setDraft] = useState(saved);
@@ -288,34 +288,23 @@ export interface ReferenceWindowProps {
   session: Pick<SessionUser, "id" | "isAdmin" | "role" | "isOwner"> | null;
   /** An unpublished drawing's name and description, as last saved. */
   draft: { name: string; description: string };
-  /** The Cell on screen, renamed here. */
-  cellName: string;
-  /** Why the Cell on screen cannot take a name, or null. */
-  cellNameIssue: (name: string) => string | null;
   /** The image the reader brought for this drawing, if any. */
   image: OwnReferenceImage | null;
   onImage: (file: File) => void;
   /** Whether a paste may be the image (no text field or circuit takes it). */
   takesPaste: (event: ClipboardEvent) => boolean;
-  /**
-   * Saved: the editor names the Cell, and keeps the name and description
-   * with the drawing when they (or the image) were saved too.
-   */
-  onSaved: (fields: {
-    cellName: string;
-    name?: string;
-    description?: string;
-  }) => void;
+  /** Saved: the editor keeps the name and description with the drawing. */
+  onSaved: (fields: { name: string; description: string }) => void;
   fetchLike?: typeof fetch;
 }
 
 /**
  * Project Info, beside the canvas in every drawing from the start: the
- * drawing's name, the Cell on screen, a Gallery entry's contributor, the
- * description and the reference picture. The picture to trace over is
- * pasted (⌘V / Ctrl+V), dropped or chosen, and zooms with the wheel and
- * pans with a drag. Save names the Cell and keeps the name and description
- * with an unpublished drawing (Publish starts from them); for a Gallery
+ * drawing's name, a Gallery entry's contributor, the description and the
+ * reference picture. The picture to trace over is pasted (⌘V / Ctrl+V),
+ * dropped or chosen, and zooms with the wheel and pans with a drag. Save
+ * keeps the name and description with an unpublished drawing (Publish
+ * starts from them); for a Gallery
  * entry its owner or the Owner may change, it saves them, and the picture,
  * to the entry at once. Closed, Project Info in the status bar or the File
  * menu brings it back.
@@ -326,8 +315,6 @@ export function ReferenceWindow({
   entry,
   session,
   draft,
-  cellName,
-  cellNameIssue,
   image,
   onImage,
   takesPaste,
@@ -381,10 +368,7 @@ export function ReferenceWindow({
     (name.trim() !== savedName.trim() ||
       description.trim() !== savedDescription.trim());
   const imageDirty = image !== null && savesImage && !uploaded.has(image.file);
-  // The Cell on screen is the drawing's own: anyone may rename it here.
-  const [cell, setCell] = useDraft(cellName);
-  const cellDirty = cell.trim() !== cellName;
-  const dirty = textDirty || imageDirty || cellDirty;
+  const dirty = textDirty || imageDirty;
 
   const [pictureOnly, setPictureOnly] = useState(remembered.pictureOnly);
   useEffect(() => {
@@ -411,16 +395,6 @@ export function ReferenceWindow({
     const savedAs = { name: name.trim(), description: description.trim() };
     if (!savedAs.name) {
       setNote("Give it a name first.");
-      return;
-    }
-    const cellAs = cell.trim();
-    const cellIssue = !cellAs
-      ? "Give the Cell a name."
-      : cellDirty
-        ? cellNameIssue(cellAs)
-        : null;
-    if (cellIssue) {
-      setNote(cellIssue);
       return;
     }
     setBusy(true);
@@ -456,10 +430,7 @@ export function ReferenceWindow({
     }
     setBusy(false);
     setNote("Saved");
-    onSaved({
-      cellName: cellAs,
-      ...(textDirty || imageDirty ? savedAs : {}),
-    });
+    onSaved(savedAs);
   }
 
   if (!open) return null;
@@ -562,32 +533,14 @@ export function ReferenceWindow({
             {shownDescription ? <p>{shownDescription}</p> : null}
           </>
         )}
-        <dl className="reference-panel-facts">
-          <div>
-            <dt>Current Cell</dt>
-            <dd>
-              <input
-                className="reference-cell"
-                data-testid="reference-cell"
-                aria-label="Current Cell"
-                value={cell}
-                maxLength={128}
-                autoComplete="off"
-                onChange={(event) => {
-                  setCell(event.currentTarget.value);
-                  setNote(null);
-                }}
-                onKeyDown={saveOnEnter}
-              />
-            </dd>
-          </div>
-          {entry ? (
+        {entry ? (
+          <dl className="reference-panel-facts">
             <div>
               <dt>Contributor</dt>
               <dd>{entry.author.trim() || "Unknown contributor"}</dd>
             </div>
-          ) : null}
-        </dl>
+          </dl>
+        ) : null}
       </div>
       <div className="reference-panel-caption">
         <span className="title">

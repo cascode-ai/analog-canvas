@@ -1580,7 +1580,6 @@ function WorkspaceEditor({
   const {
     renameCell,
     renameCellTerminal,
-    editProjectInfo,
     deleteCell,
     setTopCell,
     updateCellPortDirection,
@@ -5881,7 +5880,7 @@ function WorkspaceEditor({
         commitStructure={commitStructure}
         renameCell={renameCell}
         setGalleryEntryContext={setGalleryEntryContext}
-        editProjectInfo={editProjectInfo}
+        renameProject={renameProject}
         updateCellPortDirection={updateCellPortDirection}
         moveCellPort={moveCellPort}
         editCellParameter={editCellParameter}

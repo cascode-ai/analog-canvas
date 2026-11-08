@@ -573,8 +573,20 @@ export function EditorMenuBar({
               label:
                 agentSession.status === "idle"
                   ? "Connect Agent"
-                  : "Manage Agent",
+                  : agentSession.status === "connected" ||
+                      agentSession.status === "working"
+                    ? "Agent connected: manage the connection"
+                    : "Manage Agent",
               execute: openAgentConnection,
+              connection:
+                agentSession.status === "connected" ||
+                agentSession.status === "working"
+                  ? "live"
+                  : agentSession.status === "paused" ||
+                      agentSession.status === "reconnecting" ||
+                      agentSession.status === "offline"
+                    ? "held"
+                    : null,
             }
           : null
       }
