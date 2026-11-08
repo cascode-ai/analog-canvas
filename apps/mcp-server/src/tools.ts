@@ -6,7 +6,11 @@ import type { McpToolCallResult } from "./protocol.js";
 export { listToolDefinitions } from "./tool-discovery.js";
 export { ToolFailure } from "./operations.js";
 /** @internal The tests read each tool's contract through this module. */
-export { describeToolContract, toolInputSchema } from "./operations.js";
+export {
+  describeToolContract,
+  toolGroups,
+  toolInputSchema,
+} from "./operations.js";
 export type { OperationSession as ToolSessionState } from "./operation-session.js";
 
 /** MCP adaptation only; CLI calls the same operation boundary directly. */

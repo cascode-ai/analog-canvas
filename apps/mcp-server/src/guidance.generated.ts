@@ -31,7 +31,7 @@ export const agentToolHelp = {
   describe_tool:
     "Offline exact contracts from the same tool registry. Omit selectors for a lightweight directory. tool + operations selects one or several action/operation branches with their call envelope; field queries an argument JSON Pointer (* for array items). editKind reads a canonical low-level edit, not a high-level action. Reuse contracts within the same version; never a prerequisite or permission gate.",
   connect:
-    "Pair with the live browser editor of this server's bound origin (site in the reply). Pass its claim code once; a Claim connects one adapter, and later MCP processes can omit it and resume the saved, revocable connector. After connecting, read analog-canvas://reference/quickstart. Resource reads use the host's registered server alias (analog-canvas-<16 hex> per origin, or a legacy analog-canvas), not the normalized tool prefix analog_canvas. If unknown, discover the alias from the host resource list.",
+    "Pair with the live browser editor of this server's bound origin (site in the reply). Pass its claim code once; a Claim connects one adapter, and later MCP processes can omit it and resume the saved, revocable connector. Its access lists the granted scopes and every tool here; capabilities is the Circuit resource's. After connecting, read analog-canvas://reference/quickstart. Resource reads use the host's registered server alias (analog-canvas-<16 hex> per origin, or a legacy analog-canvas), not the normalized tool prefix analog_canvas. If unknown, discover the alias from the host resource list.",
   disconnect:
     "Revoke the current browser Agent session and erase this MCP host's saved connector. A fresh editor claim code is required afterwards.",
   connection_status:

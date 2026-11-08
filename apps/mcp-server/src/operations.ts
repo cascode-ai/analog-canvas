@@ -98,7 +98,7 @@ const ConnectArgs = z.strictObject({
     .enum(["summary", "full"])
     .optional()
     .describe(
-      "Pairing lists every capability; a resume summarizes them, counting edit kinds (editKindCount). full lists them on a resume too.",
+      "Shapes capabilities, the Circuit resource's operations and edits; access (scopes and tools) is always complete. Pairing lists every edit kind; a resume counts them (editKindCount). full lists them on a resume too.",
     ),
 });
 const SimulationArgs = z
@@ -773,10 +773,14 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         projectId: report.projectId,
         documentIds: report.documentIds,
         tokenExpiresAt: report.tokenExpiresAt,
+        // The session's whole surface: granted scopes and every tool here.
+        access: { scopes: report.scopes, tools: toolGroups() },
+        // The Circuit resource's operations and edits, not the session's.
         capabilities:
           detail === "full"
-            ? report.capabilities
+            ? { resource: "circuit", ...report.capabilities }
             : {
+                resource: "circuit",
                 ...summary,
                 editKindCount: editKinds.length,
                 details: { tool: "connect", detail: "full" },
@@ -1732,6 +1736,47 @@ const TOOLS: readonly ToolEntry[] = [
 
 export function operationDefinitions(): ContractTool[] {
   return TOOLS.map(({ definition }) => structuredClone(definition));
+}
+
+/** Groups of the tools without a `circuit_` or `simulation` prefix. */
+const TOOL_GROUP: Readonly<Record<string, string>> = {
+  describe_tool: "session",
+  connect: "session",
+  disconnect: "session",
+  connection_status: "session",
+  get_context: "circuit",
+  inspect: "circuit",
+  search: "circuit",
+  apply_actions: "circuit",
+  advanced_transact: "circuit",
+  verify: "circuit",
+  render: "circuit",
+  project_cells: "project",
+  project_code: "project",
+  netlist_code: "project",
+  gallery_circuits: "gallery",
+  user_components: "components",
+  export_file: "files",
+  import_file: "files",
+};
+
+let toolGroupsCache: Record<string, string[]> | undefined;
+/** Every tool this server offers, by group, as `connect` reports them. */
+export function toolGroups(): Record<string, string[]> {
+  if (!toolGroupsCache) {
+    toolGroupsCache = {};
+    for (const { name } of TOOLS.map((tool) => tool.definition)) {
+      const group =
+        TOOL_GROUP[name] ??
+        (name.startsWith("circuit_")
+          ? "circuit"
+          : name.startsWith("simulation")
+            ? "simulation"
+            : "other");
+      (toolGroupsCache[group] ??= []).push(name);
+    }
+  }
+  return structuredClone(toolGroupsCache);
 }
 
 let contractRegistry: ToolContractRegistry | undefined;

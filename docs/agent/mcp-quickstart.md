@@ -7,10 +7,15 @@ API origin (`runtime.apiOrigin`) locally. When the origin matches, `connect`
 with the Claim once (omit it to resume the saved connector); the exchange
 checks compatibility and its `site` names the bound origin. Read
 [installation](mcp-install.md) only for a missing, wrong-origin or incompatible
-adapter. The reply is authoritative context (identity, counts, revisions,
-capabilities; a resume counts edit kinds as `editKindCount`, and
-`connect({"detail":"full"})` lists them), so no `get_context` follows. MCP
-manages credentials, request IDs and expected revisions.
+adapter. The reply is authoritative context (identity, counts, revisions;
+`access` with the granted `scopes` and every tool this server offers, by
+group; `capabilities`, the Circuit resource's operations and edits, where a
+resume counts edit kinds as `editKindCount` and `connect({"detail":"full"})`
+lists them), so no `get_context` follows. MCP manages credentials, request IDs
+and expected revisions.
+
+Every tool in `access.tools` is available. A host that defers MCP tools loads
+one (e.g. by tool search) before concluding it is missing.
 
 `compatibility.status: "outdated"` (and `runtime.status` of
 `connection_status`) means this adapter is older than the origin's manifest

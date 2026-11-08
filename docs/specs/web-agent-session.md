@@ -179,6 +179,9 @@ reconciles, never blindly replays.
   saving it `project.import` (+ connectivity edit if it edits the circuit),
   never `simulation.run`. `gallery.publish` is independent of edit scopes;
   older sessions need a new connection for it.
+- MCP `connect` (pairing and resume) reports the session's granted scopes and
+  every tool the adapter offers as `access`; its `capabilities` stays the
+  Circuit resource's (`resource: "circuit"`).
 - Semantic control selects a locator, highlights a Net, activates/fits a Cell
   or clears focus; never advances revision or history.
 - The relay checks bearer, session/document binding, scope, expiry, body size
