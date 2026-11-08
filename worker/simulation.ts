@@ -13,6 +13,7 @@ import sg13g2Profile from "../containers/ngspice/sg13g2/profile.json" with { typ
 import { sessionUserOf } from "./auth";
 import type { AuthEnv } from "./auth-do";
 import { bearerMatches } from "./bearer";
+import { computesOnHostedSimulation } from "./hosted-simulation-access";
 export type { SimulationRequestBody } from "./simulation-vacask";
 
 /** The answer to a signed-out request for computation. */
@@ -26,11 +27,23 @@ export function signInToSimulate(): Response {
   );
 }
 
+/** The answer to an account outside the team asking for computation. */
+export function simulateYourself(): Response {
+  return Response.json(
+    {
+      error: "hosted-simulation-team-only",
+      message:
+        "Hosted simulation is reserved for the Analog Canvas team. Export a SPICE or Spectre netlist with File › Export and run it with your own simulator and PDK.",
+    },
+    { status: 403, headers: { "cache-control": "no-store" } },
+  );
+}
+
 /**
- * Simulation runs on the operator's host, so only a signed-in account
- * computes through `/api/simulate`. Discovering the Profiles stays open, so
- * the editor can describe them before anyone signs in. The deploy check
- * proves the route with a credential that deploy made and the next replaces.
+ * Simulation runs on the operator's host, so only a team account computes
+ * through `/api/simulate`. Discovering the Profiles stays open, so the editor
+ * can describe them to anyone. The deploy check proves the route with a
+ * credential that deploy made and the next replaces.
  */
 export async function refuseSignedOutSimulation(
   request: Request,
@@ -42,9 +55,10 @@ export async function refuseSignedOutSimulation(
   )
     return null;
   if (bearerMatches(request, env.SIMULATION_SMOKE_TOKEN)) return null;
-  if (await sessionUserOf(request, env)) return null;
   if (await asksForCapabilities(request)) return null;
-  return signInToSimulate();
+  const user = await sessionUserOf(request, env);
+  if (!user) return signInToSimulate();
+  return computesOnHostedSimulation(user) ? null : simulateYourself();
 }
 
 /** Discovery is a few bytes of JSON; a larger body is never one. */

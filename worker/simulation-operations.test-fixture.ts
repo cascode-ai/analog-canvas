@@ -122,6 +122,8 @@ export function createSimulationOperationsHarness(
     provider: "test",
     role: "user",
     isAdmin: false,
+    // Hosted runs start only for the team (#2074).
+    isOwner: true as const,
   };
   const runtime = {
     principalOf: async () => principal,

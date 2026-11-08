@@ -116,9 +116,15 @@ it.each(["github", "google", "email"])(
         .getSetCookie()
         .find((value) => value.startsWith("icm_regional_session="))!
         .split(";")[0]!;
-      expect(
-        (await (await h.call("/api/auth/me", domesticCookie)).json()).user,
-      ).toMatchObject({ provider, displayName: "Chosen account" });
+      const domestic = (
+        await (await h.call("/api/auth/me", domesticCookie)).json()
+      ).user;
+      expect(domestic).toMatchObject({
+        provider,
+        displayName: "Chosen account",
+      });
+      // A regional account outside the team is not offered Simulate (#2074).
+      expect(domestic).not.toHaveProperty("hostedSimulation");
       // Ordinary overseas sign-in retains its original GitHub prompt behavior.
       if (provider === "github") {
         const legacy = await h.source.authDurable.fetch(
