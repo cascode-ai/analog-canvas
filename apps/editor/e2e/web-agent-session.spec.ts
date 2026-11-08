@@ -37,7 +37,12 @@ async function pairAgent(page: Page, baseURL: string) {
   const { claimCode } = await readAgentClaim(panel);
   const client = new AgentHttpClient({ baseUrl: baseURL });
   const session = await client.claim(claimCode);
-  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  // Pairing closes the dialog; the header's Agent button lights up.
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId("open-agent")).toHaveAttribute(
+    "data-connection",
+    "live",
+  );
   return { panel, client, session, agent: boundTo(client, session) };
 }
 
@@ -203,7 +208,7 @@ test("Agent Gallery open returns each new working copy after the relay context c
   });
   await client.connect(claimCode);
   try {
-    await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+    await expect(panel).toHaveCount(0);
     const project = createEmptyProject(
       "gallery-background",
       "Background Gallery",
@@ -669,7 +674,12 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
       payload: { type: "session.ready", sessionId },
     }),
   );
-  await expect(page.getByTestId("agent-status")).toContainText("Connected");
+  // Pairing closes the dialog; the header's Agent button lights up.
+  await expect(page.getByTestId("connect-agent-panel")).toHaveCount(0);
+  await expect(page.getByTestId("open-agent")).toHaveAttribute(
+    "data-connection",
+    "live",
+  );
 
   const send = async (
     kind: "circuit" | "file" | "project" | "simulation",
@@ -764,10 +774,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   );
   await expect(page.getByTestId("revision")).toHaveText("1");
 
-  await page
-    .getByTestId("connect-agent-panel")
-    .getByRole("button", { name: "Close Agent dialog" })
-    .click();
+  await expect(page.getByTestId("connect-agent-panel")).toHaveCount(0);
   await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await expect.poll(() => eventBy("human")).toBe(true);
@@ -813,7 +820,6 @@ test("keeps one paired working copy through Cell switches, a render crash, refre
   const documentId = session.documentIds[0]!;
   const attached = () =>
     expect.poll(async () => (await agent.status()).editor).toBe("attached");
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
 
   // Switching Cells keeps the one Project session.
   await createRootCell(page, "AgentLifecycleCell");
@@ -891,8 +897,7 @@ test("publishing by hand notes what an Agent drew, opened or had approved, leavi
     sessionUser({ displayName: "Publisher", email: "publisher@example.com" }),
   );
   await page.goto("/editor");
-  const { panel, session, agent } = await pairAgent(page, baseURL!);
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  const { session, agent } = await pairAgent(page, baseURL!);
   const dialog = page.getByTestId("publish-gallery-dialog");
   const expectAgentNote = async (noted: boolean) => {
     await page.getByTestId("publish-gallery-button").click();
@@ -998,7 +1003,7 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
   baseURL,
 }) => {
   await page.goto("/editor?new=1");
-  const { panel, client, session, agent } = await pairAgent(page, baseURL!);
+  const { client, session, agent } = await pairAgent(page, baseURL!);
   const originalContext = client.contextRevision;
   const write = placeResistor(
     session.documentIds[0]!,
@@ -1009,7 +1014,6 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
   const sourceSnapshot = () =>
     agent.snapshot("workspace-source-snapshot", session.documentIds[0]!);
   expect(await sourceSnapshot()).toMatchObject({ ok: true, revision: 1 });
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await page
     .getByRole("button", { name: "New project tab", exact: true })
     .click();
@@ -1301,8 +1305,7 @@ test("workspace Cloud operations reuse GUI open validation, save conflicts and S
     }),
   );
   await page.goto("/editor?new=1");
-  const { panel, client, agent } = await pairAgent(page, baseURL!);
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  const { client, agent } = await pairAgent(page, baseURL!);
   let requestNumber = 0;
   const workspace = (request: WorkspaceRequest) =>
     agent.workspaceRequest(`cloud-${++requestNumber}`, request);
@@ -1423,7 +1426,10 @@ test("copies a working handoff through the normal local dev relay", async ({
     operation: "snapshot",
     revision: 0,
   });
-  await expect(panel.getByTestId("agent-status")).toContainText("Connected");
+  // Pairing closes the dialog; the header's Agent button lights up.
+  await expect(panel).toHaveCount(0);
+  const lit = page.getByTestId("open-agent");
+  await expect(lit).toHaveAttribute("data-connection", "live");
   await expect
     .poll(readIdleDeadline)
     .toBeGreaterThan(session.connectorExpiresAt);
@@ -1449,7 +1455,7 @@ test("copies a working handoff through the normal local dev relay", async ({
       { timeout: 8_000 },
     )
     .toBe(true);
-  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  await expect(lit).toHaveAttribute("data-connection", "live");
   const transaction = await agent.circuit({
     apiVersion: "3.0",
     requestId: "local-edit",
@@ -1496,7 +1502,6 @@ test("copies a working handoff through the normal local dev relay", async ({
     await sibling.close();
   }
 
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await page.getByTestId("hit-Rlocal").click();
   await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");

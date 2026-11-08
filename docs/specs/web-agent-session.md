@@ -58,6 +58,10 @@ GET  /api/agent/openapi.json
   cannot expire it). Expiry removes the code, not its explanation; failed or
   cancelled setup removes it; a new connection replaces the handoff;
   Disconnect is locally terminal even with requests pending.
+- Pairing closes the Connect Agent panel and returns the editor to the
+  reader. The header's Agent button then lights: green while an Agent is
+  connected or working, amber while it is paused, reconnecting or offline;
+  it reopens the panel for Pause, New connection and Disconnect.
 - `GET /api/agent/kit`: one small public static JSON (`README.md`,
   `AGENTS.md`, a session `SKILL.md`, authoring rules, the built-in palette
   catalog) with no Project data, secrets or mutation, outside the Circuit

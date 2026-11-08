@@ -1236,8 +1236,12 @@ test("external tab activation cannot discard the focused name draft", async ({
   const { claimCode } = await readAgentClaim(panel);
   const client = new AgentHttpClient({ baseUrl: baseURL! });
   const session = await client.claim(claimCode);
-  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  // Pairing closes the dialog; the header's Agent button lights up.
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId("open-agent")).toHaveAttribute(
+    "data-connection",
+    "live",
+  );
   const list = await client.projects(session.sessionId, session.agentToken, {
     apiVersion: "3.0",
     requestId: "rename-workspaces",

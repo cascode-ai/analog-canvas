@@ -1343,6 +1343,33 @@
   background: var(--icm-surface-hover);
 }
 
+/* A paired Agent lights the Agent button: green while connected, amber while
+   the connection is paused or its link is down. */
+.app-action-agent[data-connection="live"] {
+  border-color: rgb(22 163 74 / 45%);
+  color: #15803d;
+  background: rgb(22 163 74 / 8%);
+}
+
+.app-action-agent[data-connection="live"]:hover {
+  border-color: rgb(22 163 74 / 65%);
+  background: rgb(22 163 74 / 14%);
+}
+
+.app-action-light {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgb(22 163 74 / 18%);
+}
+
+.app-action-agent[data-connection="held"] .app-action-light {
+  background: #d97706;
+  box-shadow: 0 0 0 3px rgb(217 119 6 / 18%);
+}
+
 .app-action[aria-pressed="true"] {
   border-color: var(--icm-accent);
   color: var(--icm-accent);

@@ -230,7 +230,12 @@ test("Cell layout reconciles a selected pin removed by an HTTP Agent", async ({
   });
   expect(claimed.ok()).toBe(true);
   const session = await claimed.json();
-  await panel.getByLabel("Close Agent dialog").click();
+  // Pairing closes the dialog; the header's Agent button lights up.
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId("open-agent")).toHaveAttribute(
+    "data-connection",
+    "live",
+  );
   await editCellLayout(page);
   await page.getByTestId("cell-symbol-pin-handle-A").click();
   const send = async (payload: Record<string, unknown>) => {
