@@ -1743,7 +1743,11 @@ test("same-name Cell Pins stay independent while the final interface groups them
       .filter({ has: page.getByRole("cell") }),
   ).toHaveCount(1);
   await expect(properties).toContainText("2 markers");
-  await expect(properties).toContainText("Direction conflict");
+  // Two directions under one name read Mixed; a direction is no electrical fact.
+  await expect(properties.getByLabel("Formal port VIN direction")).toHaveValue(
+    "",
+  );
+  await expect(properties).not.toContainText("Direction conflict");
   await properties
     .getByRole("button", { name: "Close Cell properties" })
     .click();

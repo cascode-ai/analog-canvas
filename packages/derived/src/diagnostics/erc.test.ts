@@ -734,7 +734,7 @@ describe("ERC engine", () => {
     expect(codes(project)).not.toContain("ERC_INSTANCE_NOT_DRAWN");
   });
 
-  it("reports effective Port direction conflicts without rewriting independent markers", () => {
+  it("reports no Port direction conflict and rewrites no independent marker", () => {
     const project = emptyProject();
     const document = project.documents[0]!;
     document.instances.push(
@@ -763,35 +763,11 @@ describe("ERC engine", () => {
     );
     const before = structuredClone(project);
 
+    // A direction is a drawing hint: no ERC finding names it.
     expect(
-      run(project).filter(
-        (diagnostic) => diagnostic.code === "ERC_CELL_PORT_DIRECTION_CONFLICT",
-      ),
-    ).toEqual([
-      expect.objectContaining({
-        severity: "error",
-        gateEligible: true,
-        primary: expect.objectContaining({
-          documentId: document.id,
-          kind: "instance",
-          objectId: "P1",
-        }),
-        related: [
-          expect.objectContaining({
-            documentId: document.id,
-            kind: "instance",
-            objectId: "P2",
-          }),
-        ],
-      }),
-    ]);
+      run(project).filter((diagnostic) => /DIRECTION/u.test(diagnostic.code)),
+    ).toEqual([]);
     expect(project).toEqual(before);
-    document.netlist!.terminals[1]!.direction = "input";
-    expect(
-      run(project).some(
-        (item) => item.code === "ERC_CELL_PORT_DIRECTION_CONFLICT",
-      ),
-    ).toBe(false);
   });
 
   it("is silent on a clean project where every pin is connected", () => {

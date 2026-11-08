@@ -128,15 +128,6 @@ export function extractCell(
   // Formal pins read the authored Document, not buildNetContext's recovered
   // power-marker claims. All pins share that same logical projection.
   const interfaceLogicalNets = resolveCommittedDocumentLogicalNets(document);
-  for (const issue of interfaceProjection.issues) {
-    diagnostic(
-      diagnostics,
-      document.id,
-      issue.code,
-      `Port ${issue.portName} has conflicting directions: ${issue.directions.join(", ")}`,
-      [...issue.terminalIds],
-    );
-  }
   const ports: DesignNetlistCell["ports"] = interfaceProjection.ports.flatMap(
     (port) => {
       let hasMissingNet = false;

@@ -333,8 +333,9 @@ IR and no partial netlist for Copy or export.
   names, multiply assigned terminals, missing definition/pin/Reference/target/
   parameter (no netlist record reads as empty), wrong prefix, unresolved child,
   cycles, unsupported dialect/device and resource limits.
-- Warnings include Formal Port direction conflicts and `MILLI_SCALE_VALUE`
-  (upper-case `M` before a unit, exported as written). Nothing downgrades a
+- Warnings include `MILLI_SCALE_VALUE` (upper-case `M` before a unit,
+  exported as written). A Port's direction is never checked: no netlist
+  writes one, and declarations of one name may state different directions. Nothing downgrades a
   missing electrical fact.
 
 ### One electrical extraction authority
