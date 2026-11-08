@@ -11,8 +11,10 @@ import {
 import {
   ActionCompileError,
   compileActions,
+  type ActionIssue,
   describeCallSplit,
   directConnectIntent,
+  moreRefused,
   nativeForm,
   splitIntoCalls,
   type ActionCall,
@@ -40,6 +42,8 @@ export type ActionPlan =
       message: string;
       actionIndex: number;
       actionKind: string;
+      /** Every action the list refuses, the first one first. */
+      issues: ActionIssue[];
       /** Whether the Document was read to find that out. */
       readSnapshot: boolean;
     }
@@ -98,15 +102,17 @@ function compiledActionIndex(
       ? undefined
       : transaction.editActionIndices?.[editIndex];
   }
-  const instanceIndex = numberParameter(diagnostics, "instanceIndex");
+  // The editor names a command's failing item; a batch of commands joins
+  // several actions, one command is one action (#1231).
+  const itemIndex = numberParameter(diagnostics, "actionIndex");
+  // A placement batch's item is one placement, which planning names too.
+  const instanceIndex =
+    numberParameter(diagnostics, "instanceIndex") ?? itemIndex;
   if (
     transaction.command?.kind === "place-components" &&
     instanceIndex !== undefined
   )
     return transaction.editActionIndices?.[instanceIndex];
-  // The editor names a command's failing item; a batch of commands joins
-  // several actions, one command is one action (#1231).
-  const itemIndex = numberParameter(diagnostics, "actionIndex");
   if (transaction.command?.kind === "batch" && itemIndex !== undefined)
     return transaction.actionIndices?.[itemIndex];
   return transaction.actionIndices?.length === 1
@@ -131,16 +137,23 @@ function planWithoutDocument(
 ): ActionPlan | NeedsDocument {
   const parsed = z.array(AuthoringActionSchema).safeParse(actions);
   if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    const actionIndex = Number(issue?.path[0] ?? 0) || 0;
-    const field = issue?.path.slice(1).join(".");
-    return {
-      kind: "refused",
-      message: `actions[${actionIndex}] (schema): ${field ? `${field}: ` : ""}${issue?.message ?? "invalid action"}`,
-      actionIndex,
-      actionKind: "schema",
-      readSnapshot: false,
-    };
+    // Each malformed action once, by its first problem.
+    const firsts = new Map<number, z.core.$ZodIssue>();
+    for (const issue of parsed.error.issues) {
+      const actionIndex = Number(issue.path[0] ?? 0) || 0;
+      if (!firsts.has(actionIndex)) firsts.set(actionIndex, issue);
+    }
+    const issues = [...firsts]
+      .sort(([left], [right]) => left - right)
+      .map(([actionIndex, issue]): ActionIssue => {
+        const field = issue.path.slice(1).join(".");
+        return {
+          actionIndex,
+          actionKind: "schema",
+          message: `actions[${actionIndex}] (schema): ${field ? `${field}: ` : ""}${issue.message}`,
+        };
+      });
+    return refusedWith(issues, false);
   }
   const direct = parsed.data.map((action) => nativeForm(action, allocateId));
   // A focus changes only the view: it follows the commit of the rest, never
@@ -249,6 +262,7 @@ function planOnDocument(
       message: error.message,
       actionIndex: error.index,
       actionKind: error.actionKind,
+      issues: error.issues,
       readSnapshot: true,
     };
   }
@@ -349,9 +363,38 @@ export function planActions(
   },
 ): ActionPlan {
   const first = planWithoutDocument(actions, options.allocateId);
+  if (first.kind === "refused") {
+    // A malformed list is refused whatever else it holds; where the
+    // Document can be read, the refusal names the other actions' problems
+    // too.
+    let snapshot: AgentSessionSnapshot;
+    try {
+      snapshot = options.snapshot();
+    } catch {
+      return first;
+    }
+    const all = planOnDocument(actions, [], snapshot, options.allocateId);
+    return all.kind === "refused" ? all : first;
+  }
   if (first.kind !== "compile") return first;
   const snapshot = options.snapshot();
   return planOnDocument(actions, first.direct, snapshot, options.allocateId);
+}
+
+/** A list refused for these issues, named by the first. */
+function refusedWith(
+  issues: ActionIssue[],
+  readSnapshot: boolean,
+): Extract<ActionPlan, { kind: "refused" }> {
+  const first = issues[0]!;
+  return {
+    kind: "refused",
+    message: first.message + moreRefused(issues.length - 1),
+    actionIndex: first.actionIndex,
+    actionKind: first.actionKind,
+    issues,
+    readSnapshot,
+  };
 }
 
 /**

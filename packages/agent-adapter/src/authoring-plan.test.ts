@@ -256,3 +256,78 @@ describe("planning an action list", () => {
     expect(plan).toMatchObject({ kind: "send", readSnapshot: true });
   });
 });
+
+describe("refusing an action list", () => {
+  const place = (reference: string, extra: Record<string, unknown> = {}) => ({
+    kind: "place-component",
+    symbol: "capacitor",
+    reference,
+    position: { x: 300, y: 300 },
+    ...extra,
+  });
+  const malformed = { kind: "place-component", reference: "C9" };
+  const list = [
+    place("C1"),
+    malformed,
+    place("C2", { parameters: { c: "1p" } }),
+    { kind: "explode" },
+    {
+      kind: "connect",
+      from: { kind: "pin", instance: "C9", pin: "1" },
+      to: { kind: "point", x: 0, y: 0 },
+    },
+  ];
+
+  it("names every refused action, malformed or not, once the Document is read", () => {
+    let next = 0;
+    const plan = planActions(list, {
+      allocateId: (prefix) => `${prefix}-new-${++next}`,
+      snapshot: () => testSnapshot(),
+    });
+    expect(plan).toMatchObject({
+      kind: "refused",
+      actionIndex: 1,
+      actionKind: "schema",
+      readSnapshot: true,
+    });
+    if (plan.kind !== "refused") throw new Error(plan.kind);
+    expect(plan.message).toMatch(
+      /^actions\[1\] \(schema\): .* \(and 3 more actions are refused; see issues\)$/u,
+    );
+    expect(
+      plan.issues.map(({ actionIndex, actionKind, dependsOn }) => ({
+        actionIndex,
+        actionKind,
+        ...(dependsOn === undefined ? {} : { dependsOn }),
+      })),
+    ).toEqual([
+      { actionIndex: 1, actionKind: "schema" },
+      { actionIndex: 2, actionKind: "place-component" },
+      { actionIndex: 3, actionKind: "schema" },
+      // C9 was malformed: the wire to it would only repeat that.
+      { actionIndex: 4, actionKind: "connect", dependsOn: 1 },
+    ]);
+    expect(plan.issues[1]!.message).toContain('Unknown parameter "c"');
+  });
+
+  it("names every malformed action when the Document cannot be read", () => {
+    const plan = planBlind(list);
+    expect(plan).toMatchObject({
+      kind: "refused",
+      actionIndex: 1,
+      readSnapshot: false,
+    });
+    if (plan.kind !== "refused") throw new Error(plan.kind);
+    expect(plan.issues.map((issue) => issue.actionIndex)).toEqual([1, 3]);
+    expect(plan.message).toMatch(
+      /\(and 1 more action is refused; see issues\)$/u,
+    );
+  });
+
+  it("keeps a single refusal's message as it was", () => {
+    const plan = planBlind([malformed]);
+    if (plan.kind !== "refused") throw new Error(plan.kind);
+    expect(plan.message).toBe(plan.issues[0]!.message);
+    expect(plan.issues).toHaveLength(1);
+  });
+});

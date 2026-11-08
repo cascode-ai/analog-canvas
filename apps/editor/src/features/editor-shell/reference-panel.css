@@ -31,18 +31,25 @@
   user-select: none;
 }
 
+/* The title takes the bar; its buttons sit at the right. */
+.reference-panel-head .title {
+  flex: 1;
+}
+
 .reference-panel.folded .reference-panel-head {
   border-bottom: 0;
 }
 
-.reference-panel-head .title {
+.reference-panel-head .title,
+.reference-panel-caption .title {
   overflow: hidden;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.reference-panel-head .hint {
+.reference-panel-head .hint,
+.reference-panel-caption .hint {
   flex: 1;
   overflow: hidden;
   color: var(--icm-text-muted);
@@ -51,7 +58,8 @@
   white-space: nowrap;
 }
 
-.reference-panel-head button {
+.reference-panel-head button,
+.reference-panel-caption button {
   width: 24px;
   height: 22px;
   padding: 0;
@@ -64,12 +72,13 @@
   cursor: pointer;
 }
 
-.reference-panel-head button:hover {
+.reference-panel-head button:hover,
+.reference-panel-caption button:hover {
   border-color: var(--icm-border);
   color: var(--icm-text);
 }
 
-/* Name and description: plain text until edited. */
+/* Name, Cell, contributor and description: plain text until edited. */
 .reference-panel-about {
   display: flex;
   flex-shrink: 0;
@@ -98,6 +107,7 @@
 }
 
 .reference-name,
+.reference-cell,
 .reference-description {
   box-sizing: border-box;
   width: 100%;
@@ -122,15 +132,63 @@
 }
 
 .reference-name:hover,
+.reference-cell:hover,
 .reference-description:hover {
   border-color: var(--icm-border);
 }
 
 .reference-name:focus,
+.reference-cell:focus,
 .reference-description:focus {
   border-color: var(--icm-accent);
   outline: none;
   color: var(--icm-text);
+}
+
+/* Picture only: the details fold away. */
+.reference-panel-about[hidden] {
+  display: none;
+}
+
+/* The Cell on screen, and who contributed a Gallery entry. */
+.reference-panel-facts {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0;
+}
+
+.reference-panel-facts > div {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px;
+}
+
+.reference-panel-facts dt {
+  padding: 0 3px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+
+.reference-panel-facts dd {
+  min-width: 0;
+  margin: 0;
+  padding: 0 3px;
+}
+
+.reference-panel-facts dd:has(input) {
+  padding: 0;
+}
+
+/* The reference picture's own heading, under the facts. */
+.reference-panel-caption {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px 3px 11px;
+  border-bottom: 1px solid var(--icm-border);
+  font-size: 12px;
 }
 
 /* The image, or a drop target until one arrives. */

@@ -85,7 +85,12 @@ appear only when present. Local and production codecs share one schema.
   `ACTION_BATCH_NOT_ATOMIC` (with `error.calls`, the consecutive calls to send
   instead), `ACTION_COMPILE_FAILED` (malformed or naming absent objects); each
   names `error.actionIndex`/`error.actionKind` and its message starts
-  `actions[i] (kind):`. Pass-through forms keep their `expectedRevision`
+  `actions[i] (kind):`. `ACTION_COMPILE_FAILED` checks every action and lists
+  each refused one in `error.issues` (`actionIndex`, `actionKind`, `message`,
+  in list order; the first is `error.actionIndex`); an action naming a part a
+  refused placement would have made is not checked further and carries
+  `dependsOn`, that placement's index. A placement origin off the Document
+  grid is refused here. Pass-through forms keep their `expectedRevision`
   check; target-resolving lists need Snapshot permission and are planned and
   committed in one step on the current Document. A no-change list answers
   `applied: false` with no history entry.

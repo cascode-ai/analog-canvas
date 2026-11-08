@@ -336,12 +336,12 @@ export function EditorStatusbar({
           aria-pressed={referenceOpen}
           title={
             referenceOpen
-              ? "Close the reference window"
-              : "Show the name, description and reference image"
+              ? "Close Project Info"
+              : "Show the name, Cell, description and reference picture"
           }
           onClick={referenceOpen ? closeOwnReference : openOwnReference}
         >
-          Reference
+          Project Info
         </button>
         <button
           type="button"

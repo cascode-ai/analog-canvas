@@ -11,6 +11,7 @@ import { serializeProject } from "@icm/project-protocol";
 import {
   awaitEditorReady,
   expectStatus,
+  closeProjectInfo,
   openProjectInfo,
   placeResistors,
   openEditor,
@@ -660,15 +661,17 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   // Variable-length names and contributor notes are read in File →
   // Project Info.
   const galleryInformation = await openProjectInfo(page);
-  await expect(
-    galleryInformation.getByRole("textbox", { name: "Name", exact: true }),
-  ).toHaveValue(ENTRY.name);
+  await expect(galleryInformation).toContainText(ENTRY.name);
   await expect(galleryInformation).toContainText("Contributor");
   await expect(galleryInformation).toContainText(ENTRY.author);
-  await expect(galleryInformation).toContainText("Notes");
   await expect(galleryInformation).toContainText(ENTRY.description);
-  await page.keyboard.press("Escape");
-  await expect(galleryInformation).toBeHidden();
+  await expect(
+    galleryInformation.getByRole("textbox", {
+      name: "Current Cell",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await closeProjectInfo(page);
 
   // The brand mark is the single way back; a second toolbar link said the
   // same thing twice.

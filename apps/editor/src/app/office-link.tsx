@@ -11,8 +11,8 @@ import {
   type SlideReceipt,
 } from "./powerpoint-save";
 import {
-  OFFICE_DIALOG_PARAMETER,
   createChunkReceiver,
+  isOfficeDialog,
   sendChunked,
   type OfficeMessage,
 } from "./office-messages";
@@ -20,8 +20,6 @@ import {
 /** Microsoft's hosted Office.js, the only way an add-in reaches its host. */
 const OFFICE_JS = "https://appsforoffice.microsoft.com/lib/1/hosted/office.js";
 const ACK_TIMEOUT_MS = 60_000;
-/** The dialog keeps its mode across the editor's own page changes. */
-const OFFICE_SESSION_KEY = "icm.office-dialog";
 
 interface OfficeDialogUi {
   messageParent(message: string): void;
@@ -35,19 +33,6 @@ interface OfficeGlobal {
   onReady(): Promise<{ host: string | null }>;
   context: { ui: OfficeDialogUi };
   EventType: { DialogParentMessageReceived: string };
-}
-
-/** True in the editor the PowerPoint add-in opens as its dialog. */
-export function isOfficeDialog(): boolean {
-  if (typeof window === "undefined") return false;
-  if (
-    new URLSearchParams(window.location.search).get(OFFICE_DIALOG_PARAMETER) ===
-    "dialog"
-  ) {
-    window.sessionStorage.setItem(OFFICE_SESSION_KEY, "1");
-    return true;
-  }
-  return window.sessionStorage.getItem(OFFICE_SESSION_KEY) === "1";
 }
 
 let officeReady: Promise<OfficeGlobal | null> | undefined;
