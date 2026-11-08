@@ -130,10 +130,7 @@ export function EditorCrashScreen({
               Reload with a clean copy
             </button>
           ) : null}
-          <BugReportLink
-            testId="crash-report-bug"
-            surface="Unexpected problem screen"
-          />
+          <BugReportLink testId="crash-report-bug" />
         </div>
         <p className="editor-crash-note">
           After reloading, use File / Recover Unsaved Work… if your latest

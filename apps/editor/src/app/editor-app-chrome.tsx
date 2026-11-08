@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import { BugReportLink } from "../components/bug-report-link";
+import { openOwnReference } from "../features/editor-shell/own-reference";
 import { CrossedSwordsIcon } from "../components/crossed-swords-icon";
 import { ProjectMenu } from "./project-menu";
 import { AccountMenu, AccountStatePreload } from "../components/account";
@@ -56,7 +57,6 @@ export interface EditorAppChromeProps {
   projectTabs?: ReactNode;
   projectHome?: ReactNode;
   projectName: string;
-  projectSchemaVersion: number;
   hasUnsavedWork: boolean;
   onOpenGallery: () => void;
   onOpenArena: () => void;
@@ -104,7 +104,6 @@ export function EditorAppChrome({
   projectTabs,
   projectHome,
   projectName,
-  projectSchemaVersion,
   hasUnsavedWork,
   onOpenGallery,
   onOpenArena,
@@ -275,6 +274,13 @@ export function EditorAppChrome({
                   onClick={onOpenSearch}
                 >
                   Find in Circuit… (Ctrl+F)
+                </button>
+                <button
+                  type="button"
+                  data-testid="own-reference-button"
+                  onClick={openOwnReference}
+                >
+                  Reference image…
                 </button>
                 {hasSelectionActions ? (
                   <>
@@ -486,11 +492,7 @@ export function EditorAppChrome({
           ) : null}
           {hostActions}
           {externalLinksEnabled ? (
-            <BugReportLink
-              testId="editor-report-bug"
-              surface="Editor"
-              projectSchemaVersion={projectSchemaVersion}
-            />
+            <BugReportLink testId="editor-report-bug" />
           ) : null}
           {externalLinksEnabled || onOpenExternalLink ? (
             <a

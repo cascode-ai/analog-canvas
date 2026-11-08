@@ -51,6 +51,24 @@ const ReferencePanel = lazy(() =>
     default: module.ReferencePanel,
   })),
 );
+// The reader's own figure to trace over, opened from Edit.
+const OwnReferencePanel = lazy(() =>
+  import("../features/editor-shell/reference-panel").then((module) => ({
+    default: module.OwnReferencePanel,
+  })),
+);
+import {
+  closeOwnReference,
+  keepOwnReferenceImage,
+  useOwnReferenceImage,
+  useOwnReferenceOpen,
+} from "../features/editor-shell/own-reference";
+import { CIRCUIT_CLIPBOARD_MIME } from "../features/clipboard/system-clipboard";
+import { isTypingTarget } from "./editor-runtime-helpers";
+// A paste is the reference image's unless a text field or a circuit takes it.
+const ownReferenceTakesPaste = (event: ClipboardEvent) =>
+  !isTypingTarget(event.target) &&
+  !event.clipboardData?.types.includes(CIRCUIT_CLIPBOARD_MIME);
 import type { EditorServices } from "../services/editor-services";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import { EditorDialogLayer } from "./editor-dialog-layer";
@@ -326,14 +344,26 @@ export function EditorDialogs({
   reopenClosedWindowTabs: ProjectTabSessions["reopenClosedWindowTabs"];
   recordGalleryPublication: ReturnType<typeof useGalleryPublicationRecord>;
 }) {
+  const ownReferenceOpen = useOwnReferenceOpen();
+  const ownReference = useOwnReferenceImage();
   return (
     <>
-      {/* The figure the opened Gallery drawing was drawn from, beside it. */}
+      {ownReferenceOpen ? (
+        <Suspense fallback={null}>
+          <OwnReferencePanel
+            src={ownReference?.url ?? null}
+            onImage={keepOwnReferenceImage}
+            takesPaste={ownReferenceTakesPaste}
+            onClose={closeOwnReference}
+          />
+        </Suspense>
+      ) : null}
+      {/* The opened Gallery circuit's name, description and figure. */}
       {!import.meta.env?.ICM_DESKTOP && galleryEntryContext ? (
         <Suspense fallback={null}>
           <ReferencePanel
             key={galleryEntryContext.id}
-            entryId={galleryEntryContext.id}
+            entry={galleryEntryContext}
           />
         </Suspense>
       ) : null}
@@ -616,6 +646,7 @@ export function EditorDialogs({
             ? {
                 draft: publishDraft,
                 onDraftChange: setPublishDraft,
+                ownReference,
                 defaultName: galleryEntryContext?.name ?? project.name,
                 session: publishSession,
                 gateReport: publishGates,

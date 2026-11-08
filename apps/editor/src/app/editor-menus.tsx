@@ -413,7 +413,6 @@ export function EditorMenuBar({
         : {})}
       simulationState={analogSimulationState}
       projectName={project.name}
-      projectSchemaVersion={project.schemaVersion}
       hasUnsavedWork={hasUnsavedChanges()}
       onOpenGallery={leaveForGallery}
       onOpenArena={leaveForArena}
