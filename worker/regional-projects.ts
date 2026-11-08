@@ -331,6 +331,10 @@ export class RegionalProjectDO {
     }
     if (operation === "sync-events")
       return this.journal.events(Number(body.after));
+    if (operation === "sync-compact")
+      return this.state.storage.transactionSync(() =>
+        this.journal.compact(body.checkpoint, body.dryRun !== false),
+      );
     if (operation === "sync-pull") {
       this.sql.exec(
         "INSERT INTO project_sync_watchdog (singleton, last_pull_at) VALUES (1, ?) ON CONFLICT(singleton) DO UPDATE SET last_pull_at = excluded.last_pull_at",

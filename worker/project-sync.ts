@@ -73,6 +73,23 @@ async function handleProjectSync(
     });
   }
   if (
+    url.pathname === "/api/project-sync/compact" &&
+    request.method === "POST"
+  ) {
+    if (!bearerMatches(request, env.PROJECT_SYNC_ADMIN_TOKEN))
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    const body = (await readSyncJson(request, 4096)) as {
+      checkpoint?: unknown;
+      dryRun?: boolean;
+    } | null;
+    if (
+      !body ||
+      (body.dryRun !== undefined && typeof body.dryRun !== "boolean")
+    )
+      return Response.json({ error: "invalid-checkpoint" }, { status: 400 });
+    return projectStore(env, "sync-compact", body);
+  }
+  if (
     url.pathname === "/api/project-sync/recover-account-deletions" &&
     request.method === "POST"
   ) {

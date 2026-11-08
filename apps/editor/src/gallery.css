@@ -644,6 +644,10 @@
   margin-top: 4px;
 }
 
+.gallery-filing-number {
+  text-align: center;
+}
+
 /* Pinterest-style wall: CSS columns give a dependency-free masonry. */
 .gallery-wall {
   padding: 18px 22px;

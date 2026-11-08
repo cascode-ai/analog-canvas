@@ -509,6 +509,19 @@ describe("GalleryCountPanel", () => {
 });
 
 describe("GalleryFeed", () => {
+  it("links the configured filing number at the bottom of the landing page", () => {
+    const filingNumber = "京ICP备12345678号-1";
+    const markup = renderToStaticMarkup(
+      createElement(GalleryFeed, { filingNumber }),
+    );
+    expect(markup).toContain(
+      `href="https://beian.miit.gov.cn/">${filingNumber}</a>`,
+    );
+    expect(renderToStaticMarkup(createElement(GalleryFeed))).not.toContain(
+      "beian.miit.gov.cn",
+    );
+  });
+
   it("renders the landing chrome and editor entry point", () => {
     const markup = renderToStaticMarkup(
       createElement(GalleryFeed, { visitStats: { pv: 42, uv: 17 } }),

@@ -148,9 +148,11 @@ function countAttentionKinds(
 export function GalleryFeed({
   visitStats,
   preload,
+  filingNumber,
 }: {
   visitStats?: { pv: number; uv: number } | null | undefined;
   preload?: GalleryLandingPreload;
+  filingNumber?: string | undefined;
 }) {
   const { filters, setFilters, updateFilters, serverSearch } =
     useGalleryFilters();
@@ -871,15 +873,24 @@ export function GalleryFeed({
           </div>
         </div>
       ) : null}
-      {state.status === "signed-out" ? null : (
+      {state.status !== "signed-out" || filingNumber ? (
         <footer className="gallery-footnote" data-testid="gallery-footnote">
-          <p>
-            Open any circuit to edit your own copy; publish your own from the
-            editor.
-          </p>
-          <p data-testid="gallery-usage-note">{SITE_USAGE_NOTE}</p>
+          {state.status !== "signed-out" ? (
+            <>
+              <p>
+                Open any circuit to edit your own copy; publish your own from
+                the editor.
+              </p>
+              <p data-testid="gallery-usage-note">{SITE_USAGE_NOTE}</p>
+            </>
+          ) : null}
+          {filingNumber ? (
+            <p className="gallery-filing-number">
+              <a href="https://beian.miit.gov.cn/">{filingNumber}</a>
+            </p>
+          ) : null}
         </footer>
-      )}
+      ) : null}
       {rejecting ? (
         <Suspense fallback={null}>
           <RejectEntryDialog

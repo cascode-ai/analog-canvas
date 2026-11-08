@@ -44,14 +44,26 @@ host.
    may only forward to the regional gateways; the address never enters Git.
 4. Install `canvas-cn-release.py`, `canvas-cn-release.service` and its timer
    from a release once and enable the timer. From then on releases install
-   themselves; their first install also enables the scheduled and release
-   alert timers. Replication timers are enabled by an operator.
+   themselves; their first install also enables the scheduled, release
+   alert and formal backup timers. When upgrading from a runner that predates
+   the formal backup timer, enable it once after its first install.
+   Replication timers are enabled by an operator.
 
 The browser entrance is `127.0.0.1:8082` (an SSH forward during the trial).
 Keep `analog-canvas-origin.tokenzhang.com` on the overseas Worker. Pin the
 Project and publication peers, `identity-url` and `transportOrigin` to that
 host before splitting browser DNS. The release runner uses it by default.
 Only the Auth contract's browser routes are proxied there in shared-domain mode.
+
+The release owns the public nginx template. Use its release runner with
+`--public-mode stage` to serve the canonical TLS certificate on loopback
+port 8443 against the private runtime. At cutover set the shared-domain
+origins and restart `canvas-cn-formal.service` to load them, then use
+`--public-mode open --filing-number '京ICP备…号-1'`
+with the issued number. The browser home page links that number to the MIIT
+site. `--public-mode off` removes the public listener. Run these commands
+under the formal release lock and keep public settings on the host. A release
+from before the public template serves only the private listener.
 
 ## Operating rules
 
@@ -75,13 +87,24 @@ Only the Auth contract's browser routes are proxied there in shared-domain mode.
   failure leaves editing and login available while computation fails closed;
   uncertain runs are never retried elsewhere. `simulation-smoke-token` only
   authorizes the deployment check on `/api/simulate`.
-- Backups stop the runtime briefly and keep the newest 20 snapshots of state,
-  sessions, journals, receipts and artifact storage. Copy verified archives
-  off host. Restore into a separate directory and port, clear restored sessions
+- The formal backup timer and release runner serialize snapshots with release
+  installation. The backup stops the runtime while reading state and artifacts,
+  restarts it before compression, and publishes each finished archive atomically.
+  Keep the newest 20 local archives. Schedule the host's off-host file backup
+  after the formal timer and restore from its completed archives under
+  `/var/backups/analog-canvas-formal`. Check `state.sha256` before extracting.
+  Restore into a separate directory and port, clear restored sessions
   and pending handoffs before connecting it to the authority. Follow
   [regional recovery](../../../docs/deployment.md#point-in-time-recovery)
   before exposing the restored instance. A release rollback retains the
   current state and must understand erased Project receipts once deletion is active.
+- To reclaim Project journal bytes, verify the off-host archive digest and
+  pass its isolated Gallery directory to
+  `python3 containers/canvas-cn/formal/project-checkpoint.py` from the checkout root.
+  Preview `POST /api/project-sync/compact` on each region with its admin token
+  and the printed JSON. Set `dryRun` to `false` for bounded batches, ending
+  when a batch returns zero events. Refresh the verified checkpoint as the
+  journal grows. A restore must reach each live peer's compacted floor.
 
 ## Publication replicas
 

@@ -25,6 +25,7 @@ export interface ProjectSyncStatus {
   epoch: string;
   sequence: number;
   acknowledged: number;
+  compactedThrough: number;
   journalBytes: number;
   fenced: boolean;
   pending: number;
@@ -42,6 +43,26 @@ export class ProjectSyncFenceError extends Error {}
 
 const CHUNK_CHARS = 128 * 1024;
 const CHUNK_BYTES = CHUNK_CHARS * 3;
+const COMPACTION_BATCH = 8;
+
+type CheckpointPosition = {
+  epoch: string;
+  sequence: number;
+  hash: string | null;
+};
+
+function checkpointPosition(value: unknown): value is CheckpointPosition {
+  return (
+    isRecord(value) &&
+    typeof value.epoch === "string" &&
+    typeof value.sequence === "number" &&
+    Number.isSafeInteger(value.sequence) &&
+    value.sequence >= 0 &&
+    (value.sequence === 0
+      ? value.hash === null
+      : typeof value.hash === "string" && /^[0-9a-f]{64}$/.test(value.hash))
+  );
+}
 
 export async function projectPayloadHash(payload: string): Promise<string> {
   const digest = await crypto.subtle.digest(
@@ -55,6 +76,7 @@ export async function projectPayloadHash(payload: string): Promise<string> {
 
 export class ProjectSyncJournal {
   private fenced: boolean;
+  private peerAcknowledgements = { outbound: 0, inbound: 0 };
   constructor(
     private readonly sql: SqlStorage,
     private readonly origin: "cn" | "overseas",
@@ -141,6 +163,9 @@ export class ProjectSyncJournal {
     sql.exec(
       "CREATE TABLE IF NOT EXISTS project_sync_recovery_floor (singleton INTEGER PRIMARY KEY CHECK(singleton=1), sequence INTEGER NOT NULL, hash TEXT NOT NULL)",
     );
+    sql.exec(`CREATE TABLE IF NOT EXISTS project_sync_compacted (
+      sequence INTEGER PRIMARY KEY, head TEXT NOT NULL UNIQUE, hash TEXT NOT NULL
+    )`);
   }
 
   private bytes(): number {
@@ -464,7 +489,7 @@ export class ProjectSyncJournal {
       )
       .toArray();
     for (const { head } of rows) {
-      const hash = sha256Hex(this.payload(head));
+      const hash = this.retainedHash(head) ?? sha256Hex(this.payload(head));
       this.sql.exec(
         "INSERT INTO project_sync_erased VALUES (?,?,?)",
         head,
@@ -673,6 +698,7 @@ export class ProjectSyncJournal {
       epoch: meta.epoch,
       sequence: meta.sequence,
       acknowledged: meta.acknowledged,
+      compactedThrough: this.compactedThrough(),
       journalBytes: this.bytes(),
       fenced: this.fenced,
       pending: meta.sequence - meta.acknowledged,
@@ -717,8 +743,146 @@ export class ProjectSyncJournal {
       .toArray()[0];
   }
 
-  private hash(head: string): Promise<string> | string {
-    return this.erased(head)?.hash ?? projectPayloadHash(this.payload(head));
+  private retainedHash(head: string): string | undefined {
+    return (
+      this.erased(head)?.hash ??
+      this.sql
+        .exec<{ hash: string }>(
+          "SELECT hash FROM project_sync_compacted WHERE head=?",
+          head,
+        )
+        .toArray()[0]?.hash
+    );
+  }
+
+  private outboxHead(sequence: number): string | undefined {
+    return this.sql
+      .exec<{ event_id: string }>(
+        "SELECT event_id FROM project_sync_outbox WHERE sequence=?",
+        sequence,
+      )
+      .toArray()[0]?.event_id;
+  }
+
+  private compactedThrough(): number {
+    return this.sql
+      .exec<{ sequence: number }>(
+        "SELECT COALESCE(MAX(sequence),0) AS sequence FROM project_sync_compacted",
+      )
+      .one().sequence;
+  }
+
+  private checkpointMatches(
+    own: CheckpointPosition,
+    peer: CheckpointPosition | null,
+  ): boolean {
+    const local = this.status();
+    if (own.epoch !== local.epoch || own.sequence > local.sequence)
+      return false;
+    if (own.sequence > 0) {
+      const head = this.outboxHead(own.sequence);
+      if (
+        !head ||
+        (this.retainedHash(head) ?? sha256Hex(this.payload(head))) !== own.hash
+      )
+        return false;
+    }
+    return (
+      !peer ||
+      (peer.epoch === local.received?.epoch &&
+        peer.sequence <= local.received.sequence &&
+        this.sql
+          .exec<{ hash: string }>(
+            "SELECT hash FROM project_sync_receipts WHERE sequence=?",
+            peer.sequence,
+          )
+          .toArray()[0]?.hash === peer.hash)
+    );
+  }
+
+  /** Reclaim payloads only. Nodes, receipts and outbox positions remain durable. */
+  compact(checkpoint: unknown, dryRun: boolean): Response {
+    const peerRegion = this.origin === "cn" ? "overseas" : "cn";
+    const own = isRecord(checkpoint) ? checkpoint[this.origin] : undefined;
+    const peer = isRecord(checkpoint) ? checkpoint[peerRegion] : undefined;
+    if (
+      !checkpointPosition(own) ||
+      (peer !== null && !checkpointPosition(peer))
+    )
+      return Response.json({ error: "invalid-checkpoint" }, { status: 400 });
+    if (this.fenced || !this.checkpointMatches(own, peer))
+      return Response.json({ error: "unverified-checkpoint" }, { status: 409 });
+
+    const local = this.status();
+    const outbound = Math.min(
+      own.sequence,
+      local.acknowledged,
+      this.peerAcknowledgements.outbound,
+    );
+    const inbound = Math.min(
+      peer?.sequence ?? 0,
+      this.peerAcknowledgements.inbound,
+    );
+    const eligible = `
+      SELECT n.head, o.sequence, 1 AS outbound FROM project_sync_outbox o
+      JOIN project_sync_nodes n ON n.head=o.event_id
+      WHERE o.sequence<=? AND n.active=0 AND n.deleted=0
+        AND NOT EXISTS (SELECT 1 FROM project_sync_compacted c WHERE c.sequence=o.sequence)
+      UNION ALL
+      SELECT n.head, r.sequence, 0 AS outbound FROM project_sync_receipts r
+      JOIN project_sync_nodes n ON n.head=r.event_id
+      WHERE r.sequence<=? AND n.active=0 AND n.deleted=0
+        AND EXISTS (SELECT 1 FROM project_sync_payloads p WHERE p.head=n.head)`;
+    if (dryRun)
+      return Response.json(
+        this.sql
+          .exec<{ events: number; bytes: number }>(
+            `
+        SELECT COUNT(DISTINCT e.head) AS events,
+          COALESCE(SUM(length(CAST(p.payload AS BLOB))),0) AS bytes
+        FROM (${eligible}) e JOIN project_sync_payloads p ON p.head=e.head`,
+            outbound,
+            inbound,
+          )
+          .one(),
+      );
+    const candidates = this.sql
+      .exec<{ head: string; sequence: number; outbound: number }>(
+        `${eligible} ORDER BY sequence, outbound LIMIT ?`,
+        outbound,
+        inbound,
+        COMPACTION_BATCH,
+      )
+      .toArray();
+    for (const candidate of candidates) {
+      if (candidate.outbound)
+        this.sql.exec(
+          "INSERT INTO project_sync_compacted VALUES (?,?,?)",
+          candidate.sequence,
+          candidate.head,
+          sha256Hex(this.payload(candidate.head)),
+        );
+      this.sql.exec(
+        "DELETE FROM project_sync_payloads WHERE head=?",
+        candidate.head,
+      );
+    }
+    return Response.json({
+      events: candidates.length,
+      bytes: local.journalBytes - this.bytes(),
+    });
+  }
+
+  private async matchesReceipt(
+    sequence: number,
+    hash: string,
+  ): Promise<boolean> {
+    const head = this.outboxHead(sequence);
+    return (
+      !!head &&
+      (this.retainedHash(head) ??
+        (await projectPayloadHash(this.payload(head)))) === hash
+    );
   }
 
   async reconcile(peer: ProjectSyncStatus): Promise<Response> {
@@ -767,24 +931,32 @@ export class ProjectSyncJournal {
           received.sequence >= 0 &&
           received.sequence <= local.sequence));
     if (valid && floor) {
-      const row = this.sql
-        .exec<{ event_id: string }>(
-          "SELECT event_id FROM project_sync_outbox WHERE sequence=?",
-          floor.sequence,
-        )
-        .toArray()[0];
-      valid = !!row && (await this.hash(row.event_id)) === floor.hash;
+      valid = await this.matchesReceipt(floor.sequence, floor.hash);
     }
     if (valid && received && received.sequence > 0) {
-      const row = this.sql
-        .exec<{ event_id: string }>(
-          "SELECT event_id FROM project_sync_outbox WHERE sequence=?",
-          received.sequence,
-        )
-        .toArray()[0];
-      valid = !!row && (await this.hash(row.event_id)) === received.hash;
+      valid = await this.matchesReceipt(received.sequence, received.hash);
     }
     this.fenced = !valid;
+    const compactedThrough = this.compactedThrough();
+    if (valid && (received?.sequence ?? 0) < compactedThrough) {
+      this.peerAcknowledgements = { outbound: 0, inbound: 0 };
+      return Response.json(
+        { error: "compacted-cursor", floor: compactedThrough },
+        { status: 409 },
+      );
+    }
+    if (valid)
+      this.peerAcknowledgements = {
+        outbound: received?.sequence ?? 0,
+        inbound:
+          Number.isSafeInteger(peer.acknowledged) && peer.acknowledged >= 0
+            ? Math.min(
+                peer.acknowledged,
+                peer.sequence,
+                local.received?.sequence ?? 0,
+              )
+            : 0,
+      };
     return Response.json(
       valid ? { ready: true } : { error: "restore-fenced" },
       { status: valid ? 200 : 409 },
@@ -821,13 +993,24 @@ export class ProjectSyncJournal {
         { status: 409 },
       );
     const rows = this.sql
-      .exec<{ sequence: number; event_id: string; owner_id: string | null }>(
-        `SELECT o.sequence,o.event_id,n.owner_id FROM project_sync_outbox o
+      .exec<{
+        sequence: number;
+        event_id: string;
+        owner_id: string | null;
+        compacted: string | null;
+      }>(
+        `SELECT o.sequence,o.event_id,n.owner_id,c.hash AS compacted FROM project_sync_outbox o
          LEFT JOIN project_sync_nodes n ON n.head=o.event_id
+         LEFT JOIN project_sync_compacted c ON c.sequence=o.sequence
          WHERE o.sequence>? ORDER BY o.sequence LIMIT 1`,
         after,
       )
       .toArray();
+    if (rows[0]?.compacted)
+      return Response.json(
+        { error: "compacted-cursor", floor: this.compactedThrough() },
+        { status: 409 },
+      );
     const events: ProjectEvent[] = await Promise.all(
       rows.map(async (row) => {
         const erased = this.erased(row.event_id);

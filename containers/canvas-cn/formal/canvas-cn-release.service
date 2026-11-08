@@ -9,7 +9,7 @@ StateDirectory=canvas-cn-release
 StateDirectoryMode=0700
 # Root: it switches the release link, units and nginx site and restarts the
 # runtime. It never writes state directories or credentials.
-ExecStart=/usr/bin/python3 /opt/analog-canvas/current-formal/canvas-cn-release.py --state /var/lib/canvas-cn-release/monitor.json
+ExecStart=/usr/bin/flock -w 900 /run/lock/canvas-cn-formal-release.lock /usr/bin/python3 /opt/analog-canvas/current-formal/canvas-cn-release.py --state /var/lib/canvas-cn-release/monitor.json
 TimeoutStartSec=1800
 NoNewPrivileges=true
 PrivateTmp=true
