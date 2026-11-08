@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import type {
@@ -13,16 +12,19 @@ import type {
   ProjectSimulationFolder,
   SourceSpan,
 } from "@icm/model";
-import { createSimulationStarter, newFolderCellRole } from "@icm/netlist";
 import {
   simulationSpecAnnotations,
   type SimulationSpecAnnotation,
 } from "@icm/simulation-service/contract";
-import { NetlistCodeSelect } from "../netlist-export/netlist-code-controls";
+import {
+  codeViewportHeight,
+  NetlistCodeSelect,
+} from "../netlist-export/netlist-code-controls";
 import { StaticCodeView } from "../project-code/static-code-view";
 import {
   applyTestbenchImport,
   guessTestbenchEntry,
+  newTestbench,
   pickedPath,
   planTestbenchImport,
   type ImportRowStatus,
@@ -43,7 +45,7 @@ type LocatedSpec = SimulationSpecAnnotation & {
 };
 
 /** The Cell a folder runs: the one its circuit binding names, if any. */
-export function testbenchCell(folder: ProjectSimulationFolder): string | null {
+function testbenchCell(folder: ProjectSimulationFolder): string | null {
   return folder.input.circuitBindings[0]?.documentId ?? null;
 }
 
@@ -254,13 +256,11 @@ export function TestbenchPanel({
 
   const createTestbench = () => {
     if (!cell) return;
-    const result = createSimulationStarter(project, {
-      id: crypto.randomUUID(),
-      name: freshName(project, cell.name),
-      documentId: cell.id,
-      mode: newFolderCellRole(project, cell.id) === "dut" ? "dut" : "circuit",
-      template: "testbench",
-    });
+    const result = newTestbench(
+      project,
+      cell.id,
+      freshName(project, cell.name),
+    );
     if (!result.ok) {
       setError(result.message);
       return;
@@ -446,7 +446,7 @@ export function TestbenchPanel({
               onChange={(entry) => setPicked({ ...picked, entry })}
             />
           ) : null}
-          <div className="testbench-empty-actions">
+          <div className="testbench-actions">
             <button
               type="button"
               className="primary"
@@ -474,7 +474,7 @@ export function TestbenchPanel({
             Write one here or bring your own; it is saved with the Project and
             you run it with your own simulator.
           </p>
-          <div className="testbench-empty-actions">
+          <div className="testbench-actions">
             <button type="button" className="primary" onClick={createTestbench}>
               New Testbench
             </button>
@@ -570,11 +570,7 @@ export function TestbenchPanel({
           <div
             className="netlist-code-viewport"
             data-line-count={lineCount}
-            style={
-              {
-                "--netlist-editor-height": `${lineCount * 19.2 + 22}px`,
-              } as CSSProperties
-            }
+            style={codeViewportHeight(lineCount)}
           >
             <Suspense
               fallback={

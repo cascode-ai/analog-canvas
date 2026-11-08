@@ -6,7 +6,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import {
@@ -20,7 +19,11 @@ import {
 } from "./netlist-code-edit";
 import type { NetlistDiagnostic, PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject, ObjectLocator } from "@icm/model";
-import { NetlistCodeSelect, NetlistCopyButton } from "./netlist-code-controls";
+import {
+  codeViewportHeight,
+  NetlistCodeSelect,
+  NetlistCopyButton,
+} from "./netlist-code-controls";
 import {
   netlistMode,
   netlistModeOptions,
@@ -586,11 +589,7 @@ export function NetlistCodePanel({
         <div
           className="netlist-code-viewport"
           data-line-count={lineCount}
-          style={
-            {
-              "--netlist-editor-height": `${lineCount * 19.2 + 22}px`,
-            } as CSSProperties
-          }
+          style={codeViewportHeight(lineCount)}
         >
           <Suspense
             fallback={

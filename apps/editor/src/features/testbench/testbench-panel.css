@@ -85,12 +85,12 @@
   font-size: var(--icm-font-md);
   line-height: var(--icm-line);
 }
-.testbench-empty-actions {
+.testbench-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--icm-space-2);
 }
-.testbench-empty-actions button {
+.testbench-actions button {
   min-height: var(--icm-control-h);
 }
 .testbench-elsewhere {

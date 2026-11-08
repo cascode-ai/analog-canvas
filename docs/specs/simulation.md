@@ -88,15 +88,15 @@ Without a named Profile the create takes:
 
 Ideal blocks, the generic diode and authored models never count; a Profile
 listing neither devices nor cell libraries is never default. With several or
-none, Agent `simulation_folder` create makes the author's Testbench and names
-the candidates in `folder.profileCandidates`. The GUI form mirrors this call
-and falls back to the VACASK candidate only offline.
+none, Agent `simulation_folder` create refuses `SIMULATION_PROFILE_REQUIRED`
+with the candidates for a hosted-run `template`; without one it makes the
+author's Testbench and names them in `folder.profileCandidates`. The GUI form
+mirrors this call and falls back to the VACASK candidate only offline.
 
-An author's Testbench (#2110) has no Profile and no configuration file: one
-SPICE `testbench.spice` entry that includes `circuit.spice` and calls the Cell
-as `XDUT`, run by the user's own simulator. Authoring, saving and exporting it
-need no Profile, Prepare or hosted access; choosing a Profile later adds the
-configuration.
+An author's Testbench (#2110, `template: "testbench"`) has no Profile and no
+configuration file; its entry is the `testbench.spice` below, which includes
+`circuit.spice`, run by the user's own simulator. Authoring, saving and
+exporting it need no Profile, Prepare or hosted access.
 
 The top is always a testbench: a Cell with pins is a DUT called as `XDUT` from a
 new `testbench.spice` (ports in export order, clock phase pins included, bound as
@@ -224,7 +224,8 @@ Prepare, Run or hosted access (#2110).
 - Import (files, a folder, or a drop) is reviewed first: each file is new,
   replaces, unchanged, or skipped (unsafe path, binary, or a path Canvas
   writes, such as `circuit.spice`). Chosen files apply as one Project edit,
-  re-planned against the current folder; at most 10 MB per import.
+  re-planned against the current folder, within the
+  [File Resource payload limit](web-agent-session.md#permissions-and-limits).
 
 ## Workspace interaction
 

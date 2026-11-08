@@ -6,6 +6,24 @@ import {
 import { AGENT_FILE_RESOURCE_MAX_BYTES } from "@icm/agent-adapter";
 import { createSimulationStarter, newFolderCellRole } from "@icm/netlist";
 
+/**
+ * The author's Testbench starter for a Cell: a DUT call for a Cell with pins,
+ * the Cell itself as the bench for one without.
+ */
+export function newTestbench(
+  project: CircuitProject,
+  cellId: string,
+  name: string,
+) {
+  return createSimulationStarter(project, {
+    id: crypto.randomUUID(),
+    name,
+    documentId: cellId,
+    mode: newFolderCellRole(project, cellId) === "dut" ? "dut" : "circuit",
+    template: "testbench",
+  });
+}
+
 /** One chosen file, read as text, at its path relative to what was picked. */
 export interface PickedFile {
   path: string;
@@ -120,18 +138,11 @@ export function applyTestbenchImport(
   if (bytes > AGENT_FILE_RESOURCE_MAX_BYTES)
     return {
       ok: false,
-      message: "These files are larger than 10 MB together; import fewer.",
+      message: `These files are larger than ${AGENT_FILE_RESOURCE_MAX_BYTES / 1e6} MB together; import fewer.`,
     };
   let base = target.folder;
   if (!base) {
-    const starter = createSimulationStarter(project, {
-      id: crypto.randomUUID(),
-      name,
-      documentId: target.cellId,
-      mode:
-        newFolderCellRole(project, target.cellId) === "dut" ? "dut" : "circuit",
-      template: "testbench",
-    });
+    const starter = newTestbench(project, target.cellId, name);
     if (!starter.ok) return { ok: false, message: starter.message };
     // The imported files are the Testbench; the starter only lends its
     // binding to the Cell.

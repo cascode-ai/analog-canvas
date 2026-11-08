@@ -399,12 +399,30 @@ export const simulationAuthoringTools: readonly Entry[] = [
             documentId: parsed.rootDocumentId,
           };
         }
-        // With no single qualifying Profile the folder is the author's
-        // Testbench, run outside Canvas (#2110); the candidates stay named.
+        // A hosted-run template needs its Profile; without a template, no
+        // single qualifying Profile makes the author's Testbench, run outside
+        // Canvas (#2110), and the candidates stay named.
+        const hostedTemplate =
+          parsed.template !== undefined && parsed.template !== "testbench";
+        if (!profile && hostedTemplate && !profiles.length)
+          return failure(
+            "SIMULATION_PROFILE_UNAVAILABLE",
+            "No simulation Profile is advertised.",
+          );
         if (!profile && parsed.template !== "testbench" && profiles.length) {
           const choice = newFolderProfile(profiles, cell);
           if (choice.ok)
             profile = profiles.find((item) => item.id === choice.profileId);
+          else if (hostedTemplate)
+            return {
+              ok: false,
+              error: {
+                code: "SIMULATION_PROFILE_REQUIRED",
+                message: `${choice.message} Name one in profileId: ${choice.candidates.join(", ")}, or omit template for the author's Testbench.`,
+                recovery: "fix-input",
+                candidates: choice.candidates,
+              },
+            };
           else profileCandidates = choice.candidates;
         }
         if (profile && !profile.engine)

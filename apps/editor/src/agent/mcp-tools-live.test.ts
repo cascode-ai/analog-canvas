@@ -1605,6 +1605,23 @@ describe("MCP tools on the live editor", () => {
     expect(testbench.input.files.map((file) => file.path)).toEqual([
       "testbench.spice",
     ]);
+    // A hosted-run template still needs its Profile and changes nothing.
+    const before = structuredClone(controller.project);
+    expect(
+      await tool("simulation_folder", {
+        action: "create",
+        name: "SIN AC",
+        rootDocumentId: "document-ota-5t-testbench-sin",
+        template: "ac",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "SIMULATION_PROFILE_REQUIRED",
+        candidates: ["vacask", "sky130"],
+      },
+    });
+    expect(controller.project).toEqual(before);
   });
 
   it("creates an author's Testbench without asking for any Profile (#2110)", async () => {

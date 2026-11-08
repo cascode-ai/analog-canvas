@@ -177,8 +177,8 @@ reconciles, never blindly replays.
   artifacts (capability/help requests need none). A Project folder is the
   Project's authored Testbench: listing or reading it needs `project.download`,
   saving it `project.import` (+ connectivity edit if it edits the circuit),
-  never `simulation.run`. `gallery.publish` is independent of edit scopes; older sessions
-  need a new connection for it.
+  never `simulation.run`. `gallery.publish` is independent of edit scopes;
+  older sessions need a new connection for it.
 - Semantic control selects a locator, highlights a Net, activates/fits a Cell
   or clears focus; never advances revision or history.
 - The relay checks bearer, session/document binding, scope, expiry, body size

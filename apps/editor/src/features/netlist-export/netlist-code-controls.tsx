@@ -1,3 +1,12 @@
+import type { CSSProperties } from "react";
+
+/** A code viewport's height for its line count: 19.2 px lines and padding. */
+export function codeViewportHeight(lineCount: number): CSSProperties {
+  return {
+    "--netlist-editor-height": `${lineCount * 19.2 + 22}px`,
+  } as CSSProperties;
+}
+
 /** The same small controls serve schematic output and native external models.
  * Their owners supply the operation scope and rejection policy. */
 export function NetlistCodeSelect({
