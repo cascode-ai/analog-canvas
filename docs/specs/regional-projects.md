@@ -93,9 +93,16 @@ deliveries under the [regional roadmap](china-regional-identity-sync.md).
   an unresolved affected Project conflict refuses the publication; it cannot
   acknowledge an unjournaled binding. The Project stream carries private binding
   metadata, not public Gallery entries; Gallery replication remains separate.
-- Regional mode refuses legacy destructive restore/schema conversion and account
-  deletion. The default overseas configuration retains its behavior. Coordinated
-  account deletion remains a rollout dependency.
+- Enable [coordinated account deletion](regional-login.md#account-deletion)
+  before broadening Project admission. Each store removes the retired owner's
+  Projects, retained versions, conflict payloads and quota grants. It retains
+  tombstones and the original event IDs, positions and digests. An erased
+  position carries the retired ID and an empty payload. A peer verifies the
+  retirement with the authority before recording that receipt. Late payloads
+  for retired IDs are acknowledged without materializing them. Unknown owners
+  still block their position.
+- Use [regional recovery](../deployment.md#point-in-time-recovery) for restore.
+  Legacy destructive restore and schema conversion are disabled in regional mode.
 - A private region may initiate both directions with `PROJECT_SYNC_PULL=true`.
   Each tick pulls at most one event, then delivers at most one local event.
   Pull reconciles peer status and verifies its receipt before acknowledging

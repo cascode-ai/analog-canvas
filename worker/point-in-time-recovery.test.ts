@@ -216,3 +216,17 @@ describe("point-in-time recovery", () => {
     });
   });
 });
+
+it("refuses a live rollback that would bypass regional deletion reconciliation", async () => {
+  const { env, calls, auth } = environment();
+  const admin = await signIn(auth, "owner@example.com");
+  const restored = await recover(
+    { ...env, PROJECT_REGION: "overseas" },
+    restore(admin, request),
+  );
+  expect(restored.status).toBe(409);
+  expect(await restored.json()).toEqual({
+    error: "regional-recovery-required",
+  });
+  expect(calls).toEqual([]);
+});

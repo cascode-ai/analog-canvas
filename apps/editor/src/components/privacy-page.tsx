@@ -431,13 +431,14 @@ export function PrivacyPage() {
           You can delete your account at any time: select your name at the top
           right to open your account page, and in its last section choose{" "}
           <strong>Delete account…</strong>, then type your name to confirm. This
-          at once deletes the account and everything kept for it: your Cloud
-          Projects, the circuits you published with their history, the
-          components you shared, and your likes, but not a record of a block for
-          bulk collection (see above). It also unlinks your AnalogArena Votes
-          from you, as described above. Export anything you want to keep first.
-          Drawings stored only in your browser are not affected. Earlier backups
-          keep their copies.
+          revokes sign-in for that account and removes its Cloud Projects and
+          their history, published circuits, shared components, likes and
+          reviews from the regional services. Account Settings shows cleanup
+          progress when it continues in the background. The bulk-collection
+          block record described above is retained. AnalogArena Votes are
+          unlinked as described above. Export anything you want to keep first.
+          Drawings stored only in your browser stay there. Earlier backups
+          retain copies until they expire under the backup schedule.
         </p>
         <p>
           You may also ask what data the site keeps about you, have it corrected

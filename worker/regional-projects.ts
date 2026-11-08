@@ -5,7 +5,12 @@ import {
   ProjectSyncCapacityError,
   ProjectSyncFenceError,
 } from "./project-sync-journal";
-import { decodeProjectEvent } from "./project-sync-protocol";
+import { decodeProjectSyncEvent } from "./project-sync-protocol";
+import {
+  retireAccount,
+  retiredAccount,
+  validAccountId,
+} from "./retired-accounts";
 import { ProjectQuota } from "./project-quota";
 import {
   projectRegionUsers,
@@ -197,6 +202,17 @@ export class RegionalProjectDO {
     } catch {
       return Response.json({ error: "region-not-configured" }, { status: 503 });
     }
+    if (operation === "retire-account") {
+      if (!validAccountId(body.userId))
+        return Response.json({ error: "invalid-user" }, { status: 400 });
+      const userId = body.userId;
+      const complete = this.state.storage.transactionSync(() =>
+        this.journal.retireOwner(userId),
+      );
+      return Response.json({ complete }, { status: complete ? 200 : 503 });
+    }
+    if (retiredAccount(this.sql, body.userId ?? body.ownerUserId))
+      return Response.json({ error: "account-deleted" }, { status: 403 });
     if (operation === "submit" || operation === "replace-entry")
       return this.publish(operation, body, users, protectedIds);
     if (operation === "cloud-project-region")
@@ -292,20 +308,29 @@ export class RegionalProjectDO {
     if (operation === "sync-ack")
       return this.journal.acknowledge(body.epoch, body.sequence);
     if (operation === "sync-receive") {
-      const decoded = await decodeProjectEvent(body.event);
+      const decoded = await decodeProjectSyncEvent(body.event);
       if (!decoded)
         return Response.json({ error: "invalid-event" }, { status: 400 });
-      if (users !== null && !users.includes(decoded.change.ownerUserId))
-        return Response.json({ error: "owner-not-admitted" }, { status: 403 });
-      if (
-        this.env.PROJECT_REGION === "overseas" &&
-        protectedIds.includes(decoded.change.id)
-      )
-        return Response.json({ error: "protected-project" }, { status: 403 });
       return this.state.storage.transactionSync(() => {
-        const result = this.journal.receive(decoded.event, decoded.change);
-        if (result.ok && this.journal.deleted(decoded.change.id))
-          this.quota.release(decoded.change.id);
+        const { event, change, ownerUserId } = decoded;
+        const retired =
+          body.retired === true || retiredAccount(this.sql, ownerUserId);
+        if (!retired && users !== null && !users.includes(ownerUserId))
+          return Response.json(
+            { error: "owner-not-admitted" },
+            { status: 403 },
+          );
+        if (
+          !retired &&
+          change &&
+          this.env.PROJECT_REGION === "overseas" &&
+          protectedIds.includes(change.id)
+        )
+          return Response.json({ error: "protected-project" }, { status: 403 });
+        const result = this.journal.receive(event, change, retired);
+        if (result.ok && retired) retireAccount(this.sql, ownerUserId);
+        if (result.ok && !retired && change && this.journal.deleted(change.id))
+          this.quota.release(change.id);
         return result;
       });
     }
@@ -478,7 +503,7 @@ export class RegionalProjectDO {
     const heads = this.journal.heads(id);
     if (heads.length && heads[0]!.ownerUserId !== userId)
       return Response.json({ error: "not-found" }, { status: 404 });
-    if (heads.length && this.journal.deleted(id))
+    if (this.journal.deleted(id))
       return Response.json({ error: "not-found" }, { status: 404 });
     const resolving =
       Array.isArray(body.resolveHeads) &&

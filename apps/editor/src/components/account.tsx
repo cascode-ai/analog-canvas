@@ -36,6 +36,7 @@ export interface AuthProviders {
   email: boolean;
   central?: boolean;
   loginUrl?: string;
+  accountDeletion?: boolean;
 }
 
 /** The server can enable only the local, browser-bound regional handoff. */
@@ -141,6 +142,8 @@ async function readAuthProviders(
       typeof providers.email !== "boolean" ||
       (providers.central !== undefined &&
         typeof providers.central !== "boolean") ||
+      (providers.accountDeletion !== undefined &&
+        typeof providers.accountDeletion !== "boolean") ||
       (providers.central === true &&
         !centralLoginUrl(providers as AuthProviders))
     )
@@ -253,47 +256,75 @@ export async function renameAccount(
   }
 }
 
+export type DeletedAccountCounts = {
+  circuits: number;
+  likes: number;
+  projects: number;
+  components: number;
+};
+export type AccountDeletionProgress = {
+  requestId: string;
+  overseas: "pending" | "complete";
+  cn: "pending" | "complete";
+};
 export type DeleteAccountResult =
-  | {
-      ok: true;
-      deleted: {
-        circuits: number;
-        likes: number;
-        projects: number;
-        components: number;
-      };
-    }
-  | { ok: false; message: string };
+  | { ok: true; deleted: DeletedAccountCounts }
+  | { ok: true; deletion: AccountDeletionProgress }
+  | { ok: false; message: string; missing?: true };
 
 /** Deletes the signed-in account and everything the site keeps for it. */
 export async function deleteAccount(
   fetchLike: typeof fetch = fetch,
+  receipt?: { requestId: string; statusOnly?: true },
 ): Promise<DeleteAccountResult> {
   try {
     const response = await fetchLike("/api/auth/account/delete", {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ confirm: "delete-account" }),
+      body: JSON.stringify(
+        receipt?.statusOnly
+          ? receipt
+          : { confirm: "delete-account", ...receipt },
+      ),
     });
     if (response.ok) {
       const payload = (await response.json()) as {
-        deleted: Extract<DeleteAccountResult, { ok: true }>["deleted"];
+        deleted?: DeletedAccountCounts;
+        deletion?: AccountDeletionProgress;
       };
-      return { ok: true, deleted: payload.deleted };
+      const deletion = payload.deletion;
+      if (
+        deletion &&
+        typeof deletion.requestId === "string" &&
+        (!receipt || deletion.requestId === receipt.requestId) &&
+        [deletion.overseas, deletion.cn].every(
+          (status) => status === "pending" || status === "complete",
+        )
+      )
+        return { ok: true, deletion };
+      if (payload.deleted) return { ok: true, deleted: payload.deleted };
     }
+    if (receipt?.statusOnly && response.status === 404)
+      return {
+        ok: false,
+        missing: true,
+        message: "No deletion request was recorded.",
+      };
     if (response.status === 401)
       return { ok: false, message: "You are signed out. Sign in again." };
     return {
       ok: false,
-      message:
-        "Could not delete the account. You are still signed in; try again in a moment.",
+      message: receipt
+        ? "Could not confirm the deletion status. Try again in a moment."
+        : "Could not delete the account. You are still signed in; try again in a moment.",
     };
   } catch {
     return {
       ok: false,
-      message:
-        "Could not reach the site. You are still signed in; try again in a moment.",
+      message: receipt
+        ? "Could not reach the site to confirm the deletion status."
+        : "Could not reach the site. You are still signed in; try again in a moment.",
     };
   }
 }

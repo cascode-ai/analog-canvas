@@ -141,6 +141,13 @@ import {
   type ProjectRegionConfig,
 } from "./regional-projects";
 import { includesProjectOwner } from "./project-region-scope";
+import { isRecord } from "./gallery-store";
+import {
+  installRetiredAccounts,
+  retireAccount,
+  retiredAccount,
+  validAccountId,
+} from "./retired-accounts";
 import {
   installSimulationChecks,
   nextSimulationCheck,
@@ -521,6 +528,7 @@ export class GalleryDO {
     this.sql.exec(
       "UPDATE gallery_entries SET status = 'public' WHERE status = 'pending'",
     );
+    installRetiredAccounts(this.sql);
     this.regionalProjects = env?.PROJECT_REGION
       ? new RegionalProjectDO(state, {
           ...env,
@@ -535,6 +543,38 @@ export class GalleryDO {
       request.method === "POST"
         ? ((await request.json()) as Record<string, unknown>)
         : {};
+    if (operation === "retire-account") {
+      if (!validAccountId(body.userId))
+        return Response.json({ error: "invalid-user" }, { status: 400 });
+      const userId = body.userId;
+      if (this.regionalProjects) {
+        const projects = await this.regionalProjects.handle(operation, body);
+        if (!projects.ok) return projects;
+      }
+      return this.state.storage.transactionSync(() => {
+        retireAccount(this.sql, userId);
+        forgetBoardAccount(this.sql, userId);
+        this.sql.exec("DELETE FROM entry_reviews WHERE reviewer_id=?", userId);
+        return deleteAccount(this.state, userId);
+      });
+    }
+    const actor = isRecord(body.actor) ? body.actor.id : undefined;
+    const submitting = isRecord(body.entry)
+      ? body.entry.owner_user_id
+      : undefined;
+    if (
+      retiredAccount(
+        this.sql,
+        actor ??
+          body.userId ??
+          body.ownerUserId ??
+          body.reviewerId ??
+          body.uploaderId ??
+          body.editorId ??
+          submitting,
+      )
+    )
+      return Response.json({ error: "account-deleted" }, { status: 403 });
     let participating = false;
     if (this.regionalProjects) {
       try {

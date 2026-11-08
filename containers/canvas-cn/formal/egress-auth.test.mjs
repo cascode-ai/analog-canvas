@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import egress from "./egress.mjs";
 import {
   accounts,
+  config,
   transportOrigin,
 } from "../../../worker/regional-auth.test-support.ts";
 import {
@@ -75,4 +76,47 @@ it("enforces a Gallery block and Owner recovery through the standalone egress po
   expect(
     network.mock.calls.map(([request]) => new URL(request.url).pathname),
   ).toContain("/api/auth/regional/security");
+});
+
+it("pulls and acknowledges a deletion through the configured authority transport", async () => {
+  const enabled = JSON.stringify({
+    ...JSON.parse(config),
+    accountDeletion: true,
+  });
+  const h = accounts(
+    { AUTH_REGIONAL_AUTHORITY: enabled },
+    { AUTH_REGIONAL_CLIENT: enabled },
+  );
+  vi.stubGlobal("fetch", (request) => h.source.authDurable.fetch(request));
+  h.region.fetchLike = (input, init) =>
+    egress.fetch(new Request(input, init), {
+      PEER_ORIGIN: transportOrigin,
+      IDENTITY_URL: transportOrigin + "/api/auth/regional/identities",
+    });
+  const original = await makerOf(h.source);
+  const cookie = await h.connect(original);
+  const requestId = crypto.randomUUID();
+  const path = "/api/auth/account/delete";
+  expect(
+    (
+      await h.call(path, cookie, "POST", {
+        requestId,
+        confirm: "delete-account",
+      })
+    ).status,
+  ).toBe(202);
+  expect(
+    (
+      await h.region.fetch(
+        new Request("https://auth/internal/account-deletion-tick", {
+          method: "POST",
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  const progress = await h.call(path, "", "POST", {
+    requestId,
+    statusOnly: true,
+  });
+  expect(await progress.json()).toMatchObject({ deletion: { cn: "complete" } });
 });

@@ -1,4 +1,10 @@
 import { ComponentManagement } from "./component-management";
+import {
+  installRetiredAccounts,
+  retireAccount,
+  retiredAccount,
+  validAccountId,
+} from "./retired-accounts";
 import type { SharedComponent } from "../apps/editor/src/features/user-components/component-library-contract";
 import {
   publishedComponentPayload,
@@ -59,6 +65,7 @@ export class ComponentLibraryDO {
     _env?: unknown,
   ) {
     this.sql = state.storage.sql;
+    installRetiredAccounts(this.sql);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS components (
       id TEXT PRIMARY KEY, revision INTEGER NOT NULL, author_id TEXT NOT NULL,
       author TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL,
@@ -175,10 +182,20 @@ export class ComponentLibraryDO {
         nextCursor: rows.length > limit ? rows[limit - 1]!.id : null,
       });
     }
-    if (operation === "delete-author") {
+    if (operation === "delete-author" || operation === "retire-account") {
       // Deleting an account takes the components its author shared.
       const authorId = String(body.userId);
+      if (operation === "retire-account" && !validAccountId(body.userId))
+        return Response.json({ error: "invalid-user" }, { status: 400 });
       return this.state.storage.transactionSync(() => {
+        if (operation === "retire-account") {
+          retireAccount(this.sql, authorId);
+          this.sql.exec(
+            `DELETE FROM component_lifecycle WHERE component_id IN
+            (SELECT id FROM components WHERE author_id=?)`,
+            authorId,
+          );
+        }
         const ids = this.sql
           .exec<{
             id: string;
@@ -196,6 +213,8 @@ export class ComponentLibraryDO {
         return Response.json({ deleted: ids.length });
       });
     }
+    if (retiredAccount(this.sql, body.userId))
+      return Response.json({ error: "account-deleted" }, { status: 403 });
     if (operation === "previews")
       return Response.json({
         previews: (body.items as { id: string; revision: number }[]).map(

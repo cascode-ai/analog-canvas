@@ -67,6 +67,37 @@ function document(value: Record<string, unknown>): boolean {
   }
 }
 
+/** A retired owner's slot keeps its original digest and sequence, but no content. */
+export async function decodeProjectSyncEvent(value: unknown): Promise<{
+  event: ProjectEvent;
+  change: ProjectChange | null;
+  ownerUserId: string;
+} | null> {
+  if (isRecord(value) && value.erasedOwner !== undefined) {
+    if (
+      value.version !== 1 ||
+      !["cn", "overseas"].includes(String(value.origin)) ||
+      !identifier(value.epoch) ||
+      !positive(value.sequence) ||
+      !identifier(value.eventId) ||
+      !identifier(value.erasedOwner) ||
+      value.payload !== "" ||
+      typeof value.payloadHash !== "string" ||
+      !/^[0-9a-f]{64}$/u.test(value.payloadHash)
+    )
+      return null;
+    return {
+      event: value as unknown as ProjectEvent,
+      change: null,
+      ownerUserId: value.erasedOwner,
+    };
+  }
+  const decoded = await decodeProjectEvent(value);
+  return decoded
+    ? { ...decoded, ownerUserId: decoded.change.ownerUserId }
+    : null;
+}
+
 /** Decode the versioned peer boundary before ownership lookup or any durable write. */
 export async function decodeProjectEvent(
   value: unknown,
@@ -74,6 +105,7 @@ export async function decodeProjectEvent(
   if (
     !isRecord(value) ||
     value.version !== 1 ||
+    value.erasedOwner !== undefined ||
     !["cn", "overseas"].includes(String(value.origin)) ||
     !identifier(value.epoch) ||
     !positive(value.sequence) ||
