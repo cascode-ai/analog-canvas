@@ -8273,13 +8273,22 @@
       }
     },
     "__schema298": {
-      "description": "A controlled source's control; null clears it.",
+      "description": "A controlled source's control; null clears it. For a switch clocked by its label (a two-terminal switch or a chopper), the clock phase as written, e.g. Φ_1 or PHIA_bar (_bar draws an overbar); null clocks it by its own name. Its label keeps its visibility.",
       "$ref": "#/$defs/__schema299"
     },
     "__schema299": {
       "anyOf": [
         {
-          "$ref": "#/$defs/__schema35"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/__schema35"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          ]
         },
         {
           "type": "null"
