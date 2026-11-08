@@ -3,7 +3,7 @@
  * pure helpers that fill one in.
  */
 import type { AgentTransactSuccessResponseSchema } from "@icm/agent-adapter";
-import type { ActionCall } from "@icm/agent-adapter/authoring";
+import type { ActionCall, ActionIssue } from "@icm/agent-adapter/authoring";
 import type { z } from "zod";
 
 type AgentTransactResponse = z.infer<typeof AgentTransactSuccessResponseSchema>;
@@ -29,6 +29,8 @@ export interface ApplyActionsReport {
   message?: string;
   actionIndex?: number;
   actionKind?: string;
+  /** ACTION_COMPILE_FAILED: every action the list refuses, in order. */
+  issues?: ActionIssue[];
   revision?: number;
   transactions?: number;
   /** ACTION_BATCH_NOT_ATOMIC: the calls to send instead, in order. */
