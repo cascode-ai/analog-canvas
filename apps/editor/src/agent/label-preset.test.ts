@@ -10,7 +10,6 @@ import {
   createLabelClearanceContext,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
-import { AgentCommandPlanningError } from "@icm/agent-adapter";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { callTool } from "../../../mcp-server/src/tools";
 import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
@@ -339,47 +338,14 @@ describe("apply-label-preset textbook (#1350)", () => {
     expect(controller.document).toEqual(before);
   });
 
-  it("names the leading parts that fit when it exceeds the edit limit", () => {
+  it("applies to every part in one plan, however many edits it takes", () => {
     const project = figure();
-    const command = {
-      kind: "apply-label-preset" as const,
-      preset: "textbook" as const,
-    };
-    // Hiding the W/L of M1, M3 and M4 and moving RL's two labels: five
-    // edits, two more than a limit of three.
-    const plan = (limit: number, instanceIds?: string[]) =>
-      planBrowserAgentCommand(
-        project,
-        "main",
-        resolver,
-        instanceIds ? { ...command, instanceIds } : command,
-        limit,
-      );
-    expect((plan(5) as { edits: unknown[] }).edits).toHaveLength(5);
-    let refusal: unknown;
-    try {
-      plan(3);
-    } catch (error) {
-      refusal = error;
-    }
-    expect(refusal).toBeInstanceOf(AgentCommandPlanningError);
-    const { message, detail } = refusal as AgentCommandPlanningError;
-    expect(detail).toEqual({
-      code: "LIMIT_EXCEEDED",
-      parameters: {
-        expandedEdits: 5,
-        maxTransactionEdits: 3,
-        selectedParts: 7,
-        fittingParts: 5,
-      },
+    // Hiding the W/L of M1, M3 and M4 and moving RL's two labels.
+    const plan = planBrowserAgentCommand(project, "main", resolver, {
+      kind: "apply-label-preset",
+      preset: "textbook",
     });
-    expect(message).toBe(
-      "actions[0]: apply-label-preset expands to 5 edits, and one transaction takes at most 3. The first 5 of its 7 parts fit (M1, RL, ISS, M2, RB): apply it to them in one call and to the rest in another. Nothing was changed.",
-    );
-    // The count is exact: the parts named fit, one more does not.
-    const ids = project.documents[0]!.instances.map((item) => item.id);
-    expect(() => plan(3, ids.slice(0, 5))).not.toThrow();
-    expect(() => plan(3, ids.slice(0, 6))).toThrow(AgentCommandPlanningError);
+    expect((plan as { edits: unknown[] }).edits).toHaveLength(5);
   });
 });
 

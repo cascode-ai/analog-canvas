@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "88e24b9704b8edbdab74da3197d27e75b5497dab7af797ad83a0c8e2b7fcdb63"
+      "sha256": "e5f92b708aa8273909d9defb2856c44eec79d9b7a9247e6895b5327aaf0e6f57"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -33,7 +33,7 @@
     },
     {
       "source": "docs/agent/response-semantics.md",
-      "sha256": "efe0dce00c519cf3ad4975c0f89a3ff8bd434eab66077d9ce6a607ba557c2904"
+      "sha256": "2b690c18a2a6dcac5efcc72fdde2cba6b4722f68fd8940f2179b3164aa016641"
     },
     {
       "source": "docs/agent/circuit-style-knowledge.md",
@@ -49,11 +49,11 @@
     },
     {
       "source": "docs/agent/shared/diagnostics.md",
-      "sha256": "b9bd8d5859eb70ea8ab2459d44b1e3775373485bb2db838ba7101507c23a10e6"
+      "sha256": "c855cf390428e18cb1c9cc59ab9ffca7456756c045d003f19d3fa24e90501316"
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "sha256": "9749457692ad52d8a97186f705dd0ed1513bcb133efe0e1cb37126c05c353d00"
+      "sha256": "72ce874f780b890d05bf0be6e7249e186cbb5e6814579af2a7c5624d800d65c1"
     },
     {
       "source": "docs/agent/http-kit/README.md",
@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "59553db8f0160fd7e2bea58a5787d60d8fed1e623ca1555e2948eea757961d95"
+      "sha256": "059a5356bf793adaf6e900b6bd299f221a5e99b1026af3f2a7b08d5ed353d2de"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "f8d49eb3440ec0a87b77d98453f46ff8de6468e65556fa4fd7e9dbc772a92b81"
+      "sha256": "295390a5f6eea87b8d7e5f2b548c658e8aba0d28cd58305d1ae9eb8c6398af76"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "a271244e5df846b2426674a272c19e330d02863d4aab3d7d97cd988d414830f9"
+      "sha256": "00fa1f6208b8f592426c1c9b9ec857790ffc3c57d0e4d17e60d91df0a872de8d"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

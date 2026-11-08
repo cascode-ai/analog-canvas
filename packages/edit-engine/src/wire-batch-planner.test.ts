@@ -33,7 +33,7 @@ const wire = (
 ): WireIntent => ({ id, from, to, waypoints });
 function commit(history: DocumentHistory, intents: WireIntent[]) {
   const before = structuredClone(history.document);
-  const plan = planWireBatch(history.document, resolver, intents, 512);
+  const plan = planWireBatch(history.document, resolver, intents);
   expect(typeof plan, JSON.stringify(plan)).not.toBe("string");
   if (typeof plan === "string") throw new Error(plan);
   expect(history.document).toEqual(before);
@@ -94,15 +94,10 @@ describe("wire batch replay", () => {
       wire("vertical", free(50, -50), free(50, 50)),
     ]);
     const before = structuredClone(h.document);
-    const plan = planWireBatch(
-      h.document,
-      resolver,
-      [
-        wire("elsewhere", free(200, 0), free(300, 0)),
-        wire("bad-tap", free(50, 100), at(50, 0)),
-      ],
-      512,
-    );
+    const plan = planWireBatch(h.document, resolver, [
+      wire("elsewhere", free(200, 0), free(300, 0)),
+      wire("bad-tap", free(50, 100), at(50, 0)),
+    ]);
     expect(plan).toMatch(/Ambiguous wire crossing/);
     expect(h.document).toEqual(before);
   });
@@ -111,12 +106,9 @@ describe("wire batch replay", () => {
     commit(h, [wire("rail", free(80, 40), free(80, 80))]);
     const before = structuredClone(h.document);
     expect(
-      planWireBatch(
-        h.document,
-        resolver,
-        [wire("tap", free(0, 50), at(80, 55))],
-        512,
-      ),
+      planWireBatch(h.document, resolver, [
+        wire("tap", free(0, 50), at(80, 55)),
+      ]),
     ).toMatch(/Tap \(80, 55\) is off grid 2/);
     expect(h.document).toEqual(before);
     commit(h, [wire("tap", free(0, 56), at(80, 56))]);
@@ -133,17 +125,14 @@ describe("wire batch replay", () => {
       { x: 200, y: 80 },
     ];
     const step = wire("step", free(0, 20), free(200, 100), via);
-    expect(planWireBatch(h.document, resolver, [step], 512)).toMatch(
+    expect(planWireBatch(h.document, resolver, [step])).toMatch(
       /step \(40, 40\) → \(80, 80\) is 45°.*routingMode "octilinear"/,
     );
     // A first via point 45° from the start's landing reads the same way.
     expect(
-      planWireBatch(
-        h.document,
-        resolver,
-        [wire("lead", free(0, 0), free(200, 40), [{ x: 40, y: 40 }])],
-        512,
-      ),
+      planWireBatch(h.document, resolver, [
+        wire("lead", free(0, 0), free(200, 40), [{ x: 40, y: 40 }]),
+      ]),
     ).toMatch(/step \(0, 0\) → \(40, 40\) is 45°/);
     commit(h, [{ ...step, routingMode: "octilinear" }]);
     const route = h.document.routes[0]!;
@@ -219,8 +208,7 @@ describe("wire batch replay", () => {
       wire("a", free(0, 0), free(100, 0)),
       wire("bad", at(300, 0), free(300, 100)),
     ];
-    expect(planWireBatch(d, resolver, intents, 512)).toMatch(/Wire 2:/);
-    expect(planWireBatch(d, resolver, intents, 1)).toMatch(/exceeding/);
+    expect(planWireBatch(d, resolver, intents)).toMatch(/Wire 2:/);
     expect(d).toEqual(before);
   });
 });
@@ -279,7 +267,6 @@ describe("via points on a pin-to-pin connect (#1265)", () => {
         batch
           ? [wire("w", pin("instance-rb", "2"), pin("instance-ra", "2"), below)]
           : wire("w", pin("instance-rb", "2"), pin("instance-ra", "2"), below),
-        512,
       );
       if (typeof plan === "string") throw new Error(plan);
       expect(
@@ -308,7 +295,6 @@ describe("via points on a pin-to-pin connect (#1265)", () => {
         { x: X, y: 60 },
         { x: X + 100, y: 60 },
       ]),
-      512,
     );
     expect(plan).toMatch(/folds back on itself/);
     expect(h.document).toEqual(before);
@@ -351,7 +337,6 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
       h.document,
       resolver,
       wire("w", pin("R1", "2"), pin("R2", "1"), waypoints),
-      512,
       options,
     );
     if (typeof plan === "string") return plan;
@@ -581,7 +566,6 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
         h.document,
         resolver,
         single ? intent : [intent],
-        512,
         { keepClear: true },
       );
       if (typeof plan === "string") throw new Error(plan);
@@ -652,7 +636,7 @@ describe("a batch connect from a pin an earlier connect reached (#1304)", () => 
     );
     const h = history(document);
     const send = (intents: WireIntent[]) => {
-      const plan = planWireBatch(h.document, resolver, intents, 512, {
+      const plan = planWireBatch(h.document, resolver, intents, {
         keepClear: true,
       });
       if (typeof plan === "string") throw new Error(plan);
@@ -726,7 +710,6 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
       h.document,
       resolver,
       [wire("body", terminal("B"), terminal("S"))],
-      512,
       { keepClear },
     );
     if (typeof plan === "string") throw new Error(plan);
@@ -812,7 +795,6 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
           { x: 100, y: 60 },
         ]),
       ],
-      512,
       { keepClear: true },
     );
     if (typeof plan === "string") throw new Error(plan);
@@ -855,7 +837,6 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
       h.document,
       resolver,
       [wire("body", terminal("B"), terminal("S"))],
-      512,
       { keepClear: true },
     );
     if (typeof plan === "string") throw new Error(plan);
@@ -923,7 +904,7 @@ describe("a second branch that leaves along its own wire (#1589)", () => {
       endpoint: { kind: "terminal" as const, instanceId, pinName: "G" },
     });
     const draw = (intent: WireIntent) => {
-      const plan = planWireBatch(h.document, resolver, intent, 512, {
+      const plan = planWireBatch(h.document, resolver, intent, {
         keepClear: true,
       });
       if (typeof plan === "string") throw new Error(plan);
@@ -996,7 +977,6 @@ describe("an Agent body wire along the via points it is given (#1514)", () => {
         target.kind === "net" ? { ...target, net: vb } : target,
         via,
       ),
-      512,
       { keepClear: true },
     );
     if (typeof plan === "string") throw new Error(plan);
@@ -1109,7 +1089,6 @@ describe("an Agent connect to an open point on another part's pin", () => {
           free(0, 90),
         ),
       ],
-      512,
       { keepClear: true },
     );
     expect(plan).toBe(
@@ -1146,7 +1125,6 @@ describe("a batch of Agent connects keeps clear of the wires before it", () => {
       ["IN-", "IN+", "OUT"].map((pin) =>
         wire(pin, terminal("A", pin), terminal("B", pin)),
       ),
-      512,
       { keepClear: true },
     );
     if (typeof plan === "string") throw new Error(plan);

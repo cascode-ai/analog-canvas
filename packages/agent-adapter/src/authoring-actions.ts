@@ -203,7 +203,6 @@ const ApplyLabelPresetActionSchema = NativeApplyLabelPreset.extend({
   targets: z
     .array(InstanceRefSchema)
     .min(1)
-    .max(256)
     .optional()
     .describe("The parts by Reference or ID, instead of instanceIds."),
 })
@@ -516,7 +515,7 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("arrange"),
-    instances: z.array(InstanceRefSchema).min(2).max(64),
+    instances: z.array(InstanceRefSchema).min(2),
     axis: z.enum(["x", "y"]),
     coordinate: z.number().int().optional(),
   }),

@@ -67,7 +67,7 @@ describe("on-demand tool contracts", () => {
     expect(selected.required).toEqual(all.required);
     expect(selected.additionalProperties).toBe(false);
     expect(selected.properties.actions.minItems).toBe(1);
-    expect(selected.properties.actions.maxItems).toBe(256);
+    expect(selected.properties.actions.maxItems).toBeUndefined();
     expect(
       selected.properties.actions.items.oneOf.map(
         (s: any) => s.properties.kind.const,
