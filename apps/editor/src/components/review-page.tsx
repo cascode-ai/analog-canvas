@@ -61,7 +61,7 @@ const scopeName = (scope: string) =>
     : (gallerySourceByKey(scope)?.name ?? scope);
 const num = (value: number) => value.toLocaleString("en-US");
 
-/** /review: one drawing at a time beside its reference; Pass or flag it. */
+/** /review: one drawing at a time beside its reference; → passes it, a reason flags it. */
 export function ReviewPage({
   visitStats,
   fetchLike = fetch,
@@ -415,10 +415,6 @@ export function ReviewPage({
     (after?: number) => void submit(flags.length ? "issue" : "pass", after),
     [flags.length, submit],
   );
-  const passIt = useCallback(() => {
-    setFlags([]);
-    void submit("pass");
-  }, [submit]);
   const sendIssue = useCallback(() => {
     if (flags.length) void submit("issue");
     else setMessage("Choose at least one reason above.");
@@ -627,17 +623,6 @@ export function ReviewPage({
                     >
                       <HeartIcon filled={card.likedByViewer} />{" "}
                       {num(card.likes)}
-                    </button>
-                    <button
-                      type="button"
-                      className={`review-pass${!flags.length && card.mine?.current && card.mine.verdict === "pass" ? " on" : ""}`}
-                      disabled={busy}
-                      title="Nothing wrong with it (→ passes it too)"
-                      data-testid="review-pass"
-                      onClick={passIt}
-                    >
-                      <span aria-hidden="true">✓</span> Pass
-                      {flags.length ? null : <kbd>Enter</kbd>}
                     </button>
                     <button
                       type="button"

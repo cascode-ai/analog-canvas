@@ -559,57 +559,41 @@
   font: 11px var(--font-mono, ui-monospace, monospace);
 }
 
-/* Pass (✓) and Not pass (✕): outlined in their colour, half-filled under
-   the pointer, solid when pressed or chosen (this reviewer's verdict on the
-   drawing, or the reasons open). */
-.review-actions .review-pass,
+/* Submit issue (✕): outlined in red, half-filled under the pointer, solid
+   when pressed or chosen (this reviewer's verdict on the drawing, or the
+   reasons open). Moving on (→) passes a drawing; there is no Pass button. */
 .review-actions .review-issue {
-  --hue: #0ca30c;
-  --hue-text: #08800a;
-  --hue-soft: #e2f5e2;
   min-width: 112px;
   justify-content: center;
-  border-color: var(--hue);
+  border-color: #d03b3b;
   background: var(--icm-surface);
-  color: var(--hue-text);
+  color: #c02f2f;
   font-weight: 600;
   transition:
     background-color 0.12s,
     color 0.12s;
 }
 
-.review-actions .review-issue {
-  --hue: #d03b3b;
-  --hue-text: #c02f2f;
-  --hue-soft: #fbe4e4;
-}
-
-.review-actions .review-pass:hover:not(:disabled),
 .review-actions .review-issue:hover:not(:disabled) {
-  background: var(--hue-soft);
+  background: #fbe4e4;
 }
 
-.review-actions .review-pass:active:not(:disabled),
 .review-actions .review-issue:active:not(:disabled),
-.review-actions .review-pass.on,
 .review-actions .review-issue.on {
-  background: var(--hue);
+  background: #d03b3b;
   color: #fff;
 }
 
-.review-actions .review-pass:disabled,
 .review-actions .review-issue:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.review-actions .review-pass > span,
 .review-actions .review-issue > span {
   font-size: 15px;
   line-height: 1;
 }
 
-.review-actions .review-pass kbd,
 .review-actions .review-issue kbd {
   border-color: currentColor;
   color: inherit;

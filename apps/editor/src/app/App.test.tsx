@@ -351,22 +351,19 @@ describe("editor shell", () => {
     expect(markup.indexOf('href="/analytics"')).toBeGreaterThan(statusbar);
   });
 
-  it("opens Netlist beside shapes quick-place with one search over the Library", () => {
+  it("opens on the canvas beside shapes quick-place and one search over the Library", () => {
     const project = createEmptyProject("selection-shelf", "Selection Shelf");
     const markup = renderToStaticMarkup(
       <App services={services} project={project} />,
     );
 
-    expect(markup).toContain(
-      '<section class="selection-shelf" aria-label="Project tools">',
-    );
-    expect(markup).toContain('aria-label="Live netlist"');
+    // The Live netlist waits for its toolbar toggle.
+    expect(markup).not.toContain('aria-label="Live netlist"');
+    expect(markup).toContain('data-testid="netlist-panel-toggle"');
     // The toolbar button that opens a panel is the one that closes it.
     expect(markup).not.toContain('aria-label="Close project tools"');
-    expect(markup).not.toContain('data-testid="selection-shelf"');
-    expect(markup).not.toContain(
-      'aria-label="Properties" role="complementary"',
-    );
+    // Properties waits folded beside the canvas.
+    expect(markup).toContain('<aside class="selection-dock"');
     // The panel toggles live in the horizontal toolbar; there is no rail.
     expect(markup).not.toContain('aria-label="Tool rail"');
     expect(markup).toContain('aria-label="Shapes"');
