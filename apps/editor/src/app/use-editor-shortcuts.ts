@@ -88,8 +88,6 @@ interface EditorShortcutDependencies {
   viewBox: GridRect;
   documentSettingsOpen: boolean;
   setDocumentSettingsOpen: Dispatch<SetStateAction<boolean>>;
-  projectInfoOpen: boolean;
-  setProjectInfoOpen: Dispatch<SetStateAction<boolean>>;
   versionHistoryOpen: boolean;
   recoveryDialogOpen: ProjectFileLifecycle["recoveryDialogOpen"];
   setRecoveryDialogOpen: ProjectFileLifecycle["setRecoveryDialogOpen"];
@@ -250,8 +248,6 @@ function createEditorShortcutHandler({
   viewBox,
   documentSettingsOpen,
   setDocumentSettingsOpen,
-  projectInfoOpen,
-  setProjectInfoOpen,
   versionHistoryOpen,
   recoveryDialogOpen,
   setRecoveryDialogOpen,
@@ -313,15 +309,6 @@ function createEditorShortcutHandler({
     // The Arena gate over the editor owns every key, wherever focus is.
     if (arenaGateShown()) return;
     if (versionHistoryOpen) return;
-    // Project Info is modal: the canvas never handles its keys.
-    // This router sees Escape first, so it closes the dialog here.
-    if (projectInfoOpen) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setProjectInfoOpen(false);
-      }
-      return;
-    }
     if (
       event.target instanceof Element &&
       (event.target.closest(".project-tab-name-input") ||

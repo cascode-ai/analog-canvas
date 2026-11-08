@@ -196,19 +196,23 @@ entries, keyset cursor, limit ≤60.
 - Hosted Production/preview always uses Gallery, never bundled examples;
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
-- Every drawing shows a reference window floating over the canvas's
-  bottom-right corner from the start: its name, description and reference
-  image. Closing it is remembered in this browser; Reference in the status
-  bar (or Edit › Reference window) opens it again. The image is a
+- Every drawing shows Project Info floating over the canvas's bottom-right
+  corner from the start: its name, the Cell on screen, a Gallery entry's
+  contributor, its description and its reference picture. Closing it is
+  remembered in this browser; Project Info in the status bar or the File menu
+  opens it again. The picture is a
   pasted screenshot (⌘V / Ctrl+V, unless a text field or a circuit takes the
   paste), a dropped image or a chosen file, kept per tab for the page's life;
   a drawing opened from the Gallery starts from its entry's figure (a
   dataset's original or the reference image). The window moves by its title
-  bar, resizes from any edge or corner, folds, keeps its place across tabs,
+  bar, resizes from any edge or corner, folds onto its bottom edge (its title
+  bar rests where the window's foot was, and it opens upward again), keeps
+  its place across tabs,
   and selects nothing on the page while it moves; the image zooms with the
   wheel and pans with a drag.
-- Save keeps an unpublished drawing's name and description with it (Publish
-  starts from them). For a community entry its owner, an admin or a moderator
+- Save renames the Cell on screen (with the circuit, one undo) and keeps an
+  unpublished drawing's name and description with it (Publish starts from
+  them). For a community entry its owner, an admin or a moderator
   may change, Save writes them to the entry at once, and the image as its
   reference image when its owner or the Owner saves; a dataset's entry, or
   another's, is read-only and an image there stays on the page.

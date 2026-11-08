@@ -1049,7 +1049,6 @@ function WorkspaceEditor({
       ? netlistEntry.documentId
       : undefined;
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
-  const [projectInfoOpen, setProjectInfoOpen] = useState(false);
   const projectNameEditing = useRef(false);
   const {
     publishGalleryOpen,
@@ -1325,8 +1324,6 @@ function WorkspaceEditor({
       setImportReport(null);
       setImportReviewOpen(false);
       setGalleryEntryContext(null);
-      // Project Info belongs to the outgoing Project.
-      setProjectInfoOpen(false);
       const nextDocument = replaceProject(nextProject);
       if (options.agentEdited) editorDocumentController.noteAgentEdit();
       documentViewBoxes.current = new Map();
@@ -5005,8 +5002,6 @@ function WorkspaceEditor({
       viewBox,
       documentSettingsOpen,
       setDocumentSettingsOpen,
-      projectInfoOpen,
-      setProjectInfoOpen,
       versionHistoryOpen,
       recoveryDialogOpen,
       setRecoveryDialogOpen,
@@ -5317,8 +5312,6 @@ function WorkspaceEditor({
     netlistEntry,
     setNetlistEntry,
     documentSettingsOpen,
-    projectInfoOpen,
-    setProjectInfoOpen,
     projectNameEditing,
     publishGalleryOpen,
     versionHistoryOpen,
@@ -5652,7 +5645,6 @@ function WorkspaceEditor({
         netlistNamingProfile={netlistNamingProfile}
         documentSettingsOpen={documentSettingsOpen}
         setDocumentSettingsOpen={setDocumentSettingsOpen}
-        setProjectInfoOpen={setProjectInfoOpen}
         projectNameEditing={projectNameEditing}
         publishGalleryOpen={publishGalleryOpen}
         setPublishGalleryOpen={setPublishGalleryOpen}
@@ -5849,8 +5841,6 @@ function WorkspaceEditor({
         setNetlistPreflightOpen={setNetlistPreflightOpen}
         netlistPreferences={netlistPreferences}
         netlistRootDocumentId={netlistRootDocumentId}
-        projectInfoOpen={projectInfoOpen}
-        setProjectInfoOpen={setProjectInfoOpen}
         publishGalleryOpen={publishGalleryOpen}
         setPublishGalleryOpen={setPublishGalleryOpen}
         openedFromCheckNotice={openedFromCheckNotice}
@@ -5889,7 +5879,6 @@ function WorkspaceEditor({
         rejectAgentFileCandidate={rejectAgentFileCandidate}
         commitStructure={commitStructure}
         renameCell={renameCell}
-        renameProject={renameProject}
         setGalleryEntryContext={setGalleryEntryContext}
         editProjectInfo={editProjectInfo}
         updateCellPortDirection={updateCellPortDirection}

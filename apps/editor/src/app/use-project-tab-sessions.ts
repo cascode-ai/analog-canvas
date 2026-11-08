@@ -130,8 +130,6 @@ interface ProjectTabSessionsOptions {
     SetStateAction<{ sessionId: string; documentId: string } | null>
   >;
   documentSettingsOpen: boolean;
-  projectInfoOpen: boolean;
-  setProjectInfoOpen: Dispatch<SetStateAction<boolean>>;
   projectNameEditing: RefObject<boolean>;
   publishGalleryOpen: boolean;
   versionHistoryOpen: boolean;
@@ -223,8 +221,6 @@ export function useProjectTabSessions({
   netlistEntry,
   setNetlistEntry,
   documentSettingsOpen,
-  projectInfoOpen,
-  setProjectInfoOpen,
   projectNameEditing,
   publishGalleryOpen,
   versionHistoryOpen,
@@ -291,7 +287,6 @@ export function useProjectTabSessions({
     setAgentFileCandidate(null);
     setImportReport(null);
     setImportReviewOpen(false);
-    setProjectInfoOpen(false);
     setCanvasContextMenu(null);
     setNetlistFocusedInstance(null);
     setHighlightedNetOrigin(null);
@@ -618,7 +613,6 @@ export function useProjectTabSessions({
   const editInProgress = () => ({
     componentEditor: !!componentEditor,
     documentSettingsOpen,
-    projectInfoOpen,
     projectNameEditing: projectNameEditing.current,
     textEditing: !!textEditing,
     textOnScreen: !!textEditingTarget,
