@@ -1,4 +1,17 @@
 import type { SessionUser } from "./auth-do";
+import { coordinatesProjectDeletion } from "./project-region-scope";
+import {
+  ACCOUNT_DELETE_PATH,
+  ACCOUNT_DELETION_TICK,
+  purgeAccountResources,
+  type AccountResourceBindings,
+} from "./account-deletions";
+import {
+  installRetiredAccounts,
+  retireAccount,
+  retiredAccount,
+  validAccountId,
+} from "./retired-accounts";
 import {
   answer,
   cookie,
@@ -51,11 +64,20 @@ export class RegionalSessionDO {
 
   constructor(
     private readonly state: State,
-    env: { AUTH_REGIONAL_CLIENT?: string },
+    private readonly env: AccountResourceBindings & {
+      AUTH_REGIONAL_CLIENT?: string;
+    },
   ) {
     this.config = regionalConfig(env.AUTH_REGIONAL_CLIENT);
     this.sql = state.storage.sql;
     if (!this.config) return;
+    installRetiredAccounts(this.sql);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_deletion_cursor (
+      singleton INTEGER PRIMARY KEY CHECK(singleton=1), sequence INTEGER NOT NULL
+    )`);
+    this.sql.exec(
+      "INSERT OR IGNORE INTO regional_deletion_cursor VALUES (1, 0)",
+    );
     this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_pending (
       state_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
     if (
@@ -106,6 +128,12 @@ export class RegionalSessionDO {
     const url = new URL(request.url);
     if (
       url.origin === "https://auth" &&
+      url.pathname === ACCOUNT_DELETION_TICK &&
+      request.method === "POST"
+    )
+      return this.tickAccountDeletion();
+    if (
+      url.origin === "https://auth" &&
       isRegionalSecurityRoute(request.method, url.pathname)
     ) {
       const body = request.body ? await readBody(request) : {};
@@ -145,11 +173,8 @@ export class RegionalSessionDO {
     }
     if (url.origin !== this.config.clientOrigin)
       return answer({ error: "invalid-origin" }, 421);
-    if (
-      request.method === "POST" &&
-      url.pathname === "/api/auth/account/delete"
-    )
-      return answer({ error: "account-deletion-unavailable" }, 503);
+    if (request.method === "POST" && url.pathname === ACCOUNT_DELETE_PATH)
+      return this.deleteAccount(request, this.config);
     if (isRegionalAccountRoute(request.method, url.pathname))
       return this.accountOperation(request, url);
     if (request.method === "GET") {
@@ -164,6 +189,11 @@ export class RegionalSessionDO {
           email: result.body?.email === true,
           central: true,
           loginUrl: REGIONAL_PREFIX + "start",
+          ...(this.config.accountDeletion === true &&
+          result.body?.accountDeletion === true &&
+          this.canCoordinateDeletion((await this.localUser(request)).user)
+            ? { accountDeletion: true }
+            : {}),
         });
       }
       if (url.pathname === "/api/auth/me")
@@ -306,7 +336,12 @@ export class RegionalSessionDO {
           this.now(),
         )
         .toArray()[0];
-      if (!pending) return false;
+      if (
+        !pending ||
+        retiredAccount(this.sql, lease.user.id) ||
+        retiredAccount(this.sql, lease.user.switchedFrom?.id)
+      )
+        return false;
       this.sql.exec(
         "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash, actor_id, restriction_revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         tokenHash,
@@ -384,6 +419,7 @@ export class RegionalSessionDO {
       | "exchange"
       | "renew"
       | "account"
+      | "deletions"
       | "owner-token"
       | "security"
       | "providers",
@@ -420,6 +456,120 @@ export class RegionalSessionDO {
     } catch {
       return { status: 0, body: null };
     }
+  }
+
+  private revokeAccount(userId: string) {
+    this.state.storage.transactionSync(() => {
+      retireAccount(this.sql, userId);
+      this.sql.exec(
+        `DELETE FROM regional_sessions
+        WHERE actor_id=? OR json_extract(user_json, '$.id')=?`,
+        userId,
+        userId,
+      );
+    });
+  }
+
+  private async tickAccountDeletion(): Promise<Response> {
+    const after = this.sql
+      .exec<{ sequence: number }>(
+        "SELECT sequence FROM regional_deletion_cursor WHERE singleton=1",
+      )
+      .one().sequence;
+    const result = await this.authority("deletions", { after });
+    // Compatible with the authority release before this endpoint was added.
+    if (result.status === 404 && this.config?.accountDeletion !== true)
+      return answer({ status: "disabled" });
+    const job = result.body?.job as
+      { sequence?: unknown; userId?: unknown } | null | undefined;
+    if (result.body?.version !== 1) return answer({ status: "retry" }, 503);
+    if (job === null) return answer({ status: "caught-up" });
+    if (!job || !validAccountId(job.userId) || job.sequence !== after + 1)
+      return answer({ status: "retry" }, 503);
+    this.revokeAccount(job.userId);
+    if (!(await purgeAccountResources(this.env, job.userId)))
+      return answer({ status: "retry" }, 503);
+    const acknowledgement = await this.authority("deletions", {
+      acknowledge: job.sequence,
+    });
+    if (acknowledgement.body?.acknowledged !== job.sequence)
+      return answer({ status: "retry" }, 503);
+    this.sql.exec(
+      "UPDATE regional_deletion_cursor SET sequence=MAX(sequence,?)",
+      job.sequence,
+    );
+    return answer({ status: "sent" });
+  }
+
+  private canCoordinateDeletion(user: SessionUser | null): boolean {
+    try {
+      return (
+        !!user &&
+        coordinatesProjectDeletion(
+          this.env.PROJECT_REGION_USERS,
+          user.id,
+          this.env.PROJECT_SYNC_EXPANSION,
+        )
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async deleteAccount(
+    request: Request,
+    config: RegionalConfig,
+  ): Promise<Response> {
+    if (
+      request.headers.get("origin") !== config.clientOrigin ||
+      request.headers.get("sec-fetch-site") === "cross-site"
+    )
+      return answer({ error: "forbidden" }, 403);
+    const body = await readBody(request);
+    if (config.accountDeletion !== true && body?.statusOnly !== true)
+      return answer({ error: "account-deletion-unavailable" }, 503);
+    if (!body) return answer({ error: "invalid-request" }, 400);
+    const token = cookie(request, REGIONAL_SESSION_COOKIE);
+    const send = async (tokenHash?: string) => {
+      const row = tokenHash
+        ? this.sql
+            .exec<SessionRow>(
+              "SELECT * FROM regional_sessions WHERE token_hash=? AND lease_until>? AND expires_at>?",
+              tokenHash,
+              this.now(),
+              this.now(),
+            )
+            .toArray()[0]
+        : undefined;
+      const result = await this.authority("account", {
+        path: ACCOUNT_DELETE_PATH,
+        method: "POST",
+        body,
+        grant: row?.grant,
+      });
+      const operation = operationResult(result.body);
+      if (!operation)
+        return result.status === 401
+          ? answer({ error: "unauthorized" }, 401)
+          : answer({ error: "account-unavailable" }, 503);
+      const revoked = result.body?.revokedUserId;
+      const response = answer(operation.body, operation.status);
+      if (
+        row &&
+        validAccountId(revoked) &&
+        (JSON.parse(row.user_json) as SessionUser).id === revoked
+      ) {
+        this.revokeAccount(revoked);
+        response.headers.append(
+          "set-cookie",
+          setCookie(REGIONAL_SESSION_COOKIE, "", config.clientOrigin, 0),
+        );
+      }
+      return response;
+    };
+    if (!validNonce(token) || body.statusOnly === true) return send();
+    const tokenHash = await digest(token);
+    return this.orderedAccountOperation(tokenHash, () => send(tokenHash));
   }
 
   private async accountOperation(

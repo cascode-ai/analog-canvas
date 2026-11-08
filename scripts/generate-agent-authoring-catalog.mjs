@@ -2,12 +2,42 @@ import {
   loadComponentLibrary,
   readComponentProjection,
 } from "./lib/component-library.mjs";
+import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import { registerHooks } from "node:module";
 import { dirname, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { format } from "prettier";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+// place-component validates parameters against @icm/devices; the catalog
+// lists them from the same function. Its source loads as written, without a
+// build: a workspace package resolves to its "development" export, its
+// source, and a relative ".js" import from TypeScript is the ".ts" beside it.
+registerHooks({
+  resolve(specifier, context, next) {
+    if (
+      specifier.startsWith(".") &&
+      specifier.endsWith(".js") &&
+      context.parentURL?.endsWith(".ts")
+    ) {
+      const url = new URL(
+        specifier.replace(/\.js$/u, ".ts"),
+        context.parentURL,
+      );
+      if (existsSync(fileURLToPath(url)))
+        return { url: url.href, shortCircuit: true };
+    }
+    return next(specifier, {
+      ...context,
+      conditions: ["development", ...context.conditions],
+    });
+  },
+});
+const { instanceParameterContract } = await import(
+  pathToFileURL(resolve(root, "packages/devices/src/index.ts")).href
+);
 const assetRoot = resolve(root, "packages/components/definitions");
 const sourceCatalogPath = resolve(assetRoot, "../catalog.json");
 const outputPath = resolve(
@@ -109,6 +139,31 @@ function pinPlace(pin) {
   };
 }
 
+/**
+ * The parameters place-component takes for a symbol, from the contract it
+ * validates them with: each name, the value a part placed without it stores
+ * (none when absent), a choice list's values, and whether it is kept only for
+ * compatibility. Open when its model takes other names too; nothing when no
+ * contract describes the symbol and its parameters go unchecked.
+ */
+function authoringParameters(symbolId) {
+  const contract = instanceParameterContract({}, { symbolId });
+  if (!contract) return {};
+  return {
+    parameters: contract.definitions.map((parameter) => ({
+      name: parameter.name,
+      ...(parameter.defaultValue ? { default: parameter.defaultValue } : {}),
+      ...(parameter.options
+        ? { choices: parameter.options.map((option) => option.value) }
+        : {}),
+      ...(parameter.authoringVisibility === "compatibility"
+        ? { compatibility: true }
+        : {}),
+    })),
+    ...(contract.open ? { parametersOpen: true } : {}),
+  };
+}
+
 /** One symbol as the Agent's place-component reads it. */
 function authoringSymbol(definition, category) {
   return {
@@ -121,6 +176,7 @@ function authoringSymbol(definition, category) {
     // set-signal-flow apply to it, as the Properties formula does in the GUI.
     formula: Boolean(definition.formulaPresentation),
     coefficient: Boolean(definition.formulaPresentation?.supportsCoefficient),
+    ...authoringParameters(definition.id),
     // As placed without a variant: in its default variant, if it has one.
     bounds: inkBounds(
       definition,

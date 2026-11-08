@@ -34,7 +34,8 @@ host.
    uses the inbound token for its delivery. `regional-client.json` follows the
    Auth contract and its secret equals `identity-token`.
    `project-region-users.json` lists the confirmed cohort, the same list as
-   the source's `PROJECT_REGION_USERS`. Start `project-compress-journal` at
+   the source's `PROJECT_REGION_USERS`. Provision `project-sync-expansion`
+   with `off` before the first release that embeds it. Start `project-compress-journal` at
    `false`. Enable it only under the [Project journal contract](../../../docs/specs/regional-projects.md#rules).
    `sync-alert.json` holds `apiKey`,
    `from` and the authorized recipient `to`.
@@ -77,9 +78,10 @@ Only the Auth contract's browser routes are proxied there in shared-domain mode.
 - Backups stop the runtime briefly and keep the newest 20 snapshots of state,
   sessions, journals, receipts and artifact storage. Copy verified archives
   off host. Restore into a separate directory and port, clear restored sessions
-  and pending handoffs before connecting it to the authority, and reconcile
-  Project and publication cursors before writes. A release rollback keeps every
-  acknowledged write; never select an older state directory.
+  and pending handoffs before connecting it to the authority. Follow
+  [regional recovery](../../../docs/deployment.md#point-in-time-recovery)
+  before exposing the restored instance. A release rollback retains the
+  current state and must understand erased Project receipts once deletion is active.
 
 ## Publication replicas
 
@@ -101,7 +103,5 @@ Publication replication is opt-in on each side. On the source set
   domestic publication writes. A failed stream is never skipped by advancing
   its cursor.
 
-The region provides no automatic journal compaction, abandoned quota
-reclamation or account-deletion propagation; the
-[Project contract](../../../docs/specs/regional-projects.md) lists the disabled
-legacy operations.
+The [Project contract](../../../docs/specs/regional-projects.md) owns
+journal retention, abandoned quota reservations and regional recovery.

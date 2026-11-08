@@ -20,7 +20,7 @@ import {
 /** Where the linked slide stands against the drawing on screen. */
 export type PowerPointLinkState = "saved" | "unsaved" | "elsewhere";
 
-interface PowerPointNotice {
+export interface PowerPointNotice {
   readonly id: number;
   readonly text: string;
   readonly failed: boolean;
@@ -74,19 +74,10 @@ export function usePowerPointSave({
   } | null>(null);
   const restored = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<PowerPointNotice | null>(null);
+  const { notice, report, dismiss } = useSlideNotices();
   /** The drawing the slide was last known to show, as the close bridge has it. */
-  const [receipt, setReceipt] = useState<{
-    project: CircuitProject;
-    text: string;
-    documentId: string;
-  } | null>(null);
+  const [receipt, setReceipt] = useState<SlideReceipt | null>(null);
   const pending = useRef(false);
-  const noticeId = useRef(0);
-  function report(text: string, failed: boolean) {
-    noticeId.current += 1;
-    setNotice({ id: noticeId.current, text, failed });
-  }
   function currentDrawing(): PowerPointDrawing | null {
     const entry = context && readProject(context.projectId);
     return entry
@@ -172,35 +163,8 @@ export function usePowerPointSave({
     });
     if (shown !== document.id) openDocument(shown);
   }, [context, project, document.id, openDocument, readProject]);
-  useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(
-      () => setNotice((current) => (current === notice ? null : current)),
-      notice.failed ? FAILED_NOTICE_MS : SAVED_NOTICE_MS,
-    );
-    return () => clearTimeout(timer);
-  }, [notice]);
-
   const linkedHere = token !== null && context?.projectId === project.id;
-  // Identity answers at once; after an edit, the text says whether the
-  // drawing came back to what the slide shows (undo, say). Deferred, so a
-  // linked drawing never waits on serializing while it is being edited.
-  const deferredProject = useDeferredValue(project);
-  const deferredText = useMemo(
-    () =>
-      linkedHere && receipt && deferredProject !== receipt.project
-        ? serializeProject(deferredProject)
-        : null,
-    [linkedHere, receipt, deferredProject],
-  );
-  const state: PowerPointLinkState = !linkedHere
-    ? "elsewhere"
-    : receipt !== null &&
-        document.id === receipt.documentId &&
-        (project === receipt.project ||
-          (deferredProject === project && deferredText === receipt.text))
-      ? "saved"
-      : "unsaved";
+  const state = useSlideState(project, document, linkedHere, receipt);
 
   async function save(): Promise<SaveOutcome> {
     if (pending.current)
@@ -306,14 +270,73 @@ export function usePowerPointSave({
       <PowerPointNoticeView
         key={notice.id}
         notice={notice}
-        onDismiss={() => setNotice(null)}
+        onDismiss={dismiss}
       />
     ) : null,
   };
 }
 
+/** What the slide shows, for the state on the header's dot. */
+export interface SlideReceipt {
+  readonly project: CircuitProject;
+  readonly text: string;
+  readonly documentId: string;
+}
+
+/**
+ * Where the linked slide stands against the drawing on screen. Identity
+ * answers at once; after an edit, the text says whether the drawing came back
+ * to what the slide shows (undo, say). Deferred, so a linked drawing never
+ * waits on serializing while it is being edited.
+ */
+export function useSlideState(
+  project: CircuitProject,
+  document: SchematicDocument,
+  linkedHere: boolean,
+  receipt: SlideReceipt | null,
+): PowerPointLinkState {
+  const deferredProject = useDeferredValue(project);
+  const deferredText = useMemo(
+    () =>
+      linkedHere && receipt && deferredProject !== receipt.project
+        ? serializeProject(deferredProject)
+        : null,
+    [linkedHere, receipt, deferredProject],
+  );
+  return !linkedHere
+    ? "elsewhere"
+    : receipt !== null &&
+        document.id === receipt.documentId &&
+        (project === receipt.project ||
+          (deferredProject === project && deferredText === receipt.text))
+      ? "saved"
+      : "unsaved";
+}
+
+/** A save's outcomes, one at a time, each fading by itself. */
+export function useSlideNotices() {
+  const [notice, setNotice] = useState<PowerPointNotice | null>(null);
+  const noticeId = useRef(0);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(
+      () => setNotice((current) => (current === notice ? null : current)),
+      notice.failed ? FAILED_NOTICE_MS : SAVED_NOTICE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [notice]);
+  return {
+    notice,
+    report(text: string, failed: boolean) {
+      noticeId.current += 1;
+      setNotice({ id: noticeId.current, text, failed });
+    },
+    dismiss: () => setNotice(null),
+  };
+}
+
 /** The header's PowerPoint control: one button and a dot for the slide's state. */
-function PowerPointButton({
+export function PowerPointButton({
   state,
   busy,
   onSave,
@@ -367,7 +390,7 @@ function PowerPointButton({
 }
 
 /** A save's outcome, briefly, below the header; it fades by itself. */
-function PowerPointNoticeView({
+export function PowerPointNoticeView({
   notice,
   onDismiss,
 }: {

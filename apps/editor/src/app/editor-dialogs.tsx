@@ -5,6 +5,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   type Dispatch,
   type RefObject,
   type SetStateAction,
@@ -44,17 +45,11 @@ import type { createEditorNavigationController } from "../features/hierarchy/edi
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { primeGalleryPreview } from "../gallery-client";
-// Loaded only for a drawing opened from the Gallery: not in the editor's
+// The reference window beside the canvas: loaded apart from the editor's
 // first payload.
-const ReferencePanel = lazy(() =>
+const ReferenceWindow = lazy(() =>
   import("../features/editor-shell/reference-panel").then((module) => ({
-    default: module.ReferencePanel,
-  })),
-);
-// The reader's own figure to trace over, opened from Edit.
-const OwnReferencePanel = lazy(() =>
-  import("../features/editor-shell/reference-panel").then((module) => ({
-    default: module.OwnReferencePanel,
+    default: module.ReferenceWindow,
   })),
 );
 import {
@@ -63,6 +58,7 @@ import {
   useOwnReferenceImage,
   useOwnReferenceOpen,
 } from "../features/editor-shell/own-reference";
+import type { GalleryEntryContext } from "../features/editor-shell/gallery-example-commands";
 import { CIRCUIT_CLIPBOARD_MIME } from "../features/clipboard/system-clipboard";
 import { isTypingTarget } from "./editor-runtime-helpers";
 // A paste is the reference image's unless a text field or a circuit takes it.
@@ -190,6 +186,8 @@ export function EditorDialogs({
   rejectAgentFileCandidate,
   commitStructure,
   renameCell,
+  renameProject,
+  setGalleryEntryContext,
   setTopCell,
   editProjectInfo,
   updateCellPortDirection,
@@ -307,6 +305,8 @@ export function EditorDialogs({
   rejectAgentFileCandidate: AgentConnection["rejectAgentFileCandidate"];
   commitStructure: TransactionCommands["commitStructure"];
   renameCell: ProjectStructureCommands["renameCell"];
+  renameProject: ProjectStructureCommands["renameProject"];
+  setGalleryEntryContext: Dispatch<SetStateAction<GalleryEntryContext | null>>;
   setTopCell: ProjectStructureCommands["setTopCell"];
   editProjectInfo: ProjectStructureCommands["editProjectInfo"];
   updateCellPortDirection: ProjectStructureCommands["updateCellPortDirection"];
@@ -345,28 +345,69 @@ export function EditorDialogs({
   recordGalleryPublication: ReturnType<typeof useGalleryPublicationRecord>;
 }) {
   const ownReferenceOpen = useOwnReferenceOpen();
-  const ownReference = useOwnReferenceImage();
+  const ownReference = useOwnReferenceImage(projectSessionId);
+  const keepReferenceImage = useCallback(
+    (file: File) => keepOwnReferenceImage(projectSessionId, file),
+    [projectSessionId],
+  );
+  // The window's saved name and description stay with the drawing: its
+  // name, its Gallery entry's (already saved there) or its draft's for
+  // Publish.
+  const referenceSaved = ({
+    name,
+    description,
+  }: {
+    name: string;
+    description: string;
+  }) => {
+    renameProject(name);
+    if (galleryEntryContext) {
+      const savedId = galleryEntryContext.id;
+      setGalleryEntryContext((current) =>
+        current?.id === savedId ? { ...current, name, description } : current,
+      );
+      galleryLoadGenerationRef.current += 1;
+      setGalleryRefreshSignal((previous) => previous + 1);
+      setStatus(`Saved "${name}" in the gallery`);
+      return;
+    }
+    setPublishDraft((previous) => ({
+      ...previous,
+      name,
+      description,
+      tags: previous?.tags ?? [],
+      editedFields: {
+        ...previous?.editedFields,
+        name: true,
+        description: true,
+        tags: previous?.editedFields?.tags ?? false,
+      },
+    }));
+    setStatus(`Saved "${name}"; Publish starts from it`);
+  };
+  const galleryEntry = import.meta.env?.ICM_DESKTOP
+    ? null
+    : galleryEntryContext;
   return (
     <>
-      {ownReferenceOpen ? (
-        <Suspense fallback={null}>
-          <OwnReferencePanel
-            src={ownReference?.url ?? null}
-            onImage={keepOwnReferenceImage}
-            takesPaste={ownReferenceTakesPaste}
-            onClose={closeOwnReference}
-          />
-        </Suspense>
-      ) : null}
-      {/* The opened Gallery circuit's name, description and figure. */}
-      {!import.meta.env?.ICM_DESKTOP && galleryEntryContext ? (
-        <Suspense fallback={null}>
-          <ReferencePanel
-            key={galleryEntryContext.id}
-            entry={galleryEntryContext}
-          />
-        </Suspense>
-      ) : null}
+      {/* The drawing's name, description and reference image, beside it. */}
+      <Suspense fallback={null}>
+        <ReferenceWindow
+          key={`${projectSessionId}:${galleryEntry?.id ?? ""}`}
+          open={ownReferenceOpen}
+          onClose={closeOwnReference}
+          entry={galleryEntry}
+          session={publishSession}
+          draft={{
+            name: publishDraft?.name || project.name,
+            description: publishDraft?.description ?? "",
+          }}
+          image={ownReference}
+          onImage={keepReferenceImage}
+          takesPaste={ownReferenceTakesPaste}
+          onSaved={referenceSaved}
+        />
+      </Suspense>
       <EditorDialogLayer
         chunkLoadFailure={
           chunkLoadFailure === null

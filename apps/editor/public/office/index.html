@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analog Canvas for PowerPoint</title>
+    <link rel="icon" href="icon-32.png" />
+    <style>
+      body {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 40px 24px 64px;
+        color: #1f2933;
+        font:
+          15px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      header img {
+        width: 40px;
+        height: 40px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 26px;
+      }
+      h2 {
+        margin: 32px 0 8px;
+        font-size: 18px;
+      }
+      h3 {
+        margin: 18px 0 4px;
+        font-size: 15px;
+      }
+      p,
+      li {
+        color: #3e4c59;
+      }
+      ol {
+        padding-left: 22px;
+      }
+      code {
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: #f0f2f5;
+        font-size: 13px;
+        word-break: break-all;
+      }
+      .download {
+        display: inline-block;
+        margin: 8px 0;
+        padding: 10px 18px;
+        border-radius: 6px;
+        background: #2383e2;
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      footer {
+        margin-top: 40px;
+        color: #7b8794;
+        font-size: 13px;
+      }
+      footer a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="icon-64.png" alt="" />
+      <h1>Analog Canvas for PowerPoint</h1>
+    </header>
+    <p>
+      Draw analog circuit schematics on your slides and edit them again later.
+      The picture on the slide is a crisp vector drawing; the circuit itself
+      travels inside the presentation, so whoever opens it with the add-in can
+      keep editing. The add-in runs the current Analog Canvas editor every time:
+      there is nothing to update.
+    </p>
+    <p>Works in PowerPoint for Windows, Mac and the web.</p>
+
+    <h2>Install</h2>
+    <a
+      class="download"
+      href="manifest.xml"
+      download="analog-canvas-powerpoint.xml"
+      >Download the add-in file</a
+    >
+    <h3>PowerPoint on the web</h3>
+    <ol>
+      <li>Open a presentation, then <b>Home → Add-ins → More Add-ins</b>.</li>
+      <li>
+        Choose <b>My Add-ins → Upload My Add-in</b> and pick the downloaded
+        file.
+      </li>
+    </ol>
+    <h3>PowerPoint for Mac</h3>
+    <ol>
+      <li>Quit PowerPoint.</li>
+      <li>
+        In Finder, choose <b>Go → Go to Folder…</b> and open
+        <code
+          >~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef</code
+        >
+        (create the <code>wef</code> folder if it is missing).
+      </li>
+      <li>Copy the downloaded file into it and start PowerPoint.</li>
+      <li>
+        <b>Home → Add-ins</b>: <b>Analog Canvas</b> is under Developer Add-ins.
+      </li>
+    </ol>
+    <h3>PowerPoint for Windows</h3>
+    <ol>
+      <li>
+        Put the downloaded file in a shared folder, for example
+        <code>\\your-computer\addins</code>.
+      </li>
+      <li>
+        <b
+          >File → Options → Trust Center → Trust Center Settings → Trusted
+          Add-in Catalogs</b
+        >: add the folder's address, tick <b>Show in Menu</b>
+        and restart PowerPoint.
+      </li>
+      <li>
+        <b>Home → Add-ins → My Add-ins → Shared Folder</b>: choose
+        <b>Analog Canvas</b>.
+      </li>
+    </ol>
+
+    <h2>Use</h2>
+    <ol>
+      <li>
+        <b>Home → Analog Canvas</b> opens the pane. Choose <b>New circuit</b>,
+        or start from an example.
+      </li>
+      <li>
+        Draw in the editor window, then click <b>PowerPoint</b> in its header:
+        the drawing lands on the slide. The dot turns green once the slide shows
+        what you drew.
+      </li>
+      <li>
+        To edit, click the circuit on the slide once and choose
+        <b>Edit</b> in the pane. (Double-click opens PowerPoint's own picture
+        tools.)
+      </li>
+      <li>
+        A presentation with a circuit opens the pane by itself the next time, on
+        any computer that has the add-in.
+      </li>
+    </ol>
+
+    <h2>Privacy</h2>
+    <p>
+      Your circuits are stored in your presentation. The editor runs in the
+      add-in's window and does not upload a drawing unless you choose to, for
+      example by publishing it to the Gallery. See the
+      <a href="/privacy">privacy notice</a>.
+    </p>
+
+    <footer>
+      Questions or problems:
+      <a href="https://github.com/cascode-ai/analog-canvas/issues"
+        >GitHub issues</a
+      >
+      · <a href="/">Analog Canvas</a>
+    </footer>
+  </body>
+</html>

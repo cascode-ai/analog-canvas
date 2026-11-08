@@ -11,15 +11,21 @@ export const config = JSON.stringify({
   secret,
 });
 
-export function accounts(authConfig: Partial<AuthEnv> = {}) {
+export function accounts(
+  authConfig: Partial<AuthEnv> = {},
+  regionalEnv: ConstructorParameters<typeof RegionalSessionDO>[1] = {},
+) {
   const source = environment({
     ...authConfig,
-    AUTH_REGIONAL_AUTHORITY: config,
+    AUTH_REGIONAL_AUTHORITY: authConfig.AUTH_REGIONAL_AUTHORITY ?? config,
   });
   const state = {
     storage: { ...sqliteState().storage, setAlarm: async (_at: number) => {} },
   };
-  const region = new RegionalSessionDO(state, { AUTH_REGIONAL_CLIENT: config });
+  const region = new RegionalSessionDO(state, {
+    AUTH_REGIONAL_CLIENT: config,
+    ...regionalEnv,
+  });
   let time = Date.now();
   region.now = () => time;
   source.authDurable.now = () => new Date(time);

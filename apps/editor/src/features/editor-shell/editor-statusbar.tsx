@@ -5,6 +5,11 @@ import {
   SITE_CHANGE_LOG_PATH,
   SITE_PRIVACY_PATH,
 } from "../../components/site-resource-links";
+import {
+  closeOwnReference,
+  openOwnReference,
+  useOwnReferenceOpen,
+} from "./own-reference";
 import { ToolIcon } from "./tool-icon";
 
 function toolLabel(
@@ -151,6 +156,7 @@ export function EditorStatusbar({
   onFitView: () => void;
   onOpenSelectionFilter: () => void;
 }) {
+  const referenceOpen = useOwnReferenceOpen();
   return (
     <footer className="app-statusbar">
       <div className="statusbar-left">
@@ -323,6 +329,20 @@ export function EditorStatusbar({
             </a>
           </>
         ) : null}
+        <button
+          type="button"
+          className="statusbar-hints-toggle"
+          data-testid="statusbar-reference"
+          aria-pressed={referenceOpen}
+          title={
+            referenceOpen
+              ? "Close the reference window"
+              : "Show the name, description and reference image"
+          }
+          onClick={referenceOpen ? closeOwnReference : openOwnReference}
+        >
+          Reference
+        </button>
         <button
           type="button"
           className="statusbar-hints-toggle"

@@ -11,6 +11,8 @@ import {
   loadAccountState,
   renameAccount,
   signOut,
+  type AccountDeletionProgress,
+  type DeletedAccountCounts,
   type DeleteAccountResult,
   type SessionUser,
 } from "./account";
@@ -28,7 +30,28 @@ const ShelfWall = lazy(() =>
   import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
 );
 
-type Deleted = Extract<DeleteAccountResult, { ok: true }>["deleted"];
+const DELETION_RECEIPT = "canvas-account-deletion-receipt";
+
+function readDeletionReceipt(): string | null {
+  try {
+    return window.localStorage.getItem(DELETION_RECEIPT);
+  } catch {
+    return null;
+  }
+}
+
+function saveDeletionReceipt(receipt: string | null) {
+  try {
+    if (receipt) window.localStorage.setItem(DELETION_RECEIPT, receipt);
+    else window.localStorage.removeItem(DELETION_RECEIPT);
+  } catch {
+    // The current page can still poll if storage is unavailable.
+  }
+}
+
+function deletionComplete(deletion: AccountDeletionProgress): boolean {
+  return deletion.cn === "complete" && deletion.overseas === "complete";
+}
 
 function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
@@ -62,7 +85,7 @@ export function AccountDeleteDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deleted, setDeleted] = useState<Deleted | null>(null);
+  const [deleted, setDeleted] = useState<DeletedAccountCounts | null>(null);
   const [typed, setTyped] = useState("");
   const input = useRef<HTMLInputElement | null>(null);
   const done = useRef<HTMLButtonElement | null>(null);
@@ -76,8 +99,8 @@ export function AccountDeleteDialog({
     setError(null);
     const result = await onDelete();
     setBusy(false);
-    if (result.ok) setDeleted(result.deleted);
-    else setError(result.message);
+    if (!result.ok) setError(result.message);
+    else if ("deleted" in result) setDeleted(result.deleted);
   };
   return createPortal(
     <div
@@ -524,19 +547,31 @@ export function AccountDashboard({
 type AccountPageState =
   | { status: "loading" }
   | { status: "signed-out" }
-  | { status: "ready"; user: SessionUser; deletionUnavailableReason?: string };
+  | {
+      status: "ready";
+      user: SessionUser;
+      coordinatedDeletion: boolean;
+      deletionUnavailableReason?: string;
+    };
 
 /** `/account`: the signed-in account's own page. */
 export function AccountPage() {
   usePageTitle("Account");
   const [state, setState] = useState<AccountPageState>({ status: "loading" });
+  const [receipt, setReceipt] = useState(readDeletionReceipt);
+  const [pollGeneration, retryPoll] = useState(0);
+  const [pollPaused, setPollPaused] = useState(false);
+  const [deletion, setDeletion] = useState<AccountDeletionProgress | null>(
+    null,
+  );
+  const attempted = useRef<{ requestId: string; userId: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
     void loadAccountState().then(
       ({ user, providers, providerDiscoveryFailed }) => {
         const deletionUnavailableReason = providerDiscoveryFailed
           ? "Account deletion is temporarily unavailable. Reload to try again."
-          : providers.central === true
+          : providers.central === true && providers.accountDeletion !== true
             ? "Account deletion is unavailable in the domestic trial."
             : undefined;
         if (!cancelled)
@@ -545,6 +580,7 @@ export function AccountPage() {
               ? {
                   status: "ready",
                   user,
+                  coordinatedDeletion: providers.accountDeletion === true,
                   ...(deletionUnavailableReason
                     ? { deletionUnavailableReason }
                     : {}),
@@ -557,10 +593,64 @@ export function AccountPage() {
       cancelled = true;
     };
   }, []);
+  useEffect(() => {
+    if (!receipt) return;
+    setPollPaused(false);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let misses = 0;
+    const check = async () => {
+      const result = await deleteAccount(fetch, {
+        requestId: receipt,
+        statusOnly: true,
+      });
+      if (cancelled) return;
+      if (result.ok && "deletion" in result) {
+        setDeletion(result.deletion);
+        const attempt = attempted.current;
+        if (attempt?.requestId === receipt) {
+          cacheSessionUser(fetch, null);
+          setState((current) =>
+            current.status === "ready" && current.user.id === attempt.userId
+              ? { status: "signed-out" }
+              : current,
+          );
+        }
+        if (deletionComplete(result.deletion)) return;
+      } else if (!result.ok && result.missing && ++misses === 4) {
+        // A lost submission response can race the first status reads.
+        // Keep the receipt available when the Account page is reopened.
+        setPollPaused(true);
+        return;
+      }
+      timer = setTimeout(() => {
+        void check();
+      }, 15_000);
+    };
+    void check();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [receipt, pollGeneration]);
+
   return (
     <main className="review-shell account-shell" data-testid="account-page">
       <GalleryChrome subtitle="Account" editorHref="/editor?resume=1" />
       <div className="page-body account-page-body">
+        {deletion ? (
+          <p className="gallery-status" role="status">
+            {deletionComplete(deletion)
+              ? "Account deletion is complete in both regions. Earlier backups expire separately."
+              : `Sign-in is revoked. Overseas cleanup ${deletion.overseas}. China cleanup ${deletion.cn}.`}
+          </p>
+        ) : receipt ? (
+          <p className="gallery-status" role="status">
+            {pollPaused
+              ? "Deletion has not been confirmed. Reopen Account to check again."
+              : "Checking account deletion status…"}
+          </p>
+        ) : null}
         {state.status === "loading" ? (
           <p className="gallery-status">Loading your account…</p>
         ) : state.status === "signed-out" ? (
@@ -592,8 +682,32 @@ export function AccountPage() {
               });
             }}
             onDeleteAccount={async () => {
-              const result = await deleteAccount();
-              if (result.ok) cacheSessionUser(fetch, null);
+              const attempt = state.coordinatedDeletion
+                ? attempted.current?.userId === state.user.id
+                  ? attempted.current
+                  : { requestId: crypto.randomUUID(), userId: state.user.id }
+                : null;
+              if (attempt) {
+                attempted.current = attempt;
+                saveDeletionReceipt(attempt.requestId);
+              }
+              const result = await deleteAccount(
+                fetch,
+                attempt ? { requestId: attempt.requestId } : undefined,
+              );
+              if (attempt) {
+                setReceipt(attempt.requestId);
+                retryPoll((generation) => generation + 1);
+              }
+              if (result.ok) {
+                cacheSessionUser(fetch, null);
+                if ("deletion" in result) {
+                  saveDeletionReceipt(result.deletion.requestId);
+                  setReceipt(result.deletion.requestId);
+                  setDeletion(result.deletion);
+                  setState({ status: "signed-out" });
+                }
+              }
               return result;
             }}
             onDeleted={() => window.location.assign("/")}

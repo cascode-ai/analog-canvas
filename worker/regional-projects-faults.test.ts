@@ -80,6 +80,89 @@ describe("regional replication rejection and history over HTTP", () => {
       }),
     );
   }
+  it("copies an unreadable legacy history document without allowing it as a current save", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const [source, destination] = regions(env);
+    identity();
+    const saved = await route(source, saveRequest(cookie, "Current drawing"));
+    const { project } = await saved.json();
+    const first = await exported(source);
+    const change = JSON.parse(first.payload);
+    // The stored version is a recognized legacy document envelope, but its
+    // drawing cannot be loaded by the current editor.
+    const legacy = JSON.parse(projectText("Archived drawing"));
+    legacy.schemaVersion = 65;
+    legacy.id = "archive.旧版";
+    legacy.topDocumentId = "document.旧版";
+    legacy.documents[0].id = legacy.topDocumentId;
+    legacy.documents[0].instances = null;
+    const archived = JSON.stringify(legacy, null, 2) + "\n";
+    expect(() => parseProject(archived)).toThrow();
+    change.project.revision = 2;
+    change.versions = [
+      {
+        id: project.id + ":1",
+        project_id: project.id,
+        revision: 1,
+        name: "Archived drawing",
+        saved_at: change.project.created_at,
+        schema_version: 65,
+        project_text: archived,
+        preview_svg: "",
+      },
+    ];
+    const eventFor = async (payload: string) => ({
+      ...first,
+      payload,
+      payloadHash: await projectPayloadHash(payload),
+    });
+    const invalidCurrent = JSON.stringify({
+      ...change,
+      project: {
+        ...change.project,
+        schema_version: 65,
+        project_text: archived,
+      },
+    });
+    expect(
+      (await deliver(destination, await eventFor(invalidCurrent))).status,
+    ).toBe(400);
+    const unrecognized = JSON.stringify({
+      ...change,
+      versions: [
+        {
+          ...change.versions[0],
+          project_text: '{"schemaVersion":65,"documents":[null]}',
+        },
+      ],
+    });
+    expect(
+      (await deliver(destination, await eventFor(unrecognized))).status,
+    ).toBe(400);
+    expect(
+      (await deliver(destination, await eventFor(JSON.stringify(change))))
+        .status,
+    ).toBe(200);
+    const url = `${ORIGIN}/api/projects/${project.id}/versions/${encodeURIComponent(change.versions[0].id)}`;
+    const history = await route(
+      destination,
+      new Request(url + "/project", {
+        headers: { cookie },
+      }),
+    );
+    expect(await history.json()).toEqual({ projectText: archived });
+    const restored = await route(
+      destination,
+      new Request(url + "/restore", {
+        method: "POST",
+        headers: { cookie, origin: ORIGIN, "if-match": first.eventId },
+      }),
+    );
+    expect(restored.status).toBe(400);
+    expect(await restored.json()).toMatchObject({ error: "invalid-project" });
+  });
+
   it("returns a token for exactly the opened snapshot while another save commits", async () => {
     const env = environment(),
       cookie = await makerOf(env),

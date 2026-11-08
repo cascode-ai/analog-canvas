@@ -19,6 +19,7 @@ LoadCredential=peer-origin:/etc/analog-canvas-formal/peer-origin
 LoadCredential=project-compress-journal:/etc/analog-canvas-formal/project-compress-journal
 LoadCredential=project-protected-ids.json:/etc/analog-canvas-formal/project-protected-ids.json
 LoadCredential=project-region-users.json:/etc/analog-canvas-formal/project-region-users.json
+LoadCredential=project-sync-expansion:/etc/analog-canvas-formal/project-sync-expansion
 LoadCredential=project-writes-enabled:/etc/analog-canvas-formal/project-writes-enabled
 LoadCredential=regional-client.json:/etc/analog-canvas-formal/regional-client.json
 LoadCredential=resource-admin-token:/etc/analog-canvas-formal/resource-admin-token

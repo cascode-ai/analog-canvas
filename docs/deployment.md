@@ -129,9 +129,16 @@ Projects), `accounts`, `analytics` or `components`:
    the same way undoes the restore. `restarted: false` means armed but not
    applied until the next restart (a deploy): resend, or post the undo bookmark.
 
-Restoring `accounts` revives sessions signed out after the bookmark and ends
-later ones, the administrator's included. The local runtime answers
-`recovery-unavailable`.
+Outside regional mode, restoring `accounts` revives sessions signed out after
+the bookmark and ends later ones. In regional mode, live restore of accounts,
+Gallery or components returns `regional-recovery-required`. Restore isolated
+state with the current authority deletion ledger intact. Call admin
+`POST /api/project-sync/recover-account-deletions` with `{after: 0}` on the
+isolated runtime, using the current authority as its identity endpoint.
+Continue from each returned sequence until `caught-up`. Replay never allocates
+a publication sequence or acknowledges a live deletion. Reconcile each
+resource epoch and cursor with the live peer before serving traffic. The local runtime answers
+`recovery-unavailable` for the Cloudflare bookmark API.
 
 ## Retained Preview data
 

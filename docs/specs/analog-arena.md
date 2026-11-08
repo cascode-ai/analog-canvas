@@ -217,7 +217,9 @@ Voter id; the same account signing in again becomes a new Voter.
 - Arena answers `200 { "unlinked": true }` with or without a Voter, and again
   on repeat (idempotent). A throw or any non-success (including 404 from an
   Arena without this call) → `503 { "error": "arena-unlink-failed" }` with
-  `cache-control: no-store`; the account stays signed in to retry.
+  `cache-control: no-store` in the single-region flow. In the
+  [regional flow](regional-login.md#account-deletion) authority revocation
+  precedes the unlink, which the cleanup job retries.
 - Without the binding (every Worker but Production) the step is skipped, like
   the Gallery and component steps without theirs; such a Worker never
   forwarded an account, so no Voter names it.

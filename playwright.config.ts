@@ -47,6 +47,17 @@ export default defineConfig({
   ],
   use: {
     baseURL: externalBaseUrl ?? e2eBaseUrl,
+    // Cases start with the reference window closed, as a reader who closed
+    // it: open, it covers part of the canvas they click.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: externalBaseUrl ?? e2eBaseUrl,
+          localStorage: [{ name: "icm.reference-window.v1", value: "closed" }],
+        },
+      ],
+    },
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
     ...devices["Desktop Chrome"],

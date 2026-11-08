@@ -1,5 +1,14 @@
 import { sha256Hex } from "@icm/derived";
-import { lookupAccounts, type IdentityEnv } from "./sync-identity";
+import {
+  lookupAccounts,
+  type AccountLookup,
+  type IdentityEnv,
+} from "./sync-identity";
+import {
+  retireAccount,
+  retiredAccount,
+  validAccountId,
+} from "./retired-accounts";
 
 type Sql = { exec<T>(sql: string, ...args: any[]): { toArray(): T[] } };
 export type ReplicaState = {
@@ -11,9 +20,7 @@ export type ReplicaConfig = {
   RESOURCE_WRITES_ENABLED?: string;
 };
 /** The number of accounts the authority reports missing, or a refusal (409/503). */
-export type AccountCheck = (
-  ids: string[],
-) => Promise<{ missing: number } | Response>;
+export type AccountCheck = (ids: string[]) => Promise<AccountLookup | Response>;
 type Row = Record<string, string | number | null>;
 /**
  * `key` names the identity columns, joined by ':' in a change ID; only the
@@ -138,6 +145,10 @@ export class ResourceReplica {
     this.writerOwned = kind === "interactions";
     const prefix = kinds[kind].prefix;
     const meta = (this.meta = metaTable(prefix));
+    if (kind !== "components")
+      this.sql.exec(
+        "CREATE TABLE IF NOT EXISTS retired_gallery_entries (id TEXT PRIMARY KEY) WITHOUT ROWID",
+      );
     this.tables = kinds[kind].tables.map(([name, key]) => {
       const columns = this.sql
         .exec<{ name: string }>(`PRAGMA table_info(${name})`)
@@ -376,6 +387,125 @@ export class ResourceReplica {
       return Response.json({ seeded, more: seeded === 50 });
     });
   }
+  /** Delete both authoritative rows and local copies without claiming foreign keys. */
+  retireOwner(userId: string, replay: boolean) {
+    this.state.storage.transactionSync(() => {
+      retireAccount(this.sql, userId);
+      const meta = this.meta;
+      const writable =
+        this.sql
+          .exec<{ writable: number }>(
+            `SELECT writable FROM ${meta}_meta WHERE id=1`,
+          )
+          .toArray()[0]?.writable ?? 0;
+      const ownerTables = this.writerOwned
+        ? this.tables
+        : this.tables.slice(0, 1);
+      const keys = new Set<string>();
+      for (const table of ownerTables) {
+        const column = ACCOUNT_COLUMNS[table.name]?.[0];
+        if (!column) continue;
+        const rows = this.sql
+          .exec<{ id: string }>(
+            `SELECT ${identity(table.key)} AS id FROM ${table.name}
+             WHERE ${column}=?`,
+            userId,
+          )
+          .toArray();
+        for (const { id } of rows) keys.add(id);
+      }
+      // An authenticated deletion is allowed during publication write freezes.
+      this.sql.exec(`UPDATE ${meta}_meta SET writable=1 WHERE id=1`);
+      for (const id of keys) {
+        const key = this.key(id);
+        const local = !key || key.origin === this.region;
+        const importing = replay || !local ? 1 : 0;
+        this.sql.exec(
+          `UPDATE ${meta}_meta SET importing=? WHERE id=1`,
+          importing,
+        );
+        if (this.kind === "gallery" && local)
+          this.retirePublication(id, replay);
+        this.clearRows(id, this.kind === "gallery");
+        this.invalidate(id);
+      }
+      this.sql.exec(
+        `UPDATE ${meta}_meta SET writable=?, importing=0 WHERE id=1`,
+        writable,
+      );
+    });
+  }
+
+  /** A publication origin names actual deletions. A stale former-owner snapshot
+   * can be suppressed without deleting likes on a later takeover. */
+  private retirePublication(id: string, suppressWrites: boolean) {
+    this.sql.exec(
+      "INSERT OR IGNORE INTO retired_gallery_entries VALUES (?)",
+      id,
+    );
+    const writable =
+      this.sql
+        .exec<{ writable: number }>(
+          "SELECT writable FROM interaction_replica_meta WHERE id=1",
+        )
+        .toArray()[0]?.writable ?? 0;
+    if (!suppressWrites) {
+      this.sql.exec(
+        "UPDATE interaction_replica_meta SET writable=1 WHERE id=1",
+      );
+      this.sql.exec(
+        `DELETE FROM gallery_likes WHERE entry_id=? AND
+        ${locallyOwnedResources(this.sql, "entry_id:user_id", "interactions")}`,
+        id,
+      );
+    }
+    // Foreign copies do not become newly authored tombstones on this peer.
+    this.sql.exec("UPDATE interaction_replica_meta SET importing=1 WHERE id=1");
+    this.sql.exec("DELETE FROM gallery_likes WHERE entry_id=?", id);
+    this.sql.exec(
+      "UPDATE interaction_replica_meta SET importing=0,writable=? WHERE id=1",
+      writable,
+    );
+  }
+
+  private clearRows(id: string, keepAudit = false) {
+    const tables = keepAudit
+      ? this.tables.filter((t) => !ROOTLESS.includes(t.name))
+      : this.tables;
+    for (const table of [...tables].reverse())
+      this.sql.exec(
+        `DELETE FROM ${table.name} WHERE ${keyMatch(table.key)}`,
+        ...keyParts(table.key, id),
+      );
+  }
+
+  private invalidate(id: string) {
+    if (this.kind === "components") {
+      this.sql.exec(
+        "DELETE FROM component_content_index WHERE component_id=?",
+        id,
+      );
+      this.sql.exec("UPDATE component_content_progress SET complete=0");
+      return;
+    }
+    if (this.kind === "gallery") {
+      this.sql.exec(
+        "DELETE FROM gallery_entry_transistors WHERE entry_id=?",
+        id,
+      );
+      this.sql.exec("DELETE FROM gallery_entry_devices WHERE entry_id=?", id);
+    }
+    this.sql.exec("DELETE FROM gallery_stats_snapshot");
+  }
+
+  private retiredPublication(id: string): boolean {
+    return (
+      this.sql
+        .exec("SELECT 1 FROM retired_gallery_entries WHERE id=?", id)
+        .toArray().length > 0
+    );
+  }
+
   async changes(stream: string, after: number) {
     if (!Number.isSafeInteger(after) || after < 0)
       return fail("invalid-cursor", 400);
@@ -402,6 +532,9 @@ export class ResourceReplica {
           after,
           sequence: next.sequence,
           id: next.id,
+          ...(this.kind === "gallery" && this.retiredPublication(next.id)
+            ? { retiredPublication: true }
+            : {}),
           ...(this.writerOwned
             ? { generation: key?.generation ?? 1, noop }
             : {}),
@@ -556,11 +689,17 @@ export class ResourceReplica {
       )
     )
       return fail("orphan-resource-rows", 400);
+    if (
+      event.retiredPublication !== undefined &&
+      (event.retiredPublication !== true ||
+        this.kind !== "gallery" ||
+        event.rows[0].length)
+    )
+      return fail("invalid-retirement", 400);
     // A redelivered receipt answers before any identity lookup.
     const early = this.sequenceRefusal(event, digest);
     if (early) return early;
-    // Copies keep their account IDs. A missing account (since deleted) grants
-    // nothing through a copied row, so it is counted, not refused.
+    // Unknown legacy bylines are distinct from an explicit authority deletion.
     const ids = new Set<string>();
     this.tables.forEach((t, i) => {
       for (const row of event.rows[i])
@@ -627,38 +766,24 @@ export class ResourceReplica {
           peer,
         );
       // Replace one resource and its retained children, never a whole store.
-      for (const table of [...this.tables].reverse())
-        this.sql.exec(
-          `DELETE FROM ${table.name} WHERE ${keyMatch(table.key)}`,
-          ...keyParts(table.key, event.id),
-        );
+      this.clearRows(event.id);
+      const erased =
+        accounts.deleted.length > 0 ||
+        [...ids].some((id) => retiredAccount(this.sql, id));
+      const like = this.writerOwned ? event.rows[0][0] : undefined;
+      const retiredLike = like && this.retiredPublication(like.entry_id);
+      if (event.retiredPublication === true)
+        this.retirePublication(event.id, true);
       for (const [i, table] of this.tables.entries()) {
-        const columns = schema[i]!.columns;
+        if (retiredLike || (erased && !ROOTLESS.includes(table.name))) continue;
+        const columns = schema[i]?.columns ?? [];
         for (const row of event.rows[i])
           this.sql.exec(
             `INSERT INTO ${table.name} (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})`,
             ...columns.map((c) => row[c]),
           );
       }
-      if (this.kind === "components") {
-        this.sql.exec(
-          "DELETE FROM component_content_index WHERE component_id=?",
-          event.id,
-        );
-        this.sql.exec("UPDATE component_content_progress SET complete=0");
-      } else {
-        if (this.kind === "gallery") {
-          this.sql.exec(
-            "DELETE FROM gallery_entry_transistors WHERE entry_id=?",
-            event.id,
-          );
-          this.sql.exec(
-            "DELETE FROM gallery_entry_devices WHERE entry_id=?",
-            event.id,
-          );
-        }
-        this.sql.exec("DELETE FROM gallery_stats_snapshot");
-      }
+      this.invalidate(event.id);
       this.sql.exec(
         `UPDATE ${meta}_local SET missing_accounts=missing_accounts+? WHERE id=1`,
         accounts.missing,
@@ -705,6 +830,15 @@ export function withResourceReplication<
     override async fetch(request: Request): Promise<Response> {
       try {
         const operation = new URL(request.url).pathname;
+        if (operation === "/retire-account" && request.method === "POST") {
+          const { userId, replay } = (await request.clone().json()) as {
+            userId?: unknown;
+            replay?: unknown;
+          };
+          if (!validAccountId(userId)) return fail("invalid-user", 400);
+          this.resourceReplica?.retireOwner(userId, replay === true);
+          this.interactionReplica?.retireOwner(userId, replay === true);
+        }
         if (operation.startsWith("/resource-sync/")) {
           const body = (await request.json()) as {
             stream: string;

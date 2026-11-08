@@ -53,7 +53,7 @@ export function arenaAccount(user: SessionUser): string {
  */
 export async function unlinkArenaVoter(
   arena: ArenaService | undefined,
-  user: SessionUser,
+  account: string,
   origin: string,
 ): Promise<boolean> {
   if (!arena) return true;
@@ -61,7 +61,7 @@ export async function unlinkArenaVoter(
     const response = await arena.fetch(
       new Request(new URL(ARENA_ACCOUNT_DELETION_PATH, origin), {
         method: "POST",
-        headers: { [ARENA_ACCOUNT_HEADER]: arenaAccount(user) },
+        headers: { [ARENA_ACCOUNT_HEADER]: account },
       }),
     );
     if (response.ok) return true;

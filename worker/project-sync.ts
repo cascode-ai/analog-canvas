@@ -1,6 +1,13 @@
 import type { GalleryEnv } from "./gallery-store";
+import {
+  purgeAccountResources,
+  type AccountResourceBindings,
+} from "./account-deletions";
 import { bearerMatches } from "./bearer";
-import { decodeProjectEvent, MAX_SYNC_BYTES } from "./project-sync-protocol";
+import {
+  decodeProjectSyncEvent,
+  MAX_SYNC_BYTES,
+} from "./project-sync-protocol";
 import type { ProjectEvent, ProjectSyncStatus } from "./project-sync-journal";
 import {
   gzipBody,
@@ -8,12 +15,17 @@ import {
   peerOrigin,
   syncTimeoutMs,
 } from "./project-sync-http";
-import { requireKnownAccounts } from "./sync-identity";
+import {
+  lookupAccounts,
+  readDeletionForRecovery,
+  requireKnownAccounts,
+  unknownSyncOwner,
+} from "./sync-identity";
 
 /** Only a separately scoped peer credential can read private replication events. */
 export async function routeProjectSync(
   request: Request,
-  env: GalleryEnv,
+  env: GalleryEnv & AccountResourceBindings,
 ): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/project-sync/"))
     return null;
@@ -42,7 +54,7 @@ export async function routeProjectSync(
 
 async function handleProjectSync(
   request: Request,
-  env: GalleryEnv,
+  env: GalleryEnv & AccountResourceBindings,
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/project-sync/")) return null;
@@ -59,6 +71,24 @@ async function handleProjectSync(
     return Response.json(await pumpProjectSync(env), {
       headers: { "cache-control": "no-store" },
     });
+  }
+  if (
+    url.pathname === "/api/project-sync/recover-account-deletions" &&
+    request.method === "POST"
+  ) {
+    if (!bearerMatches(request, env.PROJECT_SYNC_ADMIN_TOKEN))
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    const body = (await readSyncJson(request, 4096)) as {
+      after?: number;
+    } | null;
+    if (!body || !Number.isSafeInteger(body.after) || Number(body.after) < 0)
+      return Response.json({ error: "invalid-cursor" }, { status: 400 });
+    const job = await readDeletionForRecovery(env, Number(body.after));
+    if (job instanceof Response) return job;
+    if (!job) return Response.json({ status: "caught-up" });
+    if (!(await purgeAccountResources(env, job.userId, true)))
+      return Response.json({ status: "retry" }, { status: 503 });
+    return Response.json({ status: "sent", sequence: job.sequence });
   }
   if (!bearerMatches(request, env.PROJECT_SYNC_TOKEN))
     return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -100,15 +130,10 @@ async function handleProjectSync(
     const input = (await readSyncJson(request, MAX_SYNC_BYTES * 2)) as {
       event?: unknown;
     } | null;
-    const decoded = await decodeProjectEvent(input?.event);
+    const decoded = await decodeProjectSyncEvent(input?.event);
     if (!decoded)
       return Response.json({ error: "invalid-event" }, { status: 400 });
-    const denied = await requireProjectOwner(env, decoded.change.ownerUserId);
-    if (denied) return denied;
-    return env.PROJECTS.getByName(env.PROJECTS_STORE_NAME ?? "projects").fetch(
-      "https://projects/sync-receive",
-      { method: "POST", body: JSON.stringify({ event: decoded.event }) },
-    );
+    return receiveProjectEvent(env, decoded);
   }
   if (request.method !== "GET" || url.pathname !== "/api/project-sync/events")
     return Response.json({ error: "not-found" }, { status: 404 });
@@ -194,13 +219,9 @@ async function pullProjectSync(
     });
     if (!reconciled.ok) return { status: "blocked" };
     if (!result.events.length) return { status: "caught-up" };
-    const decoded = await decodeProjectEvent(result.events[0]);
+    const decoded = await decodeProjectSyncEvent(result.events[0]);
     if (!decoded) return { status: "blocked" };
-    const denied = await requireProjectOwner(env, decoded.change.ownerUserId);
-    if (denied) return { status: denied.status >= 500 ? "retry" : "blocked" };
-    const received = await projectStore(env, "sync-receive", {
-      event: decoded.event,
-    });
+    const received = await receiveProjectEvent(env, decoded);
     return {
       status: received.ok
         ? "sent"
@@ -294,6 +315,22 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
   } catch {
     return { status: "retry" };
   }
+}
+
+async function receiveProjectEvent(
+  env: GalleryEnv,
+  decoded: NonNullable<Awaited<ReturnType<typeof decodeProjectSyncEvent>>>,
+): Promise<Response> {
+  const owners = await lookupAccounts(
+    env,
+    [decoded.ownerUserId],
+    env.PROJECT_REGION === "overseas",
+  );
+  if (owners instanceof Response) return owners;
+  const retired = owners.deleted.includes(decoded.ownerUserId);
+  if (owners.missing || (!decoded.change && !retired))
+    return unknownSyncOwner();
+  return projectStore(env, "sync-receive", { event: decoded.event, retired });
 }
 
 function requireProjectOwner(

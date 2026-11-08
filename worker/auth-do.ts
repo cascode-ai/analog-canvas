@@ -34,13 +34,28 @@ import {
   unsentNotices,
   type BlockEvidence,
 } from "./account-blocks";
-import { unlinkArenaVoter, type ArenaService } from "./arena-account";
+import {
+  arenaAccount,
+  unlinkArenaVoter,
+  type ArenaService,
+} from "./arena-account";
+import {
+  ACCOUNT_DELETION_TICK,
+  AccountDeletions,
+  deletionRequestId,
+} from "./account-deletions";
+import {
+  coordinatesProjectDeletion,
+  includesProjectOwner,
+} from "./project-region-scope";
 import { exemptFromTraps } from "./trap-exempt";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import { RegionalAuthority } from "./regional-auth-authority";
 import {
+  digest,
   isRegionalAuthorityBrowserRoute,
+  readBody,
   regionalConfig,
   REGIONAL_PREFIX,
   type RegionalConfig,
@@ -74,6 +89,7 @@ function canonicalAuthorityRequest(
       "owner-token",
       "security",
       "providers",
+      "deletions",
     ].some((action) => url.pathname === REGIONAL_PREFIX + action);
   if (!rpc && !isRegionalAuthorityBrowserRoute(request.method, url.pathname))
     return null;
@@ -221,6 +237,8 @@ export type AuthEnv = {
   ADMIN_EMAILS_EXTRA?: string;
   /** Opt-in authority/client origins and a scoped exchange secret. */
   AUTH_REGIONAL_AUTHORITY?: string;
+  PROJECT_REGION_USERS?: string;
+  PROJECT_SYNC_EXPANSION?: string;
 };
 
 export interface SessionUser {
@@ -485,6 +503,8 @@ function noStoreJson(payload: unknown, status = 200): Response {
 export class AuthDO {
   private readonly sql: SqlStorage;
   private regionalAuthority?: RegionalAuthority;
+  private readonly deletions: AccountDeletions;
+  private readonly regional: RegionalConfig | null;
   private readonly regionalAccountRequests = new WeakMap<
     Request,
     SessionUser
@@ -501,10 +521,12 @@ export class AuthDO {
   now: () => Date = () => new Date();
 
   constructor(
-    state: DurableObjectStateLike,
+    private readonly state: DurableObjectStateLike,
     private readonly env: AuthEnv,
   ) {
     this.sql = state.storage.sql;
+    this.regional = regionalConfig(env.AUTH_REGIONAL_AUTHORITY);
+    this.deletions = new AccountDeletions(this.sql);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -643,7 +665,7 @@ export class AuthDO {
   }
 
   async fetch(request: Request): Promise<Response> {
-    const regional = regionalConfig(this.env.AUTH_REGIONAL_AUTHORITY);
+    const regional = this.regional;
     if (regional) {
       const canonical = canonicalAuthorityRequest(request, regional);
       if (!canonical) return noStoreJson({ error: "not-found" }, 404);
@@ -696,8 +718,19 @@ export class AuthDO {
               id: row.id,
               blocked: this.userWithRestrictions(row).blocked === true,
             })),
+        this.deletions,
       );
       return this.regionalAuthority.fetch(request);
+    }
+    if (
+      url.origin === "https://auth" &&
+      url.pathname === ACCOUNT_DELETION_TICK &&
+      request.method === "POST"
+    ) {
+      return this.deletions.tick(
+        this.env,
+        regional?.origin ?? `https://${CANVAS_HOST}`,
+      );
     }
     if (url.pathname === "/internal/session-user") {
       return noStoreJson({ user: await this.sessionUser(request) });
@@ -723,7 +756,13 @@ export class AuthDO {
     const route = url.pathname.slice("/api/auth/".length).replace(/\/+$/u, "");
     const method = request.method;
     if (route === "providers" && method === "GET") {
-      return noStoreJson(enabledProviders(this.env));
+      return noStoreJson({
+        ...enabledProviders(this.env),
+        ...(regional?.accountDeletion === true &&
+        this.canCoordinateDeletion(await this.sessionUser(request))
+          ? { accountDeletion: true }
+          : {}),
+      });
     }
     if (route === "me" && method === "GET") {
       return noStoreJson({ user: await this.me(request) });
@@ -1042,7 +1081,8 @@ export class AuthDO {
       .exec<UserRow & { expires_at: string }>(
         `SELECT users.*, sessions.expires_at FROM sessions
          JOIN users ON users.id = sessions.user_id
-         WHERE sessions.token_hash = ?`,
+         WHERE sessions.token_hash = ?
+         AND NOT EXISTS (SELECT 1 FROM account_deletions WHERE user_id=users.id)`,
         tokenHash,
       )
       .toArray()[0];
@@ -1110,7 +1150,10 @@ export class AuthDO {
         providerId,
       )
       .toArray()[0];
-    if (existing) {
+    if (existing && this.deletions.has(existing.id)) {
+      // A recovered provider row may predate the retained authority ledger.
+      this.sql.exec("DELETE FROM users WHERE id=?", existing.id);
+    } else if (existing) {
       // The verified email may change at the provider; the display name
       // belongs to the user once created and is never overwritten here.
       if (existing.email !== email) {
@@ -1699,13 +1742,38 @@ export class AuthDO {
     if (!sameOrigin(request)) {
       return Response.json({ error: "forbidden" }, { status: 403 });
     }
+    const body = await readBody(request);
+    if (this.regional) {
+      if (body?.requestId !== undefined && !deletionRequestId(body.requestId))
+        return noStoreJson({ error: "invalid-deletion-receipt" }, 400);
+      if (body?.statusOnly === true || body?.confirm === "delete-account") {
+        const previous = await this.deletions.status(body.requestId);
+        if (previous) return previous;
+        if (body.statusOnly === true)
+          return noStoreJson({ error: "unknown-deletion" }, 404);
+      }
+      if (this.regional.accountDeletion === true) {
+        const user = await this.sessionUser(request);
+        if (!user) return noStoreJson({ error: "unauthorized" }, 401);
+        if (this.canCoordinateDeletion(user)) {
+          // A tab opened before expansion can still send the original confirmation.
+          if (
+            body?.confirm === "delete-account" &&
+            body.requestId === undefined &&
+            !this.regionalAccountRequests.has(request) &&
+            !includesProjectOwner(this.env.PROJECT_REGION_USERS, user.id)
+          )
+            body.requestId = crypto.randomUUID();
+          return this.startRegionalDeletion(user, body);
+        }
+        if (this.regionalAccountRequests.has(request))
+          return noStoreJson({ error: "account-deletion-unavailable" }, 503);
+      }
+    }
     const user = await this.sessionUser(request);
     if (!user) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
-    const body = (await request.json().catch(() => null)) as {
-      confirm?: unknown;
-    } | null;
     if (body?.confirm !== "delete-account") {
       return noStoreJson({ error: "confirmation-required" }, 400);
     }
@@ -1749,7 +1817,9 @@ export class AuthDO {
     if (!components)
       return noStoreJson({ error: "components-delete-failed" }, 503);
     deleted.components = components.deleted ?? 0;
-    if (!(await unlinkArenaVoter(this.env.ARENA, user, url.origin)))
+    if (
+      !(await unlinkArenaVoter(this.env.ARENA, arenaAccount(user), url.origin))
+    )
       return noStoreJson({ error: "arena-unlink-failed" }, 503);
     this.sql.exec("DELETE FROM sessions WHERE user_id = ?", user.id);
     this.sql.exec("DELETE FROM owner_tokens WHERE user_id = ?", user.id);
@@ -1768,6 +1838,78 @@ export class AuthDO {
       sessionCookie("", url.protocol === "https:", 0),
     );
     return response;
+  }
+
+  private canCoordinateDeletion(user: SessionUser | null): boolean {
+    try {
+      return (
+        !!user &&
+        coordinatesProjectDeletion(
+          this.env.PROJECT_REGION_USERS,
+          user.id,
+          this.env.PROJECT_SYNC_EXPANSION,
+        )
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async startRegionalDeletion(
+    user: SessionUser,
+    body: Record<string, unknown> | null,
+  ) {
+    if (body?.confirm !== "delete-account")
+      return noStoreJson({ error: "confirmation-required" }, 400);
+    if (user.seat) return noStoreJson({ error: "ai-account" }, 409);
+
+    if (!deletionRequestId(body.requestId))
+      return noStoreJson({ error: "deletion-receipt-required" }, 400);
+    const requestId = body.requestId;
+    const receiptHash = await digest(requestId);
+    const emailHash = user.email ? await sha256(`login:${user.email}`) : null;
+    return this.state.storage.transactionSync(() => {
+      const existing = this.deletions.statusForHash(requestId, receiptHash);
+      if (existing) return existing;
+      if (
+        !this.sql.exec("SELECT id FROM users WHERE id=?", user.id).toArray()
+          .length
+      )
+        return noStoreJson({ error: "unauthorized" }, 401);
+      const response = this.deletions.start(
+        user,
+        requestId,
+        receiptHash,
+        !!this.env.ARENA,
+      );
+      // Codes and grants may not have been used on this authority yet.
+      for (const table of ["regional_codes", "regional_grants"]) {
+        if (
+          !this.sql
+            .exec("SELECT name FROM sqlite_master WHERE name=?", table)
+            .toArray().length
+        )
+          continue;
+        this.sql.exec(
+          `DELETE FROM ${table} WHERE subject_id=?
+          OR session_hash IN (SELECT token_hash FROM sessions WHERE user_id=?)
+          OR actor_session_hash IN (SELECT token_hash FROM sessions WHERE user_id=?)`,
+          user.id,
+          user.id,
+          user.id,
+        );
+      }
+      this.sql.exec("DELETE FROM arena_handoffs WHERE user_id=?", user.id);
+      this.sql.exec("DELETE FROM sessions WHERE user_id=?", user.id);
+      this.sql.exec("DELETE FROM owner_tokens WHERE user_id=?", user.id);
+      this.sql.exec("DELETE FROM read_keys WHERE created_by=?", user.id);
+      if (user.email)
+        this.sql.exec("DELETE FROM login_codes WHERE email=?", user.email);
+      if (emailHash)
+        this.sql.exec("DELETE FROM login_rates WHERE email_hash=?", emailHash);
+      this.sql.exec("DELETE FROM users WHERE id=?", user.id);
+      return response;
+    });
   }
 
   /**
@@ -1871,7 +2013,8 @@ export class AuthDO {
       .exec<UserRow>(
         `SELECT users.* FROM owner_tokens
          JOIN users ON users.id = owner_tokens.user_id
-         WHERE owner_tokens.token_hash = ?`,
+         WHERE owner_tokens.token_hash = ?
+         AND NOT EXISTS (SELECT 1 FROM account_deletions WHERE user_id=users.id)`,
         tokenHash,
       )
       .toArray()[0];
@@ -1983,7 +2126,8 @@ export class AuthDO {
     const row = this.sql
       .exec<GalleryReadKey>(
         `SELECT id, label, scope, expires_at AS expiresAt FROM read_keys
-         WHERE token_hash = ?`,
+         WHERE token_hash = ?
+         AND NOT EXISTS (SELECT 1 FROM account_deletions WHERE user_id=read_keys.created_by)`,
         tokenHash,
       )
       .toArray()[0];

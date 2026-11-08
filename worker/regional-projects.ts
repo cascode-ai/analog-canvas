@@ -5,9 +5,16 @@ import {
   ProjectSyncCapacityError,
   ProjectSyncFenceError,
 } from "./project-sync-journal";
-import { decodeProjectEvent } from "./project-sync-protocol";
-import { ProjectQuota } from "./project-quota";
+import { decodeProjectSyncEvent } from "./project-sync-protocol";
 import {
+  retireAccount,
+  retiredAccount,
+  validAccountId,
+} from "./retired-accounts";
+import { ProjectQuota } from "./project-quota";
+import { installProjectBaseline } from "./project-baseline";
+import {
+  projectExpansion,
   projectRegionUsers,
   protectedProjectIds,
 } from "./project-region-scope";
@@ -28,16 +35,20 @@ import {
 export interface ProjectRegionConfig {
   PROJECT_REGION: "cn" | "overseas";
   PROJECT_REGION_USERS?: string;
+  PROJECT_SYNC_EXPANSION?: string;
+  PROJECT_WRITES_ENABLED?: string;
   PROJECT_PROTECTED_IDS?: string;
   PROJECT_SYNC_MAX_BYTES?: number | string;
   PROJECT_SYNC_COMPRESS_JOURNAL?: string;
 }
 
-class ProjectCreationRefused extends Error {
+class ProjectWriteRefused extends Error {
   constructor(readonly response: Response) {
-    super("Project creation was definitely refused");
+    super("Project write was refused");
   }
 }
+
+class ProjectBaselineConflict extends Error {}
 
 /** The source alerts when the private region has not pulled for this long. */
 export const WATCHDOG_STALE_MS = 10 * 60_000;
@@ -48,6 +59,7 @@ export class RegionalProjectDO {
   private readonly sql: SqlStorage;
   private readonly journal: ProjectSyncJournal;
   private readonly quota: ProjectQuota;
+  private baselineInstalled = false;
   constructor(
     private readonly state: DurableObjectStateLike,
     private readonly env: ProjectRegionConfig,
@@ -108,13 +120,67 @@ export class RegionalProjectDO {
       )
       .toArray()[0];
     if (!row || (userId !== undefined && row.user_id !== userId)) return;
-    const head = this.journal.record(
+    this.recordSnapshot(id, row.user_id, this.journal.snapshot(id));
+  }
+
+  private recordSnapshot(id: string, ownerId: string, snapshot: string): void {
+    const head = this.journal.record(id, ownerId, snapshot);
+    this.sql.exec(
+      "INSERT OR REPLACE INTO regional_project_heads VALUES (?,?)",
       id,
-      row.user_id,
-      undefined,
-      this.journal.snapshot(id),
+      head,
     );
-    this.sql.exec("INSERT INTO regional_project_heads VALUES (?,?)", id, head);
+  }
+
+  private capturePending(id: string, ownerId?: string): void {
+    if (!this.baselineInstalled) return;
+    const dirty = this.sql
+      .exec<{ owner_id: string }>(
+        "SELECT owner_id FROM project_baseline_dirty WHERE id=?",
+        id,
+      )
+      .toArray()[0];
+    if (!dirty || (ownerId !== undefined && ownerId !== dirty.owner_id)) return;
+    if (!retiredAccount(this.sql, dirty.owner_id)) {
+      if (!this.journal.knownHead(id, dirty.owner_id, this.head(id)))
+        throw new ProjectBaselineConflict("Copied Project changed ownership");
+      const snapshot = this.journal.snapshot(id);
+      this.recordSnapshot(id, dirty.owner_id, snapshot);
+      if (this.journal.deleted(id)) this.quota.release(id);
+    }
+    this.sql.exec("DELETE FROM project_baseline_dirty WHERE id=?", id);
+  }
+
+  private seed(users: string[] | null): Response {
+    return this.state.storage.transactionSync(() => {
+      const untracked =
+        "SELECT id FROM cloud_projects WHERE id NOT IN (SELECT id FROM regional_project_heads)" +
+        (users === null
+          ? ""
+          : ` AND user_id IN (${users.map(() => "?").join(",")})`);
+      const first = (query: string, bindings: string[] = []) =>
+        this.sql
+          .exec<{ id: string }>(query + " ORDER BY id LIMIT 1", ...bindings)
+          .toArray()[0]?.id;
+      const dirty = "SELECT id FROM project_baseline_dirty";
+      const id = first(untracked, users ?? []);
+      const pending = !id && this.baselineInstalled ? first(dirty) : undefined;
+      if (id) this.captureExisting(id);
+      if (pending) this.capturePending(pending);
+      const count = (query: string, bindings: string[] = []) =>
+        this.sql
+          .exec<{ count: number }>(
+            `SELECT COUNT(*) AS count FROM (${query})`,
+            ...bindings,
+          )
+          .one().count;
+      return Response.json({
+        seeded: id || pending ? 1 : 0,
+        remaining:
+          count(untracked, users ?? []) +
+          (this.baselineInstalled ? count(dirty) : 0),
+      });
+    });
   }
 
   /**
@@ -168,7 +234,7 @@ export class RegionalProjectDO {
     try {
       return await this.dispatch(operation, body);
     } catch (error) {
-      if (error instanceof ProjectCreationRefused) return error.response;
+      if (error instanceof ProjectWriteRefused) return error.response;
       if (error instanceof ProjectSyncCapacityError)
         return Response.json(
           { error: "replication-capacity" },
@@ -176,6 +242,11 @@ export class RegionalProjectDO {
         );
       if (error instanceof ProjectSyncFenceError)
         return Response.json({ error: "restore-fenced" }, { status: 503 });
+      if (error instanceof ProjectBaselineConflict)
+        return Response.json(
+          { error: "baseline-owner-conflict" },
+          { status: 409 },
+        );
       throw error;
     }
   }
@@ -191,39 +262,47 @@ export class RegionalProjectDO {
       return Response.json({ error: "region-not-configured" }, { status: 503 });
     let users: string[] | null;
     let protectedIds: string[];
+    let expansion: ReturnType<typeof projectExpansion>;
     try {
-      users = projectRegionUsers(this.env.PROJECT_REGION_USERS);
+      expansion = projectExpansion(this.env.PROJECT_SYNC_EXPANSION);
+      users = projectRegionUsers(this.env.PROJECT_REGION_USERS, expansion);
       protectedIds = protectedProjectIds(this.env.PROJECT_PROTECTED_IDS);
     } catch {
       return Response.json({ error: "region-not-configured" }, { status: 503 });
     }
+    if (
+      expansion !== "off" &&
+      this.env.PROJECT_REGION === "overseas" &&
+      !this.baselineInstalled
+    ) {
+      this.state.storage.transactionSync(() =>
+        installProjectBaseline(this.sql, expansion === "copy" ? users : null),
+      );
+      this.baselineInstalled = true;
+    }
+    if (operation === "retire-account") {
+      if (!validAccountId(body.userId))
+        return Response.json({ error: "invalid-user" }, { status: 400 });
+      const userId = body.userId;
+      const complete = this.state.storage.transactionSync(() => {
+        const done = this.journal.retireOwner(userId);
+        if (done && this.baselineInstalled)
+          this.sql.exec(
+            "DELETE FROM project_baseline_dirty WHERE owner_id=?",
+            userId,
+          );
+        return done;
+      });
+      return Response.json({ complete }, { status: complete ? 200 : 503 });
+    }
+    if (retiredAccount(this.sql, body.userId ?? body.ownerUserId))
+      return Response.json({ error: "account-deleted" }, { status: 403 });
     if (operation === "submit" || operation === "replace-entry")
       return this.publish(operation, body, users, protectedIds);
     if (operation === "cloud-project-region")
       return Response.json({ region: this.env.PROJECT_REGION });
     if (operation === "sync-seed")
-      return this.state.storage.transactionSync(() => {
-        const scope =
-          users === null
-            ? ""
-            : ` AND user_id IN (${users.map(() => "?").join(",")})`;
-        const rows = this.sql
-          .exec<{ id: string }>(
-            `SELECT id FROM cloud_projects WHERE id NOT IN (SELECT id FROM regional_project_heads)${scope} ORDER BY id LIMIT 1`,
-            ...(users ?? []),
-          )
-          .toArray();
-        for (const row of rows) this.captureExisting(row.id);
-        return Response.json({
-          seeded: rows.length,
-          remaining: this.sql
-            .exec<{ count: number }>(
-              `SELECT COUNT(*) AS count FROM cloud_projects WHERE id NOT IN (SELECT id FROM regional_project_heads)${scope}`,
-              ...(users ?? []),
-            )
-            .one().count,
-        });
-      });
+      return this.seed(this.baselineInstalled ? null : users);
     if (operation === "sync-quota") {
       if (this.env.PROJECT_REGION !== "overseas")
         return Response.json({ error: "not-quota-authority" }, { status: 409 });
@@ -273,7 +352,10 @@ export class RegionalProjectDO {
       return Response.json({ peer: this.journal.status(), events });
     }
     if (operation === "sync-status")
-      return Response.json(this.journal.status());
+      return Response.json({
+        ...this.journal.status(),
+        ...(expansion === "off" ? {} : { expansion }),
+      });
     if (operation === "sync-watchdog")
       return Response.json(
         this.watchdog(
@@ -292,20 +374,49 @@ export class RegionalProjectDO {
     if (operation === "sync-ack")
       return this.journal.acknowledge(body.epoch, body.sequence);
     if (operation === "sync-receive") {
-      const decoded = await decodeProjectEvent(body.event);
+      const decoded = await decodeProjectSyncEvent(body.event);
       if (!decoded)
         return Response.json({ error: "invalid-event" }, { status: 400 });
-      if (users !== null && !users.includes(decoded.change.ownerUserId))
-        return Response.json({ error: "owner-not-admitted" }, { status: 403 });
-      if (
-        this.env.PROJECT_REGION === "overseas" &&
-        protectedIds.includes(decoded.change.id)
-      )
-        return Response.json({ error: "protected-project" }, { status: 403 });
       return this.state.storage.transactionSync(() => {
-        const result = this.journal.receive(decoded.event, decoded.change);
-        if (result.ok && this.journal.deleted(decoded.change.id))
-          this.quota.release(decoded.change.id);
+        const { event, change, ownerUserId } = decoded;
+        const retired =
+          body.retired === true || retiredAccount(this.sql, ownerUserId);
+        const copyingFromSource =
+          expansion === "copy" &&
+          this.env.PROJECT_REGION === "cn" &&
+          event.origin === "overseas";
+        if (
+          !retired &&
+          !copyingFromSource &&
+          users !== null &&
+          !users.includes(ownerUserId)
+        )
+          return Response.json(
+            { error: "owner-not-admitted" },
+            { status: 403 },
+          );
+        if (
+          !retired &&
+          change &&
+          this.env.PROJECT_REGION === "overseas" &&
+          protectedIds.includes(change.id)
+        )
+          return Response.json({ error: "protected-project" }, { status: 403 });
+        if (
+          !retired &&
+          change &&
+          this.baselineInstalled &&
+          expansion === "all"
+        ) {
+          this.captureExisting(change.id);
+          this.capturePending(change.id);
+        }
+        const result = this.journal.receive(event, change, retired);
+        // A refused delivery cannot commit baseline writes made in preparation.
+        if (!result.ok) throw new ProjectWriteRefused(result);
+        if (result.ok && retired) retireAccount(this.sql, ownerUserId);
+        if (result.ok && !retired && change && this.journal.deleted(change.id))
+          this.quota.release(change.id);
         return result;
       });
     }
@@ -344,14 +455,17 @@ export class RegionalProjectDO {
     }
     const captured = this.state.storage.transactionSync(() => {
       this.captureExisting(id, userId);
+      this.capturePending(id, userId);
       if (operation === "cloud-project-list") {
         for (const row of this.sql
           .exec<{ id: string }>(
             "SELECT id FROM cloud_projects WHERE user_id=?",
             userId,
           )
-          .toArray())
+          .toArray()) {
           this.captureExisting(row.id, userId);
+          this.capturePending(row.id, userId);
+        }
       }
       const before = this.journal.snapshot(id);
       const result = this.execute(operation, body, userId, id);
@@ -366,12 +480,7 @@ export class RegionalProjectDO {
       ) {
         const after = this.journal.snapshot(id);
         if (after !== before || this.journal.heads(id).length > 1) {
-          const head = this.journal.record(id, userId, this.head(id), after);
-          this.sql.exec(
-            "INSERT OR REPLACE INTO regional_project_heads (id, head) VALUES (?, ?)",
-            id,
-            head,
-          );
+          this.recordSnapshot(id, userId, after);
         }
       }
       const metadata = new Map<
@@ -430,18 +539,36 @@ export class RegionalProjectDO {
           typeof body.ownerUserId === "string" ? body.ownerUserId : null,
           typeof body.ownerUserId === "string" ? body.ownerUserId : null,
         )
-        .toArray()
-        .filter((row) => users === null || users.includes(row.user_id));
+        .toArray();
+      if (this.env.PROJECT_REGION === "cn" && affected.length) {
+        if (
+          users !== null &&
+          affected.some((row) => !users.includes(row.user_id))
+        )
+          return Response.json(
+            { error: "owner-not-admitted" },
+            { status: 403 },
+          );
+        if (this.env.PROJECT_WRITES_ENABLED?.trim() === "false")
+          return Response.json(
+            { error: "regional-writes-disabled" },
+            { status: 503 },
+          );
+      }
+      const participating = affected.filter(
+        (row) => users === null || users.includes(row.user_id),
+      );
       if (
         this.env.PROJECT_REGION === "cn" &&
-        affected.some((row) => protectedIds.includes(row.id))
+        participating.some((row) => protectedIds.includes(row.id))
       )
         return Response.json({ error: "protected-project" }, { status: 403 });
-      if (affected.some((row) => this.journal.conflicted(row.id)))
+      if (participating.some((row) => this.journal.conflicted(row.id)))
         return Response.json({ error: "revision-conflict" }, { status: 409 });
       const before = new Map<string, string>();
-      for (const row of affected) {
+      for (const row of participating) {
         this.captureExisting(row.id, row.user_id);
+        this.capturePending(row.id);
         before.set(row.id, this.journal.snapshot(row.id));
       }
       const result =
@@ -449,20 +576,10 @@ export class RegionalProjectDO {
           ? submit(this.state, body)
           : replaceEntry(this.state, body);
       if (result.ok) {
-        for (const row of affected) {
+        for (const row of participating) {
           const after = this.journal.snapshot(row.id);
           if (after === before.get(row.id)) continue;
-          const head = this.journal.record(
-            row.id,
-            row.user_id,
-            this.head(row.id),
-            after,
-          );
-          this.sql.exec(
-            "INSERT OR REPLACE INTO regional_project_heads (id, head) VALUES (?, ?)",
-            row.id,
-            head,
-          );
+          this.recordSnapshot(row.id, row.user_id, after);
         }
       }
       return result;
@@ -478,7 +595,7 @@ export class RegionalProjectDO {
     const heads = this.journal.heads(id);
     if (heads.length && heads[0]!.ownerUserId !== userId)
       return Response.json({ error: "not-found" }, { status: 404 });
-    if (heads.length && this.journal.deleted(id))
+    if (this.journal.deleted(id))
       return Response.json({ error: "not-found" }, { status: 404 });
     const resolving =
       Array.isArray(body.resolveHeads) &&
@@ -519,10 +636,13 @@ export class RegionalProjectDO {
         return Response.json({
           project: cloudProjectSavedSummary(this.sql, userId, id),
         });
-      if (
-        !body.saveToken ||
-        !heads.some((node) => node.head === body.saveToken)
-      )
+      const legacy =
+        this.env.PROJECT_REGION === "overseas" &&
+        this.env.PROJECT_SYNC_EXPANSION?.trim() === "all" &&
+        heads.length === 1 &&
+        Number.isSafeInteger(body.expectedRevision) &&
+        this.journal.localLineage(id);
+      if (!legacy && !heads.some((node) => node.head === body.saveToken))
         return Response.json(
           {
             error: "revision-conflict",
@@ -531,12 +651,13 @@ export class RegionalProjectDO {
           },
           { status: 409 },
         );
-      body.expectedRevision = this.sql
-        .exec<{ revision: number }>(
-          "SELECT revision FROM cloud_projects WHERE id=?",
-          id,
-        )
-        .one().revision;
+      if (!legacy)
+        body.expectedRevision = this.sql
+          .exec<{ revision: number }>(
+            "SELECT revision FROM cloud_projects WHERE id=?",
+            id,
+          )
+          .one().revision;
       if (
         resolving &&
         heads.length > 1 &&
@@ -578,7 +699,7 @@ export class RegionalProjectDO {
           );
         {
           const created = cloudProjectCreate(this.sql, body);
-          if (!created.ok) throw new ProjectCreationRefused(created);
+          if (!created.ok) throw new ProjectWriteRefused(created);
           this.journal.rememberCreation(id, intent);
           return created;
         }

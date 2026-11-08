@@ -12,7 +12,10 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function publicationTrial(maxBytes?: number) {
+async function publicationTrial(
+  maxBytes?: number,
+  pauseDomesticWrites = false,
+) {
   const secret = "publication-test-identity-secret";
   const auth = environment({
     AUTH_REGIONAL_AUTHORITY: JSON.stringify({
@@ -31,6 +34,9 @@ async function publicationTrial(maxBytes?: number) {
     const config = {
       PROJECT_REGION: region,
       PROJECT_REGION_USERS: JSON.stringify([user.id]),
+      ...(region === "cn" && pauseDomesticWrites
+        ? { PROJECT_WRITES_ENABLED: "false" }
+        : {}),
       ...(maxBytes === undefined ? {} : { PROJECT_SYNC_MAX_BYTES: maxBytes }),
     };
     const store = new GalleryDO(sqliteState(), config);
@@ -112,6 +118,25 @@ async function publicationTrial(maxBytes?: number) {
   };
   return { source, domestic, request, open, events, copy, create, content };
 }
+
+it("blocks a domestic Gallery binding while Project writes are paused", async () => {
+  const trial = await publicationTrial(undefined, true);
+  const saved = await trial.create("Source draft");
+  await trial.copy();
+  const response = await route(
+    trial.domestic,
+    trial.request("/api/gallery/submissions", "POST", {
+      ...trial.content,
+      cloudProjectId: saved.id,
+      expectedGalleryEntryId: null,
+    }),
+  );
+  expect(response.status).toBe(503);
+  expect(await response.json()).toMatchObject({
+    error: "regional-writes-disabled",
+  });
+  expect(await trial.events(trial.domestic)).toEqual([]);
+});
 
 it("publishes a regional draft and replicates its binding without changing the saved drawing", async () => {
   const trial = await publicationTrial();

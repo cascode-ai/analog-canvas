@@ -20,6 +20,7 @@ import { createChildCellDraft } from "../features/hierarchy/new-cell";
 import { projectComponentInsertCandidates } from "../features/component-insert/project-component-candidates";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { usePowerPointSave } from "./powerpoint-save";
+import { isOfficeDialog, useOfficeLink } from "./office-link";
 import { useSignalMemberInspection } from "../features/selection/use-signal-member-inspection";
 import { editorSnapshotDerived } from "./editor-snapshot-derived-cache";
 import {
@@ -1011,8 +1012,11 @@ function WorkspaceEditor({
   } | null>(null);
   const canvasContextMenuSuppressed = useRef(false);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
+  // The PowerPoint dialog shows the drawing alone.
   const [projectPanel, setProjectPanel] =
-    useState<EditorProjectPanelMode | null>("netlist");
+    useState<EditorProjectPanelMode | null>(
+      isOfficeDialog() ? null : "netlist",
+    );
   const [netlistFocusedInstance, setNetlistFocusedInstance] = useState<{
     documentId: string;
     instanceId: string;
@@ -1335,11 +1339,12 @@ function WorkspaceEditor({
       setImportCellOpen(false);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
-      // Each newly opened circuit starts with its netlist. Ordinary edits and
-      // user-driven panel changes do not reset the workspace.
+      // Each newly opened circuit starts with its netlist, but in the
+      // PowerPoint dialog. Ordinary edits and user-driven panel changes do
+      // not reset the workspace.
       propertiesOpenBeforeProjectPanelRef.current = false;
       setSelectionOpen(false);
-      setProjectPanel("netlist");
+      setProjectPanel(isOfficeDialog() ? null : "netlist");
       if (compactLayout) setCompactLibraryPanelOpen(false);
       return nextDocument;
     },
@@ -5550,9 +5555,23 @@ function WorkspaceEditor({
         : null;
     },
   });
+  const office = useOfficeLink({
+    project,
+    document,
+    blocker: currentEditBlocker,
+    capture: captureAuthoredProject,
+    openDocument: selectDocumentFromHierarchy,
+    openProjectText: (text, name, replace) =>
+      openProjectFile(
+        new File([text], `${name}.icproj.json`, { type: "application/json" }),
+        { inTab: !replace },
+      ),
+    openNewProject: () => void projectTabs.open(() => createTabSession()),
+  });
   return (
     <main className="app-shell">
       {powerPoint.notice}
+      {office.notice}
       {publishedNotice ? (
         <Suspense fallback={null}>
           <GalleryPublishedNotice
@@ -5699,7 +5718,7 @@ function WorkspaceEditor({
         saveNativeTab={saveNativeTab}
         leaveForGallery={leaveForGallery}
         leaveForArena={leaveForArena}
-        powerPointAction={powerPoint.action}
+        powerPointAction={powerPoint.action ?? office.action}
       />
       {newCellMode ? (
         <NewCellDialog
@@ -5870,6 +5889,8 @@ function WorkspaceEditor({
         rejectAgentFileCandidate={rejectAgentFileCandidate}
         commitStructure={commitStructure}
         renameCell={renameCell}
+        renameProject={renameProject}
+        setGalleryEntryContext={setGalleryEntryContext}
         editProjectInfo={editProjectInfo}
         updateCellPortDirection={updateCellPortDirection}
         moveCellPort={moveCellPort}
@@ -5897,7 +5918,7 @@ function WorkspaceEditor({
         jumpToProjectDiagnostic={jumpToProjectDiagnostic}
         editorCommands={editorCommands}
         exportDesignNetlist={exportDesignNetlist}
-        workspaceReopen={workspaceReopen}
+        workspaceReopen={isOfficeDialog() ? null : workspaceReopen}
         setWorkspaceReopen={setWorkspaceReopen}
         reopenClosedWindowTabs={reopenClosedWindowTabs}
         recordGalleryPublication={recordGalleryPublication}

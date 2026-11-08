@@ -1,4 +1,10 @@
 import { Buffer } from "node:buffer";
+import { sha256Hex } from "@icm/derived";
+import {
+  installRetiredAccounts,
+  retireAccount,
+  retiredAccount,
+} from "./retired-accounts";
 import { gzipSync, gunzipSync } from "node:zlib";
 import type { SqlStorage } from "./gallery-store";
 import { isRecord } from "./gallery-store";
@@ -12,6 +18,7 @@ export interface ProjectEvent {
   eventId: string;
   payload: string;
   payloadHash: string;
+  erasedOwner?: string;
 }
 export interface ProjectSyncStatus {
   origin: "cn" | "overseas";
@@ -60,6 +67,13 @@ export class ProjectSyncJournal {
       maxBytes > 1024 * 1024 * 1024
     )
       throw new Error("Invalid replication journal capacity");
+    installRetiredAccounts(sql);
+    sql.exec(`CREATE TABLE IF NOT EXISTS project_sync_erased (
+      head TEXT PRIMARY KEY, owner_id TEXT NOT NULL, hash TEXT NOT NULL
+    ) WITHOUT ROWID`);
+    sql.exec(`CREATE TABLE IF NOT EXISTS project_sync_retired_ids (
+      id TEXT PRIMARY KEY, owner_id TEXT NOT NULL
+    ) WITHOUT ROWID`);
     sql.exec(`CREATE TABLE IF NOT EXISTS project_sync_meta (
       singleton INTEGER PRIMARY KEY CHECK(singleton=1), epoch TEXT NOT NULL,
       origin TEXT NOT NULL, sequence INTEGER NOT NULL, acknowledged INTEGER NOT NULL
@@ -82,6 +96,24 @@ export class ProjectSyncJournal {
     sql.exec(
       "CREATE TABLE IF NOT EXISTS project_sync_payloads (head TEXT NOT NULL, chunk INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(head,chunk)) WITHOUT ROWID",
     );
+    sql.exec(`CREATE TABLE IF NOT EXISTS project_sync_size (
+      singleton INTEGER PRIMARY KEY CHECK(singleton=1), bytes INTEGER NOT NULL
+    )`);
+    sql.exec(`INSERT OR IGNORE INTO project_sync_size
+      SELECT 1, (SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM project_sync_payloads)
+      WHERE NOT EXISTS (SELECT 1 FROM project_sync_size)`);
+    for (const [event, delta] of [
+      ["INSERT", "length(CAST(NEW.payload AS BLOB))"],
+      [
+        "UPDATE",
+        "length(CAST(NEW.payload AS BLOB)) - length(CAST(OLD.payload AS BLOB))",
+      ],
+      ["DELETE", "-length(CAST(OLD.payload AS BLOB))"],
+    ] as const)
+      sql.exec(`CREATE TRIGGER IF NOT EXISTS project_sync_size_${event.toLowerCase()}
+        AFTER ${event} ON project_sync_payloads BEGIN
+          UPDATE project_sync_size SET bytes = bytes + (${delta}) WHERE singleton=1;
+        END`);
     sql.exec(
       `CREATE TABLE IF NOT EXISTS project_sync_peer (singleton INTEGER PRIMARY KEY CHECK(singleton=1), origin TEXT NOT NULL, epoch TEXT NOT NULL, sequence INTEGER NOT NULL)`,
     );
@@ -93,6 +125,9 @@ export class ProjectSyncJournal {
     );
     sql.exec(
       "CREATE INDEX IF NOT EXISTS project_sync_nodes_project ON project_sync_nodes(project_id,active)",
+    );
+    sql.exec(
+      "CREATE INDEX IF NOT EXISTS project_sync_nodes_owner ON project_sync_nodes(owner_id)",
     );
     sql.exec(
       "CREATE TABLE IF NOT EXISTS project_creation_intents (id TEXT PRIMARY KEY, intent TEXT NOT NULL) WITHOUT ROWID",
@@ -110,9 +145,7 @@ export class ProjectSyncJournal {
 
   private bytes(): number {
     return this.sql
-      .exec<{ bytes: number }>(
-        "SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) AS bytes FROM project_sync_payloads",
-      )
+      .exec<{ bytes: number }>("SELECT bytes FROM project_sync_size")
       .one().bytes;
   }
   private payload(head: string): string {
@@ -184,6 +217,18 @@ export class ProjectSyncJournal {
     );
   }
 
+  localLineage(id: string): boolean {
+    return !this.sql
+      .exec(
+        `SELECT 1 FROM project_sync_nodes n
+       WHERE n.project_id=? AND NOT EXISTS (
+         SELECT 1 FROM project_sync_outbox o WHERE o.event_id=n.head
+       ) LIMIT 1`,
+        id,
+      )
+      .toArray().length;
+  }
+
   snapshot(id: string): string {
     const project =
       this.sql
@@ -244,8 +289,17 @@ export class ProjectSyncJournal {
     );
   }
 
+  private retiredId(id: string): boolean {
+    return (
+      this.sql
+        .exec("SELECT 1 FROM project_sync_retired_ids WHERE id=?", id)
+        .toArray().length > 0
+    );
+  }
+
   deleted(id: string): boolean {
     return (
+      this.retiredId(id) ||
       this.sql
         .exec(
           "SELECT head FROM project_sync_nodes WHERE project_id=? AND deleted=1 LIMIT 1",
@@ -255,12 +309,7 @@ export class ProjectSyncJournal {
     );
   }
 
-  record(
-    id: string,
-    ownerUserId: string,
-    _previousHead: string | undefined,
-    snapshot: string,
-  ): string {
+  record(id: string, ownerUserId: string, snapshot: string): string {
     if (this.fenced)
       throw new ProjectSyncFenceError(
         "Peer reconciliation required after restart",
@@ -353,7 +402,102 @@ export class ProjectSyncJournal {
     );
   }
 
-  receive(event: ProjectEvent, change: ProjectChange): Response {
+  /** Remove live rows immediately and erase a bounded batch of outbound payloads. */
+  retireOwner(owner: string): boolean {
+    retireAccount(this.sql, owner);
+    this.sql.exec(
+      `INSERT OR IGNORE INTO project_sync_retired_ids
+        SELECT id, ? FROM cloud_projects WHERE user_id=?
+        UNION SELECT project_id, ? FROM project_sync_nodes WHERE owner_id=?
+        UNION SELECT id, ? FROM project_quota_reservations WHERE owner_id=?`,
+      owner,
+      owner,
+      owner,
+      owner,
+      owner,
+      owner,
+    );
+    this.sql.exec(
+      `DELETE FROM cloud_project_versions WHERE project_id IN
+      (SELECT id FROM cloud_projects WHERE user_id=?)`,
+      owner,
+    );
+    this.sql.exec("DELETE FROM cloud_projects WHERE user_id=?", owner);
+    for (const table of [
+      "regional_project_heads",
+      "project_creation_intents",
+      "project_quota_reservations",
+    ]) {
+      this.sql.exec(
+        `DELETE FROM ${table} WHERE id IN
+        (SELECT id FROM project_sync_retired_ids WHERE owner_id=?)`,
+        owner,
+      );
+    }
+    // Received snapshots already have immutable receipts.
+    this.sql.exec(
+      `DELETE FROM project_sync_payloads WHERE head IN
+      (SELECT head FROM project_sync_nodes WHERE owner_id=?)
+      AND head NOT IN (SELECT event_id FROM project_sync_outbox)`,
+      owner,
+    );
+    this.sql.exec(
+      `DELETE FROM project_sync_nodes WHERE owner_id=?
+      AND head NOT IN (SELECT event_id FROM project_sync_outbox)`,
+      owner,
+    );
+    const batch = 8;
+    const rows = this.sql
+      .exec<{ head: string }>(
+        `
+      SELECT head FROM (
+        SELECT n.head AS head FROM project_sync_nodes n
+          JOIN project_sync_outbox o ON o.event_id=n.head WHERE n.owner_id=?
+        UNION ALL
+        SELECT o.event_id FROM project_sync_retired_ids r
+          JOIN project_quota_events q ON q.id=r.id
+          JOIN project_sync_outbox o ON o.sequence=q.sequence WHERE r.owner_id=?
+      ) WHERE head NOT IN (SELECT head FROM project_sync_erased) LIMIT ?`,
+        owner,
+        owner,
+        batch,
+      )
+      .toArray();
+    for (const { head } of rows) {
+      const hash = sha256Hex(this.payload(head));
+      this.sql.exec(
+        "INSERT INTO project_sync_erased VALUES (?,?,?)",
+        head,
+        owner,
+        hash,
+      );
+      this.sql.exec("DELETE FROM project_sync_payloads WHERE head=?", head);
+      this.sql.exec("DELETE FROM project_sync_nodes WHERE head=?", head);
+    }
+    return rows.length < batch;
+  }
+
+  private accept(event: ProjectEvent): Response {
+    this.sql.exec(
+      "INSERT INTO project_sync_receipts VALUES (?,?,?)",
+      event.sequence,
+      event.eventId,
+      event.payloadHash,
+    );
+    this.sql.exec(
+      "INSERT OR REPLACE INTO project_sync_peer VALUES (1,?,?,?)",
+      event.origin,
+      event.epoch,
+      event.sequence,
+    );
+    return Response.json({ acknowledged: event.sequence, epoch: event.epoch });
+  }
+
+  receive(
+    event: ProjectEvent,
+    change: ProjectChange | null,
+    retired: boolean,
+  ): Response {
     if (event.origin === this.origin)
       return Response.json({ error: "wrong-origin" }, { status: 409 });
     const peer = this.sql
@@ -379,6 +523,11 @@ export class ProjectSyncJournal {
         { error: "sequence-gap", acknowledged: peer?.sequence ?? 0 },
         { status: 409 },
       );
+    if (retired) return this.accept(event);
+    if (!change)
+      return Response.json({ error: "unverified-erasure" }, { status: 409 });
+    if (this.retiredId(change.id))
+      return Response.json({ error: "resource-deleted" }, { status: 409 });
     if (change.kind === "quota") {
       if (this.origin !== "cn")
         return Response.json({ error: "wrong-quota-target" }, { status: 409 });
@@ -400,22 +549,7 @@ export class ProjectSyncJournal {
         change.ownerUserId,
         change.reservation,
       );
-      this.sql.exec(
-        "INSERT INTO project_sync_receipts VALUES (?,?,?)",
-        event.sequence,
-        event.eventId,
-        event.payloadHash,
-      );
-      this.sql.exec(
-        "INSERT OR REPLACE INTO project_sync_peer VALUES (1,?,?,?)",
-        event.origin,
-        event.epoch,
-        event.sequence,
-      );
-      return Response.json({
-        acknowledged: event.sequence,
-        epoch: event.epoch,
-      });
+      return this.accept(event);
     }
     if (
       this.origin === "overseas" &&
@@ -468,19 +602,7 @@ export class ProjectSyncJournal {
     this.storePayload(change.head, event.payload);
     this.addNode(change);
     this.materialize(change);
-    this.sql.exec(
-      "INSERT INTO project_sync_receipts VALUES (?, ?, ?)",
-      event.sequence,
-      event.eventId,
-      event.payloadHash,
-    );
-    this.sql.exec(
-      "INSERT OR REPLACE INTO project_sync_peer VALUES (1, ?, ?, ?)",
-      event.origin,
-      event.epoch,
-      event.sequence,
-    );
-    return Response.json({ acknowledged: event.sequence, epoch: event.epoch });
+    return this.accept(event);
   }
 
   private materialize(change: ProjectChange): void {
@@ -586,6 +708,19 @@ export class ProjectSyncJournal {
     return Response.json({ status });
   }
 
+  private erased(head: string): { owner_id: string; hash: string } | undefined {
+    return this.sql
+      .exec<{ owner_id: string; hash: string }>(
+        "SELECT owner_id,hash FROM project_sync_erased WHERE head=?",
+        head,
+      )
+      .toArray()[0];
+  }
+
+  private hash(head: string): Promise<string> | string {
+    return this.erased(head)?.hash ?? projectPayloadHash(this.payload(head));
+  }
+
   async reconcile(peer: ProjectSyncStatus): Promise<Response> {
     if (
       !isRecord(peer) ||
@@ -638,9 +773,7 @@ export class ProjectSyncJournal {
           floor.sequence,
         )
         .toArray()[0];
-      valid =
-        !!row &&
-        (await projectPayloadHash(this.payload(row.event_id))) === floor.hash;
+      valid = !!row && (await this.hash(row.event_id)) === floor.hash;
     }
     if (valid && received && received.sequence > 0) {
       const row = this.sql
@@ -649,10 +782,7 @@ export class ProjectSyncJournal {
           received.sequence,
         )
         .toArray()[0];
-      valid =
-        !!row &&
-        (await projectPayloadHash(this.payload(row.event_id))) ===
-          received.hash;
+      valid = !!row && (await this.hash(row.event_id)) === received.hash;
     }
     this.fenced = !valid;
     return Response.json(
@@ -691,22 +821,32 @@ export class ProjectSyncJournal {
         { status: 409 },
       );
     const rows = this.sql
-      .exec<{ sequence: number; event_id: string }>(
-        "SELECT * FROM project_sync_outbox WHERE sequence > ? ORDER BY sequence LIMIT 1",
+      .exec<{ sequence: number; event_id: string; owner_id: string | null }>(
+        `SELECT o.sequence,o.event_id,n.owner_id FROM project_sync_outbox o
+         LEFT JOIN project_sync_nodes n ON n.head=o.event_id
+         WHERE o.sequence>? ORDER BY o.sequence LIMIT 1`,
         after,
       )
       .toArray();
     const events: ProjectEvent[] = await Promise.all(
       rows.map(async (row) => {
-        const payload = this.payload(row.event_id);
+        const erased = this.erased(row.event_id);
+        const payload = erased ? "" : this.payload(row.event_id);
+        const hash = erased?.hash ?? (await projectPayloadHash(payload));
+        const owner =
+          erased?.owner_id ??
+          row.owner_id ??
+          (JSON.parse(payload) as ProjectChange).ownerUserId;
+        const retired = retiredAccount(this.sql, owner);
         return {
           version: 1,
           origin: this.origin,
           epoch: meta.epoch,
           sequence: row.sequence,
           eventId: row.event_id,
-          payload,
-          payloadHash: await projectPayloadHash(payload),
+          payload: retired ? "" : payload,
+          payloadHash: hash,
+          ...(retired ? { erasedOwner: owner } : {}),
         };
       }),
     );

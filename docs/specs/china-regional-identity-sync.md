@@ -25,10 +25,9 @@ forwarded-account contract; voting replication is a separate delivery.
 - Replicate identity/profile and resource records as needed, excluding live
   sessions, provider secrets, login codes, grants, Agent claims and connector
   tokens. Profile replication grants no authorization.
-- Account deletion must first deny new access at the authority, then send
-  idempotent, versioned deletion work to each resource owner. Report regional
-  cleanup separately from backup expiry. This cross-owner protocol is still
-  proposed; a missing identity lookup is not a deletion instruction.
+- [Account deletion](regional-login.md#account-deletion) revokes access at the
+  authority and coordinates live cleanup with the owning stores. Backup expiry
+  follows its own retention schedule.
 - Existing account quotas remain global. The resource owner reserves regional
   creation capacity and rejects exhausted or unavailable allocations. Saving an
   existing resource does not allocate another slot; Auth supplies identity and

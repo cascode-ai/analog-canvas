@@ -416,3 +416,337 @@ it("seeds only admitted owners while retaining other overseas Projects locally",
     revision: 1,
   });
 });
+
+it("copies the all-account baseline and legacy edits without broadening trial access", async () => {
+  const source = environment();
+  const outside = await makerOf(source);
+  const { user } = await (
+    await source.authDurable.fetch(
+      new Request(ORIGIN + "/api/auth/me", {
+        headers: { cookie: outside },
+      }),
+    )
+  ).json();
+  const saved = await route(
+    source,
+    saveRequest(outside, "Historical baseline"),
+  );
+  const original = (await saved.json()).project;
+  const config = {
+    PROJECT_REGION: "overseas" as const,
+    PROJECT_REGION_USERS: '["trial-account"]',
+    PROJECT_SYNC_EXPANSION: "copy",
+    PROJECT_SYNC_TOKEN: "isolated-peer",
+    PROJECT_SYNC_ADMIN_TOKEN: "isolated-admin",
+  };
+  const gallery = new GalleryDO(
+    source.galleryStoreStates.get("gallery")!,
+    config,
+  );
+  const bind = (store: { fetch(request: Request): Promise<Response> }) => ({
+    getByName: () => ({
+      fetch: (url: string, init?: RequestInit) =>
+        store.fetch(new Request(url, init)),
+    }),
+  });
+  const capture = { ...source, ...config, GALLERY: bind(gallery) };
+  const cnConfig = { ...config, PROJECT_REGION: "cn" as const };
+  const domesticGallery = bind(new GalleryDO(sqliteState(), cnConfig));
+  const cn = {
+    ...source,
+    ...cnConfig,
+    GALLERY: domesticGallery,
+    PROJECTS: domesticGallery,
+    PROJECTS_STORE_NAME: "gallery" as const,
+    PROJECT_IDENTITY_URL: ORIGIN + "/isolated/identities",
+    PROJECT_IDENTITY_TOKEN: "isolated-identity",
+  };
+  vi.stubGlobal("fetch", async () =>
+    Response.json({
+      identities: [{ id: user.id, status: "found", user }],
+    }),
+  );
+  const seed = () =>
+    route(
+      capture,
+      new Request(ORIGIN + "/api/project-sync/seed", {
+        method: "POST",
+        headers: { authorization: "Bearer isolated-admin" },
+      }),
+    );
+  expect(await (await seed()).json()).toEqual({ seeded: 1, remaining: 0 });
+  const exportEvent = async (after: number) =>
+    (
+      await (
+        await route(
+          capture,
+          new Request(ORIGIN + "/api/project-sync/events?after=" + after, {
+            headers: { authorization: "Bearer isolated-peer" },
+          }),
+        )
+      ).json()
+    ).events[0];
+  const receive = (event: unknown) =>
+    route(
+      cn,
+      new Request(ORIGIN + "/api/project-sync/events", {
+        method: "POST",
+        headers: { authorization: "Bearer isolated-peer" },
+        body: JSON.stringify({ event }),
+      }),
+    );
+  const first = await exportEvent(0);
+  expect(JSON.parse(first.payload)).toMatchObject({
+    id: original.id,
+    ownerUserId: user.id,
+    project: { name: "Historical baseline", revision: 1 },
+  });
+  expect((await receive(first)).status).toBe(200);
+  const open = (env: Parameters<typeof route>[0]) =>
+    route(
+      env,
+      new Request(ORIGIN + "/api/projects/" + original.id, {
+        headers: { cookie: outside },
+      }),
+    );
+  expect((await open(cn)).status).toBe(403);
+  const publication = await route(
+    cn,
+    new Request(ORIGIN + "/api/gallery/submissions", {
+      method: "POST",
+      headers: { cookie: outside, origin: ORIGIN },
+      body: JSON.stringify({
+        name: "Copied Project",
+        description: "",
+        tags: [],
+        projectText: wiredProjectText("Publication"),
+        cloudProjectId: original.id,
+        expectedGalleryEntryId: null,
+      }),
+    }),
+  );
+  expect(publication.status).toBe(403);
+  expect((await publication.json()).error).toBe("owner-not-admitted");
+
+  const updated = await route(
+    capture,
+    new Request(ORIGIN + "/api/projects/" + original.id, {
+      method: "PUT",
+      headers: { cookie: outside, origin: ORIGIN, "if-match": "revision-1" },
+      body: JSON.stringify({
+        name: "Edit during capture",
+        projectText: projectText("Edit during capture"),
+      }),
+    }),
+  );
+  expect(updated.status).toBe(200);
+  expect((await updated.json()).project).not.toHaveProperty("saveToken");
+  expect(await (await seed()).json()).toEqual({ seeded: 1, remaining: 0 });
+  const second = await exportEvent(1);
+  expect(JSON.parse(second.payload)).toMatchObject({
+    id: original.id,
+    parents: [first.eventId],
+    project: { name: "Edit during capture", revision: 2 },
+    versions: [{ revision: 1 }],
+  });
+  expect((await receive(second)).status).toBe(200);
+  expect(await (await seed()).json()).toEqual({ seeded: 0, remaining: 0 });
+  const removed = await route(
+    capture,
+    new Request(ORIGIN + "/api/projects/" + original.id, {
+      method: "DELETE",
+      headers: { cookie: outside, origin: ORIGIN },
+    }),
+  );
+  expect(removed.status).toBe(200);
+  expect(await (await seed()).json()).toEqual({ seeded: 1, remaining: 0 });
+  const third = await exportEvent(2);
+  expect(JSON.parse(third.payload)).toMatchObject({
+    id: original.id,
+    project: null,
+    parents: [second.eventId],
+  });
+  expect((await receive(third)).status).toBe(200);
+});
+
+it("drains a persisted edit on promotion and accepts an old overseas tab until a remote edit", async () => {
+  const source = environment();
+  const cookie = await makerOf(source);
+  const { user } = await (
+    await source.authDurable.fetch(
+      new Request(ORIGIN + "/api/auth/me", {
+        headers: { cookie },
+      }),
+    )
+  ).json();
+  const original = (
+    await (await route(source, saveRequest(cookie, "Open tab"))).json()
+  ).project;
+  const config = {
+    PROJECT_REGION: "overseas" as const,
+    PROJECT_REGION_USERS: '["trial-account"]',
+    PROJECT_SYNC_EXPANSION: "copy",
+    PROJECT_SYNC_ADMIN_TOKEN: "isolated-admin",
+    PROJECT_SYNC_TOKEN: "isolated-peer",
+    PROJECT_IDENTITY_URL: ORIGIN + "/isolated/identities",
+    PROJECT_IDENTITY_TOKEN: "isolated-identity",
+  };
+  const sourceState = source.galleryStoreStates.get("gallery")!;
+  const domesticState = sqliteState();
+  const bind = (target: { fetch(request: Request): Promise<Response> }) => ({
+    getByName: () => ({
+      fetch: (url: string, init?: RequestInit) =>
+        target.fetch(new Request(url, init)),
+    }),
+  });
+  const overseas = {
+    ...source,
+    ...config,
+    GALLERY: bind(new GalleryDO(sourceState, config)),
+  };
+  const domesticConfig = { ...config, PROJECT_REGION: "cn" as const };
+  const domestic = {
+    ...source,
+    ...domesticConfig,
+    PROJECTS: bind(new RegionalProjectDO(domesticState, domesticConfig)),
+  };
+  vi.stubGlobal("fetch", async () =>
+    Response.json({
+      identities: [{ id: user.id, status: "found", user }],
+    }),
+  );
+  const save = (
+    env: Parameters<typeof route>[0],
+    match: string,
+    name: string,
+  ) =>
+    route(
+      env,
+      new Request(ORIGIN + "/api/projects/" + original.id, {
+        method: "PUT",
+        headers: { cookie, origin: ORIGIN, "if-match": match },
+        body: JSON.stringify({ name, projectText: projectText(name) }),
+      }),
+    );
+  const readEvent = async (env: Parameters<typeof route>[0], after: number) =>
+    (
+      await (
+        await route(
+          env,
+          new Request(ORIGIN + "/api/project-sync/events?after=" + after, {
+            headers: { authorization: "Bearer isolated-peer" },
+          }),
+        )
+      ).json()
+    ).events[0];
+  const receive = (env: Parameters<typeof route>[0], event: unknown) =>
+    route(
+      env,
+      new Request(ORIGIN + "/api/project-sync/events", {
+        method: "POST",
+        headers: { authorization: "Bearer isolated-peer" },
+        body: JSON.stringify({ event }),
+      }),
+    );
+
+  const seed = await route(
+    overseas,
+    new Request(ORIGIN + "/api/project-sync/seed", {
+      method: "POST",
+      headers: { authorization: "Bearer isolated-admin" },
+    }),
+  );
+  expect(await seed.json()).toEqual({ seeded: 1, remaining: 0 });
+  const first = await readEvent(overseas, 0);
+  expect((await receive(domestic, first)).status).toBe(200);
+  expect(
+    (await save(overseas, "revision-1", "Edit after last seed")).status,
+  ).toBe(200);
+
+  const fullSource = { ...config, PROJECT_SYNC_EXPANSION: "all" };
+  const fullDomestic = { ...domesticConfig, PROJECT_SYNC_EXPANSION: "all" };
+  Object.assign(overseas, fullSource, {
+    GALLERY: bind(new GalleryDO(sourceState, fullSource)),
+  });
+  Object.assign(domestic, fullDomestic, {
+    PROJECTS: bind(new RegionalProjectDO(domesticState, fullDomestic)),
+  });
+  const status = async (env: Parameters<typeof route>[0]) =>
+    (
+      await route(
+        env,
+        new Request(ORIGIN + "/api/project-sync/status", {
+          headers: { authorization: "Bearer isolated-peer" },
+        }),
+      )
+    ).json();
+  const reconcile = async (
+    here: Parameters<typeof route>[0],
+    peer: Parameters<typeof route>[0],
+  ) =>
+    route(
+      here,
+      new Request(ORIGIN + "/api/project-sync/pull", {
+        method: "POST",
+        headers: { authorization: "Bearer isolated-peer" },
+        body: JSON.stringify({ status: await status(peer) }),
+      }),
+    );
+  expect((await reconcile(overseas, domestic)).status).toBe(200);
+  expect((await reconcile(domestic, overseas)).status).toBe(200);
+  expect(await status(overseas)).toMatchObject({
+    epoch: first.epoch,
+    sequence: 1,
+    acknowledged: 1,
+    journalBytes: Buffer.byteLength(first.payload),
+  });
+  expect((await receive(overseas, first)).status).toBe(409);
+  const outsider = await adminOf(source);
+  const url = ORIGIN + "/api/projects/" + original.id;
+  expect(
+    (await route(overseas, new Request(url, { headers: { cookie: outsider } })))
+      .status,
+  ).toBe(404);
+  expect((await status(overseas)).sequence).toBe(1);
+  const history = await route(
+    overseas,
+    new Request(url + "/versions", { headers: { cookie } }),
+  );
+  const { versions } = await history.json();
+  expect(versions).toMatchObject([{ versionNo: 1 }]);
+  const restored = await route(
+    overseas,
+    new Request(
+      url +
+        "/versions/" +
+        encodeURIComponent(versions[0].versionId) +
+        "/restore",
+      {
+        method: "POST",
+        headers: { cookie, origin: ORIGIN, "if-match": "revision-2" },
+      },
+    ),
+  );
+  expect(restored.status).toBe(200);
+  const { project } = await restored.json();
+  expect(project).toMatchObject({
+    name: "Open tab",
+    revision: 3,
+    saveToken: expect.stringMatching(/^head-/u),
+  });
+  expect((await receive(domestic, await readEvent(overseas, 1))).status).toBe(
+    200,
+  );
+  expect((await receive(domestic, await readEvent(overseas, 2))).status).toBe(
+    200,
+  );
+  expect(
+    (await save(domestic, project.saveToken, "Domestic edit")).status,
+  ).toBe(200);
+  expect((await receive(overseas, await readEvent(domestic, 0))).status).toBe(
+    200,
+  );
+  expect(
+    (await save(overseas, "revision-4", "Stale overseas tab")).status,
+  ).toBe(409);
+});
