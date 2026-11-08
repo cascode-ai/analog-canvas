@@ -5889,6 +5889,8 @@ function WorkspaceEditor({
         rejectAgentFileCandidate={rejectAgentFileCandidate}
         commitStructure={commitStructure}
         renameCell={renameCell}
+        renameProject={renameProject}
+        setGalleryEntryContext={setGalleryEntryContext}
         editProjectInfo={editProjectInfo}
         updateCellPortDirection={updateCellPortDirection}
         moveCellPort={moveCellPort}

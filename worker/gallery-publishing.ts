@@ -327,6 +327,56 @@ export async function handleSubmission(
  * circuit neither takes it off the wall nor re-attributes it; anyone but
  * its owner who changes the drawing is credited as its fixer.
  */
+/**
+ * `PATCH /api/gallery/<id>` `{name, description}`: the name and description
+ * alone, as the editor's reference window saves them; who may update the
+ * entry may (its owner, admins and moderators). The drawing stays.
+ */
+export async function handleEntryDetails(
+  request: Request,
+  env: GalleryEnv,
+  id: string,
+): Promise<Response> {
+  if (!sameOrigin(request))
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  const user = await sessionUserOf(request, env);
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const existing = await callGallery<{ ownerUserId?: string | null }>(
+    env,
+    "any-entry",
+    { id },
+  );
+  if (existing.status !== 200)
+    return Response.json({ error: "not-found" }, { status: 404 });
+  const privileged = user.isAdmin === true || user.role === "moderator";
+  const owner =
+    existing.payload.ownerUserId != null &&
+    existing.payload.ownerUserId === user.id;
+  if (!privileged && !owner)
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  const body = (await request.json().catch(() => null)) as {
+    name?: unknown;
+    description?: unknown;
+  } | null;
+  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
+  const description = fieldText(
+    body?.description,
+    GALLERY_MAX_DESCRIPTION_LENGTH,
+  );
+  if (!name || description === null)
+    return Response.json({ error: "invalid-fields" }, { status: 400 });
+  const { status, payload } = await callGallery(env, "entry-details", {
+    id,
+    name,
+    description,
+    at: new Date().toISOString(),
+  });
+  return Response.json(payload, {
+    status,
+    headers: { "cache-control": "no-store" },
+  });
+}
+
 export async function handleEntryUpdate(
   request: Request,
   env: GalleryEnv,

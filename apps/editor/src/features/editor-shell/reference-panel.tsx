@@ -1,10 +1,20 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 
 import "../../styles/review-page.css";
 import "./reference-panel.css";
+import type { SessionUser } from "../../components/account";
 import { MarkablePicture } from "../../components/review-picture";
 import { gallerySourceOfEntryId } from "../../gallery-sources";
+import { REFERENCE_SAVED, uploadReferenceImage } from "../../reference-image";
 import type { GalleryEntryContext } from "./gallery-example-commands";
+import type { OwnReferenceImage } from "./own-reference";
 
 /**
  * The figure a Gallery drawing was drawn from: a dataset's original figure,
@@ -30,76 +40,140 @@ async function referenceOf(
   };
 }
 
-type Place = { left: number; top: number };
+type Box = { left: number; top: number; width: number; height: number };
+type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+const EDGES: readonly Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+const MIN_WIDTH = 240;
+const MIN_HEIGHT = 160;
 
 /**
- * A figure floating over the editor: it moves by its title bar, resizes
- * from its corner, folds to its title bar and closes from it.
+ * Follow one pointer from its press to its release, the page selecting
+ * nothing meanwhile: a drag over the canvas or text must not select it.
+ */
+function follow(
+  event: ReactPointerEvent<HTMLElement>,
+  move: (dx: number, dy: number) => void,
+): void {
+  event.preventDefault();
+  window.getSelection()?.removeAllRanges();
+  const target = event.currentTarget;
+  target.setPointerCapture(event.pointerId);
+  const x = event.clientX;
+  const y = event.clientY;
+  document.documentElement.classList.add("reference-gesture");
+  const onMove = (next: PointerEvent) =>
+    move(next.clientX - x, next.clientY - y);
+  const end = () => {
+    document.documentElement.classList.remove("reference-gesture");
+    target.removeEventListener("pointermove", onMove);
+    target.removeEventListener("pointerup", end);
+    target.removeEventListener("pointercancel", end);
+  };
+  target.addEventListener("pointermove", onMove);
+  target.addEventListener("pointerup", end);
+  target.addEventListener("pointercancel", end);
+}
+
+/** A box kept on screen, at least its minimum size. */
+function onScreen(box: Box): Box {
+  const width = Math.min(Math.max(box.width, MIN_WIDTH), window.innerWidth);
+  const height = Math.min(Math.max(box.height, MIN_HEIGHT), window.innerHeight);
+  return {
+    width,
+    height,
+    left: Math.min(Math.max(box.left, 60 - width), window.innerWidth - 60),
+    top: Math.min(Math.max(box.top, 0), window.innerHeight - 30),
+  };
+}
+
+// Where the window was and whether it was folded, kept across tabs and
+// closing.
+const remembered: { box: Box | null; folded: boolean } = {
+  box: null,
+  folded: false,
+};
+
+/**
+ * A window floating over the editor: it moves by its title bar, resizes
+ * from any edge or corner, folds to its title bar and closes from it.
  */
 function ReferenceFloat({
   title,
   hint,
-  closeTitle,
   onClose,
   actions,
-  start,
-  compact = false,
-  testId,
   children,
+  footer,
 }: {
   title: string;
   hint: string;
-  closeTitle: string;
   onClose: () => void;
   actions?: ReactNode;
-  start: () => Place;
-  /** Text alone: the panel sizes to it. */
-  compact?: boolean;
-  testId: string;
   children: ReactNode;
+  footer?: ReactNode;
 }) {
-  const [folded, setFolded] = useState(false);
-  const [place, setPlace] = useState<Place>(start);
-  const panel = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; y: number; from: Place } | null>(null);
+  const [folded, setFolded] = useState(remembered.folded);
+  // Bottom right of the window at first, above the status bar.
+  const [box, setBox] = useState<Box>(() =>
+    onScreen(
+      remembered.box ?? {
+        left: window.innerWidth - 404,
+        top: Math.max(60, window.innerHeight - 476),
+        width: 380,
+        height: 420,
+      },
+    ),
+  );
+  useEffect(() => {
+    remembered.box = box;
+    remembered.folded = folded;
+  }, [box, folded]);
+  // A smaller browser window keeps it in view.
+  useEffect(() => {
+    const keep = () => setBox((current) => onScreen(current));
+    window.addEventListener("resize", keep);
+    return () => window.removeEventListener("resize", keep);
+  }, []);
+  const resize = (edge: Edge) => (event: ReactPointerEvent<HTMLElement>) => {
+    const from = box;
+    follow(event, (dx, dy) => {
+      const next = { ...from };
+      if (edge.includes("e")) next.width = from.width + dx;
+      if (edge.includes("s")) next.height = from.height + dy;
+      if (edge.includes("w")) {
+        next.width = Math.max(MIN_WIDTH, from.width - dx);
+        next.left = from.left + from.width - next.width;
+      }
+      if (edge.includes("n")) {
+        next.height = Math.max(MIN_HEIGHT, from.height - dy);
+        next.top = from.top + from.height - next.height;
+      }
+      setBox(onScreen(next));
+    });
+  };
   return (
     <div
-      ref={panel}
-      className={`reference-panel${folded ? " folded" : ""}${compact ? " compact" : ""}`}
-      data-testid={testId}
+      className={`reference-panel${folded ? " folded" : ""}`}
+      data-testid="reference-panel"
       role="complementary"
-      aria-label={title}
-      style={{ left: place.left, top: place.top }}
+      aria-label="Reference"
+      style={{
+        left: box.left,
+        top: box.top,
+        width: box.width,
+        ...(folded ? {} : { height: box.height }),
+      }}
     >
       <div
         className="reference-panel-head"
         onPointerDown={(event) => {
           if ((event.target as HTMLElement).closest("button")) return;
-          const rect = panel.current!.getBoundingClientRect();
-          event.currentTarget.setPointerCapture(event.pointerId);
-          drag.current = {
-            x: event.clientX,
-            y: event.clientY,
-            from: { left: rect.left, top: rect.top },
-          };
-        }}
-        onPointerMove={(event) => {
-          const from = drag.current;
-          if (!from) return;
-          const width = panel.current?.offsetWidth ?? 0;
-          setPlace({
-            left: Math.min(
-              window.innerWidth - 60,
-              Math.max(60 - width, from.from.left + event.clientX - from.x),
+          const from = box;
+          follow(event, (dx, dy) =>
+            setBox(
+              onScreen({ ...from, left: from.left + dx, top: from.top + dy }),
             ),
-            top: Math.min(
-              window.innerHeight - 30,
-              Math.max(0, from.from.top + event.clientY - from.y),
-            ),
-          });
-        }}
-        onPointerUp={() => {
-          drag.current = null;
+          );
         }}
       >
         <span className="title">{title}</span>
@@ -107,15 +181,15 @@ function ReferenceFloat({
         {actions}
         <button
           type="button"
-          title={folded ? "Show the figure" : "Fold to the title bar"}
-          aria-label={folded ? "Show the figure" : "Fold"}
+          title={folded ? "Show the window" : "Fold to the title bar"}
+          aria-label={folded ? "Unfold" : "Fold"}
           onClick={() => setFolded((value) => !value)}
         >
           {folded ? "▢" : "–"}
         </button>
         <button
           type="button"
-          title={closeTitle}
+          title="Close (the Reference button and Edit › Reference window bring it back)"
           aria-label="Close"
           onClick={onClose}
         >
@@ -123,30 +197,90 @@ function ReferenceFloat({
         </button>
       </div>
       {folded ? null : children}
+      {folded ? null : footer}
+      {EDGES.filter((edge) => !folded || edge === "e" || edge === "w").map(
+        (edge) => (
+          <div
+            key={edge}
+            className={`reference-resize ${edge}`}
+            aria-hidden="true"
+            onPointerDown={resize(edge)}
+          />
+        ),
+      )}
     </div>
   );
 }
 
-/**
- * Beside the canvas, the opened Gallery circuit's name and description and
- * the figure it was drawn from, if any, to redraw or fix it against; the
- * figure zooms with the wheel and pans with a drag. Closed, a small button at
- * the corner brings it back.
- */
-export function ReferencePanel({
-  entry,
-  fetchLike = fetch,
-}: {
-  entry: Pick<GalleryEntryContext, "id" | "name" | "description">;
-  fetchLike?: typeof fetch;
-}) {
-  // Undefined while the figure loads, null when there is none.
-  const [figure, setFigure] = useState<
-    { src: string; label: string } | null | undefined
-  >(undefined);
-  const [open, setOpen] = useState(true);
+/** The first image among pasted, dropped or chosen files. */
+const imageAmong = (files: FileList | null | undefined) =>
+  [...(files ?? [])].find((file) => file.type.startsWith("image/")) ?? null;
 
+// Images already saved as their entry's reference image.
+const uploaded = new WeakSet<File>();
+
+export interface ReferenceWindowProps {
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  /** The Gallery entry the drawing came from or was published as, if any. */
+  entry: GalleryEntryContext | null;
+  session: Pick<SessionUser, "id" | "isAdmin" | "role" | "isOwner"> | null;
+  /** An unpublished drawing's name and description, as last saved. */
+  draft: { name: string; description: string };
+  /** The image the reader brought for this drawing, if any. */
+  image: OwnReferenceImage | null;
+  onImage: (file: File) => void;
+  /** Whether a paste may be the image (no text field or circuit takes it). */
+  takesPaste: (event: ClipboardEvent) => boolean;
+  /** Saved: the editor keeps the name and description with the drawing. */
+  onSaved: (fields: { name: string; description: string }) => void;
+  fetchLike?: typeof fetch;
+}
+
+/**
+ * Beside the canvas, the drawing's name, description and reference image,
+ * in every drawing from the start: the image to trace over is pasted
+ * (⌘V / Ctrl+V), dropped or chosen, and zooms with the wheel and pans with
+ * a drag. Save keeps the name and description with an unpublished drawing
+ * (Publish starts from them); for a Gallery entry its owner or the Owner
+ * may change, it saves them, and the image, to the entry at once. Closed,
+ * a small Reference button at the corner brings it back.
+ */
+export function ReferenceWindow({
+  open,
+  onOpen,
+  onClose,
+  entry,
+  session,
+  draft,
+  image,
+  onImage,
+  takesPaste,
+  onSaved,
+  fetchLike = fetch,
+}: ReferenceWindowProps) {
+  const dataset = entry ? gallerySourceOfEntryId(entry.id) : null;
+  const owner =
+    entry !== null &&
+    session !== null &&
+    entry.ownerUserId !== null &&
+    entry.ownerUserId === session.id;
+  // A dataset's entries are read-only; a community entry's details are its
+  // owner's, an admin's or a moderator's, its image its owner's or the
+  // Owner's, as the server rules.
+  const editsText =
+    entry === null ||
+    (!dataset &&
+      (owner || session?.isAdmin === true || session?.role === "moderator"));
+  const savesImage =
+    entry !== null && !dataset && (owner || session?.isOwner === true);
+
+  const [figure, setFigure] = useState<{ src: string; label: string } | null>(
+    null,
+  );
   useEffect(() => {
+    if (!entry) return;
     let cancelled = false;
     let url: string | null = null;
     void referenceOf(entry.id, fetchLike).then((found) => {
@@ -158,128 +292,206 @@ export function ReferencePanel({
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-    // A publication renews the entry: read its figure again, which Publish
-    // may just have given it.
+    // A save or publication renews the entry: read its figure again.
   }, [entry, fetchLike]);
 
-  if (figure === undefined) return null;
-  const description = entry.description.trim();
+  const savedName = entry?.name ?? draft.name;
+  const savedDescription = entry?.description ?? draft.description;
+  const [name, setName] = useState(savedName);
+  const [description, setDescription] = useState(savedDescription);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const textDirty =
+    editsText &&
+    (name.trim() !== savedName.trim() ||
+      description.trim() !== savedDescription.trim());
+  // What was saved elsewhere shows here unless it is being edited.
+  const editing = useRef(false);
+  editing.current = textDirty;
+  useEffect(() => {
+    if (editing.current) return;
+    setName(savedName);
+    setDescription(savedDescription);
+  }, [savedName, savedDescription]);
+  const imageDirty = image !== null && savesImage && !uploaded.has(image.file);
+  const dirty = textDirty || imageDirty;
+
+  const [over, setOver] = useState(false);
+  const chooser = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const paste = (event: ClipboardEvent) => {
+      if (!takesPaste(event)) return;
+      const pasted = imageAmong(event.clipboardData?.files);
+      if (!pasted) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onImage(pasted);
+      setNote(null);
+    };
+    window.addEventListener("paste", paste, true);
+    return () => window.removeEventListener("paste", paste, true);
+  }, [open, onImage, takesPaste]);
+
+  async function save(): Promise<void> {
+    const savedAs = { name: name.trim(), description: description.trim() };
+    if (!savedAs.name) {
+      setNote("Give it a name first.");
+      return;
+    }
+    setBusy(true);
+    setNote(null);
+    if (entry && textDirty) {
+      const response = await fetchLike(
+        `/api/gallery/${encodeURIComponent(entry.id)}`,
+        {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(savedAs),
+        },
+      ).catch(() => null);
+      if (!response?.ok) {
+        setBusy(false);
+        setNote("The name and description could not be saved.");
+        return;
+      }
+    }
+    if (entry && imageDirty && image) {
+      const result = await uploadReferenceImage(
+        entry.id,
+        image.file,
+        fetchLike,
+      );
+      if (result !== REFERENCE_SAVED) {
+        setBusy(false);
+        setNote(result);
+        return;
+      }
+      uploaded.add(image.file);
+    }
+    setBusy(false);
+    setNote("Saved");
+    onSaved(savedAs);
+  }
+
   if (!open)
     return (
       <button
         type="button"
         className="reference-panel-reopen"
         data-testid="reference-panel-reopen"
-        title={
-          figure
-            ? "Show the figure this drawing was drawn from"
-            : "Show this circuit's name and description"
-        }
-        onClick={() => setOpen(true)}
+        title="Show the name, description and reference image"
+        onClick={onOpen}
       >
-        {figure ? "Reference" : "About"}
+        Reference
       </button>
     );
-  return (
-    <ReferenceFloat
-      title={figure ? figure.label : "About"}
-      hint={figure ? "wheel zooms · drag pans" : ""}
-      closeTitle={`Close (the ${figure ? "Reference" : "About"} button brings it back)`}
-      onClose={() => setOpen(false)}
-      // Bottom right of the window at first, above the status bar.
-      start={() => ({
-        left: Math.max(8, window.innerWidth - 404),
-        top: Math.max(60, window.innerHeight - (figure ? 376 : 270)),
-      })}
-      compact={!figure}
-      testId="reference-panel"
-    >
-      <div
-        className="reference-panel-about"
-        data-testid="reference-panel-about"
-      >
-        <strong>{entry.name}</strong>
-        {description ? <p>{description}</p> : null}
-      </div>
-      {figure ? (
-        <MarkablePicture
-          src={figure.src}
-          alt="Reference figure"
-          side="original"
-          marks={[]}
-          zoomed
-        />
-      ) : null}
-    </ReferenceFloat>
-  );
-}
 
-/** The first image among pasted, dropped or chosen files. */
-const imageAmong = (files: FileList | null | undefined) =>
-  [...(files ?? [])].find((file) => file.type.startsWith("image/")) ?? null;
-
-/**
- * The reader's own figure to trace over, opened from Edit: a screenshot
- * pasted (⌘V / Ctrl+V), an image dropped, or a file chosen. It stays in
- * this page unless Publish is asked to publish it with the drawing.
- */
-export function OwnReferencePanel({
-  src,
-  onImage,
-  takesPaste,
-  onClose,
-}: {
-  /** The image shown, or null for the drop target. */
-  src: string | null;
-  onImage: (file: File) => void;
-  /** Whether a paste may be the figure (no text field or circuit takes it). */
-  takesPaste: (event: ClipboardEvent) => boolean;
-  onClose: () => void;
-}) {
-  const [over, setOver] = useState(false);
-  const chooser = useRef<HTMLInputElement>(null);
+  const shown = image?.url ?? figure?.src ?? null;
+  const onlyHere = image !== null && entry !== null && !savesImage;
+  const shownDescription = description.trim();
+  const choose = () => chooser.current?.click();
   const take = (file: File | null) => {
-    if (file) onImage(file);
+    if (!file) return;
+    onImage(file);
+    setNote(null);
   };
-  useEffect(() => {
-    const paste = (event: ClipboardEvent) => {
-      if (!takesPaste(event)) return;
-      const image = imageAmong(event.clipboardData?.files);
-      if (!image) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      onImage(image);
-    };
-    window.addEventListener("paste", paste, true);
-    return () => window.removeEventListener("paste", paste, true);
-  }, [onImage, takesPaste]);
+  const saveOnEnter = (event: ReactKeyboardEvent) => {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    )
+      return;
+    event.preventDefault();
+    if (dirty && !busy) void save();
+  };
+
   return (
     <ReferenceFloat
-      title="Reference image"
-      hint={src ? "wheel zooms · drag pans" : "paste, drop or choose"}
-      closeTitle="Close (Edit › Reference image… brings it back)"
+      title={!image && figure ? figure.label : "Reference"}
+      hint={
+        onlyHere
+          ? "your image · only on this page"
+          : shown
+            ? "wheel zooms · drag pans"
+            : ""
+      }
       onClose={onClose}
       actions={
-        src ? (
+        shown ? (
           <button
             type="button"
             title="Use another image"
             aria-label="Use another image"
-            onClick={() => chooser.current?.click()}
+            onClick={choose}
           >
             ⟳
           </button>
         ) : null
       }
-      // Bottom left of the canvas at first, clear of the Gallery's panel.
-      start={() => ({
-        left: Math.min(300, Math.max(8, window.innerWidth - 404)),
-        top: Math.max(60, window.innerHeight - 376),
-      })}
-      testId="own-reference-panel"
+      footer={
+        dirty || note ? (
+          <div className="reference-panel-foot">
+            <span role="status">{note}</span>
+            {dirty ? (
+              <button
+                type="button"
+                className="is-primary"
+                data-testid="reference-save"
+                disabled={busy}
+                onClick={() => void save()}
+              >
+                {busy ? "Saving…" : "Save"}
+              </button>
+            ) : null}
+          </div>
+        ) : null
+      }
     >
       <div
-        className={`own-reference-body${over ? " over" : ""}`}
+        className="reference-panel-about"
+        data-testid="reference-panel-about"
+      >
+        {editsText ? (
+          <>
+            <input
+              className="reference-name"
+              data-testid="reference-name"
+              aria-label="Circuit name"
+              placeholder="Circuit name"
+              value={name}
+              maxLength={120}
+              onChange={(event) => {
+                setName(event.currentTarget.value);
+                setNote(null);
+              }}
+              onKeyDown={saveOnEnter}
+            />
+            <textarea
+              className="reference-description"
+              data-testid="reference-description"
+              aria-label="Description"
+              placeholder="Add a description"
+              rows={2}
+              value={description}
+              onChange={(event) => {
+                setDescription(event.currentTarget.value);
+                setNote(null);
+              }}
+              onKeyDown={saveOnEnter}
+            />
+          </>
+        ) : (
+          <>
+            <strong>{name}</strong>
+            {shownDescription ? <p>{shownDescription}</p> : null}
+          </>
+        )}
+      </div>
+      <div
+        className={`reference-panel-figure${over ? " over" : ""}`}
         onDragOver={(event) => {
           event.preventDefault();
           setOver(true);
@@ -291,9 +503,9 @@ export function OwnReferencePanel({
           take(imageAmong(event.dataTransfer.files));
         }}
       >
-        {src ? (
+        {shown ? (
           <MarkablePicture
-            src={src}
+            src={shown}
             alt="Reference image"
             side="original"
             marks={[]}
@@ -302,9 +514,9 @@ export function OwnReferencePanel({
         ) : (
           <button
             type="button"
-            className="own-reference-empty"
-            data-testid="own-reference-choose"
-            onClick={() => chooser.current?.click()}
+            className="reference-panel-empty"
+            data-testid="reference-choose"
+            onClick={choose}
           >
             <strong>Paste a screenshot</strong> (⌘V / Ctrl+V)
             <br />

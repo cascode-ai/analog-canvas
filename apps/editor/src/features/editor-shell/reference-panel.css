@@ -1,62 +1,21 @@
-/* The opened drawing's reference figure, floating over the editor. */
+/* The drawing's name, description and reference image, floating over the editor. */
 .reference-panel {
   position: fixed;
   z-index: 40;
   display: flex;
   flex-direction: column;
-  width: 380px;
-  height: 320px;
-  min-width: 220px;
-  min-height: 160px;
-  max-width: 90vw;
-  max-height: 85vh;
   overflow: hidden;
-  resize: both;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-lg);
   background: var(--icm-surface);
   box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
 }
 
-.reference-panel.folded {
-  height: auto;
-  min-height: 0;
-  resize: horizontal;
-}
-
-/* Name and description alone: as tall as the text. */
-.reference-panel.compact {
-  height: auto;
-  min-height: 0;
-  resize: horizontal;
-}
-
-.reference-panel-about {
-  flex-shrink: 0;
-  max-height: 8.5em;
-  overflow-y: auto;
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--icm-border);
-  color: var(--icm-text);
-  font-size: 12px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.reference-panel-about strong {
-  display: block;
-  font-weight: 600;
-}
-
-.reference-panel-about p {
-  margin: 2px 0 0;
-  color: var(--icm-text-muted);
-  white-space: pre-line;
-}
-
-.reference-panel.compact .reference-panel-about {
-  max-height: 11em;
-  border-bottom: 0;
+/* While the window moves or resizes, nothing on the page is selected. */
+.reference-gesture,
+.reference-gesture * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 .reference-panel-head {
@@ -70,6 +29,10 @@
   cursor: move;
   touch-action: none;
   user-select: none;
+}
+
+.reference-panel.folded .reference-panel-head {
+  border-bottom: 0;
 }
 
 .reference-panel-head .title {
@@ -106,12 +69,212 @@
   color: var(--icm-text);
 }
 
+/* Name and description: plain text until edited. */
+.reference-panel-about {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 40%;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--icm-border);
+  color: var(--icm-text);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.reference-panel-about strong {
+  padding: 0 3px;
+  font-weight: 600;
+}
+
+.reference-panel-about p {
+  margin: 0;
+  padding: 0 3px;
+  color: var(--icm-text-muted);
+  white-space: pre-line;
+}
+
+.reference-name,
+.reference-description {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 2px 3px;
+  border: 1px solid transparent;
+  border-radius: var(--icm-radius-sm);
+  background: none;
+  color: var(--icm-text);
+  font: inherit;
+}
+
+.reference-name {
+  font-weight: 600;
+}
+
+.reference-description {
+  min-height: 2.9em;
+  color: var(--icm-text-muted);
+  field-sizing: content;
+  resize: none;
+}
+
+.reference-name:hover,
+.reference-description:hover {
+  border-color: var(--icm-border);
+}
+
+.reference-name:focus,
+.reference-description:focus {
+  border-color: var(--icm-accent);
+  outline: none;
+  color: var(--icm-text);
+}
+
+/* The image, or a drop target until one arrives. */
+.reference-panel-figure {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.reference-panel-figure.over {
+  outline: 2px dashed var(--icm-accent);
+  outline-offset: -6px;
+}
+
 .reference-panel .review-pic {
   flex: 1;
   aspect-ratio: auto;
   max-height: none;
   border: 0;
   border-radius: 0;
+}
+
+.reference-panel-empty {
+  flex: 1;
+  margin: 10px;
+  padding: 12px;
+  border: 2px dashed var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: none;
+  color: var(--icm-text-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.reference-panel-empty strong {
+  color: var(--icm-text);
+}
+
+.reference-panel-empty:hover {
+  border-color: var(--icm-accent);
+}
+
+.reference-panel-foot {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--icm-border);
+  font-size: 12px;
+}
+
+.reference-panel-foot [role="status"] {
+  flex: 1;
+  color: var(--icm-text-muted);
+}
+
+.reference-panel-foot .is-primary {
+  padding: 4px 14px;
+  border: 1px solid var(--icm-accent);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reference-panel-foot .is-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Edges and corners resize it. */
+.reference-resize {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+}
+
+.reference-resize.n,
+.reference-resize.s {
+  right: 10px;
+  left: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.reference-resize.n {
+  top: 0;
+}
+
+.reference-resize.s {
+  bottom: 0;
+}
+
+.reference-resize.e,
+.reference-resize.w {
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.reference-resize.e {
+  right: 0;
+}
+
+.reference-resize.w {
+  left: 0;
+}
+
+.reference-resize.ne,
+.reference-resize.nw,
+.reference-resize.se,
+.reference-resize.sw {
+  width: 12px;
+  height: 12px;
+}
+
+.reference-resize.ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.reference-resize.sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.reference-resize.nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.reference-resize.se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
 }
 
 .reference-panel-reopen {
@@ -130,36 +293,10 @@
   cursor: pointer;
 }
 
-/* The reader's own reference: a drop target until an image arrives. */
-.own-reference-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-.own-reference-body.over {
-  outline: 2px dashed var(--icm-accent);
-  outline-offset: -6px;
-}
-
-.own-reference-empty {
-  flex: 1;
-  margin: 10px;
-  padding: 12px;
-  border: 2px dashed var(--icm-border);
-  border-radius: var(--icm-radius-md);
-  background: none;
-  color: var(--icm-text-muted);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.6;
-  cursor: pointer;
-}
-
-.own-reference-empty strong {
-  color: var(--icm-text);
-}
-
-.own-reference-empty:hover {
-  border-color: var(--icm-accent);
+/* A phone's screen is the drawing's. */
+@media (max-width: 640px) {
+  .reference-panel,
+  .reference-panel-reopen {
+    display: none;
+  }
 }
