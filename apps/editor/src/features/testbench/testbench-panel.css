@@ -1,0 +1,179 @@
+/* The Testbench view shares the Netlist panel's rows and editor; these are
+   only the pieces it adds: the Spec outline, file tabs and the empty state. */
+.testbench-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.testbench-spec {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  font-size: var(--icm-font-sm);
+  cursor: pointer;
+}
+.testbench-spec:hover,
+.testbench-spec:focus-visible {
+  border-color: var(--icm-border-hover);
+  background: var(--icm-surface-hover);
+}
+.testbench-spec-name {
+  font-weight: 600;
+}
+.testbench-spec-condition {
+  color: var(--icm-text-muted);
+  font-family: var(--font-mono);
+}
+.testbench-spec[data-invalid] {
+  border-color: rgb(var(--icm-warning-rgb) / 60%);
+}
+.testbench-spec[data-invalid] .testbench-spec-condition {
+  color: var(--icm-warning);
+}
+.testbench-panel .testbench-hint code {
+  font-family: var(--font-mono);
+}
+.testbench-files {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--icm-border);
+}
+.testbench-files button {
+  padding: 4px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--icm-text-muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--icm-font-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.testbench-files button[aria-selected="true"] {
+  border-bottom-color: var(--icm-accent);
+  color: var(--icm-text);
+}
+.testbench-problems {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  color: var(--icm-warning);
+  font-size: var(--icm-font-sm);
+  list-style: none;
+}
+.testbench-empty {
+  display: grid;
+  gap: var(--icm-space-3);
+  padding: var(--icm-space-3) 0;
+}
+.testbench-panel .testbench-empty p {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-md);
+  line-height: var(--icm-line);
+}
+.testbench-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--icm-space-2);
+}
+.testbench-empty-actions button {
+  min-height: var(--icm-control-h);
+}
+.testbench-elsewhere {
+  display: grid;
+  gap: 2px;
+}
+.testbench-elsewhere > span {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+}
+.testbench-elsewhere-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--icm-space-2);
+  padding: 4px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  font-size: var(--icm-font-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.testbench-elsewhere-item:hover {
+  background: var(--icm-surface-hover);
+}
+.testbench-elsewhere-item span {
+  color: var(--icm-text-muted);
+}
+.testbench-import {
+  display: grid;
+  gap: var(--icm-space-2);
+}
+.testbench-panel .testbench-import p {
+  margin: 0;
+  color: var(--icm-text);
+  font-size: var(--icm-font-md);
+}
+.testbench-import ul {
+  display: grid;
+  gap: 2px;
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.testbench-import li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--icm-space-2);
+  padding: 3px 6px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  font-size: var(--icm-font-sm);
+}
+.testbench-import label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.testbench-import code {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.testbench-import-status {
+  flex: 0 0 auto;
+  color: var(--icm-text-muted);
+}
+.testbench-import li[data-status="replace"] .testbench-import-status {
+  color: var(--icm-warning);
+}
+.testbench-import
+  li:is(
+    [data-status="generated"],
+    [data-status="unsafe"],
+    [data-status="binary"]
+  ) {
+  color: var(--icm-text-muted);
+}

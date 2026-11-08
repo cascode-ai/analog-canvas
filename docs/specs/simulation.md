@@ -206,6 +206,26 @@ conversions and a generation digest; spans are never persisted.
   `a0d1699af1940b06649276dcd6ff5a566c8c0cad01b2f7b5e99dedbb4d64c19b`, docs
   `6179b56c48bbe08a7e60775b629492df6b4182acafbf1b25c2c8cd78bea13e47`.
 
+## Testbench view
+
+Every account authors a Cell's Testbench in the right dock, beside Netlist
+(`Netlist │ Testbench`; Circuit › Netlist › Testbench…). It needs no Profile,
+Prepare, Run or hosted access (#2110).
+
+- It shows the folders bound to the Netlist entry Cell, one at a time, with a
+  select only when there are several; folders of other Cells are listed in its
+  empty state. File tabs appear only for several visible files.
+- Specs are an outline read from the shown folder's `@spec` lines with the
+  run's parser; a click reveals the line, invalid lines show the run's words.
+  There is no second Spec store or editor.
+- A draft applies as one Project edit on blur or Mod+Enter. If the saved text
+  changed under a draft (Agent, Undo), the draft is kept and only Reload
+  replaces it; nothing overwrites silently.
+- Import (files, a folder, or a drop) is reviewed first: each file is new,
+  replaces, unchanged, or skipped (unsafe path, binary, or a path Canvas
+  writes, such as `circuit.spice`). Chosen files apply as one Project edit,
+  re-planned against the current folder; at most 10 MB per import.
+
 ## Workspace interaction
 
 - Simulation is a lazy right workspace; opening the editor loads neither Code

@@ -557,6 +557,10 @@ export function EditorMenuBar({
           : []
       }
       instanceCodeOpen={projectPanel === "instances"}
+      testbenchOpen={projectPanel === "testbench"}
+      onOpenTestbench={() => {
+        toggleProjectPanel("testbench");
+      }}
       netlistPreflightOpen={netlistPreflightOpen}
       onOpenInstanceCode={() => {
         toggleProjectPanel("instances");

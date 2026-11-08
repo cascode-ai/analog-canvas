@@ -155,17 +155,18 @@ function testbenchFolder(options: {
       "A DUT identifier must be non-empty and contain no whitespace",
     );
   const text = [
+    // Short lines: they are read in the editor's side panel.
     `* ${options.name.replace(/[\r\n]/gu, " ")}`,
-    "* Run this file with your own simulator and PDK: export the Cell's",
-    "* netlist (File › Export) as circuit.spice beside it, or edit the include.",
-    "* Write requirements as lines such as:  * @spec gain >= 60 unit=dB",
+    "* Run with your own simulator and PDK.",
+    "* circuit.spice: File › Export netlist.",
+    "* Specs, e.g.  * @spec gain >= 60 unit=dB",
     ...(options.documentId ? ['.include "circuit.spice"'] : []),
     ...(dut
       ? dut.ports.length
         ? [`XDUT ${[...dut.ports, dut.name].join(" ")}`]
-        : ["* This Cell has no formal ports; it is the testbench itself."]
+        : ["* The Cell has no pins: it is the bench."]
       : []),
-    "* Sources, loads, models and analyses go here.",
+    "* Sources, loads and analyses here.",
     ".end",
     "",
   ].join("\n");
