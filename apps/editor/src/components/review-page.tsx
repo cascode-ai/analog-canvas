@@ -264,7 +264,7 @@ export function ReviewPage({
     [scope],
   );
 
-  // Back from the editor (Open in editor opens a tab): a drawing changed
+  // Back from the editor (Fix in editor opens a tab): a drawing changed
   // there shows its new version here; reviews of the old one no longer count.
   useEffect(() => {
     if (!card) return;
@@ -830,15 +830,6 @@ function ReviewItem({
             : ""}{" "}
           · {card.components} devices
         </span>
-        <a
-          className="open"
-          href={`/g/${encodeURIComponent(card.id)}`}
-          target="_blank"
-          rel="noopener"
-          title="Opens in a new tab; come back here and the drawing refreshes"
-        >
-          Open in editor
-        </a>
       </div>
       {children}
       <OthersReviews
@@ -871,6 +862,17 @@ function ReviewItem({
         <div>
           <h4>
             Redraw <span>· Analog Canvas</span>
+            {/* Fixing the drawing happens in the editor, beside it. */}
+            <a
+              className="review-edit"
+              data-testid="review-edit"
+              href={`/g/${encodeURIComponent(card.id)}`}
+              target="_blank"
+              rel="noopener"
+              title="Fix this drawing in the editor (a new tab); come back here and it refreshes"
+            >
+              Fix in editor ↗
+            </a>
           </h4>
           {picture(redraw, "redraw")}
         </div>
