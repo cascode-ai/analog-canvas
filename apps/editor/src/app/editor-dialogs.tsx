@@ -41,6 +41,7 @@ import type { projectWithTopologyRoot } from "../features/editor-shell/gallery-t
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
 import type { useEditorPanels } from "../features/editor-shell/use-editor-panels";
 import { loadCloudProjectForCellImport } from "../features/hierarchy/cloud-cell-import";
+import { cellNameIssue } from "../features/hierarchy/new-cell";
 import type { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
@@ -146,8 +147,6 @@ export function EditorDialogs({
   setNetlistPreflightOpen,
   netlistPreferences,
   netlistRootDocumentId,
-  projectInfoOpen,
-  setProjectInfoOpen,
   publishGalleryOpen,
   setPublishGalleryOpen,
   openedFromCheckNotice,
@@ -186,7 +185,6 @@ export function EditorDialogs({
   rejectAgentFileCandidate,
   commitStructure,
   renameCell,
-  renameProject,
   setGalleryEntryContext,
   setTopCell,
   editProjectInfo,
@@ -265,8 +263,6 @@ export function EditorDialogs({
   setNetlistPreflightOpen: Dispatch<SetStateAction<boolean>>;
   netlistPreferences: ReturnType<typeof useNetlistExportPreferences>;
   netlistRootDocumentId: string | undefined;
-  projectInfoOpen: boolean;
-  setProjectInfoOpen: Dispatch<SetStateAction<boolean>>;
   publishGalleryOpen: GalleryPublishing["publishGalleryOpen"];
   setPublishGalleryOpen: GalleryPublishing["setPublishGalleryOpen"];
   openedFromCheckNotice: GalleryPublishing["openedFromCheckNotice"];
@@ -305,7 +301,6 @@ export function EditorDialogs({
   rejectAgentFileCandidate: AgentConnection["rejectAgentFileCandidate"];
   commitStructure: TransactionCommands["commitStructure"];
   renameCell: ProjectStructureCommands["renameCell"];
-  renameProject: ProjectStructureCommands["renameProject"];
   setGalleryEntryContext: Dispatch<SetStateAction<GalleryEntryContext | null>>;
   setTopCell: ProjectStructureCommands["setTopCell"];
   editProjectInfo: ProjectStructureCommands["editProjectInfo"];
@@ -354,13 +349,17 @@ export function EditorDialogs({
   // name, its Gallery entry's (already saved there) or its draft's for
   // Publish.
   const referenceSaved = ({
+    cellName,
     name,
     description,
   }: {
-    name: string;
-    description: string;
+    cellName: string;
+    name?: string;
+    description?: string;
   }) => {
-    renameProject(name);
+    // The circuit's and the Cell's names, as one undoable edit.
+    editProjectInfo({ name: name ?? project.name, cellName });
+    if (name === undefined || description === undefined) return;
     if (galleryEntryContext) {
       const savedId = galleryEntryContext.id;
       setGalleryEntryContext((current) =>
@@ -399,9 +398,13 @@ export function EditorDialogs({
           entry={galleryEntry}
           session={publishSession}
           draft={{
-            name: publishDraft?.name || project.name,
+            name: project.name,
             description: publishDraft?.description ?? "",
           }}
+          cellName={document.name}
+          cellNameIssue={(name) =>
+            cellNameIssue(project, name, document.id) ?? null
+          }
           image={ownReference}
           onImage={keepReferenceImage}
           takesPaste={ownReferenceTakesPaste}
@@ -484,17 +487,6 @@ export function EditorDialogs({
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,
                 onDiscard: confirmReplaceGuard,
-              }
-            : null
-        }
-        projectInfo={
-          projectInfoOpen
-            ? {
-                name: project.name,
-                documentName: document.name,
-                publication: galleryEntryContext,
-                onSave: editProjectInfo,
-                onClose: () => setProjectInfoOpen(false),
               }
             : null
         }

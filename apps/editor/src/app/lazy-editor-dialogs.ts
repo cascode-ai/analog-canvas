@@ -80,12 +80,6 @@ export const LazyVersionHistoryDialog = import.meta.env?.ICM_DESKTOP
       })),
     );
 
-export const LazyProjectInfoDialog = lazyChunk("dialog", () =>
-  import("../features/editor-shell/project-info-dialog").then((module) => ({
-    default: module.ProjectInfoDialog,
-  })),
-);
-
 export const LazyReplaceGuardDialog = lazyChunk("dialog", () =>
   import("../components/replace-guard-dialog").then((module) => ({
     default: module.ReplaceGuardDialog,

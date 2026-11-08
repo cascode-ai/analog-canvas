@@ -5,6 +5,8 @@
 import { expect, test } from "@playwright/test";
 import { createEmptyProject } from "@icm/model";
 import {
+  closeProjectInfo,
+  openProjectInfo,
   revealPropertiesShelf,
   clickDrawTool,
   downloadBytes,
@@ -591,4 +593,57 @@ test("Fit View keeps the drawing clear of the Properties dock", async ({
     );
   expect(rights).toHaveLength(3);
   for (const right of rights) expect(right).toBeLessThanOrEqual(dockBox.x);
+});
+
+test("Project Info holds the circuit's details and its reference picture, and folds onto its bottom edge", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  const panel = await openProjectInfo(page);
+  // One window for the name, the Cell, the description and the picture.
+  await expect(
+    panel.getByRole("textbox", { name: "Circuit name", exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole("textbox", { name: "Current Cell", exact: true }),
+  ).toBeVisible();
+  await expect(panel).toContainText("Reference picture");
+  await expect(page.getByRole("dialog", { name: "Project Info" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("statusbar-reference")).toHaveText(
+    "Project Info",
+  );
+
+  // Picture only: the details fold away and come back.
+  await panel
+    .getByRole("button", { name: "Picture only", exact: true })
+    .click();
+  await expect(
+    panel.getByRole("textbox", { name: "Current Cell", exact: true }),
+  ).toBeHidden();
+  await expect(panel).toContainText("Reference picture");
+  await panel
+    .getByRole("button", { name: "Show details", exact: true })
+    .click();
+  await expect(
+    panel.getByRole("textbox", { name: "Current Cell", exact: true }),
+  ).toBeVisible();
+
+  // Folded, the title bar rests on the window's bottom edge.
+  const open = (await panel.boundingBox())!;
+  await panel.getByRole("button", { name: "Fold", exact: true }).click();
+  await expect(panel).toHaveClass(/folded/u);
+  const folded = (await panel.boundingBox())!;
+  expect(folded.height).toBeLessThan(60);
+  expect(folded.x).toBeCloseTo(open.x, 0);
+  expect(folded.width).toBeCloseTo(open.width, 0);
+  expect(folded.y + folded.height).toBeCloseTo(open.y + open.height, 0);
+  // Unfolded, it opens upward to where it was.
+  await panel.getByRole("button", { name: "Unfold", exact: true }).click();
+  await expect(panel).not.toHaveClass(/folded/u);
+  const reopened = (await panel.boundingBox())!;
+  expect(reopened.y).toBeCloseTo(open.y, 0);
+  expect(reopened.height).toBeCloseTo(open.height, 0);
+  await closeProjectInfo(page);
 });
