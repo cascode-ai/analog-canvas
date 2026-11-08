@@ -294,6 +294,7 @@ export abstract class AgentSessionTransactions extends AgentSessionResources {
           code: response.error.code,
           message: response.error.message,
           ...refusedAction(response.error),
+          ...(response.error.issues ? { issues: response.error.issues } : {}),
           ...(response.revision !== undefined
             ? { revision: response.revision }
             : {}),

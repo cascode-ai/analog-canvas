@@ -38,7 +38,8 @@ outcome, revision). Each call is atomic; the first failure stops the rest and
 earlier calls stay applied. `apply_actions` instead refuses such a mix with
 `ACTION_BATCH_NOT_ATOMIC` and keeps every action family (Cell structure,
 reset, history). A refusal names its action as `actions[i] (kind): …` with
-`actionIndex` and `actionKind`.
+`actionIndex` and `actionKind`; `ACTION_COMPILE_FAILED` also lists every
+refused action in `issues`.
 
 `apply_actions` takes one atomic edit batch, wire batch, planned command or
 focus per call. Split create and wire phases so new pin geometry comes from

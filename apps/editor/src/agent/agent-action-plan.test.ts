@@ -293,8 +293,16 @@ describe("the editor plans an Agent's action list", () => {
         },
       ],
       [
-        // R5 would overlap R4.
-        [place("resistor", "R4", 700), place("resistor", "R5", 755)],
+        // Only the editor knows where R5's pin anchor lands: R5 has no Z.
+        [
+          place("resistor", "R4", 700),
+          {
+            kind: "place-component",
+            symbol: "resistor",
+            reference: "R5",
+            pinAnchor: { pinName: "Z", position: { x: 900, y: 100 } },
+          },
+        ],
         { stage: "commit", actionIndex: 1, actionKind: "place-component" },
       ],
       [
@@ -311,6 +319,43 @@ describe("the editor plans an Agent's action list", () => {
         );
       expect(controller.document).toEqual(before);
     }
+  });
+
+  it("refuses a list with every independent problem in one reply", async () => {
+    const { controller, client } = await editor();
+    const before = structuredClone(controller.document);
+    const report = await client.applyActions([
+      place("resistor", "R1", 100),
+      place("capacitor", "C1", 300, { c: "1p" }),
+      place("inductor", "L1", 500, { l: "1n" }),
+      place("resistor", "R2", 700),
+      place("current-source", "I1", 900, { value: "1m" }),
+      { ...place("resistor", "R3", 1100), position: { x: 1105, y: 100 } },
+      // C1 was refused: this wire would only repeat that.
+      { kind: "connect", from: pin("R1", "2"), to: pin("C1", "1") },
+      { kind: "connect", from: pin("R1", "1"), to: pin("R2", "X") },
+    ]);
+    expect(report).toMatchObject({
+      ok: false,
+      stage: "compile",
+      code: "ACTION_COMPILE_FAILED",
+      actionIndex: 1,
+      actionKind: "place-component",
+    });
+    expect(report.message).toMatch(/^actions\[1\] \(place-component\): /u);
+    expect(report.message).toMatch(/5 more actions are refused; see issues/u);
+    const issues = report.issues!;
+    expect(issues.map((issue) => issue.actionIndex)).toEqual([
+      1, 2, 4, 5, 6, 7,
+    ]);
+    expect(issues[0]!.message).toBe(report.message!.split(" (and ")[0]);
+    expect(issues[1]!.message).toContain('Unknown parameter "l"');
+    expect(issues[2]!.message).toContain('Unknown parameter "value"');
+    expect(issues[3]!.message).toContain("off the placement grid");
+    expect(issues[4]).toMatchObject({ actionKind: "connect", dependsOn: 1 });
+    expect(issues[5]!.message).toContain('has no pin "X"');
+    expect(issues[5]!.dependsOn).toBeUndefined();
+    expect(controller.document).toEqual(before);
   });
 
   it("wires a ground and each of two VDD markers by the IDs the Agent gave them (#1515)", async () => {

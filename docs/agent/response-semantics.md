@@ -22,6 +22,7 @@ re-inspect and reconsider, not retry.
 | Cause | Action |
 | --- | --- |
 | INVALID_REQUEST / MCP EDIT_SCHEMA_INVALID | Fix the reported fields from the current schema; changed input needs a new identity |
+| ACTION_COMPILE_FAILED | Fix every action in `issues` and resend the whole list; one with `dependsOn` is fixed by fixing that placement |
 | STALE_REVISION / STALE_STRUCTURE_REVISION / MCP STATE_CHANGED | Refresh affected facts and reconsider the operation |
 | EDIT_PRECONDITION | Inspect path/objectIds for locks, pin maps or state; never reorder edits to bypass validation |
 | PERMISSION_DENIED | Narrow the operation or obtain authorization; no alternate mutation path |

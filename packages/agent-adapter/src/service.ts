@@ -1072,6 +1072,7 @@ export function createAgentCircuitService(
               message: plan.message,
               actionIndex: plan.actionIndex,
               actionKind: plan.actionKind,
+              issues: plan.issues,
             },
             diagnostics: [],
           });

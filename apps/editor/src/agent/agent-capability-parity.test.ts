@@ -2301,14 +2301,18 @@ describe("MCP → API → shared editor parity", () => {
         position: { x: 155, y: 100 },
       },
     ]);
+    // Refused while planning, beside any other action's problem, before
+    // the commit would stop at it.
     expect(report).toMatchObject({
       ok: false,
+      stage: "compile",
+      code: "ACTION_COMPILE_FAILED",
       actionIndex: 1,
       actionKind: "place-component",
     });
-    expect(
-      report.diagnostics?.some((d) => d.parameters?.instanceIndex === 1),
-    ).toBe(true);
+    expect(report.message).toContain(
+      "position (155, 100) is off the placement grid 10",
+    );
     expect(controller.project).toEqual(before);
   });
   it("reports the input action behind a rejected placement edit", async () => {
@@ -2324,17 +2328,17 @@ describe("MCP → API → shared editor parity", () => {
       {
         kind: "place-component",
         symbol: "resistor",
-        reference: "R2",
-        position: { x: 155, y: 100 },
+        reference: "R1",
+        position: { x: 300, y: 100 },
       },
     ]);
-    expect(report.ok).toBe(false);
+    expect(report).toMatchObject({ ok: false, stage: "commit" });
     expect(report.actionIndex).toBe(1);
     expect(report.actionKind).toBe("place-component");
     expect(report.message).toContain("actions[1]");
+    // The editor names the placement batch's item; that is the action.
     expect(report.diagnostics?.[0]).toMatchObject({
-      path: ["edits", 2, "instance", "placement", "position", "x"],
-      parameters: { instanceIndex: 1 },
+      parameters: { actionIndex: 1 },
     });
     expect(controller.document).toEqual(before);
   });
