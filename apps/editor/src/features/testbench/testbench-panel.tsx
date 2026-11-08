@@ -163,7 +163,10 @@ export function TestbenchPanel({
     if (onCommit(next, "edit-testbench-source")) {
       setDraft(null);
       setError(null);
-    } else setError("Could not save the Testbench. Your draft is kept.");
+    } else
+      setError(
+        "The edit was not applied to the Project. Your draft is kept here.",
+      );
   };
 
   const specs = useMemo<LocatedSpec[]>(

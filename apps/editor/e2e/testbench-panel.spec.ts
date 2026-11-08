@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { hierarchyNavigationFixture as fixture } from "../../../netlists/hierarchy-navigation/fixture";
-import { exportedProject, openProject } from "./editor-fixtures.js";
+import {
+  exportedProject,
+  openProject,
+  openProjectFile,
+} from "./editor-fixtures.js";
 
 /** The Testbench view of the dock, opened from the Netlist view's switch. */
 async function openTestbench(page: Page) {
@@ -68,6 +72,16 @@ test.describe("Testbench view (#2110)", () => {
       },
     ]);
     expect(hosted).toEqual([]);
+
+    // The exported file opens with the Testbench and its Specs as they were.
+    await openProjectFile(page, saved, "reopened.icproj.json");
+    const reopened = await openTestbench(page);
+    await reopened
+      .getByRole("combobox", { name: "Testbench Cell" })
+      .selectOption({ label: "Amplifier" });
+    await expect(
+      reopened.getByRole("list", { name: "Specs" }).getByRole("button"),
+    ).toHaveText([/gain\s*>= 60\s*dB/u, /pm\s*invalid/u]);
   });
 
   test("reviews an import before one Project edit and never copies the Cell's netlist", async ({

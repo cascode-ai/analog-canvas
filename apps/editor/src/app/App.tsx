@@ -621,6 +621,13 @@ function propertiesMosBulkDefaultNetId(
   );
 }
 
+// The offline editor has no accounts: a constant keeps the account module,
+// an online implementation, out of its bundle.
+const useTeamAccount: (enabled: boolean) => boolean = import.meta.env
+  ?.ICM_DESKTOP
+  ? () => false
+  : useHostedSimulation;
+
 function WorkspaceEditor({
   project: initialProject,
   visitStats,
@@ -661,9 +668,7 @@ function WorkspaceEditor({
   const publicSimulationUiEnabled = simulationEntryVisible({
     requested: simulationUiRequested,
     transport: managedSimulation ? "managed" : "direct",
-    teamAccount: useHostedSimulation(
-      simulationUiRequested && managedSimulation,
-    ),
+    teamAccount: useTeamAccount(simulationUiRequested && managedSimulation),
   });
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
