@@ -1279,7 +1279,7 @@ test("external tab activation cannot discard the focused name draft", async ({
   await expect(page.getByRole("tab", { name: /Pending B/ })).toBeVisible();
 });
 
-test("tab rename keeps header geometry and Project Info renames the circuit and its Cell", async ({
+test("tab rename keeps header geometry and Project Info renames the circuit", async ({
   page,
 }) => {
   await page.goto("/editor?new=1");
@@ -1326,7 +1326,7 @@ test("tab rename keeps header geometry and Project Info renames the circuit and 
     await expect(
       info.getByRole("textbox", { name: "Circuit name", exact: true }),
     ).toHaveValue(longName);
-    await expect(info).toContainText("Current Cell");
+    await expect(info).not.toContainText("Current Cell");
     // A narrower browser pulls the window back inside it.
     const bounds = (await info.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
@@ -1346,31 +1346,23 @@ test("tab rename keeps header geometry and Project Info renames the circuit and 
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("project-name")).toHaveText("New Circuit");
 
-  // Project Info names the circuit and its Cell as one undoable edit.
+  // Project Info names the circuit, as one undoable edit.
   const info = await openProjectInfo(page);
-  const cellField = info.getByRole("textbox", {
-    name: "Current Cell",
+  const nameField = info.getByRole("textbox", {
+    name: "Circuit name",
     exact: true,
   });
-  const cellName = await cellField.inputValue();
-  await info
-    .getByRole("textbox", { name: "Circuit name", exact: true })
-    .fill("Bandgap reference");
-  await cellField.fill("bandgap_core");
-  await cellField.press("Enter");
+  await nameField.fill("Bandgap reference");
+  await nameField.press("Enter");
   await expect(page.getByTestId("project-name")).toHaveText(
     "Bandgap reference",
   );
   await expect(tab).toContainText("Bandgap reference");
-  await expect(cellField).toHaveValue("bandgap_core");
   await closeProjectInfo(page);
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("project-name")).toHaveText("New Circuit");
   await openProjectInfo(page);
-  await expect(cellField).toHaveValue(cellName);
-  await expect(
-    info.getByRole("textbox", { name: "Circuit name", exact: true }),
-  ).toHaveValue("New Circuit");
+  await expect(nameField).toHaveValue("New Circuit");
   await closeProjectInfo(page);
 });
 

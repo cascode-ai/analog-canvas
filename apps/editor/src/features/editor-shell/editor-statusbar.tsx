@@ -337,7 +337,7 @@ export function EditorStatusbar({
           title={
             referenceOpen
               ? "Close Project Info"
-              : "Show the name, Cell, description and reference picture"
+              : "Show the name, description and reference picture"
           }
           onClick={referenceOpen ? closeOwnReference : openOwnReference}
         >
