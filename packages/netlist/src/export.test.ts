@@ -362,6 +362,40 @@ describe("copy/export netlist projection", () => {
     },
   );
 
+  it.each(["spice", "spectre"] as const)(
+    "exports an imported source whose function or AC clause stands without a DC value (%s)",
+    async (format) => {
+      const source = `
+.subckt top a b c
+V1 a 0 PULSE(0 1 0 1n 1n 5n 10n)
+V2 b 0 SIN(0 1 1k)
+V3 c 0 AC 1
+R1 a b 1k
+R2 b c 1k
+.ends top
+`;
+      const imported = await importSpiceSources(
+        [{ path: "srcs.spi", bytes: new TextEncoder().encode(source) }],
+        "srcs.spi",
+      );
+      expect(imported.successful).toBe(true);
+      const result = createDesignNetlistExport(imported.project!, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      if (format === "spice") {
+        expect(result.file.text).toMatch(/^V1 a \S+ PULSE\(0 1 0 1n/mu);
+        expect(result.file.text).toMatch(/^V2 b \S+ SIN\(0 1 1k\b/mu);
+        expect(result.file.text).toMatch(/^V3 c \S+ AC 1/mu);
+        expect(result.file.text).not.toMatch(/\bDC\b/u);
+      } else {
+        expect(result.file.text).toMatch(
+          /^V1 \(a \S+\) vsource type=pulse val0=0 val1=1 /mu,
+        );
+        expect(result.file.text).toMatch(/^V3 \(c \S+\) vsource mag=1/mu);
+      }
+    },
+  );
+
   it("requires an authored DC value on an older Battery drawing", () => {
     const project = createEmptyProject("battery-project", "Battery");
     project.documents[0]!.instances.push({
