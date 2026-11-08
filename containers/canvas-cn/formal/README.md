@@ -58,10 +58,12 @@ Only the Auth contract's browser routes are proxied there in shared-domain mode.
 The release owns the public nginx template. Use its release runner with
 `--public-mode stage` to serve the canonical TLS certificate on loopback
 port 8443 against the private runtime. At cutover set the shared-domain
-origins, then use `--public-mode open --filing-number '京ICP备…号-1'`
+origins and restart `canvas-cn-formal.service` to load them, then use
+`--public-mode open --filing-number '京ICP备…号-1'`
 with the issued number. The browser home page links that number to the MIIT
 site. `--public-mode off` removes the public listener. Run these commands
-under the formal release lock and keep public settings on the host.
+under the formal release lock and keep public settings on the host. A release
+from before the public template serves only the private listener.
 
 ## Operating rules
 
@@ -96,6 +98,13 @@ under the formal release lock and keep public settings on the host.
   [regional recovery](../../../docs/deployment.md#point-in-time-recovery)
   before exposing the restored instance. A release rollback retains the
   current state and must understand erased Project receipts once deletion is active.
+- To reclaim Project journal bytes, verify the off-host archive digest and
+  pass its isolated Gallery directory to
+  `python3 containers/canvas-cn/formal/project-checkpoint.py` from the checkout root.
+  Preview `POST /api/project-sync/compact` on each region with its admin token
+  and the printed JSON. Set `dryRun` to `false` for bounded batches, ending
+  when a batch returns zero events. Refresh the verified checkpoint as the
+  journal grows. A restore must reach each live peer's compacted floor.
 
 ## Publication replicas
 
