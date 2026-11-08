@@ -1,6 +1,8 @@
 # Circuit authoring
 
-The built-in catalog owns asset IDs, canonical pins and variants; the live
+The built-in catalog owns asset IDs, canonical pins, variants and the
+`parameters` `place-component` accepts (`default` as placed, `choices`;
+`parametersOpen` takes other names too); the live
 Snapshot owns existing IDs, placement, Net membership, revision and bulk. Use
 live resolved facts for imported/custom/PDK assets; ask the human only when a
 needed fact is unavailable. Never infer connectivity from artwork.
@@ -68,9 +70,9 @@ their IDs, never resolved to the first.
   `VDD`/`VSS` as pins to wire (a wired one must be disconnected before
   `false`, one set by `set-terminal-net` returned to `net: null` before
   `true`); hidden, each takes `set-terminal-net`. Parameter keys come from the actual
-  model contract (magnetics keep `k/lp/ls/l1/l2/cb`, MOS/BJT keep `m`; bound
+  model contract: a built-in part's are its catalog `parameters`; bound
   geometry offers its `w/l/mult/mf/vm`, and custom definitions their declared
-  parameters). Omitted keys stay; an unsupported key rejects the whole action.
+  parameters. Omitted keys stay; an unsupported key rejects the whole action.
   Show Value uses authored values: scalar parts keep their value, MOS keeps
   its W/L fraction, and geometry R/C shows `W=… L=…` with its non-unit multiplier.
   A separate multiplier label shows only while that summary is hidden.
