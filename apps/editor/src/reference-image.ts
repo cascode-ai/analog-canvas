@@ -48,7 +48,9 @@ async function referenceImageOf(
   return null;
 }
 
-/** Upload one; the message to show. */
+export const REFERENCE_SAVED = "Reference image saved";
+
+/** Upload one; the message to show, REFERENCE_SAVED when it worked. */
 export async function uploadReferenceImage(
   entryId: string,
   file: File,
@@ -66,6 +68,6 @@ export async function uploadReferenceImage(
     },
   ).catch(() => null);
   return response?.ok
-    ? "Reference image saved"
+    ? REFERENCE_SAVED
     : "The reference image could not be saved.";
 }

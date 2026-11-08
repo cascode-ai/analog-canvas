@@ -4,8 +4,10 @@ import "../../styles/review-page.css";
 import "./reference-panel.css";
 import { MarkablePicture } from "../../components/review-picture";
 import { gallerySourceOfEntryId } from "../../gallery-sources";
+import type { GalleryEntryContext } from "./gallery-example-commands";
 import { isTypingTarget } from "../../app/editor-runtime-helpers";
 import { CIRCUIT_CLIPBOARD_MIME } from "../clipboard/system-clipboard";
+import { keepOwnReferenceImage, useOwnReferenceImage } from "./own-reference";
 
 /**
  * The figure a Gallery drawing was drawn from: a dataset's original figure,
@@ -44,6 +46,7 @@ function ReferenceFloat({
   onClose,
   actions,
   start,
+  compact = false,
   testId,
   children,
 }: {
@@ -53,6 +56,8 @@ function ReferenceFloat({
   onClose: () => void;
   actions?: ReactNode;
   start: () => Place;
+  /** Text alone: the panel sizes to it. */
+  compact?: boolean;
   testId: string;
   children: ReactNode;
 }) {
@@ -63,7 +68,7 @@ function ReferenceFloat({
   return (
     <div
       ref={panel}
-      className={`reference-panel${folded ? " folded" : ""}`}
+      className={`reference-panel${folded ? " folded" : ""}${compact ? " compact" : ""}`}
       data-testid={testId}
       role="complementary"
       aria-label={title}
@@ -126,76 +131,91 @@ function ReferenceFloat({
 }
 
 /**
- * Beside the canvas, the figure the opened Gallery drawing was drawn from,
- * to redraw or fix it against; it zooms with the wheel and pans with a
- * drag. Closed, a small Reference button at the corner brings it back.
+ * Beside the canvas, the opened Gallery circuit's name and description and
+ * the figure it was drawn from, if any, to redraw or fix it against; the
+ * figure zooms with the wheel and pans with a drag. Closed, a small button at
+ * the corner brings it back.
  */
 export function ReferencePanel({
-  entryId,
+  entry,
   fetchLike = fetch,
 }: {
-  entryId: string;
+  entry: Pick<GalleryEntryContext, "id" | "name" | "description">;
   fetchLike?: typeof fetch;
 }) {
-  const [figure, setFigure] = useState<{ src: string; label: string } | null>(
-    null,
-  );
+  // Undefined while the figure loads, null when there is none.
+  const [figure, setFigure] = useState<
+    { src: string; label: string } | null | undefined
+  >(undefined);
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     let url: string | null = null;
-    void referenceOf(entryId, fetchLike).then((found) => {
-      if (cancelled || !found) return;
-      url = URL.createObjectURL(found.blob);
-      setFigure({ src: url, label: found.label });
+    void referenceOf(entry.id, fetchLike).then((found) => {
+      if (cancelled) return;
+      if (found) url = URL.createObjectURL(found.blob);
+      setFigure(found && url ? { src: url, label: found.label } : null);
     });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [entryId, fetchLike]);
+    // A publication renews the entry: read its figure again, which Publish
+    // may just have given it.
+  }, [entry, fetchLike]);
 
-  if (!figure) return null;
+  if (figure === undefined) return null;
+  const description = entry.description.trim();
   if (!open)
     return (
       <button
         type="button"
         className="reference-panel-reopen"
         data-testid="reference-panel-reopen"
-        title="Show the figure this drawing was drawn from"
+        title={
+          figure
+            ? "Show the figure this drawing was drawn from"
+            : "Show this circuit's name and description"
+        }
         onClick={() => setOpen(true)}
       >
-        Reference
+        {figure ? "Reference" : "About"}
       </button>
     );
   return (
     <ReferenceFloat
-      title={figure.label}
-      hint="wheel zooms · drag pans"
-      closeTitle="Close (the Reference button brings it back)"
+      title={figure ? figure.label : "About"}
+      hint={figure ? "wheel zooms · drag pans" : ""}
+      closeTitle={`Close (the ${figure ? "Reference" : "About"} button brings it back)`}
       onClose={() => setOpen(false)}
       // Bottom right of the window at first, above the status bar.
       start={() => ({
         left: Math.max(8, window.innerWidth - 404),
-        top: Math.max(60, window.innerHeight - 376),
+        top: Math.max(60, window.innerHeight - (figure ? 376 : 270)),
       })}
+      compact={!figure}
       testId="reference-panel"
     >
-      <MarkablePicture
-        src={figure.src}
-        alt="Reference figure"
-        side="original"
-        marks={[]}
-        zoomed
-      />
+      <div
+        className="reference-panel-about"
+        data-testid="reference-panel-about"
+      >
+        <strong>{entry.name}</strong>
+        {description ? <p>{description}</p> : null}
+      </div>
+      {figure ? (
+        <MarkablePicture
+          src={figure.src}
+          alt="Reference figure"
+          side="original"
+          marks={[]}
+          zoomed
+        />
+      ) : null}
     </ReferenceFloat>
   );
 }
-
-// The reader's own figure stays for the page's life, across closing and
-// reopening its panel.
-let kept: string | null = null;
 
 /** The first image among pasted, dropped or chosen files. */
 const imageAmong = (files: FileList | null | undefined) =>
@@ -204,17 +224,14 @@ const imageAmong = (files: FileList | null | undefined) =>
 /**
  * The reader's own figure to trace over, opened from Edit: a screenshot
  * pasted (⌘V / Ctrl+V), an image dropped, or a file chosen. It stays in
- * this page; nothing is uploaded.
+ * this page unless Publish is asked to publish it with the drawing.
  */
 export function OwnReferencePanel({ onClose }: { onClose: () => void }) {
-  const [src, setSrc] = useState<string | null>(kept);
+  const src = useOwnReferenceImage()?.url ?? null;
   const [over, setOver] = useState(false);
   const chooser = useRef<HTMLInputElement>(null);
   const take = (file: File | null) => {
-    if (!file) return;
-    if (kept) URL.revokeObjectURL(kept);
-    kept = URL.createObjectURL(file);
-    setSrc(kept);
+    if (file) keepOwnReferenceImage(file);
   };
   // A pasted image is the figure, unless a text field or a circuit takes
   // the paste.

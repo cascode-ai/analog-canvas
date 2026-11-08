@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import "./reference-image-dialog.css";
-import { uploadReferenceImage } from "../reference-image";
+import { REFERENCE_SAVED, uploadReferenceImage } from "../reference-image";
 
 /** The first image among pasted or dropped files. */
 function imageAmong(files: FileList | null | undefined): File | null {
@@ -86,7 +86,7 @@ export function ReferenceImageDialog({
     const result = await uploadReferenceImage(entryId, file);
     setBusy(false);
     setNote(result);
-    if (result === "Reference image saved") window.setTimeout(onClose, 900);
+    if (result === REFERENCE_SAVED) window.setTimeout(onClose, 900);
   }
 
   return (

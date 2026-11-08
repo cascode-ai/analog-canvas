@@ -76,6 +76,8 @@ export interface GalleryPublicationRecord {
   /** The updated entry's owner and byline, when it is not the bound one. */
   ownerUserId?: string | null;
   author?: string;
+  /** The reference image asked for with it could not be saved. */
+  referenceFailed?: boolean;
 }
 
 export async function loadGalleryPublicationContext(

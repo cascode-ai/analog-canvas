@@ -16,6 +16,8 @@ import {
   type PublishSessionUser,
 } from "./gallery-publish";
 import { GalleryTopologyCheck } from "./gallery-topology-check";
+import { useOwnReferenceImage } from "./own-reference";
+import { REFERENCE_SAVED, uploadReferenceImage } from "../../reference-image";
 
 /** " (in 3 h 12 min)" until the given time, or nothing once it has passed. */
 function untilReset(resetsAt: string, now = Date.now()): string {
@@ -175,6 +177,12 @@ export function PublishGalleryDialog({
   useEffect(() => {
     if (!aiEdited) setAiGenerated(entryMarked);
   }, [entryMarked, aiEdited]);
+  // The reader's own reference image (Edit › Reference image…) goes with
+  // the drawing only when they tick it, saying they may share it. A fix
+  // changes the drawing alone.
+  const ownReference = useOwnReferenceImage();
+  const [shareReference, setShareReference] = useState(false);
+  const sharesReference = shareReference && ownReference !== null && !fixing;
   const [tagDraft, setTagDraft] = useState("");
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -284,6 +292,10 @@ export function PublishGalleryDialog({
       aiGenerated: marked,
     });
     if (outcome.status === "published") {
+      const referenceFailed =
+        sharesReference &&
+        (await uploadReferenceImage(outcome.id, ownReference.file)) !==
+          REFERENCE_SAVED;
       onPublished({
         id: outcome.id,
         name: name.trim(),
@@ -294,6 +306,7 @@ export function PublishGalleryDialog({
         ...(outcome.previewRevision === undefined
           ? {}
           : { previewRevision: outcome.previewRevision }),
+        ...(referenceFailed ? { referenceFailed } : {}),
       });
       return;
     }
@@ -608,6 +621,27 @@ export function PublishGalleryDialog({
                     : "Shows an AI tag on the card"}
               </span>
             </div>
+            {ownReference && !fixing ? (
+              <label
+                className="publish-gallery-reference"
+                data-testid="publish-reference"
+              >
+                <input
+                  type="checkbox"
+                  checked={shareReference}
+                  onChange={(event) =>
+                    setShareReference(event.currentTarget.checked)
+                  }
+                />
+                <img src={ownReference.url} alt="Your reference image" />
+                <span>
+                  Publish my reference image with it
+                  <span className="publish-gallery-optional">
+                    I may share it; signed-in readers see it beside the drawing
+                  </span>
+                </span>
+              </label>
+            ) : null}
             {gateReport && gateReport.failures.length > 0 ? (
               <div
                 className="publish-gallery-gates"

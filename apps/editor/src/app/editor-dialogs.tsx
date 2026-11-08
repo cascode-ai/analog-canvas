@@ -344,12 +344,12 @@ export function EditorDialogs({
           <OwnReferencePanel onClose={closeOwnReference} />
         </Suspense>
       ) : null}
-      {/* The figure the opened Gallery drawing was drawn from, beside it. */}
+      {/* The opened Gallery circuit's name, description and figure. */}
       {!import.meta.env?.ICM_DESKTOP && galleryEntryContext ? (
         <Suspense fallback={null}>
           <ReferencePanel
             key={galleryEntryContext.id}
-            entryId={galleryEntryContext.id}
+            entry={galleryEntryContext}
           />
         </Suspense>
       ) : null}

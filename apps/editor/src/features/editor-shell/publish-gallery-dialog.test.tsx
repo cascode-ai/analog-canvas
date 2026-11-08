@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
+import { keepOwnReferenceImage } from "./own-reference";
 import {
   PublishGalleryDialog,
   type PublishGalleryDialogProps,
@@ -278,5 +279,36 @@ describe("PublishGalleryDialog", () => {
     expect(markup).toContain("publishing stays open");
     expect(markup).toContain("M1.g, R2.2");
     expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
+  });
+
+  it("offers the reader's own reference image, unticked, except on a fix", () => {
+    keepOwnReferenceImage(
+      new File(["png"], "figure.png", { type: "image/png" }),
+    );
+    const props: PublishGalleryDialogProps = {
+      defaultName: "Ring Oscillator",
+      session: { displayName: "Visitor", isAdmin: false, role: "user" },
+      publish: () => Promise.resolve({ status: "unauthorized" as const }),
+      onPublished: () => undefined,
+      onClose: () => undefined,
+    };
+    const offered = renderToStaticMarkup(
+      createElement(PublishGalleryDialog, props),
+    );
+    const option = offered.slice(
+      offered.indexOf('data-testid="publish-reference"'),
+    );
+    expect(option).toContain("Publish my reference image with it");
+    expect(option.slice(0, option.indexOf("<img"))).not.toContain("checked");
+    // A fix changes the drawing alone.
+    const fixing = renderToStaticMarkup(
+      createElement(PublishGalleryDialog, {
+        ...props,
+        updateTarget: { id: "theirs", name: "Their circuit" },
+        publishUpdate: props.publish,
+        fix: { of: "Someone", edits: null },
+      }),
+    );
+    expect(fixing).not.toContain('data-testid="publish-reference"');
   });
 });

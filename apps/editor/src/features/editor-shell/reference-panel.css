@@ -24,6 +24,41 @@
   resize: horizontal;
 }
 
+/* Name and description alone: as tall as the text. */
+.reference-panel.compact {
+  height: auto;
+  min-height: 0;
+  resize: horizontal;
+}
+
+.reference-panel-about {
+  flex-shrink: 0;
+  max-height: 8.5em;
+  overflow-y: auto;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--icm-border);
+  color: var(--icm-text);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.reference-panel-about strong {
+  display: block;
+  font-weight: 600;
+}
+
+.reference-panel-about p {
+  margin: 2px 0 0;
+  color: var(--icm-text-muted);
+  white-space: pre-line;
+}
+
+.reference-panel.compact .reference-panel-about {
+  max-height: 11em;
+  border-bottom: 0;
+}
+
 .reference-panel-head {
   display: flex;
   flex-shrink: 0;

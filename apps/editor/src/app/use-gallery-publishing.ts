@@ -420,6 +420,7 @@ export function useGalleryPublicationRecord({
       previewRevision,
       ownerUserId,
       author,
+      referenceFailed,
     }: GalleryPublicationRecord,
     sessionId: string,
     by: "person" | "agent",
@@ -468,9 +469,12 @@ export function useGalleryPublicationRecord({
         ? updated
           ? `The Agent updated "${name}" in the gallery`
           : `The Agent published "${name}" to the gallery`
-        : updated
-          ? `Updated "${name}" in the gallery`
-          : `Published "${name}" to the gallery`,
+        : (updated
+            ? `Updated "${name}" in the gallery`
+            : `Published "${name}" to the gallery`) +
+            (referenceFailed
+              ? "; the reference image could not be saved (the card's ⋯ › Reference image… attaches it)"
+              : ""),
     );
     setPublishedNotice({ id, name, updated });
     return true;

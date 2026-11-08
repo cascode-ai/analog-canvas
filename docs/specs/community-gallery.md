@@ -196,16 +196,18 @@ entries, keyset cursor, limit ≤60.
 - Hosted Production/preview always uses Gallery, never bundled examples;
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
-- An entry opened from the Gallery that has a reference figure (a dataset's
-  original figure, or a community circuit's reference image) shows it in a
-  Reference panel floating beside the canvas, to redraw or fix against: moved
-  by its title bar, resized from its corner, zoomed by the wheel and panned
-  by a drag, folded to its title bar, or closed to a Reference button that
-  brings it back.
+- An entry opened from the Gallery shows its name and description in a panel
+  floating beside the canvas, with its reference figure (a dataset's original
+  figure, or a community circuit's reference image) when it has one, to
+  redraw or fix against: moved by its title bar, resized from its corner, the
+  figure zoomed by the wheel and panned by a drag, folded to its title bar, or
+  closed to a Reference (About, without a figure) button that brings it back.
+  A publication from the editor reloads it.
 - Edit › Reference image… floats the reader's own figure to trace over the
   same way, in any drawing: a pasted screenshot (⌘V / Ctrl+V, unless a text
   field or a circuit takes the paste), a dropped image or a chosen file. It
-  stays in the page, kept across closing and reopening, and is never uploaded.
+  stays in the page, kept across closing and reopening, and is uploaded only
+  as the next section says.
 
 ## On a phone
 
@@ -643,6 +645,10 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   redraws a larger file as WebP) → `{revision}`; `DELETE` removes it. Errors:
   403 `forbidden`, 400 `rights-required` or `invalid-image`. Dataset entries
   take none (404): their figures are comparisons.
+- Publishing or updating from the editor (not a fix) with the reader's own
+  reference image open offers it, unticked: ticked, saying they may share it,
+  it is put the same way after the entry saves; a failure leaves the entry
+  published and the notice says how to attach it.
 - Signed-in readers read it: `GET …/reference[?v=<revision>]` (immutable when
   `v` names it). The community review queue names it (`reference:
 {revision}`), lists such entries first, and `/review` sets it beside the

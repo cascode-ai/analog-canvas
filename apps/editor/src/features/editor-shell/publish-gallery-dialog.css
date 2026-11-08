@@ -156,6 +156,37 @@
   accent-color: var(--icm-ai);
 }
 
+/* The reader's own reference image, offered with a thumbnail. */
+.publish-gallery-reference {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--icm-text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.publish-gallery-reference input {
+  margin: 0;
+}
+
+.publish-gallery-reference img {
+  width: 56px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid var(--icm-border);
+  border-radius: 4px;
+  background: #fff;
+  object-fit: contain;
+}
+
+.publish-gallery-reference > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .publish-gallery-gates {
   padding: 10px 12px;
   border: 1px solid var(--icm-border);
