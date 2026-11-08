@@ -1394,8 +1394,27 @@ it("reads a SKY130 short device name as its reviewed target in a SKY130 Project"
   ).toBeUndefined();
 });
 
-it("places a batch over the edit limit in as many transactions as it takes, as one undo step and one receipt (#1516)", async () => {
+it("commits 64 parts with their values on show as one transaction by default", async () => {
   const { client, controller } = await folder();
+  const before = controller.document.revision;
+  const placed = await client.applyActions(
+    Array.from({ length: 64 }, (_, index) => ({
+      kind: "place-component" as const,
+      symbol: "resistor",
+      reference: `R${index + 1}`,
+      position: { x: (index % 8) * 120, y: Math.floor(index / 8) * 200 },
+      showValue: true,
+    })),
+  );
+  expect(placed.ok, placed.message).toBe(true);
+  expect(controller.document.instances).toHaveLength(64);
+  expect(controller.document.revision).toBe(before + 1);
+});
+
+it("places a batch over the edit limit in as many transactions as it takes, as one undo step and one receipt (#1516)", async () => {
+  const { client, controller } = await folder(undefined, undefined, {
+    maxTransactionEdits: 64,
+  });
   const actions = [
     ...Array.from({ length: 20 }, (_, index) => ({
       kind: "place-component" as const,
@@ -1480,7 +1499,9 @@ it("places a batch over the edit limit in as many transactions as it takes, as o
 });
 
 it("leaves nothing of a split placement batch when a later transaction is refused (#1516)", async () => {
-  const { client, controller } = await folder();
+  const { client, controller } = await folder(undefined, undefined, {
+    maxTransactionEdits: 64,
+  });
   const instances = Array.from({ length: 22 }, (_, index) => ({
     // The last reuses the first's ID: only its own transaction finds out.
     id: index === 21 ? "M1" : `M${index + 1}`,
@@ -1514,7 +1535,9 @@ it("leaves nothing of a split placement batch when a later transaction is refuse
 
 it("names the part of an over-limit delete that fits, and both calls succeed", async () => {
   // #1269: the Agent split 14 parts, 16 wires and 12 junctions by trial.
-  const { client, controller, tool } = await folder();
+  const { client, controller, tool } = await folder(undefined, undefined, {
+    maxTransactionEdits: 64,
+  });
   const placements = Array.from({ length: 12 }, (_, i) =>
     ["RL", "RR"].map((side, column) => ({
       kind: "place-component",
@@ -1608,7 +1631,9 @@ it("names the part of an over-limit delete that fits, and both calls succeed", a
 });
 
 it("names the command and what it expanded to when it exceeds the edit limit", async () => {
-  const { client, controller, tool } = await folder();
+  const { client, controller, tool } = await folder(undefined, undefined, {
+    maxTransactionEdits: 64,
+  });
   // One move edit per part: 72 parts take more than one transaction.
   const placements = Array.from({ length: 72 }, (_, i) => ({
     kind: "place-component",
@@ -2161,6 +2186,7 @@ it("batches different display preferences once without advancing structure revis
 async function folder(
   project = createEmptyProject("project-1", "Parity"),
   planning: BrowserAgentPlanningContext = {},
+  limits?: { maxTransactionEdits: number },
 ) {
   project.documents[0]!.id = "main";
   project.topDocumentId = "main";
@@ -2174,6 +2200,7 @@ async function folder(
       undefined,
       planning,
     ),
+    ...(limits ? { limits } : {}),
     permissions: {
       snapshot: true,
       render: true,

@@ -81,7 +81,7 @@ export const AGENT_EDIT_KINDS = Object.freeze([
 
 const DEFAULT_AGENT_LIMITS: AgentLimits = {
   maxSnapshotBytes: 4_000_000,
-  maxTransactionEdits: 64,
+  maxTransactionEdits: 256,
   maxRenderBytes: 1_000_000,
   maxRequestBytes: 256_000,
   changeHistoryEntries: 32,

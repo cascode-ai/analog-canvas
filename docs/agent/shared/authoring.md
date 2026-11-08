@@ -412,9 +412,10 @@ A pin unused on purpose (QBAR) needs No Connect or the netlist blocks with
 ## Batches and limits
 
 Placements, wires, labels, models and annotation moves batch atomically:
-failure commits nothing, success is one undo. A transaction takes at most 64
-expanded edits (a part about two, three with `showValue:true`; a Cell Pin about
-five). A `circuit_place` batch (up to 64 parts) over the limit is placed in
+failure commits nothing, success is one undo. A transaction takes at most
+`maxTransactionEdits` expanded edits (capabilities `limits`, 256 unless the
+Editor says otherwise; a part about two, three with `showValue:true`; a Cell
+Pin about five). A `circuit_place` batch (up to 64 parts) over the limit is placed in
 successive transactions with one receipt and one undo; a refusal leaves none.
 A dry run checks one transaction, so over the limit it fails `LIMIT_EXCEEDED`
 (as native `place-components` does) with `expandedEdits`, `maxTransactionEdits`
