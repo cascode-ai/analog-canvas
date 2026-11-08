@@ -15,6 +15,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -15.08,
@@ -63,6 +74,74 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "dc",
+          default: "1",
+        },
+        {
+          name: "waveform",
+          default: "dc",
+          choices: ["dc", "pulse", "sin", "pwl"],
+        },
+        {
+          name: "pwlPoints",
+        },
+        {
+          name: "acMagnitude",
+        },
+        {
+          name: "acPhase",
+        },
+        {
+          name: "low",
+          default: "0",
+        },
+        {
+          name: "high",
+          default: "1",
+        },
+        {
+          name: "delay",
+          default: "0",
+        },
+        {
+          name: "rise",
+          default: "1ps",
+        },
+        {
+          name: "fall",
+          default: "1ps",
+        },
+        {
+          name: "width",
+          default: "5ns",
+        },
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "offset",
+          default: "0",
+        },
+        {
+          name: "amplitude",
+          default: "1",
+        },
+        {
+          name: "frequency",
+          default: "1k",
+        },
+        {
+          name: "damping",
+          default: "0",
+        },
+        {
+          name: "phase",
+          default: "0",
+        },
+      ],
       bounds: {
         x: -15.35,
         y: -20,
@@ -101,6 +180,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -13.75,
@@ -139,6 +229,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1p",
+        },
+      ],
       bounds: {
         x: -8.06,
         y: -20,
@@ -177,6 +273,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -20,
         y: -4.7,
@@ -263,6 +360,20 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vhigh",
+          default: "VDD",
+        },
+        {
+          name: "vlow",
+          default: "0",
+        },
+        {
+          name: "vtransition",
+          default: "1m",
+        },
+      ],
       bounds: {
         x: -40,
         y: -30,
@@ -321,6 +432,25 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "rm",
+          default: "25",
+        },
+        {
+          name: "lm",
+          default: "12.7m",
+        },
+        {
+          name: "cm",
+          default: "20f",
+        },
+        {
+          name: "c0",
+          default: "5p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -8,
         y: -20,
@@ -359,6 +489,74 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "dc",
+          default: "1m",
+        },
+        {
+          name: "waveform",
+          default: "dc",
+          choices: ["dc", "pulse", "sin", "pwl"],
+        },
+        {
+          name: "pwlPoints",
+        },
+        {
+          name: "acMagnitude",
+        },
+        {
+          name: "acPhase",
+        },
+        {
+          name: "low",
+          default: "0",
+        },
+        {
+          name: "high",
+          default: "1m",
+        },
+        {
+          name: "delay",
+          default: "0",
+        },
+        {
+          name: "rise",
+          default: "1ps",
+        },
+        {
+          name: "fall",
+          default: "1ps",
+        },
+        {
+          name: "width",
+          default: "5ns",
+        },
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "offset",
+          default: "0",
+        },
+        {
+          name: "amplitude",
+          default: "1m",
+        },
+        {
+          name: "frequency",
+          default: "1k",
+        },
+        {
+          name: "damping",
+          default: "0",
+        },
+        {
+          name: "phase",
+          default: "0",
+        },
+      ],
       bounds: {
         x: -10.76,
         y: -20,
@@ -408,6 +606,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gm",
+          default: "1m",
+        },
+      ],
       bounds: {
         x: -10.76,
         y: -20,
@@ -457,6 +661,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -10.76,
         y: -20,
@@ -506,6 +716,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -42,
         y: -27,
@@ -564,6 +785,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -42,
         y: -27,
@@ -632,6 +864,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -42,
         y: -27,
@@ -680,6 +923,16 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "tpd",
+          default: "10p",
+        },
+      ],
       bounds: {
         x: -44,
         y: -24,
@@ -718,6 +971,19 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "signA",
+          default: "+",
+          choices: ["+", "-"],
+        },
+        {
+          name: "signB",
+          default: "+",
+          choices: ["+", "-"],
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -20,
         y: -12,
@@ -766,6 +1032,13 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -20,
         y: -12,
@@ -814,6 +1087,13 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: true,
       coefficient: true,
+      parameters: [
+        {
+          name: "gm",
+          default: "1m",
+        },
+      ],
+      parametersOpen: true,
       bounds: null,
       pins: [
         {
@@ -847,6 +1127,13 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: true,
       coefficient: true,
+      parameters: [
+        {
+          name: "gm",
+          default: "1m",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -35,
@@ -1032,6 +1319,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -20,
         y: -7.34,
@@ -1070,6 +1358,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -20,
         y: -20,
@@ -1118,6 +1407,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -6.4,
         y: -10,
@@ -1146,6 +1436,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -20,
         y: -12.81,
@@ -1184,6 +1475,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1n",
+        },
+      ],
       bounds: {
         x: -15,
         y: -32,
@@ -1222,6 +1519,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1n",
+        },
+      ],
       bounds: {
         x: -10,
         y: -24,
@@ -1260,6 +1563,24 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "l1",
+          default: "1n",
+        },
+        {
+          name: "l2",
+          default: "1n",
+        },
+        {
+          name: "k",
+          default: "1",
+        },
+        {
+          name: "cb",
+          default: "1p",
+        },
+      ],
       bounds: {
         x: -94,
         y: -56,
@@ -1308,6 +1629,20 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "lp",
+          default: "1n",
+        },
+        {
+          name: "ls",
+          default: "1n",
+        },
+        {
+          name: "k",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -24,
         y: -24,
@@ -1366,6 +1701,20 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "l1",
+          default: "1n",
+        },
+        {
+          name: "l2",
+          default: "1n",
+        },
+        {
+          name: "k",
+          default: "0",
+        },
+      ],
       bounds: {
         x: -54,
         y: -16,
@@ -1414,6 +1763,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -15.01,
@@ -1452,6 +1812,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -14.93,
@@ -1500,6 +1871,24 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "w",
+          default: "1u",
+        },
+        {
+          name: "l",
+          default: "150n",
+        },
+        {
+          name: "nf",
+          default: "1",
+        },
+        {
+          name: "m",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -20,
         y: -20,
@@ -1583,6 +1972,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -1631,6 +2031,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "m",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -30,
         y: -20,
@@ -1679,6 +2085,21 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "VDD",
+        },
+        {
+          name: "vlow",
+          default: "VSS",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -30,
@@ -1768,6 +2189,21 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "VDD",
+        },
+        {
+          name: "vlow",
+          default: "VSS",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -30,
@@ -1857,6 +2293,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vocm",
+          default: "0",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -30,
@@ -1915,6 +2362,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vocm",
+          default: "0",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -30,
@@ -1973,6 +2431,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vocm",
+          default: "0",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -30,
@@ -2031,6 +2500,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vocm",
+          default: "0",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -30,
@@ -2089,6 +2569,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -2137,6 +2628,24 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "w",
+          default: "1u",
+        },
+        {
+          name: "l",
+          default: "150n",
+        },
+        {
+          name: "nf",
+          default: "1",
+        },
+        {
+          name: "m",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -20,
         y: -20,
@@ -2220,6 +2729,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "m",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -30,
         y: -20,
@@ -2324,6 +2839,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1k",
+        },
+      ],
       bounds: {
         x: -4.99,
         y: -20,
@@ -2362,6 +2883,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -20,
         y: -11,
@@ -2400,6 +2922,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -20,
         y: -13,
@@ -2448,6 +2971,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -20,
         y: -30,
@@ -2506,6 +3030,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1p",
+        },
+      ],
       bounds: {
         x: -12,
         y: -20,
@@ -2544,6 +3074,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1n",
+        },
+      ],
       bounds: {
         x: -16,
         y: -24,
@@ -2582,6 +3118,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1k",
+        },
+      ],
       bounds: {
         x: -16,
         y: -24,
@@ -2620,6 +3162,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -10,
         y: -0.88,
@@ -2648,6 +3191,13 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -30,
@@ -2686,6 +3236,50 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "dutyCycle",
+          default: "50",
+        },
+        {
+          name: "initial",
+          default: "0",
+        },
+        {
+          name: "low",
+          default: "0",
+          compatibility: true,
+        },
+        {
+          name: "high",
+          default: "1",
+          compatibility: true,
+        },
+        {
+          name: "delay",
+          default: "5ns",
+          compatibility: true,
+        },
+        {
+          name: "rise",
+          default: "1ps",
+          compatibility: true,
+        },
+        {
+          name: "fall",
+          default: "1ps",
+          compatibility: true,
+        },
+        {
+          name: "width",
+          default: "5ns",
+          compatibility: true,
+        },
+      ],
       bounds: {
         x: -10.76,
         y: -20,
@@ -2724,6 +3318,7 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [],
       bounds: {
         x: -34,
         y: -27,
@@ -2782,6 +3377,74 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "dc",
+          default: "1",
+        },
+        {
+          name: "waveform",
+          default: "dc",
+          choices: ["dc", "pulse", "sin", "pwl"],
+        },
+        {
+          name: "pwlPoints",
+        },
+        {
+          name: "acMagnitude",
+        },
+        {
+          name: "acPhase",
+        },
+        {
+          name: "low",
+          default: "0",
+        },
+        {
+          name: "high",
+          default: "1",
+        },
+        {
+          name: "delay",
+          default: "0",
+        },
+        {
+          name: "rise",
+          default: "1ps",
+        },
+        {
+          name: "fall",
+          default: "1ps",
+        },
+        {
+          name: "width",
+          default: "5ns",
+        },
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "offset",
+          default: "0",
+        },
+        {
+          name: "amplitude",
+          default: "1",
+        },
+        {
+          name: "frequency",
+          default: "1k",
+        },
+        {
+          name: "damping",
+          default: "0",
+        },
+        {
+          name: "phase",
+          default: "0",
+        },
+      ],
       bounds: {
         x: -20.06,
         y: -20,
@@ -2820,6 +3483,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -20.06,
         y: -20,
@@ -2869,6 +3538,12 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "rm",
+          default: "1k",
+        },
+      ],
       bounds: {
         x: -20.06,
         y: -20,
@@ -2918,6 +3593,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -2966,6 +3652,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3014,6 +3711,14 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "bv",
+        },
+        {
+          name: "ibv",
+        },
+      ],
       bounds: {
         x: -20,
         y: -8.51,
@@ -3052,6 +3757,13 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: true,
       coefficient: false,
+      parameters: [
+        {
+          name: "bits",
+          default: "8",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -50,
         y: -20,
@@ -3090,6 +3802,13 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: true,
       coefficient: false,
+      parameters: [
+        {
+          name: "bits",
+          default: "8",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -20,
@@ -3128,6 +3847,13 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: true,
       coefficient: false,
+      parameters: [
+        {
+          name: "bits",
+          default: "8",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -50,
         y: -20,
@@ -3176,6 +3902,13 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: true,
       coefficient: false,
+      parameters: [
+        {
+          name: "bits",
+          default: "8",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -40,
         y: -20,
@@ -3224,6 +3957,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -15.08,
@@ -3282,6 +4026,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -15.08,
@@ -3350,6 +4105,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -14.93,
@@ -3408,6 +4174,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -14.93,
@@ -3476,6 +4253,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3534,6 +4322,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3602,6 +4401,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3660,6 +4470,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3728,6 +4549,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3786,6 +4618,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3854,6 +4697,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3912,6 +4766,17 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "vt",
+          default: "10m",
+        },
+        {
+          name: "td",
+          default: "10p",
+        },
+      ],
+      parametersOpen: true,
       bounds: {
         x: -30,
         y: -17.74,
@@ -3980,6 +4845,24 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "w",
+          default: "1u",
+        },
+        {
+          name: "l",
+          default: "150n",
+        },
+        {
+          name: "nf",
+          default: "1",
+        },
+        {
+          name: "m",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -20,
         y: -20,
@@ -4063,6 +4946,24 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "w",
+          default: "1u",
+        },
+        {
+          name: "l",
+          default: "150n",
+        },
+        {
+          name: "nf",
+          default: "1",
+        },
+        {
+          name: "m",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -20,
         y: -20,
@@ -4146,6 +5047,24 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "w",
+          default: "1u",
+        },
+        {
+          name: "l",
+          default: "150n",
+        },
+        {
+          name: "nf",
+          default: "1",
+        },
+        {
+          name: "m",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -20,
         y: -20,
@@ -4229,6 +5148,24 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      parameters: [
+        {
+          name: "w",
+          default: "1u",
+        },
+        {
+          name: "l",
+          default: "150n",
+        },
+        {
+          name: "nf",
+          default: "1",
+        },
+        {
+          name: "m",
+          default: "1",
+        },
+      ],
       bounds: {
         x: -20,
         y: -20,

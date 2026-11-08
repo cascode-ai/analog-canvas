@@ -2,6 +2,7 @@ import {
   resolveEndpointConnection,
   visibleSymbolInkBounds,
 } from "@icm/derived";
+import { instanceParameterContract } from "@icm/devices";
 import { createEmptyDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -47,6 +48,13 @@ function authoringCatalog() {
       bounds: Bounds | null;
       pins: Array<CatalogPin & { role: string }>;
       defaultVariantId: string | null;
+      parameters?: Array<{
+        name: string;
+        default?: string;
+        choices?: string[];
+        compatibility?: true;
+      }>;
+      parametersOpen?: true;
       variants: Array<{
         id: string;
         hiddenPinNames: string[];
@@ -137,6 +145,53 @@ describe("Agent operating Kit", () => {
       expect(kitFile("references/razavi-authoring-catalog.json")).not.toContain(
         key,
       );
+  });
+
+  it("lists each part's parameters exactly as place-component validates them", () => {
+    const catalog = authoringCatalog();
+    for (const entry of catalog.symbols) {
+      // The validator's own call: place-component checks { symbolId } alone.
+      const contract = instanceParameterContract(
+        {},
+        { symbolId: entry.symbolId },
+      );
+      expect(
+        entry.parameters?.map((parameter) => parameter.name),
+        entry.symbolId,
+      ).toEqual(contract?.definitions.map((parameter) => parameter.name));
+      expect(entry.parametersOpen ?? false, entry.symbolId).toBe(
+        contract?.open ?? false,
+      );
+      for (const definition of contract?.definitions ?? []) {
+        const listed = entry.parameters!.find(
+          (parameter) => parameter.name === definition.name,
+        )!;
+        const at = `${entry.symbolId}.${definition.name}`;
+        // A part placed without parameters stores the default, or nothing.
+        expect(listed.default, at).toBe(definition.defaultValue || undefined);
+        expect(listed.choices, at).toEqual(
+          definition.options?.map((option) => option.value),
+        );
+        expect(listed.compatibility ?? false, at).toBe(
+          definition.authoringVisibility === "compatibility",
+        );
+      }
+    }
+    expect(symbol(catalog, "capacitor").parameters).toEqual([
+      { name: "value", default: "1p" },
+    ]);
+    expect(symbol(catalog, "current-source").parameters?.slice(0, 3)).toEqual([
+      { name: "dc", default: "1m" },
+      {
+        name: "waveform",
+        default: "dc",
+        choices: ["dc", "pulse", "sin", "pwl"],
+      },
+      { name: "pwlPoints" },
+    ]);
+    expect(
+      symbol(catalog, "nmos").parameters?.map((parameter) => parameter.name),
+    ).toEqual(["w", "l", "nf", "m"]);
   });
 
   it("gives each pin's offset and the body a wire must keep clear of, as a placed part has them (#1526)", () => {
