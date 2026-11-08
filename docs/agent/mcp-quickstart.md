@@ -12,6 +12,13 @@ capabilities; a resume counts edit kinds as `editKindCount`, and
 `connect({"detail":"full"})` lists them), so no `get_context` follows. MCP
 manages credentials, request IDs and expected revisions.
 
+`capabilities` describes the Circuit resource (its four operations, edit kinds
+and limits), not the session. A pairing holds every scope: `project_cells`
+creates, lists and binds workspaces, and `gallery_circuits` publishes, all
+without a new Claim. A host that defers MCP tools (Claude Code tool search)
+lists only some of them: load a tool by name before concluding it is absent,
+and report the error code a call returns before asking for a new pairing.
+
 `compatibility.status: "outdated"` (and `runtime.status` of
 `connection_status`) means this adapter is older than the origin's manifest
 release `latestVersion`: tell the user and follow its `upgrade` step. An
@@ -50,6 +57,8 @@ freezes its input, so start/read/download need no circuit reread.
   results.
 - Gallery reuse: `gallery_circuits` `action:"insert"` (entry ID,
   `targetDocumentId`, `position`; one undo, no tab), with the Editor's login.
+  Publish a separate circuit from a new `project_cells` workspace, since
+  publishing takes the whole working copy its tab shows.
 
 Use displayed parameters directly; `describe_tool` (`tool`, `operations`,
 `field`, e.g. `{"tool":"simulation_plot","field":"/request/formats"}`) is for
