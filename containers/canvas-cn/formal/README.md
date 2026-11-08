@@ -44,8 +44,10 @@ host.
    may only forward to the regional gateways; the address never enters Git.
 4. Install `canvas-cn-release.py`, `canvas-cn-release.service` and its timer
    from a release once and enable the timer. From then on releases install
-   themselves; their first install also enables the scheduled and release
-   alert timers. Replication timers are enabled by an operator.
+   themselves; their first install also enables the scheduled, release
+   alert and formal backup timers. When upgrading from a runner that predates
+   the formal backup timer, enable it once after its first install.
+   Replication timers are enabled by an operator.
 
 The browser entrance is `127.0.0.1:8082` (an SSH forward during the trial).
 Keep `analog-canvas-origin.tokenzhang.com` on the overseas Worker. Pin the
@@ -75,9 +77,13 @@ Only the Auth contract's browser routes are proxied there in shared-domain mode.
   failure leaves editing and login available while computation fails closed;
   uncertain runs are never retried elsewhere. `simulation-smoke-token` only
   authorizes the deployment check on `/api/simulate`.
-- Backups stop the runtime briefly and keep the newest 20 snapshots of state,
-  sessions, journals, receipts and artifact storage. Copy verified archives
-  off host. Restore into a separate directory and port, clear restored sessions
+- The formal backup timer and release runner serialize snapshots with release
+  installation. The backup stops the runtime while reading state and artifacts,
+  restarts it before compression, and publishes each finished archive atomically.
+  Keep the newest 20 local archives. Schedule the host's off-host file backup
+  after the formal timer and restore from its completed archives under
+  `/var/backups/analog-canvas-formal`. Check `state.sha256` before extracting.
+  Restore into a separate directory and port, clear restored sessions
   and pending handoffs before connecting it to the authority. Follow
   [regional recovery](../../../docs/deployment.md#point-in-time-recovery)
   before exposing the restored instance. A release rollback retains the

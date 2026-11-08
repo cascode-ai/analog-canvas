@@ -113,6 +113,7 @@ class ReleaseTest(unittest.TestCase):
             'nginx.conf': b'server {}',
             'canvas-cn-formal.service': b'new',
             'canvas-cn-scheduled.timer': b'timer',
+            'canvas-cn-formal-backup.timer': b'backup timer',
             'canvas-cn-resource-sync.timer': b'replication',
         }
         self.smoked = True
@@ -146,6 +147,7 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual((self.units / 'canvas-cn-formal.service').read_text(), 'new')
         self.assertEqual(self.nginx.read_bytes(), b'server {}')
         self.assertIn(('systemctl', 'enable', '--now', 'canvas-cn-scheduled.timer'), host.calls)
+        self.assertIn(('systemctl', 'enable', '--now', 'canvas-cn-formal-backup.timer'), host.calls)
         self.assertNotIn(('systemctl', 'enable', '--now', 'canvas-cn-resource-sync.timer'), host.calls)
         # Only the replication timer that was running is paused and restarted.
         self.assertIn(('systemctl', 'start', 'canvas-cn-project-sync.timer'), host.calls)

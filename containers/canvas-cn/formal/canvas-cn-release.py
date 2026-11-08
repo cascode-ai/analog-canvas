@@ -28,7 +28,8 @@ SWITCHES = {'project-writes-enabled', 'resource-writes-enabled'}
 SYNC_TIMERS = ['canvas-cn-project-sync.timer', 'canvas-cn-resource-sync.timer']
 # Only these timers start by themselves when a release first ships them;
 # replication timers stay an operator's decision.
-AUTO_TIMERS = {'canvas-cn-scheduled.timer', 'canvas-cn-release.timer', 'canvas-cn-release-alert.timer'}
+AUTO_TIMERS = {'canvas-cn-scheduled.timer', 'canvas-cn-release.timer',
+               'canvas-cn-release-alert.timer', 'canvas-cn-formal-backup.timer'}
 NGINX_SITE = '/etc/nginx/conf.d/analog-canvas-formal.conf'
 # Written into a release only after it passed its smoke checks while serving.
 VERIFIED = '.verified'

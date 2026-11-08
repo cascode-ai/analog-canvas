@@ -1,0 +1,9 @@
+[Unit]
+Description=Archive regional Canvas state before the daily cloud backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 Asia/Shanghai
+Persistent=true
+
+[Install]
+WantedBy=timers.target

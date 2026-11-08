@@ -1,0 +1,10 @@
+[Unit]
+Description=Archive a consistent snapshot of the regional Canvas runtime
+After=canvas-cn-formal.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flock -w 900 /run/lock/canvas-cn-formal-release.lock /usr/bin/bash /opt/analog-canvas/current-formal/formal-backup.sh
+TimeoutStartSec=1800
+NoNewPrivileges=true
+UMask=0077
