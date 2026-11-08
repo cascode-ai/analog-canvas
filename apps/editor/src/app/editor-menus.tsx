@@ -40,7 +40,7 @@ import {
 } from "../services/editor-services";
 import { EditorAppChrome } from "./editor-app-chrome";
 import type { EditorProjectPanelMode } from "./editor-project-dock";
-import { isOfficeDialog } from "./office-link";
+import { isOfficeDialog } from "./office-messages";
 import type { createEditorTransactionCommands } from "./editor-transaction-commands";
 import type { useProjectCheck } from "./use-project-check";
 import type { useEditorAgentConnection } from "./use-agent-hosts";

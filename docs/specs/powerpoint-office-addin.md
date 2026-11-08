@@ -21,7 +21,8 @@ integration is [PowerPoint local deployment](powerpoint-local.md).
   Edit for the one selected circuit picture. Double-click stays
   PowerPoint's; the pane names the selected circuit on its Edit button.
 - The dialog shows one drawing, in place of its empty starting one: no tabs,
-  no Netlist or Project Code; the header stays. Escape stays the editor's:
+  no Netlist or Project Code, the Reference window closed until opened; the
+  header stays. Escape stays the editor's:
   PowerPoint for Mac would close the dialog on it.
 - The editor's header **PowerPoint** button places the Cell on screen, with
   the button states and notices of the [desktop editor](powerpoint-local.md).

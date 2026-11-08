@@ -1,7 +1,7 @@
 {
   "schemaVersion": 78,
   "id": "office-example-strongarm-latch",
-  "name": "StrongArm v2",
+  "name": "StrongArm comparator",
   "topDocumentId": "document-main",
   "defaults": {
     "instance": { "mirror": "none", "rotation": 0 },

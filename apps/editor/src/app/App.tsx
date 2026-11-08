@@ -20,7 +20,8 @@ import { createChildCellDraft } from "../features/hierarchy/new-cell";
 import { projectComponentInsertCandidates } from "../features/component-insert/project-component-candidates";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { usePowerPointSave } from "./powerpoint-save";
-import { isOfficeDialog, useOfficeLink } from "./office-link";
+import { useOfficeLink } from "./office-link";
+import { isOfficeDialog } from "./office-messages";
 import { useSignalMemberInspection } from "../features/selection/use-signal-member-inspection";
 import { editorSnapshotDerived } from "./editor-snapshot-derived-cache";
 import {
