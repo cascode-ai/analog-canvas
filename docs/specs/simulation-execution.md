@@ -265,8 +265,10 @@ Shared minimums for the hosted runner and the local host:
   `401 simulation-authentication-required`; any other account gets
   `403 hosted-simulation-team-only`, which points to exporting a netlist.
   Profile discovery, and reading, cancelling or deleting one's own runs, stay
-  open. `/api/auth/me` marks team accounts `hostedSimulation: true`. Gallery
-  checks and the deploy smoke credential are admitted explicitly.
+  open. `/api/auth/me` marks team accounts `hostedSimulation: true`; over the
+  managed transport the editor shows Simulate only to them (a direct transport
+  keeps it). Gallery checks and the deploy smoke credential are admitted
+  explicitly.
 - Managed admission: runs survive tab loss with one day of evidence; at most 50
   waiting, one queued and one active per owner, five-minute wait, one
   operator-host slot. `SIMULATION_DISPATCH=alarm` schedules a control-DO alarm

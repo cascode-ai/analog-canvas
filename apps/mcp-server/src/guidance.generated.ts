@@ -11,7 +11,7 @@ export const agentToolHelp = {
   simulation_results:
     "Discover run history, evidence usage and catalogs; delete an exact completed run with dry-run and saved-result protection, or retry evidence export without rerunning. Use simulation_data for complete files. Receipts never inline samples.",
   simulation_run:
-    "Normally submit run with a revisioned source; preparation is internal. For project-folder use the latest simulation_edit source.revision as expectedStructureRevision. Optional prepare/start supports inspection or frozen-input reuse. run/start/read accept waitMs 0–20000; resume via read with the same runId. One hosted slot. Retry uncertain submissions with the same requestId and payload. Results summarize collection and diagnostics; files are registered separately.",
+    "Normally submit run with a revisioned source; preparation is internal. For project-folder use the latest simulation_edit source.revision as expectedStructureRevision. Optional prepare/start supports inspection or frozen-input reuse. run/start/read accept waitMs 0–20000; resume via read with the same runId. One hosted slot, for team accounts only; others get hosted-simulation-team-only and run the exported netlist themselves. Retry uncertain submissions with the same requestId and payload. Results summarize collection and diagnostics; files are registered separately.",
   simulation_batch:
     "Prepare explicit batches or sweeps, then start/read/cancel the same batch. Uses the existing serialized executor and original request/revision checks. Use simulation_results for registered results and simulation_data for local files.",
   circuit_place:
@@ -67,7 +67,7 @@ export const agentToolHelp = {
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:
-    "Manage saved experiments. List is metadata-only. rootDocumentId binds a drawn Cell; dut generates a testbench with its exported name/port order. create without profileId takes the one Profile listing every reviewed PDK device the root Cell uses (never VACASK, which lists none) and the receipt names it and its engine; else error.candidates lists the choices. Edit native code with simulation_edit. refresh:true reconciles external changes.",
+    "Manage saved experiments. List is metadata-only. rootDocumentId binds a drawn Cell; dut generates a testbench with its exported name/port order. create without profileId takes the one Profile listing every reviewed PDK device the root Cell uses (never VACASK, which lists none) and the receipt names it and its engine; else the folder is the author's Testbench with no Profile and folder.profileCandidates lists the choices. template:\"testbench\" makes that Testbench directly (one testbench.spice with the DUT call, for the user's own simulator). Edit native code with simulation_edit. refresh:true reconciles external changes.",
   simulation_output:
     "Legacy config v1 only: manage output ASTs. Native Code uses simulation_files for saves and postprocess Python; this tool cannot add parallel JSON rules. See analog-canvas://reference/mcp-simulation. Exact expression schema: analog-canvas://contract/tools/simulation_output.",
   simulation_measurement:

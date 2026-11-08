@@ -4,6 +4,7 @@ import { simulationSpecReport, simulationSpecsToCsv } from "./spec-results.js";
 import {
   SimulationOutputDataSchema,
   simulationSpecAnnotationDiagnostics,
+  simulationSpecAnnotations,
 } from "./contract.js";
 import { SimulationSpecReportSchema } from "./spec-contract.js";
 const identity = { runId: "r", preparedId: "p", inputDigest: "captured" };
@@ -262,6 +263,29 @@ describe("source Spec v1", () => {
         },
       },
     ]);
+  });
+  it("lists every Spec a file declares, valid or not, on its line (#2110)", () => {
+    const text =
+      "* tb\n* @spec gain >= 60 unit=dB\nXDUT a b ota\n// @spec pm > 1M\n";
+    const specs = simulationSpecAnnotations("testbench.spice", text);
+    expect(specs.map((spec) => [spec.name, spec.sourceRef.start.line])).toEqual(
+      [
+        ["gain", 2],
+        ["pm", 4],
+      ],
+    );
+    expect(specs[0]).toMatchObject({
+      unit: "dB",
+      expected: { kind: "limit", operator: ">=", value: 60 },
+      problems: [],
+    });
+    expect(specs[1]!.problems).not.toEqual([]);
+    expect(
+      text.slice(
+        specs[0]!.sourceRef.start.offset,
+        specs[0]!.sourceRef.end.offset,
+      ),
+    ).toBe("* @spec gain >= 60 unit=dB");
   });
   it("keeps missing, incomplete and unconstrained measurements distinct", () => {
     expect(evaluate("* @spec peak <= 2", "").results[0]).toMatchObject({

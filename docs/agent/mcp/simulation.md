@@ -20,8 +20,11 @@ unfamiliar field. Engine and capture rules: [shared workflow](../shared/simulati
    one Profile whose listed qualified devices include every reviewed PDK device
    the root Cell and its sub-Cells use (SKY130 16 V/20 V DMOS count for SKY130
    ngspice; a Profile listing none, as VACASK, is never the default). The
-   receipt's `folder` names the Profile and engine; with several or none,
-   create refuses `SIMULATION_PROFILE_REQUIRED` with `error.candidates`.
+   receipt's `folder` names the Profile and engine; with several or none, the
+   folder is the author's Testbench with no Profile, and
+   `folder.profileCandidates` names them. `template:"testbench"` asks for that
+   Testbench directly: one `testbench.spice` entry with the DUT call, for the
+   user's own simulator.
    Edit native code with `simulation_edit`; `simulation_source` read
    `detail:"text"` reads it, `detail:"mapped"` adds parameter mappings. Reuse
    update revisions/digests without rereading.

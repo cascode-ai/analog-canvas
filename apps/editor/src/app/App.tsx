@@ -192,7 +192,11 @@ import {
   releaseKeptDocumentStyleEdit,
 } from "../features/editor-shell/kept-document-style";
 import { terminalCurrentDirectionPartners } from "../features/simulation/terminal-current-pick";
-import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
+import {
+  PUBLIC_SIMULATION_UI_ENABLED,
+  simulationEntryVisible,
+} from "../features/simulation/public-simulation-ui";
+import { useHostedSimulation } from "../components/account";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import { CellSymbolLayoutToolbar } from "../features/hierarchy/cell-symbol-layout-toolbar";
 import { selectedBlockSymbolTarget } from "../features/hierarchy/block-symbol-layout-target";
@@ -227,6 +231,7 @@ import {
 } from "./editor-project-dock";
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
+import { TestbenchPanel } from "../features/testbench/testbench-panel";
 import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import { useProjectCheck } from "./use-project-check";
@@ -615,6 +620,13 @@ function propertiesMosBulkDefaultNetId(
   );
 }
 
+// The offline editor has no accounts: a constant keeps the account module,
+// an online implementation, out of its bundle.
+const useTeamAccount: (enabled: boolean) => boolean = import.meta.env
+  ?.ICM_DESKTOP
+  ? () => false
+  : useHostedSimulation;
+
 function WorkspaceEditor({
   project: initialProject,
   visitStats,
@@ -644,10 +656,19 @@ function WorkspaceEditor({
   } = useEditorServices();
   const publicAgentUiEnabled =
     !import.meta.env?.ICM_DESKTOP && capabilities.agent && requestedAgentUi;
-  const publicSimulationUiEnabled =
+  const simulationUiRequested =
     !import.meta.env?.ICM_DESKTOP &&
     capabilities.simulation &&
     requestedSimulationUi;
+  const managedSimulation =
+    resolveSimulationTransport(
+      import.meta.env.VITE_ICM_SIMULATION_TRANSPORT,
+    ) === "managed";
+  const publicSimulationUiEnabled = simulationEntryVisible({
+    requested: simulationUiRequested,
+    transport: managedSimulation ? "managed" : "direct",
+    teamAccount: useTeamAccount(simulationUiRequested && managedSimulation),
+  });
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
   );
@@ -6226,6 +6247,24 @@ function WorkspaceEditor({
                         )
                           throw new Error("Could not apply device mappings");
                       })
+                    }
+                  />
+                ) : projectPanel === "testbench" ? (
+                  <TestbenchPanel
+                    key={projectSessionId}
+                    project={project}
+                    rootDocumentId={netlistRootDocumentId}
+                    onRootChange={(documentId) =>
+                      setNetlistEntry({
+                        sessionId: projectSessionId,
+                        documentId,
+                      })
+                    }
+                    onDirtyChange={noteCodeDraftDirty}
+                    onCommit={(folder, transactionId) =>
+                      commitStructure(transactionId, [
+                        { kind: "upsert_simulation_folder", folder },
+                      ])
                     }
                   />
                 ) : projectPanel === "netlist" ? (

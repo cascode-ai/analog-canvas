@@ -6,7 +6,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import {
   executeProjectTransaction,
@@ -51,7 +50,10 @@ import {
   type NetlistFormat,
   type NetlistNamingProfile,
 } from "@icm/netlist";
-import { StaticCodeView } from "../project-code/static-code-view";
+import {
+  codeViewportHeight,
+  StaticCodeView,
+} from "../project-code/static-code-view";
 
 const ProjectTextEditor = lazy(
   () => import("../project-code/project-text-editor"),
@@ -581,11 +583,7 @@ export function NetlistCodePanel({
         <div
           className="netlist-code-viewport"
           data-line-count={lineCount}
-          style={
-            {
-              "--netlist-editor-height": `${lineCount * 19.2 + 22}px`,
-            } as CSSProperties
-          }
+          style={codeViewportHeight(lineCount)}
         >
           <Suspense
             fallback={

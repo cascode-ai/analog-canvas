@@ -109,7 +109,7 @@
     },
     {
       "source": "docs/agent/mcp/simulation.md",
-      "sha256": "327afd32daf7e0270f7e78d2e69779c319dc78d4407dd5c77fd1fb1cc12c64c2"
+      "sha256": "a7c7a582de45c4b239b035dc1f50a1b347ceb55c92447813d07ab1ce4e76da94"
     },
     {
       "source": "docs/agent/mcp/simulation-reference.md",
@@ -117,7 +117,7 @@
     },
     {
       "source": "docs/agent/shared/simulation.md",
-      "sha256": "cd861fb392f8765a6730279b55ea4475ed03a3182df050d91bffbe60d5b55685"
+      "sha256": "d7364acc0d3f07b388806a6d21a278c68a5e01860a302e8d45accb5925be2b70"
     },
     {
       "source": "docs/agent/routegraph.md",
@@ -129,7 +129,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "b1fecaebaf0388597119f8ada4c6525f52103d9add9b0707800e841a3dbd4c90"
+      "sha256": "0e6a549366da57d84a1e46bb831dd2d3543f52b0eac62430ec4edec347b0d4f4"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "295390a5f6eea87b8d7e5f2b548c658e8aba0d28cd58305d1ae9eb8c6398af76"
+      "sha256": "b0a8851924aa97b6a433c7beb0dc6e4ed1fa15f7bd9df7b24f075f7adefc7f08"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "00fa1f6208b8f592426c1c9b9ec857790ffc3c57d0e4d17e60d91df0a872de8d"
+      "sha256": "99e7481511f6f302df5ca10428a4d2210ca186295e83e5a39a9fdb2792ed7953"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -693,7 +693,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "035eae946dc8bc70b9923fc4ecbd892205a2c26f0a9033f3c1f3b9bfe88b0717"
+      "sha256": "a0cbd4c710914787e3b06ddc1d317989275aeb9d99a54565fe95fe46a2f645aa"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

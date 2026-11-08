@@ -1,18 +1,14 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-} from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import type { CircuitProject } from "@icm/model";
 import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
 import { createRnlExport, type RnlExport } from "@icm/rnl";
 
 import { RNL_INTRO_URL } from "../../components/site-resource-links";
 import type { NativeExternalTarget } from "../../hosts/native-external-links";
-import { StaticCodeView } from "../project-code/static-code-view";
+import {
+  codeViewportHeight,
+  StaticCodeView,
+} from "../project-code/static-code-view";
 import { OpenRnlViewerLink } from "./open-rnl-viewer-link";
 import {
   loadRnlRuntime,
@@ -216,11 +212,7 @@ export function RnlNetlistView({
         <div
           className="netlist-code-viewport"
           data-line-count={lineCount}
-          style={
-            {
-              "--netlist-editor-height": `${lineCount * 19.2 + 22}px`,
-            } as CSSProperties
-          }
+          style={codeViewportHeight(lineCount)}
         >
           <Suspense
             fallback={

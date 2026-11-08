@@ -75,8 +75,10 @@ export interface EditorAppChromeProps {
   mirrorTopBottom: CommandAction;
   alignmentActions: readonly AlignmentAction[];
   instanceCodeOpen: boolean;
+  testbenchOpen: boolean;
   netlistPreflightOpen: boolean;
   onOpenInstanceCode: () => void;
+  onOpenTestbench: () => void;
   onOpenNetlistPreflight: () => void;
   onOpenNetlistConfiguration: () => void;
   netlistFormat: "spice" | "spectre";
@@ -130,8 +132,10 @@ export function EditorAppChrome({
   mirrorTopBottom,
   alignmentActions,
   instanceCodeOpen,
+  testbenchOpen,
   netlistPreflightOpen,
   onOpenInstanceCode,
+  onOpenTestbench,
   onOpenNetlistPreflight,
   netlistFormat,
   onOpenNetlistConfiguration,
@@ -396,6 +400,14 @@ export function EditorAppChrome({
                   onClick={onOpenInstanceCode}
                 >
                   Edit Device Data…
+                </button>
+                <button
+                  type="button"
+                  data-testid="testbench-entry"
+                  aria-expanded={testbenchOpen}
+                  onClick={onOpenTestbench}
+                >
+                  Testbench…
                 </button>
                 <button
                   type="button"

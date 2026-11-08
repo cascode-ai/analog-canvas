@@ -320,6 +320,8 @@
     ],
     "analogSimulation": [
       "apps/editor/src/features/simulation/**",
+      "apps/editor/src/features/testbench/**",
+      "apps/editor/e2e/testbench-panel.spec.ts",
       "apps/editor/e2e/simulation-e2e-fixtures.ts",
       "apps/editor/e2e/native-simulation-executor.mjs",
       "apps/editor/e2e/native-simulation-executor.d.mts",
@@ -665,7 +667,8 @@
         "apps/editor/e2e/simulation-setup.spec.ts",
         "apps/editor/e2e/simulation-storage.spec.ts",
         "apps/editor/e2e/simulation-evidence-benchmark.spec.ts",
-        "apps/editor/e2e/simulation-workspace.spec.ts"
+        "apps/editor/e2e/simulation-workspace.spec.ts",
+        "apps/editor/e2e/testbench-panel.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
@@ -678,7 +681,8 @@
           "apps/editor/e2e/simulation-setup.spec.ts",
           "apps/editor/e2e/simulation-storage.spec.ts",
           "apps/editor/e2e/simulation-evidence-benchmark.spec.ts",
-          "apps/editor/e2e/simulation-workspace.spec.ts"
+          "apps/editor/e2e/simulation-workspace.spec.ts",
+          "apps/editor/e2e/testbench-panel.spec.ts"
         ]
       }
     },
