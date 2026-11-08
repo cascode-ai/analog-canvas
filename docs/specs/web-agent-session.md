@@ -84,11 +84,15 @@ GET  /api/agent/openapi.json
   and bearer; connector resume rotates the bearer; rotation invalidates the
   previous one; revoke or expiry invalidates all three. The relay stores only
   verifiers. The MCP Helper may persist only the connector in its private
-  profile, holding the default per-origin file by a liveness-checked lease (a
-  concurrent Helper keeps its connector in memory with its own Claim; stale
-  leases pass on; explicit paths take no lease). Browser recovery persists
-  neither credential. A returned connector expiry is a snapshot: resume
-  always asks the server.
+  (0600) profile, holding the default per-origin file by a lease whose holder
+  is checked for liveness at every use (an exited holder never blocks;
+  explicit paths take no lease). A Helper paired by its own Claim while
+  another holds the lease keeps that connector in memory. `connect` without a
+  Claim takes the lease and saved connector over even from a live holder,
+  whose next use answers `SESSION_TAKEN_OVER` locally (naming the taker's
+  pid) and never resumes that connector until it connects again. Browser
+  recovery persists neither credential. A returned connector expiry is a
+  snapshot: resume always asks the server.
 - Ended sessions bulk-delete download copies (failures retried later) and
   answer the typed expired/revoked errors.
 

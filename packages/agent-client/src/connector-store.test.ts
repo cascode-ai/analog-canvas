@@ -163,13 +163,80 @@ describe("connector lease (#1522)", () => {
     expect(await store.load()).toEqual(credential);
   });
 
-  it("stops writing the file once another process has taken the lease", async () => {
+  it("stops writing the file once another process has taken the lease, and gives up what it kept", async () => {
     const store = await leasedStore();
     await store.save(credential);
     const holder = await runningProcess();
     await writeFile(store.leasePath, JSON.stringify({ pid: holder }));
+    // Refreshing the connector it held, as a resume does.
+    await store.save({ ...credential, storedAt: 999 });
+    expect(await readJson(store.path)).toEqual(credential);
+    // What it held is the taker's now: it never resumes it again.
+    expect(await store.load()).toBeNull();
+    expect(store.takenOver).toBe(true);
+    expect(store.heldBy).toBe(holder);
+    // A new pairing of its own stays with it.
     await store.save(other);
     expect(await store.load()).toEqual(other);
+    expect(await readJson(store.path)).toEqual(credential);
+  });
+
+  it("looks at the holder again on every load: one that exits stops blocking", async () => {
+    const holder = spawn(process.execPath, [
+      "-e",
+      "setTimeout(() => {}, 60000)",
+    ]);
+    children.push(holder);
+    await once(holder, "spawn");
+    const store = await leasedStore(holder.pid!, credential);
+    expect(await store.load()).toBeNull();
+    expect(store.heldBy).toBe(holder.pid);
+    holder.kill();
+    await once(holder, "exit");
+    expect(await store.load()).toEqual(credential);
+    expect(store.heldBy).toBeNull();
+    expect(await readJson(store.leasePath)).toEqual({ pid: process.pid });
+  });
+
+  it("takes the lease over from a live holder on request and reads its connector", async () => {
+    const holder = await runningProcess();
+    const store = await leasedStore(holder, credential);
+    expect(await store.load()).toBeNull();
+    expect(await store.takeOver()).toBe(holder);
+    expect(await readJson(store.leasePath)).toEqual({ pid: process.pid });
+    expect(await store.load()).toEqual(credential);
+    await store.save(other);
+    expect(await readJson(store.path)).toEqual(other);
+  });
+
+  it("takes nothing over when the held file has no connector", async () => {
+    const holder = await runningProcess();
+    const store = await leasedStore(holder);
+    expect(await store.takeOver()).toBeNull();
+    expect(await readJson(store.leasePath)).toEqual({ pid: holder });
+  });
+
+  it("keeps a pairing of its own private instead of taking the file over", async () => {
+    const holder = await runningProcess();
+    const store = await leasedStore(holder, credential);
+    await store.save(other);
+    expect(await store.takeOver()).toBeNull();
+    expect(await store.load()).toEqual(other);
+    expect(await readJson(store.leasePath)).toEqual({ pid: holder });
+  });
+
+  it("does not take over an exited holder's file just to clear its own pairing", async () => {
+    const holder = spawn(process.execPath, [
+      "-e",
+      "setTimeout(() => {}, 60000)",
+    ]);
+    children.push(holder);
+    await once(holder, "spawn");
+    const store = await leasedStore(holder.pid!, credential);
+    await store.save(other);
+    holder.kill();
+    await once(holder, "exit");
+    await store.clear();
     expect(await readJson(store.path)).toEqual(credential);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FakeAgentHttp } from "./test-support/fake-relay.js";
@@ -99,7 +99,7 @@ describe("agent session client", () => {
     });
   });
 
-  it("says which running process keeps the saved connector it may not share (#1522)", async () => {
+  it("asks for a Claim when the live holder's file has no connector", async () => {
     const directory = await mkdtemp(join(tmpdir(), "analog-lease-"));
     const holder = spawn(process.execPath, [
       "-e",
@@ -117,8 +117,11 @@ describe("agent session client", () => {
       });
       await expect(client.connect()).rejects.toMatchObject({
         code: "CLAIM_REQUIRED",
-        message: expect.stringContaining(`pid ${holder.pid}`),
+        message: expect.stringContaining("no valid saved connector"),
       });
+      expect(
+        JSON.parse(await readFile(store.leasePath, "utf8")) as unknown,
+      ).toEqual({ pid: holder.pid });
     } finally {
       holder.kill();
       await rm(directory, { recursive: true, force: true });

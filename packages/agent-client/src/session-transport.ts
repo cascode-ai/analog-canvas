@@ -463,6 +463,17 @@ export abstract class AgentSessionTransport {
 
   private async resumeConnectorOnce(): Promise<ActiveSession | null> {
     const stored = await this.connectorStore?.load();
+    if (!stored && this.connectorStore?.takenOver) {
+      // The relay sees one connector resumed twice, so only this process
+      // can tell that another one took the saved connector over.
+      const by = this.connectorStore.heldBy;
+      await this.discardCredential("SESSION_TAKEN_OVER");
+      throw new AgentSessionError(
+        "SESSION_TAKEN_OVER",
+        `another MCP process${by ? ` (pid ${by})` : ""} took this connection over: it connected without a claim code and now holds this origin's saved connector. Call connect without a claim code to take it back, or with a claim code from another editor tab for a page of this process's own`,
+        "unrecoverable-credential",
+      );
+    }
     if (!stored || stored.apiBaseUrl !== this.http.baseUrl) {
       return null;
     }
