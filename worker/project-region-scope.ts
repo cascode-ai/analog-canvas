@@ -1,5 +1,18 @@
 /** Undefined preserves the existing all-account opt-in mode. An explicit list is restrictive. */
-export function projectRegionUsers(value?: string): string[] | null {
+export function projectExpansion(value?: string): "off" | "copy" | "all" {
+  const mode = value?.trim();
+  if (mode === undefined || mode === "off") return "off";
+  if (mode === "copy" || mode === "all") return mode;
+  throw new TypeError("Invalid regional Project expansion");
+}
+
+export function projectRegionUsers(
+  value?: string,
+  expansion?: string,
+): string[] | null {
+  const mode = projectExpansion(expansion);
+  if (mode === "copy" && value === undefined)
+    throw new TypeError("Project baseline needs a fixed trial account list");
   if (value === undefined) return null;
   const users: unknown = JSON.parse(value);
   if (
@@ -10,14 +23,27 @@ export function projectRegionUsers(value?: string): string[] | null {
     )
   )
     throw new TypeError("Invalid regional Project account list");
-  return users;
+  return mode === "all" ? null : users;
 }
 
 export function includesProjectOwner(
   value: string | undefined,
   userId: string,
+  expansion?: string,
 ): boolean {
-  return projectRegionUsers(value)?.includes(userId) ?? true;
+  return projectRegionUsers(value, expansion)?.includes(userId) ?? true;
+}
+
+/** Background copies also require authority-coordinated deletion. */
+export function coordinatesProjectDeletion(
+  value: string | undefined,
+  userId: string,
+  expansion?: string,
+): boolean {
+  const users = projectRegionUsers(value, expansion);
+  return (
+    projectExpansion(expansion) === "copy" || (users?.includes(userId) ?? true)
+  );
 }
 
 /** A trial may copy these source Projects, but cannot mutate their domestic copies. */

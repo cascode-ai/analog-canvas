@@ -125,6 +125,16 @@ it("continues the ordered Project stream across a retired owner's pending save",
       ).json()
     ).events[0];
   const pending = await getEvent(0);
+  const journalBytes = async () =>
+    (
+      await (
+        await route(
+          sourceApi,
+          new Request(ORIGIN + "/api/project-sync/status", { headers }),
+        )
+      ).json()
+    ).journalBytes;
+  const beforeDeletion = await journalBytes();
   const retiredProject = JSON.parse(pending.payload).id;
   const staleStore = new GalleryDO(sqliteState(), projectConfig);
   const liveStore = gallery;
@@ -165,6 +175,9 @@ it("continues the ordered Project stream across a retired owner's pending save",
     payloadHash: pending.payloadHash,
     payload: "",
   });
+  expect(await journalBytes()).toBe(
+    beforeDeletion - Buffer.byteLength(pending.payload),
+  );
   const apply = (event: unknown) =>
     route(
       target,
@@ -210,6 +223,33 @@ it("continues the ordered Project stream across a retired owner's pending save",
   });
   expect((await getEvent(0)).payload).toBe("");
   expect(await (await recover(1)).json()).toEqual({ status: "caught-up" });
+});
+
+it("accepts the original confirmation from an overseas account newly covered by copy mode", async () => {
+  const source = environment({
+    AUTH_REGIONAL_AUTHORITY: JSON.stringify({
+      ...JSON.parse(config),
+      accountDeletion: true,
+    }),
+    PROJECT_REGION_USERS: '["existing-trial-account"]',
+    PROJECT_SYNC_EXPANSION: "copy",
+  });
+  const cookie = await makerOf(source);
+  const response = await source.authDurable.fetch(
+    new Request(ORIGIN + "/api/auth/account/delete", {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie },
+      body: JSON.stringify({ confirm: "delete-account" }),
+    }),
+  );
+  expect(response.status).toBe(202);
+  expect(await response.json()).toMatchObject({
+    deletion: {
+      requestId: expect.stringMatching(/^[a-f0-9-]{36}$/u),
+      overseas: "pending",
+      cn: "pending",
+    },
+  });
 });
 
 it("accepts deletion from China and recovers cleanup after Arena failure and a lost receipt", async () => {

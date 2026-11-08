@@ -1,5 +1,5 @@
 import type { SessionUser } from "./auth-do";
-import { includesProjectOwner } from "./project-region-scope";
+import { coordinatesProjectDeletion } from "./project-region-scope";
 import {
   ACCOUNT_DELETE_PATH,
   ACCOUNT_DELETION_TICK,
@@ -504,7 +504,12 @@ export class RegionalSessionDO {
   private canCoordinateDeletion(user: SessionUser | null): boolean {
     try {
       return (
-        !!user && includesProjectOwner(this.env.PROJECT_REGION_USERS, user.id)
+        !!user &&
+        coordinatesProjectDeletion(
+          this.env.PROJECT_REGION_USERS,
+          user.id,
+          this.env.PROJECT_SYNC_EXPANSION,
+        )
       );
     } catch {
       return false;

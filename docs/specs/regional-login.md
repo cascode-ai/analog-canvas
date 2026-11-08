@@ -97,8 +97,8 @@ serves local authorization. Resource replication is owned by
 - With Project and publication replication configured, set
   `accountDeletion: true` in both regional Auth configs after both peers
   support the deletion feed and erased Project receipts. Settings discovers
-  support through providers. During the trial, the overseas local flow serves accounts outside the
-  cohort, and coordinated deletion is limited to admitted accounts.
+  support through providers. Deletion covers the entire copied scope as defined
+  in [Regional Cloud Projects](regional-projects.md#rules).
 
 - Failed sign-in discovery never discards a confirmed session. Until valid
   provider settings are available, account deletion remains disabled; account
@@ -118,7 +118,9 @@ serves local authorization. Resource replication is owned by
 - Supply a random UUID v4 `requestId` with `confirm: "delete-account"`. The same
   receipt can check progress using `{requestId, statusOnly: true}` on that path
   after sign-out. HTTP 202 reports pending cleanup and 200 reports completion
-  in both regions. The authority stores only the receipt digest.
+  in both regions. The authority stores only the receipt digest. During
+  Project expansion, an existing overseas tab sending the old confirmation
+  for a newly coordinated account receives a generated receipt.
 - The scheduled job retries local stores and the existing Arena unlink. China
   pulls the ordered authority feed through the fixed transport, with the Auth
   service credential, and acknowledges only after its stores commit. A lost

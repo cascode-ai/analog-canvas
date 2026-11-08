@@ -1,7 +1,9 @@
 import {
   parseProject,
   CURRENT_PROJECT_FILE_VERSION,
+  OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION,
 } from "@icm/project-protocol";
+import { StableIdSchema } from "@icm/model";
 import { GALLERY_MAX_PROJECT_BYTES, isRecord } from "./gallery-store";
 import { projectPayloadHash, type ProjectEvent } from "./project-sync-journal";
 
@@ -46,7 +48,10 @@ const identifier = (value: unknown): value is string =>
   typeof value === "string" && /^[a-zA-Z0-9:_-]{1,160}$/.test(value);
 const positive = (value: unknown): value is number =>
   Number.isSafeInteger(value) && Number(value) > 0;
-function document(value: Record<string, unknown>): boolean {
+function document(
+  value: Record<string, unknown>,
+  retainedVersion = false,
+): boolean {
   if (
     typeof value.name !== "string" ||
     !value.name.trim() ||
@@ -63,7 +68,30 @@ function document(value: Record<string, unknown>): boolean {
     parseProject(value.project_text);
     return true;
   } catch {
-    return false;
+    if (
+      !retainedVersion ||
+      value.schema_version >= CURRENT_PROJECT_FILE_VERSION ||
+      value.schema_version < OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION
+    )
+      return false;
+    // Keep exact archived bytes even when a newer editor cannot open them.
+    // Current snapshots and the normal restore path still require parseProject.
+    try {
+      const archived: unknown = JSON.parse(value.project_text);
+      return (
+        isRecord(archived) &&
+        archived.schemaVersion === value.schema_version &&
+        StableIdSchema.safeParse(archived.id).success &&
+        StableIdSchema.safeParse(archived.topDocumentId).success &&
+        Array.isArray(archived.documents) &&
+        archived.documents.every(
+          (doc) => isRecord(doc) && StableIdSchema.safeParse(doc.id).success,
+        ) &&
+        archived.documents.some((doc) => doc.id === archived.topDocumentId)
+      );
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -170,7 +198,7 @@ export async function decodeProjectEvent(
   for (const v of change.versions) {
     if (
       !isRecord(v) ||
-      !document(v) ||
+      !document(v, true) ||
       !identifier(v.id) ||
       v.project_id !== change.id ||
       typeof v.saved_at !== "string"

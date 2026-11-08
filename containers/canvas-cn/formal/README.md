@@ -34,7 +34,8 @@ host.
    uses the inbound token for its delivery. `regional-client.json` follows the
    Auth contract and its secret equals `identity-token`.
    `project-region-users.json` lists the confirmed cohort, the same list as
-   the source's `PROJECT_REGION_USERS`. Start `project-compress-journal` at
+   the source's `PROJECT_REGION_USERS`. Provision `project-sync-expansion`
+   with `off` before the first release that embeds it. Start `project-compress-journal` at
    `false`. Enable it only under the [Project journal contract](../../../docs/specs/regional-projects.md#rules).
    `sync-alert.json` holds `apiKey`,
    `from` and the authorized recipient `to`.

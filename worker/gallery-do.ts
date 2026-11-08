@@ -140,7 +140,7 @@ import {
   RegionalProjectDO,
   type ProjectRegionConfig,
 } from "./regional-projects";
-import { includesProjectOwner } from "./project-region-scope";
+import { includesProjectOwner, projectExpansion } from "./project-region-scope";
 import { isRecord } from "./gallery-store";
 import {
   installRetiredAccounts,
@@ -581,6 +581,7 @@ export class GalleryDO {
         participating = includesProjectOwner(
           this.env?.PROJECT_REGION_USERS,
           String(body.userId ?? body.ownerUserId ?? ""),
+          this.env?.PROJECT_SYNC_EXPANSION,
         );
       } catch {
         return Response.json(
@@ -600,7 +601,9 @@ export class GalleryDO {
         return this.regionalProjects.handle(operation, body);
       if (
         ["schema-restore", "schema-converge"].includes(operation) ||
-        (operation === "delete-account" && participating)
+        (operation === "delete-account" &&
+          (participating ||
+            projectExpansion(this.env?.PROJECT_SYNC_EXPANSION) === "copy"))
       )
         return Response.json(
           { error: "regional-coordination-required" },
