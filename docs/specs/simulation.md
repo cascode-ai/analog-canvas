@@ -208,9 +208,10 @@ conversions and a generation digest; spans are never persisted.
 
 ## Testbench view
 
-Every account authors a Cell's Testbench in the right dock, beside Netlist
-(`Netlist │ Testbench`; Circuit › Netlist › Testbench…). It needs no Profile,
-Prepare, Run or hosted access (#2110).
+Every account authors a Cell's Testbench in the right dock, opened like
+Netlist by its own toolbar toggle beside it (and Circuit › Netlist ›
+Testbench…). It adds no row inside the dock: the live netlist keeps its
+height budget. It needs no Profile, Prepare, Run or hosted access (#2110).
 
 - It shows the folders bound to the Netlist entry Cell, one at a time, with a
   select only when there are several; folders of other Cells are listed in its

@@ -268,32 +268,6 @@
   grid-template-columns: 4rem minmax(0, 1fr);
   gap: 3px;
 }
-/* Netlist │ Testbench: one dock, two views of the same Cell. */
-.project-dock-views {
-  display: inline-flex;
-  flex: 0 0 auto;
-  padding: 2px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface-muted);
-}
-.project-dock-views button {
-  min-height: 24px;
-  padding: 2px 10px;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: var(--icm-text-muted);
-  font: inherit;
-  font-size: var(--icm-font-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.project-dock-views button[aria-pressed="true"] {
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-sm);
-  color: var(--icm-text);
-}
 .netlist-code-actions {
   display: flex;
   flex: 0 0 auto;

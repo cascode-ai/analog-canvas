@@ -6,12 +6,11 @@ import {
   openProjectFile,
 } from "./editor-fixtures.js";
 
-/** The Testbench view of the dock, opened from the Netlist view's switch. */
+/** The Testbench view of the dock, from its toolbar toggle beside Netlist. */
 async function openTestbench(page: Page) {
-  const views = page.getByRole("group", { name: "Dock view" });
-  if (!(await views.isVisible()))
-    await page.getByTestId("netlist-panel-toggle").click();
-  await views.getByRole("button", { name: "Testbench" }).click();
+  const toggle = page.getByTestId("testbench-panel-toggle");
+  if ((await toggle.getAttribute("aria-pressed")) !== "true")
+    await toggle.click();
   const panel = page.getByRole("region", { name: "Testbench" });
   await expect(panel).toBeVisible();
   return panel;

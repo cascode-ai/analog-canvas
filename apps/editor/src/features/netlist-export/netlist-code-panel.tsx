@@ -6,7 +6,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import {
   executeProjectTransaction,
@@ -123,11 +122,8 @@ export function NetlistCodePanel({
   selectedProcess,
   onProcessChange,
   onDeviceTargetChange,
-  viewSwitch,
 }: {
   onDirtyChange?(dirty: boolean): void;
-  /** The dock's Netlist │ Testbench switch, at the start of the controls. */
-  viewSwitch?: ReactNode;
   project: CircuitProject;
   rootDocumentId?: string | undefined;
   onRootChange?(documentId: string): void;
@@ -452,7 +448,6 @@ export function NetlistCodePanel({
     >
       <div className="netlist-code-controls">
         <div className="netlist-code-selects">
-          {viewSwitch}
           {onRootChange && project.documents.length > 1 ? (
             <label>
               <span>Entry</span>

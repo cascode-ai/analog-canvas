@@ -6,8 +6,9 @@ Testbench and the Specs it must meet, saved together in the Project.
 
 ## Testbench and Specs
 
-Open **Netlist** and switch it to **Testbench** (or **Circuit › Netlist ›
-Testbench…**). It shows the Testbench of the Cell chosen in **Cell**:
+Click **Testbench** in the toolbar, next to **Netlist** (or **Circuit ›
+Netlist › Testbench…**). It shows the Testbench of the Cell chosen in
+**Cell**:
 
 - **New Testbench** writes a starter, `testbench.spice`: it includes the
   Cell's netlist as `circuit.spice` and, for a Cell with pins, calls it as

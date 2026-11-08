@@ -1,12 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type {
   CircuitProject,
   ProjectSimulationFolder,
@@ -89,7 +81,6 @@ export function TestbenchPanel({
   onRootChange,
   onCommit,
   onDirtyChange,
-  viewSwitch,
 }: {
   project: CircuitProject;
   rootDocumentId?: string | undefined;
@@ -97,8 +88,6 @@ export function TestbenchPanel({
   /** One Project edit adding or replacing the folder; false when refused. */
   onCommit(folder: ProjectSimulationFolder, transactionId: string): boolean;
   onDirtyChange?(dirty: boolean): void;
-  /** The dock's Netlist │ Testbench switch, at the start of the controls. */
-  viewSwitch?: ReactNode;
 }) {
   const cellId =
     rootDocumentId ?? project.topDocumentId ?? project.documents[0]?.id ?? "";
@@ -333,7 +322,6 @@ export function TestbenchPanel({
       />
       <div className="netlist-code-controls">
         <div className="netlist-code-selects">
-          {viewSwitch}
           {cellSelect}
           {forCell.length > 1 ? (
             <NetlistCodeSelect

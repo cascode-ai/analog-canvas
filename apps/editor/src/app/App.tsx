@@ -232,7 +232,6 @@ import {
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
 import { TestbenchPanel } from "../features/testbench/testbench-panel";
-import { ProjectDockViews } from "./project-dock-views";
 import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import { useProjectCheck } from "./use-project-check";
@@ -6267,21 +6266,9 @@ function WorkspaceEditor({
                         { kind: "upsert_simulation_folder", folder },
                       ])
                     }
-                    viewSwitch={
-                      <ProjectDockViews
-                        view="testbench"
-                        onChange={showProjectPanel}
-                      />
-                    }
                   />
                 ) : projectPanel === "netlist" ? (
                   <NetlistCodePanel
-                    viewSwitch={
-                      <ProjectDockViews
-                        view="netlist"
-                        onChange={showProjectPanel}
-                      />
-                    }
                     onDirtyChange={noteCodeDraftDirty}
                     key={projectSessionId}
                     onApply={(edits) =>
