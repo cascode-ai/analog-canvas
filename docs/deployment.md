@@ -202,8 +202,8 @@ retained `regional.env`, image and runtime config. Set `VACASK_RUN_UID=10002`
 and run the regional budget guard before `up`; leave the Production gateway's
 bearer rotation to the `vacask-preview` action.
 
-Production runs go through the managed `/api/simulation/runs` (signed-in
-accounts only); `/api/simulate` is the direct/local transport and never a
+Production runs go through the managed `/api/simulation/runs` (team
+accounts only, [admission](specs/simulation-execution.md)); `/api/simulate` is the direct/local transport and never a
 fallback. The smoke scripts (`scripts/*-smoke.mjs`) are run by hand; against
 Production they need a `SIMULATION_SMOKE_TOKEN` put on the Worker.
 [Simulation execution](specs/simulation-execution.md) owns the run contracts.

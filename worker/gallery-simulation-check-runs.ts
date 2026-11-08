@@ -59,6 +59,8 @@ const CHECK_RUNTIME: SimulationOperationsRuntime = {
   principalOf: async () => SIMULATION_CHECK_ACCOUNT,
   now: () => Date.now(),
   uuid: () => crypto.randomUUID(),
+  // The checks are the team's own computation (#2074).
+  admits: () => true,
 };
 
 /** In-process requests; nothing leaves the Worker by this origin. */

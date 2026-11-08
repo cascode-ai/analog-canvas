@@ -15,10 +15,12 @@ import {
 
 import { sessionUserOf } from "./auth";
 import type { AuthEnv, SessionUser } from "./auth-do";
+import { computesOnHostedSimulation } from "./hosted-simulation-access";
 import type { SimulationControlNamespaceLike } from "./simulation-control-do";
 import {
   routeSimulationRequest,
   signInToSimulate,
+  simulateYourself,
   type SimulationEnv,
   type SimulationRequestBody,
 } from "./simulation";
@@ -81,6 +83,8 @@ export interface SimulationOperationsRuntime {
   ): Promise<SessionUser | null>;
   now(): number;
   uuid(): string;
+  /** Whether the principal may start a run; the team by default (#2074). */
+  admits?(principal: SessionUser): boolean;
 }
 
 const defaultRuntime: SimulationOperationsRuntime = {
@@ -251,6 +255,9 @@ export async function routeManagedSimulationRequest(
       return ownedResponse(
         Response.json({ error: "method-not-allowed" }, { status: 405 }),
       );
+    // Reading, cancelling and deleting one's own runs stay open to everyone.
+    if (!(runtime.admits ?? computesOnHostedSimulation)(principal))
+      return ownedResponse(simulateYourself());
     const body = (await request.json().catch(() => null)) as StartBody | null;
     const input = asInput(body?.input);
     if (

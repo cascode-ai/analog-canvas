@@ -49,6 +49,7 @@ import {
   includesProjectOwner,
 } from "./project-region-scope";
 import { exemptFromTraps } from "./trap-exempt";
+import { withHostedSimulation } from "./hosted-simulation-access";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import { RegionalAuthority } from "./regional-auth-authority";
@@ -765,7 +766,9 @@ export class AuthDO {
       });
     }
     if (route === "me" && method === "GET") {
-      return noStoreJson({ user: await this.me(request) });
+      return noStoreJson({
+        user: withHostedSimulation(await this.me(request)),
+      });
     }
     if (route === "handoff" && method === "GET") {
       return this.handoffStart(request, url);
