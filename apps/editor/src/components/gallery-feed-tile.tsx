@@ -301,6 +301,7 @@ export function GalleryWallTile({
                 !!verifySimulation ||
                 (!!viewerId && viewerId === entry.ownerUserId))
             }
+            own={!!viewerId && viewerId === entry.ownerUserId}
             onReview={() => setReviewing(entry)}
             onWithdraw={() => void withdrawEntry(entry)}
             {...(verifySimulation

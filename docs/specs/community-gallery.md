@@ -577,7 +577,9 @@ filters, each with the count it would show: Random (every store mixed, the
 default; choosing it again shuffles anew), Community and each dataset with
 comparisons, then With a reference figure (on by default). The address
 keeps them (`?scope=<random|community|key>`, `&refs=0` when the reference
-filter is off; `&id=` opens one drawing). Both
+filter is off; `&id=` opens one drawing, turning the reference filter off
+when it hides that one). Every tile's ⋯ menu has Report an issue, a link to
+the drawing in Review, for anyone signed in but its author. Both
 sidebars fold to a strip at the left from a button at their top; each
 browser remembers it. Statistics shows the Owner each person's reviews and
 fixes over every store, and the open issues and disputes (each a link into

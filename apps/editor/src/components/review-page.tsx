@@ -171,11 +171,20 @@ export function ReviewPage({
   const card = cards[index];
   const progress = useMemo(() => reviewProgress(cards), [cards]);
   useEffect(() => {
-    if (!focusId.current || cards.length === 0) return;
+    if (!focusId.current || all.length === 0) return;
     const found = cards.findIndex((each) => each.id === focusId.current);
+    // A link to a drawing the reference filter hides turns the filter off.
+    if (
+      found < 0 &&
+      referencesOnly &&
+      all.some((each) => each.id === focusId.current)
+    ) {
+      setReferencesOnly(false);
+      return;
+    }
     focusId.current = null;
     if (found >= 0) setIndex(found);
-  }, [cards]);
+  }, [cards, all, referencesOnly]);
   const replaceCard = useCallback(
     (id: string, change: (card: ReviewCard) => ReviewCard) =>
       setLoad((current) =>

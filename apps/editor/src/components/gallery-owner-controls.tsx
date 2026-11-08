@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { GalleryFeedEntry } from "../gallery-client";
 import { ReferenceImageDialog } from "./reference-image-dialog";
+import { gallerySourceOfEntryId } from "../gallery-sources";
 
 const OWNER_REJECT_REASONS = [
   "too ugly",
@@ -18,7 +19,8 @@ function joinedRejectReason(reasons: readonly string[], note: string): string {
 
 /**
  * The one menu on a tile its viewer may manage, an administrator's or the
- * submitter's own; the tile itself looks as it does to everyone. Review
+ * submitter's own; the tile itself looks as it does to everyone. Report an
+ * issue opens the drawing in /review for anyone but its author. Review
  * drawing opens the drawing's review. Withdraw takes the tile off the Gallery
  * at once, and the recycle bin or My submissions brings it back. Verify
  * simulation, for the Owner's accounts alone, queues the server's check of
@@ -29,6 +31,7 @@ export function GalleryTileMenu({
   busy,
   administrator,
   manage = true,
+  own = false,
   onReview,
   onWithdraw,
   onVerifySimulation,
@@ -39,6 +42,8 @@ export function GalleryTileMenu({
   administrator: boolean;
   /** Its author or an administrator; anyone else gets Copy address alone. */
   manage?: boolean;
+  /** The viewer's own circuit, which they do not review. */
+  own?: boolean;
   onReview: () => void;
   onWithdraw: () => void;
   onVerifySimulation?: () => void;
@@ -81,6 +86,16 @@ export function GalleryTileMenu({
           >
             {copied ? "Copied" : "Copy address"}
           </button>
+          {/* Anyone but its author reports what is wrong with it in Review. */}
+          {own ? null : (
+            <a
+              href={`/review?scope=${gallerySourceOfEntryId(entry.id)?.key ?? "community"}&id=${encodeURIComponent(entry.id)}`}
+              data-testid={`gallery-report-${entry.id}`}
+              title="Open it in Review: choose what is wrong, box it, comment"
+            >
+              Report an issue
+            </a>
+          )}
           {manage ? (
             <>
               {/* What it was drawn from, shown beside it in /review. */}
