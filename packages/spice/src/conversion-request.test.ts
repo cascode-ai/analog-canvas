@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as conversion from "./conversion.js";
 import { handleNetlistConversionRequest } from "./conversion-request.js";
 const url = "http://localhost/api/netlist/convert";
 const request = (body: unknown) =>
@@ -38,6 +39,24 @@ describe("conversion HTTP protocol", () => {
       issues: [{ line: 2, code: "UNSUPPORTED_PARAMETER" }],
     });
     expect(body).not.toHaveProperty("text");
+  });
+  it("reports a converter failure as its own, not as a bad request", async () => {
+    const spy = vi
+      .spyOn(conversion, "convertNetlist")
+      .mockImplementation(() => {
+        throw new Error("boom");
+      });
+    try {
+      const response = await handleNetlistConversionRequest(
+        request({ text: "R1 a 0 1k", source: "spice", target: "spectre" }),
+      );
+      expect(response?.status).toBe(500);
+      expect(await response!.json()).toEqual({
+        error: "Conversion failed with an internal error.",
+      });
+    } finally {
+      spy.mockRestore();
+    }
   });
   it("bounds and validates the request envelope", async () => {
     expect(

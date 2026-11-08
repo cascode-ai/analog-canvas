@@ -23,6 +23,34 @@ function converted(
 }
 
 describe("netlist-crawler structural conversion", () => {
+  it("sweeps a source's DC value as Spectre names it, both ways", () => {
+    const spectre = converted(
+      "V1 a 0 DC 0\nR1 a 0 1k\n.dc V1 0 1 0.1",
+      "spice",
+    );
+    expect(spectre).toContain("dc1 dc dev=V1 param=dc start=0 stop=1 step=0.1");
+    expect(spectre).not.toContain("source=");
+    expect(converted(spectre)).toContain(".dc V1 0 1 0.1");
+    // The form this converter once wrote is still read.
+    expect(converted("dc1 dc source=V1 start=0 stop=1 step=0.1")).toContain(
+      ".dc V1 0 1 0.1",
+    );
+    expect(
+      convertNetlist({
+        text: "dc1 dc dev=R1 param=r start=1k stop=2k step=100",
+        source: "spectre",
+        target: "spice",
+      }).status,
+    ).toBe("blocked");
+  });
+
+  it("refuses a subcircuit call that names no node", () => {
+    expect(
+      convertNetlist({ text: "X1 amp", source: "spice", target: "spectre" }),
+    ).toMatchObject({ status: "blocked", issues: [{ line: 1 }] });
+    expect(converted("X1 a amp", "spice")).toContain("X1 (a) amp");
+  });
+
   it("reads the reviewed native bipolar and diode stand-ins, including arbitrary instance names", () => {
     const text = converted(
       "model PNP bjt type=pnp is=1e-16 bf=50 vaf=50\nmodel NPN bjt type=npn is=1e-16 bf=100 vaf=100\nmodel DIODE diode is=1e-14 n=1\np (c b e) PNP m=2\nn (c b e) NPN\nd (a k) DIODE",
