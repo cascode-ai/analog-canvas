@@ -276,6 +276,8 @@ describe("pairing the Agent client with the live editor", () => {
       vi.spyOn(http, "status").mockResolvedValue(observation(controller));
       const report = await restarted.connect();
       expect(report.mode).toBe("resumed");
+      // The resumed grant, not a list this process assumes.
+      expect(report.scopes).toEqual([...ALL_AGENT_SCOPES]);
       expect(http.resumes).toEqual([
         {
           sessionId: "session-1",

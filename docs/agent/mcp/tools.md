@@ -2,6 +2,9 @@
 
 Call tools with their listed schema. Action semantics are in
 [authoring](../shared/authoring.md); this page covers MCP specifics.
+`connect`'s `access.tools` names every tool, grouped `session`, `circuit`,
+`project`, `gallery`, `components`, `simulation` and `files`
+([availability](../mcp-quickstart.md#connect)).
 
 ## Contracts and input errors
 

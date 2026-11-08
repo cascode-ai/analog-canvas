@@ -17,6 +17,7 @@ import {
 } from "../features/netlist-export/netlist-process";
 import { createAgentGalleryPublisher } from "./agent-gallery-publish";
 import {
+  ALL_AGENT_SCOPES,
   emptyAgentProject,
   liveAgentEditor,
   personEdits,
@@ -673,10 +674,21 @@ describe("MCP tools on the live editor", () => {
       apiOriginSource: "configured",
     });
     expect(editKinds).toContain("transact_document");
+    // operations are the Circuit resource's, not the session's whole access.
+    expect(summary.resource).toBe("circuit");
+    expect(paired.access.scopes).toEqual([...ALL_AGENT_SCOPES]);
+    expect(paired.access.tools).toMatchObject({
+      circuit: expect.arrayContaining(["apply_actions", "circuit_wire"]),
+      project: expect.arrayContaining(["project_cells"]),
+      gallery: ["gallery_circuits"],
+      simulation: expect.arrayContaining(["simulation"]),
+      files: expect.arrayContaining(["export_file", "import_file"]),
+    });
     const text = await reply({});
     const resumed = JSON.parse(text);
     expect(resumed).toMatchObject({
       mode: "resumed",
+      access: paired.access,
       compatibility: paired.compatibility,
       context: paired.context,
     });
@@ -685,10 +697,17 @@ describe("MCP tools on the live editor", () => {
       editKindCount: editKinds.length,
       details: { tool: "connect", detail: "full" },
     });
-    // A tripwire: the reply is about 1.7 kB here, 3.9 kB with the edit kinds.
-    expect(Buffer.byteLength(text)).toBeLessThan(3_000);
+    // A tripwire: the reply is about 3.4 kB here (1.2 kB of it access),
+    // 5.6 kB with the edit kinds.
+    expect(Buffer.byteLength(text)).toBeLessThan(3_600);
     const asked = await editor.tool("connect", { detail: "full" });
     expect(asked.capabilities).toEqual(paired.capabilities);
+    // A narrower grant is reported as granted, never widened.
+    const narrow = mcp({ scopes: ["circuit.snapshot", "gallery.publish"] });
+    expect(
+      (await narrow.tool("connect", { claimCode: "session-1.code" })).access
+        .scopes,
+    ).toEqual(["circuit.snapshot", "gallery.publish"]);
     // Three full capability reads of the live editor: about 1 s alone, but
     // past the default 5 s under a parallel run (timed out 10-18 and 10-21).
   }, 20_000);
