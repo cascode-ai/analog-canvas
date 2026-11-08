@@ -15,14 +15,19 @@ import { galleryPreviewUrl } from "../gallery-client";
 import { gallerySourceByKey } from "../gallery-sources";
 import { verdictOf, type ComparisonVerdict } from "../dataset-comparisons";
 import {
+  authorFromSearch,
   entryIdOf,
   flagLabel,
   flagsFor,
   hasReference,
+  matchesReviewSearch,
   nextUnreviewed,
+  referencesOnlyByDefault,
   referencesOnlyFromSearch,
+  reviewAuthors,
   reviewProgress,
   reviewed,
+  settled,
   REVIEW_STORES,
   scopeFromSearch,
   shuffledQueue,
@@ -41,6 +46,7 @@ import { MarkablePicture, useInstanceBoxes, ZoomView } from "./review-picture";
 import { NetlistPair, useNetlistText } from "./review-netlists";
 import { AutoCheck } from "./review-auto-check";
 import { ScopeSidebar } from "./review-sidebar";
+import { ReviewReferenceDrop } from "./review-reference-drop";
 import type { LayoutCheckKind, LayoutFinding } from "../layout-check";
 
 type Load =
@@ -75,6 +81,11 @@ export function ReviewPage({
   const [referencesOnly, setReferencesOnly] = useState(() =>
     referencesOnlyFromSearch(window.location.search),
   );
+  // One author's drawings, and a search over names, authors and ids.
+  const [author, setAuthor] = useState(() =>
+    authorFromSearch(window.location.search),
+  );
+  const [search, setSearch] = useState("");
   // A link from Statistics names the drawing to open.
   const focusId = useRef(new URLSearchParams(window.location.search).get("id"));
   const [load, setLoad] = useState<Load>({ status: "loading" });
@@ -99,9 +110,13 @@ export function ReviewPage({
     window.history.replaceState(
       null,
       "",
-      `/review?scope=${scope}${referencesOnly ? "" : "&refs=0"}`,
+      `/review?scope=${scope}${
+        referencesOnly === referencesOnlyByDefault(scope)
+          ? ""
+          : `&refs=${referencesOnly ? 1 : 0}`
+      }${author ? `&author=${encodeURIComponent(author)}` : ""}`,
     );
-  }, [scope, referencesOnly]);
+  }, [scope, referencesOnly, author]);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,38 +168,66 @@ export function ReviewPage({
     return { random: load.mixed.map((id) => byId.get(id)!), ...load.lists };
   }, [load]);
   const all = useMemo(() => byScope[scope] ?? [], [byScope, scope]);
-  // Each row's count, under the reference filter when it is on.
+  // The author and the search narrow every list alike; the reference filter
+  // is each list's own: the one chosen has it as set, any other as choosing
+  // it would set it.
+  const narrowed = useCallback(
+    (list: readonly ReviewCard[], references: boolean) =>
+      list.filter(
+        (each) =>
+          (!references || hasReference(each)) &&
+          (!author || each.author === author) &&
+          matchesReviewSearch(each, search),
+      ),
+    [author, search],
+  );
+  // Each row's count: what choosing it would show.
   const counts = useMemo(
     () =>
       Object.fromEntries(
         Object.entries(byScope).map(([key, list]) => [
           key,
-          (referencesOnly ? list.filter(hasReference) : list).length,
+          narrowed(
+            list,
+            key === scope ? referencesOnly : referencesOnlyByDefault(key),
+          ).length,
         ]),
       ),
-    [byScope, referencesOnly],
+    [byScope, scope, referencesOnly, narrowed],
   );
   const cards = useMemo(
-    () => (referencesOnly ? all.filter(hasReference) : all),
-    [all, referencesOnly],
+    () => narrowed(all, referencesOnly),
+    [all, referencesOnly, narrowed],
+  );
+  // The authors of this list as the other filters leave it.
+  const authors = useMemo(
+    () =>
+      reviewAuthors(
+        all.filter(
+          (each) =>
+            (!referencesOnly || hasReference(each)) &&
+            matchesReviewSearch(each, search),
+        ),
+      ),
+    [all, referencesOnly, search],
   );
   const card = cards[index];
   const progress = useMemo(() => reviewProgress(cards), [cards]);
   useEffect(() => {
     if (!focusId.current || all.length === 0) return;
     const found = cards.findIndex((each) => each.id === focusId.current);
-    // A link to a drawing the reference filter hides turns the filter off.
-    if (
-      found < 0 &&
-      referencesOnly &&
-      all.some((each) => each.id === focusId.current)
-    ) {
-      setReferencesOnly(false);
+    // A link to a drawing a filter hides turns that filter off.
+    const target =
+      found < 0 ? all.find((each) => each.id === focusId.current) : undefined;
+    if (target) {
+      if (referencesOnly && !hasReference(target)) setReferencesOnly(false);
+      if (author && target.author !== author) setAuthor(null);
+      if (!matchesReviewSearch(target, search)) setSearch("");
       return;
     }
     focusId.current = null;
     if (found >= 0) setIndex(found);
-  }, [cards, all, referencesOnly]);
+  }, [cards, all, referencesOnly, author, search]);
   const replaceCard = useCallback(
     (id: string, change: (card: ReviewCard) => ReviewCard) =>
       setLoad((current) =>
@@ -227,18 +270,27 @@ export function ReviewPage({
       }
       const target = byScope[store]!.find((each) => each.id === id)!;
       focusId.current = id;
-      if (referencesOnly && !hasReference(target)) setReferencesOnly(false);
+      // Another store opens with its own reference filter, off when it
+      // would hide the drawing.
+      if (store !== scope)
+        setReferencesOnly(
+          referencesOnlyByDefault(store) && hasReference(target),
+        );
+      else if (referencesOnly && !hasReference(target))
+        setReferencesOnly(false);
+      if (author && target.author !== author) setAuthor(null);
+      setSearch("");
       setScope(store);
       return true;
     },
-    [cards, byScope, referencesOnly],
+    [cards, byScope, scope, referencesOnly, author],
   );
   // A random drawing of this list not yet reviewed (any, once all are).
   const jumpRandom = useCallback(() => {
     const others = cards
       .map((each, at) => ({ each, at }))
       .filter(({ at }) => at !== index);
-    const open = others.filter(({ each }) => !reviewed(each));
+    const open = others.filter(({ each }) => !settled(each));
     const pool = open.length ? open : others;
     if (pool.length)
       setIndex(pool[Math.floor(Math.random() * pool.length)]!.at);
@@ -258,6 +310,9 @@ export function ReviewPage({
               }
             : current,
         );
+      // Another list starts with its own reference filter: Community with
+      // every drawing, a dataset with its figures.
+      if (next !== scope) setReferencesOnly(referencesOnlyByDefault(next));
       setScope(next);
       setIndex(0);
     },
@@ -410,10 +465,14 @@ export function ReviewPage({
   }, []);
 
   // Enter sends what is there: the reasons as an issue, else a pass; a
-  // comment and boxes go with either.
+  // comment and boxes go with either. One's own drawing takes no review:
+  // Enter moves on.
   const commit = useCallback(
-    (after?: number) => void submit(flags.length ? "issue" : "pass", after),
-    [flags.length, submit],
+    (after?: number) =>
+      card?.own
+        ? go(index + 1)
+        : void submit(flags.length ? "issue" : "pass", after),
+    [card, go, index, flags.length, submit],
   );
   const sendIssue = useCallback(() => {
     if (flags.length) void submit("issue");
@@ -439,6 +498,7 @@ export function ReviewPage({
         event.target instanceof Element &&
         event.target.closest("textarea, input, select");
       if (typing) {
+        if (event.target.closest(".review-search")) return;
         const inNote =
           event.target instanceof Element &&
           event.target.closest(".review-note");
@@ -499,10 +559,33 @@ export function ReviewPage({
           counts={counts}
           referencesOnly={referencesOnly}
           references={
-            load.status === "ready" ? all.filter(hasReference).length : null
+            load.status === "ready" ? narrowed(all, true).length : null
           }
           onReferencesOnly={() => {
             setReferencesOnly((current) => !current);
+            setIndex(0);
+          }}
+          search={search}
+          onSearch={(text) => {
+            setSearch(text);
+            setIndex(0);
+          }}
+          onSearchEnter={(text) => {
+            // A link or id opens its drawing wherever it is; a word only
+            // filters, as typing does.
+            const id = entryIdOf(text);
+            if (
+              id &&
+              Object.values(byScope).some((list) =>
+                list.some((each) => each.id === id),
+              )
+            )
+              jumpTo(text);
+          }}
+          authors={load.status === "ready" ? authors : []}
+          author={author}
+          onAuthor={(next) => {
+            setAuthor(next);
             setIndex(0);
           }}
           collapsed={sidebarCollapsed}
@@ -522,9 +605,13 @@ export function ReviewPage({
               </p>
             ) : !card ? (
               <p className="gallery-status">
-                {referencesOnly
-                  ? "No drawing here has a reference figure yet."
-                  : "Nothing to review here yet."}
+                {search.trim()
+                  ? `No drawing here matches “${search.trim()}”.`
+                  : author
+                    ? `No drawing by ${author} here.`
+                    : referencesOnly
+                      ? "No drawing here has a reference figure yet."
+                      : "Nothing to review here yet."}
               </p>
             ) : (
               <>
@@ -557,23 +644,6 @@ export function ReviewPage({
                     >
                       Random <kbd>R</kbd>
                     </button>
-                    <form
-                      className="review-jump"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        const input = event.currentTarget.elements.namedItem(
-                          "jump",
-                        ) as HTMLInputElement;
-                        if (jumpTo(input.value)) input.value = "";
-                      }}
-                    >
-                      <input
-                        name="jump"
-                        autoComplete="off"
-                        placeholder="Jump to: link or id"
-                        aria-label="Jump to a drawing by its link or id"
-                      />
-                    </form>
                   </span>
                 </div>
                 <ReviewItem
@@ -587,98 +657,118 @@ export function ReviewPage({
                       current.length >= 12 ? current : [...current, mark],
                     )
                   }
+                  onReference={(revision) =>
+                    replaceCard(card.id, (each) => ({
+                      ...each,
+                      reference: { revision },
+                    }))
+                  }
                 >
-                  <div className="review-actions">
-                    <textarea
-                      className="review-note"
-                      rows={1}
-                      placeholder={
-                        flags.length
-                          ? "What is wrong, and where (optional)"
-                          : "Comment (optional)"
-                      }
-                      title={
-                        flags.length
-                          ? "Such as: M3's drain on VOUT instead of X. Enter submits; Shift+Enter starts a new line."
-                          : "Enter submits; Shift+Enter starts a new line."
-                      }
-                      value={note}
-                      maxLength={1000}
-                      onChange={(event) => setNote(event.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className={`review-like${card.likedByViewer ? " on" : ""}`}
-                      aria-pressed={card.likedByViewer}
-                      title={
-                        owner
-                          ? "Add a heart (L; ⌥-click takes one back)"
-                          : card.likedByViewer
-                            ? "Remove your like (L)"
-                            : "Like this circuit (L)"
-                      }
-                      onClick={(event) =>
-                        void toggleLike(owner && event.altKey)
-                      }
-                    >
-                      <HeartIcon filled={card.likedByViewer} />{" "}
-                      {num(card.likes)}
-                    </button>
-                    <button
-                      type="button"
-                      className={`review-issue${flags.length || (card.mine?.current && card.mine.verdict === "issue") ? " on" : ""}`}
-                      disabled={busy}
-                      title={
-                        flags.length
-                          ? "Send the reasons with your comment and boxes"
-                          : "Choose a reason below first"
-                      }
-                      data-testid="review-not-pass"
-                      onClick={sendIssue}
-                    >
-                      <span aria-hidden="true">✕</span> Submit issue
-                      {flags.length ? <kbd>Enter</kbd> : null}
-                    </button>
-                  </div>
-                  <div
-                    className="review-flags"
-                    role="group"
-                    aria-label="Reasons"
-                  >
-                    {flagsFor(card.scope).map((flag) => (
-                      <button
-                        key={flag.key}
-                        type="button"
-                        className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
-                        aria-pressed={flags.includes(flag.key)}
-                        onClick={() => toggleFlag(flag.key)}
-                      >
-                        <kbd>{flag.hotkey}</kbd>
-                        {flag.label}
-                      </button>
-                    ))}
-                  </div>
-                  {marks.length ? (
-                    <div className="review-marks-row">
-                      {marks.map((mark, number) => (
+                  {card.own ? (
+                    <p className="review-own" data-testid="review-own">
+                      Your drawing: others review it here, and their reviews
+                      show below. → moves on.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="review-actions">
+                        <textarea
+                          className="review-note"
+                          rows={1}
+                          placeholder={
+                            flags.length
+                              ? "What is wrong, and where (optional)"
+                              : "Comment (optional)"
+                          }
+                          title={
+                            flags.length
+                              ? "Such as: M3's drain on VOUT instead of X. Enter submits; Shift+Enter starts a new line."
+                              : "Enter submits; Shift+Enter starts a new line."
+                          }
+                          value={note}
+                          maxLength={1000}
+                          onChange={(event) => setNote(event.target.value)}
+                        />
                         <button
-                          key={number}
                           type="button"
-                          className="review-mark-chip"
-                          title="Remove this box"
-                          onClick={() =>
-                            setMarks((current) =>
-                              current.filter((_, at) => at !== number),
-                            )
+                          className={`review-like${card.likedByViewer ? " on" : ""}`}
+                          aria-pressed={card.likedByViewer}
+                          title={
+                            owner
+                              ? "Add a heart (L; ⌥-click takes one back)"
+                              : card.likedByViewer
+                                ? "Remove your like (L)"
+                                : "Like this circuit (L)"
+                          }
+                          onClick={(event) =>
+                            void toggleLike(owner && event.altKey)
                           }
                         >
-                          <b>{number + 1}</b>
-                          {mark.side === "original" ? "Original" : "Redraw"} ×
+                          <HeartIcon filled={card.likedByViewer} />{" "}
+                          {num(card.likes)}
                         </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {message ? <p className="review-message">{message}</p> : null}
+                        <button
+                          type="button"
+                          className={`review-issue${flags.length || (card.mine?.current && card.mine.verdict === "issue") ? " on" : ""}`}
+                          disabled={busy}
+                          title={
+                            flags.length
+                              ? "Send the reasons with your comment and boxes"
+                              : "Choose a reason below first"
+                          }
+                          data-testid="review-not-pass"
+                          onClick={sendIssue}
+                        >
+                          <span aria-hidden="true">✕</span> Submit issue
+                          {flags.length ? <kbd>Enter</kbd> : null}
+                        </button>
+                      </div>
+                      <div
+                        className="review-flags"
+                        role="group"
+                        aria-label="Reasons"
+                      >
+                        {flagsFor(card.scope).map((flag) => (
+                          <button
+                            key={flag.key}
+                            type="button"
+                            className={`review-flag${flags.includes(flag.key) ? " on" : ""}`}
+                            aria-pressed={flags.includes(flag.key)}
+                            onClick={() => toggleFlag(flag.key)}
+                          >
+                            <kbd>{flag.hotkey}</kbd>
+                            {flag.label}
+                          </button>
+                        ))}
+                      </div>
+                      {marks.length ? (
+                        <div className="review-marks-row">
+                          {marks.map((mark, number) => (
+                            <button
+                              key={number}
+                              type="button"
+                              className="review-mark-chip"
+                              title="Remove this box"
+                              onClick={() =>
+                                setMarks((current) =>
+                                  current.filter((_, at) => at !== number),
+                                )
+                              }
+                            >
+                              <b>{number + 1}</b>
+                              {mark.side === "original"
+                                ? "Original"
+                                : "Redraw"}{" "}
+                              ×
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {message ? (
+                        <p className="review-message">{message}</p>
+                      ) : null}
+                    </>
+                  )}
                 </ReviewItem>
               </>
             )}
@@ -725,6 +815,7 @@ function ReviewItem({
   owner,
   marks,
   onAddMark,
+  onReference,
   children,
 }: {
   card: ReviewCard;
@@ -732,6 +823,8 @@ function ReviewItem({
   owner: boolean;
   marks: readonly ReviewMark[];
   onAddMark: (mark: ReviewMark) => void;
+  /** A reference image just given to the drawing, by its revision. */
+  onReference: (revision: string) => void;
   children: ReactNode;
 }) {
   const comparison = card.comparison;
@@ -853,6 +946,12 @@ function ReviewItem({
           </h4>
           {original ? (
             picture(original, "original")
+          ) : owner && !comparison ? (
+            <ReviewReferenceDrop
+              entryId={card.id}
+              onAttached={onReference}
+              fetchLike={fetchLike}
+            />
           ) : (
             <div className="review-pic">
               <span className="none">No reference figure</span>
@@ -966,7 +1065,7 @@ function OthersReviews({
   const [shown, setShown] = useState<ShownReview[] | null>(null);
   const [fixes, setFixes] = useState<EntryFix[]>([]);
   const [round, setRound] = useState(0);
-  const unblinded = reviewed(card) || owner;
+  const unblinded = reviewed(card) || owner || card.own === true;
   const key = `${card.mine?.id ?? ""}:${owner}:${round}`;
   const loaded = useRef<string | null>(null);
   useEffect(() => {

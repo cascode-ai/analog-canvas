@@ -367,6 +367,67 @@ it("exports distinct bus members through identity and reverse hierarchy after ca
   ).toEqual(["IN<3:0>", "OUT<3:0>"]);
 });
 
+it("calls a Cell whose bus Pin sits between scalar Pins in its .subckt order (#2005)", () => {
+  let project = createEmptyProject("mixed-pins", "Mixed pins", "child");
+  project.documents[0]!.netlist!.name = "mixed";
+  project = vector(project, "child", "a", "A", 0);
+  project = vector(project, "child", "b", "B<1:0>", 100);
+  project = vector(project, "child", "c", "C", 200);
+  const childBus = project.documents[0]!.netlist!.terminals[1]!.signal!.members;
+  const top = createEmptyDocument("top", "mixed_top");
+  top.netlist!.name = "mixed_top";
+  top.instances.push({
+    id: "x",
+    reference: "X1",
+    symbolId: hierarchicalSymbolId("mixed"),
+    placement: { position: { x: 300, y: 0 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "subcircuit", childDocumentId: "child" },
+      parameters: {},
+    },
+  });
+  project = {
+    ...project,
+    topDocumentId: top.id,
+    documents: [...project.documents, top],
+  };
+  project = vector(project, top.id, "ta", "TA", 0);
+  project = vector(project, top.id, "tb", "TB<1:0>", 100);
+  project = vector(project, top.id, "tc", "TC", 200);
+  const topBus = project.documents.find((d) => d.id === top.id)!.netlist!
+    .terminals[1]!.signal!.members;
+  project = documentEdit(project, top.id, [
+    connect(endpoint("ta", "P"), endpoint("x", "A"), "net-a"),
+    ...childBus.map((member, i) =>
+      connect(
+        endpoint("tb", "P", topBus[i]!.id),
+        endpoint("x", "B<1:0>", member.id),
+        `net-b-${i}`,
+      ),
+    ),
+    connect(endpoint("tc", "P"), endpoint("x", "C"), "net-c"),
+  ]);
+  const exported = createDesignNetlistExport(
+    parseProject(serializeProject(project)),
+  );
+  expect(exported.status, JSON.stringify(exported.diagnostics)).toBe("ready");
+  if (exported.status !== "ready") throw new Error("Export refused");
+  const lines = exported.file.text.split("\n");
+  const header = lines
+    .find((line) => line.startsWith(".subckt mixed "))!
+    .trim()
+    .split(/\s+/u)
+    .slice(2);
+  const call = lines
+    .find((line) => line.trim().startsWith("X1 "))!
+    .trim()
+    .split(/\s+/u)
+    .slice(1, -1);
+  // SPICE pairs a call's nodes with the .subckt's ports by position.
+  expect(header).toEqual(["A", "B_1_", "B_0_", "C"]);
+  expect(call).toEqual(["TA", "TB_1_", "TB_0_", "TC"]);
+});
+
 it("preserves physical hierarchy channels after connected reorder, rename and resize", () => {
   const { project, measured } = busDcFixture(true);
   expect(measured).toHaveLength(8);

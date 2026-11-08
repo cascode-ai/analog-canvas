@@ -1,12 +1,17 @@
+import { useState } from "react";
+
 import { COMPARISON_SOURCES } from "../gallery-sources";
 import { SidebarFoldButton } from "./gallery-tag-sidebar";
 
 const num = (value: number) => value.toLocaleString("en-US");
+/** Authors the list shows before "+ N more". */
+const FOLDED_AUTHORS = 12;
 
 /**
- * The left column, in the Gallery sidebar's own markup and look: one list
- * of filters. Where the drawings come from (Random mixes them all; Random
- * again shuffles anew), then only those with a reference figure; each row
+ * The left column, in the Gallery sidebar's own markup and look: a search
+ * over names, authors and ids (a pasted link opens its drawing), then where
+ * the drawings come from (Random mixes them all; Random again shuffles
+ * anew), only those with a reference figure, and one author's. Each row
  * counts what it would show. It folds to a strip as that one does.
  */
 export function ScopeSidebar({
@@ -16,6 +21,12 @@ export function ScopeSidebar({
   referencesOnly,
   references,
   onReferencesOnly,
+  search,
+  onSearch,
+  onSearchEnter,
+  authors,
+  author,
+  onAuthor,
   collapsed,
   onToggle,
 }: {
@@ -25,9 +36,17 @@ export function ScopeSidebar({
   referencesOnly: boolean;
   references: number | null;
   onReferencesOnly: () => void;
+  search: string;
+  onSearch: (text: string) => void;
+  /** Enter in the search: a link or id opens its drawing wherever it is. */
+  onSearchEnter: (text: string) => void;
+  authors: readonly { author: string; count: number }[];
+  author: string | null;
+  onAuthor: (author: string | null) => void;
   collapsed: boolean;
   onToggle: () => void;
 }) {
+  const [allAuthors, setAllAuthors] = useState(false);
   if (collapsed)
     return (
       <div className="gallery-sidebar-slot" data-collapsed="true">
@@ -56,10 +75,57 @@ export function ScopeSidebar({
       </span>
     </button>
   );
+  // The chosen author stays listed when the folded list would hide them.
+  const shownAuthors = allAuthors
+    ? authors
+    : authors.filter(
+        (each, at) => at < FOLDED_AUTHORS || each.author === author,
+      );
   return (
     <div className="gallery-sidebar-slot">
       <div className="gallery-sidebar-search review-sidebar-top">
-        <h2>Filter</h2>
+        <label className="gallery-search-field review-search">
+          <svg
+            className="gallery-search-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <circle
+              cx="6.75"
+              cy="6.75"
+              r="4.75"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            />
+            <path
+              d="m10.3 10.3 3.7 3.7"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+          <input
+            className="gallery-search-input"
+            autoComplete="off"
+            type="search"
+            value={search}
+            placeholder="Search name, author, id or link"
+            aria-label="Search the drawings to review"
+            title="Filters as you type; Enter on a link or id opens that drawing"
+            data-testid="review-search"
+            onChange={(event) => onSearch(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                onSearchEnter(event.currentTarget.value);
+              } else if (event.key === "Escape" && search) {
+                event.preventDefault();
+                onSearch("");
+              }
+            }}
+          />
+        </label>
         <SidebarFoldButton
           collapsed={false}
           onToggle={onToggle}
@@ -87,6 +153,52 @@ export function ScopeSidebar({
             </span>
           </button>
         </div>
+        {authors.length ? (
+          <>
+            <div className="gallery-sidebar-heading">
+              <h2>Authors</h2>
+              {author ? (
+                <button
+                  type="button"
+                  className="gallery-sidebar-clear"
+                  data-testid="review-author-clear"
+                  onClick={() => onAuthor(null)}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+            <div className="review-sidebar-list" data-testid="review-authors">
+              {shownAuthors.map(({ author: name, count }) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="gallery-sidebar-option"
+                  aria-pressed={author === name}
+                  title={name}
+                  onClick={() => onAuthor(author === name ? null : name)}
+                >
+                  <span>{name}</span>
+                  <span className="gallery-sidebar-count">{num(count)}</span>
+                </button>
+              ))}
+              {authors.length > FOLDED_AUTHORS ? (
+                <button
+                  type="button"
+                  className="gallery-sidebar-option review-authors-more"
+                  data-testid="review-authors-more"
+                  onClick={() => setAllAuthors((open) => !open)}
+                >
+                  <span>
+                    {allAuthors
+                      ? "Fewer"
+                      : `+ ${num(authors.length - FOLDED_AUTHORS)} more`}
+                  </span>
+                </button>
+              ) : null}
+            </div>
+          </>
+        ) : null}
       </aside>
     </div>
   );

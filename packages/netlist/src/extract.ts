@@ -5,6 +5,7 @@ import {
   componentInterfaceIssues,
   freezeSnapshot,
   isFrozenSnapshot,
+  projectScalarCellInterface,
 } from "@icm/model";
 import { lowerTerminalCurrentControls } from "./controlled-current.js";
 import {
@@ -531,8 +532,20 @@ function analyzeDesign(
         if (binding?.kind !== "subcircuit") continue;
         const child = cellsById.get(binding.childDocumentId);
         if (!child) continue;
+        // A call names each node by the Pin's authored name (B<3>); the
+        // child's port carries the printed token (B_3_). Meet them by the
+        // port's Net, else a bus member that encodes differently sorts last
+        // and the call shifts its neighbours (#2005).
+        const authoredName = new Map(
+          projectScalarCellInterface(
+            documentsById.get(binding.childDocumentId)?.netlist,
+          ).ports.map((port) => [port.netIds[0], port.name]),
+        );
         const order = new Map(
-          child.ports.map((port, index) => [port.name, index]),
+          child.ports.map((port, index) => [
+            authoredName.get(port.id) ?? port.name,
+            index,
+          ]),
         );
         instance.nodes.sort(
           (left, right) =>

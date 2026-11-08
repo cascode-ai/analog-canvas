@@ -77,6 +77,8 @@ export interface ReviewCard {
   likes: number;
   likedByViewer: boolean;
   mine: ShownReview | null;
+  /** The reader's own drawing: theirs to look at, as others review it. */
+  own?: boolean;
   /** A community circuit's reference image, if its author gave one. */
   reference?: { revision: string };
   comparison?: {
@@ -91,15 +93,21 @@ export interface ReviewCard {
 /** Whether the reviewer's review of this card counts (its current version). */
 export const reviewed = (card: ReviewCard) => card.mine?.current === true;
 
+/** Nothing left for the reader to do: reviewed, or their own drawing. */
+export const settled = (card: ReviewCard) =>
+  reviewed(card) || card.own === true;
+
 export function reviewProgress(cards: readonly ReviewCard[]) {
   let passed = 0;
   let flagged = 0;
+  let own = 0;
   for (const card of cards)
-    if (reviewed(card)) {
+    if (card.own) own += 1;
+    else if (reviewed(card)) {
       if (card.mine!.verdict === "pass") passed += 1;
       else flagged += 1;
     }
-  return { passed, flagged, left: cards.length - passed - flagged };
+  return { passed, flagged, left: cards.length - own - passed - flagged };
 }
 
 /** The next card after `from` the reviewer has not reviewed, wrapping. */
@@ -109,7 +117,7 @@ export function nextUnreviewed(
 ): number | null {
   for (let step = 1; step <= cards.length; step += 1) {
     const index = (from + step) % cards.length;
-    if (!reviewed(cards[index]!)) return index;
+    if (!settled(cards[index]!)) return index;
   }
   return null;
 }
@@ -150,11 +158,54 @@ export function scopeFromSearch(search: string): string {
 }
 
 /**
- * Whether only drawings with a reference figure show: yes unless the
- * address turns it off (`refs=0`), so a reviewer starts on pairs to compare.
+ * Whether a list starts with only the drawings that have a reference figure:
+ * a dataset's all have one, so a reviewer starts on pairs to compare;
+ * Community's rarely do, so it starts with every drawing.
  */
+export const referencesOnlyByDefault = (scope: string) => scope !== "community";
+
+/** The reference filter as the address sets it (`refs=0`/`refs=1`), else its default. */
 export function referencesOnlyFromSearch(search: string): boolean {
-  return new URLSearchParams(search).get("refs") !== "0";
+  const refs = new URLSearchParams(search).get("refs");
+  return refs === "0"
+    ? false
+    : refs === "1"
+      ? true
+      : referencesOnlyByDefault(scopeFromSearch(search));
+}
+
+/** The author the address narrows the list to (`author=`), if any. */
+export function authorFromSearch(search: string): string | null {
+  return new URLSearchParams(search).get("author") || null;
+}
+
+/**
+ * Whether a drawing answers a search: its name, author or id holds the text,
+ * or the text is a link naming it.
+ */
+export function matchesReviewSearch(card: ReviewCard, text: string): boolean {
+  const query = text.trim().toLowerCase();
+  if (!query) return true;
+  if (entryIdOf(text) === card.id) return true;
+  return [card.name, card.author, card.id].some((field) =>
+    field.toLowerCase().includes(query),
+  );
+}
+
+/** The authors of a list with their drawings, most first, then by name. */
+export function reviewAuthors(
+  cards: readonly ReviewCard[],
+): { author: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const card of cards)
+    if (card.author)
+      counts.set(card.author, (counts.get(card.author) ?? 0) + 1);
+  return [...counts]
+    .map(([author, count]) => ({ author, count }))
+    .sort(
+      (left, right) =>
+        right.count - left.count || left.author.localeCompare(right.author),
+    );
 }
 
 /**
@@ -171,8 +222,8 @@ export function shuffledQueue(
     [shuffled[index], shuffled[other]] = [shuffled[other]!, shuffled[index]!];
   }
   return [
-    ...shuffled.filter((card) => !reviewed(card)),
-    ...shuffled.filter(reviewed),
+    ...shuffled.filter((card) => !settled(card)),
+    ...shuffled.filter(settled),
   ];
 }
 
