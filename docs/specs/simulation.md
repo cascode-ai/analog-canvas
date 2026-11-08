@@ -224,8 +224,7 @@ Prepare, Run or hosted access (#2110).
 - Import (files, a folder, or a drop) is reviewed first: each file is new,
   replaces, unchanged, or skipped (unsafe path, binary, or a path Canvas
   writes, such as `circuit.spice`). Chosen files apply as one Project edit,
-  re-planned against the current folder, within the
-  [File Resource payload limit](web-agent-session.md#permissions-and-limits).
+  re-planned against the current folder.
 
 ## Workspace interaction
 

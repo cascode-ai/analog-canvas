@@ -19,11 +19,7 @@ import {
 } from "./netlist-code-edit";
 import type { NetlistDiagnostic, PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject, ObjectLocator } from "@icm/model";
-import {
-  codeViewportHeight,
-  NetlistCodeSelect,
-  NetlistCopyButton,
-} from "./netlist-code-controls";
+import { NetlistCodeSelect, NetlistCopyButton } from "./netlist-code-controls";
 import {
   netlistMode,
   netlistModeOptions,
@@ -55,7 +51,10 @@ import {
   type NetlistFormat,
   type NetlistNamingProfile,
 } from "@icm/netlist";
-import { StaticCodeView } from "../project-code/static-code-view";
+import {
+  codeViewportHeight,
+  StaticCodeView,
+} from "../project-code/static-code-view";
 
 const ProjectTextEditor = lazy(
   () => import("../project-code/project-text-editor"),

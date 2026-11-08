@@ -16,11 +16,11 @@ import {
   simulationSpecAnnotations,
   type SimulationSpecAnnotation,
 } from "@icm/simulation-service/contract";
+import { NetlistCodeSelect } from "../netlist-export/netlist-code-controls";
 import {
   codeViewportHeight,
-  NetlistCodeSelect,
-} from "../netlist-export/netlist-code-controls";
-import { StaticCodeView } from "../project-code/static-code-view";
+  StaticCodeView,
+} from "../project-code/static-code-view";
 import {
   applyTestbenchImport,
   guessTestbenchEntry,
@@ -31,7 +31,6 @@ import {
   type PickedFile,
 } from "./testbench-import";
 import { isVisibleSimulationSource } from "../simulation/simulation-source-visibility";
-import { SimulationSpecLabel } from "../simulation/simulation-spec-label";
 import { formatSpecValues } from "../simulation/simulation-spec-format";
 import "./testbench-panel.css";
 
@@ -531,12 +530,10 @@ export function TestbenchPanel({
                       });
                     }}
                   >
+                    {/* The name, as the source writes it: the rich label
+                        needs the formula typesetter, a run report's concern. */}
                     <span className="testbench-spec-name">
-                      {spec.label ? (
-                        <SimulationSpecLabel document={spec.label} />
-                      ) : (
-                        spec.name || "?"
-                      )}
+                      {spec.name || "?"}
                     </span>
                     <span className="testbench-spec-condition">
                       {spec.problems.length ? "invalid" : specCondition(spec)}

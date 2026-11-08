@@ -28,12 +28,6 @@ export const LazyCellInterfaceConfirmationDialog = lazyChunk("dialog", () =>
   ),
 );
 
-export const LazyTestbenchPanel = lazyChunk("inline", () =>
-  import("../features/testbench/testbench-panel").then((module) => ({
-    default: module.TestbenchPanel,
-  })),
-);
-
 export const LazyProjectCodePanel = lazyChunk("inline", () =>
   import("../features/project-code/project-code-panel").then((module) => ({
     default: module.ProjectCodePanel,

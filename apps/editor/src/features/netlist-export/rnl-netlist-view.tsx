@@ -5,9 +5,11 @@ import { createRnlExport, type RnlExport } from "@icm/rnl";
 
 import { RNL_INTRO_URL } from "../../components/site-resource-links";
 import type { NativeExternalTarget } from "../../hosts/native-external-links";
-import { StaticCodeView } from "../project-code/static-code-view";
+import {
+  codeViewportHeight,
+  StaticCodeView,
+} from "../project-code/static-code-view";
 import { OpenRnlViewerLink } from "./open-rnl-viewer-link";
-import { codeViewportHeight } from "./netlist-code-controls";
 import {
   loadRnlRuntime,
   type RnlRuntime,

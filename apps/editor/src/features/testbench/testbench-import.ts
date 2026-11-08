@@ -3,7 +3,6 @@ import {
   type CircuitProject,
   type ProjectSimulationFolder,
 } from "@icm/model";
-import { AGENT_FILE_RESOURCE_MAX_BYTES } from "@icm/agent-adapter";
 import { createSimulationStarter, newFolderCellRole } from "@icm/netlist";
 
 /**
@@ -131,15 +130,6 @@ export function applyTestbenchImport(
   );
   if (!writes.length)
     return { ok: false, message: "Choose at least one new or changed file." };
-  const bytes = writes.reduce(
-    (total, row) => total + new TextEncoder().encode(row.text).byteLength,
-    0,
-  );
-  if (bytes > AGENT_FILE_RESOURCE_MAX_BYTES)
-    return {
-      ok: false,
-      message: `These files are larger than ${AGENT_FILE_RESOURCE_MAX_BYTES / 1e6} MB together; import fewer.`,
-    };
   let base = target.folder;
   if (!base) {
     const starter = newTestbench(project, target.cellId, name);

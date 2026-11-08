@@ -231,7 +231,7 @@ import {
 } from "./editor-project-dock";
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
-import { LazyTestbenchPanel as TestbenchPanel } from "./lazy-editor-dialogs";
+import { TestbenchPanel } from "../features/testbench/testbench-panel";
 import { ProjectDockViews } from "./project-dock-views";
 import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
