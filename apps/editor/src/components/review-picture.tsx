@@ -95,11 +95,13 @@ export function useInstanceBoxes(
 }
 
 /**
- * One of Review's two pictures, with the boxes drawn on it. Inline, a drag
- * boxes a spot and a click opens the zoomed view; zoomed, the wheel zooms
- * at the pointer, a drag pans, and with the box tool on (or Shift held) a
- * drag boxes. Boxes are fractions of the picture, so they land on the same
- * spot at any size.
+ * One of Review's two pictures, with the boxes drawn on it. The wheel zooms
+ * at the pointer, in place or in the zoomed view (#2131). Inline at its
+ * fitted size a drag boxes a spot and a click opens the zoomed view, and the
+ * wheel turned away lets the page scroll; zoomed in, a drag pans, Shift-drag
+ * boxes and a double-click or Fit returns it. In the zoomed view a drag pans
+ * unless the box tool is on or Shift is held. Boxes are fractions of the
+ * picture, so they land on the same spot at any size.
  */
 export function MarkablePicture({
   src,
@@ -138,6 +140,10 @@ export function MarkablePicture({
   const [draft, setDraft] = useState<ReviewMark | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
+  const fitted = view === FIT;
+
+  // Another picture starts fitted.
+  useEffect(() => setView(FIT), [src]);
 
   // Where the picture sits in its box, unzoomed: the boxes' frame.
   const measure = () => {
@@ -159,14 +165,16 @@ export function MarkablePicture({
     return () => observer.disconnect();
   }, [src]);
 
-  // The wheel zooms at the pointer; it must not scroll the page meanwhile.
+  // The wheel zooms at the pointer and must not scroll the page meanwhile;
+  // inline, at the fitted size, turning it away scrolls the page as before.
   useEffect(() => {
     const element = box.current;
-    if (!zoomed || !element) return;
+    if (!element) return;
     const onWheel = (event: WheelEvent) => {
+      const current = viewRef.current;
+      if (!zoomed && current === FIT && event.deltaY >= 0) return;
       event.preventDefault();
       const rect = element.getBoundingClientRect();
-      const current = viewRef.current;
       const scale = Math.min(
         12,
         Math.max(1, current.scale * Math.exp(-event.deltaY * 0.0015)),
@@ -195,20 +203,25 @@ export function MarkablePicture({
       y: clamp((clientY - rect.top) / rect.height),
     };
   };
-  const drawing = (shift: boolean) => !!onAdd && (!zoomed || boxTool || shift);
+  const drawing = (shift: boolean) =>
+    !!onAdd && ((!zoomed && fitted) || boxTool || shift);
+  const pans = zoomed || !fitted;
 
   return (
     <div
       ref={box}
       className={`review-pic${zoomed ? " zoomed" : ""}`}
       data-drawing={drawing(false) ? "true" : undefined}
+      data-panning={pans && !drawing(false) ? "true" : undefined}
       // How to use it, without taking room beside it.
       title={
         zoomed
           ? undefined
-          : onAdd
-            ? "Drag to box a spot · click to zoom"
-            : "Click to zoom"
+          : !fitted
+            ? `Wheel zooms · drag pans${onAdd ? " · Shift-drag boxes a spot" : ""} · double-click fits`
+            : onAdd
+              ? "Wheel zooms · drag to box a spot · click to open large"
+              : "Wheel zooms · click to open large"
       }
       onPointerDown={(event) => {
         if (event.button !== 0 || !image.current) return;
@@ -216,7 +229,7 @@ export function MarkablePicture({
         setDrag(
           drawing(event.shiftKey)
             ? { kind: "draw", startX: event.clientX, startY: event.clientY }
-            : zoomed
+            : pans
               ? {
                   kind: "pan",
                   startX: event.clientX,
@@ -255,12 +268,12 @@ export function MarkablePicture({
           Math.abs(event.clientX - was.startX) +
           Math.abs(event.clientY - was.startY);
         if (moved < 6) {
-          if (!zoomed) onOpen?.();
+          if (!zoomed && fitted) onOpen?.();
           return;
         }
         if (draft && onAdd && draft.w > 0.005 && draft.h > 0.005) onAdd(draft);
       }}
-      onDoubleClick={() => zoomed && setView(FIT)}
+      onDoubleClick={() => setView(FIT)}
     >
       <div
         className="review-pic-stage"
@@ -332,6 +345,18 @@ export function MarkablePicture({
           </div>
         ) : null}
       </div>
+      {!zoomed && !fitted ? (
+        <button
+          type="button"
+          className="review-pic-fit"
+          data-testid="review-pic-fit"
+          // A press here is the button's, never a pan or a box.
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => setView(FIT)}
+        >
+          {Math.round(view.scale * 100)}% · Fit
+        </button>
+      ) : null}
     </div>
   );
 }
