@@ -63,6 +63,7 @@ export function createAgentWorkspaceHandler({
   createTabSession,
   projectSwitchBlocker,
   projectTabs,
+  reviewWorkspaceRef,
 }: {
   projectStore: EditorServices["projectStore"];
   stageRecovery: UseRecoveryCoordinatorResult["stage"];
@@ -83,6 +84,7 @@ export function createAgentWorkspaceHandler({
   createTabSession: ProjectTabSessions["createTabSession"];
   projectSwitchBlocker: ProjectTabSessions["projectSwitchBlocker"];
   projectTabs: ProjectTabSessions["projectTabs"];
+  reviewWorkspaceRef: AgentProjectResourcesOptions["reviewWorkspaceRef"];
 }): AgentProjectResources["agentWorkspaceRef"]["current"] {
   return async (envelope, targetWorkspaceId) => {
     const request = envelope.request;
@@ -94,8 +96,11 @@ export function createAgentWorkspaceHandler({
       if (request.action === "list")
         return success({
           action: "list",
-          activeWorkspaceId: projectTabs.activeId,
-          projects: listWorkspaceProjects(entries),
+          activeWorkspaceId: projectTabs.currentId(),
+          projects: listWorkspaceProjects(
+            entries,
+            request.includeReview ? reviewWorkspaceRef.current : undefined,
+          ),
         });
       if (request.action === "activate") {
         if (!entries.some((e) => e.id === request.workspaceId))
@@ -370,6 +375,7 @@ export function createAgentWorkspaceTargets({
   projectSwitchBlockerRef,
   openProjectInTabRef,
   openLocalProjectRef,
+  reviewWorkspaceRef,
   setAgentFileCandidate,
   agentProjectResources,
   browserAgentFileHost,
@@ -389,6 +395,7 @@ export function createAgentWorkspaceTargets({
   projectSwitchBlockerRef: AgentProjectResourcesOptions["projectSwitchBlockerRef"];
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
   openLocalProjectRef: AgentProjectResourcesOptions["openLocalProjectRef"];
+  reviewWorkspaceRef: AgentProjectResourcesOptions["reviewWorkspaceRef"];
   setAgentFileCandidate: AgentProjectResources["setAgentFileCandidate"];
   agentProjectResources: AgentProjectResources["agentProjectResources"];
   browserAgentFileHost: BrowserAgentFileHost;
@@ -453,6 +460,7 @@ export function createAgentWorkspaceTargets({
         getProjectSessionId: () =>
           available() ? controller.projectSessionId : "closed",
         getProject: () => controller.project,
+        getReviewWorkspace: () => reviewWorkspaceRef.current(controller),
         getDocument: (id) =>
           controller.project.documents.find((item) => item.id === id) ?? null,
         getResolver: () => controller.resolver,

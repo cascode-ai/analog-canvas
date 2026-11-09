@@ -4,6 +4,7 @@ import type {
 } from "@icm/agent-adapter";
 import type { EditorDocumentController } from "../document/document-controller";
 import type * as copyMethods from "../features/clipboard/project-copy";
+import type { AgentReviewWorkspace } from "./browser-agent-file-host";
 
 type CopyRequest = Extract<
   Extract<AgentProjectResourceRequest, { operation: "workspace" }>["request"],
@@ -40,20 +41,38 @@ export function listWorkspaceProjects(
       dirty: boolean;
     };
   }[],
+  readReview?: (
+    controller: EditorDocumentController,
+  ) => AgentReviewWorkspace | undefined,
 ) {
-  return entries.map(({ id, session }) => ({
-    workspaceId: id,
-    projectId: session.controller.project.id,
-    name: session.controller.project.name,
-    cloudProjectId: session.file.cloudBinding?.id ?? null,
-    dirty: session.dirty,
-    structureRevision: session.controller.project.structureRevision,
-    cells: session.controller.project.documents.map((d) => ({
-      documentId: d.id,
-      name: d.name,
-      revision: d.revision,
-    })),
-  }));
+  return entries.map(({ id, session }) => {
+    const { controller } = session;
+    const review = readReview?.(controller);
+    return {
+      workspaceId: id,
+      projectId: controller.project.id,
+      name: controller.project.name,
+      cloudProjectId: session.file.cloudBinding?.id ?? null,
+      dirty: session.dirty,
+      structureRevision: controller.project.structureRevision,
+      ...(review
+        ? {
+            review: {
+              workspaceGeneration: review.workspaceGeneration,
+              activeDocumentId: controller.activeDocumentId,
+              ...(review.sourceVersion
+                ? { sourceVersion: review.sourceVersion }
+                : {}),
+            },
+          }
+        : {}),
+      cells: controller.project.documents.map((d) => ({
+        documentId: d.id,
+        name: d.name,
+        revision: d.revision,
+      })),
+    };
+  });
 }
 
 /** Optional Agent operation; planning and commit remain synchronous after loading. */

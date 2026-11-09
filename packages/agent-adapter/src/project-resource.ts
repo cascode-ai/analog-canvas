@@ -46,7 +46,15 @@ const CopyPlacementResultSchema = z.strictObject({
 });
 
 export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("list") }),
+  z.strictObject({
+    action: z.literal("list"),
+    includeReview: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include the live Canvas and active Cell identity for image review.",
+      ),
+  }),
   z.strictObject({
     action: z.literal("activate"),
     workspaceId: StableIdSchema,
@@ -311,6 +319,16 @@ export const AgentProjectResourceResponseSchema = z.union([
             cloudProjectId: StableIdSchema.nullable(),
             dirty: z.boolean(),
             structureRevision: z.number().int(),
+            review: z
+              .strictObject({
+                workspaceGeneration: StableIdSchema,
+                activeDocumentId: StableIdSchema,
+                sourceVersion: z
+                  .string()
+                  .regex(/^[0-9a-f]{64}$/u)
+                  .optional(),
+              })
+              .optional(),
             cells: z.array(
               z.strictObject({
                 documentId: StableIdSchema,

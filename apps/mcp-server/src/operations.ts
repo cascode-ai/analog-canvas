@@ -1432,16 +1432,15 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         return lazyContract(ExportFileArgs);
       },
     },
-    handle: async (args, session) =>
-      (() => {
-        const parsed = ExportFileArgs.parse(args);
-        return exportFile(session.client, {
-          artifact: parsed.artifact,
-          outputPath: parsed.outputPath,
-          ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
-          ...(parsed.simulation ? { simulation: parsed.simulation } : {}),
-        });
-      })(),
+    handle: async (args, session) => {
+      const receipt = await exportFile(
+        session.client,
+        ExportFileArgs.parse(args),
+      );
+      return session.taskRef
+        ? { ...receipt, taskRef: session.taskRef }
+        : receipt;
+    },
   },
   {
     definition: {

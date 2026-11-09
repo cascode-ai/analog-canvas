@@ -326,6 +326,7 @@ import {
   useAgentStartupRecovery,
   useBrowserAgentHost,
   useEditorAgentConnection,
+  type AgentReviewWorkspaceReader,
 } from "./use-agent-hosts";
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
@@ -1123,6 +1124,9 @@ function WorkspaceEditor({
     ) => Promise<boolean>
   >(async () => false);
   const openLocalProjectRef = useRef<OpenLocalProject>(async () => "blocked");
+  const reviewWorkspaceRef = useRef<AgentReviewWorkspaceReader>(
+    () => undefined,
+  );
   const {
     agentFileCandidate,
     setAgentFileCandidate,
@@ -1142,6 +1146,7 @@ function WorkspaceEditor({
     projectSwitchBlockerRef,
     openProjectInTabRef,
     openLocalProjectRef,
+    reviewWorkspaceRef,
   });
   const agentProjectTabsRef = useRef(() => projectTabs);
   agentProjectTabsRef.current = () => projectTabs;
@@ -5351,6 +5356,7 @@ function WorkspaceEditor({
     projectSwitchBlockerRef,
     openProjectInTabRef,
     openLocalProjectRef,
+    reviewWorkspaceRef,
     setAgentFileCandidate,
     setAnalogSimulationState,
     codeDraftDirty,
@@ -5453,6 +5459,7 @@ function WorkspaceEditor({
       createTabSession,
       projectSwitchBlocker,
       projectTabs,
+      reviewWorkspaceRef,
     });
   if (
     !import.meta.env?.ICM_DESKTOP &&
@@ -5472,6 +5479,7 @@ function WorkspaceEditor({
       projectSwitchBlockerRef,
       openProjectInTabRef,
       openLocalProjectRef,
+      reviewWorkspaceRef,
       setAgentFileCandidate,
       agentProjectResources,
       browserAgentFileHost,

@@ -149,6 +149,7 @@ interface ProjectTabSessionsOptions {
   projectSwitchBlockerRef: RefObject<() => string | null>;
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
   openLocalProjectRef: RefObject<OpenLocalProject>;
+  reviewWorkspaceRef: AgentProjectResourcesOptions["reviewWorkspaceRef"];
   setAgentFileCandidate: AgentProjectResources["setAgentFileCandidate"];
   setAnalogSimulationState: Dispatch<
     SetStateAction<"closed" | "open" | "maximized" | "minimized">
@@ -241,6 +242,7 @@ export function useProjectTabSessions({
   projectSwitchBlockerRef,
   openProjectInTabRef,
   openLocalProjectRef,
+  reviewWorkspaceRef,
   setAgentFileCandidate,
   setAnalogSimulationState,
   codeDraftDirty,
@@ -278,6 +280,12 @@ export function useProjectTabSessions({
       LocalDelivery & { sessionId: string }
     >(),
   );
+  const reviewGenerations = useRef(
+    new WeakMap<
+      EditorDocumentController,
+      { sessionId: string; generation: string }
+    >(),
+  );
   function localDeliveryOf(
     controller: EditorDocumentController,
   ): LocalDelivery | undefined {
@@ -308,6 +316,15 @@ export function useProjectTabSessions({
     };
   }
   type TabSession = ReturnType<typeof captureTabSession>;
+  function isTabUnsaved(session: TabSession) {
+    // A tab whose exact bytes the Gallery holds loses nothing on close.
+    return (
+      (session.dirty &&
+        session.file.publishedSnapshotToken !==
+          projectChangeToken(session.controller.project)) ||
+      session.unsafe
+    );
+  }
   function restoreTabSession(session: TabSession) {
     resetInteractionState();
     // The outgoing tab still owns its artifacts and expiring workspaces.
@@ -676,12 +693,7 @@ export function useProjectTabSessions({
     restore: restoreTabSession,
     describe: (session) => ({
       name: session.controller.project.name,
-      // A tab whose exact bytes the Gallery holds loses nothing on close.
-      dirty:
-        (session.dirty &&
-          session.file.publishedSnapshotToken !==
-            projectChangeToken(session.controller.project)) ||
-        session.unsafe,
+      dirty: isTabUnsaved(session),
       unsafe: session.unsafe,
       cloudId: session.file.cloudBinding?.id ?? null,
       galleryId: session.publication?.id ?? null,
@@ -852,6 +864,32 @@ export function useProjectTabSessions({
           () => createTabSession(next, view, options),
           options.cloudBinding?.id,
         );
+  reviewWorkspaceRef.current = (controller) => {
+    const tab = projectTabs
+      .entries()
+      .find(({ session }) => session.controller === controller);
+    if (!tab) return undefined;
+    const local = localDeliveryOf(controller);
+    const sessionId = controller.projectSessionId;
+    let live = reviewGenerations.current.get(controller);
+    if (!live || live.sessionId !== sessionId) {
+      live = { sessionId, generation: crypto.randomUUID() };
+      reviewGenerations.current.set(controller, live);
+    }
+    return {
+      workspaceId: tab.id,
+      workspaceGeneration: live.generation,
+      unsaved: isTabUnsaved(tab.session),
+      ...(local
+        ? {
+            sourceVersion: local.source.version,
+            modified:
+              projectChangeToken(controller.project) !== local.importedRevision,
+            recovered: local.recovered,
+          }
+        : {}),
+    };
+  };
   openLocalProjectRef.current = async (version, background, candidate) => {
     const existing = projectTabs
       .entries()
