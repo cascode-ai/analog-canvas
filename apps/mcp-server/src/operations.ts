@@ -32,6 +32,7 @@ import {
   AGENT_MCP_VERSION,
   AgentFileDownloadOptionsSchema,
   AgentGalleryEntryFields,
+  AgentLocalModelTypesSchema,
   AgentRnlAppearanceSchema,
   AgentWorkspaceActionSchema,
   AgentComponentLibraryActionSchema,
@@ -64,6 +65,7 @@ import {
   type SearchKind,
 } from "./results.js";
 import {
+  deliveryTiming,
   exportFile,
   importFile,
   openGalleryEntry,
@@ -431,6 +433,9 @@ const ImportFileArgs = z
     entryPath: z.string().min(1).optional(),
     includePaths: z.array(z.string().min(1)).max(23).optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
+    modelTypes: AgentLocalModelTypesSchema.optional().describe(
+      'For open-local, the device type of each model no delivered card declares, such as a foundry library\'s kept external: {"nch_mac":"nmos"}.',
+    ),
     candidateId: z.string().min(1).optional(),
     background: z.boolean().optional(),
     rnlAppearance: AgentRnlAppearanceSchema.optional(),
@@ -1460,18 +1465,39 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = ImportFileArgs.parse(args);
-      if (parsed.action === "open-local")
-        return openLocalFile(session.client, {
-          rootPath: parsed.rootPath!,
-          entryPath: parsed.entryPath!,
-          ...(parsed.background === undefined
-            ? {}
-            : { background: parsed.background }),
-          ...(parsed.rnlAppearance
-            ? { rnlAppearance: parsed.rnlAppearance }
-            : {}),
-          ...(session.taskRef ? { taskRef: session.taskRef } : {}),
-        });
+      if (parsed.action === "open-local") {
+        // A refusal keeps the usual error and recovery hint, and reports the
+        // stages it ran.
+        const timingMs = deliveryTiming();
+        try {
+          return await openLocalFile(
+            session.client,
+            {
+              rootPath: parsed.rootPath!,
+              entryPath: parsed.entryPath!,
+              ...(parsed.background === undefined
+                ? {}
+                : { background: parsed.background }),
+              ...(parsed.rnlAppearance
+                ? { rnlAppearance: parsed.rnlAppearance }
+                : {}),
+              ...(parsed.modelTypes ? { modelTypes: parsed.modelTypes } : {}),
+              ...(session.taskRef ? { taskRef: session.taskRef } : {}),
+            },
+            timingMs,
+          );
+        } catch (error) {
+          return {
+            ...(operationError(
+              error,
+              args,
+              undefined,
+              session.taskRef,
+            ) as object),
+            timingMs,
+          };
+        }
+      }
       return importFile(
         session.client,
         parsed.action === "stage-project"

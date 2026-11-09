@@ -30,6 +30,7 @@ import {
 import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
 
 import {
+  givenModelTypesUsed,
   isSpectreSource,
   prepareImportSources,
 } from "./convert-import-sources";
@@ -42,6 +43,8 @@ export type RnlImportPlan =
       /** The netlist import's findings, then what the drawing could not say. */
       diagnostics: SpiceDiagnostic[];
       drawing: "preserved" | "partial" | "discarded";
+      /** Of the device types the caller gave, those that typed a part. */
+      modelTypesUsed: [string, string][];
     }
   | { status: "failed"; message: string; diagnostics: SpiceDiagnostic[] };
 
@@ -205,6 +208,7 @@ export async function writesFileNetlist(
       namingProfile: "native",
       originalSources: rewritten,
       builtInBodies: prepared.builtInBodies,
+      modelTypes: prepared.modelTypes,
       libraryBodies,
       externalSymbolMappings: symbolMappings,
     },
@@ -308,6 +312,10 @@ export async function planRnlImport(request: {
   runtime: RnlRuntime | null;
   compileOptions?: SpiceCompileOptions;
   appearance?: RnlAppearance | undefined;
+  /** Device types of models no card, converted card or drawing types. */
+  modelTypes?: Readonly<Record<string, string>>;
+  /** How a part whose model has no type is told to recover. */
+  undeclaredModels?: "add-card" | "give-type";
 }): Promise<RnlImportPlan> {
   try {
     return await buildImportPlan(request);
@@ -325,13 +333,9 @@ async function buildImportPlan({
   runtime,
   compileOptions = {},
   appearance = "canvas",
-}: {
-  inputs: SpiceSourceInput[];
-  entryPath: string;
-  runtime: RnlRuntime | null;
-  compileOptions?: SpiceCompileOptions;
-  appearance?: RnlAppearance | undefined;
-}): Promise<RnlImportPlan> {
+  modelTypes = {},
+  undeclaredModels,
+}: Parameters<typeof planRnlImport>[0]): Promise<RnlImportPlan> {
   if (!runtime)
     return failedPlan(
       "RNL import needs the rnl runtime, which this build lacks",
@@ -368,6 +372,7 @@ async function buildImportPlan({
     snapshot,
     inputs.map((input) => input.path),
   );
+  const drawnTypes = drawnModelTypes(snapshot);
   const imported = await importSpiceSources(
     prepared.inputs,
     entryPath,
@@ -376,8 +381,15 @@ async function buildImportPlan({
       namingProfile: "native",
       originalSources: inputs,
       builtInBodies: prepared.builtInBodies,
-      // A model no card declares is the type its parts are drawn as.
-      modelTypes: drawnModelTypes(snapshot),
+      // A model no card declares is the type its parts are drawn as, unless
+      // a native card the converter keeps out gives its type; what the
+      // caller gives comes last.
+      modelTypes: new Map([
+        ...Object.entries(modelTypes),
+        ...drawnTypes,
+        ...prepared.modelTypes,
+      ]),
+      ...(undeclaredModels ? { undeclaredModels } : {}),
       externalSymbolMappings: symbolMappings,
       // A library block the file calls without its body is the block its
       // parts are drawn as.
@@ -394,6 +406,11 @@ async function buildImportPlan({
           ?.message ?? "SPICE import failed",
       diagnostics: imported.diagnostics,
     };
+  const modelTypesUsed = givenModelTypesUsed(modelTypes, imported.project, [
+    ...(imported.ir?.models.map((model) => model.name) ?? []),
+    ...drawnTypes.keys(),
+    ...prepared.modelTypes.keys(),
+  ]);
   // The editor's top where the file names it (Canvas 0.4): a Cell printed
   // beside it may call it, and so be the netlist's top in its place.
   const top = canvasTopDocument(imported.project, snapshot);
@@ -439,6 +456,7 @@ async function buildImportPlan({
   const read = "code" in drawn ? null : drawn;
   const parameterTexts = read?.parameterTexts ?? [];
   const diagnostics = [
+    ...prepared.diagnostics,
     ...imported.diagnostics,
     ...(read?.diagnostics ?? []).map(reported),
     ...(appearanceFinding ? [appearanceFinding] : []),
@@ -460,6 +478,7 @@ async function buildImportPlan({
       diagnostics,
       drawing:
         appearanceFinding || read?.diagnostics.length ? "partial" : "preserved",
+      modelTypesUsed,
     };
   const undrawn = withParameterTexts(
     withImportedInstanceDisplays(imported.project),
@@ -471,6 +490,7 @@ async function buildImportPlan({
     project: undrawn,
     diagnostics,
     drawing: "discarded",
+    modelTypesUsed,
   };
 }
 

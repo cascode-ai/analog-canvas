@@ -589,11 +589,12 @@ export class BrowserAgentFileHost {
         }));
         const start = performance.now();
         const { importLocalCircuit } = await import("./import-local-circuit");
-        const imported = await importLocalCircuit(
-          inputs,
-          entryPath,
-          request.rnlAppearance,
-        );
+        const imported = await importLocalCircuit(inputs, entryPath, {
+          ...(request.rnlAppearance
+            ? { appearance: request.rnlAppearance }
+            : {}),
+          ...(request.modelTypes ? { modelTypes: request.modelTypes } : {}),
+        });
         project = imported.project;
         diagnostics = imported.diagnostics;
         const identityFiles =

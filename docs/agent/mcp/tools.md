@@ -213,10 +213,19 @@ Tool descriptions cover each action; these are the extra rules.
 Canvas Web. Choose the smallest local root containing the entry and its
 referenced files. Preserve paths relative to that root. The adapter follows
 local SPICE/Spectre includes and explicit RNL package paths. A transfer accepts
-up to 24 files and 10 MB. An unresolved or out-of-root dependency stops
-delivery with its reference. Explicit circuit includes are treated as
-structural inputs. Model names whose library is external can be retained as
-calls without fetching an unreferenced PDK.
+up to 24 files and 10 MB. An unresolved dependency, a relative one outside the
+root, or an RNL package outside it stops delivery with its reference. An
+include named by an absolute, drive or URL path (a foundry's library, such as
+`include "/pdk/.../toplevel.scs" section=tt`) stays in the file as written and
+is neither read nor sent (`SPICE_SOURCE_INCLUDE_EXTERNAL`). A model whose card
+it holds keeps its name; give its device type in `modelTypes`
+(`{"nch_mac":"nmos","pch_mac":"pmos"}`; `nmos`, `pmos`, `npn`, `pnp` or
+`d`) instead of editing the files. A card the sources give decides, then an
+RNL drawing's symbol; `LOCAL_MODEL_TYPES_GIVEN` lists the types used. A
+Spectre MOS card the import does not convert (`bsim3v3`, `psp103`, …) draws
+its parts by its `type=`, unconverted (`SPICE_CONVERSION_MODEL_EXTERNAL`). A
+refusal keeps its error and recovery hint and also reports `timingMs` for the
+stages it ran.
 
 The load receipt names the task, session, workspace, Project and Cell. It
 reports the structure and Cell revisions, original-byte SHA-256 of each file,

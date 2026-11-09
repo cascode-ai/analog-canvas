@@ -338,6 +338,58 @@ describe("netlist-crawler structural conversion", () => {
       ),
     ).toContain("DC 0.5 SIN(0.5 0.1 1k 0 2 45)");
   });
+  it("keeps an unconverted native MOS model as an external model of its type for the editor's import", () => {
+    const text = [
+      "model nch bsim3v3 type=n vth0=0.4",
+      "model pch.1 psp103 type=p lmin=30n",
+      "model pch.2 psp103 type=p lmin=1u",
+      "M1 (d g 0 0) nch w=2u l=150n",
+      "p1 (d g vdd vdd) pch w=4u l=150n",
+    ].join("\n");
+    const result = convertNetlist({
+      text,
+      source: "spectre",
+      target: "spice",
+      fragment: true,
+      externalNativeModels: true,
+    });
+    expect(result.status, JSON.stringify(result)).toBe("converted");
+    if (result.status !== "converted") return;
+    expect(result.text).not.toMatch(/\.model/u);
+    expect(result.text).toContain("M1 d g 0 0 nch w=2u l=150n");
+    expect(result.text).toContain("Mp1 d g vdd vdd pch w=4u l=150n");
+    expect(result.externalModels).toEqual([
+      { name: "nch", type: "nmos", native: "bsim3v3", line: 1 },
+      { name: "pch.1", type: "pmos", native: "psp103", line: 2 },
+      { name: "pch", type: "pmos", native: "psp103", line: 2 },
+      { name: "pch.2", type: "pmos", native: "psp103", line: 3 },
+    ]);
+    // Without its type a model is not guessed, and the public conversion
+    // still refuses what it does not translate.
+    expect(
+      convertNetlist({
+        text: "model nch bsim3v3 vth0=0.4",
+        source: "spectre",
+        target: "spice",
+        externalNativeModels: true,
+      }),
+    ).toMatchObject({ status: "blocked" });
+    expect(
+      convertNetlist({ text, source: "spectre", target: "spice" }),
+    ).toMatchObject({ status: "blocked" });
+    // Calling a binned card by its group's name is the editor's reading
+    // alone: the public conversion still asks how to call it.
+    expect(
+      convertNetlist({
+        text: "model nch.1 bsim4 type=n\np1 (d g 0 0) nch w=1u l=1u",
+        source: "spectre",
+        target: "spice",
+      }),
+    ).toMatchObject({
+      status: "blocked",
+      issues: [{ code: "TARGET_KIND_REQUIRED" }],
+    });
+  });
   it.each([
     ["R1 (Out 0) resistor r=1k\nR2 (out 0) resistor r=2k", "spectre"],
     [".subckt cell Out in\nR1 out in 1k\n.ends cell", "spice"],

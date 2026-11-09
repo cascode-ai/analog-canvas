@@ -69,6 +69,49 @@ it("reports a missing include at its reference and denies paths outside the sele
   });
 });
 
+it("leaves an absolute library external and unread, but never an RNL package", async () => {
+  // A foundry library the netlist names by an absolute path, whatever it is
+  // on this machine, is the simulator's: neither read nor sent.
+  const outside = await mkdtemp(join(tmpdir(), "canvas-pdk-"));
+  try {
+    const pdk = join(outside, "toplevel.scs");
+    await writeFile(pdk, "simulator lang=spectre\n");
+    const entry = join(root, "cells", "entry.scs");
+    await writeFile(
+      entry,
+      [
+        "simulator lang=spectre",
+        `include "${pdk.replaceAll("\\", "/")}" section=tt`,
+        'include "/pdk/missing/models.scs"',
+        'include "../models.scs"',
+        "subckt cell A B",
+        "R0 (A B) resistor r=1k",
+        "ends cell",
+      ].join("\n"),
+    );
+    await writeFile(join(root, "models.scs"), "simulator lang=spectre\n");
+    const prepared = await prepareLocalSource(root, entry);
+    expect(prepared.files.map((file) => file.name).sort()).toEqual([
+      "cells/entry.scs",
+      "models.scs",
+    ]);
+
+    await writeFile(
+      entry,
+      [
+        "simulator lang=spectre",
+        '// @RNL(type="header") { @VERSION("0.3");',
+        `// @USE-PACKAGE(name="base", version="0.1", path="/draw/base.rnl"); }`,
+      ].join("\n"),
+    );
+    await expect(prepareLocalSource(root, entry)).rejects.toMatchObject({
+      code: "FILE_OUTSIDE_ROOT",
+    });
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
 it("rejects an oversized file during preparation", async () => {
   const file = join(root, "large.sp");
   await writeFile(file, "* fixture\n");

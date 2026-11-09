@@ -21,7 +21,8 @@ export interface SpiceDependency {
   requestedPath: string;
   resolvedPath: string | null;
   targetFileId: string | null;
-  status: "resolved" | "duplicate" | "missing" | "cycle" | "denied";
+  status:
+    "resolved" | "duplicate" | "missing" | "cycle" | "denied" | "external";
   section?: string;
   sourceRef: SourceSpan;
 }

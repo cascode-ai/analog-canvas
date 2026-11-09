@@ -12,6 +12,7 @@ import {
 import { AgentSessionError } from "@icm/agent-client";
 import {
   decodeSourceContent,
+  isExternalLibraryPath,
   isSpectreSource,
   parseSpiceSource,
   spectreSourceIncludes,
@@ -261,8 +262,12 @@ export async function prepareLocalSource(rootPath: string, path: string) {
                 : undefined;
             return path ? [{ path, line: statement.sourceRef.start.line }] : [];
           });
-      for (const { path, line } of includes)
+      for (const { path, line } of includes) {
+        // A library named by an absolute path (a foundry's models) stays the
+        // simulator's: it is not read, and the import keeps it external.
+        if (isExternalLibraryPath(path)) continue;
         await visit(dependencyPath(name, path), `${name}:${line}`);
+      }
     } catch (error) {
       if (error instanceof AgentSessionError) throw error;
       throw requestFailure(

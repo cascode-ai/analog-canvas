@@ -56,6 +56,12 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
   `diode` with `is`, `n`. The bipolar and diode mappings cover only these
   classical parameters, with the same units; other native model options
   are rejected. This is structural interchange, not simulator qualification.
+- The editor's import alone also reads a foundry's native MOS card the
+  converter does not translate (`bsim3v3`, `psp103`, `bsimsoi` and the
+  other listed kinds) as no card: its instances, and a binned `nch.1`'s
+  group `nch`, take the device type of its `type=n|p` (refused without
+  one), the card stays out of the converted text, and the import warns
+  `SPICE_CONVERSION_MODEL_EXTERNAL`. The endpoint still refuses it.
 - Spectre's name escapes are read, since SPICE has none: `Vin\+` is the net
   `Vin+`, `D\<3\>` the bus bit `D<3>`, in node lists, instance, subcircuit
   and port names alike, so the import names a Cell Pin and its Net as the
