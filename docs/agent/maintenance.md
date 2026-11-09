@@ -3,6 +3,10 @@
 Maintainer-only. Check the [consumer matrix](README.md) before adding a
 document or changing its audience.
 
+Package the opt-in Codex host entrypoint and its metadata from `codex/skills/`
+using `scripts/package-mcp.mjs`. Link to existing MCP resources for workflow
+guidance. The runtime registry owns those resources.
+
 ## Edit and distribute
 
 1. Edit a source or entry template here. Register its consumers, task, load,

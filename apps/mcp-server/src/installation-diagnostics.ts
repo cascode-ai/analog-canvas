@@ -6,7 +6,8 @@ export type InstallationStage =
   | "integrity"
   | "extract"
   | "local-probe"
-  | "host-config";
+  | "host-config"
+  | "skill-config";
 
 /** Safe installation receipts. Raw exception messages can contain private paths or credentials. */
 export class InstallationFailure extends Error {
@@ -41,7 +42,7 @@ export function installationFailureAt(
   const failures = {
     arguments: [
       "INSTALL_ARGUMENTS_INVALID",
-      "Use --install --origin <exact HTTPS origin> --host codex|config",
+      "Use --install --origin <exact HTTPS origin> --host codex|config; Codex also accepts --skill canvas-review",
       "stop",
     ],
     runtime: [
@@ -74,6 +75,11 @@ export function installationFailureAt(
       "HOST_CONFIG_FAILED",
       "Cannot update host configuration; inspect the existing configuration",
       "use-http-kit",
+    ],
+    "skill-config": [
+      "SKILL_CONFIG_FAILED",
+      "MCP was registered; the optional review skill could not be written",
+      "stop",
     ],
   } as const;
   const [code, message, nextAction] = failures[stage];

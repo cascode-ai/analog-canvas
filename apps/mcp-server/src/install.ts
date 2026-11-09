@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { agentMcpServerName } from "@icm/agent-adapter";
+import { installCodexReviewSkill } from "./install-codex-skill.js";
 import { codexMcpConfig } from "./installation-config.js";
 import { probeInstalledMcp } from "./installation-probe.js";
 import {
@@ -235,7 +236,7 @@ export async function installMcp(
       const value = args[i + 1];
       if (
         !key ||
-        !["--origin", "--host", "--archive"].includes(key) ||
+        !["--origin", "--host", "--archive", "--skill"].includes(key) ||
         !value ||
         options.has(key)
       )
@@ -249,6 +250,9 @@ export async function installMcp(
     const host = options.get("--host") ?? "config";
     if (!["codex", "config"].includes(host))
       throw Error("Supported installation hosts: codex, config");
+    const skillOption = options.get("--skill");
+    if (skillOption && (host !== "codex" || skillOption !== "canvas-review"))
+      throw Error("Use --host codex --skill canvas-review");
     stage = "manifest";
     const declaration = installationDeclaration(
       JSON.parse(
@@ -289,8 +293,9 @@ export async function installMcp(
     verifyInstallationBytes(bytes, declaration.sha256);
     stage = "extract";
     // Unique immutable installation keeps an already-running/previous binary intact.
+    const home = locations.home ?? homedir();
     const directory = join(
-      locations.home ?? homedir(),
+      home,
       ".analog-canvas",
       "mcp",
       `${declaration.version}-${declaration.sha256.slice(0, 12)}-${randomUUID()}`,
@@ -298,6 +303,7 @@ export async function installMcp(
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const archive = join(directory, "package.tgz");
     const executable = join(directory, "analog-canvas-mcp.mjs");
+    let skillFiles: { guidance: Buffer; metadata: Buffer } | undefined;
     try {
       // The verified package stays beside the installation it came from.
       await writeFile(archive, bytes, { mode: 0o600, flag: "wx" });
@@ -323,6 +329,17 @@ export async function installMcp(
           fromArchive(bytes, ["-xO", headlessEntry], 24_000_000),
           { mode: 0o600, flag: "wx" },
         );
+      if (skillOption) {
+        const prefix = "package/skills/canvas-review";
+        skillFiles = {
+          guidance: fromArchive(bytes, ["-xO", `${prefix}/SKILL.md`], 64_000),
+          metadata: fromArchive(
+            bytes,
+            ["-xO", `${prefix}/agents/openai.yaml`],
+            16_000,
+          ),
+        };
+      }
     } catch (error) {
       // A failed extraction leaves no half-made installation behind.
       await rm(directory, { recursive: true, force: true });
@@ -382,6 +399,10 @@ export async function installMcp(
         );
       await rename(temporary, configPath);
     }
+    stage = "skill-config";
+    const skill = skillFiles
+      ? await installCodexReviewSkill(home, skillFiles)
+      : undefined;
     return {
       installed: true,
       hostLoaded: false,
@@ -392,6 +413,7 @@ export async function installMcp(
       ...readiness,
       configPath,
       backupPath,
+      ...(skill ? { skill } : {}),
       launch,
       // Claude Code owns its configuration: register through its own CLI.
       hosts: {

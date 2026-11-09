@@ -111,6 +111,7 @@ describe("ConnectAgentPanel", () => {
     expect(markup).toContain("Connect Agent");
     expect(markup).toContain("Not connected");
     expect(markup).toContain('data-testid="agent-connect"');
+    expect(markup).toContain("Codex setup");
     expect(markup).not.toContain("agent-preset");
     expect(markup).not.toContain("Choose what the Agent");
   });
