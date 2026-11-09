@@ -8,7 +8,7 @@ const imageAmong = (files: FileList | null | undefined) =>
 
 /**
  * Review's empty Reference pane, for a reader who may give the drawing its
- * reference image (the Owner; reviewers never see their own drawings): a
+ * reference image (the Owner, or the drawing's author, #2129): a
  * screenshot pasted anywhere on the page (⌘V / Ctrl+V, unless a text field
  * takes it), dropped here or chosen shows first, then uploads once they
  * confirm they may share it.

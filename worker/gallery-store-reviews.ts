@@ -283,7 +283,9 @@ export function entryReviews(sql: SqlStorage, body: unknown): Response {
  * The review queue: every entry a reviewer may review (a dataset's: those
  * with a comparison), unreviewed by them first, then those fewest others
  * reviewed. Each carries the reviewer's own latest review and how many
- * reviews count, never anyone else's verdict.
+ * reviews count, never anyone else's verdict but on the reviewer's own
+ * drawing, whose reviews its author reads anyway: there `outcome` says what
+ * the current ones come to (#2129).
  */
 export function reviewQueue(sql: SqlStorage, body: unknown): Response {
   const reviewerId = isRecord(body) ? String(body.reviewerId ?? "") : "";
@@ -334,8 +336,16 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       .map((row) => [row.entry_id, row]),
   );
   const counts = new Map<string, number>();
-  for (const row of currentReviews(sql))
+  const passes = new Set<string>();
+  const issues = new Set<string>();
+  for (const row of currentReviews(sql)) {
     counts.set(row.entry_id, (counts.get(row.entry_id) ?? 0) + 1);
+    if (row.verdict === "pass") passes.add(row.entry_id);
+    else if (row.resolved_at === null) issues.add(row.entry_id);
+  }
+  // An open issue flags a drawing; a pass with none passes it.
+  const outcome = (id: string) =>
+    issues.has(id) ? "flagged" : passes.has(id) ? "passed" : undefined;
   const likes = new Map(
     sql
       .exec<{ entry_id: string; count: number }>(
@@ -370,7 +380,10 @@ export function reviewQueue(sql: SqlStorage, body: unknown): Response {
       // Everyone sees every drawing; one's own is there to look at, as
       // others review it.
       ...(reviewerId && entry.owner_user_id === reviewerId
-        ? { own: true }
+        ? {
+            own: true,
+            ...(outcome(entry.id) ? { outcome: outcome(entry.id) } : {}),
+          }
         : {}),
       ...(entry.reference_revision
         ? { reference: { revision: entry.reference_revision } }

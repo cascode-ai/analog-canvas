@@ -23,6 +23,7 @@ describe("gallery filter preferences", () => {
       search: "mirror",
       netlistable: true,
       withoutNetlist: false,
+      withoutReference: false,
       ai: null,
       liked: true,
       attention: false,
@@ -97,6 +98,16 @@ describe("gallery filter preferences", () => {
       }),
     ).toBe("?ai=dataset");
     expect(galleryFilterSearch("", filters)).toBe("?netlist=0&ai=1");
+    // Circuits whose author gave no reference image (#2129), by link and in
+    // storage.
+    const unreferenced = parseGalleryFilterQuery("?reference=0");
+    expect(unreferenced.filters.withoutReference).toBe(true);
+    expect(unreferenced.narrowed).toBe(true);
+    expect(galleryFilterSearch("", unreferenced.filters)).toBe("?reference=0");
+    expect(
+      parseStoredGalleryFilters(storedGalleryFilters(unreferenced.filters))
+        ?.withoutReference,
+    ).toBe(true);
     expect(
       galleryFilterSearch("", {
         ...filters,
@@ -225,6 +236,7 @@ describe("gallery filter preferences", () => {
       search: "",
       netlistable: true,
       withoutNetlist: false,
+      withoutReference: false,
       ai: "human",
       liked: true,
       attention: true,
@@ -319,6 +331,7 @@ describe("gallery filter preferences", () => {
       search: "",
       netlistable: true,
       withoutNetlist: false,
+      withoutReference: false,
       ai: null,
       liked: false,
       parts: [],

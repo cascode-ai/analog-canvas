@@ -35,11 +35,32 @@ export function GalleryWallEmpty({
     tags: selectedTags,
     netlistable: netlistableOnly,
     withoutNetlist: withoutNetlistOnly,
+    withoutReference: withoutReferenceOnly,
     ai: aiFilter,
     liked: likedOnly,
     parts: selectedParts,
   } = filters;
   const narrowedToAuthor = author !== null || ownerUserId !== null;
+  // Without reference over an author's circuits is how an author finds those
+  // still to give a figure (#2129): none left is good news, not a failure.
+  if (withoutReferenceOnly)
+    return (
+      <p
+        className="gallery-status"
+        data-testid="gallery-without-reference-empty"
+      >
+        {selectedTags.length > 0 ||
+        selectedParts.length > 0 ||
+        netlistableOnly ||
+        withoutNetlistOnly ||
+        aiFilter !== null ||
+        likedOnly
+          ? "No circuits match these filters."
+          : narrowedToAuthor
+            ? `Every public circuit by ${narrowedName} has a reference image.`
+            : "Every circuit here has a reference image."}
+      </p>
+    );
   return (
     <>
       {selectedTags.length > 0 && !narrowedToAuthor ? (

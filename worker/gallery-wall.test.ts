@@ -648,6 +648,7 @@ describe("newest-first gallery feed", () => {
         ai: 0,
         human: 0,
         liked: 0,
+        withoutReference: 0,
         componentRanges: sizes(0),
         datasets: 0,
       },
@@ -1031,6 +1032,7 @@ describe("netlist marks and thumbs", () => {
           ai: number;
           human: number;
           liked: number;
+          withoutReference: number;
           componentRanges: Record<string, number>;
         };
         authors: { author: string; ownerUserId: string; count: number }[];
@@ -1047,6 +1049,7 @@ describe("netlist marks and thumbs", () => {
       human: 2,
       datasets: 0,
       liked: 1,
+      withoutReference: 2,
       componentRanges: sizes(2),
     });
     const secondPage = await list(
@@ -1065,6 +1068,7 @@ describe("netlist marks and thumbs", () => {
       human: 2,
       datasets: 0,
       liked: 0,
+      withoutReference: 2,
       componentRanges: sizes(2),
     });
 
@@ -1083,6 +1087,7 @@ describe("netlist marks and thumbs", () => {
       human: 1,
       datasets: 0,
       liked: 0,
+      withoutReference: 1,
       componentRanges: sizes(1),
     });
     const unmarked = await list("netlistable=0", cookie);
@@ -1101,8 +1106,45 @@ describe("netlist marks and thumbs", () => {
       human: 1,
       datasets: 0,
       liked: 1,
+      withoutReference: 1,
       componentRanges: sizes(1),
     });
+
+    // A circuit its author gave a reference image wears the mark; the rest
+    // are what Without reference shows (#2129).
+    const image = {
+      type: "image/png",
+      data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2]).toString("base64"),
+    };
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/${extractableId}/reference`, {
+            method: "PUT",
+            headers: { ...cookieHeaders(cookie), Origin: ORIGIN },
+            body: JSON.stringify({ image, rights: true }),
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    const referenced = (await list("")).entries as {
+      id: string;
+      hasReference?: boolean;
+    }[];
+    expect(
+      referenced.find((entry) => entry.id === extractableId)?.hasReference,
+    ).toBe(true);
+    expect(
+      referenced.find((entry) => entry.id === sketchId),
+    ).not.toHaveProperty("hasReference");
+    const withoutReference = await list("reference=0", cookie);
+    expect(withoutReference.entries.map((entry) => entry.id)).toEqual([
+      sketchId,
+    ]);
+    expect(withoutReference.total).toBe(1);
+    expect(withoutReference.filterCounts.withoutReference).toBe(1);
+    expect((await list("", cookie)).filterCounts.withoutReference).toBe(1);
 
     // The marks compose, and here nothing satisfies both.
     const both = await list("netlistable=1&liked=1", cookie);
@@ -1117,6 +1159,7 @@ describe("netlist marks and thumbs", () => {
       human: 0,
       datasets: 0,
       liked: 0,
+      withoutReference: 0,
       componentRanges: sizes(0),
     });
 

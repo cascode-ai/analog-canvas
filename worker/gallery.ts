@@ -186,6 +186,8 @@ function wallFilters(url: URL) {
     // session, so signed out it selects nothing rather than everything.
     netlistable: url.searchParams.get("netlistable") === "1",
     withoutNetlist: url.searchParams.get("netlistable") === "0",
+    // Circuits whose author has not given a reference image (#2129).
+    withoutReference: url.searchParams.get("reference") === "0",
     // How a circuit was made: AI-generated (the AI mark), by hand (a
     // community circuit without it), or redrawn from a reference dataset.
     ai:

@@ -222,6 +222,8 @@ export interface GalleryEntrySummary {
    * every Spec it states. Only for a viewer `seesSimulationMark` lets see it.
    */
   simVerified?: boolean;
+  /** Its author gave a reference image, the figure it was drawn from (#2129). */
+  hasReference?: boolean;
   likes: number;
   /** Whether the requesting account has liked it; false when signed out. */
   likedByViewer: boolean;

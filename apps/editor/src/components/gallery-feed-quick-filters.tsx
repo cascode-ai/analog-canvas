@@ -65,6 +65,28 @@ function NoNetlistIcon() {
   );
 }
 
+/** "Without reference": a picture struck through (#2129). */
+function NoReferenceIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+      <path d="m6 16 4-4 3 3 2-2 3 3" />
+      <path d="M3 21 21 3" />
+    </svg>
+  );
+}
+
 /** "Datasets": a stack of records, circuits redrawn from a dataset. */
 function DatasetIcon() {
   return (
@@ -139,6 +161,8 @@ export function GalleryQuickFilters({
   showDatasets,
   netlistableOnly,
   withoutNetlistOnly,
+  showWithoutReference,
+  withoutReferenceOnly,
   likedOnly,
   origins,
   selectedTags,
@@ -155,6 +179,8 @@ export function GalleryQuickFilters({
   showDatasets: boolean;
   netlistableOnly: boolean;
   withoutNetlistOnly: boolean;
+  showWithoutReference: boolean;
+  withoutReferenceOnly: boolean;
   likedOnly: boolean;
   /** Origin tags on the wall ("virtuoso-exported"), with their counts. */
   origins: readonly { tag: string; mark: string; count: ReactNode }[];
@@ -168,7 +194,8 @@ export function GalleryQuickFilters({
       | "ai"
       | "human"
       | "datasets"
-      | "liked",
+      | "liked"
+      | "withoutReference",
   ) => ReactNode;
 }) {
   return (
@@ -342,6 +369,25 @@ export function GalleryQuickFilters({
         <NoNetlistIcon /> <span>Without netlist</span>
         {quickCount("withoutNetlist")}
       </button>
+      {showWithoutReference ? (
+        <button
+          type="button"
+          className={quickMarkClass(withoutReferenceOnly)}
+          data-testid="gallery-filter-without-reference"
+          aria-pressed={withoutReferenceOnly}
+          title={
+            withoutReferenceOnly
+              ? "Stop filtering by reference image"
+              : "Show only circuits whose author has not given a reference image"
+          }
+          onClick={() =>
+            updateFilters({ withoutReference: !withoutReferenceOnly })
+          }
+        >
+          <NoReferenceIcon /> <span>Without reference</span>
+          {quickCount("withoutReference")}
+        </button>
+      ) : null}
       {signedIn || likedOnly ? (
         <button
           type="button"

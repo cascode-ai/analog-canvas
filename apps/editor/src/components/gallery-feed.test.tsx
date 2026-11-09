@@ -650,6 +650,8 @@ describe("GalleryQuickFilters", () => {
     showDatasets: true,
     netlistableOnly: false,
     withoutNetlistOnly: false,
+    showWithoutReference: true,
+    withoutReferenceOnly: false,
     likedOnly: false,
     origins: [],
     selectedTags: [],
@@ -713,6 +715,19 @@ describe("GalleryQuickFilters", () => {
     expect(pressed("gallery-filter-netlistable")).toEqual([
       { netlistable: false, withoutNetlist: false },
     ]);
+    // Circuits whose author gave no reference image (#2129); a dataset's
+    // wall, whose circuits have its figures, does not offer it.
+    expect(pressed("gallery-filter-without-reference")).toEqual([
+      { withoutReference: true },
+    ]);
+    expect(
+      renderToStaticMarkup(
+        createElement(
+          GalleryQuickFilters,
+          props({ showWithoutReference: false }),
+        ),
+      ),
+    ).not.toContain("gallery-filter-without-reference");
     expect(pressed("gallery-filter-human")).toEqual([{ ai: "human" }]);
     expect(pressed("gallery-filter-datasets")).toEqual([{ ai: "dataset" }]);
     expect(pressed("gallery-filter-ai")).toEqual([{ ai: null }]);

@@ -152,6 +152,7 @@ export function GalleryFeed({
     search: searchQuery,
     netlistable: netlistableOnly,
     withoutNetlist: withoutNetlistOnly,
+    withoutReference: withoutReferenceOnly,
     ai: aiFilter,
     liked: likedOnly,
     attention: attentionOnly,
@@ -190,6 +191,7 @@ export function GalleryFeed({
       selectedTags,
       netlistableOnly,
       withoutNetlistOnly,
+      withoutReferenceOnly,
       aiFilter,
       likedOnly,
       attentionOnly,
@@ -394,6 +396,7 @@ export function GalleryFeed({
     ),
     datasets: loadedCount((entry) => gallerySourceOfEntryId(entry.id) !== null),
     liked: loadedCount((entry) => entry.likedByViewer === true),
+    withoutReference: loadedCount((entry) => entry.hasReference !== true),
   };
   const quickCounts = localQuickCounts
     ? loadedQuickCounts
@@ -594,6 +597,9 @@ export function GalleryFeed({
                 }
                 netlistableOnly={netlistableOnly}
                 withoutNetlistOnly={withoutNetlistOnly}
+                // A dataset's circuits have its figures, not their author's.
+                showWithoutReference={!datasetWall || withoutReferenceOnly}
+                withoutReferenceOnly={withoutReferenceOnly}
                 likedOnly={likedOnly}
                 origins={[
                   ...new Set([

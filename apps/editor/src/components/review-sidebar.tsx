@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { COMPARISON_SOURCES } from "../gallery-sources";
+import { MINE_FILTERS, type MineFilter } from "../review-queue";
 import { SidebarFoldButton } from "./gallery-tag-sidebar";
 
 const num = (value: number) => value.toLocaleString("en-US");
@@ -11,8 +12,10 @@ const FOLDED_AUTHORS = 12;
  * The left column, in the Gallery sidebar's own markup and look: a search
  * over names, authors and ids (a pasted link opens its drawing), then where
  * the drawings come from (Random mixes them all; Random again shuffles
- * anew), only those with a reference figure, and one author's. Each row
- * counts what it would show. It folds to a strip as that one does.
+ * anew), only those with a reference figure, the reader's own drawings by
+ * what others' reviews of them say or whether they lack a figure (#2129),
+ * and one author's. Each row counts what it would show. It folds to a strip
+ * as that one does.
  */
 export function ScopeSidebar({
   scope,
@@ -27,6 +30,9 @@ export function ScopeSidebar({
   authors,
   author,
   onAuthor,
+  mine,
+  mineCounts,
+  onMine,
   collapsed,
   onToggle,
 }: {
@@ -43,6 +49,10 @@ export function ScopeSidebar({
   authors: readonly { author: string; count: number }[];
   author: string | null;
   onAuthor: (author: string | null) => void;
+  mine: MineFilter | null;
+  /** Each row's count; null when the list holds none of the reader's own. */
+  mineCounts: Record<MineFilter, number> | null;
+  onMine: (filter: MineFilter | null) => void;
   collapsed: boolean;
   onToggle: () => void;
 }) {
@@ -153,6 +163,40 @@ export function ScopeSidebar({
             </span>
           </button>
         </div>
+        {mineCounts ? (
+          <>
+            <div className="gallery-sidebar-heading">
+              <h2>My drawings</h2>
+              {mine ? (
+                <button
+                  type="button"
+                  className="gallery-sidebar-clear"
+                  data-testid="review-mine-clear"
+                  onClick={() => onMine(null)}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+            <div className="review-sidebar-list" data-testid="review-mine">
+              {MINE_FILTERS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="gallery-sidebar-option"
+                  aria-pressed={mine === key}
+                  data-testid={`review-mine-${key}`}
+                  onClick={() => onMine(mine === key ? null : key)}
+                >
+                  <span>{label}</span>
+                  <span className="gallery-sidebar-count">
+                    {num(mineCounts[key])}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
         {authors.length ? (
           <>
             <div className="gallery-sidebar-heading">
