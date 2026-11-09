@@ -44,10 +44,9 @@ describe("netlist-crawler structural conversion", () => {
     ).toBe("blocked");
   });
 
-  it("refuses a subcircuit call that names no node", () => {
-    expect(
-      convertNetlist({ text: "X1 amp", source: "spice", target: "spectre" }),
-    ).toMatchObject({ status: "blocked", issues: [{ line: 1 }] });
+  it("converts a call to a subcircuit with no ports, and one with one node", () => {
+    // `.subckt leaf` with no ports is called as `X1 leaf` (Spectre `X1 () leaf`).
+    expect(converted("X1 amp", "spice")).toContain("X1 () amp");
     expect(converted("X1 a amp", "spice")).toContain("X1 (a) amp");
   });
 

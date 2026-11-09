@@ -695,7 +695,7 @@ function spiceInstance(s: Statement): string {
     let pos = f.findIndex((t) => t.includes("="));
     if (pos < 0) pos = f.length;
     if (f[pos - 1]?.toLowerCase() === "params:") pos--;
-    if (pos < 3) refuse(s, "Cannot locate subcircuit master and nodes.");
+    if (pos < 2) refuse(s, "Cannot locate subcircuit master and nodes.");
     const rest = f.slice(pos).filter((t) => t.toLowerCase() !== "params:");
     return output(
       f.slice(1, pos - 1),
