@@ -480,8 +480,10 @@ export function useEditorAgentConnection({
   // reader's again, and the header's Agent button shows the connection.
   const pairingStatus = useRef(agentSession?.status);
   useEffect(() => {
-    const before = pairingStatus.current;
     const now = agentSession?.status;
+    // The relay can redeem the Claim before it acknowledges the tab context.
+    if (now === "reconnecting" || now === "offline") return;
+    const before = pairingStatus.current;
     pairingStatus.current = now;
     if (
       (before === "creating" || before === "waiting-for-agent") &&
