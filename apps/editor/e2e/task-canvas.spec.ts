@@ -6,12 +6,12 @@ import { assembleServer } from "../../mcp-server/src/server.js";
 import { regionalAccounts } from "./regional-auth-fixture.js";
 
 const test = base.extend<{ accountName: string | null }>({
-  accountName: async ({ page, context, baseURL }, use) => {
+  accountName: async ({ page, context, baseURL }, provideAccount) => {
     const editorUrl = new URL(baseURL!);
     // A deployed-site run still exercises the full task lifecycle. The
     // isolated account cookie is available only on loopback.
     if (editorUrl.hostname !== "127.0.0.1") {
-      await use(null);
+      await provideAccount(null);
       return;
     }
     const accountName = "canvas-task-member";
@@ -47,7 +47,7 @@ const test = base.extend<{ accountName: string | null }>({
           await route.fulfill({ response });
         },
       );
-      await use(accountName);
+      await provideAccount(accountName);
     } finally {
       await accounts.close();
     }
