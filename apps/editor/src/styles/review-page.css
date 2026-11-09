@@ -237,9 +237,27 @@
   touch-action: none;
 }
 
-.review-pic.zoomed:not([data-drawing]) {
+.review-pic[data-panning] {
   cursor: grab;
   touch-action: none;
+}
+
+/* Inline, zoomed in: the way back to the whole picture. */
+.review-pic-fit {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.review-pic-fit:hover {
+  color: var(--icm-text);
 }
 
 .review-marks {
