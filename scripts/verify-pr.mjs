@@ -19,7 +19,7 @@
  * The merge queue qualifies the candidate merged with main. Local validation
  * timing and full-suite triggers live in docs/testing/README.md. This stops
  * at the first failure, ends with each step's time, and names the Gallery
- * census, with the checks the change needs, when AGENTS.md calls for it.
+ * census groups the change needs (docs/testing/README.md#gallery-census).
  * It warns, without failing, about each changed product file past 1,000
  * lines (#1537), so a reviewer decides whether to split it.
  */
@@ -116,9 +116,9 @@ function finish(status) {
   );
   if (census.length)
     process.stdout.write(
-      `\nAGENTS.md asks for the Gallery census (${census[0]}${
+      `\nGallery census required before delivery (${census[0]}${
         census.length > 1 ? ` and ${census.length - 1} more` : ""
-      }): pnpm gallery:census -- --base ${base} --checks ${censusChecks(
+      }; docs/testing/README.md#gallery-census): pnpm gallery:census -- --base ${base} --checks ${censusChecks(
         changed,
       ).join(",")}\n`,
     );

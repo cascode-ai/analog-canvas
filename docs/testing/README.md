@@ -84,10 +84,13 @@ independent fresh canvases. Open succeeds after project installation; insert
 succeeds after a placement commit or an installed fallback. Reports distinguish
 insertion, new-tab fallback, empty-scene opening and failure.
 
-Before accepting changes selected by `scripts/lib/verify-pr-selection.mjs`,
-run its selected groups; `pnpm verify:pr` prints the command. For every product
-release, also run the full-entry `insert` group against the last successfully
-deployed SHA as required by [delivery](../deployment.md#development-and-delivery-cadence).
+Before accepting a change, run the groups `scripts/lib/verify-pr-selection.mjs`
+selects against its base (`pnpm verify:pr` prints the command); a change with
+none selected needs no census. After each weekly
+[Gallery backup](../gallery-backup.md), run the public `insert` group on `main`
+against the commit the previous weekly run measured. A new failure opens an
+issue naming both commits, the snapshot and failure counts, without entry-level
+detail. If the selection missed the causing path, the fix adds it.
 
 Use `--base <git-ref>` to measure both refs with the current harness, or
 `--compare BASE.json HEAD.json` for saved reports. Both reports must cover the
@@ -97,11 +100,12 @@ different snapshots and incomplete entry coverage require both refs to rerun.
 A baseline rerun measures the older code with the current harness; it is not
 the original release's historical measurement.
 
-Record the snapshot's capture time, content digest, source inventory and public
-entry count. Confirm the input covers Community and all public Dataset sources;
-an empty anonymous source listing does not establish complete coverage.
-Use [Gallery backup](../gallery-backup.md) for authorized input collection.
-Missing or incomplete private input is an explicitly accepted delivery
+Record the snapshot's capture time, content digest and public entry count. Its
+drawings come from the Community store alone: the backup reads Dataset stores
+only for their [reviews](../gallery-backup.md#reviews-capture). Census evidence
+states Community-only coverage, never a Dataset pass. Dataset drawings join the
+weekly run only from a read-only snapshot the Owner supplies (`--backup`).
+Other missing or incomplete private input is an explicitly accepted delivery
 limitation, never a census pass.
 
 The comparison rejects new failures, changed netlists, labels that stop
