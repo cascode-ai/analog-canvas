@@ -1253,8 +1253,8 @@ test("public circuit authoring drafts survive closing and portable reopening wit
   await expect(button(editor, PUBLISH)).toBeDisabled();
   await editor.getByLabel("Close component editor").click();
   await openProjectFile(page, saved);
-  const discard = button(page, "Continue without saving");
-  if (await discard.isVisible()) await discard.click();
+  // Replacing unsaved work of any size asks first (#2147).
+  await continueWithoutSaving(page);
   await awaitEditorReady(page);
   await openProjectDraft(page, "Library draft finite_gain");
   await editor.getByRole("tab", { name: "Symbol", exact: true }).click();
